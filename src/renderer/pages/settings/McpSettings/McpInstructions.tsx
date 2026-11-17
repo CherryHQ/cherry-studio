@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button, Spinner } from '@cherrystudio/ui'
+import { Alert, Button, EmptyNote, Spinner } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { McpServerInstructions } from '@shared/types/mcp'
@@ -63,7 +63,7 @@ export default function McpInstructions({ serverId, connectionState }: { serverI
           </pre>
         </>
       ) : (
-        <p className="text-sm text-muted-foreground">{t('settings.mcp.instructions.empty')}</p>
+        <EmptyNote>{t('settings.mcp.instructions.empty')}</EmptyNote>
       )}
     </section>
   )

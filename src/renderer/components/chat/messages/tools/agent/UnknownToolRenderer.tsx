@@ -1,6 +1,8 @@
 import { CallToolResultSchema } from '@modelcontextprotocol/core'
 import { useTranslation } from 'react-i18next'
 
+import { EmptyNote } from '@cherrystudio/ui'
+
 import { ToolArgsTable } from '../shared/ArgsTable'
 import { ToolHeader } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
@@ -123,7 +125,7 @@ export function UnknownToolRenderer({ toolName, input, output }: UnknownToolProp
           />
         ))}
         {!normalizedInput && !normalizedOutput && mcpImages.length === 0 && !links?.length && (
-          <div className="text-foreground-500 p-3 text-xs">{t('message.tools.noData')}</div>
+          <EmptyNote className="m-3">{t('message.tools.noData')}</EmptyNote>
         )}
       </div>
     )

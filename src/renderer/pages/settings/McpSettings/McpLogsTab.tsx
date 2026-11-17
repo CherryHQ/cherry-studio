@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge } from '@cherrystudio/ui'
+import { Badge, EmptyNote } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import { ipcApi } from '@renderer/ipc'
@@ -62,9 +62,7 @@ const McpLogsTab = ({ serverId }: McpLogsTabProps) => {
         />
       </div>
       <LogList className="selectable pt-0">
-        {logs.length === 0 && (
-          <span className="text-foreground-tertiary text-sm">{t('settings.mcp.noLogs', 'No logs yet')}</span>
-        )}
+        {logs.length === 0 && <EmptyNote>{t('settings.mcp.noLogs', 'No logs yet')}</EmptyNote>}
         {logs.map((log, index) => (
           <LogItem key={`${log.timestamp}-${index}`}>
             <LogHeader>

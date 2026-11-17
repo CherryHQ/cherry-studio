@@ -8,6 +8,7 @@ export {
   QuickPanelRow,
   type QuickPanelRowData
 } from './list'
+export { QuickPanelEmptyIcon } from './QuickPanelEmptyIcon'
 export { QuickPanelContext, QuickPanelProvider } from './QuickPanelProvider'
 export { QuickPanelView } from './QuickPanelView'
 export type {

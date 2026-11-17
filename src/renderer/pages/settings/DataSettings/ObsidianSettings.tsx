@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
-  EmptyState,
+  EmptyNote,
   RowFlex,
   Select,
   SelectContent,
@@ -90,7 +90,7 @@ const ObsidianSettings: FC = () => {
               </SelectContent>
             </Select>
           ) : (
-            <EmptyState compact description={error || t('settings.data.obsidian.default_vault_no_vaults')} />
+            <EmptyNote>{error || t('settings.data.obsidian.default_vault_no_vaults')}</EmptyNote>
           )}
         </RowFlex>
       </SettingRow>

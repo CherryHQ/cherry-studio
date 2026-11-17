@@ -11,6 +11,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  EmptyNote,
   Label,
   Select,
   SelectContent,
@@ -202,7 +203,7 @@ function BrowserImportContent({
               </div>
             ))
           ) : (
-            <p className="text-muted-foreground text-sm">{t('settings.browser.importEmpty')}</p>
+            <EmptyNote>{t('settings.browser.importEmpty')}</EmptyNote>
           )}
         </div>
       ) : (

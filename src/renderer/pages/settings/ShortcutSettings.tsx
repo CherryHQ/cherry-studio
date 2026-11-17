@@ -14,6 +14,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  EmptyStateRow,
   Kbd,
   RowFlex,
   ScrollArea,
@@ -730,7 +731,9 @@ const ShortcutSettings: FC = () => {
                     )}
                   </div>
                 ) : (
-                  <div className="py-10 text-center text-muted-foreground text-sm">{t('settings.shortcuts.empty')}</div>
+                  <div className="p-4">
+                    <EmptyStateRow>{t('settings.shortcuts.empty')}</EmptyStateRow>
+                  </div>
                 )}
               </SettingGroup>
             )}

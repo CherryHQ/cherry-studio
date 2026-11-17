@@ -2,6 +2,7 @@ import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { EmptyStateMessage } from '@cherrystudio/ui'
 import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useAvailableFileProcessors } from '@renderer/hooks/useAvailableFileProcessors'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -75,7 +76,7 @@ const DocumentProcessingSettings: FC = () => {
         </div>
       ) : (
         <div className="flex h-full min-h-55 items-center justify-center text-foreground-tertiary text-sm">
-          {t('common.no_results')}
+          <EmptyStateMessage>{t('common.no_results')}</EmptyStateMessage>
         </div>
       )}
     </SettingsContentColumn>

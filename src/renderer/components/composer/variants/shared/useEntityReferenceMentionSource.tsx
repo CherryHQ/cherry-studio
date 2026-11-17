@@ -6,6 +6,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { dataApiService } from '@data/DataApiService'
+import { QuickPanelEmptyIcon } from '@renderer/components/QuickPanel'
 import { toast } from '@renderer/services/toast'
 
 import { serializeComposerDocument } from '../../composerDraft'
@@ -247,7 +248,7 @@ export function useEntityReferenceMentionSource({
             id: 'entity-reference:no-results',
             label: getEntityNoResultsLabel(entityType, t),
             description: getEntityNoResultsDescription(entityType, t),
-            icon: entityType === 'topic' ? <MessageSquare size={16} /> : <MousePointerClick size={16} />,
+            icon: <QuickPanelEmptyIcon />,
             disabled: true,
             command: () => undefined
           }
@@ -275,7 +276,7 @@ export function useEntityReferenceMentionSource({
         {
           id: 'entity-reference:no-results',
           label: t('common.no_results'),
-          icon: entityType === 'topic' ? <MessageSquare size={16} /> : <MousePointerClick size={16} />,
+          icon: <QuickPanelEmptyIcon />,
           disabled: true,
           command: () => undefined
         }

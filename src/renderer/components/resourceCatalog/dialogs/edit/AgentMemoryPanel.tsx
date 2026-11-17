@@ -1,4 +1,4 @@
-import { Copy, FolderOpen, LoaderCircle, MoreHorizontal, Pencil, RefreshCw } from 'lucide-react'
+import { Copy, FileText, FileX, FolderOpen, LoaderCircle, MoreHorizontal, Pencil, RefreshCw } from 'lucide-react'
 import { type Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -9,6 +9,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  EmptyPlaceholder,
   ScrollArea,
   Tabs,
   TabsContent,
@@ -288,32 +289,42 @@ export function AgentMemoryPanel({
 
     if (!selected.exists) {
       return (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-          <p className="text-muted-foreground text-sm">{t('agent.memory.not_exists')}</p>
-          {canEdit ? (
-            <Button type="button" variant="outline" size="sm" onClick={startEdit}>
-              <Pencil className="size-4" aria-hidden="true" />
-              {t('agent.memory.create')}
-            </Button>
-          ) : readOnlyReason ? (
-            <p className="max-w-sm text-muted-foreground text-xs">{t(readOnlyReason)}</p>
-          ) : null}
+        <div className="flex flex-1 items-center justify-center p-6">
+          <EmptyPlaceholder
+            icon={FileX}
+            title={t('agent.memory.not_exists')}
+            description={!canEdit && readOnlyReason ? t(readOnlyReason) : undefined}
+            action={
+              canEdit ? (
+                <Button type="button" variant="outline" size="sm" onClick={startEdit}>
+                  <Pencil className="size-4" aria-hidden="true" />
+                  {t('agent.memory.create')}
+                </Button>
+              ) : undefined
+            }
+            className="w-full max-w-md"
+          />
         </div>
       )
     }
 
     if (!selected.content.trim()) {
       return (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-          <p className="text-muted-foreground text-sm">{t('agent.memory.empty')}</p>
-          {canEdit ? (
-            <Button type="button" variant="outline" size="sm" onClick={startEdit}>
-              <Pencil className="size-4" aria-hidden="true" />
-              {t('agent.memory.edit')}
-            </Button>
-          ) : readOnlyReason ? (
-            <p className="max-w-sm text-muted-foreground text-xs">{t(readOnlyReason)}</p>
-          ) : null}
+        <div className="flex flex-1 items-center justify-center p-6">
+          <EmptyPlaceholder
+            icon={FileText}
+            title={t('agent.memory.empty')}
+            description={!canEdit && readOnlyReason ? t(readOnlyReason) : undefined}
+            action={
+              canEdit ? (
+                <Button type="button" variant="outline" size="sm" onClick={startEdit}>
+                  <Pencil className="size-4" aria-hidden="true" />
+                  {t('agent.memory.edit')}
+                </Button>
+              ) : undefined
+            }
+            className="w-full max-w-md"
+          />
         </div>
       )
     }

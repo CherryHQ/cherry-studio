@@ -3,7 +3,7 @@ import type { ComponentProps, MouseEvent, ReactNode, Ref } from 'react'
 import { isValidElement, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Tooltip } from '@cherrystudio/ui'
+import { EmptyStateRow, Tooltip } from '@cherrystudio/ui'
 import { CommandContextMenu, CommandFocusScope } from '@renderer/components/command'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { cn } from '@renderer/utils/style'
@@ -468,7 +468,7 @@ export function GroupEmpty({ className, ref, style, ...props }: GroupEmptyProps)
         className
       )}
       {...props}>
-      {meta.groupEmptyLabel}
+      <EmptyStateRow className="h-7 min-h-0 flex-1 py-0">{meta.groupEmptyLabel}</EmptyStateRow>
     </div>
   )
 }

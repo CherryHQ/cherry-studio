@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  EmptyStateRow,
   Tooltip
 } from '@cherrystudio/ui'
 import { ResourceList } from '@renderer/components/chat/resourceList/base'
@@ -235,7 +236,7 @@ export function ScheduledTaskGroup({
               {t('common.loading')}
             </p>
           ) : source.tasks.length === 0 ? (
-            <p className="px-2.5 pb-3 text-xs text-foreground-tertiary">{t('scheduledTasks.emptyGroup')}</p>
+            <EmptyStateRow className="mx-1 mb-2">{t('scheduledTasks.emptyGroup')}</EmptyStateRow>
           ) : (
             source.tasks.map((task) => (
               <TaskRow

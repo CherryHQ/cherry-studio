@@ -69,7 +69,6 @@ export const providerListClasses = {
   sectionHeader: 'pb-0.5 pl-2 pr-2 pt-1.5',
   sectionHeaderAfterEnabled: 'pt-2',
   sectionLabel: 'mb-0.5 text-xs leading-[1.2] text-foreground-tertiary',
-  emptyState: 'flex h-full min-h-40 items-center justify-center px-3 text-center text-foreground-tertiary text-[14px]',
   addFooter: 'shrink-0 px-2.5 pt-2 pb-2.5',
   addButton:
     'flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-transparent px-2.5 py-0 text-xs text-foreground shadow-none transition-colors hover:border-border-strong hover:bg-accent/50 disabled:pointer-events-none disabled:opacity-40',
