@@ -1917,7 +1917,8 @@ describe('VoiceSettings', () => {
     const voiceSelect = screen.getByRole('combobox', { name: 'Speech voice' })
     await waitFor(() => expect(screen.getByRole('button', { name: 'Preview voice' })).toBeEnabled())
     expect(screen.getByTestId('speech-status')).toHaveTextContent(i18n.t('settings.voice.status.ready'))
-    expect(voiceSelect).toHaveTextContent('Exact Voice')
+    // The voice list loads separately from the speech status.
+    await waitFor(() => expect(voiceSelect).toHaveTextContent('Exact Voice'))
     fireEvent.click(await screen.findByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() => expect(open.mock.calls.at(-1)?.[0]?.context.message).toBe('model_load_failed'))
     expect(open.mock.calls.at(-1)?.[0]?.context.operation).toBe('voice.load')
