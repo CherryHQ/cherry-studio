@@ -48,6 +48,10 @@ const gptImage25ImageGeneration = {
 }
 
 const gptImage26EditSupports = {
+  complexity: { options: ['low', 'medium', 'high'], type: 'enum' as const },
+  outputFormat: { options: ['png', 'jpeg', 'webp', 'gif'], type: 'enum' as const },
+  frameCount: { min: 2, max: 16, default: 9, step: 1, type: 'range' as const },
+  frameDurationMs: { min: 20, max: 655350, default: 200, step: 10, type: 'range' as const },
   background: gptImageFullSupports.background,
   numImages: gptImageFullSupports.numImages,
   quality: gptImageFullSupports.quality,
@@ -56,7 +60,12 @@ const gptImage26EditSupports = {
 
 const gptImage26ImageGeneration = {
   modes: {
-    generate: { supports: gptImageFullSupports },
+    generate: {
+      supports: {
+        ...gptImage26EditSupports,
+        moderation: gptImageFullSupports.moderation
+      }
+    },
     edit: { supports: gptImage26EditSupports }
   }
 }

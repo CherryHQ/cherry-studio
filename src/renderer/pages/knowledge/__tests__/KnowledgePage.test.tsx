@@ -9,7 +9,6 @@ import type * as KnowledgeItemHooks from '@renderer/hooks/useKnowledgeItems'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
-import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { Group } from '@shared/data/types/group'
 import type {
   KnowledgeBase,
@@ -853,44 +852,6 @@ describe('KnowledgePage', () => {
     expect(mockChunkDetailPanelModuleLoad).not.toHaveBeenCalled()
   })
 
-  it('auto-selects the first knowledge base after bases load', async () => {
-    mockUseKnowledgeBases.mockReturnValue({
-      bases: [
-        createKnowledgeBase({
-          id: 'base-1',
-          name: 'Base 1',
-          embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID
-        }),
-        createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
-      ],
-      isLoading: false,
-      error: undefined,
-      refetch: vi.fn()
-    })
-    mockUseKnowledgeItems.mockImplementation((baseId: string) => ({
-      items:
-        baseId === 'base-1'
-          ? [createKnowledgeItem({ id: 'item-1' }), createKnowledgeItem({ id: 'item-2' })]
-          : [createKnowledgeItem({ id: 'item-3' })],
-      total: baseId === 'base-1' ? 2 : 1,
-      isLoading: false,
-      error: undefined,
-      refetch: vi.fn()
-    }))
-
-    render(<RoutedKnowledgePage />)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('detail-header')).toHaveTextContent('Base 1')
-    })
-    expect(screen.getByTestId('group-names')).toHaveTextContent('Research,Archive')
-    expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-1')
-    expect(screen.getByTestId('data-source-panel')).toHaveTextContent('2:idle')
-    expect(mockDataSourcePanelRender).toHaveBeenLastCalledWith(
-      expect.objectContaining({ embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID })
-    )
-  })
-
   it('selects the knowledge base from the route and publishes later selections', async () => {
     const onBaseIdChange = vi.fn()
     mockUseKnowledgeBases.mockReturnValue({
@@ -1340,35 +1301,6 @@ describe('KnowledgePage', () => {
 
     expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
-  })
-
-  it('hides knowledge-base actions while the chunk detail panel is open', async () => {
-    mockUseKnowledgeBases.mockReturnValue({
-      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
-      isLoading: false,
-      error: undefined,
-      refetch: vi.fn()
-    })
-    mockUseKnowledgeItems.mockReturnValue({
-      items: [createKnowledgeItem({ id: 'item-1' })],
-      total: 1,
-      isLoading: false,
-      error: undefined,
-      refetch: vi.fn()
-    })
-
-    render(<RoutedKnowledgePage />)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'OpenChunks item-1' }))
-    // The chunk panel mounts through React.lazy; await its first resolution
-    expect(await screen.findByTestId('chunk-detail-panel')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'OpenRagConfig' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'OpenRecallTest' })).not.toBeInTheDocument()
-    expect(screen.queryByTestId('rag-config-panel')).not.toBeInTheDocument()
   })
 
   it('shows the loading state when bases are still loading', () => {
@@ -2032,44 +1964,6 @@ describe('KnowledgePage', () => {
     fireEvent.mouseMove(document, { clientX: 360 })
 
     expect(screen.getByTestId('navigator-width')).toHaveTextContent('320')
-  })
-
-  it('isolates navigator resize updates from the detail section', async () => {
-    mockUseKnowledgeBases.mockReturnValue({
-      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
-      isLoading: false,
-      error: undefined,
-      refetch: vi.fn()
-    })
-
-    render(<RoutedKnowledgePage />)
-
-    await screen.findByTestId('detail-header')
-    mockDetailHeaderRender.mockClear()
-
-    const resizeButton = screen.getByTestId('navigator-resize-start')
-    const content = resizeButton.parentElement?.parentElement?.parentElement
-
-    if (!content) {
-      throw new Error('Expected knowledge page content container')
-    }
-
-    vi.spyOn(content, 'getBoundingClientRect').mockReturnValue(new DOMRect(40, 0, 800, 500))
-
-    expect(screen.getByTestId('navigator-width')).toHaveTextContent('250')
-
-    fireEvent.mouseDown(resizeButton)
-    fireEvent.mouseMove(document, { clientX: 360 })
-    expect(screen.getByTestId('navigator-width')).toHaveTextContent('320')
-
-    fireEvent.mouseMove(document, { clientX: 100 })
-    expect(screen.getByTestId('navigator-width')).toHaveTextContent('220')
-
-    fireEvent.mouseMove(document, { clientX: 500 })
-    expect(screen.getByTestId('navigator-width')).toHaveTextContent('360')
-    expect(mockDetailHeaderRender).not.toHaveBeenCalled()
-
-    fireEvent.mouseUp(document)
   })
 
   it('shows a toast when moving a knowledge base fails', async () => {

@@ -187,10 +187,13 @@ interface StreamListener {
   onMessage?(message: CherryUIMessage, sourceModelId?: string, sourceKind?: 'chunks' | 'messages'): void
   onDone(result: StreamDoneResult): void | Promise<void>      // { finalMessage?, status: 'success', ... }
   onPaused(result: StreamPausedResult): void | Promise<void>  // { finalMessage?, status: 'paused',  ... }
-  onError(result: StreamErrorResult): void | Promise<void>    // { finalMessage?, error, status: 'error', ... }
+  onError(result: StreamErrorResult, originalError?: unknown): void | Promise<void>
   isAlive(): boolean
 }
 ```
+
+For prompt streams, `onError` may also receive the original in-process exception.
+Persistent chat listeners receive only the serialized error.
 
 All three terminal shapes share the same `finalMessage?` field — the
 current `CherryUIMessage` from the execution's selected source. Chunk sources use
@@ -374,6 +377,8 @@ chunks are still-operable state a reconnect must replay for the user to
 decide. Growth stays bounded because the approval blocks the round (almost no
 chunks stream during the wait) and `approvalIdleTimeoutMs` caps the window.
 Eviction resumes with the same chunk that resolves the approval.
+
+A host-recorded refusal remains `output-denied` in the message projection and final persistence input even if the runtime later reports the rejected tool as an error. Allowed tools retain their actual execution results; an allowed call can still fail.
 
 This keeps `attach` observational: subscribing a new window may never abort,
 pause, or otherwise change the topic or agent runtime. Runtime termination stays
@@ -964,9 +969,16 @@ skip-when-no-finalMessage, swallow errors) is implemented once.
 - **Streaming.** `streamText(request)` returns
   `Promise<ReadableStream<UIMessageChunk>>`, consumed by
   `AiStreamManager.runExecutionLoop`.
-- **Non-streaming IPC gateway.** `generateText` / `checkModel` /
+- **One-shot IPC gateway.** `generateText` / `checkModel` /
   `embedMany` / `generateImage` / `listModels`, registered as IPC
   handlers in `onInit`.
+
+For text models, `checkModel` uses streaming when `supportsStreaming` is true;
+otherwise it keeps non-streaming generation. Streaming probes consume the full
+response in main and return only `{ latency }`, without creating a chat stream
+or persisting messages. Success requires non-empty text and a normal `stop` or
+`length` finish. The default 15-second total deadline and other modality probes
+are unchanged; latency measures the entire probe, not time to first token.
 
 `AiStreamManager` calls `await application.get('AiService').streamText(...)`.
 Pre-stream errors (provider / model resolution, agent param build)

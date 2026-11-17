@@ -1,6 +1,7 @@
 import { getToastUtilities, type ToastLabels } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
-import { cherryCloudQuotaRejectionText, isAbortError, providerErrorText } from '@renderer/utils/error'
+import { getCherryCloudErrorPresentation } from '@renderer/utils/cherryCloudErrorPresentation'
+import { isAbortError, providerErrorText } from '@renderer/utils/error'
 import { classifyError, type ErrorCategory } from '@renderer/utils/errorClassifier'
 import {
   type ErrorToastAction,
@@ -8,7 +9,6 @@ import {
   errorToastPresentations,
   serializeToastError
 } from '@renderer/utils/errorToast'
-import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { Provider } from '@shared/data/types/provider'
 
 import { openSettingsTab } from './mainWindowNavigation'
@@ -51,10 +51,10 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const classification = classifyError(serialized, context.provider?.id)
   const category = context.category ?? classification.category
   const provider = context.provider
-  // A Cherry AI plan's own rejection names the plan and when to retry; provider settings cannot fix it.
-  const planQuota = provider?.id === CHERRY_CLOUD_PROVIDER_ID && (category === 'quota' || category === 'rate_limit')
+  const cloudPresentation = getCherryCloudErrorPresentation(serialized, provider?.id, category)
+  const planQuota = cloudPresentation.quota
   const presentation: ErrorToastPresentation = planQuota ? { type: 'warning' } : errorToastPresentations[category]
-  const details = planQuota ? cherryCloudQuotaRejectionText(serialized) : providerErrorText(serialized)
+  const details = planQuota ? cloudPresentation.text : providerErrorText(serialized)
   const configure = provider
     ? () => openSettingsTab(`/settings/provider?id=${encodeURIComponent(provider.id)}`)
     : undefined

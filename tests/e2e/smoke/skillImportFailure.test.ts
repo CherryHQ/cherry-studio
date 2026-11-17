@@ -2,9 +2,10 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { _electron as electron } from '@playwright/test'
-import AdmZip from 'adm-zip'
+import JSZip from 'jszip'
 
-import { expect, test as base } from './fixtures/electron.fixture'
+import { closeElectronApp, expect, test as base } from './fixtures/electron.fixture'
+import { openSettings } from './utils/navigation'
 
 const test = base.extend<{ isolatedProfile: string }>({
   // oxlint-disable-next-line no-empty-pattern -- Playwright requires destructured fixture arguments.
@@ -26,7 +27,7 @@ const test = base.extend<{ isolatedProfile: string }>({
     try {
       await use(app)
     } finally {
-      await app.close()
+      await closeElectronApp(app)
     }
   }
 })
@@ -54,9 +55,9 @@ test('local skill import reports complete Chinese failures and installs valid ZI
     { name: 'nested-skill.zip', entry: `${names.nested}/SKILL.md`, content: descriptor(names.nested) }
   ]
   for (const fixture of archives) {
-    const archive = new AdmZip()
-    archive.addFile(fixture.entry, fixture.content)
-    archive.writeZip(path.join(fixtureRoot, fixture.name))
+    const archive = new JSZip()
+    archive.file(fixture.entry, fixture.content)
+    await writeFile(path.join(fixtureRoot, fixture.name), await archive.generateAsync({ type: 'nodebuffer' }))
   }
   const directories = [
     { name: 'empty-dir', entry: null },
@@ -151,10 +152,9 @@ test('local skill import reports complete Chinese failures and installs valid ZI
   }
 
   try {
-    const shell = page.locator('[data-ui~="app.shell"]').first()
+    const shell = page.locator('[data-ui~="app.content"]').first()
     const onboarding = page.locator('[data-onboarding-language-select]')
     const skipOnboarding = page.getByRole('button', { name: '稍后设置', exact: true })
-    const settingsButton = shell.getByRole('button', { name: '设置', exact: true }).filter({ visible: true }).first()
 
     // Host language decides the first screen (preference is null on a fresh profile), so pin it before
     // asserting any localized text: this reaches the main-process locale as well.
@@ -171,8 +171,7 @@ test('local skill import reports complete Chinese failures and installs valid ZI
     await expect(onboarding).toBeHidden({ timeout: 60_000 })
     await expect(shell).toBeVisible({ timeout: 60_000 })
 
-    await expect(settings.or(settingsButton).filter({ visible: true }).first()).toBeVisible({ timeout: 30_000 })
-    if (!(await settings.isVisible())) await settingsButton.click({ timeout: 30_000 })
+    await openSettings(page)
     await expect(settings).toBeVisible({ timeout: 30_000 })
     await settings
       .locator('[data-ui="settings.navigation"] [data-slot="menu-item"]')

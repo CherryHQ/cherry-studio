@@ -15,14 +15,15 @@ export function SubscriptionSettings() {
     session: { status, loadState, login, cancelLogin, isAuthorizing, isCancellingLogin },
     plansQuery: { data: plans, error, isLoading: loading, mutate },
     activePaid,
-    upcomingPaid
+    upcomingPaid,
+    isPlansReady
   } = useCherryCloudPlans()
   const paidPlan = activePaid ?? upcomingPaid
-  const failed = Boolean(error)
+  const failed = Boolean(error) || (!loading && !isPlansReady)
 
   const availablePlan = useMemo(() => plans?.available_plans.find((item) => !item.is_free), [plans])
-  const plansLoaded = status?.phase === 'signed-in' && plans !== undefined
-  const subscribed = Boolean(activePaid)
+  const plansLoaded = status?.phase === 'signed-in' && isPlansReady
+  const subscribed = Boolean(paidPlan)
   const usageViewReported = useRef(false)
   useEffect(() => {
     if (!plansLoaded) return
@@ -40,7 +41,9 @@ export function SubscriptionSettings() {
         type="button"
         className="cursor-pointer border-0 bg-transparent p-0 text-[13px] text-link hover:underline"
         onClick={() => {
-          trackSubscriptionEvent({ event: 'subscription_faq_click', subscribed })
+          if (isPlansReady || status?.phase === 'signed-out') {
+            trackSubscriptionEvent({ event: 'subscription_faq_click', subscribed })
+          }
           void openCherryCloudFaq()
         }}>
         {t('settings.subscription.faq')}
@@ -105,8 +108,8 @@ export function SubscriptionSettings() {
   return (
     <div className="space-y-6">
       {header}
-      {/* Unknown until plans load; a failed load must not tell a subscriber they have no plan. */}
-      {plans && (
+      {/* Last-known paid plans remain manageable; only fresh facts can offer a subscription. */}
+      {plans && (isPlansReady || paidPlan) && (
         <div className="rounded-xl border border-border bg-card p-4">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
@@ -123,7 +126,10 @@ export function SubscriptionSettings() {
               variant="outline"
               size="sm"
               onClick={() => {
-                if (!paidPlan) return void startCherryCloudSubscription('settings')
+                if (!paidPlan) {
+                  if (isPlansReady) void startCherryCloudSubscription('settings')
+                  return
+                }
                 trackSubscriptionEvent({ event: 'subscription_manage_click' })
                 void openCherryCloudAccountPortal({ entrySource: 'manage' })
               }}>

@@ -390,12 +390,22 @@ const ChannelInstanceRow: FC<{
         </div>
       </div>
       <Tooltip title={t('agent.channels.logs')}>
-        <Button variant="ghost" size="icon-sm" aria-label={t('agent.channels.logs')} onClick={onShowLogs}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t('agent.channels.logs')}
+          onClick={onShowLogs}
+          className="text-muted-foreground">
           <FileText className="size-4" />
         </Button>
       </Tooltip>
       <Tooltip title={t('common.edit')}>
-        <Button variant="ghost" size="icon-sm" aria-label={t('common.edit')} onClick={onEdit}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t('common.edit')}
+          onClick={onEdit}
+          className="text-muted-foreground">
           <Pencil className="size-4" />
         </Button>
       </Tooltip>
@@ -403,7 +413,7 @@ const ChannelInstanceRow: FC<{
         <Button
           variant="ghost"
           size="icon-sm"
-          className="hover:text-destructive!"
+          className="text-muted-foreground hover:text-destructive! focus-visible:text-destructive!"
           aria-label={t('common.delete')}
           onClick={() => setDeleteConfirmOpen(true)}>
           <Trash2 className="size-4" />
@@ -587,7 +597,6 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
             {channelList.length === 0 && (
               <EmptyState
                 compact
-                preset="no-resource"
                 description={t('agent.channels.noInstances', { type: channelDef.name })}
                 className="py-8"
               />

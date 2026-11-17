@@ -1,5 +1,5 @@
 import { arrayMove } from '@dnd-kit/sortable'
-import { CircleOff, LoaderCircle, WifiOff } from 'lucide-react'
+import { CircleOff, LoaderCircle, Settings, WifiOff } from 'lucide-react'
 import type { ReactElement, Ref } from 'react'
 import {
   lazy,
@@ -15,17 +15,15 @@ import {
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import useSWR from 'swr'
 
-import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { useCherryCloudSubscribeReminder } from '@renderer/hooks/useCherryCloudPlans'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
-import { ipcApi } from '@renderer/ipc'
 import { trackSubscriptionEntryView } from '@renderer/services/cherryCloudSubscriptionAnalytics'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { isMac } from '@renderer/utils/platform'
 
@@ -39,6 +37,7 @@ import {
   type ResolvedSidebarEntry,
   type SidebarIconPresentation,
   type SidebarUser,
+  type SidebarVisibleLayout,
   Sidebar as UISidebar
 } from '../Sidebar'
 import { UserAccountPanel } from '../UserAccountPanel'
@@ -75,13 +74,6 @@ export default function Sidebar({
   const unreadDescriptionId = useId()
   const showUserInFooter = isMac && !isFullscreen
   const [userName] = usePreference('app.user.name')
-  const { status: accountStatus } = useCherryAccountSession()
-  const accountId = accountStatus?.phase === 'signed-in' ? accountStatus.accountId : null
-  useSWR(
-    accountId ? ['cherry-cloud/account-plans', accountId] : null,
-    () => ipcApi.request('cherry_cloud.account_plans.get'),
-    { shouldRetryOnError: false }
-  )
   const { shortcuts, remove, reorder } = useSidebarShortcuts()
   const registry = useSidebarShortcutRegistry()
   const resolutions = useResolvedSidebarShortcuts(shortcuts, registry)
@@ -303,6 +295,30 @@ export default function Sidebar({
     entries,
     emptyHint: t('sidebar.empty_hint', { launchpad: t('title.launchpad') }),
     user: sidebarUser,
+    actions: !showUserInFooter
+      ? (footerLayout: SidebarVisibleLayout) => (
+          <Tooltip
+            content={t('settings.title')}
+            placement="right"
+            delay={400}
+            fullWidthTrigger={footerLayout === 'full'}>
+            <Button
+              type="button"
+              variant="ghost"
+              size={footerLayout === 'icon' ? 'icon' : 'default'}
+              aria-label={t('settings.title')}
+              onClick={() => openSettingsTab()}
+              className={
+                footerLayout === 'icon'
+                  ? 'shell-navigation-item size-9 rounded-full'
+                  : 'shell-navigation-item flex w-full items-center justify-start gap-2.5 rounded-full px-2.5 py-1.75 text-[13px]'
+              }>
+              <Settings className="size-4.5" strokeWidth={1.6} />
+              {footerLayout === 'full' && <span>{t('settings.title')}</span>}
+            </Button>
+          </Tooltip>
+        )
+      : undefined,
     userAction: layout === 'full' ? <AppUpdateButton placement="top" /> : undefined,
     renderUserTrigger: renderSidebarUserTrigger,
     onEntriesReorder: handleReorder

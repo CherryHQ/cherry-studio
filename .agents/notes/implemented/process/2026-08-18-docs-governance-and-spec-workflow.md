@@ -138,7 +138,7 @@ Quality precedes translation throughout: a doc is audited current before it is p
 - **Keeping the `guides/` vs `references/` split.** Rejected: the classification is already fiction; use-based classification (tutorial = ordered steps to an observable outcome) shows almost everything here is reference or process material.
 - **Porting dsh's full translation machinery now** (merge driver, `gen-translation-brief`, doc budgets). Deferred: dsh itself marks the heavy paths as explicit-invocation-only; routine one-pass counterpart updates suffice until sync conflicts become a real cost.
 - **dsh's per-PR note mandate.** Amended to the decision threshold in P4; the fix volume here would turn the mandate into ritual.
-- **Building the website projection now.** Deferred: docs.cherry-ai.com lives in a separate repository; projection is a separate decision after the corpus is governed.
+- **Building the website projection now.** Deferred: cherryai.com/docs lives in a separate repository; projection is a separate decision after the corpus is governed.
 
 ## Consequences
 

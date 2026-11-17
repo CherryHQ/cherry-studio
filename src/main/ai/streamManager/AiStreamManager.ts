@@ -4,6 +4,7 @@ import { context as otelContext, type Span, SpanStatusCode, trace } from '@opent
 import { isToolUIPart, type UIMessageChunk } from 'ai'
 
 import { application } from '@application'
+import { cloneObservationValue } from '@cherrystudio/agent-runtime'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { CHAT_STREAM_IDLE_TIMEOUT_MS } from '@main/ai/constants'
@@ -90,11 +91,20 @@ function withResolvedApprovals(message: CherryUIMessage, exec: StreamExecution):
   return {
     ...message,
     parts: message.parts.map((part) => {
-      if (!isToolUIPart(part) || part.state !== 'approval-requested') return part
+      if (!isToolUIPart(part) || !part.approval) return part
       const approved = exec.resolvedToolApprovals?.get(part.toolCallId)
-      return approved === undefined
-        ? part
-        : { ...part, state: 'approval-responded', approval: { ...part.approval, approved } }
+      if (approved === false) {
+        return {
+          ...part,
+          state: 'output-denied',
+          output: undefined,
+          errorText: undefined,
+          approval: { ...part.approval, approved: false as const }
+        }
+      }
+      return approved === true && part.state === 'approval-requested'
+        ? { ...part, state: 'approval-responded', approval: { ...part.approval, approved } }
+        : part
     })
   }
 }
@@ -377,7 +387,7 @@ export class AiStreamManager extends BaseService {
           [...stream.executions.values()].find(
             (item) => item.anchorMessageId === message.id || item.finalMessage?.id === message.id
           )
-        if (!exec) return structuredClone(projectStreamMessageForRenderer(topicId, message))
+        if (!exec) return cloneObservationValue(projectStreamMessageForRenderer(topicId, message))
         const accepted = (exec.acceptedToolResults ??= new AcceptedToolResults(topicId))
         const parts = message.parts.map((part) => {
           if (isToolUIPart(part) && part.state === 'output-available')
@@ -386,9 +396,9 @@ export class AiStreamManager extends BaseService {
                 .get(topicId)
                 ?.invalidateToolResults([{ topicId, messageId: message.id, toolCallId: part.toolCallId }])
             })
-          return structuredClone(part)
+          return cloneObservationValue(part)
         })
-        return { ...structuredClone({ ...message, parts: [] }), parts }
+        return { ...cloneObservationValue({ ...message, parts: [] }), parts }
       })
       this.projections.set(topicId, projection)
     }
@@ -1353,6 +1363,29 @@ export class AiStreamManager extends BaseService {
     return changed
   }
 
+  retireToolApproval(
+    topicId: string,
+    toolCallId: string,
+    owner?: { anchorMessageId?: string; attemptId?: number }
+  ): boolean {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return false
+    let changed = false
+    let pendingApprovalFlipped = false
+    for (const exec of stream.executions.values()) {
+      if (owner?.anchorMessageId !== undefined && exec.anchorMessageId !== owner.anchorMessageId) continue
+      if (owner?.attemptId !== undefined && exec.attemptId !== owner.attemptId) continue
+      if (!exec.pendingApprovalToolCallIds?.delete(toolCallId)) continue
+      while (exec.runtimeTiming.finishApproval({ toolCallId })) {}
+      changed = true
+      if (exec.pendingApprovalToolCallIds.size === 0) pendingApprovalFlipped = true
+    }
+    if (changed && pendingApprovalFlipped) {
+      stream.lifecycle.onApprovalPendingChanged(stream)
+    }
+    return changed
+  }
+
   addCompletedRuntimeSpan(topicId: string, assistantMessageId: string, span: MessageRuntimeSpan): boolean {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return false
@@ -1402,7 +1435,7 @@ export class AiStreamManager extends BaseService {
       if (isAgentSessionTopic(topicId)) {
         const runtimeClosing = application
           .get('AgentSessionRuntimeService')
-          .closeSession(extractAgentSessionId(topicId))
+          .closeSession(extractAgentSessionId(topicId), true)
         const drainReplacementLoops = async (): Promise<void> => {
           for (;;) {
             const replacement = this.activeStreams.get(topicId)
@@ -1693,7 +1726,8 @@ export class AiStreamManager extends BaseService {
     topicId: string,
     modelId: UniqueModelId,
     error: SerializedError,
-    expectedExecution?: StreamExecution
+    expectedExecution?: StreamExecution,
+    originalError?: unknown
   ): Promise<void> {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
@@ -1736,7 +1770,7 @@ export class AiStreamManager extends BaseService {
 
     const settleTerminalDispatch = this.beginTerminalDispatch(topicId)
     try {
-      await this.dispatchToListeners(stream, exec, result)
+      await this.dispatchToListeners(stream, exec, result, originalError)
       this.emitUnsuccessfulExecution(stream, exec, result)
 
       // See onExecutionDone: awaited terminal dispatch may outlive this stream's registry slot.
@@ -2182,7 +2216,7 @@ export class AiStreamManager extends BaseService {
     exec.loopPromise = launchLoop()
       .catch((err) => {
         // Defensive funnel for sync throws (e.g. `streamText` rejects before returning a stream).
-        return this.onExecutionError(topicId, modelId, serializeError(err), exec)
+        return this.onExecutionError(topicId, modelId, serializeError(err), exec, err)
       })
       .finally(() => activity.dispose())
 
@@ -2261,7 +2295,7 @@ export class AiStreamManager extends BaseService {
       if (!signal.aborted) {
         logger.error('streamText failed before stream start', { topicId, modelId, err: chatErrorContext(err) })
       }
-      await this.onExecutionError(topicId, modelId, serializeError(err), exec)
+      await this.onExecutionError(topicId, modelId, serializeError(err), exec, err)
       return
     }
 
@@ -2333,7 +2367,7 @@ export class AiStreamManager extends BaseService {
           ? errorFromStreamChunk(result.streamErrorText)
           : fromThrow
       if (!abortShaped) serialized.streamStage = 'response-stream'
-      await this.onExecutionError(topicId, modelId, serialized, exec)
+      await this.onExecutionError(topicId, modelId, serialized, exec, result.threw.error)
       return
     }
 
@@ -2456,7 +2490,8 @@ export class AiStreamManager extends BaseService {
   private async dispatchToListeners(
     stream: ActiveStream,
     exec: StreamExecution,
-    result: StreamDoneResult | StreamPausedResult | StreamErrorResult
+    result: StreamDoneResult | StreamPausedResult | StreamErrorResult,
+    originalError?: unknown
   ): Promise<void> {
     const dead: string[] = []
     const listeners = [...stream.listeners]
@@ -2486,7 +2521,7 @@ export class AiStreamManager extends BaseService {
             ? listener.onDone(result)
             : result.status === 'paused'
               ? listener.onPaused(result)
-              : listener.onError(result)
+              : listener.onError(result, stream.lifecycle === promptStreamLifecycle ? originalError : undefined)
         exec.finalMessage = result.finalMessage
         await dispatch
       } catch (err) {

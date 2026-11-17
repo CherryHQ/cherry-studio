@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rename, rm, symlink, utimes, writeFile } from
 import os from 'node:os'
 import path from 'node:path'
 
-import { insertAgentSessionMessages, setupTestDatabase } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -151,18 +151,19 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     expect(jobScheduleService.getById(task.id)).toBeNull()
     expect(
       agentSessionService
-        .listByCursor({ inTrash: true })
+        .listByCursor({ scope: 'ordinary', inTrash: true })
         .items.map((s) => s.id)
         .sort()
     ).toEqual(sessions.map((s) => s.id).sort())
     expect(agentSessionService.getById('user').deletedAt).toBeUndefined()
     await lifecycle.restoreSession(sessions[0].id)
-    expect(agentSessionService.listByCursor().items.map((s) => s.id)).toContain(sessions[0].id)
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((s) => s.id)).toContain(sessions[0].id)
   })
 
   const createChild = (ownerSessionId: string) => {
     const id = dbh.db.transaction((tx) => agentSessionService.createChildArchiveTx(tx, ownerSessionId, 'Child'))
     insertAgentSessionMessages(dbh.db, {
+      parentId: seedSessionRoot(dbh.db, id),
       id: `${id}-result`,
       sessionId: id,
       role: 'assistant',

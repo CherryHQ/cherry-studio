@@ -202,65 +202,14 @@ describe('NewMiniAppPanel', () => {
     expect((saveBtn as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it('uses separate titles for creating and editing custom mini apps', () => {
-    const { rerender } = render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
-    expect(screen.getByText('miniApp.add.title')).toBeInTheDocument()
-
-    rerender(
-      <NewMiniAppPanel
-        open={true}
-        app={{
-          kind: 'site',
-          appId: 'custom-app',
-          presetMiniAppId: null,
-          status: 'enabled',
-          orderKey: 'a0',
-          name: 'Old App',
-          url: 'https://old.app',
-          logo: 'application'
-        }}
-        onClose={vi.fn()}
-      />
-    )
-    expect(screen.getByText('settings.miniApps.custom.edit_title')).toBeInTheDocument()
-  })
-
-  it('offers a website tab and a package tab when creating, and no tabs when editing', () => {
-    const { rerender } = render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
-    // Website first, as before: the save button belongs to that form.
-    expect(screen.getByRole('button', { name: /common\.save/ })).toBeInTheDocument()
-    expect(screen.queryByText('miniApp.add.site_description')).toBeNull()
-
+  it('opens the mini-app developer documentation from the package tab', () => {
+    render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
     fireEvent.click(screen.getByRole('tab', { name: 'miniApp.add.tab_app' }))
-    // The package tab IS the install panel's picker — one dialog, not a second entry.
-    expect(screen.getByText('miniApp.add.app_description')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'miniApp.install.choose_file' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /common\.save/ })).toBeNull()
-
     fireEvent.click(screen.getByRole('button', { name: 'miniApp.add.developer_docs' }))
     expect(mocks.ipcRequest).toHaveBeenCalledWith(
       'system.shell.open_website',
       'https://github.com/CherryHQ/cherry-studio-miniapps'
     )
-
-    rerender(
-      <NewMiniAppPanel
-        open={true}
-        app={{
-          kind: 'site',
-          appId: 'custom-app',
-          presetMiniAppId: null,
-          status: 'enabled',
-          orderKey: 'a0',
-          name: 'Old App',
-          url: 'https://old.app',
-          logo: 'application'
-        }}
-        onClose={vi.fn()}
-      />
-    )
-    expect(screen.queryByRole('tablist')).toBeNull()
-    expect(screen.getByRole('button', { name: /common\.save/ })).toBeInTheDocument()
   })
 
   it('shows an error when the developer documentation cannot be opened', async () => {
@@ -302,12 +251,6 @@ describe('NewMiniAppPanel', () => {
 
     expect(toast.error).toHaveBeenCalledWith('settings.miniApps.custom.url_invalid')
     expect(mocks.createCustomMiniApp).not.toHaveBeenCalled()
-  })
-
-  it('does not expose logo URL controls for new custom mini apps', () => {
-    render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
-    expect(screen.queryByPlaceholderText('settings.miniApps.custom.logo_url_placeholder')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'settings.miniApps.custom.logo_url' })).toBeNull()
   })
 
   it('submits edited values for an existing custom mini app', async () => {

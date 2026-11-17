@@ -15,7 +15,8 @@ import {
   MousePointerClick,
   NotepadText,
   Package,
-  Palette
+  Palette,
+  Store
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -36,6 +37,7 @@ export const SIDEBAR_ICON_COMPONENTS = {
   agents: MousePointerClick,
   scheduled_tasks: Clock,
   paintings: Palette,
+  marketplace: Store,
   translate: Languages,
   mini_app: LayoutGrid,
   knowledge: FileSearch,
@@ -86,6 +88,7 @@ export function SidebarIcon({
 }: LucideProps & { icon: SidebarGlyph; active?: boolean }) {
   const Outline = NAVIGATION_ICON_COMPONENTS[icon]
   if (!active) return <Outline {...props} />
+  if (icon === 'marketplace') return <Outline {...props} fill="currentColor" stroke="var(--sidebar)" />
   if (icon === 'scheduled_tasks') {
     return (
       <Icon

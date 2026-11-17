@@ -201,7 +201,7 @@ const Selector = <V extends string | number>({
         className="w-auto min-w-(--radix-popover-trigger-width) p-1">
         <ScrollArea
           type="auto"
-          className="max-h-80"
+          className="max-h-[min(20rem,calc(var(--radix-popover-content-available-height)-0.5rem))]"
           viewportProps={{ role: 'listbox', 'aria-multiselectable': multiple || undefined }}>
           {renderOptions(options)}
         </ScrollArea>

@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto'
 
-import { insertAgentSessionMessages, setupTestDatabase, type AgentSessionMessageFixture } from '@test-helpers/db'
+import {
+  type AgentSessionMessageFixture,
+  insertAgentSessionMessages,
+  setupTestDatabase,
+  seedSessionRoot
+} from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -47,6 +52,7 @@ describe('AgentSessionContextSeeder', () => {
 
   function message(sessionId: string, values: Partial<AgentSessionMessageFixture> = {}) {
     insertAgentSessionMessages(dbh.db, {
+      parentId: seedSessionRoot(dbh.db, sessionId),
       id: randomUUID(),
       sessionId,
       role: 'user',

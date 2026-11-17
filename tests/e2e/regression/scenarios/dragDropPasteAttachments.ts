@@ -213,7 +213,7 @@ export async function dragDropPasteAttachments(app: RegressionApp, page: Page, t
       await expect(overlay.getByRole('heading')).toContainText(
         name === chineseName ? name.replace(/\.txt$/, '') : 'Pasted Text'
       )
-      const content = overlay.locator('.cm-content')
+      const content = overlay.getByRole('textbox')
       await expect(content).toBeVisible()
       await content.click()
       await content.press('ControlOrMeta+a')

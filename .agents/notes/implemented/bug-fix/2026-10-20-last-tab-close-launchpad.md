@@ -12,7 +12,7 @@ The divergence was invisible from the user's side until the last tab: the same c
 
 ## Decision
 
-`tab.close` always closes the active tab through the tab bar's `closeTab` path. A close that empties the tab strip therefore produces the Launchpad fallback tab, exactly like the X button. The window-close accelerator (`app.window.close`, `CommandOrControl+Shift+W`) and the title bar close button remain the only ways to close the main window.
+The decision recorded here was that `tab.close` always closed the active tab through the tab bar's `closeTab` path. A close that emptied the tab strip therefore produced the Launchpad fallback tab, exactly like the X button.
 
 A detached sub-window keeps mapping `tab.close` to `window.close`: it hosts one tab, draws no tab bar, and has no Launchpad empty state to fall back to.
 
@@ -23,9 +23,9 @@ A detached sub-window keeps mapping `tab.close` to `window.close`: it hosts one 
 
 ## Consequences
 
-`CommandOrControl+W` no longer closes the main window when one tab remains; it leaves the Launchpad instead. Closing the window still has a dedicated shortcut and the title bar button, and close-to-tray behavior is untouched. This intentionally reverses #21144, so a future maintainer should not restore the window-close special case without also removing the Launchpad fallback.
+At the time, `CommandOrControl+W` on the last tab left the Launchpad instead of closing the main window; the dedicated window-close shortcut and title bar button remained available, and close-to-tray behavior was untouched. The macOS shortcut behavior is superseded by [the successor decision](2026-10-31-cmd-w-last-tab-closes-main-window.md); the tab bar's X still uses the Launchpad fallback.
 
 ## Verification
 
-- Regression — `src/renderer/components/layout/__tests__/AppShell.test.tsx`: the `tab.close` shortcut on the last tab routes to `closeTab` and never requests `window.close`; the tab bar path keeps the same routing.
+- Historical regression — `src/renderer/components/layout/__tests__/AppShell.test.tsx`: the `tab.close` shortcut on the last tab routed to `closeTab` and never requested `window.close`; the successor note records current verification.
 - Regression — `src/renderer/components/layout/__tests__/TabsProvider.test.tsx`: closing the only tab still opens `/app/launchpad` (existing coverage of the fallback).

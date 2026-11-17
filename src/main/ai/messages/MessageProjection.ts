@@ -17,6 +17,26 @@ const logger = loggerService.withContext('MessageProjection')
 type ProjectionView<S extends ProjectionState> = S & { messages: readonly CherryUIMessage[] }
 type ProjectionInput<S extends ProjectionState> = ProjectionView<S> | (() => ProjectionView<S>)
 
+function captureMessage(message: CherryUIMessage, before?: CherryUIMessage): CherryUIMessage {
+  if (before && isDeepStrictEqual(before, message)) return before
+  const { parts, ...state } = message
+  return {
+    // oxlint-disable-next-line no-restricted-globals -- Capture changed message metadata only; parts are selected separately below.
+    ...structuredClone(state),
+    parts: parts.map((part, index) => {
+      const previous = before?.parts[index]
+      if (previous && isDeepStrictEqual(previous, part)) return previous
+      if (part.type === 'text' || part.type === 'reasoning') {
+        const { text, ...metadata } = part
+        // oxlint-disable-next-line no-restricted-globals -- Capture changed text metadata without copying its growing immutable text string.
+        return { ...structuredClone(metadata), text }
+      }
+      // oxlint-disable-next-line no-restricted-globals -- Capture only changed mutable parts; unchanged isolated parts retain their references.
+      return structuredClone(part)
+    })
+  }
+}
+
 /** Publishes current views; native observation and persistence remain with the owner. */
 export class MessageProjection<S extends ProjectionState> {
   private view: MessageProjectionView<S>
@@ -26,7 +46,14 @@ export class MessageProjection<S extends ProjectionState> {
   private readonly listeners = new Set<(update: MessageProjectionUpdate<S>) => void>()
 
   constructor(initial: S & { messages: readonly CherryUIMessage[] }) {
-    this.view = { ...structuredClone(initial), revision: 0 }
+    const { messages, ...state } = initial
+    this.view = {
+      ...initial,
+      // oxlint-disable-next-line no-restricted-globals -- Capture initial projection state without copying the message graph a second time.
+      ...structuredClone(state),
+      messages: messages.map((message) => captureMessage(message)),
+      revision: 0
+    }
   }
 
   snapshot(): MessageProjectionView<S> {
@@ -47,11 +74,17 @@ export class MessageProjection<S extends ProjectionState> {
 
   /** Mutable inputs are snapshotted at acceptance; lazy inputs are snapshotted when resolved. */
   update(next: ProjectionInput<S>, immediate = false, changedResults: readonly DeferredToolResultRef[] = []): void {
-    this.updateAccepted(
-      typeof next === 'function' ? () => structuredClone(next()) : structuredClone(next),
-      immediate,
-      changedResults
-    )
+    const capture = (source: ProjectionView<S>): ProjectionView<S> => {
+      const previous = new Map(this.view.messages.map((message) => [message.id, message]))
+      const { messages, ...state } = source
+      return {
+        ...source,
+        // oxlint-disable-next-line no-restricted-globals -- Isolate producer metadata once at acceptance; parts reuse captured values.
+        ...structuredClone(state),
+        messages: messages.map((message) => captureMessage(message, previous.get(message.id)))
+      }
+    }
+    this.updateAccepted(typeof next === 'function' ? () => capture(next()) : capture(next), immediate, changedResults)
   }
 
   /** The owner must snapshot native values before accepting them and preserve untouched part identities. */
@@ -124,9 +157,9 @@ export class MessageProjection<S extends ProjectionState> {
     this.changedResults.clear()
     if (!patches.length && !orderChanged && isDeepStrictEqual(beforeState, nextState)) return
     this.view = { ...next, revision: this.view.revision + 1 }
-    const { messages, ...state } = this.view
+    const { messages, ...published } = this.view
     const update = {
-      ...state,
+      ...published,
       patches,
       ...(orderChanged ? { order: messages.map((message) => message.id) } : {})
     } as MessageProjectionUpdate<S>

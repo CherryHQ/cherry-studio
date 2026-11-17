@@ -11,6 +11,7 @@ const routeTitleKeys: Record<string, string> = {
   '/app/agents': 'title.work',
   '/app/scheduled-tasks': 'settings.scheduledTasks.title',
   '/app/paintings': 'title.paintings',
+  '/app/marketplace': 'title.marketplace',
   '/app/translate': 'title.translate',
   '/app/launchpad': 'title.launchpad',
   '/app/mini-app': 'title.apps',
@@ -21,14 +22,6 @@ const routeTitleKeys: Record<string, string> = {
   '/app/release-notes': 'settings.about.releases.title',
   '/settings': 'title.settings'
 }
-
-// Sub-routes of these base paths inherit the section's default title and
-// refresh on language change. Paintings qualifies because its splat route
-// ignores the URL segment (the provider comes from preference), so a
-// paintings sub-path tab has no per-entity title — the section title is the
-// only meaningful label. Contrast /app/mini-app, which is deliberately left
-// out so caller-supplied per-entity titles survive.
-const autoLocalizableBasePaths = new Set(['/app/paintings'])
 
 /**
  * Get the base path for route matching
@@ -101,13 +94,4 @@ const PAGE_TITLED_ROUTE_BASE_PATHS = new Set(['/app/chat', '/app/agents'])
 export function isPageTitledRoute(url: string): boolean {
   const pathname = pathnameOf(url)
   return PAGE_TITLED_ROUTE_BASE_PATHS.has(getBasePath(pathname))
-}
-
-/**
- * True when TabsContext can safely refresh the title from the route's default
- * i18n key after language changes.
- */
-export function shouldAutoLocalizeRouteTitle(url: string): boolean {
-  const pathname = pathnameOf(url)
-  return isTopLevelRoute(url) || pathname.startsWith('/settings') || autoLocalizableBasePaths.has(getBasePath(pathname))
 }

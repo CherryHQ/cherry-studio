@@ -5,8 +5,7 @@ import type {
   SDKPartialAssistantMessage,
   SDKResultMessage,
   SDKUserMessage,
-  SessionMessage,
-  SessionStoreEntry
+  SessionMessage
 } from '@anthropic-ai/claude-agent-sdk'
 
 import {
@@ -19,6 +18,7 @@ import {
   type Thread
 } from '@cherrystudio/agent-runtime'
 
+import type { NativeArchiveEntry } from './archive'
 import {
   decodeArchiveContent,
   json,
@@ -30,6 +30,7 @@ import {
 import { ClaudeControlState, type ClaudeControl } from './control'
 import { ClaudeInvocations } from './invocations'
 import { ClaudeFeed } from './observation'
+import { isSyntheticTurnCloser } from './synthetic'
 import type { ClaudeArchive, ClaudeNativeMessage } from './types'
 
 type Part = RuntimeMessage['parts'][number]
@@ -42,6 +43,7 @@ export class ClaudeProjection {
   readonly retracted = new Set<string>()
   private readonly sources = new Set<string>()
   private readonly legacy: Record<string, { messageId: string; parts: number[] }> = {}
+  private legacyChanged = false
   private readonly messages = new Map<string, RuntimeMessage>()
   private readonly calls = new Map<string, { id: string; part: ToolPart }>()
   private readonly results = new Map<string, Set<string>>()
@@ -149,7 +151,7 @@ export class ClaudeProjection {
     message: SDKAssistantMessage | SDKUserMessage,
     options: { aborted?: boolean; inputId?: InputId; live?: boolean } = {}
   ): ObservationPayload[] {
-    if (!message.uuid) return []
+    if (!message.uuid || (message.type === 'assistant' && isSyntheticTurnCloser(message.message))) return []
     if (options.aborted) this.aborted.add(message.uuid)
     const partial = this.aborted.has(message.uuid)
     const content = message.message.content
@@ -217,7 +219,11 @@ export class ClaudeProjection {
         this.calls.set(part.toolCallId, { id: uuid, part })
         if (previous?.type === 'dynamic-tool' && previous.state.startsWith('output-')) part = previous
       }
-      this.legacy[`${uuid}:${index}`] = { messageId: uuid, parts: [value.parts.length] }
+      const key = `${uuid}:${index}`
+      if (this.legacy[key]?.messageId !== uuid || this.legacy[key]?.parts[0] !== value.parts.length) {
+        this.legacy[key] = { messageId: uuid, parts: [value.parts.length] }
+        this.legacyChanged = true
+      }
       value.parts.push(part)
     }
     this.sources.add(uuid)
@@ -447,7 +453,7 @@ export class ClaudeProjection {
     return this.preview(block.part)
   }
 
-  restore(messages: readonly SessionMessage[], entries: readonly SessionStoreEntry[]): ClaudeArchive {
+  restore(messages: readonly SessionMessage[], entries: readonly NativeArchiveEntry[]): ClaudeArchive {
     const before = this.feed.snapshot
     const metadata = new Map(entries.filter((entry) => entry.uuid).map((entry) => [entry.uuid!, entry]))
     const removals = entries.flatMap((entry) => {
@@ -458,6 +464,7 @@ export class ClaudeProjection {
     const selected = messages.filter((message) => !this.retracted.has(message.uuid))
     const inputs = new Map(before.inputs.map((input) => [input.nativeInput?.id, input.inputId]))
     for (const message of selected) {
+      if (message.type === 'assistant' && isSyntheticTurnCloser(message.message)) continue
       if (metadata.get(message.uuid)?.isAbortedMidStream === true) this.aborted.add(message.uuid)
       const decoded = decodeArchiveContent(message.message, this.aborted.has(message.uuid))
       if (decoded)
@@ -469,9 +476,19 @@ export class ClaudeProjection {
     }
     this.feed.publish(
       events,
-      selected.map((message) => ({ source: 'archive', message })),
+      selected.map((message): ClaudeNativeMessage => {
+        const entry = metadata.get(message.uuid)
+        return {
+          source: 'archive',
+          message,
+          ...(message.type === 'assistant' && entry?.type === 'assistant' && entry.isApiErrorMessage === true
+            ? { isApiErrorMessage: true as const }
+            : {})
+        }
+      }),
       this.legacy
     )
+    this.legacyChanged = false
     const content = selected.flatMap((message) =>
       this.messages.has(message.uuid) ? [this.messages.get(message.uuid)!] : []
     )
@@ -517,10 +534,11 @@ export class ClaudeProjection {
     this.feed.publish(
       events,
       message ? [message] : [],
-      this.legacy,
+      this.legacyChanged ? this.legacy : undefined,
       invocations,
       [...controls, ...this.pendingControls.splice(0)],
       this.control.snapshot
     )
+    this.legacyChanged = false
   }
 }

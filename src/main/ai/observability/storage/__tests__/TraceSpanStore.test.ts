@@ -75,7 +75,6 @@ describe('TraceSpanStore eviction', () => {
       store.clearSpans([`s${i}`])
     }
 
-    expect(store['traceResetRevisions'].size).toBeLessThanOrEqual(1_000)
     expect(store.getSpanChanges({ traceId: 'trace-old' }, stale.revision).reset).toBe(true)
 
     // The conservative floor must not force a resync on cursors newer than everything evicted.

@@ -11,6 +11,7 @@ import type {
   TopicExportMenuOptions,
   TopicMoveAssistantTarget
 } from '@renderer/components/chat/actions/topicContextMenuActions'
+import { useTopicMenuActions } from '@renderer/components/chat/actions/useTopicMenuActions'
 import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import {
   CONVERSATION_ROW_STATUS_TITLE_CLASS,
@@ -27,7 +28,6 @@ import {
   subscribeChatDraftCache
 } from '@renderer/components/composer/variants/chat/chatDraftCache'
 import EditNameDialog from '@renderer/components/EditNameDialog'
-import { useTopicMenuActions } from '@renderer/hooks/chat/useTopicMenuActions'
 import { useTopicRenameState } from '@renderer/hooks/chat/useTopicRenameState'
 import type { Topic } from '@renderer/types/topic'
 import type { TopicDisplayMode } from '@renderer/utils/chat/topicsHelpers'
@@ -94,6 +94,8 @@ interface TopicListBodyProps {
   onAutoRename: (topic: Topic) => Promise<void>
   onClearMessages: (topic: Topic) => void
   onDeleteFromMenu: (topic: Topic) => Promise<void>
+  onDeletePermanently: (topic: Topic) => Promise<void>
+  permanentDeleteShortcut: string
   onMoveToAssistant: (topic: Topic, assistantId: string) => void | Promise<void>
   onOpenInNewTab?: (topic: Topic) => void
   onOpenInNewWindow?: (topic: Topic) => void
@@ -122,6 +124,8 @@ export function TopicListBody(props: TopicListBodyProps) {
     onAutoRename,
     onClearMessages,
     onDeleteFromMenu,
+    onDeletePermanently,
+    permanentDeleteShortcut,
     onMoveToAssistant,
     onOpenInNewTab,
     onOpenInNewWindow,
@@ -145,6 +149,8 @@ export function TopicListBody(props: TopicListBodyProps) {
       onAutoRename,
       onClearMessages,
       onDeleteFromMenu,
+      onDeletePermanently,
+      permanentDeleteShortcut,
       onMoveToAssistant,
       onOpenInNewTab,
       onOpenInNewWindow,
@@ -165,6 +171,8 @@ export function TopicListBody(props: TopicListBodyProps) {
       onAutoRename,
       onClearMessages,
       onDeleteFromMenu,
+      onDeletePermanently,
+      permanentDeleteShortcut,
       onMoveToAssistant,
       onOpenInNewTab,
       onOpenInNewWindow,
@@ -226,6 +234,8 @@ const TopicRow = memo(function TopicRow({
   onAutoRename,
   onClearMessages,
   onDeleteFromMenu,
+  onDeletePermanently,
+  permanentDeleteShortcut,
   onMoveToAssistant,
   onOpenInNewTab,
   onOpenInNewWindow,
@@ -299,6 +309,8 @@ const TopicRow = memo(function TopicRow({
     onClearMessages,
     onCopyImage: (topic) => onRequestTopicImageAction('copy', topic),
     onDelete: onDeleteFromMenu,
+    onDeletePermanently,
+    permanentDeleteShortcut,
     onExportImage: (topic) => onRequestTopicImageAction('export', topic),
     onMoveToAssistant,
     onOpenInNewTab,

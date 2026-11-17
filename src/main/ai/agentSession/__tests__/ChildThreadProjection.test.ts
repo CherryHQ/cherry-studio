@@ -255,6 +255,35 @@ it('serializes asynchronous archives with live completion and retains the previe
   ])
 })
 
+it('archives unobserved child updates without building delivery copies until a baseline is requested', async () => {
+  const f = fixture()
+  await f.projection.attach()
+  // oxlint-disable-next-line no-restricted-properties -- Measure real clone work without replacing the copy or isolation behavior.
+  const clone = globalThis.structuredClone
+  let copies = 0
+  const measured = vi.spyOn(globalThis, 'structuredClone').mockImplementation((value, options) => {
+    copies++
+    return clone(value, options)
+  })
+  try {
+    for (const text of ['A', 'AB', 'ABC']) {
+      await f.send({ type: 'message.upsert', message: f.item('preview', text, 'partial') })
+      await f.projection.flush()
+    }
+    expect(copies).toBe(0)
+  } finally {
+    measured.mockRestore()
+  }
+  const baseline = f.projection.snapshot()
+  expect(baseline.messages[0].parts[0]).toMatchObject({ text: 'ABC' })
+  const updates: AgentChildUpdate[] = []
+  f.projection.subscribe((update) => updates.push(update))
+  await f.send({ type: 'message.upsert', message: f.item('preview', 'ABCD', 'partial') })
+  await f.projection.flush()
+  expect(updates).toMatchObject([{ revision: baseline.revision + 1, patches: [{ type: 'append', text: 'D' }] }])
+  expect(baseline.messages[0].parts[0]).toMatchObject({ text: 'ABC' })
+})
+
 // Catches a mutable SDK snapshot erasing the previous text before the transport computes a delta.
 it('publishes incremental text before completion and keeps previously delivered views stable', async () => {
   const f = fixture()

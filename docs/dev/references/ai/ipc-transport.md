@@ -63,6 +63,13 @@ Each renderer shares a latest-value LRU bounded to 16 MiB of serialized UTF-8 re
 
 The low-level `ai.stream.attach/detach` and chunk events remain available for existing raw-stream consumers. SSE, channel and one-shot prompt listeners keep their stream-specific contracts. Desktop root/child views no longer use chunk replay or `IpcChatTransport`.
 
+## One-shot text generation
+
+`ai.text.generate` accepts `disableTools: true` for text-only background work,
+including Agent next-prompt predictions. The flag suppresses tool registration
+without creating or changing an Agent execution. An optional `requestId` pairs
+the request with `ai.text.abort`; callers must still ignore stale results.
+
 ## Related references
 
 - [Execution Overlay](./execution-overlay.md) — projection publication and recovery.

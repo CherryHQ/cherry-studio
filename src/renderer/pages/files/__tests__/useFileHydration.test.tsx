@@ -12,8 +12,8 @@ import { useFileHydration } from '../useFileHydration'
 const { request } = vi.hoisted(() => ({ request: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request } }))
 
-const text = { id: 'text', ext: 'txt' } as FileEntry
-const image = { id: 'image', ext: 'png' } as FileEntry
+const text = { id: 'text', ext: 'txt', origin: 'external' } as FileEntry
+const image = { id: 'image', ext: 'png', origin: 'internal' } as FileEntry
 type Props = { pages: { items: FileEntry[] }[]; fileType?: FileType }
 
 function setup(props: Props, cache = new Map()) {
@@ -138,7 +138,7 @@ describe('Files hydration cache', () => {
     expect(request.mock.calls.filter(([route]) => route === 'file.batch_get_dangling_states')).toHaveLength(1)
   })
 
-  it('handles empty image batches and resets to a different first page', async () => {
+  it('handles empty physical-path batches and resets to a different first page', async () => {
     const { result, rerender } = setup({ pages: [{ items: [text] }] })
     await waitFor(() => expect(result.current.metadataById).toEqual({ text: null }))
     expect(result.current.physicalPathById).toEqual({})

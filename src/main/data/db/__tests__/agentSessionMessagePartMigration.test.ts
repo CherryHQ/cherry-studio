@@ -1,13 +1,13 @@
 import { resolve } from 'node:path'
 
-import { setupTestDatabase } from '@test-helpers/db'
+import { seedSessionRoot, setupTestDatabase } from '@test-helpers/db'
 import { v7 as uuid } from 'uuid'
 import { describe, expect, it } from 'vitest'
 
 import { applyMigrations } from '@data/db/applyMigrations'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 
-// Triggers shipped before 0037: both rebuild `searchable_text` from `data.parts`.
+// Triggers shipped before 0042: both rebuild `searchable_text` from `data.parts`.
 const SHIPPED_TRIGGERS = [
   'DROP TRIGGER IF EXISTS agent_session_message_ai',
   'DROP TRIGGER IF EXISTS agent_session_message_au',
@@ -36,8 +36,8 @@ const SHIPPED_TRIGGERS = [
   END`
 ]
 
-describe('agent session message part migration (0037)', () => {
-  const dbh = setupTestDatabase({ beforeMigration: '0037_agent_session_message_part' })
+describe('agent session message part migration (0042)', () => {
+  const dbh = setupTestDatabase({ beforeMigration: '0042_regular_riptide' })
 
   const ftsIds = (term: string) =>
     (
@@ -89,18 +89,20 @@ describe('agent session message part migration (0037)', () => {
       runtimeAnchor: { checkpoint: { runtime: 'pi', boundary: 3 } },
       turnOptions: { fastMode: true }
     }
+    const rootId = seedSessionRoot(dbh.db, sessionId)
     const insertMessage = dbh.sqlite.prepare(
-      `INSERT INTO agent_session_message (id, session_id, role, data, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'success', ?, ?)`
+      `INSERT INTO agent_session_message (id, session_id, role, data, status, created_at, updated_at, parent_id)
+       VALUES (?, ?, ?, ?, 'success', ?, ?, ?)`
     )
-    insertMessage.run(userId, sessionId, 'user', JSON.stringify({ parts: userParts }), 10, 11)
+    insertMessage.run(userId, sessionId, 'user', JSON.stringify({ parts: userParts }), 10, 11, rootId)
     insertMessage.run(
       assistantId,
       sessionId,
       'assistant',
       JSON.stringify({ parts: assistantParts, ...assistantMetadata }),
       20,
-      21
+      21,
+      rootId
     )
     dbh.sqlite
       .prepare(
@@ -124,7 +126,9 @@ describe('agent session message part migration (0037)', () => {
       assistantParts.map((part, seq) => ({ seq, type: part.type, payload: part, session_id: sessionId }))
     )
     const containers = dbh.sqlite
-      .prepare('SELECT id, data, searchable_text, updated_at FROM agent_session_message ORDER BY created_at')
+      .prepare(
+        "SELECT id, data, searchable_text, updated_at FROM agent_session_message WHERE role != 'root' ORDER BY created_at"
+      )
       .all() as Array<{ id: string; data: string; searchable_text: string; updated_at: number }>
     expect(containers.map((row) => ({ ...row, data: JSON.parse(row.data) }))).toEqual([
       { id: userId, data: {}, searchable_text: 'alphaneedle question', updated_at: 11 },

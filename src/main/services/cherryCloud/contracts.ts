@@ -131,7 +131,14 @@ export const notificationReadySchema = z.looseObject({ cursor: z.string().min(1)
 export const cloudNotificationSchema = z.looseObject({
   id: z.string().min(1),
   cursor: z.string().min(1),
-  refresh: z.array(z.string()).optional()
+  refresh: z.array(z.string()).optional(),
+  type: z.string().optional(),
+  subscription_id: z.string().optional(),
+  title: z.string().optional(),
+  body: z.string().optional(),
+  occurred_at: z.string().optional(),
+  // Deadline for prominent presentation, not deletion or entitlement expiry.
+  expires_at: z.string().optional()
 })
 
 export const cloudNotificationPageSchema = z.looseObject({

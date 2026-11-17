@@ -9,7 +9,7 @@ const Qiniu = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const QiniuIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Qiniu, {
   Avatar: QiniuAvatar,
-  colorPrimary: '#06AEEF'
+  colorPrimary: '#e9f8fe'
 })
 
 export default QiniuIcon

@@ -42,6 +42,7 @@ import type { CompactionSink } from '@shared/ai/compaction'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
+import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { ImageGenerationMode, ListedModels } from '@shared/data/types/model'
@@ -56,6 +57,7 @@ import {
   isRerankModel
 } from '@shared/utils/model'
 import { isExternalCliProvider, isOllamaProvider } from '@shared/utils/provider'
+import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
 
 import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
@@ -202,7 +204,13 @@ function createCaptureContext(input: {
         providerId: provider.id,
         modelId,
         pricing: model.pricing,
-        billing: provider.settings.billing
+        billing:
+          provider.settings.billing ??
+          getDefaultProviderBilling(
+            input.provider,
+            model,
+            resolveEffectiveEndpoint(input.provider, input.model).baseUrl
+          )
       }).pricingSnapshot
     } catch (error) {
       logger.warn('Could not capture invocation pricing', { error })
@@ -436,6 +444,13 @@ export class AiService extends BaseService {
     // would otherwise overwrite (see installProviderUserAgentInterceptor).
     this.registerDisposable(installProviderUserAgentInterceptor())
     application.get('JobManager').registerHandler('image-generation.generate', imageGenerationJobHandler)
+    this.registerDisposable(
+      application.get('PreferenceService').subscribeChange('agent.skills.external_export.enabled', () => {
+        void skillService.syncExternalExports().catch((error) => {
+          logger.warn('Failed to sync external skill exports after preference change', { error })
+        })
+      })
+    )
     // Install built-in skills, then heal the CLAUDE_CONFIG_DIR/skills mirror once at
     // startup — chained (not two independent fire-and-forgets) so the mirror reconcile
     // always runs after builtin skills have synced to agent_global_skill this boot,
@@ -465,23 +480,27 @@ export class AiService extends BaseService {
   ): Promise<AiToolApprovalRespondResponse> {
     // Claude-Agent path: the runtime settles any persisted interaction card, then unblocks
     // the exact `canUseTool` invocation that issued this approval id.
-    const dispatched = application.get('AgentSessionRuntimeService').respondToolApproval(
+    const result = application.get('AgentSessionRuntimeService').respondToolApproval(
       payload.approvalId,
       {
         approved: payload.approved,
         reason: payload.reason,
         updatedInput: payload.updatedInput
       },
-      payload.anchorId
+      payload.anchorId,
+      payload.topicId
     )
-    if (dispatched) return { ok: true }
+    if (result.ok) return result
+
+    // Agent-session anchors belong to the runtime path, never the chat message table.
+    if (payload.topicId && isAgentSessionTopic(payload.topicId)) return result
 
     // MCP path: write decisions to DB, then dispatch continue-conversation when nothing is pending.
     if (!payload.topicId || !payload.anchorId) {
       logger.warn('Tool-approval response had no live registry entry and no anchor context', {
         approvalId: payload.approvalId
       })
-      return { ok: false }
+      return { ok: false, reason: 'rejected' }
     }
 
     // The approval card is clickable the moment the `tool-approval-request` chunk arrives (the live
@@ -502,7 +521,7 @@ export class AiService extends BaseService {
           topicId: payload.topicId
         }
       )
-      return { ok: false }
+      return { ok: false, reason: 'rejected' }
     }
 
     // Main is the single authority for the approval mutation: the
@@ -532,7 +551,7 @@ export class AiService extends BaseService {
         approvalId: payload.approvalId,
         anchorId: payload.anchorId
       })
-      return { ok: false }
+      return { ok: false, reason: 'rejected' }
     }
     const { parts: committedParts, appliedApprovalIds, alreadySettledApprovalIds } = approvalResult
     if (appliedApprovalIds.length === 0 && alreadySettledApprovalIds.includes(decision.approvalId)) {
@@ -554,7 +573,7 @@ export class AiService extends BaseService {
     // surface it on, so resolve through the result shape instead of dispatching into the void.
     if (!senderWc) {
       logger.warn('Tool-approval continuation skipped: no caller window', { approvalId: payload.approvalId })
-      return { ok: false }
+      return { ok: false, reason: 'rejected' }
     }
 
     const aiStreamManager = application.get('AiStreamManager')
@@ -576,7 +595,7 @@ export class AiService extends BaseService {
         topicId: payload.topicId,
         error: error instanceof Error ? error.message : String(error)
       })
-      return { ok: false }
+      return { ok: false, reason: 'rejected' }
     }
     return { ok: true }
   }
@@ -676,7 +695,7 @@ export class AiService extends BaseService {
 
     // An explicit per-request `maxRetries: 0` means "no retries for this request"
     // — honor it (like embedding/rerank), overriding the global retry preference.
-    const retryDisabledForRequest = request.requestOptions?.maxRetries === 0
+    const retryDisabledForRequest = request.contextOwner === 'caller' || request.requestOptions?.maxRetries === 0
     const agentRef: { current?: Agent } = {}
     let activeRepairToolCall = options.repairToolCall
     const repairToolCall = options.repairToolCall
@@ -748,6 +767,7 @@ export class AiService extends BaseService {
     }
 
     const agent = new Agent({
+      contextOwner: request.contextOwner,
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
@@ -825,6 +845,14 @@ export class AiService extends BaseService {
     request: AsInProcessChat<AiGenerateRequest>,
     extraFeatures: readonly RequestFeature[] = []
   ): Promise<AiGenerateResult> {
+    return this.generateTextWithMode(request, extraFeatures, 'generate')
+  }
+
+  private async generateTextWithMode(
+    request: AsInProcessChat<AiGenerateRequest>,
+    extraFeatures: readonly RequestFeature[],
+    mode: 'generate' | 'stream'
+  ): Promise<AiGenerateResult> {
     logger.info('generateText started', { assistantId: request.assistantId })
     const signal = request.requestOptions?.signal
     // Model messages go directly to generation, not the UI-message context scanner.
@@ -862,7 +890,7 @@ export class AiService extends BaseService {
 
     // An explicit per-request `maxRetries: 0` disables retry for this request.
     let wrapModel: ReturnType<typeof createRetryableWrap>
-    if (request.requestOptions?.maxRetries !== 0) {
+    if (request.contextOwner !== 'caller' && request.requestOptions?.maxRetries !== 0) {
       const apiKeyFallbacks = buildApiKeyFallbackModels({
         request,
         provider,
@@ -920,6 +948,7 @@ export class AiService extends BaseService {
     // be JSON/base64-encoded or rejected on OpenAI/Ollama, diverging from `stream`.
     const mediaCapabilities = resolveMediaCapabilities(model)
     const agent = new Agent({
+      contextOwner: request.contextOwner,
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
@@ -938,7 +967,7 @@ export class AiService extends BaseService {
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
     return this.withRuntimeActivity('ai:generate-text', () =>
-      agent.generate(request.prompt ? { prompt: request.prompt } : { messages: messages ?? [] }, signal)
+      agent.generate(request.prompt ? { prompt: request.prompt } : { messages: messages ?? [] }, signal, mode)
     )
   }
 
@@ -1393,6 +1422,7 @@ export class AiService extends BaseService {
 
   /** Captures one model configuration for related probes without re-reading changing settings. */
   prepareModelCheck(uniqueModelId: UniqueModelId) {
+    // oxlint-disable-next-line no-restricted-globals -- Resolve one request model independently of mutable provider/model settings.
     const resolvedModel = structuredClone(this.getProviderAndModel({ uniqueModelId }))
     const { provider, model } = resolvedModel
     const endpoint = resolveEffectiveEndpoint(provider, model)
@@ -1411,7 +1441,8 @@ export class AiService extends BaseService {
       },
       modelId: resolveWireModelId(model, endpoint.endpointType),
       baseUrl: routeToEndpoint(endpoint.baseUrl).baseURL,
-      supportsModelListing: provider.modelListSource !== 'registry',
+      // Cherry Cloud has no model-list API; availability is the account's entitlement set.
+      supportsModelListing: provider.modelListSource !== 'registry' && !isManagedCherryCloudModel(provider.id),
       isExternalCli: isExternalCliProvider(provider),
       supportsChat: chatPrimary || !isNonChatModel(model),
       listModels: async (signal: AbortSignal) => {
@@ -1548,14 +1579,17 @@ export class AiService extends BaseService {
       } else {
         // Latency is the probe's measured output — thinking tokens would pollute it
         // for reasoning-capable models whose provider default enables reasoning.
-        probe = this.generateText({
+        const textRequest = {
           ...probeRequest,
           // A health check has no topic; each probe is its own conversation.
           conversation: { id: `check:${randomUUID()}` },
           system: 'test',
           prompt: 'hi',
-          reasoningEffort: 'none'
-        })
+          reasoningEffort: 'none' as const
+        }
+        probe = model.supportsStreaming
+          ? this.generateTextWithMode(textRequest, [], 'stream')
+          : this.generateText(textRequest)
       }
 
       await Promise.race([probe, aborted])
@@ -1564,6 +1598,7 @@ export class AiService extends BaseService {
     } finally {
       clearTimeout(timeoutHandle)
       signal.removeEventListener('abort', onAbort)
+      controller.abort()
     }
   }
 
@@ -1592,6 +1627,7 @@ export class AiService extends BaseService {
   ) {
     const { provider, model, assistant } = this.getProviderAndModel(request)
     const built = await buildAgentParams({
+      traceContext: request.usageContext?.traceContext,
       request,
       signal,
       provider,

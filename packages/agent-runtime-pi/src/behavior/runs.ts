@@ -83,6 +83,7 @@ export function startRun(adapter: Adapter, conv: Conversation, key: string, numb
 
 function beginRun(adapter: Adapter, conv: Conversation, key: string, number = conv.runs + 1): RunState {
   const submission = conv.submissions.get(key)!
+  conv.manager.appendCustomEntry('cherry.native-run', { thread: conv.thread, run: number })
   let end!: () => void
   const done = new Promise<void>((resolve) => {
     end = resolve

@@ -26,27 +26,27 @@ function decodeIdentity(base64: string): Uint8Array {
 async function hasOsProtectedKeyStore(platform: NodeJS.Platform): Promise<boolean> {
   // Async availability only confirms encryptor initialization, which on Linux may use
   // Chromium's hardcoded POSIX fallback key rather than an OS-protected key store.
-  if (platform === 'linux') return safeStorage.isEncryptionAvailable()
+  if (platform === 'linux') {
+    return safeStorage.isEncryptionAvailable() && safeStorage.getSelectedStorageBackend() !== 'basic_text'
+  }
   return safeStorage.isAsyncEncryptionAvailable()
 }
 
 export async function loadDesktopIdentity(): Promise<Uint8Array> {
-  const secure =
-    (await hasOsProtectedKeyStore(process.platform)) &&
-    !(process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text')
   const encryptedFile = application.getPath('feature.remote_access.identity_file')
   const plainFile = application.getPath('feature.remote_access.plain_identity_file')
 
   const encrypted = await readIfExists(encryptedFile)
   if (encrypted) {
     // Never replace an existing identity: that would silently unpair every device.
-    if (!secure) throw new Error('OS-protected key storage is unavailable')
+    if (!(await hasOsProtectedKeyStore(process.platform))) throw new Error('OS-protected key storage is unavailable')
     const { result } = await safeStorage.decryptStringAsync(encrypted)
     return decodeIdentity(result)
   }
   const plain = await readIfExists(plainFile)
   if (plain) return decodeIdentity(plain.toString('utf8'))
 
+  const secure = await hasOsProtectedKeyStore(process.platform)
   const identity = await createDeviceIdentity()
   const base64 = Buffer.from(identity).toString('base64')
   if (secure) {

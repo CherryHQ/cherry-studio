@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
 export async function dismissTransientDialogs(page: Page): Promise<void> {
@@ -19,7 +19,9 @@ export async function dismissTransientDialogs(page: Page): Promise<void> {
 export async function dismissOnboarding(page: Page): Promise<void> {
   const button = page.getByRole('button', { name: 'Set up later', exact: true })
   if (await button.isVisible().catch(() => false)) await button.click()
-  await expect(page.locator('[data-ui~="app.shell"]').first()).toBeVisible({ timeout: 2 * 60_000 })
+  await expect(page.locator('#app-sidebar, [data-ui~="settings.view"]:visible').first()).toBeVisible({
+    timeout: 30_000
+  })
 }
 
 export async function openLaunchpad(page: Page): Promise<void> {
@@ -34,8 +36,7 @@ export async function openLaunchpadApp(page: Page, name: string): Promise<void> 
   await page.getByRole('button', { name, exact: true }).last().click()
 }
 
-export async function openHelpMenu(page: Page): Promise<void> {
-  // Help lives inside the sidebar account popover, so open the account menu first.
+async function openAccountMenu(page: Page): Promise<Locator> {
   const accountMenu = page.locator('[aria-label="Account menu"], [aria-label="账户菜单"]')
   if (!(await accountMenu.isVisible())) {
     await page
@@ -44,11 +45,28 @@ export async function openHelpMenu(page: Page): Promise<void> {
       .click()
   }
   await expect(accountMenu).toBeVisible()
-  await page.getByRole('button', { name: /^(Help|帮助)$/ }).click()
+  return accountMenu
+}
+
+export async function openHelpMenu(page: Page): Promise<void> {
+  const accountMenu = await openAccountMenu(page)
+  await accountMenu.getByRole('button', { name: /^(Help|帮助)$/ }).click()
 }
 
 export async function selectSidebarApp(page: Page, name: string): Promise<void> {
   await dismissOnboarding(page)
+  if (name === 'Settings') {
+    const settings = page.locator('[data-ui~="settings.view"]:visible')
+    // The account menu re-renders while its entry animation runs, so a single click can land on
+    // a detached item and leave the menu closed; retry the whole open-then-click sequence.
+    await expect(async () => {
+      if (await settings.isVisible()) return
+      const accountMenu = await openAccountMenu(page)
+      await accountMenu.getByRole('button', { name: 'Settings', exact: true }).click({ timeout: 5_000 })
+      await expect(settings).toBeVisible({ timeout: 5_000 })
+    }).toPass({ timeout: 30_000 })
+    return
+  }
   const targetView = {
     Chat: '[data-ui~="chat.view"]:visible',
     Files: '[data-ui~="files.view"]:visible',

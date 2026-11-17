@@ -1,47 +1,10 @@
-import fs from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
+import { once } from 'node:events'
+import { createServer, type AddressInfo } from 'node:net'
 
-import { _electron as electron } from '@playwright/test'
+import { expect, test } from './fixtures/electron.fixture'
+import { openSettings } from './utils/navigation'
 
-import { expect, test as base } from './fixtures/electron.fixture'
-
-const test = base.extend<{ isolatedProfile: string }>({
-  isolatedProfile: async ({}, use) => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-e2e-apigateway-'))
-    const previousProfile = process.env.CS_DEV_PROFILE_ROOT
-    process.env.CS_DEV_PROFILE_ROOT = dir
-    try {
-      await use(dir)
-    } finally {
-      if (previousProfile === undefined) {
-        delete process.env.CS_DEV_PROFILE_ROOT
-      } else {
-        process.env.CS_DEV_PROFILE_ROOT = previousProfile
-      }
-      fs.rmSync(dir, { recursive: true, force: true })
-    }
-  },
-  electronApp: async ({ isolatedProfile }, use) => {
-    // Passing the fixture's profile at launch isolates all persisted port changes, including skips.
-    const electronApp = await electron.launch({
-      args: ['.'],
-      env: {
-        ...process.env,
-        CS_DEV_PROFILE_ROOT: isolatedProfile,
-        NODE_ENV: 'development'
-      },
-      timeout: 60000
-    })
-    try {
-      await use(electronApp)
-    } finally {
-      await electronApp.close()
-    }
-  }
-})
-
-test('API Gateway recovers from a refused port through Settings', async ({ mainWindow: page }, testInfo) => {
+test('API Gateway recovers from an occupied port through Settings', async ({ mainWindow: page }, testInfo) => {
   test.setTimeout(300_000)
   const languageSelect = page.locator('[data-onboarding-language-select]')
   await expect(page.locator('[data-ui="app.content"]').first().or(languageSelect).first()).toBeVisible({
@@ -66,7 +29,7 @@ test('API Gateway recovers from a refused port through Settings', async ({ mainW
   ).toBeVisible({
     timeout: 60_000
   })
-  await page.getByRole('button', { name: 'Settings', exact: true }).first().click({ timeout: 60_000 })
+  await openSettings(page)
   await expect(page.locator('[data-ui="settings.view"]')).toBeVisible({ timeout: 60_000 })
   await page
     .locator('[data-ui="settings.navigation"] [data-slot="menu-item"]')
@@ -81,34 +44,40 @@ test('API Gateway recovers from a refused port through Settings', async ({ mainW
   await expect(port).toBeVisible({ timeout: 60_000 })
   await expect(stopped).toBeVisible({ timeout: 60_000 })
 
+  const occupied = createServer().listen(0, '127.0.0.1')
+  await once(occupied, 'listening')
+  const occupiedPort = (occupied.address() as AddressInfo).port
   try {
-    await port.fill('1001', { timeout: 60_000 })
+    await port.fill(String(occupiedPort), { timeout: 60_000 })
     await port.blur({ timeout: 60_000 })
-    await expect(page.getByLabel('URL', { exact: true })).toHaveValue('http://127.0.0.1:1001', { timeout: 60_000 })
+    await expect(page.getByLabel('URL', { exact: true })).toHaveValue(`http://127.0.0.1:${occupiedPort}`, {
+      timeout: 60_000
+    })
     await page.getByRole('button', { name: 'Start', exact: true }).click({ timeout: 60_000 })
 
-    const refusal = notifications.getByText(/EACCES/)
-    await expect(refusal.or(running).first()).toBeVisible({ timeout: 60_000 })
-    if (await running.isVisible()) {
-      test.skip(true, 'This platform permits binding TCP port 1001; no EACCES fixture in the real app')
-      return
+    const refusal = notifications.getByText(/EADDRINUSE/)
+    await expect(refusal).toBeVisible({ timeout: 60_000 })
+    for (const text of ['127.0.0.1', String(occupiedPort)]) {
+      await expect(refusal).toContainText(text)
     }
-    for (const text of ['EACCES', 'refused permission', '127.0.0.1', '1001', 'Port']) {
-      await expect(refusal).toContainText(text, { timeout: 60_000 })
-    }
-    await expect(notifications.getByText(/choose a different Port/)).toBeVisible({ timeout: 60_000 })
-    await expect(notifications.getByText(/TCP port 1001/)).toBeVisible({ timeout: 60_000 })
-    await expect(stopped).toBeVisible({ timeout: 60_000 })
-    await page.screenshot({ path: testInfo.outputPath('eacces-recovery.png') })
+    await expect(stopped).toBeVisible()
+    await page.screenshot({ path: testInfo.outputPath('occupied-port.png') })
 
-    await port.fill('23456', { timeout: 60_000 })
+    const available = createServer().listen(0, '127.0.0.1')
+    await once(available, 'listening')
+    const availablePort = (available.address() as AddressInfo).port
+    await new Promise<void>((resolve, reject) => available.close((error) => (error ? reject(error) : resolve())))
+    await port.fill(String(availablePort), { timeout: 60_000 })
     await port.blur({ timeout: 60_000 })
-    await expect(page.getByLabel('URL', { exact: true })).toHaveValue('http://127.0.0.1:23456', { timeout: 60_000 })
+    await expect(page.getByLabel('URL', { exact: true })).toHaveValue(`http://127.0.0.1:${availablePort}`, {
+      timeout: 60_000
+    })
     await page.getByRole('button', { name: 'Start', exact: true }).click({ timeout: 60_000 })
     await expect(notifications).toContainText('API Gateway started successfully', { timeout: 60_000 })
     await expect(running).toBeVisible({ timeout: 60_000 })
     await page.screenshot({ path: testInfo.outputPath('recovered-port.png') })
   } finally {
+    await new Promise<void>((resolve, reject) => occupied.close((error) => (error ? reject(error) : resolve())))
     if (await stop.isVisible()) {
       await stop.click({ timeout: 60_000 })
       await expect(stopped).toBeVisible({ timeout: 60_000 })

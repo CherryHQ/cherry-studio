@@ -1,4 +1,5 @@
-import { insertAgentSessionMessages, setupTestDatabase } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { expect, it } from 'vitest'
 
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -104,6 +105,7 @@ it('projects child fees once and retains unbound auxiliary charges', () => {
     .values({ id: 'child-session', workspaceId: 'workspace', name: 'Child', orderKey: 'a0' })
     .run()
   insertAgentSessionMessages(dbh.db, {
+    parentId: seedSessionRoot(dbh.db, 'child-session'),
     id: 'child-message',
     sessionId: 'child-session',
     role: 'assistant',
@@ -115,7 +117,9 @@ it('projects child fees once and retains unbound auxiliary charges', () => {
   attribution.capture('auxiliary')(invocation('summary-call'))
   attribution.bind('response', 'child-message')
   attribution.bind('response', 'child-message')
-  expect(dbh.db.select().from(agentSessionMessageTable).get()?.stats).toMatchObject({
+  expect(
+    dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, 'child-message')).get()?.stats
+  ).toMatchObject({
     requestCount: 1,
     totalTokens: 120,
     inputTokens: 100,
