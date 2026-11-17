@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-18-pi-durable-turn-authority.md
+2026-11-18-pi-durable-turn-authority.md: 9e77b0492a3aad0ef149a90e3e2aa5845487845e
+2026-11-18-pi-durable-turn-authority.zh.md: 124d8c0c7b04702232fecdf4b780be306070fba6

@@ -61,6 +61,8 @@ Claude 保留自己的原生区别：`command_lifecycle.started` 是接纳证据
 
 维护者同时批准完成产品回复所有权的收敛。在异步准备前分配完整回复身份并冻结输入上下文。交付、原生接纳／结束、排队控制信息和本地交付失败都归现有 reducer 中的这条回复持有。原生结束与产品准备失败是两个不同事实。只有 reducer 决定排队、steer、自主或延后回复的后继；service 回调只为捕获的回复执行 effect。
 
+[Pi Durable turn-authority Spec](../feature/2026-11-18-pi-durable-turn-authority.md) 拟仅在 `pi-durable` 范围内部分替代本 note，将 reducer 对生命周期及 queued、steer、autonomous 或 deferred successor 的裁决权移交给 native；其余 runtime 的这些决策仍归本 note 所有。
+
 使用同一条准备路径完成占位落盘、trace 刷新和流挂接。保留 session 级未决输入关联、原生 response 到回复的用量关联以及 context 级投影；删除 `pendingResponseIds`、`pendingProjections`、`pendingDisplay` 和独立的 continuation／receive-only／deferred 启动方法。内容出现前，控制信息可通过连接已绑定的 `contextId` 归入回复。checkpoint 只能引用正文已经提交的其他回复。
 
 已接纳回复的准备或最终保存失败后，事实仍归它持有。原生结束／释放有证据后重试它自己的准备；重复失败继续保管，不开启自动重试循环。只有原回复落盘且原生所有权释放后，才恢复延后的回复。恢复保留接纳状态、作者 snapshot 和 headless 属性，绝不重发已接纳输入。原生接纳前失败会将已创建的回复占位标为错误、终止等待中的流，并保留已保存的用户行供重新发送。
