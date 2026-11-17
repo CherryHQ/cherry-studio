@@ -12,6 +12,8 @@ import {
   type ToolDefinition
 } from '@earendil-works/pi-coding-agent'
 
+import { createToolIntent, offersToolIntent, TOOL_INTENT_GUIDE } from '@cherrystudio/agent-behavior'
+
 import { type AgentRuntimeCompaction, compactionSummaryExtension } from './compaction'
 import { type AgentRuntimeEvent, SessionEvents } from './sessionEvents'
 
@@ -80,6 +82,7 @@ export async function createAgentRuntimeSession(
 ): Promise<AgentRuntimeSession> {
   const { cwd, agentDir } = options
   const { modelRuntime, model } = options
+  const offerIntent = offersToolIntent(model.id)
   const sessionManager = options.sessionManager ?? SessionManager.inMemory(cwd)
   const events = new SessionEvents(sessionManager, options.onEvent ?? (() => {}))
   // Pi defers a prompt made while it dispatches agent_settled and returns before it runs; `held` waits instead.
@@ -127,7 +130,10 @@ export async function createAgentRuntimeSession(
     extensionFactories,
     // Overriding (even with undefined) keeps disk-discovered SYSTEM.md / APPEND_SYSTEM.md out.
     systemPromptOverride: () => options.systemPrompt,
-    appendSystemPromptOverride: () => options.appendSystemPrompt ?? []
+    appendSystemPromptOverride: () => [
+      ...(options.appendSystemPrompt ?? []),
+      ...(offerIntent ? [TOOL_INTENT_GUIDE] : [])
+    ]
   })
   await resourceLoader.reload()
 
@@ -184,6 +190,9 @@ export async function createAgentRuntimeSession(
     }
   }
   try {
+    // Before extensions bind, so every loadout from here on (extension, MCP, activated tools) goes through it.
+    const intent = createToolIntent()
+    session.setToolTransform((tool) => intent(tool, offerIntent))
     beforeStart?.(session)
     await session.bindExtensions({})
     const baseTools = session.getActiveToolNames()

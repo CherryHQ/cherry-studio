@@ -105,7 +105,7 @@ describe('downloadTool – packaging over a bundle of hard links', () => {
     }
   }
 
-  it('does not write through the links a previous dev run left in the bundle', () => {
+  it('does not write through the links a previous dev run left in the bundle', async () => {
     const cache = makeTmpDir()
     const bundle = makeTmpDir()
     // What `pnpm dev` leaves behind: the bundle is hard links into the cache.
@@ -114,7 +114,7 @@ describe('downloadTool – packaging over a bundle of hard links', () => {
     fs.writeFileSync(path.join(bundle, '.fake-version'), '1.0.0')
     stubCurl((dest) => fs.writeFileSync(dest, PAYLOAD))
 
-    downloadTool(tool, 'test-arch', bundle, { versionFile: '.fake-version' })
+    await downloadTool(tool, 'test-arch', bundle, { versionFile: '.fake-version' })
 
     expect(fs.readFileSync(path.join(bundle, 'faketool'), 'utf8')).toBe(PAYLOAD)
     expect(fs.readFileSync(path.join(bundle, '.fake-version'), 'utf8')).toBe('2.0.0')
@@ -122,14 +122,14 @@ describe('downloadTool – packaging over a bundle of hard links', () => {
     expect(fs.readFileSync(path.join(cache, 'faketool'), 'utf8')).toBe('cached 1.0.0 build')
   })
 
-  it('keeps the partial file when a run fails, and resumes onto it next time', () => {
+  it('keeps the partial file when a run fails, and resumes onto it next time', async () => {
     const dir = makeTmpDir()
     stubCurl((dest) => {
       fs.writeFileSync(dest, 'half of the payload')
       throw curlFailure(18)
     })
 
-    expect(() => downloadTool(tool, 'test-arch', dir)).toThrow()
+    await expect(downloadTool(tool, 'test-arch', dir)).rejects.toThrow()
 
     const partials = listFiles(dir).filter((file) => file.endsWith('.part'))
     // Cleanup must not be in a finally: the bytes are what the next -C - resumes.
@@ -143,57 +143,57 @@ describe('downloadTool – packaging over a bundle of hard links', () => {
       fs.writeFileSync(dest, PAYLOAD)
     })
 
-    downloadTool(tool, 'test-arch', dir)
+    await downloadTool(tool, 'test-arch', dir)
 
     expect(resumedOnto).toBe(partials[0])
     expect(fs.readFileSync(path.join(dir, 'faketool'), 'utf8')).toBe(PAYLOAD)
   })
 
-  it('clears retired debris even when the download itself is a cache hit', () => {
+  it('clears retired debris even when the download itself is a cache hit', async () => {
     const dir = makeTmpDir()
     fs.writeFileSync(path.join(dir, 'faketool'), PAYLOAD)
     // A previous run died between the two renames of a zip-tree commit. The
     // binary is present, so this run short-circuits — the debris still has to go.
     fs.mkdirSync(path.join(dir, '.retired-4242-git', 'cmd'), { recursive: true })
 
-    downloadTool(tool, 'test-arch', dir)
+    await downloadTool(tool, 'test-arch', dir)
 
     expect(fs.readdirSync(dir).filter((e) => e.startsWith('.retired-'))).toEqual([])
     expect(execFileSync).not.toHaveBeenCalled()
   })
 
-  it('clears its own staging on a cache hit, so packaging cannot wedge forever', () => {
+  it('clears its own staging on a cache hit, so packaging cannot wedge forever', async () => {
     const dir = makeTmpDir()
     // Run 1 dies mid-download and keeps its partial on purpose.
     stubCurl((dest) => {
       fs.writeFileSync(dest, 'half of the payload')
       throw curlFailure(18)
     })
-    expect(() => downloadTool(tool, 'test-arch', dir)).toThrow()
+    await expect(downloadTool(tool, 'test-arch', dir)).rejects.toThrow()
     // Run 2 committed the binary but died before clearing staging.
     fs.writeFileSync(path.join(dir, 'faketool'), PAYLOAD)
 
-    downloadTool(tool, 'test-arch', dir)
+    await downloadTool(tool, 'test-arch', dir)
 
     // Left behind, verifyBundledBinaries rejects the bundle on every later run
     // and the cache hit means no run ever gets far enough to clean it up.
     expect(fs.readdirSync(dir).filter((e) => e.startsWith('.staging-'))).toEqual([])
   })
 
-  it('leaves no staging or retired debris behind on success', () => {
+  it('leaves no staging or retired debris behind on success', async () => {
     const dir = makeTmpDir()
     stubCurl((dest) => fs.writeFileSync(dest, PAYLOAD))
 
-    downloadTool(tool, 'test-arch', dir)
+    await downloadTool(tool, 'test-arch', dir)
 
     expect(fs.readdirSync(dir).filter((e) => e.startsWith('.staging-') || e.startsWith('.retired-'))).toEqual([])
   })
 
-  it('deletes a corrupt download so a bad resume cannot wedge every future run', () => {
+  it('deletes a corrupt download so a bad resume cannot wedge every future run', async () => {
     const dir = makeTmpDir()
     stubCurl((dest) => fs.writeFileSync(dest, 'corrupted bytes'))
 
-    expect(() => downloadTool(tool, 'test-arch', dir)).toThrow(/SHA256 mismatch/)
+    await expect(downloadTool(tool, 'test-arch', dir)).rejects.toThrow(/SHA256 mismatch/)
 
     // Left in place, curl -C - would append to the bad bytes forever and every
     // run in every worktree would fail with no way out but deleting the cache.
@@ -227,12 +227,12 @@ describe('downloadTool – zip-tree commit (MinGit)', () => {
     fs.writeFileSync(path.join(dir, '.mingit-version'), '2.50.0', 'utf8')
   }
 
-  it('replaces the previous tree instead of merging into it', () => {
+  it('replaces the previous tree instead of merging into it', async () => {
     const dir = makeTmpDir()
     seedPreviousTree(dir, { 'cmd/git.txt': 'old launcher', 'cmd/dropped.txt': 'from an older release' })
     stubCurl((dest) => fs.copyFileSync(FIXTURE_ZIP, dest))
 
-    downloadTool(tool, 'test-arch', dir, { versionFile: '.mingit-version' })
+    await downloadTool(tool, 'test-arch', dir, { versionFile: '.mingit-version' })
 
     expect(fs.readFileSync(path.join(dir, 'git', 'cmd', 'git.txt'), 'utf8')).toBe('fake git launcher\n')
     // Without the retire step the rename fails on the non-empty directory and
@@ -241,7 +241,7 @@ describe('downloadTool – zip-tree commit (MinGit)', () => {
     expect(fs.readdirSync(dir).filter((e) => e.startsWith('.retired-'))).toEqual([])
   })
 
-  it('restores the previous tree when the commit fails, rather than leaving none', () => {
+  it('restores the previous tree when the commit fails, rather than leaving none', async () => {
     const dir = makeTmpDir()
     seedPreviousTree(dir, { 'cmd/git.txt': 'previous working tree' })
     stubCurl((dest) => fs.copyFileSync(FIXTURE_ZIP, dest))
@@ -254,7 +254,7 @@ describe('downloadTool – zip-tree commit (MinGit)', () => {
     }) as never)
 
     try {
-      expect(() => downloadTool(tool, 'test-arch', dir, { versionFile: '.mingit-version' })).toThrow(/busy/)
+      await expect(downloadTool(tool, 'test-arch', dir, { versionFile: '.mingit-version' })).rejects.toThrow(/busy/)
     } finally {
       rename.mockRestore()
     }
