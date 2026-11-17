@@ -1659,7 +1659,11 @@ describe('desktop Pi Durable connection', () => {
       })
       let steering: Promise<string> | undefined
       await child.handle.observe(async (event) => {
-        if (!steering && event.type === 'snapshot' && JSON.stringify(event.messages).includes('child first answer'))
+        if (
+          !steering &&
+          (event.type === 'snapshot' || event.type === 'message.upsert') &&
+          JSON.stringify(event.type === 'snapshot' ? event.messages : event.message).includes('child first answer')
+        )
           steering = connection.messageChild(contextId, 'steer now').then(
             () => 'sent',
             (error: Error) => error.message

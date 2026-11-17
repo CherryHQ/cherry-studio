@@ -26,7 +26,7 @@ import { agentSessionReadModelEffects, agentSessionService } from '@data/service
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
-import { projectMessagePartForRenderer } from '@main/utils/messageOutputProjection'
+import { projectMessagePartForRenderer, projectMessagePartsForRenderer } from '@main/utils/messageOutputProjection'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import {
   extractFtsTokens,
@@ -1257,10 +1257,13 @@ export class AgentSessionMessageService {
       pageRows.map(({ id }) => readRow.get({ id })!)
     )
     const hydratedRows = options.deferToolOutputs ? storedRows : hydrateAgentSessionMessageRowsTx(database, storedRows)
-    const items = hydratedRows.map((row) => ({
-      ...this.rowToEntity(row),
-      siblings: siblingsByParent.get(row.parentId) ?? []
-    }))
+    const items = hydratedRows.map((row) => {
+      const entity = this.rowToEntity(row)
+      if (options.deferToolOutputs && entity.role === 'assistant' && entity.data.parts) {
+        entity.data.parts = projectMessagePartsForRenderer(entity.data.parts, sessionId, entity.id)
+      }
+      return { ...entity, siblings: siblingsByParent.get(row.parentId) ?? [] }
+    })
     const tail = pageRows[pageRows.length - 1]
     const nextCursor = hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
 

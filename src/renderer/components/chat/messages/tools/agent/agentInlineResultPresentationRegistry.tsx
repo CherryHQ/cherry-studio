@@ -1,18 +1,25 @@
 import type { ReactElement } from 'react'
 
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
+import { isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
-import { getCreateAgentResult, isCreateAgentResultPart } from './createAgentResult'
+import { useToolResponsePreview } from '../useToolResponsePreview'
+import { getCreateAgentResult, isCreateAgentResultPart, isCreateAgentToolResponse } from './createAgentResult'
 import { CreateAgentToolInline } from './CreateAgentTool'
-import { getAgentNavigateResult, isAgentNavigateResultPart } from './navigateResult'
+import { getAgentNavigateResult, isAgentNavigateResultPart, isAgentNavigateResponse } from './navigateResult'
 import { NavigateToolInline } from './NavigateTool'
-import { getPrepareDiagnosticReportResult, isPrepareDiagnosticReportResultPart } from './prepareDiagnosticReportResult'
+import {
+  getPrepareDiagnosticReportResult,
+  isPrepareDiagnosticReportResultPart,
+  isPrepareDiagnosticReportToolResponse
+} from './prepareDiagnosticReportResult'
 import { PrepareDiagnosticReportTool } from './PrepareDiagnosticReportTool'
-import { getScheduledTaskResult, isScheduledTaskResultPart } from './scheduledTaskResult'
+import { getScheduledTaskResult, isScheduledTaskResultPart, isTaskWriteToolResponse } from './scheduledTaskResult'
 import { ScheduledTaskToolInline } from './ScheduledTaskTool'
 
 interface AgentInlineResultPresentation {
+  readonly matches: (response: McpToolResponse | NormalToolResponse) => boolean
   readonly isResultPart: (part: CherryMessagePart) => boolean
   readonly renderResult: (toolResponse: McpToolResponse | NormalToolResponse) => ReactElement | undefined
 }
@@ -20,6 +27,7 @@ interface AgentInlineResultPresentation {
 const AGENT_INLINE_RESULT_PRESENTATIONS = [
   {
     isResultPart: isAgentNavigateResultPart,
+    matches: isAgentNavigateResponse,
     renderResult: (toolResponse) => {
       const result = getAgentNavigateResult(toolResponse)
       return result ? <NavigateToolInline input={result.input} output={result.output} /> : undefined
@@ -27,6 +35,7 @@ const AGENT_INLINE_RESULT_PRESENTATIONS = [
   },
   {
     isResultPart: isPrepareDiagnosticReportResultPart,
+    matches: isPrepareDiagnosticReportToolResponse,
     renderResult: (toolResponse) => {
       const result = getPrepareDiagnosticReportResult(toolResponse)
       return result ? <PrepareDiagnosticReportTool result={result} /> : undefined
@@ -34,6 +43,7 @@ const AGENT_INLINE_RESULT_PRESENTATIONS = [
   },
   {
     isResultPart: isCreateAgentResultPart,
+    matches: isCreateAgentToolResponse,
     renderResult: (toolResponse) => {
       const result = getCreateAgentResult(toolResponse)
       return result ? <CreateAgentToolInline result={result} /> : undefined
@@ -41,6 +51,7 @@ const AGENT_INLINE_RESULT_PRESENTATIONS = [
   },
   {
     isResultPart: isScheduledTaskResultPart,
+    matches: isTaskWriteToolResponse,
     renderResult: (toolResponse) => {
       const result = getScheduledTaskResult(toolResponse)
       return result ? <ScheduledTaskToolInline result={result} /> : undefined
@@ -54,9 +65,26 @@ export const agentInlineResultPresentationRegistry = {
   },
   renderResult(toolResponse: McpToolResponse | NormalToolResponse): ReactElement | undefined {
     for (const presentation of AGENT_INLINE_RESULT_PRESENTATIONS) {
+      if (
+        presentation.matches(toolResponse) &&
+        (isDeferredToolOutput(toolResponse.response) || isPersistedToolOutput(toolResponse.response))
+      ) {
+        return <PreviewResult presentation={presentation} toolResponse={toolResponse} />
+      }
       const result = presentation.renderResult(toolResponse)
       if (result) return result
     }
     return undefined
   }
+}
+
+function PreviewResult({
+  presentation,
+  toolResponse
+}: {
+  presentation: AgentInlineResultPresentation
+  toolResponse: McpToolResponse | NormalToolResponse
+}) {
+  const preview = useToolResponsePreview(toolResponse)
+  return presentation.renderResult(preview.toolResponse) ?? null
 }

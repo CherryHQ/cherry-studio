@@ -101,8 +101,10 @@ export class ContentProjection {
     if (!parent) return
     const existing = this.calls.get(part.toolCallId)
     const index = existing?.index ?? parent.message.parts.length
-    parent.message.parts[index] = part
-    this.calls.set(part.toolCallId, { message: parent.message, index })
+    const parts = parent.message.parts.slice()
+    parts[index] = part
+    const next = this.replaceParts(parent.message, parts)
+    this.calls.set(part.toolCallId, { message: next, index })
   }
 
   private result(callId: string, output: unknown, error: boolean, preliminary = false): void {
@@ -126,10 +128,14 @@ export class ContentProjection {
           resultProviderMetadata: { pi: { result: JSON.parse(JSON.stringify(output)) } }
         }
       : snapshotToolPart({ ...base, state: 'output-available', output, preliminary })
-    const next = { ...owner.message, parts }
-    this.messages[this.messages.indexOf(owner.message)] = next
-    for (const [id, call] of this.calls)
-      if (call.message === owner.message) this.calls.set(id, { ...call, message: next })
+    this.replaceParts(owner.message, parts)
+  }
+
+  private replaceParts(message: RuntimeMessage, parts: RuntimeMessage['parts']): RuntimeMessage {
+    const next = { ...message, parts }
+    this.messages[this.messages.indexOf(message)] = next
+    for (const [id, call] of this.calls) if (call.message === message) this.calls.set(id, { ...call, message: next })
+    return next
   }
 
   private errorText(output: unknown): string {

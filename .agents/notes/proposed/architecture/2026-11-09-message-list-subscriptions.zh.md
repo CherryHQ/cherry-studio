@@ -43,7 +43,7 @@ Shared 类型包含持久 part／DataUIPart 契约及传输事实，不包含 Re
 
 ### 2. 独立 part 存储与完成写入
 
-智能体会话保留 `agent_session_message` 作为容器，通过追加 migration 增加 `agent_session_message_part`。普通 Chat 在明确迁移前保留既有存储 adapter，各场景仍可消费共享渲染契约。
+智能体会话保留 `agent_session_message` 作为容器，通过追加 migration 增加 `agent_session_message_part`。普通 Chat 保留既有内联正文存储 adapter。阶段 4 接入共享按键渲染契约之前，必须先完成下述 Home 身份迁移；没有持久 part IDs 的 adapter 不得接入该契约。
 
 | 存储 | 内容 |
 | --- | --- |
@@ -60,7 +60,7 @@ Part ID 与 part 并列存放，不写入 part 内部。`CherryMessagePart` 保�
 
 | 层 | 载体 |
 | --- | --- |
-| SQLite | `agent_session_message_part.id`；行 payload 为未修改的 part 对象 |
+| SQLite | Agent：`agent_session_message_part.id`。Home：与既有内联 `parts` 并列的 `message.data.partIds`；两者均保持 part payload 不变 |
 | 数据／投影契约 | 与 `parts` 并列的 `partIds: readonly string[]`：长度与顺序一致，消息内唯一 |
 | Main 来源投影 | 有序 part IDs 加 `Map<partId, part>`；checkpoint 记录 part IDs |
 | 传输 patch | 按 `partId` 而非数组下标定位 part；顺序变化携带新的 `partIds` |
@@ -68,6 +68,10 @@ Part ID 与 part 并列存放，不写入 part 内部。`CherryMessagePart` 保�
 | 模型输入 | 只由 `parts` 构建；`partIds` 不进入服务商转换 |
 
 Main 在来源投影首次创建 part 时或迁移回填时一次分配 part ID（UUIDv7）。Renderer 不分配内容 part ID。`toolCallId` 仍是原生／工具输出关联，不作为 part 键。Patch 指向未知 `partId`，或 `partIds`／`parts` 长度不一致时，需要新基线。旧 offset／count checkpoint 在加载时通过有序列表解析为 part IDs。原生来源消息中的 part 没有 ID 时（Claude Code、Pi、Pi Durable），按原生来源消息 ID 与其中的位置一次性分配，存在 `toolCallId`／数据 part `id` 时以其为键，并由 checkpoint 记录得到的 part IDs；该来源映射绝不从产品 `parts` 数组下标重新推导。
+
+Home 的 `MessageService` 拥有并列的 `MessageData.partIds` 载体，并与 `parts` 原子写入。新增迁移按既有内联 parts 的存储顺序一次性分配 UUIDv7 IDs。新 part 在发布前由 Main 分配 ID，终态保存保留这些 IDs；更新和重排携带原 ID，插入或 fork 复制的 part 分配新 ID。ID 随所属 part 删除而结束。历史读取、renderer 重载及 reconnect 复用持久 IDs，不从内容或数组位置重新分配。Home 模型转换仍只消费 `parts`。
+
+阶段 4 必须同批迁移所有 Home 写入者、历史／投影读取者及 fork 路径，然后才能启用 Home 按键订阅。验证已填充历史迁移、重载／reconnect 稳定性、编辑／重排和 fork 隔离。在该迁移交付前，Home 保持既有 adapter 和订阅行为；Agent part 存储本身不能证明 Home 身份恢复。
 
 增量更新当前内存 part，并通知其订阅者。在该 part 自己语义上的 `onDone` 保存，不等整段助手回复的 `onDone`。回复完成等待必要保存，再更新容器状态／统计，不重写已保存 parts。Stop／错误先保存未完成 parts 的已收到内容及实际状态，再结算回复。用户输入接纳仍立即写入。不设置定时正文 checkpoint、逐 token 写入、历史 part 版本或通用 part 替换协议。Main 异常退出可能丢失当前未完成 part，已提交完成 parts 可恢复；Main 存活时 renderer 重载可重新 attach 到更新的内存内容。
 
@@ -164,7 +168,7 @@ Main 保存成功后才发布成功完成。Renderer 刷新持久历史，刷新
 | 1. 存储／身份 | 增加 part 记录，迁移数组，保留最新工具结果契约，切换唯一正文来源／读取组装 | 已填充 SQLite 迁移、有序往返、分支／fork／文件清理及输入锁测试 |
 | 2. 完成持久化 | Part `onDone`、回复终态／Stop／错误顺序及既有刷新清理 | 回复完成前恢复已完成 part、不逐增量写入、失败留存及实际过期完成测试 |
 | 3. Agent 按键渲染 | 稳定输入／part／行身份、来源 handle 寿命和 part 订阅，删除被替换本地路径 | Ack／交接／连续输入、无关快照、仅活动通知、双窗口／reattach 及操作测试 |
-| 4. 共享消费者 | Home 多模型／历史及其余列表消费者，分页、来源感知操作和冷读取 | 消费者审计、明确受影响测试、全文复制／截图／选择和无重复订阅 |
+| 4. 共享消费者 | 先完成 Home 身份迁移，再接入多模型／历史及其余列表消费者，分页、来源感知操作和冷读取 | 消费者审计、明确受影响测试、全文复制／截图／选择和无重复订阅 |
 | 5. 真实交互 | 既有视口／Markdown／工具过渡，仅修复测得缺口 | 真实 Electron Claude／Pi／Pi Durable steer／queue／compact／Stop／外部输入及跟随／阅读／焦点几何 |
 
 使用明确测试文件，SQLite 使用 `setupTestDatabase()`。合成重放证明数据／通知契约，真实 Electron 证明集成和几何。同夹具／构建／视口比较，通知／渲染／挂载次数与 CPU／帧／布局和内存分别记录。覆盖长历史、稳定大型结果加文本、仅元数据、媒体尺寸、前插及话题切换。不承诺未经证明的 FPS、零重挂载或无限时长无泄漏；原生指令遵循与操作系统／打包覆盖是独立证据。

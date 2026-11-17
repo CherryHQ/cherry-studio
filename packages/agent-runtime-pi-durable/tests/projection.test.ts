@@ -46,6 +46,53 @@ const live = (attempt = 1): LiveState => ({
 })
 
 describe('Durable preview identity', () => {
+  it('replaces a live answer without publishing a retraction of its identity', async () => {
+    const { projection, update, events } = setup(view([], live()))
+    const preview = projection.feed.current.messages[0].id
+    update(view([entry(10, 'committed answer')]))
+    await expect.poll(() => events.some((event) => event.type === 'message.upsert')).toBe(true)
+    expect(events.filter((event) => event.type === 'message.remove')).toEqual([])
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: 'message.upsert',
+        replaces: [{ session: { backendId: runtimeId('backend'), id: runtimeId('1') }, id: preview }]
+      })
+    )
+    expect(projection.feed.current.messages).toMatchObject([
+      { id: 'entry:10:0', parts: [{ text: 'committed answer' }] }
+    ])
+    expect(projection.feed.current.messages).toHaveLength(1)
+  })
+
+  it('keeps one nested call across repeated live views without parent progress', () => {
+    const parent = {
+      ...entry(10, ''),
+      model: [fauxAssistantMessage(fauxToolCall('echo', {}, { id: 'parent' }), { stopReason: 'toolUse' })]
+    }
+    const active: LiveState = {
+      run: { taskId, inputs: [], turns: 0 },
+      nestedTools: [
+        {
+          parentCallId: 'parent',
+          parentTaskId: taskId,
+          taskId: 8 as TaskId,
+          callId: 'child',
+          name: 'read',
+          status: 'running',
+          arguments: {},
+          output: 'first'
+        }
+      ]
+    }
+    const { projection, update } = setup(view([parent], active))
+    for (const output of ['second', 'third', 'final']) {
+      update(view([parent], { ...active, nestedTools: [{ ...active.nestedTools![0], output }] }))
+      const parts = projection.feed.current.messages[0].parts
+      expect(parts).toHaveLength(2)
+      expect(parts[1]).toMatchObject({ toolCallId: 'child', output: { content: [{ text: output }] } })
+    }
+  })
+
   it('reuses immutable committed results while publishing only the growing live message', async () => {
     const assistant = {
       ...entry(10, ''),

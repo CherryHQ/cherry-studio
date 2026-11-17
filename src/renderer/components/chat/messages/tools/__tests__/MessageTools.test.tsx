@@ -122,6 +122,32 @@ describe('latest deferred tool disclosure', () => {
     expect(window.api.ipcApi.request).toHaveBeenCalledWith('ai.tool.get_result', { ...ref, purpose: 'full' })
   })
 
+  it('copies an external web_search result in full and keeps its range reader', async () => {
+    const output = { content: [{ type: 'text', text: 'x'.repeat(64_012) + 'COMPLETE_END' }] }
+    vi.mocked(window.api.ipcApi.request).mockImplementation(async (_route, input) => ({
+      ok: true,
+      data:
+        readPurpose(input) === 'full'
+          ? { status: 'ready', purpose: 'full', output }
+          : readPurpose(input) === 'preview'
+            ? {
+                status: 'ready',
+                purpose: 'preview',
+                output: { content: [{ type: 'text', text: 'x'.repeat(8192) }] },
+                truncated: true
+              }
+            : { status: 'ready', purpose: 'text-range', text: 'Full range page', nextCursor: null }
+    }))
+    const user = userEvent.setup()
+    render(<MessageTools toolResponse={{ ...response, tool: { ...response.tool, name: 'web_search' } }} />)
+    await user.click(screen.getByRole('button', { name: /Server : web_search/ }))
+    expect(await screen.findByText('Full range page')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: /Server : web_search/ }))
+    await user.click(screen.getByRole('button', { name: 'Copy' }))
+    await waitFor(() => expect(copyText).toHaveBeenCalled())
+    expect(JSON.parse(copyText.mock.calls[0][0])).toEqual({ params: response.arguments, response: output })
+  })
+
   it('copies the complete meta-tool result rather than its bounded preview', async () => {
     const output = { text: 'x'.repeat(64_012) + 'COMPLETE_END' }
     vi.mocked(window.api.ipcApi.request).mockImplementation(async (_route, input) => ({

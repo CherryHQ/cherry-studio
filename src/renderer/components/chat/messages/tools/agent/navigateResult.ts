@@ -10,7 +10,7 @@ interface AgentNavigateResult {
   readonly output: string
 }
 
-function isAgentNavigateResponse({ tool }: McpToolResponse | NormalToolResponse): boolean {
+export function isAgentNavigateResponse({ tool }: McpToolResponse | NormalToolResponse): boolean {
   return (
     tool.type === 'mcp' &&
     'serverId' in tool &&
