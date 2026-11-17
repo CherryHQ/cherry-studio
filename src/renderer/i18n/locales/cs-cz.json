@@ -1560,6 +1560,7 @@
   "error.diagnostics.preparing_result": "Příprava výsledků…",
   "error.diagnostics.result": "Výsledek diagnostiky",
   "error.diagnostics.result_summary": "<fixed>Opraveno: {{fixed}}; </fixed><attention>vyžaduje pozornost: {{attention}}</attention>.",
+  "error.durable_storage_failed": "Nepodařilo se získat přístup k místním datům agenta. Zkontrolujte volné místo na disku a oprávnění ke složce a zkuste to znovu. Cestu najdete v podrobnostech chyby.",
   "error.errors": "Chyby",
   "error.finishReason": "Důvod ukončení",
   "error.functionality": "Funkce",

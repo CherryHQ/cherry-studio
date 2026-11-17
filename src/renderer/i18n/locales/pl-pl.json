@@ -1580,6 +1580,7 @@
   "error.diagnostics.preparing_result": "Przygotowywanie wyników…",
   "error.diagnostics.result": "Wynik diagnozy",
   "error.diagnostics.result_summary": "<fixed>Naprawiono: {{fixed}}; </fixed><attention>wymaga uwagi: {{attention}}</attention>.",
+  "error.durable_storage_failed": "Nie można uzyskać dostępu do lokalnych danych agenta. Sprawdź wolne miejsce na dysku i uprawnienia do folderu, a następnie spróbuj ponownie. Ścieżkę znajdziesz w szczegółach błędu.",
   "error.errors": "Błędy",
   "error.finishReason": "Powód zakończenia",
   "error.functionality": "Funkcjonalność",
