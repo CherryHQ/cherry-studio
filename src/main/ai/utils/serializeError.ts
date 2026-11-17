@@ -9,6 +9,7 @@ import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shar
 import type { SerializedError } from '@shared/types/error'
 import type { Serializable } from '@shared/types/serializable'
 import { isErrorCategory } from '@shared/utils/errorCategory'
+import { hasReportingOwner } from '@shared/utils/errorReporting'
 
 export interface SerializeErrorContext {
   ollamaNumCtx?: OllamaNumCtxRequestSnapshot
@@ -81,8 +82,9 @@ function enrichOllamaAllocationError(
 }
 
 export function serializeError(error: unknown, context?: SerializeErrorContext): SerializedError {
+  const ownership: Record<string, Serializable> = hasReportingOwner(error) ? { reportingHandled: true } : {}
   if (APICallError.isInstance(error)) {
-    const serialized = serializeNestedProviderError(error) as SerializedError
+    const serialized = { ...(serializeNestedProviderError(error) as SerializedError), ...ownership }
     const allocationHint = [
       typeof error.message === 'string' ? error.message : '',
       typeof error.responseBody === 'string' ? error.responseBody : ''
@@ -91,7 +93,7 @@ export function serializeError(error: unknown, context?: SerializeErrorContext):
     return serialized
   }
   if (JSONParseError.isInstance(error) || TypeValidationError.isInstance(error)) {
-    return serializeNestedProviderError(error) as SerializedError
+    return { ...(serializeNestedProviderError(error) as SerializedError), ...ownership }
   }
   if (error instanceof Error) {
     const e = error as unknown as Record<string, unknown>
@@ -103,6 +105,7 @@ export function serializeError(error: unknown, context?: SerializeErrorContext):
       stack: isRetryError ? null : (error.stack ?? null),
       cause: e.cause != null ? String(e.cause) : null
     }
+    if (e.reportingHandled === true) serialized.reportingHandled = true
 
     if ('url' in e) serialized.url = String(e.url ?? '')
     if ('requestBodyValues' in e) serialized.requestBodyValues = toSerializable(e.requestBodyValues)
@@ -170,6 +173,7 @@ export function serializeError(error: unknown, context?: SerializeErrorContext):
   return {
     name: null,
     message: safeMessage || (typeof error === 'object' && error !== null ? null : String(error)),
-    stack: null
+    stack: null,
+    ...ownership
   }
 }
