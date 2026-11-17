@@ -26,8 +26,8 @@ describe('mergeAgentLoopbackProxyBypass', () => {
 
     expect(mergeAgentLoopbackProxyBypass(environment)).toEqual({
       ...environment,
-      no_proxy: 'localhost,127.0.0.1,::1,[::1]',
-      NO_PROXY: 'localhost,127.0.0.1,::1,[::1]'
+      no_proxy: 'localhost,127.0.0.1,::1',
+      NO_PROXY: 'localhost,127.0.0.1,::1'
     })
   })
 
@@ -40,17 +40,72 @@ describe('mergeAgentLoopbackProxyBypass', () => {
 
     const result = mergeAgentLoopbackProxyBypass(environment, { platform: 'linux' })
 
-    expect(result.no_proxy).toBe('Example.COM,127.0.0.1,::1,LOCALHOST,[::1],Api.Example.com')
+    expect(result.no_proxy).toBe('Example.COM,127.0.0.1,::1,LOCALHOST,Api.Example.com')
     expect(result.NO_PROXY).toBe(result.no_proxy)
   })
 
-  it('keeps bare and bracketed IPv6 loopback rules distinct', () => {
+  it.each(['::1,[::1]', '[::1],::1'])('collapses a bracketed IPv6 loopback entry into the bare rule: %s', (bypass) => {
     const result = mergeAgentLoopbackProxyBypass({
       HTTPS_PROXY: 'http://proxy.example.com:8080',
-      no_proxy: '::1'
+      no_proxy: bypass
     })
 
-    expect(result.no_proxy).toBe('::1,localhost,127.0.0.1,[::1]')
+    expect(result.no_proxy).toBe('::1,localhost,127.0.0.1')
+    expect(result.NO_PROXY).toBe('::1,localhost,127.0.0.1')
+  })
+
+  it.each(['linux', 'win32'] as const)(
+    'normalizes the complete custom default bypass environment on %s',
+    (platform) => {
+      const bypass =
+        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],::ffff:127.0.0.0/104,169.254.0.0/16,fe80::/10,127.0.0.1,::1'
+      const environment = Object.freeze({
+        HTTP_PROXY: 'http://proxy.example.com:8080',
+        NO_PROXY: bypass,
+        no_proxy: bypass,
+        CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: bypass
+      })
+
+      const result = mergeAgentLoopbackProxyBypass(environment, { platform })
+
+      expect(result.NO_PROXY).toBe(
+        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,::1,169.254.0.0/16,127.0.0.1'
+      )
+      expect(result.no_proxy).toBe(
+        'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,::1,169.254.0.0/16,127.0.0.1'
+      )
+      expect(result.CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES).toBe(bypass)
+      expect(result.HTTP_PROXY).toBe(environment.HTTP_PROXY)
+      expect(result).not.toBe(environment)
+      expect(environment).toEqual({
+        HTTP_PROXY: 'http://proxy.example.com:8080',
+        NO_PROXY: bypass,
+        no_proxy: bypass,
+        CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: bypass
+      })
+    }
+  )
+
+  it.each([
+    ['2001:db8::/32,::ffff:127.0.0.0/104,fe80::/10', 'localhost,127.0.0.1,::1'],
+    ['::/0,::1/128,fe80::/129,fe80::1%eth0/64', 'localhost,127.0.0.1,::1'],
+    ['127.0.0.0/8,169.254.0.0/16', '127.0.0.0/8,169.254.0.0/16,localhost,127.0.0.1,::1'],
+    ['[::1]:8080,http://[::1],[example.com]', '[::1]:8080,http://[::1],[example.com],localhost,127.0.0.1,::1'],
+    [
+      '[fe80::]/10,[fe80::/10],fe80::/x,fe80::/10/20',
+      '[fe80::]/10,[fe80::/10],fe80::/x,fe80::/10/20,localhost,127.0.0.1,::1'
+    ],
+    ['fe80::/10,*', '*'],
+    ['Example.COM;example.com,[2001:DB8::1],2001:db8::1', 'Example.COM,2001:DB8::1,localhost,127.0.0.1,::1'],
+    ['[0:0:0:0:0:0:0:1],::1', '0:0:0:0:0:0:0:1,::1,localhost,127.0.0.1']
+  ])('converts only exact IPv6 entries and IPv6 CIDR-shaped rules: %s', (bypass, expected) => {
+    const result = mergeAgentLoopbackProxyBypass({
+      HTTP_PROXY: 'http://proxy.example.com:8080',
+      NO_PROXY: bypass
+    })
+
+    expect(result.NO_PROXY).toBe(expected)
+    expect(result.no_proxy).toBe(expected)
   })
 
   it('collapses both bypass variables to a standalone wildcard rule on Linux', () => {
@@ -67,16 +122,20 @@ describe('mergeAgentLoopbackProxyBypass', () => {
     expect(result.NO_PROXY).toBe('*')
   })
 
-  it('returns an unchanged shallow copy when no proxy endpoint is active', () => {
+  it.each([
+    { no_proxy: 'one.example; two.example', NO_PROXY: 'THREE.example' },
+    { no_proxy: '[::]', NO_PROXY: '[::1]' },
+    { no_proxy: '::ffff:127.0.0.0/104', NO_PROXY: 'fe80::/10' }
+  ])('returns an unchanged shallow copy when no proxy endpoint is active: %j', (bypass) => {
     const environment = {
       HTTP_PROXY: '   ',
-      no_proxy: 'one.example; two.example',
-      NO_PROXY: 'THREE.example'
+      ...bypass
     }
 
-    const result = mergeAgentLoopbackProxyBypass(environment)
+    const result = mergeAgentLoopbackProxyBypass(environment, { additionalBypassRule: '[2001:db8::1]' })
 
     expect(result).toEqual(environment)
+    expect(result).not.toBe(environment)
   })
 
   it('preserves external proxy URLs without adding their hosts to bypass rules', () => {
@@ -87,7 +146,7 @@ describe('mergeAgentLoopbackProxyBypass', () => {
     })
 
     expect(result.HTTPS_PROXY).toBe(proxyUrl)
-    expect(result.NO_PROXY).toBe('corp.example,localhost,127.0.0.1,::1,[::1]')
+    expect(result.NO_PROXY).toBe('corp.example,localhost,127.0.0.1,::1')
     expect(result.NO_PROXY).not.toContain('proxy.external.example')
   })
 
@@ -107,16 +166,18 @@ describe('mergeAgentLoopbackProxyBypass', () => {
     const result = mergeAgentLoopbackProxyBypass(
       {
         Http_Proxy: 'http://proxy.example.com:8080',
-        No_Proxy: 'service.internal'
+        NO_PROXY: undefined,
+        No_Proxy: 'service.internal,fe80::/10',
+        no_proxy: 'lower.internal,::ffff:127.0.0.0/104'
       },
       { platform: 'win32' }
     )
 
     expect(result).toMatchObject({
       Http_Proxy: 'http://proxy.example.com:8080',
-      No_Proxy: 'service.internal',
-      no_proxy: 'service.internal,localhost,127.0.0.1,::1,[::1]',
-      NO_PROXY: 'service.internal,localhost,127.0.0.1,::1,[::1]'
+      No_Proxy: 'service.internal,fe80::/10',
+      no_proxy: 'service.internal,localhost,127.0.0.1,::1',
+      NO_PROXY: 'service.internal,localhost,127.0.0.1,::1'
     })
   })
 
@@ -131,7 +192,7 @@ describe('mergeAgentLoopbackProxyBypass', () => {
       { platform: 'win32' }
     )
 
-    expect(result.NO_PROXY).toBe('upper.internal,localhost,127.0.0.1,::1,[::1]')
+    expect(result.NO_PROXY).toBe('upper.internal,localhost,127.0.0.1,::1')
     expect(result.no_proxy).toBe(result.NO_PROXY)
   })
 
@@ -141,8 +202,34 @@ describe('mergeAgentLoopbackProxyBypass', () => {
       { additionalBypassRule: '127.0.0.2' }
     )
 
-    expect(result.NO_PROXY).toBe('localhost,127.0.0.1,::1,[::1],127.0.0.2')
+    expect(result.NO_PROXY).toBe('localhost,127.0.0.1,::1,127.0.0.2')
     expect(result.no_proxy).toBe(result.NO_PROXY)
+  })
+
+  it.each([
+    ['[::1]', 'localhost,127.0.0.1,::1'],
+    ['[2001:db8::1]', 'localhost,127.0.0.1,::1,2001:db8::1'],
+    ['fe80::/10', 'localhost,127.0.0.1,::1'],
+    ['::ffff:127.0.0.0/104', 'localhost,127.0.0.1,::1'],
+    [' example.com;[::1] ', 'localhost,127.0.0.1,::1, example.com;[::1] ']
+  ])('converts the additional bypass rule as a single untrimmed entry: %s', (additionalBypassRule, expected) => {
+    const result = mergeAgentLoopbackProxyBypass(
+      { HTTP_PROXY: 'http://proxy.example.com:8080' },
+      { additionalBypassRule }
+    )
+
+    expect(result.NO_PROXY).toBe(expected)
+    expect(result.no_proxy).toBe(expected)
+  })
+
+  it('keeps a standalone wildcard without appending an additional gateway rule', () => {
+    const result = mergeAgentLoopbackProxyBypass(
+      { HTTP_PROXY: 'http://proxy.example.com:8080', NO_PROXY: 'fe80::/10,*' },
+      { additionalBypassRule: '[2001:db8::1]' }
+    )
+
+    expect(result.NO_PROXY).toBe('*')
+    expect(result.no_proxy).toBe('*')
   })
 })
 
@@ -236,10 +323,30 @@ describe('createAgentProxyEnvironmentFingerprint', () => {
     })
     const fromUppercase = createAgentProxyEnvironmentFingerprint({
       HTTP_PROXY: proxyUrl,
-      NO_PROXY: 'Example.COM,localhost,127.0.0.1,::1,[::1]'
+      NO_PROXY: 'Example.COM,localhost,127.0.0.1,::1'
     })
 
     expect(fromLowercase).toBe(fromUppercase)
+  })
+
+  it('omits IPv6 CIDR-shaped rules consistently from merged environments and fingerprints', () => {
+    const environment = {
+      HTTP_PROXY: 'http://proxy.example.com:8080',
+      NO_PROXY: 'corp.example,fe80::/10,::ffff:127.0.0.0/104'
+    }
+    const withoutCidr = { ...environment, NO_PROXY: 'corp.example' }
+    const merged = mergeAgentLoopbackProxyBypass(environment)
+    const mergedWithoutCidr = mergeAgentLoopbackProxyBypass(withoutCidr)
+
+    expect(merged.NO_PROXY).toBe('corp.example,localhost,127.0.0.1,::1')
+    expect(merged.no_proxy).toBe('corp.example,localhost,127.0.0.1,::1')
+    expect(mergedWithoutCidr.NO_PROXY).toBe('corp.example,localhost,127.0.0.1,::1')
+    expect(mergedWithoutCidr.no_proxy).toBe('corp.example,localhost,127.0.0.1,::1')
+    expect(createAgentProxyEnvironmentFingerprint(environment)).toBe(
+      createAgentProxyEnvironmentFingerprint(withoutCidr)
+    )
+    expect(createAgentProxyEnvironmentFingerprint(environment)).toBe(createAgentProxyEnvironmentFingerprint(merged))
+    expect(mergeAgentLoopbackProxyBypass(merged)).toEqual(merged)
   })
 
   it('uses a fixed proxy-key order independent of object insertion order', () => {

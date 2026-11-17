@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { isIPv6 } from 'node:net'
 
 import { CHERRY_NODE_PROXY_BYPASS_RULES_ENV, CHERRY_NODE_PROXY_RULES_ENV } from '@main/services/proxy/proxyEnv'
 
@@ -29,7 +30,7 @@ const AGENT_PROXY_ENDPOINT_NORMALIZED_KEY_SET = new Set(AGENT_PROXY_ENDPOINT_NOR
 const AGENT_PROXY_ENVIRONMENT_NORMALIZED_KEY_SET = new Set(AGENT_PROXY_ENVIRONMENT_KEYS.map((key) => key.toLowerCase()))
 const AGENT_PROXY_BYPASS_NORMALIZED_KEY_SET = new Set(['no_proxy'])
 const CHERRY_PROXY_MARKER_KEY_SET = new Set([CHERRY_NODE_PROXY_RULES_ENV, CHERRY_NODE_PROXY_BYPASS_RULES_ENV])
-const LOOPBACK_BYPASS_RULES = ['localhost', '127.0.0.1', '::1', '[::1]'] as const
+const LOOPBACK_BYPASS_RULES = ['localhost', '127.0.0.1', '::1'] as const
 
 const isNonEmpty = (value: string | undefined): value is string => typeof value === 'string' && value.trim() !== ''
 
@@ -58,6 +59,19 @@ const selectWindowsEnvironmentEntries = (
   return selected
 }
 
+// Python clients parse each NO_PROXY entry at construction; bracketed IPv6 and IPv6 CIDR break httpx.Client().
+// Cherry's Node matcher accepts bare IPv6; undici 6.27.0 has no CIDR matching to lose, but curl may proxy CIDR destinations.
+const toAgentBypassRule = (rule: string): string | undefined => {
+  const cidr = /^([^/]+)\/[0-9]+$/.exec(rule)
+  if (cidr && isIPv6(cidr[1])) return undefined
+
+  if (rule.startsWith('[') && rule.endsWith(']')) {
+    const address = rule.slice(1, -1)
+    if (isIPv6(address)) return address
+  }
+  return rule
+}
+
 const normalizeBypassRules = (environment: Environment, platform: NodeJS.Platform): string[] => {
   const rules: string[] = []
   const normalizedRules = new Set<string>()
@@ -69,8 +83,11 @@ const normalizeBypassRules = (environment: Environment, platform: NodeJS.Platfor
   for (const value of values) {
     if (!value) continue
 
-    for (const rule of value.split(/[\s,;]+/)) {
-      if (!rule) continue
+    for (const entry of value.split(/[\s,;]+/)) {
+      if (!entry) continue
+
+      const rule = toAgentBypassRule(entry)
+      if (rule === undefined) continue
 
       const normalizedRule = rule.toLowerCase()
       if (normalizedRules.has(normalizedRule)) continue
@@ -152,7 +169,10 @@ export const mergeAgentLoopbackProxyBypass = (
   const requiredRules: readonly string[] = options.additionalBypassRule
     ? [...LOOPBACK_BYPASS_RULES, options.additionalBypassRule]
     : LOOPBACK_BYPASS_RULES
-  for (const rule of requiredRules) {
+  for (const entry of requiredRules) {
+    const rule = toAgentBypassRule(entry)
+    if (rule === undefined) continue
+
     if (!normalizedRules.has(rule.toLowerCase())) {
       rules.push(rule)
       normalizedRules.add(rule.toLowerCase())
