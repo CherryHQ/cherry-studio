@@ -49,12 +49,7 @@ describe('bounded renderer text backlog', () => {
     source.finish()
     const events: SpeechTextEvent[] = []
     for await (const event of source) events.push(event)
-    expect(
-      events
-        .filter((event) => event.type === 'text')
-        .map((event) => event.text)
-        .join('')
-    ).toBe(text)
+    expect(events.flatMap((event) => (event.type === 'text' ? [event.text] : [])).join('')).toBe(text)
     expect(events.at(-1)).toEqual({ type: 'flush' })
     expect(events[0]).toEqual({ type: 'text', text: 'a'.repeat(2047) })
   })

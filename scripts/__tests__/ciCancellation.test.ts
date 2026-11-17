@@ -124,7 +124,7 @@ async function cleanup(
     },
     { info: () => {} }
   )
-  return runs.filter((item) => item.status !== 'completed').map((item) => item.id)
+  return runs.flatMap((item) => (item.status !== 'completed' ? [item.id] : []))
 }
 
 describe('closed PR cleanup', () => {

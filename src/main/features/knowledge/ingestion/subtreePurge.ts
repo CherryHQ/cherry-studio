@@ -24,7 +24,7 @@ export async function purgeKnowledgeSubtreeWithinLock(
   if (subtreeItemIds.length === 0) {
     return
   }
-  const leafItemIds = subtreeItems.filter((item) => isIndexableKnowledgeItem(item)).map((item) => item.id)
+  const leafItemIds = subtreeItems.flatMap((item) => (isIndexableKnowledgeItem(item) ? [item.id] : []))
 
   // Vector cleanup precedes DB deletion so a retry can still discover affected item ids.
   await deleteKnowledgeItemVectors(base, leafItemIds)

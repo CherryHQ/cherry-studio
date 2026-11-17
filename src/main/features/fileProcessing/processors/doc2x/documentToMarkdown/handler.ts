@@ -286,18 +286,12 @@ function buildDoc2xPageMarkdown(page: Doc2xParsePage): string {
 
 function buildStructuredDoc2xMarkdown(blocks: readonly Doc2xLayoutBlock[]): string {
   return blocks
-    .map((block) => {
-      if (block.type === 'Table') {
-        return block.table_data?.html ?? block.text
-      }
-
-      if (block.type === 'Figure' && !block.text.trim() && block.src) {
-        return `![](${block.src})`
-      }
-
-      return block.text
+    .flatMap((block) => {
+      let text = block.text
+      if (block.type === 'Table') text = block.table_data?.html ?? block.text
+      else if (block.type === 'Figure' && !text.trim() && block.src) text = `![](${block.src})`
+      return text.trim().length > 0 ? [text] : []
     })
-    .filter((value) => value.trim().length > 0)
     .join('\n\n')
 }
 

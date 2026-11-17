@@ -53,5 +53,5 @@ export function buildKeywordRegexes(
   terms: string[],
   options: { matchMode: KeywordMatchMode; flags?: string }
 ): RegExp[] {
-  return terms.filter((term) => term.length > 0).map((term) => buildKeywordRegex(term, options))
+  return terms.flatMap((term) => (term.length > 0 ? [buildKeywordRegex(term, options)] : []))
 }

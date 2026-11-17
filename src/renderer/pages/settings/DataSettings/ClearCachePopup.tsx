@@ -281,36 +281,35 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
         </DialogHeader>
 
         <div className="flex max-h-[60vh] flex-col gap-2 overflow-y-auto pr-1">
-          {CLEANUP_OPTIONS.filter(({ group }) => visibleGroups.includes(group)).map(
-            ({ group, icon: Icon, titleKey, descriptionKey }) => {
-              const state = optionStates[group]
+          {CLEANUP_OPTIONS.flatMap(({ group, icon: Icon, titleKey, descriptionKey }) => {
+            if (!visibleGroups.includes(group)) return []
+            const state = optionStates[group]
 
-              return (
-                <label
-                  key={group}
-                  className={`flex gap-3 rounded-lg border p-3 ${
-                    cleaning ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-muted/40'
-                  }`}>
-                  <Checkbox
-                    className="mt-0.5"
-                    checked={selected.has(group)}
-                    disabled={cleaning}
-                    onCheckedChange={(checked) => void toggleGroup(group, checked === true)}
-                  />
-                  <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-start justify-between gap-3">
-                      <span className="font-medium text-sm">{t(titleKey)}</span>
-                      <span className="flex shrink-0 items-center gap-1 text-muted-foreground text-xs">
-                        {renderSize(state)}
-                      </span>
+            return [
+              <label
+                key={group}
+                className={`flex gap-3 rounded-lg border p-3 ${
+                  cleaning ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-muted/40'
+                }`}>
+                <Checkbox
+                  className="mt-0.5"
+                  checked={selected.has(group)}
+                  disabled={cleaning}
+                  onCheckedChange={(checked) => void toggleGroup(group, checked === true)}
+                />
+                <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-start justify-between gap-3">
+                    <span className="font-medium text-sm">{t(titleKey)}</span>
+                    <span className="flex shrink-0 items-center gap-1 text-muted-foreground text-xs">
+                      {renderSize(state)}
                     </span>
-                    <span className="mt-1 block text-muted-foreground text-xs leading-5">{t(descriptionKey)}</span>
                   </span>
-                </label>
-              )
-            }
-          )}
+                  <span className="mt-1 block text-muted-foreground text-xs leading-5">{t(descriptionKey)}</span>
+                </span>
+              </label>
+            ]
+          })}
         </div>
 
         <div className="flex items-center justify-between border-t pt-4 text-sm">

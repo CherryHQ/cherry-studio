@@ -412,7 +412,7 @@ export const isMcpTool = (def: ClaudeToolDescriptorDef): boolean => def.mcpServe
  * corresponding bare runtime names, with a drift test keeping the two surfaces aligned.
  */
 export const CLAUDE_KNOWLEDGE_TOOL_NAMES: ReadonlySet<string> = new Set(
-  CLAUDE_TOOL_DEFS.filter((def) => def.requiresKnowledgeScope).map((def) => def.name)
+  CLAUDE_TOOL_DEFS.flatMap((def) => (def.requiresKnowledgeScope ? [def.name] : []))
 )
 
 /**
@@ -420,12 +420,18 @@ export const CLAUDE_KNOWLEDGE_TOOL_NAMES: ReadonlySet<string> = new Set(
  * Disabled tools are omitted (they are hard-blocked via disallowedTools and never invoked).
  */
 export function claudeRegistrySdkDescriptors(): ClaudeToolDescriptor[] {
-  return CLAUDE_TOOL_DEFS.filter((def) => !isMcpTool(def) && def.exposure !== 'disabled').map((def) => ({
-    id: def.name,
-    name: def.name,
-    description: def.description,
-    origin: 'builtin'
-  }))
+  return CLAUDE_TOOL_DEFS.flatMap((def) =>
+    !isMcpTool(def) && def.exposure !== 'disabled'
+      ? [
+          {
+            id: def.name,
+            name: def.name,
+            description: def.description,
+            origin: 'builtin'
+          }
+        ]
+      : []
+  )
 }
 
 /** Display order of category sections in the edit-dialog tool catalog. */

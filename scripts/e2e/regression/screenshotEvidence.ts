@@ -7,7 +7,7 @@ export async function captureMaskedScreenshot(page: Page, sensitiveValues: strin
     mask: [
       page.locator('input, textarea, [contenteditable="true"], iframe'),
       page.getByText(/[^\s@]+@[^\s@]+\.[^\s@]+/),
-      ...sensitiveValues.filter(Boolean).map((value) => page.getByText(value, { exact: false }))
+      ...sensitiveValues.flatMap((value) => (value ? [page.getByText(value, { exact: false })] : []))
     ]
   })
 }

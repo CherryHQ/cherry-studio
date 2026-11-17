@@ -137,16 +137,13 @@ export function getFeatureSections(
   processors: readonly FileProcessorMerged[],
   availableProcessorIds: ReadonlySet<string>
 ): FileProcessingFeatureSection[] {
-  return FILE_PROCESSING_FEATURE_SECTIONS.map(({ feature }) => {
-    const entries = processors
-      .map((processor) => createMenuEntry(processor, feature, availableProcessorIds))
-      .filter((entry): entry is FileProcessingMenuEntry => Boolean(entry))
-
-    return {
-      feature,
-      entries: sortEntriesByFeatureOrder(entries)
-    }
-  }).filter((section) => section.entries.length > 0)
+  return FILE_PROCESSING_FEATURE_SECTIONS.flatMap(({ feature }) => {
+    const entries = processors.flatMap((processor) => {
+      const entry = createMenuEntry(processor, feature, availableProcessorIds)
+      return entry ? [entry] : []
+    })
+    return entries.length > 0 ? [{ feature, entries: sortEntriesByFeatureOrder(entries) }] : []
+  })
 }
 
 export function getProcessorNameKey(processorId: FileProcessorId): string {

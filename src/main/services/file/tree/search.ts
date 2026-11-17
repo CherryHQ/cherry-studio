@@ -360,14 +360,12 @@ function scoreFuzzyPaths(
   query: string,
   isDirectory: boolean
 ): ScoredSearchEntry[] {
-  return paths
-    .map((entryPath) => ({ entryPath, relativePath: path.relative(resolvedPath, entryPath).replace(/\\/g, '/') }))
-    .filter(({ relativePath }) => isFuzzyMatch(relativePath, query))
-    .map(({ entryPath, relativePath }) => ({
-      path: entryPath,
-      isDirectory,
-      score: getFuzzyMatchScore(relativePath, query)
-    }))
+  return paths.flatMap((entryPath) => {
+    const relativePath = path.relative(resolvedPath, entryPath).replace(/\\/g, '/')
+    return isFuzzyMatch(relativePath, query)
+      ? [{ path: entryPath, isDirectory, score: getFuzzyMatchScore(relativePath, query) }]
+      : []
+  })
 }
 
 function compareScoredSearchEntries(a: ScoredSearchEntry, b: ScoredSearchEntry): number {

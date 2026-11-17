@@ -59,8 +59,8 @@ export function listArchives(query: {
 function fetchParentNames(rows: ArchiveRow[]): Map<string, string | null> {
   const db = application.get('DbService').getDb()
   const parentNames = new Map<string, string | null>()
-  const sessionIds = rows.filter((row) => row.domain === 'sessions').map((row) => row.entityId)
-  const topicIds = rows.filter((row) => row.domain === 'topics').map((row) => row.entityId)
+  const sessionIds = rows.flatMap((row) => (row.domain === 'sessions' ? [row.entityId] : []))
+  const topicIds = rows.flatMap((row) => (row.domain === 'topics' ? [row.entityId] : []))
 
   if (sessionIds.length > 0) {
     const sessionRows = db

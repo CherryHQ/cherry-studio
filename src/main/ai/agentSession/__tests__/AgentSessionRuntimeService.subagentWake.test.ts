@@ -223,7 +223,7 @@ describe('subagent settlement wake (incident replay)', () => {
       if (done) break
       received.push(value)
     }
-    const deltas = received.filter((chunk) => chunk.type === 'text-delta').map((chunk) => chunk.delta)
+    const deltas = received.flatMap((chunk) => (chunk.type === 'text-delta' ? [chunk.delta] : []))
     expect(received[0]).toMatchObject({ type: 'start' })
     expect(deltas).toEqual(['wake report part 1', ' part 2', ' part 3'])
 

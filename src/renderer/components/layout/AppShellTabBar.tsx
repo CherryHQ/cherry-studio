@@ -568,7 +568,7 @@ const TabRightClickMenu = ({
         }
       }
     ]
-    return entries.filter((entry) => entry.enabled).map((entry) => entry.item)
+    return entries.flatMap((entry) => (entry.enabled ? [entry.item] : []))
   }, [t, isPinned, capabilities, onMoveToFirst, onTogglePin, onDetach, onClose, onCloseOthers, onCloseToRight])
 
   if (!capabilities.menu || items.length === 0) {

@@ -452,7 +452,7 @@ export class PreferenceService {
     )
     if (!results.every(Boolean)) return false
     if (align) {
-      await Promise.all(keys.filter((key) => !this.alignedKeys.has(key)).map((key) => this.alignSubscription(key)))
+      await Promise.all(keys.flatMap((key) => (!this.alignedKeys.has(key) ? [this.alignSubscription(key)] : [])))
     }
     return true
   }

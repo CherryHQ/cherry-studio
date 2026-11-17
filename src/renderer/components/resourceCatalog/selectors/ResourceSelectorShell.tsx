@@ -471,7 +471,10 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       if (isMulti) {
         if (isItemType) {
           const byId = new Map<string, T>(items.map((item) => [item.id, item]))
-          const mapped = ids.map((id) => byId.get(id)).filter(Boolean) as T[]
+          const mapped = ids.flatMap((id) => {
+            const item = byId.get(id)
+            return item ? [item] : []
+          })
           props.onChange(mapped)
         } else {
           props.onChange(ids)

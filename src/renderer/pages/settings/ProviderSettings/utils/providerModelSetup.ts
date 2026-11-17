@@ -30,9 +30,10 @@ export async function persistProviderModels({
 }: PersistProviderModelsOptions): Promise<Model[]> {
   const uniqueSelectedModels = [...new Map(selectedModels.map((model) => [model.id, model])).values()]
   const persistedModels = new Map([...localModels, ...knownModels].map((model) => [model.id, model]))
-  const modelsToRestore = uniqueSelectedModels
-    .map((model) => persistedModels.get(model.id))
-    .filter((model): model is Model => model != null && (!model.isEnabled || model.isHidden))
+  const modelsToRestore = uniqueSelectedModels.flatMap((model) => {
+    const mapped = persistedModels.get(model.id)
+    return mapped != null && (!mapped.isEnabled || mapped.isHidden) ? [mapped] : []
+  })
 
   for (const modelChunk of chunkArray(modelsToRestore, MODELS_BULK_UPDATE_MAX_ITEMS)) {
     const updatedModels = await updateModels(

@@ -36,9 +36,11 @@ export function isAvailablePaintingModel(model: Model): boolean {
 }
 
 export function getPaintingModelOptions(providerId: string, models: readonly Model[]): ModelOption[] {
-  return models
-    .filter((model) => model.providerId === providerId && !model.isHidden && supportsImageGenerationEndpoint(model))
-    .map(createModelOptionFromModel)
+  return models.flatMap((model) =>
+    model.providerId === providerId && !model.isHidden && supportsImageGenerationEndpoint(model)
+      ? [createModelOptionFromModel(model)]
+      : []
+  )
 }
 
 export async function loadPaintingModelOptions(providerId: string): Promise<ModelOption[]> {

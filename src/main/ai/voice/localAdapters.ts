@@ -63,9 +63,9 @@ export function describeVoiceModel(modelId: string, environment = getVoiceEnviro
 
 export function listVoiceModels(environment = getVoiceEnvironment()) {
   return {
-    models: definitions
-      .filter((model) => model.support(environment) === VoiceModelSupport.Supported)
-      .map((model) => describeDefinition(model, environment)),
+    models: definitions.flatMap((model) =>
+      model.support(environment) === VoiceModelSupport.Supported ? [describeDefinition(model, environment)] : []
+    ),
     defaultAsrModelId: resolveDefaultAsrModel(environment),
     defaultSpeechModelId: resolveDefaultSpeechModel(environment)
   }
@@ -210,9 +210,9 @@ export async function resolveTranscriptionConfiguration(
 ): Promise<OutputFor<'ai.voice.transcription.resolve'>> {
   const candidates = input.modelId
     ? [input.modelId]
-    : transcriptionDefinitions
-        .filter((model) => model.support(environment) === VoiceModelSupport.Supported)
-        .map((model) => model.id)
+    : transcriptionDefinitions.flatMap((model) =>
+        model.support(environment) === VoiceModelSupport.Supported ? [model.id] : []
+      )
   let fallback: OutputFor<'ai.voice.transcription.resolve'> | undefined
   for (const modelId of candidates) {
     signal?.throwIfAborted()

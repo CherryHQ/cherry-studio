@@ -15,7 +15,7 @@ export function getOrderedSelectedMessageIds(
   if (orderedMessages.length === 0) return [...messageIds]
 
   const selected = new Set(messageIds)
-  const orderedIds = orderedMessages.filter((message) => selected.has(message.id)).map((message) => message.id)
+  const orderedIds = orderedMessages.flatMap((message) => (selected.has(message.id) ? [message.id] : []))
   const orderedIdSet = new Set(orderedIds)
 
   return [...orderedIds, ...messageIds.filter((messageId) => !orderedIdSet.has(messageId))]

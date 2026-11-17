@@ -75,10 +75,9 @@ export async function cancelActiveKnowledgeJobs(
       : (taskId) => application.get('FileProcessingService').cancelTask(taskId, reason)
 
   const collectAndCancel = async (activeJobs: JobSnapshot[]): Promise<void> => {
-    const jobIds = activeJobs
-      .filter((job) => job.id !== excludeJobId)
-      .filter((job) => !subtreeItemIds || jobTouchesSubtree(job, subtreeItemIds))
-      .map((job) => job.id)
+    const jobIds = activeJobs.flatMap((job) =>
+      job.id !== excludeJobId && (!subtreeItemIds || jobTouchesSubtree(job, subtreeItemIds)) ? [job.id] : []
+    )
     await Promise.all(jobIds.map(cancelOne))
   }
   // Read the waits only after the knowledge cancels settle: a copy job cancelled after its commit

@@ -71,7 +71,7 @@ export function mcpResourceToComposerToken(
 }
 
 export function getComposerTokenIds(tokens: readonly ComposerSerializedToken[], kind?: ComposerDraftToken['kind']) {
-  return new Set(tokens.filter((token) => !kind || token.kind === kind).map((token) => token.id))
+  return new Set(tokens.flatMap((token) => (!kind || token.kind === kind ? [token.id] : [])))
 }
 
 export function hasComposerToken(tokens: readonly ComposerSerializedToken[], id: string) {

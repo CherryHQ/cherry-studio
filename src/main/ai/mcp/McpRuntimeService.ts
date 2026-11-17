@@ -1259,7 +1259,7 @@ export class McpRuntimeService extends BaseService {
     await Promise.all(pendingConnections)
     const keys = new Set([...this.connections.keys(), ...this.pendingConnectionClosures.keys()])
     await Promise.all(
-      [...keys].filter((key) => this.isServerKeyForId(key, serverId)).map((key) => this.closeConnection(key))
+      [...keys].flatMap((key) => (this.isServerKeyForId(key, serverId) ? [this.closeConnection(key)] : []))
     )
   }
 

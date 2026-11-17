@@ -472,9 +472,11 @@ function escapePowerShell(value: string): string {
 }
 
 function runMacHotkey(keys: string[]): void {
-  const modifiers = keys
-    .filter((key) => ['Alt', 'Control', 'Meta', 'Shift'].includes(key))
-    .map((key) => ({ Alt: 'option down', Control: 'control down', Meta: 'command down', Shift: 'shift down' })[key])
+  const modifiers = keys.flatMap((key) =>
+    ['Alt', 'Control', 'Meta', 'Shift'].includes(key)
+      ? [{ Alt: 'option down', Control: 'control down', Meta: 'command down', Shift: 'shift down' }[key]]
+      : []
+  )
   const key = keys.find((candidate) => !['Alt', 'Control', 'Meta', 'Shift'].includes(candidate))
   if (!key) throw new Error('A hotkey must include a non-modifier key')
   const namedCodes: Record<string, number> = { Enter: 36, Escape: 53, Space: 49 }

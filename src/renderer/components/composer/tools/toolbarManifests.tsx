@@ -109,9 +109,13 @@ export const getComposerToolbarManifestsForScope = (
   scope: ComposerToolScope,
   t: TFunction
 ): ComposerToolbarManifest[] =>
-  COMPOSER_TOOLBAR_MANIFESTS.filter((manifest) => manifest.visibleInScopes.includes(scope))
-    .map((manifest) => ({
-      ...manifest.toolbar,
-      label: manifest.label(t)
-    }))
-    .sort((left, right) => left.order - right.order)
+  COMPOSER_TOOLBAR_MANIFESTS.flatMap((manifest) =>
+    manifest.visibleInScopes.includes(scope)
+      ? [
+          {
+            ...manifest.toolbar,
+            label: manifest.label(t)
+          }
+        ]
+      : []
+  ).sort((left, right) => left.order - right.order)

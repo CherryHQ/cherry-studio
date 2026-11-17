@@ -114,9 +114,10 @@ export class ChannelManager extends BaseService {
   }
 
   getAgentAdapters(agentId: string): ChannelAdapter[] {
-    return [...this.runtimes.values()]
-      .map((runtime) => runtime.adapter)
-      .filter((adapter): adapter is ChannelAdapter => adapter?.agentId === agentId)
+    return [...this.runtimes.values()].flatMap((runtime) => {
+      const adapter = runtime.adapter
+      return adapter?.agentId === agentId ? [adapter] : []
+    })
   }
 
   getAdapter(channelId: string): ChannelAdapter | undefined {

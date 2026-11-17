@@ -128,9 +128,9 @@ const PI_CARD_OVERRIDES: Partial<Record<AgentPermissionMode, Partial<PermissionM
 export function getPermissionModeCards(agentType: AgentType | string | undefined): PermissionModeCard[] {
   if (!agentType || !(agentType in AGENT_RUNTIME_CAPABILITIES)) return permissionModeCards
   const modes = new Set<AgentPermissionMode>(AGENT_RUNTIME_CAPABILITIES[agentType as AgentType].permissionModes)
-  return permissionModeCards
-    .filter((card) => modes.has(card.mode))
-    .map((card) =>
-      agentType === 'pi' || agentType === 'pi-durable' ? { ...card, ...PI_CARD_OVERRIDES[card.mode] } : card
-    )
+  return permissionModeCards.flatMap((card) =>
+    modes.has(card.mode)
+      ? [agentType === 'pi' || agentType === 'pi-durable' ? { ...card, ...PI_CARD_OVERRIDES[card.mode] } : card]
+      : []
+  )
 }

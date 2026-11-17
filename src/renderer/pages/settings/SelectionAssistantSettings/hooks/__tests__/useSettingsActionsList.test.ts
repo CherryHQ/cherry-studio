@@ -28,8 +28,8 @@ const move = (rows: ActionRow[], from: number, to: number): ActionRow[] => {
 }
 
 const summarize = (items: SelectionActionItem[]) => ({
-  enabled: items.filter((item) => item.enabled).map((item) => item.id),
-  disabled: items.filter((item) => !item.enabled).map((item) => item.id)
+  enabled: items.flatMap((item) => (item.enabled ? [item.id] : [])),
+  disabled: items.flatMap((item) => (!item.enabled ? [item.id] : []))
 })
 
 describe('actionItemsFromRows', () => {

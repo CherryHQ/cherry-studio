@@ -169,9 +169,10 @@ async function resolveAgentStatus(
 async function findUnresolvedExecutables(allowedTools: readonly string[]): Promise<string[]> {
   const declared = Array.from(
     new Set(
-      allowedTools
-        .map((tool) => tool.match(BASH_EXECUTABLE_PATTERN)?.[1])
-        .filter((name): name is string => typeof name === 'string' && !SHELL_BUILTINS.has(name))
+      allowedTools.flatMap((tool) => {
+        const name = tool.match(BASH_EXECUTABLE_PATTERN)?.[1]
+        return typeof name === 'string' && !SHELL_BUILTINS.has(name) ? [name] : []
+      })
     )
   )
   // A lookup that fails (timeout, spawn error) stays advisory: rejecting here would fail the Skill call.

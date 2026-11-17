@@ -945,7 +945,7 @@ export class DiagnosticBundleService {
 
     const archiveBytes = (await stat(destination)).size
     const stagedChatArchiveNames = new Set(
-      staged.filter((source) => source.kind === 'chatRecords').map((source) => source.archiveName)
+      staged.flatMap((source) => (source.kind === 'chatRecords' ? [source.archiveName] : []))
     )
     const omittedChatArchiveCount = [...expectedChatArchiveNames].filter(
       (archiveName) => !stagedChatArchiveNames.has(archiveName)

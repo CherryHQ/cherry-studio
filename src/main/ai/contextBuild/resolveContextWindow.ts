@@ -26,6 +26,9 @@ export function resolveContextWindow(contextWindow: number | undefined): number 
  * minimum — a mixed send still budgets against the models that do declare one.
  */
 export function resolveMinContextWindow(contextWindows: ReadonlyArray<number | undefined>): number | null {
-  const known = contextWindows.map(resolveContextWindow).filter((w): w is number => w !== null)
+  const known = contextWindows.flatMap((window) => {
+    const resolved = resolveContextWindow(window)
+    return resolved === null ? [] : [resolved]
+  })
   return known.length > 0 ? Math.min(...known) : null
 }

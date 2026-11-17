@@ -4,7 +4,7 @@
  * stopped materialising both CPU architectures for the host OS — the packaging bug that
  * shipped a macOS x64 build without `@img/sharp-darwin-x64`.
  */
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import fs, { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -68,11 +68,19 @@ describe('assertPrebuiltPackages', () => {
   })
 
   it('reports the missing packages by name', () => {
-    // Only the host OS's binaries are installed (supportedArchitectures.os is `current`),
-    // so another platform stands in for an install that skipped an architecture.
-    expect(() => assertPrebuiltPackages(foreignPlatform, 'x64')).toThrow(
-      /Missing prebuilt packages for .+-x64: .*@img\/sharp-/
-    )
+    const missingPackage = `@img/sharp-${foreignPlatform}-x64`
+    const missingPath = path.join(process.cwd(), 'node_modules', missingPackage)
+    const existsSync = fs.existsSync
+    const probe = vi
+      .spyOn(fs, 'existsSync')
+      .mockImplementation((candidate) => (candidate === missingPath ? false : existsSync(candidate)))
+    try {
+      expect(() => assertPrebuiltPackages(foreignPlatform, 'x64')).toThrow(
+        `Missing prebuilt packages for ${foreignPlatform}-x64: ${missingPackage}`
+      )
+    } finally {
+      probe.mockRestore()
+    }
   })
 })
 

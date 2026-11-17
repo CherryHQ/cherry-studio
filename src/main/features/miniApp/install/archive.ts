@@ -45,7 +45,12 @@ const S_IFDIR = 0x4000
  */
 function resolvePrefix(names: string[]): string {
   if (names.includes(MANIFEST_NAME)) return ''
-  const tops = new Set(names.map((n) => n.split('/')[0]).filter(Boolean))
+  const tops = new Set(
+    names.flatMap((name) => {
+      const top = name.split('/')[0]
+      return top ? [top] : []
+    })
+  )
   if (tops.size === 1) {
     const [only] = [...tops]
     if (names.includes(`${only}/${MANIFEST_NAME}`)) return `${only}/`

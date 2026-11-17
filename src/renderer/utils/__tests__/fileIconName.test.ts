@@ -28,7 +28,10 @@ describe('getFileIconName', () => {
     // `windows`, `visualbasic`, `wasm` and `csv` had already gone missing).
     const source = readFileSync(join(process.cwd(), 'src/renderer/utils/fileIconName.ts'), 'utf8')
     const referenced = new Set(
-      [...source.matchAll(/:\s*'([a-z0-9-]+)'/g)].map((match) => match[1]).filter((name) => name !== 's')
+      [...source.matchAll(/:\s*'([a-z0-9-]+)'/g)].flatMap((match) => {
+        const name = match[1]
+        return name !== 's' ? [name] : []
+      })
     )
 
     expect(referenced.size).toBeGreaterThan(0)

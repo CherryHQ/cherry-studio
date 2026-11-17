@@ -167,10 +167,9 @@ describe('registry serverTools declarations have a runtime delivery path', () =>
   // vendor owns no factory injects nothing while the client tools stay withheld.
   // `vendors` is what keeps such a model off the server route (and off the tag).
   it('narrows every gateway-mapped declaration to servable vendors', () => {
-    const unnarrowed = declared
-      .filter(({ providerId, toolId }) => DELIVERY[providerId]?.[toolId]?.kind === 'gateway-mapped')
-      .filter(({ vendors }) => !vendors?.length)
-      .map(({ providerId, toolId }) => `${providerId}/${toolId}`)
+    const unnarrowed = declared.flatMap(({ providerId, toolId, vendors }) =>
+      DELIVERY[providerId]?.[toolId]?.kind === 'gateway-mapped' && !vendors?.length ? [`${providerId}/${toolId}`] : []
+    )
     expect(unnarrowed).toEqual([])
   })
 })

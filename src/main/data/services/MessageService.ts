@@ -1609,8 +1609,14 @@ export class MessageService {
           .map((p) => (p as { approval?: { id?: string } }).approval?.id)
           .filter((id): id is string => typeof id === 'string')
       )
-      const appliedApprovalIds = decisions.map((d) => d.approvalId).filter((id) => requestedIds.has(id))
-      const alreadySettledApprovalIds = decisions.map((d) => d.approvalId).filter((id) => settledIds.has(id))
+      const appliedApprovalIds = decisions.flatMap((d) => {
+        const id = d.approvalId
+        return requestedIds.has(id) ? [id] : []
+      })
+      const alreadySettledApprovalIds = decisions.flatMap((d) => {
+        const id = d.approvalId
+        return settledIds.has(id) ? [id] : []
+      })
       const targetPresent = appliedApprovalIds.length > 0
       if (targetPresent) {
         const stats = appliedApprovalIds.reduce(

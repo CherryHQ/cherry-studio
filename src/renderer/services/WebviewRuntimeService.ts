@@ -80,7 +80,7 @@ export class WebviewRuntimeService {
       .sort((a, b) => desired.get(a.key)!.lastAccessTime - desired.get(b.key)!.lastAccessTime)
     const evicted = new Set(candidates.slice(0, Math.max(0, next.length - capacity)))
     // Preserve insertion order: moving a live Electron webview can recreate its guest.
-    const surviving = new Map(next.filter((item) => !evicted.has(item)).map((item) => [item.key, item]))
+    const surviving = new Map(next.flatMap((item) => (!evicted.has(item) ? [[item.key, item]] : [])))
     const ordered = this.resources.flatMap((item) => {
       const updated = surviving.get(item.key)
       if (!updated) return []

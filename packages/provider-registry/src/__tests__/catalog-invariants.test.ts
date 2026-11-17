@@ -192,9 +192,9 @@ describe('catalog invariants (data/*.json)', () => {
       const key = `${o.providerId}::${o.modelId}`
       byKey.set(key, [...(byKey.get(key) ?? []), o])
     }
-    const orderDependent = [...byKey.entries()]
-      .filter(([, rows]) => rows.length > 1 && !rows.some((r) => (r.apiModelId ?? r.modelId) === r.modelId))
-      .map(([key]) => key)
+    const orderDependent = [...byKey.entries()].flatMap(([key, rows]) =>
+      rows.length > 1 && !rows.some((row) => (row.apiModelId ?? row.modelId) === row.modelId) ? [key] : []
+    )
     expect(orderDependent).toEqual([])
   })
 

@@ -726,9 +726,9 @@ export class AiStreamManager extends BaseService {
    */
   protected async onStop(): Promise<void> {
     this.isShuttingDown = true
-    const activeTopics = [...this.activeStreams.entries()]
-      .filter(([, s]) => isLiveStatus(s.status))
-      .map(([topicId]) => topicId)
+    const activeTopics = [...this.activeStreams.entries()].flatMap(([topicId, stream]) =>
+      isLiveStatus(stream.status) ? [topicId] : []
+    )
 
     if (activeTopics.length === 0) return
     logger.info('Stopping active streams on shutdown', { count: activeTopics.length })
@@ -922,9 +922,9 @@ export class AiStreamManager extends BaseService {
       for (const listener of input.listeners) this.addListener(input.topicId, listener)
       return {
         mode: 'injected',
-        activeExecutions: [...existing.executions.values()]
-          .filter((exec) => exec.status === 'streaming')
-          .map(toActiveExecution)
+        activeExecutions: [...existing.executions.values()].flatMap((execution) =>
+          execution.status === 'streaming' ? [toActiveExecution(execution)] : []
+        )
       }
     }
 
@@ -1423,9 +1423,10 @@ export class AiStreamManager extends BaseService {
           for (;;) {
             const replacement = this.activeStreams.get(topicId)
             const replacementLoops = replacement
-              ? [...replacement.executions.values()]
-                  .map((execution) => execution.loopPromise)
-                  .filter((loopPromise) => !drainedLoops.has(loopPromise))
+              ? [...replacement.executions.values()].flatMap((execution) => {
+                  const loopPromise = execution.loopPromise
+                  return !drainedLoops.has(loopPromise) ? [loopPromise] : []
+                })
               : []
             if (replacementLoops.length === 0) return
 

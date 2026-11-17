@@ -36,7 +36,7 @@ export class ComputerUseApproval {
   constructor(private readonly changed: () => void) {}
 
   list(windowId: string | null): ComputerUseApprovalRequest[] {
-    return [...this.pending.values()].filter((entry) => entry.windowId === windowId).map((entry) => entry.request)
+    return [...this.pending.values()].flatMap((entry) => (entry.windowId === windowId ? [entry.request] : []))
   }
 
   respond(approvalId: string, scope: ComputerUseApprovalScope, windowId: string | null): boolean {

@@ -499,7 +499,7 @@ export class MiniAppRuntimeService extends BaseService {
 
   /** Every live guest of one app, across every window. */
   guestsOf(appId: string): number[] {
-    return [...this.guestAppIds.entries()].filter(([, id]) => id === appId).map(([wc]) => wc)
+    return [...this.guestAppIds.entries()].flatMap(([wc, id]) => (id === appId ? [wc] : []))
   }
 
   /**

@@ -165,9 +165,9 @@ export class FileEditService extends BaseService {
 
   private async closeOwner(owner: WindowId): Promise<void> {
     await Promise.all(
-      [...this.leases.values()]
-        .filter((lease) => lease.owner === owner)
-        .map((lease) => this.close(owner, lease.resource.editId))
+      [...this.leases.values()].flatMap((lease) =>
+        lease.owner === owner ? [this.close(owner, lease.resource.editId)] : []
+      )
     )
   }
 
