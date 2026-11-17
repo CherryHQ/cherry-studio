@@ -109,10 +109,17 @@ vi.mock('@main/ai/runtime/agentMcpServers', () => ({
   warmAgentMcpToolCatalogs: async () => {},
   buildAgentMcpServers: mocks.mcpServers
 }))
-vi.mock('@main/utils/shellEnv', () => ({
-  getShellEnv: vi.fn(async (): Promise<Record<string, string>> => ({})),
-  getPathFromEnvironment: () => undefined
-}))
+vi.mock('@main/utils/shellEnv', async (importOriginal) => {
+  // Spread the real module: piShell/mcpStdioLaunch (pulled in by the runtime
+  // connection) read pure helpers like hasUserMiseEnv and
+  // resolveCherryPathTailDirs, which a partial mock leaves undefined.
+  const actual = await importOriginal<typeof import('@main/utils/shellEnv')>()
+  return {
+    ...actual,
+    getShellEnv: vi.fn(async (): Promise<Record<string, string>> => ({})),
+    getPathFromEnvironment: () => undefined
+  }
+})
 
 // Real Runtime, native Pi and SQLite; only provider/environment configuration is substituted.
 describe('desktop Pi Durable connection', () => {
