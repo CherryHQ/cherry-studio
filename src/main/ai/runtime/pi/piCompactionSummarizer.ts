@@ -1,10 +1,10 @@
 import type { Message } from '@earendil-works/pi-ai'
-import { isContextOverflow } from '@earendil-works/pi-ai/utils/overflow'
 
 import type { CompactionSummarizer } from '@cherrystudio/agent-runtime-pi'
 
 import type { createPiGatewayModelBinding } from './gatewayModelBinding'
 import { resolvePiSummaryInputBudget } from './piCompactionSettings'
+import { loadPiAiOverflow } from './piSdk'
 
 type Binding = Awaited<ReturnType<typeof createPiGatewayModelBinding>>
 type UsageCapture = () => { headers: Record<string, string>; release(): void }
@@ -69,6 +69,7 @@ export function createPiCompactionSummarizer(options: { binding: Binding; usage:
   const { binding } = options
   const { contextWindow, maxTokens } = binding.model
   return async (request) => {
+    const { isContextOverflow } = await loadPiAiOverflow()
     let budget = resolvePiSummaryInputBudget(contextWindow, maxTokens)
     for (let attempt = 0; ; attempt++) {
       const { text, omitted } = fitTranscript(request.messages.map(serialize), budget)

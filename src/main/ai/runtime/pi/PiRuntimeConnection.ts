@@ -349,7 +349,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         ...resolvePiCompactionSettings(binding.model.contextWindow, binding.model.maxTokens),
         summarize: createPiCompactionSummarizer({
           binding,
-          usage: () => application.get('ApiGatewayService').captureAgentSessionUsage(this.input.sessionId, nativeId)
+          usage: () => application.get('ApiGatewayService').captureAgentSessionUsage(this.input.sessionId)
         })
       },
       extensionFactories: [
