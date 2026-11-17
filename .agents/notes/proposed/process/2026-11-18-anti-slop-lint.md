@@ -6,11 +6,11 @@ English | [中文](2026-11-18-anti-slop-lint.zh.md)
 
 ## Problem
 
-The initial local integration selects only three anti-slop rules. The requested target is all generic upstream rules in the existing lint gate, followed by cleanup of existing violations. The initial `scripts/lint/vendor/` nesting also obscures the plugin's tooling role.
+Enabling the complete anti-slop preset at once exposes substantial existing debt and keeps the lint gate red. The migration needs to clear each rule before activating it, while making all generic rules available without unused framework-specific sources.
 
 ## Proposal
 
-Register all 18 generic anti-slop rules and native `oxc/no-accumulating-spread` as errors in the existing Oxlint gate. Preserve existing lint scope and unrelated rules. Omit the Effect-specific plugin sources because this repository does not use Effect. New findings are existing migration work, not grounds to disable rules, downgrade severity, add directory exemptions or introduce fabricated type evidence.
+Install all 18 generic anti-slop rules and the native `oxc/no-accumulating-spread` companion, but activate them individually only after their repository findings are cleared and relevant contracts pass verification. The integration layer registers the plugin without activating unfinished rules. Each rule-specific stack layer contains its cleanup and enables that rule as an error. Preserve existing lint scope and unrelated rules. Omit the Effect-specific plugin sources because this repository does not use Effect. Do not weaken an activated rule, add directory exemptions or introduce fabricated type evidence to bypass findings.
 
 Place the copied plugin at `scripts/lint/anti-slop/`, retain its exact upstream revision and MIT notices, and keep `@oxlint/plugins` pinned to the exact Oxlint version. Upstream explicitly supports copying source and has no official npm package; its package exports uncompiled TypeScript, which Node does not strip inside `node_modules`. A Git dependency would require an extra compilation or loading mechanism. The initial integration keeps the supported local-source mechanism without the redundant outer vendor directory. The plugin's own third-party notices retain their upstream layout.
 
@@ -24,11 +24,11 @@ Inventory findings by rule and file, then clean bounded modules while preserving
 
 ## Acceptance criteria
 
-- AC1 — All 18 generic upstream rules and the native accumulator-spread companion are errors in the existing lint configuration; real CLI probes verify rejection and supported code. (verification: unit)
+- AC1 — Each rule is activated as an error only after its repository findings are cleared; real CLI probes verify the activation. All 18 generic rules and the native companion are active when migration is complete. (verification: unit)
 - AC2 — The plugin loads from `scripts/lint/anti-slop/` with matching pinned dependencies, unchanged upstream generic production source, no unused Effect plugin, and retained license/provenance records. (verification: unit)
 - AC3 — A bounded initial cleanup batch passes targeted lint and existing tests for its affected contracts; subsequent batches retain the same verification discipline. (verification: unit)
 - AC4 — The remaining rule inventory and verification limits are reported accurately; documentation describes full adoption and the incomplete migration. (verification: docs gate)
 
 ## Risks
 
-Full adoption initially exposes existing violations, so the repository lint gate can remain red until migration finishes. Unknown-input restrictions, module mocks, reflection and type assertions require domain-specific changes rather than mechanical replacements. Spacing fixes can interact with formatting and need a second-pass stability check. AST and lexical-scope rules do not prove cross-file type safety or universal performance improvement. The initial batch does not claim full-repository validation or complete migration.
+A rule cannot be activated while its existing violations remain. An unconfigured rule is pending migration, not proof that its source is clean. CLI probes must distinguish plugin availability from actual repository enforcement. Unknown-input restrictions, module mocks, reflection and type assertions require domain-specific changes rather than mechanical replacements. Spacing fixes can interact with formatting and need a second-pass stability check. AST and lexical-scope rules do not prove cross-file type safety or universal performance improvement. The initial batch does not claim full-repository validation or complete migration.
