@@ -1851,6 +1851,21 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-error-block')).toHaveAttribute('data-error-message', 'boom')
     })
 
+    it('renders nothing for a dismissed error part while keeping the remaining content', () => {
+      // Dismissal hides the error without deleting it; the partial answer stays.
+      renderParts([
+        { type: 'text', text: 'partial answer' },
+        {
+          type: 'data-error',
+          data: { name: 'Err', message: 'boom' },
+          providerMetadata: { cherry: { dismissed: true } }
+        }
+      ] as unknown as CherryMessagePart[])
+
+      expect(screen.getByText('partial answer')).toBeInTheDocument()
+      expect(screen.queryByTestId('mock-error-block')).toBeNull()
+    })
+
     it('shows one card for an error persisted twice but keeps distinct errors', () => {
       const failure = { name: 'AI_APICallError', message: "Unknown parameter: 'response_format'." }
       renderParts([
