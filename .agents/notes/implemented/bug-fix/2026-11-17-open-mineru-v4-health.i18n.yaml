@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-17-open-mineru-v4-health.md
+2026-11-17-open-mineru-v4-health.md: a96243aa95b7743f16a31867104607474b0785dc
+2026-11-17-open-mineru-v4-health.zh.md: 031dca72c98e279a10f835dc157a0d594ab76c0d

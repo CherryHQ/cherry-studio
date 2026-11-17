@@ -14,6 +14,7 @@ export type OpenMineruProbeResult =
   | { kind: 'supported'; protocol: 'legacy' | 'v1' }
   | { kind: 'http-error'; status: number }
   | { kind: 'invalid-response' }
+  | { kind: 'unsupported' }
   | { kind: 'not-found' }
   | { kind: 'unreachable' }
 

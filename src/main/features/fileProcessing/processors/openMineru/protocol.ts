@@ -1,6 +1,6 @@
 import { net } from 'electron'
 
-import { LegacyHealthSchema, V1HealthSchema } from './schemas'
+import { LegacyHealthSchema, V1CompatibleHealthSchema, V1HealthSchema } from './schemas'
 import type { OpenMineruConnection, OpenMineruProbeResult } from './types'
 
 export async function probeOpenMineru(
@@ -30,7 +30,30 @@ export async function probeOpenMineru(
       const payload: unknown = await response.json().catch(() => undefined)
       probeSignal.throwIfAborted()
       const schema = protocol === 'v1' ? V1HealthSchema : LegacyHealthSchema
-      return schema.safeParse(payload).success ? { kind: 'supported', protocol } : { kind: 'invalid-response' }
+      if (schema.safeParse(payload).success) return { kind: 'supported', protocol }
+
+      // MinerU 4.x still exposes the v1 health envelope but renamed feature fields.
+      // Probe the legacy endpoint before keeping the engine visible as unsupported.
+      if (protocol === 'v1' && V1CompatibleHealthSchema.safeParse(payload).success) {
+        const legacyResponse = await net.fetch(`${connection.apiHost}/health`, {
+          headers: connection.apiKey ? { Authorization: `Bearer ${connection.apiKey}` } : undefined,
+          redirect: 'manual',
+          credentials: 'omit',
+          signal: probeSignal
+        })
+        if (!legacyResponse.ok) {
+          await legacyResponse.body?.cancel()
+          if (legacyResponse.status === 404) return { kind: 'unsupported' }
+          return { kind: 'http-error', status: legacyResponse.status }
+        }
+        const legacyPayload: unknown = await legacyResponse.json().catch(() => undefined)
+        probeSignal.throwIfAborted()
+        return LegacyHealthSchema.safeParse(legacyPayload).success
+          ? { kind: 'supported', protocol: 'legacy' }
+          : { kind: 'unsupported' }
+      }
+
+      return { kind: 'invalid-response' }
     }
     return { kind: 'not-found' }
   } catch {

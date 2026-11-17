@@ -43,6 +43,38 @@ describe('Open MinerU protocol detection', () => {
     }
   )
 
+  it('keeps a MinerU 4.x health response visible when the legacy protocol is unavailable', async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        status: 'ok',
+        version: '4.1.3',
+        features: {
+          webhook: false,
+          task_output_formats: ['default', 'docx', 'html', 'latex'],
+          sources: ['upload', 'url']
+        }
+      })
+    )
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 404 }))
+    expect(await probeOpenMineru(connection)).toEqual({ kind: 'unsupported' })
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      `${connection.apiHost}/v1/health`,
+      `${connection.apiHost}/health`
+    ])
+  })
+
+  it('falls back to legacy parsing for a MinerU 4.x health response when legacy health is valid', async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        status: 'ok',
+        version: '4.1.3',
+        features: { task_output_formats: ['default'], sources: ['upload', 'url'] }
+      })
+    )
+    fetchMock.mockResolvedValueOnce(Response.json({ status: 'healthy', version: '4.1.3' }))
+    expect(await probeOpenMineru(connection)).toEqual({ kind: 'supported', protocol: 'legacy' })
+  })
+
   it('does not downgrade on network failure', async () => {
     fetchMock.mockRejectedValueOnce(new Error('ECONNREFUSED'))
     expect(await probeOpenMineru(connection)).toEqual({ kind: 'unreachable' })

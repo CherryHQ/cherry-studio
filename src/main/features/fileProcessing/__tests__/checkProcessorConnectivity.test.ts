@@ -66,6 +66,18 @@ describe('checkOpenMineruConnectivity', () => {
     await expect(probe()).resolves.toBe(true)
   })
 
+  it('keeps a MinerU 4.x deployment selectable when its health features are newer', async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        status: 'ok',
+        version: '4.1.3',
+        features: { task_output_formats: ['default', 'docx'], sources: ['upload', 'url'] }
+      })
+    )
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 404 }))
+    await expect(probe()).resolves.toBe(true)
+  })
+
   it.each([401, 403, 500, 503])(
     'keeps HTTP %i selectable so authentication or service errors can be reported',
     async (status) => {

@@ -9,6 +9,22 @@ export const V1HealthSchema = z.object({
   })
 })
 
+/** MinerU 4.x keeps the health envelope but reports its capabilities with new names. */
+export const V1CompatibleHealthSchema = z.object({
+  status: z.literal('ok'),
+  version: z.string().min(1),
+  features: z
+    .object({
+      sources: z.array(z.string()),
+      output_formats: z.array(z.string()).optional(),
+      task_output_formats: z.array(z.string()).optional()
+    })
+    .refine(({ sources, output_formats, task_output_formats }) => {
+      const supportsUpload = sources.includes('file_id') || sources.includes('upload') || sources.includes('url')
+      return supportsUpload && (output_formats !== undefined || task_output_formats !== undefined)
+    })
+})
+
 export const LegacyHealthSchema = z.object({
   status: z.literal('healthy'),
   version: z.string().min(1)

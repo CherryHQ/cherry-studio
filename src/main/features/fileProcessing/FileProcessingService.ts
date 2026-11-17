@@ -191,7 +191,7 @@ export class FileProcessingService extends BaseService {
 
     try {
       const probe = await probeOpenMineru({ apiHost, apiKey: getApiKey(config, processorId) })
-      return probe.kind === 'supported' || probe.kind === 'http-error'
+      return probe.kind === 'supported' || probe.kind === 'http-error' || probe.kind === 'unsupported'
     } catch (error) {
       logger.debug('File processor connectivity probe failed', { processorId, apiHost, error })
       return false
