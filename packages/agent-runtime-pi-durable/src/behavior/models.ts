@@ -5,6 +5,7 @@ import type { PiDurableBehavior } from './harness'
 /** The native provider session identifies the conversation; metering happens before the provider is called. */
 export function meteredModels(models: Models, behavior: PiDurableBehavior): Models {
   const streamSimple: Models['streamSimple'] = (model, messages, options) => {
+    if (options?.readOnlyFork) return models.streamSimple(model, messages, options)
     const output = createAssistantMessageEventStream()
     void (async () => {
       try {
