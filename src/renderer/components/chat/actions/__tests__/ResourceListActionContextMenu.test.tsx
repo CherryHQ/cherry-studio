@@ -1,12 +1,16 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { CommandContextMenu } from '@renderer/components/command'
 
 import { ResourceListActionContextMenu } from '../ResourceListActionContextMenu'
 
+type RecordedCommandMenuProps = Pick<ComponentProps<typeof CommandContextMenu>, 'getExtraItems' | 'extraItems'>
+
 const openContextMenu = vi.fn()
 const commandMenuMocks = vi.hoisted(() => ({
-  props: [] as Array<{ getExtraItems?: () => unknown; extraItems?: unknown }>
+  props: [] as Array<RecordedCommandMenuProps>
 }))
 const actionMenuItemMocks = vi.hoisted(() => ({
   actionsToCommandMenuExtraItems: vi.fn(() => [])
@@ -16,7 +20,7 @@ const actionMenuItemMocks = vi.hoisted(() => ({
 // point of this test is the *mode-independent* wrapper onContextMenu that identifies the clicked row.
 // The mock just renders the children inside a span and we assert the right-click bubbles through it.
 vi.mock('@renderer/components/command', () => ({
-  CommandContextMenu: ({ children, ...props }: { children: ReactNode; getExtraItems?: () => unknown }) => {
+  CommandContextMenu: ({ children, ...props }: RecordedCommandMenuProps & { children: ReactNode }) => {
     commandMenuMocks.props.push(props)
     return <span data-testid="command-context-menu">{children}</span>
   }

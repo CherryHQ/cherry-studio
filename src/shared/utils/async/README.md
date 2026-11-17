@@ -26,3 +26,7 @@ event-scoped acquisitions. The main reconciler adapter retains default logging.
 
 `Mutex`, `Semaphore`, `tryAcquire`, `PQueue`, `debounce`, and `throttle` re-export
 the existing libraries; this module does not replace their implementations.
+
+`getLastError()` returns `Error | null`. A thrown `Error` keeps its identity;
+other thrown values become an `Error` with the original value in `cause`.
+`onError` receives the original thrown value.

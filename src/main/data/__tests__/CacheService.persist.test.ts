@@ -13,7 +13,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import type { IpcMainEvent } from 'electron'
+import type { IpcMain, IpcMainEvent } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -23,7 +23,7 @@ vi.unmock('@main/data/CacheService')
 
 // Mock lifecycle decorators so `new CacheService()` works without the container.
 const ipcListeners = new Map<string, (event: IpcMainEvent, ...args: any[]) => void>()
-const ipcHandlers = new Map<string, (event: IpcMainEvent, ...args: any[]) => unknown>()
+const ipcHandlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
 
 vi.mock('@main/core/lifecycle', () => ({
   BaseService: class {
@@ -31,7 +31,7 @@ vi.mock('@main/core/lifecycle', () => ({
       ipcListeners.set(channel, listener)
       return { dispose: () => ipcListeners.delete(channel) }
     }
-    protected ipcHandle(channel: string, handler: (event: IpcMainEvent, ...args: any[]) => unknown) {
+    protected ipcHandle(channel: string, handler: Parameters<IpcMain['handle']>[1]) {
       ipcHandlers.set(channel, handler)
       return { dispose: () => ipcHandlers.delete(channel) }
     }

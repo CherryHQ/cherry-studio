@@ -1,6 +1,6 @@
 import { pathToFileURL } from 'node:url'
 
-import type { IpcMainEvent } from 'electron'
+import type { IpcMain, IpcMainEvent } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -30,7 +30,7 @@ vi.unmock('@main/data/CacheService')
 // The mocked BaseService captures ipcMain handlers and interval callbacks so
 // tests can invoke the relay path and the GC sweep directly.
 const ipcListeners = new Map<string, (event: IpcMainEvent, ...args: any[]) => void>()
-const ipcHandlers = new Map<string, (event: IpcMainEvent, ...args: any[]) => unknown>()
+const ipcHandlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
 const intervalCallbacks: Array<() => void> = []
 
 vi.mock('@main/core/lifecycle', () => ({
@@ -39,7 +39,7 @@ vi.mock('@main/core/lifecycle', () => ({
       ipcListeners.set(channel, listener)
       return { dispose: () => ipcListeners.delete(channel) }
     }
-    protected ipcHandle(channel: string, handler: (event: IpcMainEvent, ...args: any[]) => unknown) {
+    protected ipcHandle(channel: string, handler: Parameters<IpcMain['handle']>[1]) {
       ipcHandlers.set(channel, handler)
       return { dispose: () => ipcHandlers.delete(channel) }
     }

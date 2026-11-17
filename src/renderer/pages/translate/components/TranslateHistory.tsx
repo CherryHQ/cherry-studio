@@ -286,7 +286,7 @@ const useLanguageLabels = () => {
 const HistoryRow: FC<{
   item: DisplayedTranslateHistoryItem
   onSelect: (id: string) => void
-  onUpdate: (id: string, data: { star: boolean }) => Promise<unknown>
+  onUpdate: ReturnType<typeof useTranslateHistory>['update']
 }> = ({ item, onSelect, onUpdate }) => {
   const { t } = useTranslation()
 

@@ -1,6 +1,7 @@
 import { useNavigate } from '@tanstack/react-router'
 import { type ComponentProps, useCallback } from 'react'
 
+import type { AskUserQuestionOptimisticInputs } from '@renderer/components/chat/messages/tools/agent'
 import type { MessageListState } from '@renderer/components/chat/messages/types'
 import type {
   MessageListActions,
@@ -29,7 +30,7 @@ interface AgentChatMainProps {
   activeAgent: GetAgentResponse | undefined
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers: MessageStreamingLayers
-  optimisticAskUserQuestionInputsByToolCallId: Record<string, unknown>
+  optimisticAskUserQuestionInputsByToolCallId: AskUserQuestionOptimisticInputs
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void

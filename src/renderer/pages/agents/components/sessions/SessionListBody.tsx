@@ -30,9 +30,9 @@ interface SessionListBodyProps {
   onOpenInNewTab?: (session: AgentSessionEntity) => void
   onOpenInNewWindow?: (session: AgentSessionEntity) => void
   onOpenRenameDialog: (session: AgentSessionEntity) => void
-  onRetry: () => Promise<unknown>
+  onRetry: () => Promise<void>
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
-  onTogglePin: (id: string) => void | Promise<unknown>
+  onTogglePin: (id: string) => void | Promise<boolean | void>
   onToggleSidebar: (session: AgentSessionEntity) => void
   panePosition?: TopicTabPosition
   sidebarSessionFavoriteIdSet: ReadonlySet<string>

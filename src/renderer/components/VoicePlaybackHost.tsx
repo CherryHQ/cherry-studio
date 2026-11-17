@@ -182,10 +182,10 @@ export function VoicePlaybackHost(): React.ReactElement | null {
   )
     return null
 
-  const control = (
+  const control = <TResult,>(
     operationSessionId: string,
     operationRevision: number,
-    operation: () => Promise<unknown>,
+    operation: () => Promise<TResult>,
     notifyFailure = false
   ) => {
     const generation = ++controlGenerationRef.current

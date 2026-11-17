@@ -7,6 +7,7 @@ import {
   createOverlayRefreshHandoff,
   useMessageStreamingLayers
 } from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
+import type { AskUserQuestionOptimisticInputs } from '@renderer/components/chat/messages/tools/agent'
 import {
   isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
@@ -153,7 +154,7 @@ export interface AgentChatRuntimeState {
   historyActions: ReturnType<typeof useAgentSessionParts>['historyActions']
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers: MessageStreamingLayers
-  optimisticAskUserQuestionInputsByToolCallId: Record<string, unknown>
+  optimisticAskUserQuestionInputsByToolCallId: AskUserQuestionOptimisticInputs
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
@@ -394,9 +395,8 @@ export function useAgentChatRuntimeState({
     executions: activeExecutions,
     liveAssistants
   })
-  const [optimisticAskUserQuestionInputsByToolCallId, setOptimisticAskUserQuestionInputsByToolCallId] = useState<
-    Record<string, unknown>
-  >({})
+  const [optimisticAskUserQuestionInputsByToolCallId, setOptimisticAskUserQuestionInputsByToolCallId] =
+    useState<AskUserQuestionOptimisticInputs>({})
 
   // Deterministic overlay→DB handoff at terminal (see hook docs).
   useTopicOverlayHandoffOnTerminal(sessionTopicId, createOverlayRefreshHandoff(refresh, resetOverlay), liveAssistants)
@@ -451,12 +451,15 @@ export function useAgentChatRuntimeState({
     async (input: MessageToolApprovalInput) => {
       const { match, approved, reason, updatedInput } = input
       const approvalId = match.approvalId
-      const optimisticToolCallId = isAskUserQuestionApprovalResponse(input) ? match.toolCallId : undefined
+      const optimisticInput = isAskUserQuestionApprovalResponse(input)
+        ? parseAskUserQuestionToolInput(input.updatedInput)
+        : undefined
+      const optimisticToolCallId = optimisticInput ? match.toolCallId : undefined
 
-      if (optimisticToolCallId) {
+      if (optimisticToolCallId && optimisticInput) {
         setOptimisticAskUserQuestionInputsByToolCallId((current) => ({
           ...current,
-          [optimisticToolCallId]: input.updatedInput
+          [optimisticToolCallId]: optimisticInput
         }))
       }
 

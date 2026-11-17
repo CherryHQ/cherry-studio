@@ -61,7 +61,7 @@ function TaskRow({
   const [editOpen, setEditOpen] = useState<boolean>()
   const [deleteOpen, setDeleteOpen] = useState<boolean>()
   const paused = task.status === 'paused'
-  const perform = async (command: () => Promise<unknown>) => {
+  const perform = async <TResult,>(command: () => Promise<TResult>) => {
     if (busy) return
     setBusy(true)
     try {

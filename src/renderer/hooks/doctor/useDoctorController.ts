@@ -203,9 +203,9 @@ export function useDoctorController({
   )
 
   const performAction = useCallback(
-    async (
+    async <TResult>(
       interaction: Omit<Extract<DoctorInteraction, { kind: 'action' }>, 'kind'>,
-      operation: () => Promise<unknown>,
+      operation: () => Promise<TResult>,
       errorMessage: string
     ) => {
       dispatch({ type: 'start-interaction', interaction: { kind: 'action', ...interaction } })

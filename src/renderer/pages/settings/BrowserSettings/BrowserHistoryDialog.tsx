@@ -104,7 +104,7 @@ function BrowserHistoryContent({ onOpenPage }: { onOpenPage: () => void }) {
     return [...grouped.entries()].map(([day, { label, visits }]) => ({ group: day, header: label, items: visits }))
   }, [items, locale])
 
-  const run = async (action: () => Promise<unknown>) => {
+  const run = async <TResult,>(action: () => Promise<TResult>) => {
     setBusy(true)
     setError(false)
     try {

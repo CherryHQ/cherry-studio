@@ -166,10 +166,11 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   }, [])
 
   const setShortcutById = useCallback(
-    (setter: (value: ComposerShortcut) => unknown) => (id: string) => {
-      const shortcut = COMPOSER_SHORTCUTS.find((candidate) => composerShortcutId(candidate) === id)
-      if (shortcut) void setter(shortcut)
-    },
+    <TResult,>(setter: (value: ComposerShortcut) => TResult) =>
+      (id: string) => {
+        const shortcut = COMPOSER_SHORTCUTS.find((candidate) => composerShortcutId(candidate) === id)
+        if (shortcut) void setter(shortcut)
+      },
     []
   )
 
