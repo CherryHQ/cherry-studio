@@ -75,7 +75,7 @@ After successful migration, FACT becomes retained history; later edits in this t
 
 ## Entry snapshots in model requests
 
-The first authorized request loads the eligible shared entry and, for an Agent, its private entry. `MemoryService.entrySnapshot()` caches them by product conversation and scope until application restart. Later turns, steps, reconnects and compaction reuse that snapshot. Ordinary memory writes appear automatically in a new conversation.
+The first authorized request loads the eligible shared entry and, for an Agent, its private entry. `MemoryService.entrySnapshot()` caches them by product conversation and scope until application restart. Later turns, steps, reconnects and compaction reuse that snapshot. Ordinary memory writes appear automatically in a new conversation. A changed correction record refreshes the cached entry in the existing conversation.
 
 Pi replaces the `cherry_memory` system section before model requests. Claude Code supplies the reference through prompt-submit and session-start hooks. Persistent Assistant chat reuses it in `prepareStep` after compaction. Each path rechecks authorization and memory safety. An empty reference withdraws earlier memory guidance.
 
@@ -94,19 +94,19 @@ The extraction engine:
 3. Requests at most eight candidates per batch. Each candidate carries one independently useful fact, its subject, conditions, time, intended future use, action, and exact user-text evidence.
 4. Verifies quoted text and references against the input snapshots, then binds message/file versions.
 5. When multiple batches produce multiple candidates, makes one additional model call to reconcile duplicates and conflicts across batches.
-6. Appends only validated personal `add` candidates through the managed store. Existing facts remain unchanged.
+6. Saves validated personal `add` candidates and explicit `correct` corrections through the managed store. Unresolved conflicts leave existing facts unchanged.
 
 Selection is based on concrete future value. Supported personal experiences, plans, decisions and constraints may qualify, including one-time events and temporary circumstances. Candidates preserve the original timing, conditions and certainty. Secrets, unsupported guesses and project/customer information are excluded from personal shared memory.
 
-`exists`, `conflict`, `insufficient`, `omit` and `out_of_scope` are separate outcomes. Compatible fields narrow duplicate checks, and the model judges semantic equivalence. Conflicting additions are withheld and existing facts remain unchanged.
+`exists`, `conflict`, `insufficient`, `omit` and `out_of_scope` are separate outcomes. Compatible fields narrow duplicate checks, and the model judges semantic equivalence. Ambiguous conflicting additions are withheld. An explicit correction must cite a uniquely matched complete old item and user evidence. Retirement distinguishes a formerly true fact from an originally mistaken claim; current reads omit the retired claim.
 
-Saved additions are ordinary Markdown list content. Evidence and source versions are used during validation. A full entry stops saving and preserves existing content.
+Saved additions are ordinary Markdown list content. Evidence and source versions are used during validation. Correction records retain their reason, replacement and correction sources. They coexist with ordinary Markdown and remain immutable during native editing and organization. Explicit goals retain unresolved conditions; category uncertainty alone does not discard supported personal evidence. Saved temporal facts include source-message dates and the application timezone used for interpretation, retaining imprecise dates rather than inventing a day. A full entry stops saving and preserves existing content.
 
 ### Scheduling, cancellation and limits
 
 Extraction and organization share one physical mutex and the `memory.dreaming` worker. The minute wake waits for foreground conversations to finish. `memoryExtractionState` persists pending message references, frozen endpoints, compact completion positions, retry timing and commit hashes in `app_state`, without message or candidate bodies. Ordinary restart resumes admitted pending work and catches up a missed daily deadline without scanning unregistered history. Legacy admission cursors establish a fresh boundary on upgrade.
 
-Explicit cancellation, clear, recovery and generation-switch changes discard affected pending work and establish durable admission boundaries. Relevant revocation is durable even if no task existed yet. Ordinary owner name, model and prompt updates preserve admitted messages; revocation and ownership changes still establish durable boundaries. Source edits, deletion, owner changes or revocation invalidate uncommitted output; topic/session renaming preserves pending work. Foreground interruption defers the batch without consuming an attempt. Model, network or output failures allow two retries ten minutes apart, then wait for the next local 21:00. Successful evaluation, including no eligible facts, completes a batch; budget skips are counted separately. Before/after hashes reconcile a committed file after a crash without appending twice. Already-saved memory remains after source deletion.
+Explicit cancellation, clear, recovery and generation-switch changes discard affected pending work and establish durable admission boundaries. Relevant revocation is durable even if no task existed yet. Ordinary owner name, model and prompt updates preserve admitted messages; revocation and ownership changes still establish durable boundaries. Source edits, deletion, owner changes or revocation invalidate uncommitted output; topic/session renaming preserves pending work. Foreground interruption defers the batch without consuming an attempt. Model, network or output failures allow two retries ten minutes apart, then wait for the next local 21:00. Successful evaluation, including no eligible facts, completes a batch; budget skips are counted separately. Per-file before/after hashes reconcile committed changes after a crash without appending twice. A known partially applied correction revalidates its source and remaining targets before regenerating a proposal; completion waits for every target. Already-saved memory remains after source deletion.
 
 Extraction and reconciliation use the default model with tools and automatic model-call retries disabled. Output tokens follow the model and provider limits. Preflight estimates reserve room for output; byte limits and schema validation also apply.
 
@@ -121,7 +121,7 @@ flowchart LR
     Q --> T{Task}
     T --> ER[Read current memory and bounded chat window]
     T --> DR[Read existing memory files]
-    ER --> EP[Propose personal additions]
+    ER --> EP[Propose personal additions or explicit corrections]
     DR --> DP[Propose file organization]
     EP --> V[Validate sources, permissions and versions]
     DP --> V
@@ -155,11 +155,11 @@ The currently answered user message is excluded by its message ID, derived from 
 
 The model may change keywords or pass `conversationId` and `messageId` to expand another result. There is no body-offset pagination for a truncated message. Assistants remove the tool after the budget is exhausted; Agents receive a stop-searching result. The next answer starts a new budget.
 
-Results carry roles, message/conversation IDs, message dates, match ranks where applicable, and truncation flags. Assistant text provides context; user messages supply factual evidence. Event dates come from the message content. If a search misses relevant context, the model can try alternative keywords within the call budget.
+Results carry roles, message/conversation IDs, message dates, match ranks where applicable, and truncation flags. They also include up to 4,000 bytes of known correction relationships, marking truncation. Changed facts may describe true history; corrected claims must not be presented as true past events. Assistant text provides context; user messages supply factual evidence. Event dates come from the message content. If a search misses relevant context, the model can try alternative keywords within the call budget.
 
 ## Organization (Dreaming)
 
-Organization reads the existing entry and topics in one scope, then reorganizes their facts and links.
+Organization reads the existing entry and topics in one scope, then reorganizes their facts and links. It preserves correction blocks byte-for-byte in their original file and retains source-date anchors. Topics with correction records are retained rather than deleted or transferred.
 
 Automatic triggers are ten successful controlled content edits, seven days since the first pending change, or changed content reaching a capacity warning. A manual request also triggers a check. No-op, failed, metadata-only, Dreaming and recovery writes do not increase the edit count. External edits are detected by hash; their historical edit count is not reconstructed.
 
@@ -199,9 +199,9 @@ Shared clear binds the exact file set and versions before confirmation. It leave
 
 Clearing nonempty content persists empty `forgotten` markers rather than merely deleting all memory state. The store also understands structured `active`, `expired` and `forgotten` entries. Model views exclude forgotten content, matching source-message copies and known derivatives. Current views exclude expired entries; historical views can retain their status and dates. Source-version changes do not lift suppression.
 
-The runtime records each conversation's initial protection-state fingerprint. A later change to expired or forgotten state blocks that conversation's old context, even after restart or disabling shared access. A new conversation without prior history can establish a fresh boundary and use filtered memory. Existing history without a recorded boundary remains blocked when protected state exists. Invalid memory state always blocks requests. Conversation recall retains strict scope checks so a fresh conversation cannot retrieve protected history. Temporary requests without memory remain separate.
+The runtime records each conversation's initial protection-state fingerprint. A later change to legacy expired or forgotten state blocks that conversation's old context, even after restart or disabling shared access. A new conversation without prior history can establish a fresh boundary and use filtered memory. Existing history without a recorded boundary remains blocked when protected state exists. Invalid memory state always blocks requests. Conversation recall retains strict scope checks so a fresh conversation cannot retrieve protected history. Temporary requests without memory remain separate.
 
-Structured scopes pause automatic append and ordinary organization because these operations require whole-file overwrite receipts. Recovery preserves forgotten markers and returns a conflict when restoring protected plaintext would violate them.
+Evidence-bound correction records allow automatic extraction, native projected editing and organization to continue; their retirement alone neither suppresses unrelated source facts nor triggers the forgetting fingerprint. Other structured scopes still pause automatic writes because these operations require whole-file overwrite receipts. Recovery preserves forgotten markers and returns a conflict when restoring protected plaintext would violate them.
 
 ## Legacy FACT and JOURNAL
 

@@ -469,6 +469,112 @@ describe('memory organization lifecycle and commit fences', () => {
     return { chat, users, append, key: `memory:extraction:assistant/${chat.topicId}` }
   }
 
+  it.each(['changed', 'corrected'] as const)(
+    'automatically applies an explicit %s correction and keeps later batches moving',
+    async (correction) => {
+      await save('- "Old address"\n- "Prefers Chinese"\n')
+      const oldSession = memory.open({ scope, assertAuthorized: () => undefined })
+      expect((await memory.entrySnapshot('correction-chat', oldSession)).content).toContain('Old address')
+      oldSession.dispose()
+      const batch = batchConversation(8, 'Please correct the old address: I now live in Suzhou.')
+      generate.mockImplementationOnce(async () => {
+        const reply = JSON.parse(automaticReply([{ kind: 'personal_fact', quote: 'I now live in Suzhou.' }]))
+        Object.assign(reply.candidates[0], {
+          text: 'Lives in Suzhou.',
+          action: 'correct',
+          correction,
+          existing: [{ path: 'MEMORY.md', quote: 'Old address' }]
+        })
+        return { text: JSON.stringify(reply), finishReason: 'stop' }
+      })
+      expect(await dreaming.execute(job())).toMatchObject({ saved: 1 })
+      expect((await session.read('MEMORY.md')).content).toContain('Lives in Suzhou.')
+      expect((await session.read('MEMORY.md')).content).not.toContain('Old address')
+      const nextSession = memory.open({ scope, assertAuthorized: () => undefined })
+      expect((await memory.entrySnapshot('correction-chat', nextSession)).content).toContain('Lives in Suzhou.')
+      nextSession.dispose()
+      expect((await session.revisions())[0].retirement?.reason).toBe(correction)
+      batch.append(8)
+      generate.mockResolvedValueOnce({
+        text: JSON.stringify({ outcome: 'no_eligible', reason: 'Already recorded', candidates: [] }),
+        finishReason: 'stop'
+      })
+      await dreaming.execute(job())
+      expect(readExtractionState(batch.key)?.pending).toEqual([])
+    }
+  )
+
+  it('resumes a partially written multi-file correction from its durable file versions', async () => {
+    await save('- "Old address"\n')
+    await save('- "Old address"\n', '.memories/address.md')
+    const batch = batchConversation(8, 'Please correct this: I now live in Suzhou.')
+    generate.mockImplementation(async (input) => {
+      const reply = JSON.parse(automaticReply([{ kind: 'personal_fact', quote: 'I now live in Suzhou.' }]))
+      const files = JSON.parse(input.prompt!).existingMemory as Array<{ path: string; content: string }>
+      Object.assign(reply.candidates[0], {
+        text: 'Lives in Suzhou.',
+        action: 'correct',
+        correction: 'changed',
+        existing: files
+          .filter((file) => file.content.includes('Old address'))
+          .map((file) => ({ path: file.path, quote: 'Old address' }))
+      })
+      return { text: JSON.stringify(reply), finishReason: 'stop' }
+    })
+    const open = memory.open.bind(memory)
+    let interrupt = true
+    vi.spyOn(memory, 'open').mockImplementation((...args) => {
+      const opened = open(...args)
+      if (args[1] === 'extraction') {
+        const commit = opened.commit.bind(opened)
+        opened.commit = async (mutations, ...rest) => {
+          if (!interrupt) return commit(mutations, ...rest)
+          interrupt = false
+          const result = await commit(mutations.slice(0, 1), ...rest)
+          return {
+            ...result,
+            files: [...result.files, { path: '.memories/address.md', hash: null, outcome: 'pending' }],
+            error: 'Injected partial commit'
+          }
+        }
+      }
+      return opened
+    })
+    await expect(dreaming.execute(job())).rejects.toMatchObject({ reason: 'conflict' })
+    const pending = readExtractionState(batch.key)!
+    expect(pending.prepared?.files).toHaveLength(2)
+    expect(pending.pending).toHaveLength(8)
+    expect((await session.read('.memories/address.md')).content).not.toContain('Old address')
+    await dreaming._doStop()
+    BaseService.resetInstances()
+    dreaming = new MemoryDreamingService()
+    await dreaming._doInit()
+    vi.spyOn(Date, 'now').mockReturnValue(pending.retryAt)
+    expect(await dreaming.execute(job())).toMatchObject({ saved: 1 })
+    expect(readExtractionState(batch.key)?.pending).toEqual([])
+    expect((await session.read('.memories/address.md')).content).toContain('Lives in Suzhou.')
+    expect(await session.revisions()).toHaveLength(2)
+  })
+
+  it('keeps an explicit goal with uncertain details and binds next year to its source date', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-11-17T12:00:00Z'))
+    batchConversation(8, 'I hope to reach the quarterfinals next year; the tournament is undecided.')
+    generate.mockImplementationOnce(async () => {
+      const reply = JSON.parse(
+        automaticReply([
+          { kind: 'uncertain', quote: 'I hope to reach the quarterfinals next year; the tournament is undecided.' }
+        ])
+      )
+      Object.assign(reply.candidates[0], { scope: 'personal', time: 'next year' })
+      return { text: JSON.stringify(reply), finishReason: 'stop' }
+    })
+    expect(await dreaming.execute(job())).toMatchObject({ saved: 1 })
+    const content = (await session.read('MEMORY.md')).content
+    expect(content).toContain('2027')
+    expect(content).toContain('2026-11-17')
+    expect(content).toContain('undecided')
+  })
+
   it('skips a stopped whole turn inside the fixed sixteen-message window', async () => {
     const batch = batchConversation(4)
     batch.append(1, 'paused')
@@ -1464,9 +1570,11 @@ describe('memory organization lifecycle and commit fences', () => {
           saved: Number(added),
           outcomes: [added ? 'add' : scenario]
         })
-        expect((await session.read('MEMORY.md')).content).toBe(
-          added ? original + '- "从三月开始，每周三晚上游泳，出差时暂停。"\n' : original
-        )
+        const saved = (await session.read('MEMORY.md')).content
+        if (added) {
+          expect(saved).toContain(original + '- "从三月开始，每周三晚上游泳，出差时暂停。')
+          expect(saved).toContain(`表述日期：${new Date(chat.user.createdAt).toISOString().slice(0, 10)}`)
+        } else expect(saved).toBe(original)
         if (added) {
           const reader = memory.open({ scope, assertAuthorized: () => undefined })
           expect((await reader.entry()).content).toContain('每周三晚上游泳，出差时暂停')

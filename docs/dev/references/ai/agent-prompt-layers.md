@@ -101,7 +101,9 @@ when the model requests historical evidence. The model chooses keywords and can
 expand a returned conversation/message pair. All reads stay within the same
 Assistant or Agent and selected branches. No prompt hook searches automatically.
 Entry snapshots are cached by product conversation and scope until restart;
-ordinary writes are picked up by new conversations. Authorization and runtime
+ordinary writes are picked up by new conversations. Explicit corrections refresh
+the cached entry within the current conversation; historical recall includes known
+correction relationships. Authorization and runtime
 isolation checks remain live. See [Memory Feature Overview](../memory/overview.md).
 
 Persistent Assistant chat creates a main-only `memoryContext`; temporary chat,

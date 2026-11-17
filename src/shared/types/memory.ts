@@ -28,7 +28,8 @@ export const MemoryCandidateSchema = z.strictObject({
   conditions: z.string().max(500),
   time: z.string().max(200),
   usefulness: z.string().trim().min(1).max(500),
-  action: z.enum(['add', 'exists', 'conflict', 'insufficient', 'omit', 'out_of_scope']),
+  action: z.enum(['add', 'correct', 'exists', 'conflict', 'insufficient', 'omit', 'out_of_scope']),
+  correction: z.enum(['changed', 'corrected']).nullable().optional(),
   reason: z.string().trim().min(1).max(500),
   evidence: z
     .array(

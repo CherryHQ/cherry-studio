@@ -338,6 +338,32 @@ describe('FTS conversation recall in memory references', () => {
     expect(excerpts(await recall(kind, 'needle'))).toEqual([])
   })
 
+  it('returns the correction relationship beside original historical claims', async () => {
+    history('assistant', 'I live in Hangzhou.')
+    const native = memory.open({ scope: { kind: 'shared' }, assertAuthorized: () => undefined })
+    await native.commit(
+      [{ kind: 'write', receipt: (await native.read('MEMORY.md')).receipt, content: '- "I live in Hangzhou."\n' }],
+      async () => () => undefined
+    )
+    const extraction = memory.open({ scope: { kind: 'shared' }, assertAuthorized: () => undefined }, 'extraction')
+    const proposal = await extraction.prepareRevisions((await extraction.read('MEMORY.md')).receipt, [
+      {
+        quote: 'I live in Hangzhou.',
+        text: 'I live in Suzhou.',
+        reason: 'corrected',
+        recordedAt: '2026-11-17T10:00:00.000Z',
+        sources: [{ kind: 'chat', conversationId: 't', messageId: 'm', sourceVersion: 'v' }]
+      }
+    ])
+    await extraction.commit([proposal], async () => () => undefined)
+    const result = await recall('assistant', 'Hangzhou')
+    expect(result).toContain('"previous":"I live in Hangzhou."')
+    expect(result).toContain('"reason":"corrected"')
+    expect(result).toContain('"replacement":"I live in Suzhou."')
+    native.dispose()
+    extraction.dispose()
+  })
+
   it('includes the real beginning of a branch longer than 1000 messages', async () => {
     const source = conversation(
       'assistant',

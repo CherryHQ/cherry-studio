@@ -9,7 +9,7 @@ import type { MemoryScope } from '@shared/types/memory'
 import { isMemoryEditor, type MemoryAuthority } from './memoryAuthority'
 import type { MemoryLegacyOriginal, MemoryMutationSource } from './memoryBackups'
 import type { MemoryEntry, MemoryRevision, MemoryUse } from './memoryEntries'
-import { memoryEntryPreview } from './memoryFiles'
+import { memoryEntryPreview, memoryHash } from './memoryFiles'
 import {
   type MemoryAccess,
   type MemoryApproval,
@@ -48,6 +48,7 @@ export interface MemorySession extends Disposable {
 @ServicePhase(Phase.WhenReady)
 export class MemoryService extends BaseService {
   private readonly entrySnapshots = new Map<string, ReturnType<MemorySession['entry']>>()
+  private readonly entryRevisions = new Map<string, string>()
   private readonly stores = new Map<string, Promise<MemoryStore>>()
   private readonly work = createInFlightWorkTracker()
   private readonly pauses = new Set<symbol>()
@@ -72,6 +73,9 @@ export class MemoryService extends BaseService {
     const scope = session.scope
     const key = JSON.stringify([contextId, scope.kind, scope.kind === 'private' ? scope.agentId : ''])
     await session.assertRuntimeSafe(assertHistory)
+    const revision = memoryHash(Buffer.from(JSON.stringify(await session.revisions())))
+    if (this.entryRevisions.get(key) !== revision) this.entrySnapshots.delete(key)
+    this.entryRevisions.set(key, revision)
     let pending = this.entrySnapshots.get(key)
     if (!pending) {
       pending = session.entry().then(async (snapshot) => {
@@ -225,6 +229,7 @@ export class MemoryService extends BaseService {
   invalidateAll(): void {
     this.generation++
     this.entrySnapshots.clear()
+    this.entryRevisions.clear()
     this.invalidated.fire(undefined)
     for (const session of this.sessions) session.dispose()
   }

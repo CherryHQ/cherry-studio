@@ -54,7 +54,7 @@ You can also tell the Agent directly in **Work**:
 Remember: All externally published Chinese copy must use full-width punctuation and avoid exaggerated titles. Apply this rule to all future related tasks.
 ```
 
-When correcting information, identify the old fact and what changed. Automatic extraction preserves existing facts when conflicts arise. Pi and Claude Code also support memory-file writes through native file tools, with permission and version checks. Check the tool result to confirm a save; if saving is unconfirmed, read the file again before editing.
+When correcting information, identify the old fact and what changed. Explicit user corrections of a uniquely matched old item replace the current fact and retain the old claim as changed or originally mistaken. Ambiguous conflicts preserve the existing fact. Pi and Claude Code also support memory-file writes through native file tools, with permission and version checks. Check the tool result to confirm a save; if saving is unconfirmed, read the file again before editing.
 
 Stopped or failed turns are omitted as whole turns within the same sixteen-message window. Ordinary Agent or Assistant configuration changes preserve pending extraction. If a save is uncertain and the file was subsequently changed, that batch is recorded as conflict-skipped while later batches continue. Foreground chat also defers organization without consuming its attempt allowance.
 
@@ -75,7 +75,7 @@ Assistants search only their own topics. Agents search only their own desktop ma
 Shared-memory settings show the latest run result and provide **Restore backup** and **Clear global memory**. Both actions require confirmation. Clearing affects only shared-memory content and preserves Agent-private memory, legacy files and existing backups.
 
 {% hint style="warning" %}
-Clearing nonempty memory retains forgetting markers. Conversations that may contain old memory remain blocked after restart or disabling shared access. You can start a new conversation to continue chatting with filtered memory. Changes to expired state or invalid state also trigger protection. If recovery encounters later edits or forgetting markers, it reports a conflict and preserves the current state.
+Clearing nonempty memory retains forgetting markers. Conversations that may contain old memory remain blocked after restart or disabling shared access. You can start a new conversation to continue chatting with filtered memory. Ordinary corrections do not trigger forgetting protection; legacy protected or invalid states still require verification. If recovery encounters later edits or forgetting markers, it reports a conflict and preserves the current state.
 {% endhint %}
 
 The Agent's **Memory** tab shows the identity files `SOUL.md` and `USER.md`, legacy `memory/FACT.md`, and read-only `memory/JOURNAL.jsonl`. Active memory uses `MEMORY.md` and `.memories/` topics. After FACT migration succeeds, edits in the legacy tab affect only the retained FACT file. JOURNAL is kept as history.
@@ -113,3 +113,5 @@ Each serves a different purpose: memory holds personal information or Agent-priv
 First open the **Status** panel on the right to check if it is waiting for permissions, if background commands are still running, if subtasks have failed, or if the service provider is retrying. If you need deeper request details, open Developer Mode to view the call chain.
 
 </details>
+
+Explicit goals are saved with unresolved conditions, such as intending to compete without selecting a tournament. Temporal facts retain the source-message date and interpretation timezone; delayed extraction does not reinterpret “next year” against its execution date. Known corrections refresh the current conversation entry and accompany historical recall so old conclusions are not reused.

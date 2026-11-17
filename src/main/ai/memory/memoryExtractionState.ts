@@ -47,6 +47,7 @@ const stateSchema = z.object({
       sourceHash: z.string(),
       before: z.string().nullable(),
       after: z.string(),
+      files: z.array(z.object({ path: z.string(), before: z.string().nullable(), after: z.string() })).optional(),
       through: positionSchema.optional()
     })
     .optional()

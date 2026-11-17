@@ -25,6 +25,7 @@ import {
   writeDreamingState,
   type DreamingState
 } from './memoryDreamingState'
+import type { MemoryRevision } from './memoryEntries'
 import {
   extractContextCandidates,
   extractionBranch,
@@ -49,7 +50,8 @@ import {
 } from './memoryExtractionState'
 import { MEMORY_ENTRY, MemoryError, memoryHash } from './memoryFiles'
 import type { MemorySession } from './MemoryService'
-import type { MemoryCommitResult, MemoryRead } from './MemoryStore'
+import type { MemoryCommitResult, MemoryRead, MemoryMutation } from './MemoryStore'
+import { anchorMemoryTime } from './memoryTime'
 
 const logger = loggerService.withContext('MemoryDreamingService')
 const AUTO_KEY = 'feature.memory.dreaming.enabled'
@@ -620,16 +622,27 @@ export class MemoryDreamingService extends BaseService {
       start.reason = undefined
       writeDreamingState(start)
       const prepared = pending.state.prepared
+      const unfinished = new Set<string>()
       if (prepared) {
         const sameSource = prepared.sourceHash === source.hash && prepared.end === ticket.messageId
-        if (sameSource && entry.hash === prepared.after) {
+        const expected = prepared.files ?? [{ path: MEMORY_ENTRY, before: prepared.before, after: prepared.after }]
+        const allAfter = expected.every((item) => files.find((file) => file.path === item.path)?.hash === item.after)
+        if (sameSource && allAfter) {
           completeExtraction(ticket.key, ticket.messageId, 'completed', batch.skippedBudget)
           start.status = 'idle'
           start.lastResult = { outcome: 'completed', finishedAt: Date.now() }
           writeDreamingState(start)
           return { recovered: true, saved: 0 }
         }
-        if (entry.hash !== prepared.before) {
+        const knownVersions = expected.every((item) => {
+          const hash = files.find((file) => file.path === item.path)?.hash
+          if (hash === item.before && hash !== item.after) unfinished.add(item.path)
+          return hash === item.before || hash === item.after
+        })
+        if (
+          !knownVersions ||
+          (!sameSource && expected.some((item) => files.find((file) => file.path === item.path)?.hash !== item.before))
+        ) {
           const end = pending.state.pending.findIndex((item) => item.messageId === ticket.messageId)
           const skippedConflict = skipExtractionTurns(
             ticket.key,
@@ -643,10 +656,15 @@ export class MemoryDreamingService extends BaseService {
           return { saved: 0, skippedConflict }
         }
       }
+      const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
       const proposal = await extractContextCandidates(source, files, controller.signal, async () => {
         await session!.validateModelReads()
         return assertCurrent()
       })
+      proposal.candidates = proposal.candidates.map((candidate) => ({
+        ...candidate,
+        text: anchorMemoryTime(candidate, source.messages, timeZone)
+      }))
       const additions = [
         ...new Set(
           proposal.candidates
@@ -660,6 +678,56 @@ export class MemoryDreamingService extends BaseService {
       const content = additions.length
         ? `${original}${original.endsWith('\n') || !original ? '' : '\n'}${additions.map((text) => `- ${JSON.stringify(text)}`).join('\n')}\n`
         : original
+      const corrections = proposal.candidates.filter(
+        (candidate) => candidate.action === 'correct' && candidate.scope === 'personal'
+      )
+      const planned: Array<{ file: MemoryRead; mutation: MemoryMutation & { content: string } }> = []
+      for (const file of files) {
+        const revisions = new Map<string, MemoryRevision>()
+        for (const candidate of corrections) {
+          for (const reference of candidate.existing.filter((reference) => reference.path === file.path)) {
+            const previous = revisions.get(reference.quote)
+            if (previous && previous.text !== candidate.text) throw new DreamingError('output')
+            revisions.set(reference.quote, {
+              quote: reference.quote,
+              text: candidate.text,
+              reason: candidate.correction!,
+              recordedAt: new Date(
+                Math.max(
+                  ...candidate.evidence.map(
+                    (evidence) => source.messages.find((message) => message.id === evidence.messageId)!.createdAt
+                  )
+                )
+              ).toISOString(),
+              sources: candidate.evidence.map((evidence) => ({
+                kind: ticket.input.kind === 'assistant' ? 'chat' : 'agent',
+                conversationId: ticket.input.kind === 'assistant' ? ticket.input.topicId : ticket.input.sessionId,
+                messageId: evidence.messageId,
+                sourceVersion: evidence.version
+              }))
+            })
+          }
+        }
+        if (revisions.size)
+          planned.push({
+            file,
+            mutation: await session.prepareRevisions(
+              file.receipt,
+              [...revisions.values()],
+              file.path === MEMORY_ENTRY ? additions : []
+            )
+          })
+        else if (file.path === MEMORY_ENTRY && content !== original)
+          planned.push({ file, mutation: { kind: 'write', receipt: file.receipt, content } })
+      }
+      if (
+        prepared?.files &&
+        prepared.files.some(
+          (item) => item.after !== item.before && files.find((file) => file.path === item.path)?.hash === item.after
+        ) &&
+        [...unfinished].some((target) => !planned.some(({ file }) => file.path === target))
+      )
+        throw new DreamingError('output')
       await session.validateModelReads()
       assertCurrent()
       const progress = readExtractionState(ticket.key)!
@@ -667,7 +735,15 @@ export class MemoryDreamingService extends BaseService {
         end: ticket.messageId,
         sourceHash: source.hash,
         before: entry.hash,
-        after: memoryHash(Buffer.from(content))
+        after: memoryHash(
+          Buffer.from(planned.find(({ file }) => file.path === MEMORY_ENTRY)?.mutation.content ?? original)
+        ),
+        files: planned.map(({ file, mutation }) => ({
+          path: file.path,
+          before: file.hash,
+          after: memoryHash(Buffer.from(mutation.content))
+        })),
+        through: prepared?.through
       }
       writeExtractionState(ticket.key, progress)
       const clearPrepared = () => {
@@ -680,7 +756,7 @@ export class MemoryDreamingService extends BaseService {
       let result: MemoryCommitResult
       try {
         result = await session.commit(
-          content === (entry.content ?? '') ? [] : [{ kind: 'write', receipt: entry.receipt, content }],
+          planned.map(({ mutation }) => mutation),
           async () => assertCurrent,
           files.map((file) => file.receipt),
           undefined,
@@ -691,7 +767,7 @@ export class MemoryDreamingService extends BaseService {
         clearPrepared()
         throw error
       }
-      const applied = result.files.some((file) => file.path === MEMORY_ENTRY && file.outcome === 'applied')
+      const applied = result.files.some((file) => file.outcome === 'applied')
       if (result.files.some((file) => file.outcome === 'conflict' || file.outcome === 'pending'))
         throw new DreamingError('conflict')
       if (result.error && !applied) {
@@ -717,7 +793,7 @@ export class MemoryDreamingService extends BaseService {
       }
       return {
         extracted: result.files.filter((file) => file.outcome === 'applied').length,
-        saved: additions.length,
+        saved: additions.length + corrections.length,
         ...(result.error ? { warning: result.error } : {}),
         skippedBudget: batch.skippedBudget,
         outcomes: proposal.candidates.map(({ action }) => action),
