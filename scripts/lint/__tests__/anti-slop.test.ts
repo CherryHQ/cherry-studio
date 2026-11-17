@@ -46,6 +46,10 @@ describe('available generic anti-slop rules', () => {
     ['no-reflect-apply', 'export const result = Reflect.apply(Math.max, undefined, [1, 2])'],
     ['no-unknown-type-aliases', 'export type Boundary = unknown'],
     [
+      'no-widen-then-assert',
+      'const known = "value"; const broad: unknown = known; export const result = broad as string'
+    ],
+    [
       'no-reduce-accumulator-copy',
       'export const result = [1, 2].reduce((acc, item) => acc.concat([item]), [] as number[])'
     ]

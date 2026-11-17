@@ -495,3 +495,45 @@ describe('CherryIN Anthropic strict tools', () => {
     }
   })
 })
+
+describe('CherryIN Google image options', () => {
+  it.each([
+    { imageConfig: { imageSize: '4K', aspectRatio: '1:1' }, imageSize: undefined, expectedSize: '4K' },
+    { imageConfig: { imageSize: '4K', aspectRatio: '1:1' }, imageSize: '2k', expectedSize: '2K' },
+    { imageConfig: 'invalid', imageSize: '2k', expectedSize: '2K' },
+    { imageConfig: ['invalid'], imageSize: '2k', expectedSize: '2K' },
+    { imageConfig: null, imageSize: '2k', expectedSize: '2K' }
+  ])(
+    'preserves valid image config and applies normalized overrides: %j',
+    async ({ imageConfig, imageSize, expectedSize }) => {
+      let requestBody = ''
+      const fetch: typeof globalThis.fetch = async (_input, init) => {
+        requestBody = String(init?.body)
+        return new Response(
+          JSON.stringify({
+            candidates: [{ content: { parts: [{ inlineData: { mimeType: 'image/png', data: 'AAA' } }] } }]
+          }),
+          { headers: { 'content-type': 'application/json' } }
+        )
+      }
+      const model = createCherryIn({ apiKey: 'test-key', fetch }).image('gemini-3-pro-image-preview')
+      const result = await model.doGenerate({
+        prompt: 'a fox',
+        n: 1,
+        size: undefined,
+        aspectRatio: undefined,
+        seed: undefined,
+        files: undefined,
+        mask: undefined,
+        providerOptions: {
+          cherryin: { aspectRatio: 'ASPECT_16_9', imageSize },
+          google: { imageConfig }
+        }
+      })
+      expect(JSON.parse(requestBody)).toMatchObject({
+        generationConfig: { imageConfig: { aspectRatio: '16:9', imageSize: expectedSize } }
+      })
+      expect(result.images).toEqual(['AAA'])
+    }
+  )
+})

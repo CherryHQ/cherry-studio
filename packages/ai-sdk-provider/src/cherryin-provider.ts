@@ -14,7 +14,8 @@ import {
 import {
   type EmbeddingModelV3,
   type ImageModelV3,
-  type JSONValue,
+  isJSONObject,
+  type JSONObject,
   type LanguageModelV3,
   type LanguageModelV3CallOptions,
   type ProviderV3,
@@ -194,12 +195,9 @@ const withGoogleImageOptions = (model: ImageModelV3, providerKey: string, isGemi
   maxImagesPerCall: model.maxImagesPerCall,
   doGenerate(options) {
     const providerOptions = options.providerOptions ?? {}
-    const source = {
-      ...(providerOptions.openai as Record<string, unknown> | undefined),
-      ...(providerOptions[providerKey] as Record<string, unknown> | undefined)
-    } as Record<string, unknown>
-    const existingGoogle = (providerOptions.google ?? {}) as Record<string, unknown>
-    const existingImageConfig = (existingGoogle.imageConfig ?? {}) as Record<string, unknown>
+    const source = { ...providerOptions.openai, ...providerOptions[providerKey] }
+    const existingGoogle = providerOptions.google ?? {}
+    const existingImageConfig = isJSONObject(existingGoogle.imageConfig) ? existingGoogle.imageConfig : {}
 
     const aspectRatio =
       options.aspectRatio ??
@@ -210,7 +208,7 @@ const withGoogleImageOptions = (model: ImageModelV3, providerKey: string, isGemi
       source.imageResolution ?? source.imageSize ?? source.image_size ?? source.resolution
     )
 
-    const googleOptions: Record<string, unknown> = {
+    const googleOptions: JSONObject = {
       ...(aspectRatio ? { aspectRatio } : {}),
       ...(personGeneration ? { personGeneration } : {}),
       ...existingGoogle
@@ -229,7 +227,7 @@ const withGoogleImageOptions = (model: ImageModelV3, providerKey: string, isGemi
       ...(aspectRatio ? { aspectRatio, size: undefined } : {}),
       providerOptions: {
         ...providerOptions,
-        google: googleOptions as Record<string, JSONValue>
+        google: googleOptions
       }
     })
   }
