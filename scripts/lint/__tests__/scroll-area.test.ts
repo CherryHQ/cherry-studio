@@ -36,6 +36,7 @@ describe('ScrollArea content padding ownership', () => {
     const messages = lint(
       'import * as UI from "@cherrystudio/ui"; const props = {className: "pl-5"}; <UI.ScrollArea viewportProps={{...props, tabIndex: 0}} />'
     )
+
     expect(messages).toHaveLength(1)
     expect(messages[0].message).toContain('viewportProps.className')
   })

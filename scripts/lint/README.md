@@ -1,5 +1,39 @@
 # Lint rules
 
+## Anti-slop
+
+The local [anti-slop plugin](anti-slop/UPSTREAM.md) runs in the existing Oxlint
+gate, including CI and `lint:fix`. All 18 generic rules and native
+`oxc/no-accumulating-spread` are available. `.oxlintrc.json` activates a rule as an
+error only after its repository findings are cleared and its contracts verified.
+`oxlint` and `@oxlint/plugins` must stay pinned to the same exact version.
+
+Upstream has no official npm package and supports copying its source. The plugin
+lives directly under `scripts/lint/anti-slop/`; its source, licenses and provenance
+are preserved. Repository lint, formatting and application typechecking exclude
+this upstream copy. Its production entry points can be typechecked separately
+with TypeScript import extensions enabled. Effect sources are retained but not
+registered because this repository has no direct Effect dependency.
+
+Unconfigured rules are pending migration, not proof that their source is clean.
+Each rule-specific stack layer clears that rule's findings, verifies affected
+contracts, and enables it as an error. Do not weaken an activated rule, exempt owned
+source directories or disguise module mocks to make it pass. Boundary parsing,
+reflection, assertions and test dependencies need contract-specific migration;
+replacing omitted fields with `undefined` or changing callback order is not a safe
+mechanical cleanup. The [migration Spec](../../.agents/notes/proposed/process/2026-11-18-anti-slop-lint.md)
+defines the target and incremental acceptance criteria.
+
+Run `pnpm test:scripts scripts/lint/__tests__/anti-slop.test.ts` to verify every
+available rule using a focused configuration extending the repository config.
+Rule-specific layers also add probes of actual repository enforcement. Use
+`pnpm exec oxlint --deny-warnings <changed-files>` for a cleanup batch. Run spacing
+autofix only on that batch, then the formatter, and confirm a second pass is stable.
+Existing consumer tests must still pass; lint alone does not prove behavior.
+
+These AST/scope rules do not perform cross-file TypeScript type analysis, establish
+accumulator ownership or prove that all quadratic work is absent.
+
 ## Structured cloning
 
 The built-in Oxlint rules `no-restricted-globals` and `no-restricted-properties`

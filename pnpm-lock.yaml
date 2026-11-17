@@ -714,6 +714,9 @@ importers:
       '@opeoginni/github-copilot-openai-compatible':
         specifier: ^1.0.0
         version: 1.0.0(patch_hash=e0be38439b76d1d8d7966c0f789373ed393adba22bd9b0ff333898c0c8223301)(zod@4.4.3)
+      '@oxlint/plugins':
+        specifier: 1.80.0
+        version: 1.80.0
       '@paddleocr/api-sdk':
         specifier: ^0.2.0
         version: 0.2.0
@@ -5972,6 +5975,10 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [win32]
+
+  '@oxlint/plugins@1.80.0':
+    resolution: {integrity: sha512-QRgH1XqQEYNHa4f1vvPQ5fAdNdncHGIUG1ZWLlGIZHky3qwCEeAKYitZNbZMtaXtAQAAFFTOwqUfzESvimqZNA==}
+    engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
 
   '@paddleocr/api-sdk@0.2.0':
     resolution: {integrity: sha512-1OOyPjuqjdbfXwQEnnN3WPOiL5no0TMK4qHNAig71Z4KzIHaNvEen9QwRZ5o7cyM0DyMfLTb+tA+Q4VWusTYtw==}
@@ -20451,6 +20458,8 @@ snapshots:
 
   '@oxlint/binding-win32-x64-msvc@1.94.0':
     optional: true
+
+  '@oxlint/plugins@1.80.0': {}
 
   '@paddleocr/api-sdk@0.2.0': {}
 

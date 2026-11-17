@@ -79,5 +79,5 @@
     "tests/helpers/**/*",
     "packages/web-search/src/**/*"
   ],
-  "exclude": ["packages/aiCore/src/**/__tests__", "packages/aiCore/test_utils"]
+  "exclude": ["packages/aiCore/src/**/__tests__", "packages/aiCore/test_utils", "scripts/lint/anti-slop/**"]
 }

@@ -5,7 +5,11 @@
     "es2022": true
   },
   "globals": {},
-  "jsPlugins": ["@shadcn/lint", "./scripts/lint/scroll-area.mjs"],
+  "jsPlugins": [
+    "@shadcn/lint",
+    "./scripts/lint/scroll-area.mjs",
+    { "name": "anti-slop", "specifier": "./scripts/lint/anti-slop/index.ts" }
+  ],
   "ignorePatterns": [
     "node_modules/**",
     "build/**",
@@ -21,7 +25,8 @@
     "packages/**/dist",
     "native/system-speech/dist",
     "eslint.config.mjs",
-    "scripts/data-classify/**"
+    "scripts/data-classify/**",
+    "scripts/lint/anti-slop/**"
   ],
   "options": {
     "typeAware": true

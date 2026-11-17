@@ -700,7 +700,8 @@ export default defineConfig([
       'packages/**/dist',
       'native/system-speech/dist',
       'packages/**/storybook-static/**',
-      'scripts/data-classify/**'
+      'scripts/data-classify/**',
+      'scripts/lint/anti-slop/**'
     ]
   },
   // turn off oxlint supported rules.
