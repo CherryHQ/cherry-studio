@@ -669,6 +669,9 @@ importers:
       '@lezer/markdown':
         specifier: 1.6.3
         version: 1.6.3
+      '@manypkg/get-packages':
+        specifier: ^3.1.0
+        version: 3.1.0
       '@mistralai/mistralai':
         specifier: ^1.7.5
         version: 1.11.0
