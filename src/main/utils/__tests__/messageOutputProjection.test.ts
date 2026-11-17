@@ -114,7 +114,7 @@ describe('message tool-output projection', () => {
     })
   })
 
-  it.each(['stored', 'live'])('serializes an oversized %s output once for its reference revision', (source) => {
+  it.each(['stored', 'live'])('serializes an oversized %s output once for its deferred reference', (source) => {
     let serialized = false
     const output = {
       toJSON() {
@@ -133,8 +133,7 @@ describe('message tool-output projection', () => {
         $deferredToolResult: {
           topicId: TOPIC_ID,
           messageId: MESSAGE_ID,
-          toolCallId: TOOL_CALL_ID,
-          revision: 'f99105333335ffd61379190d826704fc729bff3bff5108aace70af36fe80d670'
+          toolCallId: TOOL_CALL_ID
         }
       }
     })

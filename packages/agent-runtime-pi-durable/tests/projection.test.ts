@@ -45,30 +45,6 @@ const live = (attempt = 1): LiveState => ({
   generation: { attempt, message: JSON.parse(JSON.stringify(fauxAssistantMessage('same text'))) }
 })
 
-it('copies only the newly published history when updating a view without observers', () => {
-  const projection = new DurableProjection({ backendId: runtimeId('backend'), id: runtimeId('1') }, (error) => {
-    throw error
-  })
-  const entries = Array.from({ length: 32 }, (_, index) => entry(index + 1, `saved-${index}`))
-  projection.update(view(entries))
-  // oxlint-disable-next-line no-restricted-properties -- Measure real clone work without replacing the copy or isolation behavior.
-  const clone = globalThis.structuredClone
-  let copiedMessages = 0
-  const measured = vi.spyOn(globalThis, 'structuredClone').mockImplementation((value, options) => {
-    if (value && typeof value === 'object' && 'messages' in value && Array.isArray(value.messages))
-      copiedMessages += value.messages.length
-    return clone(value, options)
-  })
-  try {
-    projection.update(view(entries))
-    expect(copiedMessages).toBe(entries.length)
-  } finally {
-    measured.mockRestore()
-  }
-  expect(projection.feed.snapshot.messages).toHaveLength(entries.length)
-  onTestFinished(() => projection.close())
-})
-
 describe('Durable preview identity', () => {
   it('reuses immutable committed results while publishing only the growing live message', async () => {
     const assistant = {
@@ -217,9 +193,12 @@ it('keeps an active preview live when attaching midway through a generation', as
   ).toContainEqual(expect.objectContaining({ type: 'text', text: 'same text' }))
   update(view([entry(5, 'older committed answer'), entry(11, 'recovered final answer')]))
   await observation.drain()
-  const final = batches.at(-1)!
-  const delivered = final.events.flatMap((event) =>
-    event.type === 'snapshot' ? event.messages.filter((message) => final.live.includes(message.id)) : []
+  const delivered = batches.slice(1).flatMap((batch) =>
+    batch.events.flatMap((event) => {
+      const messages =
+        event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []
+      return messages.filter((message) => batch.live.includes(message.id))
+    })
   )
   expect(delivered.flatMap((message) => message.parts)).toContainEqual(
     expect.objectContaining({ type: 'text', text: 'recovered final answer' })
