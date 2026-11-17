@@ -54,7 +54,7 @@ type Block = z.infer<typeof blockSchema>
 type Page = z.infer<typeof pageSchema>
 type Model = 'v2' | 'v3-2026'
 
-async function request(url: string, init: RequestInit = {}): Promise<unknown> {
+async function request<T extends z.ZodType>(schema: T, url: string, init: RequestInit = {}): Promise<z.infer<T>> {
   console.log(`${init.method ?? 'GET'} ${url}`)
   const response = await fetch(url, {
     ...init,
@@ -69,7 +69,7 @@ async function request(url: string, init: RequestInit = {}): Promise<unknown> {
   if (!response.ok) {
     throw new Error(`${response.status} ${response.statusText}: ${text}`)
   }
-  return text ? JSON.parse(text) : undefined
+  return parseResponse(schema, text ? JSON.parse(text) : undefined)
 }
 
 async function downloadPdf(): Promise<Uint8Array> {
@@ -102,7 +102,7 @@ function blocksToMarkdown(page: Page): { markdown: string; blocks: Block[]; filt
 async function waitForParse(uid: string): Promise<Page[]> {
   const deadline = Date.now() + MAX_WAIT_MS
   while (Date.now() < deadline) {
-    const data = parseResponse(parseDataSchema, await request(`${API_HOST}/api/v2/parse/status?uid=${uid}`))
+    const data = await request(parseDataSchema, `${API_HOST}/api/v2/parse/status?uid=${uid}`)
     const pages = data.result?.pages ?? []
     console.log(`data.status=${data.status} progress=${data.progress ?? '-'} pages=${pages.length}`)
     if (data.status === 'failed') throw new Error(data.detail ?? 'parse failed')
@@ -121,18 +121,17 @@ async function triggerExport(uid: string, model: Model): Promise<string> {
     ...(isV3Model ? { formula_level: 1, merge_cross_page_forms: true } : {})
   }
   console.log(`export body=${JSON.stringify(body)}`)
-  const value = await request(`${API_HOST}/api/v2/convert/parse`, {
+  const data = await request(exportDataSchema, `${API_HOST}/api/v2/convert/parse`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   })
   console.log(`model=${model} formula_level=${isV3Model ? 1 : '-'} merge_cross_page_forms=${isV3Model}`)
-  const data = parseResponse(exportDataSchema, value)
   if (data.status === 'failed') throw new Error('export trigger failed')
 
   const deadline = Date.now() + MAX_WAIT_MS
   while (Date.now() < deadline) {
-    const result = parseResponse(exportDataSchema, await request(`${API_HOST}/api/v2/convert/parse/result?uid=${uid}`))
+    const result = await request(exportDataSchema, `${API_HOST}/api/v2/convert/parse/result?uid=${uid}`)
     console.log(`data.status=${result.status}`)
     if (result.status === 'failed') throw new Error('export result failed')
     if (result.status === 'success' && result.url) return result.url
@@ -154,14 +153,11 @@ async function runModel(pdf: Uint8Array, model: Model): Promise<void> {
   console.log(`\n=== model ${model} ===`)
   const preuploadBody = { model }
   console.log(`preupload body=${JSON.stringify(preuploadBody)}`)
-  const preupload = parseResponse(
-    preuploadDataSchema,
-    await request(`${API_HOST}/api/v2/parse/preupload`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(preuploadBody)
-    })
-  )
+  const preupload = await request(preuploadDataSchema, `${API_HOST}/api/v2/parse/preupload`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(preuploadBody)
+  })
   console.log(`uid=${preupload.uid}`)
 
   const upload = await fetch(preupload.url, { method: 'PUT', body: pdf as unknown as BodyInit })

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import * as z from 'zod'
 
 import { defineRoute } from '@shared/ipc/define'
@@ -31,6 +31,7 @@ describe('IpcRouter.dispatch', () => {
   it('routes to the matching handler and returns its result', async () => {
     const { router } = makeRouter()
     const result = await router.dispatch('demo.echo', { msg: 'hi' }, ctx)
+    expectTypeOf(result).toEqualTypeOf<{ echoed: string } | { senderId: string | null }>()
     expect(result).toEqual({ echoed: 'hi' })
   })
 

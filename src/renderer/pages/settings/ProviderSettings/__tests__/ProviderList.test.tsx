@@ -5,6 +5,7 @@ import type { ComponentProps } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryUiModule from '@cherrystudio/ui'
+import type { ConfirmActionParams } from '@renderer/components/popups/ConfirmActionPopup'
 import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
@@ -139,7 +140,7 @@ vi.mock('../ProviderList/ProviderEditorDrawer', () => {
 // The confirm-and-run dialog itself is covered by its own unit test; here we just let it run
 // the gated action (as if the user confirmed) and assert the delete flow.
 const { confirmActionShow } = vi.hoisted(() => ({
-  confirmActionShow: vi.fn(async (options?: { action?: () => unknown }) => {
+  confirmActionShow: vi.fn(async (options?: Partial<Pick<ConfirmActionParams, 'action'>>) => {
     await options?.action?.()
     return true
   })

@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vite
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as TopicMenuActionsHook from '@renderer/components/chat/actions/useTopicMenuActions'
 import type * as SessionHoverPreviewModule from '@renderer/components/chat/resourceList/SessionHoverPreview'
+import type { ConfirmActionParams } from '@renderer/components/popups/ConfirmActionPopup'
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import { type AssistantTopicsSource, deriveAssistantTopicsView } from '@renderer/hooks/resourceViewSources'
 import type * as TabHooks from '@renderer/hooks/tab'
@@ -374,7 +375,7 @@ vi.mock('@renderer/services/EventService', () => ({
 // The confirm-and-run dialog itself is covered by its own unit test; here we just let it run
 // the gated action (as if the user confirmed).
 const { confirmActionShow } = vi.hoisted(() => ({
-  confirmActionShow: vi.fn(async (options?: { action?: () => unknown }) => {
+  confirmActionShow: vi.fn(async (options?: Partial<Pick<ConfirmActionParams, 'action'>>) => {
     await options?.action?.()
     return true
   })
