@@ -122,6 +122,10 @@ interface Entry {
   contextEpoch: number
   contextRead?: Promise<void>
   contextDirty?: boolean
+  handles: number
+  /** Detaches the native view and drops this conversation's loaded history. */
+  unload(): void
+  unloaded?: boolean
 }
 const context = BACKGROUND_CONTEXT
 const error = (operation: string, code: string): RuntimeError => ({
@@ -315,6 +319,20 @@ export async function createPiDurableRuntime(
     const children = await pages((cursor) => tx.scanConversations({ ownerConversationId: parent }, 256, cursor))
     return (await Promise.all(children.map((child) => readRelation(tx, child)))).filter((child) => child !== undefined)
   }
+  /** A released child that receives input is announced to its nearest loaded ancestor so hosts observe it again. */
+  const announceResumed = async (id: number): Promise<void> => {
+    const record = (conversationId: number) =>
+      native.commit((tx) => tx.conversation(conversationId as ConversationId), context)
+    const child = await record(id)
+    for (let current = child; current?.owner; current = await record(current.owner.conversationId)) {
+      const entry = live.get(current.owner.conversationId)
+      if (!entry) continue
+      const subagent = await readRelation(relationRecords, child!)
+      if (subagent && live.get(current.owner.conversationId) === entry)
+        entry.projection.feed.publish({ type: 'subagent.upsert', subagent })
+      return
+    }
+  }
   const unsubscribe = native.observeCommits({
     advance(publication) {
       const changed = new Set<number>()
@@ -342,6 +360,8 @@ export async function createPiDurableRuntime(
             }
           }
           inputs.set(record.id, record)
+          if (record.status === 'placed' && !live.has(record.conversationId))
+            void track(announceResumed(record.conversationId)).catch(report)
         }
         if (change.type === 'conversation' && change.value.owner) {
           const parent = change.value.owner.conversationId
@@ -532,7 +552,16 @@ export async function createPiDurableRuntime(
           conversation,
           projection,
           admission: Promise.resolve(),
-          contextEpoch: 0
+          contextEpoch: 0,
+          handles: 0,
+          unload: () => {
+            entry.unloaded = true
+            if (live.get(conversation.id) === entry) live.delete(conversation.id)
+            if (entries.get(conversation.id) === loading) entries.delete(conversation.id)
+            detachCommits?.()
+            detach?.()
+            void projection.close().catch(report)
+          }
         }
         live.set(conversation.id, entry)
         refreshContext(entry)
@@ -554,7 +583,16 @@ export async function createPiDurableRuntime(
     })
     return loading
   }
+  /** Loads the conversation and grants one handle; the last release unloads it again. */
+  async function acquire(conversation: Conversation): Promise<OperationResult<PiDurableThreadHandle>> {
+    for (;;) {
+      const result = await load(conversation)
+      if (result.status !== 'confirmed') return result
+      if (!result.value.unloaded) return { status: 'confirmed', value: access(result.value) }
+    }
+  }
   function access(entry: Entry): PiDurableThreadHandle {
+    entry.handles++
     let released = false
     const observations = new Set<Observation>()
     const unavailable = () => released || closing
@@ -869,8 +907,10 @@ export async function createPiDurableRuntime(
         )
       },
       async release() {
+        if (released) return
         released = true
         await Promise.all([...observations].map((observation) => observation.stop()))
+        if (--entry.handles === 0 && !closing) entry.unload()
       }
     }
   }
@@ -886,11 +926,9 @@ export async function createPiDurableRuntime(
               context
             )
             await behavior?.open(refFor(conversation.id).id)
-            const result = await load(conversation)
-            if (result.status !== 'confirmed') return result
-            return closing
-              ? rejected('create', 'closed')
-              : { status: 'confirmed' as const, value: access(result.value) }
+            const result = await acquire(conversation)
+            if (closing && result.status === 'confirmed') await result.value.release()
+            return closing ? rejected('create', 'closed') : result
           } catch (cause) {
             report(cause)
             return { status: 'unknown' as const, error: error('create', 'native-error') }
@@ -907,9 +945,9 @@ export async function createPiDurableRuntime(
           try {
             const conversation = await native.conversation(id as ConversationId, context)
             if (!conversation) return rejected('open', 'not-found')
-            const result = await load(conversation)
-            if (result.status !== 'confirmed') return result
-            return closing ? rejected('open', 'closed') : { status: 'confirmed' as const, value: access(result.value) }
+            const result = await acquire(conversation)
+            if (closing && result.status === 'confirmed') await result.value.release()
+            return closing ? rejected('open', 'closed') : result
           } catch (cause) {
             report(cause)
             return { status: 'unknown' as const, error: error('open', 'native-error') }
