@@ -1,4 +1,4 @@
-import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { seedSessionRoot, setupTestDatabase, withRoot } from '@test-helpers/db'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
@@ -150,6 +150,7 @@ describe('ArtifactService', () => {
           .values({
             id: `m-${++messageSeq}`,
             sessionId,
+            parentId: seedSessionRoot(dbh.db, sessionId),
             role: 'assistant',
             data: { parts: parts as never },
             status: 'success',

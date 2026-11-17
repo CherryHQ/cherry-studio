@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { setupTestDatabase } from '@test-helpers/db'
+import { seedSessionRoot, setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
@@ -96,6 +96,7 @@ describe('report_artifacts indexes the Agent outputs', () => {
         .insert(agentSessionMessageTable)
         .values({
           sessionId,
+          parentId: seedSessionRoot(dbh.db, sessionId),
           role: 'assistant',
           status: 'success',
           data: {
