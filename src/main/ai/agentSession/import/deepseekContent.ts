@@ -2,6 +2,7 @@ import { extname } from 'node:path'
 
 import type { Message, ImageContent, TextContent } from '@earendil-works/pi-ai'
 import { fileTypeFromBuffer } from 'file-type'
+import { v7 as uuid } from 'uuid'
 
 import { application } from '@application'
 import { t } from '@main/i18n'
@@ -23,7 +24,6 @@ export async function deepseekContent(
 ): Promise<ImportedContent> {
   const parts: CherryMessagePart[] = []
   const native: Array<TextContent | ImageContent> = []
-  const sourceUrls = new Set<string>()
   const text = (value: string) => {
     parts.push({ type: 'text', text: value })
     native.push({ type: 'text', text: value })
@@ -46,25 +46,28 @@ export async function deepseekContent(
         native.push({ type: 'text', text: `${t('agent.import.reasoning')}\n${part.content}` })
         break
       case 'TOOL_SEARCH':
-      case 'TOOL_OPEN': {
-        const results = part.type === 'TOOL_SEARCH' ? part.results : [part]
-        for (const result of results) {
-          if (!result.url || !URL.canParse(result.url) || !['https:', 'http:'].includes(new URL(result.url).protocol))
-            continue
-          if (sourceUrls.has(result.url)) continue
-          sourceUrls.add(result.url)
-          parts.push({
-            type: 'source-url',
-            sourceId: `deepseek-${source.id}-${sourceUrls.size}`,
-            url: result.url,
-            ...(result.title && { title: result.title })
-          })
-        }
-        text(`${t('agent.import.search')}\n\n\`\`\`json\n${JSON.stringify(part, null, 2)}\n\`\`\`\n`)
-        break
-      }
+      case 'TOOL_OPEN':
       case 'TOOL_IMAGE_SEARCH':
-        text(`${t('agent.import.search')}\n${JSON.stringify(part, null, 2)}`)
+        parts.push({
+          type: 'dynamic-tool',
+          toolCallId: uuid(),
+          toolName:
+            part.type === 'TOOL_SEARCH'
+              ? 'deepseek_search'
+              : part.type === 'TOOL_OPEN'
+                ? 'deepseek_open'
+                : 'deepseek_image_search',
+          state: 'output-available',
+          input:
+            part.type === 'TOOL_SEARCH'
+              ? { queries: part.queries }
+              : part.type === 'TOOL_OPEN'
+                ? { url: part.url }
+                : {},
+          output: part,
+          callProviderMetadata: { cherry: { tool: { type: 'provider' } } }
+        })
+        native.push({ type: 'text', text: `${t('agent.import.search')}\n${JSON.stringify(part, null, 2)}` })
         break
       case 'FILE':
         for (const file of part.files) {
@@ -102,12 +105,6 @@ export async function deepseekContent(
             })
         }
     }
-  }
-  if (sourceUrls.size) {
-    parts.push({
-      type: 'text',
-      text: `${t('agent.import.search')}\n${Array.from(sourceUrls, (_, index) => `[cite:${index + 1}]`).join(' ')}`
-    })
   }
   const timestamp = Date.parse(source.inserted_at)
   if (source.role === 'USER') return { parts, model: { role: 'user', content: native, timestamp } }

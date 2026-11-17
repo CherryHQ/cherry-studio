@@ -164,6 +164,7 @@
   "agent.import.missing": "ไฟล์ส่งออกไม่มีไฟล์แนบต่อไปนี้:",
   "agent.import.paused": "หยุดการนำเข้าแล้ว ลองอีกครั้งเพื่อดำเนินการต่อโดยไม่สร้างเซสชันซ้ำ",
   "agent.import.progress": "นำเข้าแล้ว: {{imported}} · มีอยู่แล้ว: {{skipped}} · ล้มเหลว: {{failed}} · เหลือ: {{remaining}}",
+  "agent.import.source_status": "สถานะในการส่งออกต้นฉบับ: {{status}}",
   "agent.import.summary": "{{conversations}} การสนทนา · {{messages}} ข้อความ",
   "agent.import.title": "นำเข้า DeepSeek",
   "agent.import.unsupported": "เลือกเอเจนต์ Pi Durable เพื่อนำเข้าประวัติ DeepSeek",

@@ -78,6 +78,16 @@ function withTerminalErrorFallback(
     const status = message.metadata?.status
     const parts = partsByMessageId[message.id] ?? message.parts ?? []
     const hasVisiblePart = parts.some((part) => !isHiddenPart(part))
+    if (message.metadata?.importedHistory) {
+      if (status === 'error' || !hasVisiblePart) {
+        if (next === partsByMessageId) next = { ...partsByMessageId }
+        next[message.id] = [
+          ...parts,
+          { type: 'data-imported-status', data: { status: message.metadata.importedHistory.status } }
+        ]
+      }
+      continue
+    }
     const needsFallback =
       (status === 'error' && !parts.some((part) => part.type === 'data-error')) ||
       (status === 'success' && !hasVisiblePart)

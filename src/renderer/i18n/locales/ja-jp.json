@@ -164,6 +164,7 @@
   "agent.import.missing": "エクスポートに次の添付ファイルがありません：",
   "agent.import.paused": "インポートが停止しました。再試行すると、インポート済みセッションを重複させずに続行できます。",
   "agent.import.progress": "インポート済み: {{imported}} · 既存: {{skipped}} · 失敗: {{failed}} · 残り: {{remaining}}",
+  "agent.import.source_status": "元のエクスポートの状態: {{status}}",
   "agent.import.summary": "会話 {{conversations}} 件 · メッセージ {{messages}} 件",
   "agent.import.title": "DeepSeek をインポート",
   "agent.import.unsupported": "DeepSeek の履歴をインポートするには Pi Durable エージェントを選択してください。",

@@ -166,6 +166,7 @@
   "agent.import.missing": "W eksporcie brakuje tych załączników:",
   "agent.import.paused": "Import zatrzymany. Ponów próbę, aby kontynuować bez powielania sesji.",
   "agent.import.progress": "Zaimportowane: {{imported}} · Już istniejące: {{skipped}} · Błędy: {{failed}} · Pozostałe: {{remaining}}",
+  "agent.import.source_status": "Stan w oryginalnym eksporcie: {{status}}",
   "agent.import.summary": "Rozmowy: {{conversations}} · Wiadomości: {{messages}}",
   "agent.import.title": "Importuj DeepSeek",
   "agent.import.unsupported": "Wybierz agenta Pi Durable, aby zaimportować historię DeepSeek.",

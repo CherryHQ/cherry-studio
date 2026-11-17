@@ -30,7 +30,7 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true })
 })
 
-it('exposes search and opened URLs as citations while retaining search context for continuation', async () => {
+it('keeps search and opened pages as inert records without inventing answer citations', async () => {
   const source = message(2, 1, 'ASSISTANT', 'An answer with sources')
   source.fragments.push(
     {
@@ -52,24 +52,39 @@ it('exposes search and opened URLs as citations while retaining search context f
     {},
     () => {}
   )
-  expect(result.parts.filter((part) => part.type === 'source-url')).toEqual([
-    { type: 'source-url', sourceId: 'deepseek-2-1', url: 'https://example.com/search', title: 'Search result' },
-    { type: 'source-url', sourceId: 'deepseek-2-2', url: 'https://example.com/open', title: 'Opened page' }
+  expect(result.parts.filter((part) => part.type === 'source-url')).toEqual([])
+  expect(result.parts.filter((part) => part.type === 'text')).toEqual([
+    { type: 'text', text: 'An answer with sources' }
   ])
-  const visible = result.parts
-    .filter((part) => part.type === 'text')
-    .map((part) => part.text)
-    .join('\n')
-  for (const detail of [
-    'example question',
-    'Relevant evidence',
-    'FINISHED',
-    'Same page',
-    'Opened page',
-    '[cite:1] [cite:2]'
-  ]) {
-    expect(visible).toContain(detail)
-  }
+  const records = result.parts.filter((part) => part.type === 'dynamic-tool')
+  expect(records).toHaveLength(3)
+  expect(new Set(records.map((part) => part.toolCallId)).size).toBe(3)
+  expect(records.every((part) => part.state === 'output-available')).toBe(true)
+  expect(records[0]).toMatchObject({
+    toolName: 'deepseek_search',
+    state: 'output-available',
+    input: { queries: ['example question'] },
+    output: {
+      type: 'TOOL_SEARCH',
+      queries: ['example question'],
+      status: 'FINISHED',
+      results: [
+        { url: 'https://example.com/search', title: 'Search result', snippet: 'Relevant evidence' },
+        { url: 'javascript:alert(1)', title: 'Unsafe URL' },
+        { url: null }
+      ]
+    }
+  })
+  expect(records[1]).toMatchObject({
+    toolName: 'deepseek_open',
+    input: { url: 'https://example.com/search' },
+    output: { title: 'Same page' }
+  })
+  expect(records[2]).toMatchObject({
+    toolName: 'deepseek_open',
+    input: { url: 'https://example.com/open' },
+    output: { title: 'Opened page' }
+  })
   expect(JSON.stringify(result.model)).toContain('Relevant evidence')
   expect(JSON.stringify(result.model)).toContain('example question')
   expect(JSON.stringify(result.model)).toContain('https://example.com/open')
@@ -84,14 +99,18 @@ it('retains zero-result searches as visible inert history', async () => {
     {},
     () => {}
   )
-  const visible = result.parts
-    .filter((part) => part.type === 'text')
-    .map((part) => part.text)
-    .join('\n')
-  expect(visible).toContain('unanswered question')
-  expect(visible).toContain('"results": []')
-  expect(visible).toContain('FINISHED')
-  expect(result.parts.every((part) => part.type === 'text')).toBe(true)
+  expect(result.parts).toContainEqual(
+    expect.objectContaining({
+      type: 'dynamic-tool',
+      toolName: 'deepseek_search',
+      state: 'output-available',
+      input: { queries: ['unanswered question'] },
+      output: { type: 'TOOL_SEARCH', queries: ['unanswered question'], results: [], status: 'FINISHED' }
+    })
+  )
+  expect(result.model.content).toEqual(
+    expect.arrayContaining([expect.objectContaining({ text: expect.stringContaining('unanswered question') })])
+  )
 })
 
 // Catch references to the source ZIP instead of persistent image bytes, and accidental executable search records.

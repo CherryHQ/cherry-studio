@@ -164,6 +164,7 @@
   "agent.import.missing": "Ces pièces jointes sont absentes de l’export :",
   "agent.import.paused": "Importation arrêtée. Réessayez pour continuer sans dupliquer les sessions importées.",
   "agent.import.progress": "Importées : {{imported}} · Déjà importées : {{skipped}} · Échecs : {{failed}} · Restantes : {{remaining}}",
+  "agent.import.source_status": "État dans l’export d’origine : {{status}}",
   "agent.import.summary": "{{conversations}} conversations · {{messages}} messages",
   "agent.import.title": "Importer DeepSeek",
   "agent.import.unsupported": "Sélectionnez un Agent Pi Durable pour importer l’historique DeepSeek.",

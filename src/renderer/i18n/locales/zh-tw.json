@@ -164,6 +164,7 @@
   "agent.import.missing": "匯出檔中缺少下列附件：",
   "agent.import.paused": "匯入已停止。重試可繼續，不會重複建立已匯入的工作階段。",
   "agent.import.progress": "已匯入：{{imported}} · 已存在：{{skipped}} · 失敗：{{failed}} · 剩餘：{{remaining}}",
+  "agent.import.source_status": "原始匯出狀態：{{status}}",
   "agent.import.summary": "{{conversations}} 個工作階段 · {{messages}} 則訊息",
   "agent.import.title": "匯入 DeepSeek",
   "agent.import.unsupported": "請選擇 Pi Durable 智慧體以匯入 DeepSeek 歷史記錄。",

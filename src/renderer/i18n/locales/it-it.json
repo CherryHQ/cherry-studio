@@ -164,6 +164,7 @@
   "agent.import.missing": "Questi allegati mancano nell’esportazione:",
   "agent.import.paused": "Importazione interrotta. Riprova per continuare senza duplicare le sessioni importate.",
   "agent.import.progress": "Importate: {{imported}} · Già importate: {{skipped}} · Non riuscite: {{failed}} · Rimanenti: {{remaining}}",
+  "agent.import.source_status": "Stato dell’esportazione originale: {{status}}",
   "agent.import.summary": "{{conversations}} conversazioni · {{messages}} messaggi",
   "agent.import.title": "Importa DeepSeek",
   "agent.import.unsupported": "Seleziona un agente Pi Durable per importare la cronologia DeepSeek.",

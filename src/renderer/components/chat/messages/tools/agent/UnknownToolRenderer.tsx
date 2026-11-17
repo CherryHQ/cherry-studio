@@ -32,6 +32,7 @@ const getToolDisplayName = (name: string) => {
 function extractMcpContent(
   output: unknown
 ): { text: string | null; images: Array<{ data: string; mimeType: string }>; links: ToolResultLinkData[] } | null {
+  if (!output || typeof output !== 'object' || !('content' in output)) return null
   const result = CallToolResultSchema.safeParse(output)
   if (!result.success) return null
 

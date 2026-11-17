@@ -164,6 +164,7 @@
   "agent.import.missing": "Faltan estos archivos adjuntos en la exportación:",
   "agent.import.paused": "Importación detenida. Reintenta para continuar sin duplicar las sesiones importadas.",
   "agent.import.progress": "Importadas: {{imported}} · Ya importadas: {{skipped}} · Fallidas: {{failed}} · Restantes: {{remaining}}",
+  "agent.import.source_status": "Estado de la exportación original: {{status}}",
   "agent.import.summary": "{{conversations}} conversaciones · {{messages}} mensajes",
   "agent.import.title": "Importar DeepSeek",
   "agent.import.unsupported": "Selecciona un agente Pi Durable para importar el historial de DeepSeek.",

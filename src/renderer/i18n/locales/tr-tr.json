@@ -164,6 +164,7 @@
   "agent.import.missing": "Dışa aktarımda şu ekler eksik:",
   "agent.import.paused": "İçe aktarma durduruldu. Oturumları çoğaltmadan devam etmek için yeniden deneyin.",
   "agent.import.progress": "İçe aktarılan: {{imported}} · Zaten aktarılmış: {{skipped}} · Başarısız: {{failed}} · Kalan: {{remaining}}",
+  "agent.import.source_status": "Orijinal dışa aktarma durumu: {{status}}",
   "agent.import.summary": "{{conversations}} konuşma · {{messages}} mesaj",
   "agent.import.title": "DeepSeek içe aktar",
   "agent.import.unsupported": "DeepSeek geçmişini içe aktarmak için bir Pi Durable aracısı seçin.",

@@ -164,6 +164,7 @@
   "agent.import.missing": "导出包中缺少以下附件：",
   "agent.import.paused": "导入已停止。重试可继续，不会重复创建已导入的会话。",
   "agent.import.progress": "已导入：{{imported}} · 已存在：{{skipped}} · 失败：{{failed}} · 剩余：{{remaining}}",
+  "agent.import.source_status": "原始导出状态：{{status}}",
   "agent.import.summary": "{{conversations}} 个会话 · {{messages}} 条消息",
   "agent.import.title": "导入 DeepSeek",
   "agent.import.unsupported": "请选择 Pi Durable 智能体以导入 DeepSeek 历史。",

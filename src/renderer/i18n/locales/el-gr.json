@@ -164,6 +164,7 @@
   "agent.import.missing": "Αυτά τα συνημμένα λείπουν από την εξαγωγή:",
   "agent.import.paused": "Η εισαγωγή σταμάτησε. Δοκιμάστε ξανά για συνέχεια χωρίς διπλές συνεδρίες.",
   "agent.import.progress": "Εισήχθησαν: {{imported}} · Ήδη εισαγμένα: {{skipped}} · Αποτυχίες: {{failed}} · Απομένουν: {{remaining}}",
+  "agent.import.source_status": "Κατάσταση αρχικής εξαγωγής: {{status}}",
   "agent.import.summary": "Συνομιλίες: {{conversations}} · Μηνύματα: {{messages}}",
   "agent.import.title": "Εισαγωγή DeepSeek",
   "agent.import.unsupported": "Επιλέξτε πράκτορα Pi Durable για εισαγωγή ιστορικού DeepSeek.",

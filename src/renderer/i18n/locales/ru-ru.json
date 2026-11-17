@@ -164,6 +164,7 @@
   "agent.import.missing": "В экспорте отсутствуют вложения:",
   "agent.import.paused": "Импорт остановлен. Повторите попытку, чтобы продолжить без дублирования сеансов.",
   "agent.import.progress": "Импортировано: {{imported}} · Уже импортировано: {{skipped}} · Ошибок: {{failed}} · Осталось: {{remaining}}",
+  "agent.import.source_status": "Статус в исходном экспорте: {{status}}",
   "agent.import.summary": "Бесед: {{conversations}} · Сообщений: {{messages}}",
   "agent.import.title": "Импорт DeepSeek",
   "agent.import.unsupported": "Выберите агента Pi Durable для импорта истории DeepSeek.",
