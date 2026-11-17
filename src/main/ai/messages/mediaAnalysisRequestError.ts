@@ -8,6 +8,7 @@ const MEDIA_ANALYSIS_REQUEST_ERROR_MESSAGE =
  */
 export class NonNativeMediaAnalysisError extends Error {
   readonly i18nKey = 'media_unreadable_without_preprocessing'
+  readonly providerErrorCategory = 'media' as const
 
   constructor() {
     super(MEDIA_ANALYSIS_REQUEST_ERROR_MESSAGE)

@@ -30,6 +30,7 @@ export const errorToastPresentations: Record<ErrorCategory, ErrorToastPresentati
   deprecated: { type: 'warning', action: 'switchModel' },
   knowledge: { type: 'warning' },
   ocr: { type: 'warning' },
+  media: { type: 'warning' },
   mcp: { type: 'warning', action: 'mcp' },
   parse: { type: 'warning' },
   unknown: { type: 'error' }
