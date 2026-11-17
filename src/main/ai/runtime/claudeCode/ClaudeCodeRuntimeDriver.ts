@@ -531,6 +531,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const contextId = this.context!.id
     this.rootContexts.set(handle.thread.id, this.context!)
     this.rootProjections.push(projection)
+    let legacy: ClaudeObservation['legacy']
     let end!: () => void
     this.observationEnds.push(
       new Promise<void>((resolve) => {
@@ -538,6 +539,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       })
     )
     const observation = await handle.claude.observe(async (batch) => {
+      legacy = batch.legacy ?? legacy
+      const currentLegacy = legacy
       this.publishInvocations(batch, 'current-turn')
       let publish = () => {}
       try {
@@ -566,7 +569,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             type: 'message-projection',
             projection: {
               contextId,
-              legacy: batch.legacy,
+              legacy: currentLegacy,
               messages,
               live: owned,
               refresh: [...new Set([...refresh, ...changed.map((message) => message.id)])],

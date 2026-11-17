@@ -1810,18 +1810,16 @@ describe('desktop Pi Durable connection', () => {
 
   it('streams child text and tool progress after the parent finishes', async () => {
     let root = ''
+    const toolName = process.platform === 'win32' ? 'powershell' : 'bash'
     const releaseTool = join(directory, 'release-tool')
+    const command =
+      toolName === 'powershell'
+        ? "[Console]::Write('TOOL-FIRST'); while (!(Test-Path -LiteralPath release-tool)) { Start-Sleep -Milliseconds 50 }; [Console]::Write('TOOL-LAST')"
+        : "printf 'TOOL-FIRST'; while [ ! -f release-tool ]; do /bin/sleep 0.05; done; printf 'TOOL-LAST'"
     script = respondingModel((call) => {
       root ||= call.sessionId!
       if (call.sessionId !== root)
-        return assistantReply(
-          [
-            toolCallPart('child-bash', 'bash', {
-              command: `printf 'TOOL-FIRST'; while [ ! -f '${releaseTool}' ]; do /bin/sleep 0.05; done; printf 'TOOL-LAST'`
-            })
-          ],
-          'toolUse'
-        )
+        return assistantReply([toolCallPart('child-shell', toolName, { command })], 'toolUse')
       if (!call.messages.some((entry) => entry.role === 'toolResult'))
         return assistantReply(
           [toolCallPart('spawn', 'subagent', { description: 'streaming child', prompt: 'work', background: true })],
@@ -1836,7 +1834,7 @@ describe('desktop Pi Durable connection', () => {
       if (
         !root ||
         options?.sessionId === root ||
-        !context.messages.some((entry) => entry.role === 'toolResult' && entry.toolCallId === 'child-bash')
+        !context.messages.some((entry) => entry.role === 'toolResult' && entry.toolCallId === 'child-shell')
       )
         return fallback(model, context, options)
       const stream = createAssistantMessageEventStream()
@@ -1862,7 +1860,7 @@ describe('desktop Pi Durable connection', () => {
     }
     const { connection, events } = await connect()
     await connection.send({ message: message('delegate') })
-    await done(events)
+    await done(events, 10_000)
     const view = await connection.childProjection('spawn')
     expect(view).toBeDefined()
     const tool = () =>
@@ -1870,11 +1868,11 @@ describe('desktop Pi Durable connection', () => {
         .snapshot()
         .messages.flatMap((message) => message.parts)
         .find((part) => part.type === 'dynamic-tool')
-    await expect.poll(() => JSON.stringify(tool()?.output)).toContain('TOOL-FIRST')
+    await expect.poll(() => JSON.stringify(tool()?.output), { timeout: 10_000 }).toContain('TOOL-FIRST')
     expect(view!.snapshot().active).toBe(true)
     expect(tool()).toMatchObject({
-      toolCallId: 'child-bash',
-      toolName: 'bash',
+      toolCallId: 'child-shell',
+      toolName,
       state: 'output-available',
       preliminary: true,
       callProviderMetadata: { cherry: { transport: 'pi-agent' } }

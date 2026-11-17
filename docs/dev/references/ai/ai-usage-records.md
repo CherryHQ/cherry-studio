@@ -7,6 +7,7 @@ sources:
   - src/main/ai/hooks/billingHook.ts
   - src/shared/data/types/providerBilling.ts
   - src/shared/utils/providerBilling.ts
+  - src/shared/utils/providerBillingDefaults.ts
   - src/shared/utils/usagePricing.ts
   - src/renderer/pages/settings/ProviderSettings/BillingSettings/BillingPreview.tsx
 ---
@@ -125,7 +126,7 @@ The Cost calculation icon beside the provider's model filter opens draft billing
 settings; Save applies them, Cancel discards edits, and Reset removes only
 `providerSettings.billing`. Disabling schedules retains their rules.
 
-- The default multiplier is 1. A matching period replaces it. Multipliers are
+- The generic default multiplier is 1. A matching period replaces it. Multipliers are
   finite and nonnegative; zero makes known prices free, not missing prices.
 - Daily periods use a saved fixed UTC offset and whole-hour 24-hour pickers.
   Start is inclusive, end exclusive; `24:00` is allowed only as an end.
@@ -138,6 +139,28 @@ settings; Save applies them, Cancel discards edits, and Reset removes only
 - Each observable invocation freezes its prices and optional `billing` metadata
   at the start. Calls crossing a boundary retain those prices; later tool calls,
   retries and fallback models resolve again. Settings edits do not rewrite history.
+
+DeepSeek's first-party Flash, Pro and the two retired Flash aliases inherit the
+weekday schedule when no provider billing override or stored model-price override
+exists. Provider preset identity and the actual `https://api.deepseek.com` host must
+both match. Copies of that preset retain eligibility; third-party relays do not.
+Defaults resolve on read for existing and new accounts. Reset removes the override
+and restores applicable defaults; saving untouched defaults does not pin a copy.
+
+The catalog holds USD peak token prices. In Beijing time, Monday–Friday periods
+09:00–12:00 and 14:00–18:00 use multiplier 1; other times use 0.5. The schedule-level
+`cn-weekdays` condition checks only the day of week, in every year. Weekday holidays
+follow ordinary weekday rates; weekend makeup workdays remain off-peak. There is no
+holiday table or missing-year fallback. Legacy settings without this condition still
+apply daily. Snapshots retain default source and rule version. These are client estimates, not a claim
+about DeepSeek's undisclosed cross-boundary settlement rule.
+
+The settings preview accepts a date and highlights the current period for today.
+It uses the same default eligibility
+and multiplier resolver as capture. Model price overrides remain undiscounted
+unless the user explicitly saves provider billing rules. Turning off the calendar
+or schedule persists that choice. No currency conversion, historical recalculation
+or discount on separately billed search, file and speech APIs is performed.
 
 | Invocation path | Pricing capture |
 | --- | --- |
