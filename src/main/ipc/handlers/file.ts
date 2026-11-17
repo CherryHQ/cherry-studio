@@ -245,9 +245,11 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   'file.notes.set_device_path': async ({ path }) => {
     await writeDeviceNotesPath(application.getPath('feature.notes.device_file'), path)
   },
-  'file.tree.create': async ({ rootPath, options }, { senderId }) => {
+  'file.tree.create': async ({ rootPath, options, refresh }, { senderId }) => {
     try {
-      return await application.get('DirectoryTreeManager').create(requireManagedSender(senderId), rootPath, options)
+      return await application
+        .get('DirectoryTreeManager')
+        .create(requireManagedSender(senderId), rootPath, options, refresh)
     } catch (error) {
       // Shutdown-in-flight, not a failure the user should be toasted about — carry a
       // domain code so the renderer can stay quiet (`error.name` does not survive IpcApi).

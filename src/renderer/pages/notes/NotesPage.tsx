@@ -85,13 +85,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
     [activeFilePath]
   )
   const fileSession = useFileEditSession(activeFileHandle, 'notes')
-  const {
-    flush: flushFileDraft,
-    prepareMutation,
-    notifyExternalChange,
-    reload: reloadFileDraft,
-    setDraft: setFileDraft
-  } = fileSession
+  const { flush: flushFileDraft, prepareMutation, reload: reloadFileDraft, setDraft: setFileDraft } = fileSession
   // Render from the in-memory draft so a failed save survives normal
   // re-renders and editor-mode changes until retry or explicit discard.
   const currentContent = fileSession.draft
@@ -123,7 +117,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
     treeId,
     isLoading: isTreeLoading,
     error: treeError
-  } = useDirectoryTree(notesPath || undefined, NOTES_TREE_OPTIONS, notifyExternalChange)
+  } = useDirectoryTree(notesPath || undefined, NOTES_TREE_OPTIONS)
 
   // Surface tree-create failures (missing ripgrep, EACCES on the notes
   // folder, deleted root). Without this, the user sees a silently-empty
