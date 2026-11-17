@@ -1701,6 +1701,13 @@ describe('SkillService', () => {
         await expect(fs.promises.access(path.join(dataSkillsRoot, 'content'))).rejects.toMatchObject({
           code: 'ENOENT'
         })
+        // SDK discovery must see the migrated skill immediately through the mirror.
+        await expect(fs.promises.readFile(path.join(mirrorRoot, 'my-skill', 'SKILL.md'), 'utf8')).resolves.toContain(
+          '#'
+        )
+        await expect(fs.promises.access(path.join(mirrorRoot, 'content'))).rejects.toMatchObject({
+          code: 'ENOENT'
+        })
       } finally {
         getPathSpy.mockRestore()
         vi.mocked(parseSkillMetadata).mockReset()

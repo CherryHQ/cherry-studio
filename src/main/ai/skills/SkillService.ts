@@ -833,6 +833,7 @@ export class SkillService {
         })
       }
       await this.unlinkMirror(folderMigration.folderName)
+      await this.linkMirror(destFolderName, { throwOnError: true })
       const updated = agentGlobalSkillService.getById(folderMigration.id)!
       logger.info('Skill folder migrated', {
         id: folderMigration.id,
