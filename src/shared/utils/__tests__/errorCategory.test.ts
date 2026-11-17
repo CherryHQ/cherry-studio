@@ -522,7 +522,12 @@ describe('request payload size rejection', () => {
     expect(classifyErrorCategory({ text: 'Request payload is too large', status })).toBe('payload')
   })
 
-  it('does not treat a large response as an oversized request', () => {
-    expect(classifyErrorCategory({ text: 'Response is too large' })).toBe('unknown')
-  })
+  it.each(['Response is too large', 'Response payload is too large', 'Response payload too large'])(
+    'does not treat a large response as an oversized request: %s',
+    (text) => {
+      expect(classifyErrorCategory({ text })).toBe('unknown')
+      expect(classifyErrorCategory({ text, status: 400 })).toBe('bad_request')
+      expect(classifyErrorCategory({ text, status: 413 })).toBe('payload')
+    }
+  )
 })
