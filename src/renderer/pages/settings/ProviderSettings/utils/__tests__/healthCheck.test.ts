@@ -5,14 +5,11 @@ import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 
-import type { ApiKeyWithStatus, ModelWithStatus } from '../../types/healthCheck'
-import { HealthStatus } from '../../types/healthCheck'
 import {
   checkModelWithMultipleKeys,
   getModelCheckCredentialPolicy,
   getModelHealthCheckSkipReason,
-  resolveModelCheckCredentials,
-  summarizeHealthResults
+  resolveModelCheckCredentials
 } from '../../utils/healthCheck'
 
 const { ipcRequestMock } = vi.hoisted(() => ({ ipcRequestMock: vi.fn() }))
@@ -67,63 +64,6 @@ describe('checkModelWithMultipleKeys', () => {
       timeout: 9000
     })
     expect(results).toEqual([expect.objectContaining({ kind: 'ok', credential, latency: 12 })])
-  })
-})
-
-describe('summarizeHealthResults', () => {
-  it('summarizes every outcome with singular English labels', () => {
-    const model: Model = {
-      id: 'openai::model',
-      providerId: 'openai',
-      name: 'Model',
-      capabilities: [],
-      supportsStreaming: true,
-      isEnabled: true,
-      isHidden: false
-    }
-    const successKey = {
-      kind: 'ok',
-      credential: { kind: 'api-key', entry: entries[0] },
-      status: HealthStatus.SUCCESS,
-      checking: false,
-      latency: 1
-    } satisfies ApiKeyWithStatus
-    const failedKey = {
-      kind: 'failed',
-      credential: { kind: 'api-key', entry: entries[2] },
-      status: HealthStatus.FAILED,
-      checking: false,
-      error: { name: 'Error', message: 'failed', stack: null }
-    } satisfies ApiKeyWithStatus
-    const results: ModelWithStatus[] = [
-      { kind: 'ok', model, status: HealthStatus.SUCCESS, checking: false, keyResults: [successKey], latency: 1 },
-      {
-        kind: 'failed',
-        model: { ...model, id: 'openai::partial' },
-        status: HealthStatus.FAILED,
-        checking: false,
-        keyResults: [successKey, failedKey]
-      },
-      {
-        kind: 'failed',
-        model: { ...model, id: 'openai::failed' },
-        status: HealthStatus.FAILED,
-        checking: false,
-        keyResults: [failedKey]
-      },
-      {
-        kind: 'skipped',
-        model: { ...model, id: 'openai::image' },
-        status: HealthStatus.NOT_CHECKED,
-        checking: false,
-        keyResults: [],
-        skipReason: { kind: 'generation_cost', output: 'image' }
-      }
-    ]
-
-    expect(summarizeHealthResults(results, 'OpenAI')).toBe(
-      'OpenAI: 1 model passed model checks, 1 model had inaccessible keys, 1 model completely inaccessible, 1 model skipped'
-    )
   })
 })
 

@@ -9,9 +9,6 @@ export enum IpcChannel {
   App_HasWritePermission = 'app:has-write-permission',
   App_ResolvePath = 'app:resolve-path',
   App_IsPathInside = 'app:is-path-inside',
-  Application_PreventQuit = 'application:prevent-quit',
-  Application_AllowQuit = 'application:allow-quit',
-  Application_Relaunch = 'application:relaunch',
   App_LogToMain = 'app:log-to-main',
   App_QuoteToMain = 'app:quote-to-main',
 
@@ -44,7 +41,6 @@ export enum IpcChannel {
 
   //file
   File_Open = 'file:open',
-  File_OpenPath = 'file:openPath',
   File_Save = 'file:save',
   File_Select = 'file:select',
   File_ReadExternal = 'file:readExternal',
@@ -68,7 +64,6 @@ export enum IpcChannel {
   File_CheckFileName = 'file:checkFileName',
   File_ValidateNotesDirectory = 'file:validateNotesDirectory',
   File_BatchUploadMarkdown = 'file:batchUploadMarkdown',
-  File_ShowInFolder = 'file:showInFolder',
   // FileManager v2 surface (Phase 2)
   File_CreateInternalEntry = 'file:createInternalEntry',
   File_EnsureExternalEntry = 'file:ensureExternalEntry',
@@ -92,9 +87,6 @@ export enum IpcChannel {
   Backup_RestoreFromS3 = 'backup:restoreFromS3',
   Backup_ListS3Files = 'backup:listS3Files',
   Backup_DeleteS3File = 'backup:deleteS3File',
-
-  // zip
-  Zip_Decompress = 'zip:decompress',
 
   // system
   System_GetHostname = 'system:getHostname',
@@ -127,8 +119,7 @@ export enum IpcChannel {
   IpcApi_Event = 'ipc-api:event',
 
   // TRACE
-  TRACE_GET_DATA = 'trace:getData',
-  TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData'
+  TRACE_GET_DATA = 'trace:getData'
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via

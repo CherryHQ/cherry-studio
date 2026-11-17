@@ -8,6 +8,12 @@ export const route = '/settings/general'
 
 export const entries: SettingsSearchEntry[] = [
   {
+    anchorId: 'display-language',
+    titleKey: 'settings.general.interface_language',
+    groupKey: 'common.language',
+    aliases: ['language', '语言']
+  },
+  {
     anchorId: 'launch-onboot',
     titleKey: 'settings.launch.onboot',
     groupKey: 'settings.general.sections.startup',
@@ -37,7 +43,6 @@ export const entries: SettingsSearchEntry[] = [
     anchorId: 'proxy-mode',
     titleKey: 'settings.proxy.mode.title',
     groupKey: 'settings.general.sections.network',
-    descriptionKey: 'settings.proxy.mode.description',
     aliases: ['proxy', '代理']
   },
   {

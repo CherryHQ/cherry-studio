@@ -25,6 +25,8 @@ export const SELECTION_PREDEFINED_BLACKLIST: IFilterList = {
     'snipaste.exe',
     'pixpin.exe',
     'sharex.exe',
+    'snippingtool.exe',
+    'screenclippinghost.exe',
     // Office
     'excel.exe',
     'powerpnt.exe',

@@ -84,6 +84,8 @@ export const jobTable = sqliteTable(
     cancelRequestedAt: integer(),
     metadata: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
     timeoutMs: integer(),
+    // Per-job override of the handler's startup recovery; null follows the handler.
+    recovery: text().$type<'abandon' | 'retry'>(),
     ...createUpdateTimestamps
   },
   (t) => [

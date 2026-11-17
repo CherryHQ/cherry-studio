@@ -15,6 +15,7 @@ import {
   MODEL_CAPABILITY,
   objectValues,
   ParameterSupportDbSchema,
+  ReasoningConfigSchema,
   RuntimeModelPricingSchema,
   type UniqueModelId,
   UniqueModelIdSchema
@@ -65,6 +66,10 @@ export const CreateModelSchema = z.strictObject({
   supportsStreaming: z.boolean().optional(),
   /** Parameter support (DB form) */
   parameterSupport: ParameterSupportDbSchema.optional(),
+  /** User default only; intrinsic controls remain catalog-owned. */
+  reasoning: z
+    .strictObject({ defaultEffort: ReasoningConfigSchema.shape.defaultEffort.unwrap().nullable().optional() })
+    .optional(),
   /** Pricing configuration */
   pricing: RuntimeModelPricingSchema.optional()
 })
@@ -273,7 +278,7 @@ export type ModelSchemas = {
    * Greedy `:modelId*` preserves HuggingFace-style ids that contain `/`
    * (e.g. `Kwai-Kolors/Kolors`). Trailing static anchor follows the
    * documented middle-greedy pattern from
-   * docs/references/data/api-design-guidelines.md.
+   * docs/dev/references/data/api-design-guidelines.md.
    *
    * @example GET /providers/silicon/models/Kwai-Kolors/Kolors/image-generation-support
    */

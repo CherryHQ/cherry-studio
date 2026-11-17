@@ -31,12 +31,6 @@ describe('printHandlers', () => {
     const result = await printHandlers['print.export_pdf'](payload, { senderId: 'main-1' })
 
     expect(result).toBe(true)
-    expect(exportToPdf).toHaveBeenCalledWith(payload)
-  })
-
-  it('prints a printable document through PrintService', async () => {
-    await printHandlers['print.print'](payload, { senderId: 'main-1' })
-
-    expect(print).toHaveBeenCalledWith(payload)
+    expect(exportToPdf).toHaveBeenCalledWith(payload, 'main-1')
   })
 })

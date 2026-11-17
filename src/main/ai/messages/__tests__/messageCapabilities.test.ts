@@ -1,7 +1,9 @@
-import type { ModelMessage, UIMessage } from 'ai'
+import { type ModelMessage, tool, type UIMessage } from 'ai'
 import { describe, expect, it } from 'vitest'
+import * as z from 'zod'
 
 import { MODALITY } from '@cherrystudio/provider-registry'
+import { mcpResultToModelOutput } from '@main/ai/tools/adapters/aiSdk/mcp/utils'
 import type { Model } from '@shared/data/types/model'
 
 import {
@@ -11,6 +13,7 @@ import {
   routeToolResultMedia,
   stripUnsupportedMedia
 } from '../messageCapabilities'
+import { toModelMessages } from '../messageRules'
 
 const model = (inputModalities: string[]): Model => ({ capabilities: [], inputModalities }) as unknown as Model
 
@@ -30,11 +33,6 @@ describe('resolveMediaCapabilities', () => {
 describe('stripUnsupportedMedia', () => {
   const noVision = { image: false, video: true, audio: true }
 
-  it('leaves image routing to prepareChatMessages', () => {
-    const msg = fileMsg('image/png')
-    expect(stripUnsupportedMedia([msg], noVision)[0]).toBe(msg)
-  })
-
   it('replaces a video file part when the model has no video', () => {
     const [out] = stripUnsupportedMedia([fileMsg('video/mp4')], { image: true, video: false, audio: true })
     expect(out.parts).toEqual([{ type: 'text', text: expect.stringContaining('video attachment omitted') }])
@@ -47,12 +45,12 @@ describe('stripUnsupportedMedia', () => {
 
   it('leaves the part untouched when the modality is supported (same reference)', () => {
     const msg = fileMsg('image/png')
-    expect(stripUnsupportedMedia([msg], { image: true, video: true, audio: true })[0]).toBe(msg)
+    expect(stripUnsupportedMedia([msg], { image: true, video: true, audio: true })[0]).toEqual(msg)
   })
 
   it('leaves non-gated files (e.g. PDF) untouched', () => {
     const msg = fileMsg('application/pdf')
-    expect(stripUnsupportedMedia([msg], noVision)[0]).toBe(msg)
+    expect(stripUnsupportedMedia([msg], noVision)[0]).toEqual(msg)
   })
 
   it('replaces only the unsupported part, keeping the rest', () => {
@@ -87,7 +85,7 @@ describe('gateToolResultMedia', () => {
 
   it('keeps image items untouched for a vision-capable model (same reference)', () => {
     const msg = toolMsg(imageOutput)
-    expect(gateToolResultMedia([msg], ALL)[0]).toBe(msg)
+    expect(gateToolResultMedia([msg], ALL)[0]).toEqual(msg)
   })
 
   it('replaces image items with a note for a non-vision model, keeping text', () => {
@@ -102,9 +100,9 @@ describe('gateToolResultMedia', () => {
 
   it('leaves non-tool messages and text-only outputs untouched (same reference)', () => {
     const textToolMsg = toolMsg({ type: 'text', value: 'hello' })
-    expect(gateToolResultMedia([textToolMsg], NO_VISION)[0]).toBe(textToolMsg)
+    expect(gateToolResultMedia([textToolMsg], NO_VISION)[0]).toEqual(textToolMsg)
     const userMsg = { role: 'user', content: 'hi' } as ModelMessage
-    expect(gateToolResultMedia([userMsg], NO_VISION)[0]).toBe(userMsg)
+    expect(gateToolResultMedia([userMsg], NO_VISION)[0]).toEqual(userMsg)
   })
 })
 
@@ -117,8 +115,8 @@ describe('resolveToolResultMediaCapabilities', () => {
   })
 
   it('passes the model caps through on anthropic/google wires (same reference)', () => {
-    expect(resolveToolResultMediaCapabilities(caps, 'anthropic')).toBe(caps)
-    expect(resolveToolResultMediaCapabilities(caps, 'google')).toBe(caps)
+    expect(resolveToolResultMediaCapabilities(caps, 'anthropic')).toEqual(caps)
+    expect(resolveToolResultMediaCapabilities(caps, 'google')).toEqual(caps)
   })
 })
 
@@ -165,10 +163,57 @@ describe('routeToolResultMedia', () => {
 
   it('keeps native tool-result images on a capable wire and omits them for a non-vision model', () => {
     const message = imageToolMessage('one')
-    expect(routeToolResultMedia([message], VISION, VISION)[0]).toBe(message)
+    expect(routeToolResultMedia([message], VISION, VISION)[0]).toEqual(message)
 
     const withoutVision = routeToolResultMedia([message], NO_TOOL_MEDIA, NO_TOOL_MEDIA)
     expect(JSON.stringify(withoutVision)).not.toContain('image-data')
     expect(withoutVision).toHaveLength(1)
   })
+})
+
+it('#22441 routes only the winning duplicate image and the distinct call image with their anchors', async () => {
+  const imagePart = (toolCallId: string, data: string): UIMessage['parts'][number] => ({
+    type: 'tool-read_media',
+    toolCallId,
+    state: 'output-available',
+    input: { image: data },
+    output: { content: [{ type: 'image', data, mimeType: 'image/png' }] }
+  })
+  const messages = await toModelMessages(
+    [
+      {
+        id: 'images',
+        role: 'assistant',
+        parts: [imagePart('dup', 'WINNER'), imagePart('dup', 'LOSER'), imagePart('other', 'DISTINCT')]
+      }
+    ],
+    { image: true, video: false, audio: false },
+    {
+      read_media: tool({
+        inputSchema: z.object({ image: z.string() }),
+        toModelOutput: ({ output }) => mcpResultToModelOutput(output)
+      })
+    },
+    { image: false, video: false, audio: false }
+  )
+  expect(messages.filter((message) => message.role === 'user')).toEqual([
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: '[tool-result attachment call_id="dup" image=1]' },
+        { type: 'image', image: 'WINNER', mediaType: 'image/png' },
+        { type: 'text', text: '[tool-result attachment call_id="other" image=1]' },
+        { type: 'image', image: 'DISTINCT', mediaType: 'image/png' }
+      ]
+    }
+  ])
+  const parts = messages.flatMap<Exclude<ModelMessage['content'], string>[number]>((message) =>
+    Array.isArray(message.content) ? message.content : []
+  )
+  expect(parts.filter((part) => part.type === 'tool-call')).toEqual([
+    expect.objectContaining({ toolCallId: 'dup', input: { image: 'WINNER' } }),
+    expect.objectContaining({ toolCallId: 'other', input: { image: 'DISTINCT' } })
+  ])
+  expect(parts.filter((part) => part.type === 'tool-result').map((part) => part.toolCallId)).toEqual(['dup', 'other'])
+  expect(JSON.stringify(messages)).not.toContain('LOSER')
 })

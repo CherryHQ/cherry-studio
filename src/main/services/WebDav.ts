@@ -13,7 +13,7 @@ import type {
 import { createClient } from 'webdav'
 
 import { loggerService } from '@logger'
-import type { WebDavConfig } from '@shared/types/backup'
+import { BACKUP_WEBDAV_TOO_LARGE_ERROR_CODE, type WebDavConfig } from '@shared/types/backup'
 
 const logger = loggerService.withContext('WebDav')
 
@@ -78,6 +78,9 @@ export default class WebDav {
       return await this.instance.putFileContents(remoteFilePath, data, requestOptions)
     } catch (error) {
       logger.error('Error putting file contents on WebDAV:', error as Error)
+      if (typeof error === 'object' && error !== null && 'status' in error && error.status === 413) {
+        throw new Error(`${BACKUP_WEBDAV_TOO_LARGE_ERROR_CODE}: HTTP 413`, { cause: error })
+      }
       throw error
     }
   }

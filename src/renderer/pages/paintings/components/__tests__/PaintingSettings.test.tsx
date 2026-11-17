@@ -1,0 +1,90 @@
+import { fireEvent, render, screen } from '@testing-library/react'
+import { createInstance } from 'i18next'
+import type { ReactNode } from 'react'
+import { I18nextProvider } from 'react-i18next'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ModelListSchema } from '@cherrystudio/provider-registry'
+import en from '@renderer/i18n/locales/en-us.json'
+
+import catalog from '../../../../../../packages/provider-registry/data/models.json'
+import { useImageGenerationSupport } from '../../hooks/useImageGenerationSupport'
+import type { PaintingData } from '../../model/types/paintingData'
+import PaintingSettings from '../PaintingSettings'
+
+const i18n = createInstance()
+beforeAll(async () => {
+  await i18n.init({ lng: 'en', resources: { en: { translation: en } }, keySeparator: false })
+})
+const renderWithI18n = (ui: ReactNode) =>
+  render(ui, { wrapper: ({ children }) => <I18nextProvider i18n={i18n}>{children}</I18nextProvider> })
+
+vi.unmock('react-i18next')
+
+vi.mock('../../hooks/useImageGenerationSupport', () => ({
+  useImageGenerationSupport: vi.fn()
+}))
+
+const painting = {
+  id: 'painting-1',
+  providerId: 'dashscope',
+  mode: 'generate',
+  prompt: 'a fox',
+  files: []
+} satisfies PaintingData
+
+function renderSettings(overrides: Partial<PaintingData> = {}) {
+  const onConfigChange = vi.fn()
+  renderWithI18n(<PaintingSettings painting={{ ...painting, ...overrides }} onConfigChange={onConfigChange} />)
+  return { onConfigChange, input: screen.getByLabelText('Request timeout (seconds)') }
+}
+
+beforeEach(() => vi.mocked(useImageGenerationSupport).mockReturnValue(undefined))
+
+describe('PaintingSettings request timeout', () => {
+  it('commits the entered seconds as milliseconds', () => {
+    const { onConfigChange, input } = renderSettings()
+
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '30' } })
+    fireEvent.blur(input)
+
+    expect(onConfigChange).toHaveBeenCalledWith({ requestTimeoutMs: 30_000 })
+  })
+
+  it('hides the override where the transport does not apply it', () => {
+    renderWithI18n(<PaintingSettings painting={{ ...painting, providerId: 'dmxapi' }} onConfigChange={vi.fn()} />)
+
+    expect(screen.queryByLabelText('Request timeout (seconds)')).not.toBeInTheDocument()
+  })
+
+  it('clears the override when the field is emptied', () => {
+    const { onConfigChange, input } = renderSettings({ requestTimeoutMs: 30_000 })
+
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '' } })
+    fireEvent.blur(input)
+
+    expect(onConfigChange).toHaveBeenCalledWith({ requestTimeoutMs: undefined })
+  })
+})
+
+it('hides animation settings when reference images change generation into editing', () => {
+  const support = ModelListSchema.parse(catalog).models.find(
+    (model) => model.id === 'gpt-image-2-6-flare'
+  )?.imageGeneration
+  if (!support?.modes.edit) throw new Error('Missing edit support')
+  support.modes.edit.supports = {
+    complexity: { type: 'enum', options: ['low', 'medium', 'high'] },
+    outputFormat: { type: 'enum', options: ['png', 'jpeg', 'webp'] }
+  }
+  vi.mocked(useImageGenerationSupport).mockReturnValue(support)
+  const draft = { ...painting, params: { outputFormat: 'gif' } }
+  const { rerender } = renderWithI18n(
+    <PaintingSettings painting={draft} inputImageCount={0} onConfigChange={vi.fn()} />
+  )
+  expect(screen.getByRole('spinbutton', { name: 'Frame count' })).toBeInTheDocument()
+  rerender(<PaintingSettings painting={draft} inputImageCount={1} onConfigChange={vi.fn()} />)
+  expect(screen.queryByRole('spinbutton', { name: 'Frame count' })).not.toBeInTheDocument()
+  expect(screen.getByLabelText('Scene complexity')).toBeInTheDocument()
+})

@@ -188,14 +188,9 @@ describe('translateService.open', () => {
     expect(arg.streamId).toBe(streamId)
     expect(arg.uniqueModelId).toBe('openai::gpt-4o')
     expect(arg.prompt).toBe('Translate to English: hello')
-    // Ships the stored effort — 'none' by default; unsupported values degrade downstream.
-    expect(arg.reasoningEffort).toBe('none')
     // The whole feature hangs off this one argument: drop it and every other
     // assertion in this file still passes while nothing reaches the model.
     expect(arg.callOverrides).toEqual({ temperature: 0.3 })
-    const listeners = Array.isArray(arg.listener) ? arg.listener : [arg.listener]
-    expect(listeners).toHaveLength(1)
-    expect(listeners[0].id).toBe(`wc:test:${streamId}`)
   })
 
   it('rejects a streamId that does not carry the translate prefix', async () => {

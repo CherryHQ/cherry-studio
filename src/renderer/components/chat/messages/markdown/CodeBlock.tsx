@@ -19,6 +19,7 @@ interface Props {
    */
   children?: ReactNode
   className?: string
+  sourceFormat?: 'hast' | 'raw'
   inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   node?: Omit<Node, 'type'>
   blockId: string // Message block id
@@ -31,13 +32,14 @@ const mergeClassNames = (...classNames: Array<string | undefined>) => classNames
 const CodeBlock: React.FC<Props> = ({
   children: rawChildren,
   className,
+  sourceFormat,
   inlineHtmlPreviewMode,
   node,
   blockId,
   isStreaming = false
 }) => {
   const children = rawChildren ?? ''
-  const { text, language, isIncomplete } = useMarkdownCode(children, className)
+  const { text, language, isIncomplete } = useMarkdownCode(children, className, sourceFormat)
   const { codeFancyBlock } = useMessageRenderConfig()
 
   // 代码块 id

@@ -140,7 +140,7 @@ export function redactUrlParams(rawUrl: string, extraKeys: readonly string[] = [
 // Curated alternation (not the bare stems — those over-match English words); ordering
 // and value-alternative rationale lives with the edge-case tests in redaction.test.ts.
 const SECRET_KEY_VALUE_PATTERN =
-  /(["']?(?:api[_-]?key|apikey|token|secret|password|passphrase|auth|credential|cookie|session)\w*["']?\s*[:=]\s*)("""[\s\S]*?"""|'''[\s\S]*?'''|[^\r\n]*)/gi
+  /(["']?(?:api[_-]?key|api\s+key(?:\s+provided)?|apikey|token|secret|password|passphrase|auth|credential|cookie|session)\w*["']?\s*[:=]\s*)("""[\s\S]*?"""|'''[\s\S]*?'''|[^\r\n]*)/gi
 
 // Bearer/Basic must run before the key=value pass — see the tests for why.
 const BEARER_SCHEME_PATTERN = /\b(Bearer|Basic)\s+("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s"',;}\]]+)/gi

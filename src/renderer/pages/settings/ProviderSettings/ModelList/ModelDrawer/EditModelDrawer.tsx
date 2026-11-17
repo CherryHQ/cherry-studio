@@ -1,8 +1,17 @@
-import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Switch, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  Switch,
+  Tooltip
+} from '@cherrystudio/ui'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -12,6 +21,7 @@ import type { UpdateModelDto } from '@shared/data/api/schemas/models'
 import { type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
+import { useCopyToClipboard } from '../../hooks/useCopyToClipboard'
 import ProviderActions from '../../primitives/ProviderActions'
 import ProviderSection from '../../primitives/ProviderSection'
 import ProviderSettingsDrawer from '../../primitives/ProviderSettingsDrawer'
@@ -44,6 +54,16 @@ import type {
   ModelPrimaryType
 } from './types'
 
+const EFFORT_LABEL_KEYS = {
+  minimal: 'assistants.settings.reasoning_effort.minimal',
+  low: 'assistants.settings.reasoning_effort.low',
+  medium: 'assistants.settings.reasoning_effort.medium',
+  high: 'assistants.settings.reasoning_effort.high',
+  xhigh: 'assistants.settings.reasoning_effort.xhigh',
+  max: 'assistants.settings.reasoning_effort.max',
+  ultra: 'assistants.settings.reasoning_effort.ultra'
+} as const
+
 interface EditModelDrawerProps {
   providerId: string
   open: boolean
@@ -52,6 +72,7 @@ interface EditModelDrawerProps {
 }
 
 interface BuildPatchOverrides {
+  reasoning?: UpdateModelDto['reasoning']
   name?: string
   group?: string
   endpointTypes?: EndpointType[]
@@ -74,6 +95,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const { t } = useTranslation()
   const { provider } = useProvider(providerId)
   const { updateModel } = useModelMutations()
+  const [modelIdCopied, copyModelId] = useCopyToClipboard()
   // Keep the last opened model around so `PageSidePanel`'s exit animation has stable content
   // after the parent clears its `editingModel` selection on close.
   const previousModelRef = useRef<Model | null>(modelProp)
@@ -81,6 +103,10 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     previousModelRef.current = modelProp
   }
   const model = modelProp ?? previousModelRef.current
+  const [defaultEffort, setDefaultEffort] = useState<Model['userDefaultReasoningEffort']>()
+  const effortOptions = (model?.reasoning?.selectableEfforts ?? []).filter(
+    (effort) => effort !== 'none' && effort !== 'auto'
+  )
   const [name, setName] = useState('')
   const [group, setGroup] = useState('')
   const [endpointTypes, setEndpointTypes] = useState<EndpointType[]>([])
@@ -110,6 +136,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       return
     }
 
+    setDefaultEffort(model.reasoning?.defaultEffort)
     setName(model.name)
     setGroup(model.group ?? '')
     setEndpointTypes(model.endpointTypes?.length ? [...model.endpointTypes] : [])
@@ -182,6 +209,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           : null
 
       return {
+        ...(overrides?.reasoning ? { reasoning: overrides.reasoning } : {}),
         name: nextName || model.name,
         group: nextGroup || model.group,
         ...(hasPurposeFieldsOverride && resolvedPurposeFields
@@ -371,10 +399,9 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                   aria-label={t('message.copied')}
                   className={fieldClasses.inputActionButton}
                   onClick={() => {
-                    void navigator.clipboard.writeText(apiModelId)
-                    toast.success(t('message.copied'))
+                    void copyModelId(apiModelId)
                   }}>
-                  <CopyIcon size={14} />
+                  {modelIdCopied ? <Check size={14} className="text-success" /> : <CopyIcon size={14} />}
                 </button>
               }
               onModelIdChange={(value) => {
@@ -472,6 +499,35 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                   onMaxOutputTokensCommit={(maxOutputTokens) => autoSave({ maxOutputTokens })}
                 />
               </div>
+
+              {effortOptions.length > 0 && (
+                <div className={drawerClasses.sectionCard}>
+                  <label className="text-sm text-muted-foreground" htmlFor="model-default-reasoning-effort">
+                    {t('settings.models.edit.default_reasoning_effort')}
+                  </label>
+                  <Select
+                    value={defaultEffort}
+                    onValueChange={(value) => {
+                      const effort = effortOptions.find((effort) => effort === value)
+                      if (!effort) return
+                      setDefaultEffort(effort)
+                      autoSave({ reasoning: { defaultEffort: effort } })
+                    }}>
+                    <SelectTrigger
+                      id="model-default-reasoning-effort"
+                      aria-label={t('settings.models.edit.default_reasoning_effort')}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {effortOptions.map((effort) => (
+                        <SelectItem key={effort} value={effort}>
+                          {t(EFFORT_LABEL_KEYS[effort])}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className={drawerClasses.switchCard}>
                 <div className="flex min-w-0 items-center justify-between gap-3">

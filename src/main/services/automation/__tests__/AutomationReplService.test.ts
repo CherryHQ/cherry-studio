@@ -4,6 +4,7 @@ import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 import type { UtilityProcessRequestOptions } from '@main/core/utilityProcess/types'
 
+import { ComputerUseApproval } from '../../ComputerUseApproval'
 import { AutomationReplService } from '../AutomationReplService'
 
 const owner = { kind: 'topic' as const, sessionId: 'topic', ownerId: 'assistant', label: 'Conversation' }
@@ -30,7 +31,8 @@ beforeEach(async () => {
         const calls = JSON.parse(input.code)
         let value: { ok: boolean } = { ok: true }
         for (const call of Array.isArray(calls) ? calls : [calls]) {
-          value = (await lastCall!('browser', call, options.signal!)) as { ok: boolean }
+          const { domain = 'browser', ...input } = call
+          value = (await lastCall!(domain, input, options.signal!)) as { ok: boolean }
           if (!value.ok) break
         }
         if (crashAfterDispatch) throw new Error('Kernel exited unexpectedly')
@@ -61,6 +63,7 @@ beforeEach(async () => {
     }
   }
   vi.spyOn(application, 'get').mockImplementation(((name: string) => {
+    if (name === 'ComputerUseService') return { approvals: new ComputerUseApproval(() => {}) }
     if (name === 'UtilityProcessManager') return manager
     if (name === 'BrowserSessionService') return browser
     return get(name as Parameters<typeof get>[0])
@@ -95,6 +98,41 @@ describe('automation run authority', () => {
       ])
     )
   })
+
+  it.each(['browser', 'computer'] as const)(
+    'emits neutral common rules and only the enabled %s API on documentation()',
+    async (domain) => {
+      const disabled = domain === 'browser' ? 'computer' : 'browser'
+      const run = service.beginRun(owner, 'run', () => ({
+        browser: domain === 'browser',
+        computer: domain === 'computer'
+      }))
+      const result = await run.execute(JSON.stringify({ domain, name: 'documentation' }))
+      expect(result.isError).not.toBe(true)
+      const texts = result.content.flatMap((part) => (part.type === 'text' ? [part.text] : []))
+      const common = texts.find((text) => text.startsWith('# Automation REPL'))
+      expect(common).toBeDefined()
+      for (const capability of ['browser', 'computer']) {
+        expect(common).not.toContain(`${capability}.documentation()`)
+        expect(common).not.toContain(`${capability === 'browser' ? 'browser.getTab(' : 'computer.getApp('}`)
+        expect(common).not.toContain(`cherry-${capability}`)
+      }
+      expect(texts.some((text) => text.includes(`${domain}.documentation()`))).toBe(true)
+      expect(texts.some((text) => text.includes(`${disabled}.documentation()`))).toBe(false)
+      const denied = await run.execute(JSON.stringify({ domain: disabled, name: 'documentation' }))
+      expect(denied.isError).toBe(true)
+      expect(denied.structuredContent).toMatchObject({
+        execution: {
+          events: [
+            expect.objectContaining({
+              domain: disabled,
+              error: expect.objectContaining({ code: 'CAPABILITY_UNAVAILABLE' })
+            })
+          ]
+        }
+      })
+    }
+  )
 
   it('preserves completed input separately from a later failed observation without replay', async () => {
     failingOperation = 'getAXState'

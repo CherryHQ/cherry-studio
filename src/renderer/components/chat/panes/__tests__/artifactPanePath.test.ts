@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  getArtifactPaneSelectionRelativePath,
   getArtifactPaneSelectionPath,
   getCopyableAbsolutePath,
   getPathBasename,
@@ -215,6 +216,17 @@ describe('artifactPanePath', () => {
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
+  })
+})
+
+describe('getArtifactPaneSelectionRelativePath', () => {
+  it('treats a file outside the pane workspace as external, even with a bare file name', () => {
+    expect(getArtifactPaneSelectionRelativePath('/ws', { workspacePath: '/tmp', filePath: 'out.md' })).toBeNull()
+  })
+
+  it('returns the workspace-relative path of a file inside the pane workspace', () => {
+    expect(getArtifactPaneSelectionRelativePath('/ws', { workspacePath: '/ws', filePath: 'src/a.ts' })).toBe('src/a.ts')
+    expect(getArtifactPaneSelectionRelativePath('/ws', { workspacePath: '/ws/src', filePath: 'a.ts' })).toBe('src/a.ts')
   })
 })
 

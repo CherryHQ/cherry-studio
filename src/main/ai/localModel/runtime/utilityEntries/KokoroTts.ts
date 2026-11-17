@@ -24,13 +24,15 @@ export class KokoroTts {
     signal.throwIfAborted()
     if (!this.model) {
       try {
+        const dataDir = join(input.modelDir, 'espeak-ng-data')
+        process.env.ESPEAK_DATA_PATH = dataDir
         this.model = await this.runtime.OfflineTts.createAsync({
           model: {
             kokoro: {
               model: join(input.modelDir, 'model.onnx'),
               voices: join(input.modelDir, 'voices.bin'),
               tokens: join(input.modelDir, 'tokens.txt'),
-              dataDir: join(input.modelDir, 'espeak-ng-data'),
+              dataDir,
               lexicon: ['lexicon-us-en.txt', 'lexicon-zh.txt'].map((file) => join(input.modelDir, file)).join(',')
             },
             numThreads: 2,

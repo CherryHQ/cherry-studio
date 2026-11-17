@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { isDeepStrictEqual } from 'node:util'
 import { parentPort, workerData } from 'node:worker_threads'
 
 import type { SessionKey, SessionStore, SessionStoreEntry } from '@anthropic-ai/claude-agent-sdk'
@@ -24,10 +25,6 @@ async function run(input: ClaudeForkWorkerInput): Promise<unknown> {
       if (sourceIds.has(entry.uuid)) throw new Error('history_corrupt')
       sourceIds.add(entry.uuid)
     }
-    for (const key of ['parentUuid', 'logicalParentUuid']) {
-      const reference = entry[key]
-      if (typeof reference === 'string' && !sourceIds.has(reference)) throw new Error('history_corrupt')
-    }
   }
   // env is a worker-private copy, set before importing the SDK. Never use SHARE_ENV.
   process.env.CLAUDE_CONFIG_DIR = checkpoint.configDir
@@ -36,6 +33,7 @@ async function run(input: ClaudeForkWorkerInput): Promise<unknown> {
   let outputKey: SessionKey | undefined
   const store: SessionStore = {
     async load(key) {
+      // oxlint-disable-next-line no-restricted-globals -- Fork once: isolate selected source entries before the native worker imports them.
       return key.sessionId === checkpoint.runtimeSessionId ? structuredClone(input.entries) : null
     },
     async append(key, entries) {
@@ -43,6 +41,7 @@ async function run(input: ClaudeForkWorkerInput): Promise<unknown> {
         throw new Error('history_corrupt')
       }
       outputKey = key
+      // oxlint-disable-next-line no-restricted-globals -- Fork once: detach exported native entries before the worker continues rewriting them.
       output.push(...structuredClone(entries))
     }
   }
@@ -66,18 +65,40 @@ async function run(input: ClaudeForkWorkerInput): Promise<unknown> {
       mapping.set(from.messageUuid, entry.uuid)
     }
   }
-  // Verify the opaque compaction records survive SDK processing. Fail closed rather than
-  // silently resume with a different context if an SDK version drops required metadata.
-  for (const source of input.entries) {
-    if (!source.compactMetadata || !source.uuid) continue
-    const mapped = output.find((entry) => entry.uuid === mapping.get(source.uuid!))
-    if (!mapped || JSON.stringify(mapped.compactMetadata) !== JSON.stringify(source.compactMetadata)) {
-      throw new Error('unsupported_checkpoint')
-    }
-    // Some SDK releases copy preserved-segment UUIDs verbatim. Do not publish dangling
-    // compaction references, and do not allocate a second set of UUIDs to repair them.
-    if (containsSourceUuid(mapped.compactMetadata, sourceIds)) throw new Error('unsupported_checkpoint')
-  }
+  const readContext = (sessionId: string, entries: SessionStoreEntry[]) =>
+    sdk.getSessionMessages(sessionId, {
+      dir: input.targetCwd,
+      includeSystemMessages: true,
+      sessionStore: {
+        async load(key) {
+          // oxlint-disable-next-line no-restricted-globals -- Fork once: isolate the worker-owned entries returned to the native session loader.
+          return key.sessionId === sessionId ? structuredClone(entries) : null
+        },
+        async append() {
+          throw new Error('unsupported_checkpoint')
+        }
+      }
+    })
+  // Native loaders own retry and compaction ancestry; the fork must preserve their selected context.
+  const [sourceContext, forkContext] = await Promise.all([
+    readContext(checkpoint.runtimeSessionId, input.entries),
+    readContext(result.sessionId, output)
+  ]).catch(() => {
+    throw new Error('unsupported_checkpoint')
+  })
+  if (
+    !sourceContext.some((message) => message.uuid === checkpoint.messageUuid) ||
+    sourceContext.length !== forkContext.length ||
+    sourceContext.some((message, index) => {
+      const forked = forkContext[index]
+      return (
+        mapping.get(message.uuid) !== forked.uuid ||
+        message.type !== forked.type ||
+        !isDeepStrictEqual(message.message, forked.message)
+      )
+    })
+  )
+    throw new Error('unsupported_checkpoint')
   const replacements = input.entries
     .filter((entry) => entry.type === 'content-replacement')
     .flatMap((entry) => (Array.isArray(entry.replacements) ? entry.replacements : []))

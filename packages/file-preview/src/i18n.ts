@@ -1,11 +1,14 @@
 import { createInstance, type i18n } from 'i18next'
 
+import csCZ from './locales/cs-cz.json'
 import deDE from './locales/de-de.json'
 import elGR from './locales/el-gr.json'
 import enUS from './locales/en-us.json'
 import esES from './locales/es-es.json'
 import frFR from './locales/fr-fr.json'
+import itIT from './locales/it-it.json'
 import jaJP from './locales/ja-jp.json'
+import plPL from './locales/pl-pl.json'
 import ptPT from './locales/pt-pt.json'
 import roRO from './locales/ro-ro.json'
 import ruRU from './locales/ru-ru.json'
@@ -15,12 +18,15 @@ import zhCN from './locales/zh-cn.json'
 import zhTW from './locales/zh-tw.json'
 
 const catalogs = {
+  'cs-cz': csCZ,
   'de-de': deDE,
   'el-gr': elGR,
   'en-us': enUS,
   'es-es': esES,
   'fr-fr': frFR,
+  'it-it': itIT,
   'ja-jp': jaJP,
+  'pl-pl': plPL,
   'pt-pt': ptPT,
   'ro-ro': roRO,
   'ru-ru': ruRU,

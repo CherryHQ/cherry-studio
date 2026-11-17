@@ -1,4 +1,4 @@
-import Spinner from '@renderer/components/Spinner'
+import { Spinner } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n/resolver'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { kbSearchInputSchema, type KbSearchOutputItem, kbSearchOutputSchema } from '@shared/ai/builtinTools'

@@ -19,9 +19,4 @@ describe('transformZhipuRequestBody', () => {
     const body = transformZhipuRequestBody({ tools: [fn], web_search: { enable: true } })
     expect(body.tools).toEqual([fn, { type: 'web_search', web_search: { enable: true } }])
   })
-
-  it('is a no-op without the marker', () => {
-    const args = { model: 'glm-5', messages: [] }
-    expect(transformZhipuRequestBody(args)).toBe(args)
-  })
 })

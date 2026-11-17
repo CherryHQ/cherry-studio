@@ -1,5 +1,51 @@
 # @cherrystudio/web-search
 
+## Unreleased
+
+### Patch Changes
+
+- Change the package license from AGPL-3.0-only to MIT and update the README license statement.
+
+## 0.8.0
+
+### Minor Changes
+
+- [#21426](https://github.com/CherryHQ/cherry-studio/pull/21426) [`1350943`](https://github.com/CherryHQ/cherry-studio/commit/135094397393a867072f6f73520c91b950312171) Thanks [@Nolikzero](https://github.com/Nolikzero)! - Add the SerpKite keyword search provider.
+
+### Patch Changes
+
+- [#24234](https://github.com/CherryHQ/cherry-studio/pull/24234) [`2e65759`](https://github.com/CherryHQ/cherry-studio/commit/2e6575901a59e6edb5748a2df18713f48635f658) Thanks [@DeJeune](https://github.com/DeJeune)! - Standardize public libraries on MIT and include package-local license files.
+
+## 0.7.0
+
+### Minor Changes
+
+- [#24181](https://github.com/CherryHQ/cherry-studio/pull/24181) [`5313170`](https://github.com/CherryHQ/cherry-studio/commit/53131700862e0b357530935cfcc1a9e83544f2fa) Thanks [@404-Page-Found](https://github.com/404-Page-Found)! - Add a portable StepFun keyword-search provider with host-owned transport and credentials.
+
+## 0.6.0
+
+### Minor Changes
+
+- [#24077](https://github.com/CherryHQ/cherry-studio/pull/24077) [`082f62f`](https://github.com/CherryHQ/cherry-studio/commit/082f62f5913841c9f674b61479b8b6fe45b494fc) Thanks [@NatsUIJM](https://github.com/NatsUIJM)! - Add URL fetching to the Exa provider through the Contents API.
+
+## 0.5.0
+
+### Minor Changes
+
+- [#21987](https://github.com/CherryHQ/cherry-studio/pull/21987) [`a65a51f`](https://github.com/CherryHQ/cherry-studio/commit/a65a51f848eb2bc8c89aa6403524b152071a0ed7) Thanks [@Chkhikvadze](https://github.com/Chkhikvadze)! - Add the Desearch web search provider for keyword search.
+
+## 0.4.0
+
+### Minor Changes
+
+- [#22599](https://github.com/CherryHQ/cherry-studio/pull/22599) [`b8e6bca`](https://github.com/CherryHQ/cherry-studio/commit/b8e6bca0423b618819b8082204db0f4b6b798b70) Thanks [@sgan0420](https://github.com/sgan0420)! - Add the SearchApi provider for Google keyword search with bearer API key authentication.
+
+## 0.3.1
+
+### Patch Changes
+
+- [#22793](https://github.com/CherryHQ/cherry-studio/pull/22793) [`1cd6601`](https://github.com/CherryHQ/cherry-studio/commit/1cd6601053084d2b50296a7cd929138657679b23) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Report attributable Querit page crawl failures as provider/page_fetch_failed, preserving request-error precedence and status-less content compatibility.
+
 ## 0.3.0
 
 ### Minor Changes

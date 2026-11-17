@@ -33,6 +33,8 @@ export interface ImageGenerationJobPayload {
    *  here so the handler reaches the right endpoint / response family without
    *  re-resolving the registry. */
   modelDescriptor?: ImageTransportDescriptor
+  /** Per-attempt submit timeout (ms); omitted uses the transport default. */
+  requestTimeoutMs?: number
   /** Non-secret request source captured when the job is enqueued. */
   source?: SourceSnapshot
   providerParams: Record<string, unknown>

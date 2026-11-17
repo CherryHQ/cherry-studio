@@ -28,6 +28,16 @@ function run(chunks: readonly UIMessageChunk[]): GeminiGenerateContentResponse[]
 }
 
 describe('AiSdkToGeminiSse (streaming)', () => {
+  it.each([{ chunks: [] }, { chunks: [textDelta('Answer')] }])(
+    'retains the billing response identity in both final responses: %j',
+    ({ chunks }) => {
+      const adapter = new AiSdkToGeminiSse({ model: 'test-model', messageId: 'billing-response' })
+      for (const chunk of chunks) adapter.transformChunk(chunk)
+      expect(adapter.finalizeEvents().at(-1)?.responseId).toBe('billing-response')
+      expect(adapter.buildNonStreamingResponse().responseId).toBe('billing-response')
+    }
+  )
+
   it('emits one delta frame per text-delta, then a terminal finishReason frame', () => {
     const frames = run([textDelta('Hello'), textDelta(' world'), finish('stop')])
     expect(frames.slice(0, 2)).toEqual([
@@ -45,6 +55,31 @@ describe('AiSdkToGeminiSse (streaming)', () => {
     expect(frame).toEqual({
       candidates: [{ content: { role: 'model', parts: [{ text: 'thinking...', thought: true }] }, index: 0 }]
     })
+  })
+
+  it.each([
+    { type: 'text-delta', thought: false, late: false },
+    { type: 'reasoning-delta', thought: true, late: false },
+    { type: 'text-delta', thought: false, late: true },
+    { type: 'reasoning-delta', thought: true, late: true }
+  ] as const)('retains the $type signature in both responses (metadata-only: $late)', ({ type, thought, late }) => {
+    const adapter = new AiSdkToGeminiSse({ model: 'test:model' })
+    const providerMetadata = { google: { thoughtSignature: 'native-signature' } }
+    const chunks: UIMessageChunk[] = [
+      { type, id: 'part', delta: 'first', ...(!late && { providerMetadata }) },
+      { type, id: 'part', delta: ' second' },
+      ...(late ? [{ type, id: 'part', delta: '', providerMetadata }] : [])
+    ]
+    const frames = chunks.flatMap((chunk) => adapter.transformChunk(chunk))
+    frames.push(...adapter.finalizeEvents())
+    expect(frames.flatMap((frame) => frame.candidates[0].content.parts)).toContainEqual({
+      text: late ? '' : 'first',
+      ...(thought && { thought: true }),
+      thoughtSignature: 'native-signature'
+    })
+    expect(adapter.buildNonStreamingResponse().candidates[0].content.parts).toEqual([
+      { text: 'first second', ...(thought && { thought: true }), thoughtSignature: 'native-signature' }
+    ])
   })
 
   it('emits a functionCall part for a tool call', () => {
@@ -184,4 +219,73 @@ describe('GeminiSseFormatter', () => {
     expect(formatter.formatEvent(frame)).toBe(`data: ${JSON.stringify(frame)}\n\n`)
     expect(formatter.formatDone()).toBe('')
   })
+})
+
+it.each([null, undefined, [], true, 42, 'invalid json'])(
+  'rejects non-object tool input without fabricating arguments: %j',
+  (input) => {
+    const adapter = new AiSdkToGeminiSse({ model: 'test-model' })
+    expect(() =>
+      adapter.transformChunk({
+        type: 'tool-input-error',
+        toolCallId: 'bad-input',
+        toolName: 'read_file',
+        input,
+        errorText: 'Invalid tool arguments'
+      })
+    ).toThrow('Invalid tool arguments')
+  }
+)
+
+it('completes an other finish reason as OTHER in streaming and non-streaming responses', async () => {
+  const adapter = new AiSdkToGeminiSse({ model: 'test:model' })
+  const stream = new ReadableStream<UIMessageChunk>({
+    start(controller) {
+      controller.enqueue({ type: 'finish', finishReason: 'other' })
+      controller.close()
+    }
+  })
+  const frames: GeminiGenerateContentResponse[] = []
+  for await (const frame of adapter.transform(stream)) frames.push(frame)
+  expect(frames.at(-1)?.candidates[0].finishReason).toBe('OTHER')
+  expect(adapter.buildNonStreamingResponse().candidates[0].finishReason).toBe('OTHER')
+})
+
+describe('terminal failure reasons', () => {
+  it.each(['error'] as const)('rejects %s while reading after a tool call', async (reason) => {
+    const adapter = new AiSdkToGeminiSse({ model: 'test:model' })
+    const stream = new ReadableStream<UIMessageChunk>({
+      start(controller) {
+        controller.enqueue({ type: 'tool-input-available', toolCallId: 'call', toolName: 'read', input: {} })
+        controller.enqueue({ type: 'finish', finishReason: reason })
+        controller.close()
+      }
+    })
+    const read = async () => {
+      const events: unknown[] = []
+      for await (const event of adapter.transform(stream)) events.push(event)
+      return events
+    }
+    await expect(read()).rejects.toMatchObject({ statusCode: 502 })
+  })
+
+  it.each(['error'] as const)('rejects %s with 502, including after a tool call', (reason) => {
+    for (const withTool of [false, true]) {
+      const adapter = new AiSdkToGeminiSse({ model: 'test:model' })
+      if (withTool)
+        adapter.transformChunk({ type: 'tool-input-available', toolCallId: 'call', toolName: 'read', input: {} })
+      expect(() => adapter.transformChunk({ type: 'finish', finishReason: reason })).toThrow(
+        expect.objectContaining({ statusCode: 502 })
+      )
+    }
+  })
+})
+
+it.each([
+  ['stop', 'STOP'],
+  ['tool-calls', 'STOP'],
+  ['length', 'MAX_TOKENS'],
+  ['content-filter', 'SAFETY']
+] as const)('maps %s to %s', (reason, expected) => {
+  expect(run([finish(reason)]).at(-1)?.candidates[0].finishReason).toBe(expected)
 })

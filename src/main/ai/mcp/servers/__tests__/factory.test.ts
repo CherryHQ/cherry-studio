@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -26,8 +28,8 @@ describe('getBuiltinAutoInstallEnv', () => {
     installSource: 'builtin' as const
   }
   const cherryOwnedPaths = {
-    MCP_REGISTRY_PATH: '/mock/feature.mcp.registry_file',
-    MCP_SETTINGS_PATH: '/mock/feature.mcp.auto_install_settings_file'
+    MCP_REGISTRY_PATH: path.resolve('/mock/feature.mcp.registry_file'),
+    MCP_SETTINGS_PATH: path.resolve('/mock/feature.mcp.auto_install_settings_file')
   }
 
   it('keeps the cache and config writes inside the Cherry tree whether or not an npm mirror is set', () => {
@@ -61,13 +63,15 @@ describe('resolveBuiltinExternalMcpServer', () => {
       env: { QVERIS_API_KEY: apiKey ?? '' }
     })
 
-  it('authenticates QVeris with the API key the user configured', () => {
+  it('attaches the configured QVeris API key as a fallback Bearer header', () => {
     expect(resolveBuiltinExternalMcpServer(qveris('secret')).headers).toEqual({ Authorization: 'Bearer secret' })
   })
 
-  it('fails activation instead of connecting QVeris anonymously', () => {
-    expect(() => resolveBuiltinExternalMcpServer(qveris())).toThrow(/QVERIS_API_KEY/)
-    expect(() => resolveBuiltinExternalMcpServer(qveris('   '))).toThrow(/QVERIS_API_KEY/)
+  it('connects QVeris through OAuth sign-in by default when no API key is configured', () => {
+    const resolved = resolveBuiltinExternalMcpServer(qveris())
+    expect(resolved.headers?.Authorization).toBeUndefined()
+    expect(resolved.type).toBe('streamableHttp')
+    expect(resolveBuiltinExternalMcpServer(qveris('   ')).headers?.Authorization).toBeUndefined()
   })
 
   it('resolves builtin HTTP endpoints and preserves configured headers', () => {

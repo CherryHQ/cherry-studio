@@ -4,13 +4,16 @@ import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 export interface RunPaths {
   root: string
   appRecord: string
+  appLaunchFailure: string
   artifacts: string
   evidence: string
   fixtures: string
+  home: string
   installed: string
   installation: string
   logs: string
   output: string
+  private: string
   profiles: string
   runState: string
   workspace: string
@@ -21,13 +24,21 @@ export function getRunPaths(runDirectory: string): RunPaths {
   return {
     root,
     appRecord: join(root, 'app.json'),
+    appLaunchFailure: join(root, 'state', 'app-launch-failure.json'),
     artifacts: join(root, 'release'),
     evidence: join(root, 'evidence'),
     fixtures: join(root, 'fixtures'),
+    // Isolated HOME for the launched application: the code-CLI tests configure providers through
+    // the app, which would otherwise rewrite the machine owner's real ~/.codex and ~/.claude files.
+    home: join(root, 'home'),
     installed: join(root, 'installed'),
     installation: join(root, 'release', 'installation.json'),
     logs: join(root, 'logs'),
     output: join(root, 'report'),
+    // Credential-bearing artifacts (backup archives, migrated profiles) must stay outside the
+    // uploaded roots (report, evidence, agent-workspace, fixtures) so archived databases that
+    // carry real provider keys never reach an artifact download.
+    private: join(root, 'private'),
     profiles: join(root, 'profiles'),
     runState: join(root, 'run.json'),
     workspace: join(root, 'agent-workspace')
@@ -40,9 +51,11 @@ export function ensureRunDirectories(paths: RunPaths): void {
     paths.artifacts,
     paths.evidence,
     paths.fixtures,
+    paths.home,
     paths.installed,
     paths.logs,
     paths.output,
+    paths.private,
     paths.profiles,
     paths.workspace
   ]) {
