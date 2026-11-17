@@ -172,6 +172,10 @@ function requiresLogin(response: Response): boolean {
   return response.status === 401 && (code === 'SESSION_EXPIRED' || code === 'REAUTH_REQUIRED')
 }
 
+function isQuotaRefusal(response: Response): boolean {
+  return response.status === 429 && response.headers.get('Cherry-Error-Code') === 'QUOTA_EXHAUSTED'
+}
+
 function discardResponse(response: Response): void {
   void response.body?.cancel().catch(() => undefined)
 }
@@ -220,9 +224,7 @@ export class CherryCloudService extends BaseService {
     result: CherryCloudModelSyncResult
   } | null = null
   private sessionGeneration = 0
-  // The gateway may refuse a request its quota cannot cover while windows still show units left; until a
-  // window grows, a pool it refused stays exhausted. Pools are keyed by their model IDs.
-  private quotaRefusals: { generation: number; models: Set<string>; floors: Map<string, number[]> } | null = null
+  private quotaRefusalRefresh: { scopeId: string; promise: Promise<void> } | null = null
   private loopbackCallback: CherryCloudLoopbackCallback | null = null
   private pendingExpiryTimer: ReturnType<typeof setTimeout> | null = null
   private sessionExpiryTimer: ReturnType<typeof setTimeout> | null = null
@@ -779,7 +781,7 @@ export class CherryCloudService extends BaseService {
       let succeeded = results.every((result) => result.status === 'fulfilled')
       if (account.status === 'fulfilled' && catalog.status === 'fulfilled') {
         try {
-          const value = this.projectEntitledModels(account.value, catalog.value, generation)
+          const value = this.projectEntitledModels(account.value, catalog.value)
           nextCache = { generation, syncedAt: performance.now(), result: value }
           nextModels = { freshness: 'fresh', value, observedRevision: nextRevision }
         } catch (error) {
@@ -1011,13 +1013,12 @@ export class CherryCloudService extends BaseService {
       throw new DOMException('Cherry Cloud model sync was superseded', 'AbortError')
     }
 
-    return this.projectEntitledModels(account, catalog, sessionGeneration)
+    return this.projectEntitledModels(account, catalog)
   }
 
   private projectEntitledModels(
     account: Infer<typeof accountSnapshotSchema>,
-    catalog: Infer<typeof cloudModelListSchema>,
-    sessionGeneration: number
+    catalog: Infer<typeof cloudModelListSchema>
   ): CherryCloudModelSyncResult {
     const activeEntitlements = account.entitlements.filter((entitlement) => entitlement.status === 'active')
     const entitledModelIds = new Set(activeEntitlements.flatMap((entitlement) => entitlement.model_ids))
@@ -1029,23 +1030,13 @@ export class CherryCloudService extends BaseService {
     )
     const models = catalog.data.filter((model) => entitledModelIds.has(model.id))
     const quotaAvailableByModelId = new Map<string, boolean>()
-    const refusals = this.quotaRefusals?.generation === sessionGeneration ? this.quotaRefusals : null
     for (const pool of account.quota_pools) {
-      const remaining = pool.windows.map((window) => window.remaining_units)
-      const poolKey = [...pool.model_ids].sort().join('\n')
-      if (refusals && pool.model_ids.some((modelId) => refusals.models.has(modelId))) {
-        refusals.floors.set(poolKey, remaining)
-      }
-      const floor = refusals?.floors.get(poolKey)
-      const refused =
-        floor !== undefined && floor.length === remaining.length && remaining.every((units, i) => units <= floor[i])
-      if (floor && !refused) refusals?.floors.delete(poolKey)
-      const poolAvailable = !refused && remaining.every((units) => units > 0)
+      // Settled usage only: remaining_units also subtracts in-flight reservations, which free up within seconds.
+      const poolAvailable = pool.windows.every((window) => window.used_units < window.limit_units)
       for (const modelId of pool.model_ids) {
         quotaAvailableByModelId.set(modelId, (quotaAvailableByModelId.get(modelId) ?? false) || poolAvailable)
       }
     }
-    refusals?.models.clear()
     const quotaExhaustedModelIds = [
       ...new Set(
         models
@@ -1081,20 +1072,6 @@ export class CherryCloudService extends BaseService {
       },
       quotaExhaustedModelIds
     }
-  }
-
-  private recordQuotaRefusal(generation: number, body: string | undefined): void {
-    let modelId: unknown
-    try {
-      modelId = body ? (JSON.parse(body) as { model?: unknown }).model : undefined
-    } catch {
-      return
-    }
-    if (typeof modelId !== 'string') return
-    if (this.quotaRefusals?.generation !== generation) {
-      this.quotaRefusals = { generation, models: new Set(), floors: new Map() }
-    }
-    this.quotaRefusals.models.add(modelId)
   }
 
   /** Tells the user why they were signed out, or why a browser sign-in did not finish. */
@@ -1283,13 +1260,13 @@ export class CherryCloudService extends BaseService {
     // Cloud strips upstream Cherry-* headers, so upstream 401 bodies cannot invalidate the login.
     const code = response.headers.get('Cherry-Error-Code')
     // The snapshot let this request through, so the next check asks the server again.
-    if (
-      (response.status === 403 && code === 'ENTITLEMENT_INACTIVE') ||
-      (response.status === 429 && code === 'QUOTA_EXHAUSTED')
-    ) {
+    if ((response.status === 403 && code === 'ENTITLEMENT_INACTIVE') || isQuotaRefusal(response)) {
       this.modelSyncCache = null
     }
-    if (response.status === 429 && code === 'QUOTA_EXHAUSTED') this.recordQuotaRefusal(generation, init?.body)
+    if (idempotencyKey && isQuotaRefusal(response)) {
+      this.refreshAfterQuotaRefusal()
+      return response
+    }
     const refreshRequired = response.status === 401 && code === 'AUTH_REQUIRED'
     const replayed = response.status === 409 && code === 'REQUEST_REPLAYED'
     if (!refreshRequired && !replayed) return response
@@ -1315,7 +1292,43 @@ export class CherryCloudService extends BaseService {
     discardResponse(response)
     response = await this.signedFetch(url, init, session, { bearer: true, idempotencyKey })
     if (requiresLogin(response)) await this.clearSession(session, signOutReason(response))
+    if (
+      idempotencyKey &&
+      isQuotaRefusal(response) &&
+      generation === this.sessionGeneration &&
+      this.cloudState.session
+    ) {
+      this.modelSyncCache = null
+      this.refreshAfterQuotaRefusal()
+    }
     return response
+  }
+
+  /** The refusal itself is the server's verdict; the refresh only updates the snapshot, so nothing waits on it. */
+  private refreshAfterQuotaRefusal(): void {
+    const scopeId = this.getCurrentScopeId()
+    if (this.quotaRefusalRefresh?.scopeId === scopeId) return
+    const promise: Promise<void> = this.refreshAccount({ scopeId, reason: 'quota_refusal' })
+      .then((result) => {
+        if (result.outcome === 'refreshed') return
+        const causes =
+          result.outcome === 'failed'
+            ? {
+                account: 'error' in result.receipt.account ? result.receipt.account.error : null,
+                models: 'error' in result.receipt.models ? result.receipt.models.error : null,
+                plans: 'error' in result.receipt.plans ? result.receipt.plans.error : null
+              }
+            : {}
+        logger.warn('Cherry Cloud account refresh after a quota refusal did not complete', {
+          outcome: result.outcome,
+          ...causes
+        })
+      })
+      .catch((error) => logger.warn('Cherry Cloud account refresh after a quota refusal failed', error as Error))
+      .finally(() => {
+        if (this.quotaRefusalRefresh?.promise === promise) this.quotaRefusalRefresh = null
+      })
+    this.quotaRefusalRefresh = { scopeId, promise }
   }
 
   public async revokeCurrentSession(): Promise<CherryCloudStatus> {
