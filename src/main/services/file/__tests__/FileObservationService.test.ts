@@ -1,4 +1,5 @@
-import { mkdir, mkdtemp, realpath, rename, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rename, rm, symlink, writeFile } from 'node:fs/promises'
+import type * as filesystem from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -13,6 +14,28 @@ import { FileObservationService } from '../observation/FileObservationService'
 import * as watcherModule from '../watcher'
 import type { WatcherListener } from '../watcher'
 
+const bindingRoot = vi.hoisted(() => ({
+  root: '',
+  count: 0,
+  entered: false,
+  gate: Promise.resolve(),
+  release: () => {}
+}))
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof filesystem>()
+  return {
+    ...actual,
+    realpath: async (...args: Parameters<typeof actual.realpath>) => {
+      const result = await actual.realpath(...args)
+      if (String(args[0]) === bindingRoot.root && ++bindingRoot.count === 3) {
+        bindingRoot.entered = true
+        await bindingRoot.gate
+      }
+      return result
+    }
+  }
+})
+
 let root: string
 let service: FileObservationService
 const owner = (id: number) => ({
@@ -23,11 +46,16 @@ const owner = (id: number) => ({
 beforeEach(async () => {
   BaseService.resetInstances()
   root = await realpath(await mkdtemp(path.join(tmpdir(), 'cherry-observe-')))
+  bindingRoot.root = ''
+  bindingRoot.count = 0
+  bindingRoot.entered = false
+  bindingRoot.gate = Promise.resolve()
   service = new FileObservationService()
   await service._doInit()
 })
 
 afterEach(async () => {
+  bindingRoot.release()
   await service._doStop()
   vi.restoreAllMocks()
   await rm(root, { recursive: true, force: true })
@@ -109,11 +137,20 @@ it('replays an invalidation between open and activate and reports system-resume 
 it('starts from a missing parent and detects later directory and file creation', async () => {
   const target = AbsoluteFilePathSchema.parse(path.join(root, 'nested', 'file.txt'))
   const sender = owner(1)
+  let observed = ''
+  sender.webContents.send.mockImplementation(() => {
+    void readFile(target, 'utf8').then(
+      (content) => {
+        observed = content
+      },
+      () => {}
+    )
+  })
   const opened = await service.open(sender, target)
   service.activateSubscription(opened.subscriptionId, opened.revision, 1)
   await mkdir(path.dirname(target))
   await writeFile(target, 'created')
-  await vi.waitFor(() => expect(events(sender).length).toBeGreaterThan(0), { timeout: 5000 })
+  await vi.waitFor(() => expect(observed).toBe('created'), { timeout: 5000 })
 })
 
 it('observes a symlink target and invalidates the binding when the alias is retargeted', async () => {
@@ -125,9 +162,11 @@ it('observes a symlink target and invalidates the binding when the alias is reta
   await symlink(first, alias)
   const sender = owner(1)
   const opened = await service.open(sender, alias)
+  expect(opened.coverage).toBe('live')
   service.activateSubscription(opened.subscriptionId, opened.revision, 1)
   await writeFile(first, 'after')
   await vi.waitFor(() => expect(events(sender).length).toBeGreaterThan(0), { timeout: 5000 })
+  expect(events(sender).every((event) => event.coverage === 'live')).toBe(true)
   const count = events(sender).length
   await symlink(second, `${alias}.swap`)
   await rename(`${alias}.swap`, alias)
@@ -161,4 +200,23 @@ it('reports lost coverage before a failed watcher is released', async () => {
   service.activateSubscription(opened.subscriptionId, opened.revision, 1)
   for (const listener of listeners) listener({ kind: 'error', error: new Error('Watch coverage lost') })
   expect(events(sender).at(-1)?.coverage).toBe('unavailable')
+})
+
+it('does not claim live coverage when a symlink changes before its binding watcher attaches', async () => {
+  const first = path.join(root, 'first.txt')
+  const second = path.join(root, 'second.txt')
+  const alias = AbsoluteFilePathSchema.parse(path.join(root, 'alias.txt'))
+  await writeFile(first, 'before')
+  await writeFile(second, 'second')
+  await symlink(first, alias)
+  bindingRoot.root = root
+  bindingRoot.gate = new Promise<void>((resolve) => {
+    bindingRoot.release = resolve
+  })
+  const opening = service.open(owner(1), alias)
+  await vi.waitFor(() => expect(bindingRoot.entered).toBe(true))
+  await symlink(second, `${alias}.swap`)
+  await rename(`${alias}.swap`, alias)
+  bindingRoot.release()
+  expect((await opening).coverage).toBe('stale')
 })

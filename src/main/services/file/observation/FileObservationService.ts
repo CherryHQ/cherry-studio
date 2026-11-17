@@ -127,7 +127,11 @@ export class FileObservationService extends BaseService {
     return targets
   }
 
-  private async acquireFile(target: string, listener: (event: ObservationEvent) => void): Promise<ObservationLease> {
+  private async acquireFile(
+    target: string,
+    binding: boolean,
+    listener: (event: ObservationEvent) => void
+  ): Promise<ObservationLease> {
     let root = path.dirname(target)
     for (;;) {
       try {
@@ -143,11 +147,13 @@ export class FileObservationService extends BaseService {
     const physicalTarget = path.join(physicalRoot, path.relative(root, target))
     const normalizedTarget = physicalTarget.replace(/\\/g, '/')
     return this.acquire(
-      `file:${physicalTarget}:${physicalRoot}`,
+      JSON.stringify(['file', physicalTarget, physicalRoot, binding]),
       AbsoluteFilePathSchema.parse(physicalRoot),
       {
         recursive: true,
         followSymlinks: false,
+        // A file may already exist when its newly created parent's scan starts.
+        emitInitial: !binding,
         maxDepth: path.relative(physicalRoot, physicalTarget).split(path.sep).length - 1,
         ignore: (candidate) => {
           const normalized = candidate.replace(/\\/g, '/')
@@ -177,15 +183,34 @@ export class FileObservationService extends BaseService {
         : bindingChanged || subscription.leases.some((lease) => lease.coverage !== 'live')
           ? 'stale'
           : 'live'
+    const targetsChanged = (current: Map<string, boolean>) =>
+      current.size !== targets.size || [...targets].some(([address, binding]) => current.get(address) !== binding)
+    const publish = () => {
+      if (!this.subscriptions.has(subscriptionId)) return
+      subscription.state = { subscriptionId, revision: subscription.state.revision + 1, coverage: coverage() }
+      if (subscription.active) this.send(subscription)
+      else subscription.pending = true
+    }
     try {
       for (const [address, binding] of targets) {
-        const lease = await this.acquireFile(address, (event) => {
+        let live = false
+        const lease = await this.acquireFile(address, binding, (event) => {
           if (!this.subscriptions.has(subscriptionId)) return
-          if (binding && event.kind !== 'ready' && event.kind !== 'error') bindingChanged = true
-          subscription.state = { subscriptionId, revision: subscription.state.revision + 1, coverage: coverage() }
-          if (subscription.active) this.send(subscription)
-          else subscription.pending = true
+          if (event.kind === 'ready') live = true
+          if (binding && live && event.kind !== 'ready' && event.kind !== 'error' && event.kind !== 'stale') {
+            void this.fileTargets(target).then(
+              (current) => {
+                bindingChanged ||= targetsChanged(current)
+                publish()
+              },
+              () => {
+                bindingChanged = true
+                publish()
+              }
+            )
+          } else publish()
         })
+        live = lease.coverage === 'live'
         if (this.stopped || !this.subscriptions.has(subscriptionId)) {
           lease.dispose()
           throw new Error('File observation owner closed during acquisition')
@@ -193,6 +218,8 @@ export class FileObservationService extends BaseService {
         subscription.leases.push(lease)
       }
       await Promise.all(subscription.leases.map((lease) => lease.ready))
+      const currentTargets = await this.fileTargets(target)
+      bindingChanged ||= targetsChanged(currentTargets)
       if (this.stopped || owner.webContents.isDestroyed() || !this.subscriptions.has(subscriptionId)) {
         throw new Error('File observation owner closed during acquisition')
       }
