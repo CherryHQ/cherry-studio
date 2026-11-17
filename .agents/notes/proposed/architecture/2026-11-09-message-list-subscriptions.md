@@ -43,7 +43,7 @@ Shared types contain persisted part/DataUIPart contracts and wire facts, not Rea
 
 ### 2. Independent part storage and completion writes
 
-For agent sessions, retain `agent_session_message` as the container and add `agent_session_message_part` through an appended migration. Ordinary Chat keeps its existing storage adapter until explicitly migrated; all surfaces can still consume the shared rendering contract.
+For agent sessions, retain `agent_session_message` as the container and add `agent_session_message_part` through an appended migration. Ordinary Chat keeps its existing inline body storage adapter. Its Phase 4 adoption of the shared keyed rendering contract first requires the Home identity migration below; an adapter without persisted part IDs cannot opt into that contract.
 
 | Store | Content |
 | --- | --- |
@@ -60,7 +60,7 @@ The part ID lives beside the part, never inside it. `CherryMessagePart` stays th
 
 | Layer | Carrier |
 | --- | --- |
-| SQLite | `agent_session_message_part.id`; the row payload is the unmodified part object |
+| SQLite | Agent: `agent_session_message_part.id`. Home: `message.data.partIds` alongside its existing inline `parts`; both keep part payloads unmodified |
 | Data/projection contracts | `partIds: readonly string[]` parallel to `parts`: same length and order, unique within the message |
 | Main source projection | Ordered part IDs plus `Map<partId, part>`; checkpoints record part IDs |
 | Transport patches | Address parts by `partId`, not array index; order changes carry the new `partIds` |
@@ -68,6 +68,10 @@ The part ID lives beside the part, never inside it. `CherryMessagePart` stays th
 | Model input | Built from `parts` only; `partIds` never reach provider conversion |
 
 Main allocates a part ID (UUIDv7) once, when the source projection first creates the part, or during migration backfill. The renderer never allocates content part IDs. `toolCallId` remains the native/tool-output association, not the part key. A patch naming an unknown `partId`, or a `partIds`/`parts` length mismatch, requires a new baseline. Legacy offset/count checkpoints are resolved to part IDs through the ordered list at load time. When a native source message carries parts without IDs (Claude Code, Pi, Pi Durable), the allocation is keyed once by native source message ID and position within that source, or by `toolCallId`/data-part `id` where present, and the checkpoint records the resulting part IDs; this source mapping is never re-derived from the product `parts` array index.
+
+For Home, `MessageService` owns the parallel `MessageData.partIds` carrier and writes it atomically with `parts`. An appended migration allocates UUIDv7 IDs once for existing inline parts in their stored order. New parts receive their IDs in Main before publication, and terminal saves preserve those IDs; updates and reorders carry the existing IDs, while inserted or fork-copied parts receive new IDs. IDs live until their owning parts are deleted. History reads, renderer reloads and reconnects reuse persisted IDs rather than allocating from content or array positions. Home model conversion continues to consume only `parts`.
+
+Phase 4 must migrate every Home writer, history/projection reader and fork path together before enabling keyed Home subscriptions. Verify populated-history migration, reload/reconnect stability, edits/reordering and fork isolation. Until that migration is delivered, Home retains its existing adapter and subscription behavior; Agent part storage alone is not evidence of Home identity recovery.
 
 Deltas update the current in-memory part and notify its subscribers. Persist that individual part at its own semantic `onDone`, not at the whole assistant reply's `onDone`. Reply completion waits for required saves, then updates container status/statistics; it does not rewrite saved parts. Stop/error saves received content and actual state of unfinished parts before settling the reply. User input acceptance remains an immediate write. There are no scheduled body checkpoints, per-token writes, historical part versions or generic part-replacement protocol. An abrupt Main crash may lose the current unfinished part; committed completed parts remain recoverable. Renderer reload with Main alive can reattach to newer in-memory content.
 
@@ -164,7 +168,7 @@ Create private helpers only when actual size/cohesion warrants them; do not pre-
 | 1. Storage/identity | Add part records; migrate arrays; retain latest tool-result contract; switch the sole body source/read assembly | Populated SQLite migration, ordered round-trip, branch/fork/file cleanup and input-lock tests |
 | 2. Completion persistence | Per-part `onDone`, reply terminal/Stop/error sequence and existing refresh cleanup | Completed-part recovery before reply completion, no delta writes, failure retention and actual stale-completion tests |
 | 3. Keyed Agent rendering | Stable input/part/row identity, source handle lifetime and part subscriptions; remove replaced local paths | Ack/handoff/repeated input, unaffected snapshots, activity-only notifications, two-window/reattach and action tests |
-| 4. Shared consumers | Home multi-model/history and remaining list consumers; paging, source-aware actions and cold reads | Consumer audit, explicit affected tests, full-copy/capture/selection and no duplicate subscriptions |
+| 4. Shared consumers | Home identity migration followed by multi-model/history and remaining list consumers; paging, source-aware actions and cold reads | Consumer audit, explicit affected tests, full-copy/capture/selection and no duplicate subscriptions |
 | 5. Real interaction | Existing viewport/Markdown/tool transitions; fix only measured gaps | Real Electron Claude/Pi/Pi Durable steer/queue/compact/Stop/external input and follow/read/focus geometry |
 
 Use explicit test files and `setupTestDatabase()` for SQLite. Synthetic replay proves data/notification contracts; real Electron proves integration and geometry. Compare the same fixtures/build/viewport, recording notification/render/mount counts separately from CPU/frame/layout and memory. Measure long history, stable large results plus text, metadata-only changes, media sizing, prepends and topic switches. No unsupported FPS, zero-remount or indefinite no-leak claim; native compliance and OS/package coverage are separate evidence.

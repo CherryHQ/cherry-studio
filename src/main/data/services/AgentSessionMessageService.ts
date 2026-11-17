@@ -1,7 +1,23 @@
 import { createHash } from 'node:crypto'
 
 import { isDataUIPart, isToolUIPart } from 'ai'
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  ne,
+  notInArray,
+  or,
+  type SQL,
+  sql
+} from 'drizzle-orm'
 import { chunk } from 'es-toolkit'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
@@ -13,6 +29,7 @@ import { agentSessionTable as sessionTable } from '@data/db/schemas/agentSession
 import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import {
   type AgentSessionMessageRow as SessionMessageRow,
+  agentSessionMessagePartTable as sessionMessagePartsTable,
   agentSessionMessageTable as sessionMessagesTable,
   agentSessionToolOutputTable as sessionToolOutputsTable,
   type InsertAgentSessionMessageRow as InsertSessionMessageRow
@@ -26,7 +43,7 @@ import { agentSessionReadModelEffects, agentSessionService } from '@data/service
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
-import { projectMessagePartForRenderer } from '@main/utils/messageOutputProjection'
+import { projectMessagePartForRenderer, projectMessagePartsForRenderer } from '@main/utils/messageOutputProjection'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import {
   extractFtsTokens,
@@ -1261,10 +1278,13 @@ export class AgentSessionMessageService {
       pageRows.map(({ id }) => readRow.get({ id })!)
     )
     const hydratedRows = options.deferToolOutputs ? storedRows : hydrateAgentSessionMessageRowsTx(database, storedRows)
-    const items = hydratedRows.map((row) => ({
-      ...this.rowToEntity(row),
-      siblings: siblingsByParent.get(row.parentId) ?? []
-    }))
+    const items = hydratedRows.map((row) => {
+      const entity = this.rowToEntity(row)
+      if (options.deferToolOutputs && entity.role === 'assistant' && entity.data.parts) {
+        entity.data.parts = projectMessagePartsForRenderer(entity.data.parts, sessionId, entity.id)
+      }
+      return { ...entity, siblings: siblingsByParent.get(row.parentId) ?? [] }
+    })
     const tail = pageRows[pageRows.length - 1]
     const nextCursor = hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
 
@@ -3000,6 +3020,25 @@ export class AgentSessionMessageService {
         timestampMs
       })
       syncMessageToolOutputsTx(tx, sessionId, messageId, offloaded, retainedToolCallIds, undefined, timestampMs)
+      const reference = sql<string>`json_extract(${sessionMessagePartsTable.payload}, '$.output.$deferredToolResult.toolCallId')`
+      const retainedReferences = tx
+        .select({ toolCallId: reference })
+        .from(sessionMessagePartsTable)
+        .where(
+          and(
+            eq(sessionMessagePartsTable.messageId, messageId),
+            sql`(${sessionMessagePartsTable.type} = 'dynamic-tool' OR ${sessionMessagePartsTable.type} LIKE 'tool-%')`,
+            isNotNull(reference)
+          )
+        )
+      tx.delete(sessionToolOutputsTable)
+        .where(
+          and(
+            eq(sessionToolOutputsTable.messageId, messageId),
+            notInArray(sessionToolOutputsTable.toolCallId, retainedReferences)
+          )
+        )
+        .run()
       if (ids.some((id) => input.parts.get(id)!.type === 'file'))
         replaceAgentSessionMessageFileRefsTx(tx, messageId, this.findExistingMessageRow(tx, sessionId, messageId)!.data)
       return true

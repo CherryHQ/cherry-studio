@@ -8,13 +8,26 @@ import { AgentToolsType, isAskUserQuestionToolName } from '../shared/agentToolTy
 import { getEffectiveStatus, StreamingContext } from '../shared/GenericTools'
 import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
 import { isToolPartAwaitingApproval } from '../toolResponse'
+import { useToolResponsePreview } from '../useToolResponsePreview'
 import { AgentToolCallCard } from './AgentToolCallCard'
 import { AskUserQuestionCard } from './AskUserQuestionCard'
 import { NavigateToolInline } from './NavigateTool'
 import { isCherrySessionToolResponse } from './sessionToolResult'
 import { getSubagentTaskStatus } from './subagentStatus'
 
-export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalToolResponse }) {
+export function AgentExecutionTimeline({ toolResponse: originalResponse }: { toolResponse: NormalToolResponse }) {
+  const name = originalResponse.tool.name
+  const { toolResponse } = useToolResponsePreview(
+    originalResponse,
+    isAskUserQuestionToolName(name) ||
+      name === AgentToolsType.Agent ||
+      name === AgentToolsType.Task ||
+      name === AgentToolsType.WebSearch ||
+      name === AgentToolsType.WebFetch ||
+      name === AgentToolsType.ToolSearch ||
+      name === 'mcp__assistant__navigate' ||
+      isCherrySessionToolResponse(originalResponse)
+  )
   const { arguments: args, response, tool, status, partialArguments } = toolResponse
 
   const partsMap = useScopedPartsMap()

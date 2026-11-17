@@ -29,6 +29,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionForkService } from '@data/services/AgentSessionForkService'
 import type { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessionMessageService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { replaceAgentSessionMessagePartsTx } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
@@ -279,6 +280,54 @@ describe('AgentSessionMessageService', () => {
       ])
       expect(searchableText()).toBe('first needle\ntail')
     })
+
+    it.each(['removed', 'inline'] as const)(
+      'cleans a %s output while retaining other completed tool outputs',
+      (mode) => {
+        pendingReply()
+        const retained = { ...toolPart, toolCallId: 'retained-call' }
+        agentSessionMessageService.saveCompletedMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+          order: [first, tool, tail],
+          parts: new Map([
+            [first, toolPart],
+            [tool, retained]
+          ])
+        })
+        const before = dbh.db
+          .select()
+          .from(agentSessionToolOutputTable)
+          .where(eq(agentSessionToolOutputTable.toolCallId, 'retained-call'))
+          .get()
+        const replacement =
+          mode === 'removed'
+            ? { type: 'text' as const, text: 'replacement answer' }
+            : { ...toolPart, output: 'small replacement' }
+        const replacementId = mode === 'removed' ? tail : first
+        agentSessionMessageService.saveCompletedMessageParts(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+          order: [tool, replacementId],
+          parts: new Map([[replacementId, replacement]])
+        })
+        expect(dbh.db.select().from(agentSessionToolOutputTable).all()).toEqual([before])
+        expect(agentSessionMessageService.getSessionToolOutput(SESSION_ID, ASSISTANT_MESSAGE_ID, 'call-1')).toEqual(
+          mode === 'removed' ? { found: false } : { found: true, output: 'small replacement' }
+        )
+        expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts).toEqual([
+          retained,
+          replacement
+        ])
+        agentSessionMessageService.saveMessage({
+          sessionId: SESSION_ID,
+          partIds: [tool, replacementId],
+          message: {
+            id: ASSISTANT_MESSAGE_ID,
+            role: 'assistant',
+            status: 'success',
+            data: { parts: [retained, replacement] }
+          }
+        })
+        expect(dbh.db.select().from(agentSessionToolOutputTable).all()).toHaveLength(1)
+      }
+    )
 
     it('moves saved parts to a new order without colliding positions', () => {
       pendingReply()
@@ -3287,6 +3336,38 @@ describe('AgentSessionMessageService', () => {
     const oversizedOutputA = { content: 'a'.repeat(DEFER_TOOL_OUTPUT_BYTES + 128) }
     const oversizedOutputB = { content: 'b'.repeat(DEFER_TOOL_OUTPUT_BYTES + 256) }
     const smallOutput = { content: 'small' }
+
+    it('defers legacy inline outputs without changing their full stored value', () => {
+      const parts = [
+        {
+          type: 'dynamic-tool' as const,
+          toolName: 'Read',
+          toolCallId: 'legacy-call',
+          state: 'output-available' as const,
+          input: {},
+          output: oversizedOutputA
+        }
+      ]
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'success', data: { parts: [] } }
+      })
+      replaceAgentSessionMessagePartsTx(dbh.db, {
+        sessionId: SESSION_ID,
+        messageId: ASSISTANT_MESSAGE_ID,
+        parts,
+        timestampMs: Date.now()
+      })
+
+      const page = agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs: true })
+      expect(page.items).toHaveLength(1)
+      expect(page.items[0].data.parts?.[0]).toMatchObject({
+        output: { $deferredToolResult: { messageId: ASSISTANT_MESSAGE_ID, toolCallId: 'legacy-call' } }
+      })
+      expect(JSON.stringify(page).length).toBeLessThan(DEFER_TOOL_OUTPUT_BYTES)
+      expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts).toEqual(parts)
+      expect(dbh.db.select().from(agentSessionToolOutputTable).all()).toEqual([])
+    })
 
     it('splits oversized tool outputs into agent_session_tool_output while keeping deferred list reads compact and hydrating full reads', () => {
       const saved = agentSessionMessageService.saveMessage({
