@@ -17,8 +17,8 @@ Status: proposed
 - 点击：`ui_clicked` 覆盖所有可交互控件的点击，上报控件的统计名，没有则用最近的静态 `data-ui` 标记（再没有则为 `unlabeled`），以及页面、元素类型和鼠标或键盘触发；不读取文字、值、链接或坐标。
 - 控件统计名：渲染进程构建时给每个可交互元素加上 `data-analytics` 属性，与 `data-ui` 约定分开。名字只从源码推导：所属组件，加上控件标签的 i18n key 或具名处理函数，从不使用显示文字或运行时的值。
 - 命令：`command_executed` 上报静态命令 id，以及由快捷键、菜单还是命令面板触发。
-- 设置：`setting_changed` 上报用户写入的偏好 key，只有布尔值、数字或该设置的固定选项才附带值。每个本地自然日，`settings_snapshot` 按同样规则上报每项已编目设置的当前值；文本类设置只上报是否不同于默认值。编目由偏好 schema 类型生成，列出每个 key 的类型和固定选项。
-- 对话分支：`chat_branch_used` 上报新建分支及其来源（重新生成、编辑后重发、手动、@ 其他模型）、切换、删除和打开分支面板。每个本地自然日，`chat_branch_snapshot` 上报话题数和有多个分支的话题数。
+- 设置：`setting_changed` 上报用户写入的偏好 key，只有布尔值、数字或该设置的固定选项才附带值。每个本地自然日，`settings_snapshot` 按同样规则上报每项已编目设置的当前值；文本类设置只上报是否不同于默认值，用户头像只上报类型（默认、Emoji 或图片）。编目由偏好 schema 类型生成，列出每个 key 的类型和固定选项。
+- 对话分支：`chat_branch_used` 上报新建分支及其来源（重新生成、编辑后重发、手动、@ 其他模型）、切换、删除和打开分支面板。每个本地自然日，`chat_branch_snapshot` 上报话题数、有多个分支的话题数，以及这些话题里的分支数。
 - 消息操作：`message_action_used` 上报实际执行了的消息工具栏或菜单操作的静态 id。
 - 所有产品事件带 `test` 字段：开发版，以及指向其他 PostHog 项目或 Cloud 后端的构建为 true。
 
@@ -41,8 +41,8 @@ Status: proposed
 - AC3 — 每次点击可交互控件上报其统计名，没有则用最近的静态标记，并带页面、元素类型和输入方式，500 毫秒内去重，不读取文字或内容；构建只从源码给控件命名。(verification: unit and renderer; owner: renderer shell and UI contract build)
 - AC4 — 命令只在处理函数实际运行时上报；设置变更只上报用户写入，只有布尔值、数字和已编目的固定选项附带值，同一 key 在 2 秒内合并。(verification: unit and renderer; owner: commands and preferences)
 - AC5 — 产品事件带 `test` 字段，使用行为事件在构建未开启时被丢弃。(verification: unit; owner: analytics)
-- AC6 — 每个本地自然日最多一次设置快照，上报已编目设置的值，文本类设置只记是否已设置；编目与偏好 schema 一致。(verification: unit; owner: analytics)
-- AC7 — 新建分支上报来源，切换、删除和打开分支面板各上报一次；每日快照上报话题数和有分支的话题数。(verification: unit and renderer; owner: chat)
+- AC6 — 每个本地自然日最多一次设置快照，上报已编目设置的值，文本类设置只记是否已设置，头像只记类型；编目与偏好 schema 一致。(verification: unit; owner: analytics)
+- AC7 — 新建分支上报来源，切换、删除和打开分支面板各上报一次；每日快照上报话题数、有分支的话题数和分支数。(verification: unit and renderer; owner: chat)
 - AC8 — 消息操作只在实际执行时上报其静态 id，包括选择翻译语言和 @ 模型。(verification: renderer; owner: chat)
 
 ## Risks
