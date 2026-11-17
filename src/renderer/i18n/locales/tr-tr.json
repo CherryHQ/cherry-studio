@@ -2947,6 +2947,7 @@
   "models.detail.model_id": "Model kimliği",
   "models.detail.provider": "Sağlayıcı",
   "models.detail.quota_exhausted": "Paket kotası tükendi; sıfırlanması bekleniyor",
+  "models.detail.quota_insufficient_for_request": "Paket kotası bu istek için yetersiz",
   "models.edit": "Modeli Düzenle",
   "models.group.ungrouped": "Gruplanmamış",
   "models.multi_select.label": "Çoklu seçim",

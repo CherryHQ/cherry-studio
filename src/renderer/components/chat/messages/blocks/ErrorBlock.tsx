@@ -179,7 +179,7 @@ const MessageErrorInfo: React.FC<{
   // interpolate <provider> still go through the classification branch: plain `t()`
   // would render the raw tags, and the provider branch needs the <Trans> link form.
   const localizedErrorMessage = useMemo(() => {
-    if (cherryCloudQuotaRejection) return t('models.detail.quota_exhausted')
+    if (cherryCloudQuotaRejection) return t('models.detail.quota_insufficient_for_request')
     if (errorI18nKey === 'ollama_context_memory' && i18n.exists('error.ollama_context_memory')) {
       const bag = error as Record<string, unknown> | undefined
       const trained = typeof bag?.ollamaTrainedNumCtx === 'number' ? bag.ollamaTrainedNumCtx : '—'
