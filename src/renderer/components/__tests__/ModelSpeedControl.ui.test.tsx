@@ -454,7 +454,7 @@ describe('ModelSpeedControl service tiers', () => {
   })
 
   it('keeps Standard as the default for a model that declares no tiers', () => {
-    const { requestControls: _omit, ...noControlModel } = groqModel
+    const noControlModel: Model = { ...groqModel, requestControls: undefined }
     expect(resolveSupportedServiceTier(noControlModel, 'flex')).toBe('standard')
   })
 
