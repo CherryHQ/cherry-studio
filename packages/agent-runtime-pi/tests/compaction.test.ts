@@ -307,7 +307,7 @@ describe('host summarizer', () => {
         keepRecentTokens: 1,
         summarize: async (request) => {
           captured = request
-          const output = await request.stream(request.model, { messages: [] } as never, {} as never)
+          const output = await request.stream(request.model, { messages: [] } as never, {})
           await output.result()
           return 'METERED-SUMMARY'
         }
