@@ -366,7 +366,7 @@ describe('host summarizer', () => {
         type: 'compaction-end',
         reason: 'threshold',
         error: 'compression model unavailable',
-        aborted: true
+        aborted: false
       })
   })
 })

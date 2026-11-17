@@ -41,6 +41,19 @@ it('delivers committed compaction entries before completion and preserves a late
 })
 
 describe('compaction observation', () => {
+  it('reports a custom summary failure without treating fallback cancellation as a user abort or leaking the error', () => {
+    const events: AgentRuntimeEvent[] = []
+    const observer = new SessionEvents(SessionManager.inMemory(), (event) => events.push(event))
+    observer.summaryFailure = 'insufficient balance'
+    observer.handle({ type: 'compaction_end', reason: 'manual', result: undefined, aborted: true, willRetry: false })
+    observer.handle({ type: 'compaction_end', reason: 'manual', result: undefined, aborted: true, willRetry: false })
+
+    expect(events).toEqual([
+      { type: 'compaction-end', reason: 'manual', aborted: false, error: 'insufficient balance' },
+      { type: 'compaction-end', reason: 'manual', aborted: true }
+    ])
+  })
+
   it.each([true, false])('preserves native cancellation independently of an error message (aborted: %s)', (aborted) => {
     const events: AgentRuntimeEvent[] = []
     const observer = new SessionEvents(SessionManager.inMemory(), (event) => events.push(event))

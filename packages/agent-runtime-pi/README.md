@@ -37,10 +37,12 @@ share one behavior instance. `host` implements the existing `HostPorts`: applica
 services such as approval UI, model selection, settings and output storage.
 The adapter owns native execution; behavior owns the product rules. Tests use `createScriptedHost`.
 
-`configureChild({ thread, modelKey })` supplies only the native model and optional model runtime
+`configureChild({ thread, modelKey })` supplies the native model, optional model runtime and numerical compaction settings
 once per child context. The selected model must match `modelKey` (`provider/id`). Unspecified
 model bindings and extension factories inherit from the root; `onEvent` receives root events only. The adapter installs the behavior extension on every child, filters parent-only tools, and disables native retries and cache warming
 as required by the behavior adapter's request accounting.
+The child's optional `compaction` token settings override the root's budgets, for example when its
+model has a smaller context. Summary execution remains owned by the Pi adapter.
 
 - Root `input.submit` preserves native commands, input hooks, busy policies and input correlation.
   `/goal` is handled locally through the behavior entry; it never becomes a model prompt.
@@ -206,6 +208,15 @@ for host persistence; billing retains its native response identity independently
 summary itself; each native model request is metered and its reported usage is attributed to the captured goal
 and child run. Empty or failed summaries cancel compaction. `pi.compact()` also works when automatic compaction
 is disabled.
+
+For behavior-backed sessions with a model context below 100,000 tokens, the adapter bounds summary input
+and output through the native compaction extension. It combines the prepared history and turn prefix,
+carries the previous summary and complete focus instructions, and makes at most one summary request through
+the session's current native stream. Failure cancels compaction without retry or native-summary fallback.
+Larger contexts retain Pi's native summary path, including separate history and turn-prefix requests when
+needed; each request is metered. The standalone native-session API is unchanged. See the
+[context-budget decision](../../.agents/notes/implemented/bug-fix/2026-10-21-pi-compaction-context-budget.md)
+for the conservative fitting heuristic and its limits.
 
 [`agent-behavior`](../agent-behavior/README.md) owns AskUserQuestion, Todo, goals, output offload,
 recall and subagent policy. There are no separate Pi extensions to install for these features.

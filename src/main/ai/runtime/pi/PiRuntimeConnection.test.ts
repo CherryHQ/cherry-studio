@@ -1487,6 +1487,44 @@ describe('desktop Pi root connection', () => {
     }
   )
 
+  it.each([true, false])(
+    'makes one metered summary request and only checkpoints success (succeeds=%s)',
+    async (succeeds) => {
+      let summaries = 0
+      script = respondingModel((call) => {
+        if (call.systemPrompt.includes('Summarize the conversation')) {
+          summaries++
+          return succeeds
+            ? assistantReply('Bounded summary')
+            : { ...assistantReply('', 'error'), errorMessage: 'maximum context length exceeded' }
+        }
+        return assistantReply('ordinary reply')
+      })
+      mocks.binding.mockImplementation(async () => ({
+        ...(await createTestBinding({ model: { ...MODEL, contextWindow: 49_152 }, stream: script.model })),
+        compaction: { enabled: false, reserveTokens: 24_576, keepRecentTokens: 1 }
+      }))
+      const { connection, events } = await connect()
+      await connection.send({ message: message('EARLY_TASK ' + '多语言 history '.repeat(4_000) + ' LATEST_WORK') })
+      await done(events)
+      events.length = 0
+      await connection.send({ message: message('later turn') })
+      await done(events)
+      events.length = 0
+      await connection.send({ message: message('/compact keep exact paths') })
+      await done(events)
+      expect(summaries).toBe(1)
+      const handle = (connection as unknown as { handle: PiThreadHandle }).handle
+      const checkpoints = handle.pi.history().filter((entry) => entry.type === 'compaction')
+      expect(checkpoints).toHaveLength(succeeds ? 1 : 0)
+      if (succeeds) expect(checkpoints[0]).toMatchObject({ summary: 'Bounded summary' })
+      expect(events.some((event) => event.type === 'compaction-complete')).toBe(succeeds)
+      const requests = script.calls.filter((call) => call.systemPrompt.includes('Summarize the conversation'))
+      for (const call of requests) expect(JSON.stringify(call.messages)).toContain('keep exact paths')
+      expect(JSON.stringify(requests[0].messages).length).toBeLessThan(25_000)
+    }
+  )
+
   it('forwards attachment paths through the input boundary while keeping input identities private', async () => {
     const attachmentPath = join(directory, 'note.txt')
     const user = messages.saveMessage({

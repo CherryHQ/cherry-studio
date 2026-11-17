@@ -54,11 +54,13 @@ export class SessionEvents {
         break
       case 'compaction_end': {
         const error = event.errorMessage ?? this.summaryFailure
+        // A failed custom summary cancels native fallback; that cancellation is not a user abort.
+        const aborted = this.summaryFailure === undefined ? event.aborted : false
         this.summaryFailure = undefined
         this.listener({
           type: 'compaction-end',
           reason: event.reason,
-          aborted: event.aborted,
+          aborted,
           ...(error ? { error } : {})
         })
         break
