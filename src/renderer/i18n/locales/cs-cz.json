@@ -5355,6 +5355,7 @@
   "settings.notification.mini_app": "Oznámení mini aplikací (všechny aplikace)",
   "settings.notification.popups": "Systémová vyskakovací okna",
   "settings.notification.system_popups": "Systémová vyskakovací okna",
+  "settings.notification.taskbar_badge": "Odznak nepřečtených na hlavním panelu (Windows)",
   "settings.notification.title": "Oznámení",
   "settings.notification.update": "Aktualizace aplikace",
   "settings.notification.usage_popups": "Vyskakovací okna využití",
