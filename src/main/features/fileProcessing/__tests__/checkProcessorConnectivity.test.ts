@@ -60,6 +60,17 @@ describe('checkOpenMineruConnectivity', () => {
     expect(new Headers(fetchMock.mock.calls[0][1].headers).get('Authorization')).toBe('Bearer secret')
   })
 
+  it('accepts a Tasks deployment', async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        status: 'ok',
+        version: '4.1.3',
+        features: { sources: ['upload', 'url'], task_output_formats: ['default', 'docx', 'html', 'latex'] }
+      })
+    )
+    await expect(probe()).resolves.toBe(true)
+  })
+
   it('keeps a legacy deployment selectable after V1 is absent', async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 404 }))
     fetchMock.mockResolvedValueOnce(Response.json({ status: 'healthy', version: '3.4.5' }))

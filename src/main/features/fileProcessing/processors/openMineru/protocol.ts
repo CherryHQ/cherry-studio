@@ -1,6 +1,6 @@
 import { net } from 'electron'
 
-import { LegacyHealthSchema, V1HealthSchema } from './schemas'
+import { LegacyHealthSchema, TasksHealthSchema, V1HealthSchema } from './schemas'
 import type { OpenMineruConnection, OpenMineruProbeResult } from './types'
 
 export async function probeOpenMineru(
@@ -30,7 +30,10 @@ export async function probeOpenMineru(
       const payload: unknown = await response.json().catch(() => undefined)
       probeSignal.throwIfAborted()
       const schema = protocol === 'v1' ? V1HealthSchema : LegacyHealthSchema
-      return schema.safeParse(payload).success ? { kind: 'supported', protocol } : { kind: 'invalid-response' }
+      if (schema.safeParse(payload).success) return { kind: 'supported', protocol }
+      if (protocol === 'v1' && TasksHealthSchema.safeParse(payload).success)
+        return { kind: 'supported', protocol: 'tasks' }
+      return { kind: 'invalid-response' }
     }
     return { kind: 'not-found' }
   } catch {
