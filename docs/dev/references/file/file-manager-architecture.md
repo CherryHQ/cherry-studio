@@ -281,9 +281,9 @@ initial scan emits entries.
 Built-in OS-junk names are always ignored. On `EMFILE`, and on Windows `EPERM`, the wrapper retries
 with polling. Other errors are logged and emitted. `close()` is idempotent.
 
-The factory mirrors file `add`/`unlink` observations into `DanglingCache`. The only production
-constructor today is `DirectoryTreeBuilder`; there is no global watcher covering every external
-entry.
+The factory mirrors file `add`/`unlink` observations into `DanglingCache`. Native instances are owned by `WatchScope` under
+[FileObservationService](./file-observation.md); directory builders consume leases. There is no
+global watcher covering every external entry.
 
 ## 9. Provider Upload Boundary
 

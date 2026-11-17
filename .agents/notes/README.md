@@ -10,7 +10,7 @@ Notes live at `{lifecycle}/{class}/yyyy-mm-dd-topic.md`.
 
 Lifecycle:
 
-- `proposed/` — a Spec awaiting or carrying approval; implementation is incomplete.
+- `proposed/` — a Spec whose implementation or verification is incomplete.
 - `implemented/` — shipped reality, kept factually current.
 - `rejected/` — an explicitly declined proposal retained only while its rationale prevents a plausible repeated mistake.
 
@@ -29,15 +29,15 @@ There is no `refactor` class. A refactor with a durable removal decision is a si
 
 ### Initial lifecycle selection
 
-The class describes the subject of a decision; it does not force every note to begin as proposed. Choose the initial result from the approval need and delivery state:
+The class describes the subject of a decision; it does not force every note to begin as proposed. Choose the initial result from the need for a Spec and delivery state:
 
 | Change shape | Initial result |
 |---|---|
 | Local or mechanical restoration of an existing contract | No note; declare `N/A — <reason>` in the PR. |
 | Durable bug fix delivered and verified in the same PR | Create an implemented `bug-fix` note directly. |
-| Small, completed testing or other durable decision that does not need target approval before implementation | Create an implemented note in its owning class directly. |
+| Small, completed testing or other durable decision that does not meet the Spec-first threshold | Create an implemented note in its owning class directly. |
 | Substantial feature, architecture, process, or simplification | Create a proposed Spec before implementation. |
-| Any decision whose target behavior, ownership, ACs, alternatives, or risks need human agreement before implementation | Create a proposed Spec, regardless of class. |
+| Any decision whose target behavior, ownership, ACs, alternatives, or risks need review | Create a proposed Spec, regardless of class. |
 
 `N/A` is a PR classification, not a note lifecycle. `rejected` is never an initial state: it records an explicit human verdict on an existing proposal.
 
@@ -47,11 +47,11 @@ The class describes the subject of a decision; it does not force every note to b
 stateDiagram-v2
     [*] --> Classify
     Classify --> NoNote: mechanical or existing contract
-    Classify --> Proposed: prior target approval required
+    Classify --> Proposed: Spec required before implementation
     Classify --> Implemented: durable decision already delivered
 
     NoNote --> [*]: PR records N/A reason
-    Proposed --> Proposed: material edit requires re-approval
+    Proposed --> Proposed: material edit updates stack and verification
     Proposed --> Implemented: final layer covers every AC
     Proposed --> Rejected: explicit human rejection
     Proposed --> [*]: unmerged exploration has no durable value
@@ -59,7 +59,7 @@ stateDiagram-v2
     Implemented --> Implemented: keep shipped facts current
     Implemented --> Successor: decision is reversed or fully superseded
     Rejected --> Successor: new evidence reopens the question
-    Successor --> Proposed: successor requires prior approval
+    Successor --> Proposed: successor requires a Spec
     Successor --> Implemented: successor is already delivered
 
     Implemented --> Archived: future only; no longer an active owner
@@ -83,15 +83,15 @@ Substantial feature, architecture, process, and simplification work follows this
 
 1. Create a bottom Spec PR containing a proposed bilingual Agent Note.
 2. Give every acceptance criterion a stable `AC1`, `AC2`, ... identifier and name its verification owner.
-3. Wait for an explicit human Approval on the current Spec head; merging the Spec first is optional.
-4. Stack implementation PRs on that branch. Each layer links the Spec and lists the AC IDs it covers.
-5. Put material behavior, ownership, AC, alternatives, or risk changes on the Spec branch; rebase the stack and obtain Approval again.
+3. Implementation may begin once the Spec PR exists; no explicit human Approval or Spec merge is required to start.
+4. Use `gh-stack` to stack implementation PRs on that branch. Each layer links the Spec and lists the AC IDs it covers.
+5. Put material behavior, ownership, AC, alternatives, or risk changes on the Spec branch; rebase the stack and rerun affected checks without waiting for renewed Approval.
 6. Keep the note proposed through intermediate layers.
 7. The final layer that satisfies all ACs moves and rewrites the note as implemented.
 
-Approval binds one exact Spec head. Silence, `CHANGES_REQUESTED`, and discussion do not mean rejection.
+Spec and implementation can be reviewed together through the stack. Existing PR review and merge requirements still apply. Silence, `CHANGES_REQUESTED`, and discussion do not mean rejection.
 
-Agents determine the lifecycle from the stack, not from one PR in isolation. Run `gh stack view --json`; exit code 2 means only that the checkout lacks local stack metadata, not that an existing PR is standalone on GitHub. Follow the `gh-stack` skill to discover and hydrate remote topology, then rerun the view before classifying the PR. For a stack, inspect the current layer and every downstack implementation PR, aggregate only ACs backed by actual verification, and transition the note only in the final layer when the cumulative evidence covers the complete approved Spec. Stack synchronization never proves completion: after `gh stack sync`, rerun change scope and the invalidated checks for each live layer.
+Agents determine the lifecycle from the stack, not from one PR in isolation. Run `gh stack view --json`; exit code 2 means only that the checkout lacks local stack metadata, not that an existing PR is standalone on GitHub. Follow the `gh-stack` skill to discover and hydrate remote topology, then rerun the view before classifying the PR. For a stack, inspect the current layer and every downstack implementation PR, aggregate only ACs backed by actual verification, and transition the note only in the final layer when the cumulative evidence covers the complete current Spec. Stack synchronization never proves completion: after `gh stack sync`, rerun change scope and the invalidated checks for each live layer.
 
 ## File format
 
@@ -153,7 +153,7 @@ Status: rejected — <one-line decisive reason>
 
 ## Rejection and deletion
 
-Only an explicit human decision moves `proposed` to `rejected`. A partial rejection amends the proposed note and requires new Approval; a discussion alternative stays inside `Alternatives considered`.
+Only an explicit human decision moves `proposed` to `rejected`. A partial rejection amends the proposed note and updates the affected implementation layers; a discussion alternative stays inside `Alternatives considered`.
 
 If the rejection rationale prevents a likely repeated mistake, convert and merge the rejected note before closing its Spec PR. If the exploration has no durable value, close the unmerged PR without adding repository noise. An implemented decision is never relabeled rejected; a new note supersedes it.
 
@@ -197,7 +197,7 @@ A proposed note never enters archived. An explicitly declined proposal becomes r
 
 Implemented notes keep paths, names, defaults, ownership, failures, and verification current. When implementation and a note disagree, determine whether the code is wrong or the factual realization changed; do not preserve a worse implementation merely to satisfy stale prose.
 
-Before publishing a lifecycle move, run `pnpm agent-notes:check-transition --base <verified-spec-ref> [--head <ref>]`. The checker requires a complete English/Chinese/sidecar move, permits only `proposed → implemented|rejected`, maps every approved AC exactly once for implementation, and requires an explicit rejection reason. It validates a declared transition; it never decides that a proposal was rejected or that a stack is complete.
+Before publishing a lifecycle move, run `pnpm agent-notes:check-transition --base <verified-spec-ref> [--head <ref>]`. The checker requires a complete English/Chinese/sidecar move, permits only `proposed → implemented|rejected`, maps every AC in the Spec exactly once for implementation, and requires an explicit rejection reason. It validates a declared transition; it never decides that a proposal was rejected or that a stack is complete.
 
 ## Pairing and gates
 
