@@ -301,21 +301,28 @@ describe('NotificationService', () => {
 
   describe('Windows taskbar badge', () => {
     const lastOverlay = () => mocks.setOverlayIcon.mock.calls.at(-1)
+    const flushBadge = async () => {
+      // Unread marking runs through an async active-conversation check now (microtasks only).
+      for (let i = 0; i < 10; i++) await Promise.resolve()
+    }
 
-    it('counts distinct conversations needing attention, not repeated events', () => {
+    it('counts distinct conversations needing attention, not repeated events', async () => {
       emitCompletion({ topicId: 'topic-1', turnId: 'turn-1' })
       emitApproval({ topicId: 'topic-1' })
+      await flushBadge()
       expect(lastOverlay()?.[1]).toBe('notification.taskbar_badge.description')
       expect(mocks.setOverlayIcon).toHaveBeenCalledTimes(1)
 
       emitCompletion({ topicId: 'agent-session:session-1', turnId: 'turn-2' })
+      await flushBadge()
       expect(mocks.setOverlayIcon).toHaveBeenCalledTimes(2)
       expect(mocks.createFromBitmap).toHaveBeenCalledTimes(2)
     })
 
-    it('clears only the viewed conversation and hides the badge when none remain', () => {
+    it('clears only the viewed conversation and hides the badge when none remain', async () => {
       emitCompletion({ topicId: 'topic-1', turnId: 'turn-1' })
       emitCompletion({ topicId: 'topic-2', turnId: 'turn-2' })
+      await flushBadge()
 
       service.markConversationViewed({ conversationType: 'assistant', conversationId: 'topic-1' })
       expect(lastOverlay()?.[0]).not.toBeNull()
@@ -328,11 +335,36 @@ describe('NotificationService', () => {
       expect(lastOverlay()).toEqual([null, ''])
     })
 
-    it('hides the badge when the preference is disabled', () => {
+    it('hides the badge when the preference is disabled', async () => {
       emitCompletion()
+      await flushBadge()
       mocks.preferenceValues['app.notification.taskbar_badge.enabled'] = false
       mocks.badgePrefListener?.()
       expect(lastOverlay()).toEqual([null, ''])
+    })
+
+    it('stops counting a conversation once it is deleted', async () => {
+      emitCompletion({ topicId: 'topic-1', turnId: 'turn-1' })
+      emitCompletion({ topicId: 'topic-2', turnId: 'turn-2' })
+      await flushBadge()
+
+      service.dropUnreadConversations('assistant', ['topic-1'])
+      expect(lastOverlay()?.[0]).not.toBeNull()
+
+      service.dropUnreadConversations('assistant', ['never-notified'])
+      const callsBefore = mocks.setOverlayIcon.mock.calls.length
+
+      service.dropUnreadConversations('assistant', ['topic-2'])
+      expect(mocks.setOverlayIcon.mock.calls.length).toBe(callsBefore + 1)
+      expect(lastOverlay()).toEqual([null, ''])
+    })
+
+    it('does not count a completion in the already-focused conversation as unread', async () => {
+      mocks.getWindowInfosByType.mockReturnValue([mainWindowInfo({ isVisible: true, isFocused: true })])
+      mocks.isActiveInFocusedWindow.mockResolvedValue(true)
+      emitCompletion({ topicId: 'topic-1', turnId: 'turn-1' })
+      await flushBadge()
+      expect(mocks.setOverlayIcon).not.toHaveBeenCalled()
     })
   })
 

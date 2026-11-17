@@ -93,7 +93,8 @@ export const mockNotificationService = {
   publish: vi.fn(
     async (_input: Partial<NotificationRecord>, _options?: { source?: NotificationSource; completion?: boolean }) =>
       true
-  )
+  ),
+  dropUnreadConversations: vi.fn()
 }
 
 const serviceOverrides = new Map<string, unknown>()

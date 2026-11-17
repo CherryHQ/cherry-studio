@@ -91,11 +91,41 @@ export class NotificationService extends BaseService {
     }
     purge()
     this.registerInterval(purge, 24 * 60 * 60 * 1000)
+    // Windows drops taskbar overlay icons when Explorer recreates the taskbar (e.g. an
+    // explorer.exe restart) without notifying apps; per Microsoft guidance overlays must
+    // be reapplied. No Electron event carries that signal, so reapply on a slow interval.
+    // syncTaskbarBadge() is a no-op off Windows and re-renders nothing when idle.
+    this.registerInterval(
+      () => {
+        if (this.unreadConversations.size > 0) this.syncTaskbarBadge()
+      },
+      5 * 60 * 1000
+    )
   }
 
   /** Called when the user is looking at a conversation; drops it from the taskbar badge count. */
   public markConversationViewed(target: ConversationNavigationTarget): void {
     if (this.unreadConversations.delete(conversationKey(target))) this.syncTaskbarBadge()
+  }
+
+  /** Drops removed conversations from the unread set so the badge stops counting them. */
+  public dropUnreadConversations(
+    conversationType: ConversationNavigationTarget['conversationType'],
+    conversationIds: readonly string[]
+  ): void {
+    let changed = false
+    for (const id of conversationIds) {
+      if (this.unreadConversations.delete(conversationKey({ conversationType, conversationId: id }))) changed = true
+    }
+    if (changed) this.syncTaskbarBadge()
+  }
+
+  /** True when the conversation is already in front of the user in a focused window. */
+  public async isConversationActiveInFocusedWindow(target: ConversationNavigationTarget): Promise<boolean> {
+    return (
+      getFullChromeWindowInfos().some((window) => window.isFocused) &&
+      application.get('ConversationNavigationService').isActiveInFocusedWindow(target)
+    )
   }
 
   /** Flags a conversation as needing attention; drives the Windows taskbar badge count. */

@@ -46,6 +46,14 @@ export class ConversationNotificationService extends BaseService {
     })
   }
 
+  /** Unread means "completed while not being viewed"; an active focused conversation is already seen. */
+  private async markUnreadUnlessActive(
+    target: ReturnType<ConversationNotificationService['resolveConversationTarget']>
+  ): Promise<void> {
+    const notifications = application.get('NotificationService')
+    if (!(await notifications.isConversationActiveInFocusedWindow(target))) notifications.markConversationUnread(target)
+  }
+
   private handleConversationCompleted({
     topicId,
     turnId,
@@ -54,7 +62,7 @@ export class ConversationNotificationService extends BaseService {
     completedTaskCount
   }: ConversationCompletedEvent): void {
     const target = this.resolveConversationTarget(topicId)
-    application.get('NotificationService').markConversationUnread(target)
+    void this.markUnreadUnlessActive(target)
     const fallbackTitle =
       target.conversationType === 'agent' ? t('notification.completion.agent') : t('notification.completion.assistant')
     const conversationName = resolveNotificationConversationName(target, fallbackTitle)
@@ -84,7 +92,7 @@ export class ConversationNotificationService extends BaseService {
 
   private handleApprovalRequested({ topicId, approvalId, requestedAt }: ApprovalRequestedEvent): void {
     const target = this.resolveConversationTarget(topicId)
-    application.get('NotificationService').markConversationUnread(target)
+    void this.markUnreadUnlessActive(target)
     const title =
       target.conversationType === 'agent'
         ? t('notification.action_required.agent')
