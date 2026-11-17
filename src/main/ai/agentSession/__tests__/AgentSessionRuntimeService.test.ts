@@ -7171,13 +7171,13 @@ describe('AgentSessionRuntimeService', () => {
     const asSender = (fake: FakeWebContents) => fake as unknown as Electron.WebContents
 
     let service: InstanceType<typeof AgentSessionRuntimeService>
-    let prime: MockInstance<(sessionId: string) => Promise<void>>
+    let prime: MockInstance<(sessionId: string) => Promise<boolean>>
     let releaseIdle: MockInstance<(sessionId: string) => void>
 
     beforeEach(() => {
       vi.useFakeTimers()
       service = new AgentSessionRuntimeService()
-      prime = vi.spyOn(service, 'primeConnection').mockResolvedValue(undefined)
+      prime = vi.spyOn(service, 'primeConnection').mockResolvedValue(true)
       releaseIdle = vi.spyOn(service, 'releaseIdleConnection').mockImplementation(() => undefined)
     })
 

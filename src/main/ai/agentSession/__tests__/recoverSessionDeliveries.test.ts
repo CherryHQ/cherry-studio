@@ -1,5 +1,6 @@
 import { setupTestDatabase } from '@test-helpers/db'
-import { beforeEach, expect, it } from 'vitest'
+import { MockApplicationUtils } from '@test-mocks/main/application'
+import { beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
@@ -8,6 +9,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 
+import { AgentSessionDeliveryService } from '../AgentSessionDeliveryService'
 import { recoverSessionDeliveries } from '../recoverSessionDeliveries'
 
 const dbh = setupTestDatabase()
@@ -66,5 +68,31 @@ it('ends a Durable delivery turn whose input never reached the runtime', () => {
 
   expect(resumable.size).toBe(0)
   expect(messages.getSessionMessage('target', reply.id).status).toBe('error')
+  expect(messages.getSessionMessage('target', request.id).delivery?.status).not.toBe('delivering')
+})
+
+// Durable can settle the reply only through a connection; without one the turn must still end.
+it('ends a recovered Durable delivery turn whose session cannot connect', async () => {
+  const { request, reply } = interruptedDelivery(true)
+  MockApplicationUtils.setService('AgentSessionRuntimeService', {
+    onTurnTerminal: () => ({ dispose() {} }),
+    onRuntimeIdle: () => ({ dispose() {} }),
+    isSessionBusy: () => false,
+    primeConnection: async () => false
+  })
+  MockApplicationUtils.setService('AiStreamManager', {
+    isWriteQuiesced: false,
+    hasLiveStream: () => false,
+    hasTerminalPersistenceInFlight: () => false
+  })
+  const service = new AgentSessionDeliveryService()
+  onTestFinished(async () => {
+    await service._doStop()
+    MockApplicationUtils.resetServices()
+  })
+
+  await service._doInit()
+
+  await vi.waitFor(() => expect(messages.getSessionMessage('target', reply.id).status).toBe('error'))
   expect(messages.getSessionMessage('target', request.id).delivery?.status).not.toBe('delivering')
 })

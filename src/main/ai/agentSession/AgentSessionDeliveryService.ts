@@ -61,6 +61,8 @@ export class AgentSessionDeliveryService extends BaseService {
   private readonly pendingKicks = new Set<string>()
   private readonly inFlight = new Map<Promise<void>, string>()
   private readonly suppressedSessionIds = new Set<string>()
+  /** Recovered sessions that could not reconnect; Durable cannot settle their delivery turn. */
+  private readonly unresumableSessionIds = new Set<string>()
   private isShuttingDown = false
 
   protected override onInit(): void {
@@ -480,12 +482,13 @@ export class AgentSessionDeliveryService extends BaseService {
       ) {
         return true
       }
-      if (awaitsDurableOutcome(delivering)) return true
+      if (awaitsDurableOutcome(delivering) && !this.unresumableSessionIds.has(sessionId)) return true
       // Runtime and stream persistence are idle, so no writer can still complete this placeholder.
       // A transient repair failure is retried by the next idle/sweep kick.
       agentSessionMessageService.markAssistantMessageTerminalError(sessionId, assistant.id)
       assistant = agentSessionMessageService.getSessionMessage(sessionId, assistant.id)
       if (assistant.status === 'pending') return true
+      this.unresumableSessionIds.delete(sessionId)
     }
 
     const result = agentSessionMessageService.finalizeSessionDelivery({
@@ -502,6 +505,14 @@ export class AgentSessionDeliveryService extends BaseService {
     const { affected, resumable } = recoverSessionDeliveries()
     for (const sessionId of affected) this.suppressedSessionIds.add(sessionId)
     // Reopening lets Durable finish the interrupted turn; its terminal then finalizes the delivery.
-    for (const sessionId of resumable) void application.get('AgentSessionRuntimeService').primeConnection(sessionId)
+    for (const sessionId of resumable)
+      void application
+        .get('AgentSessionRuntimeService')
+        .primeConnection(sessionId)
+        .then((connected) => {
+          if (connected) return
+          this.unresumableSessionIds.add(sessionId)
+          this.kick(sessionId)
+        })
   }
 }
