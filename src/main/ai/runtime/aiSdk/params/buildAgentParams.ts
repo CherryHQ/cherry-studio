@@ -782,11 +782,6 @@ function buildAgentOptions(
   )
   if (Object.keys(callOverridesBodyParams).length > 0) rawBodyLayers.push(callOverridesBodyParams)
 
-  const mergedRawBody =
-    rawBodyLayers.length > 0
-      ? rawBodyLayers.reduce<Record<string, unknown>>((acc, layer) => merge({}, acc, layer), {})
-      : {}
-
   // Highest-precedence per-request overrides (assistant-less callers, e.g. the API gateway).
   // Body-routed keys already injected via the unified fetch wrapper, so strip them from
   // the providerOptions path to avoid double-send on Chat and silent drop on Responses.
@@ -812,6 +807,14 @@ function buildAgentOptions(
     // Compatible adapters use different namespaces; Responses can drop tiers for non-OpenAI model IDs.
     rawBodyLayers.push({ service_tier: provider.fastMode.serviceTier ?? 'priority' })
   }
+
+  // Merge after the fast-mode layer lands: openai-priority fast delivery outranks every earlier
+  // tier source (main's `bodyParams = { ...bodyParams, service_tier: fastTier }` ordering).
+  const mergedRawBody =
+    rawBodyLayers.length > 0
+      ? rawBodyLayers.reduce<Record<string, unknown>>((acc, layer) => merge({}, acc, layer), {})
+      : {}
+
   const effectiveBudgetTokens = resolveEffectiveThinkingBudget(
     effectiveProviderOptions,
     sdkConfig.providerOptionsKey,
