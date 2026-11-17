@@ -172,7 +172,8 @@ export type AgentRuntimeEvent =
   /** A steer was injected mid-turn (PreToolUse/PostToolBatch hook) and the model is about to emit its post-steer
    *  assistant message. Marks where the host should roll the assistant message: finalise the
    *  pre-steer parts as one row (A1a) and stream the continuation into a fresh row (A2), so the
-   *  steer user message sorts between them instead of dangling after the whole turn. */
+   *  steer user message sorts between them instead of dangling after the whole turn.
+   *  A runtime with `followUp()` also emits it when it places a queued input, after the content before it. */
   | { type: 'steer-boundary'; inputIds: readonly string[] }
   | { type: 'input-submission'; contextId: string; result: SubmitResult }
   | { type: 'input-state'; contextId: string; input: InputState }
@@ -248,6 +249,12 @@ export interface AgentRuntimeConnection {
    * host always queues.
    */
   redirect?(input: AgentRuntimeCommand): boolean
+  /**
+   * Submit a user message that waits behind running native work and persists natively at once.
+   * The connection emits `steer-boundary` when the runtime places it, so it gets its own reply;
+   * a refused submission reports `input-submission`. Returns false when no native work is running.
+   */
+  followUp?(input: AgentRuntimeCommand): boolean
   /**
    * Re-derive the session's desired config and reconcile the running connection against it.
    * Live-appliable tool-policy facts, permission mode included, are patched in place before the

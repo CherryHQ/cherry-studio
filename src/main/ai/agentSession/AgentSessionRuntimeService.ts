@@ -80,6 +80,7 @@ import { normalizePromptSuggestion } from '../runtime/promptSuggestion'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
 import type {
+  AgentRuntimeCommand,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
@@ -942,6 +943,39 @@ export class AgentSessionRuntimeService extends BaseService {
       : null
   }
 
+  /**
+   * Moves output to the reply of inputs the runtime just placed. With native admission, an input
+   * this process did not submit (queued before a restart) is read back from its bound user message.
+   */
+  private startPlacedInputs(
+    entry: AgentSessionRuntimeEntry,
+    ids: readonly string[],
+    connection = this.currentConnection(entry)
+  ): boolean {
+    const execution = entry.runtimeState.execution
+    const deferred = execution.kind === 'autonomous-turn' ? execution.deferred?.turn : undefined
+    if (deferred && ids.includes(deferred.userMessage.id)) {
+      this.applyRuntimeStateEvent(entry, { type: 'steer-boundary', turn: deferred })
+      return true
+    }
+    const owned = new Set(getAgentSessionRuntimeTurns(entry.runtimeState).flatMap((turn) => turn.taskIds))
+    const placed = ids.filter((id) => !owned.has(id))
+    const inputs = this.pendingInputValues(entry, placed, true)
+    if (connection?.followUp && connection.contextId)
+      for (const id of placed) {
+        if (inputs.some((input) => input.message.id === id)) continue
+        if (agentSessionMessageService.inputBinding(entry.sessionId, id)?.contextId !== connection.contextId) continue
+        inputs.push({
+          message: agentSessionMessageService.getSessionMessage(entry.sessionId, id),
+          systemReminder: true
+        })
+      }
+    if (!inputs.length) return false
+    const turn = this.reserveSteerContinuation(entry, inputs)
+    if (turn) this.applyRuntimeStateEvent(entry, { type: 'steer-boundary', turn })
+    return turn !== undefined
+  }
+
   private reserveSteerContinuation(
     entry: AgentSessionRuntimeEntry,
     inputs: AgentRuntimeUserInput[]
@@ -1288,16 +1322,11 @@ export class AgentSessionRuntimeService extends BaseService {
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, turn.knowledgeBaseIds),
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, knowledgeBaseIds)
       )
-    if (
-      entry.runtimeState.execution.kind === 'turn' &&
-      entry.runtimeState.execution.reply.delivery.kind === 'open' &&
-      turn &&
-      this.isTurnLive(entry, turn) &&
-      !entry.stopping &&
-      turn.headless !== true &&
-      !headless &&
-      canRedirectOnCurrentConfig
-    ) {
+    const interactive =
+      turn !== undefined && !entry.stopping && turn.headless !== true && !headless && canRedirectOnCurrentConfig
+    const connection = this.currentConnection(entry)
+    const submitNatively = (submit: ((input: AgentRuntimeCommand) => boolean) | undefined) => {
+      if (!submit) return false
       const input: AgentRuntimeUserInput = {
         // oxlint-disable-next-line no-restricted-globals -- Isolate one submitted user message while native redirect and persistence can mutate it.
         message: structuredClone(message),
@@ -1306,11 +1335,22 @@ export class AgentSessionRuntimeService extends BaseService {
         ...(messageSnapshot ? { messageSnapshot } : {})
       }
       const pending = (entry.pendingInputs ??= new Map())
-      if (pending.has(message.id)) return
+      if (pending.has(message.id)) return true
       pending.set(message.id, { input, generation: entry.connectionGeneration })
-      if (this.currentConnection(entry)?.redirect?.({ message: input.message, systemReminder: true })) return
+      if (submit({ message: input.message, systemReminder: true })) return true
       pending.delete(message.id)
+      return false
     }
+    if (
+      interactive &&
+      entry.runtimeState.execution.kind === 'turn' &&
+      entry.runtimeState.execution.reply.delivery.kind === 'open' &&
+      this.isTurnLive(entry, turn) &&
+      submitNatively(connection?.redirect?.bind(connection))
+    )
+      return
+    // A runtime with native admission holds the message in its own queue, which survives a crash.
+    if (interactive && submitNatively(connection?.followUp?.bind(connection))) return
 
     // No redirect-eligible open normal turn (or backend can't steer) → queue as the next turn,
     // wrapped in a steer system-reminder.
@@ -2526,13 +2566,9 @@ export class AgentSessionRuntimeService extends BaseService {
         this.resolvePendingInput(entry, event.contextId, event.input)
         this.noteNativeOutcome(entry, event.input)
         break
-      case 'steer-boundary': {
-        const inputs = this.pendingInputValues(entry, event.inputIds, true)
-        if (!inputs.length) break
-        const turn = this.reserveSteerContinuation(entry, inputs)
-        if (turn) this.applyRuntimeStateEvent(entry, { type: 'steer-boundary', turn })
+      case 'steer-boundary':
+        this.startPlacedInputs(entry, event.inputIds, connection)
         break
-      }
       case 'steer-undelivered':
         // Steers stashed via redirect() that this turn ended before injecting → queue them as the
         // next turn (with a steer system-reminder). The following `turn-complete` → markTurnTerminal
@@ -2607,6 +2643,13 @@ export class AgentSessionRuntimeService extends BaseService {
         const recoveredReply = event.recoveredInputId
           ? agentSessionMessageService.replyTo(entry.sessionId, event.recoveredInputId)?.id
           : undefined
+        // A queued input that starts native work has no reply yet; it gets its own instead of a background one.
+        if (
+          event.recoveredInputId &&
+          !recoveredReply &&
+          this.startPlacedInputs(entry, [event.recoveredInputId], connection)
+        )
+          break
         const assistantMessageId =
           recoveredReply ??
           (background
