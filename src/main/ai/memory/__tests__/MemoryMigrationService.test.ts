@@ -9,11 +9,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
+import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
+import { createClaudeCodeIdentityHooks } from '@main/ai/runtime/claudeCode/identityHooks'
 import { BaseService } from '@main/core/lifecycle'
 
 import { planLegacyMemory } from '../legacyMemoryPlan'
+import { serializeMemoryEntries } from '../memoryEntries'
 import { MemoryMigrationService } from '../MemoryMigrationService'
+import { openRuntimeMemoryGuard } from '../memoryRuntime'
 import { MemoryService } from '../MemoryService'
 
 describe('legacy memory activation', () => {
@@ -63,6 +69,79 @@ describe('legacy memory activation', () => {
       .from(appStateTable)
       .where(eq(appStateTable.key, `memory:migration:${agentId}`))
       .get()!
+
+  it('keeps read-only FACT chat available when migration cannot relocate a relative link', async () => {
+    const original = '# Existing fact\nKeep [details](../USER.md) here.'
+    await writeFile(path.join(root, 'memory', 'FACT.md'), original)
+    dbh.db.insert(agentWorkspaceTable).values({ id: 'workspace', name: 'W', path: fixture, orderKey: 'a0' }).run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({ id: 'session', agentId, workspaceId: 'workspace', name: 'S', orderKey: 'a0' })
+      .run()
+    expect(await migration.ensureAgent(agentId)).toBe(false)
+    const guard = openRuntimeMemoryGuard('session', () => {})
+    try {
+      await guard.check()
+    } finally {
+      guard.dispose()
+    }
+    const hooks = createClaudeCodeIdentityHooks(root, 'session')
+    MockApplicationUtils.setService('AgentSessionRuntimeService', new AgentSessionRuntimeService())
+    const result = await hooks.SessionStart![0].hooks[0](
+      { hook_event_name: 'SessionStart', source: 'startup', session_id: 'native', transcript_path: '', cwd: fixture },
+      undefined,
+      { signal: new AbortController().signal }
+    )
+    expect(result).not.toMatchObject({ continue: false })
+    expect(JSON.stringify(result)).toContain('Keep [details](../USER.md) here.')
+    expect(await readFile(path.join(root, 'memory', 'FACT.md'), 'utf8')).toBe(original)
+    const privateSession = memory.open({ scope: { kind: 'private', agentId }, assertAuthorized: () => undefined })
+    try {
+      await expect(privateSession.read('MEMORY.md')).rejects.toThrow('migration is incomplete')
+    } finally {
+      privateSession.dispose()
+    }
+    await writeFile(
+      path.join(root, 'MEMORY.md'),
+      serializeMemoryEntries([
+        {
+          schemaVersion: 1,
+          id: 'forgotten',
+          status: 'forgotten',
+          text: '',
+          sources: [],
+          derivedFrom: []
+        }
+      ])
+    )
+    const stale = openRuntimeMemoryGuard('session', () => {})
+    try {
+      await expect(stale.check()).rejects.toThrow('isolation')
+    } finally {
+      stale.dispose()
+    }
+  })
+
+  it('initializes a new Agent directory before inspecting its runtime memory', async () => {
+    const freshAgentId = 'fresh-agent'
+    dbh.db
+      .insert(agentTable)
+      .values({ id: freshAgentId, name: 'New', type: 'claude-code', instructions: '', orderKey: 'a1' })
+      .run()
+    dbh.db.insert(agentWorkspaceTable).values({ id: 'workspace', name: 'W', path: fixture, orderKey: 'a0' }).run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({ id: 'session', agentId: freshAgentId, workspaceId: 'workspace', name: 'S', orderKey: 'a0' })
+      .run()
+    const guard = openRuntimeMemoryGuard('session', () => {})
+    try {
+      await guard.check()
+    } finally {
+      guard.dispose()
+    }
+    expect(migration.isMigrated(freshAgentId)).toBe(true)
+    expect(await readFile(path.join(fixture, 'feature.agents.data', freshAgentId, 'MEMORY.md'), 'utf8')).toBeDefined()
+  })
 
   it('activates once after backing up exact FACT bytes and leaves the journal untouched', async () => {
     const original = Buffer.from('# Preferences\r\n\r\n保留原文和限制条件。\r\n')
