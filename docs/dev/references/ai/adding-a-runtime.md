@@ -56,6 +56,9 @@ bottom of this document — read them.
      orphan models (provider deleted / not yet loaded); decide fail-open vs
      fail-closed explicitly and say why in a comment. A runtime that needs
      provider endpoint config to drive the model must fail closed.
+   - `nativeFollowUp` — true only when the connection implements `followUp()`. The composer then
+     sends a message typed while the agent works at once, with the follow-up intent, instead of
+     holding it in its window-local follow-up dock.
    - `transport` — a unique tag stamped on every tool part by your stream
      adapter (`providerMetadata.cherry.transport`); the renderer uses it to
      route tool parts to the right card renderer.

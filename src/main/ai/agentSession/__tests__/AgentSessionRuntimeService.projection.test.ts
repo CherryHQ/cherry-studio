@@ -75,7 +75,7 @@ async function fixture(
   let queue = new AsyncEventQueue<{ event: AgentRuntimeEvent; consumed: () => void }>()
   const closed = Promise.withResolvers<void>()
   const emit = (event: AgentRuntimeEvent) => new Promise<void>((consumed) => queue.push({ event, consumed }))
-  const connections = { opened: 0, closed: 0, sent: [] as string[], followUps: [] as string[] }
+  const connections = { opened: 0, closed: 0, sent: [] as string[], followUps: [] as string[], steers: [] as string[] }
   runtimeDriverRegistry.register({
     type: agentType,
     validateSession: () => {},
@@ -98,8 +98,10 @@ async function fixture(
         send: async ({ message }) => {
           connections.sent.push(message.id)
         },
-        // Durable answers busy-time input from its own queue instead of steering it.
-        redirect: () => agentType !== 'pi-durable',
+        redirect: ({ message }: { message: { id: string } }) => {
+          connections.steers.push(message.id)
+          return true
+        },
         ...(agentType === 'pi-durable' && {
           followUp: ({ message }: { message: { id: string } }) => {
             connections.followUps.push(message.id)
@@ -637,8 +639,9 @@ it.each([
   await f.project([text('first', 'First answer')])
   const followup = savedUser(f.reply.id, 'Second question')
   if (submitted) {
-    f.service.enqueueUserMessage('root', followup)
+    f.service.enqueueUserMessage('root', followup, { followUp: true })
     expect(f.connections.followUps).toEqual([followup.id])
+    expect(f.connections.steers).toEqual([])
   } else
     application.get('DbService').withWriteTx((tx) => messages.bindInputContextTx(tx, 'root', followup.id, f.context.id))
   expect(f.service.inspect('root')?.pendingMessageCount).toBe(0)

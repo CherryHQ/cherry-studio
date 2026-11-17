@@ -4888,6 +4888,31 @@ describe('AgentComposer', () => {
     expect(getQueueDock()).toBeTruthy()
   })
 
+  // A dock item lives in window memory; Durable must receive the follow-up so it survives a crash.
+  it.each([
+    { steer: false, followUp: true },
+    { steer: true, followUp: undefined }
+  ])('sends a busy Pi Durable message at once (steer: $steer)', async ({ steer, followUp }) => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+        resolvedAgent={{ ...createControlledAgent(), type: 'pi-durable' }}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] }, { steer })
+    })
+
+    expect(getQueueDock()).toBeFalsy()
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(mocks.sendMessage.mock.calls[0][1].body.followUp).toBe(followUp)
+  })
+
   it('sends a follow-up immediately while background tasks remain after the foreground stream ends', async () => {
     MockUseCacheUtils.setSharedCacheValue('agent.session.background_tasks.session-1', [
       { id: 'subagent-1', type: 'subagent', description: 'Audit the codebase' },

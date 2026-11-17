@@ -62,7 +62,8 @@ snapshots, activity changes and input changes.
 An `aborted` outcome, including one caused by user Stop, settles the turn as paused; `failed` and
 `unanswered` outcomes report an error carrying their native reason.
 A message sent while native work runs is submitted with Durable's `follow-up` busy policy and
-persisted at once; the connection has no single-submission gate and Main keeps no queue for it. Durable places it at the next run
+persisted at once. The Work composer sends it immediately instead of holding it in its follow-up
+dock, because the descriptor declares `nativeFollowUp`; the connection has no single-submission gate and Main keeps no queue for it. Durable places it at the next run
 boundary, in the same batch as the preceding answer. The connection announces the placement with
 `steer-boundary` after that batch's projection, so the preceding answer stays in its reply and Main
 opens a new one. `/compact` still waits in Main's queue, and input is refused while compacting.

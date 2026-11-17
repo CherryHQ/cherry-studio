@@ -273,7 +273,8 @@ A live follow-up is a **steer**. Steering is queue-based, never an
 interrupt: the current turn is **never aborted** to apply a steer (a user
 Stop is now the only abort source). `enqueueUserMessage()`:
 
-1. **Open normal user turn + a driver that can steer** — calls
+1. **Open normal user turn + a driver that can steer**, unless the input carries the follow-up
+   intent described in case 2 — calls
    `connection.redirect({ message, systemReminder: true })`. The driver
    submits the immutable input to the native queue. Claude Code uses SDK
    `priority: 'next'`: native admission either folds it into the running turn
@@ -284,8 +285,12 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    `started` alone is not placement evidence.
    Pi consumes its own queue: unplaced inputs remaining after stop/error
    receive native aborted evidence and are not automatically resent.
-2. **Other running native work + a driver with native admission** — calls
-   `connection.followUp(...)` for an interactive input on the current config. Pi Durable submits
+2. **Other running native work, or a follow-up intent, + a driver with native admission** — calls
+   `connection.followUp(...)` for an interactive input on the current config. When the runtime
+   descriptor declares `nativeFollowUp`, the Work composer sends a busy-time Enter at once with
+   `followUp: true` instead of holding it in its follow-up dock; Main then skips `redirect` even
+   for an open turn. The steer shortcut still steers. Other runtimes keep busy-time Enter in the
+   dock until the turn ends. Pi Durable submits
    it with its `follow-up` busy policy and persists it at once, so the queue survives a crash.
    When Durable places the input, the driver emits `steer-boundary` after the preceding answer;
    the host gives the input its own reply. An autonomous reply settles at that boundary, and a
