@@ -1494,18 +1494,20 @@ export class AgentSessionRuntimeService extends BaseService {
     connection: AgentRuntimeConnection,
     stopped: NonNullable<AgentSessionRuntimeEntry['stopping']>['input']
   ): Promise<void> {
-    if (!stopped?.outcome || stopped.outcome.outcome === 'aborted' || !connection.contextId) return
+    if (!stopped || !connection.contextId) return
     try {
+      let outcome = stopped.outcome
+      // An outcome observed before Stop registered was not captured; Durable's record still holds it.
+      if (!outcome && connection.lookupInput) {
+        const recorded = await connection.lookupInput(connection.contextId, stopped.id)
+        if (recorded.status === 'confirmed' && recorded.value.found) outcome = recorded.value.input
+      }
+      if (!outcome?.outcome || outcome.outcome === 'aborted') return
       await application.get('AiStreamManager').drainRuntimeReply(entry.topicId, stopped.replyId)
       if (!this.isCurrentEntry(entry)) return
       // The native settle reports its own terminal in place of the held paused one.
       stopped.terminal = undefined
-      this.settleFromNativeOutcome(
-        entry,
-        this.rootProjection(entry, connection.contextId),
-        stopped.replyId,
-        stopped.outcome
-      )
+      this.settleFromNativeOutcome(entry, this.rootProjection(entry, connection.contextId), stopped.replyId, outcome)
     } catch (error) {
       logger.warn('Failed to apply the native outcome to a stopped reply', { sessionId: entry.sessionId, error })
     }

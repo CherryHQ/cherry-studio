@@ -85,10 +85,11 @@ cancellation and ownership semantics.
   withdrawn, including queued follow-ups, which receive an `aborted` outcome. The connection emits
   `stop-confirmed` after the stopped turn's terminal event; the
   next message reuses the same access. If Durable completed or failed the input before the stop
-  landed, Main replaces the paused reply with that outcome.
+  landed, Main replaces the paused reply with that outcome. When that outcome arrived before Stop
+  registered, Main reads it from Durable's input record.
 - A gap is followed by a recovery snapshot. A failed child projection write is logged and
-  reattaches that child from a fresh native snapshot instead of reaching the backend error hook,
-  which closes every root.
+  reattaches that child from a fresh native snapshot. The backend error hook carries diagnostics
+  only: it is logged and neither ends a turn nor closes a root.
 - Releasing one root does not shut down its peers. Final backend release closes and joins the native scheduler without marking ordinary
   unfinished root work cancelled. It awaits observation queues and in-flight callbacks before
   flushing child archives; observation detach and access release happen last. Backup uses the
@@ -118,12 +119,13 @@ Native fork creation and its new product-context identity commit together. The o
 provider. It covers approved argument edits, question answers, incremental output,
 native identity on reopen, independent background output and continuation, late steer
 attribution, repeated snapshots, the difference between stop and shutdown, Stop without
-closing, resynchronization after a child projection fault, naming the input that reopening
+closing, resynchronization after a child projection fault and after a root observation overflow, a
+backend diagnostic that leaves the turn and its access running, naming the input that reopening
 resumes, and native follow-up admission: placement after the preceding answer, a send during running
 work, Stop withdrawal and answering after reopen. `AgentSessionRuntimeService.projection.test.ts`
-covers continuing a resumed input, outcome rebuilds, the Stop/completion race and placed follow-ups
-getting their own replies in Main; `recoverSessionDeliveries.test.ts` covers boot delivery
-recovery.
+covers continuing a resumed input, outcome rebuilds, the Stop/completion race in both orders and
+placed follow-ups getting their own replies in Main; `recoverSessionDeliveries.test.ts` covers boot
+delivery recovery.
 `durableMcp.test.ts` runs an actual linked MCP server through the native tool loop.
 The storage and child-projection suites cover strict reopen, interrupted binding
 recovery and asynchronous archive reconciliation. These tests do not replace Electron

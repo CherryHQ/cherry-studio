@@ -74,7 +74,12 @@ async function fixture(
   })
   let queue = new AsyncEventQueue<{ event: AgentRuntimeEvent; consumed: () => void }>()
   const closed = Promise.withResolvers<void>()
-  const emit = (event: AgentRuntimeEvent) => new Promise<void>((consumed) => queue.push({ event, consumed }))
+  // Durable's record of every input state the test reports.
+  const recorded = new Map<string, Extract<AgentRuntimeEvent, { type: 'input-state' }>['input']>()
+  const emit = (event: AgentRuntimeEvent) => {
+    if (event.type === 'input-state' && event.input.inputId) recorded.set(event.input.inputId, event.input)
+    return new Promise<void>((consumed) => queue.push({ event, consumed }))
+  }
   const connections = { opened: 0, closed: 0, sent: [] as string[], followUps: [] as string[], steers: [] as string[] }
   runtimeDriverRegistry.register({
     type: agentType,
@@ -106,6 +111,13 @@ async function fixture(
           followUp: ({ message }: { message: { id: string } }) => {
             connections.followUps.push(message.id)
             return true
+          },
+          lookupInput: async (_contextId: string, inputId: string) => {
+            const input = recorded.get(inputId)
+            return {
+              status: 'confirmed' as const,
+              value: input ? { found: true as const, input } : { found: false as const }
+            }
           }
         }),
         close: async () => {
@@ -538,40 +550,50 @@ it('keeps the output-limit classification for a truncated Durable outcome on reo
 })
 
 // The run completed natively before the user's Stop landed; the reply keeps Durable's outcome.
-it('replaces a paused reply with the Durable outcome when the run completed before Stop', async () => {
-  MockApplicationUtils.setService('AiStreamManager', {
-    drainRuntimeReply: async () => {},
-    pauseRuntimeTurn: () => false
-  })
-  const f = await fixture(async () => {}, true, 'pi-durable')
-  const terminals: string[] = []
-  f.service.onTurnTerminal((event) => void (event.assistantMessageId === f.reply.id && terminals.push(event.status)))
-  await vi.waitFor(() => expect(f.connections.sent).toHaveLength(1))
-  await f.project([text('answer', 'Partial answer')])
-  await vi.waitFor(() => expect(f.views.at(-1)?.parts).toEqual(text('', 'Partial answer').parts))
-  f.handle.abortController.abort('user-requested')
-  const paused: StreamPausedResult = { status: 'paused', isTopicDone: true, finalMessage: (await f.done).finalMessage }
-  await f.handle.listeners[0].onPaused(paused)
-  await f.handle.listeners[1].onPaused(paused)
-
-  await f.project([text('answer', 'Complete answer')], { live: [], refresh: ['answer'] })
-  await f.emit({
-    type: 'input-state',
-    contextId: f.context.id,
-    input: { inputId: runtimeId(f.user.id), facts: ['accepted', 'placed'], outcome: 'completed' }
-  })
-  await f.emit({ type: 'turn-complete' })
-  await f.emit({ type: 'stop-confirmed' })
-
-  await vi.waitFor(() =>
-    expect(messages.getSessionMessage('root', f.reply.id)).toMatchObject({
-      status: 'success',
-      data: { parts: text('', 'Complete answer').parts }
+it.each(['before', 'after'] as const)(
+  'replaces a paused reply with the Durable outcome reported %s Stop registers',
+  async (reported) => {
+    MockApplicationUtils.setService('AiStreamManager', {
+      drainRuntimeReply: async () => {},
+      pauseRuntimeTurn: () => false
     })
-  )
-  // Deliveries finalize on the first terminal, so the paused one must not precede Durable's outcome.
-  expect(terminals).toEqual(['success'])
-})
+    const f = await fixture(async () => {}, true, 'pi-durable')
+    const terminals: string[] = []
+    f.service.onTurnTerminal((event) => void (event.assistantMessageId === f.reply.id && terminals.push(event.status)))
+    const completed = () =>
+      f.emit({
+        type: 'input-state',
+        contextId: f.context.id,
+        input: { inputId: runtimeId(f.user.id), facts: ['accepted', 'placed'], outcome: 'completed' }
+      })
+    await vi.waitFor(() => expect(f.connections.sent).toHaveLength(1))
+    await f.project([text('answer', 'Partial answer')])
+    await vi.waitFor(() => expect(f.views.at(-1)?.parts).toEqual(text('', 'Partial answer').parts))
+    if (reported === 'before') await completed()
+    f.handle.abortController.abort('user-requested')
+    const paused: StreamPausedResult = {
+      status: 'paused',
+      isTopicDone: true,
+      finalMessage: (await f.done).finalMessage
+    }
+    await f.handle.listeners[0].onPaused(paused)
+    await f.handle.listeners[1].onPaused(paused)
+
+    await f.project([text('answer', 'Complete answer')], { live: [], refresh: ['answer'] })
+    if (reported === 'after') await completed()
+    await f.emit({ type: 'turn-complete' })
+    await f.emit({ type: 'stop-confirmed' })
+
+    await vi.waitFor(() =>
+      expect(messages.getSessionMessage('root', f.reply.id)).toMatchObject({
+        status: 'success',
+        data: { parts: text('', 'Complete answer').parts }
+      })
+    )
+    // Deliveries finalize on the first terminal, so the paused one must not precede Durable's outcome.
+    expect(terminals).toEqual(['success'])
+  }
+)
 
 // The native interrupt waits on admission and child stops; a hang there must still end the Stop.
 it('ends a retained Stop whose native interrupt never returns', async () => {
