@@ -46,8 +46,23 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </div>
   ),
-  RadioGroupItem: ({ value, ...props }: { value: string; size?: string; 'aria-label'?: string }) => (
-    <button type="button" role="radio" aria-label={props['aria-label']} data-reasoning-value={value} />
+  RadioGroupItem: ({
+    value,
+    disabled,
+    ...props
+  }: {
+    value: string
+    size?: string
+    disabled?: boolean
+    'aria-label'?: string
+  }) => (
+    <button
+      type="button"
+      role="radio"
+      aria-label={props['aria-label']}
+      aria-disabled={disabled === true || undefined}
+      data-reasoning-value={disabled === true ? undefined : value}
+    />
   ),
   Slider: ({
     max,
@@ -386,7 +401,7 @@ describe('ModelSpeedControl service tiers', () => {
     expect(group).toHaveAttribute('data-value', 'fast')
   })
 
-  it('temporarily resolves an unsupported saved tier to Standard without changing the saved value', () => {
+  it('keeps an unsupported saved tier as a disabled selection with the effective tier explained', () => {
     const openRouterModel: Model = {
       ...groqModel,
       providerId: 'openrouter',
@@ -395,9 +410,76 @@ describe('ModelSpeedControl service tiers', () => {
     expect(resolveSupportedServiceTier(openRouterModel, 'auto')).toBe('standard')
 
     render(<ControlledServiceTier model={openRouterModel} initialTier="auto" />)
+
+    // The saved choice stays selected (and unwritten) even though it cannot be used here.
     expect(screen.getByRole('radiogroup', { name: 'agent.speed.service_tier.label' })).toHaveAttribute(
       'data-value',
-      'standard'
+      'auto'
     )
+    const savedRadio = screen.getByRole('radio', { name: 'agent.speed.service_tier.auto' })
+    expect(savedRadio).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByText('agent.speed.service_tier.unsupported')).toBeInTheDocument()
+    // The three declared tiers plus the disabled saved tier render; nothing else.
+    expect(screen.getByRole('radio', { name: 'agent.speed.service_tier.flex' })).toBeInTheDocument()
+    expect(screen.getAllByRole('radio')).toHaveLength(4)
+  })
+
+  it('shows both the saved and effective tier in the trigger while they differ', () => {
+    const openRouterModel: Model = {
+      ...groqModel,
+      providerId: 'openrouter',
+      requestControls: { serviceTier: { default: 'standard' as const, options: ['standard', 'fast', 'flex'] } }
+    }
+    render(<ControlledServiceTier model={openRouterModel} initialTier="auto" />)
+
+    expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
+      'agent.speed.service_tier.auto → agent.speed.service_tier.standard'
+    )
+  })
+
+  it('persists a supported pick over an unsupported saved tier', async () => {
+    const openRouterModel: Model = {
+      ...groqModel,
+      providerId: 'openrouter',
+      requestControls: { serviceTier: { default: 'standard' as const, options: ['standard', 'fast', 'flex'] } }
+    }
+    render(<ControlledServiceTier model={openRouterModel} initialTier="auto" />)
+
+    await userEvent.click(screen.getByRole('radio', { name: 'agent.speed.service_tier.fast' }))
+    expect(screen.getByRole('radiogroup', { name: 'agent.speed.service_tier.label' })).toHaveAttribute(
+      'data-value',
+      'fast'
+    )
+    expect(screen.queryByText('agent.speed.service_tier.unsupported')).not.toBeInTheDocument()
+  })
+
+  it('keeps Standard as the default for a model that declares no tiers', () => {
+    const { requestControls: _omit, ...noControlModel } = groqModel
+    expect(resolveSupportedServiceTier(noControlModel, 'flex')).toBe('standard')
+  })
+
+  it('reveals provider terms only behind the Details toggle, never as primary labels', async () => {
+    const wiredModel: Model = {
+      ...groqModel,
+      requestControls: {
+        serviceTier: {
+          default: 'standard',
+          options: ['standard', 'fast'],
+          values: { standard: 'default', fast: 'priority' }
+        }
+      }
+    }
+    render(<ControlledServiceTier model={wiredModel} initialTier="standard" />)
+
+    expect(screen.queryByText('agent.speed.service_tier.provider_value')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'agent.speed.service_tier.details' }))
+    expect(screen.getAllByText('agent.speed.service_tier.provider_value')).toHaveLength(2)
+    // Primary labels stay the shared tier names.
+    expect(screen.getByRole('radio', { name: 'agent.speed.service_tier.fast' })).toBeInTheDocument()
+  })
+
+  it('omits the Details toggle when the endpoint carries no provider terms', () => {
+    render(<ControlledServiceTier model={groqModel} initialTier="standard" />)
+    expect(screen.queryByRole('button', { name: 'agent.speed.service_tier.details' })).not.toBeInTheDocument()
   })
 })
