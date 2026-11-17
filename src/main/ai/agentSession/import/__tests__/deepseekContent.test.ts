@@ -57,7 +57,8 @@ it('exposes search and opened URLs as citations while retaining search context f
     { type: 'source-url', sourceId: 'deepseek-2-2', url: 'https://example.com/open', title: 'Opened page' }
   ])
   expect(result.parts.filter((part) => part.type === 'text')).toEqual([
-    { type: 'text', text: 'An answer with sources' }
+    { type: 'text', text: 'An answer with sources' },
+    { type: 'text', text: expect.stringContaining('[cite:1] [cite:2]') }
   ])
   expect(JSON.stringify(result.model)).toContain('Relevant evidence')
   expect(JSON.stringify(result.model)).toContain('example question')

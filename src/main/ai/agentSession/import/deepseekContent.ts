@@ -103,6 +103,12 @@ export async function deepseekContent(
         }
     }
   }
+  if (sourceUrls.size) {
+    parts.push({
+      type: 'text',
+      text: `${t('agent_import_search')}\n${Array.from(sourceUrls, (_, index) => `[cite:${index + 1}]`).join(' ')}`
+    })
+  }
   const timestamp = Date.parse(source.inserted_at)
   if (source.role === 'USER') return { parts, model: { role: 'user', content: native, timestamp } }
   if (native.some((part) => part.type === 'image')) throw new Error('DeepSeek assistant image messages are unsupported')
