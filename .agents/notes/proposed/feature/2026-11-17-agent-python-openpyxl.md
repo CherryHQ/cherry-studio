@@ -6,7 +6,7 @@ English | [中文](2026-11-17-agent-python-openpyxl.zh.md)
 
 ## Problem
 
-Agents process XLSX files in `python_execute`, which runs Python 3.12 in Pyodide v0.28.0 inside the renderer (`src/renderer/workers/pyodide.worker.ts:17-18`, `src/main/ai/mcp/servers/python.ts:24-27`). Pyodide loads packages only from its own lockfile through `loadPackagesFromImports`, and fetches them from `cdn.jsdelivr.net` at run time. `pyodide-lock.json` for v0.28.0 includes `pandas` 2.3.0 but not `openpyxl` or its dependency `et-xmlfile`, so `import openpyxl` fails and the Agent must install nothing (no pip path exists) or convert the file by hand.
+Agents process XLSX files in `python_execute`, which runs Python 3.13.2 in Pyodide v0.28.0 inside the renderer (`src/renderer/workers/pyodide.worker.ts:17-18`, `src/main/ai/mcp/servers/python.ts:24-27`). Pyodide loads packages only from its own lockfile through `loadPackagesFromImports`, and fetches them from `cdn.jsdelivr.net` at run time. `pyodide-lock.json` for v0.28.0 includes `pandas` 2.3.0 but not `openpyxl` or its dependency `et-xmlfile`, so `import openpyxl` fails and the Agent must install nothing (no pip path exists) or convert the file by hand.
 
 The uv-managed CPython in `src/main/services/binaryManager/pythonRuntime.ts` is a second interpreter. It serves mise pipx tools and currently installs only `bitstring<5` for babeldoc (`src/shared/data/presets/binaryTools.ts:59-70`). It is not the Agent's code runtime and is not changed by this proposal.
 

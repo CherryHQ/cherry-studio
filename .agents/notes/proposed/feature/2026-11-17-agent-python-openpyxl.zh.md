@@ -6,7 +6,7 @@ Status: proposed
 
 ## Problem
 
-Agent 通过 `python_execute` 处理 XLSX 文件，该工具在渲染进程中的 Pyodide v0.28.0 里运行 Python 3.12（`src/renderer/workers/pyodide.worker.ts:17-18`，`src/main/ai/mcp/servers/python.ts:24-27`）。Pyodide 只能从自身的 lockfile 中加载包，并在运行时从 `cdn.jsdelivr.net` 获取。v0.28.0 的 `pyodide-lock.json` 包含 `pandas` 2.3.0，但不包含 `openpyxl` 及其依赖 `et-xmlfile`，因此 `import openpyxl` 会失败，而且 Agent 无法通过 pip 安装（不存在 pip 路径），只能手动转换文件。
+Agent 通过 `python_execute` 处理 XLSX 文件，该工具在渲染进程中的 Pyodide v0.28.0 里运行 Python 3.13.2（`src/renderer/workers/pyodide.worker.ts:17-18`，`src/main/ai/mcp/servers/python.ts:24-27`）。Pyodide 只能从自身的 lockfile 中加载包，并在运行时从 `cdn.jsdelivr.net` 获取。v0.28.0 的 `pyodide-lock.json` 包含 `pandas` 2.3.0，但不包含 `openpyxl` 及其依赖 `et-xmlfile`，因此 `import openpyxl` 会失败，而且 Agent 无法通过 pip 安装（不存在 pip 路径），只能手动转换文件。
 
 `src/main/services/binaryManager/pythonRuntime.ts` 中由 uv 管理的 CPython 是第二个解释器。它服务于 mise 的 pipx 工具，目前只为 babeldoc 安装 `bitstring<5`（`src/shared/data/presets/binaryTools.ts:59-70`）。它不是 Agent 的代码运行时，本提案不会改动它。
 
