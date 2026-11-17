@@ -42,11 +42,17 @@ function lint(source: string, rule?: string) {
 }
 
 describe('available generic anti-slop rules', () => {
-  it('enforces no-reflect-apply in the repository gate after its cleanup', () => {
-    const result = lint('export const result = Reflect.apply(Math.max, undefined, [1, 2])')
+  it.each([
+    ['no-reflect-apply', 'export const result = Reflect.apply(Math.max, undefined, [1, 2])'],
+    [
+      'no-reduce-accumulator-copy',
+      'export const result = [1, 2].reduce((acc, item) => acc.concat([item]), [] as number[])'
+    ]
+  ])('enforces %s in the repository gate after its cleanup', (rule, source) => {
+    const result = lint(source)
     expect(result.status).toBe(1)
     expect(result.diagnostics).toEqual(
-      expect.arrayContaining([expect.objectContaining({ code: 'anti-slop(no-reflect-apply)', severity: 'error' })])
+      expect.arrayContaining([expect.objectContaining({ code: `anti-slop(${rule})`, severity: 'error' })])
     )
   })
 
