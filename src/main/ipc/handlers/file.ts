@@ -196,7 +196,11 @@ const handlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   },
   'file.open': async (handle) => {
     const fileManager = application.get('FileManager')
-    return dispatchHandle(handle as FileHandle, (entryId) => fileManager.open(entryId), safeOpen)
+    return dispatchHandle(
+      handle as FileHandle,
+      (entryId) => fileManager.open(entryId, { channel: 'file.open' }),
+      (path) => safeOpen(path, { channel: 'file.open' })
+    )
   },
   'file.show_in_folder': async (handle) => {
     const fileManager = application.get('FileManager')

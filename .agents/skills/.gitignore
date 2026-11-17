@@ -26,6 +26,8 @@
 !gh-stack/**
 !prepare-release/
 !prepare-release/**
+!product-guide/
+!product-guide/**
 !translate-docs/
 !translate-docs/**
 !vercel-react-best-practices/

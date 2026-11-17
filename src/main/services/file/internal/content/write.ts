@@ -19,7 +19,6 @@ import { logFailure } from '@main/core/logger/logFailure'
 import type { AtomicWriteStream } from '@main/utils/file'
 import {
   assertPathVersionUnchanged,
-  atomicWriteFile,
   atomicWriteIfUnchanged,
   createPreparedAtomicWriteStream,
   PathStaleVersionError,
@@ -174,14 +173,6 @@ export async function createWriteStream(deps: FileManagerDeps, id: FileEntryId):
     release()
     throw error
   }
-}
-
-export async function writeByPath(
-  _deps: FileManagerDeps,
-  target: AbsoluteFilePath,
-  data: string | Uint8Array
-): Promise<void> {
-  await runPathMutationExclusive(() => atomicWriteFile(target, data))
 }
 
 export async function writeIfUnchangedByPath(

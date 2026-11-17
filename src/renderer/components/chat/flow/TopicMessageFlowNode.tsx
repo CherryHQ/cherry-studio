@@ -164,7 +164,7 @@ function TopicMessageFlowNodePreviewCard({
           </div>
         </MessageContentProvider>
       ) : (
-        <EmptyState className="min-h-24 py-4" compact preset="no-result" title={t('common.no_results')} />
+        <EmptyState className="min-h-24 py-4" compact title={t('common.no_results')} />
       )}
     </div>
   )

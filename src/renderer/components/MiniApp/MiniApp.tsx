@@ -184,7 +184,7 @@ const MiniApp: FC<Props> = ({
   }
 
   const icon = isLaunchpad ? (
-    <div className="mini-app-icon-clip flex size-full items-center justify-center overflow-hidden rounded-[inherit]">
+    <div className="mini-app-icon-clip flex size-full items-center justify-center overflow-hidden rounded-[inherit] [corner-shape:inherit]">
       <MiniAppIcon size={size} app={app} appearance="plain" />
     </div>
   ) : (
@@ -293,7 +293,7 @@ const MiniApp: FC<Props> = ({
               className={cn(
                 'mini-app-icon-frame relative flex items-center justify-center',
                 isLaunchpad &&
-                  'size-[58px] rounded-[14px] border bg-transparent transition-[border-color,background-color] duration-[160ms] ease-in-out motion-reduce:transition-none',
+                  'size-14 rounded-[50%] [corner-shape:squircle] bg-transparent after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:[corner-shape:inherit] after:border after:border-inherit transition-[border-color,background-color] duration-[160ms] ease-in-out motion-reduce:transition-none',
                 isLaunchpad && (hasBuiltinIcon ? 'border-transparent' : 'border-border-subtle')
               )}>
               {icon}
@@ -304,7 +304,7 @@ const MiniApp: FC<Props> = ({
                   data-testid="update-progress"
                   className={cn(
                     'absolute inset-0 flex items-center justify-center bg-background/65',
-                    isLaunchpad ? 'rounded-[inherit]' : 'rounded-lg'
+                    isLaunchpad ? 'rounded-[inherit] [corner-shape:inherit]' : 'rounded-lg'
                   )}
                   style={
                     updating.fraction === null

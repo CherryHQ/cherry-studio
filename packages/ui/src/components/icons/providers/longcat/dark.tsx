@@ -6,7 +6,7 @@ const LongcatDark: IconComponent = (props: SVGProps<SVGSVGElement>) => {
 
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
-      <path fill="#ecfcf0" d="M0 0H120V120H0z" />
+      <path fill="#1E3E26" d="M0 0H120V120H0z" />
       <g transform="matrix(1.27919 0 0 1.27919 -16.112 -14.193)">
         <mask
           id={`${iconId}-longcatdark__a`}
@@ -41,7 +41,7 @@ const LongcatDark: IconComponent = (props: SVGProps<SVGSVGElement>) => {
               clipRule="evenodd"
             />
             <path
-              fill="#000"
+              fill="#E5E7EB"
               d="M51.95 72.6167H56.0666V63.013H52.5729L51.95 72.6167ZM67.0436 72.6167H62.9269V63.013H66.4206L67.0436 72.6167Z"
             />
           </g>
