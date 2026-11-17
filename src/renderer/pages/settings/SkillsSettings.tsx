@@ -1,14 +1,38 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
+import { Filter, Info, Settings } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Switch, Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
+import {
+  Button,
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  ScrollArea,
+  Switch,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  Tooltip
+} from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { ResourceCatalogView } from '@renderer/components/resourceCatalog/catalog'
 import {
   SettingDescription,
-  SettingGroup,
   SettingRow,
   SettingRowTitle,
   SettingsContentBody
@@ -17,6 +41,7 @@ import { useSkillLauncher } from '@renderer/hooks/useSkillLauncher'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
+import { cn } from '@renderer/utils/style'
 
 type SkillScopeTab = 'all' | 'system' | 'builtin'
 
@@ -52,7 +77,7 @@ export function SkillsSettings() {
     await syncExports()
   }
   const [enabledOnly, setEnabledOnly] = usePersistCache('settings.skills.enabled_only')
-  // The tab lives in the route search so it survives the round-trip through the detail route.
+  // The scope lives in the route search so it survives the round-trip through the detail route.
   const search = useSearch({ strict: false }) as { scope?: SkillScopeTab }
   const scope = search.scope ?? 'all'
   const setScope = (next: string) => void navigate({ to: '/settings/skills', search: { scope: next as SkillScopeTab } })
@@ -69,54 +94,114 @@ export function SkillsSettings() {
     <SettingsContentBody
       className="min-h-0 flex-1 overflow-hidden p-0 pt-4"
       innerClassName="flex min-h-0 max-w-none flex-1 flex-col">
-      <SettingGroup>
-        <SettingRow>
-          <div className="min-w-0 flex-1">
-            <SettingRowTitle id="external-export-label">{t('settings.skills.externalExportLabel')}</SettingRowTitle>
-            <SettingDescription id="external-export-description">
-              {t('settings.skills.externalExportDescription')}
-            </SettingDescription>
-          </div>
-          <Switch
-            checked={exportEnabled}
-            disabled={saving}
-            aria-labelledby="external-export-label"
-            aria-describedby="external-export-description"
-            onCheckedChange={(next) => void changeExport(next)}
-          />
-        </SettingRow>
-      </SettingGroup>
-      <Tabs value={scope} onValueChange={setScope} variant="underline" className="min-h-0 flex-1">
+      <Tabs value={scope} onValueChange={setScope} className="min-h-0 flex-1">
         <TabsContent value={scope} className="mt-0 flex min-h-0 flex-1 flex-col">
           <ResourceCatalogView
             resourceType="skill"
             variant="settings"
             title={t('settings.skills.title')}
+            headerActions={
+              <Dialog>
+                <Tooltip title={t('settings.skills.settings.title')} asChild>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground"
+                      aria-label={t('settings.skills.settings.title')}>
+                      <Settings size={16} aria-hidden />
+                    </Button>
+                  </DialogTrigger>
+                </Tooltip>
+                <DialogContent
+                  size="lg"
+                  closeLabel={t('common.close')}
+                  className="flex max-h-[80dvh] flex-col gap-0 p-0">
+                  <DialogHeader className="shrink-0 border-b border-border-subtle px-6 py-4 text-start">
+                    <DialogTitle>{t('settings.skills.settings.title')}</DialogTitle>
+                    <DialogDescription className="sr-only">
+                      {t('settings.skills.externalExportSummary')}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <ScrollArea className="min-h-0 flex-1" contentProps={{ className: 'p-6' }}>
+                    <SettingRow className="flex-nowrap gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1">
+                          <SettingRowTitle id="external-export-label" className="font-medium">
+                            {t('settings.skills.externalExportLabel')}
+                          </SettingRowTitle>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="text-muted-foreground"
+                                aria-label={t('common.help')}>
+                                <Info size={16} aria-hidden />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent
+                              align="start"
+                              collisionPadding={16}
+                              className="max-h-(--radix-popover-content-available-height) w-80 max-w-[calc(100vw-2rem)] overflow-y-auto text-xs leading-relaxed">
+                              {t('settings.skills.externalExportDescription')}
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <SettingDescription id="external-export-path" className="mt-1 font-mono">
+                          ~/.agents/skills
+                        </SettingDescription>
+                      </div>
+                      <Switch
+                        checked={exportEnabled}
+                        disabled={saving}
+                        aria-labelledby="external-export-label"
+                        aria-describedby="external-export-path"
+                        onCheckedChange={(next) => void changeExport(next)}
+                      />
+                    </SettingRow>
+                  </ScrollArea>
+                  <DialogFooter className="shrink-0 border-t border-border-subtle px-6 py-4">
+                    <DialogClose asChild>
+                      <Button size="sm">{t('settings.skills.settings.done')}</Button>
+                    </DialogClose>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            }
+            toolbarLeading={
+              <DropdownMenu>
+                <Tooltip title={t('settings.skills.filterLabel')} asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={t('settings.skills.filterLabel')}
+                      className={cn('text-muted-foreground', enabledOnly && 'text-primary')}>
+                      <Filter size={16} aria-hidden />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </Tooltip>
+                <DropdownMenuContent align="start" className="min-w-44">
+                  <DropdownMenuCheckboxItem checked={enabledOnly} onCheckedChange={setEnabledOnly}>
+                    {enabledOnlyLabel}
+                  </DropdownMenuCheckboxItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            }
+            toolbarFooter={
+              <TabsList className="shrink-0 [&_[data-slot=tabs-trigger]]:px-4" aria-label={t('settings.skills.title')}>
+                <TabsTrigger value="all">{t('common.all')}</TabsTrigger>
+                <TabsTrigger value="system">{t('settings.skills.tabs.system')}</TabsTrigger>
+                <TabsTrigger value="builtin">{t('settings.skills.tabs.builtin')}</TabsTrigger>
+              </TabsList>
+            }
             className="min-h-0 flex-1"
             onOpenSkill={(skill) =>
               void navigate({ to: '/settings/skills/$skillId', params: { skillId: skill.id }, search: { scope } })
             }
             onLaunchSkill={launchSkill}
             filterResource={filterResource}
-            allowColumnToggle
-            toolbarLeading={
-              <label className="flex cursor-pointer items-center gap-2 text-xs whitespace-nowrap text-muted-foreground">
-                <span>{enabledOnlyLabel}</span>
-                <Switch
-                  size="xs"
-                  checked={enabledOnly}
-                  aria-label={enabledOnlyLabel}
-                  onCheckedChange={setEnabledOnly}
-                />
-              </label>
-            }
-            toolbarFooter={
-              <TabsList className="shrink-0" aria-label={t('settings.skills.title')}>
-                <TabsTrigger value="all">{t('common.all')}</TabsTrigger>
-                <TabsTrigger value="system">{t('settings.skills.tabs.system')}</TabsTrigger>
-                <TabsTrigger value="builtin">{t('settings.skills.tabs.builtin')}</TabsTrigger>
-              </TabsList>
-            }
           />
         </TabsContent>
       </Tabs>

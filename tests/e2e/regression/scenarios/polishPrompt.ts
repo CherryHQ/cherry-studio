@@ -10,6 +10,7 @@ import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/con
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { selectSidebarApp } from '../helpers/navigation'
+import { revealVirtualized } from '../helpers/virtualList'
 import type { RegressionApp } from '../RegressionApp'
 
 export async function polishPrompt(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
@@ -34,7 +35,7 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
   let assistantId: string | undefined
 
   try {
-    // Success uses a real provider; only malformed-variable and error responses use the HTTP fixture.
+    // Both model services are local; the controllable server also exercises malformed and error responses.
     const modelIds: string[] = []
     for (const [index, config] of [
       real,
@@ -105,13 +106,20 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
     )
     await page.reload()
     await selectSidebarApp(page, 'Chat')
+    const chat = page.locator('[data-ui~="chat.view"]:visible')
+    const topics = chat.locator('[data-ui~="chat.topic-list"]:visible')
+    if (!(await topics.isVisible())) await chat.getByRole('button', { name: 'Show Sidebar', exact: true }).click()
+    await expect(topics).toBeVisible()
     const row = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: name }).first()
     const dialog = page.getByRole('dialog', { name: 'Edit Assistant', exact: true })
     const openEditor = async () => {
+      await revealVirtualized(page, chat.locator('[data-virtual-scrolling]').first(), row)
       await expect(row).toBeVisible()
-      await row.click({ button: 'right' })
-      await page.getByRole('menuitem', { name: 'Edit Assistant', exact: true }).click()
-      await expect(dialog).toBeVisible()
+      await expect(async () => {
+        await row.click({ button: 'right' })
+        await page.getByRole('menuitem', { name: 'Edit Assistant', exact: true }).click()
+        await expect(dialog).toBeVisible()
+      }).toPass({ timeout: 30_000 })
       await dialog.getByRole('tab', { name: 'System Prompt', exact: true }).click()
       const edit = dialog.getByRole('button', { name: 'Edit', exact: true })
       if (await edit.isVisible()) await edit.click()

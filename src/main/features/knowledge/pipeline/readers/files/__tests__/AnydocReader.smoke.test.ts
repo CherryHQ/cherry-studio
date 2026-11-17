@@ -1,4 +1,4 @@
-import AdmZip from 'adm-zip'
+import JSZip from 'jszip'
 import { expect, it } from 'vitest'
 
 const hasNativeBinding =
@@ -6,9 +6,9 @@ const hasNativeBinding =
     (process.arch === 'arm64' || process.arch === 'x64')) ||
   (process.platform === 'win32' && process.arch === 'x64')
 
-function createMinimalDocx(): Buffer {
-  const zip = new AdmZip()
-  zip.addFile(
+function createMinimalDocx(): Promise<Buffer> {
+  const zip = new JSZip()
+  zip.file(
     '[Content_Types].xml',
     Buffer.from(
       '<?xml version="1.0"?>' +
@@ -20,7 +20,7 @@ function createMinimalDocx(): Buffer {
         '</Types>'
     )
   )
-  zip.addFile(
+  zip.file(
     '_rels/.rels',
     Buffer.from(
       '<?xml version="1.0"?>' +
@@ -31,7 +31,7 @@ function createMinimalDocx(): Buffer {
         '</Relationships>'
     )
   )
-  zip.addFile(
+  zip.file(
     'word/document.xml',
     Buffer.from(
       '<?xml version="1.0"?>' +
@@ -41,13 +41,13 @@ function createMinimalDocx(): Buffer {
         '</w:body></w:document>'
     )
   )
-  return zip.toBuffer()
+  return zip.generateAsync({ type: 'nodebuffer' })
 }
 
 it.skipIf(!hasNativeBinding)('loads the real anydoc binding and converts a docx container', async () => {
   const { toMarkdownBytes } = await import('@firecrawl/anydoc')
 
-  const markdown = await toMarkdownBytes(createMinimalDocx())
+  const markdown = await toMarkdownBytes(await createMinimalDocx())
 
   expect(markdown).toContain('Smoke title')
   expect(markdown).toContain('Smoke body')

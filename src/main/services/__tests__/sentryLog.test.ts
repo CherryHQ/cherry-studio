@@ -22,7 +22,11 @@ vi.unmock('@logger')
 vi.unmock('winston')
 vi.unmock('winston-daily-rotate-file')
 vi.mock('@main/core/paths/constants', () => ({ LOGS_DIR: tmpLogsDir }))
-vi.mock('@sentry/electron/main', () => ({ captureException: captureExceptionMock }))
+vi.mock('@sentry/electron/main', () => ({
+  captureException: captureExceptionMock,
+  addIntegration: vi.fn(),
+  sentryMinidumpIntegration: () => ({ name: 'SentryMinidump' })
+}))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
@@ -116,6 +120,7 @@ describe('Sentry log reporting', () => {
       { process: 'renderer', window: 'main', module: 'ErrorBoundary', context: { apiKey: 'secret' } },
       'error',
       'Caught a render error',
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       structuredClone([
         { name: error.name, errorMessage: error.message, stack: error.stack },
         { componentStack, prompt: 'private conversation' }

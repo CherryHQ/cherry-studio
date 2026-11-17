@@ -56,7 +56,11 @@ function createWindow() {
     setOpacity(this: { opacity: number }, value: number) {
       this.opacity = value
     },
-    setAlwaysOnTop: vi.fn(),
+    alwaysOnTop: false,
+    isAlwaysOnTop: () => mockWindow.alwaysOnTop,
+    setAlwaysOnTop: vi.fn((value: boolean) => {
+      mockWindow.alwaysOnTop = value
+    }),
     focus: vi.fn(),
     zoomFactor: 1,
     webContents: {
@@ -128,6 +132,50 @@ describe('SelectionAgentWindowService', () => {
 
     expect(window.getBounds()).toEqual({ x: 440, y: 140, width: 560, height: 620 })
     expect(window.resizable).toBe(true)
+  })
+
+  describe('macOS show sequence', () => {
+    beforeEach(() => {
+      platform.isMac = true
+      vi.useFakeTimers()
+      Object.assign(application.get('WindowManager'), { behavior: { hideMacDockWhileShown: vi.fn() } })
+    })
+
+    afterEach(() => {
+      platform.isMac = false
+      vi.useRealTimers()
+    })
+
+    it.each([false, true])('raises before moving to the invoking Space (fullscreen=%s)', (fullScreen) => {
+      const show = vi.spyOn(window, 'show')
+      const showInactive = vi.spyOn(window, 'showInactive')
+
+      svc.open(ASK_AGENT, { anchor: TOOLBAR, isFullScreen: fullScreen })
+
+      expect(window.setAlwaysOnTop.mock.calls).toEqual(fullScreen ? [[true]] : [[true], [false]])
+      expect(native.moveToActiveSpace).toHaveBeenCalledWith(window.handle)
+      expect(window.setAlwaysOnTop.mock.invocationCallOrder[0]).toBeLessThan(
+        native.moveToActiveSpace.mock.invocationCallOrder[0]
+      )
+      const showWindow = fullScreen ? showInactive : show
+      expect(native.moveToActiveSpace.mock.invocationCallOrder[0]).toBeLessThan(showWindow.mock.invocationCallOrder[0])
+      if (!fullScreen) {
+        expect(showWindow.mock.invocationCallOrder[0]).toBeLessThan(window.setAlwaysOnTop.mock.invocationCallOrder[1])
+        expect(window.isAlwaysOnTop()).toBe(false)
+      }
+      expect(fullScreen ? show : showInactive).not.toHaveBeenCalled()
+      expect(window.visible).toBe(true)
+      expect(window.setFocusable.mock.calls).toEqual(fullScreen ? [[false]] : [])
+      expect(window.focus).not.toHaveBeenCalled()
+      vi.advanceTimersByTime(49)
+      expect(window.setAlwaysOnTop.mock.calls).toEqual(fullScreen ? [[true]] : [[true], [false]])
+      vi.runAllTimers()
+
+      expect(window.setAlwaysOnTop.mock.calls).toEqual([[true], [false]])
+      expect(window.isAlwaysOnTop()).toBe(false)
+      expect(window.setFocusable.mock.calls).toEqual(fullScreen ? [[false], [true]] : [])
+      expect(window.focus).toHaveBeenCalledTimes(fullScreen ? 1 : 0)
+    })
   })
 
   it('fits the compose bar to its content, then expands it once into the conversation window', () => {
@@ -478,6 +526,57 @@ describe('SelectionAgentWindowService', () => {
       afterEach(() => {
         platform.isMac = false
       })
+
+      it.each([false, true])(
+        'restores an unpinned capsule without leaving it pinned (reduced motion=%s)',
+        async (reducedMotion) => {
+          Object.assign(systemPreferences, {
+            getAnimationSettings: vi.fn(() => ({ prefersReducedMotion: reducedMotion }))
+          })
+          openStarted('w1')
+          windows.w1.setAlwaysOnTop(false)
+          svc.collapse('w1')
+          await settle()
+          expect(windows.w1.visible).toBe(false)
+          const show = vi.spyOn(windows.w1, 'show')
+          windows.w1.setAlwaysOnTop.mockClear()
+          native.moveToActiveSpace.mockClear()
+
+          svc.restore('host-1', 'w1')
+          await settle()
+
+          expect(windows.w1.visible).toBe(true)
+          expect(windows.w1.isAlwaysOnTop()).toBe(false)
+          expect(windows.w1.setAlwaysOnTop.mock.calls).toEqual([[true], [false]])
+          expect(windows.w1.setAlwaysOnTop.mock.invocationCallOrder[0]).toBeLessThan(
+            native.moveToActiveSpace.mock.invocationCallOrder[0]
+          )
+          expect(native.moveToActiveSpace.mock.invocationCallOrder[0]).toBeLessThan(show.mock.invocationCallOrder[0])
+          expect(show.mock.invocationCallOrder[0]).toBeLessThan(windows.w1.setAlwaysOnTop.mock.invocationCallOrder[1])
+        }
+      )
+
+      it.each([false, true])(
+        'keeps a pinned capsule pinned after restoring (reduced motion=%s)',
+        async (reducedMotion) => {
+          Object.assign(systemPreferences, {
+            getAnimationSettings: vi.fn(() => ({ prefersReducedMotion: reducedMotion }))
+          })
+          openStarted('w1')
+          windows.w1.setAlwaysOnTop(true)
+          svc.collapse('w1')
+          await settle()
+          expect(windows.w1.visible).toBe(false)
+          windows.w1.setAlwaysOnTop.mockClear()
+
+          svc.restore('host-1', 'w1')
+          await settle()
+
+          expect(windows.w1.visible).toBe(true)
+          expect(windows.w1.isAlwaysOnTop()).toBe(true)
+          expect(windows.w1.setAlwaysOnTop.mock.calls).toEqual([[true]])
+        }
+      )
 
       it('collapses the agent window whose yellow light or Cmd+M was used', async () => {
         await svc._doInit()
