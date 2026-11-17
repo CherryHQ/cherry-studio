@@ -51,6 +51,7 @@ import type {
   RuntimeReasoning
 } from '@shared/data/types/model'
 import { createUniqueModelId, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
+import { projectModelParameterSupport } from '@shared/utils/model'
 
 const logger = loggerService.withContext('DataApi:ModelService')
 const SQLITE_INARRAY_CHUNK = 500
@@ -434,7 +435,7 @@ function applyStoredPresetDeltas(baseline: Model, row: UserModelRow, profile?: R
       profile?.format === 'ollama' && row.reportedReasoning != null
         ? projectRuntimeReasoning(row.reportedReasoning, profile.wire)
         : undefined,
-    parameterSupport: row.parameters as RuntimeParameterSupport | null,
+    parameterSupport: projectModelParameterSupport(row.parameters),
     pricing: row.pricing
   })
 }
@@ -487,7 +488,7 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
     reasoning: reasoning ? { ...reasoning, selectableEfforts: reasoning.selectableEfforts ?? [] } : undefined,
     userDefaultReasoningEffort: row.reasoning?.defaultEffort,
     ...(reported ? { reportedReasoning: reported } : {}),
-    parameterSupport: (row.parameters ?? undefined) as RuntimeParameterSupport | undefined,
+    parameterSupport: projectModelParameterSupport(row.parameters),
     pricing: row.pricing ?? undefined,
     hasCustomPricing: row.pricing != null,
     isEnabled: row.isEnabled,

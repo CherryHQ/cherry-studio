@@ -339,7 +339,7 @@ required service tier.`
       />
     )
 
-    expect(screen.getByText('models.detail.quota_exhausted')).toBeInTheDocument()
+    expect(screen.getByText('models.detail.quota_insufficient_for_request')).toBeInTheDocument()
     expect(screen.getByText(planText)).toBeInTheDocument()
     expect(screen.queryByText(/API Error|HTTP 429/)).toBeNull()
     expect(screen.queryByText(GO_TO_SETTINGS_LABEL)).toBeNull()
@@ -360,7 +360,7 @@ required service tier.`
     )
 
     expect(screen.getByText('error.diagnosis.rate_limit')).toBeInTheDocument()
-    expect(screen.queryByText('models.detail.quota_exhausted')).toBeNull()
+    expect(screen.queryByText('models.detail.quota_insufficient_for_request')).toBeNull()
     expect(screen.getByText(/HTTP 429/)).toBeInTheDocument()
   })
 

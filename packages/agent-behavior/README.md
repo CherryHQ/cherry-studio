@@ -49,6 +49,15 @@ the texts of the results an adapter gives a child's open tool calls ([Applying a
 `workspace:*` and resolves it through its built `dist/`, so build it before the adapter's tests import it:
 `pnpm --filter @cherrystudio/agent-behavior build`.
 
+## Command approval facts
+
+The desktop host checks shell input and supplies a `mandatoryBlock` for denials and a
+`commandPolicy` fact carrying the approval-card details and a `context` fingerprint. A block
+precedes mode shortcuts. After a grant, the gate reads current host facts and rejects the call
+when the block now applies or the context changed. Facts that name the `permissionMode` they were derived under
+are gathered again, before the decision and after a grant, if the mode changed meanwhile; a mode that keeps changing
+makes the call require approval. It does not save executable, command-prefix or shell-wide consent.
+
 ## Ports
 
 The ports are the whole surface between the package and a harness or the host. Harness ports are `HarnessPorts` in
@@ -540,7 +549,7 @@ pnpm --filter @cherrystudio/agent-behavior typecheck
 Pass explicit test file paths under `packages/agent-behavior/tests/`; `tests/orchestration/` runs the orchestration on
 the fake, and `tests/orchestration/fixtures/` runs each scenario fixture three ways (to the end, crashed at every await
 point, replayed into the core). `typecheck` resolves `@cherrystudio/agent-runtime`
-types from its built `dist/`, hence the first command, and runs `tsc` twice: once over the package and once over
+types from its built `dist/`, hence the first command, and runs `tsrs` twice: once over the package and once over
 `src/core/` alone with no Node or DOM types, which keeps core free of the environment. The lint guards for imports,
 layers and key minting have their own test:
 `pnpm test:scripts scripts/__tests__/agent-behavior-boundary.test.ts`.
