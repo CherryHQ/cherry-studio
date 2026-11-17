@@ -10,7 +10,7 @@ Status: proposed
 
 ## 提案
 
-在现有 Oxlint 门禁中，将全部 18 条通用 anti-slop 规则及原生 `oxc/no-accumulating-spread` 注册为错误。保留现有 lint 范围及无关规则。没有直接 Effect 依赖时，不启用 Effect 专属架构规则。新发现属于存量迁移工作，不能以此关闭规则、降低级别、增加目录豁免或伪造类型信息。
+在现有 Oxlint 门禁中，将全部 18 条通用 anti-slop 规则及原生 `oxc/no-accumulating-spread` 注册为错误。保留现有 lint 范围及无关规则。仓库不使用 Effect，因此不保留 Effect 专属插件源码。新发现属于存量迁移工作，不能以此关闭规则、降低级别、增加目录豁免或伪造类型信息。
 
 将复制的插件放在 `scripts/lint/anti-slop/`，保留确切上游版本及 MIT 声明，并将 `@oxlint/plugins` 固定为与 Oxlint 完全相同的版本。上游明确支持复制源码且没有官方 npm 包；其包导出未编译的 TypeScript，而 Node 不会在 `node_modules` 内执行类型擦除。Git 依赖需要额外的编译或加载机制。本次集成保留受支持的本地源码机制，去掉多余的外层 vendor 目录。插件内部的第三方声明保留上游布局。
 
@@ -25,7 +25,7 @@ Status: proposed
 ## 验收标准
 
 - AC1 — 全部 18 条上游通用规则及原生累加器展开配套规则在现有 lint 配置中均为错误；真实 CLI 探针验证拒绝和受支持代码。 (verification: unit)
-- AC2 — 插件从 `scripts/lint/anti-slop/` 加载，依赖版本匹配且固定，上游生产源码未修改，许可证和来源记录完整。 (verification: unit)
+- AC2 — 插件从 `scripts/lint/anti-slop/` 加载，依赖版本匹配且固定，上游通用生产源码未修改，不保留未使用的 Effect 插件，许可证和来源记录完整。 (verification: unit)
 - AC3 — 有界的首批清理通过针对性 lint 及受影响契约的现有测试；后续批次遵循相同验证要求。 (verification: unit)
 - AC4 — 准确报告剩余规则盘点及验证边界；文档说明全量采用和迁移尚未完成的状态。 (verification: docs gate)
 
