@@ -11,6 +11,7 @@ import {
 } from '@renderer/utils/errorToast'
 import type { Provider } from '@shared/data/types/provider'
 
+import { resolveAppOwnedError } from './appOwnedError'
 import { openSettingsTab } from './mainWindowNavigation'
 import { openExternalWebsite } from './website'
 
@@ -48,12 +49,17 @@ export interface ErrorToastContext {
 
 function errorFromException(error: unknown, context: ErrorToastContext = {}): string {
   const serialized = serializeToastError(error)
+  const localized = resolveAppOwnedError(serialized, i18n)
   const classification = classifyError(serialized, context.provider?.id)
   const category = context.category ?? classification.category
   const provider = context.provider
   const cloudPresentation = getCherryCloudErrorPresentation(serialized, provider?.id, category)
   const planQuota = cloudPresentation.quota
-  const presentation: ErrorToastPresentation = planQuota ? { type: 'warning' } : errorToastPresentations[category]
+  const presentation: ErrorToastPresentation = localized
+    ? { type: 'error' }
+    : planQuota
+      ? { type: 'warning' }
+      : errorToastPresentations[category]
   const details = planQuota ? cloudPresentation.text : providerErrorText(serialized)
   const configure = provider
     ? () => openSettingsTab(`/settings/provider?id=${encodeURIComponent(provider.id)}`)
@@ -74,11 +80,13 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   let running = false
   const key = notifications[presentation.type]({
     key: context.key,
-    title: planQuota
-      ? i18n.t('models.detail.quota_exhausted')
-      : category === 'unknown'
-        ? details || i18n.t('error.unknown')
-        : i18n.t(diagnosisKey),
+    title: localized
+      ? localized.title
+      : planQuota
+        ? i18n.t('models.detail.quota_exhausted')
+        : category === 'unknown'
+          ? details || i18n.t('error.unknown')
+          : i18n.t(diagnosisKey),
     description:
       [
         context.mcpServer?.name ?? provider?.name,
@@ -89,7 +97,7 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
       ]
         .filter(Boolean)
         .join(' · ') || undefined,
-    details: category === 'unknown' ? undefined : details,
+    details: localized ? localized.detail : category === 'unknown' ? undefined : details,
     action:
       run && actionKind
         ? {

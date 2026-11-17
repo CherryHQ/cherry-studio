@@ -6,6 +6,8 @@ import { agentSessionContextService as contexts } from '@data/services/AgentSess
 import { ensureAgentSessionRootTx } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 
+import { BranchRuntimeMismatchError } from '../branchRuntimeMismatch'
+
 export function reservePiBranchTx(tx: DbOrTx, sessionId: string, anchorMessageId: string, nativeId: string) {
   const backend = contexts.ensureBackendTx(tx, { version: 1, kind: 'pi' }, 'bound')
   return contexts.reserveBranchTx(tx, { sessionId, backendId: backend.id, anchorMessageId, nativeThreadId: nativeId })
@@ -18,7 +20,7 @@ export function preparePiBranch(sessionId: string, messageId?: string, nativeId?
     const existing = contexts.branchTx(tx, sessionId, messageId ?? root)
     if (existing) {
       if (contexts.backendTx(tx, existing.backendId).locator.kind !== 'pi')
-        throw new Error('The selected branch belongs to another runtime')
+        throw new BranchRuntimeMismatchError('The selected branch belongs to another runtime')
       if (nativeId && existing.nativeThreadId !== nativeId)
         throw new Error('Requested Pi identity does not match the captured branch')
       return existing

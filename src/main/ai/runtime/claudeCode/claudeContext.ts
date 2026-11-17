@@ -6,6 +6,8 @@ import { agentSessionContextService as contexts } from '@data/services/AgentSess
 import { ensureAgentSessionRootTx, getAgentSessionHead } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 
+import { BranchRuntimeMismatchError } from '../branchRuntimeMismatch'
+
 export function prepareClaudeBranch(sessionId: string, configDir: string, nativeId?: string, messageId?: string) {
   agentSessionService.assertIndependentSession(sessionId)
   return application.get('DbService').withWriteTx((tx) => {
@@ -15,7 +17,7 @@ export function prepareClaudeBranch(sessionId: string, configDir: string, native
     if (existing && (!nativeId || existing.nativeThreadId === nativeId)) {
       const backend = contexts.backendTx(tx, existing.backendId)
       if (backend.locator.kind !== 'claude-code' || backend.locator.configDir !== configDir)
-        throw new Error('The selected branch belongs to another runtime backend')
+        throw new BranchRuntimeMismatchError('The selected branch belongs to another runtime backend')
       return existing
     }
     const backend = contexts.ensureBackendTx(tx, { version: 1, kind: 'claude-code', configDir }, 'bound')

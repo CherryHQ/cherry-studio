@@ -7,6 +7,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
+import { resolveAppOwnedError } from '@renderer/services/appOwnedError'
 import type { SerializedError } from '@renderer/types/error'
 import { getCherryCloudErrorPresentation } from '@renderer/utils/cherryCloudErrorPresentation'
 import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
@@ -60,6 +61,14 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   if (i18n.exists(i18nKey)) {
     const providerId =
       error && 'providerId' in error ? ((error as Record<string, unknown>).providerId as string | undefined) : undefined
+    const appOwned = error ? resolveAppOwnedError(error, i18n) : undefined
+    if (appOwned) {
+      return (
+        <span>
+          {appOwned.title} {appOwned.detail ?? null}
+        </span>
+      )
+    }
     if (providerId && typeof providerId === 'string') {
       return (
         <Trans
