@@ -2,4 +2,4 @@
 '@cherrystudio/provider-registry': patch
 ---
 
-Mark GPT 5.6 Luna top_p as unsupported so requests omit the rejected parameter.
+Correct sampling support for GPT 5.6 Luna, Kimi K3, and MiniMax M3 models, and declare official GLM 5-series sampling ranges.
