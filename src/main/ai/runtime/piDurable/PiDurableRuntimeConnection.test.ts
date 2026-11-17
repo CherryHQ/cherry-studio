@@ -2262,6 +2262,22 @@ describe('desktop Pi Durable connection', () => {
     expect(events).not.toContainEqual(expect.objectContaining({ type: 'steer-boundary', inputIds: [second.id] }))
   })
 
+  // A follow-up that fails before reaching Durable is in no queue; handing it back lets the host send it.
+  it('hands a follow-up whose submission throws back to the host', async () => {
+    const held = answerByInput()
+    const { connection, events } = await connect()
+    await connection.send({ message: message('first') })
+    await held.reached
+    const second = message('second')
+    const changed = { ...second, data: { parts: [{ type: 'text' as const, text: 'edited elsewhere' }] } }
+
+    expect(connection.followUp({ message: changed, systemReminder: true })).toBe(true)
+
+    await expect.poll(() => events).toContainEqual({ type: 'steer-undelivered', inputIds: [second.id] })
+    held.open()
+    await done(events)
+  })
+
   // AC4: the queued input is Durable's record, so it is answered after the app exits mid-turn.
   it('answers a queued follow-up after reopening', async () => {
     const held = answerByInput()

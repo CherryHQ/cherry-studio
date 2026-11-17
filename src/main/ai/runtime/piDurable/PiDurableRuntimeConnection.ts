@@ -74,6 +74,9 @@ function isCompactCommand(text: string) {
   return /^\/compact(?:\s|$)/.test(text.trim())
 }
 
+/** Durable answered the submission; the host already received it as `input-submission`. */
+class SubmissionRefused extends Error {}
+
 export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   get contextId(): string | undefined {
     return this.context?.id
@@ -256,9 +259,13 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     // `/compact` is a host command; it waits in the host queue and runs as compaction.
     if (!this.sending || this.closing || this.compacting || isCompactCommand(text)) return false
     this.queued.add(input.message.id)
-    void this.submit(input, wrapSteerReminder(text), 'follow-up').catch((error) =>
+    void this.submit(input, wrapSteerReminder(text), 'follow-up').catch((error) => {
       logger.warn('Durable follow-up submission failed', { sessionId: this.input.sessionId, error })
-    )
+      if (error instanceof SubmissionRefused) return
+      // It never reached Durable's queue, so the host queues it instead.
+      this.queued.delete(input.message.id)
+      this.events.push({ type: 'steer-undelivered', inputIds: [input.message.id] })
+    })
     return true
   }
 
@@ -274,7 +281,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     this.events.push({ type: 'input-submission', contextId: this.context!.id, result })
     if (result.status !== 'acknowledged') {
       applyNativeSubmissionResult(this.input.sessionId, this.context!.id, result)
-      throw new Error(result.error.message)
+      throw new SubmissionRefused(result.error.message)
     }
     this.captureInput(result)
   }
@@ -329,7 +336,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       )
       await this.projection.accept(batch)
       // The answer before a placed input arrives in the same batch, so the boundary follows its projection.
-      if (placements.length) this.events.push({ type: 'steer-boundary', inputIds: placements })
+      if (placements.length) this.events.push({ type: 'steer-boundary', inputIds: placements, followUp: true })
       const results = batch.backgroundResults
       this.events.push({
         type: 'background-results',
@@ -373,7 +380,16 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     if (key !== undefined) this.captured.set(key, input)
     this.events.push({ type: 'input-state', contextId: this.context!.id, input })
     const messageId = bindNativeInput(this.input.sessionId, this.context!.id, input)
-    if (!messageId || !input.facts.includes('placed')) return
+    if (!messageId) return
+    if (input.facts.includes('placed')) this.announcePlacement(messageId, input, placements)
+    // Durable never places an input again once it has an outcome.
+    if (input.outcome) {
+      this.queued.delete(messageId)
+      this.placed.delete(messageId)
+    }
+  }
+
+  private announcePlacement(messageId: string, input: InputState, placements?: string[]) {
     if (this.steers.delete(messageId)) {
       this.placed.add(messageId)
       this.events.push({ type: 'steer-boundary', inputIds: [messageId] })

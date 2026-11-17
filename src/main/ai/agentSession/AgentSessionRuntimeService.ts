@@ -310,6 +310,8 @@ type AgentSessionRuntimeEntry = {
   recoveredOutcomes?: Map<string, NativeInputState>
   /** `inputId:outcome` pairs already resolved outside a live turn; Durable republishes them every revision. */
   notedOutcomes?: Set<string>
+  /** Follow-up placements waiting for the current reply to open; each starts its own reply, in order. */
+  deferredPlacements?: (readonly string[])[]
   interactionWindowId?: string
   sessionId: string
   topicId: string
@@ -726,6 +728,26 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.prediction?.controller.abort()
     this.syncRuntimeActivity()
     for (const effect of transition.effects) this.applyRuntimeStateEffect(entry, effect)
+    this.flushDeferredPlacements(entry)
+  }
+
+  private flushDeferredPlacements(entry: AgentSessionRuntimeEntry): void {
+    while (entry.deferredPlacements && !this.placementWaits(entry)) {
+      const [next, ...rest] = entry.deferredPlacements
+      entry.deferredPlacements = rest.length ? rest : undefined
+      this.startPlacedInputs(entry, next)
+    }
+  }
+
+  /** A follow-up runs on its own, so it must not join a pending reply or roll one that has no stream yet. */
+  private placementWaits(entry: AgentSessionRuntimeEntry): boolean {
+    const execution = entry.runtimeState.execution
+    return (
+      execution.kind === 'steer-transition' ||
+      (execution.kind === 'turn' &&
+        (execution.reservation !== undefined ||
+          !['open', 'awaiting-persistence'].includes(execution.reply.delivery.kind)))
+    )
   }
 
   private syncRuntimeActivity(): void {
@@ -2570,7 +2592,10 @@ export class AgentSessionRuntimeService extends BaseService {
         this.noteNativeOutcome(entry, event.input)
         break
       case 'steer-boundary':
-        this.startPlacedInputs(entry, event.inputIds, connection)
+        // Each follow-up placement keeps its place behind earlier ones and gets its own reply.
+        if (event.followUp && (entry.deferredPlacements || this.placementWaits(entry)))
+          (entry.deferredPlacements ??= []).push(event.inputIds)
+        else this.startPlacedInputs(entry, event.inputIds, connection)
         break
       case 'steer-undelivered':
         // Steers stashed via redirect() that this turn ended before injecting → queue them as the
@@ -3375,6 +3400,13 @@ export class AgentSessionRuntimeService extends BaseService {
       return
     ;(entry.notedOutcomes ??= new Set()).add(noted)
     if (replyId) (entry.recoveredOutcomes ??= new Map()).set(replyId, input)
+    // Stop withdraws input Durable had not placed yet, so no reply will ever follow it.
+    else if (
+      input.outcome === 'aborted' &&
+      !input.facts.includes('placed') &&
+      !agentSessionMessageService.replyTo(entry.sessionId, input.inputId)
+    )
+      agentSessionMessageService.markUserMessageUnsent(entry.sessionId, input.inputId)
   }
 
   /** Persists a reply with the status that the native outcome maps to. */

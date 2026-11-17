@@ -5272,6 +5272,43 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceFocus).not.toHaveBeenCalled()
   })
 
+  // Durable withdrew this message at Stop: resending must deliver it as it was, editing must not erase a draft.
+  it('resends or restores a message that Stop withdrew before sending', async () => {
+    const parts = [{ type: 'text' as const, text: 'Queued question' }]
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    const restore = (send: boolean) =>
+      act(async () => {
+        await EventEmitter.emit(EVENT_NAMES.RESTORE_AGENT_COMPOSER_MESSAGE, {
+          topicId: 'agent-session:session-1',
+          messageId: 'unsent-1',
+          parts,
+          send
+        })
+      })
+
+    await restore(true)
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(mocks.sendMessage.mock.calls[0][1].body.userMessageParts).toEqual(parts)
+
+    mocks.getDraft.mockReturnValue({ text: 'Draft in progress', tokens: [] })
+    await restore(false)
+    expect(mocks.replaceDraft).not.toHaveBeenCalled()
+    expect(toast.warning).toHaveBeenCalledWith('agent.unsent_message.input_not_empty')
+
+    mocks.getDraft.mockReturnValue({ text: '', tokens: [] })
+    await restore(false)
+    expect(mocks.replaceDraft).toHaveBeenCalledWith({ text: 'Queued question', tokens: [] })
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+  })
+
   it('attaches a file or folder from the file pane once, and only in its own session', async () => {
     const composer = () => (
       <AgentComposer

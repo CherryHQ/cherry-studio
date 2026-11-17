@@ -1453,6 +1453,34 @@ const AgentComposerInner = ({
     ]
   )
 
+  // A message the runtime withdrew before the agent received it: sent again as it was, or brought back to edit.
+  useEffect(() => {
+    if (!layerActive) return
+    return EventEmitter.on(EVENT_NAMES.RESTORE_AGENT_COMPOSER_MESSAGE, (payload) => {
+      const data = payload as { topicId?: string; messageId?: string; parts?: CherryMessagePart[]; send?: boolean }
+      if (!data?.messageId || !data.parts?.length || data.topicId !== sessionTopicId) return
+      if (data.send) {
+        void sendQueuedPayload({ text: getComposerHistoryText(data.parts), userMessageParts: data.parts }, isStreaming)
+        return
+      }
+      if (actionsRef.current.getDraft().text.trim() || filesRef.current.length > 0) {
+        toast.warning(t('agent.unsent_message.input_not_empty'))
+        return
+      }
+      const edited = createEditableMessageDraft(data.parts, data.messageId)
+      restoreFollowupDraft({
+        id: data.messageId,
+        draft: { text: edited.text, tokens: edited.draftTokens },
+        payload: {
+          text: edited.text,
+          userMessageParts: data.parts,
+          attachments: edited.files as unknown as Array<Record<string, unknown>>
+        }
+      })
+      actionsRef.current.focus('end')
+    })
+  }, [actionsRef, filesRef, isStreaming, layerActive, restoreFollowupDraft, sendQueuedPayload, sessionTopicId, t])
+
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft, options?: { steer?: boolean }) => {
       if (sendDisabled) return

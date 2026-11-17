@@ -658,6 +658,92 @@ it.each([
   expect(messages.getSessionMessage('root', f.reply.id).data.parts).toEqual(text('', 'First answer').parts)
 })
 
+// Durable answers each placement in its own run; one placed before the previous reply opens must not join it.
+it('gives a Durable placement its own reply when it arrives before the previous one opens', async () => {
+  const launched: StartRuntimeTurnInput[] = []
+  MockApplicationUtils.setService('AiStreamManager', {
+    startRuntimeTurn: (input: StartRuntimeTurnInput) => void launched.push(input)
+  })
+  const f = await fixture(undefined, false, 'pi-durable')
+  await vi.waitFor(() => expect(f.connections.sent).toHaveLength(1))
+  await f.project([text('first', 'First answer')])
+  const second = savedUser(f.reply.id, 'Second question')
+  const third = savedUser(second.id, 'Third question')
+  f.service.enqueueUserMessage('root', second, { followUp: true })
+  f.service.enqueueUserMessage('root', third, { followUp: true })
+
+  await f.emit({ type: 'steer-boundary', inputIds: [second.id], followUp: true })
+  await f.project([text('second', 'Second answer')])
+  await f.emit({ type: 'steer-boundary', inputIds: [third.id], followUp: true })
+  const first = await f.done
+  const result: StreamDoneResult = { status: 'success', finalMessage: first.finalMessage, isTopicDone: false }
+  await f.handle.listeners[0].onDone(result)
+  await f.handle.listeners[1].onDone(result)
+  await expect.poll(() => launched).toHaveLength(1)
+  const runtime = launched[0].request.runtime
+  if (runtime?.kind !== 'agent-session') throw new Error('Expected a runtime turn')
+  const source = f.service.openTurnStream({
+    sessionId: 'root',
+    turnId: runtime.turnId,
+    signal: launched[0].abortController!.signal
+  })
+  if (source.kind !== 'messages') throw new Error('Expected message source')
+  let streamed: Awaited<ReturnType<typeof pipeMessageStream>> | undefined
+  void pipeMessageStream(
+    source.stream,
+    launched[0].abortController!.signal,
+    { id: launched[0].request.messageId!, role: 'assistant', parts: [] },
+    () => {},
+    () => {}
+  ).then((value) => (streamed = value))
+  // The third placement ends this reply once its stream has taken the buffered answer.
+  await expect.poll(() => streamed).toBeDefined()
+  const handoff: StreamDoneResult = { status: 'success', finalMessage: streamed!.finalMessage, isTopicDone: false }
+  for (const listener of launched[0].listeners) await listener.onDone(handoff)
+  await expect.poll(() => launched).toHaveLength(2)
+
+  expect(launched.map((input) => input.request.messages?.[0]?.id)).toEqual([second.id, third.id])
+  expect(launched[1].request.messageId).not.toBe(launched[0].request.messageId)
+  expect(messages.getSessionMessage('root', launched[0].request.messageId!).data.parts).toEqual(
+    text('', 'Second answer').parts
+  )
+})
+
+// AC4 Stop: Durable withdraws input still queued; the transcript must not show it as sent.
+it('marks a queued Durable input that Stop withdrew as not sent', async () => {
+  MockApplicationUtils.setService('AiStreamManager', {
+    drainRuntimeReply: async () => {},
+    pauseRuntimeTurn: () => false
+  })
+  const f = await fixture(async () => {}, true, 'pi-durable')
+  await vi.waitFor(() => expect(f.connections.sent).toHaveLength(1))
+  await f.project([text('answer', 'Partial answer')])
+  const queued = savedUser(f.reply.id, 'Queued question')
+  f.service.enqueueUserMessage('root', queued, { followUp: true })
+  f.handle.abortController.abort('user-requested')
+  const paused: StreamPausedResult = { status: 'paused', isTopicDone: true, finalMessage: (await f.done).finalMessage }
+  await f.handle.listeners[0].onPaused(paused)
+  await f.handle.listeners[1].onPaused(paused)
+  const stopped = f.service.stopSession('root', 'user-requested')
+
+  await f.emit({
+    type: 'input-state',
+    contextId: f.context.id,
+    input: {
+      inputId: runtimeId(queued.id),
+      facts: ['accepted', 'queued'],
+      outcome: 'aborted',
+      error: { operation: 'input', code: 'aborted', message: 'aborted' }
+    }
+  })
+  await f.emit({ type: 'turn-complete', status: 'paused' })
+  await f.emit({ type: 'stop-confirmed' })
+  await stopped
+
+  expect(messages.getSessionMessage('root', queued.id).status).toBe('paused')
+  expect(messages.getSessionMessage('root', f.reply.id).status).toBe('paused')
+})
+
 // AC4: a queued input that starts native work on its own has no reply to continue yet.
 it('opens a new reply when a queued Durable input starts native work', async () => {
   let next: StartRuntimeTurnInput | undefined

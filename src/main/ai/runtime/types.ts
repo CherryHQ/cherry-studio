@@ -173,8 +173,9 @@ export type AgentRuntimeEvent =
    *  assistant message. Marks where the host should roll the assistant message: finalise the
    *  pre-steer parts as one row (A1a) and stream the continuation into a fresh row (A2), so the
    *  steer user message sorts between them instead of dangling after the whole turn.
-   *  A runtime with `followUp()` also emits it when it places a queued input, after the content before it. */
-  | { type: 'steer-boundary'; inputIds: readonly string[] }
+   *  A runtime with `followUp()` also emits it when it places a queued input, after the content before it;
+   *  `followUp` marks that placement, which starts its own run and so never joins another reply. */
+  | { type: 'steer-boundary'; inputIds: readonly string[]; followUp?: true }
   | { type: 'input-submission'; contextId: string; result: SubmitResult }
   | { type: 'input-state'; contextId: string; input: InputState }
   | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
