@@ -20,6 +20,7 @@ beforeEach(() => {
     paths.runState,
     createRun({
       appVersion: 'development',
+      mockVersion: '1.46.0',
       commitSha: 'sha',
       mode: 'branch',
       platform: 'macos',
@@ -56,34 +57,32 @@ describe('Playwright reporter contract', () => {
       reporter.onTestEnd(test, passed)
     }
     reporter.onEnd({ status: 'passed', startTime: new Date(), duration: 10 })
-    expect(getRunVerdict(readRun(paths.runState))).toBe('development_pass')
+    expect(getRunVerdict(readRun(paths.runState))).toBe('mock_pass')
     expect(readRun(paths.runState).metadata.task).toBe('startup-smoke,notes-smoke')
     expect(readRun(paths.runState).cases['APP-01'].status).toBe('not_applicable')
   })
 
   it('retains the case fixture provenance and redacts sensitive values before reporting it', () => {
-    vi.stubEnv('CHERRY_TEST_CUSTOM_PROVIDER_API_KEY', 'test-secret')
     const reporter = new RegressionReporter()
     reporter.onBegin(config, suite)
     reporter.onTestBegin(startup)
     reporter.onTestEnd(startup, {
       ...passed,
-      annotations: [{ type: 'data-source', description: 'Mock fixture test-secret; real UI' }]
+      annotations: [{ type: 'data-source', description: 'Mock fixture mock-key-not-checked; real UI' }]
     })
     const run = readRun(getRunPaths(directory).runState)
     expect(run.cases['S-01'].dataSources).toEqual(['Mock fixture [REDACTED]; real UI'])
   })
   it('preserves a global executor error even when every test and onEnd report passed', () => {
-    vi.stubEnv('CHERRY_TEST_CUSTOM_PROVIDER_API_KEY', 'test-secret')
     const reporter = new RegressionReporter()
     reporter.onBegin(config, suite)
     reporter.onTestBegin(startup)
     reporter.onTestEnd(startup, passed)
-    reporter.onError({ message: 'teardown failed: test-secret' })
+    reporter.onError({ message: 'teardown failed: mock-key-not-checked' })
     reporter.onEnd({ status: 'passed', startTime: new Date(), duration: 10 })
 
     const run = readRun(getRunPaths(directory).runState)
-    expect(getRunVerdict(run)).toBe('development_failed')
+    expect(getRunVerdict(run)).toBe('mock_failed')
     expect(run.cases['S-01'].status).toBe('passed')
     expect(run.phases['startup'].errors).toEqual(['Executor error: teardown failed: [REDACTED]'])
   })
@@ -107,7 +106,7 @@ describe('Playwright reporter contract', () => {
     })
     reporter.onEnd({ status: 'passed', startTime: new Date(), duration: 10 })
     const run = readRun(getRunPaths(directory).runState)
-    expect(getRunVerdict(run)).toBe('development_blocked')
+    expect(getRunVerdict(run)).toBe('mock_blocked')
     expect(run.cases['S-01'].summary).toContain('desktopAutomation')
   })
 })
