@@ -43,6 +43,29 @@ The built-in drivers are Claude Code, Pi and Pi Durable. Their
 query/session transports, tool surfaces, approval gates, and resume formats are
 driver internals behind the same host contract.
 
+## Next-prompt suggestions
+
+After observing a successful interactive reply, the Agent composer requests
+`ai.agent.session.predict_prompt` with the source reply and model IDs. Main validates
+that the same idle turn and connection still own the request, deduplicates by reply,
+and cancels on input, context invalidation, connection closure or preference changes.
+`ai.agent.session.abort_prediction` cancels the matching request when the composer
+is no longer eligible. Results are ephemeral; Tab accepts editable text without sending.
+
+Claude Code enables the SDK's `promptSuggestions` option for interactive cold and
+warm queries. Its native `prompt_suggestion` arrives after `result` through the existing
+reader. Native suppression yields no host fallback; replay and observation gaps cannot
+revive a suggestion. Disabling the preference updates the connection rebuild signature,
+so a busy query adopts the option at the next safe idle boundary.
+
+Pi and Pi Durable use their native `predictPrompt` access on an isolated effective-context
+snapshot, including compaction. They append the Claude Code suggestion instruction from
+`src/main/ai/runtime/promptSuggestion.ts` verbatim. The request uses the active gateway
+model, no executable tools, no retry, a ten-second timeout and no reasoning (or the lowest
+supported effort). Tool-call output is rejected. Prediction neither submits a turn nor
+writes history, tasks or goals; gateway billing remains the only accounting path.
+Headless/autonomous turns and history opening do not request host predictions.
+
 ## Ownership
 
 | Owner | Responsibility |

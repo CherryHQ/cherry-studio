@@ -86,6 +86,7 @@ export interface PiDurableThreadHandle extends ThreadHandle {
         readonly handle: PiDurableThreadHandle
       }>
     >
+    predictPrompt(prompt: string, signal: AbortSignal, headers?: Record<string, string>): Promise<string>
     facts(): Promise<ConversationFacts>
     providerSessionId(): Promise<string | undefined>
     behaviorToolCallId(call: CallRef): Promise<string | undefined>
@@ -651,6 +652,46 @@ export async function createPiDurableRuntime(
             return rejected('open-child', 'closed')
           }
           return { status: 'confirmed', value: { relation: found.value, handle: opened.value } }
+        },
+        async predictPrompt(prompt, signal, headers) {
+          if (unavailable()) return ''
+          const usage = await entry.conversation.contextUsage(context)
+          if (!usage || unavailable() || signal.aborted) return ''
+          const models =
+            typeof options.harness.models === 'function' ? options.harness.models() : options.harness.models
+          const model = models.getModel(usage.model.provider, usage.model.modelId)
+          if (!model) return ''
+          // oxlint-disable-next-line no-restricted-globals -- Providers may transform messages; prediction must not mutate durable context.
+          const messages = structuredClone([...usage.messages])
+          for (const message of messages) {
+            if (message.role === 'system') {
+              delete message.toolsAdded
+              delete message.toolsRemoved
+            }
+          }
+          messages.push({ role: 'user', content: prompt, timestamp: Date.now() })
+          const result = await models.completeSimple(
+            model,
+            { messages },
+            {
+              signal: AbortSignal.any([signal, closingAccess.signal]),
+              toolChoice: 'none',
+              headers,
+              maxRetries: 0,
+              timeoutMs: 10_000
+            }
+          )
+          if (
+            signal.aborted ||
+            unavailable() ||
+            result.stopReason !== 'stop' ||
+            result.content.some((part) => part.type === 'toolCall')
+          )
+            return ''
+          return result.content
+            .filter((part) => part.type === 'text')
+            .map((part) => part.text)
+            .join('')
         },
         providerSessionId: async () => (await native.snapshot(ProviderDoc, entry.conversation.id, context))?.sessionId,
         facts: () => native.commit((tx) => readFacts(tx, entry.conversation.id), context),

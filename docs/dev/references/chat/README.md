@@ -78,13 +78,13 @@ IME composition keep their existing behavior. Unaccepted suggestions are not
 saved in drafts or session history, and stale results are ignored after a
 session/model change or new turn.
 
-Prediction uses the current model through a cancellable one-shot text request,
-with tools disabled and reasoning turned off when supported, or set to the lowest
-supported effort otherwise. It uses no retries or fallback models and a
-10-second transport timeout. Only text from the last four messages is sent,
-at most 1,000 characters per message. Prediction starts on the next event-loop
-turn without a fixed debounce delay. Failures or unusable predictions leave
-the input unchanged; each eligible reply adds at most one request.
+Claude Code uses its native suggestion option and events, preserving the runtime's
+suppression rules. Pi and Pi Durable predict from their effective native context,
+including compaction, through an isolated tool-free request using the active model
+and the Claude Code suggestion instruction. No prediction is written to history or
+submitted as an Agent turn. See [Agent Session Runtime](../ai/agent-session-runtime.md#next-prompt-suggestions)
+for ownership and cancellation. Other runtimes retain the four-message text-only
+fallback. Failures or unusable predictions leave the input unchanged.
 
 ## Ordinary persisted chat context
 

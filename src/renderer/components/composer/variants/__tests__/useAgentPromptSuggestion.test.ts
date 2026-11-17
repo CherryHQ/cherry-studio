@@ -126,7 +126,8 @@ it('cancels on user input and never resurrects the suggestion after clearing the
   rerender({ ...initial, busy: false })
   await act(() => vi.advanceTimersByTimeAsync(300))
   expect(result.current.text).toBe('')
-  expect(request.mock.calls.filter(([route]) => route === 'ai.text.generate')).toHaveLength(1)
+  expect(request.mock.calls.filter(([route]) => route === 'ai.agent.session.predict_prompt')).toHaveLength(1)
+  expect(request.mock.calls.some(([route]) => route === 'ai.text.generate')).toBe(false)
 })
 
 it('ignores a late prediction after switching sessions', async () => {
@@ -180,4 +181,22 @@ it('keeps the composer usable when prediction fails', async () => {
   const { result, rerender } = renderHook(useAgentPromptSuggestion, { initialProps: initial })
   await complete(rerender)
   expect(result.current.text).toBe('')
+})
+
+it('displays native predictions without making a second model request', async () => {
+  request.mockResolvedValue({ supported: true, text: 'run the tests' })
+  const { result, rerender } = renderHook(useAgentPromptSuggestion, { initialProps: initial })
+  await complete(rerender)
+  expect(result.current.text).toBe('run the tests')
+  expect(request.mock.calls.some(([route]) => route === 'ai.text.generate')).toBe(false)
+  act(() => result.current.dismiss())
+  expect(result.current.text).toBe('')
+})
+
+it('does not replace native suppression with a renderer model request', async () => {
+  request.mockResolvedValue({ supported: true, text: '' })
+  const { result, rerender } = renderHook(useAgentPromptSuggestion, { initialProps: initial })
+  await complete(rerender)
+  expect(result.current.text).toBe('')
+  expect(request.mock.calls.some(([route]) => route === 'ai.text.generate')).toBe(false)
 })

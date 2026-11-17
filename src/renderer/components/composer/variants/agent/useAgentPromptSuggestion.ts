@@ -30,6 +30,7 @@ export function useAgentPromptSuggestion({
   const [enabled] = usePreference('agent.input.suggestions.enabled')
   const lastMessage = messages.at(-1)
   const turnKey = `${sessionId}:${lastMessage?.id ?? ''}:${model?.id ?? ''}`
+  const replyId = lastMessage?.id
   const modelId = model?.id
   const reasoningEffort = model ? (resolveReasoningEffortForModel(model, 'none') ?? 'none') : 'none'
   const owner = useMemo(() => Symbol(`${sessionId}:${modelId}`), [sessionId, modelId])
@@ -72,21 +73,25 @@ export function useAgentPromptSuggestion({
   }, [blocked, busy, turnKey])
 
   useEffect(() => {
-    if (!eligible || !modelId || attempted.current === turnKey) return
+    if (!eligible || !modelId || !replyId || attempted.current === turnKey) return
     let cancelled = false
     let requestId: string | undefined
     const timer = setTimeout(() => {
       attempted.current = turnKey
       requestId = crypto.randomUUID()
       void ipcApi
-        .request('ai.text.generate', {
-          requestId,
-          uniqueModelId: modelId,
-          reasoningEffort,
-          disableTools: true,
-          system: SUGGESTION_PROMPT,
-          prompt: context,
-          requestOptions: { maxRetries: 0, timeout: 10_000 }
+        .request('ai.agent.session.predict_prompt', { sessionId, replyId, modelId, requestId })
+        .then((prediction) => {
+          if (prediction.supported || cancelled) return prediction
+          return ipcApi.request('ai.text.generate', {
+            requestId,
+            uniqueModelId: modelId,
+            reasoningEffort,
+            disableTools: true,
+            system: SUGGESTION_PROMPT,
+            prompt: context,
+            requestOptions: { maxRetries: 0, timeout: 10_000 }
+          })
         })
         .then(({ text }) => {
           const suggestion = text.trim()
@@ -99,9 +104,12 @@ export function useAgentPromptSuggestion({
     return () => {
       cancelled = true
       clearTimeout(timer)
-      if (requestId) void ipcApi.request('ai.text.abort', { requestId }).catch(() => undefined)
+      if (requestId) {
+        void ipcApi.request('ai.agent.session.abort_prediction', { sessionId, requestId }).catch(() => undefined)
+        void ipcApi.request('ai.text.abort', { requestId }).catch(() => undefined)
+      }
     }
-  }, [context, eligible, modelId, reasoningEffort, turnKey])
+  }, [context, eligible, replyId, modelId, reasoningEffort, sessionId, turnKey])
 
   const dismiss = useCallback(() => setDismissedTurn(turnKey), [turnKey])
   return { text: eligible && result?.turnKey === turnKey ? result.text : '', dismiss }

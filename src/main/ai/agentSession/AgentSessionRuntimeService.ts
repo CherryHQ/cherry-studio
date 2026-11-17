@@ -75,6 +75,7 @@ import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shar
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
+import { normalizePromptSuggestion } from '../runtime/promptSuggestion'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
 import type {
@@ -279,6 +280,7 @@ type RuntimeState = AgentSessionRuntimeState<AgentSessionTurn, PendingAgentSessi
 type RuntimeStateEvent = AgentSessionRuntimeStateEvent<AgentSessionTurn, PendingAgentSessionTurn>
 
 type AgentSessionRuntimeEntry = {
+  prediction?: { requestId: string; replyId: string; controller: AbortController }
   closing?: true
   interactionWindowId?: string
   sessionId: string
@@ -539,6 +541,16 @@ export class AgentSessionRuntimeService extends BaseService {
         })
       })
     )
+    this.registerDisposable(
+      application.get('PreferenceService').subscribeChange('agent.input.suggestions.enabled', () => {
+        for (const entry of this.entries.values()) {
+          entry.prediction?.controller.abort()
+          void this.reconcileEntryConnection(entry).catch((error) =>
+            logger.warn('Prediction preference reconcile failed', { error })
+          )
+        }
+      })
+    )
     this.registerDisposable(toolApprovalRegistry.onAborted((aborted) => this.retireAbortedApprovalCard(aborted)))
   }
 
@@ -604,6 +616,50 @@ export class AgentSessionRuntimeService extends BaseService {
     return isAgentSessionRuntimeTurnLive(entry.runtimeState, turn)
   }
 
+  async predictPrompt(input: {
+    sessionId: string
+    replyId: string
+    modelId: UniqueModelId
+    requestId: string
+  }): Promise<{ supported: boolean; text: string }> {
+    const entry = this.entries.get(input.sessionId)
+    const supported = !entry || ['claude-code', 'pi', 'pi-durable'].includes(entry.agentType)
+    const empty = { supported, text: '' }
+    if (!supported || !entry) return empty
+    const connection = this.currentConnection(entry)
+    const turn = getAgentSessionRuntimeCurrentTurn(entry.runtimeState)
+    const eligible = () =>
+      this.isCurrentEntry(entry) &&
+      !entry.closing &&
+      this.runtimeStatus(entry) === 'idle' &&
+      !hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) &&
+      this.currentConnection(entry) === connection &&
+      getAgentSessionRuntimeCurrentTurn(entry.runtimeState) === turn &&
+      entry.runtimeState.lastTerminal === 'success' &&
+      !turn?.headless &&
+      !turn?.origin &&
+      turn?.assistantMessageId === input.replyId &&
+      entry.modelId === input.modelId &&
+      application.get('PreferenceService').get('agent.input.suggestions.enabled')
+    if (!eligible() || !connection?.predictPrompt || entry.prediction?.replyId === input.replyId) return empty
+    entry.prediction?.controller.abort()
+    const controller = new AbortController()
+    entry.prediction = { requestId: input.requestId, replyId: input.replyId, controller }
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)])
+    try {
+      const text = await connection.predictPrompt(signal)
+      return eligible() && !signal.aborted ? { supported, text: normalizePromptSuggestion(text) } : empty
+    } catch (error) {
+      if (!signal.aborted) logger.debug('Prompt prediction unavailable', { sessionId: input.sessionId, error })
+      return empty
+    }
+  }
+
+  abortPromptPrediction(sessionId: string, requestId: string): void {
+    const prediction = this.entries.get(sessionId)?.prediction
+    if (prediction?.requestId === requestId) prediction.controller.abort()
+  }
+
   private currentConnection(entry: AgentSessionRuntimeEntry): AgentRuntimeConnection | undefined {
     return getAgentSessionRuntimeConnection(entry.runtimeState)
   }
@@ -616,6 +672,8 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!this.isCurrentEntry(entry)) return
     const transition = transitionAgentSessionRuntime(entry.runtimeState, event)
     entry.runtimeState = transition.state
+    if (this.runtimeStatus(entry) !== 'idle' || hasAgentSessionRuntimeBackgroundWork(entry.runtimeState))
+      entry.prediction?.controller.abort()
     this.syncRuntimeActivity()
     for (const effect of transition.effects) this.applyRuntimeStateEffect(entry, effect)
   }
@@ -1242,6 +1300,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (interrupt && attempt) attempt.interrupt = true
     const priorClosing = this.closingSessions.get(sessionId)
     const entry = this.entries.get(sessionId)
+    entry?.prediction?.controller.abort()
     if (!entry) return priorClosing?.promise ?? Promise.resolve()
     if (priorClosing?.entry === entry) return priorClosing.promise
     const closing = this.closeEntry(entry, interrupt)
@@ -2631,6 +2690,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private invalidateContextUsage(entry: AgentSessionRuntimeEntry): void {
+    entry.prediction?.controller.abort()
     entry.contextUsageEpoch = (entry.contextUsageEpoch ?? 0) + 1
     application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId))
   }
@@ -3527,6 +3587,7 @@ export class AgentSessionRuntimeService extends BaseService {
   ): Promise<void> {
     if (!connection) return
     const entry = this.entries.get(sessionId)
+    entry?.prediction?.controller.abort()
     const priorClosing = this.closingSessions.get(sessionId)
     const resumeToken =
       entry?.lastResumeToken ?? priorClosing?.resumeToken ?? this.failedClosureResumeTokens.get(connection)

@@ -213,3 +213,13 @@ results independently of the outer script outcome. Archive projection reads thos
 records without executing tools. Missing legacy or over-budget payloads remain
 explicitly absent; complete successful built-in artifact declarations can render
 through the same tool mapping as direct calls.
+
+## Detached prompt prediction
+
+`durable.predictPrompt(instruction, signal, headers?)` uses `contextUsage` to capture
+the effective model and compacted context, then calls the supplied model runtime once.
+It strips executable tool declarations and rejects tool-call output. It does not submit
+input, resume the scheduler, create tasks, or commit prediction messages. The host owns
+eligibility and source-reply validation; owner shutdown aborts the request, and
+released accesses discard its result. There are
+no retries and the provider timeout is ten seconds.

@@ -335,3 +335,12 @@ results independently of the outer script outcome. Archive projection reads thos
 records without executing tools. Missing legacy or over-budget payloads remain
 explicitly absent; complete successful built-in artifact declarations can render
 through the same tool mapping as direct calls.
+
+## Detached prompt prediction
+
+`pi.predictPrompt(instruction, signal, headers?)` reads the current idle session's
+compacted projection into an isolated context and makes one native model request.
+It strips executable tool declarations, rejects tool-call output, and never submits
+input or appends native history. The host owns eligibility and source-reply validation;
+owner shutdown aborts the request, and released accesses discard its result. The provider request has no retries
+and a ten-second timeout.

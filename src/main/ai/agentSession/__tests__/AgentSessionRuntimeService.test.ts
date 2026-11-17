@@ -602,6 +602,7 @@ describe('AgentSessionRuntimeService', () => {
           terminateHeldTopicStream: mocks.terminateHeldTopicStream
         }
       }
+      if (name === 'PreferenceService') return defaultServiceInstances.PreferenceService
       if (name === 'CacheService')
         return {
           setShared: mocks.cacheSetShared,
@@ -619,6 +620,84 @@ describe('AgentSessionRuntimeService', () => {
       if (name === 'WindowManager') return { getWindow: mocks.getWindow }
       throw new Error(`Unexpected application.get(${name})`)
     })
+  })
+
+  it.each(['run tests', '', 'first\nsecond', 'x'.repeat(121)])(
+    'only publishes a valid prediction: %s',
+    async (text) => {
+      await defaultServiceInstances.PreferenceService.set('agent.input.suggestions.enabled', true)
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, agentType: 'pi' })
+      getEntry(service).connection = { close: vi.fn(), send: vi.fn(), events: [], predictPrompt: async () => text }
+      service.markTurnTerminal('session-1', 'success')
+      expect(
+        await service.predictPrompt({
+          sessionId: 'session-1',
+          replyId: 'assistant-1',
+          modelId: baseTurnInput.modelId,
+          requestId: crypto.randomUUID()
+        })
+      ).toEqual({ supported: true, text: text === 'run tests' ? text : '' })
+      await service.closeSession('session-1')
+    }
+  )
+
+  it.each(['disabled', 'headless', 'failure'] as const)(
+    'does not generate a prediction for %s turns',
+    async (reason) => {
+      await defaultServiceInstances.PreferenceService.set('agent.input.suggestions.enabled', reason !== 'disabled')
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, agentType: 'pi', headless: reason === 'headless' })
+      const predictPrompt = vi.fn(async () => 'run tests')
+      getEntry(service).connection = { close: vi.fn(), send: vi.fn(), events: [], predictPrompt }
+      service.markTurnTerminal('session-1', reason === 'failure' ? 'error' : 'success')
+      expect(
+        await service.predictPrompt({
+          sessionId: 'session-1',
+          replyId: 'assistant-1',
+          modelId: baseTurnInput.modelId,
+          requestId: crypto.randomUUID()
+        })
+      ).toEqual({ supported: true, text: '' })
+      expect(predictPrompt).not.toHaveBeenCalled()
+      await service.closeSession('session-1')
+    }
+  )
+
+  it('binds predictions to the completed reply and cancels them when a new turn starts', async () => {
+    await defaultServiceInstances.PreferenceService.set('agent.input.suggestions.enabled', true)
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, agentType: 'pi' })
+    const entry = getEntry(service)
+    let finish!: (text: string) => void
+    let signal!: AbortSignal
+    const predictPrompt = vi.fn((value: AbortSignal) => {
+      signal = value
+      return new Promise<string>((resolve) => {
+        finish = resolve
+      })
+    })
+    entry.connection = { close: vi.fn(), send: vi.fn(), events: [], predictPrompt }
+    service.markTurnTerminal('session-1', 'success')
+    const input = {
+      sessionId: 'session-1',
+      replyId: 'assistant-1',
+      modelId: baseTurnInput.modelId,
+      requestId: crypto.randomUUID()
+    }
+    expect(await service.predictPrompt({ ...input, replyId: 'older-reply' })).toEqual({ supported: true, text: '' })
+    expect(predictPrompt).not.toHaveBeenCalled()
+    const pending = service.predictPrompt(input)
+    expect(await service.predictPrompt({ ...input, requestId: crypto.randomUUID() })).toEqual({
+      supported: true,
+      text: ''
+    })
+    expect(predictPrompt).toHaveBeenCalledTimes(1)
+    service.beginTurn({ ...baseTurnInput, agentType: 'pi', assistantMessageId: 'assistant-2' })
+    expect(signal.aborted).toBe(true)
+    finish('stale prediction')
+    expect(await pending).toEqual({ supported: true, text: '' })
+    await service.closeSession('session-1')
   })
 
   it('blocks edits only on the source session until its fork settles', async () => {
