@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-17-automation-sensitive-input.md
+2026-11-17-automation-sensitive-input.md: 453ccfdafeefa5f25c43c1274c212249da492acc
+2026-11-17-automation-sensitive-input.zh.md: 84f07925bc3d95ea615ea0cd9e7e5a3d296ba765
