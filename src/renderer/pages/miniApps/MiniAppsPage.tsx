@@ -219,10 +219,7 @@ const MiniAppsPage: FC = () => {
               </div>
             ) : filteredApps.length === 0 && filteredBuiltins.length === 0 ? (
               <div className="flex flex-1 items-center justify-center">
-                <EmptyState
-                  preset={search ? 'no-result' : 'no-miniapp'}
-                  title={search ? t('common.no_results') : t('miniApp.title')}
-                />
+                <EmptyState title={search ? t('common.no_results') : t('miniApp.title')} />
               </div>
             ) : (
               <>

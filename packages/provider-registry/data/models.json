@@ -20473,6 +20473,17 @@
       "ownedBy": "tencent"
     },
     {
+      "capabilities": ["reasoning", "function-call", "structured-output", "image-recognition"],
+      "contextWindow": 1048576,
+      "id": "hy4-flash",
+      "inputModalities": ["text", "image"],
+      "maxInputTokens": 983040,
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Hunyuan 4 Flash",
+      "ownedBy": "tencent"
+    },
+    {
       "capabilities": ["reasoning", "function-call", "structured-output"],
       "contextWindow": 1048576,
       "family": "Hy",
@@ -23654,5 +23665,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "856fd6686c5d9369"
+  "version": "2b31b74f59da81b7"
 }
