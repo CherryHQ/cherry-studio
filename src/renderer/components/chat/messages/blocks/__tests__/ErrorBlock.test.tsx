@@ -207,6 +207,101 @@ required service tier.`
     expect(screen.queryByText(GO_TO_SETTINGS_LABEL)).not.toBeInTheDocument()
   })
 
+  it('shows Pi recovery in the headline when the message has a provider', () => {
+    const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
+    mocks.actions = { diagnoseMessageError }
+    mocks.translations = new Map(Object.entries(enUS))
+    mocks.i18nKeys.add('error.pi_session_identity_ambiguous')
+    mocks.i18nKeys.add('error.pi_session_identity_ambiguous_detail')
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'PiSessionIdentityAmbiguousError',
+          message: 'Pi session identity is ambiguous. Start a new task to continue.',
+          stack: null,
+          streamStage: 'response-stream',
+          i18nKey: 'pi_session_identity_ambiguous',
+          detailI18nKey: 'pi_session_identity_ambiguous_detail'
+        }}
+        message={message}
+      />
+    )
+
+    expect(
+      screen.getByText(enUS['error.pi_session_identity_ambiguous'], { selector: 'div', exact: true })
+    ).toBeVisible()
+    expect(screen.queryByText(enUS['error.diagnosis.unknown'], { exact: true })).not.toBeInTheDocument()
+    expect(screen.getByText(enUS['error.pi_session_identity_ambiguous_detail'], { exact: false })).toBeVisible()
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
+  })
+
+  it('shows Durable turn recovery guidance instead of a response-stream diagnosis', () => {
+    mocks.translations = new Map(Object.entries(enUS))
+    mocks.i18nKeys.add('error.pi_durable_turn_in_progress')
+    mocks.i18nKeys.add('error.pi_durable_turn_in_progress_detail')
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'PiDurableTurnInProgressError',
+          message: 'A Durable turn is already running. Wait for it to finish, then send again.',
+          stack: null,
+          streamStage: 'response-stream',
+          i18nKey: 'pi_durable_turn_in_progress',
+          detailI18nKey: 'pi_durable_turn_in_progress_detail'
+        }}
+        message={message}
+      />
+    )
+
+    expect(
+      screen.getByText(
+        'Work is still answering this conversation. Wait for the current turn to finish, then send again.',
+        { exact: true }
+      )
+    ).toBeVisible()
+    expect(screen.queryByText(enUS['error.diagnosis.stream'], { exact: true })).not.toBeInTheDocument()
+  })
+
+  it('keeps the app headline when a reused block still holds a previous AI summary', async () => {
+    mocks.actions = { diagnoseMessageError: vi.fn().mockResolvedValue('previous summary') }
+    mocks.translations = new Map(Object.entries(enUS))
+    mocks.i18nKeys.add('error.pi_session_identity_ambiguous')
+    mocks.i18nKeys.add('error.pi_session_identity_ambiguous_detail')
+
+    const { rerender } = render(
+      <ErrorBlock partId="message-1-part-0" error={{ name: 'Error', message: 'boom', stack: null }} message={message} />
+    )
+
+    expect(await screen.findByText('previous summary')).toBeVisible()
+
+    rerender(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'PiSessionIdentityAmbiguousError',
+          message: 'Pi session identity is ambiguous. Start a new task to continue.',
+          stack: null,
+          streamStage: 'response-stream',
+          i18nKey: 'pi_session_identity_ambiguous',
+          detailI18nKey: 'pi_session_identity_ambiguous_detail'
+        }}
+        message={message}
+      />
+    )
+
+    expect(
+      screen.getByText(enUS['error.pi_session_identity_ambiguous'], { selector: 'div', exact: true })
+    ).toBeVisible()
+    expect(screen.queryByText('previous summary')).toBeNull()
+    expect(
+      screen.getByText(enUS['error.pi_session_identity_ambiguous_detail'], { selector: 'span', exact: true })
+    ).toBeVisible()
+  })
+
   it('renders a known app-owned i18nKey without AI diagnosis', () => {
     const i18nKey = 'tool_call_limit_reached'
     const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
@@ -229,6 +324,32 @@ required service tier.`
 
     expect(screen.getByText(`error.${i18nKey}`)).toBeInTheDocument()
     expect(diagnoseMessageError).not.toHaveBeenCalled()
+  })
+
+  it('preserves the app-owned OCR headline when the message has no provider', () => {
+    mocks.translations = new Map(Object.entries(enUS))
+    mocks.i18nKeys.add('error.image_unreadable_for_non_vision_model')
+    mocks.i18nKeys.add('error.ocr_detail_empty')
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'NonVisionImageOcrError',
+          message: 'Image text extraction failed',
+          stack: null,
+          providerErrorCategory: 'ocr',
+          i18nKey: 'image_unreadable_for_non_vision_model',
+          detailI18nKey: 'ocr_detail_empty'
+        }}
+        message={{ ...message, model: undefined }}
+      />
+    )
+
+    expect(
+      screen.getByText(enUS['error.image_unreadable_for_non_vision_model'], { selector: 'div', exact: true })
+    ).toBeVisible()
+    expect(screen.queryByText(enUS['error.diagnosis.ocr'], { exact: true })).not.toBeInTheDocument()
   })
 
   it('renders actionable Claude Code session-bus guidance without AI diagnosis', () => {

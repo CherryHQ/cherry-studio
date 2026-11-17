@@ -36,7 +36,7 @@ const ErrorBlock: React.FC<Props> = ({ partId, error, message }) => {
   return <MessageErrorInfo partId={partId} error={error} message={message} />
 }
 
-const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
+const ErrorMessage: React.FC<{ error: Props['error']; headlineAppOwned: boolean }> = ({ error, headlineAppOwned }) => {
   const { t, i18n } = useTranslation()
   const { navigateToRoute } = useMessageListActions()
 
@@ -93,12 +93,18 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
           | undefined
         return (
           <span>
-            {t(i18nKey)} {t(detailFullKey, detailValues)}
+            {headlineAppOwned ? (
+              t(detailFullKey, detailValues)
+            ) : (
+              <>
+                {t(i18nKey)} {t(detailFullKey, detailValues)}
+              </>
+            )}
           </span>
         )
       }
     }
-    return t(i18nKey)
+    return headlineAppOwned ? null : t(i18nKey)
   }
 
   if (i18n.exists(errorKey)) {
@@ -140,6 +146,8 @@ const MessageErrorInfo: React.FC<{
 
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
   const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
+  const headlineAppOwned =
+    hasAppOwnedI18nKey && (!providerId || (classification.category === 'unknown' && !errorProviderId))
   const localModelFailure = useMemo(() => getLocalModelResolutionFailure(error), [error])
   const cloudPresentation = getCherryCloudErrorPresentation(error, providerId, classification.category)
   const cherryCloudQuotaRejection = cloudPresentation.quota
@@ -151,7 +159,7 @@ const MessageErrorInfo: React.FC<{
   // would render the raw tags, and the provider branch needs the <Trans> link form.
   const localizedErrorMessage = useMemo(() => {
     if (cherryCloudQuotaRejection) return t('models.detail.quota_exhausted')
-    if (hasAppOwnedI18nKey && !providerId) return t(appOwnedErrorKey)
+    if (headlineAppOwned) return t(appOwnedErrorKey)
     if (localModelFailure) {
       const { providerId: failedProviderId, modelId } = localModelFailure
       if (!modelId) return t('code.select_provider_model')
@@ -162,13 +170,14 @@ const MessageErrorInfo: React.FC<{
     return t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined)
   }, [
     cherryCloudQuotaRejection,
-    hasAppOwnedI18nKey,
+    headlineAppOwned,
     appOwnedErrorKey,
     classification.i18nKey,
     localModelFailure,
     providerId,
     t
   ])
+  const headlineText = headlineAppOwned ? localizedErrorMessage : aiSummary || localizedErrorMessage
 
   useEffect(() => {
     if (
@@ -272,14 +281,14 @@ const MessageErrorInfo: React.FC<{
         <div className="flex shrink-0 items-center justify-center text-error">
           <AlertTriangle size={15} className="lucide-custom" />
         </div>
-        <div className="pr-5 font-medium text-[13px] leading-[1.4]">{aiSummary || localizedErrorMessage}</div>
+        <div className="pr-5 font-medium text-[13px] leading-[1.4]">{headlineText}</div>
       </div>
 
       {/* Description */}
       <div
         className="ml-5.75 line-clamp-3 text-xs leading-normal [overflow-wrap:anywhere] [&_a]:text-link"
         style={{ color: ERROR_DESCRIPTION_COLOR }}>
-        {cherryCloudQuotaText || <ErrorMessage error={error} />}
+        {cherryCloudQuotaText || <ErrorMessage error={error} headlineAppOwned={headlineAppOwned} />}
       </div>
 
       {/* Footer */}

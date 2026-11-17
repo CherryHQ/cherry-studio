@@ -55,6 +55,10 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const planQuota = cloudPresentation.quota
   const presentation: ErrorToastPresentation = planQuota ? { type: 'warning' } : errorToastPresentations[category]
   const details = planQuota ? cloudPresentation.text : providerErrorText(serialized)
+  const appOwnedKey =
+    category === 'unknown' && typeof (serialized as Record<string, unknown>).i18nKey === 'string'
+      ? `error.${(serialized as Record<string, unknown>).i18nKey as string}`
+      : ''
   const configure = provider
     ? () => openSettingsTab(`/settings/provider?id=${encodeURIComponent(provider.id)}`)
     : undefined
@@ -77,7 +81,9 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
     title: planQuota
       ? i18n.t('models.detail.quota_exhausted')
       : category === 'unknown'
-        ? details || i18n.t('error.unknown')
+        ? appOwnedKey && i18n.exists(appOwnedKey)
+          ? i18n.t(appOwnedKey)
+          : details || i18n.t('error.unknown')
         : i18n.t(diagnosisKey),
     description:
       [
