@@ -307,7 +307,8 @@ export const aiRequestSchemas = {
           appendToLiveGroupMessageId: z.never().optional(),
           reasoningEffort: ReasoningEffortOptionSchema.optional(),
           serviceTier: ServiceTierSelectionSchema.optional(),
-          fastMode: z.boolean().optional()
+          fastMode: z.boolean().optional(),
+          planExecutionFollowUp: z.literal(true).optional()
         }),
         z.object({
           ...aiStreamRegenerateShape,
@@ -362,10 +363,15 @@ export const aiRequestSchemas = {
       reason: z.string().optional(),
       updatedInput: z.record(z.string(), z.unknown()).optional(),
       topicId: z.string().optional(),
-      anchorId: z.string().optional()
+      anchorId: z.string().optional(),
+      executionModelId: UniqueModelIdSchema.optional()
     }) satisfies z.ZodType<AiToolApprovalRespondRequest>,
     output: z.discriminatedUnion('ok', [
-      z.object({ ok: z.literal(true) }),
+      z.object({
+        ok: z.literal(true),
+        executionModelId: z.string().optional(),
+        handoff: z.enum(['not-requested', 'started', 'already-current', 'refused']).optional()
+      }),
       z.object({ ok: z.literal(false), reason: z.enum(['undelivered', 'rejected']) })
     ]) satisfies z.ZodType<AiToolApprovalRespondResponse>
   }),
@@ -408,6 +414,12 @@ export const aiRequestSchemas = {
     output: z.strictObject({ sessionId: z.string().min(1) })
   }),
   'ai.agent.session.prewarm': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1) }),
+    output: z.void()
+  }),
+  // The renderer cannot complete a plan-model handoff: Main retains the preserved input and stops
+  // gating the session busy, so later submissions start a turn instead of queueing forever.
+  'ai.agent.session.abandon_plan_handoff': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: z.void()
   }),

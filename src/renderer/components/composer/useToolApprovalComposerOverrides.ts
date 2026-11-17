@@ -10,7 +10,10 @@ import { createAskUserQuestionComposerOverride } from './variants/AskUserQuestio
 import { findLatestPendingAskUserQuestionRequest } from './variants/askUserQuestionComposerRequest'
 import { clearAskUserQuestionDraftCache } from './variants/askUserQuestionDraftCache'
 import { useComputerUseApproval } from './variants/ComputerUseApprovalComposer'
-import { createPermissionRequestComposerOverride } from './variants/PermissionRequestComposer'
+import {
+  createPermissionRequestComposerOverride,
+  type PlanExecutionHandoffOptions
+} from './variants/PermissionRequestComposer'
 import { findNextPendingPermissionRequest } from './variants/permissionRequestComposerRequest'
 
 type ToolApprovalComposerOverridesOptions = {
@@ -20,6 +23,11 @@ type ToolApprovalComposerOverridesOptions = {
   persistedPartsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
+  /**
+   * Gates for the Settings-configured plan-execution model. Omitted on the Home path, which has no
+   * agent whose model a handoff could switch — there the card must neither offer nor request one.
+   */
+  planExecution?: PlanExecutionHandoffOptions
 }
 
 export function useToolApprovalComposerOverrides({
@@ -27,7 +35,8 @@ export function useToolApprovalComposerOverrides({
   partsByMessageId,
   persistedPartsByMessageId,
   streamingLayers,
-  onRespond
+  onRespond,
+  planExecution
 }: ToolApprovalComposerOverridesOptions): readonly ComposerOverride[] {
   const computerUseApproval = useComputerUseApproval(topicId)
   useEffect(() => {
@@ -98,11 +107,12 @@ export function useToolApprovalComposerOverrides({
       overrides.push(
         createPermissionRequestComposerOverride({
           request: permissionRequest,
-          onRespond
+          onRespond,
+          planExecution
         })
       )
     }
 
     return overrides
-  }, [askUserQuestionRequest, onRespond, permissionRequest, computerUseApproval])
+  }, [askUserQuestionRequest, onRespond, permissionRequest, planExecution, computerUseApproval])
 }

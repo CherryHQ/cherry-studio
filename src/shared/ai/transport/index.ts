@@ -31,6 +31,7 @@ export type {
   ApprovalDecision,
   ComposerChatTarget,
   ComposerQueuedMessagePayload,
+  PlanModelHandoffResult,
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload,
