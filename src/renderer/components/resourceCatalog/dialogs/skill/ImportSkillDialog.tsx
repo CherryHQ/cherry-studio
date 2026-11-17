@@ -66,7 +66,10 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
   }
 
   const getInstallErrorMessage = useCallback(
-    (fallbackName?: string) => t('settings.skills.installFailed', { name: fallbackName ?? t('library.type.skill') }),
+    (fallbackName?: string) =>
+      fallbackName
+        ? t('settings.skills.installFailed', { name: fallbackName })
+        : t('settings.skills.installFailedGeneric'),
     [t]
   )
 

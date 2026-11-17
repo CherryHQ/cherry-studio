@@ -59,10 +59,11 @@ vi.mock('@cherrystudio/ui', () => ({
   DialogContent: ({ children }: { children?: ReactNode }) => <div role="dialog">{children}</div>,
   DialogHeader: ({ children }: { children?: ReactNode }) => <header>{children}</header>,
   DialogTitle: ({ children }: { children?: ReactNode }) => <h2>{children}</h2>,
-  EmptyState: ({ description, title }: { description?: string; title?: string }) => (
+  EmptyState: ({ description, detail, title }: { description?: string; detail?: ReactNode; title?: string }) => (
     <div>
       {title ? <div>{title}</div> : null}
       {description ? <div>{description}</div> : null}
+      {detail}
     </div>
   ),
   Input: (props: ComponentProps<'input'>) => <input {...props} />,
@@ -214,7 +215,7 @@ describe('SystemSkillDialog', () => {
 
     render(<SystemSkillDialog mode="manage" open onOpenChange={vi.fn()} />)
 
-    expect(screen.getByText('error.unexpected')).toBeInTheDocument()
+    expect(screen.getByText('library.system_skill.load_failed')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
     expect(screen.queryByText('discover down')).not.toBeInTheDocument()
   })

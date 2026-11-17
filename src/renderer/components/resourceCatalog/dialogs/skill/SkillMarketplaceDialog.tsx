@@ -306,10 +306,13 @@ function SkillSearchBody({
     const summary = t('library.skill_marketplace.search_failed_description')
     return (
       <div className="flex min-h-0 flex-1 flex-col">
-        <EmptyState title={t('common.error')} description={summary} className="min-h-0 flex-1" />
-        <div className="flex justify-center pb-6">
-          <ErrorDetailAction error={cause ?? error} message={summary} source="skills/search" operation="search" />
-        </div>
+        <EmptyState
+          title={summary}
+          className="min-h-0 flex-1"
+          detail={
+            <ErrorDetailAction error={cause ?? error} message={summary} source="skills/search" operation="search" />
+          }
+        />
       </div>
     )
   }
