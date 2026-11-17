@@ -114,7 +114,7 @@ export async function createPiGatewayModelBinding(
                 ...reported
               })
             }
-            onUsage?.(message.usage, options?.sessionId, message.responseId)
+            if (!options?.readOnlyFork) onUsage?.(message.usage, options?.sessionId, message.responseId)
           })
           .catch((error) => {
             loggerService
