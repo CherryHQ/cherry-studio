@@ -107,6 +107,39 @@ describe('memory organization lifecycle and commit fences', () => {
     return session.commit([{ kind: 'write', receipt: read.receipt, content }], approve)
   }
 
+  it.each([false, true])('preserves correction history when organization removes metadata: %s', async (remove) => {
+    await save('- "Old address"\n')
+    const extraction = memory.open({ scope, assertAuthorized: () => undefined }, 'extraction')
+    const read = await extraction.read('MEMORY.md')
+    const proposal = await extraction.prepareRevisions(read.receipt, [
+      {
+        quote: 'Old address',
+        text: 'New address',
+        reason: 'corrected',
+        recordedAt: '2026-11-17T10:00:00.000Z',
+        sources: [{ kind: 'chat', conversationId: 't', messageId: 'm', sourceVersion: 'v' }]
+      }
+    ])
+    await extraction.commit([proposal], approve)
+    extraction.dispose()
+    dreaming.request(scope)
+    generate.mockImplementationOnce(async (input) => {
+      const file = JSON.parse(input.prompt).files[0]
+      return {
+        text: JSON.stringify({
+          writes: [{ path: file.path, content: remove ? '- "Old address"\n' : `# Current memory\n${file.content}` }],
+          deletes: []
+        }),
+        finishReason: 'stop'
+      }
+    })
+    if (remove) await expect(dreaming.execute(job())).rejects.toMatchObject({ reason: 'conflict' })
+    else await expect(dreaming.execute(job())).resolves.toMatchObject({ changed: 1 })
+    expect((await session.read('MEMORY.md')).content).toContain('New address')
+    expect((await session.read('MEMORY.md')).content).not.toContain('Old address')
+    expect(await session.revisions()).toHaveLength(1)
+  })
+
   it.each(['automatic', 'manual'] as const)(
     'resumes %s organization after repeated foreground interruptions',
     async (mode) => {
