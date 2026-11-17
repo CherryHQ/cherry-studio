@@ -157,7 +157,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
       await qwenUserText(
         makeScope({
           ...base,
-          reasoning: { kind: 'off', selection: 'none', emissions: [{ target: 'enable_thinking', value: false }] }
+          reasoning: { kind: 'off', selection: 'none', emissions: [{ target: 'enable_thinking', value: false, delivery: 'provider-option' }] }
         })
       )
     ).toBe('hello /no_think')
@@ -166,7 +166,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
         makeScope({
           ...base,
           assistant: { id: 'a', settings: { reasoning_effort: 'none' } as Assistant['settings'] },
-          reasoning: { kind: 'auto', selection: 'auto', emissions: [{ target: 'enable_thinking', value: true }] }
+          reasoning: { kind: 'auto', selection: 'auto', emissions: [{ target: 'enable_thinking', value: true, delivery: 'provider-option' }] }
         })
       )
     ).toBe('hello /think')
@@ -181,7 +181,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
         reasoning: { selectableEfforts: ['none', 'auto'], thinkingTokenLimits: { min: 1024, max: 38_912 } }
       },
       request: { reasoningEffort: 'none' },
-      reasoning: { kind: 'off', selection: 'none', emissions: [{ target: 'enable_thinking', value: false }] }
+      reasoning: { kind: 'off', selection: 'none', emissions: [{ target: 'enable_thinking', value: false, delivery: 'provider-option' }] }
     }
 
     expect(await qwenUserText(makeScope(base))).toBe('hello /no_think')
@@ -209,7 +209,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
           reasoning: { selectableEfforts: ['none', 'auto'] }
         },
         assistant: { id: 'a', settings: { reasoning_effort: 'auto' } as Assistant['settings'] },
-        reasoning: { kind: 'auto', selection: 'auto', emissions: [{ target: 'reasoningEffort', value: 'low' }] }
+        reasoning: { kind: 'auto', selection: 'auto', emissions: [{ target: 'reasoningEffort', value: 'low', delivery: 'provider-option' }] }
       })
 
       const plugin = collectFromFeatures(scope, INTERNAL_FEATURES).modelAdapters.find(
@@ -237,7 +237,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
           reasoning: { selectableEfforts: ['none', 'auto'] }
         },
         assistant: { id: 'a', settings: { reasoning_effort: 'none' } as Assistant['settings'] },
-        reasoning: { kind: 'off', selection: 'none', emissions: [{ target: 'reasoningEffort', value: 'none' }] }
+        reasoning: { kind: 'off', selection: 'none', emissions: [{ target: 'reasoningEffort', value: 'none', delivery: 'provider-option' }] }
       })
 
       const plugin = collectFromFeatures(scope, INTERNAL_FEATURES).modelAdapters.find(
@@ -270,7 +270,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
             reasoning: {
               kind: 'auto',
               selection: 'auto',
-              emissions: [{ target: 'reasoningEffort', value: 'low', delivery: 'provider-option' as const }]
+              emissions: [{ target: 'reasoningEffort', value: 'low', delivery: 'provider-option' as const, delivery: 'provider-option' }]
             }
           })
         )
@@ -312,7 +312,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
             reasoning: {
               kind: 'auto',
               selection: 'auto',
-              emissions: [{ target: 'reasoningEffort', value: 'low', delivery: 'provider-option' as const }]
+              emissions: [{ target: 'reasoningEffort', value: 'low', delivery: 'provider-option' as const, delivery: 'provider-option' }]
             }
           })
         )
@@ -332,7 +332,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
         reasoning: {
           kind: 'auto',
           selection: 'auto',
-          emissions: [{ target: 'reasoningEffort', value: 'low', delivery: 'provider-option' }]
+          emissions: [{ target: 'reasoningEffort', value: 'low', delivery: 'provider-option', delivery: 'provider-option' }]
         }
       })
       expect(activeNames(unregistered)).toContain('qwen-enable-thinking')
@@ -350,7 +350,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
         reasoning: {
           kind: 'auto',
           selection: 'auto',
-          emissions: [{ target: 'reasoningEffort', value: 'low', delivery: 'provider-option' }]
+          emissions: [{ target: 'reasoningEffort', value: 'low', delivery: 'provider-option', delivery: 'provider-option' }]
         }
       })
       expect(activeNames(lmstudio)).toContain('qwen-thinking')

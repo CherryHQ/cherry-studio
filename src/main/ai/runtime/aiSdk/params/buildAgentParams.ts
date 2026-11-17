@@ -810,7 +810,7 @@ function buildAgentOptions(
     delete options.service_tier
     effectiveProviderOptions = { ...effectiveProviderOptions, [namespace]: options }
     // Compatible adapters use different namespaces; Responses can drop tiers for non-OpenAI model IDs.
-    bodyParams = { ...bodyParams, service_tier: provider.fastMode.serviceTier ?? 'priority' }
+    rawBodyLayers.push({ service_tier: provider.fastMode.serviceTier ?? 'priority' })
   }
   const effectiveBudgetTokens = resolveEffectiveThinkingBudget(
     effectiveProviderOptions,
