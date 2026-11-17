@@ -4,7 +4,7 @@ import type { CompactionSummarizer, CompactionSummaryRequest } from '@cherrystud
 
 import type { createPiGatewayModelBinding } from './gatewayModelBinding'
 import { resolvePiSummaryInputBudget } from './piCompactionSettings'
-import { loadPiAiOverflow } from './piSdk'
+import { loadPiAiOverflow, loadPiAiTranscript } from './piSdk'
 
 type Binding = Awaited<ReturnType<typeof createPiGatewayModelBinding>>
 type UsageCapture = () => { headers: Record<string, string>; release(): void }
@@ -57,12 +57,13 @@ async function complete(
 ) {
   const captured = usage()
   try {
+    const { normalizeContext } = await loadPiAiTranscript()
     const output = await stream(
       binding.model,
-      {
+      normalizeContext({
         systemPrompt: SUMMARY_SYSTEM_PROMPT,
         messages: [{ role: 'user', content: prompt, timestamp: Date.now() }]
-      },
+      }),
       { signal, maxTokens: binding.model.maxTokens, headers: captured.headers }
     )
     return await output.result()

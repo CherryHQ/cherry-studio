@@ -27,6 +27,11 @@ export function loadPiAiOverflow() {
   return import('@earendil-works/pi-ai/utils/overflow')
 }
 
+/** Load Pi's transcript normalization with the same ESM boundary as the coding SDK. */
+export function loadPiAiTranscript() {
+  return import('@earendil-works/pi-ai/utils/transcript')
+}
+
 type PiStreamSimple = NonNullable<ProviderConfig['streamSimple']>
 
 /** Load the exact builtin stream used for a Cherry-supported Pi API family. */
