@@ -20,7 +20,8 @@ import {
   COMPOSER_ICON_ONLY_LABEL_CLASS,
   COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
   COMPOSER_PROFILE_AVATAR_BUTTON_CLASS,
-  COMPOSER_SELECTOR_BUTTON_CLASS
+  COMPOSER_SELECTOR_BUTTON_CLASS,
+  COMPOSER_TOP_BAR_SHRINK_CLASS
 } from '../shared/ComposerControlScaffolding'
 
 export interface ChatConversationControlsProps {
@@ -81,9 +82,17 @@ export function ChatConversationControls({
   const chatModelFilter = useCallback<ModelSelectorFilter>((candidate) => !isNonChatModel(candidate), [])
   const assistantIcon = assistantEmoji || getLeadingEmoji(assistantName)
   const triggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
-  const compactTriggerClassName = cn(triggerClassName, iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
+  // `side` is where menus open: the top bar's open downward.
+  const shrinkClassName = side === 'bottom' && COMPOSER_TOP_BAR_SHRINK_CLASS
+  const compactTriggerClassName = cn(
+    triggerClassName,
+    iconOnly ? COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS : shrinkClassName
+  )
   const labelClassName = cn('truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)
-  const modelTriggerClassName = cn(triggerClassName, iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
+  const modelTriggerClassName = cn(
+    triggerClassName,
+    iconOnly && model ? COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS : shrinkClassName
+  )
   const modelLabelClassName = cn('truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)
   const isMentionedModelSelectorLocked = lockedMentionedModels.length > 1
   const selectedMentionedModels = isMentionedModelSelectorLocked
@@ -93,7 +102,7 @@ export function ChatConversationControls({
       : mentionedModels
   const mentionedModelTriggerClassName = cn(
     triggerClassName,
-    iconOnly && selectedMentionedModels.length > 0 && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS
+    iconOnly && selectedMentionedModels.length > 0 ? COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS : shrinkClassName
   )
   const modelProvider = model ? providers.find((provider) => provider.id === model.providerId) : undefined
   const modelProviderName = model
@@ -226,7 +235,7 @@ export function ChatConversationControls({
           mountStrategy="lazy-keep"
           trigger={
             <Button variant="ghost" size="sm" className={modelTriggerClassName} disabled={modelPending}>
-              {model ? <ModelAvatar model={model} size={20} /> : null}
+              {model ? <ModelAvatar model={model} size={20} className="shrink-0" /> : null}
               <span className={cn('max-w-52', modelLabelClassName)} title={modelLabel}>
                 {modelLabel}
               </span>

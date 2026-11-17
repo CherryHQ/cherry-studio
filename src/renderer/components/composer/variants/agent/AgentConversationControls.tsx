@@ -23,7 +23,8 @@ import {
   COMPOSER_ICON_ONLY_LABEL_CLASS,
   COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
   COMPOSER_PROFILE_AVATAR_BUTTON_CLASS,
-  COMPOSER_SELECTOR_BUTTON_CLASS
+  COMPOSER_SELECTOR_BUTTON_CLASS,
+  COMPOSER_TOP_BAR_SHRINK_CLASS
 } from '../shared/ComposerControlScaffolding'
 import { AgentLabel } from './AgentLabel'
 
@@ -90,7 +91,11 @@ function AgentControl({
 >) {
   const { t } = useTranslation()
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
-  const triggerClassName = cn(baseTriggerClassName, iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
+  // `side` is where menus open: the top bar's open downward.
+  const triggerClassName = cn(
+    baseTriggerClassName,
+    iconOnly ? COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS : side === 'bottom' && COMPOSER_TOP_BAR_SHRINK_CLASS
+  )
   const labelClassName = cn('truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)
   const chevronClassName = cn('text-muted-foreground', iconOnly && 'hidden')
   const [agentEditDialogTarget, setAgentEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
@@ -196,8 +201,11 @@ function ModelControl({
   'model' | 'selectModelLabel' | 'canChangeModel' | 'side' | 'iconOnly' | 'onModelSelect' | 'modelFilter'
 >) {
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
-  const triggerClassName = cn(baseTriggerClassName, iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
-  const labelClassName = cn('truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)
+  const triggerClassName = cn(
+    baseTriggerClassName,
+    iconOnly && model ? COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS : side === 'bottom' && COMPOSER_TOP_BAR_SHRINK_CLASS
+  )
+  const labelClassName = cn('max-w-52 truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)
   const loadedProviderName = useProviderDisplayName(model?.providerId)
   const providerName = model ? loadedProviderName || getProviderDisplayNameById(model.providerId) : undefined
   const modelLabel = model ? `${model.name} | ${providerName}` : selectModelLabel
@@ -310,7 +318,7 @@ function WorkspaceControl({
         baseTriggerClassName,
         !menuOpen && 'group',
         'relative',
-        iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
+        iconOnly ? COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS : side === 'bottom' && COMPOSER_TOP_BAR_SHRINK_CLASS,
         hasWarning && 'text-warning hover:text-warning'
       )}
       disabled={!onWorkspaceChange || workspaceChanging}
