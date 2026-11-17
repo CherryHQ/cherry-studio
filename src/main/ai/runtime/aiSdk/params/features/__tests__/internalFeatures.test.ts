@@ -294,8 +294,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
                 {
                   target: 'reasoningEffort',
                   value: 'low',
-                  delivery: 'provider-option' as const,
-                  delivery: 'provider-option'
+                  delivery: 'provider-option' as const
                 }
               ]
             }
@@ -343,8 +342,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
                 {
                   target: 'reasoningEffort',
                   value: 'low',
-                  delivery: 'provider-option' as const,
-                  delivery: 'provider-option'
+                  delivery: 'provider-option' as const
                 }
               ]
             }
@@ -366,9 +364,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
         reasoning: {
           kind: 'auto',
           selection: 'auto',
-          emissions: [
-            { target: 'reasoningEffort', value: 'low', delivery: 'provider-option', delivery: 'provider-option' }
-          ]
+          emissions: [{ target: 'reasoningEffort', value: 'low', delivery: 'provider-option' }]
         }
       })
       expect(activeNames(unregistered)).toContain('qwen-enable-thinking')
@@ -386,9 +382,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
         reasoning: {
           kind: 'auto',
           selection: 'auto',
-          emissions: [
-            { target: 'reasoningEffort', value: 'low', delivery: 'provider-option', delivery: 'provider-option' }
-          ]
+          emissions: [{ target: 'reasoningEffort', value: 'low', delivery: 'provider-option' }]
         }
       })
       expect(activeNames(lmstudio)).toContain('qwen-thinking')
