@@ -45,7 +45,6 @@ function renderController(initialScopeKey = 'topic-a', onError?: (error: unknown
   const refreshMetadata = vi.fn()
   const historyAdapter: ConversationHistoryAdapter = {
     seedReservedMessages: vi.fn(),
-    refresh: vi.fn(),
     rollback: vi.fn()
   }
   const view = renderHook(

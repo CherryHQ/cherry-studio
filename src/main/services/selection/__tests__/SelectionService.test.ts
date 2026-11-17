@@ -43,7 +43,7 @@ describe('SelectionService.onAllReady — deferred warm-up', () => {
     vi.clearAllMocks()
     BaseService.resetInstances()
     svc = new SelectionService() as TestableSelectionService
-    prefGet = vi.spyOn(application.get('PreferenceService') as { get: (key: string) => unknown }, 'get')
+    prefGet = vi.spyOn(application.get('PreferenceService'), 'get')
   })
 
   afterEach(() => {
@@ -173,7 +173,7 @@ describe('SelectionService.onInit — SelectionAction pool suspension', () => {
     vi.clearAllMocks()
     BaseService.resetInstances()
     svc = new SelectionService() as TestableSelectionService
-    prefGet = vi.spyOn(application.get('PreferenceService') as { get: (key: string) => unknown }, 'get')
+    prefGet = vi.spyOn(application.get('PreferenceService'), 'get')
     suspendPool = (
       application.get('WindowManager') as unknown as { suspendPool: ReturnType<typeof vi.fn<(...args: any[]) => any>> }
     ).suspendPool
@@ -203,7 +203,7 @@ describe('SelectionService toolbar sizing contract', () => {
     vi.clearAllMocks()
     BaseService.resetInstances()
     svc = new SelectionService()
-    prefGet = vi.spyOn(application.get('PreferenceService') as { get: (key: string) => unknown }, 'get')
+    prefGet = vi.spyOn(application.get('PreferenceService'), 'get')
     Object.assign(screen, {
       getDisplayNearestPoint: vi.fn(() => ({
         workArea: { x: 0, y: 0, width: 1280, height: 800 }

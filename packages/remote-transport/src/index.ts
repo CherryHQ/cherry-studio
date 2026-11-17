@@ -7,3 +7,5 @@ export { RemoteRpcError, RemoteRpcServer } from './rpc'
 
 export { createNativeNoiseCrypto } from './crypto'
 export type { NativeCrypto, NoiseCrypto } from './crypto'
+
+export type { TransportRecord } from './records'

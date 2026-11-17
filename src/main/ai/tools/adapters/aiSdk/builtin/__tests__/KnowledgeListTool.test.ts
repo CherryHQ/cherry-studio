@@ -1,6 +1,6 @@
-import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { kbListInputSchema } from '@shared/ai/builtinTools'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
@@ -168,22 +168,18 @@ function listPage(items: KnowledgeBase[], nextCursor?: string) {
   return { items, total: items.length, ...(nextCursor ? { nextCursor } : {}) }
 }
 
-function callExecute(args: ListArgs, ctx: { knowledgeBaseIds?: string[] } = {}): Promise<unknown> {
-  const execute = entry.tool.execute as (args: ListArgs, options: ToolExecutionOptions) => Promise<unknown>
-  return execute(
-    // Unused filters are omitted, not sentinel-valued — kb_list runs without `strict`, so its schema
-    // is plain optionals and the model omits what it does not filter on.
-    args,
-    {
-      toolCallId: 'tc-1',
-      messages: [],
-      experimental_context: {
-        requestId: 'req-1',
-        knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
-        abortSignal: new AbortController().signal
-      }
+async function callExecute(args: ListArgs, ctx: { knowledgeBaseIds?: string[] } = {}) {
+  const execute = entry.tool.execute
+  if (!execute) throw new Error('Expected the knowledge tool to be executable')
+  return execute(kbListInputSchema.parse(args), {
+    toolCallId: 'tc-1',
+    messages: [],
+    experimental_context: {
+      requestId: 'req-1',
+      knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
+      abortSignal: new AbortController().signal
     }
-  )
+  })
 }
 
 describe('kb_list', () => {
@@ -426,7 +422,7 @@ describe('kb_list', () => {
 
   describe('applies', () => {
     it('applies only when a base exists AND one is in the effective scope (matches kb_search/kb_read)', () => {
-      const applies = entry.applies!
+      const applies = entry.applies
       // No base in the system → never applies, even with bound ids.
       expect(
         applies({

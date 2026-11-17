@@ -268,9 +268,9 @@ describe('MainNetworkDevtoolsService helpers', () => {
     const serviceState = service as unknown as {
       events: MainNetworkDevtoolsEvent[]
       wrapHttpMethod: (
-        originalMethod: (...args: unknown[]) => unknown,
+        originalMethod: (...args: unknown[]) => ReturnType<typeof createMockClientRequest>,
         source: 'http' | 'https'
-      ) => (...args: unknown[]) => unknown
+      ) => (...args: unknown[]) => ReturnType<typeof createMockClientRequest>
     }
     const request = createMockClientRequest()
     const wrappedRequest = serviceState.wrapHttpMethod(() => request, 'http')
@@ -301,9 +301,9 @@ describe('MainNetworkDevtoolsService helpers', () => {
     const serviceState = service as unknown as {
       events: MainNetworkDevtoolsEvent[]
       wrapHttpMethod: (
-        originalMethod: (...args: unknown[]) => unknown,
+        originalMethod: (...args: unknown[]) => ReturnType<typeof createMockClientRequest>,
         source: 'http' | 'https'
-      ) => (...args: unknown[]) => unknown
+      ) => (...args: unknown[]) => ReturnType<typeof createMockClientRequest>
     }
     const wrappedRequest = serviceState.wrapHttpMethod(() => {
       throw new Error('invalid request')

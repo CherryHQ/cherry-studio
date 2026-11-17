@@ -1,3 +1,5 @@
+import type { JsonValue } from '@cherrystudio/agent-runtime'
+
 import type { GoalBudget, GoalPhase, GoalSnapshot, GoalStopCode, RoundDetails, ToolResultFact } from '../facts'
 import type { GoalDefaults } from '../hostFacts'
 
@@ -243,14 +245,14 @@ export function statusText(goal: GoalSnapshot, usage: GoalUsage, waitingFor: num
 }
 
 /** Key order does not matter: `{a, b}` and `{b, a}` are the same call. */
-const stable = (value: unknown): unknown =>
+const stable = (value: JsonValue): JsonValue =>
   Array.isArray(value)
     ? value.map(stable)
     : value && typeof value === 'object'
       ? Object.fromEntries(
-          Object.keys(value)
-            .sort()
-            .map((key) => [key, stable((value as { readonly [key: string]: unknown })[key])])
+          Object.entries(value)
+            .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+            .map(([key, entry]) => [key, stable(entry)])
         )
       : value
-export const toolCallKey = (tool: string, args: unknown): string => `${tool}:${JSON.stringify(stable(args))}`
+export const toolCallKey = (tool: string, args: JsonValue): string => `${tool}:${JSON.stringify(stable(args))}`

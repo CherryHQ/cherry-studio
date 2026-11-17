@@ -2,12 +2,19 @@ import { pureJsCrypto } from '@libp2p/noise'
 
 export type NoiseCrypto = typeof pureJsCrypto
 interface Cipher {
-  setAAD(bytes: Uint8Array): unknown
+  setAAD(bytes: Uint8Array): this
   update(bytes: Uint8Array): Uint8Array
   final(): Uint8Array
 }
+interface NativeHash {
+  update(bytes: Uint8Array): this
+  digest(): Uint8Array
+}
+interface NativeDecipher extends Cipher {
+  setAuthTag(bytes: Uint8Array): this
+}
 export interface NativeCrypto {
-  createHash(algorithm: string): { update(bytes: Uint8Array): unknown; digest(): Uint8Array }
+  createHash(algorithm: string): NativeHash
   createCipheriv(
     algorithm: string,
     key: Uint8Array,
@@ -19,7 +26,7 @@ export interface NativeCrypto {
     key: Uint8Array,
     nonce: Uint8Array,
     options: { authTagLength: number }
-  ): Cipher & { setAuthTag(bytes: Uint8Array): unknown }
+  ): NativeDecipher
 }
 const concat = (...parts: Uint8Array[]) => {
   const bytes = new Uint8Array(parts.reduce((length, part) => length + part.length, 0))

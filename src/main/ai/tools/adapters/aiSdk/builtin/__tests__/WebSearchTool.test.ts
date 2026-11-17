@@ -45,19 +45,15 @@ function response() {
   }
 }
 
-function callSearchExecute(args: { query: string }, abortSignal?: AbortSignal): Promise<unknown> {
-  const execute = searchEntry.tool.execute as (
-    args: { query: string },
-    options: ToolExecutionOptions
-  ) => Promise<unknown>
+async function callSearchExecute(args: { query: string }, abortSignal?: AbortSignal) {
+  const execute = searchEntry.tool.execute
+  if (!execute) throw new Error('Expected web_search to be executable')
   return execute(args, makeOptions(abortSignal))
 }
 
-function callFetchExecute(args: { urls: string[] }, abortSignal?: AbortSignal): Promise<unknown> {
-  const execute = fetchEntry.tool.execute as (
-    args: { urls: string[] },
-    options: ToolExecutionOptions
-  ) => Promise<unknown>
+async function callFetchExecute(args: { urls: string[] }, abortSignal?: AbortSignal) {
+  const execute = fetchEntry.tool.execute
+  if (!execute) throw new Error('Expected web_fetch to be executable')
   return execute(args, makeOptions(abortSignal))
 }
 
@@ -99,7 +95,8 @@ describe('web_search', () => {
   it('maps WebSearchResponse to prefixed cite-id output items', async () => {
     searchKeywords.mockResolvedValue(response())
 
-    const result = (await callSearchExecute({ query: 'q' })) as Array<{ id: string }>
+    const result = await callSearchExecute({ query: 'q' })
+    if (!Array.isArray(result)) throw new Error('Expected search results')
     expect(result).toEqual([
       { id: expect.any(String), title: 'A', url: 'https://a.com', content: 'about A' },
       { id: expect.any(String), title: 'B', url: 'https://b.com', content: 'about B' }
@@ -217,7 +214,7 @@ describe('web_search', () => {
 
   describe('applies', () => {
     it('returns true only when the request selected client search', () => {
-      const applies = searchEntry.applies!
+      const applies = searchEntry.applies
       expect(applies({ assistant: undefined, mcpToolIds: new Set() })).toBe(false)
       expect(
         applies({
@@ -341,7 +338,7 @@ describe('web_fetch', () => {
 
   describe('applies', () => {
     it('returns true only when the request selected client fetch', () => {
-      const applies = fetchEntry.applies!
+      const applies = fetchEntry.applies
       expect(applies({ assistant: undefined, mcpToolIds: new Set() })).toBe(false)
       expect(
         applies({

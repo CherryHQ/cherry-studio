@@ -1,4 +1,3 @@
-import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -46,8 +45,9 @@ type ManageArgs = {
   conceptIds?: string[]
 }
 
-function callExecute(args: ManageArgs, ctx: { knowledgeBaseIds?: string[] } = {}): Promise<unknown> {
-  const execute = entry.tool.execute as (args: ManageArgs, options: ToolExecutionOptions) => Promise<unknown>
+async function callExecute(args: ManageArgs, ctx: { knowledgeBaseIds?: string[] } = {}) {
+  const execute = entry.tool.execute
+  if (!execute) throw new Error('Expected the knowledge tool to be executable')
   return execute(
     // Fields the action does not use are omitted, not sentinel-valued — kb_manage runs without
     // `strict`, so its schema is plain optionals.
@@ -246,7 +246,7 @@ describe('kb_manage', () => {
 
   describe('applies', () => {
     it('returns true only when a base exists AND at least one is in the effective scope', () => {
-      const applies = entry.applies!
+      const applies = entry.applies
       // No base in the system → never applies, even with bound ids.
       expect(
         applies({

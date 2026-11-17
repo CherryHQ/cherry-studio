@@ -18,8 +18,7 @@ export interface ReservedMessageSeedOptions {
 
 export interface ConversationHistoryAdapter {
   seedReservedMessages: (messages: CherryUIMessage[], options?: ReservedMessageSeedOptions) => Promise<void> | void
-  refresh: () => Promise<unknown> | unknown
-  rollback: () => Promise<unknown> | unknown
+  rollback: () => Promise<CherryUIMessage[] | void> | void
 }
 
 export interface UseConversationTurnControllerOptions<TInput, TConversation> {
@@ -28,7 +27,7 @@ export interface UseConversationTurnControllerOptions<TInput, TConversation> {
   ensureConversation: (input: TInput) => Promise<TConversation | null> | TConversation | null
   buildStreamRequest: (input: TInput, conversation: TConversation) => AiStreamOpenRequest
   openStream?: (request: AiStreamOpenRequest, input: TInput) => Promise<AiStreamOpenResponse>
-  refreshMetadata?: (conversation: TConversation, ack: AiStreamOpenResponse) => Promise<unknown> | unknown
+  refreshMetadata?: (conversation: TConversation, ack: AiStreamOpenResponse) => Promise<void> | void
   onAccepted?: (ack: Exclude<AiStreamOpenResponse, { mode: 'blocked' }>) => void
   onError?: (error: unknown, input: TInput) => void
 }

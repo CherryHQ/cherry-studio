@@ -39,10 +39,11 @@ const fxAppTable = sqliteTable('fx_order_key_app_test', {
  * Throws if the function completes without throwing, so a missing rejection
  * still fails the test.
  */
-function captureTxThrow(fn: () => unknown): unknown {
+function captureTxThrow<TResult>(fn: () => TResult): Error {
   try {
     fn()
   } catch (error) {
+    if (!(error instanceof Error)) throw new Error('Expected an Error to be thrown', { cause: error })
     return error
   }
   throw new Error('Expected the transaction to throw, but it completed normally')
