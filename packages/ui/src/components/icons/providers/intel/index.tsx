@@ -9,7 +9,7 @@ const Intel = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const IntelIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Intel, {
   Avatar: IntelAvatar,
-  colorPrimary: '#0071C5'
+  colorPrimary: '#e8f2fa'
 })
 
 export default IntelIcon

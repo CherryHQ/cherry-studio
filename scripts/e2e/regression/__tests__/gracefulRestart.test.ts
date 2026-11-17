@@ -56,7 +56,7 @@ function runtime(preventQuit = false) {
   }
   writeFileSync(paths.appRecord, JSON.stringify(record))
   const alive = new Set([record.runnerPid, record.electronPid])
-  const state = { inspectorPid: record.electronPid }
+  const state = { inspectorPid: record.electronPid, active: false, quitConfirmation: false }
   vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
     if (signal !== 0) throw new Error('Unexpected process signal')
     if (!alive.has(Number(pid))) throw new Error('Process not found')
@@ -82,17 +82,39 @@ function runtime(preventQuit = false) {
   )
   const context = createVmContext({
     setImmediate,
+    setTimeout,
+    Date,
     process: {
       mainModule: {
-        require: () => ({
-          app: {
-            quit() {
-              if (preventQuit) return
-              writeFileSync(pendingFile, 'state saved by normal shutdown')
-              alive.delete(record.electronPid)
+        require: (name: string) => {
+          if (name === 'node:module')
+            return {
+              _cache: {
+                application: {
+                  exports: {
+                    application: {
+                      getPath() {},
+                      get: () => ({ hasActiveTasks: () => state.active })
+                    }
+                  }
+                }
+              }
+            }
+          if (name !== 'electron') throw new Error(`Unexpected module: ${name}`)
+          return {
+            app: {
+              quit() {
+                if (state.active) {
+                  state.quitConfirmation = true
+                  return
+                }
+                if (preventQuit) return
+                writeFileSync(pendingFile, 'state saved by normal shutdown')
+                alive.delete(record.electronPid)
+              }
             }
           }
-        })
+        }
       }
     }
   })
@@ -123,4 +145,33 @@ it('fails a blocked normal restart without forcing termination or destroying pen
   expect((await result)?.message).toContain('did not exit after a normal shutdown request')
   expect(readFileSync(app.pendingFile, 'utf8')).toBe('previous state')
   expect(app.alive.has(app.record.electronPid)).toBe(true)
+})
+
+// A background model request can start after the controller observes an idle runtime.
+it('rechecks activity in the main process immediately before quitting instead of opening a confirmation dialog', async () => {
+  vi.useFakeTimers()
+  const app = runtime()
+  await requestOwnedAppQuit(app.record)
+  app.state.active = true
+  await vi.advanceTimersByTimeAsync(250)
+  expect(app.state.quitConfirmation).toBe(false)
+  expect(app.alive.has(app.record.electronPid)).toBe(true)
+  expect(readFileSync(app.pendingFile, 'utf8')).toBe('previous state')
+  app.state.active = false
+  await vi.advanceTimersByTimeAsync(100)
+  expect(app.alive.has(app.record.electronPid)).toBe(false)
+  expect(readFileSync(app.pendingFile, 'utf8')).toBe('state saved by normal shutdown')
+})
+
+it('leaves a busy app running after the bounded shutdown request expires without scheduling a later exit', async () => {
+  vi.useFakeTimers()
+  const app = runtime()
+  app.state.active = true
+  await requestOwnedAppQuit(app.record)
+  await vi.advanceTimersByTimeAsync(30_001)
+  app.state.active = false
+  await vi.advanceTimersByTimeAsync(100)
+  expect(app.state.quitConfirmation).toBe(false)
+  expect(app.alive.has(app.record.electronPid)).toBe(true)
+  expect(readFileSync(app.pendingFile, 'utf8')).toBe('previous state')
 })

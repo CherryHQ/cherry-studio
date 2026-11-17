@@ -1,4 +1,6 @@
-<svg width="480" height="480" viewBox="0 0 480 480" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="none">
+<rect width="120" height="120" fill="#000000"/>
+<g fill="none" transform="translate(0 0) scale(0.25000000) translate(0.0000 0.0000)">
   <g clip-path="url(#clip0_116_57)">
     <rect width="480" height="480" fill="black" />
     <path
@@ -13,4 +15,5 @@
       <rect width="480" height="480" rx="80" fill="white" />
     </clipPath>
   </defs>
+</g>
 </svg>

@@ -6,13 +6,6 @@ export interface VertexAIServiceAccountJson {
 
 export type VertexAIConfigField = 'projectId' | 'location' | 'clientEmail' | 'privateKey'
 
-export const VERTEX_AI_CONFIG_FIELD_LABEL_KEYS: Record<VertexAIConfigField, string> = {
-  projectId: 'settings.provider.vertex_ai.project_id',
-  location: 'settings.provider.vertex_ai.location',
-  clientEmail: 'settings.provider.vertex_ai.service_account.client_email',
-  privateKey: 'settings.provider.vertex_ai.service_account.private_key'
-}
-
 export interface VertexAILocationOption {
   value: string
   label: string
@@ -102,28 +95,4 @@ export function parseVertexAIServiceAccountJson(value: string): VertexAIServiceA
   } catch {
     return undefined
   }
-}
-
-export function mergeVertexAILocationOptions(
-  fetchedLocations: VertexAILocationOption[],
-  currentLocation?: string
-): VertexAILocationOption[] {
-  const options = [...DEFAULT_VERTEX_AI_LOCATIONS, ...fetchedLocations]
-  const current = currentLocation?.trim()
-
-  if (current) {
-    options.unshift({ value: current, label: current })
-  }
-
-  const seen = new Set<string>()
-  return options.filter((option) => {
-    const value = option.value.trim()
-
-    if (!value || seen.has(value)) {
-      return false
-    }
-
-    seen.add(value)
-    return true
-  })
 }

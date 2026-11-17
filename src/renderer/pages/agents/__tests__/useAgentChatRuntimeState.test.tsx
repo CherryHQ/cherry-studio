@@ -17,6 +17,7 @@ import { useConversationErrorToasts } from '@renderer/hooks/useConversationError
 import type * as TurnControllerModule from '@renderer/hooks/useConversationTurnController'
 import en from '@renderer/i18n/locales/en-us.json'
 import zh from '@renderer/i18n/locales/zh-cn.json'
+import type * as RendererIpc from '@renderer/ipc'
 import { takeAgentDraftHandoffs } from '@renderer/services/agentDraftHandoff'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -61,7 +62,8 @@ const mocks = vi.hoisted(() => ({
 }))
 
 // respondToolApproval now goes through ipcApi.request('ai.tool.respond_approval', …).
-vi.mock('@renderer/ipc', () => ({
+vi.mock('@renderer/ipc', async (importOriginal) => ({
+  ...(await importOriginal<typeof RendererIpc>()),
   ipcApi: {
     request: (route: string, input: unknown) =>
       route === 'ai.tool.respond_approval'
@@ -322,7 +324,29 @@ describe('useAgentChatRuntimeState', () => {
       useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
     )
     await act(() => result.current.startEditing(draft.messageId))
-    await act(() => result.current.resendEditedMessage({ text: 'Replacement' }))
+    await act(() =>
+      result.current.resendEditedMessage(
+        { text: 'Replacement' },
+        {
+          body: {
+            agentId: 'agent-1',
+            sessionId: 'session-1',
+            userMessageParts: [{ type: 'text', text: 'Replacement' }],
+            reasoningEffort: 'high',
+            serviceTier: 'flex',
+            fastMode: true
+          }
+        }
+      )
+    )
+    expect(mocks.editResend).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      target: { messageId: draft.messageId, version: draft.version },
+      userMessageParts: [{ type: 'text', text: 'Replacement' }],
+      reasoningEffort: 'high',
+      serviceTier: 'flex',
+      fastMode: true
+    })
     expect(result.current.uiMessages.map((message) => message.id)).toEqual([
       'earlier-user',
       'earlier-assistant',
@@ -656,10 +680,6 @@ describe('useAgentChatRuntimeState', () => {
       reset: mocks.resetOverlay
     })
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {}
-    })
     Object.defineProperty(window, 'toast', {
       configurable: true,
       value: {

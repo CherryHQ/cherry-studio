@@ -5,7 +5,7 @@ sources:
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
   - src/main/ai/agentSession/RootMessageProjection.ts
   - src/main/ipc/handlers/ai.ts
-  - src/renderer/hooks/useToolApprovalBridge.ts
+  - src/renderer/pages/home/hooks/useToolApprovalBridge.ts
   - src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts
   - src/main/ai/runtime/claudeCode/settingsBuilder.ts
   - src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts
@@ -25,6 +25,11 @@ sources:
   - src/renderer/components/chat/messages/tools/toolResponse.ts
   - src/renderer/components/chat/messages/tools/shared/ArgsTable.tsx
   - src/shared/ipc/schemas/ai.ts
+  - src/main/services/ComputerUseApproval.ts
+  - src/main/services/ComputerUseService.ts
+  - src/main/ipc/handlers/computerUse.ts
+  - src/shared/ipc/schemas/computerUse.ts
+  - src/renderer/components/composer/variants/ComputerUseApprovalComposer.tsx
 ---
 
 # Tool Approval
@@ -55,7 +60,7 @@ question nothing can receive.
    the pause atomically.
 
 3. **User decides** — the approval card renders from the part. On click,
-   `useToolApprovalBridge` (`src/renderer/hooks/useToolApprovalBridge.ts`)
+   `useToolApprovalBridge` (`src/renderer/pages/home/hooks/useToolApprovalBridge.ts`)
    calls `ipcApi.request('ai.tool.respond_approval', ...)` with `approvalId`,
    `approved`, optional `reason` / `updatedInput`, `topicId`, `anchorId`.
 
@@ -106,6 +111,29 @@ subsequent calls of that tool skip the approval card. There is no generic
 per-tool default for non-MCP agent-runtime tools.
 
 For what a single approval authorizes, see [External MCP per-call approval guarantees](#external-mcp-per-call-approval-guarantees).
+
+## Computer Use application consent
+
+Computer Use is enabled by default; a previously saved disabled setting is preserved.
+Ordinary mode requires consent for the resolved native application before launch,
+control, content reads or input. The composer offers **Always** (persist this stable
+application identity), **Approve for session** (this conversation controller, across
+turns and REPL resets), and **Reject** (this request only). Session grants expire when
+the conversation controller closes or Cherry Studio exits. Computer Use settings list
+saved identities and allow revocation; existing handles recheck permission too.
+
+`bypassPermissions` skips application prompts without saving grants. Operating-system
+permissions, explicit Computer Use disablement, user stops and exclusive ownership
+still apply. A second application in a REPL cell needs its own consent. Discovery and
+identity resolution precede consent, but do not authorize content access.
+
+These in-flight host requests use `ToolApprovalRegistry` with `application` presentation.
+The requesting window reads `computer_use.get_approvals`, refreshes on
+`computer_use.approvals_changed`, and answers `computer_use.respond_approval` with an
+explicit scope. Generic `ai.tool.respond_approval` cannot approve an application request.
+The requests are transient and are removed on cancellation; they are not persisted
+as tool-result history or resumed through a synthetic conversation continuation.
+Human approval time is excluded from the REPL execution deadline.
 
 ## External MCP per-call approval guarantees
 
@@ -214,11 +242,11 @@ The complete `allowedTools` list also includes `TaskCreate`, `TaskGet`,
 
 | Condition | Current behavior |
 |---|---|
-| `disabledAutoApproveTools` | Source policy forces listed tools to `approval: 'prompt'` before mode defaults, including `bypassPermissions` (`src/shared/ai/tools/mcpSourcePolicy.ts:35`, `src/main/ai/tools/adapters/claudeCode/agentTools.ts:77`, `src/shared/ai/claudecode/toolRules.ts:68`). That resolver result is not by itself a dialog: the callback must be reached and the background auto-allow must not apply; source-forced prompt alone does not set `requiresUserResponse` (`src/main/ai/runtime/claudeCode/settingsBuilder.ts:549`, `src/main/ai/runtime/claudeCode/settingsBuilder.ts:571`, `src/main/ai/runtime/claudeCode/settingsBuilder.ts:577`). |
-| `bypassPermissions` (Full Access) | Auto-approves unless source policy takes precedence in the resolver (`src/shared/ai/claudecode/toolRules.ts:82`, `src/shared/ai/claudecode/toolRules.ts:116`). The SDK skips the callback on auto-approved paths, so the resolver alone does not guarantee per-call confirmation (`src/main/ai/runtime/claudeCode/hooks.ts:87`). |
-| `acceptEdits` | Auto-approves the built-in edit-tool set, not arbitrary external MCP tools (`src/shared/ai/claudecode/toolRules.ts:31`, `src/shared/ai/claudecode/toolRules.ts:86`). |
+| `disabledAutoApproveTools` | Source policy forces listed tools to `approval: 'prompt'` before mode defaults, including `bypassPermissions` (`src/shared/ai/tools/mcpSourcePolicy.ts:35`, `src/main/ai/tools/adapters/claudeCode/agentTools.ts:76`, `src/shared/ai/claudecode/toolRules.ts:62`). That resolver result is not by itself a dialog: the callback must be reached and the background auto-allow must not apply; source-forced prompt alone does not set `requiresUserResponse` (`src/main/ai/runtime/claudeCode/settingsBuilder.ts:549`, `src/main/ai/runtime/claudeCode/settingsBuilder.ts:571`, `src/main/ai/runtime/claudeCode/settingsBuilder.ts:577`). |
+| `bypassPermissions` (Full Access) | Auto-approves unless source policy takes precedence in the resolver (`src/shared/ai/claudecode/toolRules.ts:76`). The SDK skips the callback on auto-approved paths, so the resolver alone does not guarantee per-call confirmation (`src/main/ai/runtime/claudeCode/hooks.ts:87`). |
+| `acceptEdits` | Auto-approves the built-in edit-tool set, not arbitrary external MCP tools (`src/shared/ai/claudecode/toolRules.ts:26`, `src/shared/ai/claudecode/toolRules.ts:80`). Bash stays on `prompt`: the SDK auto-approves its own path-checked filesystem commands before the callback, so a Bash call that reaches `canUseTool` is one the SDK escalated. |
 | No interactive responder | A call requiring a user response is denied when no responder is available; a missing approval emitter also denies. Ordinary background requests can auto-allow before these guards (`src/main/ai/runtime/claudeCode/settingsBuilder.ts:577`, `src/main/ai/runtime/claudeCode/settingsBuilder.ts:585`, `src/main/ai/runtime/claudeCode/settingsBuilder.ts:602`). |
-| `disabledTools` | Tools are omitted from exposure, and runtime calls are rejected; this is not an approval decision (`src/main/ai/tools/adapters/claudeCode/agentTools.ts:78`, `src/main/ai/mcp/McpRuntimeService.ts:728`). |
+| `disabledTools` | Tools are omitted from exposure, and runtime calls are rejected; this is not an approval decision (`src/main/ai/tools/adapters/claudeCode/agentTools.ts:77`, `src/main/ai/mcp/McpRuntimeService.ts:728`). |
 | Explicit `updatedInput` from another caller | The decision adapter accepts replacement input; argument fidelity above describes this dialog, not every possible approval sender (`src/main/ai/runtime/claudeCode/ToolApprovalRegistry.ts:16`). |
 | OAuth authentication challenge | The URL transport can resend a request rejected before acceptance after credentials are reloaded or authorization completes, within the same approval (`src/main/ai/mcp/connections/ExternalMcpConnection.ts:260`). |
 
@@ -238,6 +266,6 @@ The complete `allowedTools` list also includes `TaskCreate`, `TaskGet`,
 
 - IpcApi route: `src/main/ipc/handlers/ai.ts` (`ai.tool.respond_approval`)
 - Main decision owner: `src/main/ai/AiService.ts` (`respondToolApproval`)
-- Renderer bridge: `src/renderer/hooks/useToolApprovalBridge.ts`
+- Renderer bridge: `src/renderer/pages/home/hooks/useToolApprovalBridge.ts`
 - Persistent decisions: `src/renderer/components/chat/messages/tools/hooks/useToolApproval.ts`
 - Status broadcast: [Stream Manager](./stream-manager.md)

@@ -1,5 +1,45 @@
 # @cherrystudio/provider-registry
 
+## 0.6.2
+
+### Patch Changes
+
+- [#24624](https://github.com/CherryHQ/cherry-studio/pull/24624) [`0e75713`](https://github.com/CherryHQ/cherry-studio/commit/0e757139a979cf8f9b059066406d3cb56df7d40b) Thanks [@Contentment003111](https://github.com/Contentment003111)! - Add Tencent Hunyuan 4 Flash model metadata and the TokenHub model mapping.
+
+## 0.6.1
+
+### Patch Changes
+
+- [#24527](https://github.com/CherryHQ/cherry-studio/pull/24527) [`9f853cd`](https://github.com/CherryHQ/cherry-studio/commit/9f853cd5073a366c1beafc058b012cea17211c90) Thanks [@WhiteZeek](https://github.com/WhiteZeek)! - Use current Flash peak token prices for DeepSeek's retired Flash API aliases without changing third-party provider prices.
+
+## 0.6.0
+
+### Minor Changes
+
+- [#24517](https://github.com/CherryHQ/cherry-studio/pull/24517) [`5db46f5`](https://github.com/CherryHQ/cherry-studio/commit/5db46f59b909f21bee6496816f078da83b220965) Thanks [@DeJeune](https://github.com/DeJeune)! - Add Gemini 4 Hydrogen with low, medium, high, and xhigh reasoning levels. Update Google SDK support and the Pi adapter patch so all four levels reach the provider.
+
+### Patch Changes
+
+- [#24476](https://github.com/CherryHQ/cherry-studio/pull/24476) [`f62d636`](https://github.com/CherryHQ/cherry-studio/commit/f62d636d5b1e75378ae6ba848456cebd2e73a6b8) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Add Gemini 4 Carbon to the model catalog with low/medium/high reasoning effort, and recognize the id on custom providers.
+
+## 0.5.2
+
+### Patch Changes
+
+- [#23402](https://github.com/CherryHQ/cherry-studio/pull/23402) [`5ed9f0c`](https://github.com/CherryHQ/cherry-studio/commit/5ed9f0c7068eae541ac9897ce7c75a2b446a3578) Thanks [@copilot-swe-agent](https://github.com/apps/copilot-swe-agent)! - Route Claude Opus 5.5 Bedrock requests through the adaptive reasoning wire contract.
+
+## 0.5.1
+
+### Patch Changes
+
+- [#24343](https://github.com/CherryHQ/cherry-studio/pull/24343) [`6cfe3be`](https://github.com/CherryHQ/cherry-studio/commit/6cfe3be3e9e87b5f74ab907fe75b49426c1598ea) Thanks [@DeJeune](https://github.com/DeJeune)! - Share the documented DeepSeek V4.1 Flash capacity across its model IDs so versioned IDs resolve the output token limit correctly.
+
+## 0.5.0
+
+### Minor Changes
+
+- [#23363](https://github.com/CherryHQ/cherry-studio/pull/23363) [`c53a5e0`](https://github.com/CherryHQ/cherry-studio/commit/c53a5e02941bc2f35d3270dc73a33b13da82df15) Thanks [@raullenchai](https://github.com/raullenchai)! - Add Rapid-MLX as a keyless local provider, with its provider icon.
+
 ## 0.4.0
 
 ### Minor Changes

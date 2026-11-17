@@ -271,7 +271,7 @@ const McpServersList: FC = () => {
 
   return (
     <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden px-6 pt-4 pb-6">
-      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
+      <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col">
         <div className="mb-1 flex min-w-0 shrink-0 items-center justify-between gap-4 border-b border-border-subtle pb-3">
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-1.5">
@@ -377,7 +377,6 @@ const McpServersList: FC = () => {
                 ) : (
                   <EmptyState
                     compact
-                    preset="no-resource"
                     description={mcpServers.length === 0 ? t('settings.mcp.noServers') : t('common.no_results')}
                     className="py-12"
                   />
