@@ -21,6 +21,7 @@ import type { PdfTranslationProgressStage, PdfTranslationStage } from '@shared/i
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { saveTranslationFileAs } from '../translationFiles'
+import { PdfReadyEmptyScene } from './PdfReadyEmptyScene'
 
 const logger = loggerService.withContext('PdfTranslationView')
 
@@ -466,7 +467,7 @@ const PdfTranslationResult = ({
     case 'ready':
       return (
         <EmptyState
-          icon={Languages}
+          scene={<PdfReadyEmptyScene />}
           title={t('translate.pdf.ready.title')}
           description={t('translate.pdf.ready.description')}
         />
