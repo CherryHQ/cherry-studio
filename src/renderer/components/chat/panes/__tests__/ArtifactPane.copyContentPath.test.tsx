@@ -8,6 +8,7 @@ import {
   CommandContextKeyProvider,
   CommandProvider
 } from '@renderer/components/command'
+import type * as FilePreviewModule from '@renderer/components/FilePreview'
 import type * as OpenTargetModule from '@renderer/components/OpenTarget'
 import i18n from '@renderer/i18n/resolver'
 
@@ -17,7 +18,8 @@ import type { ArtifactFileTreeModel } from '../useArtifactFileTreeModel'
 const BS = String.fromCharCode(0x5c)
 const OVERSIZED = ARTIFACT_PREVIEW_MAX_SIZE_BYTES + 1
 
-vi.mock('@renderer/components/FilePreview', () => ({
+vi.mock('@renderer/components/FilePreview', async (importOriginal) => ({
+  ...(await importOriginal<typeof FilePreviewModule>()),
   FilePreview: () => <div data-testid="file-preview" />,
   FilePreviewModeToolbarPortalHost: () => null,
   FilePreviewModeToolbarPortalProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>

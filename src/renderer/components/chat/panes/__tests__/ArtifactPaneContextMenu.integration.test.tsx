@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
+import type * as FilePreviewModule from '@renderer/components/FilePreview'
 import type * as ExternalOpenTargetServiceModule from '@renderer/services/externalOpenTargetService'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -64,9 +65,9 @@ vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCmTheme: () => null
 }))
 
-vi.mock('@renderer/components/FilePreview', () => ({
+vi.mock('@renderer/components/FilePreview', async (importOriginal) => ({
+  ...(await importOriginal<typeof FilePreviewModule>()),
   FilePreview: ({ filePath }: { filePath: string }) => <div data-testid="file-preview">{filePath}</div>,
-  hasRenderedFilePreview: (filePath: string) => /\.(md|html?|svg)$/.test(filePath),
   FilePreviewModeToolbarPortalHost: () => null,
   FilePreviewModeToolbarPortalProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }))
