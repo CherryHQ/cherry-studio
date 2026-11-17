@@ -1,8 +1,8 @@
 {
   "name": "@cherrystudio/file-preview",
-  "version": "0.2.6",
+  "version": "0.4.0",
   "description": "Portable read-only document preview for Cherry Studio",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/CherryHQ/cherry-studio.git",
@@ -35,7 +35,7 @@
     "build": "vite build",
     "prepack": "pnpm build",
     "test": "pnpm --workspace-root test:pkg:file-preview",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/file-preview/tsconfig.json"
   },
   "dependencies": {
     "zod": "^4.1.5"

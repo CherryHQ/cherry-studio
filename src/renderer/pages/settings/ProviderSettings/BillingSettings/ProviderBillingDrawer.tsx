@@ -1,12 +1,23 @@
 import { type SetStateAction, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch } from '@cherrystudio/ui'
+import {
+  Button,
+  Input,
+  PageSidePanelItem,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch
+} from '@cherrystudio/ui'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import type { Provider } from '@shared/data/types/provider'
 import { ProviderBillingSchema, type ProviderBilling } from '@shared/data/types/providerBilling'
+import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { BillingField } from './BillingField'
@@ -29,25 +40,28 @@ export default function ProviderBillingDrawer({ provider, onClose }: { provider:
   const { t } = useTranslation()
   const { updateProvider } = useProvider(provider.id)
   const { models } = useModels({ providerId: provider.id })
-  const [draft, setDraftValue] = useState<BillingDraft>(() => {
-    const billing = provider.settings.billing ?? defaultBilling()
-    return {
-      ...billing,
-      timeZone: billingUtcOffset(billing.timeZone),
-      periods: billing.periods.map(({ id, start, end, ...rule }) => ({
-        id,
-        name: `${start}–${end}`,
-        start,
-        end,
-        mode: 'multiplier',
-        multiplier: rule.mode === 'multiplier' ? rule.multiplier : billing.defaultMultiplier
-      }))
-    }
-  })
-  const [resetRequested, setResetRequested] = useState(false)
+  const [editedDraft, setDraftValue] = useState<BillingDraft | null>(null)
+  const [resetRequested, setResetRequested] = useState(!provider.settings.billing)
+  const defaults = models.map((model) => getDefaultProviderBilling(provider, model)).find(Boolean) ?? defaultBilling()
+  const billing = resetRequested ? defaults : (provider.settings.billing ?? defaults)
+  const draft: BillingDraft = editedDraft ?? {
+    ...billing,
+    timeZone: billingUtcOffset(billing.timeZone),
+    periods: billing.periods.map(({ id, start, end, ...rule }) => ({
+      id,
+      name: `${start}–${end}`,
+      start,
+      end,
+      mode: 'multiplier',
+      multiplier: rule.mode === 'multiplier' ? rule.multiplier : billing.defaultMultiplier
+    }))
+  }
   const setDraft = (value: SetStateAction<BillingDraft>) => {
     setResetRequested(false)
-    setDraftValue(value)
+    const next = typeof value === 'function' ? value(draft) : value
+    const custom = { ...next }
+    delete custom.source
+    setDraftValue(custom)
   }
   const [saving, setSaving] = useState(false)
   const parsed = ProviderBillingSchema.safeParse(draft)
@@ -74,7 +88,17 @@ export default function ProviderBillingDrawer({ provider, onClose }: { provider:
     if (!parsed.success) return
     setSaving(true)
     try {
-      await updateProvider({ providerSettings: { billing: resetRequested ? null : parsed.data } })
+      await updateProvider({
+        providerSettings: {
+          billing: resetRequested
+            ? null
+            : {
+                ...parsed.data,
+                ...(provider.settings.billing?.calendar && !parsed.data.calendar ? { calendar: null } : {}),
+                ...(provider.settings.billing?.source && !parsed.data.source ? { source: null } : {})
+              }
+        }
+      })
       onClose()
     } catch {
       toast.error(t('settings.provider.save_failed'))
@@ -97,7 +121,7 @@ export default function ProviderBillingDrawer({ provider, onClose }: { provider:
             variant="ghost"
             disabled={saving}
             onClick={() => {
-              setDraftValue(defaultBilling())
+              setDraftValue(null)
               setResetRequested(true)
             }}>
             {t('common.reset')}
@@ -113,6 +137,9 @@ export default function ProviderBillingDrawer({ provider, onClose }: { provider:
       {provider.reportsActualCost && (
         <p className="text-sm text-muted-foreground">{t('settings.provider.billing.reported_first')}</p>
       )}
+      {draft.source === 'deepseek' && (
+        <p className="text-sm text-muted-foreground">{t('settings.provider.billing.official_deepseek')}</p>
+      )}
       <BillingField label={t('settings.provider.billing.default_multiplier')} error={errors.defaultMultiplier}>
         <Input
           type="number"
@@ -126,14 +153,28 @@ export default function ProviderBillingDrawer({ provider, onClose }: { provider:
           }
         />
       </BillingField>
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-sm">{t('settings.provider.billing.schedule')}</span>
-        <Switch
-          aria-label={t('settings.provider.billing.schedule')}
-          checked={draft.scheduleEnabled}
-          onCheckedChange={(scheduleEnabled) => setDraft({ ...draft, scheduleEnabled })}
+      {draft.scheduleEnabled && (
+        <PageSidePanelItem
+          title={t('settings.provider.billing.cn_weekdays')}
+          action={
+            <Switch
+              aria-label={t('settings.provider.billing.cn_weekdays')}
+              checked={draft.calendar === 'cn-weekdays'}
+              onCheckedChange={(enabled) => setDraft({ ...draft, calendar: enabled ? 'cn-weekdays' : undefined })}
+            />
+          }
         />
-      </div>
+      )}
+      <PageSidePanelItem
+        title={t('settings.provider.billing.schedule')}
+        action={
+          <Switch
+            aria-label={t('settings.provider.billing.schedule')}
+            checked={draft.scheduleEnabled}
+            onCheckedChange={(scheduleEnabled) => setDraft({ ...draft, scheduleEnabled })}
+          />
+        }
+      />
       {draft.scheduleEnabled && (
         <>
           <BillingField label={t('settings.provider.billing.time_zone')} error={errors.timeZone}>
@@ -150,8 +191,8 @@ export default function ProviderBillingDrawer({ provider, onClose }: { provider:
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">{t('settings.provider.billing.time_help')}</p>
           </BillingField>
-          <p className="text-xs text-muted-foreground">{t('settings.provider.billing.time_help')}</p>
           {draft.periods.map((period, index) => (
             <BillingPeriodEditor
               key={period.id}
@@ -199,7 +240,9 @@ export default function ProviderBillingDrawer({ provider, onClose }: { provider:
           {t('settings.provider.billing.invalid_schedule')}
         </p>
       )}
-      {parsed.success && <BillingPreview billing={parsed.data} models={models} />}
+      {parsed.success && (
+        <BillingPreview billing={parsed.data} models={models} defaultProvider={resetRequested ? provider : undefined} />
+      )}
     </ProviderSettingsDrawer>
   )
 }

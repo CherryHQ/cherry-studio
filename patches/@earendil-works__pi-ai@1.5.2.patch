@@ -1,10 +1,84 @@
+diff --git a/dist/api/anthropic-messages.js b/dist/api/anthropic-messages.js
+index 4f7052d2bb80b14c00ac3a1ef0684bbcac166a5b..740e41e73c08f96399c2c43e089c5720586ccd2f 100644
+--- a/dist/api/anthropic-messages.js
++++ b/dist/api/anthropic-messages.js
+@@ -554,6 +554,9 @@ export const stream = (model, context, options) => {
+     const stream = new AssistantMessageEventStream();
+     const compat = getAnthropicCompat(model);
+     const normalizedContext = resolveTranscript(context, compat.supportsMidConvoSystemMessages);
++    if (options?.skipCacheWrite) {
++        options = { ...options, cacheReadPrefix: resolveTranscript({ ...context, messages: context.messages.slice(0, options.cacheReadPrefix ?? 0) }, compat.supportsMidConvoSystemMessages).messages.length };
++    }
+     const currentTools = getCurrentTools(normalizedContext.messages);
+     (async () => {
+         const output = {
+@@ -1215,6 +1218,14 @@ function buildParams(model, context, isOAuthToken, options, flags) {
+     if (allowedFallbackModels && allowedFallbackModels.length > 0) {
+         params.fallbacks = allowedFallbackModels.map((fallback) => ({ model: fallback.model }));
+     }
++    if (options?.skipCacheWrite) {
++        const parent = buildParams(model, { ...context, messages: context.messages.slice(0, options.cacheReadPrefix ?? 0) }, isOAuthToken, { ...options, skipCacheWrite: false }, flags).params;
++        for (const message of params.messages) {
++            if (Array.isArray(message.content))
++                for (const block of message.content) delete block.cache_control;
++        }
++        params.messages.splice(0, parent.messages.length, ...parent.messages);
++    }
+     return { params, hasPreferredStrictTools, providerThinkingLevel: effortMessages ? activeEffort : undefined };
+ }
+ // Normalize tool call IDs to match Anthropic's required pattern and length
+diff --git a/dist/api/bedrock-converse-stream.js b/dist/api/bedrock-converse-stream.js
+index 2f4d57c12f029a46a731e6c26a1212300ae00019..4ca4f72497bdf411ee2fde7f59d1bcc053486364 100644
+--- a/dist/api/bedrock-converse-stream.js
++++ b/dist/api/bedrock-converse-stream.js
+@@ -26,6 +26,9 @@ export const stream = (model, context, options = {}) => {
+     const stream = new AssistantMessageEventStream();
+     // Bedrock has no mid-conversation system messages; fold them into the leading prompt.
+     const normalizedContext = collapseSystemMessages(context);
++    if (options?.skipCacheWrite) {
++        options = { ...options, cacheReadPrefix: collapseSystemMessages({ ...context, messages: context.messages.slice(0, options.cacheReadPrefix ?? 0) }).messages.length };
++    }
+     (async () => {
+         const output = {
+             role: "assistant",
+@@ -152,7 +155,7 @@ export const stream = (model, context, options = {}) => {
+                 const tools = convertToolConfig(getCurrentTools(normalizedContext.messages), options.toolChoice, supportsStrictMode, disablePreferredStrictTools);
+                 let commandInput = {
+                     modelId: model.id,
+-                    messages: convertMessages(normalizedContext, model, cacheRetention, options.env),
++                    messages: convertMessages(normalizedContext, model, cacheRetention, options.env, options.skipCacheWrite ? options.cacheReadPrefix ?? 0 : undefined),
+                     system: buildSystemPrompt(initialSystemPrompt, model, cacheRetention, options.env),
+                     inferenceConfig: {
+                         ...(inferenceMaxTokens !== undefined && { maxTokens: inferenceMaxTokens }),
+@@ -785,7 +788,7 @@ function convertToolResultContent(content) {
+         result.push({ text: EMPTY_TEXT_PLACEHOLDER });
+     return result;
+ }
+-function convertMessages(context, model, cacheRetention, env) {
++function convertMessages(context, model, cacheRetention, env, cacheReadPrefix) {
+     const result = [];
+     const transformedMessages = transformMessages(withoutInitialSystemMessage(context.messages), model, normalizeToolCallId);
+     for (let i = 0; i < transformedMessages.length; i++) {
+@@ -942,6 +945,14 @@ function convertMessages(context, model, cacheRetention, env) {
+             });
+         }
+     }
++    if (cacheReadPrefix !== undefined) {
++        const parent = convertMessages({ ...context, messages: context.messages.slice(0, cacheReadPrefix) }, model, cacheRetention, env);
++        for (const [index, message] of result.entries()) {
++            message.content = message.content.filter(block => !block.cachePoint);
++            const point = parent[index]?.content.find(block => block.cachePoint);
++            if (point) message.content.push(point);
++        }
++    }
+     return result;
+ }
+ function convertToolConfig(tools, toolChoice, supportsStrictMode, disablePreferredStrictTools) {
 diff --git a/dist/api/google-generative-ai.js b/dist/api/google-generative-ai.js
-index feb37cc..a4e9e16 100644
+index feb37cc3b55ab8011b12e316ee41203194d84fa6..329416f0280e101a22017688fbf3e914760f500e 100644
 --- a/dist/api/google-generative-ai.js
 +++ b/dist/api/google-generative-ai.js
-@@ -31,18 +31,15 @@ export const stream = (model, context, options) => {
-             },
-             stopReason: "pending",
+@@ -33,14 +33,11 @@ export const stream = (model, context, options) => {
              timestamp: Date.now(),
          };
          try {
@@ -20,11 +94,7 @@ index feb37cc..a4e9e16 100644
              let params = buildParams(model, normalizedContext, options);
              const nextParams = await options?.onPayload?.(params, model);
              if (nextParams !== undefined) {
-                 params = nextParams;
-             }
-@@ -259,12 +256,15 @@ export const streamSimple = (model, context, options) => {
-             enabled: true,
-             budgetTokens: getGoogleBudget(model, resolvedLevel, options.thinkingBudgets),
+@@ -261,8 +258,11 @@ export const streamSimple = (model, context, options) => {
          },
      });
  };
@@ -37,13 +107,64 @@ index feb37cc..a4e9e16 100644
      if (model.baseUrl) {
          httpOptions.baseUrl = model.baseUrl;
          httpOptions.apiVersion = ""; // baseUrl already includes version path, don't append
+diff --git a/dist/api/google-shared.d.ts b/dist/api/google-shared.d.ts
+index 056b67d3bf5e0e9da2d4f7a895f8d0afebdf1bc4..d288abae6dc7846b246bd06d13bef9c03112ea1b 100644
+--- a/dist/api/google-shared.d.ts
++++ b/dist/api/google-shared.d.ts
+@@ -8,8 +8,8 @@ type GoogleApiType = "google-generative-ai" | "google-vertex";
+  * Thinking level for Gemini 3 models.
+  * Mirrors Google's ThinkingLevel enum values.
+  */
+-export type GoogleApiThinkingLevel = "THINKING_LEVEL_UNSPECIFIED" | "MINIMAL" | "LOW" | "MEDIUM" | "HIGH";
+-export type ResolvedGoogleThinkingLevel = Exclude<ThinkingLevel, "xhigh" | "max">;
++export type GoogleApiThinkingLevel = "THINKING_LEVEL_UNSPECIFIED" | "MINIMAL" | "LOW" | "MEDIUM" | "HIGH" | "XHIGH";
++export type ResolvedGoogleThinkingLevel = Exclude<ThinkingLevel, "max" | "ultra">;
+ /** Resolve a supported pi level or model-specific Google mapping to a standard Google level. */
+ export declare function resolveGoogleThinkingLevel<T extends GoogleApiType>(model: Model<T>, level: ThinkingLevel): ResolvedGoogleThinkingLevel;
+ /**
+@@ -19,7 +19,7 @@ export declare function resolveGoogleThinkingLevel<T extends GoogleApiType>(mode
+  */
+ export declare function usesGoogleThinkingLevel<T extends GoogleApiType>(model: Model<T>): boolean;
+ export declare function toGoogleThinkingLevel(level: ResolvedGoogleThinkingLevel): GoogleApiThinkingLevel;
+-export declare function toGoogleSdkThinkingLevel(level: GoogleApiThinkingLevel): GoogleSdkThinkingLevel;
++export declare function toGoogleSdkThinkingLevel(level: GoogleApiThinkingLevel): GoogleSdkThinkingLevel | "XHIGH";
+ export declare function getDisabledGoogleThinkingConfig<T extends GoogleApiType>(model: Model<T>): ThinkingConfig;
+ /**
+  * Determines whether a streamed Gemini `Part` should be treated as "thinking".
+diff --git a/dist/api/google-shared.js b/dist/api/google-shared.js
+index f344df5315c490ff03fa8f7c75a6cb14364f88da..81cbd4d414793a48e3fe65f01b15b85185485e47 100644
+--- a/dist/api/google-shared.js
++++ b/dist/api/google-shared.js
+@@ -14,6 +14,7 @@ const GOOGLE_SDK_THINKING_LEVEL_MAP = {
+     LOW: GoogleSdkThinkingLevel.LOW,
+     MEDIUM: GoogleSdkThinkingLevel.MEDIUM,
+     HIGH: GoogleSdkThinkingLevel.HIGH,
++    XHIGH: "XHIGH",
+ };
+ /** Resolve a supported pi level or model-specific Google mapping to a standard Google level. */
+ export function resolveGoogleThinkingLevel(model, level) {
+@@ -24,6 +25,7 @@ export function resolveGoogleThinkingLevel(model, level) {
+         case "low":
+         case "medium":
+         case "high":
++        case "xhigh":
+             return resolvedLevel;
+         default:
+             throw new Error(`Unsupported Google thinking level mapping for ${model.provider}/${model.id}: ${level} -> ${String(mapped)}`);
+@@ -57,6 +59,8 @@ export function toGoogleThinkingLevel(level) {
+             return "MEDIUM";
+         case "high":
+             return "HIGH";
++        case "xhigh":
++            return "XHIGH";
      }
-     const headers = providerHeadersToRecord(getIdentityHeaders(model, identity), model.headers, optionsHeaders);
+ }
+ export function toGoogleSdkThinkingLevel(level) {
 diff --git a/dist/api/openai-codex-responses.d.ts b/dist/api/openai-codex-responses.d.ts
-index 704476d..3f755ff 100644
+index 704476da084be53d6aa194a5f774fa3ad47f5e9a..7e187133abd4a9f1a635eb9d46f61bb41dbca285 100644
 --- a/dist/api/openai-codex-responses.d.ts
 +++ b/dist/api/openai-codex-responses.d.ts
-@@ -1,9 +1,9 @@
+@@ -1,7 +1,7 @@
  import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
  import type { SimpleStreamOptions, StreamFunction, StreamOptions } from "../types.ts";
  export interface OpenAICodexResponsesOptions extends StreamOptions {
@@ -52,13 +173,40 @@ index 704476d..3f755ff 100644
      reasoningSummary?: "auto" | "concise" | "detailed" | "off" | "on" | null;
      serviceTier?: ResponseCreateParamsStreaming["service_tier"];
      textVerbosity?: "low" | "medium" | "high";
-     toolChoice?: "auto" | "none" | "required";
- }
+diff --git a/dist/api/openai-completions.js b/dist/api/openai-completions.js
+index c1b6038c2220633a8caf710288a8f6e6301f7a28..d394f60a366c69cf57e514b35182e2fb6797b62d 100644
+--- a/dist/api/openai-completions.js
++++ b/dist/api/openai-completions.js
+@@ -152,6 +152,9 @@ function resolveCacheRetention(cacheRetention, env) {
+ export const stream = (model, context, options) => {
+     const stream = new AssistantMessageEventStream();
+     const normalizedContext = resolveTranscript(context, getCompat(model).supportsMidConvoSystemMessages);
++    if (options?.skipCacheWrite) {
++        options = { ...options, cacheReadPrefix: resolveTranscript({ ...context, messages: context.messages.slice(0, options.cacheReadPrefix ?? 0) }, getCompat(model).supportsMidConvoSystemMessages).messages.length };
++    }
+     (async () => {
+         const output = {
+             role: "assistant",
+@@ -598,6 +601,14 @@ function buildParams(model, context, options, compat = getCompat(model), cacheRe
+     }
+     if (cacheControl) {
+         applyAnthropicCacheControl(messages, params.tools, cacheControl);
++        if (options?.skipCacheWrite) {
++            const parent = buildParams(model, { ...context, messages: context.messages.slice(0, options.cacheReadPrefix ?? 0) }, { ...options, skipCacheWrite: false }, compat).messages;
++            for (const message of messages) {
++                if (Array.isArray(message.content))
++                    for (const block of message.content) delete block.cache_control;
++            }
++            messages.splice(0, parent.length, ...parent);
++        }
+     }
+     if (options?.toolChoice) {
+         params.tool_choice = options.toolChoice;
 diff --git a/dist/api/openai-responses.d.ts b/dist/api/openai-responses.d.ts
-index 41267bd..f29497b 100644
+index 41267bd50904069aa0879cc8634ea94bc1045236..9e84a73f04341ab3adc9647c8a953fd3b218a3f7 100644
 --- a/dist/api/openai-responses.d.ts
 +++ b/dist/api/openai-responses.d.ts
-@@ -1,9 +1,9 @@
+@@ -1,7 +1,7 @@
  import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
  import type { SimpleStreamOptions, StreamFunction, StreamOptions } from "../types.ts";
  export interface OpenAIResponsesOptions extends StreamOptions {
@@ -67,15 +215,43 @@ index 41267bd..f29497b 100644
      reasoningSummary?: "auto" | "detailed" | "concise" | null;
      serviceTier?: ResponseCreateParamsStreaming["service_tier"];
      toolChoice?: ResponseCreateParamsStreaming["tool_choice"];
- }
- /**
+diff --git a/dist/api/simple-options.js b/dist/api/simple-options.js
+index a119bf912008e77ec051af6d9701e24c9f2b468b..8c7758904d536e8fac4507dd3e99d1f98d3c03b6 100644
+--- a/dist/api/simple-options.js
++++ b/dist/api/simple-options.js
+@@ -40,6 +40,9 @@ export function buildBaseOptions(model, context, options, apiKey) {
+         fetch: options?.fetch,
+         transport: options?.transport,
+         cacheRetention: options?.cacheRetention,
++        skipCacheWrite: options?.skipCacheWrite,
++        cacheReadPrefix: options?.cacheReadPrefix,
++        readOnlyFork: options?.readOnlyFork,
+         sessionId: options?.sessionId,
+         disableContinuation: options?.disableContinuation,
+         headers: options?.headers,
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 9c19bb0fd38cc51e814d3680e8e06519908874b5..0fcbb1efce45f566ac45ab30d7287a705d800133 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -35,3 +35,4 @@ export { uuidv7 } from "./utils/uuid.ts";
+ export * from "./utils/validation.ts";
+ export { PI_AI_VERSION } from "./utils/version.ts";
+ //# sourceMappingURL=index.d.ts.map
++export { retainNestedToolCall } from "./nested-tool-records.js";
+diff --git a/dist/index.js b/dist/index.js
+index a45b61643634b192fb41453b8869e1be3eaab658..c2489650e1f12845cfe6ea5d033f5bd4dd384943 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -23,3 +23,4 @@ export { uuidv7 } from "./utils/uuid.js";
+ export * from "./utils/validation.js";
+ export { PI_AI_VERSION } from "./utils/version.js";
+ //# sourceMappingURL=index.js.map
++export { retainNestedToolCall } from "./nested-tool-records.js";
 diff --git a/dist/models.js b/dist/models.js
-index c61de87..2a953e5 100644
+index c61de8788a8f8d1a5921823360cbfbbac7814921..cd460df300bf8e37757871b87d257866aee94632 100644
 --- a/dist/models.js
 +++ b/dist/models.js
-@@ -696,19 +696,19 @@ export function calculateCost(model, usage) {
-     usage.cost.cacheWrite = (rates.cacheWrite * shortWrite + rates.input * 2 * longWrite) / 1000000;
-     usage.cost.total = usage.cost.input + usage.cost.output + usage.cost.cacheRead + usage.cost.cacheWrite;
+@@ -698,7 +698,7 @@ export function calculateCost(model, usage) {
      usage.cost.totalFromProvider = false;
      return usage.cost;
  }
@@ -84,7 +260,7 @@ index c61de87..2a953e5 100644
  export function getSupportedThinkingLevels(model) {
      if (!model.reasoning)
          return ["off"];
-     return EXTENDED_THINKING_LEVELS.filter((level) => {
+@@ -706,7 +706,7 @@ export function getSupportedThinkingLevels(model) {
          const mapped = model.thinkingLevelMap?.[level];
          if (mapped === null)
              return false;
@@ -93,13 +269,50 @@ index c61de87..2a953e5 100644
              return mapped !== undefined;
          return true;
      });
- }
- export function clampThinkingLevel(model, level) {
+diff --git a/dist/nested-tool-records.d.ts b/dist/nested-tool-records.d.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..38224a50c2a8c5e92f43d6148e489c5c84efa638
+--- /dev/null
++++ b/dist/nested-tool-records.d.ts
+@@ -0,0 +1,2 @@
++import type { NestedToolCallRecord, NestedToolCalls } from "./types.js";
++export declare function retainNestedToolCall(previous: NestedToolCalls | undefined, call: NestedToolCallRecord): NestedToolCalls;
+diff --git a/dist/nested-tool-records.js b/dist/nested-tool-records.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..5392b2fde2a1f64da50c215c3a671a96819b4768
+--- /dev/null
++++ b/dist/nested-tool-records.js
+@@ -0,0 +1,25 @@
++const encoder = new TextEncoder();
++export function retainNestedToolCall(previous, call) {
++    const record = previous ?? { version: 1, calls: [], complete: true };
++    const index = record.calls.findIndex((item) => item.id === call.id);
++    if (index < 0 && record.calls.length >= 256) {
++        return { ...record, complete: false, omittedCalls: (record.omittedCalls ?? 0) + 1 };
++    }
++    const next = JSON.parse(JSON.stringify(call));
++    for (const [field, perCall, total] of [["arguments", 8192, 32768], ["result", 65536, 1048576]]) {
++        if (next[field] === undefined) continue;
++        delete next[field + "Bytes"];
++        delete next[field + "Omitted"];
++        const bytes = encoder.encode(JSON.stringify(next[field])).length;
++        const used = record.calls.reduce((sum, item, i) => sum + (i === index || item[field] === undefined ? 0 : encoder.encode(JSON.stringify(item[field])).length), 0);
++        if (bytes > perCall || used + bytes > total) {
++            delete next[field];
++            next[field + "Bytes"] = bytes;
++            next[field + "Omitted"] = "budget";
++        }
++    }
++    const calls = record.calls.slice();
++    if (index < 0) calls.push(next);
++    else calls[index] = next;
++    return { ...record, version: 1, calls, complete: !record.omittedCalls && calls.every((item) => item.status !== "unfinished" && item.arguments !== undefined && item.result !== undefined) };
++}
 diff --git a/dist/providers/model-schema.d.ts b/dist/providers/model-schema.d.ts
-index f4015ca..f1f8dde 100644
+index f4015cafbe7585e47e7c835ec2322bd67f893045..7198677d35be664f8c540761f1f5f637a301bdc0 100644
 --- a/dist/providers/model-schema.d.ts
 +++ b/dist/providers/model-schema.d.ts
-@@ -1,23 +1,24 @@
+@@ -1,11 +1,11 @@
  import { type Static } from "@earendil-works/pi-schema";
 -export declare const THINKING_LEVELS: readonly ["minimal", "low", "medium", "high", "xhigh", "max"];
 -export declare const MODEL_THINKING_LEVELS: readonly ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
@@ -115,10 +328,7 @@ index f4015ca..f1f8dde 100644
  export declare const ModelInputModalitySchema: import("@earendil-works/pi-schema").Schema<"image" | "text">;
  export declare const CacheRetentionSchema: import("@earendil-works/pi-schema").Schema<"long" | "none" | "short">;
  export declare const ThinkingLevelMapSchema: import("@earendil-works/pi-schema").Schema<{
-     off?: string | null | undefined;
-     minimal?: string | null | undefined;
-     low?: string | null | undefined;
-     medium?: string | null | undefined;
+@@ -16,6 +16,7 @@ export declare const ThinkingLevelMapSchema: import("@earendil-works/pi-schema")
      high?: string | null | undefined;
      xhigh?: string | null | undefined;
      max?: string | null | undefined;
@@ -126,13 +336,11 @@ index f4015ca..f1f8dde 100644
  }>;
  export declare const ModelPromptCacheSchema: import("@earendil-works/pi-schema").Schema<{
      short?: number | undefined;
-     long?: number | undefined;
- }>;
 diff --git a/dist/providers/model-schema.js b/dist/providers/model-schema.js
-index 2aaea67..1d152b8 100644
+index 2aaea67495f5b684779092d404154c421ff8841d..3ebe1c1ef6d2c049954d72abb59123130346cd3b 100644
 --- a/dist/providers/model-schema.js
 +++ b/dist/providers/model-schema.js
-@@ -1,8 +1,8 @@
+@@ -1,6 +1,6 @@
  import { arr, int, nul, num, oneOf, opt, str, union, } from "@earendil-works/pi-schema";
  import { openObject as object } from "./schema-builders.js";
 -export const THINKING_LEVELS = ["minimal", "low", "medium", "high", "xhigh", "max"];
@@ -140,11 +348,7 @@ index 2aaea67..1d152b8 100644
  export const MODEL_THINKING_LEVELS = ["off", ...THINKING_LEVELS];
  export const MODEL_INPUT_MODALITIES = ["text", "image"];
  export const CACHE_RETENTIONS = ["none", "short", "long"];
- export const MODEL_PROMPT_CACHE_RETENTIONS = ["short", "long"];
- export const ThinkingLevelSchema = oneOf(THINKING_LEVELS);
-@@ -16,10 +16,11 @@ export const ThinkingLevelMapSchema = object({
-     low: opt(ThinkingLevelMapValueSchema),
-     medium: opt(ThinkingLevelMapValueSchema),
+@@ -18,6 +18,7 @@ export const ThinkingLevelMapSchema = object({
      high: opt(ThinkingLevelMapValueSchema),
      xhigh: opt(ThinkingLevelMapValueSchema),
      max: opt(ThinkingLevelMapValueSchema),
@@ -152,15 +356,24 @@ index 2aaea67..1d152b8 100644
  }, {
      description: "Provider value sent for each thinking level. null marks a level unsupported. Levels the model does not map use the provider's default value through high; xhigh and max are unsupported.",
  });
- const PromptCacheLifetimeSchema = num({ exclusiveMinimum: 0 });
- export const ModelPromptCacheSchema = object({ short: opt(PromptCacheLifetimeSchema), long: opt(PromptCacheLifetimeSchema) }, {
 diff --git a/dist/types.d.ts b/dist/types.d.ts
-index b410a7b..685a297 100644
+index b410a7bab16c395090ab63e362288306950dec64..aed4aff0dc2f5f59f711f7086ae044519546c4f5 100644
 --- a/dist/types.d.ts
 +++ b/dist/types.d.ts
-@@ -355,11 +355,22 @@ export interface DeferredHandle {
-  * prompt sections, and `toolsAdded`/`toolsRemoved` change the tool set. Replaying
-  * every system message in order yields the current prompt and tools. Providers that
+@@ -136,6 +136,12 @@ export interface StreamOptions extends ProviderRequestOptions<Model<Api>> {
+      * Default: "short".
+      */
+     cacheRetention?: CacheRetention;
++    /** Preserve inherited cache breakpoints, without marking the appended fork suffix for caching. */
++    skipCacheWrite?: boolean;
++    /** Detached query: do not attribute its usage or request budget to a parent turn. */
++    readOnlyFork?: boolean;
++    /** Number of native messages in the parent request, excluding its response and the fork prompt. */
++    cacheReadPrefix?: number;
+     /**
+      * Optional session identifier for providers that support session-based caching.
+      * Providers can use this to enable prompt caching, request routing, or other
+@@ -357,7 +363,18 @@ export interface DeferredHandle {
   * accept system messages mid-conversation send each one in place; other providers
   * rebuild the leading system message from the replayed state.
   */
@@ -179,11 +392,34 @@ index b410a7b..685a297 100644
      role: "system";
      /** Instruction text. On the leading message this is the base prompt; later, additional instructions. */
      content: string | TextContent[];
-     /**
-      * Named, ordered prompt sections rendered verbatim after `content`. The leading message
-@@ -435,10 +446,12 @@ export type ToolResultMessage<TDetails = JsonValue> = IsJsonCompatible<TDetails>
-     role: "toolResult";
-     toolCallId: string;
+@@ -413,6 +430,11 @@ export interface AssistantMessage {
+ }
+ /** A tool call that another tool made while it ran, for example from a codemode script. */
+ export interface NestedToolCallRecord {
++    parentToolCallId?: string;
++    result?: JsonValue;
++    resultBytes?: number;
++    argumentsOmitted?: "budget";
++    resultOmitted?: "budget";
+     id: string;
+     name: string;
+     /** Omitted when over the size limits; `argumentsBytes` then gives their size. */
+@@ -425,10 +447,12 @@ export interface NestedToolCallRecord {
+     /** Error text, truncated. */
+     error?: string;
+ }
+-/** Bounded record of the nested calls a tool made. Results are not recorded. */
++/** Bounded presentation evidence of the nested calls a tool made. */
+ export interface NestedToolCalls {
++    version?: 1;
++    omittedCalls?: number;
+     calls: NestedToolCallRecord[];
+-    /** False when calls were dropped, arguments omitted, or calls had not finished. */
++    /** False when calls or payloads were omitted, or calls had not finished. */
+     complete: boolean;
+ }
+ export type ToolResultMessage<TDetails = JsonValue> = IsJsonCompatible<TDetails> extends true ? {
+@@ -437,6 +461,8 @@ export type ToolResultMessage<TDetails = JsonValue> = IsJsonCompatible<TDetails>
      toolName: string;
      content: (TextContent | ImageContent)[];
      details?: JsonRepresentation<TDetails>;
@@ -192,11 +428,9 @@ index b410a7b..685a297 100644
      /** Usage from the tool execution itself, if available. Not part of main LLM context accounting. */
      usage?: Usage;
      /** Calls this tool made to other tools. Kept for the session record; not sent to the model. */
-     nestedCalls?: NestedToolCalls;
-     isError: boolean;
-diff --git a/package/dist/utils/context-usage.d.ts b/dist/utils/context-usage.d.ts
+diff --git a/dist/utils/context-usage.d.ts b/dist/utils/context-usage.d.ts
 new file mode 100644
-index 0000000..c2422f3
+index 0000000000000000000000000000000000000000..c2422f31a9a21f6a2b204c9e1c029bfde09acf73
 --- /dev/null
 +++ b/dist/utils/context-usage.d.ts
 @@ -0,0 +1,10 @@
@@ -210,9 +444,9 @@ index 0000000..c2422f3
 +    resources?: ContextSource["resources"];
 +}
 +export declare function measureSystemContext(system: SystemMessage | undefined, deferred?: readonly (Tool & { contextSource?: ContextSource })[], estimate?: (promptCharacters: number, toolCharacters: number) => number, separator?: string): ContextPart[];
-diff --git a/package/dist/utils/context-usage.js b/dist/utils/context-usage.js
+diff --git a/dist/utils/context-usage.js b/dist/utils/context-usage.js
 new file mode 100644
-index 0000000..a37f8e8
+index 0000000000000000000000000000000000000000..a37f8e82c6eb306f36ecad165e6562b07f2df1c6
 --- /dev/null
 +++ b/dist/utils/context-usage.js
 @@ -0,0 +1,35 @@
@@ -252,26 +486,19 @@ index 0000000..a37f8e8
 +    return parts;
 +}
 diff --git a/dist/utils/estimate.d.ts b/dist/utils/estimate.d.ts
-index 6dcca6e..0b56a9f 100644
+index 6dcca6eff16b95b83e047a6e27b65d9d7694bf2c..0b56a9ffff6251cadfaecea62a6d8c7463b718cd 100644
 --- a/dist/utils/estimate.d.ts
 +++ b/dist/utils/estimate.d.ts
-@@ -12,6 +12,7 @@ export interface ContextUsageEstimate {
- export declare function calculateContextTokens(usage: Usage): number;
- export declare function estimateTextTokens(text: string): number;
- export declare function estimateTextAndImageContentTokens(content: string | Array<TextContent | ImageContent>): number;
+@@ -15,3 +15,4 @@ export declare function estimateTextAndImageContentTokens(content: string | Arra
  export declare function estimateMessageTokens(message: Message): number;
  export declare function estimateContextTokens(context: TranscriptContext | readonly Message[]): ContextUsageEstimate;
--//# sourceMappingURL=estimate.d.ts.map
-\ No newline at end of file
-+//# sourceMappingURL=estimate.d.ts.map
+ //# sourceMappingURL=estimate.d.ts.map
 +export declare function estimateSystemCharacters(promptCharacters: number, toolCharacters: number): number;
 diff --git a/dist/utils/estimate.js b/dist/utils/estimate.js
-index 45be26d..cfaf2b0 100644
+index 45be26d820bb38ab85340e7afb8cb4682db2e6b7..90c1808089a5e8799693215fd8b3734a06e3d333 100644
 --- a/dist/utils/estimate.js
 +++ b/dist/utils/estimate.js
-@@ -18,21 +18,23 @@ function estimateTextAndImageContentChars(content) {
-     let chars = 0;
-     for (const block of content)
+@@ -20,6 +20,9 @@ function estimateTextAndImageContentChars(content) {
          chars += block.type === "text" ? block.text.length : ESTIMATED_IMAGE_CHARS;
      return chars;
  }
@@ -281,9 +508,7 @@ index 45be26d..cfaf2b0 100644
  export function estimateTextTokens(text) {
      return Math.ceil(text.length / CHARS_PER_TOKEN);
  }
- export function estimateTextAndImageContentTokens(content) {
-     return Math.ceil(estimateTextAndImageContentChars(content) / CHARS_PER_TOKEN);
- }
+@@ -29,8 +32,7 @@ export function estimateTextAndImageContentTokens(content) {
  export function estimateMessageTokens(message) {
      let chars = 0;
      if (message.role === "system") {
@@ -293,15 +518,71 @@ index 45be26d..cfaf2b0 100644
              estimateToolsTokens(message.toolsRemoved));
      }
      if (message.role === "user")
-         return estimateTextAndImageContentTokens(message.content);
-     if (message.role === "toolResult")
+diff --git a/dist/utils/query-fork.d.ts b/dist/utils/query-fork.d.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..9b0cb9bf3fe4357258e14d48f0401aab4d4cf3ad
+--- /dev/null
++++ b/dist/utils/query-fork.d.ts
+@@ -0,0 +1,8 @@
++import type { Api, AssistantMessage, Message, Model, SimpleStreamOptions, AssistantMessageEventStream, Context } from '../types.js';
++export interface QueryFork {
++    readonly model: Model<Api>;
++    readonly messages: readonly Message[];
++    query(prompt: string, signal: AbortSignal): Promise<{ calledTool: boolean; message: AssistantMessage | undefined }>;
++}
++export declare function createQueryFork(model: Model<Api>, messages: readonly Message[], stream: (model: Model<Api>, context: Context, options: SimpleStreamOptions) => AssistantMessageEventStream, options?: SimpleStreamOptions): QueryFork;
++export declare function canSuggestPrompt(messages: readonly Message[]): boolean;
+diff --git a/dist/utils/query-fork.js b/dist/utils/query-fork.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..e0610ab42b9bdd37091f69346ae178dfd7f40c1d
+--- /dev/null
++++ b/dist/utils/query-fork.js
+@@ -0,0 +1,40 @@
++/** A detached single-response query. It owns no session, transcript, tools or durable tasks. */
++export function createQueryFork(model, messages, stream, options = {}) {
++    const snapshot = structuredClone(messages);
++    const parentRequestEnd = snapshot.findLastIndex(message => message.role === 'assistant');
++    return {
++        model,
++        messages: snapshot,
++        async query(prompt, signal) {
++            signal.throwIfAborted();
++            const controller = new AbortController();
++            const requestSignal = AbortSignal.any([signal, controller.signal]);
++            const context = { messages: [...structuredClone(snapshot), { role: 'user', content: prompt, timestamp: Date.now() }] };
++            const response = stream(model, context, {
++                ...options,
++                signal: requestSignal,
++                disableContinuation: true,
++                readOnlyFork: true,
++                skipCacheWrite: true,
++                cacheReadPrefix: Math.max(0, parentRequestEnd),
++            });
++            for await (const event of response) {
++                if (event.type === 'toolcall_start' || ('partial' in event && event.partial.content.some(part => part.type === 'toolCall'))) {
++                    controller.abort();
++                    return { calledTool: true, message: undefined };
++                }
++            }
++            const message = await response.result();
++            return { calledTool: message.content.some(part => part.type === 'toolCall'), message };
++        },
++    };
++}
++/** Claude's documented early-conversation and cold-cache gates, without private feature flags. */
++export function canSuggestPrompt(messages) {
++    const responses = messages.filter(message => message.role === 'assistant');
++    if (responses.length < 2) return false;
++    const last = responses.at(-1);
++    if (last.stopReason !== 'stop') return false;
++    const tokens = last.usage.input + last.usage.output;
++    return tokens <= 10000 && tokens + last.usage.cacheWrite <= 10000;
++}
 diff --git a/dist/utils/transcript.js b/dist/utils/transcript.js
-index ac638f4..b4d16a8 100644
+index ac638f499d0fa924fc5a468709f674940565f514..1ff99595287e37aa51d57e4ab609145d3392d9f1 100644
 --- a/dist/utils/transcript.js
 +++ b/dist/utils/transcript.js
-@@ -56,15 +56,20 @@ export function getCurrentTools(messages) {
-  * patched by name, and tools are resolved with {@link getCurrentTools}.
-  */
+@@ -58,11 +58,16 @@ export function getCurrentTools(messages) {
  export function getCurrentSystemMessage(messages) {
      const content = [];
      const sections = new Map();
@@ -318,11 +599,7 @@ index ac638f4..b4d16a8 100644
          const text = contentText(message.content);
          if (text.length > 0)
              content.push(text);
-         for (const [name, value] of Object.entries(message.sections ?? {})) {
-             if (value === null)
-@@ -77,10 +82,11 @@ export function getCurrentSystemMessage(messages) {
-     if (timestamp === undefined && tools.length === 0)
-         return undefined;
+@@ -79,6 +84,7 @@ export function getCurrentSystemMessage(messages) {
      return {
          role: "system",
          content: content.join("\n\n"),
@@ -330,5 +607,3 @@ index ac638f4..b4d16a8 100644
          ...(sections.size > 0 ? { sections: Object.fromEntries(sections) } : {}),
          ...(tools.length > 0 ? { toolsAdded: tools } : {}),
          timestamp: timestamp ?? 0,
-     };
- }

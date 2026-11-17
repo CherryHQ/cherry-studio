@@ -1,8 +1,8 @@
 {
   "name": "@cherrystudio/web-search",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Portable web search provider protocols with host-owned transports and policies",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "author": "Cherry Studio",
   "repository": {
     "type": "git",
@@ -304,6 +304,21 @@
       },
       "default": "./dist/providers/desearch.mjs"
     },
+    "./providers/serpkite": {
+      "react-native": {
+        "types": "./dist/providers/serpkite.d.mts",
+        "default": "./dist/providers/serpkite.mjs"
+      },
+      "import": {
+        "types": "./dist/providers/serpkite.d.mts",
+        "default": "./dist/providers/serpkite.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/serpkite.d.cts",
+        "default": "./dist/providers/serpkite.cjs"
+      },
+      "default": "./dist/providers/serpkite.mjs"
+    },
     "./tools/config": {
       "react-native": {
         "types": "./dist/tools/config.d.mts",
@@ -358,7 +373,7 @@
     "prepack": "pnpm build",
     "test": "vitest run --config vitest.config.ts",
     "test:package": "pnpm typecheck && pnpm build && node scripts/check-package.mjs",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/web-search/tsconfig.json"
   },
   "dependencies": {
     "eventsource-parser": "3.1.1",

@@ -35,9 +35,6 @@ export const BUILTIN_COMPOSER_TOOLS: ToolDefinition<any, any>[] = [
 
 export const getAllTools = (): ToolDefinition<any, any>[] => BUILTIN_COMPOSER_TOOLS
 
-export const getTool = (key: string): ToolDefinition<any, any> | undefined =>
-  BUILTIN_COMPOSER_TOOLS.find((tool) => tool.key === key)
-
 export const getToolsForScope = (
   scope: ComposerToolScope,
   context: Omit<ToolContext, 'scope'>

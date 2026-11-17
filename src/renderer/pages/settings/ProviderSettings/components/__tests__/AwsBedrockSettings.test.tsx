@@ -12,6 +12,8 @@ const commitInputApiKeyNowMock = vi.fn()
 const radioGroupPropsSpy = vi.fn()
 
 vi.mock('@cherrystudio/ui', () => ({
+  HelpTooltip: () => null,
+
   Button: ({ children, onClick, ...props }: any) => (
     <button type="button" onClick={onClick} {...props}>
       {children}
