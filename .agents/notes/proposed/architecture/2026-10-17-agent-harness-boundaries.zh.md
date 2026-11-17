@@ -104,7 +104,7 @@ Cherry 桌面的 Pi 根会话使用公共 Runtime；独立子会话投影和 Dur
 
 ### 通过内部网关使用原生 Pi provider
 
-[对象传输提案](2026-11-18-agent-object-transport.md) 部分取代下述内部 HTTP 要求，同时保留原生协议归属和共享的 Cherry AI SDK 执行，不恢复模型调用端口或 metadata codec。
+[对象传输决策](../../implemented/architecture/2026-11-18-agent-object-transport.md) 部分取代下述内部 HTTP 要求，同时保留原生协议归属和共享的 Cherry AI SDK 执行，不恢复模型调用端口或 metadata codec。
 
 本次获准删除宿主 `ModelCallPort`、自定义 AI SDK 流协议、元数据编码及绑定强制的 session 设置。宿主向已有内部网关注册原生 Pi provider。网关执行层拥有 provider 凭证和计费，原生响应用量用于展示与上下文计算；本次不重构网关内部管线。通过 HTTP 集成测试保留工具所有权、原生历史、压缩、停止及重试行为，并在桌面接入所属栈层验证实际接入。
 

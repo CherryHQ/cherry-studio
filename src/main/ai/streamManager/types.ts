@@ -109,6 +109,9 @@ export interface StreamListener {
   /** Orders terminal persistence before notifications and cleanup work after them. */
   readonly terminalPhase?: 'persistence' | 'cleanup'
 
+  /** Optional producer capacity gate for bounded in-process consumers. */
+  ready?(): Promise<void>
+
   onChunk(
     chunk: UIMessageChunk,
     sourceModelId?: UniqueModelId,

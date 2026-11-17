@@ -22,7 +22,10 @@ Every generation endpoint converts its inbound dialect to SDK messages, tools,
 and provider options, then makes one SDK call. The selected SDK provider adapter
 owns outgoing serialization and transport, including same-protocol requests.
 This preserves supported semantics, not arbitrary wire fields or byte identity.
-There is no separate raw HTTP branch.
+There is no separate raw HTTP branch. Desktop Pi and Pi Durable inject native protocol object
+transports into this same conversion and execution path. They exchange request/event objects
+without an internal HTTP listener, request JSON encoding or SSE formatting. Native replay,
+tools and retry ownership remain in Pi; external clients, including Claude Code, keep HTTP.
 
 Generation requests route through main's `AiStreamManager` as equal,
 **non-persisting** subscribers (alongside the renderer's `WebContentsListener`
@@ -58,7 +61,7 @@ to enable it. It is disabled by default.
 | Use case | When the gateway is needed |
 |---|---|
 | Another local app uses Cherry Studio's models | Start it and give the app the gateway URL and API key. The gateway translates supported API protocols for the configured provider. |
-| An Agent uses a Cherry-managed model | Pi, Pi Durable and Claude Code use the internal loopback listener, started on demand independently of the public gateway setting. |
+| An Agent uses a Cherry-managed model | Pi and Pi Durable call the gateway in process without a listener. Claude Code uses the internal loopback listener, started on demand independently of the public gateway setting. |
 | PDF translation | Cherry Studio starts the gateway temporarily for the translation task and releases it afterward. You do not need to enable it manually. |
 | A paired device connects to Cherry Studio | Start it, then allow network access in **Settings → Device Connections** and approve pairing. See [LAN exposure](#lan-exposure-is-confined-to-the-remote-access-upgrade) for the access boundary. |
 
@@ -118,6 +121,8 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
 ├── McpSessionStore.ts               ← bounded live Streamable HTTP MCP sessions
 ├── ModernMcpProxy.ts                ← MCP 2026-07-28 discovery, MRTR and subscriptions
 ├── gatewayRequest.ts                ← trusted request options and admitted provider/endpoint resolution
+├── prepareGatewayMessage.ts         ← shared protocol conversion and request overrides
+├── objectStream.ts                  ← bounded native protocol object transport for Pi / Pi Durable
 ├── proxyStream.ts                   ← `processMessage()` — converter → single SDK call → response adapter
 ├── reasoningCache.ts                ← google / openrouter reasoning-signature caches
 ├── openrouter.ts                    ← OpenRouter `reasoning_details` type contract (used by reasoningCache)

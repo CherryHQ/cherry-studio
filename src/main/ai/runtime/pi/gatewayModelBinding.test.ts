@@ -14,7 +14,11 @@ import { ProviderSchema } from '@shared/data/types/provider'
 
 import { createPiGatewayModelBinding } from './gatewayModelBinding'
 
-const gateway = vi.hoisted(() => ({ baseUrl: '', budget: undefined as ApiGatewayService | undefined }))
+const gateway = vi.hoisted(() => ({
+  baseUrl: '',
+  budget: undefined as ApiGatewayService | undefined,
+  requests: [] as { api: string; body: unknown }[]
+}))
 vi.mock('@application', async () => {
   const { mockApplicationFactory, defaultServiceInstances } = await import('@test-mocks/main/application')
   const overrides = {
@@ -22,7 +26,48 @@ vi.mock('@application', async () => {
     ApiGatewayService: {
       acquireModelPayloadBudget: (payload: unknown, signal?: AbortSignal) =>
         gateway.budget!.acquireModelPayloadBudget(payload, signal),
-      ensureInternalGateway: async () => ({ baseUrl: gateway.baseUrl, apiKey: 'local-key' }),
+      createAgentObjectTransports: (input: { headers?: Record<string, string | null>; reasoningEffort?: string }) =>
+        Object.fromEntries(
+          ['anthropic-messages', 'openai-completions', 'openai-responses', 'google-generative-ai'].map((api) => [
+            api,
+            async (body: unknown) => {
+              gateway.requests.push({ api, body })
+              if (!gateway.baseUrl) throw new Error('request capture')
+              const request = body as { model: string; contents?: unknown; config?: Record<string, unknown> }
+              const path =
+                api === 'anthropic-messages'
+                  ? '/v1/messages'
+                  : api === 'openai-responses'
+                    ? '/v1/responses'
+                    : api === 'google-generative-ai'
+                      ? '/v1beta/models/' + request.model + ':streamGenerateContent?alt=sse'
+                      : '/v1/chat/completions'
+              const headers = new Headers()
+              for (const [name, value] of Object.entries(input.headers ?? {}))
+                if (value !== null) headers.set(name, value)
+              headers.set('x-cherry-reasoning-effort', input.reasoningEffort ?? 'default')
+              const response = await fetch(gateway.baseUrl + path, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(
+                  api === 'google-generative-ai' ? { contents: request.contents, ...request.config } : body
+                )
+              })
+              if (!response.ok) throw new Error(await response.text())
+              const values = (await response.text())
+                .split('\n')
+                .filter((line) => line.startsWith('data: ') && !line.includes('[DONE]'))
+                .map((line) => JSON.parse(line.slice(6)))
+              return {
+                status: response.status,
+                headers: response.headers,
+                events: (async function* () {
+                  yield* values
+                })()
+              }
+            }
+          ])
+        ),
       getAgentSessionUsageHeaders: (id: string) => ({ 'x-cherry-agent-session-id': id })
     }
   }
@@ -32,6 +77,8 @@ vi.mock('@application', async () => {
 beforeEach(() => {
   BaseService.resetInstances()
   gateway.budget = new ApiGatewayService()
+  gateway.requests.length = 0
+  gateway.baseUrl = ''
   const getPath = vi.mocked(application.getPath).getMockImplementation()!
   vi.spyOn(application, 'getPath').mockImplementation((key, filename) =>
     key === 'feature.provider_registry.data' && filename
@@ -133,31 +180,7 @@ it.each([
   ['google-generate-content', 'google-vertex', '/v1/chat/completions'],
   ['anthropic-messages', 'google-vertex-anthropic', '/v1/chat/completions'],
   ['ollama-chat', 'ollama', '/v1/chat/completions']
-] as const)('sends %s / %s requests to the internal gateway', async (endpointType, adapterFamily, path) => {
-  const requests: { path?: string; key?: string; body: string }[] = []
-  const server = createServer(async (req, res) => {
-    let body = ''
-    for await (const chunk of req) body += chunk
-    requests.push({
-      path: req.url,
-      key:
-        req.headers.authorization ?? req.headers['x-api-key']?.toString() ?? req.headers['x-goog-api-key']?.toString(),
-      body
-    })
-    res.writeHead(401, { 'content-type': 'application/json' })
-    res.end(JSON.stringify({ error: { message: 'request capture' } }))
-  })
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-  onTestFinished(
-    () =>
-      new Promise<void>((resolve) => {
-        server.closeAllConnections()
-        server.close(() => resolve())
-      })
-  )
-  const address = server.address()
-  if (!address || typeof address === 'string') throw new Error('No test listener')
-  gateway.baseUrl = `http://127.0.0.1:${address.port}`
+] as const)('routes %s / %s through protocol objects', async (endpointType, adapterFamily, path) => {
   const provider = ProviderSchema.parse({
     isEnabled: true,
     apiKeys: [],
@@ -184,10 +207,17 @@ it.each([
     binding.model,
     normalizeContext({ messages: [{ role: 'user', content: 'fixture', timestamp: 1 }] })
   )
-  expect(requests).toHaveLength(1)
-  expect(requests[0].path).toMatch(new RegExp(`^${path}`))
-  expect(requests[0].key).toMatch(/^(Bearer )?local-key$/)
-  expect(`${requests[0].path} ${requests[0].body}`).toContain('route-fixture:wire-model')
+  expect(gateway.requests).toHaveLength(1)
+  expect(gateway.requests[0].api).toBe(
+    path.includes('messages')
+      ? 'anthropic-messages'
+      : path.includes('responses')
+        ? 'openai-responses'
+        : path.includes('v1beta')
+          ? 'google-generative-ai'
+          : 'openai-completions'
+  )
+  expect(gateway.requests[0].body).toMatchObject({ model: 'route-fixture:wire-model' })
 })
 
 it.each(['grok-cli', 'openai-codex'])('registers %s OAuth models with internal credentials', async (providerId) => {
@@ -214,7 +244,9 @@ it.each(['grok-cli', 'openai-codex'])('registers %s OAuth models with internal c
   })
   const binding = await createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, model)
   expect(binding.model.api).toBe('openai-responses')
-  expect(await binding.modelRuntime.getAuth(binding.model)).toMatchObject({ auth: { apiKey: 'local-key' } })
+  expect(await binding.modelRuntime.getAuth(binding.model)).toMatchObject({
+    auth: { apiKey: 'cherry-object-transport' }
+  })
 })
 
 it('prefers a model protocol over the provider default', async () => {
@@ -568,7 +600,7 @@ it('preserves each model route and usage owner when a child shares the native ga
   expect(requests).toMatchObject([
     {
       url: '/v1/chat/completions',
-      authorization: 'Bearer local-key',
+      authorization: undefined,
       session: 'session-1',
       reasoning: 'high',
       tier: 'flex',

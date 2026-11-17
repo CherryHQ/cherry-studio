@@ -8,6 +8,7 @@ import { GoogleGenAI } from '@google/genai'
 import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { setupTestDatabase } from '@test-helpers/db'
+import type { UIMessageChunk } from 'ai'
 import { eq } from 'drizzle-orm'
 import { Type } from 'typebox'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -28,12 +29,15 @@ import '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { AgentSessionUsageAttribution } from '@main/ai/agentSession/AgentSessionUsageAttribution'
 import { AiService } from '@main/ai/AiService'
+import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, CHERRY_SERVICE_TIER_HEADER } from '@main/ai/constants'
 import { createPiTelemetry, observabilitySinks, type AgentRuntimeTraceContext } from '@main/ai/observability'
 import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import type * as CustomFetch from '@main/ai/utils/customFetch'
 import { BaseService } from '@main/core/lifecycle'
+import { StreamAdapterFactory } from '@main/features/apiGateway/adapters'
 import type { InputFormat } from '@main/features/apiGateway/adapters/interfaces'
 import { gatewayErrorHandler } from '@main/features/apiGateway/errors'
+import { createGatewayObjectTransports } from '@main/features/apiGateway/objectStream'
 import { processMessage } from '@main/features/apiGateway/proxyStream'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { SpanEntity } from '@shared/data/types/trace'
@@ -45,7 +49,9 @@ import { createPiBehaviorHost } from './piBehaviorHost'
 const mocks = vi.hoisted(() => ({
   messageId: 'original-answer',
   captures: new Map<string, AgentRuntimeTraceContext>(),
+  objectHeaders: [] as Headers[],
   gatewayUrl: '',
+  gatewayRequests: 0,
   manager: undefined as AiStreamManager | undefined,
   ai: undefined as AiService | undefined,
   attribution: undefined as AgentSessionUsageAttribution | undefined
@@ -71,6 +77,23 @@ vi.mock('@application', async () => {
             mocks.captures.delete(key)
           }
         }
+      },
+      createAgentObjectTransports: (input: {
+        sessionId: string
+        headers?: Record<string, string | null>
+        reasoningEffort?: string
+        serviceTier?: string
+        fastMode?: boolean
+      }) => {
+        const headers = new Headers()
+        for (const [name, value] of Object.entries(input.headers ?? {})) if (value !== null) headers.set(name, value)
+        headers.set('authorization', 'Bearer internal-fixture-key')
+        headers.set('x-cherry-agent-session-id', input.sessionId)
+        headers.set(CHERRY_REASONING_EFFORT_HEADER, input.reasoningEffort ?? 'default')
+        headers.set(CHERRY_FAST_MODE_HEADER, String(input.fastMode === true))
+        if (input.serviceTier) headers.set(CHERRY_SERVICE_TIER_HEADER, input.serviceTier)
+        mocks.objectHeaders.push(headers)
+        return createGatewayObjectTransports({ requestHeaders: headers })
       },
       ensureInternalGateway: async () => ({ baseUrl: mocks.gatewayUrl, apiKey: 'internal-fixture-key' }),
       getAgentSessionUsageHeaders: (sessionId: string) => ({ 'x-cherry-agent-session-id': sessionId }),
@@ -139,6 +162,7 @@ describe('native Pi through the production gateway', () => {
     mocks.manager = new AiStreamManager()
     mocks.ai = new AiService()
     gateway = createServer(async (request, response) => {
+      mocks.gatewayRequests += 1
       const abort = new AbortController()
       response.on('close', () => abort.abort())
       try {
@@ -176,6 +200,8 @@ describe('native Pi through the production gateway', () => {
     await new Promise<void>((done) => gateway.listen(0, '127.0.0.1', done))
     mocks.gatewayUrl = `http://127.0.0.1:${(gateway.address() as AddressInfo).port}`
     requests.length = 0
+    mocks.gatewayRequests = 0
+    mocks.objectHeaders.length = 0
     holdResponse = false
     upstreamClosed = false
     protocol = 'openai'
@@ -515,7 +541,7 @@ describe('native Pi through the production gateway', () => {
       })
       .where(eq(userModelTable.id, 'port::wire-model'))
       .run()
-    const headers: Headers[] = []
+    const headers = mocks.objectHeaders
     const provider = providerService.getByProviderId('port')
     const model = modelService.getByKey('port', 'wire-model')
     const first = await createPiGatewayModelBinding(
@@ -537,11 +563,6 @@ describe('native Pi through the production gateway', () => {
       undefined,
       first.modelRuntime
     )
-    const saved = fetch
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
-      if (String(input).startsWith(mocks.gatewayUrl)) headers.push(new Headers(init?.headers))
-      return saved(input, init)
-    })
     const results = await Promise.all(
       [first, child, later].map((binding) =>
         binding.modelRuntime.completeSimple(
@@ -696,7 +717,22 @@ describe('native Pi through the production gateway', () => {
         id: model.provider,
         models: [model],
         auth: { apiKey: { name: 'gateway', resolve: async () => ({ auth: { apiKey: 'internal-fixture-key' } }) } },
-        api: { stream, streamSimple }
+        api: {
+          stream: (model, context, options) =>
+            stream({ ...model, api: 'openai-completions' }, context, {
+              ...options,
+              objectTransports: application
+                .get('ApiGatewayService')
+                .createAgentObjectTransports({ sessionId: 'session' })
+            }),
+          streamSimple: (model, context, options) =>
+            streamSimple({ ...model, api: 'openai-completions' }, context, {
+              ...options,
+              objectTransports: application
+                .get('ApiGatewayService')
+                .createAgentObjectTransports({ sessionId: 'session' })
+            })
+        }
       })
     )
     const durable = confirmed(
@@ -1111,5 +1147,155 @@ describe('native Pi through the production gateway', () => {
     await expect.poll(() => upstreamClosed).toBe(true)
     expect(outcome()).toBe('aborted')
     expect(requests).toHaveLength(1)
+  })
+  it.each([
+    { format: 'openai', endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS },
+    { format: 'openai-responses', endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES },
+    { format: 'anthropic', endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES },
+    { format: 'gemini', endpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT }
+  ] as const)('executes $format without internal request JSON or SSE codecs', async ({ format, endpoint }) => {
+    protocol = format
+    dbh.db
+      .update(userProviderTable)
+      .set({
+        endpointConfigs: {
+          [endpoint]: {
+            baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/${format === 'gemini' ? 'v1beta' : 'v1'}`
+          }
+        },
+        defaultChatEndpoint: endpoint
+      })
+      .where(eq(userProviderTable.providerId, 'port'))
+      .run()
+    const stringify = JSON.stringify
+    vi.spyOn(JSON, 'stringify').mockImplementation((value, replacer, space) => {
+      if (
+        value &&
+        !Array.isArray(value) &&
+        typeof value === 'object' &&
+        'model' in value &&
+        value.model === 'port:wire-model' &&
+        ('messages' in value || 'input' in value || 'contents' in value)
+      ) {
+        throw new Error('Internal protocol requests must remain objects')
+      }
+      return stringify(value, replacer, space)
+    })
+    vi.spyOn(StreamAdapterFactory, 'getFormatter').mockImplementation(() => {
+      throw new Error('Internal protocol events must not use an SSE formatter')
+    })
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const answer = await binding.modelRuntime.completeSimple(
+      binding.model,
+      normalizeContext({ messages: [{ role: 'user', content: 'Hello', timestamp: 1 }] })
+    )
+    expect(answer.stopReason).toBe('stop')
+    expect(answer.content.some((part) => part.type === 'text' && part.text.length > 0)).toBe(true)
+    expect(mocks.gatewayRequests).toBe(0)
+    expect(requests).toHaveLength(1)
+    expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(1)
+  })
+
+  function directObjectCall(signal?: AbortSignal) {
+    const transports = createGatewayObjectTransports({
+      requestHeaders: new Headers({
+        authorization: 'Bearer internal-fixture-key',
+        'x-cherry-agent-session-id': 'session'
+      })
+    })
+    return transports['openai-completions'](
+      { model: 'port:wire-model', messages: [{ role: 'user', content: 'Hello' }], stream: true },
+      { signal }
+    )
+  }
+
+  it('rejects object calls when execution cannot start', async () => {
+    vi.spyOn(mocks.manager!, 'streamPrompt').mockImplementation(() => {
+      throw new Error('execution unavailable')
+    })
+    await expect(directObjectCall()).rejects.toThrow('execution unavailable')
+    expect(requests).toHaveLength(0)
+  })
+
+  it('retains partial object output and rejects a failed stream instead of completing it', async () => {
+    let upstream!: ReadableStreamDefaultController<UIMessageChunk>
+    vi.spyOn(mocks.ai!, 'streamText').mockResolvedValue({
+      kind: 'chunks',
+      stream: new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          upstream = controller
+          controller.enqueue({ type: 'start', messageId: 'failed-test' })
+          controller.enqueue({ type: 'text-start', id: 'text' })
+          controller.enqueue({ type: 'text-delta', id: 'text', delta: 'partial' })
+        }
+      })
+    })
+    const response = await directObjectCall()
+    let text = ''
+    const reading = (async () => {
+      for await (const event of response.events) text += event.choices[0]?.delta.content ?? ''
+    })()
+    const failed = expect(reading).rejects.toThrow('connection lost')
+    await expect.poll(() => text).toBe('partial')
+    upstream.error(new Error('connection lost'))
+    await failed
+    expect(text).toBe('partial')
+  })
+
+  it('aborts upstream when an object iterator is closed before its first read', async () => {
+    holdResponse = true
+    const response = await directObjectCall()
+    const iterator = response.events[Symbol.asyncIterator]()
+    await iterator.return?.()
+    await expect.poll(() => upstreamClosed).toBe(true)
+    expect(mocks.gatewayRequests).toBe(0)
+  })
+
+  it('aborts an object call while waiting for its first semantic output', async () => {
+    holdResponse = true
+    call = () => ({})
+    const abort = new AbortController()
+    const pending = directObjectCall(abort.signal)
+    const rejected = expect(pending).rejects.toThrow('cancel before content')
+    await expect.poll(() => requests.length).toBe(1)
+    abort.abort(new Error('cancel before content'))
+    await rejected
+    await expect.poll(() => upstreamClosed).toBe(true)
+  })
+
+  it('bounds producer progress while object events are unread and resumes without loss', async () => {
+    let produced = 0
+    const count = 512
+    vi.spyOn(mocks.ai!, 'streamText').mockResolvedValue({
+      kind: 'chunks',
+      stream: new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          controller.enqueue({ type: 'start', messageId: 'bounded-test' })
+          controller.enqueue({ type: 'text-start', id: 'text' })
+        },
+        pull(controller) {
+          if (produced < count) {
+            produced += 1
+            controller.enqueue({ type: 'text-delta', id: 'text', delta: 'x' })
+          } else {
+            controller.enqueue({ type: 'text-end', id: 'text' })
+            controller.enqueue({ type: 'finish', finishReason: 'stop' })
+            controller.close()
+          }
+        }
+      })
+    })
+    const response = await directObjectCall()
+    await expect.poll(() => produced).toBeGreaterThanOrEqual(32)
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(produced).toBeLessThan(128)
+    let text = ''
+    for await (const event of response.events) text += event.choices[0]?.delta.content ?? ''
+    expect(text).toBe('x'.repeat(count))
+    expect(produced).toBe(count)
   })
 })

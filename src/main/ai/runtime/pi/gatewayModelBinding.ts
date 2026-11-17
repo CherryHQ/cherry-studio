@@ -15,7 +15,6 @@ import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId } from '@shared/utils/model'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
-import { resolveApiGatewayRuntime } from '../agentApiGateway'
 import { resolveAgentContextWindow } from '../agentContextWindow'
 import type { AgentRuntimeConnectInput } from '../types'
 import { loadPiAi, loadPiApiStreamSimple, loadPiSdk } from './piSdk'
@@ -39,7 +38,7 @@ export async function createPiGatewayModelBinding(
   const { endpointType } = resolveEffectiveEndpoint(provider, model, preferredEndpoint)
   const adapterFamily = endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined
   const api = mapEndpointToPiApi(endpointType, adapterFamily) ?? 'openai-completions'
-  const gateway = await resolveApiGatewayRuntime(input.sessionId)
+  const gateway = application.get('ApiGatewayService')
   const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
   const modalities: ('text' | 'image')[] = ['text']
   if (
@@ -65,8 +64,8 @@ export async function createPiGatewayModelBinding(
   modelRuntime.registerProvider(providerName, {
     name: provider.name,
     api,
-    baseUrl: formatPiBaseUrl(gateway.baseUrl, api),
-    // Pi interpolates configured keys; supply the gateway key through runtime credentials instead.
+    baseUrl: formatPiBaseUrl('http://cherry-runtime.invalid', api),
+    // Native clients require a key even though object calls use Cherry's trusted execution path.
     apiKey: 'cherry-managed-runtime-key',
     models: [
       {
@@ -82,7 +81,7 @@ export async function createPiGatewayModelBinding(
       }
     ],
     headers: {
-      ...gateway.usageHeaders,
+      ...gateway.getAgentSessionUsageHeaders(input.sessionId),
       [CHERRY_REASONING_EFFORT_HEADER]: input.reasoningEffort ?? 'default',
       ...(input.serviceTier ? { [CHERRY_SERVICE_TIER_HEADER]: input.serviceTier } : {}),
       [CHERRY_FAST_MODE_HEADER]: String(input.fastMode === true)
@@ -108,6 +107,11 @@ export async function createPiGatewayModelBinding(
             return next
           },
           ...(capture && { headers: { ...options?.headers, ...capture.headers } }),
+          objectTransports: gateway.createAgentObjectTransports({
+            ...input,
+            headers: { ...options?.headers, ...capture?.headers }
+          }),
+          disableContinuation: true,
           reasoning: undefined,
           maxRetries: 0
         })
@@ -133,7 +137,7 @@ export async function createPiGatewayModelBinding(
       }
     }
   })
-  await modelRuntime.setRuntimeApiKey(providerName, gateway.apiKey)
+  await modelRuntime.setRuntimeApiKey(providerName, 'cherry-object-transport')
   const registered = modelRuntime.getModel(providerName, modelId)
   if (!registered) throw new Error(`Pi gateway model ${modelId} was not registered`)
   return { modelRuntime, model: registered }

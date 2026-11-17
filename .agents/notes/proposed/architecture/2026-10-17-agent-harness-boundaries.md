@@ -104,7 +104,7 @@ Cherry's desktop Pi root uses the common runtime; independent child projection a
 
 ### Use native Pi providers through the internal gateway
 
-The [object transport proposal](2026-11-18-agent-object-transport.md) partially supersedes the internal HTTP requirement below while preserving native protocol ownership and shared Cherry AI SDK execution. It does not restore the model-call port or metadata codec.
+The [object transport decision](../../implemented/architecture/2026-11-18-agent-object-transport.md) partially supersedes the internal HTTP requirement below while preserving native protocol ownership and shared Cherry AI SDK execution. It does not restore the model-call port or metadata codec.
 
 The approved deletion removes the host `ModelCallPort`, custom AI SDK stream protocol, metadata codec and binding-enforced session settings. The host registers a native Pi provider against the existing internal gateway. Gateway execution owns provider credentials and billing; native response usage feeds display and context accounting. This change does not redesign the gateway pipeline. Preserve tool ownership, native history, compaction, abort and retry behavior with HTTP integration tests, then verify the desktop cutover in its owning layer.
 

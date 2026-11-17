@@ -183,6 +183,7 @@ each event by calling these methods uniformly:
 ```typescript
 interface StreamListener {
   readonly id: string
+  ready?(): Promise<void>
   onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string): void
   onMessage?(message: CherryUIMessage, sourceModelId?: string, sourceKind?: 'chunks' | 'messages'): void
   onDone(result: StreamDoneResult): void | Promise<void>      // { finalMessage?, status: 'success', ... }
@@ -194,6 +195,11 @@ interface StreamListener {
 
 For prompt streams, `onError` may also receive the original in-process exception.
 Persistent chat listeners receive only the serialized error.
+
+An optional `ready()` capacity gate pauses chunk intake before the accumulator/listener fan-out.
+The gateway object listener uses it to bound queued protocol events when its native consumer
+is slow. Cancellation releases the capacity wait and aborts upstream execution. Consumers
+without this gate retain their existing delivery behavior.
 
 All three terminal shapes share the same `finalMessage?` field — the
 current `CherryUIMessage` from the execution's selected source. Chunk sources use

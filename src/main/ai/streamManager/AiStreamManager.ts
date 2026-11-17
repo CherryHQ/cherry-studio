@@ -2284,7 +2284,24 @@ export class AiStreamManager extends BaseService {
         }
       )
     } else {
-      const { stream: idleStream, idle } = withIdleTimeout(source.stream, exec.abortController, timeoutMs)
+      const capacityListeners = [...(this.activeStreams.get(topicId)?.listeners.values() ?? [])].filter(
+        (listener) => listener.ready
+      )
+      const inputStream =
+        capacityListeners.length === 0
+          ? source.stream
+          : source.stream.pipeThrough(
+              new TransformStream<UIMessageChunk, UIMessageChunk>({
+                async transform(chunk, controller) {
+                  for (const listener of capacityListeners) {
+                    await listener.ready?.()
+                    signal.throwIfAborted()
+                  }
+                  controller.enqueue(chunk)
+                }
+              })
+            )
+      const { stream: idleStream, idle } = withIdleTimeout(inputStream, exec.abortController, timeoutMs)
       const lastIncoming = request.messages?.at(-1)
       result = await pipeStreamLoop(withReasoningTimingMetadata(idleStream), signal, {
         onChunk: (chunk) => {

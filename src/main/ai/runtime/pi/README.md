@@ -13,7 +13,7 @@ dependencies outside the bundled CommonJS Main entry; a static import fails duri
 ## Model requests
 
 ```text
-Pi session → native Pi provider → internal gateway → Cherry provider execution
+Pi session → native Pi provider → protocol objects → Cherry gateway → AI SDK execution
 ```
 
 Pi owns context, streaming, reasoning replay, tools and compaction. Cherry's gateway owns provider
@@ -21,7 +21,7 @@ selection, upstream credentials and billing. Pi's native transcript remains the 
 product messages are a display projection. Tools advertised to the gateway have no executor there.
 
 Pi and Pi Durable use one gateway compatibility predicate for model selection, child catalogs and
-native binding. The desktop binding receives only an internal gateway credential; upstream API keys,
+native binding. The desktop binding injects native protocol object transports; upstream API keys,
 OAuth refresh and provider request patches stay in Cherry's provider execution. There is no desktop
 direct-provider route or Pi-specific OAuth stream wrapper.
 
@@ -29,13 +29,13 @@ Executable child candidates require both the model and its provider to be enable
 still validates availability for each request after selection.
 
 The binding preserves the model's native protocol when the gateway supports it. The model route
-uses `providerId:apiModelId`; the gateway resolves the configured Cherry model. Internal usage
-headers capture the Agent session; native response IDs associate completed calls with root or child messages. The internal listener works independently
-of the externally exposed gateway setting. Its origin participates in the connection signature, so
-a listener restart retires warm connections. Trusted headers carry reasoning, tier and Fast selections
+uses `providerId:apiModelId`; the gateway resolves the configured Cherry model. Trusted in-process usage
+headers capture the Agent session; native response IDs associate completed calls with root or child messages.
+No internal HTTP listener, request JSON codec or SSE formatter is used. Restarting an HTTP listener
+does not retire these connections. Trusted selections carry reasoning, tier and Fast settings
 to the same Cherry parameter builder used by other requests.
 
-The behavior adapter disables native retries; the native HTTP client and gateway do not add retries.
+The behavior adapter disables native retries; the object transport and gateway do not add retries.
 Native usage is for context and display; it must not create another billing record. Only root model
 calls emit native usage updates on the root stream; child, summary and verifier calls still contribute
 to gateway billing. Desktop-owned summaries freeze their initiating owner before the gateway hop. Product message totals use the gateway's aggregated provider calls.
@@ -44,7 +44,7 @@ Model metadata, native errors and tool validation follow Pi's provider implement
 
 ## Telemetry
 
-Model traces come from the gateway's AI SDK and HTTP instrumentation. The binding forwards
+Model traces come from the gateway's AI SDK and upstream HTTP instrumentation. The binding forwards
 an explicit native Durable phase parent using the gateway's internal usage capture; it creates
 no model span and writes no billing record. Ordinary Pi 1.5.0 has no native tool-span API,
 so tool details remain in its transcript. The host does not reconstruct tool spans from message events.
@@ -132,7 +132,8 @@ committed child history while its access remains readable, and releases access a
 Native session, goal and subagent tests live in `packages/agent-runtime-pi/tests/`. They use Pi
 providers directly, including scripted native streams with fixed usage for budget assertions.
 `gatewayIntegration.test.ts` exercises real gateway
-execution, provider selection, request options, cancellation and SQLite billing against a loopback upstream.
+execution, provider selection, request options, cancellation, bounded object delivery and SQLite billing against a loopback upstream.
+It also rejects internal request JSON encoding and SSE formatting for all four native protocols.
 `PiRuntimeConnection.test.ts` covers desktop connection ownership and native context associations
 with a native test provider substituted at the model-binding boundary.
 Live-provider and Electron acceptance remain separate checks.

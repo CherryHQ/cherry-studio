@@ -59,6 +59,22 @@ function detailsOf(error: unknown): ProviderDetails | undefined {
   return error !== null && typeof error === 'object' ? (error as InternalError)[providerDetails] : undefined
 }
 
+/** Preserve the HTTP dialect's error semantics without encoding a response body. */
+export function objectGatewayError(error: unknown, fallback: SerializedError, format: OutputFormat): Error {
+  const retained = internalGatewayError(error, fallback)
+  const { statusCode, errorResponse } =
+    format === 'anthropic'
+      ? transformAnthropicError(retained)
+      : format === 'gemini'
+        ? transformGoogleError(retained)
+        : transformOpenAiError(retained)
+  return Object.assign(new Error(errorResponse.error.message), {
+    status: statusCode,
+    error: errorResponse,
+    headers: new Headers(detailsOf(retained)?.headers)
+  })
+}
+
 type GatewayErrorContext = Parameters<ErrorHandler<{ DATA_API: DataApiError }>>[0]
 
 const messageOf = (error: unknown, fallback: string): string =>

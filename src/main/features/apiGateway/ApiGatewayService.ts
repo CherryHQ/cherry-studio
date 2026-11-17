@@ -1,5 +1,6 @@
 import { hostname, networkInterfaces } from 'node:os'
 
+import type { ProviderHeaders } from '@earendil-works/pi-ai'
 import { Mutex, Semaphore } from 'async-mutex'
 import { retry } from 'es-toolkit'
 import { v4 as uuidv4 } from 'uuid'
@@ -7,16 +8,20 @@ import { v4 as uuidv4 } from 'uuid'
 import { application } from '@application'
 import { advertisedEndpointSchema } from '@cherrystudio/remote-protocol'
 import { loggerService } from '@logger'
+import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, CHERRY_SERVICE_TIER_HEADER } from '@main/ai/constants'
 import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import type { ServiceTierSelection } from '@shared/data/types/model'
 import type { OutputFor } from '@shared/ipc/types'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
 import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { REDACTED } from '@shared/utils/redaction'
 
 import { isGatewayBindPermissionError, mapGatewayBindError } from './bindError'
 import { isValidToken } from './middleware/auth'
+import { createGatewayObjectTransports } from './objectStream'
 import { getInterfaceMetadata, getRemoteAddressOptions } from './remoteAddresses'
 import type { ApiGateway } from './server'
 
@@ -485,6 +490,26 @@ export class ApiGatewayService extends BaseService implements Activatable {
         }
       )
     })
+  }
+
+  createAgentObjectTransports(input: {
+    sessionId: string
+    headers?: ProviderHeaders
+    reasoningEffort?: ReasoningEffortOption
+    serviceTier?: ServiceTierSelection
+    fastMode?: boolean
+  }) {
+    const headers = new Headers()
+    for (const [name, value] of Object.entries(input.headers ?? {})) {
+      if (value !== null) headers.set(name, value)
+    }
+    headers.delete('x-api-key')
+    headers.set('authorization', `Bearer ${this.internalApiKey}`)
+    headers.set(AGENT_SESSION_ID_HEADER, input.sessionId)
+    headers.set(CHERRY_REASONING_EFFORT_HEADER, input.reasoningEffort ?? 'default')
+    headers.set(CHERRY_FAST_MODE_HEADER, String(input.fastMode === true))
+    if (input.serviceTier) headers.set(CHERRY_SERVICE_TIER_HEADER, input.serviceTier)
+    return createGatewayObjectTransports({ requestHeaders: headers })
   }
 
   captureAgentSessionUsage(
