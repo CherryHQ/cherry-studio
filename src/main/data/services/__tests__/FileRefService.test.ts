@@ -212,6 +212,7 @@ describe('FileRefService', () => {
         orderKey: sessionId
       })
       await dbh.db.insert(agentSessionMessageTable).values({
+        parentId: seedSessionRoot(dbh.db, sessionId),
         id: messageId,
         sessionId,
         role: 'user',
