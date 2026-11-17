@@ -556,7 +556,6 @@ describe('AgentSessionRuntimeService', () => {
     runtimeDriverRegistry.clearForTest()
     toolApprovalRegistry.clear('test-reset')
     vi.clearAllMocks()
-    mocks.preferenceGet.mockImplementation((key: string) => (key === 'agent.session.idle_ttl_minutes' ? 5 : null))
     mocks.sharesBranch.mockReturnValue(true)
     mocks.saveMessage.mockImplementation(({ message }) => ({
       ...message,
@@ -620,9 +619,6 @@ describe('AgentSessionRuntimeService', () => {
         }
       if (name === 'AnalyticsService') return { trackTokenUsage: mocks.trackTokenUsage }
       if (name === 'WindowManager') return { getWindow: mocks.getWindow }
-      if (name === 'PreferenceService') {
-        return { get: mocks.preferenceGet }
-      }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
@@ -1915,17 +1911,18 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
-  it('reads the current idle TTL on each timer refresh without restarting the service', () => {
+  it('reads the current idle TTL on each timer refresh without restarting the service', async () => {
+    // The suite wires the shared in-memory PreferenceService, so set the real preference
+    // rather than mocking the getter: the service must re-read it on every refresh.
+    await defaultServiceInstances.PreferenceService.set('agent.session.idle_ttl_minutes', 12)
     vi.useFakeTimers()
     try {
-      let ttl = 12
-      mocks.preferenceGet.mockImplementation(() => ttl)
       const service = new AgentSessionRuntimeService()
       const handle = service.beginTurn(baseTurnInput)
       void terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
       vi.advanceTimersByTime(5 * 60_000)
       expect(service.inspect('session-1')).toBeDefined()
-      ttl = 2
+      await defaultServiceInstances.PreferenceService.set('agent.session.idle_ttl_minutes', 2)
       const next = service.beginTurn({
         ...baseTurnInput,
         assistantMessageId: 'assistant-next',
@@ -1938,6 +1935,8 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.inspect('session-1')).toBeUndefined()
     } finally {
       vi.useRealTimers()
+      // The shared in-memory preference state is not reset between tests.
+      await defaultServiceInstances.PreferenceService.set('agent.session.idle_ttl_minutes', 5)
     }
   })
 
