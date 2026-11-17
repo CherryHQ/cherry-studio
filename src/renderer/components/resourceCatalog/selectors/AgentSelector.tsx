@@ -218,7 +218,6 @@ export function AgentSelector(props: AgentSelectorProps) {
     onOpen: refetchPins,
     items,
     pinnedIds,
-    emptyState: { preset: 'no-agent' as const },
     onTogglePin: handleTogglePin,
     isPinActionDisabled,
     onEditItem: handleEditItem,

@@ -3000,6 +3000,110 @@ describe('AiStreamManager', () => {
       expect(resumed?.awaitingApprovalAnchors).toHaveLength(0)
     })
 
+    it('retires only the owning approval without a decision or input replay', async () => {
+      const listener = new FakeListener('retirement')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'p::m',
+        request: req('a'),
+        listeners: [listener],
+        isPersistentConversation: true
+      })
+      const stream = (mgr as any).activeStreams.get('a')
+      const exec = stream.executions.get('p::m')
+      for (const toolCallId of ['A', 'B']) {
+        mgr.onChunk('a', 'p::m', { type: 'tool-input-available', toolCallId, toolName: 'Bash', input: {} })
+        mgr.onChunk('a', 'p::m', { type: 'tool-approval-request', toolCallId, approvalId: toolCallId })
+      }
+      const owner = { anchorMessageId: exec.anchorMessageId, attemptId: exec.attemptId }
+      const chunks = [...listener.chunks]
+      expect(mgr.retireToolApproval('a', 'A', { ...owner, anchorMessageId: 'foreign' })).toBe(false)
+      expect(mgr.retireToolApproval('a', 'A', { ...owner, attemptId: exec.attemptId + 1 })).toBe(false)
+      expect(exec.pendingApprovalToolCallIds).toEqual(new Set(['A', 'B']))
+      expect(mgr.retireToolApproval('a', 'A', owner)).toBe(true)
+      expect(listener.chunks).toEqual(chunks)
+      expect(exec.pendingApprovalToolCallIds).toEqual(new Set(['B']))
+      expect((sharedCacheStore.get('topic.stream.statuses.a') as any).awaitingApprovalAnchors).toHaveLength(1)
+      mgr.onChunk('a', 'p::m', { type: 'tool-approval-request', toolCallId: 'B', approvalId: 'B-second' })
+      const beforeRetirement = [...listener.chunks]
+      expect(mgr.retireToolApproval('a', 'B', owner)).toBe(true)
+      expect(listener.chunks).toEqual(beforeRetirement)
+      const spans = exec.runtimeTiming.snapshot().spans
+      expect(spans.filter((span: any) => span.toolCallId === 'B')).toHaveLength(2)
+      expect(
+        spans.filter((span: any) => span.toolCallId === 'B').every((span: any) => span.completedAt !== undefined)
+      ).toBe(true)
+      const writesWhileLive = fakeCacheService.setShared.mock.calls.length
+      mgr.onChunk('a', 'p::m', { type: 'tool-output-available', toolCallId: 'A', output: 'finished' })
+      expect(listener.chunks.at(-1)).toEqual({
+        type: 'tool-output-available',
+        toolCallId: 'A',
+        output: 'finished'
+      })
+      expect(exec.pendingApprovalToolCallIds.size).toBe(0)
+      expect(exec.resolvedToolApprovals?.size ?? 0).toBe(0)
+      expect(fakeCacheService.setShared.mock.calls.length).toBe(writesWhileLive)
+      expect(mgr.retireToolApproval('a', 'A', owner)).toBe(false)
+      expect(mgr.retireToolApproval('a', 'B', owner)).toBe(false)
+      mgr.onChunk('a', 'p::m', { type: 'tool-approval-request', toolCallId: 'B', approvalId: 'B-third' })
+      await mgr.onExecutionDone('a', 'p::m')
+      expect(mgr.inspect('a')!.status).toBe('awaiting-approval')
+      expect(mgr.retireToolApproval('a', 'B', owner)).toBe(true)
+      expect(mgr.inspect('a')!.status).toBe('awaiting-approval')
+      expect(exec.pendingApprovalToolCallIds.size).toBe(0)
+      expect((sharedCacheStore.get('topic.stream.statuses.a') as any).awaitingApprovalAnchors).toEqual([])
+      expect(exec.resolvedToolApprovals?.size ?? 0).toBe(0)
+      expect(listener.chunks.slice(0, chunks.length)).toEqual(chunks)
+      const writes = fakeCacheService.setShared.mock.calls.length
+      expect(mgr.retireToolApproval('a', 'A', owner)).toBe(false)
+      expect(mgr.retireToolApproval('a', 'B', owner)).toBe(false)
+      expect(exec.pendingApprovalToolCallIds.size).toBe(0)
+      expect(fakeCacheService.setShared.mock.calls.length).toBe(writes)
+      expect(conversationCompletedEvents).toEqual([])
+    })
+
+    it('closes every approval span for the retired call and preserves sibling waits', () => {
+      startSingle(mgr, { topicId: 'a', modelId: 'p::m', request: req('a'), listeners: [] })
+      const exec = (mgr as any).activeStreams.get('a').executions.get('p::m')
+      for (const [toolCallId, approvalId] of [
+        ['A', 'A1'],
+        ['A', 'A2'],
+        ['B', 'B1']
+      ])
+        mgr.onChunk('a', 'p::m', { type: 'tool-approval-request', toolCallId, approvalId })
+      expect(mgr.retireToolApproval('a', 'A')).toBe(true)
+      const spans = exec.runtimeTiming.snapshot().spans
+      expect(spans.filter((span: any) => span.toolCallId === 'A')).toHaveLength(2)
+      for (const span of spans) {
+        if (span.toolCallId === 'A') expect(span.completedAt).toEqual(expect.any(Number))
+        else expect(span.completedAt).toBeUndefined()
+      }
+    })
+
+    it('drops only the retired execution anchor when another execution awaits the same call id', () => {
+      mgr.send({
+        topicId: 'a',
+        models: [
+          { modelId: 'p::a', request: req('a') },
+          { modelId: 'p::b', request: req('a') }
+        ],
+        listeners: []
+      })
+      const stream = (mgr as any).activeStreams.get('a')
+      for (const modelId of ['p::a', 'p::b'] as const)
+        mgr.onChunk('a', modelId, { type: 'tool-approval-request', toolCallId: 'shared-id', approvalId: modelId })
+      const a = stream.executions.get('p::a')
+      const b = stream.executions.get('p::b')
+      expect(
+        mgr.retireToolApproval('a', 'shared-id', { anchorMessageId: a.anchorMessageId, attemptId: a.attemptId })
+      ).toBe(true)
+      expect(a.pendingApprovalToolCallIds.size).toBe(0)
+      expect(b.pendingApprovalToolCallIds).toEqual(new Set(['shared-id']))
+      expect((sharedCacheStore.get('topic.stream.statuses.a') as any).awaitingApprovalAnchors).toEqual([
+        expect.objectContaining({ anchorMessageId: b.anchorMessageId, attemptId: b.attemptId })
+      ])
+    })
+
     it('advances an approved live tool part so the next parallel approval can surface', async () => {
       const listener = new FakeListener('wc:1')
       startSingle(mgr, {

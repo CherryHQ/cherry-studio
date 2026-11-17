@@ -12,6 +12,7 @@ import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type {
   ChatMessageStyle,
+  MultiModelFoldDisplayMode,
   MultiModelGridPopoverTrigger,
   MultiModelMessageStyle,
   TranslateLangCode
@@ -279,6 +280,7 @@ export interface MessageRenderConfig {
   showMessageOutline: boolean
   showEstimatedTokens: boolean
   multiModelMessageStyle: MultiModelMessageStyle
+  multiModelFoldDisplayMode: MultiModelFoldDisplayMode
   multiModelGridColumns: number
   multiModelGridPopoverTrigger: MultiModelGridPopoverTrigger
 }
@@ -300,12 +302,13 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   showMessageOutline: false,
   showEstimatedTokens: false,
   multiModelMessageStyle: 'horizontal',
+  multiModelFoldDisplayMode: 'expanded',
   multiModelGridColumns: 2,
   multiModelGridPopoverTrigger: 'click'
 }
 
 export type MessageRenderConfigUpdate = Partial<
-  Pick<MessageRenderConfig, 'multiModelGridColumns' | 'multiModelGridPopoverTrigger'>
+  Pick<MessageRenderConfig, 'multiModelGridColumns' | 'multiModelGridPopoverTrigger' | 'multiModelFoldDisplayMode'>
 >
 
 /**
@@ -479,6 +482,8 @@ export interface MessageListMeta {
   selectionLayer: boolean
   userProfile?: MessageUserProfile
   assistantProfile?: MessageUserProfile
+  /** Current avatars keyed by author id; absent authors retain their message snapshot. */
+  authorAvatars?: ReadonlyMap<string, string>
   assistantAvatarSources?: ReadonlyMap<string, string>
   imageExportFileName?: string
   /** Usage-record partition this surface's messages belong to. Defaults to 'chat'. */
