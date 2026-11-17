@@ -130,7 +130,11 @@ describe('caller-owned single model invocation', () => {
       } else {
         expect(
           (
-            await agent.generate({ prompt: 'Which skills?' }, undefined, mode === 'generate-stream' ? 'stream' : 'generate')
+            await agent.generate(
+              { prompt: 'Which skills?' },
+              undefined,
+              mode === 'generate-stream' ? 'stream' : 'generate'
+            )
           ).finishReason
         ).toBe('tool-calls')
       }
@@ -149,7 +153,11 @@ describe('caller-owned single model invocation', () => {
       } else {
         expect(
           (
-            await agent.generate({ prompt: 'Which skills?' }, undefined, mode === 'generate-stream' ? 'stream' : 'generate')
+            await agent.generate(
+              { prompt: 'Which skills?' },
+              undefined,
+              mode === 'generate-stream' ? 'stream' : 'generate'
+            )
           ).text
         ).toBe('Done')
       }
