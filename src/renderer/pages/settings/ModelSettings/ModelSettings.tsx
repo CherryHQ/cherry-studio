@@ -1,4 +1,4 @@
-import { ArrowRight, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2, Video } from 'lucide-react'
+import { ArrowRight, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, ScanEye, Settings2 } from 'lucide-react'
 import type { ComponentProps, FC, ReactNode, Ref } from 'react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -134,7 +134,7 @@ const VideoVisionModelSettings: FC<VideoVisionModelSettingsProps> = ({ providers
   return (
     <ModelSettingRow
       id="setting-model-video-vision-model"
-      icon={<Video size={16} className="lucide-custom shrink-0 text-foreground" />}
+      icon={<ScanEye size={16} className="lucide-custom shrink-0 text-foreground" />}
       title={title}
       description={showDescription ? t('settings.tool.file_processing.video_vision.description') : undefined}>
       <DefaultModelSelector
