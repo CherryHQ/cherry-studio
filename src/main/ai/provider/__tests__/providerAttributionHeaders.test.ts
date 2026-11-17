@@ -116,11 +116,11 @@ describe('provider attribution headers on the chat request boundary', () => {
     expect(headers.get('x-title')).toBe('Custom Client')
   })
 
-  it('keeps default attribution for a canonical registry provider', async () => {
+  it.each(['openai', 'fortytwo'])('keeps default attribution for canonical provider %s', async (providerId) => {
     const headers = await captureRequestHeaders(
       makeOpenAICompatibleProvider({
-        id: 'openai',
-        presetProviderId: 'openai',
+        id: providerId,
+        presetProviderId: providerId,
         endpointConfigs: {
           [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
             baseUrl: 'https://api.openai.com/v1',
