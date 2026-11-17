@@ -14,7 +14,8 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type { ErrorObservation } from '@shared/types/errorReporting'
 import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/types/logger'
 import { LEVEL, LEVEL_MAP, MAX_LOG_RETENTION_DAYS } from '@shared/types/logger'
-import { redactSecretText } from '@shared/utils/redaction'
+import type { Serializable } from '@shared/types/serializable'
+import { REDACTED, redactSecretText } from '@shared/utils/redaction'
 
 const ANSICOLORS = {
   RED: '\x1b[31m',
@@ -56,8 +57,8 @@ function safeErrorText(value: unknown): string {
   return redacted.length > MAX_ERROR_MESSAGE_CHARS ? `${redacted.slice(0, MAX_ERROR_MESSAGE_CHARS)}…` : redacted
 }
 
-function toSafeError(error: Error): Record<string, unknown> {
-  const safe: Record<string, unknown> = {
+function toSafeError(error: Error): Record<string, Serializable> {
+  const safe: Record<string, Serializable> = {
     name: redactSecretText(String(error.name ?? 'Error')).slice(0, MAX_SAFE_ERROR_TAG_CHARS),
     message: safeErrorText(error.message)
   }
@@ -76,14 +77,17 @@ function toSafeError(error: Error): Record<string, unknown> {
   return safe
 }
 
-function sanitizeLogValue(value: unknown, depth = 0, seen = new WeakSet<object>()): unknown {
+function sanitizeLogValue(value: unknown, depth = 0, seen = new WeakSet<object>()): Serializable {
   if (value instanceof Error) return toSafeError(value)
-  if (value === null || typeof value !== 'object') return value
+  if (value == null) return null
+  if (typeof value === 'string' || typeof value === 'boolean') return value
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value !== 'object') return REDACTED
   if (seen.has(value)) return '[Circular]'
   if (depth >= MAX_NESTED_SANITIZE_DEPTH) return '[Truncated]'
   seen.add(value)
   if (Array.isArray(value)) return value.map((item) => sanitizeLogValue(item, depth + 1, seen))
-  const out: Record<string, unknown> = {}
+  const out: Record<string, Serializable> = {}
   for (const [key, nested] of Object.entries(value)) out[key] = sanitizeLogValue(nested, depth + 1, seen)
   return out
 }
@@ -319,7 +323,7 @@ export class LoggerService {
       entry.errorMessage = entry.message
       fileMessage = `${message} ${String(entry.message)}`
     } else if (first !== null && typeof first === 'object') {
-      Object.assign(entry, sanitizeLogValue(first) as Record<string, unknown>)
+      Object.assign(entry, sanitizeLogValue(first))
       if (typeof entry.errorMessage === 'string') fileMessage = `${message} ${entry.errorMessage}`
     } else if (first !== undefined) {
       rest.push(first)

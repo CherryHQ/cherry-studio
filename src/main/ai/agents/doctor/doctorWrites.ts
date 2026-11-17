@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 /**
  * The bounded write surface of the doctor Agent.
  *
@@ -5,8 +6,6 @@
  * DoctorService.fix); this module only decides which of those the Agent may reach and captures the
  * snapshot an undo needs. Reads go through the same DataApi server with secrets redacted.
  */
-
-import { randomUUID } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 
 import * as z from 'zod'
@@ -15,6 +14,7 @@ import { application } from '@application'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import type { DoctorFixResult } from '@shared/types/doctor'
 import type { DoctorAgentWrite } from '@shared/types/doctorAgent'
+import type { Serializable } from '@shared/types/serializable'
 import { doctorFixMeta } from '@shared/utils/doctor'
 import { isSensitiveKey, redactDeep, redactSecretText, redactSecretTokens } from '@shared/utils/redaction'
 
@@ -74,8 +74,8 @@ export function redactTextForModel(text: string): string {
 }
 
 /** Key-name redaction plus `redactTextForModel` on every string. */
-export function redactForModel(value: unknown): unknown {
-  const walk = (val: unknown): unknown => {
+export function redactForModel(value: unknown): Serializable {
+  const walk = (val: Serializable): Serializable => {
     if (typeof val === 'string') return redactTextForModel(val)
     if (Array.isArray(val)) return val.map(walk)
     if (typeof val === 'object' && val !== null) {

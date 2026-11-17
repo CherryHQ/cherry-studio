@@ -1,3 +1,7 @@
+import type { Serializable } from '@shared/types/serializable'
+
+import { SerializableSchema } from './serializable'
+
 // Single source of secret redaction for logs, traces, and diagnostics.
 // Shared by main and renderer; everything here is pure — no runtime state.
 
@@ -31,26 +35,27 @@ const MAX_STRING = 300
  * Deep redaction of nested objects for logging/diagnostics: sensitive keys by
  * name, long strings truncated, circular graphs short-circuited. A reference
  * shared by several parents is not circular, so it is redacted at every
- * occurrence rather than reported as `[Circular]`.
+ * occurrence rather than reported as `[Circular]`. Non-JSON values become
+ * placeholders; absent values and non-finite numbers become null.
  */
-export function redactDeep(value: unknown): unknown {
-  const redact = (val: any, seen: WeakSet<object>): any => {
-    if (val == null) return val
+export function redactDeep(value: unknown): Serializable {
+  const redact = (val: unknown, seen: WeakSet<object>): Serializable => {
+    if (val == null) return null
     if (typeof val === 'string') {
       return val.length > MAX_STRING ? `${val.slice(0, MAX_STRING)}…<${val.length - MAX_STRING} more>` : val
     }
-    if (typeof val !== 'object') return val
+    if (typeof val === 'boolean') return val
+    if (typeof val === 'number') return Number.isFinite(val) ? val : null
+    if (typeof val !== 'object') return REDACTED
     if (seen.has(val)) return '[Circular]'
     seen.add(val)
-    let result: any
+    let result: Serializable
     if (Array.isArray(val)) {
       result = val.map((v) => redact(v, seen))
     } else {
-      const out: Record<string, any> = {}
-      for (const [k, v] of Object.entries(val)) {
-        out[k] = isSensitiveKey(k) ? REDACTED : redact(v, seen)
-      }
-      result = out
+      result = Object.fromEntries(
+        Object.entries(val).map(([key, item]) => [key, isSensitiveKey(key) ? REDACTED : redact(item, seen)])
+      )
     }
     // Only ancestors are circular. Removing the node on the way out keeps a
     // shared (DAG) reference redacted on every occurrence instead of misreported.
@@ -68,14 +73,17 @@ export function redactDeep(value: unknown): unknown {
  * value while matching no sensitive name).
  */
 export function redactServerKey(serverKey: string): string {
-  const redactAllValues = (value: unknown): unknown =>
+  const redactAllValues = (value: Serializable): Serializable =>
     typeof value === 'object' && value !== null
       ? Object.fromEntries(Object.keys(value).map((key) => [key, REDACTED]))
       : value
   try {
-    const parsed = JSON.parse(serverKey) as Record<string, unknown>
-    parsed.env = redactAllValues(parsed.env)
-    parsed.headers = redactAllValues(parsed.headers)
+    const parsed = SerializableSchema.parse(JSON.parse(serverKey))
+    if (parsed === null || typeof parsed !== 'object') return '<unparseable-serverKey>'
+    if (!Array.isArray(parsed)) {
+      if ('env' in parsed) parsed.env = redactAllValues(parsed.env)
+      if ('headers' in parsed) parsed.headers = redactAllValues(parsed.headers)
+    }
     return JSON.stringify(parsed)
   } catch {
     return '<unparseable-serverKey>'

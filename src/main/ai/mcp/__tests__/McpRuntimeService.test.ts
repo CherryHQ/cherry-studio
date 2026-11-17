@@ -829,6 +829,12 @@ describe('McpRuntimeService.getServerLogs (mcp-env)', () => {
 })
 
 describe('redactSensitive (mcp-services-3)', () => {
+  it('normalizes unsupported values before JSON logging', () => {
+    const result = redactSensitive({ value: 1n, callback: () => 'private', missing: undefined, number: Infinity })
+    expect(result).toEqual({ value: '<redacted>', callback: '<redacted>', missing: null, number: null })
+    expect(JSON.parse(JSON.stringify(result))).toEqual(result)
+  })
+
   it('redacts sensitive keys', () => {
     const out = redactSensitive({
       authorization: 'Bearer x',
