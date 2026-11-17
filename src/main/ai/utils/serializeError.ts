@@ -98,6 +98,12 @@ export function serializeError(error: unknown): SerializedError {
     if ('diagnosticReference' in e && typeof e.diagnosticReference === 'string') {
       serialized.diagnosticReference = e.diagnosticReference
     }
+    if ('runtime' in e && typeof e.runtime === 'string') serialized.runtime = e.runtime
+    if ('kind' in e && typeof e.kind === 'string') serialized.kind = e.kind
+    if ('sessionId' in e && typeof e.sessionId === 'string') serialized.sessionId = e.sessionId
+    if ('backendId' in e && typeof e.backendId === 'string') serialized.backendId = e.backendId
+    if ('nativeThreadId' in e && typeof e.nativeThreadId === 'string') serialized.nativeThreadId = e.nativeThreadId
+    if ('causeMessage' in e && typeof e.causeMessage === 'string') serialized.causeMessage = e.causeMessage
     if ('processExitCode' in e && typeof e.processExitCode === 'number') serialized.processExitCode = e.processExitCode
     if ('processExitSignal' in e && typeof e.processExitSignal === 'string') {
       serialized.processExitSignal = e.processExitSignal

@@ -30,6 +30,7 @@ import { buildAgentUserContent } from '../agentUserContent'
 import { PiChildTasks } from '../pi/PiChildTasks'
 import { PiInvalidConnectionSnapshotError } from '../pi/piConnectionSignature'
 import { PiMessageMetadata } from '../pi/PiMessageMetadata'
+import { isPiObservationError, PiObservationError } from '../pi/piObservationError'
 import { PiTurnUsage } from '../pi/PiTurnUsage'
 import type {
   AgentRuntimeConnectInput,
@@ -224,6 +225,30 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         }
   }
 
+  private observationIdentity(): { backendId?: string; nativeThreadId?: string } {
+    return {
+      backendId: this.context?.backendId,
+      nativeThreadId: this.context?.nativeThreadId ?? this.handle?.thread.id ?? undefined
+    }
+  }
+
+  private observationFailure(
+    kind: 'gap' | 'closed' | 'diagnostic' | 'outcome',
+    reason: string,
+    causeMessage?: string
+  ): PiObservationError {
+    const failure = new PiObservationError({
+      runtime: 'pi-durable',
+      kind,
+      reason,
+      sessionId: this.input.sessionId,
+      ...this.observationIdentity(),
+      ...(causeMessage ? { causeMessage } : {})
+    })
+    logger.error('Pi durable observation interrupted', failure.toLogContext())
+    return failure
+  }
+
   private async onObservation(batch: DurableObservation): Promise<void> {
     try {
       for (const event of batch.events) {
@@ -247,9 +272,13 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           event.type === 'diagnostic' ||
           (event.type === 'gap' && !['overflow', 'mapping-reset'].includes(event.reason))
         )
-          throw new Error(event.type === 'gap' ? `Durable observation gap: ${event.reason}` : event.error.message)
+          throw this.observationFailure(
+            event.type === 'gap' ? 'gap' : 'diagnostic',
+            event.type === 'gap' ? event.reason : event.error.message,
+            event.type === 'gap' ? undefined : event.error.message
+          )
         else if (event.type === 'closed' && event.reason !== 'shutdown' && !this.closing)
-          throw new Error(`Durable observation ended: ${event.reason}`)
+          throw this.observationFailure('closed', event.reason)
       }
       this.projection ??= new ThreadProjection(
         this.handle!.thread,
@@ -270,18 +299,28 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       if (batch.completion && !this.compacting && !this.closing && this.sending) {
         const failed = batch.completion.inputs.find((input) => input.outcome && input.outcome !== 'completed')
         if (failed) {
-          this.failure ??= Object.assign(new Error(failed.error?.message ?? failed.outcome), {
-            reason: failed.error?.code,
-            ...(failed.error?.code === 'output-truncated' && {
+          const failure = this.observationFailure(
+            'outcome',
+            failed.error?.code ?? failed.outcome ?? 'unknown',
+            failed.error?.message ?? failed.outcome
+          )
+          // Preserve output-truncation metadata through the desktop error boundary (#24343).
+          if (failed.error?.code === 'output-truncated') {
+            Object.assign(failure, {
               finishReason: 'length',
               i18nKey: 'output_token_limit_reached'
             })
-          })
+          }
+          this.failure ??= failure
         }
         this.finishTurn(batch.completion.entryId)
       }
     } catch (error) {
-      this.fail(error)
+      this.fail(
+        isPiObservationError(error) || error instanceof Error
+          ? error
+          : this.observationFailure('diagnostic', 'unknown', String(error))
+      )
     }
   }
 
@@ -525,12 +564,18 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   reconcile(input: Parameters<AgentRuntimeConnection['reconcile']>[0]): Promise<AgentRuntimeReconcileResult> {
     const work = this.reconcileChain.then(async (): Promise<AgentRuntimeReconcileResult> => {
+      // Unavailable/closing connections have no desktop left to reconcile.
+      // A retained observation failure must still reconcile live policy first
+      // so disabled-tool/permission changes reach the backend before the
+      // rebuild: background children can otherwise keep running with stale
+      // policy. The existing failure check below still forces the rebuild.
+      if (!this.desktop || !this.handle || this.closing) return 'rebuild'
       try {
-        const next = await this.desktop!.reconcile({ ...this.input, ...input }, this.active)
-        if (next.permissionChanged) await this.handle!.durable.permissionModeChanged()
+        const next = await this.desktop.reconcile({ ...this.input, ...input }, this.active)
+        if (next.permissionChanged) await this.handle.durable.permissionModeChanged()
         if (
           this.failure ||
-          next.signature !== this.desktop!.snapshot.signature ||
+          next.signature !== this.desktop.snapshot.signature ||
           input.reasoningEffort !== this.input.reasoningEffort ||
           input.serviceTier !== this.input.serviceTier ||
           Boolean(input.fastMode) !== Boolean(this.input.fastMode)
@@ -554,8 +599,21 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private fail(error: unknown) {
-    this.failure = error
-    this.events.push({ type: 'error', error })
+    const failure =
+      isPiObservationError(error) || error instanceof Error
+        ? error
+        : this.observationFailure('diagnostic', 'unknown', String(error))
+    if (!isPiObservationError(failure)) {
+      logger.error('Pi durable observation interrupted', {
+        sessionId: this.input.sessionId,
+        ...this.observationIdentity(),
+        error: failure
+      })
+    }
+    // Retain the failure so `reconcile()` reports `rebuild`: the next turn
+    // reconnects fresh instead of reusing this retired observation.
+    this.failure = failure
+    this.events.push({ type: 'error', error: failure })
     void this.close().catch((cause) => logger.error('Durable shutdown failed', { error: cause }))
   }
 
