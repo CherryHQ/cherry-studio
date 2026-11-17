@@ -85,6 +85,7 @@ export const analyticsPageSchema = z.enum([
   'settings',
   'webview',
   'quick_assistant',
+  'selection',
   'other'
 ])
 export type AnalyticsPage = z.infer<typeof analyticsPageSchema>
