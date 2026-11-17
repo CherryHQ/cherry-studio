@@ -1,4 +1,6 @@
-<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="none">
+<rect width="120" height="120" fill="var(--icon-neutral-background, #FFFFFF)"/>
+<g fill="none" transform="translate(18 18) scale(5.20661157) translate(-3.9333 -3.9333)">
 <path d="M14.2788 15.5741L18.2778 18.9838C18.2778 18.9838 15.9875 21.1685 13.228 16.98L14.2788 15.5741Z" fill="url(#paint0_linear_15_4956)"/>
 <path d="M14.369 15.5517L17.5822 19.7094C17.5822 19.7094 14.8905 21.3804 13.0539 16.7081L14.3697 15.5517H14.369Z" fill="url(#paint1_radial_15_4956)"/>
 <path d="M13.2735 18.7118H10.6727C10.6116 18.7124 10.5517 18.6947 10.5006 18.6611C10.4495 18.6275 10.4097 18.5794 10.386 18.523L5.01743 6.05544C4.95661 5.91981 5.06288 5.76111 5.21319 5.76111H7.84611C7.97475 5.76111 8.08801 5.83661 8.13276 5.94987L13.4706 18.4161C13.5237 18.5594 13.4252 18.7111 13.2742 18.7111L13.2735 18.7118Z" fill="url(#paint2_linear_15_4956)"/>
@@ -163,4 +165,5 @@
 <stop offset="0.654" stop-color="#0E00F7"/>
 </radialGradient>
 </defs>
+</g>
 </svg>

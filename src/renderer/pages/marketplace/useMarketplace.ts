@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR, { useSWRConfig } from 'swr'
 
+import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { useInstalledSkills, useInvalidateSkills, useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'
@@ -35,6 +36,7 @@ export async function loadMarketplaceSkills(): Promise<MarketplaceSkill[]> {
 export function useMarketplace(sourceId: string | null = null, active = true) {
   const { t, i18n } = useTranslation()
   const { cache, mutate } = useSWRConfig()
+  const [persistedCatalog, setPersistedCatalog] = usePersistCache('feature.marketplace.skill_catalog')
   const [sourceSummary, setSourceSummary] = useState<{ sourceId: string; skipped: number } | null>(null)
   const cached = useSWR(
     sourceId ? ['skill.subscription.cache', sourceId] : null,
@@ -53,7 +55,10 @@ export function useMarketplace(sourceId: string | null = null, active = true) {
     {
       revalidateOnFocus: false,
       shouldRetryOnError: false,
-      fallbackData: cached.data?.items
+      fallbackData: sourceId ? cached.data?.items : (persistedCatalog ?? undefined),
+      onSuccess: (items) => {
+        if (!sourceId) setPersistedCatalog(items)
+      }
     }
   )
   const installed = useInstalledSkills()
@@ -212,7 +217,10 @@ export function useMarketplace(sourceId: string | null = null, active = true) {
   )
 
   return {
-    curatedCount: (cache.get('skill.marketplace.list')?.data as MarketplaceSkill[] | undefined)?.length ?? null,
+    curatedCount:
+      (cache.get('skill.marketplace.list')?.data as MarketplaceSkill[] | undefined)?.length ??
+      persistedCatalog?.length ??
+      null,
     catalog: {
       ...catalog,
       data: items,
