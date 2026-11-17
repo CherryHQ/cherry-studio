@@ -43,6 +43,7 @@ import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { popup } from '@renderer/services/popup'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import type { ExportMessagesToObsidian } from '@renderer/types/messageExport'
@@ -773,6 +774,7 @@ export function useHomeMessageListProviderValue({
         if (!selected) return
         try {
           await regenerateMessageUsingModel(message.id, selected.id)
+          trackProductEvent({ event: 'message_action_used', action: 'assistant-mention-model' })
         } catch (error) {
           logger.error('Failed to regenerate message using selected model:', error as Error)
           toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))

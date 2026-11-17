@@ -30,6 +30,7 @@ import CopyIcon from '@renderer/components/icons/CopyIcon'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import EditIcon from '@renderer/components/icons/EditIcon'
 import RefreshIcon from '@renderer/components/icons/RefreshIcon'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { readMessageAloud } from '@renderer/services/voice'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -144,6 +145,10 @@ function canStartEditing({
 function notifyCommandError(id: string, context: MessageMenuBarActionContext, error: unknown) {
   logger.error(`Message menu action failed: ${id}`, error as Error)
   context.actions.notifyError?.(formatErrorMessageWithPrefix(error, context.t('message.error.unknown')))
+}
+
+function reportMessageAction(action: string) {
+  trackProductEvent({ event: 'message_action_used', action })
 }
 
 function registerCommand(id: string, run: (context: MessageMenuBarActionContext) => void | Promise<void>) {
@@ -649,6 +654,7 @@ export function resolveMessageMenuBarTranslationItems(
         label: getTranslationLanguageLabel?.(language) ?? language.langCode,
         key: language.langCode,
         onSelect: async () => {
+          reportMessageAction('translate')
           try {
             await actions.translateMessage?.(message.id, language, mainTextContent)
           } catch (error) {
@@ -664,7 +670,10 @@ export function resolveMessageMenuBarTranslationItems(
       items.push({
         key: 'translate-retry',
         label: t('common.retry'),
-        onSelect: () => retryTranslationLanguages()
+        onSelect: () => {
+          retryTranslationLanguages()
+          reportMessageAction('translate-retry')
+        }
       })
     } else {
       items.push({
@@ -695,6 +704,7 @@ export function resolveMessageMenuBarTranslationItems(
             await actions.copyText?.(translationContent, {
               successMessage: t('translate.copied')
             })
+            reportMessageAction('translate-copy')
           } catch (error) {
             notifyCommandError('message.copyTranslation', context, error)
           }
@@ -713,6 +723,7 @@ export function resolveMessageMenuBarTranslationItems(
         try {
           await actions.removeMessageTranslation?.(message.id)
           actions.notifySuccess?.(t('translate.closed'))
+          reportMessageAction('translate-close')
         } catch (error) {
           notifyCommandError('message.removeTranslation', context, error)
         }
@@ -749,7 +760,10 @@ export async function executeMessageMenuBarAction(
   context: MessageMenuBarActionContext
 ): Promise<boolean> {
   try {
-    return await messageMenuBarActionRegistry.execute(actionId, context)
+    const ran = await messageMenuBarActionRegistry.execute(actionId, context)
+    // The translate toolbar command only stops a running translation; language picks report 'translate'.
+    if (ran) reportMessageAction(actionId === 'translate' ? 'translate-stop' : actionId)
+    return ran
   } catch (error) {
     notifyCommandError(actionId, context, error)
     return false

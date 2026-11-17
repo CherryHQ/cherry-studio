@@ -32,6 +32,7 @@ const leafCapabilitiesMock = vi.hoisted(() => ({
 const chatWriteMock = vi.hoisted(() => ({
   canStartNewContext: true,
   editMessage: vi.fn(),
+  regenerate: vi.fn(),
   setActiveNode: vi.fn(),
   startNewContext: vi.fn()
 }))
@@ -351,6 +352,10 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
         },
         mcp: {
           abortTool: vi.fn()
+        },
+        ipcApi: {
+          request: vi.fn().mockResolvedValue(undefined),
+          on: vi.fn(() => () => {})
         }
       }
     })
@@ -459,6 +464,36 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     const filter = modelSelectorMock.props.at(-1)?.filter
     expect(filter?.({ capabilities: [capability] })).toBe(false)
     expect(filter?.({ capabilities: [] })).toBe(true)
+  })
+
+  it('reports an @-mention model action only once the picked model regenerated', async () => {
+    const reportedActions = () =>
+      vi
+        .mocked(window.api.ipcApi.request)
+        .mock.calls.filter(([route]) => route === 'analytics.track')
+        .map(([, event]) => event)
+    let value: MessageListProviderValue | undefined
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+    render(
+      <>
+        {value?.actions.renderRegenerateModelPicker?.({
+          message: { id: 'message-a' } as any,
+          messageParts: [],
+          trigger: <button type="button">pick model</button>,
+          onOpenChange: vi.fn()
+        })}
+      </>
+    )
+    const onSelect = modelSelectorMock.props.at(-1)?.onSelect
+
+    await act(async () => onSelect?.(undefined))
+    chatWriteMock.regenerate.mockRejectedValueOnce(new Error('blocked'))
+    await act(async () => onSelect?.({ id: 'provider::model-b' }))
+    expect(reportedActions()).toEqual([])
+
+    await act(async () => onSelect?.({ id: 'provider::model-b' }))
+    expect(chatWriteMock.regenerate).toHaveBeenLastCalledWith('message-a', { modelId: 'provider::model-b' })
+    expect(reportedActions()).toEqual([{ event: 'message_action_used', action: 'assistant-mention-model' }])
   })
 
   it('capture consumer consumes pending topic image requests without binding visible image events', async () => {

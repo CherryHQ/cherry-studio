@@ -1,11 +1,12 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, MouseEvent, ReactElement, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { defaultMessageMenuConfig, type MessageListActions } from '@renderer/components/chat/messages/types'
 import { exportService, getMessageTitle } from '@renderer/services/ExportService'
 import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
+import type { RendererAnalyticsEvent } from '@shared/ipc/schemas/analytics'
 
 const tooltipOpenValues = vi.hoisted(() => [] as Array<boolean | undefined>)
 const readMessageAloud = vi.hoisted(() => vi.fn())
@@ -885,5 +886,117 @@ describe('messageMenuBarActions', () => {
 
     expect(notifyError).toHaveBeenCalledWith(expect.stringContaining('clipboard denied'))
     expect(setCopied).not.toHaveBeenCalled()
+  })
+})
+
+describe('message action analytics', () => {
+  const request = vi.mocked(window.api.ipcApi.request)
+  const reportedActions = () =>
+    request.mock.calls.flatMap(([route, event]) => {
+      const tracked = event as RendererAnalyticsEvent
+      return route === 'analytics.track' && tracked.event === 'message_action_used' ? [tracked.action] : []
+    })
+  const selectItem = async (items: ReturnType<typeof resolveMessageMenuBarTranslationItems>, key: string) => {
+    const item = items.find((candidate) => candidate.key === key)
+    if (!item || !('onSelect' in item)) throw new Error(`missing translation item ${key}`)
+    await item.onSelect()
+  }
+
+  beforeEach(() => request.mockClear())
+
+  it('reports an action only when its command ran', async () => {
+    const regenerateMessage = vi.fn()
+
+    await executeMessageMenuBarAction('assistant-regenerate', createActionContext())
+    await executeMessageMenuBarAction(
+      'assistant-regenerate',
+      createActionContext({ actions: { regenerateMessage }, isProcessing: true })
+    )
+    await executeMessageMenuBarAction(
+      'assistant-regenerate',
+      createActionContext({ actions: { regenerateMessage: vi.fn().mockRejectedValue(new Error('blocked')) } })
+    )
+    expect(reportedActions()).toEqual([])
+
+    await executeMessageMenuBarAction('assistant-regenerate', createActionContext({ actions: { regenerateMessage } }))
+    expect(reportedActions()).toEqual(['assistant-regenerate'])
+  })
+
+  it('reports submenu leaves by their own id and never the container', async () => {
+    const exportMessageAsMarkdown = vi.fn()
+    const context = createActionContext({
+      actions: { exportMessageAsMarkdown },
+      menuConfig: {
+        ...defaultMessageMenuConfig,
+        exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, markdown: true }
+      }
+    })
+
+    await executeMessageMenuBarAction('export', context)
+    await executeMessageMenuBarAction('export.markdown', createActionContext({ actions: { exportMessageAsMarkdown } }))
+    expect(reportedActions()).toEqual([])
+
+    await executeMessageMenuBarAction('export.markdown', context)
+    expect(reportedActions()).toEqual(['export.markdown'])
+  })
+
+  it('reports stopping a translation apart from picking a language', async () => {
+    await executeMessageMenuBarAction(
+      'translate',
+      createActionContext({ isTranslating: true, actions: { abortMessageTranslation: vi.fn() } })
+    )
+
+    expect(reportedActions()).toEqual(['translate-stop'])
+  })
+
+  it('reports a picked translation language without its code', async () => {
+    const translateMessage = vi.fn()
+    const items = resolveMessageMenuBarTranslationItems(
+      createActionContext({
+        translateLanguages: [{ langCode: 'x-my-dialect', emoji: '🏳️', label: 'Mine' } as any],
+        actions: { translateMessage }
+      })
+    )
+
+    await selectItem(items, 'x-my-dialect')
+
+    expect(translateMessage).toHaveBeenCalledOnce()
+    expect(reportedActions()).toEqual(['translate'])
+  })
+
+  it('reports translation copy, close and retry items after they run', async () => {
+    const removeMessageTranslation = vi.fn()
+    const items = resolveMessageMenuBarTranslationItems(
+      createActionContext({
+        hasTranslationBlocks: true,
+        messageParts: [{ type: 'data-translation', data: { content: 'bonjour' } } as any],
+        actions: { removeMessageTranslation }
+      })
+    )
+    await selectItem(items, 'translate-copy')
+    await selectItem(items, 'translate-close')
+
+    const retryItems = resolveMessageMenuBarTranslationItems(
+      createActionContext({
+        translationLanguagesStatus: 'error',
+        actions: { translateMessage: vi.fn(), requestTranslationLanguages: vi.fn(), retryTranslationLanguages: vi.fn() }
+      })
+    )
+    await selectItem(retryItems, 'translate-retry')
+
+    expect(reportedActions()).toEqual(['translate-copy', 'translate-close', 'translate-retry'])
+  })
+
+  it('does not report a translation item whose operation failed', async () => {
+    const items = resolveMessageMenuBarTranslationItems(
+      createActionContext({
+        hasTranslationBlocks: true,
+        actions: { removeMessageTranslation: vi.fn().mockRejectedValue(new Error('busy')) }
+      })
+    )
+
+    await selectItem(items, 'translate-close')
+
+    expect(reportedActions()).toEqual([])
   })
 })
