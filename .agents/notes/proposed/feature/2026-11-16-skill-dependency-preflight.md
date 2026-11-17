@@ -36,11 +36,13 @@ Each installed Skill has one readiness state, stored with the installed row and 
 - `setting_up`: an approved setup run is active.
 - `failed`: the last setup run ended with an error, cancellation, or timeout; the error and log path are recorded.
 
-A Skill with no `requires` key is `ready` by definition. The fingerprint covers the platform, the Cherry Studio version, and the Skill content hash. Upgrades, Skill updates, and moving an Agent to another runtime change the fingerprint and force a recheck.
+A Skill with no `requires` key is `ready` by definition. The fingerprint covers the platform, the Cherry Studio version, the Skill content hash, and the resolved identity of each declared prerequisite: every binary's resolved path and version, and every runtime's name, resolved path, and version. Upgrades, Skill updates, and moving an Agent to another runtime change the fingerprint and force a recheck.
+
+Readiness is also revalidated against the environment, not only against the stored fingerprint: before every Agent run that would load the Skill, the cheap preflight checks (binary resolution and version reads) rerun. Removing a declared binary such as `pandoc`, upgrading it in place, or replacing or switching a runtime therefore flips the Skill back to `setup_required` even when nothing in the stored fingerprint changed. A run never starts a Skill whose last revalidation did not pass.
 
 ### Preflight
 
-Preflight runs when a Skill is installed or updated, when the fingerprint changes, and before the first Agent run that would load the Skill. It only checks: it resolves binaries, reads runtime versions, and inspects the app-owned environment. It never installs anything.
+Preflight runs when a Skill is installed or updated, when the fingerprint changes, and before every Agent run that would load the Skill (the revalidation rule above). It only checks: it resolves binaries, reads runtime versions, and inspects the app-owned environment. It never installs anything.
 
 If a Skill used by an Agent run is not `ready`, the run does not start the Skill. The user sees the missing prerequisite and a single action to set it up.
 
