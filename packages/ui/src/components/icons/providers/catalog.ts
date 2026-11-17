@@ -4,8 +4,8 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-11-14T13:47:05.564Z
- * Total icons: 175
+ * Generated at: 2026-11-16T16:26:22.253Z
+ * Total icons: 176
  */
 import { type CompoundIcon } from '../types'
 import { MinTop3Icon } from './3min-top'
@@ -65,6 +65,7 @@ import { FeloIcon } from './felo'
 import { FirecrawlIcon } from './firecrawl'
 import { FireworksIcon } from './fireworks'
 import { FlowithIcon } from './flowith'
+import { FortytwoIcon } from './fortytwo/fortytwo'
 import { GammaIcon } from './gamma/gamma'
 import { GensparkIcon } from './genspark'
 import { GiteeAiIcon } from './gitee-ai'
@@ -243,6 +244,7 @@ export const PROVIDER_ICON_CATALOG = {
   firecrawl: FirecrawlIcon,
   fireworks: FireworksIcon,
   flowith: FlowithIcon,
+  fortytwo: FortytwoIcon,
   gamma: GammaIcon,
   genspark: GensparkIcon,
   'gitee-ai': GiteeAiIcon,
