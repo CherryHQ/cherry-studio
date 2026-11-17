@@ -20,10 +20,10 @@ import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedR
  * `formatDone` overrides the terminal marker (OpenAI uses `data: [DONE]`,
  * Anthropic has none — the adapter's `message_stop` already ended it).
  */
-export class SseListener implements StreamListener {
+export class SseListener<TPayload = UIMessageChunk> implements StreamListener {
   readonly id: string
 
-  private readonly mapChunk?: (chunk: UIMessageChunk) => unknown | null
+  private readonly mapChunk?: (chunk: UIMessageChunk) => TPayload | null
   private readonly formatChunk?: (chunk: UIMessageChunk) => string | string[] | null
   private readonly formatDone?: () => string
   private readonly formatPaused?: () => string
@@ -36,7 +36,7 @@ export class SseListener implements StreamListener {
     options?: {
       id?: string
       /** Map UIMessageChunk to a JSON-serializable SSE payload. Default: pass through. */
-      mapChunk?: (chunk: UIMessageChunk) => unknown | null
+      mapChunk?: (chunk: UIMessageChunk) => TPayload | null
       /** Map UIMessageChunk to pre-formatted SSE frame string(s), written verbatim. Takes precedence over mapChunk. */
       formatChunk?: (chunk: UIMessageChunk) => string | string[] | null
       /** Terminal marker written on a clean done. Default: `data: [DONE]\n\n`. */

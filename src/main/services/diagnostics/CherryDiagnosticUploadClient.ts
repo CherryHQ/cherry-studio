@@ -119,8 +119,8 @@ async function readResponseBody(response: Response): Promise<Buffer> {
   return Buffer.concat(chunks, totalBytes)
 }
 
-function parseResponseJson(body: Buffer): unknown {
-  return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(body)) as unknown
+function readResponseText(body: Buffer): string {
+  return new TextDecoder('utf-8', { fatal: true }).decode(body)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -129,7 +129,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function uploadedResult(body: Buffer, fileSha256: string): CherryDiagnosticUploadResult {
   try {
-    const value = parseResponseJson(body)
+    const value: unknown = JSON.parse(readResponseText(body))
     if (!isRecord(value) || typeof value.id !== 'string' || value.id.trim().length === 0) {
       return { fileSha256, status: 'submission_unknown' }
     }
@@ -149,7 +149,7 @@ function uploadedResult(body: Buffer, fileSha256: string): CherryDiagnosticUploa
 function rejectedResult(response: Response, fileSha256: string, body?: Buffer): CherryDiagnosticUploadResult {
   if (response.status === 400 && body) {
     try {
-      const value = parseResponseJson(body)
+      const value: unknown = JSON.parse(readResponseText(body))
       if (isRecord(value) && value.code === 'invalid_diagnostic_archive') {
         return rejected('invalid_archive', fileSha256)
       }
@@ -179,7 +179,7 @@ export class CherryDiagnosticUploadClient {
         await cancelBody(response)
         throw new Error(`Diagnostic status request failed with HTTP ${response.status}`)
       }
-      const value = parseResponseJson(await readResponseBody(response))
+      const value: unknown = JSON.parse(readResponseText(await readResponseBody(response)))
       if (
         !isRecord(value) ||
         value.id !== reportId ||

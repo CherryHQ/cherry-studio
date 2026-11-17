@@ -1,3 +1,4 @@
+import type { IpcMain } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@logger', () => ({
@@ -53,9 +54,9 @@ vi.mock('@application', async () => {
 
 vi.mock('@main/core/lifecycle', () => {
   class MockBaseService {
-    protected readonly handlers = new Map<string, (...args: any[]) => unknown>()
+    protected readonly handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
 
-    protected ipcHandle(channel: string, handler: (...args: any[]) => unknown) {
+    protected ipcHandle(channel: string, handler: Parameters<IpcMain['handle']>[1]) {
       this.handlers.set(channel, handler)
       return { dispose: vi.fn() }
     }

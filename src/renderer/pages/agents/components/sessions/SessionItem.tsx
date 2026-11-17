@@ -41,7 +41,7 @@ interface SessionItemProps {
   onOpenRenameDialog: (session: AgentSessionEntity) => void
   onPress: (id: string) => void
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
-  onTogglePin?: (id: string) => void | Promise<unknown>
+  onTogglePin?: (id: string) => void | Promise<boolean | void>
   onToggleSidebar?: (session: AgentSessionEntity) => void
   panePosition?: TopicTabPosition
   pinned?: boolean

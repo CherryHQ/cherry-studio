@@ -9,7 +9,7 @@
 
 import { createContext, use } from 'react'
 
-import type { AssistantTurnOptions, CherryMessagePart } from '@shared/data/types/message'
+import type { AssistantTurnOptions, CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 /** Optional arguments passed alongside `deleteMessage`. */
@@ -73,7 +73,7 @@ export interface ChatWriteActions {
    * tab switches.
    */
   setActiveBranch: (throughNodeId: string) => Promise<void>
-  refresh: () => Promise<unknown>
+  refresh: () => Promise<CherryUIMessage[]>
 }
 
 export const ChatWriteContext = createContext<ChatWriteActions | null>(null)

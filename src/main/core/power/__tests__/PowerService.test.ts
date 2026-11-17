@@ -31,12 +31,12 @@ const {
   windowIsDestroyed,
   getNativeWindowHandle
 } = vi.hoisted(() => {
-  const powerMonitorListeners = new Map<string, (...args: any[]) => unknown>()
+  const powerMonitorListeners = new Map<string, (...args: any[]) => void | Promise<void>>()
   const blockerState = { started: new Set<number>(), nextId: 1 }
   return {
     platformMock: { isMac: true, isWin: false, isLinux: false },
     powerMonitorListeners,
-    powerMonitorOn: vi.fn((event: string, listener: (...a: any[]) => unknown) => {
+    powerMonitorOn: vi.fn((event: string, listener: (...a: any[]) => void | Promise<void>) => {
       powerMonitorListeners.set(event, listener)
     }),
     powerMonitorRemoveListener: vi.fn((event: string) => {
@@ -143,15 +143,15 @@ describe('PowerService', () => {
       const spy = vi.fn()
       service.onSuspend(spy)
 
-      fire('suspend')
+      void fire('suspend')
       expect(spy).toHaveBeenCalledTimes(1)
       expect(service.getPowerPhase()).toBe('suspended')
 
-      fire('suspend') // duplicate — already suspended, must not re-fire
+      void fire('suspend') // duplicate — already suspended, must not re-fire
       expect(spy).toHaveBeenCalledTimes(1)
 
-      fire('resume')
-      fire('suspend')
+      void fire('resume')
+      void fire('suspend')
       expect(spy).toHaveBeenCalledTimes(2)
     })
 
@@ -160,11 +160,11 @@ describe('PowerService', () => {
       const spy = vi.fn()
       service.onResume(spy)
 
-      fire('resume') // never suspended — no transition
+      void fire('resume') // never suspended — no transition
       expect(spy).not.toHaveBeenCalled()
 
-      fire('suspend')
-      fire('resume')
+      void fire('suspend')
+      void fire('resume')
       expect(spy).toHaveBeenCalledTimes(1)
       expect(service.getPowerPhase()).toBe('active')
     })
@@ -176,9 +176,9 @@ describe('PowerService', () => {
       service.onLockScreen(lockSpy)
       service.onUnlockScreen(unlockSpy)
 
-      fire('lock-screen')
-      fire('lock-screen')
-      fire('unlock-screen')
+      void fire('lock-screen')
+      void fire('lock-screen')
+      void fire('unlock-screen')
 
       expect(lockSpy).toHaveBeenCalledTimes(2)
       expect(unlockSpy).toHaveBeenCalledTimes(1)
@@ -191,14 +191,14 @@ describe('PowerService', () => {
 
       expect(service.getPowerSource()).toBe('ac') // seeded from onBatteryPower=false
 
-      fire('on-battery')
+      void fire('on-battery')
       expect(spy).toHaveBeenNthCalledWith(1, 'battery')
       expect(service.getPowerSource()).toBe('battery')
 
-      fire('on-battery') // duplicate — no change
+      void fire('on-battery') // duplicate — no change
       expect(spy).toHaveBeenCalledTimes(1)
 
-      fire('on-ac')
+      void fire('on-ac')
       expect(spy).toHaveBeenNthCalledWith(2, 'ac')
       expect(service.getPowerSource()).toBe('ac')
     })
@@ -281,7 +281,7 @@ describe('PowerService', () => {
         const service = await createInitedService()
 
         expect(BrowserWindow).not.toHaveBeenCalled()
-        fire('suspend')
+        void fire('suspend')
         expect(service.getPowerPhase()).toBe('suspended')
         const hold = service.preventSleep('job:blocked-addon')
         expect(service.isPreventingSleep()).toBe(true)
@@ -444,7 +444,7 @@ describe('PowerService', () => {
       const spy = vi.fn()
       service.onSuspend(spy)
 
-      fire('suspend')
+      void fire('suspend')
 
       expect(spy).toHaveBeenCalledTimes(1)
     })

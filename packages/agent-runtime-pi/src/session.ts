@@ -159,7 +159,7 @@ export async function createAgentRuntimeSession(
     settling = undefined
   })
 
-  const held = async (run: () => Promise<unknown>) => {
+  const held = async <TResult>(run: () => Promise<TResult>) => {
     if (settling) {
       await settling.over
       // A run Pi deferred during the settle goes first, preserving native ordering.

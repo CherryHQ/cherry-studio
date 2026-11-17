@@ -4,7 +4,9 @@ import * as z from 'zod'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { CherryInBalance, CherryInProfile } from '@shared/ipc/schemas/cherryin'
+import type { Serializable } from '@shared/types/serializable'
 import { isSensitiveKey, REDACTED, redactSecretText } from '@shared/utils/redaction'
+import { isSerializable } from '@shared/utils/serializable'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { CherryInOAuthServiceError, validateCherryInApiHost } from './CherryInOAuthConfig'
@@ -83,7 +85,7 @@ export class CherryInOAuthService {
   }
 
   // OAuth's `code` is sensitive in text but must not redact JSON keys globally — scope it here.
-  private redactDiagnosticValue = (value: unknown): unknown => {
+  private redactDiagnosticValue = (value: Serializable): Serializable => {
     if (typeof value === 'string') {
       return redactSecretText(value, ['code'])
     }
@@ -104,7 +106,7 @@ export class CherryInOAuthService {
     return value
   }
 
-  private readResponseBodyForDiagnostics = async (response: Response): Promise<unknown> => {
+  private readResponseBodyForDiagnostics = async (response: Response): Promise<Serializable> => {
     if (typeof response.clone !== 'function') {
       return null
     }
@@ -116,7 +118,8 @@ export class CherryInOAuthService {
       }
 
       try {
-        return this.redactDiagnosticValue(JSON.parse(text))
+        const value: unknown = JSON.parse(text)
+        return this.redactDiagnosticValue(isSerializable(value) ? value : text)
       } catch {
         return this.redactDiagnosticValue(text)
       }
@@ -137,7 +140,7 @@ export class CherryInOAuthService {
       request: {
         url: `${apiHost}${endpoint}`,
         method: requestOptions.method ?? 'GET',
-        headers: this.redactDiagnosticValue(requestOptions.headers ?? {}),
+        headers: this.redactDiagnosticValue(Object.fromEntries(new Headers(requestOptions.headers).entries())),
         body: requestOptions.body ? this.redactDiagnosticValue(String(requestOptions.body)) : null
       },
       response: {

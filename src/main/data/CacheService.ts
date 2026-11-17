@@ -271,25 +271,25 @@ export class CacheService extends BaseService {
   }
 
   /**
-   * Read the current (non-expired) value for an internal cache key.
+   * Read the current (non-expired) entry for an internal cache key.
    * Does NOT mutate the cache — use `get`/`has` if lazy cleanup is desired.
    */
-  private peekInternal(key: string): unknown {
+  private peekInternalEntry(key: string): CacheEntry | undefined {
     const entry = this.cache.get(key)
     if (!entry) return undefined
     if (entry.expireAt && Date.now() > entry.expireAt) return undefined
-    return entry.value
+    return entry
   }
 
   /**
-   * Read the current (non-expired) value for a shared cache key.
+   * Read the current (non-expired) entry for a shared cache key.
    * Does NOT mutate the cache.
    */
-  private peekShared(key: string): unknown {
+  private peekSharedEntry(key: string): CacheEntry | undefined {
     const entry = this.sharedCache.get(key)
     if (!entry) return undefined
     if (entry.expireAt && Date.now() > entry.expireAt) return undefined
-    return entry.value
+    return entry
   }
 
   /**
@@ -312,7 +312,7 @@ export class CacheService extends BaseService {
    * Set value in main process cache
    */
   set<T>(key: string, value: T, ttl?: number): void {
-    const oldValue = this.peekInternal(key)
+    const oldValue = this.peekInternalEntry(key)?.value
     const entry: CacheEntry<T> = {
       value,
       expireAt: ttl ? Date.now() + ttl : undefined
@@ -347,7 +347,7 @@ export class CacheService extends BaseService {
    * Delete from main process cache
    */
   delete(key: string): boolean {
-    const oldValue = this.peekInternal(key)
+    const oldValue = this.peekInternalEntry(key)?.value
     const removed = this.cache.delete(key)
 
     // Only fire if an actual non-expired value was present before.
@@ -416,7 +416,7 @@ export class CacheService extends BaseService {
     // re-setting it with the same value is an absent → value transition (full
     // broadcast + notify), never mistaken for a TTL-only refresh.
     const oldEntry = this.sharedCache.get(key)
-    const oldValue = this.peekShared(key)
+    const oldValue = this.peekSharedEntry(key)?.value
     const expireAt = ttl ? Date.now() + ttl : undefined
     const entry: CacheEntry = { value, expireAt }
 
@@ -474,7 +474,7 @@ export class CacheService extends BaseService {
    * @returns True if deletion succeeded
    */
   deleteShared<K extends SharedCacheKey>(key: K): boolean {
-    const oldValue = this.peekShared(key)
+    const oldValue = this.peekSharedEntry(key)?.value
 
     if (oldValue === undefined) {
       // Key absent or already expired — no main subscriber fire either way,
@@ -823,7 +823,7 @@ export class CacheService extends BaseService {
       if (message.type === 'shared') {
         // Capture pre-change value (TTL-aware) so subscribers see a consistent oldValue.
         // This path bypasses setShared/deleteShared and must notify independently.
-        const oldValue = this.peekShared(message.key)
+        const oldValue = this.peekSharedEntry(message.key)?.value
 
         if (message.value === undefined) {
           // Handle deletion

@@ -54,7 +54,7 @@ export interface LatestReconciler {
    */
   flush(): Promise<void>
   /** The error from the most recent failed `getSnapshot`/`apply`, or `null` after a clean pass. */
-  getLastError(): unknown
+  getLastError(): Error | null
   /**
    * Stop accepting work: `request()` becomes a no-op and the loop exits after any in-flight `apply`
    * completes (pending `flush()`es then resolve). This is a **stop-applying switch, not resource
@@ -129,7 +129,7 @@ export function createLatestReconciler<T>(options: LatestReconcilerOptions<T>): 
   let running = false
   // Clear before reading so requests during a snapshot or apply cannot be lost.
   let dirty = false
-  let lastError: unknown = null
+  let lastError: Error | null = null
   let disposed = false
   /** Resolvers for callers awaiting `flush()`; drained when the loop goes quiescent. */
   const flushWaiters: Array<() => void> = []
@@ -156,7 +156,10 @@ export function createLatestReconciler<T>(options: LatestReconcilerOptions<T>): 
         try {
           snap = await getSnapshot()
         } catch (error) {
-          lastError = error
+          lastError =
+            error instanceof Error
+              ? error
+              : new Error(typeof error === 'string' ? error : 'Reconciliation failed', { cause: error })
           onError(error, undefined)
           if (dirty) continue
           break
@@ -175,7 +178,10 @@ export function createLatestReconciler<T>(options: LatestReconcilerOptions<T>): 
           // the last failure until a success overwrites it (never a premature null mid-apply).
           lastError = null
         } catch (error) {
-          lastError = error
+          lastError =
+            error instanceof Error
+              ? error
+              : new Error(typeof error === 'string' ? error : 'Reconciliation failed', { cause: error })
           onError(error, snap)
           // No auto-retry of the same target (a permanent failure must not spin). A request that
           // arrived meanwhile means a (possibly new) target to converge to — keep going.
@@ -206,7 +212,7 @@ export function createLatestReconciler<T>(options: LatestReconcilerOptions<T>): 
         flushWaiters.push(resolve)
       })
     },
-    getLastError(): unknown {
+    getLastError(): Error | null {
       return lastError
     },
     dispose(): void {
