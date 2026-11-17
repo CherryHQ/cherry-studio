@@ -71,6 +71,8 @@ import { createPiIdentityExtension } from './identityExtension'
 import { legacyDisabledToolId, assertLegacyDisabledToolsResolved } from './legacyToolPolicy'
 import { createPiBehaviorHost } from './piBehaviorHost'
 import { PiChildTasks } from './PiChildTasks'
+import { resolvePiCompactionSettings } from './piCompactionSettings'
+import { createPiCompactionSummarizer } from './piCompactionSummarizer'
 import {
   capturePiConnectionSnapshot,
   type PiConnectionSnapshot,
@@ -342,6 +344,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       settings: {
         ...(shellPath ? { shellPath } : {}),
         ...(loginPathPrefix ? { shellCommandPrefix: loginPathPrefix } : {})
+      },
+      compaction: {
+        ...resolvePiCompactionSettings(binding.model.contextWindow, binding.model.maxTokens),
+        summarize: createPiCompactionSummarizer({
+          binding,
+          usage: () => application.get('ApiGatewayService').captureAgentSessionUsage(this.input.sessionId, nativeId)
+        })
       },
       extensionFactories: [
         createPiIdentityExtension(agentDataPath),

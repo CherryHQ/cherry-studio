@@ -1,0 +1,90 @@
+import type { AssistantMessage, Message } from '@earendil-works/pi-ai'
+import { describe, expect, it, vi } from 'vitest'
+
+import type { createPiGatewayModelBinding } from './gatewayModelBinding'
+import { createPiCompactionSummarizer } from './piCompactionSummarizer'
+
+type Binding = Awaited<ReturnType<typeof createPiGatewayModelBinding>>
+
+const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { total: 0 } }
+
+function assistant(overrides: Partial<AssistantMessage>): AssistantMessage {
+  return {
+    role: 'assistant',
+    content: [],
+    api: 'openai-completions',
+    provider: 'test',
+    model: 'test-model',
+    usage,
+    stopReason: 'stop',
+    timestamp: 0,
+    ...overrides
+  } as AssistantMessage
+}
+
+function summarizerFor(completeSimple: ReturnType<typeof vi.fn>) {
+  const binding = {
+    model: { id: 'test-model', provider: 'test', contextWindow: 10_000, maxTokens: 2_000 },
+    modelRuntime: { completeSimple }
+  } as unknown as Binding
+  return createPiCompactionSummarizer({
+    binding,
+    usage: () => ({ headers: {}, release: () => {} })
+  })
+}
+
+function request(messages: Message[]) {
+  return {
+    reason: 'threshold' as const,
+    sessionId: 's1',
+    model: {} as never,
+    messages,
+    signal: new AbortController().signal
+  }
+}
+
+const filler = (i: number): Message => ({ role: 'user', content: `filler ${i} ${'x'.repeat(5_000)}`, timestamp: i })
+
+describe('createPiCompactionSummarizer', () => {
+  it('keeps the initial task and latest message, and discloses omitted middle messages', async () => {
+    const completeSimple = vi.fn().mockResolvedValue(assistant({ content: [{ type: 'text', text: 'summary' }] }))
+    const messages: Message[] = [
+      { role: 'user', content: 'INITIAL TASK', timestamp: 0 },
+      ...Array.from({ length: 20 }, (_, i) => filler(i + 1)),
+      { role: 'user', content: 'LATEST REQUEST', timestamp: 99 }
+    ]
+
+    await summarizerFor(completeSimple)(request(messages))
+
+    const prompt = completeSimple.mock.calls[0][1].messages[0].content as string
+    expect(prompt).toContain('INITIAL TASK')
+    expect(prompt).toContain('LATEST REQUEST')
+    expect(prompt).toMatch(/\d+ earlier messages were omitted/)
+  })
+
+  it('retries once with a smaller input when the summarizer itself overflows', async () => {
+    const completeSimple = vi
+      .fn()
+      .mockResolvedValueOnce(
+        assistant({
+          stopReason: 'error',
+          errorMessage: 'request (8315 tokens) exceeds the available context size (8192 tokens)'
+        })
+      )
+      .mockResolvedValueOnce(assistant({ content: [{ type: 'text', text: 'summary' }] }))
+    const messages = Array.from({ length: 20 }, (_, i) => filler(i))
+
+    const result = await summarizerFor(completeSimple)(request(messages))
+
+    expect(result).toMatchObject({ summary: 'summary' })
+    const [first, second] = completeSimple.mock.calls.map((call) => (call[1].messages[0].content as string).length)
+    expect(second).toBeLessThan(first)
+  })
+
+  it('does not retry a failure that is not a context overflow', async () => {
+    const completeSimple = vi.fn().mockResolvedValue(assistant({ stopReason: 'error', errorMessage: 'Unauthorized' }))
+
+    await expect(summarizerFor(completeSimple)(request([filler(1)]))).rejects.toThrow('Unauthorized')
+    expect(completeSimple).toHaveBeenCalledTimes(1)
+  })
+})

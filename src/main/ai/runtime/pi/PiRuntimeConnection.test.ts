@@ -1247,17 +1247,10 @@ describe('desktop Pi root connection', () => {
   })
 
   it('compacts through the Pi facet without replaying history or creating a second user input', async () => {
-    mocks.binding.mockImplementation(async () => ({
-      ...(await createTestBinding({
-        model: MODEL,
-        stream: script.model
-      })),
-      compaction: { reserveTokens: 16_384, keepRecentTokens: 1 }
-    }))
     const { connection, events } = await connect()
-    await connection.send({ message: message('history to summarize') })
+    await connection.send({ message: message(`history to summarize ${'x'.repeat(60_000)}`) })
     await done(events)
-    await connection.send({ message: message('another fact') })
+    await connection.send({ message: message(`another fact ${'y'.repeat(30_000)}`) })
     await expect.poll(() => events.filter((event) => event.type === 'turn-complete')).toHaveLength(2)
     const before = events.length
     const compact = message('/compact keep the important facts')

@@ -1,3 +1,4 @@
+export type { CompactionSummarizer, CompactionSummaryRequest } from './compaction'
 export type { AgentRuntimeEvent, CompactionReason } from './sessionEvents'
 export {
   createPiRuntime,

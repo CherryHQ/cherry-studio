@@ -50,7 +50,7 @@ export interface PiRuntimeOptions {
 }
 export type PiSessionOptions = Omit<AgentRuntimeSessionOptions, 'compaction'> & {
   behavior: PiRuntimeBehavior
-  compaction?: Omit<NonNullable<AgentRuntimeSessionOptions['compaction']>, 'summarize'>
+  compaction?: NonNullable<AgentRuntimeSessionOptions['compaction']>
 }
 export interface PiThreadHandle extends ThreadHandle {
   readonly input: ThreadInput
