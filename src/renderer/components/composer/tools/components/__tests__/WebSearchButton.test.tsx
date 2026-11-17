@@ -258,7 +258,7 @@ describe('WebSearchButton', () => {
     mocks.model = {
       ...mocks.model!,
       endpointTypes: ['openai-responses', 'openai-chat-completions']
-    } as Model
+    }
     mocks.provider = {
       id: 'anthropic',
       defaultChatEndpoint: 'openai-chat-completions',
