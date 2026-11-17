@@ -664,18 +664,21 @@ describe('SkillService', () => {
       expect(fs.existsSync(path.join(service.getInstalledSkillDirectory(installed), 'SKILL.md'))).toBe(true)
     })
 
-    it('reports a first install without naming the skill, and not its reinstall', async () => {
+    it('reports a first local install without naming the skill, a failed one as an error, and no reinstall', async () => {
       const trackProductEvent = vi.fn()
       MockApplicationUtils.setService('AnalyticsService', { trackProductEvent })
       const directoryPath = path.join(root, 'private-skill')
-      await fs.promises.mkdir(directoryPath)
-      await fs.promises.writeFile(path.join(directoryPath, 'SKILL.md'), '---\nname: private-skill\n---')
+      const clashingPath = path.join(root, 'elsewhere', 'private-skill')
+      for (const directory of [directoryPath, clashingPath]) {
+        await fs.promises.mkdir(directory, { recursive: true })
+        await fs.promises.writeFile(path.join(directory, 'SKILL.md'), '---\nname: private-skill\n---')
+      }
       try {
         await service.installFromDirectory({ directoryPath })
         await service.installFromDirectory({ directoryPath })
-        expect(trackProductEvent.mock.calls).toEqual([
-          [{ event: 'feature_used', feature: 'skills', action: 'skill_installed' }]
-        ])
+        await expect(service.installFromDirectory({ directoryPath: clashingPath })).rejects.toThrow()
+        const base = { event: 'feature_used', feature: 'skills', action: 'skill_installed' }
+        expect(trackProductEvent.mock.calls).toEqual([[{ ...base, status: 'success' }], [{ ...base, status: 'error' }]])
       } finally {
         MockApplicationUtils.resetServices()
       }

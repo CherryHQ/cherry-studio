@@ -57,6 +57,11 @@ const logger = loggerService.withContext('SkillService')
 const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
 const BUILTIN_VERSION_FILE = '.version'
 
+/** User skills carry no preset id, so no target. */
+function reportSkillInstalled(status: 'success' | 'error'): void {
+  trackMainProductEvent({ event: 'feature_used', feature: 'skills', action: 'skill_installed', status })
+}
+
 type SkillRemoteUpdateErrorCode = (typeof skillErrorCodes)[keyof typeof skillErrorCodes]
 
 export class SkillRemoteUpdateError extends Error {
@@ -616,6 +621,20 @@ export class SkillService {
     sourceUrl: string | null,
     provenance: { namespace?: string | null } = {}
   ): Promise<InstalledSkill> {
+    try {
+      return await this.addSkillDirToLibrary(skillDir, source, sourceUrl, provenance)
+    } catch (error) {
+      reportSkillInstalled('error')
+      throw error
+    }
+  }
+
+  private async addSkillDirToLibrary(
+    skillDir: string,
+    source: string,
+    sourceUrl: string | null,
+    provenance: { namespace?: string | null }
+  ): Promise<InstalledSkill> {
     const metadata = await parseSkillMetadata(skillDir, path.basename(skillDir), 'skills')
 
     const skillsRoot = path.resolve(application.getPath('feature.agents.skills'))
@@ -721,8 +740,8 @@ export class SkillService {
     if (isBuiltin) {
       this.enableForAllAgents(inserted.id)
     } else {
-      // Only first installs report; user skills carry no preset id, so no target.
-      trackMainProductEvent({ event: 'feature_used', feature: 'skills', action: 'skill_installed' })
+      // Only first installs report success; any failed attempt reports an error.
+      reportSkillInstalled('success')
     }
 
     logger.info('Skill installed', { id: inserted.id, name: metadata.name, folderName: destFolderName, source })

@@ -5,6 +5,7 @@ import { MockApplicationUtils } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PresetProviderSeeder } from '@data/db/seeding/seeders/presetProviderSeeder'
+import { providerService } from '@data/services/ProviderService'
 
 import { providerHandlers } from '../providers'
 
@@ -55,7 +56,20 @@ describe('PATCH /providers/:providerId usage analytics', () => {
     await patch('openai', { isEnabled: true })
 
     expect(reported()).toEqual([
-      { event: 'feature_used', feature: 'provider', action: 'provider_configured', target: 'openai' }
+      { event: 'feature_used', feature: 'provider', action: 'provider_configured', status: 'success', target: 'openai' }
+    ])
+  })
+
+  it('reports an error when switching a provider on fails', async () => {
+    new PresetProviderSeeder().run(dbh.db)
+    vi.spyOn(providerService, 'update').mockImplementationOnce(() => {
+      throw new Error('disk I/O error')
+    })
+
+    await expect(patch('openai', { isEnabled: true })).rejects.toThrow('disk I/O error')
+
+    expect(reported()).toEqual([
+      { event: 'feature_used', feature: 'provider', action: 'provider_configured', status: 'error', target: 'openai' }
     ])
   })
 
@@ -65,6 +79,8 @@ describe('PATCH /providers/:providerId usage analytics', () => {
     })
     await patch('my-private-relay', { isEnabled: true })
 
-    expect(reported()).toEqual([{ event: 'feature_used', feature: 'provider', action: 'provider_configured' }])
+    expect(reported()).toEqual([
+      { event: 'feature_used', feature: 'provider', action: 'provider_configured', status: 'success' }
+    ])
   })
 })
