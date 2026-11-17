@@ -23,10 +23,6 @@ export const clearModelScopeToken = (): void => {
   localStorage.removeItem(TOKEN_STORAGE_KEY)
 }
 
-export const hasModelScopeToken = (): boolean => {
-  return !!getModelScopeToken()
-}
-
 interface ModelScopeServer {
   id: string
   name: string

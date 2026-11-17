@@ -371,7 +371,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
       <div
         data-ui="skill-file-workspace"
         className="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden lg:grid lg:grid-cols-[14rem_minmax(0,1fr)]">
-        <div className="flex h-40 min-h-0 shrink-0 flex-col overflow-hidden rounded-lg bg-background-subtle lg:h-full">
+        <div className="flex h-40 min-h-0 shrink-0 flex-col overflow-hidden rounded-lg bg-background-subtle p-2 lg:h-full">
           <div className="flex h-10 shrink-0 items-center px-3 text-xs font-medium text-muted-foreground">
             {t('library.skill_detail.source_files')}
           </div>

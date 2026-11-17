@@ -1,7 +1,7 @@
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { PropsWithChildren } from 'react'
+import type { ReactNode, PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ResourcePaneCountButton } from '@renderer/components/chat/panes/Shell'
@@ -95,7 +95,7 @@ vi.mock('@renderer/components/chat/trace/TracePane', () => ({
 }))
 
 vi.mock('@renderer/components/SessionBrowserView', () => ({
-  SessionBrowserView: () => <div>Session browser</div>
+  SessionBrowserView: ({ toolbarActions }: { toolbarActions?: ReactNode }) => <div>Session browser{toolbarActions}</div>
 }))
 
 vi.mock('../TopicBranchPanel', () => {
@@ -461,7 +461,10 @@ describe('TopicRightPane', () => {
     expect(await screen.findByTestId('branch-pane')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'settings.browser.title' }))
     expect(screen.getByText('Session browser')).toBeVisible()
-    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('settings.browser.title')
+    await user.click(screen.getByRole('button', { name: 'common.maximize' }))
+    expect(screen.getByRole('button', { name: 'common.minimize' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: 'common.close_sidebar' }))
+    expect(screen.queryByText('Session browser')).not.toBeVisible()
   })
 
   it('uses committed preference changes through the original IPC listener', async () => {

@@ -18,7 +18,7 @@ export async function agentPermissionDecisions(app: RegressionApp, page: Page, t
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   await testInfo.attach('MP-51 model source', {
-    body: 'Real configured custom provider; real Pi runtime and filesystem writes, no mocked permission decisions.',
+    body: 'Local mock model; real Pi runtime and filesystem writes, no mocked permission decisions.',
     contentType: 'text/plain'
   })
   const providerId = await ensureCustomChatProvider(app, page)

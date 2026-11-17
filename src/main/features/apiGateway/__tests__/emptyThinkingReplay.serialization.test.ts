@@ -75,6 +75,7 @@ describe('empty Anthropic thinking history replay', () => {
       { type: 'thinking', ...block },
       { type: 'text', text: 'Previous answer' }
     ])
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const original = structuredClone(messages)
     expect(await replay(messages)).toEqual([{ type: 'text', text: 'Previous answer' }])
     expect(messages).toEqual(original)
