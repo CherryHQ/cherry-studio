@@ -136,7 +136,7 @@ describe('regression execution plan', () => {
     ['notes', ['N-01', 'MP-11', 'MP-74', 'MP-75', 'MP-76', 'MP-77', 'MP-78', 'MP-79']],
     ['knowledge', ['K-01', 'MP-59', 'MP-60', 'MP-61', 'MP-62', 'MP-63', 'MP-64', 'MP-65', 'MP-66', 'MP-67']],
     ['code-tools', ['CODE-01', 'CODE-03']],
-    ['paintings', ['P-01', 'MP-90', 'MP-91']],
+    ['paintings', ['MP-91']],
     ['translation', ['T-01', 'T-02', 'MP-81', 'MP-82', 'MP-83', 'MP-85', 'MP-86']]
   ] as const)('includes existing scenarios as well as case-library scenarios in %s', (task, ids) => {
     expect(selectCases(task).map(({ id }) => id)).toEqual(ids)
@@ -153,6 +153,10 @@ describe('regression execution plan', () => {
     ['native-notifications', ['MP-110']]
   ] as const)('keeps the focused task %s limited to its intended scenarios', (task, ids) => {
     expect(selectCases(task).map(({ id }) => id)).toEqual(ids)
+  })
+
+  it.each(['cherryin-chat', 'image-generation'])('rejects the removed task %s before execution', (task) => {
+    expect(() => parseTaskSelection(task)).toThrow()
   })
 
   it('keeps execution order out of selectable task names', () => {

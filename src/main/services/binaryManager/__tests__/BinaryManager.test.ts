@@ -86,10 +86,7 @@ vi.mock('node:os', () => ({
 }))
 
 vi.mock('node:child_process', () => ({
-  execFile: vi.fn(),
-  execFileSync: vi.fn(() => {
-    throw new Error('not found')
-  })
+  execFile: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -211,6 +208,25 @@ describe('BinaryManager', () => {
     await expect((service as any).findMiseBin()).resolves.toBe(misePath)
     expect(findMiseExecutable).toHaveBeenCalledOnce()
     expect(findExecutable).not.toHaveBeenCalled()
+  })
+
+  it('finds a system mise on PATH when the bundled binary is missing', async () => {
+    const misePath = '/usr/local/bin/mise'
+    mockExecFileAsync.mockResolvedValue({ stdout: `${misePath}\n`, stderr: '' })
+    ;(mockFs.existsSync as any).mockImplementation((candidate: string) => candidate === misePath)
+
+    const service = new BinaryManager()
+
+    await expect((service as any).findMiseBin()).resolves.toBe(misePath)
+    expect(mockExecFileAsync).toHaveBeenCalledWith('which', ['mise'], expect.objectContaining({ timeout: 5000 }))
+  })
+
+  it('reports no mise when the PATH lookup fails', async () => {
+    mockExecFileAsync.mockRejectedValue(Object.assign(new Error('not found'), { code: 1 }))
+
+    const service = new BinaryManager()
+
+    await expect((service as any).findMiseBin()).resolves.toBeNull()
   })
 
   it('initializes with binary management disabled when the Windows mise lookup fails', async () => {
@@ -1407,7 +1423,7 @@ describe('BinaryManager', () => {
       const service = new BinaryManager()
       await (service as any).onInit()
 
-      expect(mockExecFileAsync).not.toHaveBeenCalled()
+      expect(mockExecFileAsync.mock.calls.filter(([command]) => command !== 'which')).toEqual([])
     })
   })
 
@@ -1925,6 +1941,29 @@ describe('BinaryManager', () => {
       expect(latestCall?.[2].env).not.toHaveProperty('MISE_NPM_SHELL_OUT')
     })
 
+    it('queries the Qwen Code 1.x line so the release-only 1.0 preview is found', async () => {
+      const service = makeService()
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({ 'github:QwenLM/qwen-code': [{ version: '1.0.0-preview.1', active: true }] }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/qwen\n', stderr: '' }
+        if (args[0] === 'latest') return { stdout: '1.0.0-preview.1\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(service.getLatestVersions(true)).resolves.toMatchObject({ qwen: '1.0.0-preview.1' })
+
+      // The github backend orders releases by creation date, so the query is
+      // pinned to the 1.x line instead of resolving to the newest release.
+      const latestCall = mockExecFileAsync.mock.calls.find((call: any[]) => call[1][0] === 'latest')
+      expect(latestCall?.[1]).toEqual(['latest', '--minimum-release-age', '0s', 'github:QwenLM/qwen-code@1'])
+      expect(latestCall?.[2].env).toMatchObject({ MISE_PRERELEASES: '1' })
+    })
+
     it('includes an applied custom tool under its manifest name', async () => {
       const service = makeService()
       manifestRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
@@ -2317,6 +2356,35 @@ describe('BinaryManager', () => {
       expect(miseArgs()).toContainEqual(['use', '-g', 'fd@latest'])
       expect(mockPreferenceService.set).not.toHaveBeenCalledWith('feature.binary.tools', expect.anything())
       expect(manifestRef.value).toEqual([])
+    })
+
+    it('installs Qwen Code from the 1.x line rather than the newest release', async () => {
+      const service = makeService()
+      let installed = false
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls' && args.length === 2) return { stdout: JSON.stringify({}), stderr: '' }
+        if (args[0] === 'ls')
+          return {
+            stdout: JSON.stringify({
+              'github:QwenLM/qwen-code': installed ? [{ version: '1.0.0-preview.1', active: true }] : []
+            }),
+            stderr: ''
+          }
+        if (args[0] === 'use') {
+          installed = true
+          return { stdout: '', stderr: '' }
+        }
+        if (args[0] === 'which') return { stdout: installed ? '/mock/mise/shims/qwen\n' : '', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await service.installByName({ name: 'qwen' })
+
+      // "latest" would resolve to the newest published release, which for the
+      // github backend is ordered by creation date rather than by version line.
+      expect(miseArgs()).toContainEqual(['use', '-g', '--minimum-release-age', '0s', 'github:QwenLM/qwen-code@1'])
+      const useCall = mockExecFileAsync.mock.calls.find((call: any[]) => call[1][0] === 'use')
+      expect(useCall?.[2].env).toMatchObject({ MISE_PRERELEASES: '1' })
     })
 
     it('converges as a no-op when a mid-session system install appears in the refreshed env', async () => {

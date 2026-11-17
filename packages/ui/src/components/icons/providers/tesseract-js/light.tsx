@@ -3,7 +3,7 @@ import type { SVGProps } from 'react'
 import type { IconComponent } from '../../types'
 const TesseractJsLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
-    <path fill="#fff" d="M0 0H120V120H0z" />
+    <path fill="var(--icon-neutral-background, #FFFFFF)" d="M0 0H120V120H0z" />
     <path
       fill="#1866C0"
       d="M23 23C47.75 23 72.5 23 98 23C98 47.75 98 72.5 98 98C73.25 98 48.5 98 23 98C23 73.25 23 48.5 23 23Z"

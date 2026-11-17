@@ -111,6 +111,43 @@ describe('message tool-output projection', () => {
     })
   })
 
+  it.each(['stored', 'live'])('serializes an oversized %s output once for its reference revision', (source) => {
+    let serialized = false
+    const output = {
+      toJSON() {
+        if (serialized) throw new Error('Tool output was serialized twice')
+        serialized = true
+        return large
+      }
+    }
+    const projected =
+      source === 'stored'
+        ? projectMessagePartForRenderer(partWith(output), TOPIC_ID, MESSAGE_ID)
+        : projectStreamChunkForRenderer(chunkWith(output), TOPIC_ID, MESSAGE_ID)
+
+    expect(projected).toMatchObject({
+      output: {
+        $deferredToolResult: {
+          topicId: TOPIC_ID,
+          messageId: MESSAGE_ID,
+          toolCallId: TOOL_CALL_ID,
+          revision: 'f99105333335ffd61379190d826704fc729bff3bff5108aace70af36fe80d670'
+        }
+      }
+    })
+  })
+
+  it.each([
+    [DEFER_TOOL_OUTPUT_BYTES - 2, false],
+    [DEFER_TOOL_OUTPUT_BYTES - 1, true]
+  ])('defers a %i-character string only when its JSON exceeds the byte budget', (length, deferred) => {
+    const output = 'x'.repeat(length)
+    const projected = projectMessagePartForRenderer(partWith(output), TOPIC_ID, MESSAGE_ID)
+    if (!('output' in projected)) throw new Error('Expected a tool output')
+    expect(isDeferredToolOutput(projected.output)).toBe(deferred)
+    if (!deferred) expect(projected.output).toBe(output)
+  })
+
   it('keeps a bounded citation skeleton for an oversized agent lookup', () => {
     const projected = projectMessagePartForRenderer(partWith(largeAgentWebSearch), TOPIC_ID, MESSAGE_ID) as unknown as {
       output: {
