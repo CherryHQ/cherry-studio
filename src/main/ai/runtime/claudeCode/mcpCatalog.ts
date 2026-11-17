@@ -35,7 +35,8 @@ export function buildMcpServers(
   agentDataPath = session.workspace.path,
   selectedKnowledgeBaseIds: readonly string[] = [],
   notificationContext?: AgentNotificationContext,
-  effectiveModelId?: UniqueModelId | null
+  effectiveModelId?: UniqueModelId | null,
+  servesAcceptedTurn = false
 ): Record<string, McpServerConfig> | undefined {
   const servers = buildAgentMcpServers(
     session,
@@ -46,7 +47,8 @@ export function buildMcpServers(
     agentDataPath,
     selectedKnowledgeBaseIds,
     notificationContext,
-    effectiveModelId
+    effectiveModelId,
+    servesAcceptedTurn
   )
 
   return Object.fromEntries(

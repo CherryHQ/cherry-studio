@@ -152,6 +152,11 @@ export interface ClaudeCodeSessionOptions {
   promptModelName?: string | null
   /** Effective connection model; defaults to `session.model ?? agent.model`. */
   effectiveModelId?: UniqueModelId
+  /**
+   * True when the turn these settings serve was already accepted and frozen to an agent the
+   * session row no longer names. Tool contexts then carry that execution ownership.
+   */
+  servesAcceptedTurn?: boolean
 }
 
 export type { LinkedChannelSnapshot, McpServerSnapshotMap } from '@main/ai/runtime/agentMcpServers'
@@ -261,7 +266,8 @@ export async function buildClaudeCodeSessionSettings(
     agentDataPath,
     options?.knowledgeBaseIds,
     notificationContext,
-    effectiveModelId ?? null
+    effectiveModelId ?? null,
+    options?.servesAcceptedTurn === true
   )
   let mcpToolMetadata = await buildMcpToolMetadata(agent)
   if (agent.mcps?.length) mcpToolMetadata ??= {}

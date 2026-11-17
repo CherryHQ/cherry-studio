@@ -97,6 +97,7 @@ describe('AgentJobsService', () => {
   const runtime = {
     isSessionBusy: () => false,
     isSessionBusyForArchive: vi.fn(() => false),
+    listSessionIdsByExecutingAgent: () => [],
     closeSession: async () => {},
     closeSessionForArchive: vi.fn(async () => {}),
     cancelSessionForks: async () => {},

@@ -15,6 +15,9 @@ import { callBuiltinTool, listBuiltinTools, toolText } from './builtinMcpClient'
 describe('session_rename persisted contract', () => {
   const dbh = setupTestDatabase()
   const getInteractionState = vi.fn()
+  // The rename guard consults the runtime for an executing turn's owner; these fixtures run with
+  // unchanged ownership, which the lookup reports as undefined.
+  const getAcceptedTurnAgentId = vi.fn()
   let context: AutonomyToolsContext
 
   function createServer() {
@@ -34,7 +37,8 @@ describe('session_rename persisted contract', () => {
 
   beforeEach(() => {
     getInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
-    MockApplicationUtils.setService('AgentSessionRuntimeService', { getInteractionState })
+    getAcceptedTurnAgentId.mockReturnValue(undefined)
+    MockApplicationUtils.setService('AgentSessionRuntimeService', { getInteractionState, getAcceptedTurnAgentId })
     dbh.db
       .insert(agentTable)
       .values(

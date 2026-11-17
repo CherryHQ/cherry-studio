@@ -309,13 +309,18 @@ export async function deriveConnectionConfig(
   serviceTier: AgentRuntimeConnectInput['serviceTier'] = 'standard',
   /** True for a headless (scheduled/responder-less) turn: it resolves against the agent
    *  default while ignoring session overrides. */
-  headless = false
+  headless = false,
+  /** Connection-scoped agent override: the reconcile derives the desired config for the agent the
+   *  connection was spawned under (a live turn freezes it across a mid-session reassignment),
+   *  which may no longer be the session row's current agent. Defaults to the session row. */
+  connectionAgentId?: string
 ): Promise<DeriveConnectionConfigResult> {
   const unroutable = { ok: false, reason: 'unroutable' } as const
 
   const session = agentSessionService.getById(sessionId)
-  if (!session?.agentId) return unroutable
-  const agent = agentService.getAgent(session.agentId)
+  const agentId = connectionAgentId ?? session?.agentId
+  if (!session || !agentId) return unroutable
+  const agent = agentService.getAgent(agentId)
   if (!agent) return unroutable
   // A cleared agent default still routes when the session carries its own
   // override — only a session with no effective model is unroutable.
@@ -514,12 +519,21 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   serviceTier: AgentRuntimeConnectInput['serviceTier'] = 'standard',
   /** True for a headless (scheduled/responder-less) turn: it resolves against the agent
    *  default while ignoring session overrides. */
-  headless = false
+  headless = false,
+  /** Connection-scoped agent override: a live turn is frozen to the agent it was accepted under
+   *  (adoption never runs mid-turn), so after a mid-session reassignment the request must be
+   *  built from that agent — not the session row's current one — for configuration and
+   *  attribution to stay consistent. Defaults to the session row. */
+  connectionAgentId?: string,
+  /** Mirrors the connect flag: the request serves a turn already accepted under `connectionAgentId`,
+   *  so the tool context carries that execution ownership past the session-row check. */
+  servesAcceptedTurn?: boolean
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
-  if (!session?.agentId) return undefined
+  const agentId = connectionAgentId ?? session?.agentId
+  if (!session || !agentId) return undefined
 
-  const agent = agentService.getAgent(session.agentId)
+  const agent = agentService.getAgent(agentId)
   if (!agent) return undefined
   // A cleared agent default still routes when the session carries its own
   // override — only a session with no effective model is unroutable.
@@ -588,7 +602,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         fastMode: nativeFastMode,
         effectiveLanguage,
         promptModelName,
-        effectiveModelId: uniqueModelId
+        effectiveModelId: uniqueModelId,
+        ...(servesAcceptedTurn ? { servesAcceptedTurn: true } : {})
       },
       agent
     ),

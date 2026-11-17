@@ -85,6 +85,28 @@ beforeEach(() => {
 })
 
 describe('capturePiConnectionSnapshot', () => {
+  it('captures an accepted turn frozen to its agent after the session was re-pointed', async () => {
+    // Top-bar switch re-pointed the session row to agent-2 while the driver materialized the
+    // connection for a turn already accepted under agent-1.
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-2',
+      workspaceId: 'workspace-1',
+      workspace: { id: 'workspace-1', path: '/workspace', type: 'user' }
+    })
+    await expect(capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).rejects.toMatchObject({
+      reason: 'reassigned'
+    })
+
+    const snapshot = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model', undefined, {
+      servesAcceptedTurn: true
+    })
+    expect(snapshot.agent.id).toBe('agent-1')
+    // A cleared agent default stays routable while the caller supplies an effective model
+    // (upstream #20826 moved that resolution to the caller), so the frozen agent's own row is
+    // no longer the gate — the requested model is.
+  })
+
   it('rebuilds a warm connection when server instructions arrive or disappear', async () => {
     const cold = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
     mocks.getInstructions.mockReturnValue({
