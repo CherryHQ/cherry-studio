@@ -832,9 +832,9 @@ function toConnectionRouteFacts(route: ClaudeCodeRuntimeRoute): ClaudeCodeRouteF
     credentialsFingerprint: route.credentialsFingerprint,
     toolSearchCompatible: route.toolSearchCompatible,
     modelIds: route.modelIds,
-    usageModels: route.usageModels,
     budgetSlots: route.budgetSlots,
-    primaryTrusted: route.primaryTrusted
+    primaryTrusted: route.primaryTrusted,
+    usageModels: route.usageModels
   }
 }
 
