@@ -5,13 +5,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type FileStat } from 'webdav'
 
-import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
+import { Button, Input, RowFlex, Switch, WarnTooltip, HelpTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import {
   SettingDivider,
   SettingGroup,
-  SettingHelpText,
   SettingRow,
   SettingRowTitle,
   SettingTitle
@@ -22,6 +21,7 @@ import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useNutstoreSso } from '@renderer/hooks/useNutstoreSso'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { settingsControlClasses } from '@renderer/pages/settings/settingsStyles'
 import {
   backupToNutstore,
   checkConnection,
@@ -255,14 +255,13 @@ const NutstoreSettings: FC = () => {
             <SettingRowTitle>{t('settings.data.nutstore.username')}</SettingRowTitle>
             <span className="text-foreground-tertiary">{nutstoreUsername}</span>
           </SettingRow>
-
           <SettingDivider />
           <SettingRow>
             <SettingRowTitle>{t('settings.data.nutstore.path.label')}</SettingRowTitle>
-            <RowFlex className="justify-between gap-1">
+            <RowFlex className={`${settingsControlClasses.text} items-center gap-2`}>
               <Input
                 placeholder={t('settings.data.nutstore.path.placeholder')}
-                style={{ width: 250 }}
+                className="min-w-0 flex-1"
                 value={nutstorePath}
                 onChange={(e) => {
                   void setNutstorePath(e.target.value)
@@ -276,7 +275,7 @@ const NutstoreSettings: FC = () => {
           <SettingDivider />
           <SettingRow>
             <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-            <RowFlex className="justify-between gap-1.25">
+            <RowFlex className="flex-wrap items-center justify-end gap-2">
               <Button onClick={showBackupModal} disabled={backuping} variant="outline">
                 {t('settings.data.nutstore.backup.button')}
               </Button>
@@ -338,14 +337,14 @@ const NutstoreSettings: FC = () => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
+            <SettingRowTitle className="flex items-center gap-1.5">
+              {t('settings.data.backup.skip_file_data_title')}{' '}
+              <HelpTooltip content={t('settings.data.backup.skip_file_data_help')} />
+            </SettingRowTitle>
             <Switch
               checked={nutstoreSkipBackupFile}
               onCheckedChange={(value) => void setNutstoreSkipBackupFile(value)}
             />
-          </SettingRow>
-          <SettingRow>
-            <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
           </SettingRow>
         </>
       )}
@@ -362,7 +361,6 @@ const NutstoreSettings: FC = () => {
             filenamePlaceholder: t('settings.data.nutstore.backup.modal.filename.placeholder')
           }}
         />
-
         <WebdavBackupManager
           visible={backupManagerVisible}
           onClose={closeBackupManager}

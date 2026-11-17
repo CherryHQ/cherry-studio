@@ -3,7 +3,9 @@ import { createServer, type Server } from 'node:http'
 import { join } from 'node:path'
 
 import { createAnthropic } from '@ai-sdk/anthropic'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
+import { InvalidArgumentError, TypeValidationError } from '@ai-sdk/provider'
 import { node } from '@elysia/node'
 import { startMockChatServer } from '@test-helpers/http/mockChatServer'
 import { APICallError, generateText, streamText, type UIMessageChunk } from 'ai'
@@ -89,6 +91,36 @@ cases.push({
   status: 502,
   message: 'Type validation failed: unexpected data structure. Check the provider endpoint and model.'
 })
+for (const shape of ['raw', 'serialized']) {
+  cases.push({
+    id: `google-options-${shape}`,
+    origin: 'real Google SDK local options rejection',
+    input: () => realInputs.get(`google-options-${shape}`),
+    status: 400,
+    message: 'invalid google provider options'
+  })
+}
+for (const [id, message, expected] of [
+  [
+    'secret',
+    'Invalid argument Authorization: Bearer sk-private-fixture',
+    'Invalid argument Authorization: "<redacted>"'
+  ],
+  ['payload', 'Invalid argument: {"prompt":"MARKER_PRIVATE_MESSAGE"}', 'Invalid request parameters'],
+  ['empty', '', 'Invalid request parameters']
+]) {
+  add(`argument-${id}`, new InvalidArgumentError({ argument: 'providerOptions', message }), 400, expected)
+}
+add(
+  'argument-explicit-status',
+  { name: 'AI_InvalidArgumentError', statusCode: 503, message: 'Unavailable' },
+  503,
+  'Unavailable'
+)
+add(
+  'standalone-response-validation',
+  serializeError(new TypeValidationError({ value: 'MARKER_PRIVATE_MESSAGE', cause: new Error('invalid response') }))
+)
 for (const status of [200, 201, 204, 206, 299]) {
   add(
     `provider-status-${status}`,
@@ -279,6 +311,12 @@ const vocabulary: Record<number, { anthropic: string; openai: string; code: stri
     code: 'bad_request',
     google: 'INVALID_ARGUMENT'
   },
+  400: {
+    anthropic: 'invalid_request_error',
+    openai: 'invalid_request_error',
+    code: 'bad_request',
+    google: 'INVALID_ARGUMENT'
+  },
   401: {
     anthropic: 'authentication_error',
     openai: 'authentication_error',
@@ -452,6 +490,24 @@ async function anthropicNonMessageFailure() {
 
 beforeAll(async () => {
   expect(isDev).toBe(false)
+  const providerFetch = vi.fn<typeof fetch>()
+  const google = createGoogleGenerativeAI({ apiKey: 'fixture', fetch: providerFetch })
+  let argumentError: unknown
+  try {
+    await generateText({
+      model: google('gemini-3-pro-preview'),
+      prompt: 'fixture',
+      maxRetries: 0,
+      providerOptions: { google: { thinkingConfig: { thinkingLevel: 'fixture-invalid-level' } } }
+    })
+  } catch (error) {
+    argumentError = error
+  }
+  expect(InvalidArgumentError.isInstance(argumentError)).toBe(true)
+  expect(TypeValidationError.isInstance((argumentError as Error).cause)).toBe(true)
+  expect(providerFetch).not.toHaveBeenCalled()
+  realInputs.set('google-options-raw', argumentError)
+  realInputs.set('google-options-serialized', serializeError(argumentError))
   realInputs.set('fetch-timeout', await fetchFailure(false))
   realInputs.set('fetch-abort', await fetchFailure(true))
   realInputs.set('sdk-sse', await sdkSseFailure())
@@ -603,7 +659,7 @@ describe('gateway generation errors over real Elysia/node sockets', () => {
                 expect(Buffer.byteLength(body, 'utf8')).toBe(lengths[dialect.format])
               }
             }
-            for (const marker of [...Object.values(markers), 'MARKER_PRIVATE_MESSAGE'])
+            for (const marker of [...Object.values(markers), 'MARKER_PRIVATE_MESSAGE', 'sk-private-fixture'])
               expect(body).not.toContain(marker)
             observation.outcome = 'passed'
           } finally {
@@ -879,4 +935,16 @@ it('retains a plain upstream error and transport cause for an internal runtime',
   expect(frame).toContain('ECONNRESET')
   expect(frame).toContain('Connection reset')
   expect(frame).not.toContain('request-secret')
+})
+
+it('preserves trusted internal validation details while classifying the request error', () => {
+  const original = realInputs.get('google-options-raw')
+  const error = internalGatewayError(original, serializeError(original))
+  const frame = JSON.parse(buildStreamErrorFrame('openai', error).slice(6))
+  expect(frame.error).toMatchObject({
+    type: 'invalid_request_error',
+    code: 'bad_request',
+    message: 'invalid google provider options',
+    cause: { name: 'AI_TypeValidationError' }
+  })
 })

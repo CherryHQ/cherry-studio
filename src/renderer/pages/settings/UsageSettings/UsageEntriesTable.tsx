@@ -231,7 +231,6 @@ export function UsageEntriesTable({
         ) : (
           <EmptyState
             compact
-            preset="no-result"
             title={t('settings.usage.explore.noEntries')}
             description={t('settings.usage.explore.noEntriesDescription')}
           />

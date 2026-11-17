@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { resolveCommandByKeybinding } from '@shared/utils/command'
+import { getCommandDefaultShortcutPreference, resolveCommandByKeybinding } from '@shared/utils/command'
 
 import { getNumberShortcutMode, getNumberShortcutPreset, getNumberShortcutUpdates } from '../numberShortcuts'
 
@@ -23,6 +23,28 @@ describe('number shortcut presets', () => {
       }
     }
   )
+
+  it.each(['darwin', 'win32', 'linux'] as const)('disables all number shortcuts on %s', (platform) => {
+    const preferences = getNumberShortcutPreset('off', platform)
+    expect(Object.values(preferences)).toHaveLength(18)
+    expect(Object.values(preferences).every((preference) => preference.enabled === false)).toBe(true)
+    for (const [command, preference] of Object.entries(preferences)) {
+      expect(preference.binding).toEqual(
+        getCommandDefaultShortcutPreference(command as keyof typeof preferences, platform)?.binding
+      )
+    }
+    expect(getNumberShortcutMode(preferences, platform)).toBe('off')
+    const updates = getNumberShortcutUpdates('off', platform)
+    expect(Object.keys(updates)).toHaveLength(18)
+    expect(updates['shortcut.app.sidebar.open_9']?.enabled).toBe(false)
+    expect(updates['shortcut.tab.open_9']?.enabled).toBe(false)
+    const secondary = platform === 'darwin' ? 'Ctrl' : 'Alt'
+    for (const digit of ['1', '2', '3', '4', '5', '6', '7', '8', '9'] as const) {
+      const options = { preferences, platform, context: {}, scope: 'renderer' as const }
+      expect(resolveCommandByKeybinding({ ...options, binding: ['CommandOrControl', digit] })).toBeUndefined()
+      expect(resolveCommandByKeybinding({ ...options, binding: [secondary, digit] })).toBeUndefined()
+    }
+  })
 
   it('recognizes clean defaults and preserves customized or disabled bindings as custom', () => {
     expect(getNumberShortcutMode({}, 'darwin')).toBe('conversation')

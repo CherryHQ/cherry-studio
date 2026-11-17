@@ -9,7 +9,7 @@ const Bytedance = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const BytedanceIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Bytedance, {
   Avatar: BytedanceAvatar,
-  colorPrimary: '#00C8D2'
+  colorPrimary: '#e8fafb'
 })
 
 export default BytedanceIcon
