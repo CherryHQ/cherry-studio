@@ -868,7 +868,7 @@
   "chat.input.pause": "Pozastavit",
   "chat.input.placeholder": "Napište zprávu. Zadáním / zobrazíte nástroje a akce, zadáním @ odkážete na témata.",
   "chat.input.quota_notice.not_in_plan": "Váš tarif tento model nezahrnuje",
-  "chat.input.quota_notice.sign_in_required": "Pro použití modelů předplatného Cherry AI se přihlaste",
+  "chat.input.quota_notice.sign_in_required": "Pro použití tohoto modelu se přihlaste k Cherry AI",
   "chat.input.quota_notice.subscription_required": "Pro použití tohoto modelu si předplaťte přístup",
   "chat.input.quota_notice.switch_model": "Přepnout model",
   "chat.input.reference_panel.load_failed": "Načtení odkazované konverzace se nezdařilo",

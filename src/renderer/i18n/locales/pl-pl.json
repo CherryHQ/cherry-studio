@@ -882,7 +882,7 @@
   "chat.input.pause": "Wstrzymaj",
   "chat.input.placeholder": "Napisz wiadomość. Wpisz /, aby użyć narzędzi i akcji, @ aby odwołać się do tematów.",
   "chat.input.quota_notice.not_in_plan": "Twój plan nie obejmuje tego modelu",
-  "chat.input.quota_notice.sign_in_required": "Zaloguj się, aby korzystać z modeli planu Cherry AI",
+  "chat.input.quota_notice.sign_in_required": "Zaloguj się do Cherry AI, aby korzystać z tego modelu",
   "chat.input.quota_notice.subscription_required": "Zasubskrybuj, aby korzystać z tego modelu",
   "chat.input.quota_notice.switch_model": "Zmień model",
   "chat.input.reference_panel.load_failed": "Nie udało się załadować wskazanego czatu",

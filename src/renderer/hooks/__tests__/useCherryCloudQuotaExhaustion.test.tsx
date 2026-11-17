@@ -1,7 +1,11 @@
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import {
+  CHERRY_CLOUD_PROVIDER_ID,
+  CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+  CHERRYAI_PROVIDER_ID
+} from '@shared/data/presets/cherryai'
 import { createUniqueModelId, type Model } from '@shared/data/types/model'
 import type { CherryCloudAccountPlans } from '@shared/ipc/schemas/cherryCloud'
 
@@ -30,6 +34,9 @@ vi.mock('../useCherryCloudModelAvailability', () => ({
     isModelLocked: () => facts.freshness === 'fresh' && facts.locked,
     isModelUnavailable: () => facts.freshness === 'fresh' && facts.exhausted
   })
+}))
+vi.mock('../useCherryAccountSession', () => ({
+  useCherryAccountSession: () => ({ status: facts.phase ? { phase: facts.phase } : null, loadState: facts.loadState })
 }))
 vi.mock('../useCherryCloudPlans', () => ({
   useCherryCloudPlans: () => ({
@@ -236,5 +243,15 @@ describe('useCherryCloudQuotaExhaustion', () => {
     facts.exhausted = false
     const { result } = renderHook(() => useCherryCloudQuotaExhaustion(paidModel))
     expect(result.current).toBeNull()
+  })
+
+  it.each([
+    ['signed-out', 'sign_in_required'],
+    ['signed-in', null]
+  ] as const)('asks to sign in before the built-in free model can be used (%s)', (phase, reason) => {
+    facts.phase = phase
+    const qwen = { id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, providerId: CHERRYAI_PROVIDER_ID } as Model
+    const { result } = renderHook(() => useCherryCloudQuotaExhaustion(qwen))
+    expect(result.current?.reason ?? null).toBe(reason)
   })
 })

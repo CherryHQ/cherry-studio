@@ -1,9 +1,10 @@
 import { useMemo } from 'react'
 
+import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useCherryCloudPlans } from '@renderer/hooks/useCherryCloudPlans'
 import { getQuotaRecoveryTime } from '@renderer/utils/cherryCloudQuota'
-import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
+import { isManagedCherryAiProviderId, isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { CherryCloudAccountPlans } from '@shared/ipc/schemas/cherryCloud'
 
@@ -47,8 +48,16 @@ export function useCherryCloudQuotaExhaustion(
   const { session, plansQuery, activePaid, upcomingPaid, isPlansReady, plansFreshness } =
     useCherryCloudPlans(isCloudModel)
   const phase = session.status?.phase
+  // The built-in free CherryAI model also needs a signed-in Cherry AI account.
+  const isCherryAiModel = Boolean(model && isManagedCherryAiProviderId(model.providerId))
+  const cherryAiPhase = useCherryAccountSession(isCherryAiModel).status?.phase
 
   return useMemo<CherryCloudQuotaExhaustion | null>(() => {
+    if (model && isCherryAiModel) {
+      return cherryAiPhase === 'signed-out'
+        ? { isFreeModel: true, isSubscribed: undefined, reason: 'sign_in_required' }
+        : null
+    }
     if (!model || !isCloudModel) return null
     const base = {
       isFreeModel: isModelFree(model),
@@ -81,6 +90,8 @@ export function useCherryCloudQuotaExhaustion(
     activePaid,
     upcomingPaid,
     exhausted,
+    isCherryAiModel,
+    cherryAiPhase,
     isCloudModel,
     isModelFree,
     locked,

@@ -868,7 +868,7 @@
   "chat.input.pause": "Duraklat",
   "chat.input.placeholder": "Bir mesaj yazın. Araçlar ve eylemler için /, konulara başvurmak için @ yazın.",
   "chat.input.quota_notice.not_in_plan": "Planınız bu modeli içermiyor",
-  "chat.input.quota_notice.sign_in_required": "Cherry AI plan modellerini kullanmak için oturum açın",
+  "chat.input.quota_notice.sign_in_required": "Bu modeli kullanmak için Cherry AI'da oturum açın",
   "chat.input.quota_notice.subscription_required": "Bu modeli kullanmak için abone olun",
   "chat.input.quota_notice.switch_model": "Modeli değiştir",
   "chat.input.reference_panel.load_failed": "Başvurulan konuşma yüklenemedi",

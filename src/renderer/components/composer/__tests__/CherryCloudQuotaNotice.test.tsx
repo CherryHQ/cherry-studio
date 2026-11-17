@@ -64,7 +64,7 @@ describe('CherryCloudQuotaNotice', () => {
       <CherryCloudQuotaNotice exhaustion={{ reason: 'sign_in_required', isFreeModel: false, isSubscribed: false }} />
     )
 
-    expect(screen.getByText('登录后才能使用 CherryAI 订阅模型')).toBeInTheDocument()
+    expect(screen.getByText('登录 CherryAI 后才能使用此模型')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '登录' }))
 
     expect(request).toHaveBeenCalledWith('cherry_cloud.login.start', undefined)
