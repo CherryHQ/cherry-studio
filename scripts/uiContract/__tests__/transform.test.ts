@@ -398,3 +398,130 @@ class Message {
     expect(result.code).toContain('<div data-ui=')
   })
 })
+
+describe('analytics control names', () => {
+  function analyticsNames(source: string, sourceFile = options.sourceFile): string[] {
+    const { code } = transformJsx(source, { injectDataUi: true, sourceFile })
+    expectParseable(code)
+    return [...code.matchAll(/data-analytics="([^"]+)"/g)].map((match) => match[1])
+  }
+
+  it('tells sibling controls of one component apart by their named handlers', () => {
+    const names = analyticsNames(
+      `const MessageMenuBar = () => (
+        <div>
+          <button onClick={handleCopy}><CopyIcon /></button>
+          <Button onClick={() => void onRetry(message)}><RetryIcon /></Button>
+        </div>
+      )`,
+      'src/renderer/components/chat/messages/frame/MessageMenuBar.tsx'
+    )
+
+    expect(names).toEqual(['chat.message-menu-bar:copy', 'chat.message-menu-bar:retry'])
+  })
+
+  it('prefers the label i18n key, including one from a wrapping Tooltip, over the handler', () => {
+    const names = analyticsNames(`const Message = () => (
+      <div>
+        <button aria-label={t('common.copy')} onClick={handleCopy} />
+        <Tooltip content={t('common.retry')}><Button onClick={handleRegenerate} /></Tooltip>
+        <MenuItem label={i18n.t('chat.topics.delete')} onClick={() => remove(topic)} />
+        <Button><span>{t('common.save')}</span></Button>
+        <Tooltip title={t('common.more')}><div><button onClick={handleClick} /></div></Tooltip>
+      </div>
+    )`)
+
+    expect(names).toEqual([
+      'chat.message:common.copy',
+      'chat.message:common.retry',
+      'chat.message:chat.topics.delete',
+      'chat.message:common.save'
+    ])
+  })
+
+  it('never derives a name from display text', () => {
+    expect(analyticsNames('const Message = () => <button onClick={handleCopy}>复制</button>')).toEqual(
+      analyticsNames('const Message = () => <button title="Copy text" onClick={handleCopy}>Copy</button>')
+    )
+    expect(analyticsNames('const Message = () => <button aria-label="Copy" title="Copy">Copy</button>')).toEqual([])
+  })
+
+  it('keeps names stable across formatting-only changes', () => {
+    expect(
+      analyticsNames("export function Message(){return <Button aria-label={t('common.copy')} onClick={handleCopy}/>}")
+    ).toEqual(
+      analyticsNames(`export function Message() {
+  return (
+    <Button
+      aria-label={t('common.copy')}
+      onClick={handleCopy}
+    />
+  )
+}`)
+    )
+  })
+
+  it('lets an authored or spread data-analytics value win', () => {
+    const spread = transformJsx('const Message = (props) => <button onClick={handleCopy} {...props} />', {
+      ...options,
+      injectDataUi: true
+    }).code
+    const authored = transformJsx('const Message = () => <button data-analytics={name} onClick={handleCopy} />', {
+      ...options,
+      injectDataUi: true
+    }).code
+
+    expect(spread.indexOf('data-analytics="chat.message:copy"')).toBeLessThan(spread.indexOf('{...'))
+    expect(authored.match(/data-analytics=/g)).toHaveLength(1)
+  })
+
+  it('names only interactive controls with a source signal, and nothing inside packages/ui', () => {
+    expect(
+      analyticsNames(`const Message = () => (
+        <div onClick={handleCopy} aria-label={t('common.copy')}>
+          <Card onClick={handleCopy} />
+          <input type="text" name="query" />
+          <button onClick={handleClick}>Open</button>
+          <button onClick={(event) => event.stopPropagation()} />
+          <button onClick={() => item.onSelect()} />
+        </div>
+      )`)
+    ).toEqual([])
+    expect(
+      analyticsNames(
+        "const Button = (props) => <button aria-label={t('common.copy')} {...props} />",
+        'packages/ui/src/components/primitives/button.tsx'
+      )
+    ).toEqual([])
+    expect(
+      analyticsNames(`const Message = () => (
+        <div>
+          <motion.button onClick={handleSend} />
+          <input type="checkbox" name="enabled" />
+          <div role="radio" data-testid="theme-dark" />
+        </div>
+      )`)
+    ).toEqual(['chat.message:send', 'chat.message:enabled', 'chat.message:theme-dark'])
+  })
+
+  it('normalizes names to the analytics grammar, truncated to 120 characters', () => {
+    const [normalized] = analyticsNames("const Message = () => <button aria-label={t('settings.Provider API')} />")
+    const [truncated] = analyticsNames(`const Message = () => <button aria-label={t('${'a'.repeat(200)}')} />`)
+
+    expect(normalized).toBe('chat.message:settings.provider-api')
+    expect(truncated).toHaveLength(120)
+    expect(truncated).toMatch(/^[a-z0-9][a-z0-9:._-]{0,119}$/)
+  })
+
+  it('leaves the data-ui contract and its descriptors unchanged', () => {
+    const source = 'const Message = () => <div><button onClick={handleCopy}>x</button></div>'
+    const injected = transformJsx(source, { ...options, injectDataUi: true })
+    const scanned = transformJsx(source, options)
+
+    expect(injected.code.replace(/ data-analytics="[^"]*"/g, '')).toBe(
+      'const Message = () => <div data-ui="chat.message"><button data-ui="chat.message.action.copy" onClick={handleCopy}>x</button></div>'
+    )
+    expect(injected.descriptors).toEqual(scanned.descriptors)
+    expect(scanned.code).toBe(source)
+  })
+})

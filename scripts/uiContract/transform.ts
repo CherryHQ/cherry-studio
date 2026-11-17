@@ -9,7 +9,7 @@ import {
   type Span
 } from 'oxc-parser'
 
-import { inferHandlerAction, inferSemanticId } from './semanticId'
+import { componentSemanticBase, identifierWords, inferHandlerAction, inferSemanticId } from './semanticId'
 import type { UiNodeDescriptor, UiSourceTransform } from './types'
 
 const SKIPPED_COMPONENTS = new Set(['Consumer', 'Fragment', 'Provider', 'StrictMode', 'Suspense'])
@@ -39,6 +39,50 @@ const DATA_SLOT_VALUE = /^[A-Za-z0-9][A-Za-z0-9._:~-]*$/
 // Mirrors SEMANTIC_ID in src/renderer/utils/uiContract/tokens.ts so authored
 // tokens that the consumer grammar would reject fail the build instead.
 const SEMANTIC_ID = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/
+// Mirrors UI_TOKEN in src/renderer/services/usageAnalytics.ts, which drops any other value.
+const ANALYTICS_NAME = /^[a-z0-9][a-z0-9:._-]{0,119}$/
+const INTERACTIVE_TAGS = new Set(['a', 'button', 'select', 'summary'])
+const INTERACTIVE_INPUT_TYPES = new Set(['button', 'checkbox', 'radio', 'submit'])
+const INTERACTIVE_ROLES = new Set([
+  'button',
+  'checkbox',
+  'link',
+  'menuitem',
+  'menuitemcheckbox',
+  'menuitemradio',
+  'option',
+  'radio',
+  'switch',
+  'tab'
+])
+// Components verified to forward unknown props to the interactive element they render.
+const INTERACTIVE_COMPONENTS = new Set([
+  'ActionIconButton',
+  'Button',
+  'Checkbox',
+  'CommandItem',
+  'ContextMenuCheckboxItem',
+  'ContextMenuItem',
+  'ContextMenuRadioItem',
+  'ContextMenuSubTrigger',
+  'DropdownMenuCheckboxItem',
+  'DropdownMenuItem',
+  'DropdownMenuRadioItem',
+  'DropdownMenuSubTrigger',
+  'MenuItem',
+  'NavbarIcon',
+  'RadioGroupItem',
+  'SelectItem',
+  'Switch',
+  'TabsTrigger'
+])
+const LABEL_ATTRIBUTES = ['aria-label', 'title', 'tooltip', 'label']
+const TOOLTIP_LABEL_ATTRIBUTES = ['content', 'title']
+const CLICK_HANDLERS = ['onClick', 'onSelect', 'onCheckedChange', 'onPressedChange']
+const HANDLER_PREFIX_WORDS = new Set(['handle', 'handler', 'on'])
+const GENERIC_HANDLER_WORDS = new Set(['change', 'checked', 'click', 'press', 'pressed', 'select'])
+const PLUMBING_HANDLER_WORDS = new Set(['default', 'event', 'propagation'])
+const STABLE_NAME_ATTRIBUTES = ['data-testid', 'name', 'id', 'key']
 export const UI_CONTRACT_RUNTIME_MODULE_ID = 'virtual:cherry-ui-contract-runtime'
 
 const RUNTIME_MERGE_DATA_UI = '__cherryUiContractMergeDataUi'
@@ -237,6 +281,108 @@ function mergePartsDataUi(existing: string | undefined, parts: string[]): string
   return [...new Set([...semanticTokens, ...partTokens])].join(' ')
 }
 
+function isInteractiveControl(info: OpeningElementInfo): boolean {
+  const role = info.attributes.get('role')
+  if (role && !role.dynamic && INTERACTIVE_ROLES.has(role.value ?? '')) return true
+  if (!/^[a-z]/.test(info.element)) return INTERACTIVE_COMPONENTS.has(info.element)
+  // `motion.button` renders a button just like `button`.
+  const tag = info.element.split('.').at(-1) ?? info.element
+  if (tag !== 'input') return INTERACTIVE_TAGS.has(tag)
+  const type = info.attributes.get('type')
+  return Boolean(type && !type.dynamic && INTERACTIVE_INPUT_TYPES.has(type.value ?? ''))
+}
+
+/** The literal key of a `t('key')` / `i18n.t('key')` call: a source identifier, not display text. */
+function i18nKey(value: unknown): string | undefined {
+  if (!isRecord(value)) return undefined
+  if (value.type === 'JSXExpressionContainer') return i18nKey(value.expression)
+  if (value.type === 'ConditionalExpression') return i18nKey(value.consequent) ?? i18nKey(value.alternate)
+  if (value.type !== 'CallExpression' || !Array.isArray(value.arguments)) return undefined
+  const callee = value.callee
+  const isTranslate =
+    isRecord(callee) &&
+    ((callee.type === 'Identifier' && callee.name === 't') ||
+      (callee.type === 'MemberExpression' && isRecord(callee.property) && callee.property.name === 't'))
+  const key: unknown = value.arguments[0]
+  return isTranslate && isRecord(key) && key.type === 'Literal' && typeof key.value === 'string' ? key.value : undefined
+}
+
+function attributeI18nKey(attributes: Map<string, AttributeInfo>, names: string[]): string | undefined {
+  for (const name of names) {
+    const key = i18nKey(attributes.get(name)?.attribute?.value)
+    if (key) return key
+  }
+  return undefined
+}
+
+// Own label text, at most two wrapper levels down (e.g. <Button><span>{t('x')}</span></Button>).
+function childrenI18nKey(children: unknown, depth = 2): string | undefined {
+  if (!Array.isArray(children)) return undefined
+  for (const child of children) {
+    const key = isRecord(child) && child.type === 'JSXExpressionContainer' ? i18nKey(child) : undefined
+    if (key) return key
+  }
+  if (depth === 0) return undefined
+  for (const child of children) {
+    const key = isRecord(child) && child.type === 'JSXElement' ? childrenI18nKey(child.children, depth - 1) : undefined
+    if (key) return key
+  }
+  return undefined
+}
+
+function calledIdentifiers(handler: unknown): string[] {
+  const direct = directHandlerIdentifier(handler)
+  if (direct) return [direct]
+  if (!isRecord(handler) || (handler.type !== 'ArrowFunctionExpression' && handler.type !== 'FunctionExpression')) {
+    return []
+  }
+  const body = handler.body
+  const expressions =
+    isRecord(body) && body.type === 'BlockStatement' && Array.isArray(body.body)
+      ? body.body.map((statement: unknown) =>
+          isRecord(statement) && statement.type === 'ExpressionStatement' ? statement.expression : undefined
+        )
+      : [body]
+  return expressions.flatMap((expression) => {
+    const call =
+      isRecord(expression) && expression.type === 'UnaryExpression' && expression.operator === 'void'
+        ? expression.argument
+        : expression
+    const callee = isRecord(call) && call.type === 'CallExpression' ? directHandlerIdentifier(call.callee) : undefined
+    return callee ? [callee] : []
+  })
+}
+
+function clickHandlerName(attributes: Map<string, AttributeInfo>): string | undefined {
+  for (const name of CLICK_HANDLERS) {
+    const value = attributes.get(name)?.attribute?.value
+    if (value?.type !== 'JSXExpressionContainer') continue
+    for (const identifier of calledIdentifiers(value.expression)) {
+      const words = identifierWords(identifier).filter((word) => !HANDLER_PREFIX_WORDS.has(word))
+      if (words.length === 0 || words.some((word) => PLUMBING_HANDLER_WORDS.has(word))) continue
+      if (words.every((word) => GENERIC_HANDLER_WORDS.has(word))) continue
+      return words.join('-')
+    }
+  }
+  return undefined
+}
+
+function analyticsSignal(
+  info: OpeningElementInfo,
+  children: unknown,
+  inheritedLabelKey: string | undefined
+): string | undefined {
+  const labelKey = attributeI18nKey(info.attributes, LABEL_ATTRIBUTES) ?? childrenI18nKey(children) ?? inheritedLabelKey
+  if (labelKey) return labelKey.toLowerCase().replace(/[^a-z0-9:._-]+/g, '-')
+  const handler = clickHandlerName(info.attributes)
+  if (handler) return handler
+  for (const name of STABLE_NAME_ATTRIBUTES) {
+    const attribute = info.attributes.get(name)
+    if (attribute && !attribute.dynamic && attribute.value) return identifierWords(attribute.value).join('-')
+  }
+  return undefined
+}
+
 interface TransformJsxOptions {
   injectDataUi?: boolean
   sourceFile: string
@@ -378,6 +524,23 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     return semanticId
   }
 
+  // Analytics-only and outside the data-ui contract: no descriptor, and an authored or spread value wins.
+  function injectAnalyticsName(
+    opening: JSXOpeningElement,
+    info: OpeningElementInfo,
+    children: unknown,
+    component: string,
+    inheritedLabelKey: string | undefined
+  ): void {
+    if (info.attributes.has('data-analytics') || !isInteractiveControl(info)) return
+    const signal = analyticsSignal(info, children, inheritedLabelKey)
+    if (!signal) return
+    const name = `${componentSemanticBase(component, options.sourceFile)}:${signal}`.slice(0, 120)
+    if (!ANALYTICS_NAME.test(name)) return
+    const nameSpan = requiredSpan(opening.name, `JSX element-name for ${info.element}`)
+    magicString.appendLeft(spanToCharacter(nameSpan.end), ` data-analytics=${JSON.stringify(name)}`)
+  }
+
   function shouldWrapAsChildContent(opening: JSXOpeningElement): boolean {
     const attribute = opening.attributes.find(
       (attribute) =>
@@ -400,10 +563,12 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     component: string,
     insideSvg = false,
     hasBoundaryAncestor = false,
-    nearestSemanticId?: string
+    nearestSemanticId?: string,
+    tooltipLabelKey?: string
   ): void {
     if (Array.isArray(value)) {
-      for (const item of value) walk(item, component, insideSvg, hasBoundaryAncestor, nearestSemanticId)
+      for (const item of value)
+        walk(item, component, insideSvg, hasBoundaryAncestor, nearestSemanticId, tooltipLabelKey)
       return
     }
     if (!isRecord(value)) return
@@ -418,6 +583,10 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
       const element = jsxName(opening.name)
       const isIntrinsicElement = /^[a-z]/.test(element)
       const semanticId = processOpening(opening, nestedComponent, insideSvg, hasBoundaryAncestor, nearestSemanticId)
+      const info = openingElementInfo(opening)
+      if (options.injectDataUi && !options.sourceFile.startsWith('packages/ui/')) {
+        injectAnalyticsName(opening, info, value.children, nestedComponent, tooltipLabelKey)
+      }
       const childrenInsideSvg = element === 'foreignObject' ? false : insideSvg || element === 'svg'
       const elementLeaf = element.split('.').at(-1) ?? element
       // Visual component implementations are transformed independently, so their
@@ -442,7 +611,17 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
         runtimeImports.add('UiDataSlot')
       }
       if (Array.isArray(value.children)) {
-        walk(value.children, nestedComponent, childrenInsideSvg, childrenHaveBoundaryAncestor, childSemanticId)
+        // A Tooltip renders no control itself; its label names the child that does.
+        const childTooltipLabelKey =
+          elementLeaf === 'Tooltip' ? attributeI18nKey(info.attributes, TOOLTIP_LABEL_ATTRIBUTES) : undefined
+        walk(
+          value.children,
+          nestedComponent,
+          childrenInsideSvg,
+          childrenHaveBoundaryAncestor,
+          childSemanticId,
+          childTooltipLabelKey
+        )
       }
       for (const attribute of opening.attributes) {
         if (attribute.type === 'JSXAttribute' && attribute.value?.type === 'JSXExpressionContainer') {
@@ -460,7 +639,7 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
 
     for (const [key, child] of Object.entries(value)) {
       if (key === 'start' || key === 'end' || key === 'parent' || key === 'type') continue
-      walk(child, nestedComponent, insideSvg, hasBoundaryAncestor, nearestSemanticId)
+      walk(child, nestedComponent, insideSvg, hasBoundaryAncestor, nearestSemanticId, tooltipLabelKey)
     }
   }
 
