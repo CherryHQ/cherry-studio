@@ -391,19 +391,19 @@ export async function searchSkillMarketplaces(
     sources.map(async (source) => source.normalize(await fetchJson(source.buildUrl(trimmed))))
   )
   const combined: SkillSearchResult[] = []
-  let failedSourceCount = 0
+  const failures: unknown[] = []
 
   for (const [index, result] of settled.entries()) {
     if (result.status === 'fulfilled') {
       combined.push(...result.value)
     } else {
-      failedSourceCount += 1
+      failures.push(result.reason)
       onSourceFailure?.(sources[index].name, result.reason)
     }
   }
 
-  if (failedSourceCount === sources.length) {
-    throw new Error(SKILL_SEARCH_FAILED_ERROR)
+  if (failures.length === sources.length) {
+    throw new Error(SKILL_SEARCH_FAILED_ERROR, { cause: failures[0] })
   }
 
   const seen = new Set<string>()
