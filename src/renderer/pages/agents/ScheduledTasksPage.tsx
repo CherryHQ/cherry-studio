@@ -19,6 +19,7 @@ import { useConversationShellPaneState } from '@renderer/hooks/useConversationSh
 import type { AppRouter } from '@renderer/types/router'
 
 import AgentChat from './AgentChat'
+import { ScheduledTaskEmptyScene } from './components/ScheduledTaskEmptyScene'
 import { ScheduledTaskGroup } from './components/ScheduledTaskSidebar'
 import { useAgentConversationBootstrap } from './useAgentConversationBootstrap'
 
@@ -182,6 +183,7 @@ export default function ScheduledTasksPage() {
     <div
       className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground"
       role={error ? 'alert' : 'status'}>
+      {!error && !pending && !conversation.hasMore && !waitingForFirstRun && <ScheduledTaskEmptyScene />}
       <p>
         {error
           ? t('scheduledTasks.unavailable')

@@ -116,6 +116,7 @@ vi.mock('@cherrystudio/ui', () => ({
   // No `role` here: the real Alert derives it from `type` (`status` for anything but
   // `error`), so hardcoding one would let assertions pin a role the component never emits.
   Alert: ({ description }: { description?: ReactNode }) => <div>{description}</div>,
+  EmptyState: ({ title }: { title?: ReactNode }) => <div>{title}</div>,
   Button: ({
     variant,
     size,
