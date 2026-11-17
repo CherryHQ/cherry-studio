@@ -44,6 +44,7 @@ function lint(source: string, rule?: string) {
 describe('available generic anti-slop rules', () => {
   it.each([
     ['no-reflect-apply', 'export const result = Reflect.apply(Math.max, undefined, [1, 2])'],
+    ['no-unknown-type-aliases', 'export type Boundary = unknown'],
     [
       'no-reduce-accumulator-copy',
       'export const result = [1, 2].reduce((acc, item) => acc.concat([item]), [] as number[])'
