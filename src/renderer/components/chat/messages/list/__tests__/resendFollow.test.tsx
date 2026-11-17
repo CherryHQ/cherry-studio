@@ -16,7 +16,9 @@ import {
 const { streamOpen } = vi.hoisted(() => ({ streamOpen: vi.fn() }))
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: (_route: string, input: unknown) => streamOpen(input) }
+  ipcApi: {
+    request: (route: string, input: unknown) => (route === 'analytics.track' ? Promise.resolve() : streamOpen(input))
+  }
 }))
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({ assistant: { settings: {} } })

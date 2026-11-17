@@ -3,6 +3,7 @@ import { useCallback } from 'react'
 import { useMutation } from '@data/hooks/useDataApi'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 
 import { getTopicBranchCachePaths } from './useTopicMessagesCache'
 
@@ -26,6 +27,7 @@ export function useTopicBranchActions(topicId: string) {
         params: { id: anchorMessageId },
         body: { activate }
       })
+      trackProductEvent({ event: 'chat_branch_used', action: 'created', source: 'manual' })
 
       if (activate) {
         void EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId })
@@ -35,10 +37,14 @@ export function useTopicBranchActions(topicId: string) {
   )
 
   const deleteBranch = useCallback(
-    (messageId: string, awaitingInputOnly: boolean) =>
-      awaitingInputOnly
-        ? deleteReservedBranchTrigger({ params: { id: messageId }, query: { awaitingInputOnly: true } })
-        : deleteBranchTrigger({ params: { id: messageId }, query: { topicId } }),
+    async (messageId: string, awaitingInputOnly: boolean) => {
+      if (awaitingInputOnly) {
+        await deleteReservedBranchTrigger({ params: { id: messageId }, query: { awaitingInputOnly: true } })
+      } else {
+        await deleteBranchTrigger({ params: { id: messageId }, query: { topicId } })
+      }
+      trackProductEvent({ event: 'chat_branch_used', action: 'deleted' })
+    },
     [deleteBranchTrigger, deleteReservedBranchTrigger, topicId]
   )
 

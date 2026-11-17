@@ -1,6 +1,17 @@
 import { Activity, GitBranch, Globe } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
-import { createContext, lazy, Suspense, use, useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import {
+  createContext,
+  lazy,
+  Suspense,
+  use,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
@@ -25,6 +36,7 @@ import { SessionBrowserView } from '@renderer/components/SessionBrowserView'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useIpcOn } from '@renderer/ipc'
 import { topicBrowserRuntimeService as browserRuntime } from '@renderer/services/AgentBrowserRuntimeService'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 const TopicBranchPanel = lazy(() => import('./TopicBranchPanel'))
@@ -284,6 +296,10 @@ function TopicRightPaneViewport({ onLocateMessage }: TopicRightPaneViewportCallb
       cycle: branchOpening.cycle + (branchActive ? 1 : 0)
     })
   }
+
+  useEffect(() => {
+    if (branchOpening.cycle > 0) trackProductEvent({ event: 'chat_branch_used', action: 'panel_opened' })
+  }, [branchOpening.cycle])
 
   const callbacks = useMemo<TopicRightPaneViewportValue>(
     () => ({ onLocateMessage, branchOpenCycle: branchOpening.cycle }),

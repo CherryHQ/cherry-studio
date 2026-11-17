@@ -18,6 +18,7 @@ import {
 } from '@renderer/components/chat/flow'
 import { CommandContextMenu } from '@renderer/components/command'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
+import { trackProductEvent } from '@renderer/services/productAnalytics'
 import { toast } from '@renderer/services/toast'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { Message as DbMessage, TreeResponse } from '@shared/data/types/message'
@@ -186,6 +187,7 @@ const TopicBranchPanel: FC<Props> = ({
           params: { id: topicId },
           body: { nodeId: leafId }
         })
+        trackProductEvent({ event: 'chat_branch_used', action: 'switched' })
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('setActiveBranch from topic flow on missing message', { messageId, topicId })

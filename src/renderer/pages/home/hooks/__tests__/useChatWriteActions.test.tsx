@@ -1,7 +1,8 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { invalidateMessages, loggerError, streamOpen } = vi.hoisted(() => ({
+const { analyticsTrack, invalidateMessages, loggerError, streamOpen } = vi.hoisted(() => ({
+  analyticsTrack: vi.fn<(event: unknown) => Promise<void>>(async () => undefined),
   invalidateMessages: vi.fn(),
   loggerError: vi.fn(),
   streamOpen: vi.fn()
@@ -12,7 +13,10 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: loggerError }) }
 }))
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: (_route: string, input: unknown) => streamOpen(input) }
+  ipcApi: {
+    request: (route: string, input: unknown) =>
+      route === 'analytics.track' ? analyticsTrack(input) : streamOpen(input)
+  }
 }))
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({ assistant: { settings: {} } })
@@ -21,7 +25,9 @@ vi.mock('@renderer/services/messageUiStateCache', () => ({
   invalidateCachedMessageUiStates: invalidateMessages
 }))
 
+import { dataApiService } from '@data/DataApiService'
 import type { Topic } from '@renderer/types/topic'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import { useChatWriteActions } from '../useChatWriteActions'
@@ -992,5 +998,83 @@ describe.each([
     finalSeed.reject(error)
     await rejection
     expect(scrollToBottom).not.toHaveBeenCalled()
+  })
+})
+
+describe('useChatWriteActions — branch analytics', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    streamOpen.mockReset()
+  })
+
+  const branchEvents = () => analyticsTrack.mock.calls.map(([event]) => event)
+
+  function answeredTurn() {
+    const assistantMessage = uiMsg('a1', 'assistant', 'u1')
+    assistantMessage.metadata.modelId = 'provider::model-a'
+    assistantMessage.parts = [{ type: 'text', text: 'answer' }]
+    return [uiMsg('u1', 'user', 'vroot'), assistantMessage]
+  }
+
+  it('reports a regenerated reply as a regenerate branch', async () => {
+    const { actions } = renderActions(answeredTurn())
+
+    await actions.regenerate('a1')
+
+    expect(branchEvents()).toEqual([{ event: 'chat_branch_used', action: 'created', source: 'regenerate' }])
+  })
+
+  it('reports a reply regenerated with an @-picked model as a mention branch', async () => {
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const { actions } = renderActions(answeredTurn())
+
+    await actions.regenerate('a1', { modelId: 'provider::model-b' })
+
+    expect(branchEvents()).toEqual([{ event: 'chat_branch_used', action: 'created', source: 'mention' }])
+  })
+
+  it('does not report a failed reply retried in place', async () => {
+    const failedAssistant = uiMsg('a1', 'assistant', 'u1', false, 'error')
+    failedAssistant.metadata.modelId = 'provider::model-a'
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const { actions } = renderActions([uiMsg('u1', 'user', 'vroot'), failedAssistant])
+
+    await actions.regenerate('a1')
+
+    expect(streamOpen.mock.calls[0][0]).toHaveProperty('retryMessageId', 'a1')
+    expect(branchEvents()).toEqual([])
+  })
+
+  it('does not report a regenerate that Main blocked', async () => {
+    streamOpen.mockResolvedValueOnce({ mode: 'blocked', message: 'blocked' })
+    const { actions } = renderActions(answeredTurn())
+
+    await expect(actions.regenerate('a1', { modelId: 'provider::model-b' })).rejects.toThrow('blocked')
+
+    expect(branchEvents()).toEqual([])
+  })
+
+  it('reports an edited and resent user message as an edit branch', async () => {
+    const cache = makeCache()
+    vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce({ id: 'forked-user', parentId: 'vroot' } as never)
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const { actions } = renderActions([uiMsg('u1', 'user', 'vroot')], cache)
+
+    await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)
+
+    expect(branchEvents()).toEqual([{ event: 'chat_branch_used', action: 'created', source: 'edit' }])
+  })
+
+  it('reports a branch switch only once the active node moved', async () => {
+    const cache = makeCache()
+    const { actions } = renderActions(answeredTurn(), cache)
+    vi.mocked(dataApiService.get).mockResolvedValue([])
+
+    vi.mocked(cache.setActiveNodeTrigger).mockRejectedValueOnce(new DataApiError(ErrorCode.NOT_FOUND, 'gone', 404))
+    await actions.setActiveBranch('a1')
+    expect(branchEvents()).toEqual([])
+
+    await actions.setActiveBranch('a1')
+    expect(branchEvents()).toEqual([{ event: 'chat_branch_used', action: 'switched' }])
   })
 })

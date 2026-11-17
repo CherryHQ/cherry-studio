@@ -7,6 +7,7 @@ import type * as CommandComponents from '@renderer/components/command'
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { TreeNode, TreeResponse } from '@shared/data/types/message'
+import type { RendererAnalyticsEvent } from '@shared/ipc/schemas/analytics'
 
 import TopicBranchPanel from '../TopicBranchPanel'
 
@@ -192,6 +193,12 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+const branchEvents = () =>
+  vi
+    .mocked(window.api.ipcApi.request)
+    .mock.calls.filter(([route]) => route === 'analytics.track')
+    .map(([, event]) => event as RendererAnalyticsEvent)
+
 function deletionTree(): TreeResponse {
   const row = (id: string, parentId: string, hasChildren = false): TreeNode => ({
     id,
@@ -284,6 +291,7 @@ describe('TopicBranchPanel', () => {
       body: { nodeId: 'leaf-1' },
       params: { id: 'topic-1' }
     })
+    await waitFor(() => expect(branchEvents()).toEqual([{ event: 'chat_branch_used', action: 'switched' }]))
 
     expect(mocks.refetchTree).toHaveBeenCalledTimes(1)
   })
@@ -321,6 +329,7 @@ describe('TopicBranchPanel', () => {
     expect(onLocateMessage).toHaveBeenCalledWith('message-1')
     expect(dataApiService.get).not.toHaveBeenCalled()
     expect(mocks.setActiveNode).not.toHaveBeenCalled()
+    expect(branchEvents()).toEqual([])
     expect(mocks.refetchTree).toHaveBeenCalledTimes(1)
   })
 
@@ -367,6 +376,7 @@ describe('TopicBranchPanel', () => {
     expect(onLocateMessage).toHaveBeenCalledWith('message-1')
     expect(dataApiService.get).not.toHaveBeenCalled()
     expect(mocks.setActiveNode).not.toHaveBeenCalled()
+    expect(branchEvents()).toEqual([])
     expect(mocks.refetchTree).toHaveBeenCalledTimes(1)
   })
 
@@ -696,6 +706,9 @@ describe('TopicBranchPanel', () => {
         body: { activate: true }
       })
     })
+    await waitFor(() =>
+      expect(branchEvents()).toEqual([{ event: 'chat_branch_used', action: 'created', source: 'manual' }])
+    )
   })
 
   it('copies the right-clicked branch into a new topic', async () => {
@@ -749,8 +762,10 @@ describe('TopicBranchPanel', () => {
     expect(mocks.useMutation).toHaveBeenCalledWith('DELETE', '/messages/:id/branch', {
       refresh: ['/topics/topic-1/messages', '/topics/topic-1/tree']
     })
+    expect(branchEvents()).toEqual([])
     await act(async () => finish())
     expect(toast.success).toHaveBeenCalledWith('common.delete_success')
+    expect(branchEvents()).toEqual([{ event: 'chat_branch_used', action: 'deleted' }])
     showDeletionTree({ ...tree, activeNodeId: 'O', nodes: tree.nodes.filter((node) => ['F', 'O'].includes(node.id)) })
     rerender(<TopicBranchPanel open={true} topicId="topic-1" />)
     expect(screen.queryByRole('button', { name: 'Preview A' })).not.toBeInTheDocument()
@@ -798,5 +813,6 @@ describe('TopicBranchPanel', () => {
     if (expectedToast) expect(toast.error).toHaveBeenCalledWith(expectedToast)
     else expect(toast.error).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
+    expect(branchEvents()).toEqual([])
   })
 })
