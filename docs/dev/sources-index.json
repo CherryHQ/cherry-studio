@@ -91,7 +91,7 @@
     },
     {
       "path": "docs/dev/references/ai/params-pipeline.md",
-      "sources": ["src/main/ai/runtime/aiSdk/params/buildAgentParams.ts","src/main/ai/runtime/aiSdk/params/feature.ts","src/main/ai/runtime/aiSdk/params/features/internalFeatures.ts","src/main/ai/runtime/aiSdk/params/features/qwenAnthropicWebTools.ts"]
+      "sources": ["src/main/ai/runtime/aiSdk/params/buildAgentParams.ts","src/main/ai/runtime/aiSdk/params/feature.ts","src/main/ai/runtime/aiSdk/params/features/internalFeatures.ts","src/main/ai/runtime/aiSdk/params/features/qwenAnthropicWebTools.ts","src/main/ai/runtime/aiSdk/params/features/toolSchemaCompatibility.ts"]
     },
     {
       "path": "docs/dev/references/ai/provider-resolution.md",

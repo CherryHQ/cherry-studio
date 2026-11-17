@@ -19,15 +19,6 @@ on:
         description: "Also run standalone settings-search smoke with selected modules"
         type: boolean
         default: false
-      provider_mode:
-        description: "Provider backend: real = repository vars (default), mock = in-job mock service (deterministic, no quota, fault injection). Mock supports a subset of tasks; see scripts/e2e/regression/mock-fixtures/README.md"
-        required: true
-        default: "real"
-        type: choice
-        options:
-          - real
-          - mock
-
 permissions:
   contents: read
 
@@ -167,7 +158,6 @@ jobs:
           --sha "$TEST_SHA"
           --runner "$TEST_RUNNER"
           --task "$TEST_TASK"
-          --provider-mode "${{ inputs.provider_mode || 'real' }}"
 
       - name: Prepare Notification Center on the disposable macOS runner
         if: matrix.platform == 'macos'
@@ -240,7 +230,6 @@ jobs:
 
       - name: Start in-job mock provider
         id: mock
-        if: (inputs.provider_mode || 'real') == 'mock'
         shell: bash
         run: >-
           pnpm exec tsx scripts/e2e/regression/cli.ts mock-start
@@ -248,11 +237,6 @@ jobs:
 
       - name: Validate test configuration
         shell: bash
-        env:
-          CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: ${{ steps.mock.outputs.base_url || vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL: ${{ steps.mock.outputs.anthropic_base_url || vars.CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ steps.mock.outputs.api_key || secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
-          CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: ${{ steps.mock.outputs.chat_model || vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
         run: pnpm exec tsx scripts/e2e/regression/cli.ts preflight --run-dir "$RUN_DIR" --task '${{ needs.resolve.outputs.task }}'
 
       - name: Install application dependencies
@@ -317,24 +301,6 @@ jobs:
           --run-dir "$RUN_DIR"
           --target-root "$TARGET_DIR"
           --run-key "${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.platform }}"
-
-      - name: Prepare end-to-end test configuration
-        shell: bash
-        env:
-          CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL: ${{ steps.mock.outputs.base_url || vars.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL: ${{ steps.mock.outputs.anthropic_base_url || vars.CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL }}
-          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ steps.mock.outputs.api_key || secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
-          CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL: ${{ steps.mock.outputs.chat_model || vars.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL }}
-        run: |
-          names=(
-            CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL
-            CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL
-            CHERRY_TEST_CUSTOM_PROVIDER_API_KEY
-            CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL
-          )
-          for name in "${names[@]}"; do
-            printf '%s=%s\n' "$name" "${!name}" >> "$GITHUB_ENV"
-          done
 
       - name: Phase - Startup
         if: "!cancelled() && steps.launch.outcome == 'success'"
@@ -497,20 +463,6 @@ jobs:
           --run-dir "$RUN_DIR"
           --phase system
 
-      - name: Clear end-to-end test configuration
-        if: always()
-        shell: bash
-        run: |
-          names=(
-            CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL
-            CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL
-            CHERRY_TEST_CUSTOM_PROVIDER_API_KEY
-            CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL
-          )
-          for name in "${names[@]}"; do
-            echo "$name=" >> "$GITHUB_ENV"
-          done
-
       - name: Stop disposable macOS permission observer
         if: always() && matrix.platform == 'macos'
         shell: bash
@@ -579,8 +531,6 @@ jobs:
         if: "!cancelled() && steps['smoke-build'].outcome == 'success'"
         continue-on-error: true
         shell: bash
-        env:
-          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
         run: pnpm exec tsx scripts/e2e/regression/cli.ts finalize --run-dir "$RUN_DIR"
 
       - name: Upload regression checkpoint
@@ -622,8 +572,6 @@ jobs:
         id: platform_report
         if: always() && steps.controller-dependencies.outcome == 'success'
         shell: bash
-        env:
-          CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
         run: pnpm exec tsx scripts/e2e/regression/cli.ts finalize --run-dir "$RUN_DIR"
 
       - name: Upload platform report and evidence
@@ -708,8 +656,6 @@ jobs:
           pnpm exec tsx scripts/e2e/regression/cli.ts aggregate
           --input platform-reports
           --output combined-report
-          --mode "${{ needs.resolve.outputs.mode }}"
-          --provider-mode "${{ inputs.provider_mode || 'real' }}"
 
       - name: Summarize standalone smoke results
         if: needs.resolve.outputs.mode == 'branch' && needs.resolve.outputs.smoke != 'none'

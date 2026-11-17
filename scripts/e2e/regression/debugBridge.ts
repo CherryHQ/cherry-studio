@@ -151,7 +151,15 @@ export async function requestOwnedAppQuit(record: AppRecord): Promise<void> {
     await ownedMainInspectorUrl(record),
     `(() => {
       const { app } = process.mainModule.require('electron')
-      setImmediate(() => app.quit())
+      const application = Object.values(process.mainModule.require('node:module')._cache)
+        .map(module => module.exports?.application).find(candidate => candidate?.getPath)
+      const activity = application.get('RuntimeActivityService')
+      const deadline = Date.now() + 30000
+      const quitWhenIdle = () => {
+        if (!activity.hasActiveTasks()) app.quit()
+        else if (Date.now() < deadline) setTimeout(quitWhenIdle, 100)
+      }
+      setImmediate(quitWhenIdle)
       return true
     })()`
   )
