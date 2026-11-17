@@ -9,7 +9,7 @@ const Sora = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const SoraIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Sora, {
   Avatar: SoraAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#01265a'
 })
 
 export default SoraIcon

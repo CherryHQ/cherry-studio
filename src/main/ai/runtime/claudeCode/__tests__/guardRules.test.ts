@@ -29,7 +29,7 @@ vi.mock('@main/ai/toolApproval/userDataSqliteGuard', () => ({
   evaluateUserDataSqliteGuard: mocks.evaluateUserDataSqliteGuard
 }))
 
-import { CLAUDE_TOOL_GUARD_RULES } from '../guardRules'
+import { CLAUDE_TOOL_GUARD_RULES, GLOBAL_INSTALL_PLAN_DENIAL, GLOBAL_INSTALL_UNATTENDED_DENIAL } from '../guardRules'
 
 const INTERACTIVE = { currentTurn: 'interactive', userResponse: 'stream' } as const
 const HEADLESS = { currentTurn: 'headless', userResponse: 'unavailable' } as const
@@ -163,27 +163,72 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
   })
 
   describe('global-install', () => {
-    it('denies a global install in every mode, bypass included', async () => {
-      for (const mode of ['default', 'bypassPermissions'] as const) {
-        const decision = await evaluate(
-          makeCtx({ permissionMode: mode, input: { command: 'npm install -g left-pad' } })
-        )
-        expect(decision?.ruleId).toBe('global-install')
-      }
+    it.each(['default', 'acceptEdits', 'auto'] as const)('asks for a global install in %s', async (permissionMode) => {
+      await expect(
+        evaluate(makeCtx({ permissionMode, input: { command: 'npm install -g left-pad' } }))
+      ).resolves.toEqual({
+        effect: 'ask',
+        ruleId: 'global-install',
+        reason: 'Global package installation requires user approval: global JS package install (-g/--global).'
+      })
     })
+
+    it('allows Full Access and denies plan mode', async () => {
+      const input = { command: 'npm install -g left-pad' }
+      await expect(evaluate(makeCtx({ permissionMode: 'bypassPermissions', input }))).resolves.toBeUndefined()
+      await expect(evaluate(makeCtx({ permissionMode: 'plan', input }))).resolves.toEqual({
+        effect: 'deny',
+        ruleId: 'global-install-plan',
+        reason: GLOBAL_INSTALL_PLAN_DENIAL
+      })
+    })
+
+    it('requires a responder outside Full Access', async () => {
+      const ctx = { input: { command: 'npm install -g left-pad' }, interaction: HEADLESS }
+      await expect(evaluate(makeCtx(ctx))).resolves.toEqual({
+        effect: 'deny',
+        ruleId: 'global-install',
+        reason: GLOBAL_INSTALL_UNATTENDED_DENIAL
+      })
+      await expect(evaluate(makeCtx({ ...ctx, permissionMode: 'bypassPermissions' }))).resolves.toBeUndefined()
+    })
+
+    it.each(['default', 'acceptEdits', 'auto', 'plan', 'bypassPermissions'] as const)(
+      'hard-denies mise in %s',
+      async (permissionMode) => {
+        for (const command of ['mise use -g fd', 'npm i -g x && mise use -g fd', 'mise use -g fd && npm i -g x']) {
+          await expect(evaluate(makeCtx({ permissionMode, input: { command } }))).resolves.toEqual({
+            effect: 'deny',
+            ruleId: 'mise-mutation',
+            reason: 'Blocked: direct mise mutation (use cli_search / cli_install).'
+          })
+        }
+      }
+    )
 
     it('ignores project-local installs', async () => {
       await expect(evaluate(makeCtx({ input: { command: 'npm install left-pad' } }))).resolves.toBeUndefined()
     })
 
-    it('wins the fold when a feedback command also matches (assistant role)', async () => {
+    it('deterministically selects the first ask when feedback also matches (assistant role)', async () => {
       const decision = await evaluate(
         makeCtx({
           builtinRole: 'assistant',
           input: { command: 'gh issue create --title x && npm install -g left-pad' }
         })
       )
-      expect(decision?.ruleId).toBe('global-install')
+      expect(decision).toMatchObject({ effect: 'ask', ruleId: 'global-install' })
+    })
+
+    it('folds a mise denial over a feedback ask', async () => {
+      await expect(
+        evaluate(
+          makeCtx({ builtinRole: 'assistant', input: { command: 'gh issue create --title x && mise use -g fd' } })
+        )
+      ).resolves.toMatchObject({
+        effect: 'deny',
+        ruleId: 'mise-mutation'
+      })
     })
   })
 

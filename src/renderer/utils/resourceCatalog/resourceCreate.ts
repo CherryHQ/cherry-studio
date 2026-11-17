@@ -20,7 +20,6 @@ export function buildCreateAssistantDto(values: ResourceCreateValues): CreateAss
   }
 }
 
-/** Map the shared create-wizard values to the Agent DataApi contract. */
 /** Map a bundled assistant-catalog preset to an Agent create command (default runtime: claude-code). */
 export function toCreateAgentCommandFromCatalogPreset(
   preset: AssistantCatalogPreset,
@@ -79,6 +78,7 @@ export function resolveCatalogPresetModelId(
   return null
 }
 
+/** Map the shared create-wizard values to the Agent creation command. */
 export function buildCreateAgentCommand(values: ResourceCreateValues): CreateAgentCommand {
   const caps = AGENT_RUNTIME_CAPABILITIES[values.agentType]
   const permissionMode = caps.permissionModes.some((mode) => mode === values.permissionMode)
@@ -86,6 +86,7 @@ export function buildCreateAgentCommand(values: ResourceCreateValues): CreateAge
     : caps.createDefaults.permissionMode
   return {
     type: values.agentType,
+    ...(values.avatarImage ? { avatarImage: values.avatarImage } : {}),
     name: values.name,
     model: values.modelId,
     ...(caps.modelTiers ? { planModel: values.modelId, smallModel: values.modelId } : {}),
