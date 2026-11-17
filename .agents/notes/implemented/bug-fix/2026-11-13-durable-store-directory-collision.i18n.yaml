@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-13-durable-store-directory-collision.md
+2026-11-13-durable-store-directory-collision.md: 1ecd2de5a198a370c44dae25f1c30d86e6457c80
+2026-11-13-durable-store-directory-collision.zh.md: d73ec30da4439900eaef30dcbe10be72f0f7f1b7
