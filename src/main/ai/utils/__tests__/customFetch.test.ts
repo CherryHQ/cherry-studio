@@ -26,6 +26,48 @@ describe('customFetch', () => {
     expect(result).toBe(response)
   })
 
+  it.each(['ERR_HTTP2_PROTOCOL_ERROR', 'ERR_HTTP2_PING_FAILED'])(
+    'retries an HTTP/2 protocol failure once through the HTTP/1.1 fetch stack (%s)',
+    async (code) => {
+      const error = Object.assign(new Error('fetch failed'), { code })
+      vi.mocked(net.fetch).mockRejectedValueOnce(error)
+      const fallbackFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('fallback'))
+
+      try {
+        const response = await customFetch('https://api.test/v1/chat', { method: 'POST', body: 'request' })
+
+        expect(await response.text()).toBe('fallback')
+        expect(net.fetch).toHaveBeenCalledTimes(1)
+        expect(fallbackFetch).toHaveBeenCalledWith('https://api.test/v1/chat', {
+          method: 'POST',
+          body: 'request',
+          redirect: 'manual'
+        })
+      } finally {
+        fallbackFetch.mockRestore()
+      }
+    }
+  )
+
+  it('restores a custom User-Agent before using the HTTP/1.1 fallback', async () => {
+    vi.mocked(net.fetch).mockRejectedValueOnce(new Error('net::ERR_HTTP2_PROTOCOL_ERROR'))
+    const fallbackFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('fallback'))
+
+    try {
+      await customFetch('https://api.test/v1/chat', {
+        headers: { 'User-Agent': 'ProviderClient/1.0', Authorization: 'Bearer key' }
+      })
+
+      const [, fallbackInit] = fallbackFetch.mock.calls[0]
+      const headers = new Headers(fallbackInit?.headers)
+      expect(headers.get('User-Agent')).toBe('ProviderClient/1.0')
+      expect(headers.has(SENTINEL_HEADER)).toBe(false)
+      expect(headers.get('Authorization')).toBe('Bearer key')
+    } finally {
+      fallbackFetch.mockRestore()
+    }
+  })
+
   it('converts a URL input to a string, which net.fetch requires', async () => {
     vi.mocked(net.fetch).mockResolvedValue(new Response())
 
