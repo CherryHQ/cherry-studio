@@ -18,6 +18,7 @@ import { BaseService } from '@main/core/lifecycle'
 
 import { MemoryDreamingService } from '../MemoryDreamingService'
 import { needsDreaming, observeMemory, readDreamingState, writeDreamingState } from '../memoryDreamingState'
+import { parseMemoryEntries } from '../memoryEntries'
 import { memoryHash } from '../memoryFiles'
 import { MemoryService, type MemorySession } from '../MemoryService'
 
@@ -235,13 +236,20 @@ describe('memory organization lifecycle and commit fences', () => {
       if (action === 'external-edit')
         await writeFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'External edit')
       if (action === 'clear') await session.clear((await session.previewClear()).token, approve)
+      const beforeResponse = await readFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'utf8')
+      if (action === 'clear') {
+        expect(beforeResponse).not.toContain('Original fact')
+        expect(parseMemoryEntries(beforeResponse).filter((part) => typeof part !== 'string')).toMatchObject([
+          { status: 'forgotten', sources: [], text: '' }
+        ])
+      }
       response.resolve({
         text: '{"writes":[{"path":"MEMORY.md","content":"Stale model output"}],"deletes":[]}',
         finishReason: 'stop'
       })
       expect(await outcome).toBeInstanceOf(Error)
       expect(await readFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'utf8')).toBe(
-        action === 'external-edit' ? 'External edit' : action === 'clear' ? '' : 'Original fact'
+        action === 'external-edit' ? 'External edit' : action === 'clear' ? beforeResponse : 'Original fact'
       )
     }
   )

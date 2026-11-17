@@ -360,10 +360,12 @@ export class MemoryDreamingService extends BaseService {
         writeDreamingState(latest)
         attempted = true
       }
+      await session.validateModelReads()
       const text =
         batch && resolved
           ? await generateDreamingPlan(ctx.jobId, resolved, batch, controller.signal)
           : '{"writes":[],"deletes":[]}'
+      await session.validateModelReads()
       assertCurrent()
       let plan: Awaited<ReturnType<typeof prepareDreamingPlan>>
       try {
