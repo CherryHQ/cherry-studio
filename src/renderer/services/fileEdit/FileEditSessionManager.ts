@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import { fileObservationService } from '@renderer/services/fileObservation'
 import { decodeFileText, encodeFileText, type DecodedFileText } from '@renderer/utils/fileTextSnapshot'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
@@ -17,6 +18,7 @@ export interface SessionSnapshot {
   readonly savedContent: string
   readonly savedSizeBytes: number
   readonly revision: number
+  readonly saveCount: number
   readonly documentEpoch: number
   readonly bindingEpoch: number
   readonly isDirty: boolean
@@ -33,6 +35,10 @@ interface DiskSnapshot extends DecodedFileText {
 }
 interface Session {
   resource: FileEditResource
+  observation: ReturnType<typeof fileObservationService.get>
+  releaseObservation?: () => void
+  observationTimer?: ReturnType<typeof setTimeout>
+  revalidation?: Promise<void>
   key: string
   disk: DiskSnapshot
   snapshot: SessionSnapshot
@@ -45,6 +51,7 @@ interface Session {
   readGeneration: number
   transition: boolean
   needsRevalidation: boolean
+  preparingRevalidation: boolean
   /** False while the owner saves explicitly; drafts still flush when the binding is released. */
   autoSave: boolean
   /** Consecutive autosave retries after a transient migration-barrier rejection. */
@@ -62,6 +69,7 @@ export interface SessionLease {
   reload(): Promise<void>
   keepLocal(): Promise<void>
   invalidate(): Promise<void>
+  refresh(): Promise<void>
   release(): void
 }
 
@@ -203,13 +211,27 @@ export class FileEditSessionManager {
     epoch: number
   ): Promise<Session> {
     const resource = await ipcApi.request('file.edit.open', { handle })
+    const observation = fileObservationService.get(handle)
+    let opened: Session | undefined
+    const releaseObservation = observation.subscribe(() => {
+      if (opened) void this.invalidate(opened)
+    })
     try {
+      await observation.whenReady().catch(() => {})
       if (this.mutationSettled || epoch !== this.acquisitionEpoch) throw new AcquisitionInterruptedError()
-      const disk = await this.read(resource)
+      let version = observation.getSnapshot().version
+      let disk = await this.read(resource)
+      for (let attempt = 0; version !== observation.getSnapshot().version; attempt++) {
+        if (attempt === 2) throw new Error('File changed repeatedly during opening')
+        version = observation.getSnapshot().version
+        disk = await this.read(resource)
+      }
       if (this.mutationSettled || epoch !== this.acquisitionEpoch) throw new AcquisitionInterruptedError()
       const session: Session = {
         key,
         resource,
+        observation,
+        releaseObservation,
         disk,
         listeners: new Set(),
         attachments: new Set(),
@@ -218,6 +240,7 @@ export class FileEditSessionManager {
         readGeneration: 0,
         transition: false,
         needsRevalidation: false,
+        preparingRevalidation: false,
         autoSave: true,
         transientSaveRetries: 0,
         snapshot: {
@@ -228,6 +251,7 @@ export class FileEditSessionManager {
           savedContent: disk.content,
           savedSizeBytes: disk.baseline.version.size,
           revision: 0,
+          saveCount: 0,
           documentEpoch: 1,
           bindingEpoch: 0,
           isDirty: false,
@@ -238,9 +262,11 @@ export class FileEditSessionManager {
           sealed: false
         }
       }
+      opened = session
       this.sessions.set(key, session)
       return session
     } catch (error) {
+      releaseObservation()
       await ipcApi
         .request('file.edit.close', { editId: resource.editId })
         .catch((closeError) => logger.error('Edit lease cleanup failed', asError(closeError)))
@@ -251,6 +277,7 @@ export class FileEditSessionManager {
   private attach(session: Session): SessionLease {
     const attachment = Symbol('file attachment')
     session.attachments.add(attachment)
+    this.observe(session)
     this.publishInventory()
     session.binding = attachment
     this.publish(session, { bindingEpoch: session.snapshot.bindingEpoch + 1 })
@@ -300,6 +327,13 @@ export class FileEditSessionManager {
       reload: () => command(() => this.replace(session, 'reload')),
       keepLocal: () => command(() => this.replace(session, 'keep')),
       invalidate: () => this.invalidate(session),
+      refresh: () =>
+        command(async () => {
+          await session.observation.refresh()
+          await this.invalidate(session)
+          if (session.snapshot.freshness !== 'known')
+            throw session.snapshot.readError ?? new Error('File refresh failed')
+        }),
       release: () => {
         if (released) return
         released = true
@@ -312,6 +346,7 @@ export class FileEditSessionManager {
             void this.flush(session).catch(() => {})
         }
         this.evict(session)
+        if (!session.attachments.size && !session.pending) this.releaseObservationLater(session)
       }
     }
   }
@@ -323,6 +358,7 @@ export class FileEditSessionManager {
         : (patch.bindingEpoch ?? session.snapshot.bindingEpoch)
     session.snapshot = { ...session.snapshot, ...patch, bindingEpoch }
     session.snapshot = { ...session.snapshot, isDirty: session.snapshot.draft !== session.disk.content }
+    if (!this.canAutoSave(session)) this.cancelTimer(session)
     for (const listener of session.listeners) listener()
     this.publishInventory()
   }
@@ -347,15 +383,20 @@ export class FileEditSessionManager {
     session.timer = undefined
   }
 
+  private canAutoSave(session: Session): boolean {
+    return session.autoSave && !session.snapshot.saveError && !session.snapshot.conflict && !session.snapshot.sealed
+  }
+
   private schedule(session: Session): void {
     this.cancelTimer(session)
-    if (!session.autoSave || session.snapshot.saveError || session.snapshot.conflict || session.snapshot.sealed) return
+    if (!this.canAutoSave(session)) return
     session.timer = setTimeout(() => {
       void this.flush(session).catch(() => {})
     }, 800)
   }
 
   private enqueue(session: Session, run: () => Promise<void>): Promise<void> {
+    this.observe(session)
     session.readGeneration++
     session.pending++
     this.publish(session, { isSaving: true })
@@ -366,6 +407,7 @@ export class FileEditSessionManager {
         session.pending--
         this.publish(session, { isSaving: session.pending > 0 })
         this.evict(session)
+        if (!session.attachments.size && !session.pending) this.releaseObservationLater(session)
         if (
           !session.pending &&
           session.needsRevalidation &&
@@ -427,7 +469,11 @@ export class FileEditSessionManager {
           data: encodeFileText(text, disk.lineEnding, disk.hasBom)
         })
         this.adoptBaseline(session, { ...disk, content: text, baseline: result.baseline })
-        this.publish(session, { metadataRecoveryPending: result.metadataRecoveryPending, saveError: undefined })
+        this.publish(session, {
+          saveCount: session.snapshot.saveCount + 1,
+          metadataRecoveryPending: result.metadataRecoveryPending,
+          saveError: undefined
+        })
         return
       } catch (error) {
         if (!(error instanceof IpcError) || error.code !== fileErrorCodes.STALE_VERSION) throw error
@@ -470,25 +516,52 @@ export class FileEditSessionManager {
     })
   }
 
-  private async invalidate(session: Session, preparing = false): Promise<void> {
+  private invalidate(session: Session, preparing = false): Promise<void> {
+    session.needsRevalidation = true
+    session.preparingRevalidation ||= preparing
+    session.readGeneration++
+    if (session.revalidation) return session.revalidation
+    const task = (async () => {
+      do {
+        const preparing = session.preparingRevalidation
+        session.preparingRevalidation = false
+        session.needsRevalidation = false
+        await this.revalidate(session, preparing)
+      } while (
+        session.needsRevalidation &&
+        !session.pending &&
+        (!session.snapshot.sealed || session.preparingRevalidation) &&
+        this.sessions.get(session.key) === session
+      )
+    })()
+    session.revalidation = task.finally(() => {
+      session.revalidation = undefined
+    })
+    return session.revalidation
+  }
+
+  private async revalidate(session: Session, preparing = false): Promise<void> {
     this.publish(session, { freshness: 'unknown' })
     if (session.pending || (session.snapshot.sealed && !preparing)) {
       session.needsRevalidation = true
       return
     }
     const generation = ++session.readGeneration
+    const observedVersion = session.observation.getSnapshot().version
     const revision = session.snapshot.revision
     session.needsRevalidation = false
     try {
+      await session.observation.whenReady().catch(() => {})
       const disk = await this.read(session.resource)
       if (
+        session.observation.getSnapshot().version !== observedVersion ||
         session.readGeneration !== generation ||
         session.snapshot.revision !== revision ||
         session.pending ||
         (session.snapshot.sealed && !preparing)
       )
         return
-      this.publish(session, { readError: undefined })
+      this.publish(session, { readError: undefined, freshness: 'known' })
       if (session.snapshot.isDirty) {
         if (disk.baseline.contentHash !== session.disk.baseline.contentHash) this.publish(session, { conflict: true })
         else this.adoptBaseline(session, disk)
@@ -518,6 +591,24 @@ export class FileEditSessionManager {
     }
   }
 
+  private observe(session: Session): void {
+    clearTimeout(session.observationTimer)
+    session.releaseObservation ??= session.observation.subscribe(() => {
+      void this.invalidate(session)
+    })
+  }
+
+  private releaseObservationLater(session: Session): void {
+    if (!session.releaseObservation) return
+    clearTimeout(session.observationTimer)
+    session.observationTimer = setTimeout(() => {
+      if (session.attachments.size || session.pending) return
+      session.releaseObservation?.()
+      session.releaseObservation = undefined
+      this.publish(session, { freshness: 'unknown' })
+    }, 10_000)
+  }
+
   private evict(session: Session): void {
     if (
       session.attachments.size ||
@@ -529,6 +620,9 @@ export class FileEditSessionManager {
       return
     if (this.sessions.get(session.key) !== session) return
     this.sessions.delete(session.key)
+    clearTimeout(session.observationTimer)
+    session.releaseObservation?.()
+    session.releaseObservation = undefined
     this.publishInventory()
     this.cancelTimer(session)
     session.readGeneration++

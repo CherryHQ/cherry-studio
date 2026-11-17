@@ -653,18 +653,22 @@ describe('fileHandlers', () => {
     expect(fileManager.batchCreateInternalEntries).toHaveBeenCalledWith(items)
   })
 
-  it('creates a directory tree owned by the caller window', async () => {
+  it.each([undefined, true])('creates a directory tree owned by the caller window with refresh=%s', async (refresh) => {
     const created = { treeId: 't-1', revision: 0, snapshot: { kind: 'directory', path: '/tmp/ws', basename: 'ws' } }
     directoryTreeManager.create.mockResolvedValueOnce(created)
 
     await expect(
-      fileHandlers['file.tree.create']({ rootPath: '/tmp/ws' as AbsoluteFilePath, options: { maxDepth: 1 } }, windowCtx)
+      fileHandlers['file.tree.create'](
+        { rootPath: '/tmp/ws' as AbsoluteFilePath, options: { maxDepth: 1 }, refresh },
+        windowCtx
+      )
     ).resolves.toBe(created)
 
     expect(directoryTreeManager.create).toHaveBeenCalledWith(
       { windowId: 'win-1', webContents: senderWebContents },
       '/tmp/ws',
-      { maxDepth: 1 }
+      { maxDepth: 1 },
+      refresh
     )
   })
 

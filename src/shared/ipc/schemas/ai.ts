@@ -210,6 +210,19 @@ const projectionTargetSchema = z.discriminatedUnion('kind', [
 ]) satisfies z.ZodType<ProjectionTarget>
 
 export const aiRequestSchemas = {
+  'ai.agent.session.predict_prompt': defineRoute({
+    input: z.strictObject({
+      sessionId: z.string().min(1),
+      replyId: z.string().min(1),
+      modelId: UniqueModelIdSchema,
+      requestId: z.uuid()
+    }),
+    output: z.object({ supported: z.boolean(), text: z.string() })
+  }),
+  'ai.agent.session.abort_prediction': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), requestId: z.uuid() }),
+    output: z.void()
+  }),
   'ai.projection.attach': defineRoute({
     input: z.strictObject({ target: projectionTargetSchema, subscriptionId: z.uuid() }),
     output: z.custom<MessageProjectionView | null>()
