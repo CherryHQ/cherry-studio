@@ -65,7 +65,7 @@ export function parsePrepareDiagnosticReportResult(value: unknown): PrepareDiagn
   return { ok: true, description }
 }
 
-function isPrepareDiagnosticReportToolResponse(toolResponse: McpToolResponse | NormalToolResponse): boolean {
+export function isPrepareDiagnosticReportToolResponse(toolResponse: McpToolResponse | NormalToolResponse): boolean {
   const { tool } = toolResponse
   if (tool.name === PREPARE_DIAGNOSTIC_REPORT_TOOL_NAME || tool.id === PREPARE_DIAGNOSTIC_REPORT_TOOL_NAME) return true
   return (

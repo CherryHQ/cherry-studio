@@ -238,6 +238,7 @@ export class DurableProjection {
     this.preview = preview
     const desiredOrder = content.messages.map((message) => message.id)
     const retained = new Set(desiredOrder)
+    const replaced = new Set(content.messages.flatMap((message) => this.aliases[message.id] ?? []))
     const known = new Set(before.messages.map((message) => message.id))
     const incrementalOrder = [
       ...before.messages.filter((message) => retained.has(message.id)).map((message) => message.id),
@@ -254,7 +255,7 @@ export class DurableProjection {
       this.initialized = true
     } else {
       for (const message of before.messages)
-        if (!retained.has(message.id))
+        if (!retained.has(message.id) && !replaced.has(message.id))
           this.feed.publish({ type: 'message.remove', ref: { session: this.ref, id: runtimeId(message.id) } })
       for (const message of content.messages) {
         const changedParts = message.parts.flatMap((part, index) =>

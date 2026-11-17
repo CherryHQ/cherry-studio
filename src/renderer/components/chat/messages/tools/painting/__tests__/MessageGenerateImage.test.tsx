@@ -21,6 +21,7 @@ vi.mock('@shared/utils/file', async (importOriginal) => ({
   toSafeFileUrl: (path: string) => `file://${path}`
 }))
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
+  useOptionalMessageListTopicId: () => undefined,
   useOptionalMessageListActions: () => mocks.messageListActions
 }))
 vi.mock('@renderer/components/ImageViewer', () => ({

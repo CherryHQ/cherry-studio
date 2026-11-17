@@ -42,7 +42,7 @@ export function parseScheduledTaskResult(value: unknown): ScheduledTaskResult | 
   return { taskId: task.id, name: task.name }
 }
 
-function isTaskWriteToolResponse(toolResponse: McpToolResponse | NormalToolResponse): boolean {
+export function isTaskWriteToolResponse(toolResponse: McpToolResponse | NormalToolResponse): boolean {
   const { tool } = toolResponse
   if (tool.type !== 'mcp' || !('serverId' in tool) || tool.serverId !== CHERRY_TOOLS_SERVER_ID) return false
   if (tool.name !== CRON_TOOL_NAME) return false
