@@ -98,45 +98,47 @@ describe('model connectivity against an HTTP provider', () => {
           res.end(JSON.stringify({ error: { message: 'probe rejected' } }))
           return
         }
-        if (requests.at(-1)?.stream) {
-          res.writeHead(200, { 'Content-Type': 'text/event-stream' })
-          for (const choice of [
-            { index: 0, delta: { role: 'assistant', content: 'ok' }, finish_reason: null },
-            { index: 0, delta: {}, finish_reason: 'stop' }
-          ]) {
-            res.write(
-              `data: ${JSON.stringify({ id: 'check', object: 'chat.completion.chunk', created: 0, model: 'wire-model', choices: [choice] })}\n\n`
-            )
-          }
-          res.end('data: [DONE]\n\n')
+        if (!requests.at(-1)?.stream) {
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              id: 'check',
+              object: 'chat.completion',
+              created: 0,
+              model: 'wire-model',
+              choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+              usage: { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 }
+            })
+          )
           return
         }
-        res.writeHead(200, { 'Content-Type': 'application/json' })
+        const chunk = (choice: Record<string, unknown>, extra = {}) =>
+          `data: ${JSON.stringify({ id: 'check', object: 'chat.completion.chunk', created: 0, model: 'wire-model', choices: [{ index: 0, ...choice }], ...extra })}\n\n`
+        res.writeHead(200, { 'Content-Type': 'text/event-stream' })
         res.end(
-          JSON.stringify({
-            id: 'check',
-            object: 'chat.completion',
-            created: 0,
-            model: 'wire-model',
-            choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
-            usage: { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 }
-          })
+          chunk({ delta: { role: 'assistant', content: 'ok' }, finish_reason: null }) +
+            chunk(
+              { delta: {}, finish_reason: 'stop' },
+              { usage: { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 } }
+            ) +
+            'data: [DONE]\n\n'
         )
       } else if (req.url === '/api/chat') {
         let body = ''
         for await (const chunk of req) body += chunk
         requests.push(JSON.parse(body))
-        res.writeHead(200, { 'Content-Type': requests.at(-1)?.stream ? 'application/x-ndjson' : 'application/json' })
+        const line = (fields: Record<string, unknown>) =>
+          `${JSON.stringify({ model: 'wire-model', created_at: new Date().toISOString(), ...fields })}\n`
+        res.writeHead(200, { 'Content-Type': 'application/x-ndjson' })
         res.end(
-          JSON.stringify({
-            model: 'wire-model',
-            created_at: new Date().toISOString(),
-            message: { role: 'assistant', content: 'ok' },
-            done: true,
-            done_reason: 'stop',
-            prompt_eval_count: 2,
-            eval_count: 1
-          })
+          line({ message: { role: 'assistant', content: 'ok' }, done: false }) +
+            line({
+              message: { role: 'assistant', content: '' },
+              done: true,
+              done_reason: 'stop',
+              prompt_eval_count: 2,
+              eval_count: 1
+            })
         )
       } else {
         res.writeHead(404)
