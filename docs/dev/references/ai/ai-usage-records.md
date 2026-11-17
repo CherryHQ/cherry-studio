@@ -7,13 +7,14 @@ sources:
   - src/main/ai/hooks/billingHook.ts
   - src/shared/data/types/providerBilling.ts
   - src/shared/utils/providerBilling.ts
+  - src/shared/utils/providerBillingDefaults.ts
   - src/shared/utils/usagePricing.ts
   - src/renderer/pages/settings/ProviderSettings/BillingSettings/BillingPreview.tsx
 ---
 
 # AI Usage Records
 
-`ai_usage_record` is the immutable, best-effort fact source for observable AI
+`ai_usage_record` is the best-effort fact source with immutable amounts for observable AI
 provider invocations. One successful provider/model invocation produces one
 `invocation` row. During v1 migration, one usage-bearing historical assistant
 message produces one `legacy-aggregate` row whose `requestCount` is estimated
@@ -62,9 +63,11 @@ invoices remain authoritative.
 ## Invariants and ownership
 
 - Usage and cost have one fact source: `ai_usage_record`.
-- Records are insert-only. A duplicate `requestId` is ignored; a different
-  payload for the same id logs an integrity warning and does not mutate the
-  first row.
+- Invocation amounts and request-time snapshots are insert-only. A duplicate
+  `requestId` is ignored; a different payload logs an integrity warning.
+- Native response correlation can fill an initially unknown message link, including
+  a child message. It never changes tokens,
+  cost, pricing, credential, or source snapshots and never inserts another charge.
 - Message persistence owns content, status, and message-level end-to-end
   timings. It never creates or repairs usage records.
 - `MessageStats` usage, cost, request counts, and `providerPerformance` are a
@@ -78,7 +81,7 @@ invoices remain authoritative.
   before the provider call. Completion never consults current configuration or
   rotation state.
 - Every runtime route has one capture owner. Gateway-backed Agent traffic uses
-  provider-call capture; direct/external Agent traffic uses Agent SDK messages.
+  provider-call capture; external-CLI subscription traffic uses Agent SDK messages.
 
 There is deliberately no operation table or persistence compensation layer.
 
@@ -123,7 +126,7 @@ The Cost calculation icon beside the provider's model filter opens draft billing
 settings; Save applies them, Cancel discards edits, and Reset removes only
 `providerSettings.billing`. Disabling schedules retains their rules.
 
-- The default multiplier is 1. A matching period replaces it. Multipliers are
+- The generic default multiplier is 1. A matching period replaces it. Multipliers are
   finite and nonnegative; zero makes known prices free, not missing prices.
 - Daily periods use a saved fixed UTC offset and whole-hour 24-hour pickers.
   Start is inclusive, end exclusive; `24:00` is allowed only as an end.
@@ -136,6 +139,28 @@ settings; Save applies them, Cancel discards edits, and Reset removes only
 - Each observable invocation freezes its prices and optional `billing` metadata
   at the start. Calls crossing a boundary retain those prices; later tool calls,
   retries and fallback models resolve again. Settings edits do not rewrite history.
+
+DeepSeek's first-party Flash, Pro and the two retired Flash aliases inherit the
+weekday schedule when no provider billing override or stored model-price override
+exists. Provider preset identity and the actual `https://api.deepseek.com` host must
+both match. Copies of that preset retain eligibility; third-party relays do not.
+Defaults resolve on read for existing and new accounts. Reset removes the override
+and restores applicable defaults; saving untouched defaults does not pin a copy.
+
+The catalog holds USD peak token prices. In Beijing time, Monday–Friday periods
+09:00–12:00 and 14:00–18:00 use multiplier 1; other times use 0.5. The schedule-level
+`cn-weekdays` condition checks only the day of week, in every year. Weekday holidays
+follow ordinary weekday rates; weekend makeup workdays remain off-peak. There is no
+holiday table or missing-year fallback. Legacy settings without this condition still
+apply daily. Snapshots retain default source and rule version. These are client estimates, not a claim
+about DeepSeek's undisclosed cross-boundary settlement rule.
+
+The settings preview accepts a date and highlights the current period for today.
+It uses the same default eligibility
+and multiplier resolver as capture. Model price overrides remain undiscounted
+unless the user explicitly saves provider billing rules. Turning off the calendar
+or schedule persists that choice. No currency conversion, historical recalculation
+or discount on separately billed search, file and speech APIs is performed.
 
 | Invocation path | Pricing capture |
 | --- | --- |
@@ -198,7 +223,7 @@ The table stores:
 | Group | Fields |
 | --- | --- |
 | Identity | `id`, unique `requestId`, `recordKind`, `requestCount` |
-| Optional message link | `messageKind`, `messageId` |
+| Optional ownership | `messageKind`, `messageId` |
 | Provider/model snapshot | `providerId`, `providerName`, `modelId`, `modelName` |
 | Source snapshot | `sourceType`, `sourceId`, `sourceName`, `sourceIcon` |
 | Operation | `modality` |
@@ -307,7 +332,7 @@ Costs are never converted or summed across currencies.
 ## MessageStats projection
 
 For each linked message, the service rebuilds usage/cost fields in the same
-SQLite transaction as record insertion:
+SQLite transaction as record insertion or late native response association:
 
 - token fields sum per record; each row uses
   `totalTokens ?? inputTokens + outputTokens`;
@@ -392,9 +417,10 @@ serial.
 
 ## Agent runtime ownership
 
-### Direct and external CLI
+### External CLI subscription
 
-The connection carries `{ owner: 'agent-sdk', credentialReceipt, frozenModels }`.
+Explicit Claude CLI subscription login carries
+`{ owner: 'agent-sdk', credentialReceipt, frozenModels }`.
 Every emitted invocation id is globally namespaced by its driver (`claude-agent:`;
 historical records can also use `pi-agent:` or `dsh-agent:`) before it crosses the runtime contract; the host persists that id
 verbatim for cross-runtime idempotency.
@@ -407,64 +433,47 @@ model, and usage:
 - abort, error, query close, or connection close commits only steps with
   provider completion evidence and discards the current in-flight step;
 - a committed id is immutable; a late repeat logs an anomaly and is ignored;
-- the driver freezes message association when the SDK assistant event arrives:
-  an active adapter means the current turn, while no adapter means stateless;
-- the host resolves current-turn events to the active assistant message.
-  Stateless events keep `messageRef: null` and the connection's frozen source;
+- native response IDs join invocations to root or child product messages;
+  ownership follows the native output after any steer boundary. Multiple child
+  blocks sharing one API response ID charge its first projected block, not each block;
+- completion may precede ownership. The host persists the invocation immediately
+  with `messageRef: null`, then fills the message link
+  when the native identity arrives;
 - primary/plan/small nested models resolve independently against the frozen
   model map;
 - result-level `modelUsage`, duration, and total cost are reconciliation data,
   not record inputs.
 
-The driver commits pending usage before emitting a steer boundary, so the old
-provider call attaches to the pre-steer message and the next call attaches to
-the continuation.
+The response-to-message mapping survives a product turn roll. Finishing a
+provider call after that roll cannot move its usage onto the newer message.
 
-Historical Pi and DSH invocation records remain available after runtime migration.
+Historical direct Claude, Pi and DSH invocation records remain available after runtime migration.
 
 ### Gateway-backed Agent
 
 The connection carries `{ owner: 'provider-calls' }`; SDK usage events do not
-create billing records. Pi and Pi Durable always use this path; native usage
-remains available for context and display. Trusted in-process gateway context supplies the active assistant
-message id (or a reserved steer continuation id) and frozen source to the
-normal AiService language middleware.
-When a `PreToolUse` hook actually injects a steer, the driver synchronously
-asks the host to reserve the continuation message id and frozen source before
-the hook returns. The next gateway request therefore captures that reservation;
-the later `steer-boundary` persists A2 with the same id. A turn that ends
-without reaching the boundary discards the unused reservation. If no active
-turn or reservation can be resolved, the provider invocation is still recorded
-as stateless and no association is guessed.
+create billing records. Pi, Pi Durable and Cherry-managed Claude models use this path; native usage
+remains available for context and display. Trusted in-process gateway context supplies the frozen source to
+normal AiService language middleware. The gateway creates its wire response ID
+before dispatch. Pi, Pi Durable and Claude Code preserve it through native output,
+allowing either completion or message publication to arrive first. No current-turn
+guess, provider response-ID rewrite, or extra relationship table is required.
+
+Gateway usage is written as soon as a provider invocation completes, with its
+request-time source, pricing and credentials. A later native response ID associates
+it with the actual assistant message, including a child message. Hidden native
+auxiliary calls remain unbound when no corresponding message is emitted; they
+remain in usage totals and are never assigned to the next active reply.
+
+Desktop-owned Pi summary and verification requests capture their initiating
+runtime context before the gateway hop. Capture tokens remain session-bound for
+request validation; the billing record does not store a separate session ID.
+Message details query `messageKind` and `messageId`. Calls without a message remain
+available in the general invocation list.
 
 ## Historical migration
 
-`AiUsageRecordMigrator` runs after chat and agent message migration.
-
-- It reads only migrated message rows; it does not join current provider,
-  model, assistant, or agent configuration.
-- Each usage-bearing assistant message becomes one `legacy-aggregate`.
-- `ChatMigrator` and `AgentsMigrator` estimate request count from raw blocks
-  and persist it in the migrated `MessageStats`, so resume does not rely on an
-  in-memory map.
-- The estimate starts at one and adds one for each consecutive/parallel tool
-  group followed by model output. Citation/file/source blocks do not split the
-  group, and a terminal tool group adds nothing.
-- Provider/model may remain unknown. Source comes only from
-  `messageSnapshot`. Credential attribution is always `unknown`.
-- Existing v1 cost is retained according to its stored semantics. Missing cost
-  is never recomputed from current pricing.
-- Legacy model pricing recognizes only absent/`$` as USD and `¥`/`￥` as CNY.
-  Other currency symbols are dropped instead of being assigned an invented
-  currency.
-- Legacy invocation metrics remain null; historical message timings are
-  preserved while usage/cost are rebuilt from the inserted record.
-- Stable request ids, keyset batches, progress reporting, rollback, and
-  row-by-row retry keep migration idempotent and resumable.
-
-See
-`src/main/data/migration/v2/migrators/README-AiUsageRecordMigrator.md` for the
-field mapping.
+Previously imported usage records remain in SQLite. New v1 imports require the [intermediate upgrade release](../data/v2-migration-guide.md); the current application does not rerun conversion or recompute historical costs.
 
 ## Query API and freshness
 
@@ -522,5 +531,4 @@ global SWR focus/reconnect revalidation is disabled.
 | `packages/aiCore/src/core/runtime/` | Embedding/image/rerank provider-call events |
 | `src/main/ai/runtime/claudeCode/ClaudeCodeRuntimeDriver.ts` | Direct Agent SDK capture |
 | `src/main/ai/runtime/pi/gatewayModelBinding.ts` | Shared Pi/Durable gateway binding and native context/display usage |
-| `src/main/data/migration/v2/migrators/AiUsageRecordMigrator.ts` | v1 aggregate migration |
 | `src/renderer/pages/settings/UsageSettings/` | Usage read model consumers |

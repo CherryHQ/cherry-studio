@@ -113,6 +113,10 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   private reasoning: ReasoningState | null = null
   private reasoningCount = 0
 
+  override getMessageId(): string {
+    return `resp_${this.state.messageId}`
+  }
+
   constructor(options: StreamAdapterOptions) {
     super(options)
     this.createdAt = Math.floor(Date.now() / 1000)
@@ -139,7 +143,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
    */
   private buildBaseResponse(status: ResponseStatus = 'in_progress'): PartialStreamingResponse {
     return {
-      id: `resp_${this.state.messageId}`,
+      id: this.getMessageId(),
       object: 'response',
       created_at: this.createdAt,
       status,
@@ -625,7 +629,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
    */
   buildNonStreamingResponse(): Response {
     const partialResponse: PartialStreamingResponse = {
-      id: `resp_${this.state.messageId}`,
+      id: this.getMessageId(),
       object: 'response',
       created_at: this.createdAt,
       status: this.terminalStatus(),

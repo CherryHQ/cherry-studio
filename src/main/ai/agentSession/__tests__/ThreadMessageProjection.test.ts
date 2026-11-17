@@ -24,11 +24,10 @@ function message(_owner: Thread, text: string, id = 'message', complete = false)
 }
 const snapshot = (messages: RuntimeMessage[] = []): ThreadSnapshot => ({
   type: 'snapshot',
-  coverage: 'current-view',
   messages,
   inputs: [],
   subagents: [],
-  activity: { scope: 'foreground', state: 'idle' }
+  activity: { state: 'idle' }
 })
 function projection(owner = root) {
   const value = new ThreadMessageProjection(owner)
@@ -63,9 +62,7 @@ describe('ThreadMessageProjection', () => {
     expect(before.messages).toHaveLength(1000)
     expect(value.snapshot().messages).toHaveLength(1001)
     expect(value.snapshot().messages[0]).toBe(before.messages[0])
-    expect(
-      await value.accept({ type: 'activity.changed', activity: { scope: 'foreground', state: 'active' } })
-    ).toEqual([])
+    expect(await value.accept({ type: 'activity.changed', activity: { state: 'active' } })).toEqual([])
   })
 
   it('returns the final ordered changes of a batch and supports explicit display invalidation', async () => {
@@ -189,6 +186,10 @@ describe('ThreadMessageProjection', () => {
     value.subscribe((event) => events.push(event))
     await value.attach({
       thread: root,
+      contextUsage: async () => ({
+        status: 'unsupported',
+        error: { operation: 'contextUsage', code: 'fixture', message: 'Observation-only fixture' }
+      }),
       release: async () => {},
       observe: async (sink) => ({ status: 'confirmed', value: feed.observe(sink) })
     })
@@ -249,11 +250,15 @@ describe('ThreadMessageProjection', () => {
     let retired!: ObservationSink
     const handle = (answer: string): ThreadHandle => ({
       thread: root,
+      contextUsage: async () => ({
+        status: 'unsupported',
+        error: { operation: 'contextUsage', code: 'fixture', message: 'Observation-only fixture' }
+      }),
       release: async () => {},
       async observe(sink) {
         retired = sink
         await sink(snapshot([message(root, answer)]))
-        return { status: 'confirmed', value: { stop: async () => {} } }
+        return { status: 'confirmed', value: { drain: async () => {}, stop: async () => {} } }
       }
     })
     await value.attach(handle('first'))
@@ -274,6 +279,10 @@ describe('ThreadMessageProjection', () => {
     const feed = new ThreadFeed(snapshot([message(root, 'last readable')]), (error) => errors.push(error))
     await value.attach({
       thread: root,
+      contextUsage: async () => ({
+        status: 'unsupported',
+        error: { operation: 'contextUsage', code: 'fixture', message: 'Observation-only fixture' }
+      }),
       release: async () => {},
       observe: async (sink) => ({ status: 'confirmed', value: feed.observe(sink) })
     })
@@ -289,6 +298,10 @@ describe('ThreadMessageProjection', () => {
     const recovered = new ThreadFeed(snapshot([message(root, 'restored')]), (error) => errors.push(error))
     await value.attach({
       thread: root,
+      contextUsage: async () => ({
+        status: 'unsupported',
+        error: { operation: 'contextUsage', code: 'fixture', message: 'Observation-only fixture' }
+      }),
       release: async () => {},
       observe: async (sink) => ({ status: 'confirmed', value: recovered.observe(sink) })
     })
@@ -313,6 +326,10 @@ describe('ThreadMessageProjection', () => {
     let observing = true
     const handle: ThreadHandle = {
       thread: root,
+      contextUsage: async () => ({
+        status: 'unsupported',
+        error: { operation: 'contextUsage', code: 'fixture', message: 'Observation-only fixture' }
+      }),
       release: async () => {},
       async observe(sink) {
         arrive()
@@ -321,6 +338,7 @@ describe('ThreadMessageProjection', () => {
         return {
           status: 'confirmed',
           value: {
+            drain: async () => {},
             stop: async () => {
               observing = false
             }
@@ -402,7 +420,7 @@ describe('ThreadMessageProjection', () => {
     const relation = { id: runtimeId<'subagent'>('relation'), parent: root }
     await value.accept({ type: 'subagent.upsert', subagent: relation })
     await value.accept({ type: 'subagent.upsert', subagent: { ...relation, child: thread('child') } })
-    await value.accept({ type: 'activity.changed', activity: { scope: 'foreground', state: 'idle' } })
+    await value.accept({ type: 'activity.changed', activity: { state: 'idle' } })
     await value.accept({ type: 'closed', reason: 'released' })
     expect(value.snapshot().subagents).toEqual([{ ...relation, child: thread('child') }])
     expect(value.snapshot().messages).toEqual([])

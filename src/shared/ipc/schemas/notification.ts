@@ -1,5 +1,6 @@
 import * as z from 'zod'
 
+import type { NotificationRecord } from '@shared/data/types/notification'
 import type { ConversationNotification, Notification } from '@shared/types/notification'
 
 import { defineRoute } from '../define'
@@ -14,19 +15,20 @@ import { conversationNavigationTargetSchema } from './navigation'
  * only the fields it renders. It is fully serializable: callbacks are not carried across IPC;
  * an 'action' notification uses the string `actionKey` instead (see @shared/types/notification).
  *
- * Request `notification.mark_conversation_viewed`: the renderer reports that the user is looking at a
- * conversation, clearing it from the unread set behind the Windows taskbar badge.
- *
  * Event `notification.clicked`: fires when the user clicks an OS notification that is not handled
  * directly by the main process. NotificationService broadcasts the originating Notification back
  * to the renderer as the existing action-click dispatch seam.
  *
- * Event `notification.conversation`: carries a presentation-ready task-completion or approval-request
+ * Event `notification.conversation`: carries a presentation-ready approval-request
  * notification to one foreground full-chrome renderer. Background system notifications stay
  * main-owned.
+ *
+ * Request `notification.mark_conversation_viewed`: the renderer reports that the user is looking at a
+ * conversation, clearing it from the unread set behind the Windows taskbar badge.
  */
 export const notificationRequestSchemas = {
   'notification.send': defineRoute({ input: z.custom<Notification>(), output: z.void() }),
+  'notification.activate': defineRoute({ input: z.object({ id: z.string().min(1) }), output: z.void() }),
   'notification.mark_conversation_viewed': defineRoute({
     input: conversationNavigationTargetSchema,
     output: z.void()
@@ -36,4 +38,7 @@ export const notificationRequestSchemas = {
 export type NotificationEventSchemas = {
   'notification.clicked': Notification
   'notification.conversation': ConversationNotification
+  'notification.present': NotificationRecord
+  'notification.completion_sound': { id: string }
+  'notification.open': { id: string }
 }

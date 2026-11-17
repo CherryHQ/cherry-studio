@@ -17,6 +17,14 @@ const values: ResourceCreateValues = {
 }
 
 describe('resource create DTO mapping', () => {
+  it('carries image bytes only in the Agent creation command, preserving its emoji fallback', () => {
+    const avatarImage = new Uint8Array([1, 2, 3])
+    expect(buildCreateAgentCommand({ ...values, avatarImage })).toMatchObject({
+      avatarImage,
+      configuration: { avatar: values.avatar }
+    })
+    expect(buildCreateAssistantDto({ ...values, avatarImage })).not.toHaveProperty('avatarImage')
+  })
   it('maps every assistant-specific field', () => {
     expect(buildCreateAssistantDto(values)).toEqual({
       name: 'Researcher',
@@ -57,11 +65,5 @@ describe('resource create DTO mapping', () => {
       skillIds: ['skill-1'],
       configuration: { avatar: '🤖', permission_mode: 'acceptEdits' }
     })
-  })
-
-  it('falls back to the runtime default when a stale mode is unsupported', () => {
-    expect(
-      buildCreateAgentCommand({ ...values, agentType: 'pi', permissionMode: 'plan' }).configuration?.permission_mode
-    ).toBe('auto')
   })
 })

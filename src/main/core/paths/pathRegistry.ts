@@ -10,6 +10,7 @@
  */
 
 import { createHash } from 'node:crypto'
+import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -84,6 +85,7 @@ export function buildPathRegistry() {
     'app.root.resources.binaries': path.join(appRootResources, 'binaries'),
     'app.utility_process': path.join(app.getAppPath(), 'out', 'utility-process'), // utility-process entry bundles
     'app.exe_file': app.getPath('exe'),
+    'app.portable_executable': process.env.PORTABLE_EXECUTABLE_FILE || '',
     'app.install': path.dirname(app.getPath('exe')), // directory containing the executable
     'app.logs': LOGS_DIR,
     'app.crash_dumps': app.getPath('crashDumps'),
@@ -119,13 +121,21 @@ export function buildPathRegistry() {
     // Plaintext fallback (0600) used only when no OS key store is available
     'feature.remote_access.plain_identity_file': path.join(appUserDataRuntime, 'remote-identity.key'),
 
-    'feature.computer_use.runtime': app.isPackaged
-      ? path.join(
-          appExtraResources,
-          'computer-use',
-          isMac ? 'Cherry Computer Use.app' : isWin ? 'open-computer-use.exe' : 'open-computer-use'
-        )
-      : path.join(app.getAppPath(), '.context', isWin ? 'computer-use-runtime.exe' : 'computer-use-runtime'),
+    get 'feature.computer_use.runtime'() {
+      const name =
+        process.platform === 'darwin'
+          ? 'Cherry Computer Use.app'
+          : process.platform === 'win32'
+            ? 'open-computer-use.exe'
+            : 'open-computer-use'
+      if (app.isPackaged) return path.join(appExtraResources, 'computer-use', name)
+      // Resolve on demand so an absent optional native package cannot prevent application startup.
+      const sdkEntry = createRequire(path.join(app.getAppPath(), 'package.json')).resolve('@cherrystudio/computer-use')
+      const nativeManifest = createRequire(sdkEntry).resolve(
+        `@cherrystudio/computer-use-${process.platform}-${process.arch}/package.json`
+      )
+      return path.join(path.dirname(nativeManifest), 'runtime', name)
+    },
 
     // Provider registry data (models.json, providers.json, etc.)
     'feature.provider_registry.data': app.isPackaged
@@ -287,6 +297,7 @@ export function buildPathRegistry() {
     'feature.ocr.paddleocr': path.join(appUserDataRuntime, 'models', 'pp-ocrv6'),
 
     // Version log
+    'feature.legacy_upgrade.cache': path.join(CHERRY_HOME, 'cache', 'legacy-upgrade'),
     'feature.version_log.file': path.join(appUserData, 'version.log'),
 
     // Backup restore promotion — the journal sidecar is owned by
@@ -342,6 +353,7 @@ export function buildPathRegistry() {
     'v1.trace': path.join(CHERRY_HOME, 'trace'),
     'v1.cli.install': path.join(CHERRY_HOME, 'install'),
     'v1.database.file': path.join(appUserData, 'cherrystudio.sqlite'),
+    'v1.home_config_file': path.join(CHERRY_HOME, 'config', 'config.json'),
     'v1.agents.claude': path.join(appUserData, '.claude'),
 
     // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
@@ -392,6 +404,7 @@ export function buildPathRegistry() {
     'external.openclaw.config': path.join(sysHome, '.openclaw'),
     'external.deepseek_harness.config': path.join(sysHome, '.dsh'),
     'external.pi.settings_file': path.join(sysHome, '.pi', 'agent', 'settings.json'),
+    'external.grok.version_file': path.join(sysHome, '.grok', 'version.json'),
     'external.hermes.default_home': isWin
       ? path.join(process.env.LOCALAPPDATA?.trim() || path.join(sysHome, 'AppData', 'Local'), 'hermes')
       : path.join(sysHome, '.hermes'),

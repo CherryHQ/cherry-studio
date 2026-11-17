@@ -1,6 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { cacheService } from '@data/CacheService'
+import { useConversationLocateRequest } from '@renderer/hooks/useConversationLocateRequest'
 import { takeAgentDraftHandoffs } from '@renderer/services/agentDraftHandoff'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
@@ -33,8 +35,94 @@ describe('useConversationNavigationOwner', () => {
     vi.clearAllMocks()
   })
 
+  it('focuses a validated task tab and drops its ownership when the tab closes', () => {
+    const owner = {
+      activeTabId: 'task-tab',
+      tabs: [{ id: 'task-tab', type: 'route', url: '/app/scheduled-tasks?taskId=task', title: 'Task' }] as Tab[],
+      openTab: vi.fn(),
+      setActiveTab: vi.fn()
+    }
+    cacheService.setCasual('scheduled-task.conversation.task-tab', { taskId: 'task', sessionId: 'session-1' })
+    const view = renderHook(({ value }) => useConversationNavigationOwner(value), { initialProps: { value: owner } })
+    emit('navigation.conversation_focus_or_open_requested', { requestId: 'task-focus', target, title: 'Task' })
+    expect(owner.setActiveTab).toHaveBeenCalledWith('task-tab')
+    expect(owner.openTab).not.toHaveBeenCalled()
+    view.rerender({ value: { ...owner, tabs: [] } })
+    expect(cacheService.getCasual('scheduled-task.conversation.task-tab')).toBeUndefined()
+    emit('navigation.conversation_ownership_requested', { requestId: 'closed-task', target })
+    expect(mocks.request).toHaveBeenCalledWith('navigation.report_conversation_ownership', {
+      requestId: 'closed-task',
+      ownsTarget: false
+    })
+  })
+
+  it.each([
+    ['assistant', '/app/chat?topicId=session-1'],
+    ['agent', '/app/agents?sessionId=session-1']
+  ] as const)('distinguishes the active %s task from an open background tab', (conversationType, url) => {
+    const owner = {
+      tabs: [{ id: 'task', type: 'route' as const, url, title: 'Task' }],
+      activeTabId: 'settings',
+      openTab: vi.fn(),
+      setActiveTab: vi.fn()
+    }
+    const rendered = renderHook(({ value }) => useConversationNavigationOwner(value), {
+      initialProps: { value: owner }
+    })
+    const request = {
+      requestId: 'active-check',
+      target: { conversationType, conversationId: 'session-1' },
+      activeOnly: true
+    }
+    emit('navigation.conversation_ownership_requested', request)
+    expect(mocks.request).toHaveBeenLastCalledWith('navigation.report_conversation_ownership', {
+      requestId: 'active-check',
+      ownsTarget: false
+    })
+    rendered.rerender({ value: { ...owner, activeTabId: 'task' } })
+    emit('navigation.conversation_ownership_requested', request)
+    expect(mocks.request).toHaveBeenLastCalledWith('navigation.report_conversation_ownership', {
+      requestId: 'active-check',
+      ownsTarget: true
+    })
+  })
+
+  it('keeps a requested anchor until the destination mounts and clears it when its tab closes', async () => {
+    const owner = { tabs: [] as Tab[], activeTabId: '', openTab: vi.fn(), setActiveTab: vi.fn() }
+    const rendered = renderHook(({ tabs }) => useConversationNavigationOwner({ ...owner, tabs }), {
+      initialProps: { tabs: owner.tabs }
+    })
+    emit('navigation.conversation_focus_or_open_requested', {
+      requestId: 'locate',
+      target,
+      title: 'Task',
+      messageId: 'older-message'
+    })
+    rendered.rerender({
+      tabs: [{ id: 'new-tab', type: 'route', url: '/app/agents?sessionId=session-1', title: 'Task' }]
+    })
+    const locating = renderHook(() =>
+      useConversationLocateRequest({
+        navigationTabId: 'new-tab',
+        activeConversationId: 'session-1',
+        visibleConversationId: 'session-1'
+      })
+    )
+    await waitFor(() => expect(locating.result.current.locateMessageId).toBe('older-message'))
+    locating.unmount()
+    emit('navigation.conversation_focus_or_open_requested', {
+      requestId: 'latest',
+      target,
+      title: 'Task',
+      messageId: null
+    })
+    rendered.rerender({ tabs: [] })
+    expect(cacheService.getCasual('navigation.conversation.locate.new-tab')).toBeUndefined()
+  })
+
   it('answers ownership on demand from the latest tab state', () => {
     const owner = {
+      activeTabId: '',
       tabs: [] as Tab[],
       openTab: vi.fn(),
       setActiveTab: vi.fn()
@@ -67,6 +155,7 @@ describe('useConversationNavigationOwner', () => {
 
   it('activates an existing target and confirms ownership after the command', () => {
     const owner = {
+      activeTabId: '',
       tabs: [
         {
           id: 'agent-tab',
@@ -97,7 +186,9 @@ describe('useConversationNavigationOwner', () => {
 
   it("hands a carried draft to the agent session's composer", () => {
     const draft = { text: 'And the tests?', tokens: [], files: [], knowledgeBaseIds: [] }
-    renderHook(() => useConversationNavigationOwner({ tabs: [], openTab: vi.fn(), setActiveTab: vi.fn() }))
+    renderHook(() =>
+      useConversationNavigationOwner({ activeTabId: '', tabs: [], openTab: vi.fn(), setActiveTab: vi.fn() })
+    )
 
     emit('navigation.conversation_focus_or_open_requested', { requestId: 'request-1', target, title: 'Fix', draft })
 
@@ -106,6 +197,7 @@ describe('useConversationNavigationOwner', () => {
 
   it('confirms a missing target only after the new tab is committed', async () => {
     const owner = {
+      activeTabId: '',
       tabs: [] as Tab[],
       openTab: vi.fn(),
       setActiveTab: vi.fn()
@@ -152,6 +244,7 @@ describe('useConversationNavigationOwner', () => {
 
   it('coalesces repeated open commands for the same target until the tab is committed', async () => {
     const owner = {
+      activeTabId: '',
       tabs: [] as Tab[],
       openTab: vi.fn(),
       setActiveTab: vi.fn()

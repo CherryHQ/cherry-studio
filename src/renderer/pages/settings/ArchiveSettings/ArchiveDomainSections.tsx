@@ -73,6 +73,7 @@ export const TopicArchiveSection: FC<ArchiveDomainSectionProps> = ({
 
   return (
     <ArchiveSection
+      domain="topics"
       icon={MessageSquare}
       batchToolbarContainer={batchToolbarContainer}
       isBatchMode={isBatchMode}
@@ -129,6 +130,7 @@ export const AgentArchiveSection: FC<ArchiveDomainSectionProps> = ({
 
   return (
     <ArchiveSection
+      domain="agents"
       icon={SIDEBAR_ICON_COMPONENTS.agents}
       batchToolbarContainer={batchToolbarContainer}
       isBatchMode={isBatchMode}
@@ -184,6 +186,7 @@ export const SessionArchiveSection: FC<ArchiveDomainSectionProps> = ({
 
   return (
     <ArchiveSection
+      domain="sessions"
       icon={ListTodo}
       batchToolbarContainer={batchToolbarContainer}
       isBatchMode={isBatchMode}
@@ -240,6 +243,7 @@ export const AssistantArchiveSection: FC<ArchiveDomainSectionProps> = ({
 
   return (
     <ArchiveSection
+      domain="assistants"
       icon={SIDEBAR_ICON_COMPONENTS.assistants}
       batchToolbarContainer={batchToolbarContainer}
       isBatchMode={isBatchMode}
@@ -317,6 +321,7 @@ export const PaintingArchiveSection: FC<ArchiveDomainSectionProps> = ({
 
   return (
     <ArchiveSection
+      domain="paintings"
       icon={SIDEBAR_ICON_COMPONENTS.paintings}
       batchToolbarContainer={batchToolbarContainer}
       isBatchMode={isBatchMode}
@@ -362,6 +367,7 @@ export const FileArchiveSection: FC<ArchiveDomainSectionProps> = ({
 
   return (
     <ArchiveSection
+      domain="files"
       icon={SIDEBAR_ICON_COMPONENTS.files}
       batchToolbarContainer={batchToolbarContainer}
       isBatchMode={isBatchMode}

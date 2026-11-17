@@ -1,4 +1,6 @@
-<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="none">
+<rect width="120" height="120" fill="var(--icon-neutral-background, #FFFFFF)"/>
+<g fill="none" transform="translate(18 18) scale(1.27918782) translate(-26.6667 -26.6667)">
 <mask id="mask0_1_5734" style="mask-type:luminance" maskUnits="userSpaceOnUse" x="27" y="27" width="65" height="65">
 <path d="M92 27H27V92H92V27Z" fill="white"/>
 </mask>
@@ -35,4 +37,5 @@
 <stop offset="1" stop-color="#EE4565"/>
 </linearGradient>
 </defs>
+</g>
 </svg>

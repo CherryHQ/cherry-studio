@@ -70,7 +70,7 @@ const SUBAGENT_TOOL = {
 /** C7, C8: the conversation's model facts; candidates only for a model the call names. */
 async function modelFacts(host: HostPorts, thread: ThreadId, query: string | undefined): Promise<ModelFacts> {
   const [candidates, { parentModelKey, defaultChildModelKey, supportsTools }] = await Promise.all([
-    query ? host.models.find(query) : [],
+    query ? host.models.find(query, thread) : [],
     host.models.current(thread)
   ])
   return { candidates, parentModelKey, defaultChildModelKey, supportsTools }

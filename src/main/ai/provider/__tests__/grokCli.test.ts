@@ -5,6 +5,8 @@ import path from 'node:path'
 import { gte } from 'semver'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
+
 import {
   buildGrokCliRequestHeaders,
   normalizeGrokModelId,
@@ -162,16 +164,16 @@ describe('pickGrokClientVersion', () => {
 
 describe('resolveGrokClientVersion', () => {
   let tmpDir: string
-  let homedirSpy: ReturnType<typeof vi.spyOn>
+  let getPathSpy: ReturnType<typeof vi.spyOn>
   const originalEnv = process.env.GROK_CLIENT_VERSION_OVERRIDE
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'grok-cli-test-'))
-    homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tmpDir)
+    getPathSpy = vi.spyOn(application, 'getPath').mockReturnValue(path.join(tmpDir, '.grok', 'version.json'))
   })
 
   afterEach(() => {
-    homedirSpy.mockRestore()
+    getPathSpy.mockRestore()
     fs.rmSync(tmpDir, { recursive: true, force: true })
     if (originalEnv === undefined) delete process.env.GROK_CLIENT_VERSION_OVERRIDE
     else process.env.GROK_CLIENT_VERSION_OVERRIDE = originalEnv

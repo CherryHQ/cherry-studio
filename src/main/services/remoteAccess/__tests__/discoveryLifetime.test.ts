@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 
 const state = vi.hoisted(() => ({
@@ -35,6 +36,8 @@ beforeEach(() => {
 })
 afterEach(() => {
   service.closeIngress()
+  vi.mocked(application.get('AttachmentPresenceService').owners).mockReturnValue([])
+  vi.useRealTimers()
   BaseService.resetInstances()
 })
 
@@ -77,4 +80,28 @@ it('publishes with LAN ingress and withdraws until it is enabled again', async (
   expect(state.published).toEqual([])
   service.updateDirectEndpoint({ port: 24444 })
   await vi.waitFor(() => expect(state.published).toEqual([{ identity: deviceIdentityId(identity), port: 24444 }]))
+})
+
+it('keeps no timers while LAN ingress is off', async () => {
+  state.load.mockResolvedValue(await createDeviceIdentity())
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+  expect(vi.getTimerCount()).toBe(0)
+  service.updateDirectEndpoint({ port: 23333 })
+  expect(vi.getTimerCount()).toBe(2)
+  service.closeIngress()
+  expect(vi.getTimerCount()).toBe(0)
+})
+
+it('keeps sweeping after ingress closes until presented selections can no longer be revoked', async () => {
+  state.load.mockResolvedValue(await createDeviceIdentity())
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+  const owners = vi.mocked(application.get('AttachmentPresenceService').owners)
+  owners.mockReturnValue(['phone'])
+  service.updateDirectEndpoint({ port: 23333 })
+  service.closeIngress()
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(vi.getTimerCount()).toBe(1)
+  owners.mockReturnValue([])
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(vi.getTimerCount()).toBe(0)
 })

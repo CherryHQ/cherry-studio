@@ -23,7 +23,17 @@ import type { LanguageModelUsage, ModelMessage } from 'ai'
  * replaces. Having both this hook and the old budget-stop active would
  * double-compact, so budgetStop is removed in the same change.
  */
-import { compactModelMessages, getContextTokens, resolveCompressionOutputTokens } from '@cherrystudio/ai-core'
+import {
+  compactHistory,
+  compactModelMessages,
+  createCompressionAdapter,
+  definePlugin,
+  fromAISDK,
+  getContextTokens,
+  groupIntoTurns,
+  resolveCompressionOutputTokens,
+  toAISDK
+} from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import {
@@ -42,6 +52,7 @@ import { isAbortError } from '@main/utils/error'
 import { compactionAnchorChunkId } from '@shared/ai/compaction'
 
 import type { RequestFeature } from '../feature'
+import { createOverflowRecoveryMiddleware } from './contextOverflowRecovery'
 
 const logger = loggerService.withContext('inLoopCompaction')
 
@@ -141,6 +152,79 @@ export const inLoopCompactionFeature: RequestFeature = {
     if (isAgentSessionTopic(topicId)) return false
     if (temporaryChatService.hasTopic(topicId)) return false
     return Boolean(scope.contextSettings.enabled && scope.contextSettings.compress.enabled && scope.compressionModel)
+  },
+  contributeModelAdapters: (scope) => {
+    const compressor = scope.compressionModel
+    const window =
+      resolveContextWindow(compressor?.contextWindow ?? undefined) ?? resolveContextWindow(scope.model.contextWindow)
+    if (!compressor || !window) return []
+    const maxOutputTokens = resolveCompressionOutputTokens(window)
+    const middleware = createOverflowRecoveryMiddleware(async (prompt, signal) => {
+      const history = fromAISDK(prompt)
+      const conversation = history.filter((message) => message.role !== 'system')
+      const lastUser = conversation.findLastIndex((message) => message.role === 'user')
+      const turns = groupIntoTurns(conversation)
+      const keepRecentTurns = Math.max(1, turns.filter((turn) => turn.startIndex >= lastUser).length)
+      const startedAt = new Date().toISOString()
+      const anchorId = compactionAnchorChunkId()
+      let completed = false
+      scope.compactionSink?.(anchorId, { status: 'compacting', phase: 'in-loop', startedAt })
+      try {
+        const compacted = await compactHistory(
+          history,
+          createCompressionAdapter(compressor.languageModel, maxOutputTokens, signal ?? scope.signal),
+          {
+            keepRecentTurns,
+            maxInputTokens: Math.max(
+              COMPACTION_MIN_INPUT_BUDGET,
+              Math.floor((window - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
+            )
+          }
+        )
+        const size = (items: typeof history) =>
+          items.reduce(
+            (sum, message) => sum + message.content.length + JSON.stringify(message.tool_calls ?? []).length,
+            0
+          )
+        if (compacted === history || size(compacted) >= size(history)) return undefined
+        const completedAt = new Date().toISOString()
+        completed = true
+        scope.compactionSink?.(anchorId, {
+          status: 'done',
+          phase: 'in-loop',
+          startedAt,
+          completedAt,
+          durationMs: Date.parse(completedAt) - Date.parse(startedAt),
+          foldedCount: Math.max(0, history.length - compacted.length)
+        })
+        return toAISDK(compacted)
+      } catch (error) {
+        if (!(signal ?? scope.signal)?.aborted) {
+          logger.warn('overflow recovery compaction failed', {
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+        throw error
+      } finally {
+        if (!completed) {
+          scope.compactionSink?.(anchorId, {
+            status: 'skipped',
+            phase: 'in-loop',
+            startedAt,
+            completedAt: new Date().toISOString()
+          })
+        }
+      }
+    })
+    return [
+      definePlugin({
+        name: 'context-overflow-recovery',
+        configureContext: (context) => {
+          context.middlewares ??= []
+          context.middlewares.push(middleware)
+        }
+      })
+    ]
   },
   contributeHooks: (scope) => {
     const compressor = scope.compressionModel

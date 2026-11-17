@@ -92,11 +92,6 @@ const HomePage: FC = () => {
   const navigate = useNavigate()
   const routeTopicId = routeSearch.topicId
   const routeAssistantId = routeSearch.assistantId
-  const handleManualPaneOpen = useCallback(() => {
-    requestAnimationFrame(() => {
-      void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
-    })
-  }, [])
   const {
     isWindowFrame,
     shellPaneOpen,
@@ -107,8 +102,7 @@ const HomePage: FC = () => {
     handlePaneAutoCollapseChange
   } = useConversationShellPaneState({
     persistedPaneOpen: showSidebar,
-    setPersistedPaneOpen: setShowSidebar,
-    onManualPaneOpen: handleManualPaneOpen
+    setPersistedPaneOpen: setShowSidebar
   })
   const topicListPosition: ChatPanePosition =
     !isWindowFrame && isClassicTopicLayout && panePosition === 'right' ? 'right' : 'left'
@@ -208,6 +202,12 @@ const HomePage: FC = () => {
     clearActiveTopic()
     void navigate({ to: '/app/chat', search: {}, replace: true })
   }, [activeTopicId, routeTopicId, clearActiveTopic, navigate])
+  const pendingLocalPermanentDeleteIdRef = useRef<string | null>(null)
+  const [pendingLocalPermanentDeleteId, setPendingLocalPermanentDeleteId] = useState<string | null>(null)
+  const onLocalPermanentDeletePendingChange = useCallback((id: string | null) => {
+    pendingLocalPermanentDeleteIdRef.current = id
+    setPendingLocalPermanentDeleteId(id)
+  }, [])
   // The URL-bound topic no longer exists: its by-id query settled with NOT_FOUND (deleted while
   // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
   // through the entry interceptor, which resolves the next target — no in-page state surgery.
@@ -215,8 +215,17 @@ const HomePage: FC = () => {
     if (!routeTopicId || activeTopicId !== routeTopicId) return
     if (activeTopic || isActiveTopicLoading) return
     if (!isDataApiNotFoundError(activeTopicError)) return
+    if (pendingLocalPermanentDeleteIdRef.current === routeTopicId) return
     reenterChatRoute()
-  }, [activeTopic, activeTopicError, activeTopicId, isActiveTopicLoading, reenterChatRoute, routeTopicId])
+  }, [
+    activeTopic,
+    activeTopicError,
+    activeTopicId,
+    isActiveTopicLoading,
+    pendingLocalPermanentDeleteId,
+    reenterChatRoute,
+    routeTopicId
+  ])
   const lastVisibleTopicRef = useRef<Topic | undefined>(undefined)
   const visibleTopic =
     activeTopic ??
@@ -292,7 +301,6 @@ const HomePage: FC = () => {
     })
 
     return unsubscribe
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest topic without resubscribing.
   }, [currentTabId])
 
   const visibleAssistantId = visibleTopic?.assistantId
@@ -308,13 +316,18 @@ const HomePage: FC = () => {
     }
   }, [allTopics, isClassicTopicLayout, topicListPosition, t, visibleAssistantId])
   const targetTopicId = activeTopicId ?? undefined
-  const { locateMessageId, requestLocate, clearLocate } = useConversationLocateRequest({
+  const { locateMessageId, locateToEnd, requestLocate, clearLocate } = useConversationLocateRequest({
+    navigationTabId: currentTabId ?? undefined,
     activeConversationId: targetTopicId,
     visibleConversationId: visibleTopic?.id
   })
   // Label this tab with its assistant emoji + topic name so multiple chat tabs are distinguishable.
   const preserveTabVisuals = !!targetTopicId && visibleTopic?.id !== targetTopicId
   const tabTitle = visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat')
+
+  useEffect(() => {
+    if (locateMessageId || locateToEnd) closeSurface()
+  }, [closeSurface, locateMessageId, locateToEnd])
 
   useEffect(() => {
     if (activeTopic) lastVisibleTopicRef.current = activeTopic
@@ -587,7 +600,6 @@ const HomePage: FC = () => {
       unsubscribe()
       unsubscribeMessage()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest tab/topic state without resubscribing.
   }, [currentTabId])
 
   const handleLocateMessageHandled = clearLocate
@@ -626,6 +638,7 @@ const HomePage: FC = () => {
             onClose={closeHistoryRecords}
             onRecordSelect={handleHistoryRecordsTopicSelect}
             onActiveRecordChange={handleHistoryActiveTopicChange}
+            onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
             toolbarLeading={
               !isWindowFrame ? (
                 <ConversationSidebarToggleButton
@@ -700,6 +713,7 @@ const HomePage: FC = () => {
         onNewTopic={handleCreateEmptyTopic}
         historyRecordsActive={historyRecordsActive}
         onOpenHistoryRecords={isWindowFrame ? undefined : openHistoryRecords}
+        onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
         revealRequest={topicRevealRequest}
         manageAssistantsActive={manageAssistantsActive}
         onManageAssistants={onManageAssistants}
@@ -724,6 +738,7 @@ const HomePage: FC = () => {
               clearActiveTopic={clearActiveTopicAndCloseResourceView}
               setActiveTopic={setActiveTopicAndCloseResourceView}
               onNewTopic={handleCreateEmptyTopic}
+              onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
               onSetPanePosition={setTopicListPosition}
               panePosition="right"
               revealRequest={topicRevealRequest}
@@ -782,6 +797,7 @@ const HomePage: FC = () => {
             sidebarOpen={shellPaneOpen}
             onSidebarToggle={toggleShellPane}
             locateMessageId={locateMessageId}
+            locateToEnd={locateToEnd}
             onLocateMessageHandled={handleLocateMessageHandled}
             resourcePaneCount={topicResourcePaneCount}
           />

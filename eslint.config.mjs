@@ -639,7 +639,14 @@ export default defineConfig([
   eslint.configs.recommended,
   tseslint.configs.recommended,
   eslintReact.configs['recommended-typescript'],
-  reactHooks.configs['recommended-latest'],
+  // The v7 presets also enable React Compiler rules; this app does not use the compiler.
+  {
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn'
+    }
+  },
   {
     plugins: {
       'unused-imports': unusedImports,
@@ -1391,6 +1398,12 @@ export default defineConfig([
               target: ['src/renderer/components', 'src/renderer/hooks', 'src/renderer/services', 'src/renderer/utils'],
               from: ['src/renderer/pages', 'src/renderer/windows'],
               message: 'Shared buckets must not import pages/windows (reverse layer edge). architecture/renderer.md §7.'
+            },
+            {
+              target: ['src/renderer/hooks', 'src/renderer/services'],
+              from: 'src/renderer/components',
+              message:
+                'hooks/ and services/ sit below components/ and must not import them (reverse layer edge); move the module into components/ or push the shared piece down. architecture/renderer.md §3.'
             },
             {
               target: 'src/renderer/utils',

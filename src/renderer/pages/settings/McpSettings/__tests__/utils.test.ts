@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 
+import { isSameMcpServerCandidate } from '@renderer/utils/mcpDiscovery'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 
 import { resolveMcpPackageIconUrl } from '../mcpPackage'
-import { formatMcpLogs, isSameMcpServerCandidate, toCreateMcpServerDto, toUpdateMcpServerDto } from '../utils'
+import { formatMcpLogs, toCreateMcpServerDto, toUpdateMcpServerDto } from '../utils'
 
 describe('McpSettings utils', () => {
   it('matches provider candidates without using their transient id', () => {

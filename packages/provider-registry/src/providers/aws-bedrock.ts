@@ -51,7 +51,8 @@ const bedrockEffortModels = new Set([
   'claude-opus-4-6',
   'claude-opus-4-7',
   'claude-opus-4-8',
-  'claude-sonnet-4-6'
+  'claude-sonnet-4-6',
+  'claude-opus-5-5'
 ])
 
 export default defineProvider({
@@ -153,6 +154,16 @@ export default defineProvider({
           output: { currency: 'USD', perMillionTokens: 25 },
           cacheRead: { currency: 'USD', perMillionTokens: 0.5 },
           cacheWrite: { currency: 'USD', perMillionTokens: 6.25 }
+        }
+      },
+      {
+        modelId: 'claude-opus-5-5',
+        apiModelId: 'global.anthropic.claude-opus-5-5',
+        pricing: {
+          input: { currency: 'USD', perMillionTokens: 4 },
+          output: { currency: 'USD', perMillionTokens: 20 },
+          cacheRead: { currency: 'USD', perMillionTokens: 0.2 },
+          cacheWrite: { currency: 'USD', perMillionTokens: 5 }
         }
       },
       {

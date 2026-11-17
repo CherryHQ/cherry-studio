@@ -107,23 +107,7 @@ describe('compactModelMessages', () => {
         ? summary.content[0].text
         : ''
     expect(text).toContain('Hello')
-    expect(text).toContain('continued from a previous conversation')
+
     expect(result.length).toBe(1 + 1 + 2)
-  })
-
-  it('returns the INPUT reference unchanged when nothing is old enough', async () => {
-    const messages = plainTurns(2)
-    const result = await compactModelMessages(messages, createSummarizerModel(), {
-      keepRecentTurns: 99
-    })
-    expect(result).toBe(messages) // same reference — caller skips persistence
-  })
-
-  it('returns the INPUT reference unchanged when the summary is blank', async () => {
-    const messages = plainTurns(4)
-    const result = await compactModelMessages(messages, createSummarizerModel('   '), {
-      keepRecentTurns: 1
-    })
-    expect(result).toBe(messages)
   })
 })

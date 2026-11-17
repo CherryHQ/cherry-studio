@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useCache } from '@data/hooks/useCache'
@@ -19,7 +19,9 @@ export function useBundledCatalog<TItem>({ catalog, enabled = true, load }: UseB
   const language = i18n?.resolvedLanguage ?? i18n?.language ?? 'en-US'
   const [resourcesPath] = useCache('app.path.resources')
   const [items, setItems] = useState<TItem[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(enabled)
+  const [error, setError] = useState<Error | null>(null)
+  const [revision, setRevision] = useState(0)
   const loadedCatalogRef = useRef<{
     catalog: string
     items: TItem[]
@@ -37,7 +39,7 @@ export function useBundledCatalog<TItem>({ catalog, enabled = true, load }: UseB
     if (!resourcesPath) {
       logger.warn('Bundled catalog resources path is not ready', { catalog })
       setItems([])
-      setIsLoading(false)
+      setIsLoading(true)
       return
     }
 
@@ -50,6 +52,7 @@ export function useBundledCatalog<TItem>({ catalog, enabled = true, load }: UseB
       loadedCatalog.load === load &&
       loadedCatalog.resourcesPath === resourcesPath
     ) {
+      setError(null)
       setItems(loadedCatalog.items)
       setIsLoading(false)
       return
@@ -57,6 +60,8 @@ export function useBundledCatalog<TItem>({ catalog, enabled = true, load }: UseB
 
     let cancelled = false
     setIsLoading(true)
+    setError(null)
+    setItems([])
 
     void load(resourcesPath, language)
       .then((loadedItems) => {
@@ -68,6 +73,7 @@ export function useBundledCatalog<TItem>({ catalog, enabled = true, load }: UseB
       .catch((error) => {
         if (cancelled) return
         logger.error('Failed to load bundled catalog', { catalog, error })
+        setError(error instanceof Error ? error : new Error(String(error)))
         setItems([])
       })
       .finally(() => {
@@ -77,9 +83,16 @@ export function useBundledCatalog<TItem>({ catalog, enabled = true, load }: UseB
     return () => {
       cancelled = true
     }
-  }, [catalog, enabled, language, load, resourcesPath])
+  }, [catalog, enabled, language, load, resourcesPath, revision])
+
+  const retry = useCallback(() => {
+    loadedCatalogRef.current = null
+    setRevision((value) => value + 1)
+  }, [])
 
   return {
+    error,
+    retry,
     isLoading,
     items
   }

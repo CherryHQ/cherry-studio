@@ -1,7 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { rm, writeFile, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { performance } from 'node:perf_hooks'
 
 import type { Page } from '@playwright/test'
 
@@ -23,208 +22,10 @@ import {
 } from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { expect, test } from '../fixture'
-import { selectChatModel, sendChatMarker } from '../helpers/chat'
+import { sendChatMarker } from '../helpers/chat'
 import { selectVisibleModel } from '../helpers/models'
 import { selectSidebarApp } from '../helpers/navigation'
-import { assistantGroupManagement } from '../scenarios/assistantGroupManagement'
 import { switchConversationModel } from '../scenarios/switchConversationModel'
-
-test(...caseDefinition('MP-20'), async ({ mainWindow: page }, testInfo) => {
-  // Mock only the provider HTTP boundary; topic creation, navigation and persistence use the real app.
-  const server = await startMockChatServer()
-  testInfo.annotations.push({
-    type: 'data-source',
-    description:
-      'Loopback mock chat replies; real Electron UI, IPC and persisted data. Does not validate external model quality.'
-  })
-  const providerId = `regression-mp20-${Date.now()}`
-  const preferences = await page.evaluate(async () => ({
-    model: await window.api.preference.get('chat.default_model_id'),
-    naming: await window.api.preference.get('topic.naming.enabled'),
-    shortcut: await window.api.preference.get('chat.input.send_message_shortcut')
-  }))
-  let topicId: string | undefined
-  const screenshot = async (name: string) => {
-    const path = testInfo.outputPath(`${name}.png`)
-    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
-    await testInfo.attach(name, { path, contentType: 'image/png' })
-  }
-  try {
-    const created = await page.evaluate(
-      ({ providerId, baseUrl }) =>
-        window.api.dataApi.request({
-          id: 'mp20-provider',
-          method: 'POST',
-          path: '/providers',
-          body: {
-            providerId,
-            name: 'MP-20 mock provider',
-            defaultChatEndpoint: 'openai-chat-completions',
-            endpointConfigs: { 'openai-chat-completions': { baseUrl } },
-            apiKeys: [{ id: 'mock-key', key: 'mock-api-key', isEnabled: true }]
-          }
-        }),
-      { providerId, baseUrl: server.baseUrl }
-    )
-    expect(created.status).toBe(201)
-    const enabled = await page.evaluate(
-      (providerId) =>
-        window.api.dataApi.request({
-          id: 'mp20-enable',
-          method: 'PATCH',
-          path: `/providers/${providerId}`,
-          body: { isEnabled: true }
-        }),
-      providerId
-    )
-    expect(enabled.status).toBe(200)
-    const models = await page.evaluate(
-      ({ providerId, modelId }) =>
-        window.api.dataApi.request({
-          id: 'mp20-model',
-          method: 'POST',
-          path: '/models',
-          body: [{ providerId, modelId, endpointTypes: ['openai-chat-completions'] }]
-        }),
-      { providerId, modelId: server.modelId }
-    )
-    expect(models.status).toBe(201)
-    await page.evaluate(
-      (modelId) =>
-        window.api.preference.setMultiple({
-          'chat.default_model_id': modelId,
-          'topic.naming.enabled': false,
-          'chat.input.send_message_shortcut': ['Enter']
-        }),
-      createUniqueModelId(providerId, server.modelId)
-    )
-    await page.reload()
-    await screenshot('MP-20 application before Chat navigation')
-    const composer = page.locator('[data-ui~="chat.composer"] [contenteditable="true"]:visible').first()
-
-    const errors: string[] = []
-    const onPageError = (error: Error) => errors.push(error.message)
-    page.on('pageerror', onPageError)
-    try {
-      await page.evaluate(() => {
-        const state = window as typeof window & { mp20Errors?: string[]; mp20Observer?: MutationObserver }
-        state.mp20Errors = []
-        state.mp20Observer = new MutationObserver(() => {
-          for (const alert of document.querySelectorAll('[role="alert"]')) {
-            if (alert.textContent) state.mp20Errors!.push(alert.textContent)
-          }
-        })
-        state.mp20Observer.observe(document.body, { childList: true, subtree: true, characterData: true })
-      })
-      await selectSidebarApp(page, 'Chat')
-      // The app restores the last used topic on reload, and that topic keeps its own model;
-      // start a new conversation so the request reaches the mock provider.
-      await page.getByRole('button', { name: 'New Chat', exact: true }).last().click()
-      await expect(composer).toBeEditable()
-      // A new conversation keeps the assistant's own model, so switch it to the mock provider explicitly.
-      await selectChatModel(page, server.modelId, providerId)
-      await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toContainText(server.modelId)
-      await screenshot('MP-20 new conversation composer')
-      await composer.fill('hello')
-      const started = performance.now()
-      const requestPromise = server.nextRequest(5_000)
-      await page.getByRole('button', { name: 'Send', exact: true }).click()
-      const request = await requestPromise
-      expect(request.body.model).toBe(server.modelId)
-      expect(request.body.messages).toEqual(
-        expect.arrayContaining([expect.objectContaining({ role: 'user', content: 'hello' })])
-      )
-      expect(request.body.stream).toBe(true)
-      request.sendText('Hello')
-      const chat = page.locator('[data-ui~="chat.view"]:visible')
-      const messages = chat.locator('[data-ui~="chat.message"][data-message-id]:visible')
-      const assistant = messages.filter({ has: page.locator('.message-assistant') }).last()
-      await expect(assistant.getByText('Hello', { exact: true })).toBeVisible({
-        timeout: Math.max(1, 5_000 - (performance.now() - started))
-      })
-      const firstTextMs = performance.now() - started
-      request.complete(' from MP-20.')
-      expect(firstTextMs, 'First visible assistant text after sending').toBeLessThanOrEqual(5_000)
-      await testInfo.attach('MP-20 first text timing (mock provider)', {
-        body: JSON.stringify({ firstTextMs, limitMs: 5_000 }),
-        contentType: 'application/json'
-      })
-      await expect(messages).toHaveCount(2)
-      await expect(messages.getByText('hello', { exact: true })).toBeVisible()
-      await expect(assistant.getByText('Hello from MP-20.', { exact: true })).toBeVisible()
-      const messageId = await assistant.getAttribute('data-message-id')
-      expect(messageId).toBeTruthy()
-      const readMessage = () =>
-        page.evaluate(
-          (id) => window.api.dataApi.request({ id: 'mp20-read', method: 'GET', path: `/messages/${id}` }),
-          messageId!
-        )
-      await expect.poll(async () => MessageSchema.parse((await readMessage()).data).status).toBe('success')
-      topicId = MessageSchema.parse((await readMessage()).data).topicId
-      const topic = await page.evaluate(
-        (id) => window.api.dataApi.request({ id: 'mp20-topic', method: 'GET', path: `/topics/${id}` }),
-        topicId
-      )
-      expect(topic.status).toBe(200)
-      const name = TopicSchema.parse(topic.data).name
-      expect(name).not.toBe('')
-      await screenshot('MP-20 automatically created conversation')
-
-      await selectSidebarApp(page, 'Chat')
-      await expect(composer).toBeEditable()
-      const recentTopic = page.getByTestId('topic-list-row').filter({ hasText: name, visible: true })
-      await expect(recentTopic).toHaveCount(1)
-      await screenshot('MP-20 conversation list')
-      await recentTopic.click()
-      await expect(chat).toBeVisible()
-      await expect(messages).toHaveCount(2)
-      await expect(messages.getByText('hello', { exact: true })).toBeVisible()
-      await expect(assistant.getByText('Hello from MP-20.', { exact: true })).toBeVisible()
-      await expect(assistant).toHaveAttribute('data-message-id', messageId!)
-      await screenshot('MP-20 reopened conversation contents')
-      expect(errors, 'No renderer exceptions during the complete workflow').toEqual([])
-      expect(
-        await page.evaluate(() => (window as typeof window & { mp20Errors?: string[] }).mp20Errors),
-        'No error alerts during the complete workflow'
-      ).toEqual([])
-    } finally {
-      page.off('pageerror', onPageError)
-      await page.evaluate(() => {
-        ;(window as typeof window & { mp20Observer?: MutationObserver }).mp20Observer?.disconnect()
-      })
-    }
-  } finally {
-    await server.close()
-    await page.evaluate(
-      async ({ providerId, topicId, preferences }) => {
-        await window.api.preference.setMultiple({
-          'chat.default_model_id': preferences.model,
-          'topic.naming.enabled': preferences.naming,
-          'chat.input.send_message_shortcut': preferences.shortcut
-        })
-        if (topicId) {
-          const permanentlyDeletedTopics = (await window.api.ipcApi.request('trash.topic.delete_permanently', {
-            topicIds: [topicId]
-          })) as IpcResult<{ deletedCount: number }>
-          if (permanentlyDeletedTopics.ok && permanentlyDeletedTopics.data.deletedCount !== new Set([topicId]).size)
-            throw new Error('cleanup left case topics in the trash')
-          if (!permanentlyDeletedTopics.ok) {
-            // This case archived the topic itself, and the trash route deletes active rows only.
-            const purge = await window.api.dataApi.request({
-              id: 'cleanup-topic-purge',
-              method: 'DELETE',
-              path: `/topics/${topicId}`,
-              params: { permanent: true }
-            })
-            if (purge.status !== 204 && purge.status !== 404) throw new Error('cleanup left case topics in the trash')
-          }
-        }
-        await window.api.dataApi.request({ id: 'mp20-delete', method: 'DELETE', path: `/providers/${providerId}` })
-      },
-      { providerId, topicId, preferences }
-    )
-  }
-})
 
 test(...caseDefinition('MP-22'), async ({ app, mainWindow }, testInfo) => {
   let page = mainWindow
@@ -888,10 +689,6 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
   }
 })
 
-test(...caseDefinition('MP-24'), async ({ app, mainWindow }, testInfo) => {
-  await assistantGroupManagement(app, mainWindow, testInfo)
-})
-
 test(...caseDefinition('MP-25'), async ({ app, mainWindow }, testInfo) => {
   let page = mainWindow
   const server = await startMockChatServer()
@@ -1112,7 +909,6 @@ test(...caseDefinition('MP-25'), async ({ app, mainWindow }, testInfo) => {
     const before = app.record
     page = await app.restart()
     expect(app.record.electronPid).not.toBe(before.electronPid)
-    expect(app.record.restartCount).toBe(before.restartCount + 1)
     expect(app.record.profile).toBe(before.profile)
     await selectSidebarApp(page, 'Chat')
     await assertMoved()

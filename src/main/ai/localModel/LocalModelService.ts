@@ -57,7 +57,11 @@ export class LocalModelService extends BaseService {
   refreshStatus(id: LocalModelBundleId): ReturnType<BundleInstaller['getStatusInfo']> {
     const snapshot = this.installerFor(id).getStatusSnapshot()
     this.publishStatus(id, snapshot)
-    return snapshot.errorCode ? { status: snapshot.status, errorCode: snapshot.errorCode } : { status: snapshot.status }
+    return {
+      status: snapshot.status,
+      ...(snapshot.errorCode && { errorCode: snapshot.errorCode }),
+      ...(snapshot.hintCode && { hintCode: snapshot.hintCode })
+    }
   }
 
   download(

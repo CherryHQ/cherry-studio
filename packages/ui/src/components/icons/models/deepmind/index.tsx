@@ -9,7 +9,7 @@ const Deepmind = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const DeepmindIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Deepmind, {
   Avatar: DeepmindAvatar,
-  colorPrimary: '#4285F4'
+  colorPrimary: '#eef4fe'
 })
 
 export default DeepmindIcon
