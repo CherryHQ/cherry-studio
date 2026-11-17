@@ -57,11 +57,11 @@ const STOP_CAUSES: Members<TurnStop['cause']> = {
   'goal-withdraw': true
 }
 
-const isMember = (value: JsonValue, members: object): boolean =>
+const isMember = <T extends string>(value: JsonValue, members: Members<T>): boolean =>
   typeof value === 'string' && Object.hasOwn(members, value)
 const optionalGoalId = (value: JsonValue | undefined): boolean =>
   value === undefined || value === null || typeof value === 'string'
-const isOptionalMember = (value: JsonValue | undefined, members: object): boolean =>
+const isOptionalMember = <T extends string>(value: JsonValue | undefined, members: Members<T>): boolean =>
   value === undefined || isMember(value, members)
 const withKey = (fields: Fields, key: string | undefined): Fields => (key === undefined ? fields : { ...fields, key })
 

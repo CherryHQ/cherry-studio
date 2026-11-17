@@ -1,10 +1,19 @@
+import { setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
+import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import type { agentService } from '@data/services/AgentService'
 import type { agentSessionService } from '@data/services/AgentSessionService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { KeyedMutex } from '@shared/utils/async'
+
+import type { agentChatContextProvider } from '../../streamManager'
 
 const mocks = vi.hoisted(() => ({
   accept: vi.fn(),
@@ -43,7 +52,6 @@ const mocks = vi.hoisted(() => ({
   runtimeBusy: vi.fn(),
   closeSession: vi.fn(),
   prepareBranch: vi.fn(),
-  getPath: vi.fn(),
   purgeSystemWorkspace: vi.fn(),
   withDispatchLock: vi.fn(),
   hasUnsettledTopicWork: vi.fn(),
@@ -173,33 +181,8 @@ const manager = {
   whenTerminalDispatchSettled: mocks.whenTerminalDispatchSettled,
   send: mocks.send
 }
-const dbService = {
-  withWriteTx: (fn: (tx: object) => unknown) => fn({})
-}
-
-vi.mock('@application', () => ({
-  application: {
-    getPath: mocks.getPath,
-    get: (name: string) => {
-      if (name === 'AgentSessionRuntimeService') return runtime
-      if (name === 'AiStreamManager') return manager
-      if (name === 'DbService') return dbService
-      if (name === 'AgentSessionDeliveryService') return deliveryOwner
-      if (name === 'ChannelManager')
-        return {
-          pause: () => ({ dispose() {} }),
-          reconcileAgent() {},
-          listActiveWork: () => [],
-          drainInFlight: async () => ({ stragglerIds: [] })
-        }
-      throw new Error(`Unexpected application.get(${name})`)
-    }
-  }
-}))
-
 const { AgentSessionDeliveryService } = await import('../AgentSessionDeliveryService')
 const { AgentLifecycleService } = await import('../../agents/AgentLifecycleService')
-let deliveryOwner: InstanceType<typeof AgentSessionDeliveryService>
 
 const now = new Date().toISOString()
 const accepted = {
@@ -237,8 +220,18 @@ const agentDeletionResult: ReturnType<typeof agentService.deleteAgentStateTx> = 
 }
 
 describe('AgentSessionDeliveryService', () => {
+  const dbh = setupTestDatabase()
   beforeEach(() => {
     BaseService.resetInstances()
+    MockApplicationUtils.resetServices()
+    MockApplicationUtils.setService('AgentSessionRuntimeService', runtime)
+    MockApplicationUtils.setService('AiStreamManager', manager)
+    MockApplicationUtils.setService('ChannelManager', {
+      pause: () => ({ dispose() {} }),
+      reconcileAgent() {},
+      listActiveWork: () => [],
+      drainInFlight: async () => ({ stragglerIds: [] })
+    })
     vi.clearAllMocks()
     mocks.terminalListeners.clear()
     mocks.idleListeners.clear()
@@ -253,7 +246,6 @@ describe('AgentSessionDeliveryService', () => {
     mocks.runtimeBusy.mockReturnValue(false)
     mocks.closeSession.mockResolvedValue(undefined)
     mocks.prepareBranch.mockReset().mockResolvedValue(undefined)
-    mocks.getPath.mockReturnValue('/mock/feature.agents.system_workspaces')
     mocks.purgeSystemWorkspace.mockResolvedValue(undefined)
     mocks.listSystemWorkspaceSessions.mockReturnValue([])
     mocks.getMessage.mockReturnValue(accepted)
@@ -308,6 +300,51 @@ describe('AgentSessionDeliveryService', () => {
   })
 
   afterEach(() => BaseService.resetInstances())
+
+  it('rolls back a prepared assistant placeholder when another worker wins the delivery claim', async () => {
+    dbh.db
+      .insert(agentTable)
+      .values({ id: 'agent-1', type: 'claude-code', name: 'Agent', instructions: '', orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'workspace', name: 'Workspace', path: '/test', type: 'user', orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({ id: 'target', agentId: 'agent-1', workspaceId: 'workspace', name: 'Target', orderKey: 'a0' })
+      .run()
+    const rootId = seedSessionRoot(dbh.db, 'target')
+    let prepared = false
+    mocks.persistDispatchTx.mockImplementationOnce(
+      (tx: Parameters<typeof agentChatContextProvider.persistDispatchTx>[0]) => {
+        tx.insert(agentSessionMessageTable)
+          .values({
+            id: 'assistant-1',
+            sessionId: 'target',
+            parentId: rootId,
+            role: 'assistant',
+            data: { parts: [] },
+            status: 'pending'
+          })
+          .run()
+        prepared = true
+        return { assistantMessageId: 'assistant-1', savedMessages: [accepted, assistant] }
+      }
+    )
+    mocks.claim.mockReturnValueOnce(null)
+    mocks.listAccepted.mockReturnValueOnce([accepted]).mockReturnValue([])
+    const service = new AgentSessionDeliveryService()
+
+    service.kick('target')
+    await service.drainSessionQueues(['target'])
+
+    expect(prepared).toBe(true)
+    expect(
+      dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, 'assistant-1')).get()
+    ).toBeUndefined()
+    expect(mocks.send).not.toHaveBeenCalled()
+  })
 
   it('waits for the previous terminal dispatch to settle before checking liveness', async () => {
     const service = new AgentSessionDeliveryService()
@@ -365,13 +402,13 @@ describe('AgentSessionDeliveryService', () => {
     await service.drainInFlight({ timeoutMs: 100 })
 
     expect(mocks.persistDispatchTx).toHaveBeenCalled()
-    expect(mocks.persistDispatchTx).toHaveBeenCalledWith({}, expect.anything(), {
+    expect(mocks.persistDispatchTx).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
       id: 'agent-1',
       updatedAt: now,
       model: 'provider::model',
       type: 'claude-code'
     })
-    expect(mocks.claim).toHaveBeenCalledWith({}, 'target', 'delivery-1', 'assistant-1')
+    expect(mocks.claim).toHaveBeenCalledWith(expect.anything(), 'target', 'delivery-1', 'assistant-1')
     expect(mocks.publishDispatchChanges).toHaveBeenCalledWith('target', [accepted, assistant])
     expect(mocks.send).toHaveBeenCalledOnce()
   })
@@ -732,7 +769,7 @@ describe('AgentSessionDeliveryService', () => {
   it('rejects Session archive before the DB write while its turn is unsettled', async () => {
     mocks.hasUnsettledTopicWork.mockReturnValue(true)
     const delivery = new AgentSessionDeliveryService()
-    deliveryOwner = delivery
+    MockApplicationUtils.setService('AgentSessionDeliveryService', delivery)
     const service = new AgentLifecycleService()
     await delivery._doInit()
 
@@ -762,7 +799,7 @@ describe('AgentSessionDeliveryService', () => {
     })
     mocks.closeSession.mockReturnValue(runtimeClosed)
     const delivery = new AgentSessionDeliveryService()
-    deliveryOwner = delivery
+    MockApplicationUtils.setService('AgentSessionDeliveryService', delivery)
     const service = new AgentLifecycleService()
     await delivery._doInit()
 
@@ -803,7 +840,7 @@ describe('AgentSessionDeliveryService', () => {
       order.push('workspace-removed')
     })
     const delivery = new AgentSessionDeliveryService()
-    deliveryOwner = delivery
+    MockApplicationUtils.setService('AgentSessionDeliveryService', delivery)
     const service = new AgentLifecycleService()
     await delivery._doInit()
 
@@ -820,7 +857,7 @@ describe('AgentSessionDeliveryService', () => {
       purgedSystemWorkspacePaths: []
     })
     runtime.recoverSessionForks.mockRejectedValueOnce(new Error('manifest unavailable'))
-    deliveryOwner = new AgentSessionDeliveryService()
+    MockApplicationUtils.setService('AgentSessionDeliveryService', new AgentSessionDeliveryService())
     await expect(new AgentLifecycleService().archiveSessions(['target'])).resolves.toEqual({ deletedIds: ['target'] })
     expect(mocks.closeSession).toHaveBeenCalledWith('target')
   })
@@ -837,7 +874,7 @@ describe('AgentSessionDeliveryService', () => {
     })
     mocks.purgeSystemWorkspace.mockRejectedValue(cleanupError)
     const delivery = new AgentSessionDeliveryService()
-    deliveryOwner = delivery
+    MockApplicationUtils.setService('AgentSessionDeliveryService', delivery)
     const service = new AgentLifecycleService()
     await delivery._doInit()
 
@@ -855,7 +892,7 @@ describe('AgentSessionDeliveryService', () => {
       mocks.listActiveIdsByAgent.mockReturnValue(['target'])
       mocks.hasUnsettledTopicWork.mockReturnValue(true)
       const delivery = new AgentSessionDeliveryService()
-      deliveryOwner = delivery
+      MockApplicationUtils.setService('AgentSessionDeliveryService', delivery)
       const service = new AgentLifecycleService()
       await delivery._doInit()
 
@@ -872,7 +909,7 @@ describe('AgentSessionDeliveryService', () => {
     mocks.listActiveIdsByAgent.mockReturnValue(['target'])
     mocks.hasUnsettledTopicWork.mockReturnValue(true)
     const delivery = new AgentSessionDeliveryService()
-    deliveryOwner = delivery
+    MockApplicationUtils.setService('AgentSessionDeliveryService', delivery)
     const service = new AgentLifecycleService()
     await delivery._doInit()
 
@@ -893,7 +930,7 @@ describe('AgentSessionDeliveryService', () => {
     mocks.abortAndDrain.mockReturnValue(runtimeDrained)
     mocks.purgeExpiredByIdsTx.mockReturnValue(['expired-session'])
     const delivery = new AgentSessionDeliveryService()
-    deliveryOwner = delivery
+    MockApplicationUtils.setService('AgentSessionDeliveryService', delivery)
     const service = new AgentLifecycleService()
 
     const purge = service.purgeExpiredSessions(500, 10)
@@ -905,7 +942,7 @@ describe('AgentSessionDeliveryService', () => {
     releaseRuntime()
 
     await expect(purge).resolves.toEqual({ purgedIds: ['expired-session'], hasMore: false })
-    expect(mocks.purgeExpiredByIdsTx).toHaveBeenCalledWith({}, ['expired-session'], 500)
+    expect(mocks.purgeExpiredByIdsTx).toHaveBeenCalledWith(expect.anything(), ['expired-session'], 500)
     expect(delivery.isWriteQuiesced).toBe(false)
   })
 
@@ -922,7 +959,7 @@ describe('AgentSessionDeliveryService', () => {
     mocks.isExpiredTrash.mockImplementation(() => !restored)
     mocks.listExpiredTrashIds.mockReturnValue(['expired-session'])
     const delivery = new AgentSessionDeliveryService()
-    deliveryOwner = delivery
+    MockApplicationUtils.setService('AgentSessionDeliveryService', delivery)
     const service = new AgentLifecycleService()
 
     const restore = service.restoreSession('expired-session')
@@ -959,7 +996,7 @@ describe('AgentSessionDeliveryService', () => {
       throw DataApiErrorFactory.notFound('Session', 'expired-session')
     })
     const delivery = new AgentSessionDeliveryService()
-    deliveryOwner = delivery
+    MockApplicationUtils.setService('AgentSessionDeliveryService', delivery)
     const service = new AgentLifecycleService()
 
     const purge = service.purgeExpiredSessions(500, 10)
@@ -993,7 +1030,7 @@ describe('AgentSessionDeliveryService', () => {
     mocks.listExpiredTrashIds.mockReturnValue(['expired-session'])
     mocks.purgeExpiredByIdsTx.mockReturnValue(['expired-session'])
     const delivery = new AgentSessionDeliveryService()
-    deliveryOwner = delivery
+    MockApplicationUtils.setService('AgentSessionDeliveryService', delivery)
     const service = new AgentLifecycleService()
     await delivery._doInit()
     delivery.kick('expired-session')
@@ -1020,7 +1057,7 @@ describe('AgentSessionDeliveryService', () => {
       return slowDrain
     })
     const delivery = new AgentSessionDeliveryService()
-    deliveryOwner = delivery
+    MockApplicationUtils.setService('AgentSessionDeliveryService', delivery)
     const service = new AgentLifecycleService()
 
     let settled = false
@@ -1052,7 +1089,7 @@ describe('AgentSessionDeliveryService', () => {
     mocks.isExpiredTrash.mockImplementation((sessionId: string) => sessionId === 'expired-session')
     mocks.purgeExpiredByIdsTx.mockReturnValue(['expired-session'])
     const delivery = new AgentSessionDeliveryService()
-    deliveryOwner = delivery
+    MockApplicationUtils.setService('AgentSessionDeliveryService', delivery)
     const service = new AgentLifecycleService()
 
     await expect(service.purgeExpiredSessions(500, 2)).resolves.toEqual({
@@ -1060,7 +1097,7 @@ describe('AgentSessionDeliveryService', () => {
       hasMore: true
     })
     expect(mocks.abortAndDrain).toHaveBeenCalledOnce()
-    expect(mocks.purgeExpiredByIdsTx).toHaveBeenCalledWith({}, ['expired-session'], 500)
+    expect(mocks.purgeExpiredByIdsTx).toHaveBeenCalledWith(expect.anything(), ['expired-session'], 500)
   })
 
   it('closes duplicate placeholder runtimes through the delivery owner', async () => {
@@ -1071,7 +1108,7 @@ describe('AgentSessionDeliveryService', () => {
       deliveryResults: []
     })
     const delivery = new AgentSessionDeliveryService()
-    deliveryOwner = delivery
+    MockApplicationUtils.setService('AgentSessionDeliveryService', delivery)
     const service = new AgentLifecycleService()
     await delivery._doInit()
 
@@ -1100,7 +1137,7 @@ describe('AgentSessionDeliveryService', () => {
       .mockReturnValueOnce({ deletedIds: [], taskScheduleIds: [], deliveryResults: [], purgedSystemWorkspacePaths: [] })
     mocks.closeSession.mockReturnValueOnce(firstClose)
     const delivery = new AgentSessionDeliveryService()
-    deliveryOwner = delivery
+    MockApplicationUtils.setService('AgentSessionDeliveryService', delivery)
     const service = new AgentLifecycleService()
     await delivery._doInit()
 
@@ -1129,7 +1166,7 @@ describe('AgentSessionDeliveryService', () => {
       deliveryResults: []
     })
     const delivery = new AgentSessionDeliveryService()
-    deliveryOwner = delivery
+    MockApplicationUtils.setService('AgentSessionDeliveryService', delivery)
     const service = new AgentLifecycleService()
     await delivery._doInit()
 
@@ -1149,7 +1186,7 @@ describe('AgentSessionDeliveryService', () => {
       deliveryResults: [{ ...accepted, delivery: { ...accepted.delivery, status: 'failed' } }]
     })
     const delivery = new AgentSessionDeliveryService()
-    deliveryOwner = delivery
+    MockApplicationUtils.setService('AgentSessionDeliveryService', delivery)
     const service = new AgentLifecycleService()
     await delivery._doInit()
 
@@ -1170,7 +1207,7 @@ describe('AgentSessionDeliveryService', () => {
     })
     mocks.closeSession.mockRejectedValue(closeError)
     const delivery = new AgentSessionDeliveryService()
-    deliveryOwner = delivery
+    MockApplicationUtils.setService('AgentSessionDeliveryService', delivery)
     const service = new AgentLifecycleService()
 
     await expect(service.archiveAgent('agent-1', { archiveSessions: false })).resolves.toEqual({ deleted: true })
@@ -1191,7 +1228,7 @@ describe('AgentSessionDeliveryService', () => {
       deliveryResults: []
     })
     const delivery = new AgentSessionDeliveryService()
-    deliveryOwner = delivery
+    MockApplicationUtils.setService('AgentSessionDeliveryService', delivery)
     const service = new AgentLifecycleService()
 
     await service.purgeAgent('agent-1')
@@ -1207,7 +1244,7 @@ describe('AgentSessionDeliveryService', () => {
       deliveryResults: []
     })
     const delivery = new AgentSessionDeliveryService()
-    deliveryOwner = delivery
+    MockApplicationUtils.setService('AgentSessionDeliveryService', delivery)
     const service = new AgentLifecycleService()
 
     await expect(service.archiveAgentSessions('agent-1')).resolves.toEqual({
@@ -1229,7 +1266,7 @@ describe('AgentSessionDeliveryService', () => {
       deliveryResults: []
     })
     const delivery = new AgentSessionDeliveryService()
-    deliveryOwner = delivery
+    MockApplicationUtils.setService('AgentSessionDeliveryService', delivery)
     const service = new AgentLifecycleService()
     await delivery._doInit()
 
@@ -1263,7 +1300,7 @@ describe('AgentSessionDeliveryService', () => {
       deliveryResults: [],
       purgedSystemWorkspacePaths: []
     })
-    deliveryOwner = new AgentSessionDeliveryService()
+    MockApplicationUtils.setService('AgentSessionDeliveryService', new AgentSessionDeliveryService())
     const service = new AgentLifecycleService()
     const archive = service.archiveSessions(['target'])
     await vi.waitFor(() => expect(mocks.closeSession).toHaveBeenCalledWith('target'))

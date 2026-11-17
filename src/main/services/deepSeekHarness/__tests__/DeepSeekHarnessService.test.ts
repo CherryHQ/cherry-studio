@@ -144,7 +144,7 @@ describe('DeepSeekHarnessService', () => {
       (
         _file: string,
         _args: string[],
-        _options: object,
+        _options: NodeChildProcess.ExecFileOptions,
         callback: (error: Error | null, stdout: string, stderr: string) => void
       ) => callback(null, '', '')
     )
@@ -463,7 +463,7 @@ describe('DeepSeekHarnessService', () => {
         (
           _file: string,
           _args: string[],
-          _options: object,
+          _options: NodeChildProcess.ExecFileOptions,
           callback: (error: Error | null, stdout: string, stderr: string) => void
         ) => callback(null, '0.1.5-rc.1\n', '')
       )
@@ -495,7 +495,7 @@ describe('DeepSeekHarnessService', () => {
       (
         _file: string,
         _args: string[],
-        _options: object,
+        _options: NodeChildProcess.ExecFileOptions,
         callback: (error: Error | null, stdout: string, stderr: string) => void
       ) => callback(new Error('spawn ENOENT'), '', '')
     )
@@ -595,7 +595,7 @@ describe('DeepSeekHarnessService', () => {
       (
         _file: string,
         _args: string[],
-        _options: object,
+        _options: NodeChildProcess.ExecFileOptions,
         callback: (error: Error | null, stdout: string, stderr: string) => void
       ) => {
         child.close(null, 'SIGTERM')

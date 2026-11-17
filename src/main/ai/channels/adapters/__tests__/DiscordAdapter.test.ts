@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events'
 
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as z from 'zod'
 
 import { t } from '@main/i18n'
 
@@ -73,7 +74,7 @@ class FakeWebSocket extends EventEmitter {
     this.emit('open')
   }
 
-  receive(payload: object): void {
+  receive(payload: { op: number; d?: z.core.util.JSONType; s?: number; t?: string }): void {
     this.emit('message', Buffer.from(JSON.stringify(payload)))
   }
 

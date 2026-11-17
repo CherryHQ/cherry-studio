@@ -1,6 +1,7 @@
 import { net } from 'electron'
 import { fileTypeFromBuffer } from 'file-type'
 import WebSocket from 'ws'
+import type * as z from 'zod'
 
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
@@ -356,7 +357,7 @@ class QqAdapter extends ChannelAdapter {
     })
   }
 
-  private send(payload: object): void {
+  private send(payload: { op: number; d: z.core.util.JSONType }): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(payload))
     }

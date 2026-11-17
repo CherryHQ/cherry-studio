@@ -1097,10 +1097,10 @@ describe('PdfFilePreview', () => {
     const region = screen.getByRole('region', { name: 'paper.pdf' })
     Object.defineProperty(region, 'clientHeight', { configurable: true, value: 500 })
     region.scrollTop = 450
-    let finishPage!: (page: object) => void
+    let finishPage!: () => void
     mocks.pdfDocument.getPage.mockReturnValueOnce(
       new Promise((resolve) => {
-        finishPage = resolve
+        finishPage = () => resolve({})
       })
     )
     mocks.pageReady = false
@@ -1114,7 +1114,7 @@ describe('PdfFilePreview', () => {
     await waitFor(() => expect(mocks.pdfDocument.getPage).toHaveBeenCalledWith(2))
     expect(screen.getByRole('status')).toBeInTheDocument()
     await act(async () => {
-      finishPage({})
+      finishPage()
     })
     await waitFor(() => expect(screen.getByTestId('pdf-preview-page-indicator')).toHaveTextContent('2 / 3'))
     expect(region.scrollTop).toBe(450)
@@ -1349,11 +1349,11 @@ describe('PdfFilePreview', () => {
     Object.defineProperty(region, 'clientWidth', { configurable: true, value: 600 })
     mocks.viewerInstances[0].getPageView(0)
     mocks.pageReady = false
-    let finishPage!: (page: object) => void
+    let finishPage!: () => void
     mocks.pdfDocument.getPage.mockImplementation((page: number) =>
       page === 2
         ? new Promise((resolve) => {
-            finishPage = resolve
+            finishPage = () => resolve({})
           })
         : Promise.resolve({})
     )
@@ -1368,7 +1368,7 @@ describe('PdfFilePreview', () => {
     expect(screen.getByRole('status')).toBeInTheDocument()
     Object.defineProperty(region, 'clientWidth', { configurable: true, value: 450 })
     mocks.initialScale = 0.75
-    await act(async () => finishPage({}))
+    await act(async () => finishPage())
     await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())
     act(() => resize())
     expect(screen.getByText('75%')).toBeInTheDocument()

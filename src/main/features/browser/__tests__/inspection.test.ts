@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type * as z from 'zod'
 
 import { settleAction } from '../actions/settle'
 import { GuestSession } from '../session/GuestSession'
@@ -13,7 +14,7 @@ function setup(ownership: 'managed' | 'borrowed' = 'managed') {
   const { guest, mock } = createGuest()
   const session = new GuestSession(guest, ownership)
   sessions.push(session)
-  const emit = (method: string, params: object, sessionId?: string) =>
+  const emit = (method: string, params: z.core.util.JSONType, sessionId?: string) =>
     mock.debugger.emit('message', {}, method, params, sessionId)
   return {
     session,

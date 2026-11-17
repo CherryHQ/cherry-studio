@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import type { agentService } from '@data/services/AgentService'
 
 const {
   createAgentDataDirectory,
@@ -38,7 +39,10 @@ describe('createAgent', () => {
     vi.mocked(application.getPath).mockReturnValue('/tmp/agents')
     createAgentDataDirectory.mockResolvedValue('/tmp/agents/11111111-1111-4111-8111-111111111111')
     removeAgentDataDirectory.mockResolvedValue(undefined)
-    createAgentWithId.mockImplementation((id: string, input: object) => ({ id, ...input }))
+    createAgentWithId.mockImplementation((id: string, input: Parameters<typeof agentService.createAgentWithId>[1]) => ({
+      id,
+      ...input
+    }))
     syncHeartbeatSchedule.mockResolvedValue('created')
     repairHeartbeatSchedules.mockResolvedValue(undefined)
   })

@@ -12,7 +12,7 @@ export async function requestJson<T>(
   endpoint: string,
   schema: z.ZodType<T>,
   signal?: AbortSignal,
-  body?: object
+  body?: z.core.util.JSONType
 ): Promise<T> {
   const response = await net.fetch(`${connection.apiHost}${endpoint}`, {
     method: body === undefined ? 'GET' : 'POST',

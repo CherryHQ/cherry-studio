@@ -25,7 +25,7 @@ interface Entry {
   refCount: number
   stop?: () => void
   projection?: MessageProjectionView<TopicProjectionState>
-  desired: Map<object, readonly ActiveExecution[]>
+  desired: Map<symbol, readonly ActiveExecution[]>
   hidden: Set<number>
   finished: Set<number>
   view: ExecutionOverlayView
@@ -77,7 +77,7 @@ export class ExecutionStreamOverlayService {
     receive()
   }
 
-  release(topicId: string, consumer: object): void {
+  release(topicId: string, consumer: symbol): void {
     const entry = this.entries.get(topicId)
     if (!entry) return
     entry.desired.delete(consumer)
@@ -89,7 +89,7 @@ export class ExecutionStreamOverlayService {
     this.trim()
   }
 
-  syncExecutions(topicId: string, consumer: object, executions: readonly ActiveExecution[]): void {
+  syncExecutions(topicId: string, consumer: symbol, executions: readonly ActiveExecution[]): void {
     const entry = this.entry(topicId)
     entry.desired.set(consumer, executions)
     this.render(entry)
