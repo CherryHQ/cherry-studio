@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui/components/primitives/dialog'
+import { EmptyStateMessage } from '@cherrystudio/ui/components/primitives/empty-state-mark'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 function Command({ className, ...props }: React.ComponentProps<typeof CommandPrimitive>) {
@@ -78,8 +79,12 @@ function CommandList({ className, ...props }: React.ComponentProps<typeof Comman
   )
 }
 
-function CommandEmpty({ ...props }: React.ComponentProps<typeof CommandPrimitive.Empty>) {
-  return <CommandPrimitive.Empty data-slot="command-empty" className="py-6 text-center text-sm" {...props} />
+function CommandEmpty({ children, ...props }: React.ComponentProps<typeof CommandPrimitive.Empty>) {
+  return (
+    <CommandPrimitive.Empty data-slot="command-empty" className="py-6 text-center text-sm" {...props}>
+      <EmptyStateMessage>{children}</EmptyStateMessage>
+    </CommandPrimitive.Empty>
+  )
 }
 
 function CommandGroup({ className, ...props }: React.ComponentProps<typeof CommandPrimitive.Group>) {

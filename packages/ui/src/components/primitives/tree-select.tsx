@@ -4,6 +4,8 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { Check, ChevronDown, ChevronRight } from 'lucide-react'
 import * as React from 'react'
 
+import { EmptyStateMessage } from '@cherrystudio/ui/components/primitives/empty-state-mark'
+
 import { cn } from '../../lib/utils'
 import { Button } from './button'
 import { Input } from './input'
@@ -386,7 +388,9 @@ export function TreeSelect({
           {visibleTree.length > 0 ? (
             renderNodes(visibleTree)
           ) : (
-            <div className="px-2 py-6 text-center text-sm text-muted-foreground">{emptyText}</div>
+            <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+              <EmptyStateMessage>{emptyText}</EmptyStateMessage>
+            </div>
           )}
         </ScrollArea>
       </PopoverContent>
