@@ -15,6 +15,7 @@ const logger = loggerService.withContext('EChartsPreview')
 const EChartsPreview = ({
   children,
   enableToolbar = false,
+  onErrorChange,
   isStreaming = false,
   ref
 }: BasicPreviewProps & { ref?: React.RefObject<BasicPreviewHandles | null> }) => {
@@ -157,6 +158,7 @@ const EChartsPreview = ({
       error={error}
       cause={cause}
       enableToolbar={enableToolbar}
+      onErrorChange={onErrorChange}
       // ECharts owns interactions inside the chart; generic image pan/zoom would break its coordinate model.
       enableDrag={false}
       enableWheelZoom={false}

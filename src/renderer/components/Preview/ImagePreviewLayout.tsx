@@ -1,4 +1,4 @@
-import { memo, useImperativeHandle } from 'react'
+import { memo, useEffect, useImperativeHandle } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useImageTools } from '@renderer/components/ActionTools'
@@ -19,6 +19,7 @@ interface ImagePreviewLayoutProps {
   error?: string | null
   cause?: unknown | null
   enableToolbar?: boolean
+  onErrorChange?: (failed: boolean) => void
   enableDrag?: boolean
   enableWheelZoom?: boolean
   className?: string
@@ -35,6 +36,7 @@ const ImagePreviewLayout = ({
   error,
   cause,
   enableToolbar,
+  onErrorChange,
   enableDrag = true,
   enableWheelZoom = true,
   className
@@ -58,6 +60,11 @@ const ImagePreviewLayout = ({
     }
   })
 
+  const failed = Boolean(error)
+  useEffect(() => {
+    onErrorChange?.(failed)
+  }, [failed, onErrorChange])
+
   const enablePanZoom = enableDrag || enableWheelZoom
 
   return (
@@ -70,6 +77,7 @@ const ImagePreviewLayout = ({
       {error && (
         <ErrorNotice
           variant="inline"
+          className="absolute inset-0 z-10 items-center"
           title={t('preview.render.failed')}
           detail={
             cause != null ? (

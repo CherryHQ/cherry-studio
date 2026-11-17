@@ -55,16 +55,22 @@ describe('ImagePreviewLayout', () => {
   })
 
   it('shows a translated render failure without the parser text and withholds the toolbar until recovery', () => {
-    const { rerender } = render(<ImagePreviewLayout {...defaultProps} enableToolbar error="Invalid diagram" />)
+    const onErrorChange = vi.fn()
+    const { rerender } = render(
+      <ImagePreviewLayout {...defaultProps} enableToolbar error="Invalid diagram" onErrorChange={onErrorChange} />
+    )
 
     expect(screen.getByText(i18n.t('preview.render.failed'))).toBeInTheDocument()
     expect(screen.queryByText('Invalid diagram')).not.toBeInTheDocument()
     expect(screen.queryByTestId('image-toolbar')).not.toBeInTheDocument()
+    // The code block hides its image copy/download from this report.
+    expect(onErrorChange).toHaveBeenLastCalledWith(true)
 
-    rerender(<ImagePreviewLayout {...defaultProps} enableToolbar error={null} />)
+    rerender(<ImagePreviewLayout {...defaultProps} enableToolbar error={null} onErrorChange={onErrorChange} />)
 
     expect(screen.queryByText(i18n.t('preview.render.failed'))).not.toBeInTheDocument()
     expect(screen.getByTestId('image-toolbar')).toBeInTheDocument()
+    expect(onErrorChange).toHaveBeenLastCalledWith(false)
   })
 
   // Parser output is technical evidence; the detail's explanation slot must be translated text.

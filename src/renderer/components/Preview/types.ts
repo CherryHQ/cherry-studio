@@ -6,6 +6,8 @@ export interface BasicPreviewProps {
   enableToolbar?: boolean
   /** True while the source is still being streamed / generated. */
   isStreaming?: boolean
+  /** Called with `true` when the render fails and `false` once it recovers. */
+  onErrorChange?: (failed: boolean) => void
 }
 
 /**

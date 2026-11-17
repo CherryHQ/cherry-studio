@@ -85,6 +85,7 @@ function getPlantUMLImageUrl(format: 'png' | 'svg', diagram: string, isDark?: bo
 const PlantUmlPreview = ({
   children,
   enableToolbar = false,
+  onErrorChange,
   ref
 }: BasicPreviewProps & { ref?: React.RefObject<BasicPreviewHandles | null> }) => {
   // 定义渲染函数
@@ -125,6 +126,7 @@ const PlantUmlPreview = ({
       error={error}
       cause={cause}
       enableToolbar={enableToolbar}
+      onErrorChange={onErrorChange}
       ref={ref}
       imageRef={containerRef}
       source="plantuml">

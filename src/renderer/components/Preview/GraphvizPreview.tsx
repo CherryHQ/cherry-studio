@@ -24,6 +24,7 @@ const vizInitializer = new AsyncInitializer(async () => {
 const GraphvizPreview = ({
   children,
   enableToolbar = false,
+  onErrorChange,
   ref
 }: BasicPreviewProps & { ref?: React.RefObject<BasicPreviewHandles | null> }) => {
   const { theme } = useTheme()
@@ -59,6 +60,7 @@ const GraphvizPreview = ({
       error={error}
       cause={cause}
       enableToolbar={enableToolbar}
+      onErrorChange={onErrorChange}
       ref={ref}
       imageRef={containerRef}
       source="graphviz">

@@ -9,6 +9,7 @@ import { renderSvgInShadowHost } from './utils'
 interface SvgPreviewProps {
   children: string
   enableToolbar?: boolean
+  onErrorChange?: (failed: boolean) => void
   className?: string
   ref?: React.RefObject<BasicPreviewHandles | null>
 }
@@ -16,7 +17,7 @@ interface SvgPreviewProps {
 /**
  * 使用 Shadow DOM 渲染 SVG
  */
-const SvgPreview = ({ children, enableToolbar = false, className, ref }: SvgPreviewProps) => {
+const SvgPreview = ({ children, enableToolbar = false, onErrorChange, className, ref }: SvgPreviewProps) => {
   // 定义渲染函数
   const renderSvg = useCallback(async (content: string, container: HTMLDivElement) => {
     renderSvgInShadowHost(content, container)
@@ -33,6 +34,7 @@ const SvgPreview = ({ children, enableToolbar = false, className, ref }: SvgPrev
       error={error}
       cause={cause}
       enableToolbar={enableToolbar}
+      onErrorChange={onErrorChange}
       ref={ref}
       imageRef={containerRef}
       source="svg">

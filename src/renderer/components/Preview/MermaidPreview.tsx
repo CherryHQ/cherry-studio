@@ -18,6 +18,7 @@ import { renderSvgInShadowHost } from './utils'
 const MermaidPreview = ({
   children,
   enableToolbar = false,
+  onErrorChange,
   className,
   fit = 'width',
   ref
@@ -48,6 +49,7 @@ const MermaidPreview = ({
       error={error}
       cause={cause}
       enableToolbar={enableToolbar}
+      onErrorChange={onErrorChange}
       ref={ref}
       imageRef={containerRef}
       source="mermaid"
