@@ -13,6 +13,7 @@ import {
   CommandItem,
   CommandList
 } from '@cherrystudio/ui/components/primitives/command'
+import { EmptyStateMessage } from '@cherrystudio/ui/components/primitives/empty-state-mark'
 import { Input } from '@cherrystudio/ui/components/primitives/input'
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@cherrystudio/ui/components/primitives/popover'
 import { cn } from '@cherrystudio/ui/lib/utils'
@@ -133,7 +134,9 @@ function ComboboxOptionList<TExtra extends object>({
     <CommandList aria-multiselectable={multiple || undefined}>
       {manualFilterEnabled ? (
         visibleOptions.length === 0 ? (
-          <div className="py-6 text-center text-sm text-muted-foreground">{emptyText}</div>
+          <div className="py-6 text-center text-sm text-muted-foreground">
+            <EmptyStateMessage>{emptyText}</EmptyStateMessage>
+          </div>
         ) : (
           renderOptionGroups(visibleOptions, true)
         )
