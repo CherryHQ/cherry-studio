@@ -5101,6 +5101,8 @@
   "settings.mcp.timeoutTooltip": "Thời gian chờ tính bằng giây cho các yêu cầu đến máy chủ này, mặc định là 60 giây",
   "settings.mcp.title": "Máy chủ MCP",
   "settings.mcp.tools.autoApprove.label": "Tự động phê duyệt",
+  "settings.mcp.tools.autoApprove.tooltip.alwaysAsk": "Công cụ này luôn yêu cầu phê duyệt trước khi chạy",
+  "settings.mcp.tools.autoApprove.tooltip.alwaysAuto": "Công cụ tích hợp này luôn chạy mà không cần hỏi",
   "settings.mcp.tools.autoApprove.tooltip.disabled": "Công cụ sẽ cần phê duyệt thủ công trước khi chạy",
   "settings.mcp.tools.autoApprove.tooltip.enabled": "Công cụ sẽ chạy tự động mà không cần xác nhận",
   "settings.mcp.tools.autoApprove.tooltip.howToEnable": "Bật công cụ trước để sử dụng tự động phê duyệt",

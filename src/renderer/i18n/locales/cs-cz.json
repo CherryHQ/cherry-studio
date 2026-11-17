@@ -5101,6 +5101,8 @@
   "settings.mcp.timeoutTooltip": "Časový limit požadavků na tento server v sekundách, výchozí hodnota je 60 sekund",
   "settings.mcp.title": "Servery MCP",
   "settings.mcp.tools.autoApprove.label": "Automaticky schválit",
+  "settings.mcp.tools.autoApprove.tooltip.alwaysAsk": "Tento nástroj před spuštěním vždy žádá o schválení",
+  "settings.mcp.tools.autoApprove.tooltip.alwaysAuto": "Tento vestavěný nástroj se vždy spustí bez ptaní",
   "settings.mcp.tools.autoApprove.tooltip.disabled": "Před spuštěním nástroje bude potřeba ruční schválení",
   "settings.mcp.tools.autoApprove.tooltip.enabled": "Nástroj poběží automaticky bez potvrzení",
   "settings.mcp.tools.autoApprove.tooltip.howToEnable": "Chcete-li použít automatické schválení, nejprve nástroj povolte",

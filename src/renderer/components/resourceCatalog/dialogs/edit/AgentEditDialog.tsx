@@ -38,6 +38,7 @@ import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { useInstalledSkills, useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
+import { ipcApi } from '@renderer/ipc'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
@@ -70,6 +71,7 @@ import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import type { UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { BuiltinToolPolicyInfo } from '@shared/ipc/schemas/agent'
 import type { InstalledSkill } from '@shared/types/skill'
 
 import { AgentAvatarPicker } from '../components/AgentAvatarPicker'
@@ -1171,6 +1173,29 @@ function AgentToolsFields({
   const hasKnowledgeScope = knowledgeBaseIds.length > 0
   const legacyRestrictions = disabledTools.filter((name) => name.startsWith(LEGACY_DSH_TOOL_PREFIX))
   const disabledSet = useMemo(() => new Set(disabledTools), [disabledTools])
+
+  // Effective approval policy for Cherry-owned MCP tools. The main process pre-approves 'auto'
+  // tools and always prompts for 'required'/'delegation' tools regardless of the persisted
+  // allowedTools list, so the Auto Approve switch must display (and lock to) that truth instead
+  // of offering a preference that cannot take effect. Tools without a policy entry keep the
+  // editable, user-controlled switch.
+  const [toolPolicies, setToolPolicies] = useState<ReadonlyMap<string, BuiltinToolPolicyInfo['approval']>>(new Map())
+  useEffect(() => {
+    let cancelled = false
+    ipcApi
+      .request('agent.list_builtin_tool_policies')
+      .then((policies) => {
+        if (cancelled) return
+        setToolPolicies(new Map(policies.map((policy) => [policy.runtimeName, policy.approval])))
+      })
+      .catch(() => {
+        // Without the policy the switches fall back to the persisted preference, as before.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const builtinSections = useMemo(() => {
     const tools = caps
       .builtinTools(platform)
@@ -1180,14 +1205,24 @@ function AgentToolsFields({
       label: t(CATEGORY_LABEL_KEYS[category], CATEGORY_LABEL_FALLBACKS[category]),
       items: tools
         .filter((tool) => tool.category === category)
-        .map<CatalogItem>((tool) => ({
-          id: tool.id,
-          name: t(tool.labelKey, tool.labelFallback ?? tool.id),
-          description: t(tool.descriptionKey, tool.descriptionFallback ?? ''),
-          icon: <Wrench size={13} strokeWidth={1.5} className="text-muted-foreground" />
-        }))
+        .map<CatalogItem>((tool) => {
+          const approval = toolPolicies.get(tool.id)
+          return {
+            id: tool.id,
+            name: t(tool.labelKey, tool.labelFallback ?? tool.id),
+            description: t(tool.descriptionKey, tool.descriptionFallback ?? ''),
+            icon: <Wrench size={13} strokeWidth={1.5} className="text-muted-foreground" />,
+            autoApproveEffective: approval === undefined ? undefined : approval === 'auto',
+            autoApproveLockedReason:
+              approval === undefined
+                ? undefined
+                : approval === 'auto'
+                  ? t('settings.mcp.tools.autoApprove.tooltip.alwaysAuto')
+                  : t('settings.mcp.tools.autoApprove.tooltip.alwaysAsk')
+          }
+        })
     })).filter((section) => section.items.length > 0)
-  }, [caps, t, hasKnowledgeScope])
+  }, [caps, t, hasKnowledgeScope, toolPolicies])
   const enabledToolIds = useMemo<ReadonlySet<string>>(
     () => new Set(builtinSections.flatMap((s) => s.items.map((i) => i.id)).filter((id) => !disabledSet.has(id))),
     [builtinSections, disabledSet]

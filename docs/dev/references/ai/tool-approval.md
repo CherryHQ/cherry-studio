@@ -107,8 +107,10 @@ a permitted call can still finish with a genuine execution error.
 exposes an `autoApprove` action **only for MCP tools** — when an `mcpTool`
 descriptor is passed. It persists the opt-out by PATCHing the server's
 `disabledAutoApproveTools`, so the MCP settings page reflects it and
-subsequent calls of that tool skip the approval card. There is no generic
-per-tool default for non-MCP agent-runtime tools.
+subsequent calls of that tool skip the approval card. That chat approval
+action remains MCP-only, but Agent settings provide a separate persisted
+per-tool auto-approval policy for agent-runtime tools (see the SDK
+`allowedTools` list below).
 
 For what a single approval authorizes, see [External MCP per-call approval guarantees](#external-mcp-per-call-approval-guarantees).
 

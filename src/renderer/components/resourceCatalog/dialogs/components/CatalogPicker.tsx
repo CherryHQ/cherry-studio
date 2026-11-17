@@ -33,6 +33,14 @@ export interface CatalogItem {
   disableToggle?: boolean
   disabledReason?: ReactNode
   action?: ReactNode
+  /**
+   * When defined, the Auto Approve switch is locked to this value because the tool's effective
+   * approval policy (not the user's persisted preference) decides it: true = always auto-approved,
+   * false = always prompts.
+   */
+  autoApproveEffective?: boolean
+  /** Tooltip explaining a locked Auto Approve switch. */
+  autoApproveLockedReason?: string
 }
 
 function CatalogBadges({ item }: { item: CatalogItem }) {
@@ -189,18 +197,24 @@ export const CatalogToggleGrid: FC<{
                   <span className="text-[10px] text-muted-foreground">{t('settings.mcp.tools.autoApprove.label')}</span>
                   <Tooltip
                     content={
-                      toggleDisabled
-                        ? disabledReason
-                        : checked
-                          ? undefined
-                          : t('settings.mcp.tools.autoApprove.tooltip.howToEnable')
+                      item.autoApproveEffective !== undefined
+                        ? item.autoApproveLockedReason
+                        : toggleDisabled
+                          ? disabledReason
+                          : checked
+                            ? undefined
+                            : t('settings.mcp.tools.autoApprove.tooltip.howToEnable')
                     }
-                    isDisabled={!toggleDisabled && checked}
+                    isDisabled={
+                      item.autoApproveEffective !== undefined
+                        ? !item.autoApproveLockedReason
+                        : !toggleDisabled && checked
+                    }
                     portalContainer={portalContainer ?? undefined}>
                     <Switch
                       size="xs"
-                      checked={checked && (autoApproveIds?.has(item.id) ?? false)}
-                      disabled={toggleDisabled || !checked}
+                      checked={item.autoApproveEffective ?? (checked && (autoApproveIds?.has(item.id) ?? false))}
+                      disabled={item.autoApproveEffective !== undefined || toggleDisabled || !checked}
                       onCheckedChange={(nextChecked) => onAutoApproveToggle?.(item.id, nextChecked)}
                       aria-label={`${t('settings.mcp.tools.autoApprove.label')} ${item.name}`}
                     />

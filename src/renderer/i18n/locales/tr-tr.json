@@ -5101,6 +5101,8 @@
   "settings.mcp.timeoutTooltip": "Bu sunucuya yapılan istekler için saniye cinsinden zaman aşımı; varsayılan değer 60 saniyedir",
   "settings.mcp.title": "MCP Sunucuları",
   "settings.mcp.tools.autoApprove.label": "Otomatik Onayla",
+  "settings.mcp.tools.autoApprove.tooltip.alwaysAsk": "Bu araç çalışmadan önce her zaman onay ister",
+  "settings.mcp.tools.autoApprove.tooltip.alwaysAuto": "Bu yerleşik araç her zaman sormadan çalışır",
   "settings.mcp.tools.autoApprove.tooltip.disabled": "Araç çalıştırılmadan önce manuel onay gerektirecek",
   "settings.mcp.tools.autoApprove.tooltip.enabled": "Araç onay olmadan otomatik olarak çalışacak",
   "settings.mcp.tools.autoApprove.tooltip.howToEnable": "Otomatik onayı kullanmak için önce aracı etkinleştirin",

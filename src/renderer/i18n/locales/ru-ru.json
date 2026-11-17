@@ -5101,6 +5101,8 @@
   "settings.mcp.timeoutTooltip": "Тайм-аут в секундах для запросов к этому серверу, по умолчанию 60 секунд",
   "settings.mcp.title": "Серверы MCP",
   "settings.mcp.tools.autoApprove.label": "Автоматическое одобрение",
+  "settings.mcp.tools.autoApprove.tooltip.alwaysAsk": "Этот инструмент всегда запрашивает одобрение перед запуском",
+  "settings.mcp.tools.autoApprove.tooltip.alwaysAuto": "Этот встроенный инструмент всегда выполняется без запроса",
   "settings.mcp.tools.autoApprove.tooltip.disabled": "Инструмент будет требовать ручное одобрение перед выполнением",
   "settings.mcp.tools.autoApprove.tooltip.enabled": "Инструмент будет автоматически выполняться без подтверждения",
   "settings.mcp.tools.autoApprove.tooltip.howToEnable": "Включите инструмент, чтобы использовать автоматическое одобрение",

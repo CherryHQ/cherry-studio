@@ -684,6 +684,8 @@ beforeAll(() => {
 
 beforeEach(() => {
   promptProcessorMock.mockReset().mockImplementation(({ prompt }: { prompt: string }) => prompt)
+  // Agent tool-policy lookup: default to no policy entries (editable Auto Approve switches).
+  ipcRequestMock.mockReset().mockResolvedValue([])
   installedSkillsState.current = {
     skills: [
       {
@@ -2224,6 +2226,28 @@ describe('edit dialogs', () => {
       })
     )
     expect(screen.getByRole('switch', { name: 'Auto Approve Bash' })).toBeDisabled()
+  })
+
+  it('locks Auto Approve switches to the effective built-in tool policy', async () => {
+    ipcRequestMock.mockResolvedValue([
+      { runtimeName: 'mcp__cherry-tools__cron', approval: 'auto' },
+      { runtimeName: 'mcp__cherry-tools__generate_image', approval: 'required' }
+    ])
+    render(<AgentEditDialog open resource={{ ...AGENT, allowedTools: [] }} onOpenChange={vi.fn()} />)
+    selectTab('Built-in tools')
+
+    // Policy-controlled tools ignore the persisted preference: 'auto' is locked on,
+    // 'required' is locked off; SDK tools without a policy entry stay editable.
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('agent.list_builtin_tool_policies'))
+    const schedulerSwitch = await screen.findByRole('switch', { name: 'Auto Approve Scheduler' })
+    await waitFor(() => expect(schedulerSwitch).toBeDisabled())
+    expect(schedulerSwitch).toBeChecked()
+
+    const generateImageSwitch = screen.getByRole('switch', { name: 'Auto Approve Generate Image' })
+    expect(generateImageSwitch).toBeDisabled()
+    expect(generateImageSwitch).not.toBeChecked()
+
+    expect(screen.getByRole('switch', { name: 'Auto Approve Bash' })).toBeEnabled()
   })
 
   it('projects pi capabilities without exposing Claude-only fields', async () => {

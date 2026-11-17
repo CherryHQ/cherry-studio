@@ -444,6 +444,9 @@ async function deriveConnectionConfigFromSnapshot(
       .sort(([a], [b]) => a.localeCompare(b)),
     proxyEnvironment: proxyEnvironmentFingerprint,
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
+    // The SDK snapshots allowedTools into the connection settings at build time, so
+    // narrowing it (e.g. revoking a tool's auto-approval) must rebuild the connection.
+    allowedTools: [...(agent.allowedTools ?? [])].sort(),
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
     notificationContext

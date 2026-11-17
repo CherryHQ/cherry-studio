@@ -5165,6 +5165,8 @@
   "settings.mcp.timeoutTooltip": "Limit czasu w sekundach dla żądań do tego serwera, domyślnie 60 sekund",
   "settings.mcp.title": "Serwery MCP",
   "settings.mcp.tools.autoApprove.label": "Automatyczne zatwierdzanie",
+  "settings.mcp.tools.autoApprove.tooltip.alwaysAsk": "To narzędzie zawsze prosi o zatwierdzenie przed uruchomieniem",
+  "settings.mcp.tools.autoApprove.tooltip.alwaysAuto": "To wbudowane narzędzie zawsze działa bez pytania",
   "settings.mcp.tools.autoApprove.tooltip.disabled": "Narzędzie będzie wymagać ręcznego zatwierdzenia przed uruchomieniem",
   "settings.mcp.tools.autoApprove.tooltip.enabled": "Narzędzie uruchomi się automatycznie bez potwierdzenia",
   "settings.mcp.tools.autoApprove.tooltip.howToEnable": "Najpierw włącz narzędzie, aby korzystać z automatycznego zatwierdzania",

@@ -5101,6 +5101,8 @@
   "settings.mcp.timeoutTooltip": "หมดเวลาเป็นวินาทีสำหรับคำขอถึงเซิร์ฟเวอร์นี้ ค่าเริ่มต้นคือ 60 วินาที",
   "settings.mcp.title": "เซิร์ฟเวอร์ MCP",
   "settings.mcp.tools.autoApprove.label": "อนุมัติอัตโนมัติ",
+  "settings.mcp.tools.autoApprove.tooltip.alwaysAsk": "เครื่องมือนี้จะขออนุมัติก่อนทำงานเสมอ",
+  "settings.mcp.tools.autoApprove.tooltip.alwaysAuto": "เครื่องมือในตัวนี้ทำงานโดยไม่ต้องถามเสมอ",
   "settings.mcp.tools.autoApprove.tooltip.disabled": "เครื่องมือจะต้องได้รับการอนุมัติด้วยตนเองก่อนทำงาน",
   "settings.mcp.tools.autoApprove.tooltip.enabled": "เครื่องมือจะทำงานอัตโนมัติโดยไม่ต้องยืนยัน",
   "settings.mcp.tools.autoApprove.tooltip.howToEnable": "เปิดใช้เครื่องมือก่อนเพื่อใช้การอนุมัติอัตโนมัติ",

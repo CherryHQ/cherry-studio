@@ -429,6 +429,34 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
   })
 
+  it('rebuilds the warm connection when a persisted auto-approved tool is revoked', async () => {
+    // The SDK snapshots allowedTools at connection build time; removing Bash from the
+    // Agent's persisted auto-approvals must invalidate the connection or the old
+    // allowlist silently survives on subsequent turns.
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      allowedTools: ['Bash'],
+      disabledTools: [],
+      mcps: []
+    })
+    const withBash = await deriveConnectionConfig('session-1')
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      allowedTools: [],
+      disabledTools: [],
+      mcps: []
+    })
+    const withoutBash = await deriveConnectionConfig('session-1')
+
+    expect(withBash.ok).toBe(true)
+    expect(withoutBash.ok).toBe(true)
+    if (!withBash.ok || !withoutBash.ok) throw new Error('expected both configs')
+    expect(withoutBash.config.rebuildSignature).not.toBe(withBash.config.rebuildSignature)
+  })
+
   it('captures the channel binding that materializes the request and rebuilds after a later binding', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',

@@ -5101,6 +5101,8 @@
   "settings.mcp.timeoutTooltip": "Timeout in seconds for requests to this server, default is 60 seconds",
   "settings.mcp.title": "MCP Servers",
   "settings.mcp.tools.autoApprove.label": "Auto Approve",
+  "settings.mcp.tools.autoApprove.tooltip.alwaysAsk": "This tool always asks for approval before running",
+  "settings.mcp.tools.autoApprove.tooltip.alwaysAuto": "This built-in tool always runs without asking",
   "settings.mcp.tools.autoApprove.tooltip.disabled": "Tool will require manual approval before running",
   "settings.mcp.tools.autoApprove.tooltip.enabled": "Tool will run automatically without confirmation",
   "settings.mcp.tools.autoApprove.tooltip.howToEnable": "Enable the tool first to use auto-approve",
