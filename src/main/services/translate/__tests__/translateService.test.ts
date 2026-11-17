@@ -1,6 +1,7 @@
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { WindowType } from '@main/core/window/types'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 
@@ -199,11 +200,11 @@ describe('translateService.open', () => {
 
   it('reports each translation outcome without content, only while the window is listening', async () => {
     const sender = { id: 2, alive: true }
-    translateService.open(sender as unknown as Electron.WebContents, {
-      streamId: 'translate:outcome',
-      text: 'secret text',
-      targetLangCode: 'en-us'
-    })
+    translateService.open(
+      sender as unknown as Electron.WebContents,
+      { streamId: 'translate:outcome', text: 'secret text', targetLangCode: 'en-us' },
+      WindowType.Main
+    )
     const listeners = (streamPromptMock.mock.calls as unknown as Array<[{ listener: unknown }]>)[0][0]
       .listener as Array<{ id: string; onDone: () => void; onError: () => void; isAlive: () => boolean }>
     const analytics = listeners.find((listener) => listener.id.startsWith('analytics:'))!
@@ -211,7 +212,13 @@ describe('translateService.open', () => {
     analytics.onDone()
     analytics.onError()
 
-    const base = { event: 'feature_used', feature: 'translate', action: 'translated', modelSource: 'own_key' }
+    const base = {
+      event: 'feature_used',
+      feature: 'translate',
+      action: 'translated',
+      modelSource: 'own_key',
+      trigger: 'page'
+    }
     expect(trackProductEventMock.mock.calls.map(([event]) => event)).toEqual([
       { ...base, status: 'success', target: 'en-us' },
       { ...base, status: 'error', target: 'en-us' }
@@ -219,6 +226,28 @@ describe('translateService.open', () => {
     sender.alive = false
     expect(analytics.isAlive()).toBe(false)
   })
+
+  it.each([
+    [WindowType.SelectionAction, false, 'selection'],
+    [WindowType.QuickAssistant, false, 'quick_assistant'],
+    [WindowType.SubWindow, false, 'page'],
+    [WindowType.Main, true, 'other']
+  ] as const)(
+    'reports a translation from a %s window (chat message: %s) as opened from %s',
+    (type, fromMessage, trigger) => {
+      translateService.open(
+        fakeSender,
+        { streamId: 'translate:t', text: 'hi', targetLangCode: 'en-us', fromMessage },
+        type
+      )
+      const listeners = (streamPromptMock.mock.calls as unknown as Array<[{ listener: unknown }]>)[0][0]
+        .listener as Array<{ id: string; onDone: () => void }>
+
+      listeners.find((listener) => listener.id.startsWith('analytics:'))!.onDone()
+
+      expect(trackProductEventMock.mock.calls[0][0]).toMatchObject({ trigger })
+    }
+  )
 
   it('omits the target language when it is user-created', async () => {
     getByLangCodeMock.mockReturnValue({ ...TARGET, langCode: 'xx-my', value: 'My dialect' })

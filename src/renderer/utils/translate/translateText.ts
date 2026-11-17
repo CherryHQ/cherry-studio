@@ -17,7 +17,8 @@ export const translateText = async (
   text: string,
   targetLanguage: TranslateLangCode | TranslateLanguage,
   onResponse?: (text: string, isComplete: boolean) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  options?: { fromMessage?: boolean }
 ): Promise<string> => {
   if (signal?.aborted) {
     throw new DOMException('Translation aborted before start', 'AbortError')
@@ -101,7 +102,7 @@ export const translateText = async (
       })
     )
 
-    ipcApi.request('translate.open', { streamId, text, targetLangCode }).catch((openError: unknown) => {
+    ipcApi.request('translate.open', { streamId, text, targetLangCode, ...options }).catch((openError: unknown) => {
       cleanup()
       reject(openError instanceof Error ? openError : new Error(String(openError)))
     })

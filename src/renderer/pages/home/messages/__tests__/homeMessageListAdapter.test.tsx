@@ -662,6 +662,8 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     })
 
     await waitFor(() => expect(value?.state.isMessageTranslating?.('message-1')).toBe(true))
+    // Main attributes this to the chat message, not the translate page sharing its window.
+    expect(vi.mocked(translateText).mock.calls[0][4]).toEqual({ fromMessage: true })
     await waitFor(() => expect(chatWriteMock.editMessage).toHaveBeenCalledTimes(2))
     expect(value?.state.isMessageTranslating?.('message-1')).toBe(true)
 

@@ -600,7 +600,9 @@ export function useHomeMessageListProviderValue({
           return
         }
 
-        await translateText(sourceText, language, translationUpdater.onResponse, controller.signal)
+        await translateText(sourceText, language, translationUpdater.onResponse, controller.signal, {
+          fromMessage: true
+        })
         await translationUpdater.waitForPendingUpdates()
       } catch (error) {
         await translationUpdater?.waitForPendingUpdates()

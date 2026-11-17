@@ -1301,7 +1301,7 @@ describe('ScreenshotOverlayService', () => {
     })
 
     it('reports a capture once per committed or saved result, and none for a cancelled save', async () => {
-      const captured = { event: 'feature_used', feature: 'screenshot', action: 'captured' }
+      const captured = { event: 'feature_used', feature: 'screenshot', action: 'captured', trigger: 'shortcut' }
       singleDisplaySetup()
       await service.startCapture()
       await service.commit({ pngBytes: PNG_BYTES })
@@ -1316,6 +1316,15 @@ describe('ScreenshotOverlayService', () => {
       electron.dialog.showSaveDialog.mockResolvedValueOnce({ canceled: false, filePath: '/tmp/shot.png' })
       await service.save({ pngBytes: PNG_BYTES })
       expect(container.analyticsService.trackProductEvent.mock.calls).toEqual([[captured]])
+    })
+
+    it('reports a capture started from an in-app control as opened from the page', async () => {
+      singleDisplaySetup()
+      container.windows.set('chat', createFakeWindow())
+      await service.startCapture('chat')
+      await service.commit({ pngBytes: PNG_BYTES })
+
+      expect(container.analyticsService.trackProductEvent.mock.calls[0][0]).toMatchObject({ trigger: 'page' })
     })
 
     it('still dismisses the overlays when the clipboard write throws', async () => {
