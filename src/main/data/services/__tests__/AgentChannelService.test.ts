@@ -303,6 +303,67 @@ describe('AgentChannelService', () => {
   })
 
   describe('normalizeChannelConfig (via createChannel)', () => {
+    it('persists an explicit Feishu mention_only=false', () => {
+      const channel = agentChannelService.createChannel({
+        type: 'feishu',
+        name: 'Feishu',
+        workspace: SYSTEM_WORKSPACE,
+        config: {
+          app_id: 'app-id',
+          app_secret: 'app-secret',
+          encrypt_key: 'encrypt-key',
+          verification_token: 'verification-token',
+          domain: 'lark',
+          allowed_chat_ids: ['chat-1'],
+          mention_only: false
+        }
+      })
+
+      expect(agentChannelService.getChannel(channel.id)?.config).toEqual({
+        app_id: 'app-id',
+        app_secret: 'app-secret',
+        encrypt_key: 'encrypt-key',
+        verification_token: 'verification-token',
+        domain: 'lark',
+        allowed_chat_ids: ['chat-1'],
+        mention_only: false
+      })
+    })
+
+    it('updates a legacy Feishu channel from mention-only to all-user messages and back', () => {
+      const config = {
+        app_id: 'app-id',
+        app_secret: 'app-secret',
+        encrypt_key: 'encrypt-key',
+        verification_token: 'verification-token',
+        domain: 'lark' as const,
+        allowed_chat_ids: ['chat-1']
+      }
+      const channel = agentChannelService.createChannel({
+        type: 'feishu',
+        name: 'Legacy Feishu',
+        workspace: SYSTEM_WORKSPACE,
+        config
+      })
+
+      for (const mentionOnly of [false, true]) {
+        const existing = agentChannelService.getChannel(channel.id)!
+        agentChannelService.updateChannel(
+          channel.id,
+          UpdateAgentChannelSchema.parse({ config: { ...existing.config, mention_only: mentionOnly } })
+        )
+        expect(agentChannelService.getChannel(channel.id)?.config).toEqual({
+          app_id: 'app-id',
+          app_secret: 'app-secret',
+          encrypt_key: 'encrypt-key',
+          verification_token: 'verification-token',
+          domain: 'lark',
+          allowed_chat_ids: ['chat-1'],
+          mention_only: mentionOnly
+        })
+      }
+    })
+
     it('strips the type key from the stored config', async () => {
       const channel = agentChannelService.createChannel({
         type: 'telegram',

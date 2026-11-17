@@ -9,7 +9,7 @@ const Dmxapi = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const DmxapiIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Dmxapi, {
   Avatar: DmxapiAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#17A2B8'
 })
 
 export default DmxapiIcon

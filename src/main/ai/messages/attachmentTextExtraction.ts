@@ -14,13 +14,13 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { decodeTextBufferIfText } from '@main/utils/file'
 import { extractLegacyDocText } from '@main/utils/legacyDoc'
-import { decodeTextWithAutoEncoding } from '@main/utils/legacyFile'
 import { extractPdfText } from '@main/utils/pdf'
 import type { FileEntryId } from '@shared/data/types/file'
 import { FILE_TYPE } from '@shared/types/file'
 import { documentExts, getFileTypeByExt } from '@shared/utils/file'
+
+import { runAttachmentWorker } from './attachmentWorkerClient'
 
 const logger = loggerService.withContext('ai:documentExtraction')
 
@@ -36,23 +36,21 @@ export function noExtractableTextNote(filename: string): string {
   return `No extractable text found in "${filename}" — it may be a scanned or image-only document.`
 }
 
-async function extract(entryId: FileEntryId, ext: string): Promise<string | null> {
+async function extract(entryId: FileEntryId, ext: string, signal?: AbortSignal): Promise<string | null> {
   const { content } = await application.get('FileManager').read(entryId, { encoding: 'binary' })
 
   if (ext === 'pdf') return (await extractPdfText(content)).trim()
 
-  const buffer = Buffer.from(content)
-  if (ext === 'doc') return extractLegacyDocText(buffer)
+  if (ext === 'doc') return extractLegacyDocText(Buffer.from(content))
   if (OFFICE_PARSER_EXTS.has(ext)) {
     // Delayed loading: officeparser (and the pdf stack it drags in) stays out of the boot path.
     const { default: officeParser } = await import('officeparser')
-    const text = await officeParser.parseOfficeAsync(buffer, { tempFilesLocation: application.getPath('app.temp') })
+    const text = await officeParser.parseOfficeAsync(Buffer.from(content), {
+      tempFilesLocation: application.getPath('app.temp')
+    })
     return text.trim()
   }
-  if (getFileTypeByExt(ext) === FILE_TYPE.OTHER) {
-    return decodeTextBufferIfText(buffer)?.trim() ?? null
-  }
-  return decodeTextWithAutoEncoding(buffer).trim()
+  return runAttachmentWorker('decode', { content, conservative: getFileTypeByExt(ext) === FILE_TYPE.OTHER }, signal)
 }
 
 /**
@@ -70,6 +68,7 @@ export async function extractDocumentText(
   const fileManager = application.get('FileManager')
   const cache = application.get('CacheService')
 
+  opts.signal?.throwIfAborted()
   const version = await fileManager.getVersion(entryId)
   const cacheKey = `doc-extraction:${entryId}:${version.mtime}:${version.size}`
   const cached = cache.get<string | null>(cacheKey)
@@ -78,7 +77,7 @@ export async function extractDocumentText(
   if (opts.signal?.aborted) throw opts.signal.reason ?? new Error('Aborted')
   const entry = await fileManager.getById(entryId)
   const ext = entry.ext?.toLowerCase() ?? ''
-  const text = await extract(entryId, ext)
+  const text = await extract(entryId, ext, opts.signal)
 
   logger.debug('Processed document text', { entryId, ext, chars: text?.length ?? 0, binary: text === null })
   cache.set(cacheKey, text, CACHE_TTL_MS)

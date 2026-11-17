@@ -4,7 +4,7 @@ import type { CompileContext, Extension as FromMarkdownExtension } from 'mdast-u
 import type { Construct, Extension as MicromarkExtension, State, Token, Tokenizer } from 'micromark-util-types'
 import type { Plugin } from 'unified'
 import type { Parent, Position } from 'unist'
-import { visit } from 'unist-util-visit'
+import { SKIP, visit } from 'unist-util-visit'
 
 declare module 'micromark-util-types' {
   interface TokenTypeMap {
@@ -876,6 +876,177 @@ function promoteDisplayMath(tree: Root, source: string): void {
   })
 }
 
+// A lone `=`/`-` line inside an environment makes CommonMark read the preceding lines as a setext heading.
+function repairSetextEnvironments(tree: Root, source: string): void {
+  // Compute same-name balanced pairs once. Re-scanning the remaining source
+  // for every unclosed heading would make malformed input quadratic.
+  // Literal code, definitions, HTML, tables and quotes cannot close an outer
+  // environment. Preorder ranges are ordered; SKIP keeps them disjoint.
+  // Precompute line-prefix eligibility once, rather than scanning a long
+  // line backwards again for each unmatched opener sharing a closer.
+  const linePrefixIsWhitespace = new Uint8Array(source.length)
+  let whitespaceOnly = true
+  for (let offset = 0; offset < source.length; offset++) {
+    linePrefixIsWhitespace[offset] = whitespaceOnly ? 1 : 0
+    const char = source[offset]
+    if (char === '\n' || char === '\r') whitespaceOnly = true
+    else if (char !== ' ' && char !== '\t') whitespaceOnly = false
+  }
+  const excludedRanges: Array<{ start: number; end: number }> = []
+  const containerRanges: Array<{ start: number; end: number }> = []
+  visit(tree, (node) => {
+    const start = node.position?.start.offset
+    const end = node.position?.end.offset
+    const nodeType: string = node.type
+    if (
+      (nodeType === 'listItem' || nodeType === 'footnoteDefinition' || nodeType === 'defListDescription') &&
+      start !== undefined &&
+      end !== undefined
+    )
+      containerRanges.push({ start, end })
+    if (
+      node.type !== 'code' &&
+      node.type !== 'inlineCode' &&
+      node.type !== 'blockquote' &&
+      node.type !== 'definition' &&
+      node.type !== 'html' &&
+      node.type !== 'table' &&
+      nodeType !== 'defListTerm'
+    )
+      return undefined
+    if (start !== undefined && end !== undefined) excludedRanges.push({ start, end })
+    return SKIP
+  })
+  let excludedIndex = 0
+  let containerIndex = 0
+  const activeContainers: number[] = []
+  const matchingEnds = new Map<number, number>()
+  const openings = new Map<number, Map<string, number[]>>()
+  const marker = /\\(begin|end)\{(equation\*?|align\*?|aligned|gather\*?|gathered|multline\*?)\}/y
+  for (let cursor = 0; cursor < source.length; cursor++) {
+    while (excludedIndex < excludedRanges.length && excludedRanges[excludedIndex].end <= cursor) excludedIndex++
+    const excludedRange = excludedRanges[excludedIndex]
+    if (excludedRange && cursor >= excludedRange.start) {
+      cursor = excludedRange.end - 1
+      continue
+    }
+
+    // TeX comments run through the physical line ending. Their marker text
+    // must not close a real environment. Escaped percent signs are data.
+    if (source[cursor] === '%') {
+      while (cursor < source.length && source[cursor] !== '\n' && source[cursor] !== '\r') cursor++
+      continue
+    }
+    if (source.charCodeAt(cursor) !== BACKSLASH) continue
+    if (source[cursor + 1] === '%') {
+      cursor++
+      continue
+    }
+    if (source.charCodeAt(cursor + 1) === BACKSLASH) {
+      cursor++
+      continue
+    }
+    marker.lastIndex = cursor
+    const match = marker.exec(source)
+    if (!match || !ENVIRONMENT_NAMES.has(match[2])) continue
+    // Consume each flow-container boundary once. Sibling and nested owners have
+    // separate marker stacks, so a closer cannot escape its container.
+    while (activeContainers.length && containerRanges[activeContainers[activeContainers.length - 1]].end <= cursor)
+      activeContainers.pop()
+    while (containerIndex < containerRanges.length && containerRanges[containerIndex].start <= cursor) {
+      while (
+        activeContainers.length &&
+        containerRanges[activeContainers[activeContainers.length - 1]].end <= containerRanges[containerIndex].start
+      )
+        activeContainers.pop()
+      if (containerRanges[containerIndex].end > cursor) activeContainers.push(containerIndex)
+      containerIndex++
+    }
+    const owner = activeContainers.at(-1) ?? -1
+    const ownerOpenings = openings.get(owner) ?? new Map<string, number[]>()
+    openings.set(owner, ownerOpenings)
+    const name = match[2]
+    if (match[1] === 'begin') {
+      const stack = ownerOpenings.get(name) ?? []
+      stack.push(cursor)
+      ownerOpenings.set(name, stack)
+    } else {
+      const start = ownerOpenings.get(name)?.pop()
+      if (start !== undefined) matchingEnds.set(start, marker.lastIndex)
+    }
+    cursor = marker.lastIndex - 1
+  }
+
+  visit(tree, (parent) => {
+    // A raw source slice still contains continuation-line container syntax
+    // such as blockquote `>` prefixes. Skip that entire subtree rather
+    // than passing those prefixes to KaTeX as mathematical operators.
+    if (parent.type === 'blockquote') return SKIP
+    if (!('children' in parent)) return undefined
+    const children = parent.children as RootContent[]
+    // A standalone closer still supports Markdown-looking formula bodies.
+    // For an inline closer, unrelated structural siblings are stronger
+    // evidence of prose than blank paragraph breaks alone.
+    const structureCounts = [0]
+    for (const child of children) {
+      let structured = child.type !== 'paragraph'
+      if (!structured) {
+        visit(child, (descendant) => {
+          if (descendant.type === 'link' || descendant.type === 'image') structured = true
+        })
+      }
+      structureCounts.push(structureCounts[structureCounts.length - 1] + (structured ? 1 : 0))
+    }
+    const repaired: RootContent[] = []
+    for (let i = 0; i < children.length; i++) {
+      const node = children[i]
+      const start = node.position?.start.offset
+      const name =
+        node.type === 'heading' && start !== undefined
+          ? /^ {0,3}\\begin\{([^}\r\n]+)\}/.exec(source.slice(start, node.position?.end.offset))?.[1]
+          : undefined
+      const markerStart =
+        start === undefined ? undefined : start + (source.slice(start, start + 3).match(/^ */)?.[0].length ?? 0)
+      const closeEnd = markerStart === undefined ? undefined : matchingEnds.get(markerStart)
+      if (!name || !ENVIRONMENT_NAMES.has(name) || closeEnd === undefined || start === undefined) {
+        repaired.push(node)
+        continue
+      }
+      // Child positions are ordered. Locate the first balanced closer's sibling
+      // without scanning all later siblings again for nested heading candidates.
+      let lo = i
+      let hi = children.length
+      while (lo < hi) {
+        const mid = lo + Math.floor((hi - lo) / 2)
+        const end = children[mid].position?.end.offset
+        if (end !== undefined && end < closeEnd) lo = mid + 1
+        else hi = mid
+      }
+      const endNode = children[lo]
+      const end = endNode?.position?.end.offset
+      if (end === undefined || end < closeEnd || source.slice(closeEnd, end).trim()) {
+        // The first balanced closer has trailing prose: preserve the original
+        // unsupported path instead of consuming unrelated Markdown later on.
+        repaired.push(node)
+        continue
+      }
+      // In or after unrelated structured siblings, an inline closing command may
+      // be a prose mention. Preserve those siblings instead of swallowing them.
+      const closerStart = closeEnd - `\\end{${name}}`.length
+      if (structureCounts[lo + 1] > structureCounts[i + 1] && !linePrefixIsWhitespace[closerStart]) {
+        repaired.push(node)
+        continue
+      }
+      const raw = source.slice(start, closeEnd).trim()
+      const position = { start: node.position!.start, end: endNode.position!.end }
+      repaired.push(createDisplayMath({ type: 'inlineMath', value: raw, position }))
+      i = lo
+    }
+    parent.children = repaired
+    return undefined
+  })
+}
+
 function repairMathMeta(tree: Root, source: string): void {
   visit(tree, 'math', (node) => {
     if (!/^\\(?:begin|tag)\b/.test(node.meta ?? '')) return
@@ -913,6 +1084,7 @@ export const remarkLatexMath: Plugin<[], Root> = function remarkLatexMath() {
   return (tree, file) => {
     const source = String(file)
     visit(tree, 'link', demoteLinkMath)
+    repairSetextEnvironments(tree, source)
     demoteEmbeddedEnvironments(tree, source)
     promoteDisplayMath(tree, source)
     repairMathMeta(tree, source)

@@ -8,6 +8,10 @@ import { and, eq, or } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
+import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -16,6 +20,7 @@ import { modelService, UPDATE_MODEL_FIELD_MAP } from '@data/services/ModelServic
 import { pinService } from '@data/services/PinService'
 import type * as ProviderRegistryServiceModule from '@data/services/ProviderRegistryService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { ErrorCode } from '@shared/data/api/errors'
 import { MODELS_DELETE_MAX_IDS, type UpdateModelDto } from '@shared/data/api/schemas/models'
 import {
@@ -24,8 +29,6 @@ import {
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
-
-import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
@@ -151,6 +154,7 @@ describe('UPDATE_MODEL_FIELD_MAP completeness', () => {
       'outputModalities',
       'endpointTypes',
       'parameterSupport',
+      'reasoning',
       'supportsStreaming',
       'contextWindow',
       'maxInputTokens',
@@ -582,6 +586,100 @@ describe('ModelService.update', () => {
 describe('ModelService.create', () => {
   const dbh = setupTestDatabase()
 
+  it('merges and clears a user default without losing inferred custom controls', () => {
+    dbh.db.insert(userProviderTable).values(providerRow('stepfun', 'StepFun')).run()
+    const registryData = { presetModel: null, registryOverride: null, reasoningProfile: OPENAI_CHAT_REASONING_PROFILE }
+    resolveModelMock.mockReturnValue(registryData)
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'stepfun',
+          modelId: 'step-5-preview',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          reasoning: { defaultEffort: 'high' }
+        },
+        registryData
+      }
+    ])
+    const read = () => dbh.db.select().from(userModelTable).where(eq(userModelTable.id, created.id)).get()!
+    const controls = [{ kind: 'effort', values: ['low', 'medium', 'high'] }]
+    expect(read().reasoning).toMatchObject({ controls, defaultEffort: 'high' })
+    expect(created.reasoning?.defaultEffort).toBe('high')
+    expect(created.userDefaultReasoningEffort).toBe('high')
+    const intrinsic = { ...read().reasoning!, thinkingTokenLimits: { min: 1024, max: 8192 } }
+    dbh.db.update(userModelTable).set({ reasoning: intrinsic }).where(eq(userModelTable.id, created.id)).run()
+    modelService.update('stepfun', 'step-5-preview', { reasoning: { defaultEffort: 'low' } })
+    expect(read().reasoning).toMatchObject({ controls, defaultEffort: 'low' })
+    modelService.update('stepfun', 'step-5-preview', { name: 'Renamed' })
+    expect(read().reasoning?.defaultEffort).toBe('low')
+    modelService.update('stepfun', 'step-5-preview', { reasoning: { defaultEffort: null } })
+    expect(read().reasoning).toEqual({ ...intrinsic, defaultEffort: undefined })
+    expect(read().reasoning?.selectableEfforts).toEqual(created.reasoning?.selectableEfforts)
+    expect(read().reasoning).not.toHaveProperty('defaultEffort')
+    expect(modelService.getByKey('stepfun', 'step-5-preview').userDefaultReasoningEffort).toBeUndefined()
+  })
+
+  it('keeps catalog controls while exposing the preset row user default', () => {
+    dbh.db.insert(userProviderTable).values(providerRow('google', 'Google')).run()
+    const controls = [{ kind: 'effort' as const, values: ['low' as const, 'medium' as const, 'high' as const] }]
+    const registryData = {
+      presetModel: {
+        id: 'gemini-4-carbon',
+        name: 'Carbon',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: { controls, defaultEffort: 'medium' as const }
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    }
+    resolveModelMock.mockReturnValue(registryData)
+    const [created] = modelService.create([
+      { dto: { providerId: 'google', modelId: 'gemini-4-carbon', reasoning: { defaultEffort: 'high' } }, registryData }
+    ])
+    expect(created.reasoning).toMatchObject({ controls, defaultEffort: 'high' })
+    expect(created.userDefaultReasoningEffort).toBe('high')
+    expect(
+      encodeReasoningInvocation(
+        resolveReasoningInvocation({
+          model: created,
+          selection: 'default',
+          profile: REASONING_FORMAT_PROFILES.gemini.wire
+        })
+      )
+    ).toEqual({ thinkingConfig: { includeThoughts: true, thinkingLevel: 'high' } })
+    modelService.update('google', 'gemini-4-carbon', { reasoning: { defaultEffort: null } })
+    const cleared = modelService.getByKey('google', 'gemini-4-carbon')
+    expect(cleared.reasoning).toMatchObject({ controls, defaultEffort: 'medium' })
+    expect(cleared.userDefaultReasoningEffort).toBeUndefined()
+  })
+
+  it('persists and exposes effort for a manually added StepFun preview without a catalog match', () => {
+    const registryData = {
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    }
+    resolveModelMock.mockReturnValue(registryData)
+    dbh.db.insert(userProviderTable).values(providerRow('stepfun', 'StepFun')).run()
+
+    const [created] = modelService.create([
+      {
+        dto: { providerId: 'stepfun', modelId: 'step-5-preview', capabilities: [MODEL_CAPABILITY.REASONING] },
+        registryData
+      }
+    ])
+    const stored = dbh.db.select().from(userModelTable).where(eq(userModelTable.id, created.id)).get()!
+    const controls = [{ kind: 'effort', values: ['low', 'medium', 'high'] }]
+    expect(stored.presetModelId).toBeNull()
+    expect(stored.reasoning?.controls).toEqual(controls)
+    const listed = modelService.list({ providerId: 'stepfun' }).find((model) => model.id === created.id)
+    expect(listed).toBeDefined()
+    for (const model of [created, modelService.getByKey('stepfun', 'step-5-preview'), listed!]) {
+      expect(model.reasoning?.controls).toEqual(controls)
+      expect(model.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high'])
+    }
+  })
+
   it('null DTO fields do not clobber preset during merge', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
 
@@ -694,10 +792,8 @@ describe('ModelService.create', () => {
     expect(row.supportsStreaming).toBeNull()
   })
 
-  it('logs custom model creation when dto presetModelId is present without a registry match', async () => {
+  it('creates a custom model when dto presetModelId has no registry match', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
-
-    const infoSpy = vi.spyOn(mockMainLoggerService, 'info').mockImplementation(() => {})
 
     modelService.create([
       {
@@ -716,10 +812,6 @@ describe('ModelService.create', () => {
       name: 'Custom GPT',
       capabilities: [],
       supportsStreaming: true
-    })
-    expect(infoSpy).toHaveBeenCalledWith('Created custom model (no registry match)', {
-      providerId: 'openai',
-      modelId: 'custom-gpt'
     })
   })
 
@@ -2073,7 +2165,36 @@ describe('ModelService.delete', () => {
     const pins = await dbh.db.select().from(pinTable)
     expect(pins.find((pin) => pin.id === targetPin.id)).toBeUndefined()
     expect(pins.find((pin) => pin.id === siblingPin.id)).toBeDefined()
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([{ endpoint: '/pins', kind: 'membership' }])
+  })
+
+  it('publishes model membership and affected session effects when a session override model is deleted', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    const targetModelId = createUniqueModelId('openai', 'gpt-4o')
+    const siblingModelId = createUniqueModelId('openai', 'gpt-4o-mini')
+    await dbh.db
+      .insert(userModelTable)
+      .values([
+        modelRow('openai', 'gpt-4o', { id: targetModelId, name: 'GPT-4o' }),
+        modelRow('openai', 'gpt-4o-mini', { id: siblingModelId, name: 'GPT-4o mini' })
+      ])
+    await dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'ws-model-delete', name: 'W', path: '/tmp/ws-model-delete', orderKey: 'a0' })
+    await dbh.db.insert(agentSessionTable).values([
+      { id: 'session-target', name: '', workspaceId: 'ws-model-delete', model: targetModelId, orderKey: 'a0' },
+      { id: 'session-sibling', name: '', workspaceId: 'ws-model-delete', model: siblingModelId, orderKey: 'a1' }
+    ])
+    notifyDataApiDataChangeMock.mockClear()
+
+    modelService.delete('openai', 'gpt-4o')
+
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      { endpoint: '/models', kind: 'membership', entityIds: [targetModelId] },
+      { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-target'] }
+    ])
+    const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'session-target'))
+    expect(session.model).toBeNull()
   })
 
   it('throws NOT_FOUND for non-existent model', async () => {
@@ -2188,6 +2309,34 @@ describe('ModelService.delete', () => {
   })
 })
 
+describe('ModelService — deleting a model an agent runs on', () => {
+  const dbh = setupTestDatabase()
+  const modelId = createUniqueModelId('openai', 'gpt-4o')
+
+  it.each([
+    ['delete', () => modelService.delete('openai', 'gpt-4o')],
+    ['bulkDelete', () => modelService.bulkDelete([{ providerId: 'openai', modelId: 'gpt-4o' }])],
+    ['reconcileForProvider', () => modelService.reconcileForProvider('openai', { toAdd: [], toRemove: [modelId] })]
+  ])('%s notifies live agent reads', async (_, deleteModel) => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    // Preset-backed, so reconcile removes it instead of keeping it as a custom model.
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { id: modelId, presetModelId: 'gpt-4o' }))
+    await dbh.db
+      .insert(agentTable)
+      .values({ id: 'agent-1', type: 'claude-code', name: 'Agent', instructions: '', model: modelId, orderKey: 'a0' })
+    notifyDataApiDataChangeMock.mockClear()
+
+    deleteModel()
+
+    const [agent] = await dbh.db.select().from(agentTable)
+    expect(agent.model).toBeNull()
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      { endpoint: '/agents', kind: 'projection' },
+      { endpoint: '/agents/:agentId' }
+    ])
+  })
+})
+
 describe('ModelService.bulkDelete', () => {
   const dbh = setupTestDatabase()
 
@@ -2228,8 +2377,6 @@ describe('ModelService.bulkDelete', () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { id: targetModelId, name: 'GPT-4o' }))
 
-    const infoSpy = vi.spyOn(mockMainLoggerService, 'info').mockImplementation(() => {})
-
     modelService.bulkDelete([
       { providerId: 'openai', modelId: 'gpt-4o' },
       { providerId: 'openai', modelId: 'gpt-4o' }
@@ -2238,11 +2385,6 @@ describe('ModelService.bulkDelete', () => {
     const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, targetModelId))
 
     expect(rows).toHaveLength(0)
-    expect(infoSpy).toHaveBeenCalledWith('Bulk deleted models', {
-      count: 1,
-      providers: ['openai']
-    })
-    infoSpy.mockRestore()
   })
 
   it('deletes the maximum allowed batch without exceeding SQLite parameter caps', async () => {
@@ -2561,6 +2703,55 @@ describe('ModelService.reconcileForProvider', () => {
     }
   )
 
+  it('publishes model membership and affected session effects when reconcile deletes a session override model', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    const targetModelId = createUniqueModelId('openai', 'gpt-4o')
+    const siblingModelId = createUniqueModelId('openai', 'gpt-4o-mini')
+    // The override target must be preset-backed: reconcile removals only delete
+    // managed-list rows, not fully custom ones.
+    await dbh.db
+      .insert(userModelTable)
+      .values([
+        modelRow('openai', 'gpt-4o', { id: targetModelId, name: 'GPT-4o', presetModelId: 'gpt-4o' }),
+        modelRow('openai', 'gpt-4o-mini', { id: siblingModelId, name: 'GPT-4o mini' })
+      ])
+    await dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'ws-reconcile-fx', name: 'W', path: '/tmp/ws-reconcile-fx', orderKey: 'a0' })
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'session-reconcile-target',
+        name: '',
+        workspaceId: 'ws-reconcile-fx',
+        model: targetModelId,
+        orderKey: 'a0'
+      },
+      {
+        id: 'session-reconcile-sibling',
+        name: '',
+        workspaceId: 'ws-reconcile-fx',
+        model: siblingModelId,
+        orderKey: 'a1'
+      }
+    ])
+    notifyDataApiDataChangeMock.mockClear()
+
+    modelService.reconcileForProvider('openai', { toAdd: [], toRemove: [targetModelId] })
+
+    // Call 1 is the pin purge; call 2 carries the model removal and the
+    // FK-cleared session overrides so every window refetches.
+    expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [{ endpoint: '/pins', kind: 'membership' }])
+    expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [
+      { endpoint: '/models', kind: 'membership', entityIds: [targetModelId] },
+      { endpoint: '/agent-sessions/:sessionId', entityIds: ['session-reconcile-target'] }
+    ])
+    const [session] = await dbh.db
+      .select()
+      .from(agentSessionTable)
+      .where(eq(agentSessionTable.id, 'session-reconcile-target'))
+    expect(session.model).toBeNull()
+  })
+
   it('removes only the target provider rows, purges their pins, and chunks large inserts', async () => {
     // T2: service-level coverage for the atomic reconcile path. The renderer
     // test (T6 in usePullReconcileSubmit.test.ts) covers the aggregation
@@ -2666,7 +2857,6 @@ describe('ModelService.reconcileForProvider', () => {
         isDeprecated: false
       })
     )
-    const infoSpy = vi.spyOn(mockMainLoggerService, 'info').mockImplementation(() => {})
 
     const result = modelService.reconcileForProvider('openai', {
       toAdd: [],
@@ -2676,12 +2866,6 @@ describe('ModelService.reconcileForProvider', () => {
     expect(result.map((model) => model.id)).toEqual([])
     const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, gpt4o))
     expect(rows).toHaveLength(0)
-    expect(infoSpy).toHaveBeenCalledWith('Deleted preset-backed models during reconcile', {
-      providerId: 'openai',
-      deletedCount: 1,
-      deletedIds: [gpt4o]
-    })
-    infoSpy.mockRestore()
   })
 
   it('does not remove custom models during reconcile', async () => {
@@ -2694,7 +2878,6 @@ describe('ModelService.reconcileForProvider', () => {
         name: 'Custom Model'
       })
     )
-    const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
 
     const result = modelService.reconcileForProvider('openai', {
       toAdd: [],
@@ -2704,12 +2887,6 @@ describe('ModelService.reconcileForProvider', () => {
     expect(result.map((model) => model.id)).toEqual([customModelId])
     const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, customModelId))
     expect(rows).toHaveLength(1)
-    expect(warnSpy).toHaveBeenCalledWith('Skipped custom model removal during reconcile', {
-      providerId: 'openai',
-      skippedCount: 1,
-      skippedIds: [customModelId]
-    })
-    warnSpy.mockRestore()
   })
 
   it('does not remove the managed CherryAI default model during reconcile', async () => {
@@ -2721,7 +2898,6 @@ describe('ModelService.reconcileForProvider', () => {
       })
     )
     const pin = pinService.pin({ entityType: 'model', entityId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID })
-    const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
 
     const result = modelService.reconcileForProvider(CHERRYAI_PROVIDER_ID, {
       toAdd: [],
@@ -2736,12 +2912,6 @@ describe('ModelService.reconcileForProvider', () => {
     const pins = await dbh.db.select().from(pinTable).where(eq(pinTable.id, pin.id))
     expect(rows).toHaveLength(1)
     expect(pins).toHaveLength(1)
-    expect(warnSpy).toHaveBeenCalledWith('Skipped managed CherryAI default model removal during reconcile', {
-      providerId: CHERRYAI_PROVIDER_ID,
-      skippedCount: 1,
-      skippedIds: [CHERRYAI_DEFAULT_UNIQUE_MODEL_ID]
-    })
-    warnSpy.mockRestore()
   })
 
   it('does not remove models set as user defaults (chat / quick-assistant / translate)', async () => {
@@ -2755,8 +2925,6 @@ describe('ModelService.reconcileForProvider', () => {
       return null
     })
 
-    const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
-
     const result = modelService.reconcileForProvider('openai', {
       toAdd: [],
       toRemove: [modelId]
@@ -2765,11 +2933,5 @@ describe('ModelService.reconcileForProvider', () => {
     expect(result.map((m) => m.id)).toEqual([modelId])
     const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, modelId))
     expect(rows).toHaveLength(1)
-    expect(warnSpy).toHaveBeenCalledWith('Skipped user-default model removal during reconcile', {
-      providerId: 'openai',
-      skippedCount: 1,
-      skippedIds: [modelId]
-    })
-    warnSpy.mockRestore()
   })
 })

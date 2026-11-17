@@ -36,6 +36,10 @@ const RULES: Array<{ test: (stage: Stage) => boolean; reason: string }> = [
     reason: 'file deletion (rm)'
   },
   {
+    test: (s) => ['remove-item', 'clear-content', 'del', 'erase', 'rd'].includes(s.command),
+    reason: 'Windows file deletion or truncation'
+  },
+  {
     test: (s) => s.command === 'rmdir' || s.command === 'shred' || s.command === 'srm',
     reason: 'directory or secure deletion'
   },

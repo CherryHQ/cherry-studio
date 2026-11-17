@@ -107,7 +107,7 @@ function FilePreviewLoading() {
   return (
     <FilePreviewLayout.Frame>
       <FilePreviewLayout.Content>
-        <div className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm">
+        <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
           <LoaderCircle className="size-4 animate-spin" aria-hidden />
           <span>{t('file_preview.loading')}</span>
         </div>
@@ -126,6 +126,7 @@ interface FilePreviewPluginRendererProps {
   metadata: FilePreviewFileMetadata
   metadataRequest?: FilePreviewMetadataRequest
   onSelectionReference?: FilePreviewPluginProps['onSelectionReference']
+  onLineComment?: FilePreviewPluginProps['onLineComment']
   plugin: { descriptor: FilePreviewPlugin; component: ComponentType<FilePreviewPluginProps> }
   refreshKey: number
   type: FilePreviewType
@@ -149,6 +150,7 @@ function FilePreviewPluginRenderer({
   metadata,
   metadataRequest,
   onSelectionReference,
+  onLineComment,
   plugin,
   refreshKey,
   type
@@ -167,6 +169,7 @@ function FilePreviewPluginRenderer({
         metadata={metadata}
         metadataRequest={metadataRequest}
         onSelectionReference={onSelectionReference}
+        onLineComment={onLineComment}
         refreshKey={refreshKey}
         type={type}
       />
@@ -181,6 +184,7 @@ export interface FilePreviewProps {
   type?: FilePreviewType
   /** See {@link FilePreviewPluginProps.onSelectionReference}; callbacks from obsolete metadata are ignored. */
   onSelectionReference?: FilePreviewPluginProps['onSelectionReference']
+  onLineComment?: FilePreviewPluginProps['onLineComment']
 }
 
 interface NormalizedFilePreviewTarget {
@@ -207,7 +211,8 @@ export function FilePreview({
   header,
   refreshKey = 0,
   type = 'file',
-  onSelectionReference
+  onSelectionReference,
+  onLineComment
 }: FilePreviewProps) {
   const file = useMemo(() => {
     try {
@@ -343,6 +348,7 @@ export function FilePreview({
         metadata={resolution.metadata}
         metadataRequest={metadataRequest?.read}
         onSelectionReference={onSelectionReference ? reportSelection : undefined}
+        onLineComment={onLineComment}
         plugin={resolution.plugin}
         refreshKey={refreshKey}
         type={type}

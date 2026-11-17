@@ -1,5 +1,4 @@
-import type { ProviderModelOverride } from '../schemas/provider-models'
-import { defineProvider } from './types'
+import { defineProvider, type ProviderModelOffer } from './types'
 import { EFFORT, modeWire } from './wires'
 
 /**
@@ -87,14 +86,14 @@ const legacyChatModels = [
   'qwen3-14b'
 ]
 
-const overrides: Partial<ProviderModelOverride>[] = [
+const overrides: ProviderModelOffer[] = [
   // The effort SKUs are the 250615+ line Ark serves over /responses, where the built-in web_search tool
   // and encrypted-CoT replay live — list Responses first so it's preferred, keeping chat selectable.
-  ...effortModels.map((modelId) => ({
-    modelId,
+  ...effortModels.map((apiModelId) => ({
+    apiModelId,
     endpointTypes: ['openai-responses' as const, 'openai-chat-completions' as const],
-    ...(fastTierModels.has(modelId) ? { supportsFastMode: true } : {}),
-    reasoningContracts: highEffortDefaults.has(modelId)
+    ...(fastTierModels.has(apiModelId) ? { supportsFastMode: true } : {}),
+    reasoningContracts: highEffortDefaults.has(apiModelId)
       ? {
           'openai-chat-completions': {
             ...effortContracts['openai-chat-completions'],
@@ -104,17 +103,17 @@ const overrides: Partial<ProviderModelOverride>[] = [
         }
       : effortContracts
   })),
-  ...chatOnlyEffortModels.map((modelId) => ({
-    modelId,
+  ...chatOnlyEffortModels.map((apiModelId) => ({
+    apiModelId,
     endpointTypes: ['openai-chat-completions' as const],
     reasoningContracts: { 'openai-chat-completions': { wire: effortWire } }
   })),
-  ...chatOnlyToggleModels.map((modelId) => ({
-    modelId,
+  ...chatOnlyToggleModels.map((apiModelId) => ({
+    apiModelId,
     endpointTypes: ['openai-chat-completions' as const]
   })),
-  ...legacyChatModels.map((modelId) => ({
-    modelId,
+  ...legacyChatModels.map((apiModelId) => ({
+    apiModelId,
     endpointTypes: ['openai-chat-completions' as const]
   }))
 ]

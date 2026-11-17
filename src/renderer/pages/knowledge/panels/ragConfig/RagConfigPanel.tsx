@@ -9,7 +9,7 @@ import {
   AccordionTrigger,
   Alert,
   Button,
-  Scrollbar
+  ScrollArea
 } from '@cherrystudio/ui'
 import { useEnableKnowledgeBaseEmbedding } from '@renderer/hooks/useKnowledgeBase'
 import { toast } from '@renderer/services/toast'
@@ -69,7 +69,7 @@ const FailedRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
   const failureReason = getKnowledgeBaseFailureReason(base, t)
 
   return (
-    <Scrollbar className="flex h-full min-h-0 items-center justify-center">
+    <ScrollArea contentProps={{ className: 'flex items-center justify-center' }} className="h-full min-h-0">
       <div className="w-full max-w-120 px-5 py-4">
         <Alert
           type="error"
@@ -83,7 +83,7 @@ const FailedRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
           }
         />
       </div>
-    </Scrollbar>
+    </ScrollArea>
   )
 }
 
@@ -167,7 +167,10 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
 
   return (
     <KnowledgePanelShell>
-      <Scrollbar className="min-h-0 flex-1 px-6 py-5">
+      <ScrollArea
+        contentProps={{ className: 'px-6 py-5' }}
+
+        className="min-h-0 flex-1">
         <div className="flex flex-col gap-4">
           <FileProcessingSection
             fileProcessorId={values.fileProcessorId}
@@ -231,7 +234,7 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
             </AccordionItem>
           </Accordion>
         </div>
-      </Scrollbar>
+      </ScrollArea>
 
       <KnowledgeDialogFooter className="shrink-0 border-t border-border-subtle px-6 py-4">
         <Button

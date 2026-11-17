@@ -1,0 +1,60 @@
+name: Website documentation
+
+on:
+  pull_request:
+    paths:
+      - "docs/website/**"
+      - "scripts/websiteDocs/**"
+      - ".github/website-docs-sync-plan.json"
+      - ".github/workflows/website-docs.yml"
+  push:
+    branches: [main]
+    paths:
+      - "docs/website/**"
+      - "scripts/websiteDocs/**"
+      - ".github/website-docs-sync-plan.json"
+      - ".github/workflows/website-docs.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: website-docs-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  content:
+    name: Website docs content
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Enable the renderer's pinned package manager
+        run: npm install --global corepack && corepack enable
+      - name: Build candidate documentation with the pinned website renderer
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: corepack pnpm website-docs:build
+
+  plan:
+    name: Website docs plan
+    if: github.event_name == 'pull_request' && github.head_ref == 'docs-sync/content' && github.event.pull_request.head.repo.full_name == 'CherryHQ/cherry-studio'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Compare the proposed result with both main branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DOCS_PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/websiteDocs/checkPlan.mjs --side desktop --head "$DOCS_PR_HEAD"

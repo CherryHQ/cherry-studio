@@ -1,4 +1,4 @@
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
+import { SdkErrorCode, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
 import { createMcpHandler, McpServer, Server } from '@modelcontextprotocol/server'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -16,7 +16,141 @@ const events = {
 
 const options = () => ({ signal: new AbortController().signal, timeoutMs: 5_000 })
 
+describe('legacy MCP health over handler.fetch', () => {
+  const fixture = async (result: Record<string, unknown>, tools = false) => {
+    let reachable = true
+    const tool = { name: 'echo', inputSchema: { type: 'object' as const } }
+    const content = [{ type: 'text' as const, text: 'usable' }]
+    const handler = createMcpHandler(() => {
+      const server = new Server({ name: 'legacy-health', version: '1' }, { capabilities: tools ? { tools: {} } : {} })
+      server.setRequestHandler('ping', async () => result)
+      if (tools) {
+        server.setRequestHandler('tools/list', async () => ({ tools: [tool] }))
+        server.setRequestHandler('tools/call', async () => ({ content }))
+      }
+      return server
+    })
+    const connection = new ClientMcpConnection(
+      { name: 'test', version: '1' },
+      {
+        capabilities: { elicitation: { form: {}, url: {} }, sampling: {}, roots: {} },
+        versionNegotiation: { mode: 'legacy' }
+      },
+      events
+    )
+    await connection.connect(
+      new StreamableHTTPClientTransport(new URL('http://legacy-health.test/mcp'), {
+        fetch: (input, init) => {
+          if (!reachable) throw new Error('health endpoint unavailable')
+          return fetchMcpHandler(handler, input, init)
+        }
+      })
+    )
+    return {
+      connection,
+      tool,
+      content,
+      stop: () => {
+        reachable = false
+      },
+      close: async () => {
+        await connection.close()
+        await handler.close()
+      }
+    }
+  }
+
+  it.each([
+    { name: 'extra fields with a usable tool', result: { status: 'ok' }, tools: true },
+    { name: 'extra fields without catalog capabilities', result: { status: 'ok' }, tools: false },
+    { name: 'an empty result control', result: {}, tools: false },
+    {
+      name: 'extra fields with valid legacy metadata',
+      result: { status: 'ok', _meta: { progressToken: 'p1' } },
+      tools: false
+    }
+  ])('accepts $name on consecutive health checks', async ({ result, tools }) => {
+    const test = await fixture(result, tools)
+    try {
+      expect(test.connection.era).toBe('legacy')
+      await expect(test.connection.health()).resolves.toBeUndefined()
+      await expect(test.connection.health()).resolves.toBeUndefined()
+      if (tools) {
+        expect(await test.connection.listTools('refresh')).toContainEqual(test.tool)
+        expect(await test.connection.callTool('echo', {}, options())).toEqual({ content: test.content })
+      }
+    } finally {
+      await test.close()
+    }
+  })
+
+  it.each([{ progressToken: false }, { 'io.modelcontextprotocol/related-task': { taskId: 9 } }])(
+    'rejects malformed recognized legacy metadata: %j',
+    async (_meta) => {
+      const test = await fixture({ _meta })
+      try {
+        await expect(test.connection.health()).rejects.toMatchObject({ code: SdkErrorCode.InvalidResult })
+      } finally {
+        await test.close()
+      }
+    }
+  )
+
+  it('rejects an endpoint failure after a successful health check', async () => {
+    const test = await fixture({ status: 'ok' }, true)
+    try {
+      await expect(test.connection.health()).resolves.toBeUndefined()
+      test.stop()
+      await expect(test.connection.health()).rejects.toThrow('health endpoint unavailable')
+    } finally {
+      await test.close()
+    }
+  })
+})
+
 describe('MCP catalog over modern handler.fetch', () => {
+  it('rejects a malformed modern discover result even with an advertised tool catalog', async () => {
+    let malformed = false
+    const handler = createMcpHandler(
+      () => {
+        const server = new Server({ name: 'modern-health', version: '1' }, { capabilities: { tools: {} } })
+        server.setRequestHandler('tools/list', async () => ({ tools: [] }))
+        return server
+      },
+      { legacy: 'reject' }
+    )
+    const connection = new ClientMcpConnection(
+      { name: 'test', version: '1' },
+      {
+        capabilities: { elicitation: { form: {}, url: {} }, sampling: {}, roots: {} },
+        versionNegotiation: { mode: { pin: '2026-07-28' } }
+      },
+      events
+    )
+    await connection.connect(
+      new StreamableHTTPClientTransport(new URL('http://modern-health.test/mcp'), {
+        fetch: async (input, init) => {
+          const request = new Request(input, init)
+          const isDiscover = request.method === 'POST' && (await request.clone().json()).method === 'server/discover'
+          const response = await fetchMcpHandler(handler, input, init)
+          if (!malformed || !isDiscover) return response
+          const body = await response.json()
+          return Response.json({ ...body, result: {} }, response)
+        }
+      })
+    )
+    try {
+      expect(connection.era).toBe('modern')
+      await expect(connection.health()).resolves.toBeUndefined()
+      malformed = true
+      expect(await connection.listTools('refresh')).toEqual([])
+      await expect(connection.health()).rejects.toMatchObject({ code: SdkErrorCode.InvalidResult })
+    } finally {
+      await connection.close()
+      await handler.close()
+    }
+  })
+
   it.each(['listTools', 'listPrompts', 'listResources'] as const)(
     'cancels an in-flight %s refresh without closing the connection',
     async (method) => {

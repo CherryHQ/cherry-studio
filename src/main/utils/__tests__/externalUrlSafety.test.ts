@@ -3,6 +3,11 @@ import { describe, expect, it } from 'vitest'
 import { isSafeExternalUrl } from '../externalUrlSafety'
 
 describe('isSafeExternalUrl', () => {
+  it('allows supported knowledge actions and rejects other Obsidian actions', () => {
+    expect(isSafeExternalUrl('zotero://select/library/searches/Saved')).toBe(true)
+    expect(isSafeExternalUrl('siyuan://blocks/Note')).toBe(true)
+    expect(isSafeExternalUrl('obsidian://search?query=note')).toBe(false)
+  })
   it('allows http URLs', () => {
     expect(isSafeExternalUrl('http://example.com')).toBe(true)
     expect(isSafeExternalUrl('http://example.com/path?q=1')).toBe(true)

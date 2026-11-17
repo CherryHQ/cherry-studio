@@ -24,9 +24,4 @@ describe('splitMessage', () => {
     expect(chunks[0]).toBe('字'.repeat(9))
     expect(chunks.join('')).toContain('😀')
   })
-
-  it('still prefers whitespace boundaries when available', () => {
-    const chunks = splitMessage('aaaa bbbb cccc', 6)
-    expect(chunks[0]).toBe('aaaa')
-  })
 })

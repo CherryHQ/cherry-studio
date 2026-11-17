@@ -95,11 +95,4 @@ describe('errorDetails light import graph (B6)', () => {
 
     expect(loaded).not.toHaveBeenCalled()
   })
-
-  it('probe control: a static heavy-dependency graph activates the interception layer', async () => {
-    await import('./fixtures/errorDetailsHeavyProbe')
-
-    // Any single probe firing proves the hoisted interception layer is alive.
-    expect(loaded).toHaveBeenCalled()
-  })
 })

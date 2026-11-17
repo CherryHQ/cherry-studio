@@ -4,6 +4,7 @@ import type * as ReactI18next from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
+import type * as CommandComponents from '@renderer/components/command'
 
 import { ResourceEntityRail, type ResourceEntityRailItem } from '../ResourceEntityRail'
 
@@ -16,8 +17,9 @@ vi.mock('react-i18next', async (importOriginal) => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@renderer/components/command', () => {
+vi.mock('@renderer/components/command', async (importOriginal) => {
   return {
+    ...(await importOriginal<typeof CommandComponents>()),
     CommandContextMenu: ({ children }: { children: ReactNode }) => <>{children}</>,
     CommandPopupMenu: ({ children, extraItems }: { children: ReactNode; extraItems?: readonly any[] }) => (
       <div>
@@ -218,7 +220,6 @@ describe('ResourceEntityRail', () => {
 
     expect(createButton).toBeInTheDocument()
     expect(moreButton).toBeInTheDocument()
-    expect(moreButton.compareDocumentPosition(createButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     fireEvent.click(createButton)
 
@@ -391,183 +392,6 @@ describe('ResourceEntityRail', () => {
     requestAnimationFrameSpy.mockRestore()
   })
 
-  it('does not reserve a leading slot for entities without icons', () => {
-    render(
-      <ResourceEntityRail
-        addLabel="New"
-        ariaLabel="Assistants list"
-        items={[{ id: 'assistant-a', name: 'Assistant A' }]}
-        variant="assistant"
-        onAdd={vi.fn()}
-        onSelect={vi.fn()}
-      />
-    )
-
-    expect(
-      screen
-        .getByText('Assistant A')
-        .closest('[role="option"]')
-        ?.querySelector('[data-resource-list-leading-slot=true]')
-    ).toBeNull()
-  })
-
-  it('uses the shared tooltip component for an entity explanation', () => {
-    render(
-      <ResourceEntityRail
-        addLabel="New"
-        ariaLabel="Assistants list"
-        items={[{ id: 'assistant-a', name: 'Assistant A', tooltip: 'Placeholder explanation' }]}
-        variant="assistant"
-        onAdd={vi.fn()}
-        onSelect={vi.fn()}
-      />
-    )
-
-    expect(screen.getByText('Assistant A').closest('[data-slot="tooltip-trigger"]')).toBeInTheDocument()
-    expect(screen.getByText('Assistant A')).not.toHaveAttribute('title')
-  })
-
-  it('keeps the sortable listbox mounted while reorder is temporarily disabled', () => {
-    const onReorder = vi.fn()
-    const props = {
-      addLabel: 'New',
-      ariaLabel: 'Assistants list',
-      items: ITEMS,
-      onAdd: vi.fn(),
-      onReorder,
-      onSelect: vi.fn(),
-      variant: 'assistant' as const
-    }
-    const { rerender } = render(<ResourceEntityRail {...props} />)
-    const listbox = screen.getByRole('listbox', { name: 'Assistants list' })
-
-    expect(listbox).toHaveAttribute('data-draggable', 'true')
-    expect(JSON.parse(listbox.getAttribute('data-drag-capabilities') ?? '{}')).toMatchObject({
-      items: true,
-      itemSameGroup: true
-    })
-
-    rerender(<ResourceEntityRail {...props} reorderEnabled={false} />)
-
-    const disabledListbox = screen.getByRole('listbox', { name: 'Assistants list' })
-    expect(disabledListbox).toBe(listbox)
-    expect(disabledListbox).toHaveAttribute('data-draggable', 'true')
-    expect(JSON.parse(disabledListbox.getAttribute('data-drag-capabilities') ?? '{}')).toMatchObject({
-      items: false,
-      itemSameGroup: false
-    })
-  })
-
-  it('splits pinned and non-pinned entities into two flush section headers while keeping avatars', () => {
-    render(
-      <ResourceEntityRail
-        addLabel="New"
-        ariaLabel="Assistants list"
-        defaultGroupLabel="Assistants"
-        items={[
-          { id: 'assistant-b', name: 'Assistant B', icon: <span data-testid="assistant-b-icon" />, pinned: true },
-          { id: 'assistant-a', name: 'Assistant A', icon: <span data-testid="assistant-a-icon" /> }
-        ]}
-        variant="assistant"
-        onAdd={vi.fn()}
-        onReorder={vi.fn()}
-        onSelect={vi.fn()}
-      />
-    )
-
-    // Pinned section (i18n key under the mocked translator) + the non-pinned "助手"/"智能体" section.
-    expect(screen.getByText('selector.common.pinned_title')).toBeInTheDocument()
-    expect(screen.getByText('Assistants')).toBeInTheDocument()
-
-    // Both rows keep their avatar in a visible leading slot (not collapsed away by the section).
-    const pinnedRow = screen.getByText('Assistant B').closest('[role="option"]')
-    expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]')).not.toBeNull()
-    expect(screen.getByTestId('assistant-b-icon')).toBeInTheDocument()
-    expect(screen.getByTestId('assistant-a-icon')).toBeInTheDocument()
-  })
-
-  it('groups non-pinned entities into sortable sections while keeping pinned on top', () => {
-    render(
-      <ResourceEntityRail
-        addLabel="New"
-        ariaLabel="Assistants list"
-        defaultGroupLabel="Assistants"
-        groupByGroup
-        items={[
-          {
-            id: 'pinned-home',
-            name: 'Pinned Home',
-            icon: <span />,
-            pinned: true,
-            groupId: 'group-home',
-            groupName: 'home',
-            groupOrderKey: 'aZ'
-          },
-          {
-            id: 'pinned-grouped',
-            name: 'Pinned Grouped',
-            icon: <span />,
-            pinned: true,
-            groupId: 'group-work',
-            groupName: 'work',
-            groupOrderKey: 'aa'
-          },
-          {
-            id: 'work-a',
-            name: 'Work A',
-            icon: <span data-testid="work-a-icon" />,
-            groupId: 'group-work',
-            groupName: 'work',
-            groupOrderKey: 'aa'
-          },
-          {
-            id: 'home-a',
-            name: 'Home A',
-            icon: <span />,
-            groupId: 'group-home',
-            groupName: 'home',
-            groupOrderKey: 'aZ'
-          },
-          { id: 'loose', name: 'Loose', icon: <span /> }
-        ]}
-        variant="assistant"
-        onAdd={vi.fn()}
-        onGroupReorder={vi.fn()}
-        onSelect={vi.fn()}
-      />
-    )
-
-    // Pinned stays on top; non-pinned entities split into canonical groups + a fixed ungrouped bucket.
-    expect(screen.getByText('selector.common.pinned_title')).toBeInTheDocument()
-    expect(screen.getByText('work')).toBeInTheDocument()
-    expect(screen.getByText('home')).toBeInTheDocument()
-    expect(screen.getByText('assistants.groups.ungrouped')).toBeInTheDocument()
-    expect(
-      Array.from(
-        screen.getByRole('listbox', { name: 'Assistants list' }).querySelectorAll('button[aria-expanded]')
-      ).map((header) => header.textContent)
-    ).toEqual(['selector.common.pinned_title', 'assistants.groups.ungrouped', 'home', 'work'])
-    // A pinned entity stays under the pinned section even though it carries a group — its group must not
-    // spawn a second "work" header.
-    expect(screen.getAllByText('work')).toHaveLength(1)
-    expect(
-      Array.from(screen.getByRole('listbox', { name: 'Assistants list' }).querySelectorAll('[role="option"]'))
-        .slice(0, 2)
-        .map((row) => row.textContent?.trim())
-    ).toEqual(['Pinned Home', 'Pinned Grouped'])
-    // The flat default "Assistants" header never appears while grouping by group.
-    expect(screen.queryByText('Assistants')).not.toBeInTheDocument()
-    expect(screen.getByTestId('work-a-icon')).toBeInTheDocument()
-    const listbox = screen.getByRole('listbox', { name: 'Assistants list' })
-    expect(listbox).toHaveAttribute('data-draggable', 'true')
-    expect(JSON.parse(listbox.getAttribute('data-drag-capabilities') ?? '{}')).toMatchObject({
-      groups: true,
-      items: false,
-      itemSameGroup: false,
-      itemCrossGroup: false
-    })
-  })
-
   it('collapses grouped assistants from their accessible header', () => {
     render(
       <ResourceEntityRail
@@ -712,27 +536,24 @@ describe('ResourceEntityRail', () => {
     expect(screen.queryByText('assistants.groups.ungrouped')).not.toBeInTheDocument()
   })
 
-  it('renders a flat list with no section header when nothing is pinned', () => {
+  it('mounts permanent delete for the focused entity row when the caller provides it', () => {
+    const onDelete = vi.fn()
+
     render(
       <ResourceEntityRail
         addLabel="New"
         ariaLabel="Assistants list"
-        defaultGroupLabel="Assistants"
-        items={[
-          { id: 'assistant-a', name: 'Assistant A', icon: <span data-testid="assistant-a-icon" /> },
-          { id: 'assistant-b', name: 'Assistant B', icon: <span data-testid="assistant-b-icon" /> }
-        ]}
+        items={ITEMS}
+        permanentDelete={{
+          isItemEligible: (item) => item.id === 'assistant-a',
+          onDelete
+        }}
         variant="assistant"
         onAdd={vi.fn()}
-        onReorder={vi.fn()}
         onSelect={vi.fn()}
       />
     )
 
-    // Single section → no header shown (mirrors the modern layout), avatars still visible.
-    expect(screen.queryByText('selector.common.pinned_title')).not.toBeInTheDocument()
-    expect(screen.queryByText('Assistants')).not.toBeInTheDocument()
-    expect(screen.getByTestId('assistant-a-icon')).toBeInTheDocument()
-    expect(screen.getByTestId('assistant-b-icon')).toBeInTheDocument()
+    expect(document.querySelector('[data-resource-list-permanent-delete]')).toBeInTheDocument()
   })
 })

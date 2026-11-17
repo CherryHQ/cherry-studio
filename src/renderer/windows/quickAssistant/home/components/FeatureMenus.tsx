@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from 'react'
 import { useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Scrollbar } from '@cherrystudio/ui'
+import { ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 
 interface FeatureMenusProps {
@@ -86,7 +86,7 @@ const FeatureMenus = ({
   }))
 
   return (
-    <Scrollbar className="h-auto shrink-0 [-webkit-app-region:no-drag]">
+    <ScrollArea className="h-auto shrink-0 [-webkit-app-region:no-drag]">
       <div className="flex cursor-pointer flex-col gap-1">
         {features.map((feature, index) => (
           <button
@@ -103,7 +103,7 @@ const FeatureMenus = ({
           </button>
         ))}
       </div>
-    </Scrollbar>
+    </ScrollArea>
   )
 }
 FeatureMenus.displayName = 'FeatureMenus'

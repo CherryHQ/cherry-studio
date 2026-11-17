@@ -11,3 +11,7 @@ export function miniAppIdFromTabUrl(url: string | undefined): string | null {
 export function miniAppResourceKey(appId: string): string {
   return `miniapp:${appId}`
 }
+
+export function miniAppIdFromResourceKey(key: string): string {
+  return key.slice('miniapp:'.length)
+}

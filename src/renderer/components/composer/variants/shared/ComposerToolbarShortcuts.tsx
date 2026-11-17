@@ -329,11 +329,13 @@ export const ComposerToolbarShortcuts = ({
     return {
       screenReaderInstructions: { draggable: t('chat.input.toolbar.drag.instructions') },
       announcements: {
-        onDragStart: ({ active }) => t('chat.input.toolbar.drag.picked_up', { name: nameOf(active.id) }),
-        onDragOver: ({ active, over }) =>
-          over ? t('chat.input.toolbar.drag.over', { name: nameOf(active.id), over: nameOf(over.id) }) : undefined,
-        onDragEnd: ({ active }) => t('chat.input.toolbar.drag.dropped', { name: nameOf(active.id) }),
-        onDragCancel: ({ active }) => t('chat.input.toolbar.drag.cancelled', { name: nameOf(active.id) })
+        onDragStart: ({ activeId }) => t('chat.input.toolbar.drag.picked_up', { name: nameOf(activeId) }),
+        onDragOver: ({ activeId, overId }) =>
+          overId !== null
+            ? t('chat.input.toolbar.drag.over', { name: nameOf(activeId), over: nameOf(overId) })
+            : undefined,
+        onDragEnd: ({ activeId }) => t('chat.input.toolbar.drag.dropped', { name: nameOf(activeId) }),
+        onDragCancel: ({ activeId }) => t('chat.input.toolbar.drag.cancelled', { name: nameOf(activeId) })
       }
     } satisfies ComponentProps<typeof ReorderableList<CustomizeRow>>['accessibility']
   }, [candidateById, t])
@@ -412,8 +414,6 @@ export const ComposerToolbarShortcuts = ({
                 <button
                   type="button"
                   ref={dragHandleProps?.ref}
-                  {...dragHandleProps?.attributes}
-                  {...dragHandleProps?.listeners}
                   data-dragging={dragging ? 'true' : 'false'}
                   aria-label={t('chat.input.toolbar.drag_handle', { name: label ?? '' })}
                   // touch-none: let the PointerSensor own touch gestures so a scroll doesn't

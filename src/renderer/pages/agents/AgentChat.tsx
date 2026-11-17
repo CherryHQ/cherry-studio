@@ -29,7 +29,6 @@ import {
 } from '@renderer/components/composer/variants/AgentComposer'
 import { DoctorPopup } from '@renderer/components/doctor'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
-import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
@@ -51,7 +50,7 @@ import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
 import AgentCitationsPanel from './components/AgentCitationsPanel'
 import { type AgentFileNavigationRequest, AgentRightPane, AgentTaskProgressCapsule } from './components/AgentRightPane'
-import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
+import { locateAgentMessageInList, scrollAgentMessageListToEnd } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
 import type { AgentConversationBootstrap } from './useAgentConversationBootstrap'
@@ -60,6 +59,7 @@ const EMPTY_MESSAGES: CherryUIMessage[] = []
 const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
 
 interface ModelSwitchTarget {
+  sessionId: string
   agentId: string
   model: Model
 }
@@ -87,6 +87,8 @@ function AgentTopBarControls(props: AgentTopBarControlsProps) {
 }
 
 interface AgentChatProps {
+  /** Page-owned toolbar that replaces the standard Agent navbar. */
+  conversationToolbar?: ReactNode
   centerSurface?: ConversationCenterSlot | null
   pane?: ReactNode
   paneOpen?: boolean
@@ -96,6 +98,7 @@ interface AgentChatProps {
   sidebarOpen?: boolean
   onSidebarToggle?: () => void
   locateMessageId?: string
+  locateToEnd?: boolean
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
@@ -151,6 +154,7 @@ interface AgentChatLayoutProps {
 }
 
 const AgentChat = ({
+  conversationToolbar,
   centerSurface,
   pane,
   paneOpen,
@@ -160,6 +164,7 @@ const AgentChat = ({
   sidebarOpen,
   onSidebarToggle,
   locateMessageId,
+  locateToEnd,
   onLocateMessageHandled,
   onPaneCollapse,
   onPaneAutoCollapseChange,
@@ -208,7 +213,6 @@ const AgentChat = ({
   const isActiveAgentLoading = conversationBootstrap.resources.agentLoading
   const activeModel = conversationBootstrap.resources.model
   const isActiveModelLoading = conversationBootstrap.resources.modelLoading
-  const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   const agentModelFilter = useAgentModelFilter(activeAgent?.type)
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
@@ -303,16 +307,24 @@ const AgentChat = ({
   )
   const handleAgentModelChange = useCallback(
     async (nextModel?: Model) => {
-      if (!activeAgent || !nextModel || nextModel.id === activeModel?.id) return
+      if (!sessionSnapshot || !nextModel || nextModel.id === activeModel?.id) return
       if (!isEmptyConversation && !skipModelSwitchConfirmationsForAppRun) {
-        setModelSwitchTarget({ agentId: activeAgent.id, model: nextModel })
+        if (!activeAgent) return
+        setModelSwitchTarget({ sessionId: sessionSnapshot.id, agentId: activeAgent.id, model: nextModel })
         setSkipModelSwitchConfirmation(false)
         setModelSwitchConfirmOpen(true)
         return
       }
-      await updateModel({ agentId: activeAgent.id, modelId: nextModel.id }, { showSuccessToast: false })
+      await updateSession({ id: sessionSnapshot.id, model: nextModel.id }, { showSuccessToast: false })
     },
-    [activeAgent, activeModel?.id, isEmptyConversation, skipModelSwitchConfirmationsForAppRun, updateModel]
+    [
+      activeAgent,
+      activeModel?.id,
+      isEmptyConversation,
+      sessionSnapshot,
+      skipModelSwitchConfirmationsForAppRun,
+      updateSession
+    ]
   )
   const handleSessionWorkspaceChange = useCallback(
     (workspaceId: string | null) => {
@@ -346,21 +358,15 @@ const AgentChat = ({
   const sessionTopicId = runtimeSessionId ? buildAgentSessionTopicId(runtimeSessionId) : ''
 
   useEffect(() => {
-    if (!runtimeSessionId || !locateMessageId) {
+    if (centerSurface || !runtimeSessionId || (!locateMessageId && !locateToEnd)) {
       locateLoadRequestRef.current = undefined
       return
     }
 
-    if (runtimeUiMessages.some((message) => message.id === locateMessageId)) {
-      locateLoadRequestRef.current = undefined
-      window.requestAnimationFrame(() => {
-        locateAgentMessageInList(sessionTopicId, locateMessageId, true)
-      })
-      onLocateMessageHandled?.()
-      return
-    }
+    const targetLoaded = runtimeUiMessages.some((message) => message.id === locateMessageId)
+    if (runtimeIsLoading) return
 
-    if (runtimeHasOlder && !runtimeIsLoading) {
+    if (!targetLoaded && !locateToEnd && runtimeHasOlder) {
       const requestKey = `${runtimeSessionId}:${locateMessageId}:${runtimeUiMessages.length}`
       if (locateLoadRequestRef.current !== requestKey) {
         locateLoadRequestRef.current = requestKey
@@ -369,12 +375,15 @@ const AgentChat = ({
       return
     }
 
-    if (!runtimeHasOlder && !runtimeIsLoading) {
-      locateLoadRequestRef.current = undefined
-      onLocateMessageHandled?.()
-    }
+    locateLoadRequestRef.current = undefined
+    // Claim scroll ownership before the list's pending initial-restore frame.
+    if (locateToEnd || !targetLoaded) scrollAgentMessageListToEnd(sessionTopicId)
+    else if (locateMessageId) locateAgentMessageInList(sessionTopicId, locateMessageId, true)
+    onLocateMessageHandled?.()
   }, [
+    centerSurface,
     locateMessageId,
+    locateToEnd,
     onLocateMessageHandled,
     runtimeHasOlder,
     runtimeIsLoading,
@@ -534,7 +543,7 @@ const AgentChat = ({
     paneManualToggle,
     sessionSnapshot,
     sidePanel,
-    topBar,
+    topBar: conversationToolbar ?? topBar,
     topRightTool: rightPaneTools
   }
 
@@ -565,18 +574,19 @@ const AgentChat = ({
         cancelText={t('common.cancel')}
         onConfirm={async () => {
           if (
-            !activeAgent ||
+            !sessionSnapshot ||
             !modelSwitchTarget ||
-            modelSwitchTarget.agentId !== activeAgent.id ||
+            modelSwitchTarget.sessionId !== sessionSnapshot.id ||
+            modelSwitchTarget.agentId !== sessionSnapshot.agentId ||
             modelSwitchTarget.model.id === activeModel?.id
           ) {
             return
           }
-          const updatedAgent = await updateModel(
-            { agentId: activeAgent.id, modelId: modelSwitchTarget.model.id },
+          const updatedSession = await updateSession(
+            { id: sessionSnapshot.id, model: modelSwitchTarget.model.id },
             { showSuccessToast: false }
           )
-          if (updatedAgent && skipModelSwitchConfirmation) {
+          if (updatedSession && skipModelSwitchConfirmation) {
             setSkipModelSwitchConfirmationsForAppRun(true)
           }
         }}
@@ -639,6 +649,7 @@ const AgentChatSessionCenter = ({
         sendMessage={runtime.sendMessage}
         stop={runtime.stop}
         isStreaming={runtime.isPending}
+        messages={runtime.uiMessages}
         sendDisabled={composerPending}
         onAgentChange={onAgentChange}
         agentChanging={agentChanging}
@@ -657,7 +668,9 @@ const AgentChatSessionCenter = ({
       sessionMessagesEnabled={sessionMessagesEnabled}
       agentId={agentId}
       sessionId={runtime.sessionId}
+      workspacePath={session.workspace?.path}
       messages={runtime.uiMessages}
+      historyActions={runtime.historyActions}
       activeAgent={activeAgent}
       partsByMessageId={runtime.partsByMessageId}
       streamingLayers={runtime.streamingLayers}
@@ -668,6 +681,8 @@ const AgentChatSessionCenter = ({
       selectAllPagination={runtime.selectAllPagination}
       onOpenCitationsPanel={onOpenCitationsPanel}
       openDiagnosticReport={openDiagnosticReport}
+      getMessageSiblings={runtime.getMessageSiblings}
+      setActiveBranch={runtime.setActiveBranch}
       deleteMessage={runtime.deleteMessage}
       startEditing={runtime.startEditing}
       editBusy={runtime.editBusy}
@@ -679,7 +694,11 @@ const AgentChatSessionCenter = ({
       {isEmptyConversation && (
         <div className="pointer-events-none absolute inset-0 z-10">
           <ConversationGreeting
-            avatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
+            avatar={
+              activeAgent
+                ? getAgentAvatarFromConfiguration(activeAgent.configuration, activeAgent.avatarSrc)
+                : undefined
+            }
             title={homeWelcomeText ?? ''}
           />
         </div>
@@ -728,6 +747,7 @@ function AgentChatLayout({
       isMessageHistoryLoading={isMessageHistoryLoading}
       workspaceId={sessionSnapshot?.workspaceId}
       workspacePath={sessionSnapshot?.workspace?.path}
+      workspaceName={sessionSnapshot?.workspace?.name}
       workspaceType={sessionSnapshot?.workspace?.type}
       messages={messages}
       partsByMessageId={partsByMessageId}
@@ -741,7 +761,10 @@ function AgentChatLayout({
       traceId={sessionSnapshot?.traceId ?? undefined}
       agentId={sessionSnapshot?.agentId ?? undefined}
       agentName={activeAgent?.name}
-      agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
+      runtimeType={activeAgent?.type}
+      agentAvatar={
+        activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration, activeAgent.avatarSrc) : undefined
+      }
       present={!centerSurface}
       revealRequest={resourcePaneRevealRequest}>
       <ConversationShell
@@ -758,7 +781,9 @@ function AgentChatLayout({
         center={
           // The layout-mode provider links the message column and the composer so
           // both yield the same anchor-rail gutter and stay aligned.
-          <ChatLayoutModeProvider>{center}</ChatLayoutModeProvider>
+          <AgentRightPane.DetailsLayout>
+            <ChatLayoutModeProvider>{center}</ChatLayoutModeProvider>
+          </AgentRightPane.DetailsLayout>
         }
         sidePanel={sidePanel}
         rightPane={<AgentRightPane.Viewport />}

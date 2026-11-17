@@ -1,9 +1,10 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { Kbd } from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 
@@ -134,4 +135,49 @@ describe('OpenTargetButton', () => {
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to open /tmp/README.md: launch failed'))
   })
+})
+
+// Selection is a preference change; only the separate primary action launches the selected app.
+it('selects a default without launching and uses it for the next primary action', async () => {
+  vi.clearAllMocks()
+  mocks.openTarget.mockResolvedValue(undefined)
+  const user = userEvent.setup()
+  let current = selectedTarget
+  mocks.usePreferredExternalOpenTarget.mockImplementation(() => ({
+    targets: [fileManagerTarget, selectedTarget],
+    selectedTarget: current,
+    openTarget: mocks.openTarget,
+    selectTarget: (target: ExternalOpenTarget) => {
+      current = target
+    }
+  }))
+  const view = render(
+    <OpenTargetButton
+      targetPath="/tmp/project"
+      pathKind="directory"
+      menuAction="select"
+      primaryShortcut={<Kbd aria-hidden="true">⌘O</Kbd>}
+    />
+  )
+  await user.click(screen.getByRole('button', { name: 'More' }))
+  expect(
+    within(screen.getByRole('button', { name: 'Visual Studio Code', pressed: true })).getByText('⌘O')
+  ).toBeVisible()
+  expect(within(screen.getByRole('button', { name: 'File manager' })).queryByText('⌘O')).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'File manager', pressed: false }))
+  expect(mocks.openTarget).not.toHaveBeenCalled()
+  view.rerender(
+    <OpenTargetButton
+      targetPath="/tmp/project"
+      pathKind="directory"
+      menuAction="select"
+      primaryShortcut={<Kbd aria-hidden="true">⌘O</Kbd>}
+    />
+  )
+  await user.click(screen.getByRole('button', { name: 'More' }))
+  expect(within(screen.getByRole('button', { name: 'File manager', pressed: true })).getByText('⌘O')).toBeVisible()
+  expect(within(screen.getByRole('button', { name: 'Visual Studio Code' })).queryByText('⌘O')).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'More' }))
+  await user.click(screen.getByRole('button', { name: 'Open in File manager' }))
+  expect(mocks.openTarget).toHaveBeenCalledExactlyOnceWith(fileManagerTarget)
 })

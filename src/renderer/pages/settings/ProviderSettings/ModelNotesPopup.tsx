@@ -38,7 +38,7 @@ const PopupContainer: FC<Props> = ({ providerId, open, resolve }) => {
       await updateProvider({ providerSettings: { ...provider?.settings, notes } })
       resolve({})
     } catch {
-      toast.error(t('blocks.edit.save.failed.label'))
+      toast.error(t('common.save_failed'))
     } finally {
       setSaving(false)
     }

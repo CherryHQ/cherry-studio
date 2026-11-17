@@ -12,9 +12,13 @@ import {
   mergePathSuffixes
 } from '../binaryEnv'
 
-// Real `node:path` (posix on CI) — the dedup's canonicalization runs against
-// the actual normalize()/delimiter, not an identity stub. Windows case-folding
-// is covered separately in binaryEnv.windows.test.ts.
+// These fixtures model a POSIX tool installation independently of the host OS.
+vi.mock('path', async () => {
+  const actual = await vi.importActual<typeof import('node:path')>('node:path')
+  return { ...actual.posix, default: actual.posix }
+})
+
+vi.mock('@main/core/platform', () => ({ isWin: false, isLinux: true, isMac: false, isDev: false, isPortable: false }))
 
 describe('getBinarySearchDirs', () => {
   it('exposes the mise shims directory without relying on search order', () => {

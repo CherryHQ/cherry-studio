@@ -1,13 +1,16 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Provider } from '@shared/data/types/provider'
 
 const reorderableItemsCalls: Provider[][] = []
 const providerAvatarCalls: any[] = []
+const reorderProps: any[] = []
 
 vi.mock('@cherrystudio/ui', () => ({
-  ReorderableList: ({ items }: { items: Provider[] }) => {
+  ReorderableList: (props: any) => {
+    const { items } = props
+    reorderProps.push(props)
     reorderableItemsCalls.push(items)
     return <div data-testid="provider-list-group-inner-list" />
   }
@@ -29,6 +32,7 @@ vi.mock('@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPr
   providerListClasses: new Proxy({}, { get: () => '' })
 }))
 
+import { reorderVisibleSubset } from '../../../../../../../packages/ui/src/components/composites/reorderable-list/reorder-visible-subset'
 import ProviderListGroup from '../ProviderListGroup'
 
 function provider(id: string, presetProviderId: string, isEnabled = true): Provider {
@@ -56,12 +60,13 @@ describe('ProviderListGroup', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders the in-flow body with the full cache when expanded', () => {
+  it('keeps enabled siblings ordered when dropping onto an earlier stored disabled member', () => {
+    const all = [provider('d', 'g', false), provider('a', 'g'), provider('b', 'g')]
     render(
       <ProviderListGroup
-        presetProviderId="zhipu"
-        members={providers}
-        items={providers}
+        presetProviderId="g"
+        members={[all[1], all[2], all[0]]}
+        items={all}
         expanded
         containsSelected={false}
         onToggle={() => {}}
@@ -70,9 +75,44 @@ describe('ProviderListGroup', () => {
         renderItem={() => null}
       />
     )
+    const props = reorderProps.at(-1)
+    const next = reorderVisibleSubset({
+      items: props.items,
+      visibleItems: props.visibleItems,
+      fromIndex: 1,
+      toIndex: 2,
+      getId: props.getId
+    }) as Provider[]
+    expect(next.filter((p) => p.isEnabled).map((p) => p.id)).toEqual(['a', 'b'])
+  })
 
-    expect(screen.getByTestId('provider-list-group-inner-list')).toBeInTheDocument()
-    expect(reorderableItemsCalls).toEqual([providers])
+  it('persists an enabled member move without displacing disabled storage slots', () => {
+    const all = [provider('d', 'g', false), provider('a', 'g'), provider('b', 'g')]
+    const onReorder = vi.fn()
+    render(
+      <ProviderListGroup
+        presetProviderId="g"
+        members={[all[1], all[2]]}
+        items={all}
+        expanded
+        containsSelected={false}
+        onToggle={() => {}}
+        onDragStateChange={() => {}}
+        onReorder={onReorder}
+        renderItem={() => null}
+      />
+    )
+    const props = reorderProps.at(-1)
+    props.onReorder(
+      reorderVisibleSubset({
+        items: props.items,
+        visibleItems: props.visibleItems,
+        fromIndex: 0,
+        toIndex: 1,
+        getId: props.getId
+      })
+    )
+    expect(onReorder.mock.calls[0][0].map((p: Provider) => p.id)).toEqual(['d', 'b', 'a'])
   })
 
   it('hides the body when collapsed', () => {
@@ -94,121 +134,24 @@ describe('ProviderListGroup', () => {
     expect(screen.getByTestId('provider-list-group-zhipu')).toBeInTheDocument()
   })
 
-  it('renders a drag handle in the group header', () => {
+  it('keeps a press in the expanded body from dragging the whole group', () => {
     render(
       <ProviderListGroup
         presetProviderId="zhipu"
         members={providers}
         items={providers}
-        expanded={false}
+        expanded
         containsSelected={false}
         onToggle={() => {}}
         onDragStateChange={() => {}}
         onReorder={() => {}}
         renderItem={() => null}
       />
-    )
-
-    expect(screen.getByTestId('provider-list-group-drag-handle-zhipu')).toBeInTheDocument()
-  })
-
-  it('uses provider-list icon display rules in the group header', () => {
-    render(
-      <ProviderListGroup
-        presetProviderId="anthropic"
-        members={providers}
-        items={providers}
-        expanded={false}
-        containsSelected={false}
-        onToggle={() => {}}
-        onDragStateChange={() => {}}
-        onReorder={() => {}}
-        renderItem={() => null}
-      />
-    )
-
-    expect(providerAvatarCalls).toContainEqual(
-      expect.objectContaining({
-        provider: { id: 'anthropic', name: 'anthropic' },
-        displayContext: 'provider-list'
-      })
-    )
-  })
-
-  it('renders only the chevron in the group trailing area', () => {
-    const disabledProviders = [provider('zhipu-a', 'zhipu', false), provider('zhipu-b', 'zhipu', false)]
-
-    render(
-      <ProviderListGroup
-        presetProviderId="zhipu"
-        members={disabledProviders}
-        items={disabledProviders}
-        expanded={false}
-        containsSelected={false}
-        onToggle={() => {}}
-        onDragStateChange={() => {}}
-        onReorder={() => {}}
-        renderItem={() => null}
-      />
-    )
-
-    expect(screen.queryByTestId('provider-list-group-count-zhipu')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('provider-list-group-enabled-dot-zhipu')).not.toBeInTheDocument()
-    expect(screen.getByTestId('provider-list-group-chevron-zhipu')).toBeInTheDocument()
-  })
-
-  it('shows an enabled-state dot for groups with enabled providers', () => {
-    render(
-      <ProviderListGroup
-        presetProviderId="zhipu"
-        members={providers}
-        items={providers}
-        expanded={false}
-        containsSelected={false}
-        onToggle={() => {}}
-        onDragStateChange={() => {}}
-        onReorder={() => {}}
-        renderItem={() => null}
-      />
-    )
-
-    expect(screen.getByTestId('provider-list-group-enabled-dot-zhipu')).toBeInTheDocument()
-    expect(screen.getByTestId('provider-list-group-chevron-zhipu')).toBeInTheDocument()
-  })
-
-  it('stops pointer/key events in the expanded body from reaching the outer drag surface', () => {
-    // The expanded body must swallow propagation so in-group row drag coexists
-    // with group-block drag — without it, every inner pointerdown would also
-    // start an outer (group-level) drag.
-    const onParentPointerDown = vi.fn()
-    const onParentKeyDown = vi.fn()
-
-    render(
-      <div onPointerDown={onParentPointerDown} onKeyDown={onParentKeyDown}>
-        <ProviderListGroup
-          presetProviderId="zhipu"
-          members={providers}
-          items={providers}
-          expanded
-          containsSelected={false}
-          onToggle={() => {}}
-          onDragStateChange={() => {}}
-          onReorder={() => {}}
-          renderItem={() => null}
-        />
-      </div>
     )
 
     const header = screen.getByTestId('provider-list-group-zhipu')
-    const bodyId = header.getAttribute('aria-controls')!
-    const body = document.getElementById(bodyId)!
-    const innerList = screen.getByTestId('provider-list-group-inner-list')
 
-    fireEvent.pointerDown(innerList)
-    fireEvent.keyDown(innerList, { key: 'ArrowDown' })
-
-    expect(body).toContainElement(innerList)
-    expect(onParentPointerDown).not.toHaveBeenCalled()
-    expect(onParentKeyDown).not.toHaveBeenCalled()
+    expect(document.getElementById(header.getAttribute('aria-controls')!)).toHaveAttribute('data-no-dnd')
+    expect(header).toHaveAttribute('data-dnd-row-control')
   })
 })

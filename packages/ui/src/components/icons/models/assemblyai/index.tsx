@@ -9,7 +9,7 @@ const Assemblyai = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const AssemblyaiIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Assemblyai, {
   Avatar: AssemblyaiAvatar,
-  colorPrimary: '#2545D3'
+  colorPrimary: '#ebeefb'
 })
 
 export default AssemblyaiIcon
