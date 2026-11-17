@@ -17,7 +17,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Input,
-  Tooltip
+  Tooltip,
+  EmptyState
 } from '@cherrystudio/ui'
 import { useInfiniteFlatItems, useInfiniteQuery, useMutation } from '@data/hooks/useDataApi'
 import { useDataChange } from '@data/hooks/useDataChange'
@@ -25,6 +26,8 @@ import { GroupedVirtualList } from '@renderer/components/VirtualList'
 import { useTabs } from '@renderer/hooks/tab'
 import { toast } from '@renderer/services/toast'
 import type { BrowserVisit } from '@shared/data/api/schemas/browserVisits'
+
+import { BrowserHistoryEmptyScene } from '../SettingsEmptyScenes'
 
 export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void }) {
   const { t } = useTranslation()
@@ -172,17 +175,14 @@ function BrowserHistoryContent({ onOpenPage }: { onOpenPage: () => void }) {
             {t('common.loading')}
           </p>
         ) : !historyError && !items.length ? (
-          <div className="space-y-2 py-10 text-center text-muted-foreground text-sm">
-            <p>{t(search ? 'settings.browser.noResults' : 'settings.browser.empty')}</p>
-            {search && (
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setSearch('')
-                }}>
-                {t('common.clear')}
-              </Button>
-            )}
+          <div className="py-6">
+            <EmptyState
+              compact
+              scene={<BrowserHistoryEmptyScene />}
+              title={t(search ? 'settings.browser.noResults' : 'settings.browser.empty')}
+              secondaryLabel={search ? t('common.clear') : undefined}
+              onSecondary={search ? () => setSearch('') : undefined}
+            />
           </div>
         ) : (
           <GroupedVirtualList

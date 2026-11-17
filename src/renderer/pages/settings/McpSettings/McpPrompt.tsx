@@ -13,6 +13,7 @@ import {
 } from '@cherrystudio/ui'
 import type { McpPrompt } from '@shared/types/mcp'
 
+import { McpEmptyScene } from '../SettingsEmptyScenes'
 import { McpDetailItem, McpDetailList } from './McpDetailList'
 
 interface McpPromptsSectionProps {
@@ -79,7 +80,7 @@ const McpPromptsSection = ({ prompts }: McpPromptsSectionProps) => {
           </Accordion>
         </>
       ) : (
-        <EmptyState compact description={t('settings.mcp.prompts.noPromptsAvailable')} />
+        <EmptyState compact scene={<McpEmptyScene />} description={t('settings.mcp.prompts.noPromptsAvailable')} />
       )}
     </div>
   )

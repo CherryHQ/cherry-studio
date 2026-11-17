@@ -33,6 +33,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import { skillErrorCodes } from '@shared/ipc/errors/skill'
 import type { SkillRemoteUpdateCheck } from '@shared/types/skill'
 
+import { SkillMissingScene } from '../SettingsEmptyScenes'
 import { SkillFileBrowser, type SkillFileBrowserHandles } from './SkillFileBrowser'
 
 const logger = loggerService.withContext('SkillDetails')
@@ -186,6 +187,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
     return (
       <SettingsContentBody className="min-h-0 flex-1">
         <EmptyState
+          scene={<SkillMissingScene />}
           title={t('settings.skills.notFound')}
           description={error?.message}
           actionLabel={t('common.back')}
@@ -303,6 +305,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
           />
         ) : (
           <EmptyState
+            scene={<SkillMissingScene />}
             title={t('library.skill_detail.no_files')}
             description={folder.error?.message}
             className="h-full min-h-80"
