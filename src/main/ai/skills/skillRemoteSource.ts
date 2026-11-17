@@ -213,7 +213,7 @@ async function resolveGithubSkillTarget(identifier: string) {
     ? `https://raw.githubusercontent.com/${owner}/${repo}/refs/${namespace}/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
     : `${repoUrl}/blob/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
 
-  return { transportRepoUrl, oid, target, sourceUrl, descriptorFileName }
+  return { transportRepoUrl, oid, target, sourceUrl, descriptorFileName, repo }
 }
 
 /** Resolve ambiguous branch/tag URLs with the same rules used by installation. */
@@ -225,7 +225,7 @@ async function fetchFromGithub(
   identifier: string,
   openTempDir: () => Promise<string>
 ): Promise<Omit<FetchedSkill, 'tempDir'>> {
-  const { transportRepoUrl, oid, target, sourceUrl, descriptorFileName } = await resolveGithubSkillTarget(identifier)
+  const { transportRepoUrl, oid, target, sourceUrl, descriptorFileName, repo } = await resolveGithubSkillTarget(identifier)
 
   const tempDir = await openTempDir()
   const commit = await fetchGithubCommit(transportRepoUrl, oid, tempDir)
