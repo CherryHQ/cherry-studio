@@ -84,7 +84,12 @@ export function subscribeClaudeCodeProcessFailure(
 
 export function isClaudeCodeProcessFailure(error: unknown, diagnostics?: ClaudeCodeProcessDiagnostics): error is Error {
   return (
-    error instanceof Error && (error.name === 'ClaudeCodeProcessExitError' || hasClaudeCodeProcessFailure(diagnostics))
+    error instanceof Error &&
+    (error.name === 'ClaudeCodeProcessExitError' ||
+      hasClaudeCodeProcessFailure(diagnostics) ||
+      /Claude Code process (?:exited with code|terminated by signal|failed to spawn)|Failed to spawn Claude Code process/i.test(
+        error.message
+      ))
   )
 }
 
