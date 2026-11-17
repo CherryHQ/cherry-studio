@@ -224,29 +224,28 @@ function advanceAgentFormBaseline(
   payload: UpdateAgentDto
 ): AgentFormState {
   const next = { ...latest }
-  const hasOwn = (value: object, key: PropertyKey) => Object.prototype.hasOwnProperty.call(value, key)
 
-  if (hasOwn(payload, 'name')) next.name = submitted.name
-  if (hasOwn(payload, 'description')) next.description = submitted.description
-  if (hasOwn(payload, 'model')) next.model = submitted.model
-  if (hasOwn(payload, 'planModel')) next.planModel = submitted.planModel
-  if (hasOwn(payload, 'smallModel')) next.smallModel = submitted.smallModel
-  if (hasOwn(payload, 'instructions')) next.instructions = submitted.instructions
-  if (hasOwn(payload, 'mcps')) next.mcps = [...submitted.mcps]
-  if (hasOwn(payload, 'knowledgeBaseIds')) next.knowledgeBaseIds = [...submitted.knowledgeBaseIds]
-  if (hasOwn(payload, 'skillUpdates')) next.skillIds = [...submitted.skillIds]
-  if (hasOwn(payload, 'disabledTools')) next.disabledTools = [...submitted.disabledTools]
+  if (Object.hasOwn(payload, 'name')) next.name = submitted.name
+  if (Object.hasOwn(payload, 'description')) next.description = submitted.description
+  if (Object.hasOwn(payload, 'model')) next.model = submitted.model
+  if (Object.hasOwn(payload, 'planModel')) next.planModel = submitted.planModel
+  if (Object.hasOwn(payload, 'smallModel')) next.smallModel = submitted.smallModel
+  if (Object.hasOwn(payload, 'instructions')) next.instructions = submitted.instructions
+  if (Object.hasOwn(payload, 'mcps')) next.mcps = [...submitted.mcps]
+  if (Object.hasOwn(payload, 'knowledgeBaseIds')) next.knowledgeBaseIds = [...submitted.knowledgeBaseIds]
+  if (Object.hasOwn(payload, 'skillUpdates')) next.skillIds = [...submitted.skillIds]
+  if (Object.hasOwn(payload, 'disabledTools')) next.disabledTools = [...submitted.disabledTools]
 
   const configuration = payload.configuration
   if (configuration) {
-    if (hasOwn(configuration, 'avatar')) next.avatar = submitted.avatar
-    if (hasOwn(configuration, 'permission_mode')) next.permissionMode = submitted.permissionMode
-    if (hasOwn(configuration, 'env_vars')) next.envVarsText = submitted.envVarsText
-    if (hasOwn(configuration, 'heartbeat_enabled')) next.heartbeatEnabled = submitted.heartbeatEnabled
-    if (hasOwn(configuration, 'heartbeat_interval')) next.heartbeatInterval = submitted.heartbeatInterval
-    if (hasOwn(configuration, 'heartbeat_timeout_minutes'))
+    if (Object.hasOwn(configuration, 'avatar')) next.avatar = submitted.avatar
+    if (Object.hasOwn(configuration, 'permission_mode')) next.permissionMode = submitted.permissionMode
+    if (Object.hasOwn(configuration, 'env_vars')) next.envVarsText = submitted.envVarsText
+    if (Object.hasOwn(configuration, 'heartbeat_enabled')) next.heartbeatEnabled = submitted.heartbeatEnabled
+    if (Object.hasOwn(configuration, 'heartbeat_interval')) next.heartbeatInterval = submitted.heartbeatInterval
+    if (Object.hasOwn(configuration, 'heartbeat_timeout_minutes'))
       next.heartbeatTimeoutMinutes = submitted.heartbeatTimeoutMinutes
-    if (hasOwn(configuration, 'language')) {
+    if (Object.hasOwn(configuration, 'language')) {
       next.languageMode = submitted.languageMode
       next.languageCustom = submitted.languageCustom
     }

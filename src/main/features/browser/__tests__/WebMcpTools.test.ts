@@ -1,4 +1,5 @@
 import type { Protocol } from 'devtools-protocol'
+import type { ProtocolMapping } from 'devtools-protocol/types/protocol-mapping'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { Signal } from '@main/core/lifecycle'
@@ -29,7 +30,10 @@ function setup() {
   const canceled: string[] = []
   let count = 0
   let execute: (id: string) => void = () => undefined
-  const send = async (method: string, params?: object) => {
+  const send = async (
+    method: string,
+    params?: ProtocolMapping.Commands[keyof ProtocolMapping.Commands]['paramsType'][0]
+  ) => {
     if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main', loaderId: 'doc-1' } } }
     if (method === 'Runtime.evaluate') return { result: { value: true } }
     if (method === 'WebMCP.enable') emit('WebMCP.toolsAdded', { tools: [tool] })

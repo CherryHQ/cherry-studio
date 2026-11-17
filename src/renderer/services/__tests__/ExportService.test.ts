@@ -361,8 +361,8 @@ describe('ExportService', () => {
     })
 
     it('keeps the export pending and blocks another export until the body is written', async () => {
-      let finishWrite!: (result: object) => void
-      notionMocks.appendBlocks.mockReturnValueOnce(new Promise<object>((resolve) => (finishWrite = resolve)))
+      let finishWrite!: (result: typeof success) => void
+      notionMocks.appendBlocks.mockReturnValueOnce(new Promise<typeof success>((resolve) => (finishWrite = resolve)))
       let settled = false
       const exportPromise = exportToNotion().then((result) => {
         settled = true

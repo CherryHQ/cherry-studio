@@ -335,12 +335,12 @@ describe('GuestSession command lifetime', () => {
   it.each(['abort', 'deadline'])('stops initialization after its last caller leaves via %s', async (reason) => {
     vi.useFakeTimers()
     const { session, mock } = setup()
-    let resume!: (value: object) => void
+    let resume!: () => void
     const fallback = mock.debugger.sendCommand.getMockImplementation()!
     mock.debugger.sendCommand.mockImplementation((method, params) =>
       method === 'Page.enable'
         ? new Promise((resolve) => {
-            resume = resolve
+            resume = () => resolve({})
           })
         : fallback(method, params)
     )
@@ -357,7 +357,7 @@ describe('GuestSession command lifetime', () => {
     if (reason === 'abort') controller.abort(new Error('Cancelled'))
     else await vi.advanceTimersByTimeAsync(101)
     await rejected
-    resume({})
+    resume()
     await vi.advanceTimersByTimeAsync(0)
     expect(mock.debugger.sendCommand.mock.calls.map(([method]) => method)).toEqual(['Page.enable'])
     expect(session.isAvailable()).toBe(false)
@@ -368,12 +368,12 @@ describe('GuestSession command lifetime', () => {
 
   it('keeps initialization alive for another caller when one caller aborts', async () => {
     const { session, mock } = setup()
-    let resume!: (value: object) => void
+    let resume!: () => void
     const fallback = mock.debugger.sendCommand.getMockImplementation()!
     mock.debugger.sendCommand.mockImplementation((method, params) =>
       method === 'Page.enable'
         ? new Promise((resolve) => {
-            resume = resolve
+            resume = () => resolve({})
           })
         : fallback(method, params)
     )
@@ -384,7 +384,7 @@ describe('GuestSession command lifetime', () => {
     const survivor = session.send('DOM.describeNode', { backendNodeId: 2 })
     controller.abort(new Error('Cancelled'))
     await rejected
-    resume({})
+    resume()
     await survivor
     expect(session.documentId).toBe('document-1')
     expect(session.isAvailable()).toBe(true)

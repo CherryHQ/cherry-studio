@@ -1,5 +1,6 @@
 import { net } from 'electron'
 import WebSocket from 'ws'
+import type * as z from 'zod'
 
 import { t } from '@main/i18n'
 import {
@@ -462,7 +463,7 @@ class DiscordAdapter extends ChannelAdapter {
     this.send({ op: OP_HEARTBEAT, d: this.lastSeq })
   }
 
-  private send(payload: object): void {
+  private send(payload: { op: number; d: z.core.util.JSONType }): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(payload))
     }

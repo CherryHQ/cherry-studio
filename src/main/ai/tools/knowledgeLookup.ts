@@ -134,7 +134,9 @@ export function isKnowledgeLookupError(output: KnowledgeSearchResultOrError): ou
  * so the array check above can't tell success from error — the `error` key is the
  * discriminant instead (a success object never carries one).
  */
-function isConceptLookupError(output: object): output is KnowledgeLookupError {
+function isConceptLookupError(
+  output: KnowledgeReadResultOrError | KnowledgeManageResultOrError
+): output is KnowledgeLookupError {
   return 'error' in output
 }
 

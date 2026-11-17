@@ -1917,11 +1917,11 @@ describe('AgentComposer', () => {
         selectableEfforts: ['low', 'high']
       }
     }
-    let finishModelUpdate!: (value: object) => void
+    let finishModelUpdate!: () => void
     mocks.updateSession.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
-          finishModelUpdate = resolve
+          finishModelUpdate = () => resolve(undefined)
         })
     )
 
@@ -1940,7 +1940,7 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('select reasoning model'))
     act(() => mocks.speedControlProps?.onReasoningEffortChange('low'))
 
-    await act(async () => finishModelUpdate({}))
+    await act(async () => finishModelUpdate())
 
     expect(mocks.speedControlProps?.reasoningEffort).toBe('low')
   })

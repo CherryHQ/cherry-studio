@@ -10,7 +10,7 @@ import { ndJsonStream, type RequestPermissionRequest } from '@agentclientprotoco
 import { expect } from 'vitest'
 import * as z from 'zod'
 
-import { runtimeId, ThreadFeed } from '@cherrystudio/agent-runtime'
+import { runtimeId, ThreadFeed, type JsonValue } from '@cherrystudio/agent-runtime'
 
 import { createAcpRuntime, type AcpThreadHandle } from '../src/v1'
 import { confirmed } from './fixture'
@@ -21,9 +21,9 @@ const versions = { claude: '0.101.0', gemini: '0.67.0' }
 function reply(res: ServerResponse, harness: NativeHarness, model: string) {
   let index = 0
   let started = false
-  const send = (type: string, value: object) =>
+  const send = (type: string, value: { readonly [key: string]: JsonValue }) =>
     res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`)
-  const google = (parts: object[], finish = false) =>
+  const google = (parts: Array<{ readonly [key: string]: JsonValue }>, finish = false) =>
     res.write(
       `data: ${JSON.stringify({ candidates: [{ content: { role: 'model', parts }, ...(finish && { finishReason: 'STOP' }), index: 0 }], usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5, totalTokenCount: 15 }, modelVersion: model })}\n\n`
     )

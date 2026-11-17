@@ -126,7 +126,7 @@ afterEach(async () => {
 
 interface MockContents extends EventEmitter {
   id: number
-  hostWebContents: object | null
+  hostWebContents: MockContents | null
   session: object
   debugger: EventEmitter & {
     attach: ReturnType<typeof vi.fn>
@@ -148,7 +148,7 @@ interface MockContents extends EventEmitter {
 
 function createContents(
   id: number,
-  hostWebContents: object | null,
+  hostWebContents: MockContents | null,
   options: {
     title?: string
     url?: string
@@ -265,7 +265,7 @@ describe('WebviewService request identity', () => {
 
 describe('WebviewService webview ownership', () => {
   let service: WebviewService
-  let host: object
+  let host: MockContents
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -273,7 +273,7 @@ describe('WebviewService webview ownership', () => {
     guestByTarget.clear()
     vi.mocked(app.commandLine.hasSwitch).mockReturnValue(false)
     getAllWebContents.mockReturnValue([])
-    host = {}
+    host = createContents(1, null, { type: 'window' })
     getWindow.mockReturnValue({ webContents: host })
     service = new WebviewService()
   })

@@ -1,3 +1,6 @@
+type CatalogValue = string | number | boolean | null | undefined | CatalogValue[] | Catalog
+type Catalog = { [key: string]: CatalogValue }
+
 // https://github.com/Gudahtt/prettier-plugin-sort-json/blob/main/src/index.ts
 /**
  * Lexical sort function for strings, meant to be used as the sort
@@ -22,10 +25,10 @@ function lexicalSort(a: string, b: string): number {
  * @param obj 需要排序的对象
  * @returns 返回排序后的新对象
  */
-export function sortedObjectByKeys(obj: object): object {
+export function sortedObjectByKeys(obj: Catalog): Catalog {
   const sortedKeys = Object.keys(obj).sort(lexicalSort)
 
-  const sortedObj = {}
+  const sortedObj: Catalog = {}
   for (const key of sortedKeys) {
     let value = obj[key]
     // 如果值是对象，递归排序

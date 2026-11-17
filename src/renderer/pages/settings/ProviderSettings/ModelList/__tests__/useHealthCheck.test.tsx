@@ -1,5 +1,6 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, renderHook, waitFor } from '@testing-library/react'
+import type { TOptions } from 'i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Model } from '@shared/data/types/model'
@@ -53,7 +54,7 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@renderer/i18n/resolver', () => ({
-  default: { t: (key: string, options?: object) => `${key}${options ? `:${JSON.stringify(options)}` : ''}` }
+  default: { t: (key: string, options?: TOptions) => `${key}${options ? `:${JSON.stringify(options)}` : ''}` }
 }))
 
 const chatModel: Model = {

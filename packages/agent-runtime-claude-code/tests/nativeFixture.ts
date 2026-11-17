@@ -8,6 +8,7 @@ import path from 'node:path'
 import type { SDKMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import { expect } from 'vitest'
 
+import type { JsonValue } from '@cherrystudio/agent-runtime'
 import { runtimeId, ThreadFeed, type OperationResult, type ThreadSnapshot } from '@cherrystudio/agent-runtime'
 
 import {
@@ -30,7 +31,7 @@ export type ReplyBlock = { type: 'text'; text: string } | { type: 'tool_use'; id
 function modelReply(res: ServerResponse, id: string, model: string) {
   res.writeHead(200, { 'Content-Type': 'text/event-stream', Connection: 'close' })
   const closed = new Promise<void>((resolve) => res.once('close', resolve))
-  const send = (type: string, value: object) =>
+  const send = (type: string, value: { readonly [key: string]: JsonValue }) =>
     res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`)
   send('message_start', {
     message: {
@@ -84,7 +85,7 @@ export async function fixture(overrides: Partial<ClaudeSessionOptions> = {}) {
   const errors: unknown[] = []
   const children: ChildProcess[] = []
   let count = 0
-  let refusal: { status: number; body: object } | undefined
+  let refusal: { status: number; body: { readonly [key: string]: JsonValue } } | undefined
   const server = createServer((req, res) => {
     if (req.method !== 'POST' || req.url?.split('?')[0] !== '/v1/messages') {
       res.writeHead(404).end('{}')
@@ -165,7 +166,7 @@ export async function fixture(overrides: Partial<ClaudeSessionOptions> = {}) {
       return count
     },
     runtime,
-    refuseRequests(status: number, body: object) {
+    refuseRequests(status: number, body: { readonly [key: string]: JsonValue }) {
       refusal = { status, body }
     },
     async request() {

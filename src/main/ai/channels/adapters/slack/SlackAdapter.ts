@@ -667,7 +667,7 @@ class SlackAdapter extends ChannelAdapter {
 
   // ─── WebSocket Helper ──────────────────────────────────────
 
-  private send(payload: object): void {
+  private send(payload: Pick<SlackSocketEnvelope, 'envelope_id'>): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(payload))
     }

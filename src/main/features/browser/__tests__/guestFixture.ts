@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events'
 
+import type { ProtocolMapping } from 'devtools-protocol/types/protocol-mapping'
 import { vi } from 'vitest'
 
 export function createGuest(id = 1) {
@@ -17,7 +18,12 @@ export function createGuest(id = 1) {
       debuggerEvents.emit('detach', {}, 'target_closed')
     }),
     isAttached: vi.fn(() => attached),
-    sendCommand: vi.fn<(method: string, params?: object) => Promise<any>>(async (method) => {
+    sendCommand: vi.fn<
+      (
+        method: string,
+        params?: ProtocolMapping.Commands[keyof ProtocolMapping.Commands]['paramsType'][0]
+      ) => Promise<any>
+    >(async (method) => {
       if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main', loaderId: 'document-1' } } }
       return {}
     })

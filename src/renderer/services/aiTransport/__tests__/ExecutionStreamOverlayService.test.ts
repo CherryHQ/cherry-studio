@@ -49,7 +49,7 @@ it('retains terminal content, deduplicates completion, and protects a newer atte
   const ipc = projectionIpc()
   const service = new ExecutionStreamOverlayService()
   const topic = 'terminal-topic'
-  const consumer = {}
+  const consumer = Symbol()
   service.acquire(topic)
   const finishes: string[] = []
   service.onFinish(topic, (_id, event) => {
@@ -90,15 +90,15 @@ it('reports unresolved output as a failure once and retains it through history h
   service.disposeOverlay(topic, 'anchor')
   expect(service.getView(topic).overlay.anchor[0]).toMatchObject({ text: 'prefix readable' })
   expect(finishes).toEqual([expect.objectContaining({ attemptId: 3, isAbort: false, isError: true })])
-  service.release(topic, {})
+  service.release(topic, Symbol())
 })
 
 it('observes once for two consumers and restores current content on remount', async () => {
   const ipc = projectionIpc()
   const service = new ExecutionStreamOverlayService()
   const topic = 'shared-topic'
-  const a = {},
-    b = {}
+  const a = Symbol(),
+    b = Symbol()
   service.acquire(topic)
   service.acquire(topic)
   ipc.attachments[0].resolve(view(topic, 4))
@@ -128,6 +128,6 @@ it('shows the existing baseline when another consumer attached before the overla
   const service = new ExecutionStreamOverlayService()
   service.acquire(topic)
   expect(service.getView(topic).overlay.anchor?.[0]).toMatchObject({ text: 'prefix' })
-  service.release(topic, {})
+  service.release(topic, Symbol())
   stop()
 })

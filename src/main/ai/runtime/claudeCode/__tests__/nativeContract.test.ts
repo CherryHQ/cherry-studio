@@ -20,6 +20,7 @@ import {
 import { startTestHttpServer } from '@test-helpers/http/server'
 import { expect, it, vi } from 'vitest'
 
+import type { JsonValue } from '@cherrystudio/agent-runtime'
 import { AsyncEventQueue } from '@shared/utils/async/AsyncEventQueue'
 
 import { forkClaudeSession } from '../claudeFork'
@@ -40,7 +41,7 @@ type ReplyBlock = { type: 'text'; text: string } | { type: 'tool_use'; id: strin
 function modelReply(res: ServerResponse, id: string, model: string) {
   res.writeHead(200, { 'Content-Type': 'text/event-stream', Connection: 'close' })
   const closed = new Promise<void>((resolve) => res.once('close', resolve))
-  const send = (type: string, value: object) =>
+  const send = (type: string, value: { readonly [key: string]: JsonValue }) =>
     res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`)
   send('message_start', {
     message: {

@@ -10,6 +10,7 @@ import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 
 const {
   appGetMock,
@@ -112,7 +113,7 @@ const windowManager = { getWindow: vi.fn() }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  createAgent.mockImplementation(async (request: object) => ({ id: 'agent-1', ...request }))
+  createAgent.mockImplementation(async (request: CreateAgentCommand) => ({ id: 'agent-1', ...request }))
   createBuiltinSkillSession.mockReturnValue({ id: 'skill-session', agentId: 'cherry-assistant' })
   createBuiltinSupportSession.mockReturnValue({ id: 'feedback-session', agentId: 'cherry-support' })
   // The ownership gate's happy path: entries with the tool-output store's fixed attributes.

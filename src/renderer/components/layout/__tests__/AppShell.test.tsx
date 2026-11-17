@@ -498,7 +498,7 @@ describe('window file drops', () => {
     return { files, items, types, dropEffect: 'copy' }
   }
 
-  function dispatch(target: EventTarget, type: string, dataTransfer: object) {
+  function dispatch(target: EventTarget, type: string, dataTransfer: ReturnType<typeof transfer>) {
     const event = new Event(type, { bubbles: true, cancelable: true })
     Object.defineProperty(event, 'dataTransfer', { value: dataTransfer })
     act(() => {

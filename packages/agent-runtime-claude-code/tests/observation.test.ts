@@ -208,7 +208,11 @@ it('upserts repeated UUIDs, retains same-API distinct blocks, and never resurrec
 it('keeps a missing parent unresolved and rejects older run state after continuation', async () => {
   const test = await wireFixture()
   try {
-    const start = (id: string, run: string, extra: object = {}): SDKMessage => ({
+    const start = (
+      id: string,
+      run: string,
+      extra: Partial<Extract<SDKMessage, { type: 'system'; subtype: 'task_started' }>> = {}
+    ): SDKMessage => ({
       type: 'system',
       subtype: 'task_started',
       uuid: randomUUID(),
