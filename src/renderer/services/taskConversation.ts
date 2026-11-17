@@ -7,9 +7,10 @@ import type { OffsetPaginationResponse } from '@shared/data/api/types'
 export interface SelectedTaskRun {
   id: string
   startedAt: string
-  // TaskRunLogEntity carries 'skipped' on top of the job statuses: a guard-skipped run
-  // never becomes a job, but its log row still surfaces here as the selected run.
-  status: TaskRunLogEntity['status']
+  // The union of both sources: TaskRunLogEntity adds 'skipped' (a guard-skipped run never
+  // becomes a job, but its log row still surfaces here), while a job read back before it
+  // starts can still be 'pending' or 'delayed', which the page renders as queued.
+  status: TaskRunLogEntity['status'] | 'pending' | 'delayed'
   result: string | null
   error: string | null
 }
