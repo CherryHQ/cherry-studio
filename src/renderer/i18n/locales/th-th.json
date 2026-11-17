@@ -4175,6 +4175,7 @@
   "settings.browser.fromFile": "นำเข้าจากไฟล์…",
   "settings.browser.history": "ประวัติ",
   "settings.browser.historyHelp": "ค้นหาและเปิดหน้าเว็บที่คุณเคยเข้าชมอีกครั้ง",
+  "settings.browser.historyLoadFailed": "โหลดประวัติไม่สำเร็จ",
   "settings.browser.import": "นำเข้าข้อมูลเบราว์เซอร์",
   "settings.browser.importAction": "นำเข้า",
   "settings.browser.importComplete": "นำเข้าเสร็จสมบูรณ์",

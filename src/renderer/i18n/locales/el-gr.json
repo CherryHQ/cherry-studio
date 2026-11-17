@@ -4175,6 +4175,7 @@
   "settings.browser.fromFile": "Εισαγωγή από αρχείο…",
   "settings.browser.history": "Ιστορικό",
   "settings.browser.historyHelp": "Βρείτε και ανοίξτε ξανά σελίδες που έχετε επισκεφτεί.",
+  "settings.browser.historyLoadFailed": "Δεν ήταν δυνατή η φόρτωση του ιστορικού",
   "settings.browser.import": "Εισαγωγή δεδομένων περιήγησης",
   "settings.browser.importAction": "Εισαγωγή",
   "settings.browser.importComplete": "Η εισαγωγή ολοκληρώθηκε",

@@ -4177,6 +4177,7 @@
   "settings.browser.fromFile": "Импортировать из файла…",
   "settings.browser.history": "История",
   "settings.browser.historyHelp": "Поиск и повторное открытие посещённых страниц.",
+  "settings.browser.historyLoadFailed": "Не удалось загрузить историю",
   "settings.browser.import": "Импорт данных браузера",
   "settings.browser.importAction": "Импортировать",
   "settings.browser.importComplete": "Импорт завершён",

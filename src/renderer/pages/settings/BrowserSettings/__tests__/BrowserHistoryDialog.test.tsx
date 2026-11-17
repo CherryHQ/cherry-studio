@@ -45,13 +45,13 @@ describe('BrowserHistoryDialog errors', () => {
     }))
     render(<BrowserHistoryDialog onOpenPage={vi.fn()} />)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(i18n.t('settings.browser.error'))
+    expect(await screen.findByRole('alert')).toHaveTextContent(i18n.t('settings.browser.historyLoadFailed'))
     fireEvent.click(screen.getByRole('button', { name: i18n.t('common.detail') }))
     await waitFor(() =>
       expect(detailMocks.open).toHaveBeenCalledWith(
         expect.objectContaining({
           error: loadCause,
-          message: i18n.t('settings.browser.error'),
+          message: i18n.t('settings.browser.historyLoadFailed'),
           source: 'settings.browser',
           operation: 'browser.history.load'
         })
@@ -70,7 +70,7 @@ describe('BrowserHistoryDialog errors', () => {
           error: refreshCause,
           operation: 'browser.history.action',
           source: 'settings.browser',
-          message: i18n.t('settings.browser.error')
+          message: i18n.t('error.boundary.action_failed')
         })
       )
     )

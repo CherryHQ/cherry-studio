@@ -4175,6 +4175,7 @@
   "settings.browser.fromFile": "从文件导入…",
   "settings.browser.history": "浏览记录",
   "settings.browser.historyHelp": "查找并重新打开访问过的网页。",
+  "settings.browser.historyLoadFailed": "无法加载浏览记录",
   "settings.browser.import": "导入浏览器数据",
   "settings.browser.importAction": "导入",
   "settings.browser.importComplete": "导入完成",
