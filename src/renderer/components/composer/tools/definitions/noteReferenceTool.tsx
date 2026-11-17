@@ -5,7 +5,7 @@ import { ComposerPanelSymbol, prepareComposerQuickPanelSearch } from '@renderer/
 import type { ComposerToolFooterAction, ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
-import { useQuickPanel } from '@renderer/components/QuickPanel'
+import { QuickPanelEmptyIcon, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
@@ -83,7 +83,7 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
         {
           id: 'note-reference:empty',
           label: t('chat.input.note_reference.empty'),
-          icon: <NotebookPen />,
+          icon: <QuickPanelEmptyIcon />,
           disabled: true
         }
       ]

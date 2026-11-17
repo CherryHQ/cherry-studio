@@ -9,7 +9,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  EmptyState,
+  EmptyStateMessage,
   Input,
   ScrollArea
 } from '@cherrystudio/ui'
@@ -87,7 +87,9 @@ export function ExportAssistantsDialog({
               {t('common.loading')}
             </p>
           ) : visible.length === 0 ? (
-            <EmptyState title={t('common.no_results')} />
+            <EmptyStateMessage className="p-6 text-sm text-muted-foreground">
+              {t('common.no_results')}
+            </EmptyStateMessage>
           ) : (
             visible.map((assistant) => (
               <label

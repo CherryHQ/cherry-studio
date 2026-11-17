@@ -8,7 +8,7 @@ import type { ComposerToolFooterAction, ComposerToolLauncher } from '@renderer/c
 import { isMcpToolbarActive } from '@renderer/components/composer/tools/definitions/mcpToolbarState'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
-import { type QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
+import { QuickPanelEmptyIcon, type QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentMutationsById, useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
@@ -75,7 +75,7 @@ function createEmptyMcpStatusItem(label: string): QuickPanelListItem {
   return {
     id: 'mcp-status-empty',
     label,
-    icon: <McpLogo aria-hidden />,
+    icon: <QuickPanelEmptyIcon />,
     disabled: true
   }
 }

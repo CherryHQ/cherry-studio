@@ -3,7 +3,7 @@ import { ExternalLink, MessageSquare, MousePointerClick, X } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@cherrystudio/ui'
+import { Button, EmptyStateMessage } from '@cherrystudio/ui'
 import { useInfiniteFlatItems } from '@data/hooks/useDataApi'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
 import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
@@ -416,7 +416,7 @@ export function GlobalSearchMessagePreviewPanel({
       ) : messageItems.length === 0 ? (
         <div className="min-h-0 flex-1 px-6 pt-5 pb-20">
           <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-            {t('common.no_results')}
+            <EmptyStateMessage>{t('common.no_results')}</EmptyStateMessage>
           </div>
         </div>
       ) : (

@@ -1,10 +1,10 @@
-import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, Inbox } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
   Button,
-  EmptyState,
+  EmptyStateMark,
   Skeleton,
   Table,
   TableBody,
@@ -229,11 +229,11 @@ export function UsageEntriesTable({
             )}
           </>
         ) : (
-          <EmptyState
-            compact
-            title={t('settings.usage.explore.noEntries')}
-            description={t('settings.usage.explore.noEntriesDescription')}
-          />
+          <div className="flex flex-col items-center gap-2 px-3 py-8 text-center">
+            <EmptyStateMark icon={Inbox} />
+            <p className="text-sm text-muted-foreground">{t('settings.usage.explore.noEntries')}</p>
+            <p className="text-xs text-foreground-tertiary">{t('settings.usage.explore.noEntriesDescription')}</p>
+          </div>
         )}
       </div>
     </UsagePanel>

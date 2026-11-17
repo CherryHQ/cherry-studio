@@ -1,7 +1,8 @@
+import { SearchX } from 'lucide-react'
 import { type ReactNode, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ReorderableList, ScrollArea, Sortable } from '@cherrystudio/ui'
+import { EmptyStateRow, ReorderableList, ScrollArea, Sortable } from '@cherrystudio/ui'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import type { Provider } from '@shared/data/types/provider'
 
@@ -252,7 +253,9 @@ export default function ProviderListContent({
         {hasResults ? (
           <section className={providerListClasses.section}>{hasAnyGroup ? renderGrouped() : renderFlat()}</section>
         ) : (
-          <div className={providerListClasses.emptyState}>{t('common.no_results')}</div>
+          <EmptyStateRow icon={SearchX} className="mx-1 my-2">
+            {t('common.no_results')}
+          </EmptyStateRow>
         )}
       </div>
     </ScrollArea>

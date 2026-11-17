@@ -2,7 +2,7 @@ import { ExternalLink, RefreshCw } from 'lucide-react'
 import { useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Skeleton } from '@cherrystudio/ui'
+import { Button, EmptyNote, Skeleton } from '@cherrystudio/ui'
 import { CherryCloudQuotaUsage } from '@renderer/components/CherryCloudQuotaUsage'
 import { useCherryCloudPlans } from '@renderer/hooks/useCherryCloudPlans'
 import { openCherryCloudAccountPortal, openCherryCloudFaq } from '@renderer/services/cherryCloudAccountPortal'
@@ -155,9 +155,9 @@ export function SubscriptionSettings() {
           ) : paidPlan?.quota_pools.length ? (
             <CherryCloudQuotaUsage entitlement={paidPlan} />
           ) : (
-            <p className="py-6 text-center text-sm text-muted-foreground">
+            <EmptyNote>
               {paidPlan ? t('settings.subscription.no_quota') : t('settings.subscription.subscribe_hint')}
-            </p>
+            </EmptyNote>
           )}
         </div>
       </div>

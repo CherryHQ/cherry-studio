@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
+  QuickPanelEmptyIcon: () => null,
   useQuickPanel: () => ({
     isVisible: true,
     symbol: ComposerPanelSymbol.McpResources,

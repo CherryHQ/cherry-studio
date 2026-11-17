@@ -8,6 +8,7 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  EmptyPlaceholder,
   Form,
   FormControl,
   FormDescription,
@@ -344,11 +345,12 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
             />
           </div>
           {linkedItems.length === 0 ? (
-            <div className="mt-2 flex flex-col items-center rounded-md border border-border-subtle border-dashed p-6">
-              <Database size={20} strokeWidth={1.2} className="mb-2 text-foreground-tertiary" />
-              <p className="mb-1 text-foreground-tertiary text-xs">{t('library.config.knowledge.empty_title')}</p>
-              <p className="text-foreground-tertiary text-xs">{t('library.config.knowledge.empty_desc')}</p>
-            </div>
+            <EmptyPlaceholder
+              icon={Database}
+              title={t('library.config.knowledge.empty_title')}
+              description={t('library.config.knowledge.empty_desc')}
+              className="mt-2"
+            />
           ) : (
             <div className="mt-2 space-y-1.5">
               {linkedItems.map((kb) => (

@@ -1,8 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import { FileText, Folder, Sparkles, Upload } from 'lucide-react'
+import { Database, FileText, Folder, KeyRound, Sparkles, Upload } from 'lucide-react'
 
 import {
+  Button,
+  EmptyNote,
+  EmptyPlaceholder,
   EmptyState,
+  EmptyStateRow,
   EmptyStateScene,
   SceneButton,
   SceneCursor,
@@ -128,5 +132,24 @@ export const WithScene: Story = {
         }
       />
     </Surface>
+  )
+}
+
+export const CompactTemplates: Story = {
+  render: () => (
+    <div className="flex w-[360px] flex-col gap-4">
+      <EmptyStateRow icon={KeyRound}>No API key</EmptyStateRow>
+      <EmptyPlaceholder
+        icon={Database}
+        title="No knowledge bases linked"
+        description="Once linked, the assistant can answer from document content."
+        action={
+          <Button size="sm" variant="outline">
+            Link
+          </Button>
+        }
+      />
+      <EmptyNote>No run history yet.</EmptyNote>
+    </div>
   )
 }

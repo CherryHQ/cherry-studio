@@ -1,9 +1,9 @@
-import { Check, Copy, Minus, Plus, X } from 'lucide-react'
+import { Check, Copy, KeyRound, Minus, Plus, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ScrollArea, HelpTooltip } from '@cherrystudio/ui'
+import { EmptyStateRow, HelpTooltip, ScrollArea } from '@cherrystudio/ui'
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Tooltip } from '@cherrystudio/ui'
 import EditIcon from '@renderer/components/icons/EditIcon'
 import { popup } from '@renderer/services/popup'
@@ -184,7 +184,9 @@ export const WebSearchApiKeyList: FC<WebSearchApiKeyListProps> = ({ providerId }
     <div className="py-3">
       <div className="overflow-hidden rounded-xl border border-border-subtle bg-foreground/2">
         {displayItems.length === 0 ? (
-          <div className="px-3 py-2 text-xs leading-tight text-muted-foreground">{t('error.no_api_key')}</div>
+          <EmptyStateRow icon={KeyRound} className="m-1.5">
+            {t('error.no_api_key')}
+          </EmptyStateRow>
         ) : (
           <ScrollArea viewportProps={{ className: 'overflow-x-hidden' }} className="max-h-[60vh]">
             <div>

@@ -2,7 +2,7 @@ import { ArrowLeftToLine, ArrowRightToLine } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ScrollArea, Sortable, Tooltip } from '@cherrystudio/ui'
+import { EmptyStateRow, ScrollArea, Sortable, Tooltip } from '@cherrystudio/ui'
 import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
@@ -38,9 +38,7 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
         <span className="text-xs tabular-nums">{count}</span>
       </div>
       {apps.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center px-2 py-6 text-center text-muted-foreground text-xs">
-          {emptyText}
-        </div>
+        <EmptyStateRow className="mx-2">{emptyText}</EmptyStateRow>
       ) : (
         <ScrollArea viewportProps={{ className: 'overflow-x-hidden' }} className="min-h-0 flex-1">
           <Sortable
