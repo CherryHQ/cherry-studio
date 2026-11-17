@@ -17,8 +17,8 @@ function isChannelConfigTool(toolResponse: ChannelConfigToolResponse): boolean {
   return tool.type === 'mcp' && isCherryTools && CONFIG_TOOL_NAMES.has(tool.name)
 }
 
-export function isChannelAuthQrRequest(toolResponse: ChannelConfigToolResponse): boolean {
-  if (!isChannelConfigTool(toolResponse)) return false
+export function isChannelAuthQrRequest(toolResponse: ChannelConfigToolResponse): toolResponse is NormalToolResponse {
+  if (!isChannelConfigTool(toolResponse) || typeof toolResponse.toolCallId !== 'string') return false
 
   const args = toolResponse.arguments
   if (!args || Array.isArray(args) || typeof args !== 'object') return false
