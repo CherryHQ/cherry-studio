@@ -87,12 +87,59 @@ describe('Playwright reporter contract', () => {
     expect(run.phases['startup'].errors).toEqual(['Executor error: teardown failed: [REDACTED]'])
   })
 
+  it('records the executed selection so a rerun verdict does not depend on a separate --list', () => {
+    // TOOL-20261117-01: the ids come from the run that produced the case statuses, not from a
+    // `playwright test --list` collected before/after it.
+    const reporter = new RegressionReporter()
+    reporter.onBegin(config, suite)
+    reporter.onTestBegin(startup)
+    reporter.onTestEnd(startup, passed)
+    reporter.onEnd({ status: 'passed', startTime: new Date(), duration: 10 })
+    const run = readRun(getRunPaths(directory).runState)
+    expect(run.selections?.startup?.ids).toEqual(['S-01'])
+    expect(run.selections?.startup?.recordedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  })
+
+  it('keeps a collected case that never began in the selection record', () => {
+    // A case that never reached onTestBegin/onTestEnd must still appear in the selection record, so
+    // judging the run by that record cannot pass on "nothing was checked".
+    const paths = getRunPaths(directory)
+    const startRun = readRun(paths.runState)
+    writeRun(paths.runState, createRun({ ...startRun.metadata, task: 'all' }))
+    const pairing = { title: 'Pairing', annotations: [{ type: 'regression-case', description: 'MP-141' }] } as TestCase
+    const reporter = new RegressionReporter()
+    reporter.onBegin(config, { allTests: () => [startup, pairing] } as Suite)
+    reporter.onTestBegin(startup)
+    reporter.onEnd({ status: 'failed', startTime: new Date(), duration: 10 })
+    const run = readRun(paths.runState)
+    expect(run.selections?.startup?.ids).toEqual(['S-01'])
+    expect(run.selections?.system?.ids).toEqual(['MP-141'])
+    expect(run.cases['MP-141'].status).toBe('pending')
+  })
+
+  it('persists the selection when the first collected case is not applicable', () => {
+    // The first collected case can be outside the selected task, so onTestBegin returns early; the
+    // record must already be on disk or the whole execution loses its selection evidence.
+    const paths = getRunPaths(directory)
+    const startRun = readRun(paths.runState)
+    writeRun(paths.runState, createRun({ ...startRun.metadata, task: 'mini-app-smoke' }))
+    const note = { title: 'Note', annotations: [{ type: 'regression-case', description: 'N-01' }] } as TestCase
+    const miniApp = { title: 'Mini App', annotations: [{ type: 'regression-case', description: 'APP-01' }] } as TestCase
+    const reporter = new RegressionReporter()
+    reporter.onBegin(config, { allTests: () => [note, miniApp] } as Suite)
+    reporter.onTestBegin(note)
+    const run = readRun(paths.runState)
+    expect(run.cases['N-01'].status).toBe('not_applicable')
+    expect(run.selections?.basicFeatures?.ids).toEqual(['N-01', 'APP-01'])
+  })
+
   it('does not mutate run state during enumeration without test execution', () => {
     const before = readRun(getRunPaths(directory).runState)
     const reporter = new RegressionReporter()
     reporter.onBegin(config, suite)
     reporter.onEnd({ status: 'passed', startTime: new Date(), duration: 10 })
     expect(readRun(getRunPaths(directory).runState)).toEqual(before)
+    expect(readRun(getRunPaths(directory).runState).selections).toBeUndefined()
   })
 
   it('records skipped capability requirements as blocked with their reason', () => {
