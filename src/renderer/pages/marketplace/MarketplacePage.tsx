@@ -12,6 +12,8 @@ import { useBuiltinMcpCatalog } from '@renderer/hooks/useBuiltinMcpCatalog'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { MarketplaceResourceType, MarketplaceView } from '@renderer/types/marketplace'
 
+import { MarketplaceCategoryFilter } from './MarketplaceComponents'
+import { MARKETPLACE_CATEGORY_KEYS } from './marketplaceLabels'
 import { MarketplaceMcp } from './MarketplaceMcp'
 import { MarketplaceSkills } from './MarketplaceSkills'
 import { buildMarketplaceTemplates } from './marketplaceTemplateCatalog'
@@ -43,6 +45,7 @@ export default function MarketplacePage() {
     mcp: ''
   })
   const [templateCategory, setTemplateCategory] = useState('')
+  const [skillCategory, setSkillCategory] = useState('')
   const moreMcpSources = mcpView === 'sources' || Boolean(mcpProvider)
   const selectResourceType = (type: MarketplaceView) => {
     setSelectedType(type)
@@ -60,6 +63,11 @@ export default function MarketplacePage() {
     !registrySource && (resourceType === 'all' || resourceType === 'skill')
   )
   const agents = useAgentCatalogPresets({ enabled: resourceType === 'all' || resourceType === 'agent' })
+  const skillCategories = useMemo(
+    () => [...new Set((skills.catalog.data ?? []).map((skill) => skill.domain).filter(Boolean))],
+    [skills.catalog.data]
+  )
+  const curatedSkillCategory = !skillSourceId && skillCategories.includes(skillCategory) ? skillCategory : ''
   const assistants = useAssistantCatalogPresets({
     enabled: resourceType === 'all' || resourceType === 'agent'
   })
@@ -97,7 +105,10 @@ export default function MarketplacePage() {
   const renderCatalog = (type: MarketplaceResourceType, preview = false) => {
     if (type === 'skill' && !preview && registrySource)
       return <RegistrySkillsCatalog source={registrySource} query={query} active />
-    if (type === 'skill') return <MarketplaceSkills market={skills} query={query} preview={preview} active />
+    if (type === 'skill')
+      return (
+        <MarketplaceSkills market={skills} query={query} category={curatedSkillCategory} preview={preview} active />
+      )
     if (type === 'mcp')
       return (
         <MarketplaceMcp
@@ -138,7 +149,7 @@ export default function MarketplacePage() {
     <div className="flex h-full min-h-0 flex-col bg-background" data-testid="marketplace-page">
       <div className="flex min-h-0 w-full flex-1 gap-6 px-4 pt-4">
         <aside className="w-36 shrink-0 pt-1 lg:w-44" aria-label={t('marketplace.resource_types')}>
-          <h2 className="mb-3 px-3 text-xs text-foreground-tertiary">{t('marketplace.resource_types')}</h2>
+          <h2 className="text-foreground-tertiary mb-3 px-3 text-xs">{t('marketplace.resource_types')}</h2>
           <nav className="space-y-1">
             {RESOURCE_TYPES.map(({ id, label, icon: Icon }) => (
               <Button
@@ -153,7 +164,7 @@ export default function MarketplacePage() {
                 }>
                 <Icon className="size-4" strokeWidth={1.5} />
                 <span>{t(label)}</span>
-                <span className="ml-auto text-xs font-normal text-foreground-tertiary">{counts[id] ?? '—'}</span>
+                <span className="text-foreground-tertiary ml-auto text-xs font-normal">{counts[id] ?? '—'}</span>
               </Button>
             ))}
           </nav>
@@ -212,6 +223,16 @@ export default function MarketplacePage() {
               </Button>
             </div>
           ) : null}
+          {resourceType === 'skill' && !skillSourceId ? (
+            <MarketplaceCategoryFilter
+              categories={skillCategories}
+              category={curatedSkillCategory}
+              onCategoryChange={setSkillCategory}
+              categoryLabel={(domain) =>
+                MARKETPLACE_CATEGORY_KEYS[domain] ? t(MARKETPLACE_CATEGORY_KEYS[domain]) : domain
+              }
+            />
+          ) : null}
           {resourceType === 'all' ? (
             <ScrollArea className="-mr-4 min-h-0 flex-1" contentProps={{ className: 'space-y-7 pr-5 pb-4' }}>
               {OVERVIEW_TYPES.map((type) => (
@@ -233,7 +254,10 @@ export default function MarketplacePage() {
               {resourceType === 'agent' ? (
                 renderCatalog(resourceType)
               ) : (
-                <ScrollArea className="min-h-0 flex-1" contentProps={{ className: 'pr-5 pb-4' }}>
+                <ScrollArea
+                  key={resourceType === 'skill' ? curatedSkillCategory : undefined}
+                  className="min-h-0 flex-1"
+                  contentProps={{ className: 'pr-5 pb-4' }}>
                   {renderCatalog(resourceType)}
                 </ScrollArea>
               )}

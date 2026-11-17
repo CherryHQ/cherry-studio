@@ -10,10 +10,45 @@ import {
   DialogHeader,
   DialogTitle,
   EmptyState,
+  HorizontalScrollContainer,
   Spinner,
   ScrollArea
 } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
+
+export function MarketplaceCategoryFilter({
+  categories,
+  category,
+  onCategoryChange,
+  categoryLabel
+}: {
+  categories: string[]
+  category: string
+  onCategoryChange: (category: string) => void
+  categoryLabel: (category: string) => string
+}) {
+  const { t } = useTranslation()
+  return (
+    <div role="group" className="mb-3 shrink-0 pr-4" aria-label={t('marketplace.categories')}>
+      <HorizontalScrollContainer
+        gap="4px"
+        scrollLeftLabel={t('settings.models.filter.scroll_left')}
+        scrollRightLabel={t('settings.models.filter.scroll_right')}>
+        {['', ...categories].map((group) => (
+          <Button
+            key={group}
+            variant="ghost"
+            size="sm"
+            className={'shrink-0 rounded-full ' + (category === group ? 'bg-accent' : '')}
+            aria-pressed={category === group}
+            onClick={() => onCategoryChange(group)}>
+            {group ? categoryLabel(group) : t('common.all')}
+          </Button>
+        ))}
+      </HorizontalScrollContainer>
+    </div>
+  )
+}
 
 export function MarketplaceCard({
   name,
@@ -41,7 +76,7 @@ export function MarketplaceCard({
           <div className="truncate text-sm font-medium" title={name}>
             {name}
           </div>
-          <p className="mt-0.5 line-clamp-2 text-xs font-normal text-muted-foreground">{description}</p>
+          <p className="text-muted-foreground mt-0.5 line-clamp-2 text-xs font-normal">{description}</p>
           {children}
         </div>
       </Button>
@@ -55,7 +90,7 @@ export function MarketplaceCardAction({ className, ...props }: ComponentProps<ty
     <Button
       variant="ghost"
       size="icon-sm"
-      className={cn('size-7 shrink-0 rounded-full bg-background-subtle text-muted-foreground', className)}
+      className={cn('text-muted-foreground size-7 shrink-0 rounded-full bg-background-subtle', className)}
       {...props}
     />
   )
@@ -140,7 +175,7 @@ export function MarketplaceLoadState({
   const { t } = useTranslation()
   if (error)
     return (
-      <div role="alert" className="my-3 flex items-center justify-between gap-3 text-sm text-error">
+      <div role="alert" className="text-error my-3 flex items-center justify-between gap-3 text-sm">
         {t('marketplace.catalog_load_failed')}
         <Button variant="outline" size="sm" onClick={() => void retry?.()}>
           {t('common.retry')}
@@ -197,7 +232,7 @@ export function MarketplaceDetailHeader({
       <DialogDescription className="sr-only">{description}</DialogDescription>
       <DialogHeader
         className={cn(
-          'shrink-0 border-border-subtle border-b px-5 pt-10 pb-5 text-left',
+          'shrink-0 border-b border-border-subtle px-5 pt-10 pb-5 text-left',
           curated && 'text-neutral-700'
         )}
         style={{
@@ -240,7 +275,7 @@ export function MarketplaceDetailBody({ children }: { children: ReactNode }) {
 
 export function MarketplaceDetailFooter({ children }: { children: ReactNode }) {
   return (
-    <div className="flex shrink-0 items-center justify-between gap-3 border-border-subtle border-t bg-card px-5 py-3">
+    <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border-subtle bg-card px-5 py-3">
       {children}
     </div>
   )
@@ -253,7 +288,7 @@ export function MarketplaceDetailProperties({ items }: { items: { label: string;
         .filter(({ value }) => value)
         .map(({ label, value }) => (
           <div key={label} className="min-w-0 rounded-xl border border-border-subtle bg-background-subtle px-3 py-2">
-            <div className="text-xs text-foreground-tertiary">{label}</div>
+            <div className="text-foreground-tertiary text-xs">{label}</div>
             <div className="mt-1 truncate text-sm font-medium" title={value}>
               {value}
             </div>

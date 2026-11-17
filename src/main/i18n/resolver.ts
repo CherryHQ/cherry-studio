@@ -11,6 +11,7 @@ import esES from './locales/es-es.json'
 import frFR from './locales/fr-fr.json'
 import itIT from './locales/it-it.json'
 import JaJP from './locales/ja-jp.json'
+import plPL from './locales/pl-pl.json'
 import ptPT from './locales/pt-pt.json'
 import roRO from './locales/ro-ro.json'
 import RuRu from './locales/ru-ru.json'
@@ -31,6 +32,7 @@ const locales = Object.fromEntries(
     ['el-GR', elGR],
     ['es-ES', esES],
     ['fr-FR', frFR],
+    ['pl-PL', plPL],
     ['pt-PT', ptPT],
     ['ro-RO', roRO],
     ['th-TH', ThTH],

@@ -2,6 +2,7 @@ import json
 import os
 import re
 import sys
+import subprocess
 from pathlib import Path, PurePosixPath
 
 from qcloud_cos import CosConfig, CosS3Client
@@ -29,9 +30,13 @@ def write_json(client, key, value):
     )
 
 
-def stage_build(client, prefix, edition, platform):
+def inventory_groups(platform):
+    return (platform,) if platform == "windows" else tuple(f"{platform}/{arch}" for arch in ("x64", "arm64"))
+
+
+def stage_build(client, prefix, edition, platform, architecture="all"):
     sources = json.loads(Path("release-upload.json").read_text(encoding="utf-8"))
-    group = f"{edition}/{platform}"
+    group = f"{edition}/{platform}" + (f"/{architecture}" if architecture != "all" else "")
     attempt = os.environ["GITHUB_RUN_ATTEMPT"]
     files = {}
     for relative, source in sources.items():
@@ -43,7 +48,32 @@ def stage_build(client, prefix, edition, platform):
     write_json(client, f"{prefix}/{group}.json", files)
 
 
-def assemble(client, base, prefix, platform):
+def merge_mac_manifests(client, prefix, edition, files):
+    fragments = [
+        relative for relative in files
+        if relative.startswith(f"{edition}/mac/") and relative.endswith(("-mac-x64.yml", "-mac-arm64.yml"))
+    ]
+    manifests = []
+    for relative in sorted(fragments, key=lambda name: "arm64" in name):
+        response = client.get_object(Bucket=BUCKET, Key=files[relative]["key"])
+        with response["Body"].get_raw_stream() as body:
+            manifests.append(body.read().decode("utf-8"))
+    merged = subprocess.run(
+        ["node", str(Path(__file__).with_name("merge-mac-manifests.js"))],
+        input=json.dumps({"edition": edition, "version": os.environ["TAG"][1:], "manifests": manifests}),
+        text=True, capture_output=True, check=True,
+    )
+    manifest = json.loads(merged.stdout)
+    relative = f"{edition}/mac/{manifest['file']}"
+    key = f"{prefix}/attempt-{os.environ['GITHUB_RUN_ATTEMPT']}/{relative}"
+    contents = manifest["contents"].encode("utf-8")
+    client.put_object(Bucket=BUCKET, Key=key, Body=contents, ContentType="text/yaml")
+    for fragment in fragments:
+        del files[fragment]
+    files[relative] = {"key": key, "size": len(contents)}
+
+
+def assemble(client, base, prefix, platform, download="all"):
     sha = os.environ["RELEASE_SHA"]
     selected = PLATFORMS if platform == "all" else (platform,)
     files = {}
@@ -59,8 +89,18 @@ def assemble(client, base, prefix, platform):
         }
     for edition in EDITIONS:
         for target in selected:
-            files.update(read_json(client, f"{prefix}/{edition}/{target}.json"))
-    download_assets(client, files, Path("github-release-artifacts"), editions=("global",))
+            for group in inventory_groups(target):
+                incoming = read_json(client, f"{prefix}/{edition}/{group}.json")
+                collisions = files.keys() & incoming.keys()
+                if collisions:
+                    raise ValueError(f"Conflicting release files: {sorted(collisions)}")
+                files.update(incoming)
+        if "mac" in selected:
+            merge_mac_manifests(client, prefix, edition, files)
+    downloads = files if download == "all" else {
+        name: entry for name, entry in files.items() if PurePosixPath(name).suffix in (".yml", ".yaml", ".json")
+    }
+    download_assets(client, downloads, Path("github-release-artifacts"), editions=("global",))
     body = Path("release_body.txt").read_text(encoding="utf-8")
     inventory = {"sha": sha, "platform": platform, "files": files, "body": body}
     Path("cos-release.json").write_text(json.dumps(inventory), encoding="utf-8")
@@ -91,7 +131,9 @@ def summarize(client, prefix, tag):
     lines = ["## CN installer downloads", "", "Download links expire after 24 hours.", ""]
     rows = []
     for platform in PLATFORMS:
-        files = read_json(client, f"{prefix}/cn/{platform}.json", optional=True) or {}
+        files = {}
+        for group in inventory_groups(platform):
+            files.update(read_json(client, f"{prefix}/cn/{group}.json", optional=True) or {})
         for relative, entry in sorted(files.items()):
             match = installer.fullmatch(PurePosixPath(relative).name)
             if not match:
@@ -118,7 +160,7 @@ def main():
     prefix = f"{base}/{run_id}"
     domain = (
         f"{BUCKET}.cos.ap-shanghai.myqcloud.com"
-        if command == "upload" and args[1:] == ["windows"]
+        if command == "upload" and args[1] == "windows"
         else f"{BUCKET}.cos.accelerate.myqcloud.com"
     )
     client = CosS3Client(CosConfig(
@@ -130,12 +172,29 @@ def main():
     elif command == "assemble":
         assemble(client, base, prefix, *args)
     elif command == "begin-draft":
-        write_json(client, f"{base}/draft.json", {"runId": None})
+        write_json(client, f"{base}/draft.json", {
+            "runId": None, "buildRunId": run_id, "sha": os.environ["RELEASE_SHA"],
+        })
+    elif command == "check-build":
+        current = read_json(client, f"{base}/draft.json")
+        if current.get("buildRunId") != run_id or current.get("sha") != os.environ["RELEASE_SHA"]:
+            raise ValueError("The draft belongs to a different build")
+    elif command == "download-target":
+        platform, arch = args
+        group = platform if arch == "all" else f"{platform}/{arch}"
+        inventory = read_json(client, f"{prefix}/global/{group}.json")
+        packages = {
+            name: entry for name, entry in inventory.items()
+            if PurePosixPath(name).suffix not in (".yml", ".yaml", ".json")
+        }
+        download_assets(client, packages, Path("github-release-artifacts"), editions=("global",))
     elif command == "record":
         inventory = json.loads(Path("cos-release.json").read_text(encoding="utf-8"))
         write_json(client, f"{prefix}/release.json", inventory)
         write_json(client, f"{base}/baselines/{inventory['sha']}.json", inventory)
-        write_json(client, f"{base}/draft.json", {"runId": run_id})
+        write_json(client, f"{base}/draft.json", {
+            "runId": run_id, "buildRunId": run_id, "sha": os.environ["RELEASE_SHA"],
+        })
     elif command == "check-draft":
         current = read_json(client, f"{base}/draft.json")
         if current["runId"] != run_id:
