@@ -94,7 +94,6 @@ export const SkillFileBrowser = function SkillFileBrowser({
     [access, selectedFile]
   )
   const fileSession = useFileEditSession(editableHandle, `skill:${skillId}`)
-  const notifyExternalChange = fileSession.notifyExternalChange
   const reloadFile = fileSession.reload
   const keepCurrentDraft = fileSession.keepDraft
   const selectedFileRef = useRef<AbsoluteFilePath | null>(selectedFile)
@@ -128,14 +127,13 @@ export const SkillFileBrowser = function SkillFileBrowser({
   const handleTreeMutation = useCallback(
     (event: TreeMutationEvent) => {
       if (access !== 'read_write') return
-      notifyExternalChange()
       const activePath = selectedFileRef.current
       if (event.type === 'updated' && activePath === event.path) {
         return
       }
       void reconcileSkill().catch(() => undefined)
     },
-    [access, notifyExternalChange, reconcileSkill]
+    [access, reconcileSkill]
   )
 
   const { root, version, isLoading, error } = useDirectoryTree(rootPath, undefined, handleTreeMutation)
