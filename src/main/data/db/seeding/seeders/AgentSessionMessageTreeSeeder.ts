@@ -1,38 +1,19 @@
-import { asc, eq, inArray } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 
 import { agentSessionTable as sessions } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable as messages } from '@data/db/schemas/agentSessionMessage'
-import { ensureAgentSessionRootTx } from '@data/services/agentSessionMessageTree'
 
 import type { DbType, ISeeder } from '../../types'
 
 export class AgentSessionMessageTreeSeeder implements ISeeder {
   readonly name = 'agentSessionMessageTree'
   readonly version = '1'
-  readonly description = 'Preserve flat Agent archives as one selected message path'
+  readonly description = 'Backfill legacy Agent delivery reply anchors'
   readonly executionPolicy = 'run-on-change' as const
 
   run(db: DbType): void {
     db.transaction(
       (tx) => {
-        for (const session of tx.select().from(sessions).all()) {
-          if (session.activeNodeId) continue
-          const rows = tx
-            .select({ id: messages.id, role: messages.role, updatedAt: messages.updatedAt })
-            .from(messages)
-            .where(eq(messages.sessionId, session.id))
-            .orderBy(asc(messages.createdAt), asc(messages.id))
-            .all()
-          let parentId = ensureAgentSessionRootTx(tx, session.id)
-          for (const row of rows.filter((row) => row.role !== 'root')) {
-            tx.update(messages).set({ parentId, updatedAt: row.updatedAt }).where(eq(messages.id, row.id)).run()
-            parentId = row.id
-          }
-          tx.update(sessions)
-            .set({ activeNodeId: parentId, updatedAt: session.updatedAt })
-            .where(eq(sessions.id, session.id))
-            .run()
-        }
         for (const request of tx
           .select()
           .from(messages)

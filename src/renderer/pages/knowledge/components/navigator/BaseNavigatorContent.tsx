@@ -225,7 +225,7 @@ const BaseNavigatorContent = ({
         ) : sections.length === 0 || (flatSection && flatSection.items.length === 0) ? (
           // KnowledgePage normally owns the zero-base empty state; keep a defensive fallback
           // for a transient empty collection while navigator data changes.
-          <EmptyState preset="no-result" title={t('common.no_results')} compact className="h-full" />
+          <EmptyState title={t('common.no_results')} compact className="h-full" />
         ) : flatSection ? (
           <SortableContext
             items={flatSection.items.map((base) => `base:${base.id}`)}

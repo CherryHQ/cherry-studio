@@ -403,3 +403,54 @@ index ac638f4..b4d16a8 100644
          timestamp: timestamp ?? 0,
      };
  }
+diff --git a/dist/api/google-shared.js b/dist/api/google-shared.js
+--- a/dist/api/google-shared.js
++++ b/dist/api/google-shared.js
+@@ -14,6 +14,7 @@
+     LOW: GoogleSdkThinkingLevel.LOW,
+     MEDIUM: GoogleSdkThinkingLevel.MEDIUM,
+     HIGH: GoogleSdkThinkingLevel.HIGH,
++    XHIGH: "XHIGH",
+ };
+ /** Resolve a supported pi level or model-specific Google mapping to a standard Google level. */
+ export function resolveGoogleThinkingLevel(model, level) {
+@@ -24,6 +25,7 @@
+         case "low":
+         case "medium":
+         case "high":
++        case "xhigh":
+             return resolvedLevel;
+         default:
+             throw new Error(`Unsupported Google thinking level mapping for ${model.provider}/${model.id}: ${level} -> ${String(mapped)}`);
+@@ -57,6 +59,8 @@
+             return "MEDIUM";
+         case "high":
+             return "HIGH";
++        case "xhigh":
++            return "XHIGH";
+     }
+ }
+ export function toGoogleSdkThinkingLevel(level) {
+diff --git a/dist/api/google-shared.d.ts b/dist/api/google-shared.d.ts
+--- a/dist/api/google-shared.d.ts
++++ b/dist/api/google-shared.d.ts
+@@ -8,8 +8,8 @@
+  * Thinking level for Gemini 3 models.
+  * Mirrors Google's ThinkingLevel enum values.
+  */
+-export type GoogleApiThinkingLevel = "THINKING_LEVEL_UNSPECIFIED" | "MINIMAL" | "LOW" | "MEDIUM" | "HIGH";
+-export type ResolvedGoogleThinkingLevel = Exclude<ThinkingLevel, "xhigh" | "max">;
++export type GoogleApiThinkingLevel = "THINKING_LEVEL_UNSPECIFIED" | "MINIMAL" | "LOW" | "MEDIUM" | "HIGH" | "XHIGH";
++export type ResolvedGoogleThinkingLevel = Exclude<ThinkingLevel, "max" | "ultra">;
+ /** Resolve a supported pi level or model-specific Google mapping to a standard Google level. */
+ export declare function resolveGoogleThinkingLevel<T extends GoogleApiType>(model: Model<T>, level: ThinkingLevel): ResolvedGoogleThinkingLevel;
+ /**
+@@ -19,7 +19,7 @@
+  */
+ export declare function usesGoogleThinkingLevel<T extends GoogleApiType>(model: Model<T>): boolean;
+ export declare function toGoogleThinkingLevel(level: ResolvedGoogleThinkingLevel): GoogleApiThinkingLevel;
+-export declare function toGoogleSdkThinkingLevel(level: GoogleApiThinkingLevel): GoogleSdkThinkingLevel;
++export declare function toGoogleSdkThinkingLevel(level: GoogleApiThinkingLevel): GoogleSdkThinkingLevel | "XHIGH";
+ export declare function getDisabledGoogleThinkingConfig<T extends GoogleApiType>(model: Model<T>): ThinkingConfig;
+ /**
+  * Determines whether a streamed Gemini `Part` should be treated as "thinking".
