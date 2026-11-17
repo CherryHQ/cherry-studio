@@ -39,6 +39,9 @@ const logger = loggerService.withContext('WindowManager')
 /** GC tick interval in ms — minute-grained precision is sufficient for decay/inactivity. */
 const WARMUP_GC_INTERVAL = 60_000
 
+// Electron ignores Dock hide calls for one second after show; allow a scheduling margin.
+const DOCK_HIDE_COOLDOWN = 1_100
+
 /**
  * Structured warmup operation tags. Every warmup state mutation logs exactly one
  * `warmup[type] <op>` line carrying the full `{idle, managed, inflight}` snapshot,
@@ -89,7 +92,7 @@ function defaultWarmup(cfg: PoolConfig): 'eager' | 'lazy' {
  * which fires synchronously BEFORE content is loaded — guaranteeing that all
  * event listeners are attached before `ready-to-show` can fire.
  *
- * @see docs/references/window-manager/README.md for architecture overview, usage guide, and API reference
+ * @see docs/dev/references/window-manager/README.md for architecture overview, usage guide, and API reference
  */
 @Injectable('WindowManager')
 @ServicePhase(Phase.WhenReady)
@@ -144,13 +147,20 @@ export class WindowManager extends BaseService {
 
   // ─── Events ────────────────────────────────────────────────────
 
-  private readonly _onWindowCreated = this.registerDisposable(new Emitter<ManagedWindow>())
+  private readonly _onWindowCreated = new Emitter<ManagedWindow>()
   /** Fires when a new window is created. Domain services subscribe to inject behavior. */
   public readonly onWindowCreated: Event<ManagedWindow> = this._onWindowCreated.event
 
-  private readonly _onWindowDestroyed = this.registerDisposable(new Emitter<ManagedWindow>())
+  private readonly _onWindowDestroyed = new Emitter<ManagedWindow>()
   /** Fires when a window is truly destroyed (NOT on pool release). */
   public readonly onWindowDestroyed: Event<ManagedWindow> = this._onWindowDestroyed.event
+
+  private readonly _onWindowReleasedToPool = new Emitter<ManagedWindow>()
+  /**
+   * Fires when a pooled window is closed and goes back to the idle pool alive. A release that
+   * destroys the window fires `onWindowDestroyed` instead, so the two never fire for the same close.
+   */
+  public readonly onWindowReleasedToPool: Event<ManagedWindow> = this._onWindowReleasedToPool.event
 
   /**
    * Subscribe to window creations for a specific {@link WindowType}. Equivalent to
@@ -177,10 +187,22 @@ export class WindowManager extends BaseService {
     })
   }
 
+  /**
+   * Subscribe to pool releases for a specific {@link WindowType}. A service that keeps
+   * per-window session state for a pooled type clears it here as well as on destruction.
+   */
+  public onWindowReleasedToPoolByType(type: WindowType, listener: (managed: ManagedWindow) => void): Disposable {
+    return this.onWindowReleasedToPool((managed) => {
+      if (managed.type === type) listener(managed)
+    })
+  }
+
   // ─── Lifecycle hooks ───────────────────────────────────────────
 
   protected override onInit(): void {
+    this.dockVisibilityStopped = false
     this.updateDockVisibility()
+    if (!this.dockShouldBeVisible) this.hideDockWhenReady()
   }
 
   /**
@@ -262,6 +284,8 @@ export class WindowManager extends BaseService {
   }
 
   protected override onStop(): void {
+    this.dockVisibilityStopped = true
+    this.dockHideTimer?.dispose()
     // Persist bounds for any window still alive at shutdown — the SIGINT/SIGTERM
     // path, where neither the native 'close' event nor destroyWindow runs before
     // teardown. onStop executes in the stopAll pass (reverse init order), so
@@ -275,7 +299,13 @@ export class WindowManager extends BaseService {
   }
 
   protected override onDestroy(): void {
+    this.dockVisibilityStopped = true
+    this.dockHideTimer?.dispose()
     logger.info('Destroying, closing all windows...')
+    // Dispose before closing windows: every subscriber has already stopped.
+    this._onWindowCreated.dispose()
+    this._onWindowDestroyed.dispose()
+    this._onWindowReleasedToPool.dispose()
 
     // GC timer is auto-disposed via registerInterval; just drop the reference.
     this.warmupGcTimer = null
@@ -1054,6 +1084,7 @@ export class WindowManager extends BaseService {
     }
 
     this.updateDockVisibility()
+    this._onWindowReleasedToPool.fire(managed)
   }
 
   /**
@@ -1725,14 +1756,30 @@ export class WindowManager extends BaseService {
   // `wm.behavior.setMacShowInDockByType(type, value)` to express tray-mode
   // intent; `windowContributesToDock` reads the override via the controller.
 
-  /**
-   * Tracks the Dock icon visibility that WM has committed to, so repeated calls
-   * deduplicate native Dock show/hide invocations. Initialized to `true` because
-   * macOS Electron apps start with the Dock icon visible; the first
-   * `updateDockVisibility()` will correctly transition to `false` when needed
-   * (e.g. tray-on-launch sets the Main override to `false` before window creation).
-   */
+  // Native Dock hiding may lag this intent during Electron's post-show cooldown.
+  // Electron starts with the Dock visible before any managed windows exist.
   private dockShouldBeVisible = true
+  private lastDockShowAt = Number.NEGATIVE_INFINITY
+  private dockHideTimer: Disposable | null = null
+  private dockVisibilityStopped = false
+
+  private hideDockWhenReady(): void {
+    if (this.dockVisibilityStopped || this.dockShouldBeVisible || this.dockHideTimer) return
+    const remaining = DOCK_HIDE_COOLDOWN - (Date.now() - this.lastDockShowAt)
+    if (remaining > 0) {
+      const timer = setTimeout(() => {
+        this.dockHideTimer?.dispose()
+        this.hideDockWhenReady()
+      }, remaining)
+      timer.unref()
+      this.dockHideTimer = this.registerDisposable(() => {
+        clearTimeout(timer)
+        this.dockHideTimer = null
+      })
+    } else {
+      app.dock?.hide()
+    }
+  }
 
   /**
    * Whether a managed window currently contributes to "app wants the Dock icon".
@@ -1760,22 +1807,28 @@ export class WindowManager extends BaseService {
    *   - window creation (in `createWindow`)
    *   - window destruction (in the 'closed' listener)
    *   - per-type override changes (in `wm.behavior.setMacShowInDockByType`)
+   *   - a Dock hold taken or released (`wm.behavior.hideMacDockWhileShown`)
    *
    * NOT triggered by show/hide/minimize/restore — see `setupWindowListeners` comment.
+   * The one exception is the hide that releases a Dock hold.
    */
   private updateDockVisibility(): void {
-    if (!isMac) return
+    if (!isMac || this.dockVisibilityStopped) return
 
-    const shouldShow = Array.from(this.windows.values()).some((managed) => this.windowContributesToDock(managed))
+    const shouldShow =
+      !this.behavior.isHidingMacDock() &&
+      Array.from(this.windows.values()).some((managed) => this.windowContributesToDock(managed))
 
     if (shouldShow && !this.dockShouldBeVisible) {
       this.dockShouldBeVisible = true
+      this.dockHideTimer?.dispose()
+      this.lastDockShowAt = Date.now()
       void app.dock?.show().then(() => {
-        if (!this.dockShouldBeVisible) app.dock?.hide()
+        this.hideDockWhenReady()
       })
     } else if (!shouldShow && this.dockShouldBeVisible) {
       this.dockShouldBeVisible = false
-      app.dock?.hide()
+      this.hideDockWhenReady()
     }
   }
 }

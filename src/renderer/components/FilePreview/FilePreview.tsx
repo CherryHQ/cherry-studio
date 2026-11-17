@@ -17,6 +17,7 @@ import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import type { FileLocation } from '@renderer/types/fileLocation'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
 import { getFilePreviewFileName, normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -107,7 +108,7 @@ function FilePreviewLoading() {
   return (
     <FilePreviewLayout.Frame>
       <FilePreviewLayout.Content>
-        <div className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm">
+        <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
           <LoaderCircle className="size-4 animate-spin" aria-hidden />
           <span>{t('file_preview.loading')}</span>
         </div>
@@ -121,11 +122,13 @@ function PluginErrorFallback() {
 }
 
 interface FilePreviewPluginRendererProps {
+  location?: FileLocation
   fileName: string
   filePath: AbsoluteFilePath
   metadata: FilePreviewFileMetadata
   metadataRequest?: FilePreviewMetadataRequest
   onSelectionReference?: FilePreviewPluginProps['onSelectionReference']
+  onLineComment?: FilePreviewPluginProps['onLineComment']
   plugin: { descriptor: FilePreviewPlugin; component: ComponentType<FilePreviewPluginProps> }
   refreshKey: number
   type: FilePreviewType
@@ -149,6 +152,8 @@ function FilePreviewPluginRenderer({
   metadata,
   metadataRequest,
   onSelectionReference,
+  onLineComment,
+  location,
   plugin,
   refreshKey,
   type
@@ -160,13 +165,21 @@ function FilePreviewPluginRenderer({
       key={`${plugin.descriptor.id}:${filePath}`}
       resetKeys={[refreshKey]}
       FallbackComponent={PluginErrorFallback}
-      onError={(error) => logger.error(`Failed to render file preview plugin: ${plugin.descriptor.id}`, error)}>
+      onError={(error, info) =>
+        logger.error(`Failed to render file preview plugin: ${plugin.descriptor.id}`, error, {
+          componentStack: info.componentStack,
+          operation: 'react.render',
+          failure: { source: 'application', kind: 'defect', reason: 'render_failed', outcome: 'failed' }
+        })
+      }>
       <PluginPreview
         filePath={filePath}
         fileName={fileName}
         metadata={metadata}
         metadataRequest={metadataRequest}
         onSelectionReference={onSelectionReference}
+        onLineComment={onLineComment}
+        location={location}
         refreshKey={refreshKey}
         type={type}
       />
@@ -175,12 +188,14 @@ function FilePreviewPluginRenderer({
 }
 
 export interface FilePreviewProps {
+  location?: FileLocation
   filePath: AbsoluteFilePath
   header?: ReactNode
   refreshKey?: number
   type?: FilePreviewType
   /** See {@link FilePreviewPluginProps.onSelectionReference}; callbacks from obsolete metadata are ignored. */
   onSelectionReference?: FilePreviewPluginProps['onSelectionReference']
+  onLineComment?: FilePreviewPluginProps['onLineComment']
 }
 
 interface NormalizedFilePreviewTarget {
@@ -207,7 +222,9 @@ export function FilePreview({
   header,
   refreshKey = 0,
   type = 'file',
-  onSelectionReference
+  onSelectionReference,
+  onLineComment,
+  location
 }: FilePreviewProps) {
   const file = useMemo(() => {
     try {
@@ -343,6 +360,8 @@ export function FilePreview({
         metadata={resolution.metadata}
         metadataRequest={metadataRequest?.read}
         onSelectionReference={onSelectionReference ? reportSelection : undefined}
+        onLineComment={onLineComment}
+        location={location}
         plugin={resolution.plugin}
         refreshKey={refreshKey}
         type={type}

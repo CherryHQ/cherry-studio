@@ -156,17 +156,6 @@ describe('Template Key Type Utilities', () => {
     })
   })
 
-  describe('Runtime template key detection', () => {
-    it('should correctly detect template keys', () => {
-      const isTemplate = (key: string) => key.includes('${') && key.includes('}')
-
-      expect(isTemplate('scroll.position.${id}')).toBe(true)
-      expect(isTemplate('entity.cache.${type}_${id}')).toBe(true)
-      expect(isTemplate('app.path.resources')).toBe(false)
-      expect(isTemplate('chat.web_search.searching')).toBe(false)
-    })
-  })
-
   describe('SharedCacheKey', () => {
     it('should include fixed keys', () => {
       const key: SharedCacheKey = 'chat.web_search.active_searches'
@@ -392,12 +381,10 @@ describe('readonly updater (static guarantees)', () => {
     it('array value → shallow readonly array', () => {
       expectTypeOf<MemoryPrev<'chat.selected_message_ids'>>().toEqualTypeOf<Readonly<SelectedIds>>()
       expectTypeOf<MemoryPrev<'chat.selected_message_ids'>>().toEqualTypeOf<readonly string[]>()
-      expect(true).toBe(true)
     })
 
     it('object value → shallow readonly object', () => {
       expectTypeOf<SharedPrev<'jobs.progress.job-1'>>().toEqualTypeOf<Readonly<JobProgress>>()
-      expect(true).toBe(true)
     })
 
     it('primitive value → passes through unchanged (not wrapped)', () => {
@@ -405,14 +392,12 @@ describe('readonly updater (static guarantees)', () => {
       // `prev => prev + 1` would stop compiling.
       expectTypeOf<SharedPrev<'feature.api_gateway.running'>>().toEqualTypeOf<GatewayRunning>()
       expectTypeOf<SharedPrev<'feature.api_gateway.running'>>().toEqualTypeOf<boolean>()
-      expect(true).toBe(true)
     })
 
     it('shallow only — array elements are NOT deep-frozen', () => {
       // Element type stays the mutable value's element (we intentionally avoid a
       // recursive DeepReadonly, which caused filter/map assignability friction).
       expectTypeOf<PersistPrev<'ui.tab.pinned_tabs'>[number]>().toEqualTypeOf<PinnedTabs[number]>()
-      expect(true).toBe(true)
     })
   })
 

@@ -10,8 +10,38 @@ import type { ProxyMode, UnifiedPreferenceKeyType } from '@shared/data/preferenc
 import { WEBVIEW_SECURITY_PARTITIONS } from '@shared/utils/webviewSecurity'
 
 import { NodeProxyController } from './NodeProxyController'
+import { normalizeProxyEndpoint } from './proxyRouting'
 
 const logger = loggerService.withContext('ProxyService')
+
+const PROXY_TEST_PARTITION = 'proxy-connection-test'
+export const PROXY_TEST_TARGET = 'https://www.gstatic.com/generate_204'
+const PROXY_TEST_TIMEOUT_MS = 10_000
+
+export type ProxyConnectionTestResult = {
+  target: string
+  route: 'proxy' | 'bypassed' | 'direct' | 'fallback'
+  success: boolean
+  error?: 'invalid_config' | 'authentication_required' | 'timeout' | 'unreachable' | 'http_error' | 'connection_failed'
+}
+
+function classifyProxyTestError(error: unknown): NonNullable<ProxyConnectionTestResult['error']> {
+  const message = error instanceof Error ? `${error.name} ${error.message}`.toLowerCase() : ''
+  if (message.includes('proxy_auth') || message.includes('proxy authentication') || message.includes('407')) {
+    return 'authentication_required'
+  }
+  if (message.includes('abort') || message.includes('timeout')) return 'timeout'
+  if (
+    message.includes('econnrefused') ||
+    message.includes('enotfound') ||
+    message.includes('err_name_not_resolved') ||
+    message.includes('err_proxy_connection_failed') ||
+    message.includes('err_tunnel_connection_failed')
+  ) {
+    return 'unreachable'
+  }
+  return 'connection_failed'
+}
 
 /** Proxy preferences that drive the global proxy. Changing any of them re-applies it. */
 const PROXY_PREFERENCE_KEYS = [
@@ -119,6 +149,7 @@ export class ProxyService extends BaseService {
   private desiredKey: string | null = null
   private systemProxyReadFailed = false
   private nodeProxyController: NodeProxyController | null = null
+  private proxyTestQueue: Promise<void> = Promise.resolve()
 
   // Latest-wins reconciler: rapid proxy-preference toggles (or system-proxy changes) collapse
   // into a single re-read + re-apply — single-flight and level-triggered, so a change landing
@@ -152,6 +183,74 @@ export class ProxyService extends BaseService {
       systemProxyReadFailed: this.systemProxyReadFailed,
       converged,
       ...(error != null && { lastError: error instanceof Error ? error.message : String(error) })
+    }
+  }
+
+  async testConnection({
+    mode,
+    url,
+    bypassRules
+  }: {
+    mode: ProxyMode
+    url: string
+    bypassRules: string
+  }): Promise<ProxyConnectionTestResult> {
+    const run = this.proxyTestQueue.then(() => this.runConnectionTest({ mode, url, bypassRules }))
+    this.proxyTestQueue = run.then(
+      () => undefined,
+      () => undefined
+    )
+    return run
+  }
+
+  private async runConnectionTest({
+    mode,
+    url,
+    bypassRules
+  }: {
+    mode: ProxyMode
+    url: string
+    bypassRules: string
+  }): Promise<ProxyConnectionTestResult> {
+    if (mode === 'custom') {
+      try {
+        if (!url.trim()) throw new Error('Missing proxy URL')
+        normalizeProxyEndpoint(url.trim())
+      } catch {
+        return { target: PROXY_TEST_TARGET, route: 'proxy', success: false, error: 'invalid_config' }
+      }
+    }
+
+    const config = resolveProxyConfig({ mode, url: url.trim(), bypassRules })
+    const testSession = session.fromPartition(PROXY_TEST_PARTITION, { cache: false })
+    let route: ProxyConnectionTestResult['route'] = mode === 'none' ? 'direct' : 'proxy'
+
+    try {
+      await testSession.setProxy(config)
+      await testSession.closeAllConnections()
+      const resolvedRoute = await testSession.resolveProxy(PROXY_TEST_TARGET)
+      const candidates = resolvedRoute
+        .split(';')
+        .map((candidate) => candidate.trim().toUpperCase())
+        .filter(Boolean)
+      if (candidates.includes('DIRECT') && candidates.some((candidate) => candidate !== 'DIRECT')) {
+        // PAC candidates do not identify the transport that fetch ultimately uses.
+        route = 'fallback'
+      } else if (candidates[0] === 'DIRECT') {
+        route = mode === 'custom' ? 'bypassed' : 'direct'
+      }
+
+      const response = await testSession.fetch(PROXY_TEST_TARGET, {
+        method: 'GET',
+        signal: AbortSignal.timeout(PROXY_TEST_TIMEOUT_MS)
+      })
+      if (response.status === 407) {
+        return { target: PROXY_TEST_TARGET, route, success: false, error: 'authentication_required' }
+      }
+      if (!response.ok) return { target: PROXY_TEST_TARGET, route, success: false, error: 'http_error' }
+      return { target: PROXY_TEST_TARGET, route, success: true }
+    } catch (error) {
+      return { target: PROXY_TEST_TARGET, route, success: false, error: classifyProxyTestError(error) }
     }
   }
 

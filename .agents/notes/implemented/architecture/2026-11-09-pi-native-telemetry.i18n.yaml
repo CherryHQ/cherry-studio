@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/architecture/2026-11-09-pi-native-telemetry.md
+2026-11-09-pi-native-telemetry.md: 948586ab46600593a29b18d6009b203ac5da7c12
+2026-11-09-pi-native-telemetry.zh.md: 8ce569cff4520c537c2a07f28af767633d338bb9

@@ -48,7 +48,6 @@ import {
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
 import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
-import { TimeoutMinutesAtomSchema } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { JOB_ERROR_CODES, type Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
@@ -120,8 +119,20 @@ const CronInputSchema = z.object({
     .describe(
       'Channel IDs to send task results to. On add, omit to use this turn’s configured notification recipients; on update, omit to keep existing recipients; use an empty array [] to skip channel delivery. Explicit IDs must be configured recipients, except a source-channel session may select another live channel owned by this Agent.'
     ),
-  timeout_minutes: TimeoutMinutesAtomSchema.describe(
-    'Timeout in minutes before the task is aborted. Default is 2 on add; omit on update to keep the current timeout. Use null for no timeout.'
+  // Gemini's function-declaration schema rejects a nullable union (`anyOf: [number, null]`)
+  // with "didn't specify the schema type field". Agent runtimes consume this schema straight
+  // from MCP tools/list, without the provider middleware that rewrites such unions, so
+  // advertise a plain number. 0 already means "no timeout" in AgentJobsService; preprocess
+  // keeps older callers that send null working.
+  timeout_minutes: z.preprocess(
+    (value) => (value === null ? 0 : value),
+    z
+      .number()
+      .min(0)
+      .optional()
+      .describe(
+        'Timeout in minutes before the task is aborted. Default is 2 on add; omit on update to keep the current timeout. Use 0 for no timeout.'
+      )
   ),
   reuse_session: z
     .boolean()

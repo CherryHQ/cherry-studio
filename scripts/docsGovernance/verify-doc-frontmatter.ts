@@ -54,13 +54,13 @@ export const checkFile = (repoRoot: string, filePath: string, rule: FrontmatterR
 
 export const checkDocsFrontmatter = (repoRoot: string): string[] => {
   const failures: string[] = []
-  for (const file of listMarkdownFiles(path.join(repoRoot, 'docs/references'))) {
+  for (const file of listMarkdownFiles(path.join(repoRoot, 'docs/dev/references'))) {
     failures.push(...checkFile(repoRoot, file, { requireSources: true }))
   }
-  for (const file of listMarkdownFiles(path.join(repoRoot, 'docs/contrib'))) {
+  for (const file of listMarkdownFiles(path.join(repoRoot, 'docs/dev/contrib'))) {
     failures.push(...checkFile(repoRoot, file, { requireSources: false }))
   }
-  for (const file of listMarkdownFiles(path.join(repoRoot, 'docs/i18n'))) {
+  for (const file of listMarkdownFiles(path.join(repoRoot, 'docs/dev/i18n'))) {
     failures.push(...checkFile(repoRoot, file, { requireSources: false }))
   }
   return failures

@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, ReactNode } from 'react'
+import type { ComponentProps, InputHTMLAttributes, ReactNode } from 'react'
 import React from 'react'
 
 const itemHandler = (onSelect: ((event: Event) => void) | undefined, props: Record<string, unknown>) => ({
@@ -116,6 +116,16 @@ export const MockCherrystudioUI = {
       />
     </label>
   ),
+  Switch: ({ checked, disabled, onCheckedChange, 'aria-label': ariaLabel }: any) => (
+    <input
+      type="checkbox"
+      role="switch"
+      aria-label={ariaLabel}
+      checked={checked}
+      disabled={disabled}
+      onChange={(event) => onCheckedChange?.(event.target.checked)}
+    />
+  ),
   Dialog: ({ children, open }: { children?: ReactNode; open?: boolean }) => (open ? <>{children}</> : null),
   DialogContent: ({ children, closeOnOverlayClick, showCloseButton, ...props }: any) => {
     void closeOnOverlayClick
@@ -142,8 +152,38 @@ export const MockCherrystudioUI = {
   // Content deliberately dropped: a tooltip is not an accessible name, so a trigger that
   // depends on it for meaning is a bug the test should catch, not one the mock hides.
   NormalTooltip: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  HelpTooltip: ({ content }: { content?: ReactNode }) => (
+    <span role="img" aria-label={typeof content === 'string' ? content : undefined} tabIndex={0} />
+  ),
   RowFlex: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
-  Scrollbar: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
+  ScrollArea: ({
+    children,
+    viewportProps,
+    contentProps,
+    orientation,
+    type,
+    scrollHideDelay,
+    ...props
+  }: ComponentProps<'div'> & {
+    viewportProps?: ComponentProps<'div'>
+    contentProps?: ComponentProps<'div'>
+    orientation?: string
+    type?: string
+    scrollHideDelay?: number
+  }) => {
+    void orientation
+    void type
+    void scrollHideDelay
+    return (
+      <div data-slot="scroll-area" {...props}>
+        <div data-slot="scroll-area-viewport" {...viewportProps}>
+          <div data-slot="scroll-area-content" {...contentProps}>
+            {children}
+          </div>
+        </div>
+      </div>
+    )
+  },
   Select: ({ children, onValueChange, value, ...props }: any) => (
     <SelectContext.Provider value={{ onValueChange, value }}>
       <div data-testid="select" data-value={value} {...props}>

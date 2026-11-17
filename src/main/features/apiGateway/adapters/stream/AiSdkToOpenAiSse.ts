@@ -106,6 +106,10 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
   private finishReason: OpenAiFinishReason = null
   private reasoningContent = ''
 
+  override getMessageId(): string {
+    return `chatcmpl-${this.state.messageId}`
+  }
+
   constructor(options: StreamAdapterOptions) {
     super(options)
     this.createdTimestamp = Math.floor(Date.now() / 1000)
@@ -116,7 +120,7 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
    */
   private createBaseChunk(delta: OpenAiCompatibleDelta): OpenAiCompatibleChunk {
     return {
-      id: `chatcmpl-${this.state.messageId}`,
+      id: this.getMessageId(),
       object: 'chat.completion.chunk',
       created: this.createdTimestamp,
       model: this.state.model,
@@ -163,6 +167,7 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
         break
 
       // === Tool Events ===
+      case 'tool-input-error':
       case 'tool-input-available':
         this.handleToolCall({
           toolCallId: chunk.toolCallId,
@@ -332,7 +337,7 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
   protected finalize(): void {
     // Emit final chunk with finish_reason and usage
     const finalChunk: OpenAiCompatibleChunk = {
-      id: `chatcmpl-${this.state.messageId}`,
+      id: this.getMessageId(),
       object: 'chat.completion.chunk',
       created: this.createdTimestamp,
       model: this.state.model,
@@ -388,7 +393,7 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
     }
 
     return {
-      id: `chatcmpl-${this.state.messageId}`,
+      id: this.getMessageId(),
       object: 'chat.completion',
       created: this.createdTimestamp,
       model: this.state.model,
