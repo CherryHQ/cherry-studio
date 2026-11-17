@@ -6108,6 +6108,7 @@
   "settings.tool.websearch.provider_description.tavily": "Vyhledávač optimalizovaný pro LLM.",
   "settings.tool.websearch.provider_description.yuanbao": "Vyhledávací API Tencent Yuanbao. Vyžaduje API klíč služby. Počet výsledků je horní limit, služba jich může vrátit méně.",
   "settings.tool.websearch.provider_description.zhipu": "Zhipu GLM Web Search pro vyhledávání na webu v reálném čase a aktuální informace.",
+  "settings.tool.websearch.search_images_provider": "Poskytovatel vyhledávání obrázků",
   "settings.tool.websearch.search_max_result.label": "Počet výsledků hledání",
   "settings.tool.websearch.search_max_result.tooltip": "Pokud je komprese výsledků hledání vypnutá, může být počet výsledků příliš velký a může dojít k nedostatku tokenů",
   "settings.tool.websearch.search_provider": "Poskytovatel vyhledávací služby",

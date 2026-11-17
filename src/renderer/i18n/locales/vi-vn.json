@@ -6108,6 +6108,7 @@
   "settings.tool.websearch.provider_description.tavily": "Công cụ tìm kiếm được tối ưu hóa cho các mô hình ngôn ngữ lớn.",
   "settings.tool.websearch.provider_description.yuanbao": "API tìm kiếm Tencent Yuanbao. Yêu cầu khóa API dịch vụ. Số lượng kết quả là giới hạn tối đa; dịch vụ có thể trả về ít hơn.",
   "settings.tool.websearch.provider_description.zhipu": "Zhipu GLM Tìm kiếm Web để truy xuất web trực tiếp và thông tin hiện tại.",
+  "settings.tool.websearch.search_images_provider": "Nhà cung cấp tìm kiếm hình ảnh",
   "settings.tool.websearch.search_max_result.label": "Số kết quả tìm kiếm",
   "settings.tool.websearch.search_max_result.tooltip": "Khi tính năng nén kết quả tìm kiếm bị tắt, số lượng kết quả có thể quá lớn, dẫn đến không đủ token",
   "settings.tool.websearch.search_provider": "Nhà cung cấp dịch vụ tìm kiếm",

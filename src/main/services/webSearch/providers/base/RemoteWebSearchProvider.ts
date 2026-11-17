@@ -63,6 +63,10 @@ export class RemoteWebSearchProvider extends BaseWebSearchProvider {
     } = {}
   ): Promise<WebSearchResponse> {
     if (capability === 'fetchUrls') input = input.trim()
+    if (capability === 'searchImages') {
+      // Image search is configurable in settings but is not wired into the desktop runtime dispatch.
+      throw new WebSearchConfigError('capability_unsupported', 'Image search is not supported by this provider')
+    }
     const apiHost = overrides.apiHost ?? resolveProviderApiHost(this.provider, capability)
     const common = {
       providerId: this.protocol.metadata.id,
@@ -73,7 +77,8 @@ export class RemoteWebSearchProvider extends BaseWebSearchProvider {
     }
     let response: WebSearchResultSet
     try {
-      response = await this.client.execute(
+      // searchImages is rejected above, so the result set always carries keyword/fetch results here.
+      response = (await this.client.execute(
         capability === 'searchKeywords'
           ? {
               ...common,
@@ -91,7 +96,7 @@ export class RemoteWebSearchProvider extends BaseWebSearchProvider {
               }
             }
           : { ...common, capability, config: { apiHost } }
-      )
+      )) as WebSearchResultSet
     } catch (error) {
       if (isWebSearchError(error) && error.kind === 'configuration') {
         const code: WebSearchConfigErrorCode = ['api_key_missing', 'api_host_missing', 'api_host_invalid'].includes(

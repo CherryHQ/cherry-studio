@@ -1,5 +1,15 @@
 import { runProtocol } from './execute'
-import type { ProviderRegistration, RemoteProviderId, WebSearchClient, WebSearchTransport } from './types'
+import type {
+  ProviderRegistration,
+  RemoteProviderId,
+  WebSearchCall,
+  WebSearchClient,
+  WebSearchImageResult,
+  WebSearchImageResultSet,
+  WebSearchResult,
+  WebSearchResultSet,
+  WebSearchTransport
+} from './types'
 import { WebSearchError } from './WebSearchError'
 
 export function createWebSearchClient(deps: {
@@ -17,29 +27,40 @@ export function createWebSearchClient(deps: {
     }
     providers.set(id, { provider: registration.provider, capabilities: [...registration.capabilities] })
   }
-  return {
-    async execute(call) {
-      if (call.signal?.aborted)
-        throw new WebSearchError(
-          { ...call, kind: 'cancelled', code: 'request_cancelled', message: 'Web search cancelled' },
-          { cause: call.signal.reason }
-        )
-      const registration = providers.get(call.providerId)
-      if (!registration || !registration.capabilities.includes(call.capability)) {
-        throw new WebSearchError({
-          ...call,
-          kind: 'configuration',
-          code: registration ? 'capability_unsupported' : 'provider_not_enabled',
-          message: 'The requested web search provider/capability is not enabled'
-        })
-      }
-      const results = await runProtocol(call, deps.transport, (context) => registration.provider.execute(context))
-      return {
+  async function execute(call: WebSearchCall): Promise<WebSearchResultSet | WebSearchImageResultSet> {
+    if (call.signal?.aborted)
+      throw new WebSearchError(
+        { ...call, kind: 'cancelled', code: 'request_cancelled', message: 'Web search cancelled' },
+        { cause: call.signal.reason }
+      )
+    const registration = providers.get(call.providerId)
+    if (!registration || !registration.capabilities.includes(call.capability)) {
+      throw new WebSearchError({
+        ...call,
+        kind: 'configuration',
+        code: registration ? 'capability_unsupported' : 'provider_not_enabled',
+        message: 'The requested web search provider/capability is not enabled'
+      })
+    }
+    const results = await runProtocol(call, deps.transport, (context) => registration.provider.execute(context))
+    const mapped = results.map((result) => ({ ...result, sourceInput: call.input }))
+    if (call.capability === 'searchImages') {
+      const resultSet: WebSearchImageResultSet = {
         providerId: call.providerId,
         capability: call.capability,
         input: call.input,
-        results: results.map((result) => ({ ...result, sourceInput: call.input }))
+        results: mapped as WebSearchImageResult[]
       }
+      return resultSet
     }
+    const resultSet: WebSearchResultSet = {
+      providerId: call.providerId,
+      capability: call.capability,
+      input: call.input,
+      results: mapped as WebSearchResult[]
+    }
+    return resultSet
   }
+
+  return { execute }
 }

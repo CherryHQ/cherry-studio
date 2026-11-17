@@ -313,7 +313,7 @@ export const WEB_SEARCH_PROVIDER_IDS = [
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
 
-export const WEB_SEARCH_CAPABILITIES = ['searchKeywords', 'fetchUrls'] as const
+export const WEB_SEARCH_CAPABILITIES = ['searchKeywords', 'fetchUrls', 'searchImages'] as const
 
 export type WebSearchCapability = SharedWebSearchCapability
 

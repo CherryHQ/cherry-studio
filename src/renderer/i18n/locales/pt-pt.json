@@ -6108,6 +6108,7 @@
   "settings.tool.websearch.provider_description.tavily": "Otimizado para LLMs de mecanismos de busca.",
   "settings.tool.websearch.provider_description.yuanbao": "API de pesquisa Tencent Yuanbao. Requer uma chave API do serviço. O número de resultados é um limite máximo; o serviço pode devolver menos.",
   "settings.tool.websearch.provider_description.zhipu": "Zhipu GLM Web Search para recuperação da web em tempo real e informações atuais.",
+  "settings.tool.websearch.search_images_provider": "Fornecedor de pesquisa de imagens",
   "settings.tool.websearch.search_max_result.label": "Número de resultados de pesquisa",
   "settings.tool.websearch.search_max_result.tooltip": "Quando a compactação de resultados não está ativada, um número elevado pode consumir muitos tokens",
   "settings.tool.websearch.search_provider": "Fornecedor de pesquisa",

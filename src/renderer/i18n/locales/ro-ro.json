@@ -6108,6 +6108,7 @@
   "settings.tool.websearch.provider_description.tavily": "Motor de căutare optimizat pentru LLM-uri.",
   "settings.tool.websearch.provider_description.yuanbao": "API de căutare Tencent Yuanbao. Necesită o cheie API de serviciu. Numărul de rezultate este o limită maximă; serviciul poate returna mai puține.",
   "settings.tool.websearch.provider_description.zhipu": "Zhipu GLM Căutare Web pentru recuperare în timp real și informații actualizate.",
+  "settings.tool.websearch.search_images_provider": "Furnizor de căutare de imagini",
   "settings.tool.websearch.search_max_result.label": "Număr de rezultate căutare",
   "settings.tool.websearch.search_max_result.tooltip": "Când compresia rezultatelor căutării este dezactivată, numărul de rezultate poate fi prea mare, ceea ce poate duce la tokeni insuficienți",
   "settings.tool.websearch.search_provider": "Furnizor serviciu căutare",
