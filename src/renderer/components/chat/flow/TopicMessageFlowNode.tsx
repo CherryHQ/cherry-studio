@@ -3,12 +3,12 @@ import dayjs from 'dayjs'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Popover, PopoverAnchor, PopoverContent } from '@cherrystudio/ui'
+import { EmptyStateMessage, Popover, PopoverAnchor, PopoverContent } from '@cherrystudio/ui'
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
 import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
-import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
+import { LoadingState } from '@renderer/components/chat/primitives'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { sharedMessageToUIMessage, uiMessagesToPartsMap } from '@renderer/utils/message/messageProjection'
 import { cn } from '@renderer/utils/style'
@@ -164,7 +164,9 @@ function TopicMessageFlowNodePreviewCard({
           </div>
         </MessageContentProvider>
       ) : (
-        <EmptyState className="min-h-24 py-4" compact title={t('common.no_results')} />
+        <div className="flex min-h-24 items-center justify-center py-4 text-sm text-muted-foreground">
+          <EmptyStateMessage>{t('common.no_results')}</EmptyStateMessage>
+        </div>
       )}
     </div>
   )
