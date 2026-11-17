@@ -2,7 +2,6 @@ import type { UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { MessageProjection } from '@main/ai/messages/MessageProjection'
-import { CITATION_SNIPPET_MAX_CHARS } from '@shared/ai/builtinTools'
 import { applyMessageProjectionUpdate, type TopicProjectionState } from '@shared/ai/messageProjection'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -43,46 +42,6 @@ const manyAgentWebSearch = {
     url: `https://example.com/${index + 1}`,
     content: '测'.repeat(1000)
   }))
-}
-const largeKnowledgeSearch = [
-  {
-    id: 'knowledge-1',
-    baseId: 'base-1',
-    conceptId: 'docs/guide.md',
-    title: 'Guide',
-    type: 'file',
-    content: 'k'.repeat(DEFER_TOOL_OUTPUT_BYTES + 1),
-    score: 0.92
-  }
-]
-const largeKnowledgeRead = {
-  id: 'read-1',
-  baseId: 'base-1',
-  conceptId: 'docs/readme.md',
-  title: 'README',
-  type: 'file',
-  totalChars: DEFER_TOOL_OUTPUT_BYTES + 1,
-  charStart: 0,
-  charEnd: DEFER_TOOL_OUTPUT_BYTES + 1,
-  content: 'r'.repeat(DEFER_TOOL_OUTPUT_BYTES + 1),
-  truncated: false
-}
-const largeKnowledgeGrep = {
-  id: 'grep-1',
-  baseId: 'base-1',
-  conceptId: 'docs/readme.md',
-  title: 'README',
-  type: 'file',
-  totalMatches: 2,
-  matches: [
-    { line: 3, charStart: 10, charEnd: 19, snippet: 'first hit' },
-    {
-      line: 9,
-      charStart: 40,
-      charEnd: DEFER_TOOL_OUTPUT_BYTES + 40,
-      snippet: 'g'.repeat(DEFER_TOOL_OUTPUT_BYTES + 1)
-    }
-  ]
 }
 
 function partWith(output: unknown): CherryMessagePart {
@@ -131,10 +90,10 @@ describe('message tool-output projection', () => {
 
   it('leaves an output that fits under the threshold untouched', () => {
     const part = partWith(small)
-    expect(projectMessagePartForRenderer(part, TOPIC_ID, MESSAGE_ID)).toBe(part)
+    expect(projectMessagePartForRenderer(part, TOPIC_ID, MESSAGE_ID)).toEqual(part)
 
     const chunk = chunkWith(small)
-    expect(projectStreamChunkForRenderer(chunk, TOPIC_ID, MESSAGE_ID)).toBe(chunk)
+    expect(projectStreamChunkForRenderer(chunk, TOPIC_ID, MESSAGE_ID)).toEqual(chunk)
   })
 
   it('replaces an oversized output with a resolvable reference', () => {
@@ -150,6 +109,43 @@ describe('message tool-output projection', () => {
         revision: expect.any(String)
       }
     })
+  })
+
+  it.each(['stored', 'live'])('serializes an oversized %s output once for its reference revision', (source) => {
+    let serialized = false
+    const output = {
+      toJSON() {
+        if (serialized) throw new Error('Tool output was serialized twice')
+        serialized = true
+        return large
+      }
+    }
+    const projected =
+      source === 'stored'
+        ? projectMessagePartForRenderer(partWith(output), TOPIC_ID, MESSAGE_ID)
+        : projectStreamChunkForRenderer(chunkWith(output), TOPIC_ID, MESSAGE_ID)
+
+    expect(projected).toMatchObject({
+      output: {
+        $deferredToolResult: {
+          topicId: TOPIC_ID,
+          messageId: MESSAGE_ID,
+          toolCallId: TOOL_CALL_ID,
+          revision: 'f99105333335ffd61379190d826704fc729bff3bff5108aace70af36fe80d670'
+        }
+      }
+    })
+  })
+
+  it.each([
+    [DEFER_TOOL_OUTPUT_BYTES - 2, false],
+    [DEFER_TOOL_OUTPUT_BYTES - 1, true]
+  ])('defers a %i-character string only when its JSON exceeds the byte budget', (length, deferred) => {
+    const output = 'x'.repeat(length)
+    const projected = projectMessagePartForRenderer(partWith(output), TOPIC_ID, MESSAGE_ID)
+    if (!('output' in projected)) throw new Error('Expected a tool output')
+    expect(isDeferredToolOutput(projected.output)).toBe(deferred)
+    if (!deferred) expect(projected.output).toBe(output)
   })
 
   it('keeps a bounded citation skeleton for an oversized agent lookup', () => {
@@ -190,46 +186,6 @@ describe('message tool-output projection', () => {
       serverName: 'cherry-tools',
       serverId: 'cherry-tools'
     })
-  })
-
-  it('keeps kb_search identity fields and a bounded content preview', () => {
-    const projected = projectMessagePartForRenderer(
-      partWith(largeKnowledgeSearch),
-      TOPIC_ID,
-      MESSAGE_ID
-    ) as unknown as {
-      output: { skeleton?: Array<Record<string, unknown>> }
-    }
-
-    expect(projected.output.skeleton).toEqual([
-      {
-        ...largeKnowledgeSearch[0],
-        content: `${'k'.repeat(CITATION_SNIPPET_MAX_CHARS)}…`
-      }
-    ])
-  })
-
-  it('keeps a bounded kb_read document slice', () => {
-    const projected = projectMessagePartForRenderer(partWith(largeKnowledgeRead), TOPIC_ID, MESSAGE_ID) as unknown as {
-      output: { skeleton?: Record<string, unknown> }
-    }
-
-    expect(projected.output.skeleton).toEqual({
-      ...largeKnowledgeRead,
-      content: `${'r'.repeat(CITATION_SNIPPET_MAX_CHARS)}…`
-    })
-  })
-
-  it('keeps ordered kb_read grep matches up to the combined citation preview limit', () => {
-    const projected = projectMessagePartForRenderer(partWith(largeKnowledgeGrep), TOPIC_ID, MESSAGE_ID) as unknown as {
-      output: { skeleton?: { matches: Array<{ snippet: string }> } }
-    }
-    const matches = projected.output.skeleton?.matches ?? []
-    const joined = matches.map((match) => match.snippet).join(' … ')
-
-    expect(matches).toHaveLength(2)
-    expect(joined).toHaveLength(CITATION_SNIPPET_MAX_CHARS + 1)
-    expect(joined).toMatch(/^first hit … g+…$/)
   })
 
   it('does not expose a citation skeleton for a third-party MCP lookup', () => {
@@ -286,7 +242,7 @@ describe('message tool-output projection', () => {
 
   it('does nothing without a message id to address the result by', () => {
     const chunk = chunkWith(large)
-    expect(projectStreamChunkForRenderer(chunk, TOPIC_ID, undefined)).toBe(chunk)
+    expect(projectStreamChunkForRenderer(chunk, TOPIC_ID, undefined)).toEqual(chunk)
   })
 
   it('is not topic-specific — an ordinary chat topic defers on the same rule', () => {

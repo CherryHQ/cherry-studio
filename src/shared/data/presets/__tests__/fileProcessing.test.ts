@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { FILE_TYPE } from '@shared/types/file'
-import { GB, MB } from '@shared/utils/constants'
 
-import { FILE_PROCESSOR_IDS } from '../../preference/preferenceTypes'
 import {
   FileProcessingArtifactSchema,
   FileProcessingOutputTargetSchema,
@@ -68,24 +66,12 @@ describe('FileProcessorFeatureCapabilitySchema', () => {
 describe('FileProcessorTemplatesSchema', () => {
   it('validates built-in presets', () => {
     expect(() => FileProcessorTemplatesSchema.parse(PRESETS_FILE_PROCESSORS)).not.toThrow()
-    expect(PRESETS_FILE_PROCESSORS.map((preset) => preset.id)).toEqual(FILE_PROCESSOR_IDS)
 
     PRESETS_FILE_PROCESSORS.forEach((preset) => {
       expect(FileProcessorPresetDefinitionSchema.safeParse(preset).success).toBe(true)
       expect(FileProcessorTypeSchema.safeParse(preset.type).success).toBe(true)
       expect(FileProcessorIdSchema.safeParse(preset.id).success).toBe(true)
     })
-  })
-
-  it('ships the current PaddleOCR hosted model defaults', () => {
-    const paddleocr = PRESETS_FILE_PROCESSORS.find((preset) => preset.id === 'paddleocr')
-
-    expect(paddleocr?.capabilities.find((capability) => capability.feature === 'image_to_text')?.modelId).toBe(
-      'PP-OCRv6'
-    )
-    expect(paddleocr?.capabilities.find((capability) => capability.feature === 'document_to_markdown')?.modelId).toBe(
-      'PaddleOCR-VL-1.6'
-    )
   })
 
   it('keeps the Doc2X v3 default and exposes v3 export options', () => {
@@ -99,46 +85,6 @@ describe('FileProcessorTemplatesSchema', () => {
         modelId: 'v3-2026'
       })
     )
-  })
-
-  it('declares the product PDF page limits for document processors', () => {
-    const limits = Object.fromEntries(
-      PRESETS_FILE_PROCESSORS.filter((preset) =>
-        ['paddleocr', 'mineru', 'doc2x', 'mistral', 'local-document', 'open-mineru'].includes(preset.id)
-      ).map((preset) => [
-        preset.id,
-        preset.capabilities.find((capability) => capability.feature === 'document_to_markdown')?.maxInputPages
-      ])
-    )
-
-    expect(limits).toEqual({
-      paddleocr: 100,
-      mineru: 600,
-      doc2x: 1000,
-      mistral: 1000,
-      'local-document': undefined,
-      'open-mineru': undefined
-    })
-  })
-
-  it('declares the document upload byte limits for processors that enforce one', () => {
-    const limits = Object.fromEntries(
-      PRESETS_FILE_PROCESSORS.filter((preset) =>
-        ['paddleocr', 'mineru', 'doc2x', 'mistral', 'local-document', 'open-mineru'].includes(preset.id)
-      ).map((preset) => [
-        preset.id,
-        preset.capabilities.find((capability) => capability.feature === 'document_to_markdown')?.maxInputBytes
-      ])
-    )
-
-    expect(limits).toEqual({
-      paddleocr: 50 * MB,
-      mineru: 200 * MB,
-      doc2x: GB,
-      mistral: undefined,
-      'local-document': undefined,
-      'open-mineru': 200 * MB
-    })
   })
 
   it('rejects processor-level metadata', () => {

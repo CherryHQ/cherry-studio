@@ -64,11 +64,14 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
     if (open) setActivated(true)
   }, [open])
   const { t } = useTranslation()
-  const { modelFilter, getModelPresentation, availability } = useCherryCloudModelSelectorPolicy({
-    enabled,
-    includeAgentOnlyModels: includeAgentOnlyModels,
-    filter: filter
-  })
+  const { modelFilter, getModelPresentation, availability, prioritizedProviderIds } = useCherryCloudModelSelectorPolicy(
+    {
+      enabled,
+      includeAgentOnlyModels: includeAgentOnlyModels,
+      filter: filter,
+      prioritizedProviderIds: props.prioritizedProviderIds
+    }
+  )
   const { offers, paidPlan, canOfferSubscription, signedOut } = useCherryCloudModelSelectorOffers(
     enabled,
     includeAgentOnlyModels ?? false,
@@ -181,7 +184,7 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
       open={open}
       onOpenChange={onOpenChange}
       filter={modelFilter}
-      prioritizedProviderIds={[...CHERRY_CLOUD_SELECTOR_PROVIDER_IDS, ...(props.prioritizedProviderIds ?? [])]}
+      prioritizedProviderIds={prioritizedProviderIds}
       composition={composition}
     />
   )

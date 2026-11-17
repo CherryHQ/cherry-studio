@@ -40,7 +40,7 @@ test(...caseDefinition('K-01'), async ({ app, mainWindow }) => {
   await test.step('Create and index a knowledge base, then verify recall', async () => {
     const providerId = await ensureEmbeddingProvider(app, page)
     await expect(page.getByRole('heading', { name: EMBEDDING_PROVIDER, exact: true, level: 1 })).toBeVisible()
-    await expect(page.getByText(app.config.customEmbeddingProvider.model, { exact: true })).toBeVisible()
+    await expect(page.getByText(app.embeddingProvider.model, { exact: true })).toBeVisible()
     await closeSettings(page)
     await ensureKnowledgeBase(app, page, providerId)
 
@@ -317,7 +317,7 @@ test(...caseDefinition('MP-60'), async ({ app, mainWindow: page }, testInfo) => 
 
   const providerId = `mp60-${Date.now()}`
   const baseName = app.resourceName(`File processing ${Date.now()}`)
-  const upstream = app.config.customEmbeddingProvider
+  const upstream = app.embeddingProvider
   let holdResponse = false
   let releaseResponse!: () => void
   const responseGate = new Promise<void>((resolve) => {
@@ -351,7 +351,7 @@ test(...caseDefinition('MP-60'), async ({ app, mainWindow: page }, testInfo) => 
   testInfo.annotations.push({
     type: 'data-source',
     description:
-      'Real configured embedding API through a loopback response gate; the response is released after the real UI displays Embedding.'
+      'Mock embedding API through a loopback response gate; the response is released after the real UI displays Embedding.'
   })
   try {
     const configured = await page.evaluate(
@@ -483,7 +483,7 @@ test(...caseDefinition('MP-60'), async ({ app, mainWindow: page }, testInfo) => 
         await attachScreenshot('MP-60 indexed chunks')
         await testInfo.attach('MP-60 processing duration', {
           body: JSON.stringify(
-            { processingMs, chunks: await chunks.innerText(), provider: 'configured embedding provider', entries },
+            { processingMs, chunks: await chunks.innerText(), provider: 'loopback mock embedding provider', entries },
             null,
             2
           ),
@@ -630,6 +630,11 @@ test(...caseDefinition('MP-61'), async ({ app, mainWindow: page }, testInfo) => 
     expect(directory.data.source).toBe(documents)
     const row = page.getByRole('row', { name: `Open ${basename(documents)}`, exact: true })
     await expect(row.getByRole('gridcell').nth(2)).toHaveText('Folders')
+    // A folder import copies the children into the base before the folder lists them; entering it
+    // while it still reports Copying/Reading shows an empty folder and no child rows to assert.
+    await expect
+      .poll(async () => (await row.locator('[role="gridcell"]').nth(3).innerText()).trim(), { timeout: 180_000 })
+      .toMatch(/^(Ready|Error|Failed)$/)
     await screenshot('MP-61 imported directory and type')
     await row.click()
 
@@ -833,7 +838,7 @@ test(...caseDefinition('MP-66'), async ({ app, mainWindow }, testInfo) => {
     const create = page.getByRole('dialog', { name: 'New Knowledge Base' })
     await create.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
     await create.getByRole('button', { name: 'Embedding Model', exact: true }).click()
-    await selectVisibleModel(page, app.config.customEmbeddingProvider.model, providerId)
+    await selectVisibleModel(page, app.embeddingProvider.model, providerId)
     await create.getByRole('button', { name: 'Create', exact: true }).click()
     await expect(create).toBeHidden({ timeout: 120_000 })
     const bases = await page.evaluate(() =>
@@ -955,9 +960,9 @@ test(...caseDefinition('MP-66'), async ({ app, mainWindow }, testInfo) => {
     const hits = hitResult.data
     expect(hits.length).toBeGreaterThan(0)
     expect(hits.length).toBeLessThanOrEqual(3)
-    expect(hits.some((hit) => hit.pageContent.includes('canary-seven'))).toBe(true)
+    expect(hits[0].pageContent).toContain('canary-seven')
     expect(hits.every((hit) => hit.itemId === itemId)).toBe(true)
-    await testInfo.attach('MP-66 real retrieval results', {
+    await testInfo.attach('MP-66 retrieval results with mock embeddings', {
       body: JSON.stringify(hits, null, 2),
       contentType: 'application/json'
     })

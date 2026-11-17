@@ -27,6 +27,7 @@ interface UseMessageListAdapterCapabilitiesOptions {
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
   deleteMessage?: MessageListActions['deleteMessage']
+  canDeleteMessage?: MessageListActions['canDeleteMessage']
   diagnosticReport?: ErrorDetailContentProps['diagnosticReport']
   getDoctorSubject: (message: MessageListItem) => DoctorSubjectRef | undefined
   /** Load-all pagination handle for select-all; absent = fully loaded. */
@@ -46,6 +47,7 @@ export function useMessageListAdapterCapabilities({
   partsByMessageId,
   streamingLayers,
   deleteMessage,
+  canDeleteMessage,
   diagnosticReport,
   getDoctorSubject,
   selectAllPagination
@@ -64,6 +66,7 @@ export function useMessageListAdapterCapabilities({
     messages,
     partsByMessageId,
     deleteMessage,
+    canDeleteMessage,
     saveTextFile: exportActions.saveTextFile,
     copyRichContent: leafCapabilities.copyRichContent,
     selectAllPagination

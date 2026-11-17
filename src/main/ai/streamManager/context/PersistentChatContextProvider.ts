@@ -11,6 +11,7 @@ import type { ModelMessage, UIMessage } from 'ai'
 import { application } from '@application'
 import { ContextPrompts, resolveCompressionOutputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
+import { applyMaxMessagesWindow, messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import {
@@ -21,7 +22,6 @@ import {
 import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
 import { collectPersistedOutputPaths } from '@main/ai/messages/persistedOutputRendering'
 import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/retainedContext'
-import { messageService } from '@main/data/services/MessageService'
 import { providerService } from '@main/data/services/ProviderService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { compactionAnchorChunkId, type CompactionAnchorData, type CompactionSink } from '@shared/ai/compaction'
@@ -42,7 +42,6 @@ import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow
 import { resolveInputRoom } from '../../contextBuild/resolveInputRoom'
 import { resolveOutputReservation } from '../../contextBuild/resolveOutputReservation'
 import { resolveRequestContextSettings } from '../../contextBuild/resolveRequestContextSettings'
-import { applyMaxMessagesWindow } from '../../messages/maxMessagesWindow'
 import { toModelMessages } from '../../messages/messageRules'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
@@ -94,7 +93,7 @@ function resolveRowDialect(model: Model | undefined): TokenDialect {
 function resolveAssistantIdentity(assistantId: string | undefined) {
   if (!assistantId) return undefined
   const a = assistantDataService.getById(assistantId)
-  return { id: a.id, name: a.name, emoji: a.emoji }
+  return { id: a.id, name: a.name, emoji: a.emoji, ...(a.avatarFileId ? { avatarFileId: a.avatarFileId } : {}) }
 }
 
 /**
@@ -115,7 +114,7 @@ function resolveAssistantContextOverride(assistantId: string | undefined): Conte
 /** Author snapshot for an assistant reply: the assistant with its model nested inside. */
 function buildAssistantMessageSnapshot(
   model: Model,
-  assistant: { id: string; name: string; emoji: string } | undefined
+  assistant: Pick<MessageSnapshot, 'id' | 'name' | 'emoji' | 'avatarFileId'> | undefined
 ): MessageSnapshot | undefined {
   if (!assistant) return undefined
   return {

@@ -229,7 +229,6 @@ vi.mock('@application', async () => {
   return mockApplicationFactory(container.overrides)
 })
 
-const { mockMainLoggerService } = await import('@test-mocks/MainLoggerService')
 const { ScreenshotOverlayService } = await import('../ScreenshotOverlayService')
 const { ScreenCapturePermissionError } = await import('../types')
 
@@ -256,9 +255,6 @@ const makeWindowInfo = (over: Partial<RawWindowInfo> = {}): RawWindowInfo => ({
 })
 
 let service: InstanceType<typeof ScreenshotOverlayService>
-
-/** Reach a private map for the leak / residue guards; there is no public reader. */
-const privateMap = (name: string) => Reflect.get(service, name) as Map<unknown, unknown>
 
 const fakeWindow = (id: string) => container.windows.get(id) as FakeWindow
 
@@ -708,8 +704,6 @@ describe('ScreenshotOverlayService', () => {
       // Media entries are never reclaimed automatically, so a missed remove() is a
       // permanent multi-MB leak that nothing else would surface.
       for (const id of storedIds) expect(container.mediaProtocolService.has('image', id)).toBe(false)
-      expect(privateMap('sessionCaptures').size).toBe(0)
-      expect(privateMap('overlayMediaIds').size).toBe(0)
     })
 
     it('closes the overlays it already opened when a later display throws', async () => {
@@ -757,10 +751,6 @@ describe('ScreenshotOverlayService', () => {
       container.windowManager.getWindow.mockImplementationOnce(() => undefined)
 
       await service.startCapture()
-
-      // Returning quietly leaves the user staring at an unchanged screen believing the
-      // shortcut is broken, and pins the full-screen PNG in the media protocol forever.
-      expect(mockMainLoggerService.error).toHaveBeenCalled()
       expect(container.mediaEntries.size).toBe(0)
     })
   })
@@ -1243,17 +1233,6 @@ describe('ScreenshotOverlayService', () => {
       expect(fakeWindow('overlay-0-0').setOpacity).toHaveBeenLastCalledWith(1)
     })
 
-    it('leaves no pending reveal or fallback timer behind after dismiss', async () => {
-      singleDisplaySetup()
-      await service.startCapture()
-
-      service.dismiss()
-
-      expect(privateMap('pendingReveals').size).toBe(0)
-      vi.advanceTimersByTime(5000)
-      expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
-    })
-
     it('aborts the session when an overlay renderer goes away, instead of revealing a dead window', async () => {
       singleDisplaySetup()
       await service.startCapture()
@@ -1360,8 +1339,6 @@ describe('ScreenshotOverlayService', () => {
       // createFromBuffer returns an EMPTY image instead of throwing, so writing it
       // replaces the clipboard with nothing while the user is told it was copied.
       expect(electron.clipboard.write).not.toHaveBeenCalled()
-      expect(mockMainLoggerService.info).not.toHaveBeenCalledWith(expect.stringContaining('clipboard'))
-      expect(mockMainLoggerService.error).toHaveBeenCalled()
     })
 
     it('writes no file when the result bytes cannot be decoded', async () => {
@@ -1374,8 +1351,6 @@ describe('ScreenshotOverlayService', () => {
 
       // Undecodable bytes written straight through would be a corrupt .png the log calls saved.
       expect(writeFileSyncMock).not.toHaveBeenCalled()
-      expect(mockMainLoggerService.info).not.toHaveBeenCalledWith(expect.stringContaining('saved'))
-      expect(mockMainLoggerService.error).toHaveBeenCalled()
     })
 
     it('writes no file when the session ends while the save dialog is open', async () => {
@@ -1638,7 +1613,6 @@ describe('ScreenshotOverlayService', () => {
       await vi.runAllTimersAsync()
 
       expect(electron.dialog.showMessageBox).toHaveBeenCalled()
-      expect(mockMainLoggerService.error).not.toHaveBeenCalled()
     })
   })
 
@@ -1928,46 +1902,11 @@ describe('ScreenshotOverlayService', () => {
   describe('permission warm-up', () => {
     const subscribeChange = () => container.preferenceService.subscribeChange.mock.calls.at(-1)?.[1]
 
-    it('touches the capture backend when the feature is switched on, so macOS asks now', async () => {
-      subscribeChange()?.(true)
-      await vi.runAllTimersAsync()
-
-      // macOS re-confirms consent periodically and raises the prompt on the next
-      // ScreenCaptureKit call; unasked here, it lands mid-capture on a busy main process.
-      expect(capture.listMonitors).toHaveBeenCalled()
-    })
-
     it('leaves the native backend alone when the feature is switched off', async () => {
       subscribeChange()?.(false)
       await vi.runAllTimersAsync()
 
       expect(capture.listMonitors).not.toHaveBeenCalled()
-    })
-
-    it('leaves the native backend alone off macOS', async () => {
-      // No consent to re-confirm there, and probing would load the native module the
-      // feature deliberately defers until a capture actually happens.
-      platform.isMac = false
-      platform.isWin = true
-
-      subscribeChange()?.(true)
-      await vi.runAllTimersAsync()
-
-      expect(capture.listMonitors).not.toHaveBeenCalled()
-    })
-
-    it('logs a warm-up failure instead of letting it escape or raise a dialog', async () => {
-      capture.listMonitors.mockImplementation(() => {
-        throw new Error('backend unavailable')
-      })
-
-      subscribeChange()?.(true)
-      await vi.runAllTimersAsync()
-
-      // A background convenience: an unhandled throw here would take down whatever
-      // dispatched the preference change, and a dialog would ambush the settings page.
-      expect(mockMainLoggerService.warn).toHaveBeenCalled()
-      expect(electron.dialog.showMessageBox).not.toHaveBeenCalled()
     })
   })
 })

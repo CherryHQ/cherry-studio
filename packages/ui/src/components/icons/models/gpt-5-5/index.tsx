@@ -9,7 +9,7 @@ const Gpt55 = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const Gpt55Icon: CompoundIcon = /*#__PURE__*/ Object.assign(Gpt55, {
   Avatar: Gpt55Avatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#cedffe'
 })
 
 export default Gpt55Icon
