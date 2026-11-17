@@ -26,6 +26,7 @@ import { useOptionalFilePreviewNavigation } from '@renderer/components/FilePrevi
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
 import type * as RendererIpc from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import type { FileLocation } from '@renderer/types/fileLocation'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ComputerUseControl } from '@shared/ipc/schemas/computerUse'
@@ -253,7 +254,7 @@ vi.mock('@renderer/services/toast', () => ({
 }))
 
 vi.mock('@renderer/utils/filePath', () => ({
-  resolveInlineFilePath: (path: string) => path
+  expandHomeRelativePath: (path: string) => path
 }))
 
 vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
@@ -284,7 +285,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
     onSelectedFileChange: (file: string | null) => void
     paneActions?: ReactNode
     paneTitle?: ReactNode
-    previewFileSelection?: { workspacePath: string; filePath: string } | null
+    previewFileSelection?: { workspacePath: string; filePath: string; location?: FileLocation } | null
     searchKeyword?: string
     selectedFile: string | null
   }) => {
@@ -294,6 +295,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
       <div
         data-testid="artifact-pane"
         data-edit-mode={editMode}
+        data-source-location={JSON.stringify(previewFileSelection?.location ?? null)}
         data-search-keyword={searchKeyword}
         data-selected-file={selectedFile ?? ''}>
         <div data-testid="artifact-pane-header">
@@ -590,11 +592,19 @@ function ArtifactCapabilityProbe() {
   return <output data-testid="can-open-artifact-file">{String(canOpenArtifactFile)}</output>
 }
 
-function OpenArtifactButton({ path = 'report.md' }: { path?: string }) {
+function OpenArtifactButton({
+  path = 'report.md',
+  location,
+  label = 'open artifact'
+}: {
+  path?: string
+  location?: FileLocation
+  label?: string
+}) {
   const { openArtifactFile } = useAgentRightPaneActions()
   return (
-    <button type="button" onClick={() => openArtifactFile(path)}>
-      open artifact
+    <button type="button" onClick={() => openArtifactFile(path, location)}>
+      {label}
     </button>
   )
 }
@@ -771,6 +781,122 @@ describe('AgentRightPane', () => {
       hasLoaded: fileTreeModelState.hasLoaded,
       nodeById: fileTreeModelState.nodeById
     }))
+  })
+
+  it('navigates repeatedly within one file and clears locations for a plain open', async () => {
+    resolveArtifactPaneFileSelectionMock.mockImplementation((workspacePath: string, filePath: string) => ({
+      workspacePath,
+      filePath
+    }))
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <OpenArtifactButton path="source.ts" location={{ line: 42 }} label="line 42" />
+        <OpenArtifactButton path="source.ts" location={{ line: 7, endLine: 9 }} label="lines 7-9" />
+        <OpenArtifactButton path="source.ts" label="plain" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    for (const [label, location] of [
+      ['line 42', { line: 42 }],
+      ['lines 7-9', { line: 7, endLine: 9 }],
+      ['line 42', { line: 42 }],
+      ['plain', null]
+    ] as const) {
+      await userEvent.click(screen.getByRole('button', { name: label }))
+      await waitFor(() =>
+        expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-source-location', JSON.stringify(location))
+      )
+    }
+    expect(screen.getAllByRole('tab')).toHaveLength(1)
+  })
+
+  it('opens located HTML in the file pane instead of the browser', async () => {
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({ workspacePath: '/workspace', filePath: 'artifact.html' })
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <OpenArtifactButton path="artifact.html" location={{ line: 42 }} />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-source-location', JSON.stringify({ line: 42 }))
+    )
+    expect(screen.queryByTestId('webview-browser')).not.toBeInTheDocument()
+  })
+
+  it('keeps the current source location and draft when a dirty-file transition is canceled', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.agent.file_pane.auto_save', false)
+    resolveArtifactPaneFileSelectionMock.mockImplementation((workspacePath: string, filePath: string) => ({
+      workspacePath,
+      filePath
+    }))
+    const pane = () => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <OpenArtifactButton path="current.ts" location={{ line: 42 }} label="current" />
+        <OpenArtifactButton path="next.ts" location={{ line: 7 }} label="next" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const view = render(pane())
+    await userEvent.click(screen.getByRole('button', { name: 'current' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-source-location', JSON.stringify({ line: 42 }))
+    )
+    fileSessionState.isDirty = true
+    view.rerender(pane())
+    await userEvent.click(screen.getByRole('button', { name: 'next' }))
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.edit.leave.keep_editing' }))
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'current.ts')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-source-location', JSON.stringify({ line: 42 }))
+    expect(fileSessionDiscardMock).not.toHaveBeenCalled()
+  })
+
+  it('ignores obsolete file metadata when a newer located link has opened', async () => {
+    resolveArtifactPaneFileSelectionMock.mockImplementation((workspacePath: string, filePath: string) => ({
+      workspacePath,
+      filePath
+    }))
+    const old = Promise.withResolvers<PhysicalFileMetadata>()
+    ipcRequestMock.mockImplementation((route: string, handle: { path?: string }) =>
+      route === 'file.get_metadata' && handle?.path?.endsWith('old.ts')
+        ? old.promise
+        : Promise.resolve({ kind: 'file', type: 'text', size: 1 })
+    )
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <OpenArtifactButton path="old.ts" location={{ line: 42 }} label="old" />
+        <OpenArtifactButton path="new.ts" location={{ line: 7 }} label="new" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'old' }))
+    await userEvent.click(screen.getByRole('button', { name: 'new' }))
+    await waitFor(() => expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'new.ts'))
+    await act(async () => old.resolve({ kind: 'file', type: 'text', size: 1 } as PhysicalFileMetadata))
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'new.ts')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-source-location', JSON.stringify({ line: 7 }))
   })
 
   it('activates the first attachment preview after metadata resolves in an empty system workspace', async () => {

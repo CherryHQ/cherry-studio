@@ -17,6 +17,7 @@ import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import type { FileLocation } from '@renderer/types/fileLocation'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
 import { getFilePreviewFileName, normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -121,6 +122,7 @@ function PluginErrorFallback() {
 }
 
 interface FilePreviewPluginRendererProps {
+  location?: FileLocation
   fileName: string
   filePath: AbsoluteFilePath
   metadata: FilePreviewFileMetadata
@@ -151,6 +153,7 @@ function FilePreviewPluginRenderer({
   metadataRequest,
   onSelectionReference,
   onLineComment,
+  location,
   plugin,
   refreshKey,
   type
@@ -176,6 +179,7 @@ function FilePreviewPluginRenderer({
         metadataRequest={metadataRequest}
         onSelectionReference={onSelectionReference}
         onLineComment={onLineComment}
+        location={location}
         refreshKey={refreshKey}
         type={type}
       />
@@ -184,6 +188,7 @@ function FilePreviewPluginRenderer({
 }
 
 export interface FilePreviewProps {
+  location?: FileLocation
   filePath: AbsoluteFilePath
   header?: ReactNode
   refreshKey?: number
@@ -218,7 +223,8 @@ export function FilePreview({
   refreshKey = 0,
   type = 'file',
   onSelectionReference,
-  onLineComment
+  onLineComment,
+  location
 }: FilePreviewProps) {
   const file = useMemo(() => {
     try {
@@ -355,6 +361,7 @@ export function FilePreview({
         metadataRequest={metadataRequest?.read}
         onSelectionReference={onSelectionReference ? reportSelection : undefined}
         onLineComment={onLineComment}
+        location={location}
         plugin={resolution.plugin}
         refreshKey={refreshKey}
         type={type}

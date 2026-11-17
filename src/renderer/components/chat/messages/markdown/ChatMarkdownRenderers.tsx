@@ -38,7 +38,7 @@ function ChatCodeRenderer(props: MarkdownRendererProps<'code'>) {
   // Keep growing fences as code until Streamdown finishes rebuilding their animated spans.
   const path = getCodeFilePath(code)
   if (path && isKnownNavigationPath(path)) return <NavigateToolInline input={{ path }} />
-  if (path) return <ClickableFilePath path={path} />
+  if (path) return <ClickableFilePath path={code.text} />
 
   return (
     <CodeBlock
