@@ -1,11 +1,12 @@
 import type { ComponentProps, FC } from 'react'
 import { Fragment, useMemo } from 'react'
 
-import { ConfirmDialog } from '@cherrystudio/ui'
+import { ConfirmDialog, EmptyState } from '@cherrystudio/ui'
 import { useExitPresence } from '@renderer/hooks/useExitPresence'
 
 import { CodeCliContentPanel } from './CodeCliContentPanel'
 import { CodeCliSidebar } from './CodeCliSidebar'
+import { CodeToolSelectScene } from './CodeEmptyScenes'
 import { ConfigEditPanel } from './configEditPanel/ConfigEditPanel'
 import { OwnLoginConfigPanel } from './configEditPanel/OwnLoginConfigPanel'
 import { LaunchDialog } from './LaunchDialog'
@@ -51,8 +52,8 @@ export const CodeCliPageView: FC<CodeCliPageViewProps> = ({
           {contentProps ? (
             <CodeCliContentPanel {...contentProps} />
           ) : (
-            <div className="flex flex-1 items-center justify-center text-sm text-foreground-tertiary">
-              {emptyMessage}
+            <div className="flex flex-1 items-center justify-center">
+              <EmptyState scene={<CodeToolSelectScene />} title={emptyMessage} />
             </div>
           )}
         </div>

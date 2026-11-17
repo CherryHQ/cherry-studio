@@ -33,6 +33,7 @@ import {
   type TranslationFiles
 } from '../translationFiles'
 import IconButton from './IconButton'
+import { TranslateHistoryEmptyScene } from './TranslateHistoryEmptyScene'
 
 const logger = loggerService.withContext('TranslateHistory')
 
@@ -239,7 +240,8 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
               ) : (
                 <div className="flex min-h-0 flex-1 items-center justify-center">
                   <EmptyState
-                    icon={showStared ? Star : Clock}
+                    icon={status === 'loading' ? (showStared ? Star : Clock) : undefined}
+                    scene={status === 'loading' ? undefined : <TranslateHistoryEmptyScene />}
                     title={status === 'loading' ? t('common.loading') : t('translate.history.empty')}
                     compact
                   />

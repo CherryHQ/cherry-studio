@@ -13,7 +13,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
+import { Button, EmptyState, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import ImageViewer from '@renderer/components/ImageViewer'
@@ -30,6 +30,7 @@ import {
 } from '../utils/artboardImageScale'
 import { computeImageNaturalSize } from '../utils/computeImageNaturalSize'
 import { getPaintingFileUrl } from '../utils/paintingFileUrl'
+import { PaintingEmptyScene } from './PaintingEmptyScene'
 import PaintingImageSkeleton from './PaintingImageSkeleton'
 
 const logger = loggerService.withContext('paintings/Artboard')
@@ -634,6 +635,9 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
               aria-hidden
               className="absolute inset-2 rounded-2xl border border-border-subtle bg-background-subtle"
             />
+            <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+              <EmptyState compact scene={<PaintingEmptyScene />} title={t('paintings.image_placeholder')} />
+            </div>
           </div>
         )}
       </div>

@@ -7,6 +7,7 @@ import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 
+import { CodeProvidersEmptyScene } from './CodeEmptyScenes'
 import { ProviderCard } from './ConfigCard'
 import { OwnLoginCard } from './OwnLoginCard'
 
@@ -63,7 +64,13 @@ export const ConfigList: FC<ConfigListProps> = ({
   }
 
   if (providers.length === 0) {
-    return <EmptyState title={t('code.no_providers_title')} description={t('code.no_providers_description')} />
+    return (
+      <EmptyState
+        scene={<CodeProvidersEmptyScene />}
+        title={t('code.no_providers_title')}
+        description={t('code.no_providers_description')}
+      />
+    )
   }
 
   if (displayedProviders.length === 0) {
