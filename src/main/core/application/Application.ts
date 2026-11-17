@@ -16,9 +16,7 @@ import {
 } from '@main/core/lifecycle'
 import { buildPathRegistry, type PathKey, type PathMap, shouldAutoEnsure } from '@main/core/paths/pathRegistry'
 import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
-import { handleGuarded } from '@main/core/security/guardedIpc'
 import { bootConfigService } from '@main/data/bootConfig'
-import { IpcChannel } from '@shared/IpcChannel'
 
 import type { ServiceRegistry } from './serviceRegistry'
 
@@ -47,7 +45,6 @@ export class Application {
   private quitGuardsPassed = false
   private readonly quitGuards = new Set<QuitGuard>()
   private quitPreventionHolds = new Map<string, string>()
-  private ipcQuitHolds = new Map<string, QuitPreventionHold>()
 
   /**
    * Frozen path registry. `null` until `bootstrap()` is invoked, after
@@ -587,29 +584,6 @@ export class Application {
         this.quit()
       }
     })
-
-    // Register Application-scoped IPC handlers (quit, relaunch, preventQuit)
-    this.registerApplicationIpc()
-  }
-
-  /**
-   * Register IPC handlers for the Application_* scope.
-   * All application lifecycle operations exposed to renderer live here.
-   */
-  private registerApplicationIpc(): void {
-    handleGuarded(IpcChannel.Application_PreventQuit, (_, reason: string): string => {
-      const hold = this.preventQuit(reason)
-      this.ipcQuitHolds.set(hold.id, hold)
-      return hold.id
-    })
-
-    handleGuarded(IpcChannel.Application_AllowQuit, (_, holdId: string) => {
-      const hold = this.ipcQuitHolds.get(holdId)
-      if (hold) {
-        hold.dispose()
-        this.ipcQuitHolds.delete(holdId)
-      }
-    })
   }
 
   /**
@@ -638,7 +612,7 @@ export class Application {
    * @param name - Service name from ServiceRegistry
    */
   public getExisting<K extends keyof ServiceRegistry>(name: K): ServiceRegistry[K] | undefined {
-    return this.container.getInstance(name) as ServiceRegistry[K] | undefined
+    return this.container.getInstance<ServiceRegistry[K]>(name)
   }
 
   /**

@@ -74,6 +74,7 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, targ
         </PaintingSectionTitle>
       )}
       <ModelSelector
+        allowPresentationSwitch
         showSubscriptionOffers={false}
         open={open}
         onOpenChange={setOpen}

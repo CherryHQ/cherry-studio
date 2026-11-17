@@ -49,21 +49,29 @@ an explicit native Durable phase parent using the gateway's internal usage captu
 no model span and writes no billing record. Ordinary Pi 1.5.0 has no native tool-span API,
 so tool details remain in its transcript. The host does not reconstruct tool spans from message events.
 
+The desktop connection classifies native input outcomes before forwarding failures. Cancellation,
+output limits and known provider failures remain local; unexpected runtime and projection failures
+remain eligible for error reporting. Capture ownership follows the original error through the
+terminal event, so the outer session boundary cannot report it again.
+Manual compaction's original thrown error inherits capture ownership only when the runtime
+identifies the matching root's failed compaction event. Post-compaction callback failures and
+unrelated background errors remain separate reporting candidates.
+
 ## Host ports
 
 `piBehaviorHost.ts` connects shared behavior to the existing approval registry, question cards, model
 catalog, native Pi model binding and output files. `piApprovalFacts.ts` collects tool, workspace and
 interaction facts; `agent-behavior` decides permission policy. Cross-session delegation still requires
-an interactive user turn. Child tools use the root's live agent policy.
+an interactive user turn. Root and child threads use the root's live agent permission mode,
+interaction state and tool restrictions; delegation never grants `bypassPermissions`.
 
 Approval and question identities use `CallRef`. The Pi facet resolves these opaque keys to native
 `toolCallId` values for cards, including nested calls. Persisted approval outcomes are read from the
 existing message parts; pending questions do not resume after restart. No new database table is used.
 
-Compaction calls the host summarizer once through the native gateway binding; goal completion calls
-the verifier through the same path without a tool loop. Empty or failed summaries cancel compaction.
-The summarizer returns the native response usage for goal and child-run accounting; the gateway
-remains the sole writer of provider billing records.
+Pi and Pi Durable generate compaction summaries using their native runtimes. Each native summary request is
+metered, and its reported usage is attributed to the initiating goal and child run. The gateway remains the sole
+writer of provider billing records. Goal completion calls the verifier through the gateway without a tool loop.
 `agent-behavior` provides `vcc_recall`; the old pi-vcc extension and build artifact are removed.
 Large tool output is saved under `feature.agents.outputs`, which read tools may access.
 

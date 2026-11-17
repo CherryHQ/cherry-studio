@@ -22,6 +22,7 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
 import { getPermissionModeCards } from '@renderer/utils/agent'
 
+import { DraftAgentAvatarPicker } from '../DraftAgentAvatarPicker'
 import type { ResourceCreateWizardFormValues } from '../types'
 
 const EMPTY_MODEL_LABELS: ModelLabels = {
@@ -42,6 +43,9 @@ type ModelFieldProps = {
 }
 
 type BasicInfoStepProps = {
+  active: boolean
+  disabled: boolean
+  onImagePendingChange: (pending: boolean) => void
   form: UseFormReturn<ResourceCreateWizardFormValues>
   portalContainer: HTMLElement | null
   fallbackAvatar: string
@@ -104,13 +108,11 @@ function AgentRuntimeModelFields({
   )
 }
 
-/**
- * Step 1 (shared by assistant + agent): avatar, name, model, description.
- * Reuses the edit-dialog field components verbatim — field names match. Owns its
- * own emoji-picker and model-label state so selecting a model/avatar re-renders
- * only this step, never the dialog shell (keeps DialogContent's ref stable).
- */
+/** Collects shared basic fields while Agent image selection stays in the creation draft. */
 export function BasicInfoStep({
+  active,
+  disabled,
+  onImagePendingChange,
   form,
   portalContainer,
   fallbackAvatar,
@@ -123,6 +125,7 @@ export function BasicInfoStep({
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(EMPTY_MODEL_LABELS)
   const avatar = useWatch({ control: form.control, name: 'avatar' })
+  const avatarImage = useWatch({ control: form.control, name: 'avatarImage' })
 
   useEffect(() => {
     form.setFocus('name')
@@ -139,17 +142,33 @@ export function BasicInfoStep({
             <FormLabel className="font-medium">{t('library.config.dialogs.create.avatar_name_label')}</FormLabel>
             <InputGroup>
               <InputGroupAddon className="py-0">
-                <EmojiAvatarPicker
-                  value={avatar}
-                  fallback={fallbackAvatar}
-                  open={emojiPickerOpen}
-                  onOpenChange={setEmojiPickerOpen}
-                  onChange={(value) => form.setValue('avatar', value, { shouldDirty: true })}
-                  ariaLabel={t('library.config.dialogs.create.avatar_aria')}
-                  portalContainer={portalContainer}
-                  avatarClassName="border-0"
-                  avatarFontSize={18}
-                />
+                {showAgentFields ? (
+                  <DraftAgentAvatarPicker
+                    emoji={avatar || fallbackAvatar}
+                    fallback={fallbackAvatar}
+                    image={avatarImage}
+                    active={active}
+                    disabled={disabled}
+                    portalContainer={portalContainer}
+                    onPendingChange={onImagePendingChange}
+                    onChange={(emoji, image) => {
+                      form.setValue('avatar', emoji, { shouldDirty: true })
+                      form.setValue('avatarImage', image, { shouldDirty: true })
+                    }}
+                  />
+                ) : (
+                  <EmojiAvatarPicker
+                    value={avatar}
+                    fallback={fallbackAvatar}
+                    open={emojiPickerOpen}
+                    onOpenChange={setEmojiPickerOpen}
+                    onChange={(value) => form.setValue('avatar', value, { shouldDirty: true })}
+                    ariaLabel={t('library.config.dialogs.create.avatar_aria')}
+                    portalContainer={portalContainer}
+                    avatarClassName="border-0"
+                    avatarFontSize={18}
+                  />
+                )}
               </InputGroupAddon>
               <FormControl>
                 <InputGroupInput

@@ -234,7 +234,7 @@ export const DOCTOR_CHECK_CATALOG = {
     tier: 'quick',
     scope: ['providerId'],
     fixes: [],
-    details: ['missing', 'provider_unavailable'],
+    details: ['missing', 'provider_unavailable', 'signed_out'],
     requires: ['provider-model']
   },
   'provider-cherry-account': {

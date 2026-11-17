@@ -1,4 +1,6 @@
-<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="none">
+<rect width="120" height="120" fill="#FFF3E4"/>
+<g fill="none" transform="translate(18 18) scale(5.20661157) translate(-3.9333 -3.4333)">
 <path d="M9.33309 4H7.00582L5.55127 7.24975V15.85L4 19H7.78182L9.25673 15.85L9.33309 4ZM14.6669 4H10.8851V19H14.6669V4ZM16.2182 8.29975H20V19H16.2182V8.29975ZM20 4H16.2182V7.09975H20V4Z" fill="url(#paint0_linear_15_4932)"/>
 <defs>
 <linearGradient id="paint0_linear_15_4932" x1="6.84224" y1="5.3017" x2="19.1481" y2="18.493" gradientUnits="userSpaceOnUse">
@@ -6,4 +8,5 @@
 <stop offset="1" stop-color="#FF6933"/>
 </linearGradient>
 </defs>
+</g>
 </svg>

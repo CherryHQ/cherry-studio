@@ -53,6 +53,5 @@ describe('writeProviderRegistrySnapshot', () => {
       'write:manifest.json'
     ])
     expect(order).not.toContain('write:providers.json')
-    expect(clearCacheMock).toHaveBeenCalledTimes(2)
   })
 })

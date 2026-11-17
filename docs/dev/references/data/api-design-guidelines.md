@@ -499,6 +499,7 @@ Fences (all hard):
 | `POST /jobs` (enqueue) / `DELETE /jobs/:id` (cancel) | Workflow command on `JobManager` infrastructure, not CRUD | Business service in main calls `application.get('JobManager').enqueue(...)` / `.cancel(...)`. For renderer-initiated triggering, use a dedicated IpcApi route (e.g. `knowledge.add_items`). Job DataApi is GET-only. |
 | `POST/PATCH/DELETE /agents/:agentId/tasks…` (schedule mutation) | Mixed-effect command (schedule row + business rows + timer), not CRUD | IpcApi `ai.agent.task.*` → `AgentJobsService`. Task DataApi is GET-only. |
 | `POST /agents/:agentId/restore` | Agent state plus schedule timers and Channel connections | IpcApi `ai.agent.restore` → `AgentLifecycleService`; DB-only primitives stay in data services. |
+| `POST/DELETE /temporary/topics…` (temporary chat lease / persist) | In-memory runtime state in `TemporaryChatService`, not a SQLite table | IpcApi `ai.temporary_topic.{create,delete,persist}`; persisted topics are then read and updated through `/topics`. |
   | Workspace registration | Physical path identity and active storage-operation admission plus a workspace row | IpcApi `ai.agent.workspace.register` → `AgentWorkspaceStorageService`; workspace DataApi is query/update/order only. |
 
 ### Why Misuse is Harmful
@@ -610,7 +611,7 @@ All entity schemas and DTOs in `src/shared/data/api/schemas/` MUST be hand-writt
 
 **Rationale:** DataApi crosses an IPC trust boundary; TS `interface` provides zero runtime defense against schema drift, mass assignment, or a compromised renderer. Zod parse cost (~25µs) is negligible compared to IPC round-trip latency. Schema-first is the industry standard (tRPC, Next.js 13+, Standard Schema Alliance).
 
-**Response types stay as TS `interface`.** Rule D covers **entities and DTOs** — not response shapes. Responses flow `main → renderer`, the **opposite** direction of the IPC trust boundary: main constructs them from trusted state, renderer consumes them after type-checked IPC plumbing. Runtime validation on that edge is cost without security benefit. Examples that correctly stay as `interface`: `DeleteMessageResponse`, `ActiveNodeResponse`, `PersistTemporaryChatResponse`, `TreeResponse`, `BranchMessagesResponse`, `TreeNode`, `SiblingsGroup`, `BranchMessage`.
+**Response types stay as TS `interface`.** Rule D covers **entities and DTOs** — not response shapes. Responses flow `main → renderer`, the **opposite** direction of the IPC trust boundary: main constructs them from trusted state, renderer consumes them after type-checked IPC plumbing. Runtime validation on that edge is cost without security benefit. Examples that correctly stay as `interface`: `DeleteMessageResponse`, `ActiveNodeResponse`, `TreeResponse`, `BranchMessagesResponse`, `TreeNode`, `SiblingsGroup`, `BranchMessage`.
 
 **Exception:** when a type is **both** a response payload and an entity (e.g., `Topic` is returned from `GET /topics/:id` and also represents a row in the DB), Zod-ify it as an entity per Rule C — the entity role wins.
 

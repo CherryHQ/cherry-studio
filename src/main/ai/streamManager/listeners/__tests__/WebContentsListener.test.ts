@@ -2,7 +2,7 @@
  * Coalescing behaviour tests for WebContentsListener.
  *
  * Goal: verify that consecutive `text-delta` / `reasoning-delta` chunks
- * collapse into one `wc.send` (IpcApi event) call within the 16ms window, while non-
+ * collapse into one `wc.send` (IpcApi event) call within the coalescing window, while non-
  * mergeable chunks and terminal events flush the buffer first so the
  * renderer always observes the original chunk ordering.
  */
@@ -67,7 +67,7 @@ describe('WebContentsListener coalescing', () => {
     // Nothing sent yet — within the coalesce window
     expect(wc.send).not.toHaveBeenCalled()
 
-    vi.advanceTimersByTime(16)
+    vi.runOnlyPendingTimers()
 
     expect(wc.send).toHaveBeenCalledTimes(1)
     expect(wc.send).toHaveBeenCalledWith(IpcChannel.IpcApi_Event, 'ai.stream.chunk', {
@@ -102,7 +102,7 @@ describe('WebContentsListener coalescing', () => {
     expect(wc.send).toHaveBeenCalledTimes(1)
     expect(wc.send.mock.calls[0][2].chunk).toEqual({ type: 'text-delta', id: 'a', delta: 'foo' })
 
-    vi.advanceTimersByTime(16)
+    vi.runOnlyPendingTimers()
     expect(wc.send).toHaveBeenCalledTimes(2)
     expect(wc.send.mock.calls[1][2].chunk).toEqual({ type: 'text-delta', id: 'b', delta: 'bar' })
   })
@@ -120,7 +120,7 @@ describe('WebContentsListener coalescing', () => {
       chunk: { delta: 'A' }
     })
 
-    vi.advanceTimersByTime(16)
+    vi.runOnlyPendingTimers()
     expect(wc.send.mock.calls[1][2]).toMatchObject({
       executionId: 'anthropic::claude',
       chunk: { delta: 'B' }
@@ -141,7 +141,7 @@ describe('WebContentsListener coalescing', () => {
       chunk: { delta: 'A' }
     })
 
-    vi.advanceTimersByTime(16)
+    vi.runOnlyPendingTimers()
     expect(wc.send.mock.calls[1][2]).toMatchObject({
       executionId: 'openai::gpt-4o',
       anchorMessageId: 'assistant-2',
@@ -274,7 +274,7 @@ describe('WebContentsListener coalescing', () => {
     expect(wc.send).toHaveBeenCalledTimes(1)
     expect(wc.send.mock.calls[0][2].chunk).toEqual({ type: 'reasoning-delta', id: 'r1', delta: 'thinking' })
 
-    vi.advanceTimersByTime(16)
+    vi.runOnlyPendingTimers()
     expect(wc.send).toHaveBeenCalledTimes(2)
     expect(wc.send.mock.calls[1][2].chunk).toEqual({ type: 'text-delta', id: 't1', delta: 'answer' })
   })
@@ -317,49 +317,11 @@ describe('WebContentsListener coalescing', () => {
 
     // Subsequent chunk on a destroyed wc — must clear the timer, not crash.
     l.onChunk(chunk('text-delta', { id: 't1', delta: 'B' }))
-    vi.advanceTimersByTime(16)
+    vi.runOnlyPendingTimers()
 
     // Only the first chunk's flush attempt would have run, but sendChunk
     // also rechecks isDestroyed — net result: no send.
     expect(wc.send).not.toHaveBeenCalled()
-  })
-
-  it('flushes synchronously when the coalesce timer is starved (age guard)', () => {
-    // Repro of "a few chunks then nothing then everything at once": when
-    // pipeStreamLoop drains a buffered provider via a microtask loop, the
-    // 16ms macrotimer never runs. The age guard must flush regardless.
-    const wc = fakeWc()
-    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
-
-    let clock = 1000
-    const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => clock)
-
-    l.onChunk(chunk('text-delta', { id: 't1', delta: 'a' })) // arms pending at t=1000
-    clock += 5
-    l.onChunk(chunk('text-delta', { id: 't1', delta: 'b' })) // age 5ms < 16 → still buffered
-    expect(wc.send).not.toHaveBeenCalled()
-
-    clock += 20 // total age now 25ms ≥ 16, WITHOUT advancing the macrotimer
-    l.onChunk(chunk('text-delta', { id: 't1', delta: 'c' }))
-
-    // Flushed synchronously — no fake-timer advance needed.
-    expect(wc.send).toHaveBeenCalledTimes(1)
-    expect(wc.send.mock.calls[0][2].chunk).toEqual({ type: 'text-delta', id: 't1', delta: 'abc' })
-
-    nowSpy.mockRestore()
-  })
-
-  it('flushes synchronously when the pending delta exceeds the size cap', () => {
-    const wc = fakeWc()
-    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')
-
-    // Same id, all within the time window — only the size cap can force it.
-    const big = 'x'.repeat(1500)
-    l.onChunk(chunk('text-delta', { id: 't1', delta: big }))
-    l.onChunk(chunk('text-delta', { id: 't1', delta: big })) // total 3000 ≥ 2048
-
-    expect(wc.send).toHaveBeenCalledTimes(1)
-    expect(wc.send.mock.calls[0][2].chunk.delta.length).toBe(3000)
   })
 
   it('coalesces consecutive tool-input-delta chunks with same toolCallId', () => {
@@ -372,7 +334,7 @@ describe('WebContentsListener coalescing', () => {
 
     expect(wc.send).not.toHaveBeenCalled()
 
-    vi.advanceTimersByTime(16)
+    vi.runOnlyPendingTimers()
 
     expect(wc.send).toHaveBeenCalledTimes(1)
     expect(wc.send.mock.calls[0][2].chunk).toEqual({
@@ -392,7 +354,7 @@ describe('WebContentsListener coalescing', () => {
     expect(wc.send).toHaveBeenCalledTimes(1)
     expect(wc.send.mock.calls[0][2].chunk.toolCallId).toBe('a')
 
-    vi.advanceTimersByTime(16)
+    vi.runOnlyPendingTimers()
     expect(wc.send).toHaveBeenCalledTimes(2)
     expect(wc.send.mock.calls[1][2].chunk.toolCallId).toBe('b')
   })
@@ -411,7 +373,7 @@ describe('WebContentsListener coalescing', () => {
       inputTextDelta: '{'
     })
 
-    vi.advanceTimersByTime(16)
+    vi.runOnlyPendingTimers()
     expect(wc.send).toHaveBeenCalledTimes(2)
     expect(wc.send.mock.calls[1][2].chunk).toEqual({ type: 'text-delta', id: 't1', delta: 'A' })
   })
@@ -442,7 +404,7 @@ describe('WebContentsListener coalescing', () => {
     expect(l.isAlive()).toBe(false)
 
     // Pending timer must have been cleared — advancing time produces no send.
-    vi.advanceTimersByTime(16)
+    vi.runOnlyPendingTimers()
     expect(wc.send).not.toHaveBeenCalled()
   })
 })

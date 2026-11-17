@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { dataApiService } from '@data/DataApiService'
 import { isHiddenPart } from '@renderer/components/chat/messages/blocks/messagePartLayouts'
+import { useMessageAuthorAvatarSources } from '@renderer/components/chat/messages/hooks/useMessageAuthorAvatarSources'
 import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
   pickMessageHeaderActions,
@@ -20,6 +21,7 @@ import {
   type MessageListRuntime,
   type MessageListSelectAllPagination,
   type MessageListState,
+  type MessageUserProfile,
   type MessageRuntime,
   type MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
@@ -55,6 +57,8 @@ const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
   const { default: popup } = await import('@renderer/components/ObsidianExportPopup')
   return popup.show({ title, messages, processingMethod: '1' })
 }
+
+const canDeleteMessage = (message: MessageListItem): boolean => message.role !== 'assistant'
 
 const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
 
@@ -107,10 +111,7 @@ interface AgentMessageListParams {
   historyActions?: Readonly<Record<string, AgentSessionHistoryActions | undefined>>
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
-  assistantProfile?: {
-    name?: string
-    avatar?: string
-  }
+  assistantProfile?: MessageUserProfile & { id?: string }
   assistantId?: string
   isLoading: boolean
   hasOlder?: boolean
@@ -298,6 +299,7 @@ export function useAgentMessageListProviderValue({
     partsByMessageId: displayPartsByMessageId,
     streamingLayers: displayStreamingLayers,
     deleteMessage,
+    canDeleteMessage,
     diagnosticReport,
     getDoctorSubject,
     selectAllPagination
@@ -444,6 +446,10 @@ export function useAgentMessageListProviderValue({
     },
     [sessionId, t, notifyError]
   )
+  const agentRenderConfig = useMemo(
+    () => ({ ...renderConfig, keepIntermediateAssistantText: true, expandToolSteps: true }),
+    [renderConfig]
+  )
   const state = useMemo<MessageListState>(
     () => ({
       topic,
@@ -459,7 +465,7 @@ export function useAgentMessageListProviderValue({
       messageNavigation,
       ...DEFAULT_MESSAGE_LIST_CONFIG,
       listKey: resolvedAgentId,
-      renderConfig,
+      renderConfig: agentRenderConfig,
       menuConfig,
       selection: selectionController.selection,
       getMessageUiState: messageUiStateCache.getMessageUiState,
@@ -483,7 +489,7 @@ export function useAgentMessageListProviderValue({
       normalInteractionsEnabled,
       displayPartsByMessageId,
       renderActiveTurnStatus,
-      renderConfig,
+      agentRenderConfig,
       resolvedAgentId,
       selectionController.selection,
       displayStreamingLayers,
@@ -518,6 +524,7 @@ export function useAgentMessageListProviderValue({
       loadOlder,
       bindRuntime,
       deleteMessage,
+      canDeleteMessage,
       ...exportActions,
       ...errorActions,
       ...pickMessageLeafActions(leafCapabilities),
@@ -583,15 +590,21 @@ export function useAgentMessageListProviderValue({
     ]
   )
 
+  const assistantAvatarSources = useMessageAuthorAvatarSources(messageItems, topic.id)
   const meta = useMemo<MessageListMeta>(
     () => ({
       selectionLayer: true,
       userProfile: headerCapabilities.userProfile,
       assistantProfile,
+      authorAvatars:
+        assistantProfile?.id && assistantProfile.avatar !== undefined
+          ? new Map([[assistantProfile.id, assistantProfile.avatar]])
+          : undefined,
+      assistantAvatarSources,
       imageExportFileName: topic.name,
       aiUsageMessageKind: 'agent-session'
     }),
-    [assistantProfile, headerCapabilities.userProfile, topic.name]
+    [assistantProfile, assistantAvatarSources, headerCapabilities.userProfile, topic.name]
   )
 
   return useMemo(() => ({ state, actions, meta }), [actions, meta, state])
