@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-17-agent-python-openpyxl.md
+2026-11-17-agent-python-openpyxl.md: fed84a55669899105286908d78bcc23cecac05c5
+2026-11-17-agent-python-openpyxl.zh.md: e8b6c1a4e910a2cd2484716f5360d2463941b4d5
