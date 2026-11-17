@@ -5333,6 +5333,8 @@
   "settings.models.retry.fallback_models_count_with_invalid": "Vybráno: {{valid}} (nedostupných: {{invalid}})",
   "settings.models.retry.fallback_models_description": "Modely, které se zkoušejí v pořadí, když hlavní model selže",
   "settings.models.retry.fallback_models_unavailable": "Žádné platné záložní modely (nedostupných: {{count}})",
+  "settings.models.retry.image_max_attempts": "Pokusy o opakování obrázku",
+  "settings.models.retry.image_max_attempts_description": "Opakování přímého generování obrázků při přechodných chybách. Každý pokus může být znovu účtován — nastavením na 0 opakování zakážete.",
   "settings.models.retry.max_attempts": "Maximální počet opakování",
   "settings.models.retry.tooltip": "U chyb, které lze opakovat, se aktuální model opakuje až do nastaveného limitu. Pokud stále selže nebo chyba opakovat nelze, každý záložní model se zkusí jednou v pořadí. Pokud má stejný model více API klíčů, chyby 401/429 nejprve přepnou na další klíč. Opakování a zálohy se uplatní pouze před začátkem výstupu obsahu.",
   "settings.models.toolbar.pull_short": "Synchronizovat modely",
