@@ -281,7 +281,8 @@ export function executableName(value: string, insensitive = false): string {
 
 export function resolveCommandWords(
   words: readonly string[],
-  insensitive = false
+  insensitive = false,
+  powershellAliases = insensitive
 ):
   | { command: string; args: string[]; offset: number; elevated: boolean; wrappers: CommandSemantics['wrappers'] }
   | undefined {
@@ -294,7 +295,7 @@ export function resolveCommandWords(
       continue
     }
     const base = executableName(words[index], insensitive)
-    const name = (insensitive && POWERSHELL_ALIASES[base]) || base
+    const name = (powershellAliases && POWERSHELL_ALIASES[base]) || base
     if (!(name in WRAPPERS)) return { command: name, args: words.slice(index + 1), offset: index, elevated, wrappers }
     elevated ||= ['sudo', 'doas', 'pkexec'].includes(name)
     const start = index++
@@ -355,6 +356,12 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
       else result.options.set('--dry-run', argument)
     } else result.options.set(option, argument)
   }
+  // npm (nopt) reads a separate `true`/`false` after a flag as that flag's value.
+  const npmSeparateBoolean = (attached: string | undefined, takesValue: boolean) => {
+    const next = result.args[index + 1]?.value
+    if (result.executable !== 'npm' || attached !== undefined || takesValue) return undefined
+    return next === 'true' || next === 'false' ? next : undefined
+  }
   let index = 0
   if (result.executable === 'git') {
     while (index < result.args.length && result.args[index].value?.startsWith('-')) {
@@ -396,7 +403,9 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
         '--log-level',
         '--loglevel'
       ].includes(option)
-      const argument = attached ?? (takesValue ? result.args[++index]?.value : true)
+      const separate = npmSeparateBoolean(attached, takesValue)
+      if (separate) index++
+      const argument = attached ?? separate ?? (takesValue ? result.args[++index]?.value : true)
       if (argument === undefined) result.incomplete = true
       else if (packageManager && attached === undefined && !takesValue && !PACKAGE_GLOBAL_FLAGS.has(option))
         result.uncertainSubcommand = true
@@ -437,7 +446,9 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
     if (!literal && value?.startsWith('-') && value !== '-') {
       const [option, attached] = value.split(/=(.*)/s)
       if (option.startsWith('--')) {
-        const argument = attached ?? (valueOptions.has(option) ? result.args[++index]?.value : true)
+        const separate = npmSeparateBoolean(attached, valueOptions.has(option))
+        if (separate) index++
+        const argument = attached ?? separate ?? (valueOptions.has(option) ? result.args[++index]?.value : true)
         if (argument === undefined) result.incomplete = true
         setOption(canonicalOption(result, option), argument ?? true)
       } else {

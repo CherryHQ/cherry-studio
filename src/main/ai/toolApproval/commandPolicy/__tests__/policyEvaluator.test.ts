@@ -80,7 +80,10 @@ describe('structured command policy', () => {
     'yarn publish --dry-run --dry-run=false',
     'npm --loglevel silent publish',
     'npm --loglevel=silent publish',
-    'npm --unknown-option value publish'
+    'npm --unknown-option value publish',
+    'npm --dry-run false publish',
+    'npm publish --dry-run false',
+    'npm --dry-run true --dry-run false publish'
   ])('requires approval for publishing with global or overriding options: %s', async (command) => {
     expect((await evaluate(command)).effect).toBe('ask')
   })
@@ -93,7 +96,9 @@ describe('structured command policy', () => {
     'npm --loglevel silent publish --dry-run',
     'npm --no-dry-run publish --dry-run',
     'pnpm --dry-run publish',
-    'yarn --dry-run publish'
+    'yarn --dry-run publish',
+    'npm --dry-run true publish',
+    'npm publish --dry-run true'
   ])('allows publishing only when the effective dry-run option is enabled: %s', async (command) => {
     expect((await evaluate(command)).effect).toBe('allow')
   })
@@ -172,7 +177,11 @@ describe('structured command policy', () => {
       expect((await evaluate(command, undefined, 'powershell')).effect).toBe('ask')
       expect((await evaluate(command, 'assistant', 'powershell')).effect).toBe('deny')
     }
-    expect((await evaluate('ri Array', undefined, 'bash')).effect).toBe('allow')
+    expect((await evaluate("powershell -Command 'ri -Recurse C:\\temp'", 'assistant')).effect).toBe('deny')
+    for (const role of [undefined, 'assistant', 'support', 'doctor']) {
+      expect((await evaluate('ri Array', role, 'bash')).effect).toBe('allow')
+      expect((await evaluate('clc', role, 'bash')).effect).toBe('allow')
+    }
   })
 
   // Catch analysis gaps that would prompt for ordinary work no rule could match.

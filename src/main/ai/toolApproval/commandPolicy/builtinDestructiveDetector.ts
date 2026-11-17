@@ -11,7 +11,7 @@ const POWERSHELL = new Set(['powershell', 'pwsh'])
 const CMD = new Set(['cmd'])
 
 const UNIX_DELETION = new Set(['rm', 'unlink', 'shred', 'srm'])
-const WINDOWS_DELETION = new Set(['remove-item', 'ri', 'clear-content', 'clc', 'del', 'erase', 'rd', 'rmdir'])
+const WINDOWS_DELETION = new Set(['remove-item', 'clear-content', 'del', 'erase', 'rd', 'rmdir'])
 
 const DISK_COMMANDS = new Set([
   'wipefs',
@@ -512,8 +512,8 @@ function isHistoryErasure(name: string, args: readonly string[]): boolean {
   return false
 }
 
-function analyzeNested(command: string | undefined, depth: number): string | undefined {
-  return command === undefined ? undefined : analyze(command, depth + 1)
+function analyzeNested(command: string | undefined, depth: number, powershell = false): string | undefined {
+  return command === undefined ? undefined : analyze(command, depth + 1, powershell)
 }
 
 /** These exec a vector, not shell text, so a `-c` program stays one argument. */
@@ -534,7 +534,7 @@ function reasonForNestedCommand(name: string, args: readonly string[], depth: nu
     const code = optionValue(args, ['-e', '--eval', '-p', '--print'])
     return code === undefined ? undefined : detectNodeDeletion(code)
   }
-  if (POWERSHELL.has(name)) return analyzeNested(powershellCommand(args), depth)
+  if (POWERSHELL.has(name)) return analyzeNested(powershellCommand(args), depth, true)
   if (CMD.has(name)) return analyzeNested(cmdCommand(args), depth)
   if (name === 'ssh') return analyzeNested(sshCommand(args), depth)
   if (name === 'su' || name === 'runuser') return analyzeNested(suCommand(args), depth)
@@ -669,15 +669,15 @@ function reasonForHeredoc(heredoc: ShellHeredoc, depth: number): string | undefi
   return undefined
 }
 
-function analyze(command: string, depth: number): string | undefined {
+function analyze(command: string, depth: number, powershell = false): string | undefined {
   if (depth > MAX_ANALYSIS_DEPTH) return undefined
-  const parsed = parseShellCommand(command)
+  const parsed = parseShellCommand(command, powershell)
   for (const pipeline of parsed.pipelines) {
     for (const simple of pipeline.commands) {
       const reason = reasonForCommand(simple, depth)
       if (reason) return reason
       for (const substitution of simple.substitutions) {
-        const nested = analyze(substitution, depth + 1)
+        const nested = analyze(substitution, depth + 1, powershell)
         if (nested) return nested
       }
     }

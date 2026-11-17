@@ -30,19 +30,23 @@ export interface ParsedShellCommand {
   heredocs: ShellHeredoc[]
 }
 
-export function resolveCommand(words: readonly string[]): { command: string; args: string[] } | undefined {
-  const resolved = resolveCommandWords(words, true)
+export function resolveCommand(
+  words: readonly string[],
+  powershell = false
+): { command: string; args: string[] } | undefined {
+  const resolved = resolveCommandWords(words, true, powershell)
   return resolved ? { command: resolved.command, args: resolved.args } : undefined
 }
 
-export function parseShellCommand(command: string): ParsedShellCommand {
+/** `powershell` resolves PowerShell-only aliases (`ri`, `clc`) for code a PowerShell host runs. */
+export function parseShellCommand(command: string, powershell = false): ParsedShellCommand {
   const parsed = parseCommandSyntax(command, 'bash')
   const pipelines = new Map<string, ShellCommand[]>()
   for (const node of parsed.commands) {
     const stdin = parsed.redirections
       .filter((redirect) => redirect.pipeline === node.pipeline && redirect.operator === '<<<')
       .flatMap((redirect) => (redirect.target ? [redirect.target.value ?? redirect.target.raw] : []))
-    const resolved = resolveCommand([...node.words.map((word) => word.value ?? word.raw), ...stdin])
+    const resolved = resolveCommand([...node.words.map((word) => word.value ?? word.raw), ...stdin], powershell)
     if (!resolved) continue
     const commands = pipelines.get(node.pipeline) ?? []
     commands.push({ ...resolved, substitutions: node.substitutions })
