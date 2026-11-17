@@ -30,6 +30,8 @@ describe('structured command policy', () => {
     'crontab -l',
     'custom-tool ordinary arguments',
     'python script.py',
+    'python -u script.py',
+    'node --enable-source-maps --require ./setup.js app.js',
     'echo $HOME',
     "cat <<'EOF'\nrm -rf build\nEOF",
     "find . -name '-delete'"
@@ -111,6 +113,36 @@ describe('structured command policy', () => {
       expect((await evaluate(command, 'assistant')).effect).toBe('deny')
     }
   )
+
+  it.each(['assistant', 'support', 'doctor'])(
+    'denies discarding changes on switch for protected role %s',
+    async (role) => {
+      for (const command of [
+        'git switch --force feature',
+        'git switch -f feature',
+        'git switch --discard-changes feature'
+      ]) {
+        expect((await evaluate(command)).effect).toBe('ask')
+        expect((await evaluate(command, role)).effect).toBe('deny')
+      }
+    }
+  )
+
+  it.each([
+    "node --eval='console.log(1)'",
+    "node --print='1'",
+    "python -c'print(1)'",
+    "node -pe 'process.version'",
+    "perl -le 'print 1'",
+    "ruby -e'puts 1'"
+  ])('asks for inline code passed in an attached or clustered option: %s', async (command) => {
+    expect((await evaluate(command)).effect).toBe('ask')
+  })
+
+  it('reads the program of an attached --eval value', async () => {
+    const result = await evaluate("node --eval='console.log(1)'")
+    expect(result.hits).toMatchObject([{ ruleId: 'inline-interpreter' }])
+  })
 
   it.each(['assistant', 'support', 'doctor'])('enforces protected role %s across the whole call', async (role) => {
     const result = await evaluate('echo ok > marker; rm -rf build; git status && (', role)

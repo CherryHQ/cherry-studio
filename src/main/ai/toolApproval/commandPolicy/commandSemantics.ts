@@ -259,7 +259,7 @@ const ALIASES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   checkout: { '-f': '--force' },
   clean: { '-f': '--force', '-n': '--dry-run' },
   restore: { '-S': '--staged', '-W': '--worktree' },
-  switch: { '-f': '--discard-changes' }
+  switch: { '-f': '--discard-changes', '--force': '--discard-changes' }
 }
 
 const SCRIPT_RUNNERS = new Set([
@@ -439,7 +439,7 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
       if (option.startsWith('--')) {
         const argument = attached ?? (valueOptions.has(option) ? result.args[++index]?.value : true)
         if (argument === undefined) result.incomplete = true
-        setOption(option, argument ?? true)
+        setOption(canonicalOption(result, option), argument ?? true)
       } else {
         for (let offset = 1; offset < option.length; offset++) {
           const short = `-${option[offset]}`
@@ -511,7 +511,14 @@ export function interpretCommand(node: ExecutableCommand): CommandSemantics | un
   } else if (
     ['node', 'nodejs', 'python', 'python3', 'py', 'ruby', 'perl', 'osascript', 'deno', 'bun'].includes(executable)
   ) {
-    scriptIndex = args.findIndex(({ value }) => ['-c', '-e', '--eval', '-p', '--print'].includes(value ?? '')) + 1
+    const codeOptions = ['-c', '-e', '--eval', '-p', '--print']
+    scriptIndex = args.findIndex(({ value }) => codeOptions.includes(value ?? '')) + 1
+    const evalWord = args.find(({ value }) => value !== undefined && /^--(?:eval|print)=/.test(value))
+    if (!scriptIndex && evalWord)
+      result.inline = { language, code: evalWord.value!.replace(/^[^=]*=/, ''), word: evalWord }
+    // Short-option grammar differs per interpreter, so `-c'code'` or `-pe` is not decoded.
+    if (args.some(({ value }) => value !== undefined && !codeOptions.includes(value) && /^-[A-Za-z]*[cep]/.test(value)))
+      result.incomplete = true
   } else if (executable === 'fish') {
     scriptIndex = args.findIndex(({ value }) => value === '-c' || value === '--command') + 1
     result.incomplete = true
