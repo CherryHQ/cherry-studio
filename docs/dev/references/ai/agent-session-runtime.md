@@ -140,14 +140,15 @@ also require their own lifecycle and product decisions.
 
 ## System prompt ownership
 
-Live scoped-memory entries are delivered by the runtime hooks described in
+Conversation-scoped memory entry snapshots are delivered by the runtime hooks described in
 [Agent Prompt Layers](./agent-prompt-layers.md). They are separate from the
 connection's stable prompt and legacy identity files. Entry loading does not
 grant controlled file-write capability. Pi's `memoryTools.ts` separately replaces
 native `read`, `write`, and `edit` execution for managed memory. It retains the
 normal approval policy for other files and releases memory receipts at turn end.
-Claude Code rejects native file operations that touch managed memory; its hook
-plane does not provide the same execution ownership. Neither path claims Shell
+Claude Code routes authorized native Read, Write and Edit calls through working
+copies and commits managed files through MemoryService. It rejects other native
+file operations that touch managed memory or its working copies. Neither path claims Shell
 or third-party tools are sandboxed by memory policy.
 
 `src/main/ai/runtime/agentPrompt.ts` is the single materializer for Cherry-owned Agent prompt policy. Every runtime passes the same Agent, workspace, agent-data path, channel state, and resolved citation guidance into `buildAgentRuntimePrompt()`, then maps its `{ base, append }` result into the runtime SDK.
@@ -788,7 +789,8 @@ The package interprets Claude SDK frames once and delivers typed control facts b
   native facts. The initial baseline includes current background occupancy. A slow observer
   receives unseen terminal/control facts after their body, or an explicit unrecoverable gap.
 - Permission denial and explicit retractions are applied by the native projection. Main's
-  metadata decorator handles display-only MCP metadata, reminders and thinking timing.
+  metadata decorator handles MCP metadata, reminders and thinking timing. It also
+  marks scratch-only managed-memory results as unconfirmed failures, including replay.
   Each reasoning block stops its timer at the block's end, independently of later answer
   generation; native message replacement preserves the completed block timings.
 

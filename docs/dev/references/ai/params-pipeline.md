@@ -157,7 +157,10 @@ buildAgentParams(input)
 
 Persistent Assistant chat may carry a main-only `memoryContext` from its context
 provider. For an opted-in Assistant, `buildAgentParams` appends a `prepareStep`
-hook after context compaction to reload the authorized shared entry. The hook
+hook after context compaction to reuse the authorized conversation entry snapshot.
+When tools are enabled and the model supports them, `memory_search` exposes scoped
+FTS5 recall with model-selected keywords or explicit message expansion. Prompt hooks
+do not search. The hook
 rebuilds the memory reference from the stable system prompt instead of appending
 another copy. Cherry-generated Responses `instructions` are refreshed with it;
 explicit provider instruction overrides remain user-owned. Temporary chat and

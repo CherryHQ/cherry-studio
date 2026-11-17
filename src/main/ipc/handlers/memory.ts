@@ -27,6 +27,11 @@ async function operation<T>(run: () => T | Promise<T>): Promise<T> {
 }
 
 export const memoryHandlers: IpcHandlersFor<typeof memoryRequestSchemas> = {
+  'memory.dreaming.preview_extraction': (range, { senderId }) =>
+    operation(() => {
+      const authority = editorMemoryAuthority(senderId, { kind: 'shared' })
+      return application.get('MemoryDreamingService').previewExtraction(range, authority.assertAuthorized)
+    }),
   'memory.dreaming.status': (scope, { senderId }) =>
     operation(() => {
       editorMemoryAuthority(senderId, scope).assertAuthorized()

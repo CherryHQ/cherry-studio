@@ -96,14 +96,23 @@ compaction. Claude Code includes the reference in the existing prompt-submit and
 session-start hooks. An empty reference withdraws earlier memory guidance; data
 already sent to a provider cannot be retracted.
 
+`memory_search` returns bounded `<cherry_recall>` excerpts as tool results only
+when the model requests historical evidence. The model chooses keywords and can
+expand a returned conversation/message pair. All reads stay within the same
+Assistant or Agent and selected branches. No prompt hook searches automatically.
+Entry snapshots are cached by product conversation and scope until restart;
+ordinary writes are picked up by new conversations. Authorization and runtime
+isolation checks remain live. See [Memory Feature Overview](../memory/overview.md).
+
 Persistent Assistant chat creates a main-only `memoryContext`; temporary chat,
-auxiliary requests, and headless prompt streams do not. Opted-in Assistants reload
-the shared entry in `prepareStep`, after the context-compaction hooks. For
+auxiliary requests, and headless prompt streams do not. Opted-in Assistants reuse
+the shared entry snapshot in `prepareStep`, after the context-compaction hooks. For
 Responses endpoints, Cherry's generated `instructions` mirror is refreshed too.
 The reference does not grant controlled file tools or confirm a save. Pi's
 separate native adapter provides full memory reads and receipt-bound writes and
-edits. Claude Code remains entry-only for managed memory: its native file guard
-rejects those targets because a pre-tool hook cannot own the complete commit.
+edits. Claude Code adapts native Read, Write and Edit through working copies and
+MemoryService commits, retaining read receipts in Main. Its native file guard
+rejects uncontrolled access to managed files, working copies and backups.
 Private memory is activated only after FACT migration checks preservation and
 records completion. Warm connections withdraw the old facts snapshot after cutover.
 

@@ -164,6 +164,8 @@ function notifyChannelsEqual(
 export type AgentSessionRuntimeStatus = 'active' | 'idle'
 export type AgentSessionRuntimeTerminalStatus = AgentSessionTerminalStatus
 export type AgentSessionTurnTerminalEvent = {
+  /** Only real interactive input is eligible for shared-memory extraction. */
+  memoryUserMessageId?: string
   sessionId: string
   assistantMessageId: string
   status: AgentSessionRuntimeTerminalStatus
@@ -1229,6 +1231,13 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.runtimeState.execution.source.turn === completedTurn
     this.applyRuntimeStateEvent(entry, { type: 'turn-terminal', turn: completedTurn, status })
     this._onTurnTerminal.fire({
+      ...(status === 'success' &&
+      !isRowRoll &&
+      !completedTurn.headless &&
+      !completedTurn.userMessage.delivery &&
+      completedTurn.userMessage.data.parts?.some((part) => part.type === 'text' && part.text.trim())
+        ? { memoryUserMessageId: completedTurn.userMessage.id }
+        : {}),
       sessionId,
       assistantMessageId: completedTurn.assistantMessageId,
       status,

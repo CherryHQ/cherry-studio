@@ -109,6 +109,7 @@ const BUILTIN_TOOL_POLICIES = {
   cherryToMarkdown: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, TO_MARKDOWN_TOOL_NAME, 'auto'),
   cherryGenerateImage: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, GENERATE_IMAGE_TOOL_NAME, 'required'),
 
+  memorySearch: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, 'memory_search', 'auto'),
   agentMemory: tool(CHERRY_MCP_SERVER.AGENT_MEMORY, 'memory', 'auto'),
   searchSkills: tool(CHERRY_MCP_SERVER.SKILLS, 'search_skills', 'auto'),
   // Installs third-party skill code: only bypassPermissions may skip the prompt, Pi's auto mode included.
