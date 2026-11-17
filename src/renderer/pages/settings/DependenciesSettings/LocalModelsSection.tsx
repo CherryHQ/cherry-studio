@@ -1,11 +1,12 @@
 import { Boxes, Download, RefreshCw, ScanText, Mic, Volume2, Trash2, X } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge, Button, DescriptionSwitch } from '@cherrystudio/ui'
+import { Badge, Button, HelpTooltip, Label, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { SettingsPageHeader } from '@renderer/components/SettingsPrimitives'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
@@ -145,21 +146,21 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate text-foreground text-sm">{t(nameKey)}</span>
+            <span className="truncate text-foreground text-sm font-medium">{t(nameKey)}</span>
             {ready && (
               <Badge variant="secondary" className="px-1.5 py-0 text-[11px] leading-4">
                 {t('settings.dependencies.localModels.status.ready')}
               </Badge>
             )}
           </div>
-          <div className="mt-0.5 flex flex-col text-xs leading-5">
+          <div className="mt-1 flex flex-col text-[11px] leading-4">
             {sources.map((source) => (
               <a
                 key={source}
                 href={`https://huggingface.co/${source}`}
                 target="_blank"
                 rel="noreferrer"
-                className="truncate text-link hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
+                className="truncate text-muted-foreground hover:text-link hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring"
                 title={source}>
                 {source}
               </a>
@@ -183,12 +184,12 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
                 return
               await remove()
             }}
-            aria-label={t('settings.dependencies.localModels.remove')}>
+            aria-label={t('settings.dependencies.localModels.remove')}
+            className="text-muted-foreground">
             <Trash2 className="size-3.5" />
           </Button>
         )}
       </div>
-
       {notice && (
         <p className={cn('mt-2 text-xs leading-4', notice === 'inUse' ? 'text-muted-foreground' : 'text-destructive')}>
           {t(CARD_NOTICE_KEYS[notice])}
@@ -209,7 +210,7 @@ const ModelCard: FC<ModelCardProps> = ({ id, capability, onStatusChange }) => {
 
       {!ready && (
         <div className="mt-auto pt-3">
-          <div className="border-border border-t pt-3">
+          <div className="pt-3">
             {downloading ? (
               <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={() => void cancel()}>
                 <X className="size-3.5" />
@@ -235,6 +236,7 @@ type ListedModel = { id: LocalModelBundleId; capability: LocalModelCapability }
  * Each is wired to its own download backend over IpcApi.
  */
 const LocalModelsSection: FC = () => {
+  const accelerationId = useId()
   const { t } = useTranslation()
   const [hardwareAccelerationEnabled, setHardwareAccelerationEnabled] = usePreference(
     'feature.local_model.hardware_acceleration.enabled'
@@ -270,23 +272,28 @@ const LocalModelsSection: FC = () => {
 
   return (
     <div className="min-w-0">
-      <h2 className="font-semibold text-[15px] text-foreground leading-6">
-        {t('settings.dependencies.localModels.title')}
-      </h2>
-      <p className="mt-1 mb-3 text-muted-foreground text-xs leading-5">
-        {t('settings.dependencies.localModels.description')}
-      </p>
-      {accelerationSupported && !unsupported ? (
-        <div className="mb-3 border-border border-y py-1">
-          <DescriptionSwitch
-            size="sm"
-            label={t('settings.dependencies.localModels.acceleration.label')}
-            description={t('settings.dependencies.localModels.acceleration.description')}
-            checked={hardwareAccelerationEnabled}
-            onCheckedChange={(enabled) => void setHardwareAccelerationEnabled(enabled)}
-          />
-        </div>
-      ) : null}
+      <SettingsPageHeader
+        title={t('settings.dependencies.localModels.title')}
+        help={t('settings.dependencies.localModels.description')}
+        action={
+          accelerationSupported && !unsupported ? (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor={accelerationId} className="text-xs font-normal text-muted-foreground">
+                  {t('settings.dependencies.localModels.acceleration.label')}
+                </Label>
+                <HelpTooltip content={t('settings.dependencies.localModels.acceleration.description')} />
+              </div>
+              <Switch
+                id={accelerationId}
+                size="sm"
+                checked={hardwareAccelerationEnabled}
+                onCheckedChange={(enabled) => void setHardwareAccelerationEnabled(enabled)}
+              />
+            </div>
+          ) : null
+        }
+      />
       {unsupported ? (
         <div
           role="status"

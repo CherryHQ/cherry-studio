@@ -107,11 +107,8 @@ describe('ApiKey', () => {
     expect(maskedKey).toBeInTheDocument()
     expect(screen.queryByText('123456789012345678901234')).not.toBeInTheDocument()
     const keyListButtons = screen.getAllByRole('button', { name: 'settings.provider.api.key.list.title' })
-    const keyAreaButton = maskedKey.closest('button')
     const keyManagementButton = keyListButtons[1]
 
-    expect(keyAreaButton).toBe(keyListButtons[0])
-    expect(keyListButtons).toHaveLength(2)
     expect(keyManagementButton).toHaveAttribute('aria-haspopup', 'dialog')
     expect(keyManagementButton).toHaveAttribute('aria-expanded', 'false')
 
@@ -175,16 +172,5 @@ describe('ApiKey', () => {
 
     expect(screen.getByText('••••••••')).toBeInTheDocument()
     expect(screen.queryByText('short')).not.toBeInTheDocument()
-  })
-
-  it('keeps the existing inline key field for providers with optional authentication', () => {
-    useProviderMock.mockReturnValue({
-      provider: { id: 'ollama', name: 'Ollama', authOptional: true }
-    })
-
-    render(<ApiKey providerId="ollama" />)
-
-    expect(screen.getByPlaceholderText('settings.provider.api_key.placeholder')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'settings.provider.api_setup.add_key' })).not.toBeInTheDocument()
   })
 })

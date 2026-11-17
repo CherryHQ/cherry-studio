@@ -371,7 +371,12 @@ const ArchiveSettings: FC = () => {
           <span>{t('settings.data.trash.title')}</span>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm" aria-label={t('common.more')} title={t('common.more')}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('common.more')}
+                title={t('common.more')}
+                className="text-muted-foreground">
                 <MoreHorizontal size={16} />
               </Button>
             </DropdownMenuTrigger>

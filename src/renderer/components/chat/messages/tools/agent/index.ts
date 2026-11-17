@@ -8,7 +8,14 @@ export { isKnownNavigationPath, NavigateToolInline } from './NavigateTool'
 export { isReportArtifactsToolResponse, MessageReportArtifacts } from './ReportArtifacts'
 export { SessionResultCards } from './SessionResultCards'
 export { isCherrySessionToolResponse, parseSessionCreateResult, parseSessionSendResult } from './sessionToolResult'
-export { getTaskActiveText, getTaskId, getTaskTitle, isTaskRecord, normalizeTaskStatus } from './taskData'
+export {
+  getTaskActiveText,
+  getTaskId,
+  getTaskTitle,
+  isDeletedTaskStatus,
+  isTaskRecord,
+  normalizeTaskStatus
+} from './taskData'
 export { isValidAgentToolsType, renderTool, toolRenderers } from './toolRendererRegistry'
 export { UnknownToolRenderer } from './UnknownToolRenderer'
 export { getSubagentTaskStatus } from './subagentStatus'

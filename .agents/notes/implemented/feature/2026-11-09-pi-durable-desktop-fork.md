@@ -14,7 +14,7 @@ This decision replaces the isolated-target-backend prerequisite and Durable desk
 
 ### Scope
 
-Successful Pi Durable replies with new committed checkpoints support the existing desktop **Fork** action. A fork lineage shares a backend; unrelated sessions retain separate stores. Edit and resend replaces the selected product-tree tail without retaining a new history version. First-input edits start a fresh context; later edits require a valid predecessor checkpoint. Legacy replies cannot establish a native boundary; file rewind and `vcc_recall` remain unsupported.
+Successful Pi Durable replies with new committed checkpoints support the existing desktop **Fork** action. A fork lineage shares a backend; unrelated sessions retain separate stores. Edit and resend replaces the selected product-tree tail without retaining a new history version. Desktop requires confirmation before submitting the edit; cancelling preserves its draft and original messages. Hiding or unmounting its originating view invalidates the pending confirmation, including when the same session is shown again. First-input edits start a fresh context; later edits require a valid predecessor checkpoint. Legacy replies cannot establish a native boundary; file rewind and `vcc_recall` remain unsupported.
 
 The SDK's public `tx.forkConversation()` creates an ownerless conversation at the selected visible entry. Native history, compaction and document fork policies remain SDK-owned. Subsequent connection setup applies the destination's current product configuration.
 

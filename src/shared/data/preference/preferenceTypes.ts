@@ -109,6 +109,7 @@ export enum ThemeMode {
 export type LanguageVarious =
   | 'zh-CN'
   | 'zh-TW'
+  | 'cs-CZ'
   | 'de-DE'
   | 'el-GR'
   | 'en-US'
@@ -116,6 +117,7 @@ export type LanguageVarious =
   | 'fr-FR'
   | 'it-IT'
   | 'ja-JP'
+  | 'pl-PL'
   | 'pt-PT'
   | 'ro-RO'
   | 'ru-RU'
@@ -139,6 +141,8 @@ export type TopicDisplayMode = 'time' | 'assistant'
 export type TopicTabPosition = 'left' | 'right'
 
 export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
+
+export type BrowserStartPageMode = 'blank' | 'last' | 'custom'
 
 export const SIDEBAR_FAVORITES = [
   'assistants',
@@ -290,6 +294,7 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'exa',
   'exa-mcp',
   'bocha',
+  'stepfun',
   'querit',
   'fetch',
   'jina',
@@ -301,6 +306,7 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'deepseek',
   'desearch',
   'searchapi',
+  'serpkite',
   'duckduckgo'
 ] as const satisfies readonly (RemoteProviderId | 'fetch' | 'duckduckgo')[]
 

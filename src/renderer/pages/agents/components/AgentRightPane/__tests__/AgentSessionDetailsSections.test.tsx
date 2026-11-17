@@ -1,7 +1,10 @@
 import { act, fireEvent, render as renderView, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
+import { SWRConfig } from 'swr'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { ComputerUseAppIcons } from '@renderer/components/chat/messages/tools/automation/ComputerUseAppIcons'
 import { ipcApi } from '@renderer/ipc'
 
 import type { AgentRightPaneStatus, AgentRunTask } from '../agentRightPaneProjection'
@@ -17,7 +20,7 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => k
 afterEach(() => vi.restoreAllMocks())
 
 function status(runTasks: AgentRunTask[]): AgentRightPaneStatus {
-  return { runTasks, tasks: [], completedTaskCount: 0, totalTaskCount: 0, artifacts: [] }
+  return { runTasks, tasks: [], completedTaskCount: 0, totalTaskCount: 0, isTaskPlanActive: false, artifacts: [] }
 }
 
 // Catches SDK task types disappearing or being counted twice in different sections.
@@ -123,4 +126,99 @@ it('keeps Stop pending across disclosure and content remounts, and allows retry 
   await act(async () => settle(true))
   expect(stop()).toBeDisabled()
   expect(screen.getByRole('img', { name: 'message.tools.status.running' })).toBeInTheDocument()
+})
+
+it('shows controlled applications and their stop action', () => {
+  const row = {
+    ownerId: 'agent:session:agent',
+    label: 'Agent',
+    appId: 'browser',
+    appName: 'Browser',
+    status: 'active' as const
+  }
+  render(
+    <AgentSessionDetailsSections status={status([])} desktopControls={[row]} stopDesktopControl={async () => {}} />
+  )
+  fireEvent.click(screen.getByRole('button', { name: /agent.right_pane.info.desktop_control.title/ }))
+  expect(screen.getByText('Browser')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'agent.right_pane.info.desktop_control.stop' })).toBeInTheDocument()
+})
+
+it('shows statuses and only allows stopping opening or active applications', async () => {
+  const user = userEvent.setup()
+  const stop = vi.fn().mockResolvedValue(undefined)
+  const rows = (['opening', 'active', 'stopping', 'stopped', 'unconfirmed'] as const).map((state) => ({
+    ownerId: 'agent:s:a',
+    label: 'Agent',
+    appId: state,
+    appName: state,
+    status: state
+  }))
+  render(<AgentSessionDetailsSections status={status([])} desktopControls={rows} stopDesktopControl={stop} />)
+  await user.click(screen.getByRole('button', { name: /agent.right_pane.info.desktop_control.title/ }))
+  for (const row of rows) expect(screen.getByText(`agent.right_pane.info.desktop_control.${row.status}`)).toBeVisible()
+  const buttons = screen.getAllByRole('button', { name: 'agent.right_pane.info.desktop_control.stop' })
+  expect(buttons).toHaveLength(2)
+  await user.click(buttons[1])
+  expect(stop).toHaveBeenCalledWith(rows[1])
+  expect(screen.queryByRole('button', { name: /allow/i })).toBeNull()
+})
+
+it('does not render a group for empty or owner-only snapshots', () => {
+  const view = render(<AgentSessionDetailsSections status={status([])} desktopControls={[]} />)
+  expect(screen.queryByRole('button', { name: /agent.right_pane.info.desktop_control.title/ })).toBeNull()
+  view.rerender(
+    <AgentSessionDetailsSections
+      status={status([])}
+      desktopControls={[{ ownerId: 'agent:s:a', label: 'Agent', status: 'active' }]}
+    />
+  )
+  expect(screen.queryByRole('button', { name: /agent.right_pane.info.desktop_control.title/ })).toBeNull()
+})
+
+it('shares native app icons between session details and the tool card', async () => {
+  class LoadedImage {
+    complete = true
+    naturalWidth = 64
+    src = ''
+    addEventListener() {}
+    removeEventListener() {}
+  }
+  vi.stubGlobal('Image', LoadedImage)
+  let queries = 0
+  const app = { id: 'finder', name: 'Finder', identity: 'com.apple.finder' }
+  vi.spyOn(ipcApi, 'request').mockImplementation(async (route) => {
+    if (route === 'computer_use.get_call_apps') return [app]
+    queries++
+    return { status: 'available', icon: { mimeType: 'image/png', dataBase64: 'aWNvbg==' } }
+  })
+  try {
+    render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <AgentSessionDetailsSections
+          status={status([])}
+          desktopControls={[
+            {
+              ownerId: 'agent:s:a',
+              label: 'Agent',
+              appId: app.id,
+              appName: app.name,
+              appIdentity: app.identity,
+              status: 'active'
+            }
+          ]}
+        />
+        <ComputerUseAppIcons cell="12345678-1234-4234-8234-123456789abc" />
+      </SWRConfig>
+    )
+    fireEvent.click(screen.getByRole('button', { name: /agent.right_pane.info.desktop_control.title/ }))
+    await waitFor(() => {
+      const icons = screen.getAllByRole('img', { name: 'Finder' })
+      expect(icons).toHaveLength(2)
+      for (const icon of icons) expect(icon).toHaveAttribute('src', 'data:image/png;base64,aWNvbg==')
+    })
+    expect(queries).toBe(1)
+  } finally {
+    vi.unstubAllGlobals()
+  }
 })

@@ -127,6 +127,8 @@ const subscriptionEntrySourceSchema = z.enum([
   'quota_notice',
   'avatar_dot'
 ])
+// A Subscribe click reached through another touchpoint's prompt, e.g. the avatar dot leading into the account panel.
+const subscriptionEntryViaSchema = z.enum(['avatar_dot'])
 const quotaModelTypeSchema = z.enum(['free', 'paid'])
 // One id per Subscribe click, also handed to the account portal so web and server events of the same purchase can be joined.
 const subscriptionFlowIdSchema = z.uuid()
@@ -140,6 +142,7 @@ export const cherryCloudAnalyticsEventSchema = z.discriminatedUnion('event', [
   z.strictObject({
     event: z.literal('subscription_entry_clicked'),
     source: subscriptionEntrySourceSchema,
+    via: subscriptionEntryViaSchema.optional(),
     flowId: subscriptionFlowIdSchema,
     signedIn: z.boolean(),
     modelId: z.string().max(200).optional()
@@ -154,6 +157,7 @@ export const cherryCloudAnalyticsEventSchema = z.discriminatedUnion('event', [
   z.strictObject({
     event: z.literal('subscription_portal_open'),
     source: subscriptionEntrySourceSchema,
+    via: subscriptionEntryViaSchema.optional(),
     flowId: subscriptionFlowIdSchema,
     result: z.enum(['success', 'failed'])
   }),
@@ -182,6 +186,7 @@ export const cherryCloudAnalyticsEventSchema = z.discriminatedUnion('event', [
 
 export type CherryCloudAnalyticsEvent = z.infer<typeof cherryCloudAnalyticsEventSchema>
 export type SubscriptionEntrySource = z.infer<typeof subscriptionEntrySourceSchema>
+export type SubscriptionEntryVia = z.infer<typeof subscriptionEntryViaSchema>
 
 const cherryCloudLoginResultSchema = z.strictObject({
   outcome: z.enum(['signed-in', 'cancelled', 'expired', 'rejected', 'stopped']),
@@ -233,6 +238,7 @@ export const cherryCloudRequestSchemas = {
   'cherry_cloud.subscription.start': defineRoute({
     input: z.strictObject({
       source: subscriptionEntrySourceSchema,
+      via: subscriptionEntryViaSchema.optional(),
       flowId: subscriptionFlowIdSchema,
       modelId: z.string().max(200).optional()
     }),
@@ -261,7 +267,8 @@ export const cherryCloudRequestSchemas = {
   'cherry_cloud.analytics.track': defineRoute({
     input: z.strictObject({ payload: cherryCloudAnalyticsEventSchema, scopeId: z.string().nullable().optional() }),
     output: z.void()
-  })
+  }),
+  'cherry_cloud.notifications.active.get': defineRoute({ input: z.void(), output: z.boolean() })
 }
 
 export type CherryCloudEventSchemas = {

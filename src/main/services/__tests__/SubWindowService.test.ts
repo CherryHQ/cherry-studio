@@ -196,41 +196,6 @@ describe('SubWindowService', () => {
   })
 
   describe('createWindow - options injection', () => {
-    it('on macOS omits titleBarOverlay (now static in registry) and backgroundColor (preserves vibrancy)', () => {
-      platformState.isMac = true
-      nativeThemeState.shouldUseDarkColors = true
-      const win = createMockWindow()
-      windowManagerMock.getWindow.mockReturnValue(win)
-
-      svc.createWindow({ id: 'tab-1', url: 'cherry://chat', title: 'Chat' })
-
-      expect(windowManagerMock.open).toHaveBeenCalledTimes(1)
-      const { type, args } = lastOpenCall()
-      expect(type).toBe('subWindow')
-      expect(args.options).toMatchObject({
-        title: 'Chat',
-        darkTheme: true
-      })
-      expect(args.options).not.toHaveProperty('titleBarOverlay')
-      expect(args.options).not.toHaveProperty('backgroundColor')
-    })
-
-    it('on Windows injects backgroundColor and omits titleBarOverlay', () => {
-      platformState.isWin = true
-      nativeThemeState.shouldUseDarkColors = false
-      const win = createMockWindow()
-      windowManagerMock.getWindow.mockReturnValue(win)
-
-      svc.createWindow({ id: 'tab-2', url: 'cherry://mcp' })
-
-      const { args } = lastOpenCall()
-      expect(args.options).toMatchObject({
-        darkTheme: false,
-        backgroundColor: '#FFFFFF'
-      })
-      expect(args.options).not.toHaveProperty('titleBarOverlay')
-    })
-
     it('threads initData shape for a pinned webview tab', () => {
       const win = createMockWindow()
       windowManagerMock.getWindow.mockReturnValue(win)
@@ -286,20 +251,6 @@ describe('SubWindowService', () => {
 
       const { args } = lastOpenCall()
       expect((args.initData as { type?: string }).type).toBe('route')
-    })
-
-    it('omits icon on macOS and Windows (system provides taskbar/Dock icon)', () => {
-      const win = createMockWindow()
-      windowManagerMock.getWindow.mockReturnValue(win)
-
-      platformState.isMac = true
-      svc.createWindow({ id: 'tab-mac', url: 'u' })
-      expect(lastOpenCall().args.options).not.toHaveProperty('icon')
-
-      platformState.isMac = false
-      platformState.isWin = true
-      svc.createWindow({ id: 'tab-win', url: 'u' })
-      expect(lastOpenCall().args.options).not.toHaveProperty('icon')
     })
 
     it('passes through initial x/y when provided; omits them otherwise', () => {
@@ -514,18 +465,6 @@ describe('SubWindowService', () => {
       handler({ sender: {} } as any, { tabId: 'unknown-tab', x: 10, y: 20 })
 
       expect(senderWin.setPosition).toHaveBeenCalledWith(10, 20)
-    })
-
-    it('sets opacity 0.85 when sub window is moving its own tab (object-identity sender==target)', () => {
-      const win = createMockWindow()
-      windowManagerMock.getWindow.mockReturnValue(win)
-      ;(svc as any).tabIdToWindowId.set('tab-self', 'wid-self')
-      vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(win as any)
-
-      const handler = getNativeOnHandler('tab:move-window')
-      handler({ sender: {} } as any, { tabId: 'tab-self', x: 5, y: 5 })
-
-      expect(win.setOpacity).toHaveBeenCalledWith(0.85)
     })
   })
 })

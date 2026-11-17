@@ -13,6 +13,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { prepareDurableRoot } from '@main/ai/agentSession/durableNativeContext'
+import { createPiTelemetry } from '@main/ai/observability'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId } from '@shared/utils/model'
 
@@ -65,21 +66,18 @@ export class DurableBackend {
     let storageOwned = true
     try {
       for (const binding of contexts.roots(context.backendId)) {
+        if (binding.id === context.id) {
+          await owner.prepare(input, binding)
+          continue
+        }
         const session = agentSessionService.getById(binding.sessionId)
         const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
-        if (!agent?.model && binding.id !== context.id) continue
-        const saved = binding.nativeThreadId && (await readDurableRequest(root.storage, binding.nativeThreadId))
-        await owner.prepare(
-          binding.id === context.id
-            ? input
-            : {
-                sessionId: binding.sessionId,
-                agentId: agent!.id,
-                modelId: agent!.model!,
-                ...saved
-              },
-          binding
-        )
+        const saved = binding.nativeThreadId
+          ? await readDurableRequest(root.storage, binding.nativeThreadId)
+          : undefined
+        const modelId = saved?.modelId ?? session.model ?? agent?.model
+        if (!agent || !modelId) continue
+        await owner.prepare({ sessionId: binding.sessionId, agentId: agent.id, modelId, ...saved }, binding)
       }
       const records = new Map<number, Awaited<ReturnType<typeof root.storage.scanConversations>>['items'][number]>()
       let cursor: Parameters<typeof root.storage.scanConversations>[2]
@@ -115,6 +113,14 @@ export class DurableBackend {
         backendId: runtimeId(context.backendId),
         openStorage: async () => root.storage,
         harness: {
+          telemetry: createPiTelemetry({
+            isEnabled: () => application.get('PreferenceService').get('app.developer_mode.enabled'),
+            getParent: (attributes) => {
+              const id = attributes['conversation.id']
+              const rootId = typeof id === 'number' && owner.nativeRoots.get(runtimeId(String(id)))
+              return rootId ? owner.roots.get(rootId)?.input.trace : undefined
+            }
+          }),
           models: owner.models!,
           registry: owner.registry,
           env: (target) => owner.forThread(runtimeId(String(target.conversationId))).desktop.environment,
@@ -200,10 +206,9 @@ export class DurableBackend {
         this.models
       )
       this.models = binding.modelRuntime
-      const rootThread = runtimeId<'thread'>(context.nativeThreadId ?? '0')
       const behavior = await createPiBehaviorHost({
         input,
-        root: rootThread,
+        root: () => runtimeId(this.roots.get(context.id)?.context.nativeThreadId ?? context.nativeThreadId ?? '0'),
         binding,
         model: desktop.snapshot.model,
         rootModelKey: `${desktop.snapshot.model.providerId}/${formatGatewayModelId(desktop.snapshot.model.providerId, getRawModelId(desktop.snapshot.model))}`,
@@ -330,7 +335,6 @@ export class DurableBackend {
         current: (thread) => host(thread).models.current(thread)
       },
       verifier: { verify: (request, signal) => host(request.thread).verifier.verify(request, signal) },
-      summarizer: { summarize: (request, signal) => host(request.thread).summarizer.summarize(request, signal) },
       outputStore: { save: (file) => global().outputStore.save(file) },
       observation: { emit: (event) => host(event.thread).observation.emit(event) },
       settings: {

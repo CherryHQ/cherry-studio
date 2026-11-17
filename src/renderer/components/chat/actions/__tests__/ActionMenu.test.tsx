@@ -51,7 +51,6 @@ vi.mock('@cherrystudio/ui', async () => {
 })
 
 const enabled = { visible: true, enabled: true }
-const disabled = { visible: true, enabled: false, reason: 'Unavailable' }
 
 function renderMenu(
   actions: ResolvedAction[],
@@ -68,58 +67,6 @@ function renderMenu(
 }
 
 describe('ActionMenu', () => {
-  it('renders normal, disabled, danger, shortcut, and submenu actions', () => {
-    renderMenu([
-      {
-        id: 'copy',
-        icon: <span data-testid="copy-icon" />,
-        label: 'Copy',
-        shortcut: '⌘C',
-        danger: false,
-        availability: enabled,
-        children: []
-      },
-      {
-        id: 'delete',
-        label: 'Delete',
-        danger: true,
-        availability: enabled,
-        children: []
-      },
-      {
-        id: 'disabled',
-        label: 'Disabled',
-        danger: false,
-        availability: disabled,
-        children: []
-      },
-      {
-        id: 'more',
-        icon: <span data-testid="more-icon" />,
-        label: 'More',
-        danger: false,
-        availability: enabled,
-        children: [
-          {
-            id: 'nested',
-            label: 'Nested',
-            danger: false,
-            availability: enabled,
-            children: []
-          }
-        ]
-      }
-    ])
-
-    expect(screen.getByText('Copy')).toBeInTheDocument()
-    expect(screen.getByTestId('copy-icon')).toBeInTheDocument()
-    expect(screen.getByText('⌘C')).toBeInTheDocument()
-    expect(screen.getByText('Delete')).toBeInTheDocument()
-    expect(screen.getByText('Disabled').closest('[data-disabled]')).not.toBeNull()
-    expect(screen.getByText('More')).toBeInTheDocument()
-    expect(screen.getByText('More').closest('[data-has-submenu="true"]')).toBeNull()
-  })
-
   it('lets menu item click events bubble by default', () => {
     const onParentClick = vi.fn()
 

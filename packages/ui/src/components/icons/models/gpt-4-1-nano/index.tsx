@@ -9,7 +9,7 @@ const Gpt41Nano = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const Gpt41NanoIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Gpt41Nano, {
   Avatar: Gpt41NanoAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#019bf9'
 })
 
 export default Gpt41NanoIcon

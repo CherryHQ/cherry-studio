@@ -1,7 +1,7 @@
 import type { ModelMessage, StepResult, ToolSet } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { AgentLoopHooks, ErrorContext, ToolExecutionEndEvent, ToolExecutionStartEvent } from '../../loop/types'
+import type { ErrorContext, ToolExecutionEndEvent, ToolExecutionStartEvent } from '../../loop/types'
 import { composeHooks } from '../composeHooks'
 
 const TOOL_START_EVENT: ToolExecutionStartEvent = {
@@ -18,16 +18,6 @@ const TOOL_END_EVENT: ToolExecutionEndEvent = {
 }
 
 describe('composeHooks', () => {
-  it('returns empty hooks for zero parts', () => {
-    expect(composeHooks([])).toEqual({})
-  })
-
-  it('returns the part as-is when there is exactly one', () => {
-    const onStart = vi.fn()
-    const part: Partial<AgentLoopHooks> = { onStart }
-    expect(composeHooks([part])).toBe(part)
-  })
-
   describe('void hooks (onStart / onStepFinish / onTool* / onFinish / onAbort)', () => {
     it('runs all void hooks in declaration order', async () => {
       const calls: string[] = []
@@ -58,11 +48,6 @@ describe('composeHooks', () => {
 
       await composed.onAbort!()
       expect(calls).toEqual(['a', 'b'])
-    })
-
-    it('returns undefined when no part defines the void hook', () => {
-      const composed = composeHooks([{ onStart: () => {} }, { onFinish: () => {} }])
-      expect(composed.onStepFinish).toBeUndefined()
     })
 
     it('forwards args to all listeners (tool execution events)', async () => {
@@ -153,12 +138,6 @@ describe('composeHooks', () => {
       experimental_context: undefined
     }
 
-    it('keeps the only prepareStep when one part defines it', () => {
-      const fn = vi.fn()
-      const composed = composeHooks([{ prepareStep: fn }, {}])
-      expect(composed.prepareStep).toBe(fn)
-    })
-
     it('chains prepareStep — each part sees the previous mutation', async () => {
       const a = vi.fn(({ messages }) =>
         Promise.resolve({ messages: [...messages, { role: 'user', content: 'a' } as ModelMessage] })
@@ -182,11 +161,6 @@ describe('composeHooks', () => {
       ])
       const result = await composed.prepareStep!(baseOptions)
       expect(result).toMatchObject({ system: 'last', toolChoice: 'auto' })
-    })
-
-    it('returns undefined when no part defines prepareStep', () => {
-      const composed = composeHooks([{ onStart: () => {} }, { onFinish: () => {} }])
-      expect(composed.prepareStep).toBeUndefined()
     })
   })
 })

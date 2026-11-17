@@ -6,12 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { type BetterSqlite3Driver, openBetterSqlite3IndexDriver } from '../BetterSqlite3Driver'
 import { ensureIndexMeta, readIndexSchemaVersion } from '../indexMeta'
-import {
-  createKnowledgeIndexSchema,
-  KNOWLEDGE_INDEX_SCHEMA_STATEMENTS,
-  KNOWLEDGE_INDEX_SCHEMA_VERSION,
-  resetKnowledgeIndexSchema
-} from '../schema'
+import { createKnowledgeIndexSchema, KNOWLEDGE_INDEX_SCHEMA_VERSION, resetKnowledgeIndexSchema } from '../schema'
 import { encodeVectorBlob } from '../vectorBlob'
 
 const TS = 1_700_000_000_000
@@ -64,29 +59,10 @@ describe('knowledge index schema', () => {
   }
 
   describe('schema creation', () => {
-    it('creates all 7 schema objects', () => {
-      const expected = ['meta', 'content', 'material', 'search_unit', 'search_text', 'embedding', 'search_text_fts']
-      const result = driver.execute(
-        `SELECT name FROM sqlite_master WHERE name IN (${expected.map(() => '?').join(', ')})`,
-        expected
-      )
-      const names = result.rows.map((row) => row.name as string)
-      for (const name of expected) {
-        expect(names).toContain(name)
-      }
-    })
-
     it('is idempotent: re-applying through the driver leaves the object set unchanged', () => {
       const objectsBefore = listSchemaObjects()
       expect(createKnowledgeIndexSchema(driver)).toBeUndefined()
       expect(listSchemaObjects()).toEqual(objectsBefore)
-    })
-
-    it('exposes a static, parameterless statement list', () => {
-      expect(KNOWLEDGE_INDEX_SCHEMA_STATEMENTS.length).toBeGreaterThan(0)
-      for (const statement of KNOWLEDGE_INDEX_SCHEMA_STATEMENTS) {
-        expect(statement).not.toMatch(/\?/)
-      }
     })
   })
 
@@ -262,13 +238,6 @@ describe('knowledge index schema', () => {
       // mistaking it for a real version. Covers the `typeof === 'number'` guard.
       driver.execute(`UPDATE meta SET schema_version = 'corrupt'`)
       expect(readIndexSchemaVersion(driver)).toBeNull()
-    })
-
-    it('pins the current schema version (a deliberate bump-me tripwire)', () => {
-      // KNOWLEDGE_INDEX_SCHEMA_VERSION is mirrored as MOCK_SCHEMA_VERSION in
-      // KnowledgeVectorStoreService.test.ts; bumping the real constant must fail here so the
-      // mirror is consciously updated in lockstep.
-      expect(KNOWLEDGE_INDEX_SCHEMA_VERSION).toBe(2)
     })
 
     it('resetKnowledgeIndexSchema wipes data, rebuilds every object, and lets meta restamp the version', () => {

@@ -59,7 +59,9 @@ bottom of this document — read them.
    - `transport` — a unique tag stamped on every tool part by your stream
      adapter (`providerMetadata.cherry.transport`); the renderer uses it to
      route tool parts to the right card renderer.
-   - `builtinTools()` — the edit-dialog catalog. If the runtime ships its own
+   - `builtinTools(platform?)` — the edit-dialog catalog, filtered for the supplied
+     platform. Omit the platform when resolving tool identities in historical messages.
+     If the runtime ships its own
      tool set, define the descriptors in one shared module (pattern:
      `src/shared/ai/piBuiltinTools.ts`) carrying name, category, **and**
      approval default, and derive everything else from it.

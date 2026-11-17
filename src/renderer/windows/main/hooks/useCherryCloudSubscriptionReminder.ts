@@ -3,8 +3,10 @@ import { useTranslation } from 'react-i18next'
 
 import { useCherryCloudPlans } from '@renderer/hooks/useCherryCloudPlans'
 import { useCherryCloudReceipt } from '@renderer/hooks/useCherryCloudReceipt'
+import { ipcApi } from '@renderer/ipc'
 import { subscribeClickAttribution, trackSubscriptionEvent } from '@renderer/services/cherryCloudSubscriptionAnalytics'
 import { toast } from '@renderer/services/toast'
+import { getAppEdition } from '@renderer/utils/appEdition'
 
 /** One quiet baseline per account scope; only fresh subsequent plan transitions are announced. */
 export function useCherryCloudSubscriptionReminder(): void {
@@ -45,6 +47,15 @@ export function useCherryCloudSubscriptionReminder(): void {
         status.scopeId
       )
     }
-    toast.success(t('settings.subscription.activated', { plan: activePaid.plan.display_name }))
+    const message = t('settings.subscription.activated', { plan: activePaid.plan.display_name })
+    // While the China notification stream is live, the notification center announces the change instead.
+    void notificationsAnnounceChanges().then((announced) => {
+      if (!announced) toast.success(message)
+    })
   }, [activePaid, receipt, t])
+}
+
+async function notificationsAnnounceChanges(): Promise<boolean> {
+  if (getAppEdition() !== 'cn') return false
+  return ipcApi.request('cherry_cloud.notifications.active.get').catch(() => false)
 }

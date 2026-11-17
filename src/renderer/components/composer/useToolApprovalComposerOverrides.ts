@@ -9,10 +9,12 @@ import type { ComposerOverride } from './ComposerContext'
 import { createAskUserQuestionComposerOverride } from './variants/AskUserQuestionComposer'
 import { findLatestPendingAskUserQuestionRequest } from './variants/askUserQuestionComposerRequest'
 import { clearAskUserQuestionDraftCache } from './variants/askUserQuestionDraftCache'
+import { useComputerUseApproval } from './variants/ComputerUseApprovalComposer'
 import { createPermissionRequestComposerOverride } from './variants/PermissionRequestComposer'
 import { findNextPendingPermissionRequest } from './variants/permissionRequestComposerRequest'
 
 type ToolApprovalComposerOverridesOptions = {
+  topicId?: string
   partsByMessageId: Record<string, CherryMessagePart[]>
   /** Database message parts, before live overlays or optimistic projections. */
   persistedPartsByMessageId: Record<string, CherryMessagePart[]>
@@ -21,11 +23,13 @@ type ToolApprovalComposerOverridesOptions = {
 }
 
 export function useToolApprovalComposerOverrides({
+  topicId,
   partsByMessageId,
   persistedPartsByMessageId,
   streamingLayers,
   onRespond
 }: ToolApprovalComposerOverridesOptions): readonly ComposerOverride[] {
+  const computerUseApproval = useComputerUseApproval(topicId)
   useEffect(() => {
     for (const parts of Object.values(persistedPartsByMessageId)) {
       for (const part of parts) {
@@ -79,7 +83,7 @@ export function useToolApprovalComposerOverrides({
   const permissionRequest = currentPermissionRequest ?? historyPermissionRequest
 
   return useMemo(() => {
-    const overrides: ComposerOverride[] = []
+    const overrides: ComposerOverride[] = computerUseApproval ? [computerUseApproval] : []
 
     if (askUserQuestionRequest) {
       overrides.push(
@@ -100,5 +104,5 @@ export function useToolApprovalComposerOverrides({
     }
 
     return overrides
-  }, [askUserQuestionRequest, onRespond, permissionRequest])
+  }, [askUserQuestionRequest, onRespond, permissionRequest, computerUseApproval])
 }

@@ -138,7 +138,7 @@ function QueuedFollowupRow({
             type="button"
             variant="ghost"
             size="icon-sm"
-            className="size-7 shadow-none"
+            className="size-7 shadow-none text-muted-foreground"
             aria-label={t('chat.input.followup_queue.edit')}
             onClick={() => onEdit(item.id)}>
             <Pencil className="size-4" />
@@ -149,7 +149,7 @@ function QueuedFollowupRow({
             type="button"
             variant="ghost"
             size="icon-sm"
-            className="size-7 shadow-none"
+            className="size-7 shadow-none text-muted-foreground"
             aria-label={t('chat.input.followup_queue.remove')}
             onClick={() => onRemove(item.id)}>
             <X className="size-4" />

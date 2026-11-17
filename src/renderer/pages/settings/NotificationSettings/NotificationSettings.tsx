@@ -1,7 +1,7 @@
-import type { FC } from 'react'
+import { type FC, Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { InfoTooltip, InputNumber, Switch } from '@cherrystudio/ui'
+import { HelpTooltip, InfoTooltip, InputNumber, Switch } from '@cherrystudio/ui'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
@@ -56,18 +56,20 @@ const NotificationSettings: FC = () => {
     <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.notification.center')}</SettingTitle>
-        <p className="my-3 text-sm text-muted-foreground">{t('settings.notification.center_hint')}</p>
-        {(['system', 'usage', 'official'] as const).map((category) => (
-          <SettingRow key={category} id={`setting-notifications-${category}-center`} className="my-3 scroll-mt-6">
-            <SettingRowTitle>{categoryLabels[category]}</SettingRowTitle>
-            <Switch
-              aria-label={categoryLabels[category]}
-              checked={notificationSettings[category]}
-              onCheckedChange={(value) => void saveSettings({ [category]: value })}
-            />
-          </SettingRow>
-        ))}
         <SettingDivider />
+        {(['system', 'usage', 'official'] as const).map((category) => (
+          <Fragment key={category}>
+            <SettingRow id={`setting-notifications-${category}-center`} className="scroll-mt-6">
+              <SettingRowTitle>{categoryLabels[category]}</SettingRowTitle>
+              <Switch
+                aria-label={categoryLabels[category]}
+                checked={notificationSettings[category]}
+                onCheckedChange={(value) => void saveSettings({ [category]: value })}
+              />
+            </SettingRow>
+            <SettingDivider />
+          </Fragment>
+        ))}
         <SettingRow id="setting-notifications-completion-sound" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.notification.completion_sound')}</SettingRowTitle>
           <Switch
@@ -76,13 +78,15 @@ const NotificationSettings: FC = () => {
             onCheckedChange={(value) => void saveSettings({ completionSound: value })}
           />
         </SettingRow>
-        <p className="mt-2 text-sm text-muted-foreground">{t('settings.notification.sound_hint')}</p>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('notification.center.usage')}</SettingTitle>
         <SettingDivider />
         <SettingRow id="setting-notifications-daily-budget" className="scroll-mt-6">
-          <SettingRowTitle>{t('settings.notification.daily_budget')}</SettingRowTitle>
+          <SettingRowTitle className="gap-1">
+            <span>{t('settings.notification.daily_budget')}</span>
+            <HelpTooltip content={t('settings.notification.daily_budget_hint')} placement="right" />
+          </SettingRowTitle>
           <div className="relative w-28">
             <InputNumber
               className="w-full pr-7"
@@ -104,7 +108,6 @@ const NotificationSettings: FC = () => {
             </span>
           </div>
         </SettingRow>
-        <p className="my-2 text-sm text-muted-foreground">{t('settings.notification.daily_budget_hint')}</p>
         <SettingDivider />
         <SettingRow id="setting-notifications-daily-threshold" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.notification.daily_threshold')}</SettingRowTitle>
