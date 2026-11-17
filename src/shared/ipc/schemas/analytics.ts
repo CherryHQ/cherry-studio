@@ -91,7 +91,19 @@ export const analyticsPageSchema = z.enum([
 export type AnalyticsPage = z.infer<typeof analyticsPageSchema>
 
 /** Usage-behavior events stay off unless the build enables them (pending the privacy policy review). */
-export const BEHAVIOR_ANALYTICS_EVENTS = ['page_viewed', 'ui_clicked', 'command_executed', 'setting_changed'] as const
+export const BEHAVIOR_ANALYTICS_EVENTS = [
+  'page_viewed',
+  'ui_clicked',
+  'command_executed',
+  'setting_changed',
+  'settings_snapshot',
+  'chat_branch_used',
+  'chat_branch_snapshot',
+  'message_action_used'
+] as const
+
+export const chatBranchSourceSchema = z.enum(['regenerate', 'edit', 'manual', 'mention'])
+export type ChatBranchSource = z.infer<typeof chatBranchSourceSchema>
 
 const onboardingStepSchema = z.enum(['welcome', 'provider', 'select_model'])
 const onboardingOptionSchema = z.enum(['cherryin_login', 'cherry_cloud_login', 'other_provider', 'skip'])
@@ -148,7 +160,15 @@ export const rendererAnalyticsEventSchema = z.discriminatedUnion('event', [
     event: z.literal('command_executed'),
     command: presetIdSchema,
     source: z.enum(['shortcut', 'menu', 'palette', 'other'])
-  })
+  }),
+  // `source` is set only when a branch is created.
+  z.strictObject({
+    event: z.literal('chat_branch_used'),
+    action: z.enum(['created', 'switched', 'deleted', 'panel_opened']),
+    source: chatBranchSourceSchema.optional()
+  }),
+  // Static message toolbar or menu action id, e.g. 'copy' or 'export.markdown'.
+  z.strictObject({ event: z.literal('message_action_used'), action: presetIdSchema })
 ])
 export type RendererAnalyticsEvent = z.infer<typeof rendererAnalyticsEventSchema>
 
@@ -177,8 +197,11 @@ export type MainAnalyticsEvent =
       mcpToolCount: number
       attachmentCount: number
     }
-  // Only boolean and numeric values are reported; text settings report the key alone.
-  | { event: 'setting_changed'; key: string; value?: boolean | number }
+  // Values are booleans, numbers, or a catalogued fixed option; free-text settings report the key alone.
+  | { event: 'setting_changed'; key: string; value?: boolean | number | string }
+  // One property per catalogued setting, keyed `setting:<preference key>`; free-text settings report set or not.
+  | ({ event: 'settings_snapshot' } & Record<`setting:${string}`, boolean | number | string>)
+  | { event: 'chat_branch_snapshot'; topicCount: number; branchedTopicCount: number }
   | FeatureUsedEvent
 
 export type ProductAnalyticsEvent = RendererAnalyticsEvent | MainAnalyticsEvent
