@@ -1,8 +1,55 @@
 import { useTranslation } from 'react-i18next'
 
-import type { PptdPresentation } from './pptdFormat'
+import type { PptdPageElement, PptdPresentation } from './pptdFormat'
 import type { PptdProjectFileReader, PptdProjectPage } from './pptdProject'
 import { pptdFillToCss, type PptdStyleContext } from './pptdStyle'
+import { PptdTextElement } from './PptdTextElement'
+
+function elementTransform(element: PptdPageElement): string | undefined {
+  if (element.elementType === 'invalid') return undefined
+  const parts: string[] = []
+  if (element.rotation) parts.push(`rotate(${element.rotation}deg)`)
+  if (element.flip?.[0]) parts.push('scaleX(-1)')
+  if (element.flip?.[1]) parts.push('scaleY(-1)')
+  return parts.length > 0 ? parts.join(' ') : undefined
+}
+
+function PptdElementBody({ element, context }: { element: PptdPageElement; context: PptdStyleContext }) {
+  const { t } = useTranslation()
+  if (element.elementType === 'text') {
+    return <PptdTextElement element={element} context={context} />
+  }
+  if (element.elementType === 'invalid') {
+    return (
+      <div
+        role="note"
+        style={{
+          width: '100%',
+          height: '100%',
+          border: '1px dashed #B45309',
+          color: '#B45309',
+          fontSize: 11,
+          overflow: 'hidden'
+        }}>
+        {t('file_preview.pptd.unsupported_element', { id: element.elementId, type: element.declaredType })}
+      </div>
+    )
+  }
+  return (
+    <div
+      role="note"
+      style={{
+        width: '100%',
+        height: '100%',
+        border: '1px dashed #B45309',
+        color: '#B45309',
+        fontSize: 11,
+        overflow: 'hidden'
+      }}>
+      {t('file_preview.pptd.unsupported_element', { id: element.elementId, type: element.elementType })}
+    </div>
+  )
+}
 
 interface PptdSlideCanvasProps {
   presentation: PptdPresentation
@@ -72,14 +119,10 @@ export function PptdSlideCanvas({ presentation, page, zoom }: PptdSlideCanvasPro
                 top: element.bounds?.[1] ?? 0,
                 width: element.bounds?.[2] ?? width / 4,
                 height: element.bounds?.[3] ?? 40,
-                border: '1px dashed #B45309',
-                color: '#B45309',
-                fontSize: 11,
-                overflow: 'hidden'
+                transform: elementTransform(element),
+                opacity: element.elementType !== 'invalid' ? element.opacity : undefined
               }}>
-              {element.elementType === 'invalid'
-                ? t('file_preview.pptd.unsupported_element', { id: element.elementId, type: element.declaredType })
-                : `${element.elementType}: ${element.elementId}`}
+              <PptdElementBody element={element} context={context} />
             </div>
           ))}
       </div>
