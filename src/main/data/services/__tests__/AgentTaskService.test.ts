@@ -585,7 +585,7 @@ describe('reconcileTaskAdmissions', () => {
       lastAdmittedRunJobIds: ['terminal', 'pruned', 'running', 'pending'],
       unrelated: true
     }
-    const before = structuredClone(metadata)
+    const before = { ...metadata, lastAdmittedRunJobIds: [...metadata.lastAdmittedRunJobIds] }
     expect(reconcileTaskAdmissions(metadata, new Set(['running', 'pending']))).toEqual({
       ...metadata,
       lastAdmittedRunJobIds: ['running', 'pending']
