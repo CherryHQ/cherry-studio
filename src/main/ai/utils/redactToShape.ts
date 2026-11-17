@@ -1,3 +1,4 @@
+import type { Serializable } from '@shared/types/serializable'
 import { isSensitiveKey, REDACTED, redactSecretText } from '@shared/utils/redaction'
 
 const MAX_DEPTH = 5
@@ -94,13 +95,14 @@ function keepScalar(value: unknown, path: string, kind: PayloadKind): boolean {
 }
 
 /** Payload keys and values are private by default; only protocol fields at known paths survive. */
-export function redactToShape(value: unknown, kind: PayloadKind = 'tool'): unknown {
+export function redactToShape(value: unknown, kind: PayloadKind = 'tool'): Serializable {
   let nodes = 0
-  const shape = (val: unknown, depth: number, path: string): unknown => {
+  const shape = (val: unknown, depth: number, path: string): Serializable => {
     if (nodes++ >= MAX_NODES) return '<truncated>'
     if (val === null || val === undefined) return null
-    if (keepScalar(val, path, kind)) return typeof val === 'string' ? redactSecretText(val) : val
-    if (typeof val === 'string') return `<string:${val.length}>`
+    if (typeof val === 'string') return keepScalar(val, path, kind) ? redactSecretText(val) : `<string:${val.length}>`
+    if (typeof val === 'number' || typeof val === 'boolean')
+      return keepScalar(val, path, kind) ? val : `<${typeof val}>`
     if (typeof val !== 'object') return `<${typeof val}>`
     if (depth >= MAX_DEPTH) return Array.isArray(val) ? `<array:${val.length}>` : '<object>'
     if (Array.isArray(val)) {
@@ -113,7 +115,7 @@ export function redactToShape(value: unknown, kind: PayloadKind = 'tool'): unkno
         ...val.slice(-half).map(item)
       ]
     }
-    const out: Record<string, unknown> = Object.create(null)
+    const out: Record<string, Serializable> = Object.create(null)
     let keys = 0
     for (const key in val) {
       if (!Object.hasOwn(val, key)) continue

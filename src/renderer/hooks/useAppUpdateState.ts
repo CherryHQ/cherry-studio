@@ -11,8 +11,8 @@ import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
 
 const logger = loggerService.withContext('useAppUpdateState')
 
-export const useAppUpdateState = (
-  showDownloadedUpdate?: (info: CacheAppUpdateState['info']) => Promise<unknown> | void
+export const useAppUpdateState = <TResult>(
+  showDownloadedUpdate?: (info: CacheAppUpdateState['info']) => Promise<TResult> | void
 ) => {
   const { t } = useTranslation()
   const [intent, setIntent] = useCache('app.dist.update_state')

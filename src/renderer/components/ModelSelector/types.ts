@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 
+import type { UseQueryResult } from '@data/hooks/useDataApi'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CommandId } from '@shared/utils/command'
@@ -160,9 +161,9 @@ export interface UseModelSelectorDataResult {
   modelItems: ModelSelectorModelItem[]
   navigableItems: ModelSelectorNavigableItem[]
   pinnedIds: readonly UniqueModelId[]
-  refetchModels: () => Promise<unknown>
-  refetchPinnedModels: () => Promise<unknown>
-  refetchProviders: () => Promise<unknown>
+  refetchModels: UseQueryResult<'/models'>['refetch']
+  refetchPinnedModels: UseQueryResult<'/pins'>['refetch']
+  refetchProviders: UseQueryResult<'/providers'>['refetch']
   resetTags: () => void
   resolvedSelectedModelIds: UniqueModelId[]
   selectableModelsById: ReadonlyMap<UniqueModelId, Model>

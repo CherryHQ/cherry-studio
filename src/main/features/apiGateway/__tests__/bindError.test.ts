@@ -20,7 +20,7 @@ describe('gateway bind diagnostics', () => {
     (listener) => {
       const error = denied()
       const original = Object.getOwnPropertyDescriptors(error)
-      const mapped = mapGatewayBindError(error, endpoint, listener) as Error
+      const mapped = mapGatewayBindError(error, endpoint, listener)
       expect(mapped.message).toContain('refused permission')
       expect(mapped.message).toContain('127.0.0.1,')
       expect(mapped.message).toContain('23333')
@@ -46,7 +46,7 @@ describe('gateway bind diagnostics', () => {
     ['::', 0],
     ['0.0.0.0', 24444]
   ] as const)('reports the failed Node endpoint %s:%s rather than a stale snapshot', (address, port) => {
-    const mapped = mapGatewayBindError(denied({ address, port }), endpoint, 'internal') as Error
+    const mapped = mapGatewayBindError(denied({ address, port }), endpoint, 'internal')
     expect(mapped.message).toContain(`${address}, requested TCP port ${port}`)
     expect(mapped.message).not.toContain('23333')
     expect(mapped.message).not.toContain(`[${address}]`)
@@ -62,7 +62,7 @@ describe('gateway bind diagnostics', () => {
     expect(chinese).toContain('49152')
     expect(chinese).toContain(listener === 'public' ? '启动' : '重试请求')
     MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
-    expect((mapGatewayBindError(denied(params), endpoint, listener) as Error).message).toBe(chinese)
+    expect(mapGatewayBindError(denied(params), endpoint, listener).message).toBe(chinese)
   })
 
   it.each([

@@ -5,7 +5,7 @@
  * signature back in one round-trip.
  */
 
-import { asSchema } from 'ai'
+import { asSchema, type JSONSchema7 } from 'ai'
 
 import type { ToolEntry } from '../types'
 import { schemaToJSDoc } from './formatJsDoc'
@@ -16,7 +16,7 @@ import { schemaToJSDoc } from './formatJsDoc'
  * is the shape the model actually sees inline. Returns undefined on any failure so
  * the stub degrades to a description-only signature.
  */
-export async function serializeToolSchema(schema: unknown): Promise<unknown> {
+export async function serializeToolSchema(schema: unknown): Promise<JSONSchema7 | undefined> {
   if (!schema) return undefined
   try {
     return await asSchema(schema as Parameters<typeof asSchema>[0]).jsonSchema

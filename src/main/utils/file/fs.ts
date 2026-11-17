@@ -76,7 +76,7 @@ export async function read(
 export async function read(
   path: AbsoluteFilePath,
   options?: { encoding?: 'text' | 'base64' | 'binary'; detectEncoding?: boolean }
-): Promise<unknown> {
+): Promise<string | { data: string | Uint8Array; mime: string }> {
   const encoding = options?.encoding ?? 'text'
   if (encoding === 'text') {
     return readFile(path, 'utf-8')

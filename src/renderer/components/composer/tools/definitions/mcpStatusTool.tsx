@@ -53,14 +53,14 @@ interface BuildMcpStatusItemsOptions {
   t: TFunction
 }
 
-interface UpdateMcpBindingOptions {
+interface UpdateMcpBindingOptions<TAgentResult, TAssistantResult> {
   assistant?: Assistant
   agent?: McpStatusAgent
   enabled: boolean
   scope: TopicType.Chat | TopicType.Session
   serverId: string
-  updateAgent: (patch: { mcps: string[] }) => Promise<unknown>
-  updateAssistant: (patch: { mcpServerIds: string[] }) => Promise<unknown>
+  updateAgent: (patch: { mcps: string[] }) => Promise<TAgentResult>
+  updateAssistant: (patch: { mcpServerIds: string[] }) => Promise<TAssistantResult>
 }
 
 function getMcpStatusLabel(t: TFunction, state: McpRuntimeStatus['state']) {
@@ -141,7 +141,7 @@ function nextBindingIds(ids: readonly string[], serverId: string, enabled: boole
   return enabled ? Array.from(new Set([...ids, serverId])) : ids.filter((id) => id !== serverId)
 }
 
-export async function updateMcpBinding({
+export async function updateMcpBinding<TAgentResult, TAssistantResult>({
   assistant,
   agent,
   enabled,
@@ -149,7 +149,7 @@ export async function updateMcpBinding({
   serverId,
   updateAgent,
   updateAssistant
-}: UpdateMcpBindingOptions): Promise<boolean> {
+}: UpdateMcpBindingOptions<TAgentResult, TAssistantResult>): Promise<boolean> {
   if (scope === TopicType.Session) {
     if (!agent) return false
     await updateAgent({ mcps: nextBindingIds(agent.mcps ?? [], serverId, enabled) })

@@ -1,4 +1,5 @@
 import { isToolUIPart } from 'ai'
+import * as z from 'zod'
 
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { isDeferredToolOutput } from '@shared/ai/transport'
@@ -8,23 +9,17 @@ import { buildToolResponseFromPart } from '../toolResponse'
 
 const CREATE_AGENT_TOOL_NAME = 'mcp__assistant__create_agent'
 
-export interface CreateAgentResult {
-  ok: true
-  agentId: string
-  name: string
-  model: string
-}
+const createAgentResultSchema = z.object({
+  ok: z.literal(true),
+  agentId: z.string(),
+  name: z.string(),
+  model: z.string()
+})
+
+export type CreateAgentResult = z.infer<typeof createAgentResultSchema>
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function parseText(value: string): unknown {
-  try {
-    return JSON.parse(value)
-  } catch {
-    return undefined
-  }
 }
 
 export function parseCreateAgentResult(value: unknown): CreateAgentResult | undefined {
@@ -35,33 +30,24 @@ export function parseCreateAgentResult(value: unknown): CreateAgentResult | unde
     if (candidate === value && Array.isArray(value.content)) candidate = value.content
   }
 
-  if (Array.isArray(candidate)) {
-    candidate = parseText(
-      candidate
-        .map((item) => (isRecord(item) && typeof item.text === 'string' ? item.text : ''))
-        .filter(Boolean)
-        .join('\n')
-    )
-  } else if (typeof candidate === 'string') {
-    candidate = parseText(candidate)
+  if (Array.isArray(candidate) || typeof candidate === 'string') {
+    const text =
+      typeof candidate === 'string'
+        ? candidate
+        : candidate
+            .flatMap((item) => {
+              const text = isRecord(item) && typeof item.text === 'string' ? item.text : ''
+              return text ? [text] : []
+            })
+            .join('\n')
+    try {
+      candidate = JSON.parse(text)
+    } catch {
+      return undefined
+    }
   }
-
-  if (
-    !isRecord(candidate) ||
-    candidate.ok !== true ||
-    typeof candidate.agentId !== 'string' ||
-    typeof candidate.name !== 'string' ||
-    typeof candidate.model !== 'string'
-  ) {
-    return undefined
-  }
-
-  return {
-    ok: true,
-    agentId: candidate.agentId,
-    name: candidate.name,
-    model: candidate.model
-  }
+  const parsed = createAgentResultSchema.safeParse(candidate)
+  return parsed.success ? parsed.data : undefined
 }
 
 export function isCreateAgentToolResponse(toolResponse: McpToolResponse | NormalToolResponse): boolean {

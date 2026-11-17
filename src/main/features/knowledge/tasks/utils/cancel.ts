@@ -65,14 +65,12 @@ export async function cancelActiveKnowledgeJobs(
 
   const jobManager = application.get('JobManager')
   const queue = knowledgeQueueName(toKnowledgeBaseId(baseId))
-  const cancelOne: (jobId: string) => Promise<unknown> =
+  const cancelOne = (jobId: string) =>
+    onCancelTimeout === 'throw' ? cancelJobOrThrow(jobId, reason) : jobManager.cancel(jobId, reason)
+  const cancelTask = (taskId: FileProcessingTaskId) =>
     onCancelTimeout === 'throw'
-      ? (jobId) => cancelJobOrThrow(jobId, reason)
-      : (jobId) => jobManager.cancel(jobId, reason)
-  const cancelTask: (taskId: FileProcessingTaskId) => Promise<unknown> =
-    onCancelTimeout === 'throw'
-      ? (taskId) => cancelFileProcessingTaskOrThrow(taskId, reason)
-      : (taskId) => application.get('FileProcessingService').cancelTask(taskId, reason)
+      ? cancelFileProcessingTaskOrThrow(taskId, reason)
+      : application.get('FileProcessingService').cancelTask(taskId, reason)
 
   const collectAndCancel = async (activeJobs: JobSnapshot[]): Promise<void> => {
     const jobIds = activeJobs.flatMap((job) =>

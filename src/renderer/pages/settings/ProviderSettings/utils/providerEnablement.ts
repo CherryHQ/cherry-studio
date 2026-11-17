@@ -4,9 +4,9 @@ import type { Provider } from '@shared/data/types/provider'
 const logger = loggerService.withContext('ProviderSettings:EnableProviderWhenModelsAvailable')
 
 /** Enables a disabled provider once a flow has confirmed it has usable models. */
-export async function enableProviderWhenModelsAvailable(
+export async function enableProviderWhenModelsAvailable<TResult>(
   provider: Pick<Provider, 'id' | 'isEnabled'> | undefined,
-  enableProvider: () => Promise<unknown>,
+  enableProvider: () => Promise<TResult>,
   modelCount: number,
   source: string
 ): Promise<void> {

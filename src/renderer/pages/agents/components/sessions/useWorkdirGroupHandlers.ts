@@ -14,23 +14,23 @@ import { findLatestActive } from '@renderer/utils/resourceEntity'
 
 const logger = loggerService.withContext('AgentSessions')
 
-interface UseWorkdirGroupHandlersOptions {
+interface UseWorkdirGroupHandlersOptions<TWorkspaces, TSessions> {
   activeSessionId: string | null
-  refetchWorkspaces: () => Promise<unknown>
-  reload: () => Promise<unknown>
+  refetchWorkspaces: () => Promise<TWorkspaces>
+  reload: () => Promise<TSessions>
   sessionItems: readonly SessionListItem[]
   setActiveSessionId: (id: string | null) => void
   workdirDisplay: SessionWorkdirDisplayMaps
 }
 
-export function useWorkdirGroupHandlers({
+export function useWorkdirGroupHandlers<TWorkspaces, TSessions>({
   activeSessionId,
   refetchWorkspaces,
   reload,
   sessionItems,
   setActiveSessionId,
   workdirDisplay
-}: UseWorkdirGroupHandlersOptions) {
+}: UseWorkdirGroupHandlersOptions<TWorkspaces, TSessions>) {
   const { t } = useTranslation()
   const closeConversationTabs = useCloseConversationTabs()
   const invalidate = useInvalidateCache()

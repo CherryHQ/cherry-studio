@@ -10,11 +10,11 @@ export function isGatewayBindPermissionError(error: unknown): error is NodeJS.Er
   )
 }
 
-export function mapGatewayBindError(
-  error: unknown,
+export function mapGatewayBindError<TError>(
+  error: TError,
   endpoint: { host: string; port: number },
   listener: 'public' | 'internal'
-): unknown {
+): TError | Error {
   if (!isGatewayBindPermissionError(error)) return error
   const bindError = error as NodeJS.ErrnoException & { address?: string; port?: number }
 

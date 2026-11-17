@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
-import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useMutation, useQuery, type UseQueryResult } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { EntityType } from '@shared/data/types/entityType'
 
@@ -25,7 +25,7 @@ export interface UsePinsResult {
   /** Pinned entity ids for this entityType, in API order. */
   pinnedIds: readonly string[]
   /** Force-refresh the pin list. */
-  refetch: () => Promise<unknown>
+  refetch: UseQueryResult<'/pins'>['refetch']
   /** Toggle pin state for a given entity id. Gated no-ops resolve (logged at debug); real write errors reject. */
   togglePin: (entityId: string) => Promise<void>
 }

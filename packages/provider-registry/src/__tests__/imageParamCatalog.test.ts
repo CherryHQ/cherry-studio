@@ -16,6 +16,8 @@ describe('IMAGE_PARAM_CATALOG', () => {
     expect(parseImageParamValue('strength', '2.5')).toBe(2.5)
     expect(parseImageParamValue('size', true)).toBeUndefined()
     expect(parseImageParamValue('unknown', 'value')).toBeUndefined()
+    expect(parseImageParamValue('__proto__', 'value')).toBeUndefined()
+    expect(parseImageParamValue('constructor', 'value')).toBeUndefined()
   })
 })
 

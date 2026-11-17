@@ -1,6 +1,7 @@
 import { CallToolResultSchema } from '@modelcontextprotocol/core'
 import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
 import { getToolName, isToolUIPart } from 'ai'
+import type * as z from 'zod'
 
 import type { McpToolResponse, McpToolResponseStatus, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { BaseTool, McpTool } from '@renderer/types/tool'
@@ -201,14 +202,14 @@ function buildBaseToolDescriptor(toolType: Exclude<ToolType, 'mcp'>, toolCallId:
   return baseTool
 }
 
-export function normalizeToolErrorResponse(errorText: string): unknown {
+export function normalizeToolErrorResponse(errorText: string): z.infer<typeof CallToolResultSchema> {
   return {
     isError: true,
     content: [{ type: 'text', text: errorText || 'Error' }]
   }
 }
 
-function normalizeErrorOutput(part: ToolResponsePart): unknown {
+function normalizeErrorOutput(part: ToolResponsePart): z.infer<typeof CallToolResultSchema> | undefined {
   if (part.state !== 'output-error') return undefined
   return normalizeToolErrorResponse(part.errorText)
 }

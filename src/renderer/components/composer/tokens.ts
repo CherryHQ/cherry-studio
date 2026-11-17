@@ -43,10 +43,6 @@ function readString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined
 }
 
-function readPayload(value: unknown): unknown | undefined {
-  return value == null ? undefined : value
-}
-
 function normalizePromptText(kind: ComposerDraftTokenKind, value: unknown): string | undefined {
   const promptText = readString(value)
   if (!promptText) return undefined
@@ -58,7 +54,7 @@ export function normalizeComposerTokenAttrs(attrs: Record<string, unknown>): Com
   const kindValue = attrs.kind
   const kind = isComposerDraftTokenKind(kindValue) ? kindValue : 'reference'
   const label = readString(attrs.label) ?? ''
-  const payload = readPayload(attrs.payload)
+  const payload = attrs.payload ?? undefined
   const promptText = normalizePromptText(kind, attrs.promptText)
 
   return {

@@ -63,9 +63,12 @@ function createGroupReorderPayload(): ResourceListGroupReorderPayload {
   }
 }
 
-function renderRail(overrides: Partial<Parameters<typeof useResourceEntityRail<TestEntity, TestResource>>[0]> = {}) {
+function renderRail(
+  overrides: Partial<Parameters<typeof useResourceEntityRail<TestEntity, TestResource, void>>[0]> = {}
+) {
   return renderHook(
-    (props: Parameters<typeof useResourceEntityRail<TestEntity, TestResource>>[0]) => useResourceEntityRail(props),
+    (props: Parameters<typeof useResourceEntityRail<TestEntity, TestResource, void>>[0]) =>
+      useResourceEntityRail(props),
     {
       initialProps: {
         entities: ENTITIES,

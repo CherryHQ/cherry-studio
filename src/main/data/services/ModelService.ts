@@ -349,9 +349,12 @@ function dtoKeyToDbKey(key: keyof UpdateModelDto): string {
   return mapping && Array.isArray(mapping) ? mapping[1] : key
 }
 
-function getBaselineField(model: Model, field: PresetDeltaField): unknown {
+function getBaselineField(
+  model: Model,
+  field: PresetDeltaField
+): Model[Exclude<PresetDeltaField, 'parameters'> | 'parameterSupport'] {
   if (field === 'parameters') return model.parameterSupport
-  return model[field as keyof Model]
+  return model[field]
 }
 
 function matchesBaseline(value: unknown, baseline: unknown, field: PresetDeltaField): boolean {

@@ -52,8 +52,8 @@ function assertValidQuery(input: ReadConversationInput): void {
   }
 }
 
-function tryCandidate(
-  read: () => unknown,
+function tryCandidate<TResult>(
+  read: () => TResult,
   source: ConversationSource,
   sessionId: string
 ): ConversationCandidate | null {
