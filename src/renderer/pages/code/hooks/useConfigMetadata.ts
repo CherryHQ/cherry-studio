@@ -30,9 +30,7 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
   const gatewayProviderIds = useMemo(
     () =>
       new Set(
-        providers
-          .filter((provider) => provider.isEnabled && !isAgentOnlyProvider(provider))
-          .map((provider) => provider.id)
+        providers.flatMap((provider) => (provider.isEnabled && !isAgentOnlyProvider(provider) ? [provider.id] : []))
       ),
     [providers]
   )

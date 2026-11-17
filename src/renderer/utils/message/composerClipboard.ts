@@ -549,10 +549,11 @@ function projectTextPartToClipboardSegments(
 
 function projectComposerClipboardPartGroup(parts: readonly CherryMessagePart[]): ComposerClipboardProjection {
   const filePayloadsBySourceId = collectFilePayloadsBySourceId(parts)
-  const projections = parts
-    .filter((part): part is Extract<CherryMessagePart, { type: 'text' }> => part.type === 'text')
-    .map((part) => projectTextPartToClipboardSegments(part, filePayloadsBySourceId))
-    .filter((projection) => projection.plainText.trim().length > 0)
+  const projections = parts.flatMap((part) => {
+    if (part.type !== 'text') return []
+    const projection = projectTextPartToClipboardSegments(part, filePayloadsBySourceId)
+    return projection.plainText.trim().length > 0 ? [projection] : []
+  })
 
   const segments: ComposerClipboardSourceSegment[] = []
   projections.forEach((projection, index) => {
@@ -608,7 +609,10 @@ export function createComposerRichClipboardContentFromPartGroups(
   partGroups: readonly (readonly CherryMessagePart[])[],
   separator: string
 ): ComposerRichClipboardContent | null {
-  const projections = partGroups.map(projectComposerClipboardPartGroup).filter((projection) => projection.plainText)
+  const projections = partGroups.flatMap((group) => {
+    const projection = projectComposerClipboardPartGroup(group)
+    return projection.plainText ? [projection] : []
+  })
   const segments: ComposerClipboardSourceSegment[] = []
 
   projections.forEach((projection, index) => {

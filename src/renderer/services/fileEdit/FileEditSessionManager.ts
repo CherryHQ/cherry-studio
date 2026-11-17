@@ -93,9 +93,9 @@ export class FileEditSessionManager {
     this.composing = value
   }
   private publishInventory(): void {
-    this.inventory = [...this.sessions.values()]
-      .filter((session) => !session.attachments.size && (session.snapshot.isDirty || !!session.snapshot.saveError))
-      .map((session) => session.snapshot)
+    this.inventory = [...this.sessions.values()].flatMap((session) =>
+      !session.attachments.size && (session.snapshot.isDirty || !!session.snapshot.saveError) ? [session.snapshot] : []
+    )
     for (const listener of this.inventoryListeners) listener()
   }
   async recover(sessionId: string, action: 'retry' | 'discard'): Promise<void> {
@@ -141,9 +141,8 @@ export class FileEditSessionManager {
       finish: () => {
         finishing ??= (async () => {
           try {
-            await Promise.all(
-              affected.filter((session) => session.attachments.size).map((session) => this.invalidate(session, true))
-            )
+            const attachedSessions = affected.filter((session) => session.attachments.size)
+            await Promise.all(attachedSessions.map((session) => this.invalidate(session, true)))
           } finally {
             unseal()
           }

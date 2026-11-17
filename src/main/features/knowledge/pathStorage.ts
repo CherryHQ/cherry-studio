@@ -291,10 +291,11 @@ export async function deleteKnowledgeItemFiles(
 ): Promise<void> {
   // A directory container owns a whole `raw/<prefix>` subtree (its files plus nested
   // dirs) under its `relativePath`; remove it recursively in one shot.
-  const directoryPrefixes = items
-    .filter((item) => item.type === 'directory')
-    .map((item) => (item.data as { relativePath?: unknown }).relativePath)
-    .filter((relativePath): relativePath is string => typeof relativePath === 'string')
+  const directoryPrefixes = items.flatMap((item) => {
+    if (item.type !== 'directory') return []
+    const relativePath = (item.data as { relativePath?: unknown }).relativePath
+    return typeof relativePath === 'string' ? [relativePath] : []
+  })
   await Promise.all(directoryPrefixes.map((prefix) => removeDir(getKnowledgeBaseFilePath(baseId, prefix))))
 
   // url/note snapshots and file leaves persist a `raw/{relativePath}` file too, so unlink
@@ -304,9 +305,9 @@ export async function deleteKnowledgeItemFiles(
   const directoryPrefixSet = new Set(directoryPrefixes)
   const paths = collectKnowledgeReservedRelativePaths(items)
   await Promise.all(
-    [...paths]
-      .filter((relativePath) => !directoryPrefixSet.has(relativePath))
-      .map((relativePath) => remove(getKnowledgeBaseFilePath(baseId, relativePath)))
+    [...paths].flatMap((relativePath) =>
+      !directoryPrefixSet.has(relativePath) ? [remove(getKnowledgeBaseFilePath(baseId, relativePath))] : []
+    )
   )
   // Backstop: prune any now-empty ancestor directories left behind — a migrated/legacy
   // directory predating the stored relativePath, or nested empties — deepest-first.

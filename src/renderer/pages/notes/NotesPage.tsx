@@ -415,13 +415,17 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
     const normalizedPath = normalizePathValue(path)
     const prefix = `${normalizedPath}/`
 
-    return [...noteByPathRef.current.values()]
-      .filter((note) => note.path === normalizedPath || (recursive && note.path.startsWith(prefix)))
-      .map((note) => ({
-        path: note.path,
-        isStarred: note.isStarred,
-        isExpanded: note.isExpanded
-      }))
+    return [...noteByPathRef.current.values()].flatMap((note) =>
+      note.path === normalizedPath || (recursive && note.path.startsWith(prefix))
+        ? [
+            {
+              path: note.path,
+              isStarred: note.isStarred,
+              isExpanded: note.isExpanded
+            }
+          ]
+        : []
+    )
   }, [])
 
   const restoreMetadataSnapshot = useCallback(

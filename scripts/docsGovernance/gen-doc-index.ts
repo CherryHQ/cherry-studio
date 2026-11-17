@@ -103,17 +103,15 @@ export const generateSourcesIndex = (repoRoot: string): string => {
     ...englishDocs(path.join(docsDir, 'references'))
   ]
   const documents = files
-    .map((file) => {
+    .flatMap((file) => {
       const { data } = matter(fs.readFileSync(file, 'utf8'))
-      return {
-        path: path.relative(repoRoot, file).split(path.sep).join('/'),
-        sources: Array.isArray(data.sources)
-          ? data.sources.filter((source): source is string => typeof source === 'string')
-          : []
-      }
+      const sources = Array.isArray(data.sources)
+        ? data.sources.filter((source): source is string => typeof source === 'string')
+        : []
+      return sources.length > 0
+        ? [{ path: path.relative(repoRoot, file).split(path.sep).join('/'), sources: [...sources].sort() }]
+        : []
     })
-    .filter((document) => document.sources.length > 0)
-    .map((document) => ({ ...document, sources: [...document.sources].sort() }))
     .sort((left, right) => left.path.localeCompare(right.path))
   return [
     '{',

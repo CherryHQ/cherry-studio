@@ -177,10 +177,11 @@ function getUniqueSessionFallbackWorkdirPaths(
 ) {
   return Array.from(
     new Set(
-      sessions
-        .filter((session) => !getKnownSessionWorkspaceGroupId(session, groupIdByWorkspaceId, groupIdByPath))
-        .map(getPrimarySessionWorkdir)
-        .filter((path): path is string => typeof path === 'string')
+      sessions.flatMap((session) => {
+        if (getKnownSessionWorkspaceGroupId(session, groupIdByWorkspaceId, groupIdByPath)) return []
+        const path = getPrimarySessionWorkdir(session)
+        return typeof path === 'string' ? [path] : []
+      })
     )
   )
 }

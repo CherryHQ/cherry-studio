@@ -1514,10 +1514,7 @@ describe('OpenClawService gateway status state machine', () => {
         }
         if (file === 'lsof') {
           const port = Number(args.find((arg) => arg.startsWith('-iTCP:'))?.split(':')[1])
-          return [...listeners]
-            .filter(([, listeningPort]) => listeningPort === port)
-            .map(([pid]) => pid)
-            .join('\n')
+          return [...listeners].flatMap(([pid, listeningPort]) => (listeningPort === port ? [pid] : [])).join('\n')
         }
         if (file === 'taskkill') listeners.delete(Number(args[args.indexOf('/PID') + 1]))
         return ''

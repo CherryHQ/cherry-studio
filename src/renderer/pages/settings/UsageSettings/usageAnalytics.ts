@@ -141,7 +141,7 @@ export function applyTimelineCurrency(
   currency: Currency | undefined
 ): AiUsageRecordTimelineBucket[] {
   const costs = new Map(
-    dailyCosts.filter((item) => item.currency === currency).map((item) => [item.date, item.total] as const)
+    dailyCosts.flatMap((item) => (item.currency === currency ? [[item.date, item.total] as const] : []))
   )
   return buckets.map((bucket) => ({
     ...bucket,

@@ -88,13 +88,14 @@ export function getComposerTextFromParts(
   parts: CherryMessagePart[],
   getTokenText?: (token: ComposerMessageToken, index: number) => string
 ): string {
-  return parts
-    .filter(isTextPart)
-    .map((part) => {
+  // Resolve tokens after selection so callbacks cannot change which parts participate.
+  const textParts = parts.filter(isTextPart)
+  return textParts
+    .flatMap((part) => {
       const composer = readCherryMeta(part)?.composer
-      return composer ? replaceComposerTokenPromptText(part.text, composer, getTokenText) : part.text
+      const text = composer ? replaceComposerTokenPromptText(part.text, composer, getTokenText) : part.text
+      return text.trim().length > 0 ? [text] : []
     })
-    .filter((text) => text.trim().length > 0)
     .join('\n\n')
 }
 

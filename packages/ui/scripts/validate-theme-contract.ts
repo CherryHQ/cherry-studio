@@ -159,7 +159,10 @@ function assertRequiredDeclarations(
   variableNames: readonly string[],
   prefix: string
 ): void {
-  const missing = variableNames.map((name) => `${prefix}${name}`).filter((name) => !declarations.has(name))
+  const missing = variableNames.flatMap((name) => {
+    const mapped = `${prefix}${name}`
+    return !declarations.has(mapped) ? [mapped] : []
+  })
 
   if (missing.length > 0) {
     throw new Error(`[theme-contract] ${label} is missing root declarations: ${missing.join(', ')}`)
@@ -173,7 +176,10 @@ function assertCompatibilityTokensDeclared(
   sourceName: string
 ): void {
   const declarations = new Set(extractDeclarations(source, sourceName).map((declaration) => declaration.name))
-  const missing = tokenNames.map((token) => `--cs-${token}`).filter((name) => !declarations.has(name))
+  const missing = tokenNames.flatMap((token) => {
+    const name = `--cs-${token}`
+    return !declarations.has(name) ? [name] : []
+  })
 
   if (missing.length > 0) {
     throw new Error(`[theme-contract] ${label} references missing foundation variables: ${missing.join(', ')}`)

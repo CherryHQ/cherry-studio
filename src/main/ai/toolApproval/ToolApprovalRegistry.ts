@@ -115,9 +115,9 @@ class ToolApprovalRegistry {
   }
 
   abort(sessionId: string, reason = 'session-aborted'): number {
-    const approvalIds = [...this.pending.values()]
-      .filter((entry) => entry.sessionId === sessionId)
-      .map((entry) => entry.approvalId)
+    const approvalIds = [...this.pending.values()].flatMap((entry) =>
+      entry.sessionId === sessionId ? [entry.approvalId] : []
+    )
     const count = this.cancel(approvalIds, reason)
     if (count > 0) logger.info('Aborted pending approvals', { sessionId, count, reason })
     return count

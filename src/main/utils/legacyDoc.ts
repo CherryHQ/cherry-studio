@@ -19,7 +19,9 @@ export async function extractLegacyDocText(source: Buffer | string): Promise<str
   const extracted = await new WordExtractor().extract(source)
 
   return [extracted.getBody(), extracted.getTextboxes(), extracted.getFootnotes(), extracted.getEndnotes()]
-    .map((part) => part?.trim() ?? '')
-    .filter(Boolean)
+    .flatMap((part) => {
+      const text = part?.trim() ?? ''
+      return text ? [text] : []
+    })
     .join('\n\n')
 }

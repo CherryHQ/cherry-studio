@@ -416,19 +416,22 @@ function getComposerUnifiedPanelSearchText(
 const getTokenIds = (tokens: readonly ComposerDraftToken[]) => new Set(tokens.map((token) => token.id))
 const getTrackedTokenSignature = (tokens: readonly ComposerSerializedToken[]) =>
   tokens
-    .filter((token) => isComposerInputTokenKind(token.kind))
-    .map((token) =>
-      JSON.stringify([
-        token.kind,
-        token.id,
-        token.label,
-        token.icon,
-        token.description,
-        token.index,
-        token.textOffset,
-        token.promptText,
-        token.payload
-      ])
+    .flatMap((token) =>
+      isComposerInputTokenKind(token.kind)
+        ? [
+            JSON.stringify([
+              token.kind,
+              token.id,
+              token.label,
+              token.icon,
+              token.description,
+              token.index,
+              token.textOffset,
+              token.promptText,
+              token.payload
+            ])
+          ]
+        : []
     )
     .join('\n')
 

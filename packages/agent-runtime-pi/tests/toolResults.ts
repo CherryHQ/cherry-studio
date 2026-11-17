@@ -10,7 +10,5 @@ export const textOf = (result: ToolResultMessage) =>
 /** Tool outputs the model was sent, by tool call id. */
 export const toolOutputs = (prompt: Message[]) =>
   Object.fromEntries(
-    prompt
-      .filter((message): message is ToolResultMessage => message.role === 'toolResult')
-      .map((message) => [message.toolCallId, textOf(message)])
+    prompt.flatMap((message) => (message.role === 'toolResult' ? [[message.toolCallId, textOf(message)]] : []))
   )

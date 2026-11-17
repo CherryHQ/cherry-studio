@@ -117,7 +117,7 @@ describe.skipIf(tryTestRipgrepPath() === null)('directory tree pending watcher s
     expect(builder.getNode(target)).toBeNull()
     expect(builder.getNode(parent)).toBeNull()
     expect(builder.snapshot().children).toEqual({})
-    expect(events.filter((event) => event.type === 'added').map((event) => event.path)).toEqual([parent])
+    expect(events.flatMap((event) => (event.type === 'added' ? [event.path] : []))).toEqual([parent])
   })
 
   it('does not repopulate a deleted root', async () => {
@@ -151,7 +151,7 @@ describe.skipIf(tryTestRipgrepPath() === null)('directory tree pending watcher s
     await vi.waitFor(() => expect(builder.getNode(other)?.stats).toBeDefined(), { timeout: 4000 })
     await releaseStat()
     expect(builder.getNode(target)?.stats).toBeDefined()
-    expect(events.filter((event) => event.type === 'added').map((event) => event.path)).toEqual([other, target])
+    expect(events.flatMap((event) => (event.type === 'added' ? [event.path] : []))).toEqual([other, target])
   })
 
   it('keeps the replacement file and its fresh stats when an old add completes', async () => {
@@ -167,7 +167,7 @@ describe.skipIf(tryTestRipgrepPath() === null)('directory tree pending watcher s
     await releaseStat()
     expect(builder.getNode(target)?.stats?.mtime).toBe(expectedMtime)
     expect(await readFile(target, 'utf8')).toBe('replacement')
-    expect(events.filter((event) => event.type === 'added').map((event) => event.path)).toEqual([target])
+    expect(events.flatMap((event) => (event.type === 'added' ? [event.path] : []))).toEqual([target])
   })
 
   it('does not recreate the old directory after an explicit rename', async () => {
@@ -184,7 +184,7 @@ describe.skipIf(tryTestRipgrepPath() === null)('directory tree pending watcher s
     expect(builder.getNode(target)).toBeNull()
     await vi.waitFor(() => expect(builder.getNode(`${renamed}/note.md`)?.stats).toBeDefined(), { timeout: 4000 })
     expect(builder.root.hasChild('folder')).toBe(false)
-    expect(events.filter((event) => event.type === 'added').map((event) => event.path)).toEqual([
+    expect(events.flatMap((event) => (event.type === 'added' ? [event.path] : []))).toEqual([
       parent,
       `${renamed}/note.md`
     ])
@@ -208,7 +208,7 @@ describe.skipIf(tryTestRipgrepPath() === null)('directory tree pending watcher s
     expect(builder.root.hasChild('renamed.md')).toBe(true)
     expect(await readFile(target, 'utf8')).toBe('retained note')
     expect(events.map((event) => event.type)).toEqual(['added', 'removed', 'added'])
-    expect(events.filter((event) => event.type === 'added').map((event) => event.path)).toEqual([original, target])
+    expect(events.flatMap((event) => (event.type === 'added' ? [event.path] : []))).toEqual([original, target])
   })
 
   it('keeps a pending replacement source add when rename coordination arrives after unlink', async () => {
@@ -231,7 +231,7 @@ describe.skipIf(tryTestRipgrepPath() === null)('directory tree pending watcher s
     expect(await readFile(original, 'utf8')).toBe('note')
     expect(await readFile(target, 'utf8')).toBe('renamed note')
     expect(events.map((event) => event.type)).toEqual(['added', 'removed', 'added', 'added'])
-    expect(events.filter((event) => event.type === 'added').map((event) => event.path)).toEqual([
+    expect(events.flatMap((event) => (event.type === 'added' ? [event.path] : []))).toEqual([
       original,
       target,
       original

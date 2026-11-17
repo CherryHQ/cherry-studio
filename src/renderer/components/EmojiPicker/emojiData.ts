@@ -77,7 +77,14 @@ const getEmojiNames = (record: EmojiRecord): string[] => {
     record.annotation
   ]
 
-  return [...new Set(names.map((name) => name.trim().toLowerCase()).filter(Boolean))]
+  return [
+    ...new Set(
+      names.flatMap((name) => {
+        const normalized = name.trim().toLowerCase()
+        return normalized ? [normalized] : []
+      })
+    )
+  ]
 }
 
 export const convertEmojiRecords = (records: EmojiRecord[]): EmojiData => {

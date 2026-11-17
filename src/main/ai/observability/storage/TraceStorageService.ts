@@ -528,9 +528,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     await fs.mkdir(dirPath, { recursive: true, mode: 0o700 })
     const filePath = this.traceFilePath(topicId, traceId)
     const replacements = new Map(
-      spans
-        .filter((span) => span.topicId === topicId && span.traceId === traceId)
-        .map((span) => [span.id, span] as const)
+      spans.flatMap((span) => (span.topicId === topicId && span.traceId === traceId ? [[span.id, span] as const] : []))
     )
     // Pre-encoding history was written to the raw path; carry it forward so the upgrade keeps it.
     const legacyPath = this.legacyTraceFilePath(topicId, traceId)

@@ -54,16 +54,19 @@ function portInterfaces(): ts.InterfaceDeclaration[] {
   for (const file of files)
     for (const statement of file.statements)
       if (ts.isInterfaceDeclaration(statement)) declared.set(statement.name.text, statement)
-  return ['HarnessPorts', 'HostPorts']
-    .flatMap((group) => declared.get(group)?.members ?? [])
-    .filter(ts.isPropertySignature)
-    .map((member) =>
-      member.type && ts.isTypeReferenceNode(member.type) && ts.isIdentifier(member.type.typeName)
-        ? member.type.typeName.text
-        : ''
-    )
-    .map((name) => declared.get(name))
-    .filter((port): port is ts.InterfaceDeclaration => port !== undefined)
+  return ['HarnessPorts', 'HostPorts'].flatMap((group) =>
+    (declared.get(group)?.members ?? []).flatMap((member) => {
+      if (
+        !ts.isPropertySignature(member) ||
+        !member.type ||
+        !ts.isTypeReferenceNode(member.type) ||
+        !ts.isIdentifier(member.type.typeName)
+      )
+        return []
+      const port = declared.get(member.type.typeName.text)
+      return port ? [port] : []
+    })
+  )
 }
 
 const tagTexts = (node: ts.Node, tag: string) =>
@@ -89,9 +92,9 @@ describe('port naming and documentation', () => {
       const name = port.name.text
       const harnesses = tagTexts(port, 'harness').map((text) => text.split(/\s+/)[0])
       return [
-        ...['coding-agent', 'durable', 'fake']
-          .filter((harness) => harnesses.filter((h) => h === harness).length !== 1)
-          .map((harness) => `${name}: @harness ${harness}`),
+        ...['coding-agent', 'durable', 'fake'].flatMap((harness) =>
+          harnesses.filter((h) => h === harness).length !== 1 ? [`${name}: @harness ${harness}`] : []
+        ),
         ...(KEYS_AND_WAITS[name] ?? [])
           .filter((tag) => !tagTexts(port, tag).some((text) => text !== ''))
           .map((tag) => `${name}: @${tag}`)

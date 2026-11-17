@@ -29,7 +29,18 @@ function entryIdOf(source: MessageImageSource): string | undefined {
  * when the entry is gone.
  */
 function useImageSourceUrls(sources: readonly MessageImageSource[]): string[] {
-  const key = useMemo(() => [...new Set(sources.map(entryIdOf).filter(Boolean))].join(','), [sources])
+  const key = useMemo(
+    () =>
+      [
+        ...new Set(
+          sources.flatMap((source) => {
+            const id = entryIdOf(source)
+            return id ? [id] : []
+          })
+        )
+      ].join(','),
+    [sources]
+  )
   const [resolved, setResolved] = useState<Record<string, string>>({})
 
   useEffect(() => {

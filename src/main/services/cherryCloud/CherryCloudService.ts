@@ -1125,9 +1125,7 @@ export class CherryCloudService extends BaseService {
   ): void {
     const current = modelService.list({ providerId: CHERRY_CLOUD_PROVIDER_ID })
     const currentByModelId = new Map(current.map((model) => [parseUniqueModelId(model.id).modelId, model]))
-    const missingCapabilityModelIds = models
-      .filter((model) => model.capabilities === undefined)
-      .map((model) => model.id)
+    const missingCapabilityModelIds = models.flatMap((model) => (model.capabilities === undefined ? [model.id] : []))
     const registryCapabilitiesByModelId = new Map<string, ModelCapability[]>()
 
     if (missingCapabilityModelIds.length > 0) {

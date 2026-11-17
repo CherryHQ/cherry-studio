@@ -44,12 +44,14 @@ function page<T>(items: readonly T[], size: number, requested: number | undefine
 function search(entries: readonly Recalled[], query: string, requested: number | undefined): string {
   const terms = [...new Set(query.toLowerCase().split(/\s+/).filter(Boolean))]
   const hits = entries
-    .map((entry) => {
+    .flatMap((entry) => {
       const lower = entry.text.toLowerCase()
-      const positions = terms.map((term) => lower.indexOf(term)).filter((at) => at >= 0)
-      return { entry, score: positions.length, at: Math.min(...positions) }
+      const positions = terms.flatMap((term) => {
+        const at = lower.indexOf(term)
+        return at >= 0 ? [at] : []
+      })
+      return positions.length > 0 ? [{ entry, score: positions.length, at: Math.min(...positions) }] : []
     })
-    .filter((hit) => hit.score > 0)
     .sort((a, b) => b.score - a.score || b.entry.index - a.entry.index)
   if (hits.length === 0) return `No entries match "${query}".`
   const { items, more } = page(hits, SEARCH_PAGE, requested)

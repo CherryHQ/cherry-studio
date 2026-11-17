@@ -7,8 +7,7 @@ export function normalizeWebSearchKeywords(keywords: string[]): string[] {
   // Guard against non-string elements (e.g. null/undefined from malformed tool calls)
   // so that .trim() never throws TypeError.
   const normalized = keywords
-    .filter((keyword): keyword is string => typeof keyword === 'string')
-    .map((keyword) => keyword.trim())
+    .flatMap((keyword) => (typeof keyword === 'string' ? [keyword.trim()] : []))
     .filter(Boolean)
 
   if (normalized.length === 0) {
@@ -23,7 +22,10 @@ export function normalizeWebSearchKeywords(keywords: string[]): string[] {
 }
 
 export function normalizeWebSearchUrls(urls: string[]): string[] {
-  const normalized = urls.map((url) => url.trim()).filter(Boolean)
+  const normalized = urls.flatMap((url) => {
+    const value = url.trim()
+    return value ? [value] : []
+  })
 
   if (normalized.length === 0) {
     throw new Error('At least one URL is required')

@@ -147,7 +147,7 @@ function normalizeWebResults(results: unknown): Citation[] {
 }
 
 function assignMissingCitationNumbers(citations: Citation[]): Citation[] {
-  const assigned = new Set(citations.filter((citation) => citation.number > 0).map((citation) => citation.number))
+  const assigned = new Set(citations.flatMap((citation) => (citation.number > 0 ? [citation.number] : [])))
   let nextNumber = 1
 
   return citations.map((citation) => {
@@ -176,7 +176,7 @@ export function convertReferencesToCitations(references: ContentReference[]): Ci
       // Keep the migrated item id as the display number so inline [N] markers
       // in the text resolve; on a collision with an already-claimed number
       // (possible in mixed migrated data) fall back to sequential assignment.
-      const usedNumbers = new Set(all.filter((citation) => citation.number > 0).map((citation) => citation.number))
+      const usedNumbers = new Set(all.flatMap((citation) => (citation.number > 0 ? [citation.number] : [])))
       all.push(
         ...knowledge.map((item) => {
           const number = item.id > 0 && !usedNumbers.has(item.id) ? item.id : 0

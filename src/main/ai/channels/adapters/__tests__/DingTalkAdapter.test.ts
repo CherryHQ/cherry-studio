@@ -233,7 +233,7 @@ describe('DingTalk channel contract', () => {
     await instance.onStreamComplete('group:team', 'second', reply('2'))
     await instance.onStreamComplete('group:team', 'first', reply('1'))
     await instance.sendMessage('dm:alice', 'late', reply('expired'))
-    expect(requests.filter((r) => r.url.includes('sendBySession')).map((r) => [r.url, r.body.text.content])).toEqual([
+    expect(requests.flatMap((r) => (r.url.includes('sendBySession') ? [[r.url, r.body.text.content]] : []))).toEqual([
       ['https://oapi.dingtalk.com/robot/sendBySession?session=2', 'second'],
       ['https://oapi.dingtalk.com/robot/sendBySession?session=1', 'first']
     ])

@@ -1384,7 +1384,7 @@ function createKeyMatcher(pattern: string): (key: unknown) => boolean {
 function createMultiKeyMatcher(patterns: string[]): (key: unknown) => boolean {
   patterns.forEach(assertValidPattern)
   const exact = patterns.filter((p) => !p.endsWith('/*'))
-  const prefixes = patterns.filter((p) => p.endsWith('/*')).map((p) => p.slice(0, -1))
+  const prefixes = patterns.flatMap((p) => (p.endsWith('/*') ? [p.slice(0, -1)] : []))
   return (key) => {
     if (!Array.isArray(key) || typeof key[0] !== 'string') return false
     const k = key[0]
@@ -1451,7 +1451,7 @@ function extractInfinitePath(key: string): string | undefined {
  */
 function findMatchingInfiniteKeys(cache: Cache, patterns: string[]): string[] {
   const exact = patterns.filter((p) => !p.endsWith('/*'))
-  const prefixes = patterns.filter((p) => p.endsWith('/*')).map((p) => p.slice(0, -1))
+  const prefixes = patterns.flatMap((p) => (p.endsWith('/*') ? [p.slice(0, -1)] : []))
   const matched: string[] = []
   for (const key of cache.keys()) {
     if (typeof key !== 'string' || !key.startsWith(INFINITE_PREFIX)) continue

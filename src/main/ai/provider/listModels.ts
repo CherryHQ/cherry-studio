@@ -1021,7 +1021,7 @@ function resolvePoeChatEndpointTypes(
     ['/v1/responses', ENDPOINT_TYPE.OPENAI_RESPONSES],
     ['/v1/chat/completions', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
   ] as const
-  const declared = chatPaths.filter(([path]) => supportedEndpoints.includes(path)).map(([, endpoint]) => endpoint)
+  const declared = chatPaths.flatMap(([path, endpoint]) => (supportedEndpoints.includes(path) ? [endpoint] : []))
   if (!declared.length) return undefined
 
   const preferred = registryEndpointTypes?.filter((endpoint) => declared.some((type) => type === endpoint))

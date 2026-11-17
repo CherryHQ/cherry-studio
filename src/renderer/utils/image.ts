@@ -507,9 +507,10 @@ async function buildFontEmbedCSS(): Promise<string> {
   // against that block's own stylesheet href.
   const inlined = await Promise.all(
     blocks.map(async ({ cssText, base }) => {
-      const urls = [...cssText.matchAll(/url\((['"]?)([^)'"]+)\1\)/g)]
-        .map((m) => m[2])
-        .filter((u) => !u.startsWith('data:'))
+      const urls = [...cssText.matchAll(/url\((['"]?)([^)'"]+)\1\)/g)].flatMap((m) => {
+        const u = m[2]
+        return !u.startsWith('data:') ? [u] : []
+      })
       const dataUrlByUrl = new Map<string, string | undefined>()
       await Promise.all(urls.map(async (u) => dataUrlByUrl.set(u, await readAsDataUrl(u, base))))
       let out = cssText

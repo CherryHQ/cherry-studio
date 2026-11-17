@@ -65,12 +65,7 @@ describe.each(factories)('Anthropic usage compatibility: $name', ({ create }) =>
     const { stream } = await model.doStream({ prompt })
     const parts: LanguageModelV3StreamPart[] = await Array.fromAsync(stream)
     expect(parts.filter((part) => part.type === 'error')).toEqual([])
-    expect(
-      parts
-        .filter((part) => part.type === 'text-delta')
-        .map((part) => part.delta)
-        .join('')
-    ).toBe('BODY_OK')
+    expect(parts.flatMap((part) => (part.type === 'text-delta' ? [part.delta] : [])).join('')).toBe('BODY_OK')
     const finish = parts.find((part) => part.type === 'finish')
     expect(finish?.finishReason.unified).toBe('stop')
     return finish?.usage

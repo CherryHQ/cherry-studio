@@ -44,7 +44,7 @@ export class RemoteDebuggingMonitor {
   }
 
   getAttachedTargetIds(): string[] {
-    return [...this.targets].filter(([, attached]) => attached).map(([targetId]) => targetId)
+    return [...this.targets].flatMap(([targetId, attached]) => (attached ? [targetId] : []))
   }
 
   private updateTarget(targetId: string, attached: boolean) {

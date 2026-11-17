@@ -208,7 +208,7 @@ exports.prepareSystemSpeechHelper = prepareSystemSpeechHelper
 const getNativeModuleFilters = (platform, arch) => {
   const keptPackages = keepPackages(platform, arch)
   return [
-    ...packages.filter((name) => !keptPackages.includes(name)).map((name) => `!**/node_modules/${name}/**`),
+    ...packages.flatMap((name) => (!keptPackages.includes(name) ? [`!**/node_modules/${name}/**`] : [])),
     `!**/node_modules/better-sqlite3/prebuilds/!(${platform}-${arch}.node)`,
     `!**/node_modules/selection-hook/prebuilds/!(${platform}-${arch})/**`
   ]
@@ -251,9 +251,9 @@ exports.default = async function (context) {
   // @aiany/sqlite-vec fork provides a windows-arm64 vec0.dll, so knowledge-base vector
   // search works on that target too.
   const allBinaryPlatforms = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64']
-  const excludeBundledBinaryFilters = allBinaryPlatforms
-    .filter((p) => p !== currentPlatformKey)
-    .map((p) => '!resources/binaries/' + p + '/**')
+  const excludeBundledBinaryFilters = allBinaryPlatforms.flatMap((p) =>
+    p !== currentPlatformKey ? ['!resources/binaries/' + p + '/**'] : []
+  )
 
   await excludePackages([...getNativeModuleFilters(platform, arch), ...excludeBundledBinaryFilters])
 }

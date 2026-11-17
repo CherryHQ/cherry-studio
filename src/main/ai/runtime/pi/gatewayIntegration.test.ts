@@ -491,9 +491,7 @@ describe('native Pi through the production gateway', () => {
       const sdk = captured.filter((span) => span.name === 'ai.streamText')
       expect(sdk).toHaveLength(1)
       expect(sdk[0]).toMatchObject({ traceId: owner.traceId, parentId: phase.id, topicId: owner.topicId })
-      expect(captured.filter((span) => span.name.startsWith('pi.')).map((span) => span.name)).toEqual([
-        'pi.durable.phase'
-      ])
+      expect(captured.flatMap((span) => (span.name.startsWith('pi.') ? [span.name] : []))).toEqual(['pi.durable.phase'])
       expect(requests).toHaveLength(1)
       const records = dbh.db.select().from(aiUsageRecordTable).all()
       expect(records).toHaveLength(1)

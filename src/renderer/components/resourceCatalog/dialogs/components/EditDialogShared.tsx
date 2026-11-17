@@ -92,7 +92,7 @@ function resolveTabValue(tabs: EditDialogTab[], value: string) {
 
 function getDefaultExpandedGroupIds(tabs: EditDialogTab[], groupExpansion: EditDialogGroupExpansion) {
   if (groupExpansion === 'all') {
-    return new Set(tabs.filter((tab) => tab.children?.length).map((tab) => tab.id))
+    return new Set(tabs.flatMap((tab) => (tab.children?.length ? [tab.id] : [])))
   }
   return new Set<string>()
 }

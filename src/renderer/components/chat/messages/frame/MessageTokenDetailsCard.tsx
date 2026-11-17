@@ -119,10 +119,10 @@ function PerformanceBreakdown({
     )
   }
 
-  const visibleLanes = PERFORMANCE_LANES.map((lane) => ({
-    lane,
-    intervals: performance.intervals.filter((interval) => interval.lane === lane)
-  })).filter(({ intervals }) => intervals.length > 0)
+  const visibleLanes = PERFORMANCE_LANES.flatMap((lane) => {
+    const intervals = performance.intervals.filter((interval) => interval.lane === lane)
+    return intervals.length > 0 ? [{ lane, intervals }] : []
+  })
 
   if (visibleLanes.length === 0) return null
 

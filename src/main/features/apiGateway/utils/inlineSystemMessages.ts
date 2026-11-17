@@ -67,7 +67,12 @@ export function hoistSystemMessages(messages: CherryUIMessage[]): CherryUIMessag
 
   const system = messages.filter((message) => message.role === 'system')
   const rest = messages.filter((message) => message.role !== 'system')
-  const text = system.map(systemText).filter(Boolean).join('\n\n')
+  const text = system
+    .flatMap((part) => {
+      const text = systemText(part)
+      return text ? [text] : []
+    })
+    .join('\n\n')
   if (!text) return rest
 
   return [{ ...system[0], role: 'system', parts: [{ type: 'text', text }] }, ...rest]

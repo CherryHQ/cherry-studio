@@ -47,9 +47,7 @@ const text = (value: string) => ({ type: 'text', text: value })
 const draftFor = (...items: Array<Record<string, unknown>>) => createEditableMessageDraft(parts(...items), MESSAGE_ID)
 
 const anchorsOf = (draftTokens: ComposerSerializedToken[]) =>
-  draftTokens
-    .filter((token) => token.kind === 'messagePart')
-    .map((token) => ({ id: token.id, textOffset: token.textOffset }))
+  draftTokens.flatMap((token) => (token.kind === 'messagePart' ? [{ id: token.id, textOffset: token.textOffset }] : []))
 
 /**
  * Mirrors what the editor hands back. Anchors carry an id and nothing else on purpose:

@@ -44,7 +44,7 @@ function getDuplicateModelNames<T extends Pick<Model, 'name'>>(models: T[]): Set
     nameCounts.set(model.name, (nameCounts.get(model.name) ?? 0) + 1)
   }
 
-  return new Set([...nameCounts.entries()].filter(([, count]) => count > 1).map(([name]) => name))
+  return new Set([...nameCounts.entries()].flatMap(([name, count]) => (count > 1 ? [name] : [])))
 }
 
 function sortModels(models: Model[]) {
@@ -57,9 +57,10 @@ function getModelIdentifier(model: Model) {
 
 function sortProvidersByPriority(providers: Provider[], prioritizedProviderIds: readonly string[]) {
   const providerById = new Map(providers.map((provider) => [provider.id, provider]))
-  const prioritized = [...new Set(prioritizedProviderIds)]
-    .map((providerId) => providerById.get(providerId))
-    .filter((provider): provider is Provider => Boolean(provider))
+  const prioritized = [...new Set(prioritizedProviderIds)].flatMap((providerId) => {
+    const provider = providerById.get(providerId)
+    return provider ? [provider] : []
+  })
   const prioritizedIds = new Set(prioritized.map((provider) => provider.id))
   const remaining = providers.filter((provider) => !prioritizedIds.has(provider.id))
 

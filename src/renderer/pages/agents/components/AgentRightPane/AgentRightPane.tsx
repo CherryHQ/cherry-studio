@@ -1503,9 +1503,9 @@ function useAgentRunLiveness(
 ): AgentRunLiveness {
   return useMemo(() => {
     const activeMessageIds = new Set(
-      messages
-        .filter((message) => message.role === 'assistant' && message.metadata?.status === 'pending')
-        .map((message) => message.id)
+      messages.flatMap((message) =>
+        message.role === 'assistant' && message.metadata?.status === 'pending' ? [message.id] : []
+      )
     )
     const liveBackgroundTaskIds = new Set(backgroundTasks.map((task) => task.id))
     return { activeMessageIds, liveBackgroundTaskIds }

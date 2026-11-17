@@ -74,4 +74,32 @@ describe('disposable attachment presentation', () => {
     service.cancelOwner(owner)
     expect(await service.list('session')).toEqual([])
   })
+  it('retains the initial eligible selections when loading an upload advances the clock', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(0)
+    const service = new AttachmentPresenceService()
+    await service._doInit()
+    try {
+      const connection = service.connection()
+      service.present(owner, auth, connection, { ...input, selectionId: 'first' })
+      service.present(owner, auth, connection, { ...input, selectionId: 'second' })
+      const expiresAt = 24 * 60 * 60 * 1000
+      vi.setSystemTime(expiresAt - 1)
+      vi.mocked(application.get('FileIntakeService').get).mockImplementationOnce(async () => {
+        vi.setSystemTime(expiresAt + 1)
+        return {
+          uploadId: 'upload',
+          state: 'receiving',
+          committedOffset: '4',
+          writerEpoch: '0',
+          expiresAt: '2099-01-01T00:00:00Z'
+        }
+      })
+
+      expect((await service.list('session')).map((selection) => selection.selectionId)).toEqual(['first', 'second'])
+      expect(await service.list('session')).toEqual([])
+    } finally {
+      await service._doStop()
+    }
+  })
 })

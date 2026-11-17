@@ -30,7 +30,10 @@ function trimString(value: string): string {
 }
 
 function trimStringList(values: readonly string[]): string[] {
-  return values.map(trimString).filter(Boolean)
+  return values.flatMap((value) => {
+    const text = trimString(value)
+    return text ? [text] : []
+  })
 }
 
 export async function getProviderOverrides(

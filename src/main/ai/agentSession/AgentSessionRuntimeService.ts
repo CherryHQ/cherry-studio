@@ -1699,7 +1699,7 @@ export class AgentSessionRuntimeService extends BaseService {
         const connection = this.currentConnection(entry)
         if (!connection?.drainChildWrites || drainedConnections.has(connection)) continue
         drainedConnections.add(connection)
-        const inputs = [...this.inFlightChildWrites].filter(([, owner]) => owner === sessionId).map(([work]) => work)
+        const inputs = [...this.inFlightChildWrites].flatMap(([work, owner]) => (owner === sessionId ? [work] : []))
         const writing = Promise.allSettled(inputs).then(() => connection.drainChildWrites!())
         pending.set(writing, sessionId)
         void writing.then(
@@ -1728,15 +1728,14 @@ export class AgentSessionRuntimeService extends BaseService {
       for (;;) {
         collect()
         if (pending.size === 0) {
-          const retained = [...this.entries]
-            .filter(
-              ([, entry]) =>
-                entry.closing ||
-                getAgentSessionRuntimeTurns(entry.runtimeState).some(
-                  (turn) => getAgentSessionRuntimeReply(entry.runtimeState, turn)?.delivery.kind === 'failed'
-                )
+          const retained = [...this.entries].flatMap(([sessionId, entry]) =>
+            entry.closing ||
+            getAgentSessionRuntimeTurns(entry.runtimeState).some(
+              (turn) => getAgentSessionRuntimeReply(entry.runtimeState, turn)?.delivery.kind === 'failed'
             )
-            .map(([sessionId]) => sessionId)
+              ? [sessionId]
+              : []
+          )
           return { stragglerIds: [...new Set([...failed, ...retained, ...this.failedClosures.keys()])] }
         }
         const winner = await Promise.race([
