@@ -1,4 +1,5 @@
 import path from 'node:path'
+import type * as NodePath from 'node:path'
 
 import { describe, expect, it, vi } from 'vitest'
 
@@ -14,7 +15,7 @@ import {
 
 // These fixtures model a POSIX tool installation independently of the host OS.
 vi.mock('path', async () => {
-  const actual = await vi.importActual<typeof import('node:path')>('node:path')
+  const actual = await vi.importActual<typeof NodePath>('node:path')
   return { ...actual.posix, default: actual.posix }
 })
 

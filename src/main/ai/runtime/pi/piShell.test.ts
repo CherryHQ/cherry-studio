@@ -3,6 +3,7 @@ import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
 import { getBinaryShimsDir } from '@main/utils/binaryEnv'
+import type * as BinaryEnv from '@main/utils/binaryEnv'
 
 import { mergeMiseEnvEntries, mergePiToolSpawnEnv, resolvePiLoginEnv } from './piShell'
 
@@ -23,7 +24,7 @@ vi.mock('@logger', () => ({
 }))
 vi.mock('@main/utils/bundledGit', () => ({ getBundledGitDir: () => null }))
 vi.mock('@main/utils/binaryEnv', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@main/utils/binaryEnv')>()
+  const actual = await importOriginal<typeof BinaryEnv>()
   return {
     ...actual,
     getBinaryShimsDir: () => CHERRY_SHIMS,
