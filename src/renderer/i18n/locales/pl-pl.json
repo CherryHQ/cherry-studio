@@ -2980,6 +2980,7 @@
   "models.detail.model_id": "Identyfikator modelu",
   "models.detail.provider": "Dostawca",
   "models.detail.quota_exhausted": "Limit planu wyczerpany; oczekiwanie na zresetowanie",
+  "models.detail.quota_insufficient_for_request": "Limit planu nie wystarcza na to żądanie",
   "models.edit": "Edytuj model",
   "models.group.ungrouped": "Niezgrupowane",
   "models.multi_select.label": "Wybór wielokrotny",

@@ -2944,6 +2944,7 @@
   "models.detail.model_id": "Идентификатор модели",
   "models.detail.provider": "Провайдер",
   "models.detail.quota_exhausted": "Лимит тарифа исчерпан, ожидается сброс",
+  "models.detail.quota_insufficient_for_request": "Лимита тарифа недостаточно для этого запроса",
   "models.edit": "Редактировать модель",
   "models.group.ungrouped": "Несгруппированные",
   "models.multi_select.label": "Множественный выбор",

@@ -98,32 +98,33 @@ describe('model connectivity against an HTTP provider', () => {
           res.end(JSON.stringify({ error: { message: 'probe rejected' } }))
           return
         }
-        res.writeHead(200, { 'Content-Type': 'application/json' })
+        const chunk = (choice: Record<string, unknown>, extra = {}) =>
+          `data: ${JSON.stringify({ id: 'check', object: 'chat.completion.chunk', created: 0, model: 'wire-model', choices: [{ index: 0, ...choice }], ...extra })}\n\n`
+        res.writeHead(200, { 'Content-Type': 'text/event-stream' })
         res.end(
-          JSON.stringify({
-            id: 'check',
-            object: 'chat.completion',
-            created: 0,
-            model: 'wire-model',
-            choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
-            usage: { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 }
-          })
+          chunk({ delta: { role: 'assistant', content: 'ok' }, finish_reason: null }) +
+            chunk(
+              { delta: {}, finish_reason: 'stop' },
+              { usage: { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 } }
+            ) +
+            'data: [DONE]\n\n'
         )
       } else if (req.url === '/api/chat') {
         let body = ''
         for await (const chunk of req) body += chunk
         requests.push(JSON.parse(body))
-        res.writeHead(200, { 'Content-Type': 'application/json' })
+        const line = (fields: Record<string, unknown>) =>
+          `${JSON.stringify({ model: 'wire-model', created_at: new Date().toISOString(), ...fields })}\n`
+        res.writeHead(200, { 'Content-Type': 'application/x-ndjson' })
         res.end(
-          JSON.stringify({
-            model: 'wire-model',
-            created_at: new Date().toISOString(),
-            message: { role: 'assistant', content: 'ok' },
-            done: true,
-            done_reason: 'stop',
-            prompt_eval_count: 2,
-            eval_count: 1
-          })
+          line({ message: { role: 'assistant', content: 'ok' }, done: false }) +
+            line({
+              message: { role: 'assistant', content: '' },
+              done: true,
+              done_reason: 'stop',
+              prompt_eval_count: 2,
+              eval_count: 1
+            })
         )
       } else {
         res.writeHead(404)
@@ -398,7 +399,7 @@ describe('model connectivity against an HTTP provider', () => {
     expect(result(await confirm(started), 'provider-model-conversation')?.status).toBe('pass')
     expect(paths).toContain('POST /api/chat')
     expect(paths).not.toContain('POST /api/show')
-    expect(requests[0]).toMatchObject({ model: 'wire-model', stream: false })
+    expect(requests[0]).toMatchObject({ model: 'wire-model', stream: true })
   })
 
   it.each(['endpoint', 'model deletion'] as const)('invalidates confirmation after %s changes', async (change) => {
