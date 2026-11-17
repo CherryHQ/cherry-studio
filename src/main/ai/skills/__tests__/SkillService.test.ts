@@ -63,7 +63,7 @@ vi.mock('@main/utils/processRunner', async (importOriginal) => ({
 // Spy wrappers over the real implementations: install tests stub a single step (temp dir, ZIP
 // extraction, directory resolution) while the rest of the path still runs for real.
 vi.mock('../skillPaths', async (importOriginal) => {
-  const actual = (await importOriginal()) as typeof skillPaths
+  const actual = await importOriginal<typeof skillPaths>()
   return {
     ...actual,
     createTempDir: vi.fn(actual.createTempDir),
@@ -71,7 +71,7 @@ vi.mock('../skillPaths', async (importOriginal) => {
   }
 })
 vi.mock('../skillArchive', async (importOriginal) => {
-  const actual = (await importOriginal()) as typeof skillArchive
+  const actual = await importOriginal<typeof skillArchive>()
   return {
     ...actual,
     extractZip: vi.fn(actual.extractZip),

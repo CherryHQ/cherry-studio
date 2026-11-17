@@ -75,6 +75,7 @@ import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shar
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
+import { normalizePromptSuggestion } from '../runtime/promptSuggestion'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
 import type {
@@ -281,6 +282,13 @@ type RuntimeState = AgentSessionRuntimeState<AgentSessionTurn, PendingAgentSessi
 type RuntimeStateEvent = AgentSessionRuntimeStateEvent<AgentSessionTurn, PendingAgentSessionTurn>
 
 type AgentSessionRuntimeEntry = {
+  prediction?: {
+    requestId?: string
+    replyId: string
+    modelId: UniqueModelId
+    controller: AbortController
+    result: Promise<string>
+  }
   closing?: true
   interactionWindowId?: string
   sessionId: string
@@ -541,6 +549,16 @@ export class AgentSessionRuntimeService extends BaseService {
         })
       })
     )
+    this.registerDisposable(
+      application.get('PreferenceService').subscribeChange('agent.input.suggestions.enabled', () => {
+        for (const entry of this.entries.values()) {
+          entry.prediction?.controller.abort()
+          void this.reconcileEntryConnection(entry).catch((error) =>
+            logger.warn('Prediction preference reconcile failed', { error })
+          )
+        }
+      })
+    )
     this.registerDisposable(toolApprovalRegistry.onAborted((aborted) => this.retireAbortedApprovalCard(aborted)))
   }
 
@@ -606,6 +624,72 @@ export class AgentSessionRuntimeService extends BaseService {
     return isAgentSessionRuntimeTurnLive(entry.runtimeState, turn)
   }
 
+  async predictPrompt(input: {
+    sessionId: string
+    replyId: string
+    modelId: UniqueModelId
+    requestId: string
+  }): Promise<{ supported: boolean; text: string }> {
+    const entry = this.entries.get(input.sessionId)
+    const supported = !entry || ['claude-code', 'pi', 'pi-durable'].includes(entry.agentType)
+    const empty = { supported, text: '' }
+    const prediction = entry?.prediction
+    if (!supported || !prediction || prediction.replyId !== input.replyId || prediction.modelId !== input.modelId)
+      return empty
+    prediction.requestId = input.requestId
+    const text = await prediction.result
+    return prediction.controller.signal.aborted ? empty : { supported, text }
+  }
+
+  private startPromptPrediction(entry: AgentSessionRuntimeEntry): void {
+    const connection = this.currentConnection(entry)
+    const turn = getAgentSessionRuntimeCurrentTurn(entry.runtimeState)
+    if (!turn || !connection?.predictPrompt || entry.prediction?.replyId === turn.assistantMessageId) return
+    const modelId = entry.modelId
+    const eligible = () =>
+      entry.modelId === modelId &&
+      this.isCurrentEntry(entry) &&
+      !entry.closing &&
+      this.runtimeStatus(entry) === 'idle' &&
+      !hasAgentSessionRuntimeBackgroundWork(entry.runtimeState) &&
+      this.currentConnection(entry) === connection &&
+      getAgentSessionRuntimeCurrentTurn(entry.runtimeState) === turn &&
+      entry.runtimeState.lastTerminal === 'success' &&
+      !turn.headless &&
+      !turn.origin &&
+      agentService.getAgent(entry.agentId)?.configuration?.permission_mode !== 'plan' &&
+      application.get('PreferenceService').get('agent.input.suggestions.enabled')
+    if (
+      !eligible() ||
+      (entry.interactionWindowId &&
+        application.get('WindowManager').getWindow(entry.interactionWindowId)?.isFocused() !== true)
+    )
+      return
+    entry.prediction?.controller.abort()
+    const controller = new AbortController()
+    const result = Promise.resolve().then(async () => {
+      if (!eligible() || controller.signal.aborted) return ''
+      try {
+        const text = await connection.predictPrompt!(controller.signal)
+        return eligible() && !controller.signal.aborted
+          ? entry.agentType === 'claude-code'
+            ? text
+            : normalizePromptSuggestion(text)
+          : ''
+      } catch (error) {
+        if (!controller.signal.aborted)
+          logger.debug('Prompt prediction unavailable', { sessionId: entry.sessionId, error })
+        return ''
+      }
+    })
+    entry.prediction = { replyId: turn.assistantMessageId, modelId: entry.modelId, controller, result }
+  }
+
+  abortPromptPrediction(sessionId: string, requestId: string): void {
+    const prediction = this.entries.get(sessionId)?.prediction
+    if (prediction?.requestId === requestId) prediction.controller.abort()
+  }
+
   private currentConnection(entry: AgentSessionRuntimeEntry): AgentRuntimeConnection | undefined {
     return getAgentSessionRuntimeConnection(entry.runtimeState)
   }
@@ -618,6 +702,8 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!this.isCurrentEntry(entry)) return
     const transition = transitionAgentSessionRuntime(entry.runtimeState, event)
     entry.runtimeState = transition.state
+    if (this.runtimeStatus(entry) !== 'idle' || hasAgentSessionRuntimeBackgroundWork(entry.runtimeState))
+      entry.prediction?.controller.abort()
     this.syncRuntimeActivity()
     for (const effect of transition.effects) this.applyRuntimeStateEffect(entry, effect)
   }
@@ -1229,6 +1315,7 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.runtimeState.execution.kind === 'steer-transition' &&
       entry.runtimeState.execution.source.turn === completedTurn
     this.applyRuntimeStateEvent(entry, { type: 'turn-terminal', turn: completedTurn, status })
+    if (status === 'success' && !isRowRoll) this.startPromptPrediction(entry)
     this._onTurnTerminal.fire({
       sessionId,
       assistantMessageId: completedTurn.assistantMessageId,
@@ -1244,6 +1331,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (interrupt && attempt) attempt.interrupt = true
     const priorClosing = this.closingSessions.get(sessionId)
     const entry = this.entries.get(sessionId)
+    entry?.prediction?.controller.abort()
     if (!entry) return priorClosing?.promise ?? Promise.resolve()
     if (priorClosing?.entry === entry) return priorClosing.promise
     const closing = this.closeEntry(entry, interrupt)
@@ -2633,6 +2721,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private invalidateContextUsage(entry: AgentSessionRuntimeEntry): void {
+    entry.prediction?.controller.abort()
     entry.contextUsageEpoch = (entry.contextUsageEpoch ?? 0) + 1
     application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId))
   }
@@ -2847,6 +2936,26 @@ export class AgentSessionRuntimeService extends BaseService {
   private handleToolApprovalRequest(entry: AgentSessionRuntimeEntry, request: AgentRuntimeToolApprovalRequest): void {
     if (request.presentation === 'stream') {
       const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+      const hasBufferedInput =
+        turn &&
+        getAgentSessionRuntimeReply(entry.runtimeState, turn)?.buffer.some(
+          (chunk) => chunk.type === 'tool-input-available' && chunk.toolCallId === request.toolCallId
+        )
+      if (
+        turn &&
+        (request.providerMetadata?.cherry?.commandPolicy !== undefined ||
+          (!hasBufferedInput &&
+            !turn.activeToolIds.has(request.toolCallId) &&
+            !turn.projection?.toolCallMessageId(request.toolCallId)))
+      )
+        this.deliverRuntimeChunk(entry, {
+          type: 'tool-input-available',
+          toolCallId: request.toolCallId,
+          toolName: request.toolName,
+          input: request.input,
+          providerExecuted: true,
+          ...(request.providerMetadata ? { providerMetadata: request.providerMetadata } : {})
+        })
       const contextId = this.currentConnection(entry)?.contextId
       if (turn) {
         const projection = turn.projection ?? (contextId ? this.rootProjection(entry, contextId) : undefined)
@@ -2858,7 +2967,8 @@ export class AgentSessionRuntimeService extends BaseService {
             toolName: request.toolName,
             input: request.input,
             providerExecuted: true,
-            dynamic: true
+            dynamic: true,
+            ...(request.providerMetadata ? { providerMetadata: request.providerMetadata } : {})
           })
         }
       }
@@ -3529,6 +3639,7 @@ export class AgentSessionRuntimeService extends BaseService {
   ): Promise<void> {
     if (!connection) return
     const entry = this.entries.get(sessionId)
+    entry?.prediction?.controller.abort()
     const priorClosing = this.closingSessions.get(sessionId)
     const resumeToken =
       entry?.lastResumeToken ?? priorClosing?.resumeToken ?? this.failedClosureResumeTokens.get(connection)

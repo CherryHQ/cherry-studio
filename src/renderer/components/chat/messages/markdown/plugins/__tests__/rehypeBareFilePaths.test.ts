@@ -27,6 +27,22 @@ function collectMarkers(node: Root | Element): Element[] {
 }
 
 describe('findBareFilePathMatches', () => {
+  it('keeps POSIX source locations intact for the file opener', () => {
+    expect(paths('Open /tmp/main.ts:42:5 and /tmp/main.ts#L42-L48.', 'posix')).toEqual([
+      '/tmp/main.ts:42:5',
+      '/tmp/main.ts#L42-L48'
+    ])
+  })
+
+  it.each([':42,then', ':42;then', ':42:5,then', ':42:5;then'])(
+    'ends a located path before adjacent prose: %s',
+    (suffix) => {
+      const location = suffix.split(/[,;]/)[0]
+      expect(paths(`See /tmp/main.ts${suffix} continue.`, 'posix')).toEqual([`/tmp/main.ts${location}`])
+      expect(paths(`See C:\\tmp\\main.ts${suffix} continue.`, 'windows')).toEqual([`C:\\tmp\\main.ts${location}`])
+    }
+  )
+
   it('finds POSIX and home paths while preserving Unicode and trimming sentence punctuation', () => {
     expect(paths('Saved /Users/lee/桌面/report.pdf，then ~/Downloads/archive.zip.', 'posix')).toEqual([
       '/Users/lee/桌面/report.pdf',
