@@ -69,6 +69,32 @@ describe('classifyErrorCategory HTTP 400', () => {
   ])('classifies a request-body rejection as a request failure: %s', (text) => {
     expect(classifyErrorCategory({ status: 400, text })).toBe('bad_request')
   })
+
+  // #24238: the provider's validation error type identifies a rejected request when no
+  // structured status came with it.
+  it('classifies a status-less invalid_request_error as a request failure', () => {
+    const text =
+      '400 {"message":"Unexpected role \\"tool\\". Allowed roles are \\"user\\", \\"assistant\\" or \\"system\\"","type":"invalid_request_error","code":"bad_request"}'
+
+    expect(classifyErrorCategory({ text })).toBe('bad_request')
+  })
+
+  it.each([
+    ['prompt is too long', 'context_length'],
+    ['Overloaded', 'server'],
+    ['rate_limit exceeded', 'rate_limit'],
+    ['Request timed out', 'network'],
+    ['invalid_api_key', 'auth'],
+    ['model_not_found', 'model']
+  ] as const)('keeps the specific diagnosis for a status-less invalid_request_error: %s', (message, category) => {
+    expect(classifyErrorCategory({ text: `{"type":"invalid_request_error","message":"${message}"}` })).toBe(category)
+  })
+
+  it('leaves a structured non-400 status with an invalid_request_error body unclassified', () => {
+    expect(classifyErrorCategory({ status: 409, text: '{"type":"invalid_request_error","message":"Conflict"}' })).toBe(
+      'unknown'
+    )
+  })
 })
 
 describe('classifyErrorCategory model deprecation', () => {

@@ -101,6 +101,21 @@ describe('classifyError', () => {
     ).toBe(category)
   })
 
+  // #24238: a provider's validation error without a structured status was shown as
+  // "Response interrupted, check network stability or retry".
+  it('reports a status-less provider validation error in the response stream as a request failure', () => {
+    const message =
+      '400 {"message":"Unexpected role \\"tool\\". Allowed roles are \\"user\\", \\"assistant\\" or \\"system\\"","type":"invalid_request_error","code":"bad_request"}'
+
+    expect(
+      classifyError(makeError({ name: 'StreamError', message, streamStage: 'response-stream' }), 'custom')
+    ).toEqual({
+      category: 'bad_request',
+      i18nKey: 'error.diagnosis.bad_request',
+      navTarget: '/settings/provider?id=custom'
+    })
+  })
+
   it('leaves app-owned guidance in control of a marked unknown error', () => {
     const error = makeError({ i18nKey: 'missing_finish_reason', streamStage: 'response-stream' })
     expect(classifyError(error).category).toBe('unknown')

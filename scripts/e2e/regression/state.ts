@@ -9,7 +9,7 @@ export function createRun(metadata: RunMetadata): RegressionRun {
   const selectedIds = new Set(selected.map(({ id }) => id))
   return {
     schemaVersion: 2,
-    metadata: { providerMode: 'real', ...metadata, task: serializeTaskSelection(selection) },
+    metadata: { providerMode: 'mock', ...metadata, task: serializeTaskSelection(selection) },
     startedAt: new Date().toISOString(),
     capabilities: {},
     phases: Object.fromEntries(
@@ -116,28 +116,26 @@ export function updateRunMetadata(run: RegressionRun, metadata: Partial<RunMetad
 
 export function getRunVerdict(run: RegressionRun): RunVerdict {
   const applicable = Object.values(run.cases).filter(({ status }) => status !== 'not_applicable')
-  const prefix = run.metadata.providerMode === 'mock' ? 'mock' : run.metadata.mode === 'tag' ? 'release' : 'development'
-  if (!['real', 'mock'].includes(run.metadata.providerMode ?? '')) return `${prefix}_blocked`
-  if (run.metadata.providerMode === 'mock' && !run.metadata.mockVersion) return 'mock_blocked'
+  if (run.metadata.providerMode !== 'mock' || !run.metadata.mockVersion) return 'mock_blocked'
   const phases = Object.values(run.phases)
   // A task whose every case is unsupported on this platform has nothing to execute here;
   // excluding it is a correct result, not a blocked one.
   if (applicable.length === 0 && phases.length === 0) {
-    return `${prefix}_not_applicable`
+    return 'mock_not_applicable'
   }
   if (
     phases.some(({ status, errors }) => status === 'failed' || (errors.length > 0 && status !== 'blocked')) ||
     applicable.some(({ status }) => status === 'failed')
   )
-    return `${prefix}_failed`
+    return 'mock_failed'
   if (
     phases.length === 0 ||
     phases.some(({ status }) => status !== 'passed') ||
     applicable.length === 0 ||
     applicable.some(({ status }) => status !== 'passed')
   )
-    return `${prefix}_blocked`
-  return `${prefix}_pass`
+    return 'mock_blocked'
+  return 'mock_pass'
 }
 
 export function readRun(filePath: string): RegressionRun {

@@ -209,7 +209,8 @@ Do not add Cherry policy directly to one driver. Extend the common materializer,
 
 Agent archives have one hidden root and `parentId` links. `agent_session.activeNodeId`
 selects the displayed path; it is separate from a runtime entry's captured execution
-head. The shared sibling navigator chooses the latest descendant of a sibling.
+head. The shared sibling navigator follows the newest immediate child by
+`(createdAt, id)` at each level beneath the chosen sibling.
 Selection is a SQLite operation and never opens or resumes a harness.
 
 Dispatch captures its parent before asynchronous validation. If the parent has

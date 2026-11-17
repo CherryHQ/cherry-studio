@@ -3,6 +3,7 @@ description: How preset provider and model registry data is loaded, normalized, 
 sources:
   - packages/provider-registry
   - src/main/data/services/ProviderRegistryService.ts
+  - src/main/services/CherryInModelSyncService.ts
   - src/main/data/services/ModelService.ts
   - src/main/data/db/seeding
 ---
@@ -98,6 +99,14 @@ GET /providers/:providerId/models:resolve?ids=gpt-4o&ids=o3
 SDK only provides model IDs. All other data (capabilities, pricing, etc.)
 comes from the registry — SDK data does not overwrite curated registry data.
 ```
+
+### 4. CherryIN Endpoint Refresh
+
+`CherryInModelSyncService` checks the enabled built-in CherryIN provider 30 seconds after startup and every six hours afterward. It skips providers without an enabled API key or without local models. The last request attempt is stored in Main's persist cache, so restarts and failed or empty requests do not bypass the six-hour limit.
+
+The service reads the provider's model list and updates only the endpoint types of existing models with matching raw API model IDs and non-empty recognized endpoints. Server endpoint types are authoritative, including their order: a later refresh replaces manually changed endpoint types too. Other model settings and model membership remain unchanged. Failed requests, empty lists, missing models, and absent or unrecognized endpoint types preserve local data.
+
+Requests time out after 30 seconds and are cancelled on shutdown. A changed provider configuration discards an in-flight response. Updates commit atomically through `ModelService`, then notify mounted model queries to refetch. The service does not replay active generation requests.
 
 ## Merge Functions
 
@@ -237,6 +246,11 @@ Implemented in `normalizeModelId()` (`packages/provider-registry/src/utils/norma
 | `parameters` | Complete custom config or nullable preset delta |
 | `orderKey` | Fractional order key in the provider's model list |
 | `notes` | User notes about this model |
+
+Runtime models expose `hasCustomPricing` from whether the stored `pricing` column
+is non-null. This is read-only provenance, not a persisted field or a comparison
+against current catalog prices. Automatic provider billing defaults use it to
+preserve user-owned model prices.
 
 ## Provider Configuration Merge
 
