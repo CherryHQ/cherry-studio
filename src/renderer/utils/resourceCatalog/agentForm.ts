@@ -30,6 +30,7 @@ export interface AgentFormState {
   model: UniqueModelId | ''
   planModel: UniqueModelId | ''
   smallModel: UniqueModelId | ''
+  fallbackModel: UniqueModelId | ''
   instructions: string
   mcps: string[]
   /** Knowledge bases bound to the agent (empty = kb_* tools not exposed). */
@@ -104,6 +105,7 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     model: agent?.model ?? '',
     planModel: agent?.planModel ?? '',
     smallModel: agent?.smallModel ?? '',
+    fallbackModel: cfg.fallback_model_ids?.[0] ?? '',
     instructions: agent?.instructions ?? '',
     mcps: [...(agent?.mcps ?? [])],
     knowledgeBaseIds: [...(agent?.knowledgeBaseIds ?? [])],
@@ -202,6 +204,11 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
 
   const cfgPatch: AgentConfiguration = {}
   let cfgDirty = false
+
+  if (baseline.fallbackModel !== next.fallbackModel) {
+    cfgPatch.fallback_model_ids = next.fallbackModel ? [next.fallbackModel] : []
+    cfgDirty = true
+  }
 
   if (baseline.avatar !== next.avatar) {
     cfgPatch.avatar = next.avatar
