@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.6.3
+
+### Patch Changes
+
+- [#24749](https://github.com/CherryHQ/cherry-studio/pull/24749) [`442ccc5`](https://github.com/CherryHQ/cherry-studio/commit/442ccc59195cc4cc070da9770c79b9ed65ceddb3) Thanks [@DeJeune](https://github.com/DeJeune)! - Add GPT-6.2 Astra and Sol with API pricing, reasoning controls, web search, and Codex model offers.
+
 ## 0.6.2
 
 ### Patch Changes
