@@ -2944,6 +2944,7 @@
   "models.detail.model_id": "ID du modèle",
   "models.detail.provider": "Fournisseur",
   "models.detail.quota_exhausted": "Quota du forfait épuisé, en attente de réinitialisation",
+  "models.detail.quota_insufficient_for_request": "Quota du forfait insuffisant pour cette requête",
   "models.edit": "Éditer le modèle",
   "models.group.ungrouped": "Non groupé",
   "models.multi_select.label": "Sélection multiple",
