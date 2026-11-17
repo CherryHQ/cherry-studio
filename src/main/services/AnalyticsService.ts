@@ -279,9 +279,13 @@ export class AnalyticsService extends BaseService implements Activatable {
   }
 
   private captureProductEvent({ event, ...fields }: ProductAnalyticsEvent): void {
+    const now = new Date()
+    // Local clock only (no time zone name), so activity can be read in users' local time.
     const properties: Record<string, string | number | boolean> = {
       schema_version: PRODUCT_EVENT_SCHEMA_VERSION,
-      test: isProductTestTraffic()
+      test: isProductTestTraffic(),
+      local_hour: now.getHours(),
+      local_weekday: ((now.getDay() + 6) % 7) + 1
     }
     for (const [key, value] of Object.entries(fields)) {
       if (value !== undefined) properties[key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)] = value

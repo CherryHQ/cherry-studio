@@ -443,6 +443,24 @@ describe('AnalyticsService product events', () => {
     })
   })
 
+  it('stamps product events with the local hour and an ISO weekday', async () => {
+    vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 10, 15, 23, 30) })
+
+    service.trackProductEvent({ event: 'onboarding_option_selected', option: 'skip' })
+    vi.useRealTimers()
+
+    expect(posthog.capture).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'onboarding_option_selected',
+        properties: expect.objectContaining({ local_hour: 23, local_weekday: 7 })
+      })
+    )
+  })
+
   it('replays an event raised between consent and client start-up', async () => {
     vi.stubEnv('MAIN_VITE_POSTHOG_KEY', 'phc_test')
     captured.preferenceValues['app.privacy.policy_version'] = ''
