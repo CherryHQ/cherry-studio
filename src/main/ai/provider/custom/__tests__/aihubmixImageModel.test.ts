@@ -60,38 +60,50 @@ describe('AihubmixImageModel', () => {
   })
 
   describe('Google native image models', () => {
-    it('routes Gemini image models through @ai-sdk/google and normalizes image config', async () => {
-      const fetchMock = vi.fn().mockResolvedValue(
-        okJson({
-          candidates: [
-            {
-              content: {
-                parts: [
-                  { inlineData: { mimeType: 'image/png', data: 'AAA' } },
-                  { inlineData: { mimeType: 'image/png', data: 'BBB' } }
-                ]
+    it.each([
+      { imageConfig: { imageSize: '4K', aspectRatio: '1:1' }, imageSize: undefined, expectedSize: '4K' },
+      { imageConfig: { imageSize: '4K', aspectRatio: '1:1' }, imageSize: '2k', expectedSize: '2K' },
+      { imageConfig: 'invalid', imageSize: '2k', expectedSize: '2K' },
+      { imageConfig: ['invalid'], imageSize: '2k', expectedSize: '2K' },
+      { imageConfig: null, imageSize: '2k', expectedSize: '2K' }
+    ])(
+      'routes Gemini image models and normalizes image config: %j',
+      async ({ imageConfig, imageSize, expectedSize }) => {
+        const fetchMock = vi.fn().mockResolvedValue(
+          okJson({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    { inlineData: { mimeType: 'image/png', data: 'AAA' } },
+                    { inlineData: { mimeType: 'image/png', data: 'BBB' } }
+                  ]
+                }
               }
+            ]
+          })
+        )
+        vi.stubGlobal('fetch', fetchMock)
+
+        const model = make('gemini-3-pro-image-preview')
+        const result = await model.doGenerate(
+          callOptions({
+            providerOptions: {
+              aihubmix: { mode: 'generate', aspectRatio: 'ASPECT_16_9', imageSize },
+              google: { imageConfig }
             }
-          ]
-        })
-      )
-      vi.stubGlobal('fetch', fetchMock)
+          })
+        )
 
-      const model = make('gemini-3-pro-image-preview')
-      const result = await model.doGenerate(
-        callOptions({
-          providerOptions: { aihubmix: { mode: 'generate', aspectRatio: 'ASPECT_16_9', imageSize: '2k' } }
-        })
-      )
-
-      const [url, init] = fetchMock.mock.calls[0]
-      expect(url).toBe('https://aihubmix.com/gemini/v1beta/models/gemini-3-pro-image-preview:generateContent')
-      expect((init.headers as Record<string, string>)['x-goog-api-key']).toBe('sk-test')
-      const body = JSON.parse(init.body as string)
-      expect(body.generationConfig.responseModalities).toEqual(['IMAGE'])
-      expect(body.generationConfig.imageConfig).toMatchObject({ aspectRatio: '16:9', imageSize: '2K' })
-      expect(result.images).toEqual(['AAA', 'BBB'])
-    })
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('https://aihubmix.com/gemini/v1beta/models/gemini-3-pro-image-preview:generateContent')
+        expect((init.headers as Record<string, string>)['x-goog-api-key']).toBe('sk-test')
+        const body = JSON.parse(init.body as string)
+        expect(body.generationConfig.responseModalities).toEqual(['IMAGE'])
+        expect(body.generationConfig.imageConfig).toMatchObject({ aspectRatio: '16:9', imageSize: expectedSize })
+        expect(result.images).toEqual(['AAA', 'BBB'])
+      }
+    )
 
     it('routes Imagen models through @ai-sdk/google predict and normalizes personGeneration', async () => {
       const fetchMock = vi.fn().mockResolvedValue(okJson({ predictions: [{ bytesBase64Encoded: 'IMG' }] }))
