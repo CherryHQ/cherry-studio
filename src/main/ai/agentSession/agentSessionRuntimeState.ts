@@ -10,7 +10,7 @@ export type AgentSessionTerminalOutcome =
   | { status: 'paused' }
   | { status: 'error'; error?: unknown }
 
-export type AgentSessionRuntimeAdmissionPhase = 'pending' | 'admitted'
+export type AgentSessionRuntimeAdmissionPhase = 'pending' | 'submitting' | 'admitted'
 export type AgentSessionRuntimeLaunchTarget<TTurn> = { kind: 'queued-turn' } | { kind: 'reply'; turn: TTurn }
 export type AgentSessionRuntimeLaunchState<TTurn> =
   | { kind: 'idle' }
@@ -95,10 +95,12 @@ export type AgentSessionRuntimeStateEvent<TTurn, TPendingTurn> =
         | 'turn-prepared'
         | 'turn-stream-attaching'
         | 'turn-stream-opened'
+        | 'turn-submitting'
         | 'turn-admitted'
         | 'flush-transition'
       turn: TTurn
     }
+  | { type: 'turn-send-discarded'; turn: TTurn }
   | { type: 'reply-delivery-failed'; turn: TTurn; error: unknown }
   | { type: 'retry-reply'; turn: TTurn }
   | { type: 'buffer-chunk'; turn: TTurn; chunk: UIMessageChunk }
@@ -395,10 +397,28 @@ function reduce<TTurn, TPendingTurn>(
       if (current?.delivery.kind !== 'attaching' && current?.delivery.kind !== 'unopened') return invalid(state, event)
       return { state: replaceReply(state, { ...current, delivery: { kind: 'open' } }), effects: [] }
     }
-    case 'turn-admitted': {
+    case 'turn-submitting': {
+      // The prompt is being handed to the runtime. The phase is a real state: an in-flight send
+      // is never re-sent and its connection stays exempt from reconcile.
       const current = getAgentSessionRuntimeReply(state, event.turn)
-      if (!current) return invalid(state, event)
+      if (!current || current.admission !== 'pending') return { state, effects: [] }
+      return { state: replaceReply(state, { ...current, admission: 'submitting' }), effects: [] }
+    }
+    case 'turn-admitted': {
+      // Admission is earned by a confirmed submission: the driver reported the prompt as handed to
+      // the runtime, so only a `submitting` phase can upgrade.
+      const current = getAgentSessionRuntimeReply(state, event.turn)
+      if (!current || current.admission !== 'submitting') return invalid(state, event)
       return { state: replaceReply(state, { ...current, admission: 'admitted' }), effects: [] }
+    }
+    case 'turn-send-discarded': {
+      // A stop fence invalidated the submission mid-preparation: the prompt never reached the
+      // runtime, so it returns to `pending` and stays eligible for a later admission.
+      const current = getAgentSessionRuntimeReply(state, event.turn)
+      if (current?.admission !== 'submitting') return { state, effects: [] }
+      const reply = { ...current, admission: 'pending' as const }
+      delete reply.terminal
+      return { state: replaceReply(state, reply), effects: [] }
     }
     case 'buffer-chunk': {
       const current = getAgentSessionRuntimeReply(state, event.turn)
@@ -422,6 +442,16 @@ function reduce<TTurn, TPendingTurn>(
       const current = getAgentSessionRuntimeReply(state, event.turn)
       if (!current || current.delivery.kind === 'settled' || current.delivery.kind === 'awaiting-persistence')
         return { state, effects: [] }
+      // An unconfirmed reply owns no success: a result landing before admission belongs to another
+      // generation on the connection. Paused/error still settle it (stop/failure paths). The
+      // exception is a submission awaiting confirmation: Pi's async send() can finish the whole
+      // turn (manual /compact) before it returns, so its success is latched under this submission
+      // and settled once `turn-admitted` confirms it. A discarded submission clears the latch
+      // instead of inheriting it.
+      if (event.outcome.status === 'success' && current.admission !== 'admitted') {
+        if (current.admission !== 'submitting' || current.terminal) return { state, effects: [] }
+        return { state: replaceReply(state, { ...current, terminal: event.outcome }), effects: [] }
+      }
       const terminal = current.terminal && current.terminal.status !== 'success' ? current.terminal : event.outcome
       if (current.delivery.kind === 'failed') {
         const retry = execution.kind !== 'autonomous-turn' || execution.ownership === 'released'
@@ -693,11 +723,16 @@ export function isAgentSessionRuntimeAutonomous<TTurn, TPendingTurn>(
   return state.execution.kind === 'autonomous-turn' && state.execution.ownership === 'active'
 }
 
+/**
+ * Whether the turn's prompt has been (or is being) handed to the runtime: a `submitting` phase
+ * counts, so an in-flight send is never re-sent and its connection stays exempt from reconcile.
+ */
 export function isAgentSessionRuntimeTurnAdmitted<TTurn, TPendingTurn>(
   state: AgentSessionRuntimeState<TTurn, TPendingTurn>,
   turn: TTurn
 ): boolean {
-  return getAgentSessionRuntimeReply(state, turn)?.admission === 'admitted'
+  const current = getAgentSessionRuntimeReply(state, turn)
+  return current !== undefined && current.admission !== 'pending'
 }
 
 export function hasAgentSessionRuntimeOpenStream<TTurn, TPendingTurn>(

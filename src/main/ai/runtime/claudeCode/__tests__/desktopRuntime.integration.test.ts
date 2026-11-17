@@ -1403,6 +1403,39 @@ it.each([
   30000
 )
 
+// The user Stop asks the CLI for a graceful interrupt: the turn settles while the subprocess —
+// and its warm query — survives for the next prompt on the same connection.
+it('gracefully interrupts a live turn and keeps the subprocess for the next prompt', async () => {
+  const test = await desktop()
+  const first = test.input('Start a long answer')
+  const connection = await test.connect()
+  await connection.send(first)
+  const request = await test.request()
+  request.reply.block({ type: 'text', text: 'Before the stop' })
+  // The projected assistant content proves the CLI has a live turn to interrupt.
+  await test.wait('message-projection', (event) =>
+    event.projection.messages.some((message) =>
+      message.parts.some((part) => part.type === 'text' && part.text === 'Before the stop')
+    )
+  )
+
+  await expect(connection.abortTurn!()).resolves.toBe(true)
+
+  // The graceful stop preserved the connection: the next prompt opens a new turn on it.
+  const second = test.input('Answer after the stop')
+  await expect(connection.send(second)).resolves.toBe(true)
+  const next = await test.request()
+  next.reply.block({ type: 'text', text: 'After the stop' })
+  next.reply.finish()
+  await expect.poll(() => test.events.some((event) => event.type === 'turn-complete')).toBe(true)
+
+  // The CLI ends the interrupted turn with its interrupt-truncated result, which the driver reports
+  // as that turn's terminal. The connection — and the subprocess behind it — survives the stop,
+  // which is what the graceful interrupt must preserve; only the successor completes its turn.
+  expect(test.events.filter((event) => event.type === 'error')).toEqual([
+    expect.objectContaining({ error: expect.objectContaining({ terminalReason: 'aborted_streaming' }) })
+  ])
+}, 30000)
 it('interrupts an active native request before retiring its owner and permits a new connection', async () => {
   const test = await desktop()
   const connection = await test.connect()

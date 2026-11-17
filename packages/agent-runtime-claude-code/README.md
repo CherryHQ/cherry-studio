@@ -90,7 +90,9 @@ metadata remain native types. The adapter never introduces SDK types into the
 common package. `ClaudeFeed` uses `ThreadFeed` for normalized state and bounds
 delivery of paired batches. Baseline and recovery are internal delivery modes; aliases,
 retractions and live provenance are captured together. Batch state exposes captured `aborted`;
-`claude.state()` exposes current `active`. Background occupancy stays in private control state. Initial baseline includes current background
+`claude.state()` exposes current `active` and the monotonic `generation` naming the open turn — a
+stop latches it so a successor generation cannot stand in for the interrupted turn's settlement.
+Background occupancy stays in private control state. Initial baseline includes current background
 occupancy and pending result origins without replaying historical completion or charges.
 `background-results` tracks child-agent runs and received shell-completion notifications by native
 run ID and current triggering tool-use ID;

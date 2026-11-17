@@ -115,6 +115,9 @@ function mapTaskStatus(status: SdkTaskStatus): ClaudeTaskFact['status'] | undefi
 export class ClaudeControlState {
   isTurnActive = false
   sawAbortedMessage = false
+  /** Monotonic turn identity: every `beginTurn` opens a new generation. A stop latches the
+   *  generation it interrupts, so a successor generation cannot stand in for its settlement. */
+  private turnSequence = 0
   private autonomousTurn = false
   private backgroundWorkReleasePending = false
   private backgroundTasks: BackgroundTask[] = []
@@ -126,6 +129,10 @@ export class ClaudeControlState {
   private messageUuid?: string
 
   constructor(private readonly emit: (event: ClaudeControl) => void) {}
+
+  get turnGeneration(): number {
+    return this.turnSequence
+  }
 
   get snapshot() {
     return {
@@ -141,6 +148,7 @@ export class ClaudeControlState {
   }
 
   beginTurn(): void {
+    this.turnSequence++
     this.isTurnActive = true
     this.sawAbortedMessage = false
     this.autonomousTurn = false

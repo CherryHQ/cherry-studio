@@ -23,8 +23,13 @@ const connection: AgentRuntimeConnection = {
   close: async () => {}
 }
 
-function machine(initial: Turn | undefined = first) {
+/** `admitted: false` keeps the initial turn pending, for tests that own the submission handshake. */
+function machine(initial: Turn | undefined = first, { admitted = true }: { admitted?: boolean } = {}) {
   let state = createAgentSessionRuntimeState<Turn, Turn>(initial)
+  if (admitted && initial) {
+    state = transitionAgentSessionRuntime(state, { type: 'turn-submitting', turn: initial }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-admitted', turn: initial }).state
+  }
   const send = (event: AgentSessionRuntimeStateEvent<Turn, Turn>) => {
     const next = transitionAgentSessionRuntime(state, event)
     state = next.state
@@ -36,6 +41,11 @@ function machine(initial: Turn | undefined = first) {
     },
     send,
     open: (turn: Turn) => send({ type: 'turn-stream-opened', turn }),
+    /** The host's submission handshake: admission is only earned by a confirmed send. */
+    admit: (turn: Turn) => {
+      send({ type: 'turn-submitting', turn })
+      send({ type: 'turn-admitted', turn })
+    },
     finish: (turn: Turn) => send({ type: 'runtime-terminal', turn, outcome: { status: 'success' } }),
     persist: (turn: Turn) => send({ type: 'turn-terminal', turn, status: 'success' }),
     connect: () => {
@@ -187,7 +197,7 @@ describe('reply ownership and delivery', () => {
   it.each([false, true])('waits for both native release and reply persistence (release first: %s)', (releaseFirst) => {
     const m = machine()
     m.open(first)
-    m.send({ type: 'turn-admitted', turn: first })
+    m.admit(first)
     m.send({ type: 'autonomous-turn-started', turn: second, deferCurrentTurn: true })
     expect(m.state.launch.kind).toBe('idle')
     m.send({ type: 'turn-suspended', turn: first })
@@ -241,7 +251,7 @@ describe('reply ownership and delivery', () => {
 
   it('routes an admitted deferred reply after native release before its stream reopens', () => {
     const m = machine()
-    m.send({ type: 'turn-admitted', turn: first })
+    m.admit(first)
     m.send({ type: 'autonomous-turn-started', turn: second, deferCurrentTurn: true })
     m.send({ type: 'turn-suspended', turn: first })
     m.finish(second)
@@ -261,7 +271,7 @@ describe('reply ownership and delivery', () => {
 
   it('does not mistake preparation failure for native completion when release arrives first', () => {
     const m = machine()
-    m.send({ type: 'turn-admitted', turn: first })
+    m.admit(first)
     m.send({ type: 'autonomous-turn-started', turn: second, deferCurrentTurn: true })
     m.send({ type: 'turn-suspended', turn: first })
     m.send({ type: 'reply-delivery-failed', turn: second, error: 'disk unavailable' })
@@ -329,5 +339,72 @@ describe('reply ownership and delivery', () => {
     m.open(second)
     m.completeLaunch()
     expect(willAgentSessionRuntimeContinue(m.state)).toBe(false)
+  })
+
+  it('earns admission only from a confirmed submission', () => {
+    const m = machine(first, { admitted: false })
+    expect(m.send({ type: 'turn-admitted', turn: first })).toEqual([
+      { type: 'log-invalid-transition', event: 'turn-admitted', state: 'turn' }
+    ])
+    expect(getAgentSessionRuntimeReply(m.state, first)?.admission).toBe('pending')
+    expect(m.send({ type: 'turn-submitting', turn: first })).toEqual([])
+    expect(getAgentSessionRuntimeReply(m.state, first)?.admission).toBe('submitting')
+    expect(m.send({ type: 'turn-admitted', turn: first })).toEqual([])
+    expect(getAgentSessionRuntimeReply(m.state, first)?.admission).toBe('admitted')
+  })
+
+  it('keeps a stop-discarded prompt submittable and bars it from a success terminal', () => {
+    const m = machine(first, { admitted: false })
+    m.open(first)
+    m.send({ type: 'turn-submitting', turn: first })
+    m.send({ type: 'turn-send-discarded', turn: first })
+    expect(getAgentSessionRuntimeReply(m.state, first)?.admission).toBe('pending')
+
+    // The stopped generation's result lands afterwards: the unconsumed prompt must not claim it.
+    expect(m.send({ type: 'runtime-terminal', turn: first, outcome: { status: 'success' } })).toEqual([])
+    expect(getAgentSessionRuntimeReply(m.state, first)).toMatchObject({
+      delivery: { kind: 'open' },
+      admission: 'pending'
+    })
+    expect(getAgentSessionRuntimeReply(m.state, first)?.terminal).toBeUndefined()
+
+    // The turn stays eligible: a fresh submission earns admission and its own result settles it.
+    m.admit(first)
+    expect(m.send({ type: 'runtime-terminal', turn: first, outcome: { status: 'success' } })).toEqual([
+      { type: 'settle-turn', turn: first, outcome: { status: 'success' } }
+    ])
+  })
+
+  it('latches a completion that lands under an unconfirmed submission until admission confirms it', () => {
+    const m = machine(first, { admitted: false })
+    m.open(first)
+    m.send({ type: 'turn-submitting', turn: first })
+    // Pi's async send can finish the whole turn (manual /compact) before it returns.
+    expect(m.send({ type: 'runtime-terminal', turn: first, outcome: { status: 'success' } })).toEqual([])
+    expect(getAgentSessionRuntimeReply(m.state, first)?.terminal).toEqual({ status: 'success' })
+    m.send({ type: 'turn-admitted', turn: first })
+    expect(m.send({ type: 'flush-transition', turn: first })).toEqual([
+      { type: 'settle-turn', turn: first, outcome: { status: 'success' } }
+    ])
+  })
+
+  it('keeps a parked stop-discarded prompt unclaimed by the generation that settles first', () => {
+    const m = machine(first, { admitted: false })
+    m.open(first)
+    m.send({ type: 'turn-submitting', turn: first })
+    m.send({ type: 'autonomous-turn-started', turn: second, deferCurrentTurn: true })
+    m.send({ type: 'turn-suspended', turn: first })
+    expect(getAgentSessionRuntimeReply(m.state, first)?.admission).toBe('submitting')
+
+    // The stop fences the in-flight send while the turn is parked behind the generation.
+    m.send({ type: 'turn-send-discarded', turn: first })
+    expect(getAgentSessionRuntimeReply(m.state, first)?.admission).toBe('pending')
+
+    m.finish(second)
+    m.send({ type: 'autonomous-turn-finished' })
+    // The stopped generation's trailing success cannot settle the unconsumed parked prompt.
+    expect(m.send({ type: 'runtime-terminal', turn: first, outcome: { status: 'success' } })).toEqual([])
+    expect(getAgentSessionRuntimeReply(m.state, first)?.admission).toBe('pending')
+    expect(getAgentSessionRuntimeReply(m.state, first)?.terminal).toBeUndefined()
   })
 })
