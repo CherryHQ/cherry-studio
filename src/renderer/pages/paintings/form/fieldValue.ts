@@ -1,4 +1,9 @@
-import { normalizeImageParamNumber, parseImageParamValue } from '@cherrystudio/provider-registry'
+import {
+  type CanonicalParamKey,
+  normalizeImageParamNumber,
+  type ParamValue,
+  parseImageParamValue
+} from '@cherrystudio/provider-registry'
 
 /** Match the submit schema's strict numeric-input normalization. */
 function finiteNumber(value: unknown): number | null {
@@ -25,7 +30,11 @@ export function optionalParamNumber(key: string, value: unknown): number | null 
   return typeof parsed === 'number' && Number.isFinite(parsed) ? parsed : null
 }
 
-export function catalogValueOr(key: string, value: unknown, fallback: unknown): unknown {
+export function catalogValueOr<TFallback>(
+  key: string,
+  value: unknown,
+  fallback: TFallback
+): NonNullable<ParamValue<CanonicalParamKey>> | TFallback {
   return parseImageParamValue(key, value) ?? fallback
 }
 

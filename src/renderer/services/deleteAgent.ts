@@ -10,9 +10,9 @@ const logger = loggerService.withContext('deleteAgent')
  * refresh is intentionally best-effort because a committed deletion must not
  * be reported as failed merely because a renderer revalidation failed.
  */
-export async function deleteAgentAndRefresh(
+export async function deleteAgentAndRefresh<TResult>(
   agentId: string,
-  refresh: (paths: string[]) => Promise<unknown>
+  refresh: (paths: string[]) => Promise<TResult>
 ): Promise<void> {
   await ipcApi.request('ai.agent.delete', { agentId, deleteSessions: false })
   try {

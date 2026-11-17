@@ -4,15 +4,15 @@ import type { PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 
 import { useWindowFrame } from './useWindowFrame'
 
-interface UseConversationShellPaneStateOptions {
+interface UseConversationShellPaneStateOptions<TResult> {
   persistedPaneOpen: boolean
-  setPersistedPaneOpen: (open: boolean) => void | Promise<unknown>
+  setPersistedPaneOpen: (open: boolean) => void | Promise<TResult>
 }
 
-export function useConversationShellPaneState({
+export function useConversationShellPaneState<TResult>({
   persistedPaneOpen,
   setPersistedPaneOpen
-}: UseConversationShellPaneStateOptions) {
+}: UseConversationShellPaneStateOptions<TResult>) {
   const isWindowFrame = useWindowFrame().mode === 'window'
   const [detachedPaneOpen, setDetachedPaneOpen] = useState(false)
   const [autoCollapsedPane, setAutoCollapsedPane] = useState(false)

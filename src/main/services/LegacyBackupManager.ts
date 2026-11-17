@@ -301,10 +301,10 @@ class BackupManager {
     return signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
   }
 
-  private async cleanupOldBackups(
+  private async cleanupOldBackups<TDeleteResult>(
     maxBackups: number,
     listFiles: (signal?: AbortSignal) => Promise<BackupFileInfo[]>,
-    deleteFile: (fileName: string, signal?: AbortSignal) => Promise<unknown>,
+    deleteFile: (fileName: string, signal?: AbortSignal) => Promise<TDeleteResult>,
     signal?: AbortSignal,
     deleteAttempts = 1
   ): Promise<Error | null> {
@@ -326,9 +326,9 @@ class BackupManager {
     }
   }
 
-  private async deleteWithRetry(
+  private async deleteWithRetry<TDeleteResult>(
     fileName: string,
-    deleteFile: (fileName: string, signal?: AbortSignal) => Promise<unknown>,
+    deleteFile: (fileName: string, signal?: AbortSignal) => Promise<TDeleteResult>,
     signal: AbortSignal | undefined,
     maxAttempts: number
   ): Promise<void> {
@@ -1436,7 +1436,7 @@ class BackupManager {
     return operationDir
   }
 
-  private async withAvailableDiskSpace(error: unknown, fallbackDirectory: string): Promise<unknown> {
+  private async withAvailableDiskSpace<TError>(error: TError, fallbackDirectory: string): Promise<TError | Error> {
     if (!(error instanceof Error) || (error as NodeJS.ErrnoException).code !== 'ENOSPC') {
       return error
     }

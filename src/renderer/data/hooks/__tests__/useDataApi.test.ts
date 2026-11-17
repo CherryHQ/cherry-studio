@@ -11,7 +11,7 @@ import type { Cache, ScopedMutator } from 'swr'
 import useSWR, { unstable_serialize, useSWRConfig } from 'swr'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 import useSWRInfinite, { unstable_serialize as unstable_serialize_infinite } from 'swr/infinite'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
 import type * as RendererConstantModule from '@renderer/utils/platform'
@@ -55,6 +55,7 @@ import {
   useInfiniteQuery,
   useMutation,
   usePaginatedQuery,
+  useQuery,
   useReadCache,
   useWriteCache,
   useWriteInfiniteCache
@@ -557,6 +558,24 @@ describe('useInfiniteQuery / useInfiniteFlatItems type contracts', () => {
   // type-checks them. Regressions — losing `BranchMessagesResponse` precision
   // on `pages`, restoring the legacy `items` field, or wiring an offset path
   // into `useInfiniteQuery` — fail the build.
+
+  it('preserves endpoint response types when queries are refreshed', () => {
+    function useTypedRefreshes() {
+      const query = useQuery('/models')
+      const cursor = useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 'topic' } })
+      const offset = usePaginatedQuery('/assistants')
+
+      expectTypeOf<Awaited<ReturnType<typeof query.refetch>>>().toEqualTypeOf<
+        ResponseForPath<'/models', 'GET'> | undefined
+      >()
+      expectTypeOf<Awaited<ReturnType<typeof cursor.refresh>>>().toEqualTypeOf<BranchMessagesResponse[] | undefined>()
+      expectTypeOf<Awaited<ReturnType<typeof offset.refresh>>>().toEqualTypeOf<
+        ResponseForPath<'/assistants', 'GET'> | undefined
+      >()
+    }
+
+    void useTypedRefreshes
+  })
 
   it('preserves BranchMessagesResponse subtype fields on pages (issue 14593)', () => {
     if ((false as boolean) === true) {

@@ -19,7 +19,7 @@ interface NativeBinding {
   /** The structured field name (the `ParamValues` key, `numImages → n`). */
   readonly option: string
   /** Optional wire normalization applied once during the split. */
-  readonly map?: (value: unknown) => unknown
+  readonly map?: (value: unknown) => string | undefined
 }
 
 /**

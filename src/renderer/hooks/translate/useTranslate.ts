@@ -33,7 +33,7 @@ import type { TranslateLanguage } from '@shared/data/types/translate'
 
 const TRANSLATE_ERROR_KEY_PATTERN = /\btranslate\.error\.[a-zA-Z0-9_.-]+\b/
 
-function localizeTranslateError(error: unknown, t: (key: string) => string): unknown {
+function localizeTranslateError<TError>(error: TError, t: (key: string) => string): TError | Error {
   if (!(error instanceof Error)) return error
 
   const key = error.message.match(TRANSLATE_ERROR_KEY_PATTERN)?.[0]

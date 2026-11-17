@@ -26,9 +26,9 @@ export interface ArchiveBatchOutcome {
   }>
 }
 
-export async function runPerItem(
+export async function runPerItem<TResult>(
   items: ArchiveItem[],
-  mutate: (item: ArchiveItem) => Promise<unknown>
+  mutate: (item: ArchiveItem) => Promise<TResult>
 ): Promise<ArchiveBatchOutcome> {
   const succeeded: string[] = []
   const failed: ArchiveBatchOutcome['failed'] = []

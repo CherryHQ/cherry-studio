@@ -161,7 +161,7 @@ export interface UseQueryResult<TPath extends ApiPath> {
   isLoading: boolean
   isRefreshing: boolean
   error?: Error
-  refetch: () => Promise<unknown>
+  refetch: () => Promise<ResponseForPath<TPath, 'GET'> | undefined>
   mutate: KeyedMutator<ResponseForPath<TPath, 'GET'>>
 }
 
@@ -241,7 +241,7 @@ export interface UseInfiniteQueryResult<TResponse> {
   error?: Error
   hasNext: boolean
   loadNext: () => void
-  refresh: () => Promise<unknown>
+  refresh: () => Promise<TResponse[] | undefined>
   reset: () => void
   mutate: SWRInfiniteKeyedMutator<TResponse[]>
 }
@@ -296,7 +296,7 @@ function createInfiniteQueryKeyGetter(
  * @property refresh - Revalidate current page from the server
  * @property reset - Reset to page 1
  */
-export interface UsePaginatedQueryResult<T> {
+export interface UsePaginatedQueryResult<T, TResponse = OffsetPaginationResponse<T>> {
   goToPage: (page: number) => void
   items: readonly T[]
   total: number
@@ -308,7 +308,7 @@ export interface UsePaginatedQueryResult<T> {
   hasPrev: boolean
   prevPage: () => void
   nextPage: () => void
-  refresh: () => Promise<unknown>
+  refresh: () => Promise<TResponse | undefined>
   reset: () => void
 }
 
@@ -364,7 +364,7 @@ export function useQuery<TPath extends ApiPath>(
   const key =
     isEnabled && resolvedPath ? buildSWRKey(resolvedPath, options?.query as Record<string, any> | undefined) : null
 
-  const { data, error, isLoading, isValidating, mutate } = useSWR(key, getFetcher, {
+  const { data, error, isLoading, isValidating, mutate } = useSWR<ResponseForPath<TPath, 'GET'>>(key, getFetcher, {
     ...DEFAULT_SWR_OPTIONS,
     ...options?.swrOptions
   })
@@ -1146,7 +1146,7 @@ export function usePaginatedQuery<TPath extends ApiPath>(
     /** Override SWR configuration */
     swrOptions?: SWRConfiguration
   }
-): UsePaginatedQueryResult<InferPaginatedItem<TPath>> {
+): UsePaginatedQueryResult<InferPaginatedItem<TPath>, ResponseForPath<TPath, 'GET'>> {
   const [currentPage, setCurrentPage] = useState(1)
   const limit = options?.limit || 10
 

@@ -47,7 +47,7 @@ const localeLoaders = {
   'th-TH': () => import('./locales/th-th.json'),
   'vi-VN': () => import('./locales/vi-vn.json'),
   'tr-TR': () => import('./locales/tr-tr.json')
-} satisfies Record<LanguageVarious, () => Promise<unknown>>
+} satisfies Record<LanguageVarious, () => Promise<{ default: Record<string, string> }>>
 
 export const getLanguage = async () => {
   return (await preferenceService.get('app.language')) || navigator.language || defaultLanguage

@@ -14,9 +14,9 @@ import {
 } from '@cherrystudio/ui'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 
-export interface CreateGroupDialogProps {
+export interface CreateGroupDialogProps<TResult> {
   open: boolean
-  onCreate: (name: string) => Promise<unknown>
+  onCreate: (name: string) => Promise<TResult>
   onOpenChange: (open: boolean) => void
   errorMessage?: string
   isSubmitting?: boolean
@@ -26,7 +26,7 @@ export interface CreateGroupDialogProps {
   title?: string
 }
 
-export function CreateGroupDialog({
+export function CreateGroupDialog<TResult>({
   open,
   onCreate,
   onOpenChange,
@@ -36,7 +36,7 @@ export function CreateGroupDialog({
   nameRequiredMessage,
   submitLabel,
   title
-}: CreateGroupDialogProps) {
+}: CreateGroupDialogProps<TResult>) {
   const { t } = useTranslation()
   const [name, setName] = useState('')
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
