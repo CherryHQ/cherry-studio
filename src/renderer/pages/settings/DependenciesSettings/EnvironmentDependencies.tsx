@@ -56,7 +56,6 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
 import { interpretBinarySnapshot } from '@renderer/utils/binarySnapshot'
-import { formatErrorMessage } from '@renderer/utils/error'
 import { formatFileSize } from '@renderer/utils/file'
 import { cn } from '@renderer/utils/style'
 import type { BinaryInstallSettings, CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
@@ -261,12 +260,12 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     }
   }
 
-  const handleAddCustomTool = async (tool: CustomToolDefinition) => {
+  const handleAddCustomTool = async (tool: CustomToolDefinition): Promise<boolean> => {
     try {
       validateBinaryToolDefinition(tool)
     } catch {
       toast.error(t('settings.dependencies.invalidTool'))
-      throw new Error('invalid')
+      return false
     }
 
     const allNames = [
@@ -276,7 +275,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     ]
     if (allNames.includes(tool.name)) {
       toast.error(t('settings.dependencies.duplicateName'))
-      throw new Error('duplicate')
+      return false
     }
 
     try {
@@ -285,9 +284,10 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       // and recipe collisions, so the recipe is sent exactly as entered — no
       // discovered-runtime version pin is grafted on.
       await ipcApi.request('binary.add_custom_tool', tool)
+      return true
     } catch (error) {
+      // Install failures resolve onto the card; a rejection means nothing was added.
       logger.error('Failed to add custom tool', error as Error)
-      setInstallError({ name: tool.name, message: formatErrorMessage(error), action: 'install' })
       throw error
     } finally {
       await refreshState()
@@ -925,7 +925,7 @@ function AddToolDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onAdd: (tool: CustomToolDefinition) => Promise<void>
+  onAdd: (tool: CustomToolDefinition) => Promise<boolean>
 }) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
@@ -936,7 +936,12 @@ function AddToolDialog({
   const [selectedTool, setSelectedTool] = useState('')
   const [version, setVersion] = useState('')
   const [adding, setAdding] = useState(false)
+  const [addError, setAddError] = useState<unknown>(null)
   const searchIdRef = useRef(0)
+
+  useEffect(() => {
+    if (!open) setAddError(null)
+  }, [open])
 
   const reset = () => {
     // Invalidate any in-flight search so its late response cannot repopulate
@@ -985,6 +990,7 @@ function AddToolDialog({
   const selectResult = (r: { name: string; tool: string }) => {
     setSelectedName(r.name)
     setSelectedTool(r.tool)
+    setAddError(null)
     setQuery('')
     setResults([])
   }
@@ -992,16 +998,18 @@ function AddToolDialog({
   const handleSubmit = async () => {
     if (!selectedName.trim() || !selectedTool.trim()) return
     setAdding(true)
+    setAddError(null)
     try {
-      await onAdd({
+      const added = await onAdd({
         name: selectedName.trim(),
         tool: selectedTool.trim(),
         requestedVersion: version.trim() || undefined
       })
+      if (!added) return
       reset()
       onOpenChange(false)
-    } catch {
-      // keep dialog open on failure
+    } catch (error) {
+      setAddError(error)
     } finally {
       setAdding(false)
     }
@@ -1073,6 +1081,21 @@ function AddToolDialog({
             value={version}
             onChange={(e) => setVersion(e.target.value)}
           />
+          {addError != null && (
+            <ErrorNotice
+              variant="inline"
+              title={t('settings.dependencies.addFailed')}
+              detail={
+                <ErrorDetailAction
+                  error={addError}
+                  message={t('settings.dependencies.addFailed')}
+                  operation="binary.add_custom_tool"
+                  recordId={selectedName}
+                  source="settings.dependencies"
+                />
+              }
+            />
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
