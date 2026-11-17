@@ -16,6 +16,8 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 
+import { MarketplaceEmptyScene } from './MarketplaceEmptyScene'
+
 export function MarketplaceCategoryFilter({
   categories,
   category,
@@ -189,7 +191,13 @@ export function MarketplaceLoadState({
       </div>
     )
   if (empty)
-    return <EmptyState title={t('marketplace.no_results')} description={t('marketplace.no_results_description')} />
+    return (
+      <EmptyState
+        scene={<MarketplaceEmptyScene />}
+        title={t('marketplace.no_results')}
+        description={t('marketplace.no_results_description')}
+      />
+    )
   return null
 }
 

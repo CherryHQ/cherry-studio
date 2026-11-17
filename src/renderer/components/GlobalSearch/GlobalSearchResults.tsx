@@ -11,7 +11,7 @@ import {
 import { type MouseEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { EmojiIcon } from '@cherrystudio/ui'
+import { EmojiIcon, EmptyState } from '@cherrystudio/ui'
 import HighlightText from '@renderer/components/HighlightText'
 import { getSettingsSectionTitleKey } from '@renderer/components/settingsMenu'
 import { cn } from '@renderer/utils/style'
@@ -19,6 +19,7 @@ import { formatRelativeTime } from '@renderer/utils/time'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { AgentSessionMessageSearchRole } from '@shared/data/types/message'
 
+import { GlobalSearchEmptyScene } from './GlobalSearchEmptyScene'
 import { GlobalSearchSessionContext, GlobalSearchTopicContext } from './GlobalSearchEntryContext'
 import type {
   GlobalMessageSearchPanelGroup,
@@ -384,4 +385,13 @@ export function GlobalSearchRecentHint({ label, offset }: { label: string; offse
 
 export function GlobalSearchState({ label }: { label: string }) {
   return <div className="text-muted-foreground flex h-full items-center justify-center text-sm">{label}</div>
+}
+
+/** Idle and no-match states of the search palette. */
+export function GlobalSearchEmptyState({ label }: { label: string }) {
+  return (
+    <div className="flex h-full items-center justify-center">
+      <EmptyState compact scene={<GlobalSearchEmptyScene />} title={label} />
+    </div>
+  )
 }

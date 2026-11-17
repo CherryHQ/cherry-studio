@@ -18,6 +18,8 @@ import { useSystemSkills } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
 import type { SystemSkillCandidate } from '@shared/types/skill'
 
+import { SystemSkillEmptyScene } from './SkillEmptyScenes'
+
 type BaseProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -89,12 +91,13 @@ export function SystemSkillDialog({ mode, open, onOpenChange, onEnabled, selecte
             <EmptyState title={t('common.error')} description={error} className="min-h-0 flex-1" />
           ) : skills.length === 0 ? (
             <EmptyState
+              scene={<SystemSkillEmptyScene />}
               title={t('library.system_skill.empty_title')}
               description={t('library.system_skill.empty_description')}
               className="min-h-0 flex-1"
             />
           ) : visibleSkills.length === 0 ? (
-            <EmptyState title={t('common.no_results')} className="min-h-0 flex-1" />
+            <EmptyState scene={<SystemSkillEmptyScene />} title={t('common.no_results')} className="min-h-0 flex-1" />
           ) : (
             <ScrollArea
               type="auto"

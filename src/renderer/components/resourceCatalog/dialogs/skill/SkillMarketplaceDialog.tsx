@@ -25,6 +25,7 @@ import type { SkillSearchResult, SkillSearchSource } from '@shared/types/skill'
 import { buildGithubSkillResult } from '@shared/utils/skillMarketplace'
 
 import { ResourceCatalogSearchInput } from '../../ResourceCatalogSearchInput'
+import { SkillMarketplaceEmptyScene } from './SkillEmptyScenes'
 
 type Props = {
   open: boolean
@@ -284,7 +285,14 @@ function SkillSearchBody({
   )
 
   if (!query.trim()) {
-    return <EmptyState title={emptyTitle} description={emptyDescription} className="min-h-0 flex-1" />
+    return (
+      <EmptyState
+        scene={<SkillMarketplaceEmptyScene />}
+        title={emptyTitle}
+        description={emptyDescription}
+        className="min-h-0 flex-1"
+      />
+    )
   }
 
   if (searching) {
@@ -308,6 +316,7 @@ function SkillSearchBody({
   if (results.length === 0) {
     return (
       <EmptyState
+        scene={<SkillMarketplaceEmptyScene />}
         title={t('library.skill_marketplace.no_results_title')}
         description={t('library.skill_marketplace.no_results_description')}
         className="min-h-0 flex-1"

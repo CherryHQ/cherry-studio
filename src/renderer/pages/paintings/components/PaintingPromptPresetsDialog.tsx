@@ -16,6 +16,7 @@ import {
 } from '@cherrystudio/ui'
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@data/hooks/useReorder'
+import { ResourceGridEmptyScene } from '@renderer/components/resourceCatalog/catalog'
 import { PromptEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { usePromptMutations, usePromptMutationsById } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
@@ -122,7 +123,7 @@ export function PaintingPromptPresetsDialog({ open, onOpenChange, onApply }: Pai
               <Skeleton className="h-14 w-full" />
             </div>
           ) : !data?.length ? (
-            <EmptyState compact title={t('settings.prompts.noPrompts')} />
+            <EmptyState compact scene={<ResourceGridEmptyScene />} title={t('settings.prompts.noPrompts')} />
           ) : (
             <ReorderableList
               items={data}
