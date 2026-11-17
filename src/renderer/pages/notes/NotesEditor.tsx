@@ -214,12 +214,17 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     if (contentLoadError) {
       return (
         <div data-ui="notes.editor" className="flex h-full w-full flex-1 flex-col items-center justify-center">
-          <EmptyState title={t('notes.load_failed')} description={t('notes.load_failed_description')} />
-          <ErrorDetailAction
-            error={contentLoadError}
-            message={t('notes.load_failed')}
-            source="notes"
-            operation="notes.load"
+          <EmptyState
+            title={t('notes.load_failed')}
+            description={t('notes.load_failed_description')}
+            detail={
+              <ErrorDetailAction
+                error={contentLoadError}
+                message={t('notes.load_failed')}
+                source="notes"
+                operation="notes.load"
+              />
+            }
           />
         </div>
       )
