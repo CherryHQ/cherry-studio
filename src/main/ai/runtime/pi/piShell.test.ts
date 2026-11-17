@@ -1,9 +1,9 @@
 import path from 'node:path'
 
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { getBinaryShimsDir } from '@main/utils/binaryEnv'
-import type * as BinaryEnv from '@main/utils/binaryEnv'
 
 import { mergeMiseEnvEntries, mergePiToolSpawnEnv, resolvePiLoginEnv } from './piShell'
 
@@ -23,23 +23,18 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
 }))
 vi.mock('@main/utils/bundledGit', () => ({ getBundledGitDir: () => null }))
-vi.mock('@main/utils/binaryEnv', async (importOriginal) => {
-  const actual = await importOriginal<typeof BinaryEnv>()
-  return {
-    ...actual,
-    getBinaryShimsDir: () => CHERRY_SHIMS,
-    getBinarySearchDirs: () => [CHERRY_SHIMS, '/cherry/bin'],
-    getBinaryExecutionEnv: () => ({
-      MISE_DATA_DIR: CHERRY_MISE_DIR,
-      MISE_CONFIG_DIR: `${CHERRY_MISE_DIR}/config`,
-      MISE_CACHE_DIR: `${CHERRY_MISE_DIR}/cache`,
-      MISE_STATE_DIR: `${CHERRY_MISE_DIR}/state`,
-      MISE_SHIMS_DIR: CHERRY_SHIMS,
-      MISE_YES: '1',
-      MISE_NO_ANALYTICS: '1',
-      MISE_EXPERIMENTAL: '1'
-    })
-  }
+
+// Point the application path registry at the Cherry mise contract so the real
+// binaryEnv helpers (getBinaryShimsDir/getBinarySearchDirs/getBinaryExecutionEnv
+// and everything layered on them) resolve the stubbed layout. Mocking the
+// derived exports instead leaves module-internal calls reading the raw mock
+// paths (mergeBinaryExecutionEnv calls its own getBinaryExecutionEnv).
+beforeEach(() => {
+  vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
+    if (key === 'feature.binary.data') return CHERRY_MISE_DIR
+    if (key === 'cherry.bin') return '/cherry/bin'
+    return filename ? `/mock/${key}/${filename}` : `/mock/${key}`
+  })
 })
 
 describe('mergePiToolSpawnEnv', () => {
