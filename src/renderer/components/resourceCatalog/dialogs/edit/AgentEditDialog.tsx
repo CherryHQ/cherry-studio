@@ -780,6 +780,25 @@ function AgentBasicFields({
         permissionModeCards={getPermissionModeCards(agentType)}
       />
       <AgentLanguageOverrideField form={form} />
+      <FormField
+        control={form.control}
+        name="sharedMemoryEnabled"
+        render={({ field }) => (
+          <FormItem className={editDialogFormRowClassName}>
+            <FormLabel className={editDialogFormRowLabelClassName}>{t('settings.memory.title')}</FormLabel>
+            <div className="flex h-9 items-center">
+              <FormControl>
+                <Switch
+                  size="sm"
+                  checked={field.value}
+                  onCheckedChange={(checked) => patchAgentForm({ sharedMemoryEnabled: checked })}
+                  aria-label={t('settings.memory.title')}
+                />
+              </FormControl>
+            </div>
+          </FormItem>
+        )}
+      />
       {caps.heartbeat ? (
         <div>
           <HeartbeatSettingsField
@@ -808,25 +827,6 @@ function AgentBasicFields({
           ) : null}
         </div>
       ) : null}
-      <FormField
-        control={form.control}
-        name="sharedMemoryEnabled"
-        render={({ field }) => (
-          <FormItem className={editDialogFormRowClassName}>
-            <FormLabel className={editDialogFormRowLabelClassName}>{t('settings.memory.use')}</FormLabel>
-            <div className="flex h-9 items-center">
-              <FormControl>
-                <Switch
-                  size="sm"
-                  checked={field.value}
-                  onCheckedChange={(checked) => patchAgentForm({ sharedMemoryEnabled: checked })}
-                  aria-label={t('settings.memory.use')}
-                />
-              </FormControl>
-            </div>
-          </FormItem>
-        )}
-      />
     </div>
   )
 }

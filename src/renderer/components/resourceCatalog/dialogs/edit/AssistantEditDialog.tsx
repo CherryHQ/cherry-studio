@@ -598,14 +598,14 @@ function AssistantBasicFields({
         name="enableSharedMemory"
         render={({ field }) => (
           <FormItem className={editDialogFormRowClassName}>
-            <FormLabel className={editDialogFormRowLabelClassName}>{t('settings.memory.use')}</FormLabel>
+            <FormLabel className={editDialogFormRowLabelClassName}>{t('settings.memory.title')}</FormLabel>
             <div className="flex h-9 items-center">
               <FormControl>
                 <Switch
                   size="sm"
                   checked={field.value}
                   onCheckedChange={field.onChange}
-                  aria-label={t('settings.memory.use')}
+                  aria-label={t('settings.memory.title')}
                 />
               </FormControl>
             </div>
