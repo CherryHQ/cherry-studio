@@ -2582,7 +2582,12 @@ describe('AiStreamManager', () => {
         request: req(topicId),
         listeners: []
       })
+      // Visible content keeps the turn a success under the empty-turn NoResponseError policy;
+      // this test's subject is background-work cancellation, not empty-turn classification.
       feed.enqueue({ type: 'start' })
+      feed.enqueue({ type: 'text-start', id: 'p1' })
+      feed.enqueue({ type: 'text-delta', id: 'p1', delta: 'visible' })
+      feed.enqueue({ type: 'text-end', id: 'p1' })
       feed.enqueue({ type: 'finish' })
       feed.close()
       await flushUntil(() => mgr.inspect(topicId)?.status === 'done')
@@ -2810,6 +2815,9 @@ describe('AiStreamManager', () => {
       )
       controller.enqueue({ type: 'message', parts: [] })
       await vi.waitFor(() => expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual({ found: false }))
+      // End on visible content: an empty final message now classifies as NoResponseError, and this
+      // test's subject is deferred-output bookkeeping, not the empty-turn policy.
+      controller.enqueue({ type: 'message', parts: [{ type: 'text', text: 'outputs removed' }] })
       controller.close()
       await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
     })
