@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-13-cherry-miniapp-skill.md
+2026-11-13-cherry-miniapp-skill.md: 9d361aa978cfcf1f2095496e0ae4a5bce62b7cad
+2026-11-13-cherry-miniapp-skill.zh.md: b224cb9e631f3d7394c85a850616c73e18709442

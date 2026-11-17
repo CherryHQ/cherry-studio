@@ -9,7 +9,7 @@ const Tencent = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const TencentIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Tencent, {
   Avatar: TencentAvatar,
-  colorPrimary: '#0052D9'
+  colorPrimary: '#EAF2FF'
 })
 
 export default TencentIcon

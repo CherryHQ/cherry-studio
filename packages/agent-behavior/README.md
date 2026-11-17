@@ -49,6 +49,15 @@ the texts of the results an adapter gives a child's open tool calls ([Applying a
 `workspace:*` and resolves it through its built `dist/`, so build it before the adapter's tests import it:
 `pnpm --filter @cherrystudio/agent-behavior build`.
 
+## Command approval facts
+
+The desktop host checks shell input and supplies a `mandatoryBlock` for denials and a
+`commandPolicy` fact carrying the approval-card details and a `context` fingerprint. A block
+precedes mode shortcuts. After a grant, the gate reads current host facts and rejects the call
+when the block now applies or the context changed. Facts that name the `permissionMode` they were derived under
+are gathered again, before the decision and after a grant, if the mode changed meanwhile; a mode that keeps changing
+makes the call require approval. It does not save executable, command-prefix or shell-wide consent.
+
 ## Ports
 
 The ports are the whole surface between the package and a harness or the host. Harness ports are `HarnessPorts` in
@@ -386,6 +395,22 @@ running children (PR-3a); worktree isolation and its `Workspaces` port (PR-4). A
 leftover inputs hold a conversation, the idle driver leaves results it would deliver quietly and a compaction's
 status for later and exits, and a person's later turn does not wake it; they wait for its next wake (a child's run
 ending, a compaction or a reopen).
+
+## Tool intent
+
+`createToolIntent()` returns a transform an adapter applies to every tool it declares to the model, with whether that
+model is offered `intent` (`offersToolIntent(modelId)`: DeepSeek models only, because other models already narrate
+between calls). When offered, the transform adds an optional `intent` string (why this call is made) to an object
+schema that does not already declare one. Either way it wraps `prepareArguments` so the argument is removed before the
+tool's own argument repair, schema validation, gate and execution; a call that still carries `intent` after a model
+switch therefore runs normally. The model's call keeps it, so the transcript and the UI read it. Tools whose schema is
+not an object, or that declare `intent` themselves, are returned unchanged. One transform returns one wrapper per tool
+and offer, so repeated loadouts keep the schema object a validator is cached by. `TOOL_INTENT_GUIDE` is the one
+system-prompt paragraph that asks the model to fill it in; an adapter adds it exactly when it offers `intent`.
+
+The Pi adapter installs it through `AgentSession.setToolTransform` and the appended system prompt; the Durable adapter
+through the behavior extension's `wrapTools` and a `tool_intent` prompt section. Both hooks come from Cherry's patches
+of `pi-coding-agent` and `pi-durable`.
 
 ## Running the contract in an adapter
 

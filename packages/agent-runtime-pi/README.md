@@ -4,7 +4,10 @@
 `create` creates a new access; `open` loads an existing native context with an identity check.
 Concurrent handles share one execution source; release stops observation, while shutdown closes owned sessions.
 `pi.observe` delivers content, input outcomes, aliases, live provenance, child task facts and settle evidence
-in one captured batch. `backgroundResults` reads existing behavior records and notification inputs;
+in one captured batch. Native text/thinking updates synchronously capture the current
+block's full text before asynchronous processing; they do not copy unrelated blocks or
+the complete native partial. End events still apply authoritative text corrections, and
+completed tool arguments are captured separately. `backgroundResults` reads existing behavior records and notification inputs;
 its pending and notification IDs name the current triggering tool calls, including continuations.
 Results remain pending through report delivery and parent generation, including the gap before that
 generation starts. Lifecycle and ledger callbacks publish them through the same ordered projection.
@@ -52,6 +55,10 @@ as required by the behavior adapter's request accounting.
 - `pi.permissionModeChanged()` notifies behavior after the host changes permission settings;
   `pi.compact(instructions)` invokes native compaction and its lifecycle. A failed summary rejects the operation.
   Interrupt and shutdown cancel native compaction even when no behavior run is active.
+- `onError` keeps the original cause. A manual-compaction failure also carries its operation and
+  thread, plus failed native `compaction_end` facts when that invocation produced them. Failures
+  after a successful summary, including `onCompacted`, have no failed-compaction facts. Hosts
+  can correlate their native event handling without suppressing unrelated runtime errors.
 - Subagent relations are projected onto the parent; each live child can be opened, observed and
   released independently. Releasing a handle stops its observations. Shutdown closes the shared
   behavior instance, all native sessions and projections.

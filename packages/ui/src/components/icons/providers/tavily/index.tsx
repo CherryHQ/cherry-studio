@@ -9,7 +9,7 @@ const Tavily = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const TavilyIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Tavily, {
   Avatar: TavilyAvatar,
-  colorPrimary: '#8FBCFA'
+  colorPrimary: '#f5f9ff'
 })
 
 export default TavilyIcon
