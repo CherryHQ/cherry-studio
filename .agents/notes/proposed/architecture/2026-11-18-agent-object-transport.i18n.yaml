@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-18-agent-object-transport.md
+2026-11-18-agent-object-transport.md: d4f2a3c959194f2512b100b920af44a300bbbb5c
+2026-11-18-agent-object-transport.zh.md: 6371d746774de0cd2b5e90b3bfdf9935f6cbbaa4
