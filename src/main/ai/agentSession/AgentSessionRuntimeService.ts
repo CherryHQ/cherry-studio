@@ -58,6 +58,7 @@ import {
   type AgentSessionSlashCommand
 } from '@shared/ai/agentSessionSlashCommands'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
+import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type { MessageProjectionUpdate, MessageProjectionView } from '@shared/ai/messageProjection'
 import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
@@ -145,6 +146,7 @@ const WARM_LEASE_RELEASE_DELAY_MS = 10_000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 /** Stream abort reasons that mean the user stopped the work, as opposed to teardown. */
 const USER_STOP_REASONS: ReadonlySet<unknown> = new Set(['user-requested', 'remote-cancel'])
+type NativeInputState = Extract<AgentRuntimeEvent, { type: 'input-state' }>['input']
 /** Shown on a card whose requesting runtime went away before the user could answer it. */
 const ABANDONED_APPROVAL_ERROR = 'The runtime connection closed before this request was answered'
 
@@ -290,8 +292,18 @@ type AgentSessionRuntimeEntry = {
     result: Promise<string>
   }
   closing?: true
-  /** User Stop on a retained connection; `confirmed` runs on native confirmation, disconnect or close. */
-  stopping?: { connection: AgentRuntimeConnection; confirmed: () => void; settled: Promise<void> }
+  /**
+   * User Stop on a retained connection; `confirmed` runs on native confirmation, disconnect or close.
+   * `input` records the stopped input's native outcome, which may differ from the paused reply.
+   */
+  stopping?: {
+    connection: AgentRuntimeConnection
+    confirmed: () => void
+    settled: Promise<void>
+    input?: { id: string; replyId: string; outcome?: NativeInputState }
+  }
+  /** Native outcomes for unsettled replies outside any runtime turn, applied after the next projection. */
+  recoveredOutcomes?: Map<string, NativeInputState>
   interactionWindowId?: string
   sessionId: string
   topicId: string
@@ -1343,7 +1355,13 @@ export class AgentSessionRuntimeService extends BaseService {
       return this.closeSession(sessionId, !this.isShuttingDown && reason !== 'app-shutdown')
     if (entry.stopping) return entry.stopping.settled
     const confirmation = Promise.withResolvers<void>()
-    const stopping = { connection, confirmed: () => confirmation.resolve(), settled: Promise.resolve() }
+    const turn = this.liveTurn(entry)
+    const stopping: NonNullable<AgentSessionRuntimeEntry['stopping']> = {
+      connection,
+      confirmed: () => confirmation.resolve(),
+      settled: Promise.resolve(),
+      ...(turn && { input: { id: turn.userMessage.id, replyId: turn.assistantMessageId } })
+    }
     entry.stopping = stopping
     // Stop withdraws queued follow-ups; input arriving after Stop waits for the native confirmation.
     this.applyRuntimeStateEvent(entry, { type: 'clear-queue' })
@@ -1356,16 +1374,40 @@ export class AgentSessionRuntimeService extends BaseService {
     let interruptSettled = false
     const interrupted = connection.interrupt().finally(() => (interruptSettled = true))
     stopping.settled = Promise.race([interrupted.then(() => confirmation.promise), unconfirmed])
-      .catch((error) => {
-        logger.warn('Agent runtime stop failed; closing the session', { sessionId, error })
-        // Closing waits for its interrupt, so a still-pending one would block the close as well.
-        return this.closeSession(sessionId, interruptSettled)
-      })
+      .then(
+        () => this.correctStoppedReply(entry, connection, stopping.input),
+        (error) => {
+          logger.warn('Agent runtime stop failed; closing the session', { sessionId, error })
+          // Closing waits for its interrupt, so a still-pending one would block the close as well.
+          return this.closeSession(sessionId, interruptSettled)
+        }
+      )
       .finally(() => {
         clearTimeout(timer)
         if (entry.stopping === stopping) delete entry.stopping
       })
     return stopping.settled
+  }
+
+  /** The native run can finish before the stop lands; its outcome then replaces the paused reply. */
+  private async correctStoppedReply(
+    entry: AgentSessionRuntimeEntry,
+    connection: AgentRuntimeConnection,
+    stopped: NonNullable<AgentSessionRuntimeEntry['stopping']>['input']
+  ): Promise<void> {
+    if (!stopped?.outcome || stopped.outcome.outcome === 'aborted' || !connection.contextId) return
+    try {
+      await application.get('AiStreamManager').drainRuntimeReply(entry.topicId, stopped.replyId)
+      if (!this.isCurrentEntry(entry)) return
+      this.settleFromNativeOutcome(
+        entry,
+        this.rootProjection(entry, connection.contextId),
+        stopped.replyId,
+        stopped.outcome
+      )
+    } catch (error) {
+      logger.warn('Failed to apply the native outcome to a stopped reply', { sessionId: entry.sessionId, error })
+    }
   }
 
   closeSession(sessionId: string, interrupt = false): Promise<void> {
@@ -2412,6 +2454,15 @@ export class AgentSessionRuntimeService extends BaseService {
         if (turn) turn.projection = projection
         const changed = projection.accept(event.projection, turn?.assistantMessageId)
         for (const [id, parts] of changed) this.publishRootMessage(entry, projection, id, parts)
+        for (const [replyId, input] of entry.recoveredOutcomes ?? []) {
+          entry.recoveredOutcomes!.delete(replyId)
+          // A recovered reply is not this connection's work; its failure must not fail the session.
+          try {
+            this.settleFromNativeOutcome(entry, projection, replyId, input)
+          } catch (error) {
+            logger.warn('Failed to settle a recovered reply', { sessionId: entry.sessionId, replyId, error })
+          }
+        }
         break
       }
       case 'response-start': {
@@ -2451,6 +2502,7 @@ export class AgentSessionRuntimeService extends BaseService {
       }
       case 'input-state':
         this.resolvePendingInput(entry, event.contextId, event.input)
+        this.noteNativeOutcome(entry, event.input)
         break
       case 'steer-boundary': {
         const inputs = this.pendingInputValues(entry, event.inputIds, true)
@@ -2530,14 +2582,9 @@ export class AgentSessionRuntimeService extends BaseService {
           : undefined
         const owners = new Set(event.sourceToolCallIds?.map((call) => projection?.toolCallMessageId(call)))
         const sourceReply = source && getAgentSessionRuntimeReply(entry.runtimeState, source)
-        const recoveredReply =
-          event.recoveredInputId && connection?.contextId
-            ? agentSessionMessageService.recoveredInputReply(
-                entry.sessionId,
-                connection.contextId,
-                event.recoveredInputId
-              )
-            : undefined
+        const recoveredReply = event.recoveredInputId
+          ? agentSessionMessageService.replyTo(entry.sessionId, event.recoveredInputId)?.id
+          : undefined
         const assistantMessageId =
           recoveredReply ??
           (background
@@ -3227,8 +3274,76 @@ export class AgentSessionRuntimeService extends BaseService {
   private rootProjection(entry: AgentSessionRuntimeEntry, contextId: string): RootMessageProjection {
     const projections = (entry.rootProjections ??= new Map())
     let projection = projections.get(contextId)
-    if (!projection) projections.set(contextId, (projection = new RootMessageProjection(contextId)))
+    if (!projection)
+      projections.set(
+        contextId,
+        (projection = new RootMessageProjection(
+          contextId,
+          // Durable's record decides a reply until it settles, so its native answers still belong to it.
+          entry.agentType === 'pi-durable' ? (inputId) => this.unsettledReply(entry, inputId) : undefined
+        ))
+      )
     return projection
+  }
+
+  private unsettledReply(entry: AgentSessionRuntimeEntry, inputId: string): string | undefined {
+    if (entry.stopping?.input?.id === inputId) return entry.stopping.input.replyId
+    const reply = agentSessionMessageService.replyTo(entry.sessionId, inputId)
+    return reply?.status === 'pending' ? reply.id : undefined
+  }
+
+  /** Records a native outcome for a reply that no runtime turn will settle. */
+  private noteNativeOutcome(entry: AgentSessionRuntimeEntry, input: NativeInputState): void {
+    if (entry.agentType !== 'pi-durable' || !input.inputId || !input.outcome) return
+    if (entry.stopping?.input?.id === input.inputId) {
+      entry.stopping.input.outcome = input
+      return
+    }
+    const replyId = this.unsettledReply(entry, input.inputId)
+    if (!replyId || getAgentSessionRuntimeTurns(entry.runtimeState).some((turn) => turn.assistantMessageId === replyId))
+      return
+    ;(entry.recoveredOutcomes ??= new Map()).set(replyId, input)
+  }
+
+  /** Persists a reply with the status that the native outcome maps to. */
+  private settleFromNativeOutcome(
+    entry: AgentSessionRuntimeEntry,
+    projection: RootMessageProjection,
+    replyId: string,
+    input: NativeInputState
+  ): void {
+    const status = input.outcome === 'completed' ? 'success' : input.outcome === 'aborted' ? 'paused' : 'error'
+    const row = agentSessionMessageService.getSessionMessage(entry.sessionId, replyId)
+    const parts = projection.parts(replyId) ?? row.data.parts ?? []
+    const error =
+      status === 'error'
+        ? serializeError(Object.assign(new Error(input.error?.message ?? input.outcome), { reason: input.error?.code }))
+        : undefined
+    const message: CherryUIMessage = {
+      id: replyId,
+      role: 'assistant',
+      parts: error
+        ? [
+            ...parts,
+            {
+              type: 'data-error',
+              data: { ...error, executionFailure: toExecutionFailure(error, row.modelId ?? undefined) }
+            }
+          ]
+        : parts
+    }
+    new AgentSessionMessageBackend({
+      sessionId: entry.sessionId,
+      assistantMessageId: replyId,
+      modelId: row.modelId ? UniqueModelIdSchema.parse(row.modelId) : undefined,
+      runtimeResumeToken: () => entry.lastResumeToken,
+      projection: () => this.rootCheckpoint(entry, projection, replyId),
+      onPersisted: () => {
+        ;(entry.persistedMessageIds ??= new Set()).add(replyId)
+        entry.usageAttribution?.flush(replyId)
+      }
+    }).persistAssistant({ finalMessage: projection.prepare(message, status), status })
+    this._onTurnTerminal.fire({ sessionId: entry.sessionId, assistantMessageId: replyId, status, boundary: 'turn' })
   }
 
   private deliverRuntimeChunk(entry: AgentSessionRuntimeEntry, chunk: UIMessageChunk): boolean {

@@ -31,7 +31,9 @@ import type { AgentRuntimeConnectInput, AgentRuntimeUserInput } from '../../runt
 import type * as ForkResourcesModule from '../fork/resources'
 import { RootMessageProjection } from '../RootMessageProjection'
 
-vi.mock('../recoverSessionDeliveries', () => ({ recoverSessionDeliveries: vi.fn(() => new Set()) }))
+vi.mock('../recoverSessionDeliveries', () => ({
+  recoverSessionDeliveries: vi.fn(() => ({ affected: new Set(), resumable: new Set() }))
+}))
 
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),

@@ -140,6 +140,9 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        confirmed empty set proves drainage. Publish these facts after their observed content.
        `autonomous-turn-state: started` carries `sourceToolCallIds` for a background notification.
        Main resumes the reply owning those calls; an independent native turn keeps its own reply.
+       After reopen, `recoveredInputId` names a placed input that native recovery resumed; Main continues
+       that input's reply. A projection's `inputs` maps native user messages to product input IDs, so
+       committed answers rebuild a reply that never reached terminal persistence.
        Resident commands may retain the connection without holding a product reply open.
      - `childProjection(toolCallId)` — expose a child snapshot and subscription
        through the root owner. `messageChild(contextId, text)` dispatches child input

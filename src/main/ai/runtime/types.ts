@@ -124,6 +124,8 @@ export interface RuntimeMessageProjection {
   live: readonly string[]
   /** Display-only refreshes update existing owners without admitting historical sources into a new reply. */
   refresh?: readonly string[]
+  /** Product input IDs of native user messages in `messages`; their answers belong to that input's reply. */
+  inputs?: Readonly<Record<string, string>>
   replaces: Readonly<Record<string, string>>
   removed: readonly string[]
 }
@@ -203,6 +205,7 @@ export type AgentRuntimeEvent =
       state: 'started'
       origin: AutonomousTurnOrigin
       sourceToolCallIds?: readonly string[]
+      /** A placed product input that native recovery resumed; its existing reply continues. */
       recoveredInputId?: string
     }
   | { type: 'autonomous-turn-state'; state: 'finished' }

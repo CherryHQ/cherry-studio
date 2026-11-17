@@ -415,23 +415,22 @@ export class AgentSessionMessageService {
     )
   }
 
-  recoveredInputReply(sessionId: string, contextId: string, inputId: string): string | undefined {
-    if (this.inputBinding(sessionId, inputId)?.contextId !== contextId) return undefined
-    const replies = application
+  /** The latest assistant reply under a user message. */
+  replyTo(sessionId: string, userMessageId: string): { id: string; status: string } | undefined {
+    return application
       .get('DbService')
       .getDb()
-      .select({ id: sessionMessagesTable.id })
+      .select({ id: sessionMessagesTable.id, status: sessionMessagesTable.status })
       .from(sessionMessagesTable)
       .where(
         and(
           eq(sessionMessagesTable.sessionId, sessionId),
-          eq(sessionMessagesTable.parentId, inputId),
+          eq(sessionMessagesTable.parentId, userMessageId),
           eq(sessionMessagesTable.role, 'assistant')
         )
       )
-      .limit(2)
-      .all()
-    return replies.length === 1 ? replies[0].id : undefined
+      .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+      .get()
   }
 
   inputBinding(sessionId: string, messageId: string) {

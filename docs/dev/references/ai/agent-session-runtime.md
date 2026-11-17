@@ -576,7 +576,9 @@ indexed `delivery_turn_ref`:
   evidence of deletion, not proof that execution never started;
 - placeholder still `pending` — execution may already have produced external side effects;
   terminalize interrupted parts, discard the Session resume token, finalize `interrupted`, and do
-  not rerun the Agent;
+  not rerun the Agent. A `pi-durable` request whose input Durable admitted is the exception: Durable
+  owns its outcome, so the placeholder stays `pending` and the delivery owner opens that Session.
+  Durable resumes or settles the input, and the reply's terminal event finalizes the delivery;
 - placeholder terminal — run only the idempotent finalizer.
 
 The generic pending-assistant sweep excludes rows referenced by `delivery_turn_ref`; therefore its
@@ -678,6 +680,9 @@ Only a never-submitted intent can stay unflushed; local commands persist their n
 acknowledgement, even without a model prompt. Resume tokens are published after native persistence.
 On startup, the runtime owner terminalizes abandoned Pi product placeholders without clearing native
 identities or replaying their inputs. Rows owned by persisted delivery turns remain with delivery recovery.
+`pi-durable` placeholders stay `pending`: when the Session reopens, Durable continues a resumed input
+in its original reply, and an input that already has a Durable outcome rebuilds its reply from
+committed entries with that outcome.
 
 For Claude Code, the resume token is the SDK `session_id`. The driver
 maps it to `options.resume`. This is separate from the SDK's file
@@ -1233,7 +1238,8 @@ invokes an optional connection `interrupt()` before closing, including when the 
 already finished but background work remains. A `retainOnStop` connection (Pi Durable) is
 interrupted but not closed: Stop withdraws queued follow-ups, and the connection's `stopping`
 occupancy keeps the session busy and holds later input until the connection emits
-`stop-confirmed`. A failed or unconfirmed stop (20 s) falls back to closing. Durable shutdown preserves ordinary
+`stop-confirmed`. If the native input completed or failed before the stop landed, its outcome replaces the
+paused reply. A failed or unconfirmed stop (20 s) falls back to closing. Durable shutdown preserves ordinary
 unfinished root tasks; explicit interruption cancels them. Reopen applies shared behavior's
 `onOpen` before native resume, disarming goals and stopping interrupted background children.
 Repeated `closeSession()` calls join the in-flight close. A closing session rejects new
