@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-10-29-shared-memory.md
-2026-10-29-shared-memory.md: 8961c00e84ce6ad74927f62f70fd36a7fac96e54
-2026-10-29-shared-memory.zh.md: 4b8ba1dd1f36b4f61a6e840a2d1123387c64be94
+2026-10-29-shared-memory.md: d2e26b242302c1983dfe539d2184db8f03a7c187
+2026-10-29-shared-memory.zh.md: 7989f1004ffb8e3f06fe7ca6bdca207569f6011b
