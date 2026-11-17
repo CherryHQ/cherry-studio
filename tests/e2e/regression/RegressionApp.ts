@@ -63,7 +63,7 @@ export class RegressionApp {
   }
 
   get config(): RegressionTestConfig {
-    return loadTestConfig()
+    return loadTestConfig(this.paths.root)
   }
 
   get embeddingProvider(): EmbeddingProviderConfig {

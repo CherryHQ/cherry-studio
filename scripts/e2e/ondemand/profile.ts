@@ -1,30 +1,17 @@
 import { randomUUID } from 'node:crypto'
 
 import type { Page } from '@playwright/test'
-import * as z from 'zod'
 
 import type { CreateModelDto } from '../../../src/shared/data/api/schemas/models'
 import type { CreateProviderDto } from '../../../src/shared/data/api/schemas/providers'
 import { createUniqueModelId } from '../../../src/shared/data/types/model'
 import type { EmbeddingProviderConfig } from '../regression/embeddingMock'
 
-const providerConfigSchema = z.object({
-  baseUrl: z.string().trim().url(),
-  apiKey: z.string().trim().min(1),
-  model: z.string().trim().min(1)
-})
-const profileConfigSchema = providerConfigSchema.extend({
-  anthropicBaseUrl: z.string().trim().url().optional()
-})
-export type ProfileConfig = z.infer<typeof profileConfigSchema>
-
-export function readProfileConfig(env: NodeJS.ProcessEnv = process.env): ProfileConfig {
-  return profileConfigSchema.parse({
-    baseUrl: env.CHERRY_TEST_CUSTOM_PROVIDER_BASE_URL,
-    apiKey: env.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY,
-    model: env.CHERRY_TEST_CUSTOM_PROVIDER_CHAT_MODEL,
-    anthropicBaseUrl: env.CHERRY_TEST_CUSTOM_PROVIDER_ANTHROPIC_BASE_URL || undefined
-  })
+export interface ProfileConfig {
+  baseUrl: string
+  apiKey: string
+  model: string
+  anthropicBaseUrl?: string
 }
 
 export async function prepareAuthenticatedProfile(

@@ -13,7 +13,7 @@ import {
 } from 'react'
 
 import { ScrollArea } from '@cherrystudio/ui'
-import { Checkbox, EmptyState, type EmptyStatePreset } from '@cherrystudio/ui'
+import { Checkbox, EmptyState } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import {
@@ -56,10 +56,6 @@ export type ResourceSelectorShellLabels = {
   groupFilter?: string
 }
 
-type ResourceSelectorShellEmptyState = {
-  preset: EmptyStatePreset
-}
-
 type ResourceSelectorSection<T extends ResourceSelectorShellItem> = {
   key: string
   header?: ReactNode
@@ -90,8 +86,6 @@ type ResourceSelectorShellSharedProps<T extends ResourceSelectorShellItem> = {
 
   onCreateNew?: () => void
   onEditItem?: (item: T) => void
-
-  emptyState?: ResourceSelectorShellEmptyState
 
   labels: ResourceSelectorShellLabels
 
@@ -313,7 +307,6 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     onOpen,
     onCreateNew,
     onEditItem,
-    emptyState,
     labels,
     loading,
     width,
@@ -693,12 +686,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     : undefined
 
   const listContent = loading ? null : flatItems.length === 0 ? (
-    <EmptyState
-      compact
-      preset={emptyState?.preset ?? 'no-result'}
-      description={labels.emptyText}
-      className="min-h-full px-3 py-4"
-    />
+    <EmptyState compact description={labels.emptyText} className="min-h-full px-3 py-4" />
   ) : (
     sections.map((section, sectionIndex) => {
       if (section.items.length === 0) return null
