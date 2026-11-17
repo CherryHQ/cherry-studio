@@ -7,10 +7,11 @@ import {
   type Updater,
   useReactTable
 } from '@tanstack/react-table'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Inbox } from 'lucide-react'
 import * as React from 'react'
 
 import { Checkbox } from '@cherrystudio/ui/components/primitives/checkbox'
+import { EmptyStateMessage } from '@cherrystudio/ui/components/primitives/empty-state-mark'
 import { RadioGroup, RadioGroupItem } from '@cherrystudio/ui/components/primitives/radio-group'
 import {
   Table,
@@ -441,7 +442,7 @@ function DataTable<TData>({
             ) : (
               <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={visibleColumnCount || 1} className={tableEmptyCellClassName}>
-                  {emptyText}
+                  <EmptyStateMessage icon={Inbox}>{emptyText}</EmptyStateMessage>
                 </TableCell>
               </TableRow>
             )}
