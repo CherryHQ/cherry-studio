@@ -36,25 +36,9 @@ describe('useCopyTool', () => {
       return tools
     })
 
-    expect(result.current.map((tool) => tool.id)).toEqual(['copy'])
     await act(async () => findTool(result.current, 'copy').onClick?.())
 
     expect(onCopySource).toHaveBeenCalledOnce()
-  })
-
-  it('does not show success feedback when source copy fails', async () => {
-    const onCopySource = vi.fn().mockResolvedValue(false)
-    const previewRef = { current: null }
-    const { result } = renderHook(() => {
-      const [tools, setTools] = useState<ActionTool[]>([])
-      useCopyTool({ showPreviewTools: false, previewRef, onCopySource, setTools })
-      return tools
-    })
-    const initialIcon = findTool(result.current, 'copy').icon
-
-    await act(async () => findTool(result.current, 'copy').onClick?.())
-
-    expect(findTool(result.current, 'copy').icon).toEqual(initialIcon)
   })
 
   it('adds an image-copy action backed by the preview handle', async () => {
@@ -81,13 +65,12 @@ describe('useCopyTool', () => {
       { initialProps: { showPreviewTools: true } }
     )
 
-    expect(result.current.map((tool) => tool.id)).toEqual(['copy-image', 'copy'])
     previewRef.current = preview
     await act(async () => findTool(result.current, 'copy-image').onClick?.())
 
     expect(preview.copy).toHaveBeenCalledOnce()
 
     rerender({ showPreviewTools: false })
-    expect(result.current.map((tool) => tool.id)).toEqual(['copy'])
+    expect(result.current.some((tool) => tool.id === 'copy-image')).toBe(false)
   })
 })

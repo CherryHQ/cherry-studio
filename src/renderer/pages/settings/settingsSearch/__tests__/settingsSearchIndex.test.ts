@@ -25,10 +25,7 @@ function lookup(locale: unknown, key: string): unknown {
 }
 
 /** Every *.search.ts the aggregator would glob — drift must fail here, not silently */
-const globbedSearchModules = import.meta.glob('../../**/*.search.ts', { eager: true }) as Record<
-  string,
-  { route?: unknown }
->
+const globbedSearchModules = import.meta.glob<{ route?: unknown }>('../../**/*.search.ts', { eager: true })
 
 const SCAN_ROOTS = [resolve('src/renderer/pages/settings'), resolve('src/renderer/components/chat/settings')]
 
@@ -112,6 +109,45 @@ describe('settings search index', () => {
         expect(anchorExists(domId), `no JSX anchor found for ${domId}`).toBe(true)
       }
     }
+  })
+
+  it.each([
+    { locale: enUS, language: 'en-US', query: 'Interface language' },
+    { locale: zhCN, language: 'zh-CN', query: '界面语言' }
+  ])('finds the interface language on General settings for $language', ({ locale, query }) => {
+    const t = (key: string) => String(lookup(locale, key) ?? key)
+    const results = rankEntries(query, settingsSearchSections, t)
+    expect(results).toContainEqual(
+      expect.objectContaining({ route: '/settings/general', focusId: 'setting-general-display-language' })
+    )
+    expect(results).not.toContainEqual(
+      expect.objectContaining({ route: '/settings/appearance', focusId: 'setting-appearance-display-language' })
+    )
+  })
+
+  it.each([
+    { locale: enUS, language: 'en-US' },
+    { locale: zhCN, language: 'zh-CN' }
+  ])('finds the browser start page row by its translated title in $language', ({ locale }) => {
+    const t = (key: string) => String(lookup(locale, key) ?? key)
+    expect(rankEntries(t('settings.browser.startPage'), settingsSearchSections, t)).toContainEqual(
+      expect.objectContaining({ route: '/settings/browser', focusId: 'setting-browser-start-page' })
+    )
+  })
+
+  it.each([
+    { locale: enUS, language: 'en-US', query: 'Scroll to the latest message on send' },
+    { locale: zhCN, language: 'zh-CN', query: '发送后滚动到最新消息' }
+  ])('finds the send-scroll setting in $language', ({ locale, query }) => {
+    const t = (key: string) => String(lookup(locale, key) ?? key)
+    expect(rankEntries(query, settingsSearchSections, t)).toContainEqual(
+      expect.objectContaining({
+        route: '/settings/appearance',
+        focusId: 'setting-appearance-scroll-to-bottom-on-send',
+        title: t('settings.messages.scroll_to_bottom_on_send.label'),
+        description: t('settings.messages.scroll_to_bottom_on_send.hint')
+      })
+    )
   })
 
   it.each([

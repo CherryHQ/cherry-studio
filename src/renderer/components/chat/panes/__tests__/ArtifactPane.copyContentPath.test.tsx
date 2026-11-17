@@ -38,14 +38,16 @@ vi.mock('@renderer/components/command', async (importOriginal) => ({
   ...(await importOriginal<typeof CommandModule>()),
   CommandContextMenu: ({
     children,
-    extraItems
+    extraItems,
+    pendingExtraItems = extraItems
   }: {
     children: ReactNode
     extraItems?: readonly CommandContextMenuExtraItem[]
+    pendingExtraItems?: readonly CommandContextMenuExtraItem[]
   }) => (
     <>
       {children}
-      {(extraItems ?? [])
+      {(pendingExtraItems ?? [])
         .flatMap((item) => (item.type === 'submenu' ? item.children : [item]))
         .map((item) =>
           item.type === 'item' ? (

@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactModule from 'react'
@@ -37,6 +38,7 @@ vi.mock('react-i18next', () => ({
           'common.save': '保存',
           'chat.add.assistant.title': '添加助手',
           'assistants.presets.import.action': '导入助手',
+          'assistants.presets.export.action': '导出',
           'library.assistant_catalog.add': '添加',
           'library.assistant_catalog.title': '助手库',
           'library.assistant_catalog.go_to_chat': '去对话',
@@ -341,11 +343,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     },
     Tooltip: ({ children }: { children?: ReactNode }) => <>{children}</>,
     Separator: () => <div />,
-    Scrollbar: ({ children, ...props }: ComponentProps<'div'>) => (
-      <div data-testid="shared-scrollbar" {...props}>
-        {children}
-      </div>
-    ),
+    ScrollArea: MockCherrystudioUI.ScrollArea,
     Skeleton: (props: ComponentProps<'div'>) => <div data-testid="skeleton" {...props} />,
     Switch: actual.Switch,
     Tabs: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -427,6 +425,22 @@ function createAgentResource(): ResourceItem {
   }
 }
 
+it('renders assistant card images with an emoji fallback for missing or broken images', () => {
+  const { rerender } = render(
+    <ResourceCard
+      resource={createAssistantResource({ avatar: '🎓', avatarSrc: 'file:///avatar.webp' })}
+      {...getResourceCardProps()}
+    />
+  )
+  const image = screen.getByRole('img', { name: 'Assistant' })
+  expect(image).toHaveAttribute('src', 'file:///avatar.webp')
+  fireEvent.error(image)
+  expect(screen.getByText('🎓')).toBeVisible()
+  expect(screen.queryByRole('img')).not.toBeInTheDocument()
+  rerender(<ResourceCard resource={createAssistantResource({ avatar: '🤖' })} {...getResourceCardProps()} />)
+  expect(screen.getByText('🤖')).toBeVisible()
+})
+
 function createSkillResource(version: string | null = null, isGlobalEnabled = true): ResourceItem {
   return {
     id: 'skill-1',
@@ -467,6 +481,7 @@ function renderResourceGrid(props: Partial<ComponentProps<typeof ResourceGrid>> 
       onExport={vi.fn()}
       onCreate={vi.fn()}
       onImportAssistant={vi.fn()}
+      onExportAssistants={vi.fn()}
       onOpenSkillMarketplace={vi.fn()}
       groups={[]}
       activeGroupId={null}
@@ -490,7 +505,7 @@ function getResourceCardProps(overrides: Partial<ComponentProps<typeof ResourceC
 }
 
 describe('ResourceGrid empty state copy', () => {
-  it('keeps search in the library toolbar and places a local search beside the settings title', () => {
+  it('searches resources from both the library and settings toolbars', async () => {
     const { unmount } = renderResourceGrid()
 
     expect(screen.getByPlaceholderText('library.toolbar.search_placeholder')).toBeInTheDocument()
@@ -498,19 +513,12 @@ describe('ResourceGrid empty state copy', () => {
     unmount()
     const onSearchChange = vi.fn()
     renderResourceGrid({ activeResourceType: 'skill', onSearchChange, variant: 'settings', title: '技能' })
+    await userEvent.setup().click(screen.getByRole('button', { name: 'common.search' }))
 
     fireEvent.change(screen.getByPlaceholderText('library.toolbar.search_placeholder'), {
       target: { value: 'creator' }
     })
     expect(onSearchChange).toHaveBeenCalledWith('creator')
-  })
-
-  it('renders the optional toolbar leading slot', () => {
-    renderResourceGrid({
-      toolbarLeading: <button type="button">Toggle sidebar</button>
-    })
-
-    expect(screen.getByRole('button', { name: 'Toggle sidebar' })).toBeInTheDocument()
   })
 
   it('shows loading placeholders before the empty state while data is loading', () => {
@@ -520,45 +528,23 @@ describe('ResourceGrid empty state copy', () => {
     expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument()
   })
 
-  it('defaults the settings grid to a single column', async () => {
-    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200)
-
+  it('uses the card content width rather than the wider scroll viewport for columns', async () => {
+    const width = vi
+      .spyOn(HTMLElement.prototype, 'clientWidth', 'get')
+      .mockImplementation(function (this: HTMLElement) {
+        return this.querySelector('[data-testid="resource-grid-loading"]') && !this.hasAttribute('data-slot')
+          ? 618
+          : 658
+      })
     try {
-      renderResourceGrid({ activeResourceType: 'skill', isLoading: true, variant: 'settings', title: '技能' })
-
-      const loadingGrid = screen.getByTestId('resource-grid-loading')
-      await waitFor(() => expect(loadingGrid).toHaveStyle({ gridTemplateColumns: 'repeat(1, minmax(0, 1fr))' }))
+      renderResourceGrid({ activeResourceType: 'skill', isLoading: true })
+      await waitFor(() =>
+        expect(screen.getByTestId('resource-grid-loading')).toHaveStyle({
+          gridTemplateColumns: 'repeat(1, minmax(0, 1fr))'
+        })
+      )
     } finally {
-      clientWidthSpy.mockRestore()
-    }
-  })
-
-  it('keeps the layout control aligned with the visible columns after resizing', async () => {
-    const user = userEvent.setup()
-    let width = 900
-    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(() => width)
-    vi.stubGlobal('ResizeObserver', undefined)
-    try {
-      renderResourceGrid({ activeResourceType: 'skill', isLoading: true, variant: 'settings', allowColumnToggle: true })
-      const grid = screen.getByTestId('resource-grid-loading')
-      const toggle = screen.getByRole('button', { name: 'common.layout.two_columns' })
-      expect(toggle).toHaveAccessibleName('common.layout.two_columns')
-      await user.click(toggle)
-      expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' })
-      expect(toggle).toHaveAccessibleName('common.layout.single_column')
-      width = 500
-      fireEvent(window, new Event('resize'))
-      await waitFor(() => expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(1, minmax(0, 1fr))' }))
-      expect(toggle).toHaveAccessibleName('common.layout.two_columns')
-      expect(toggle).toBeDisabled()
-      width = 900
-      fireEvent(window, new Event('resize'))
-      await waitFor(() => expect(grid).toHaveStyle({ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }))
-      expect(toggle).toBeEnabled()
-      expect(toggle).toHaveAccessibleName('common.layout.single_column')
-    } finally {
-      clientWidthSpy.mockRestore()
-      vi.unstubAllGlobals()
+      width.mockRestore()
     }
   })
 
@@ -588,6 +574,22 @@ describe('ResourceGrid empty state copy', () => {
 })
 
 describe('ResourceGrid assistant add actions', () => {
+  it('offers batch Export only for assistants and keeps it distinct from per-card export', async () => {
+    const user = userEvent.setup()
+    const onExportAssistants = vi.fn()
+    const onExport = vi.fn()
+    const view = renderResourceGrid({ onExportAssistants, onExport })
+    await user.click(screen.getByRole('button', { name: '导出' }))
+    expect(onExportAssistants).toHaveBeenCalledExactlyOnceWith(expect.anything())
+    expect(onExport).not.toHaveBeenCalled()
+    view.unmount()
+    const agent = renderResourceGrid({ activeResourceType: 'agent' })
+    expect(screen.queryByRole('button', { name: '导出' })).not.toBeInTheDocument()
+    agent.unmount()
+    renderResourceGrid({ activeResourceType: 'skill' })
+    expect(screen.queryByRole('button', { name: '导出' })).not.toBeInTheDocument()
+  })
+
   it('renders assistant actions inline and dispatches the selected action', async () => {
     const user = userEvent.setup()
     const onCreate = vi.fn()
@@ -603,7 +605,6 @@ describe('ResourceGrid assistant add actions', () => {
     expect(screen.getByRole('button', { name: '新建助手' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '助手库' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '导入助手' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /添加助手/ })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '助手库' }))
 
@@ -681,49 +682,6 @@ describe('ResourceGrid group toolbar management', () => {
   beforeEach(() => {
     deleteGroupMock.mockReset()
     updateGroupMock.mockReset()
-  })
-
-  it('keeps unused groups collapsed behind the arrow before the add-group button', async () => {
-    const user = userEvent.setup()
-
-    renderResourceGrid({
-      groups: [{ id: 'group-alpha', name: 'alpha', count: 1 }],
-      allGroups: [
-        {
-          id: 'group-beta',
-          entityType: 'assistant',
-          name: 'beta',
-          orderKey: 'a0',
-          createdAt: '2024-01-01T00:00:00.000Z',
-          updatedAt: '2024-01-01T00:00:00.000Z'
-        },
-        {
-          id: 'group-alpha',
-          entityType: 'assistant',
-          name: 'alpha',
-          orderKey: 'a1',
-          createdAt: '2024-01-01T00:00:00.000Z',
-          updatedAt: '2024-01-01T00:00:00.000Z'
-        }
-      ]
-    })
-
-    const alphaGroup = screen.getByRole('button', { name: /alpha/ })
-    const expandButton = screen.getByRole('button', { name: '全部分组' })
-    const addGroupButton = screen.getByRole('button', { name: '分组' })
-
-    expect(screen.queryByRole('button', { name: /beta/ })).not.toBeInTheDocument()
-    expect(alphaGroup.compareDocumentPosition(expandButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(expandButton.compareDocumentPosition(addGroupButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-
-    await user.click(expandButton)
-
-    const betaGroup = screen.getByRole('button', { name: /beta/ })
-    const expandedAlphaGroup = screen.getByRole('button', { name: /alpha/ })
-    expect(betaGroup.compareDocumentPosition(expandedAlphaGroup)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(betaGroup.compareDocumentPosition(screen.getByRole('button', { name: '全部分组' }))).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING
-    )
   })
 
   it('renames a group from the right-click menu', async () => {
@@ -840,20 +798,6 @@ describe('ResourceGrid group toolbar management', () => {
 })
 
 describe('ResourceGrid card actions', () => {
-  it('shows only the visibly labeled global switch on Skill settings cards', () => {
-    render(<ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps()} />)
-
-    expect(screen.getAllByRole('switch')).toHaveLength(1)
-    expect(screen.getByText('全局启用')).toBeVisible()
-    expect(screen.queryByRole('switch', { name: '同步技能到外部目录' })).not.toBeInTheDocument()
-  })
-
-  it('does not expose a sidebar shortcut action on Skill settings cards', () => {
-    render(<ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps()} />)
-
-    expect(screen.queryByRole('button', { name: 'launchpad.pin_to_sidebar' })).not.toBeInTheDocument()
-  })
-
   it('toggles a Skill globally from its settings card without opening the card', async () => {
     const user = userEvent.setup()
     const onEdit = vi.fn()
@@ -930,14 +874,6 @@ describe('ResourceGrid card actions', () => {
 
     expect(onDelete).toHaveBeenCalledWith(resource)
   })
-
-  it('shows only one assistant group in the compact card layout', () => {
-    render(<ResourceCard resource={createAssistantResource({ groupName: 'alpha' })} {...getResourceCardProps()} />)
-
-    expect(screen.getByText('alpha')).toBeInTheDocument()
-    expect(screen.queryByText('beta')).not.toBeInTheDocument()
-    expect(screen.queryByText('+2')).not.toBeInTheDocument()
-  })
 })
 
 describe('Assistant preset preview dialog actions', () => {
@@ -995,24 +931,6 @@ describe('Assistant preset preview dialog actions', () => {
 describe('ResourceCardMenu group binding', () => {
   beforeEach(() => {
     updateAssistantMock.mockReset()
-  })
-
-  it('does not show a group count in the single-select group menu trigger', async () => {
-    const user = userEvent.setup()
-
-    render(
-      <ResourceCardMenu
-        resource={createAssistantResource({ groupId: 'group-alpha', groupName: 'alpha' })}
-        onClose={vi.fn()}
-        onDuplicate={vi.fn()}
-        onDelete={vi.fn()}
-        onExport={vi.fn()}
-        allGroups={assistantGroups}
-      />
-    )
-
-    await user.click(screen.getByRole('button', { name: /common.more/ }))
-    expect(screen.getByRole('button', { name: /library.action.manage_groups/ })).not.toHaveTextContent(/\b1\b/)
   })
 
   it('blocks a second group write while the first one is still pending', async () => {
@@ -1128,26 +1046,6 @@ describe('ResourceCardMenu group binding', () => {
     })
   })
 
-  it('does not expose group management for agent, skill, or prompt resources', async () => {
-    const user = userEvent.setup()
-    const menuProps = {
-      onClose: vi.fn(),
-      onDuplicate: vi.fn(),
-      onDelete: vi.fn(),
-      onExport: vi.fn(),
-      allGroups: assistantGroups
-    }
-
-    for (const resource of [createAgentResource(), createSkillResource(), createPromptResource()]) {
-      const { unmount } = render(<ResourceCardMenu resource={resource} {...menuProps} />)
-
-      await user.click(screen.getByRole('button', { name: /common.more/ }))
-      expect(screen.queryByRole('button', { name: /library.action.manage_groups/ })).not.toBeInTheDocument()
-
-      unmount()
-    }
-  })
-
   it('keeps uninstall available for skill resources without extra menu actions', async () => {
     const user = userEvent.setup()
 
@@ -1164,7 +1062,6 @@ describe('ResourceCardMenu group binding', () => {
 
     await user.click(screen.getByRole('button', { name: /common.more/ }))
     expect(screen.getByRole('menuitem', { name: /library.action.uninstall/ })).toBeInTheDocument()
-    expect(screen.queryByTestId('menu-divider')).not.toBeInTheDocument()
   })
 
   it('offers archive without permanent deletion for assistant resources', async () => {

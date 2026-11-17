@@ -15,6 +15,8 @@ export const testProjects = [
   'agent-runtime',
   'agent-runtime-pi',
   'agent-runtime-pi-durable',
+  'agent-runtime-acp',
+  'agent-runtime-claude-code',
   'ai-sdk-provider',
   'remote-protocol',
   'remote-transport',
@@ -27,6 +29,7 @@ export const checkTasks = {
   skills: { group: 'repository', args: ['skills:check'] },
   knowledge: { group: 'repository', args: ['build:builtin-knowledge:check'] },
   migrations: { group: 'repository', args: ['db:migrations:check'] },
+  theme: { group: 'repository', args: ['--filter', '@cherrystudio/ui', 'theme:check'] },
   lint: { group: 'lint', args: ['lint'] },
   'types-node': { group: 'types', args: ['typecheck:node'] },
   'types-web': { group: 'types', args: ['typecheck:web'] },
@@ -37,7 +40,12 @@ export const checkTasks = {
     group: 'types',
     args: ['--filter', '@cherrystudio/agent-runtime-pi-durable', 'typecheck']
   },
+  'types-agent-runtime-acp': { group: 'types', args: ['--filter', '@cherrystudio/agent-runtime-acp', 'typecheck'] },
   'types-agent-runtime': { group: 'types', args: ['--filter', '@cherrystudio/agent-runtime', 'typecheck'] },
+  'types-agent-runtime-claude-code': {
+    group: 'types',
+    args: ['--filter', '@cherrystudio/agent-runtime-claude-code', 'typecheck']
+  },
   'types-agent-behavior': { group: 'types', args: ['--filter', '@cherrystudio/agent-behavior', 'typecheck'] },
   'types-remote-protocol': { group: 'types', args: ['--filter', '@cherrystudio/remote-protocol', 'typecheck'] },
   'types-remote-transport': { group: 'types', args: ['--filter', '@cherrystudio/remote-transport', 'typecheck'] },
@@ -55,9 +63,19 @@ const consumers = {
   shared: testProjects,
   aiCore: ['aiCore', 'main', 'preload', 'renderer'],
   'agent-behavior': ['agent-behavior', 'agent-runtime-pi', 'main'],
-  'agent-runtime': ['agent-runtime', 'agent-behavior', 'agent-runtime-pi', 'agent-runtime-pi-durable', 'main'],
+  'agent-runtime': [
+    'agent-runtime',
+    'agent-behavior',
+    'agent-runtime-pi',
+    'agent-runtime-pi-durable',
+    'agent-runtime-acp',
+    'agent-runtime-claude-code',
+    'main'
+  ],
   'agent-runtime-pi': ['agent-runtime-pi', 'main'],
   'agent-runtime-pi-durable': ['agent-runtime-pi-durable'],
+  'agent-runtime-acp': ['agent-runtime-acp'],
+  'agent-runtime-claude-code': ['agent-runtime-claude-code'],
   'ai-sdk-provider': ['ai-sdk-provider', 'aiCore', 'main', 'preload', 'renderer'],
   ui: ['ui', 'file-preview', 'renderer'],
   'file-preview': ['file-preview', 'renderer'],
@@ -73,7 +91,7 @@ const consumers = {
 function scopeFor(file) {
   if (file.startsWith('resources/')) return 'all'
   if (file.startsWith('docs/website/')) return 'docs'
-  if (file === '.github/website-docs-sync-plan.json') return 'docs'
+  if (file === 'docs/dev/sources-index.json' || file === '.github/website-docs-sync-plan.json') return 'docs'
   if (
     file === 'CONTRIBUTING.i18n.yaml' ||
     ((file.startsWith('docs/') || file.startsWith('.agents/notes/')) && file.endsWith('.i18n.yaml'))
@@ -110,6 +128,7 @@ function scopeFor(file) {
   if (file.startsWith('scripts/')) return 'scripts'
   const process = /^src\/(main|renderer|shared)\//.exec(file)?.[1]
   if (process) return process
+  if (file.startsWith('native/system-speech/')) return 'system-speech'
   const pkg = /^packages\/([^/]+)\//.exec(file)?.[1]
   return pkg && consumers[pkg] ? pkg : 'all'
 }
@@ -117,11 +136,13 @@ function scopeFor(file) {
 export function createPlan(files, fullReason) {
   const reasons = {}
   const projects = new Set()
+  let platform = false
   const add = (task, reason) => {
     const entries = (reasons[task] ??= [])
     if (entries.length < 3 && !entries.includes(reason)) entries.push(reason)
   }
   const full = (reason) => {
+    platform = true
     for (const task of Object.keys(checkTasks)) add(task, reason)
     for (const project of testProjects) projects.add(project)
   }
@@ -145,7 +166,10 @@ export function createPlan(files, fullReason) {
       continue
     }
     add('knowledge', file)
+    if (file.startsWith('src/renderer/') && /\.(?:tsx?|css)$/.test(file)) add('theme', file)
     const affected = scope === 'preload' ? ['main', 'preload', 'renderer'] : consumers[scope]
+    if (affected.includes('main') && !/^packages\/(?:aiCore|ai-sdk-provider|web-search)\/src\/.*\.tsx?$/.test(file))
+      platform = true
     for (const project of affected) projects.add(project)
     if (affected.some((project) => ['main', 'shared', 'scripts', 'provider-registry'].includes(project)))
       add('types-node', file)
@@ -154,6 +178,8 @@ export function createPlan(files, fullReason) {
     if (affected.includes('agent-behavior')) add('types-agent-behavior', file)
     if (affected.includes('agent-runtime-pi')) add('types-agent-runtime-pi', file)
     if (affected.includes('agent-runtime-pi-durable')) add('types-agent-runtime-pi-durable', file)
+    if (affected.includes('agent-runtime-claude-code')) add('types-agent-runtime-claude-code', file)
+    if (affected.includes('agent-runtime-acp')) add('types-agent-runtime-acp', file)
     if (affected.includes('agent-runtime')) add('types-agent-runtime', file)
     if (affected.includes('remote-protocol')) add('types-remote-protocol', file)
     if (affected.includes('remote-transport')) add('types-remote-transport', file)
@@ -171,6 +197,7 @@ export function createPlan(files, fullReason) {
   return {
     tasks: Object.keys(checkTasks).filter((task) => reasons[task]),
     projects: testProjects.filter((project) => projects.has(project)),
+    platform,
     reasons
   }
 }
@@ -196,7 +223,7 @@ export function selectedGroups(plan) {
     types: plan.tasks.some((task) => checkTasks[task].group === 'types'),
     i18n: plan.tasks.some((task) => checkTasks[task].group === 'i18n'),
     main: plan.projects.includes('main'),
-    platform: plan.projects.includes('main'),
+    platform: plan.platform,
     renderer: plan.projects.includes('renderer'),
     packages: plan.projects.some((project) => !['main', 'preload', 'renderer'].includes(project))
   }

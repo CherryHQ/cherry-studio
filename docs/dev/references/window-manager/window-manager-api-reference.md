@@ -44,6 +44,7 @@ These operate on the declarative `behavior` layer per instance and are exposed o
 | `wm.behavior.setHideOnBlur` | `(windowId: string, enabled: boolean) => void` | Override the declared `behavior.hideOnBlur` at runtime. `enabled: true` keeps auto-hide on; `enabled: false` suppresses (effectively "pinned"). No-op when the window type does not declare `behavior.hideOnBlur` (no listener to override). Override is cleared on window destroy and on pool `releaseToPool`. |
 | `wm.behavior.setAlwaysOnTop` | `(windowId: string, enabled: boolean) => void` | Toggle always-on-top using `level` / `relativeLevel` from `behavior.alwaysOnTop` (single source of truth). When neither is declared, `setAlwaysOnTop(enabled)` is called with no level — matching Electron's default. |
 | `wm.behavior.setMacShowInDockByType` | `(type: WindowType, value: boolean) => void` | Override `behavior.macShowInDock` for an entire type at runtime. Use this to express "app is entering / leaving tray mode": `(Main, false)` before `window.hide()` makes the Dock track the transition; `(Main, true)` before `window.show()` lifts the suppression. Keyed by type (not windowId) so it can be set BEFORE the first instance exists (e.g. tray-on-launch path). When multiple window types contribute (e.g. Main + SubWindow), the Dock stays visible as long as any contributing type is alive — `wm.behavior.setMacShowInDockByType(Main, false)` will not hide the Dock if a SubWindow is still present. |
+| `wm.behavior.hideMacDockWhileShown` | `(windowId: string) => void` | [macOS] Hide the Dock icon until this window next hides, is destroyed, or returns to its pool, whatever the contributing windows want. Meanwhile the app runs as an accessory process, so every window it shows, including the IME candidate panel the system opens for it, can join another app's full-screen Space; the app is also missing from Cmd+Tab. Holds stack: the Dock comes back after the last one ends, and only if a contributing window still wants it. Used by SelectionAgent over full-screen apps. |
 
 > No WM-level `setVisibleOnAllWorkspaces` is provided: its options differ per call in real usage (e.g. SelectionAction's full-screen show sequence), and WM has no state to maintain. Consumers call `window.setVisibleOnAllWorkspaces(enabled, options)` directly on the `BrowserWindow` instance. See [README → When to Provide a Runtime Setter](./README.md#when-to-provide-a-runtime-setter) for the decision rule.
 
@@ -129,7 +130,7 @@ Use [`useWindowInitData`](./window-manager-usage.md#renderer-usewindowinitdata-h
 
 ## Events
 
-Pooled windows traverse a four-stage conceptual lifecycle, but only the endpoints have dedicated events:
+Pooled windows traverse a four-stage conceptual lifecycle. The endpoints and the Released stage have dedicated events; Recycled does not:
 
 ```
 Created ──▶ [Released ──▶ Recycled ──▶ Released ──▶ ...] ──▶ Destroyed
@@ -143,8 +144,10 @@ For non-pooled windows, the same two endpoints apply without any intermediate st
 | `onWindowDestroyed` | `Event<ManagedWindow>` | Fires when a window is truly destroyed (not on pool release). |
 | `onWindowCreatedByType(type, listener)` | `(type, listener) => Disposable` | Convenience variant of `onWindowCreated` that filters to a single `WindowType`. Equivalent to `onWindowCreated` + an inline `if (managed.type === type)` guard, but avoids the boilerplate at every call site. Prefer this for single-type subscriptions (the typical consumer case). |
 | `onWindowDestroyedByType(type, listener)` | `(type, listener) => Disposable` | Type-filtered counterpart to `onWindowDestroyed`. Same filtering semantics as `onWindowCreatedByType`. |
+| `onWindowReleasedToPool` | `Event<ManagedWindow>` | Fires when a pooled window is closed (`close()` or an intercepted native close) and goes back to the idle pool alive. A release that destroys the window (recycling disabled, over capacity, fullscreen) fires `onWindowDestroyed` instead, so the two never fire for the same close. |
+| `onWindowReleasedToPoolByType(type, listener)` | `(type, listener) => Disposable` | Type-filtered counterpart to `onWindowReleasedToPool`. |
 
-The intermediate Released and Recycled stages have no dedicated lifecycle events — side effects on `hide` / `close` / `show` should be expressed as declarative [OS Quirks](./window-manager-platform.md#os-quirks), and per-session data on recycle is delivered via the `window.reused` IpcApi payload (see [Init Data](#init-data)).
+A service that keeps per-window session state for a recycling pool clears it on both `onWindowReleasedToPool` and `onWindowDestroyed`: a released window keeps its renderer and its id, and nothing else tells the service that the session ended. The Recycled stage has no event — per-session data on recycle is delivered via the `window.reused` IpcApi payload (see [Init Data](#init-data)), and native side effects on `hide` / `close` / `show` should be expressed as declarative [OS Quirks](./window-manager-platform.md#os-quirks).
 
 **Usage notes for pooled windows:**
 

@@ -20,7 +20,7 @@ The Launchpad currently includes 9 built-in apps:
 | [MiniApp](../../cherry-studio/preview/app/README.md) | Use web applications within Cherry Studio |
 | [Knowledge Base](knowledge-base.md) | Import documents for retrieval and Q&A |
 | [Files](files.md) | View and manage files used within the app |
-| [Code Mate](code-cli.md) | Install, configure, and launch AI coding CLI tools |
+| [Code Mate](../../advanced-basic/developer-tools/code-cli.md) | Install, configure, and launch AI coding CLI tools |
 | [Notes](notes.md) | Create and organize Markdown notes |
 
 ## Reorder Apps

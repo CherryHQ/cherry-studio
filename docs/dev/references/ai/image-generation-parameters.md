@@ -185,6 +185,20 @@ Form edits write into **`painting.params`** — a flat canonical-keyed bag. Defa
 are committed when the model is selected by `computeModelFieldReset`
 ([`.../utils/computeModelFieldReset.ts`](../../../../src/renderer/pages/paintings/utils/computeModelFieldReset.ts)).
 
+For models declaring `frameCount`, GIF output shows frame count and frame duration
+instead of the static-image size control. `canonicalGenerate` submits `size: 'auto'`
+for that painting workflow so the API can fit the animation sheet within its pixel
+budget. Static outputs keep their selected size. Timing values are forwarded only
+when the output format is GIF.
+
+The current composer image attachments select generation versus editing; submit
+uses the materialized image files for the same decision. Explicit remix, upscale
+and merge modes retain their meaning. Controls come from the resulting mode's
+support, so generation-only animation settings disappear when reference images
+select an edit mode without them. Submit drops stale GIF format and timing for such a static-only edit mode.
+
+The public catalog retains API capabilities. Main projects support through each selected endpoint adapter before returning it to Desktop consumers: OpenAI 3.0.137 allows GIF generation with 20–2000 ms timing but rejects GIF edits. This projection never mutates the catalog or narrows other adapters. GIF export preserves original bytes even after display-only preview rotation or flipping.
+
 ---
 
 ## Write half — `paramValues` → vendor request
@@ -227,6 +241,11 @@ typed call options (`imageParams`).
 
 The SDK image model is one of: a custom `ImageModelV3` (e.g.
 [`silicon/SiliconImageModel.ts`](../../../../src/main/ai/provider/custom/silicon/SiliconImageModel.ts), [`aihubmix/aihubmixImageModel.ts`](../../../../src/main/ai/provider/custom/aihubmix/aihubmixImageModel.ts)), `@ai-sdk/openai-compatible`, or `@ai-sdk/google`. It **reads** the wire body — it does not re-rename it.
+
+The native OpenAI SDK reads camelCase image options. Its profile therefore maps
+`outputFormat`, `frameCount` and `frameDurationMs` to those SDK option names;
+`@ai-sdk/openai` owns their final HTTP spelling (`output_format`, `frame_count`,
+`frame_duration_ms`). Plain wire bodies still use the catalog's `wireName`.
 
 ### 4. Transport delivery (async / bespoke wire shape)
 

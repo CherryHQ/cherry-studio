@@ -47,7 +47,8 @@ export default defineProvider({
       modelsApiUrls: {
         default: 'https://openrouter.ai/api/v1/models',
         embedding: 'https://openrouter.ai/api/v1/embeddings/models',
-        image: 'https://openrouter.ai/api/v1/images/models'
+        image: 'https://openrouter.ai/api/v1/images/models',
+        reranker: 'https://openrouter.ai/api/v1/models?output_modalities=rerank'
       }
     },
     'openai-image-generation': {

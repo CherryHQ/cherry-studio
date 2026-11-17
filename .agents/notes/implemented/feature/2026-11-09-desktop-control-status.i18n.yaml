@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-09-desktop-control-status.md
+2026-11-09-desktop-control-status.md: 64e182a875419bf14e73f7b54f4d6089b9c19a29
+2026-11-09-desktop-control-status.zh.md: 736e4528fef44a39eebab682f844a9d96a091cd4

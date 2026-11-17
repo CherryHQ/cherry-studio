@@ -1,7 +1,7 @@
 import { pathToFileURL } from 'node:url'
 
-import type { IpcMainInvokeEvent } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { BrowserWindow, type IpcMainInvokeEvent } from 'electron'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Tests for the Preference_Subscribe IPC handler.
@@ -13,6 +13,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * resolvable window.
  */
 import { IpcChannel } from '@shared/IpcChannel'
+
+import type { PreferenceService as PreferenceServiceType } from '../PreferenceService'
 
 // Undo the global mock from main.setup.ts — we want the REAL PreferenceService
 vi.unmock('@main/data/PreferenceService')
@@ -80,28 +82,27 @@ vi.mock('../db/schemas/preference', () => ({
   preferenceTable: { scope: 'scope', key: 'key' }
 }))
 
-// Override electron BrowserWindow with a test-controllable fromWebContents
-const fromWebContents = vi.fn()
-vi.mock('electron', async () => {
-  const actual = await vi.importActual<any>('electron')
-  const fakeBrowserWindow: any = vi.fn()
-  fakeBrowserWindow.getAllWindows = vi.fn(() => [] as any[])
-  fakeBrowserWindow.fromWebContents = fromWebContents
-  return {
-    ...actual,
-    BrowserWindow: fakeBrowserWindow
-  }
+// Extend the setup mock without loading Electron's binary-resolving entry point.
+const fromWebContents = vi.fn<() => Pick<BrowserWindow, 'id'> | null>()
+Object.assign(BrowserWindow, {
+  getAllWindows: vi.fn(() => []),
+  fromWebContents
 })
 
 describe('Preference_Subscribe IPC handler', () => {
   let service: any
   let handler: (event: IpcMainInvokeEvent, ...args: any[]) => unknown
 
-  beforeEach(async () => {
+  let PreferenceService: typeof PreferenceServiceType
+
+  beforeAll(async () => {
+    ;({ PreferenceService } = await import('../PreferenceService'))
+  }, 30_000)
+
+  beforeEach(() => {
     vi.clearAllMocks()
     ipcHandlers.clear()
 
-    const { PreferenceService } = await import('../PreferenceService')
     service = new PreferenceService()
     service.onReady()
     handler = ipcHandlers.get(IpcChannel.Preference_Subscribe)!

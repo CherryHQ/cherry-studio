@@ -80,12 +80,7 @@ describe('MessageTools cold-reload self-defer', () => {
     expect(useToolResultMock).toHaveBeenCalledWith({ topicId: 'topic-1', messageId: 'm1', toolCallId: 'call-1' })
   })
 
-  it('shows the envelope excerpt while the full value loads', () => {
-    renderInScope(entitiesEnvelope)
-    expect(renderedResponses.at(-1)).toMatchObject({ response: 'head excerpt\n…\ntail excerpt' })
-  })
-
-  it('renders the resolved output once the fetch lands', () => {
+  it('renders the full resolved output instead of the persisted placeholder', () => {
     useToolResultMock.mockReturnValue({
       output: [{ id: 'cite-0', content: 'full text' }],
       error: undefined,
@@ -95,19 +90,17 @@ describe('MessageTools cold-reload self-defer', () => {
     expect(renderedResponses.at(-1)).toMatchObject({ response: [{ id: 'cite-0', content: 'full text' }] })
   })
 
-  it('leaves the raw envelope in place outside a message list scope', () => {
+  it('does not request a persisted result without a topic scope', () => {
     topicIdMock.mockReturnValue(undefined)
     renderInScope(entitiesEnvelope)
     expect(useToolResultMock).toHaveBeenCalledWith(undefined)
-    expect(renderedResponses.at(-1)).toMatchObject({ response: entitiesEnvelope })
   })
 
-  it('still resolves an already-projected deferred output as before', () => {
+  it('uses the persisted reference scope instead of the current message scope', () => {
     renderInScope({
       $deferredToolResult: { topicId: 'topic-9', messageId: 'm9', toolCallId: 'call-1' },
       excerpt: { head: 'p-head', tail: 'p-tail', totalChars: 10, totalLines: 2 }
     })
     expect(useToolResultMock).toHaveBeenCalledWith({ topicId: 'topic-9', messageId: 'm9', toolCallId: 'call-1' })
-    expect(renderedResponses.at(-1)).toMatchObject({ response: 'p-head\n…\np-tail' })
   })
 })

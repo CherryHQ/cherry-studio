@@ -9,7 +9,7 @@ Grok 是 xAI 推出的大模型，以"语气更随意 + 接入 X (Twitter) 实�
 
 ## 在 Cherry Studio 配置
 
-* 打开 `设置 → 模型服务`，找到 **Grok** Provider 进入详情页
+* 打开 `设置 → 模型服务`，找到 **Grok** 服务商进入详情页
 * **API 密钥** 填入 `xai-...`
 * **API 地址** 默认 `https://api.x.ai`，无需修改
 * 点击 **获取模型列表**，添加 `grok-4`、`grok-4-fast` 等模型

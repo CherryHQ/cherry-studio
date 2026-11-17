@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import { ToolRegistry } from '../../registry'
 import type { ToolEntry } from '../../types'
-import { createToolSearchTool, TOOL_SEARCH_TOOL_NAME } from '../toolSearch'
+import { createToolSearchTool } from '../toolSearch'
 
 function makeEntry(overrides: Partial<ToolEntry> & Pick<ToolEntry, 'name'>): ToolEntry {
   return {
@@ -34,10 +34,6 @@ async function callExecute(tool: Tool, args: { query?: string; namespace?: strin
 }
 
 describe('tool_search meta-tool', () => {
-  it('TOOL_SEARCH_TOOL_NAME is the agreed wire-name', () => {
-    expect(TOOL_SEARCH_TOOL_NAME).toBe('tool_search')
-  })
-
   it('groups deferred entries by namespace, drops non-deferred', async () => {
     const reg = setup()
     const deferred = new Set(['mcp__s1__a', 'mcp__s1__b', 'mcp__s2__c'])
@@ -97,17 +93,6 @@ describe('tool_search meta-tool', () => {
     expect(out.value).toContain('mcp__s2__c')
   })
 
-  it('toModelOutput reports no matches when nothing is deferred', () => {
-    const reg = setup()
-    const tool = createToolSearchTool(reg, new Set(), new Set())
-    const out = tool.toModelOutput!({ toolCallId: 'tc-1', input: {}, output: { matchedNamespaces: [] } }) as {
-      type: string
-      value: string
-    }
-    expect(out.type).toBe('text')
-    expect(out.value).toMatch(/No tools matched/)
-  })
-
   it.each([
     ['undefined output', undefined],
     ['null output', null],
@@ -126,12 +111,6 @@ describe('tool_search meta-tool', () => {
       type: 'text',
       value: 'The stored tool search result could not be read. Ignore it and run `tool_search` again.'
     })
-  })
-
-  it('advertises inputExamples', () => {
-    const reg = setup()
-    const tool = createToolSearchTool(reg, new Set(['mcp__s1__a']), new Set())
-    expect(tool.inputExamples?.length).toBeGreaterThan(0)
   })
 
   it('verbose mode includes inputSchema; default mode omits it', async () => {

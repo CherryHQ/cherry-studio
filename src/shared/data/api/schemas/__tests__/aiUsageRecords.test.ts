@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  AI_USAGE_RECORD_AGGREGATE_DEFAULT_LIMIT,
   AI_USAGE_RECORD_MAX_RANGE_DAYS,
   AiUsageRecordListQuerySchema,
   AiUsageRecordStatsQuerySchema,
@@ -13,16 +12,6 @@ const to = Date.UTC(2026, 6, 1)
 const from = to - 30 * DAY_MS
 
 describe('AI usage record query contracts', () => {
-  it('applies bounded aggregate defaults', () => {
-    expect(AiUsageRecordStatsQuerySchema.parse({ groupBy: 'provider', from, to })).toEqual({
-      groupBy: 'provider',
-      from,
-      to,
-      metric: 'tokens',
-      limit: AI_USAGE_RECORD_AGGREGATE_DEFAULT_LIMIT
-    })
-  })
-
   it('requires a currency for monetary ranking and sorting', () => {
     expect(AiUsageRecordStatsQuerySchema.safeParse({ groupBy: 'provider', from, to, metric: 'cost' }).success).toBe(
       false

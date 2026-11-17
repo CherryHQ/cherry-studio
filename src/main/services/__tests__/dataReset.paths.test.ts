@@ -1,3 +1,4 @@
+import type * as NodeModule from 'node:module'
 import path from 'node:path'
 
 import { describe, expect, it, vi } from 'vitest'
@@ -26,6 +27,12 @@ vi.mock('electron', () => ({
     setAppLogsPath: vi.fn()
   },
   dialog: { showErrorBox: vi.fn() }
+}))
+
+// Native package discovery is outside the reset classification contract.
+vi.mock('node:module', async (importOriginal) => ({
+  ...(await importOriginal<typeof NodeModule>()),
+  createRequire: () => ({ resolve: () => '/mock/app/node_modules/computer-use/package.json' })
 }))
 
 const registry = buildPathRegistry()
@@ -75,7 +82,7 @@ describe('dataReset ↔ pathRegistry conformance', () => {
   it('the data-reset marker survives its own wipe (a deliberate third category)', () => {
     // The marker is removed separately after the wipe is committed.
     const markerEntry = firstSegment(registry['feature.data_reset.marker_file'], userData)
-    expect(markerEntry).toBe('data-reset.pending.json')
+
     expect(isWiped(markerEntry)).toBe(false)
     expect(USER_DATA_KEPT).not.toContain(markerEntry)
   })

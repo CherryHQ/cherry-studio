@@ -9,7 +9,7 @@ Anthropic 的 Claude 是当前最适合作为 [Cherry 智能体](../../advanced-
 
 ## 在 Cherry Studio 配置
 
-* 打开 `设置 → 模型服务`，找到 **Anthropic** Provider 进入详情页
+* 打开 `设置 → 模型服务`，找到 **Anthropic** 服务商进入详情页
 * 在 **API 密钥** 中填入 `sk-ant-...`
 * **API 地址** 默认 `https://api.anthropic.com`，无需修改
 * 点击 **获取模型列表**，添加 `claude-opus-4`、`claude-sonnet-4`、`claude-haiku-4` 等模型
@@ -27,7 +27,7 @@ Anthropic 的 Claude 是当前最适合作为 [Cherry 智能体](../../advanced-
 
 ## 智能体场景配置
 
-把该 Provider 在 [Cherry 智能体](../../advanced-basic/agent.md) 配置时选为默认模型来源，即可直接获得 Anthropic 协议智能体能力。
+把该服务商在 [Cherry 智能体](../../advanced-basic/agent.md) 配置时选为默认模型来源，即可直接获得 Anthropic 协议智能体能力。
 
 {% hint style="info" %}
 * 中国大陆无法直接访问 Anthropic API，需自备代理（参考 [常规设置 → 代理模式](../settings/general.md)）

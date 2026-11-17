@@ -136,7 +136,7 @@ selectors without duplicating the token grammar.
 
 The maintained application shell currently includes:
 
-- `app.sidebar`, `app.tab-bar`, `app.content`, and `app.search`;
+- `app.sidebar`, `app.shell`, `app.tab-bar`, `app.content`, and `app.search`;
 - `app.detached-window` for the detached route window root;
 - `quick-assistant.view`, `selection.toolbar`, and `selection.action` for auxiliary windows and surfaces;
 - `file-preview.view` for the shared file preview boundary.
@@ -144,12 +144,12 @@ The maintained application shell currently includes:
 The maintained feature surfaces currently include:
 
 - `agent.view`;
-- `files.view`, `files.navigation`, and `files.content`;
+- `files.view`, `files.navigation`, `files.content`, `files.row`, and `part:file-size`;
 - `knowledge.view`, `knowledge.navigation`, and `knowledge.content`;
-- `notes.view`, `notes.navigation`, and `notes.editor`;
-- `translate.view`, `translate.input`, and `translate.output`;
+- `notes.view`, `notes.navigation`, `notes.editor`, and `notes.editor-footer`;
+- `translate.view`, `translate.input`, `translate.output`, `translate.custom-languages`, and `translate.custom-language`;
 - `paintings.view`;
-- `code.view`, `code.navigation`, and `code.content`;
+- `code.view`, `code.navigation`, `code.content`, and `code.provider-card`;
 - `mini-apps.view`.
 
 The maintained chat surface currently includes:
@@ -178,7 +178,7 @@ layers (Tailwind's layers, then `app`; declared in `src/renderer/assets/styles/i
 declarations beat every layered declaration regardless of load order or selector specificity, custom CSS can use the
 full CSS surface—including `:root`, `body`, top-level at-rules, and semantic `data-ui` selectors—and wins without
 blanket `!important`. Every regular renderer window subscribes to the same `ui.custom_css` preference and injects that
-stylesheet into its own document. The preboot windows (`migrationV2`, `userDataRelocation`) are the exceptions because
+stylesheet into its own document. The preboot windows (`userDataRelocation`) are the exceptions because
 they do not initialize preferences.
 
 Two deliberate limits: `!important` inverts layer precedence, so a layered application `!important` rule beats an

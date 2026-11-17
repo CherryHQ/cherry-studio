@@ -12,14 +12,15 @@ import {
   useState
 } from 'react'
 
-import { Checkbox, EmptyState, type EmptyStatePreset } from '@cherrystudio/ui'
+import { ScrollArea } from '@cherrystudio/ui'
+import { Checkbox, EmptyState } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import {
   MODEL_SELECTOR_ROW_CHECKBOX_CLASS,
   ModelSelectorRow,
   ModelSelectorRowActionButton
 } from '@renderer/components/ModelSelector'
-import Scrollbar from '@renderer/components/Scrollbar'
 import {
   DEFAULT_SELECTOR_CONTENT_HEIGHT,
   SelectorShell,
@@ -32,6 +33,7 @@ export type ResourceSelectorShellItem = {
   id: string
   name: string
   emoji?: string
+  avatarSrc?: string
   description?: string
   groupId?: string
   groupName?: string
@@ -52,10 +54,6 @@ export type ResourceSelectorShellLabels = {
   /** Heading rendered above the pinned group in the list. */
   pinnedTitle: string
   groupFilter?: string
-}
-
-type ResourceSelectorShellEmptyState = {
-  preset: EmptyStatePreset
 }
 
 type ResourceSelectorSection<T extends ResourceSelectorShellItem> = {
@@ -88,8 +86,6 @@ type ResourceSelectorShellSharedProps<T extends ResourceSelectorShellItem> = {
 
   onCreateNew?: () => void
   onEditItem?: (item: T) => void
-
-  emptyState?: ResourceSelectorShellEmptyState
 
   labels: ResourceSelectorShellLabels
 
@@ -257,7 +253,14 @@ function ResourceSelectorOptionRowComponent<T extends ResourceSelectorShellItem>
             />
           ) : null
         }
-        leading={leading}
+        leading={
+          <AssistantAvatarImage
+            src={item.avatarSrc}
+            alt={item.name}
+            className="size-5 shrink-0 rounded-full object-cover"
+            fallback={leading}
+          />
+        }
         trailing={trailing}
         actions={
           <>
@@ -304,7 +307,6 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     onOpen,
     onCreateNew,
     onEditItem,
-    emptyState,
     labels,
     loading,
     width,
@@ -684,12 +686,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     : undefined
 
   const listContent = loading ? null : flatItems.length === 0 ? (
-    <EmptyState
-      compact
-      preset={emptyState?.preset ?? 'no-result'}
-      description={labels.emptyText}
-      className="min-h-full px-3 py-4"
-    />
+    <EmptyState compact description={labels.emptyText} className="min-h-full px-3 py-4" />
   ) : (
     sections.map((section, sectionIndex) => {
       if (section.items.length === 0) return null
@@ -765,16 +762,20 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
         const listHeight = availableListHeight ?? DEFAULT_MIN_LIST_HEIGHT
 
         return (
-          <Scrollbar
-            ref={listRef}
-            id={listboxId}
-            role="listbox"
-            aria-multiselectable={multiEnabled}
-            tabIndex={-1}
-            className="min-h-0 flex-1 scroll-pt-1.5 px-1 py-1 outline-none"
+          <ScrollArea
+            contentProps={{ className: 'px-1 py-1' }}
+            viewportProps={{
+              ref: listRef,
+              id: listboxId,
+              role: 'listbox',
+              'aria-multiselectable': multiEnabled,
+              tabIndex: -1,
+              className: 'scroll-pt-1.5 outline-none'
+            }}
+            className="min-h-0 flex-1"
             style={{ height: listHeight }}>
             {listContent}
-          </Scrollbar>
+          </ScrollArea>
         )
       }}
     </SelectorShell>

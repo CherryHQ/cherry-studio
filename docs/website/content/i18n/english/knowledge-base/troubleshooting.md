@@ -68,7 +68,7 @@ Yes. Selecting **Do Not Use** still enables BM25 keyword retrieval. Add an embed
 
 <summary>What sources and file formats are supported? </summary>
 
-Sources include files, Cherry Studio notes, local directories, and web links. Supported file formats include PDF, DOCX, DOC, PPTX, XLSX, XLS, Markdown, TXT, CSV, HTML, and EPUB.
+Sources include files, Cherry Studio notes, local directories, and web links. Supported file formats include PDF, DOCX, DOC, PPTX, XLSX, XLS, ODT, ODP, ODS, RTF, Markdown, TXT, CSV, HTML, and EPUB.
 
 </details>
 

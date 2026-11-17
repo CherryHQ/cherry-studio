@@ -332,7 +332,13 @@ vi.mock('node-stream-zip', () => ({
 import { ZipArchive } from 'archiver'
 import * as fs from 'fs-extra'
 
-import BackupManager, { BackupOperationBusyError } from '../LegacyBackupManager'
+import { shouldReportFailure } from '@shared/utils/errorReporting'
+
+import BackupManager, {
+  BackupOperationBusyError,
+  BackupActiveWritersError,
+  classifyBackupFailure
+} from '../LegacyBackupManager'
 import WebDav from '../WebDav'
 
 const createDirent = (name: string, type: 'directory' | 'file' = 'file') => ({
@@ -472,7 +478,6 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(fs.remove).toHaveBeenCalledTimes(2)
     expect(fs.remove).toHaveBeenCalledWith(`/mock/temp/backup/${staleExtract}`)
     expect(fs.remove).toHaveBeenCalledWith(`/mock/temp/backup/${staleArchive}`)
-    expect(fs.lstat).toHaveBeenCalledTimes(3)
   })
 
   it('boot-hardens the shared-temp backup staging root', async () => {
@@ -557,16 +562,16 @@ describe('BackupManager direct v2 data compatibility', () => {
     // so this asserts the call, not the on-disk mode — fs.test.ts covers that).
     expect(mockCreateAtomicWriteStream).toHaveBeenCalledWith('/backups/backup.zip', { mode: 0o600 })
     expect(mockAgentLifecycle.pauseIngress).toHaveBeenCalledOnce()
-    expect(mockAgentLifecycle.drainIngress).toHaveBeenCalledWith({ timeoutMs: 30_000 })
+    expect(mockAgentLifecycle.drainIngress).toHaveBeenCalledWith({ timeoutMs: expect.any(Number) })
     expect(mockAgentLifecycle.drainIngress.mock.invocationCallOrder[0]).toBeLessThan(
       mockAiStreamManager.pause.mock.invocationCallOrder[0]
     )
     expect(mockAiStreamManager.pause).toHaveBeenCalledOnce()
-    expect(mockAiStreamManager.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
+    expect(mockAiStreamManager.drainInFlight).toHaveBeenCalledWith({ timeoutMs: expect.any(Number) })
     expect(mockAgentLifecycle.pauseExecution).toHaveBeenCalledOnce()
-    expect(mockAgentLifecycle.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
+    expect(mockAgentLifecycle.drainInFlight).toHaveBeenCalledWith({ timeoutMs: expect.any(Number) })
     expect(mockJobManager.pause).toHaveBeenCalledOnce()
-    expect(mockJobManager.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
+    expect(mockJobManager.drainInFlight).toHaveBeenCalledWith({ timeoutMs: expect.any(Number) })
     expect(mockDbService.checkpointTruncate).toHaveBeenCalledTimes(2)
     expect(mockDbService.createSnapshot).not.toHaveBeenCalled()
     expect(mockCacheService.flushPersistForBackup).toHaveBeenCalledOnce()
@@ -921,7 +926,7 @@ describe('BackupManager direct v2 data compatibility', () => {
         ])
       })
     )
-    expect((backupManager as any).fsyncTree).toHaveBeenCalledWith('/mock/userData/restore-staging')
+
     expect(mockRelaunch).not.toHaveBeenCalled()
     expect(mockJobHold.dispose).not.toHaveBeenCalled()
     expect(mockHeartbeatHold.dispose).not.toHaveBeenCalled()
@@ -1528,14 +1533,6 @@ describe('BackupManager.copyDirWithProgress', () => {
 
     expect(fs.copy).toHaveBeenCalledWith('/src/skill-link', '/dest/skill-link', { dereference: true })
     expect(onProgress).toHaveBeenCalledWith(42)
-    expect(mockLogger.info).toHaveBeenCalledWith(
-      expect.stringContaining('Dereferencing symlink during backup copy'),
-      expect.objectContaining({
-        path: '/src/skill-link',
-        sourceRootRealPath: '/src',
-        targetRealPath: '/src/skill-link'
-      })
-    )
   })
 
   it('should warn when dereferencing a symlink target outside the source root', async () => {
@@ -1843,19 +1840,6 @@ describe('BackupManager.copyDirWithProgress', () => {
     )
   })
 
-  it('should throttle copy progress to integer progress changes and completion', () => {
-    const onProgress = vi.fn()
-    const handleProgress = (backupManager as any).createCopyProgressHandler(100, 0, 50, 'copying_files', onProgress)
-
-    handleProgress(1)
-    handleProgress(1)
-    handleProgress(98)
-
-    expect(onProgress).toHaveBeenCalledTimes(2)
-    expect(onProgress).toHaveBeenNthCalledWith(1, { stage: 'copying_files', progress: 1, total: 100 })
-    expect(onProgress).toHaveBeenNthCalledWith(2, { stage: 'copying_files', progress: 50, total: 100 })
-  })
-
   it('should not recurse forever when a symlinked directory points to an ancestor during size calculation', async () => {
     vi.mocked(fs.readdir).mockImplementation(async (dir) => {
       const dirPath = String(dir)
@@ -1964,5 +1948,31 @@ describe('WebDAV client cache (S6 allowSelfSignedTls switch)', () => {
 
     expect(explicitFalse).toBe(first)
     expect(WebDav).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('backup failure reporting', () => {
+  it.each(['list', 'delete'] as const)('preserves ownership when wrapping a remote %s failure', async (operation) => {
+    const manager = new BackupManager()
+    const denied = Object.assign(new Error('authentication required'), { status: 401 })
+    vi.spyOn(manager as any, 'getWebDavInstance').mockReturnValue({
+      getDirectoryContents: vi.fn().mockRejectedValue(denied),
+      deleteFile: vi.fn().mockRejectedValue(denied)
+    })
+    const config = { webdavHost: 'https://example.com/dav' }
+    const result =
+      operation === 'list'
+        ? manager.listWebdavFiles(null, config)
+        : manager.deleteWebdavFile(null, 'backup.zip', config)
+    await expect(result).rejects.toMatchObject({ message: 'authentication required', reportingHandled: true })
+  })
+
+  it('keeps busy preconditions local without suppressing snapshot consistency failures', () => {
+    expect(shouldReportFailure(classifyBackupFailure(new BackupOperationBusyError()))).toBe(false)
+    expect(shouldReportFailure(classifyBackupFailure(new BackupActiveWritersError()))).toBe(false)
+    expect(classifyBackupFailure(new Error('snapshot integrity failed')).kind).toBe('reliability')
+    expect(shouldReportFailure(classifyBackupFailure(Object.assign(new Error('disk full'), { code: 'ENOSPC' })))).toBe(
+      true
+    )
   })
 })

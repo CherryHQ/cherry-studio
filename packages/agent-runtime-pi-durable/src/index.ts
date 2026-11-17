@@ -2,7 +2,10 @@ export { createPiDurableRuntime } from './runtime'
 export type {
   PiDurableRuntime,
   PiDurableRuntimeOptions,
+  PiDurableRuntimeBehavior,
   PiDurableThreadHandle,
-  PiDurableThreadInput,
-  PiDurableSessionOptions
+  PiDurableSessionOptions,
+  PiDurableArchive
 } from './runtime'
+
+export type { DurableObservation } from './projection'

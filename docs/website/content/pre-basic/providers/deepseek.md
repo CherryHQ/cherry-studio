@@ -10,7 +10,7 @@ DeepSeek 是国内主流大模型厂商之一，以 V3 / R1 系列在编程与�
 
 ## 在 Cherry Studio 配置
 
-* 打开 `设置 → 模型服务`，找到 **deepseek** Provider 进入详情页
+* 打开 `设置 → 模型服务`，找到 **deepseek** 服务商进入详情页
 * **API 密钥** 填入 `sk-...`
 * **API 地址** 默认 `https://api.deepseek.com`，无需修改
 * 点击 **获取模型列表**
@@ -32,7 +32,7 @@ DeepSeek 中支持联网能力的模型可以直接使用服务商原生网络�
 
 DeepSeek 自家没有嵌入模型。如果你要用知识库：
 
-* 嵌入模型推荐用其他 Provider 的（如 [硅基流动](siliconcloud.md) 的 `bge-m3` 或 [OpenAI](openai.md) 的 `text-embedding-3-small`）
+* 嵌入模型推荐用其他服务商的（如 [硅基流动](siliconcloud.md) 的 `bge-m3` 或 [OpenAI](openai.md) 的 `text-embedding-3-small`）
 * 对话模型仍可用 DeepSeek
 
 {% hint style="info" %}

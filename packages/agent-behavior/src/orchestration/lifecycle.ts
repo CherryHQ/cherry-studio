@@ -1,8 +1,7 @@
-import { summaryDecision } from '../core/context/offload'
 import { ensureDriver } from '../core/driver/jobs'
 import { decideOnOpen } from '../core/driver/lifecycle'
-import { goalForRequest } from '../core/goal/goalHistory'
-import { keys } from '../core/keys'
+import { decideRunEnd } from '../core/subagents/subagentDecisions'
+import { runReport } from '../core/subagents/subagentText'
 import type { LifecycleHandlers } from '../ports/harness'
 import type { HostPorts } from '../ports/host'
 import { emitViews, gatherInputs, step } from './step'
@@ -19,30 +18,9 @@ export function lifecycleHandlers(host: HostPorts): LifecycleHandlers {
       // The host lost the views it showed, and a crash may have fallen between a step's commit and its views.
       if (open.reopened) await emitViews(context, thread)
     },
-    async onCompacting(thread, request, ports) {
-      const { key, signal, history, ...summarize } = request
-      try {
-        return await ports.memory.remember(keys.summaryMemo(key), async () => {
-          const owner = goalForRequest(history)
-          const result = await host.summarizer.summarize({ ...summarize, thread }, signal)
-          const decided = summaryDecision(typeof result === 'string' ? result : result.summary)
-          if ('decline' in decided) throw new Error('The summary is empty')
-          return {
-            summary: decided.summary,
-            ...(typeof result === 'string'
-              ? {}
-              : {
-                  accounting: {
-                    key: keys.summaryUsage(key),
-                    record: { type: 'summary-usage' as const, value: { ...owner, usage: result.usage } }
-                  }
-                })
-          }
-        })
-      } catch (error) {
-        // D33: a failed summary cancels the compaction; nothing falls back to the conversation's model.
-        return { decline: true, reason: error instanceof Error ? error.message : String(error) }
-      }
+    async onChildOpenFailed(parent, child, error, ports) {
+      const answer = { outcome: 'failed' as const, text: '', error }
+      await step({ ports, host }, parent, (facts) => decideRunEnd(facts, child, 1, answer, runReport(answer)))
     },
     // The status a compaction leaves is written by the driver once the conversation is idle (S-i).
     async onCompacted(thread, ports) {

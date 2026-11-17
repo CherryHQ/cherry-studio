@@ -1,4 +1,4 @@
-import { execFile, execFileSync } from 'node:child_process'
+import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import { createRequire } from 'node:module'
@@ -47,6 +47,7 @@ import type {
 } from '@shared/types/binary'
 import { Semaphore } from '@shared/utils/async'
 
+import { claudeNpmRegistries, resolveClaudeNpmPackage } from './claudeNpm'
 import { sanitizedCommandError } from './commandError'
 import { installToolDependencies } from './pipDependencies'
 import { provideManagedPython } from './pythonRuntime'
@@ -241,8 +242,11 @@ type FixedToolDefinition = {
   tool: string
   npmAllowBuilds?: readonly string[]
   pipDependencies?: readonly string[]
+  /** Version prefix the latest-version query is scoped to (`<tool>@<prefix>`). */
+  latestVersionPrefix?: string
 }
-type InstallableToolDefinition = CustomToolDefinition & Pick<FixedToolDefinition, 'npmAllowBuilds' | 'pipDependencies'>
+type InstallableToolDefinition = CustomToolDefinition &
+  Pick<FixedToolDefinition, 'npmAllowBuilds' | 'pipDependencies' | 'latestVersionPrefix'>
 type MiseInstallEntry = { version?: string; active?: boolean; install_path?: string }
 
 // One build's env and the facts derived from it, so no caller can pair them
@@ -252,6 +256,10 @@ type IsolatedEnvSnapshot = {
   // Only Cherry's own China default may be retried against other indexes.
   usesDefaultChinaPipIndex: boolean
 }
+
+// The Windows ARM64 Claude install uses mise's HTTP backend, which lists it as
+// `http:claude` while the recipe identity is `claude`.
+const LEGACY_TOOL_IDENTITIES: ReadonlyMap<string, string> = new Map([['http:claude', 'claude']])
 
 // Code-owned catalog of the fixed tools Cherry ships: every Dependencies preset
 // executable and every Code CLI executable mapped to its canonical mise recipe.
@@ -264,8 +272,10 @@ type IsolatedEnvSnapshot = {
 // installed package identity, so every comparison goes through this normalizer.
 // The normalized application fact does not prove bracketed install options such as
 // Hermes's `extras=web`; those options are not observable in the mise listing.
-const normalizeToolIdentity = (tool: string): string =>
-  (tool.startsWith('core:') ? tool.slice('core:'.length) : tool).replace(/\[[^\]]*]/g, '')
+const normalizeToolIdentity = (tool: string): string => {
+  const identity = (tool.startsWith('core:') ? tool.slice('core:'.length) : tool).replace(/\[[^\]]*]/g, '')
+  return LEGACY_TOOL_IDENTITIES.get(identity) ?? identity
+}
 
 function addNpmAllowBuildsOption(tool: string, packages?: readonly string[]): string {
   if (!packages?.length) return tool
@@ -290,7 +300,8 @@ const FIXED_CATALOG: ReadonlyMap<string, FixedToolDefinition> = new Map<string, 
     {
       name: preset.executable,
       tool: preset.miseTool,
-      ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {})
+      ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {}),
+      ...(preset.latestVersionPrefix ? { latestVersionPrefix: preset.latestVersionPrefix } : {})
     }
   ])
 ])
@@ -1031,8 +1042,8 @@ export class BinaryManager extends BaseService {
     }
 
     try {
-      const result = execFileSync('which', [binaryName], { encoding: 'utf-8', timeout: 5000 })
-      const systemPath = result.trim().split(/\r?\n/)[0]
+      const { stdout } = await execFileAsync('which', [binaryName], { encoding: 'utf-8', timeout: 5000 })
+      const systemPath = stdout.trim().split(/\r?\n/)[0]
       if (systemPath && fs.existsSync(systemPath)) {
         return systemPath
       }
@@ -1550,7 +1561,30 @@ export class BinaryManager extends BaseService {
       const runtimeVersion = pinnedRuntime.requestedVersion ?? (await this.getInstalledVersion(runtimeTool))
       runtime = `${runtimeTool}@${runtimeVersion}`
     }
-    const toolSpec = `${addNpmAllowBuildsOption(definition.tool, definition.npmAllowBuilds)}@${requested}`
+    if (definition.tool === 'claude' && isWin && process.arch === 'arm64') {
+      const registries = claudeNpmRegistries((await this.getIsolatedEnv()).env.NPM_CONFIG_REGISTRY)
+      for (const [index, source] of registries.entries()) {
+        try {
+          const pkg = await resolveClaudeNpmPackage(source, requested)
+          await this.runMise(['use', '-g', pkg.toolSpec], { timeoutMs: MISE_INSTALL_TIMEOUT_MS })
+          await this.runMise(['reshim'])
+          return await this.getInstalledVersion(definition.tool, pkg.version)
+        } catch (error) {
+          if (index === registries.length - 1) throw error
+          logger.warn('Claude npm source failed; trying fallback', {
+            registry: source,
+            error: this.errorMessage(error)
+          })
+        }
+      }
+    }
+    // A tool pinned to a version line resolves "latest" inside that line. The
+    // github backend orders releases by creation date, so an unprefixed
+    // "latest" would resolve to whichever release was published last — a patch
+    // of an older line can outrank the newer line's prerelease.
+    const resolvedRequest =
+      requested === 'latest' && definition.latestVersionPrefix ? definition.latestVersionPrefix : requested
+    const toolSpec = `${addNpmAllowBuildsOption(definition.tool, definition.npmAllowBuilds)}@${resolvedRequest}`
     const includePrerelease = MISE_PRERELEASE_TOOLS.has(definition.tool)
     const shellOutNpm = MISE_NPM_SHELL_OUT_TOOLS.has(definition.tool)
     const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
@@ -1601,6 +1635,14 @@ export class BinaryManager extends BaseService {
       throw new Error(`mise did not report an installed version for ${tool}${requested ? `@${requested}` : ''}`)
     }
     return matching.version
+  }
+
+  // mise filters `ls`/`uninstall` by the recipe's own backend, so an install listed
+  // under a legacy identity must be addressed by the exact key mise reports.
+  private async listLegacyInstalledSpecs(tool: string): Promise<string[]> {
+    const identity = normalizeToolIdentity(tool)
+    if (![...LEGACY_TOOL_IDENTITIES.values()].includes(identity)) return []
+    return Object.keys(await this.listMiseInstalls()).filter((spec) => LEGACY_TOOL_IDENTITIES.get(spec) === identity)
   }
 
   private async isMiseToolAbsent(tool: string): Promise<boolean> {
@@ -2158,7 +2200,10 @@ export class BinaryManager extends BaseService {
     // registry, with a fixed name winning over a stale same-name custom entry.
     // A recipe is never treated as installed from Preference alone — only the live
     // application fact decides which recipes are eligible below.
-    const candidates = new Map<string, CustomToolDefinition>()
+    // The fixed catalog carries the code-owned acquisition facts a custom
+    // definition cannot express (the version line its latest-version query is
+    // scoped to), so both shapes live in the map.
+    const candidates = new Map<string, CustomToolDefinition | FixedToolDefinition>()
     for (const [name, definition] of FIXED_CATALOG) candidates.set(name, definition)
     for (const entry of this.getCustomDefinitions()) if (!candidates.has(entry.name)) candidates.set(entry.name, entry)
 
@@ -2172,11 +2217,30 @@ export class BinaryManager extends BaseService {
     const workers = Array.from({ length: Math.min(LATEST_VERSIONS_CONCURRENCY, applied.length) }, async () => {
       while (cursor < applied.length) {
         const name = applied[cursor++]
-        const { tool } = candidates.get(name)!
+        const candidate = candidates.get(name)!
+        const { tool } = candidate
+        // Only the code-owned fixed catalog pins a version line; a custom
+        // definition carries no such fact.
+        const latestVersionPrefix = 'latestVersionPrefix' in candidate ? candidate.latestVersionPrefix : undefined
         try {
+          if (tool === 'claude' && isWin && process.arch === 'arm64') {
+            const registries = claudeNpmRegistries((await this.getIsolatedEnv()).env.NPM_CONFIG_REGISTRY)
+            for (const [index, source] of registries.entries()) {
+              try {
+                result[name] = (await resolveClaudeNpmPackage(source, 'latest')).version
+                break
+              } catch (error) {
+                if (index === registries.length - 1) throw error
+              }
+            }
+            continue
+          }
           const includePrerelease = MISE_PRERELEASE_TOOLS.has(tool)
           const releaseAgeArgs = includePrerelease ? ['--minimum-release-age', '0s'] : []
-          const { stdout } = await this.runMise(['latest', ...releaseAgeArgs, tool], { includePrerelease })
+          const { stdout } = await this.runMise(
+            ['latest', ...releaseAgeArgs, latestVersionPrefix ? `${tool}@${latestVersionPrefix}` : tool],
+            { includePrerelease }
+          )
           const version = stdout.trim().split(/\r?\n/)[0]?.trim()
           if (version) result[name] = version
         } catch (err) {
@@ -2377,8 +2441,15 @@ export class BinaryManager extends BaseService {
         this.bumpMutationRevision()
         await this.runMise(['unuse', '-g', definition.tool])
         await this.runMise(['uninstall', '--all', definition.tool])
+        const legacySpecs = await this.listLegacyInstalledSpecs(definition.tool)
+        for (const spec of legacySpecs) {
+          await this.runMise(['unuse', '-g', spec])
+          await this.runMise(['uninstall', '--all', spec])
+        }
         await this.runMise(['reshim'])
-        if (!(await this.isMiseToolAbsent(definition.tool))) {
+        const specs = [definition.tool, ...legacySpecs]
+        for (const spec of specs) {
+          if (await this.isMiseToolAbsent(spec)) continue
           this.setOperation(name, null)
           return {
             status: 'cleanup_blocked',

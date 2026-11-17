@@ -5,14 +5,14 @@ icon: cloud-plus
 
 # 模型服务配置
 
-Cherry Studio 内置 60+ 家 Provider（模型服务商）的连接模板，覆盖国内外大部分主流模型与本地推理框架。本节汇总已有的服务商配置指南；查找其他服务商可先看[全部 Provider 快速参考](quick-reference.md)。
+Cherry Studio 内置 60+ 家模型服务商的连接模板，覆盖国内外大部分主流模型与本地推理框架。本节汇总已有的服务商配置指南；查找其他服务商可先看[全部服务商快速参考](quick-reference.md)。
 
 <div data-cards>
 <div data-card>
 
 [**查找服务商**](quick-reference.md)
 
-从全部 Provider 快速参考进入对应配置指南。
+从全部服务商快速参考进入对应配置指南。
 
 </div>
 <div data-card>
@@ -24,9 +24,12 @@ Cherry Studio 内置 60+ 家 Provider（模型服务商）的连接模板，覆�
 </div>
 </div>
 
-### Provider 类型
+<a id="provider-lei-xing"></a>
+<a id="provider-类型"></a>
 
-Cherry Studio 把 Provider 按协议分为以下几类，行为略有差异：
+### 服务商类型
+
+Cherry Studio 把服务商按协议分为以下几类，行为略有差异：
 
 | 类型 | 兼容协议 | 典型代表 |
 |---|---|---|
@@ -38,7 +41,10 @@ Cherry Studio 把 Provider 按协议分为以下几类，行为略有差异：
 | **本地推理** | 本地 HTTP 服务 | Ollama、LM Studio、GPUStack、OpenVINO Model Server |
 | **特殊网关** | 厂商私有协议 | NewAPI、OneAPI、AiHubMix、DMXAPI 等 |
 
-### 添加一个 Provider 的通用步骤
+<a id="tian-jia-yi-ge-provider-de-tong-yong-bu-zhou"></a>
+<a id="添加一个-provider-的通用步骤"></a>
+
+### 添加一个服务商的通用步骤
 
 {% stepper %}
 {% step %}
@@ -52,14 +58,14 @@ Cherry Studio 把 Provider 按协议分为以下几类，行为略有差异：
 
 #### 选择服务商
 
-在内置 Provider 列表中找到目标 Provider，点击进入详情页
+在内置服务商列表中找到目标服务商，点击进入详情页
 
 {% endstep %}
 {% step %}
 
 #### 填写连接信息
 
-填写 **API 密钥**（必填），按需修改 **API 地址**（默认是 Provider 官方地址）
+填写 **API 密钥**（必填），按需修改 **API 地址**（默认是服务商官方地址）
 
 {% endstep %}
 {% step %}
@@ -78,7 +84,10 @@ Cherry Studio 把 Provider 按协议分为以下几类，行为略有差异：
 {% endstep %}
 {% endstepper %}
 
-### Provider 配置详解
+<a id="provider-pei-zhi-xiang-jie"></a>
+<a id="provider-配置详解"></a>
+
+### 服务商配置详解
 
 #### 通用/网关类
 * [CherryAI (免费)](cherryai/)
@@ -118,9 +127,9 @@ Cherry Studio 把 Provider 按协议分为以下几类，行为略有差异：
 * [自定义服务商](zi-ding-yi-fu-wu-shang.md) — 任意 OpenAI / Anthropic / Gemini 兼容端点
 
 {% hint style="info" %}
-**没找到你用的 Provider 怎么办？**
+**没找到你用的服务商怎么办？**
 
-先在[全部 Provider 快速参考](quick-reference.md)中查找。已有专题页的服务商可直接打开对应指南；未提供专题页的服务商，按本页通用步骤和[模型服务设置](../settings/providers.md)配置。使用兼容接口时，也可参考[自定义服务商](zi-ding-yi-fu-wu-shang.md)。
+先在[全部服务商快速参考](quick-reference.md)中查找。已有专题页的服务商可直接打开对应指南；未提供专题页的服务商，按本页通用步骤和[模型服务设置](../settings/providers.md)配置。使用兼容接口时，也可参考[自定义服务商](zi-ding-yi-fu-wu-shang.md)。
 {% endhint %}
 
 ### API 密钥与 API 地址

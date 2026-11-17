@@ -27,6 +27,13 @@ boundary, and chaining a continuation (see
 fan-out. Those concerns live in the stream manager — see
 [Stream Manager](./stream-manager.md).
 
+Caller-owned requests (`contextOwner: 'caller'`) use the same stream lifecycle
+but execute through AI Core's `streamText` / `generateText`, without constructing
+`ToolLoopAgent`. They retain `messageRules`, provider plugins, usage observers,
+and error/cancellation delivery. The execution is capped at one step, strips
+local tool execution, omits `prepareStep` and AI tool repair, and disables retries
+and model fallbacks. Tool calls return to the caller that owns the outer loop.
+
 ## API
 
 ```ts
@@ -47,6 +54,12 @@ const dispose = agent.on('onStepFinish', step => { … })
 
 `stream()` and `generate()` share the underlying agent — only the AI SDK
 call differs. `runToCompletion()` / `toTool()` are not part of the current API.
+
+Model health checks can call `generate(input, signal, 'stream')` to consume
+the complete SDK stream and return the same aggregate result. This mode requires
+non-empty text and a normal `stop` or `length` finish. It rejects stream errors,
+aborts, empty output, and incomplete responses before running success hooks.
+The default `generate` mode remains non-streaming.
 
 ## Hooks model
 
