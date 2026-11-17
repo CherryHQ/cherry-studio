@@ -48,7 +48,31 @@ export {
 } from './composites/date-time-picker'
 export { default as Ellipsis } from './composites/ellipsis'
 export { default as EmojiAvatar } from './composites/emoji-avatar'
-export { EmptyState, type EmptyStateIllustration, type EmptyStateProps } from './composites/empty-state'
+export {
+  EmptyState,
+  type EmptyStateIllustration,
+  type EmptyStateProps,
+  EmptyStateScene,
+  type EmptyStateSceneProps,
+  type EmptyStateSceneSize,
+  type IllustrationColor,
+  SceneBar,
+  SceneButton,
+  SceneCaret,
+  SceneChip,
+  SceneCursor,
+  SceneFloat,
+  SceneGhostRow,
+  SceneHeader,
+  SceneInput,
+  ScenePanel,
+  SceneRow,
+  SceneSlot,
+  type SceneSprite,
+  type SceneSpriteShape,
+  SceneTabs,
+  SceneToggle
+} from './composites/empty-state'
 export {
   type EntityItemBase,
   EntitySelector,

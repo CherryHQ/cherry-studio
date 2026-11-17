@@ -366,6 +366,16 @@ surface and foreground form the reusable feedback pair. `destructive` and `error
 styles a dangerous action, while `error` communicates system feedback. They may share palette values without
 sharing semantics.
 
+The decorative illustration palette is:
+
+```text
+--illustration-1 … --illustration-8
+```
+
+These are numbered roles, like `chart-*`, so they carry no palette names. They reference primitive steps in both
+modes, and their only consumer is `EmptyStateScene`, which uses them for one next-step accent and the pixel sprites
+of an empty-state scene. They are not feedback or action colors and have no paired foreground.
+
 `CHERRY_PRODUCT_SURFACE_PAIRS` lists only product surfaces with a concrete shared foreground contract. Other
 background roles deliberately keep text ownership with the consuming component until repeated usage proves a
 shared pair. Stable product variables may depend on official Shadcn variables, other stable product variables, or
