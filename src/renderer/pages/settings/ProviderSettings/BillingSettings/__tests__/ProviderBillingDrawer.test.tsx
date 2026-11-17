@@ -1,5 +1,5 @@
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -56,6 +56,52 @@ describe('provider billing draft', () => {
   })
   afterEach(cleanup)
 
+  it('loads defaults after models arrive and previews weekdays, weekends and custom prices', async () => {
+    const official = ProviderSchema.parse({
+      ...provider,
+      id: 'deepseek',
+      presetProviderId: 'deepseek',
+      settings: {},
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.deepseek.com' } }
+    })
+    const flash = {
+      ...model,
+      id: 'deepseek::deepseek-flash' as const,
+      providerId: 'deepseek',
+      apiModelId: 'deepseek-flash',
+      pricing: {
+        input: { currency: 'USD' as const, perMillionTokens: 0.3 },
+        output: { currency: 'USD' as const, perMillionTokens: 1.2 }
+      }
+    }
+    const user = userEvent.setup()
+    MockUseDataApiUtils.mockQueryData('/models', [])
+    const view = render(<ProviderBillingDrawer provider={official} onClose={() => {}} />)
+    MockUseDataApiUtils.mockQueryData('/models', [flash])
+    view.rerender(<ProviderBillingDrawer provider={official} onClose={() => {}} />)
+    expect(screen.getByText(/DeepSeek defaults/)).toBeVisible()
+    const date = screen.getByLabelText('Preview date')
+    // A date change must affect the real price preview, not only the explanatory label.
+    fireEvent.change(date, { target: { value: '2026-11-16' } })
+    const preview = screen.getByRole('region', { name: 'Unit price preview' })
+    expect(within(preview).getByRole('row', { name: '09:00–12:00 0.3 1.2 0.3 0.3' })).toBeVisible()
+    fireEvent.change(date, { target: { value: '2026-10-01' } })
+    expect(within(preview).getByRole('row', { name: '09:00–12:00 0.3 1.2 0.3 0.3' })).toBeVisible()
+    fireEvent.change(date, { target: { value: '2026-11-14' } })
+    expect(within(preview).getByRole('row', { name: '00:00–24:00 0.15 0.6 0.15 0.15' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith({
+        params: { providerId: 'deepseek' },
+        body: { providerSettings: { billing: null } }
+      })
+    )
+    MockUseDataApiUtils.mockQueryData('/models', [{ ...flash, hasCustomPricing: true }])
+    view.rerender(<ProviderBillingDrawer provider={official} onClose={() => {}} />)
+    expect(within(preview).getByRole('row', { name: '00:00–24:00 0.3 1.2 0.3 0.3' })).toBeVisible()
+  })
+
   it('keeps edits private until Save and discards Cancel', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
@@ -87,6 +133,35 @@ describe('provider billing draft', () => {
           }
         }
       })
+    )
+  })
+
+  it('removes a saved calendar instead of letting merge patch retain it', async () => {
+    const user = userEvent.setup()
+    render(
+      <ProviderBillingDrawer
+        provider={{
+          ...provider,
+          settings: {
+            ...provider.settings,
+            billing: {
+              ...provider.settings.billing!,
+              calendar: 'cn-weekdays',
+              source: 'deepseek'
+            }
+          }
+        }}
+        onClose={() => {}}
+      />
+    )
+    await user.click(screen.getByRole('switch', { name: 'Apply periods Monday–Friday' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: { providerSettings: { billing: expect.objectContaining({ calendar: null, source: null }) } }
+        })
+      )
     )
   })
 

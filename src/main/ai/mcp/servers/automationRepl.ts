@@ -41,11 +41,17 @@ export function createAutomationReplServer(sessionId: string, agentId: string): 
     ) {
       throw new Error('Automation requires an active local Agent task')
     }
-    return resolveAutomationAccess(agent, {
-      channelLinked: false,
-      browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
-      computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled')
-    })
+    return {
+      ...resolveAutomationAccess(agent, {
+        channelLinked: false,
+        browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+        computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled')
+      }),
+      computerApproval: {
+        bypass: agent.configuration?.permission_mode === 'bypassPermissions',
+        windowId: runtime.getMcpInteractionHost(sessionId)?.windowId
+      }
+    }
   }
   const finish = () => {
     const previous = run

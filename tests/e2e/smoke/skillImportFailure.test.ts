@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { _electron as electron } from '@playwright/test'
-import AdmZip from 'adm-zip'
+import JSZip from 'jszip'
 
 import { closeElectronApp, expect, test as base } from './fixtures/electron.fixture'
 import { openSettings } from './utils/navigation'
@@ -55,9 +55,9 @@ test('local skill import reports complete Chinese failures and installs valid ZI
     { name: 'nested-skill.zip', entry: `${names.nested}/SKILL.md`, content: descriptor(names.nested) }
   ]
   for (const fixture of archives) {
-    const archive = new AdmZip()
-    archive.addFile(fixture.entry, fixture.content)
-    archive.writeZip(path.join(fixtureRoot, fixture.name))
+    const archive = new JSZip()
+    archive.file(fixture.entry, fixture.content)
+    await writeFile(path.join(fixtureRoot, fixture.name), await archive.generateAsync({ type: 'nodebuffer' }))
   }
   const directories = [
     { name: 'empty-dir', entry: null },

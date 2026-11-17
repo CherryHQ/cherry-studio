@@ -1,5 +1,5 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -82,8 +82,19 @@ afterEach(() => {
   }
 })
 
-function Harness({ initialText = '', markdownLivePreview }: { initialText?: string; markdownLivePreview?: boolean }) {
+function Harness({
+  initialText = '',
+  markdownLivePreview,
+  suggestion = '',
+  onSend = () => undefined
+}: {
+  initialText?: string
+  markdownLivePreview?: boolean
+  suggestion?: string
+  onSend?: () => void
+}) {
   const [text, setText] = useState(initialText)
+  const [dismissed, setDismissed] = useState(false)
   return (
     <>
       <input aria-label="Other input" />
@@ -96,10 +107,12 @@ function Harness({ initialText = '', markdownLivePreview }: { initialText?: stri
         managedTokenKinds={[]}
         onTokensChange={() => undefined}
         placeholder="Painting prompt"
+        promptSuggestion={!text && !dismissed ? suggestion : ''}
+        onDismissPromptSuggestion={() => setDismissed(true)}
         sendMessageShortcut={['Enter']}
-        sendDisabled
+        sendDisabled={!text}
         isLoading={false}
-        onSendDraft={() => undefined}
+        onSendDraft={onSend}
         onPause={() => undefined}
         supportedExts={[]}
         setFiles={() => undefined}
@@ -123,6 +136,18 @@ async function flushFrame() {
     pending.forEach((callback) => callback(performance.now()))
   })
 }
+
+it('accepts a cold suggestion as editable text without sending it', async () => {
+  const user = userEvent.setup()
+  const send = vi.fn()
+  render(<Harness suggestion="Run the tests." onSend={send} />)
+  const fallback = screen.getByRole('textbox', { name: 'Painting prompt' })
+  expect(screen.getByLabelText('Stored draft')).toBeEmptyDOMElement()
+  await user.click(fallback)
+  await user.keyboard('{Tab}')
+  expect(screen.getByLabelText('Stored draft')).toHaveTextContent('Run the tests.')
+  expect(send).not.toHaveBeenCalled()
+})
 
 it('focuses the real editor before the next frame and retains its first typed character', async () => {
   const user = userEvent.setup()
@@ -202,4 +227,43 @@ it('applies a Markdown preview toggle to an editor that is already mounted', asy
   await waitFor(() => expect(editor()?.querySelector('.composer-md-strong')).toBeNull())
   expect(editor()?.textContent).toBe('**bold**')
   expect(screen.getByLabelText('Stored draft').textContent).toBe('**bold**')
+})
+
+it('accepts a rich-editor suggestion literally and leaves it editable without sending', async () => {
+  const user = userEvent.setup()
+  const send = vi.fn()
+  const suggestion = 'Explain <button> and **bold**.'
+  const view = render(<Harness suggestion={suggestion} onSend={send} />)
+  await user.click(screen.getByRole('textbox', { name: 'Painting prompt' }))
+  runtime.resolve()
+  await act(() => vi.dynamicImportSettled())
+  await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Painting prompt' })).not.toBeInTheDocument())
+  const editor = view.container.querySelector<HTMLElement>('[data-ui~="part:composer-input"] [contenteditable="true"]')!
+  expect(editor).toHaveFocus()
+  await user.keyboard('{Tab}')
+  await flushFrame()
+  expect(screen.getByLabelText('Stored draft').textContent).toBe(suggestion)
+  expect(editor.textContent).toBe(suggestion)
+  expect(send).not.toHaveBeenCalled()
+  await user.keyboard('K')
+  await flushFrame()
+  expect(screen.getByLabelText('Stored draft').textContent).toBe(`${suggestion}K`)
+})
+
+it('dismisses on Escape and does not accept while an IME is composing', async () => {
+  const user = userEvent.setup()
+  const view = render(<Harness suggestion="Run the tests." />)
+  await user.click(screen.getByRole('textbox', { name: 'Painting prompt' }))
+  runtime.resolve()
+  await act(() => vi.dynamicImportSettled())
+  await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Painting prompt' })).not.toBeInTheDocument())
+  const editor = view.container.querySelector<HTMLElement>('[data-ui~="part:composer-input"] [contenteditable="true"]')!
+  expect(editor).toHaveFocus()
+  fireEvent.keyDown(editor, { key: 'Tab', isComposing: true })
+  expect(screen.getByLabelText('Stored draft')).toBeEmptyDOMElement()
+  expect(screen.getByText('Run the tests.')).toBeInTheDocument()
+  await user.keyboard('{Escape}')
+  expect(screen.queryByText('Run the tests.')).not.toBeInTheDocument()
+  await user.keyboard('{Tab}')
+  expect(screen.getByLabelText('Stored draft')).toBeEmptyDOMElement()
 })

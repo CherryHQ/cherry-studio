@@ -1,4 +1,4 @@
-import { Columns2, Folder, Grid2X2, RotateCcw, Rows3, Trash2 } from 'lucide-react'
+import { Columns2, Expand, Folder, Grid2X2, RotateCcw, Rows3, Shrink, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,8 +11,8 @@ import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 
 import { usePartsMap } from '../blocks/MessagePartsContext'
-import { useMessageListActions } from '../MessageListProvider'
-import type { MessageListItem } from '../types'
+import { useMessageListActions, useMessageRenderConfig } from '../MessageListProvider'
+import { defaultMessageRenderConfig, type MessageListItem } from '../types'
 import MessageGroupModelList from './MessageGroupModelList'
 import MessageGroupSettings from './MessageGroupSettings'
 
@@ -62,6 +62,14 @@ const MessageGroupMenuBar: FC<Props> = ({
   const { t } = useTranslation()
   const partsMap = usePartsMap()
   const actions = useMessageListActions()
+  const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
+  const foldDisplayMode = renderConfig.multiModelFoldDisplayMode
+  const isCompactFoldDisplay = foldDisplayMode === 'compact'
+  const foldToggleLabel = t(
+    isCompactFoldDisplay
+      ? 'message.message.multi_model_style.fold.expand'
+      : 'message.message.multi_model_style.fold.compress'
+  )
   const groupMessageIds = messages.map((message) => message.id)
 
   const deleteAvailability = groupMessageIds
@@ -145,11 +153,30 @@ const MessageGroupMenuBar: FC<Props> = ({
           ))}
         </LayoutContainer>
         {multiModelMessageStyle === 'fold' && (
-          <MessageGroupModelList
-            messages={messages}
-            selectMessageId={selectMessageId}
-            setSelectedMessage={setSelectedMessage}
-          />
+          <>
+            <MessageGroupModelList
+              messages={messages}
+              selectMessageId={selectMessageId}
+              setSelectedMessage={setSelectedMessage}
+              displayMode={foldDisplayMode}
+            />
+            {actions.updateRenderConfig && (
+              <Tooltip asChild delay={500} content={foldToggleLabel}>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  type="button"
+                  aria-label={foldToggleLabel}
+                  onClick={() =>
+                    actions.updateRenderConfig?.({
+                      multiModelFoldDisplayMode: isCompactFoldDisplay ? 'expanded' : 'compact'
+                    })
+                  }>
+                  {isCompactFoldDisplay ? <Expand size={14} /> : <Shrink size={14} />}
+                </Button>
+              </Tooltip>
+            )}
+          </>
         )}
         {multiModelMessageStyle === 'grid' && actions.updateRenderConfig && <MessageGroupSettings />}
       </RowFlex>

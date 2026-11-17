@@ -57,11 +57,14 @@ export async function selectSidebarApp(page: Page, name: string): Promise<void> 
   await dismissOnboarding(page)
   if (name === 'Settings') {
     const settings = page.locator('[data-ui~="settings.view"]:visible')
-    if (!(await settings.isVisible())) {
+    // The account menu re-renders while its entry animation runs, so a single click can land on
+    // a detached item and leave the menu closed; retry the whole open-then-click sequence.
+    await expect(async () => {
+      if (await settings.isVisible()) return
       const accountMenu = await openAccountMenu(page)
-      await accountMenu.getByRole('button', { name: 'Settings', exact: true }).click()
-    }
-    await expect(settings).toBeVisible()
+      await accountMenu.getByRole('button', { name: 'Settings', exact: true }).click({ timeout: 5_000 })
+      await expect(settings).toBeVisible({ timeout: 5_000 })
+    }).toPass({ timeout: 30_000 })
     return
   }
   const targetView = {
