@@ -59,6 +59,8 @@ The adapter delivers content, input outcomes and foreground settlement from one 
 The connection consumes that batch; it does not poll pending inputs or infer completion from idle.
 It reports an input only when its state changes and reconsiders a child's status and release on
 snapshots, activity changes and input changes.
+An `aborted` outcome, including one caused by user Stop, settles the turn as paused; `failed` and
+`unanswered` outcomes report an error carrying their native reason.
 Product snapshots and headless policy stay on the Main session entry under the input ID, including
 unknown admission across connection replacement. The successor reconciles the original binding
 without resending, while generation checks reject stale callbacks.
