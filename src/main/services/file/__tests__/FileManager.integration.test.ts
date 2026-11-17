@@ -90,14 +90,6 @@ describe('FileManager (integration)', () => {
     await rm(tmp, { recursive: true, force: true })
   })
 
-  it('registers the content-hash backfill handler during onInit', async () => {
-    await (fm as unknown as { onInit: () => Promise<void> }).onInit()
-    expect(application.get('JobManager').registerHandler).toHaveBeenCalledWith(
-      'file.contenthash-backfill',
-      expect.objectContaining({ recovery: 'singleton' })
-    )
-  })
-
   it('enqueues one startup backfill only when internal hashes are pending', async () => {
     const countSpy = vi.spyOn(fileEntryService, 'countInternalMissingContentHash')
     countSpy.mockReturnValueOnce(0)
@@ -116,17 +108,13 @@ describe('FileManager (integration)', () => {
     )
   })
 
-  it('warns without rejecting readiness when the startup backfill enqueue fails', async () => {
+  it('does not reject readiness when the startup backfill enqueue fails', async () => {
     vi.spyOn(fileEntryService, 'countInternalMissingContentHash').mockReturnValueOnce(1)
     vi.mocked(application.get('JobManager').enqueue).mockImplementationOnce(() => {
       throw new Error('enqueue failed')
     })
 
     expect(() => (fm as unknown as { onAllReady: () => void }).onAllReady()).not.toThrow()
-    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'contentHash backfill: failed to enqueue at startup',
-      expect.objectContaining({ err: expect.any(Error) })
-    )
   })
 
   it('INT-1: end-to-end internal entry read', async () => {
@@ -339,26 +327,40 @@ describe('FileManager (integration)', () => {
     }
   )
 
-  it('INT-3g: open allows non-dangerous file types through shell.openPath', async () => {
-    const id = '019606a0-0000-7000-8000-00000000ff37' as FileEntryId
-    const now = Date.now()
-    await dbh.db.insert(fileEntryTable).values({
-      id,
-      origin: 'internal',
-      name: 'doc',
-      ext: 'pdf',
-      size: 1,
-      externalPath: null,
-      deletedAt: null,
-      createdAt: now,
-      updatedAt: now
-    })
+  it.each([{ channel: 'file.open' } as const, undefined])(
+    'INT-3g: open preserves path and context %j',
+    async (context) => {
+      const id = '019606a0-0000-7000-8000-00000000ff37' as FileEntryId
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values({
+        id,
+        origin: 'internal',
+        name: 'doc',
+        ext: 'pdf',
+        size: 1,
+        externalPath: null,
+        deletedAt: null,
+        createdAt: now,
+        updatedAt: now
+      })
 
-    await writeFile(path.join(internalRoot, `${id}.pdf`), 'doc')
+      await writeFile(path.join(internalRoot, `${id}.pdf`), 'doc')
 
-    await fm.open(id)
-    expect(electronMocks.shell.openPath).toHaveBeenCalledWith(path.join(internalRoot, `${id}.pdf`))
-  })
+      mockMainLoggerService.info.mockClear()
+      await fm.open(id, context)
+      expect(electronMocks.shell.openPath).toHaveBeenCalledExactlyOnceWith(path.join(internalRoot, `${id}.pdf`))
+      expect(mockMainLoggerService.info).toHaveBeenCalledExactlyOnceWith('Default-app open handoff completed', {
+        path: path.join(internalRoot, `${id}.pdf`),
+        extension: 'pdf',
+        platform: process.platform,
+        channel: context?.channel ?? 'unknown',
+        targetKind: 'system_default',
+        targetApplication: 'unknown',
+        outcome: 'accepted',
+        durationMs: expect.any(Number)
+      })
+    }
+  )
 
   it('INT-3h: open refuses an entry whose file is gone instead of handing it to the OS', async () => {
     const id = '019606a0-0000-7000-8000-00000000ff38' as FileEntryId

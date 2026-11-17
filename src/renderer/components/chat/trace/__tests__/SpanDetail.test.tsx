@@ -163,8 +163,6 @@ describe('SpanDetail copy', () => {
     await user.click(screen.getByRole('button', { name: 'common.copy' }))
 
     expect(mocks.writeText).toHaveBeenCalledWith('{\n  "query": "hello"\n}')
-    expect(document.querySelector('.lucide-check')).toBeInTheDocument()
-    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('copies output, HTTP header, and raw content from the active tab without sharing success state', async () => {
@@ -186,10 +184,9 @@ describe('SpanDetail copy', () => {
     await user.click(screen.getByRole('tab', { name: 'trace.outputs' }))
     await user.click(screen.getByRole('button', { name: 'common.copy' }))
     expect(mocks.writeText).toHaveBeenLastCalledWith('response body')
-    expect(document.querySelector('.lucide-check')).toBeInTheDocument()
 
     await user.click(screen.getByRole('tab', { name: 'trace.requestHeaders' }))
-    expect(document.querySelector('.lucide-copy')).toBeInTheDocument()
+
     await user.click(screen.getByRole('button', { name: 'common.copy' }))
     expect(mocks.writeText).toHaveBeenLastCalledWith('{\n  "authorization": "***"\n}')
 

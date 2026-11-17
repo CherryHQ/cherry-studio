@@ -423,7 +423,8 @@ async function terminateMacProcessGroupWithDrain(
       throw error
     }
     logLifecycleStage(record, 'unverified-group-drain-start')
-    if (!(await waitForMacProcessGroupExit(record.runnerPid))) {
+    // Shutdown helpers can outlive Electron; observe them without signaling unverified processes.
+    if (!(await waitForMacProcessGroupExit(record.runnerPid, 30_000))) {
       if (signal === 'SIGKILL') {
         try {
           const members = execFileSync('ps', ['-axo', 'pid=,ppid=,pgid=,lstart='], {
@@ -624,7 +625,7 @@ export async function adoptRelaunchedApp(paths: RunPaths, timeout = 120_000): Pr
 
 export async function stopApp(paths: RunPaths): Promise<void> {
   const current = readOwnedRecord(paths)
-  if (current.platform === 'windows' && current.electronPid && isAlive(current.electronPid)) {
+  if (current.electronPid && isAlive(current.electronPid)) {
     const { requestOwnedAppQuit } = await import('./debugBridge')
     const app = readAppRecord(paths)
     await requestOwnedAppQuit(app)

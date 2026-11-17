@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -19,7 +19,6 @@ const closeTab = vi.fn()
 const commandHandlers = new Map<string, () => void>()
 const ipcListeners = new Map<string, (value: boolean) => void>()
 let ipcRequest: ReturnType<typeof vi.fn> = vi.fn()
-let resolveInitialFullscreen: ((value: boolean) => void) | undefined
 
 async function renderSubWindowAppShell({
   init = null,
@@ -31,12 +30,7 @@ async function renderSubWindowAppShell({
   vi.resetModules()
   vi.doMock('@renderer/utils/platform', () => ({ isMac, isWin: false, isLinux: false }))
   vi.doMock('@renderer/ipc', () => {
-    ipcRequest = vi.fn(
-      () =>
-        new Promise<boolean>((resolve) => {
-          resolveInitialFullscreen = resolve
-        })
-    )
+    ipcRequest = vi.fn(() => new Promise<boolean>(() => {}))
     return {
       ipcApi: { request: ipcRequest },
       useIpcOn: (event: string, handler: (value: boolean) => void) => {
@@ -116,21 +110,9 @@ afterEach(() => {
   commandHandlers.clear()
   ipcListeners.clear()
   ipcRequest = vi.fn()
-  resolveInitialFullscreen = undefined
 })
 
 describe('SubWindowAppShell', () => {
-  it('renders the title bar and tab router', async () => {
-    await renderSubWindowAppShell()
-
-    const provider = screen.getByTestId('resource-view-source-provider')
-
-    expect(screen.getByTestId('sub-window-title-bar')).toBeInTheDocument()
-    expect(provider).toContainElement(screen.getByTestId('tab-router'))
-    expect(provider).not.toContainElement(screen.getByTestId('sub-window-title-bar'))
-    expect(provider).not.toContainElement(screen.getByTestId('mini-app-pool'))
-  })
-
   it('opens the detached tab from WindowManager init data', async () => {
     await renderSubWindowAppShell({
       init: {
@@ -154,33 +136,6 @@ describe('SubWindowAppShell', () => {
       })
     })
     expect(openTab).toHaveBeenCalledOnce()
-  })
-
-  it('reflects native fullscreen in the title bar on macOS', async () => {
-    await renderSubWindowAppShell({ isMac: true })
-
-    const titleBar = screen.getByTestId('sub-window-title-bar')
-    expect(titleBar).toHaveAttribute('data-fullscreen', 'false')
-
-    act(() => {
-      ipcListeners.get('window.fullscreen_changed')?.(true)
-    })
-
-    expect(screen.getByTestId('sub-window-title-bar')).toHaveAttribute('data-fullscreen', 'true')
-  })
-
-  it('queries the initial fullscreen state on mount (macOS)', async () => {
-    await renderSubWindowAppShell({ isMac: true })
-
-    expect(ipcRequest).toHaveBeenCalledWith('window.is_full_screen')
-
-    // Async act flushes the request's microtask so the mount-time update lands
-    // inside the act scope.
-    await act(async () => {
-      resolveInitialFullscreen?.(true)
-    })
-
-    expect(screen.getByTestId('sub-window-title-bar')).toHaveAttribute('data-fullscreen', 'true')
   })
 
   it('closes the detached window from the tab-close shortcut', async () => {

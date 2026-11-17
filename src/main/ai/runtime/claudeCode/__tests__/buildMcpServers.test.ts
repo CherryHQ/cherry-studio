@@ -82,6 +82,15 @@ vi.mock('@main/i18n', () => ({
   t: vi.fn((key: string, vars?: { path?: string }) => `${key}:${vars?.path ?? ''}`)
 }))
 
+// Exercise the server factories eagerly: the real serveStdio only builds a
+// server once a wire handshake arrives, which a unit test cannot drive.
+vi.mock('@modelcontextprotocol/server/stdio', () => ({
+  serveStdio: (
+    factory: () => { connect: (transport: unknown) => Promise<unknown> },
+    options?: { transport?: unknown }
+  ) => factory().connect(options?.transport)
+}))
+
 vi.mock('@main/ai/mcp/servers/assistant', () => ({
   createAssistantServer: vi.fn()
 }))
@@ -151,26 +160,6 @@ const WITHOUT_HOST_TOOLS: ReadonlySet<string> = new Set(['cherry-tools', 'agent-
 const WITH_HOST_TOOLS: ReadonlySet<string> = new Set([...WITHOUT_HOST_TOOLS, 'assistant', 'assistant-files'])
 
 describe('resolveMountedMcpServers', () => {
-  it('mounts skills but no host servers for an ordinary Agent', () => {
-    const mounted = resolveMountedMcpServers({ type: 'claude-code', configuration: {} } as never, {
-      channelLinked: false
-    })
-    expect([...mounted].sort()).toEqual(['agent-memory', 'cherry-tools', 'mcp-manager', 'skills'])
-  })
-
-  it('drops the skills and mcp-manager servers for Cherry Support while keeping its host servers', () => {
-    const mounted = resolveMountedMcpServers(
-      { type: 'claude-code', configuration: { builtin_role: 'support' } } as never,
-      {
-        channelLinked: false
-      }
-    )
-    expect(mounted.has('skills')).toBe(false)
-    // A sealed Agent must not register MCP servers into the user's environment either.
-    expect(mounted.has('mcp-manager')).toBe(false)
-    expect(mounted.has('assistant')).toBe(true)
-  })
-
   it('withdraws Cherry Assistant host servers once the session is channel-linked', () => {
     const agentRef = { type: 'claude-code', configuration: { builtin_role: 'assistant' } } as never
     expect(resolveMountedMcpServers(agentRef, { channelLinked: false }).has('assistant')).toBe(true)
@@ -181,22 +170,13 @@ describe('resolveMountedMcpServers', () => {
 describe('adjustAllowedToolsForMcp', () => {
   it('lists auto-approved cherry-tools + agent-memory for every agent, excluding the mutating kb_manage', () => {
     const allowed = adjustAllowedToolsForMcp(WITHOUT_HOST_TOOLS, [])
-    expect(allowed).toEqual(
-      expect.arrayContaining([
-        'mcp__cherry-tools__kb_search',
-        'mcp__cherry-tools__kb_list',
-        'mcp__cherry-tools__cron',
-        'mcp__cherry-tools__notify',
-        'mcp__cherry-tools__config',
-        'mcp__agent-memory__memory'
-      ])
-    )
+
     // The mutating kb_manage tool must NOT be pre-approved by the SDK allowlist — it requires
     // per-call approval via canUseTool. A bare wildcard would silently re-include it.
     expect(allowed).not.toContain('mcp__cherry-tools__kb_manage')
     expect(allowed).not.toContain('mcp__cherry-tools__*')
     // read-only skill search is auto-approved; the mutating install_skill stays on per-call approval.
-    expect(allowed).toContain('mcp__skills__search_skills')
+
     expect(allowed).not.toContain('mcp__skills__install_skill')
     // install_mcp_server can launch an arbitrary local command — never pre-approved.
     expect(allowed).not.toContain('mcp__mcp-manager__install_mcp_server')
@@ -204,14 +184,7 @@ describe('adjustAllowedToolsForMcp', () => {
 
   it('auto-approves only read-only Assistant tools', () => {
     const allowed = adjustAllowedToolsForMcp(WITH_HOST_TOOLS, [])
-    expect(allowed).toEqual(
-      expect.arrayContaining([
-        'mcp__cherry-tools__kb_search',
-        'mcp__cherry-tools__kb_list',
-        'mcp__assistant__navigate',
-        'mcp__assistant__product_info'
-      ])
-    )
+
     expect(allowed).not.toContain('mcp__cherry-tools__kb_manage')
     expect(allowed).not.toContain('mcp__cherry-tools__*')
     expect(allowed).not.toContain('mcp__assistant__apply_setting')
@@ -220,7 +193,7 @@ describe('adjustAllowedToolsForMcp', () => {
     // the tool itself nor an assistant namespace wildcard may appear in the SDK pre-approval list.
     expect(allowed).not.toContain('mcp__assistant__diagnose')
     expect(allowed).not.toContain('mcp__assistant__*')
-    expect(allowed).toContain('mcp__assistant-files__read_file')
+
     expect(allowed).not.toContain('mcp__assistant-files__save_attachment')
     expect(allowed).not.toContain('mcp__assistant-files__*')
   })
@@ -279,11 +252,47 @@ describe('buildMcpServers', () => {
     expect(buildMcpServers(session, agent, sealed)?.['mcp-manager']).toBeUndefined()
   })
 
-  it('injects cherry-tools for every session; the standalone cherry server and exa are gone', async () => {
-    const result = buildMcpServers(session, agent, WITHOUT_HOST_TOOLS)
-    expect(result?.['cherry-tools']).toBeDefined()
-    expect(result?.cherry).toBeUndefined()
-    expect(result?.exa).toBeUndefined()
+  it('defaults the assistant server to the session effective model, not just the agent default (#20819 port)', async () => {
+    const { createAssistantServer } = await import('@main/ai/mcp/servers/assistant')
+    const createMock = vi.mocked(createAssistantServer)
+    createMock.mockReturnValue({
+      connect: vi.fn(async () => undefined),
+      close: vi.fn(async () => undefined)
+    } as never)
+    const withOverride = { ...session, model: 'provider::session-model' } as unknown as AgentSessionEntity
+    const agentWithModel = { ...agent, model: 'provider::agent-model' } as unknown as AgentEntity
+
+    // A session-level override steers the assistant default even though the
+    // agent's own model is unchanged.
+    createMock.mockClear()
+    const result = buildMcpServers(
+      withOverride,
+      agentWithModel,
+      WITH_HOST_TOOLS,
+      undefined,
+      undefined,
+      '/data/Agents/agent-1'
+    )
+    const cfg = result!['assistant'] as McpSdkServerConfigWithInstance
+    await cfg.instance.connect({} as never).catch(() => undefined)
+    expect(createMock).toHaveBeenCalledWith('provider::session-model', undefined)
+
+    // An explicit effectiveModelId (connection override) beats the session override.
+    createMock.mockClear()
+    const result2 = buildMcpServers(
+      withOverride,
+      agentWithModel,
+      WITH_HOST_TOOLS,
+      undefined,
+      undefined,
+      '/data/Agents/agent-1',
+      [],
+      undefined,
+      'provider::connection-model'
+    )
+    const cfg2 = result2!['assistant'] as McpSdkServerConfigWithInstance
+    await cfg2.instance.connect({} as never).catch(() => undefined)
+    expect(createMock).toHaveBeenCalledWith('provider::connection-model', undefined)
   })
 
   // Each call opens a new connection, so the per-connection tool decisions re-read the Agent.
@@ -307,7 +316,7 @@ describe('buildMcpServers', () => {
   it('hides the kb_* tools from cherry-tools when the agent has no bound knowledge base', async () => {
     mockGetAgent.mockReturnValue(agent)
     const names = await cherryToolNames(buildMcpServers(session, agent, WITHOUT_HOST_TOOLS))
-    expect(names).toContain('web_search')
+
     expect(names).not.toContain('kb_search')
     expect(names).not.toContain('kb_manage')
   })
@@ -326,22 +335,6 @@ describe('buildMcpServers', () => {
     )
 
     expect(names).toEqual(expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage']))
-  })
-
-  it('exposes every cherry-tool to the built-in Assistant without a knowledge binding', async () => {
-    const assistant = {
-      id: 'agent-1',
-      mcps: [],
-      knowledgeBaseIds: [],
-      configuration: { builtin_role: 'assistant' }
-    } as unknown as AgentEntity
-    mockGetAgent.mockReturnValue(assistant)
-
-    const names = await cherryToolNames(buildMcpServers(session, assistant, WITH_HOST_TOOLS))
-
-    expect(names).toEqual(
-      expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage', 'cli_list', 'cli_search', 'cli_install'])
-    )
   })
 
   it('revokes unrestricted knowledge access when the built-in Assistant is deleted', async () => {

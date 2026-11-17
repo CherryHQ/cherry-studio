@@ -274,7 +274,7 @@ export function AgentMemoryPanel({
     if (mode === 'edit') {
       return (
         <Textarea.Input
-          className="min-h-0 flex-1 resize-none font-mono text-xs leading-relaxed"
+          className="mt-3 min-h-0 flex-1 resize-none font-mono text-xs leading-relaxed"
           value={draft}
           maxLength={MAX_WRITE_CHARS}
           readOnly={saving}
@@ -335,7 +335,7 @@ export function AgentMemoryPanel({
 
   return (
     <>
-      <section className="flex h-[min(28rem,58dvh)] min-h-72 flex-col gap-4" aria-label={t('agent.memory.title')}>
+      <section className="flex min-h-0 flex-1 flex-col gap-4" aria-label={t('agent.memory.title')}>
         <Tabs
           value={selectedKey}
           onValueChange={(key) => {
@@ -344,7 +344,7 @@ export function AgentMemoryPanel({
           }}
           variant="underline"
           className="min-h-0 flex-1 gap-0">
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 border-border-subtle border-b">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4">
             <TabsList aria-label={t('agent.memory.title')} className="flex-wrap gap-4">
               {files.length === 0 && !error
                 ? FILE_ORDER.map((key) => (
