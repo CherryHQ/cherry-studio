@@ -60,12 +60,12 @@ import type {
   Model,
   ReasoningSummary,
   RuntimeModelPricing,
-  RuntimeParameterSupport,
   RuntimeReasoning,
   ServiceTierSelection
 } from '@shared/data/types/model'
 import { createUniqueModelId, CURRENCY, ReasoningSummarySchema } from '@shared/data/types/model'
 import type { EndpointConfig, Provider, ProviderWebsites } from '@shared/data/types/provider'
+import { projectModelParameterSupport } from '@shared/utils/model'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { resolveRegistryPaths } from './utils/registryDataPaths'
@@ -521,7 +521,7 @@ export function mergePresetModel(
     reasoning,
     ...(catalogOverride?.supportsFastMode ? { supportsFastMode: true } : {}),
     ...(serviceTierControl ? { requestControls: { serviceTier: projectServiceTierControl(serviceTierControl) } } : {}),
-    parameterSupport: parameterSupport as RuntimeParameterSupport | undefined,
+    parameterSupport: projectModelParameterSupport(parameterSupport),
     pricing,
     isEnabled: !(catalogOverride?.disabled ?? false),
     isHidden: false,
