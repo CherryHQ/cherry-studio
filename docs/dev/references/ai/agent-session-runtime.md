@@ -43,6 +43,41 @@ The built-in drivers are Claude Code, Pi and Pi Durable. Their
 query/session transports, tool surfaces, approval gates, and resume formats are
 driver internals behind the same host contract.
 
+## Next-prompt suggestions
+
+Main starts prediction at the end of an eligible successful interactive root turn.
+`ai.agent.session.predict_prompt` consumes that existing ephemeral result using the
+source reply and model IDs; opening a composer never starts another native prediction.
+Main checks attached-window focus before starting prediction; losing focus while it
+is running does not invalidate the result. Main validates idle ownership, preference and Plan mode, and
+cancels on input, context invalidation, connection closure or preference changes.
+`ai.agent.session.abort_prediction` cancels the matching consumer request.
+Tab or the text-direction forward arrow accepts editable text without sending.
+
+Claude Code enables the SDK's `promptSuggestions` option for interactive cold and
+warm queries. Its native `prompt_suggestion` arrives after `result` through the existing
+reader. Native suppression yields no host fallback. A resident native snapshot can seed
+state until the next real user message; an observation gap clears it. This is not a
+promise to restore suggestions from archived transcripts. Disabling the preference
+updates the connection rebuild signature at the next safe idle boundary.
+
+Pi and Pi Durable use patched native `createQueryFork` APIs on the compacted effective
+context. They append the Claude Code instruction from `src/main/ai/runtime/promptSuggestion.ts`
+verbatim, preserving the active model, reasoning, session identity and tool declarations.
+One ordinary streaming request aborts on the first tool call without executing tools.
+Prediction writes no transcript, task, goal, continuation or parent reply usage state.
+The pi-ai patch retains explicit parent cache breakpoints without adding any on the
+prediction suffix; automatic server-side caching remains provider-controlled.
+There is no invented timeout or minimum-reasoning override. Gateway owns billing.
+
+Pi checks the documented two-assistant-message and 10,000-token cache gates, then
+cleans wrappers/labels from the first text block and applies the documented candidate
+filters (under 100 UTF-16 units, at most 12 approximate multilingual words). Display
+checks reject control characters, command prefixes and recognized secret forms while
+retaining the original text. Private vendor flags, backoff and unused-streak defaults
+are not specified by the research and are not fabricated. Headless/autonomous turns
+and history opening do not generate host predictions; a resident result can be read again.
+
 ## Ownership
 
 | Owner | Responsibility |
@@ -165,6 +200,7 @@ Runtime adapters own only native mechanics:
 | Enabled managed skill content | Claude injects plugin/config representation; Pi uses `additionalSkillPaths`. |
 | Current workspace guarantee | Each driver supplies cwd/workspace context through its native base or the common custom-base compensation block. |
 | Coding/runtime handbook and native tool snippets | Owned by each runtime's native base, never copied into the common materializer. |
+| Per-call `intent` (why a tool is called, shown above the tool row) | For a DeepSeek model (`offersToolIntent`), Pi and Pi Durable apply `@cherrystudio/agent-behavior`'s `createToolIntent()` to every tool and carry `TOOL_INTENT_GUIDE` with it (Pi appends it to the system prompt; Durable renders a `tool_intent` section). Other models narrate between calls themselves and are not offered the argument; their calls still have a stray `intent` removed. The guide never enters the common materializer, because only runtimes that offer the argument may ask for it. |
 
 Claude Code uses its bundled `agents-md@builtin` plugin to load workspace instructions. Nested `AGENTS.md` files follow the native text `Read` behavior; Cherry does not inject them before `Edit`, `Write`, or other tools. Sealed sessions retain `settingSources: []` and do not automatically load workspace instruction files.
 
@@ -178,7 +214,9 @@ Do not add Cherry policy directly to one driver. Extend the common materializer,
    - system workspaces are materialized under Cherry's managed root, while user
      workspace paths must already resolve to a directory;
    - the agent type must have a registered runtime driver;
-   - the agent must have a model.
+   - an effective model must be configured: interactive turns use `session.model ?? agent.model`,
+     while headless turns use the Agent default and ignore the session override. See
+     [Agent Prompt Layers](./agent-prompt-layers.md#update-and-variable-lifecycle).
 3. The provider atomically saves:
    - a `user` message with the submitted parts;
    - a pending `assistant` message with the selected model id.
@@ -206,7 +244,8 @@ Do not add Cherry policy directly to one driver. Extend the common materializer,
 
 Agent archives have one hidden root and `parentId` links. `agent_session.activeNodeId`
 selects the displayed path; it is separate from a runtime entry's captured execution
-head. The shared sibling navigator chooses the latest descendant of a sibling.
+head. The shared sibling navigator follows the newest immediate child by
+`(createdAt, id)` at each level beneath the chosen sibling.
 Selection is a SQLite operation and never opens or resumes a harness.
 
 Dispatch captures its parent before asynchronous validation. If the parent has
@@ -851,13 +890,11 @@ Allowed in v1:
   The approval extension still distinguishes Cherry-owned
   safe tools, Cherry tools that always require approval, and third-party MCP
   tools; `disabledTools` hard-blocks every class.
-- New pi agents start in `acceptEdits`: reads and writes inside the selected
-  workspace and current agent data directory do not prompt repeatedly. Shell,
-  third-party MCP, Cherry approval-required mutations, external paths, and
-  symlink escapes remain gated. `bypassPermissions` does not override the
-  runtime-neutral Cherry approval-required policy. Pi exposes neither `plan`
-  nor `auto`: the latter depends on Claude's model-side approval classifier,
-  which the Pi approval gate does not implement.
+- New Pi agents start in `auto`. Reads and writes inside canonical selected roots can run
+  automatically. Shell invocations use the shared [command policy](./tool-approval.md#shell-command-policy):
+  ordinary commands run without a first-use Shell grant; risk matches and incomplete analysis
+  ask for that invocation. Mandatory denials hold even in Full Access. Independent SQLite,
+  disabled-tool, install, path and built-in-role guards remain effective. Pi does not expose `plan`.
 - The agent's enabled Cherry-managed skills, passed explicitly as
   `additionalSkillPaths` (their canonical `{dataPath}/Skills/<folderName>` dirs).
   These load even under `noSkills` because the paths are Cherry-owned and
@@ -967,6 +1004,12 @@ parts. Environment facts (disabled tools, protected paths, delegation attendance
 and shell classification) come from `piApprovalFacts.ts`; shared behavior decides
 whether to run, ask or block. No new approval table is required.
 
+Pi and Pi Durable child threads use the root's live permission mode, interaction
+state and tool restrictions. Delegation does not grant Full Access. A child call
+that needs approval waits for the root session's responder, or is blocked when
+nobody can respond. Command approvals refresh the effective tool input and policy evidence even when a native
+part already exists in the root reply, so the composer shows the operation awaiting consent.
+
 Runtime content uses whole native SDK messages. Pi and Claude decode deltas once at
 the adapter source; Durable materializes committed native view revisions directly.
 Tool results and preliminary progress update the originating tool part, while activity
@@ -1056,7 +1099,7 @@ Every nested call emits its own tool events and passes Cherry's approval gate,
 including disabled-tool, SQLite, global-install approval, direct-mise mutation, and
 permission-mode policies. Global-install decisions use the root session's effective
 permission mode, including for child sessions. The script itself needs no separate
-approval because all outward effects pass through those tool calls.
+approval because its file and shell operations pass through those tool calls.
 
 Pi and Pi Durable project nested calls as ordinary tool parts with native call and
 parent identities. Native session storage retains the executed arguments, terminal

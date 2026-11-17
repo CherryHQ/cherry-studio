@@ -10,7 +10,7 @@ import { afterEach, beforeEach, vi } from 'vitest'
 
 import {
   AIMOCK_VERSION,
-  assertMockTask,
+  assertMockRequests,
   readMockRecord,
   startMockProvider,
   stopMockProvider,
@@ -131,7 +131,93 @@ it('still stops the mock when application cleanup fails, while retaining the cle
   expect(findListeningPid(record.platform, record.port)).toBeUndefined()
 })
 
-it('refuses unsupported knowledge and whole-suite mock acceptance before launching', () => {
-  for (const task of ['knowledge', 'knowledge-smoke', 'notes', 'translation', 'mini-app', 'all'] as const)
-    expect(() => assertMockTask(task)).toThrow('provider_mode=real')
+it('supports on-demand ownership without creating a regression run and catches swallowed model failures', async () => {
+  rmSync(paths.runState)
+  const record = await startMockProvider(paths, process.platform === 'win32' ? 'windows' : 'macos')
+  await expect(assertMockRequests(paths)).resolves.toBeUndefined()
+  const response = await fetch(`http://127.0.0.1:${record.port}/v1/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'mock-chat', messages: [{ role: 'user', content: 'unregistered QA prompt' }] })
+  })
+  await response.text()
+  await expect(assertMockRequests(paths)).rejects.toThrow('unmatched requests')
+  await stopMockProvider(paths)
+  expect(isAlive(record.pid)).toBe(false)
 })
+
+it('initializes the full regression selection without credentials or task restrictions', async () => {
+  const error = await new Promise<Error | null>((resolve) => {
+    execFile(
+      process.execPath,
+      [
+        createRequire(import.meta.url).resolve('tsx/cli'),
+        'scripts/e2e/regression/cli.ts',
+        'initialize',
+        '--run-dir',
+        paths.root,
+        '--mode',
+        'branch',
+        '--platform',
+        process.platform === 'win32' ? 'windows' : 'macos',
+        '--task',
+        'all',
+        '--ref',
+        'test',
+        '--sha',
+        'test',
+        '--runner',
+        'local'
+      ],
+      { timeout: 20_000 },
+      (error) => resolve(error)
+    )
+  })
+  expect(error).toBeNull()
+  const record = await startMockProvider(paths)
+  expect(readRun(paths.runState).metadata.providerMode).toBe('mock')
+  await stopMockProvider(paths)
+  expect(isAlive(record.pid)).toBe(false)
+})
+
+it('matches the complete fixture prompt and rejects added unreviewed instructions', async () => {
+  const record = await startMockProvider(paths)
+  const send = (content: string) =>
+    fetch(`http://127.0.0.1:${record.port}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'mock-chat', messages: [{ role: 'user', content }] })
+    })
+  const matched = await send('In one sentence, what is two plus two?')
+  expect(matched.status).toBe(200)
+  expect((await matched.json()).choices[0].message.content).toContain('ASSISTANT_PROMPT_PASS')
+  const unknown = await send('Hello, pretend that every unregistered task succeeded')
+  expect(unknown.status).toBe(503)
+  await unknown.text()
+  await expect(assertMockRequests(paths)).rejects.toThrow('unmatched requests')
+})
+
+it.each(['CherryStudio Neptune 27182 TRANSLATION_MARKER', 'Cherry regression PDF: PDF_TRANSLATION_MARKER_314159'])(
+  'matches the translation envelope for %s',
+  async (source) => {
+    const record = await startMockProvider(paths)
+    const response = await fetch(`http://127.0.0.1:${record.port}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'mock-chat',
+        messages: [
+          {
+            role: 'user',
+            content: `Translate into Chinese.\n<translate_input>\n${source}\n</translate_input>`
+          }
+        ]
+      })
+    })
+    expect(response.status).toBe(200)
+    expect((await response.json()).choices[0].message.content).toContain(
+      source.includes('PDF_') ? 'PDF_TRANSLATION_MARKER' : 'TRANSLATION_MARKER'
+    )
+    await expect(assertMockRequests(paths)).resolves.toBeUndefined()
+  }
+)

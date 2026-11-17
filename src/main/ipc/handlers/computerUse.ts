@@ -3,6 +3,11 @@ import type { computerUseRequestSchemas } from '@shared/ipc/schemas/computerUse'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
 export const computerUseHandlers: IpcHandlersFor<typeof computerUseRequestSchemas> = {
+  'computer_use.revoke_approval': ({ identity }) => application.get('ComputerUseService').approvals.revoke(identity),
+  'computer_use.get_approvals': async (_, { senderId }) =>
+    application.get('ComputerUseService').approvals.list(senderId),
+  'computer_use.respond_approval': async ({ approvalId, scope }, { senderId }) =>
+    application.get('ComputerUseService').approvals.respond(approvalId, scope, senderId),
   'computer_use.get_call_apps': async ({ cell }) => application.get('AutomationReplService').getCallApps(cell),
   'computer_use.get_app_icon': ({ identity }) => application.get('ComputerUseService').getAppIcon(identity),
   'computer_use.get_controls': async () => application.get('ComputerUseService').getControls(),
