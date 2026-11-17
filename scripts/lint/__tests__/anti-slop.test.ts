@@ -14,13 +14,23 @@ const directory = mkdtempSync(join(tmpdir(), 'cherry-anti-slop-'))
 
 afterAll(() => rmSync(directory, { recursive: true, force: true }))
 
-function lint(source: string) {
+function lint(source: string, rule?: string) {
   const file = join(directory, 'probe.ts')
   writeFileSync(file, source)
 
+  const selectedConfig = rule ? join(directory, 'rule.config.json') : config
+  if (rule) {
+    writeFileSync(
+      selectedConfig,
+      JSON.stringify({
+        extends: [config],
+        rules: { [rule === 'no-accumulating-spread' ? `oxc/${rule}` : `anti-slop/${rule}`]: 'error' }
+      })
+    )
+  }
   const result = spawnSync(
     process.execPath,
-    [binary, '--config', config, '--format', 'json', '--deny-warnings', file],
+    [binary, '--config', selectedConfig, '--format', 'json', '--deny-warnings', file],
     {
       encoding: 'utf8'
     }
@@ -31,7 +41,7 @@ function lint(source: string) {
   return { status: result.status, ...JSON.parse(result.stdout) }
 }
 
-describe('all generic anti-slop rules in the repository lint gate', () => {
+describe('available generic anti-slop rules', () => {
   it.each([
     ['no-array-filter-map', 'export const result = [1, 2].filter(value => value > 0).map(value => value * 2)'],
     [
@@ -59,7 +69,7 @@ describe('all generic anti-slop rules in the repository lint gate', () => {
     ['require-readable-spacing', 'export function first() { return 1 }\nexport function second() { return 2 }'],
     ['require-safety-comment-for-type-assertion', 'export const value = "value" as string']
   ])('rejects %s violations', (rule, source) => {
-    const result = lint(source)
+    const result = lint(source, rule)
     expect(result.status).toBe(1)
     expect(result.diagnostics).toEqual(
       expect.arrayContaining([
