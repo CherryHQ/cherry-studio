@@ -3922,10 +3922,8 @@ describe('Topics', () => {
     renderTopicList()
 
     const alphaHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
-    fireEvent.click(within(alphaHeader as HTMLElement).getByRole('button', { name: 'More' }))
-    fireEvent.click(
-      within(alphaHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant conversations' })
-    )
+    await userEvent.setup().click(within(alphaHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete all assistant conversations' }))
 
     await vi.waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(
