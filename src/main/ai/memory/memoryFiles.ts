@@ -44,6 +44,9 @@ export class MemoryError extends Error {
   }
 }
 
+export function memoryHash(bytes: Uint8Array): string
+export function memoryHash(bytes: null): null
+export function memoryHash(bytes: Uint8Array | null): string | null
 export function memoryHash(bytes: Uint8Array | null): string | null {
   return bytes === null ? null : createHash('sha256').update(bytes).digest('hex')
 }
