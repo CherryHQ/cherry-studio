@@ -99,7 +99,9 @@ assistant entry is committed; a final result clears the preliminary state.
 `archive()` reads committed, conversation-owned history, including entries before
 reset and compaction. Inherited fork entries are excluded so a child archive does
 not import its parent's messages. Pagination is bounded by the head captured when
-the read begins; appends after that head belong to a later read. It neither resumes
+the read begins; appends after that head belong to a later read. A loaded conversation
+keeps its sealed archive projection, so later reads fold only newer committed entries and
+return immutable messages; unloading drops it. It neither resumes
 the Harness nor includes live previews. `messages` contains SDK message values. `aliases` maps committed message IDs to proven
 preview IDs; tool results update their calling message instead of creating a separate row.
 `legacy` identifies old item-to-part associations using native entry evidence for host checkpoints. These
@@ -109,8 +111,9 @@ with no preview aliases. The host owns persistent product-message associations.
 Native ownership records expose `Subagent` relationships through `snapshot.subagents`
 and `subagent.upsert`. Parent attachment queries all pages of immediately owned children;
 commit observation delivers subsequent creations. Completed children remain discoverable after
-restart, with or without shared behavior. The adapter keeps no separate relationship cache or
-task graph watch. Relationship IDs use the native child
+restart, with or without shared behavior. A child's creation commit writes its only origin
+record, so origin lookups stop there and keep the result; the adapter keeps no other relationship
+cache or task graph watch. Relationship IDs use the native child
 conversation ID within the parent, so subsequent inputs retain the same relationship.
 They carry evidenced creation `origin` and no assignment completion status. Behavior lineage preserves
 the original creation call across continuation; cold recovery also reads stored child relationships.
@@ -146,6 +149,12 @@ uses the shared command entry. Explicit root `interrupt()` records user stop bef
 cancelling; child interruption follows its current shared ownership. Opening installs
 model bindings and runs `onOpen` before scheduler resume. Desktop hosts can select owned conversations and rebind root configuration before this recovery. Inherited model context remains visible, while behavior authority and summary charges come only from conversation-owned records. That policy stops interrupted
 background children and disarms goals; ordinary unfinished root tasks can resume.
+
+Behavior facts keep an image-free copy of each conversation's lineage for the runtime's
+lifetime and read only newer entries. Session reads see only published commits and the mutation
+line mints IDs in commit order, so a conversation's visible lineage only grows. Tool tasks are
+still read per fact read: a sequential tool round creates later calls' tasks after their
+assistant entry.
 
 Native Durable compaction generates its own summary. Its task captures the history boundary and initiating run;
 each summary request checks that run's request limit. Reported usage is persisted in the same native transaction
@@ -204,8 +213,9 @@ independent cancellation, native failure, scoped lookups and blocked relation de
 It also checks that fatal storage failure reaches observers while tool cleanup is blocked.
 `shutdown.test.ts` closes a running shared-behavior child with a queued steer and reopens
 SQLite to verify that the original input remains queued exactly once.
-Archive tests cover pagination, reset, fork ownership and stable identities after
-SQLite reopen. Projection tests cover repeated text, ambiguous coalesced frames,
+Archive tests cover pagination, reset, fork ownership, stable identities after
+SQLite reopen and reads limited to newer entries. History tests compare warm lineage reads with
+cold ones; a relation test checks that creation evidence is read without later child history. Projection tests cover repeated text, ambiguous coalesced frames,
 retries and tool progress. Shared behavior cases exercise native transactions, goal and
 child ownership, stop, delivery, approval and reopen; run-metadata tests distinguish
 same-run steering from late continuation. SQLite tests close and reopen an orderly
