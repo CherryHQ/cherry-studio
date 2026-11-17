@@ -11,9 +11,9 @@ error only after its repository findings are cleared and its contracts verified.
 Upstream has no official npm package and supports copying its source. The plugin
 lives directly under `scripts/lint/anti-slop/`; its source, licenses and provenance
 are preserved. Repository lint, formatting and application typechecking exclude
-this upstream copy. Its production entry points can be typechecked separately
-with TypeScript import extensions enabled. Effect sources are retained but not
-registered because this repository has no direct Effect dependency.
+this upstream copy. Its generic entry point can be typechecked separately
+with TypeScript import extensions enabled. Effect-specific sources are omitted
+because this repository does not use Effect.
 
 Unconfigured rules are pending migration, not proof that their source is clean.
 Each rule-specific stack layer clears that rule's findings, verifies affected
