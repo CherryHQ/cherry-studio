@@ -112,6 +112,7 @@ export async function readPiApprovalFacts(
     globalInstall,
     miseMutation,
     ...(globalInstall ? { globalInstallPermissionMode: ctx.getPermissionMode() ?? 'default' } : {}),
+    permissionMode: mode,
     destructive: policyAsk,
     ...(mandatoryBlock ? { mandatoryBlock } : {}),
     ...(commandPolicy

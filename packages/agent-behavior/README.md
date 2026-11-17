@@ -54,7 +54,9 @@ the texts of the results an adapter gives a child's open tool calls ([Applying a
 The desktop host checks shell input and supplies a `mandatoryBlock` for denials and a
 `commandPolicy` fact carrying the approval-card details and a `context` fingerprint. A block
 precedes mode shortcuts. After a grant, the gate reads current host facts and rejects the call
-when the block now applies or the context changed. It does not save executable, command-prefix or shell-wide consent.
+when the block now applies or the context changed. Facts that name the `permissionMode` they were derived under
+are gathered again, before the decision and after a grant, if the mode changed meanwhile; a mode that keeps changing
+makes the call require approval. It does not save executable, command-prefix or shell-wide consent.
 
 ## Ports
 

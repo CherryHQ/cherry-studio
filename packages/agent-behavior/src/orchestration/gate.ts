@@ -1,11 +1,24 @@
 import { answerVerdict, ASK_WITHDRAWN, decideApproval, repeatBlock } from '../core/approval/approval'
 import { offloadPlan } from '../core/context/offload'
 import type { ToolCallFact } from '../core/facts'
-import type { CallRef } from '../core/hostFacts'
+import type { ApprovalHostFacts, CallRef } from '../core/hostFacts'
 import { keys } from '../core/keys'
 import type { GateHandlers } from '../ports/harness'
 import type { HostPorts } from '../ports/host'
 import { storedMarker } from './output'
+
+const MODE_STABLE_ATTEMPTS = 3
+
+/** Facts gathered across a permission-mode switch would apply the old mode's command policy. */
+async function currentFacts(host: HostPorts, ref: CallRef, tool: ToolCallFact): Promise<ApprovalHostFacts> {
+  for (let attempt = 1; ; attempt++) {
+    const facts = await host.approvals.facts(ref, tool)
+    if (facts.permissionMode === undefined || facts.permissionMode === host.settings.permissionMode(ref.thread))
+      return facts
+    // A mode that keeps changing must not let stale facts skip a person.
+    if (attempt === MODE_STABLE_ATTEMPTS) return { ...facts, approvalRequired: true }
+  }
+}
 
 /** H9: before a call, D8's block half, then approvals and the plan gate (D34, D35, D37); after it, offload (D31). */
 export function gateHandlers(host: HostPorts): GateHandlers {
@@ -18,7 +31,7 @@ export function gateHandlers(host: HostPorts): GateHandlers {
       const tool: ToolCallFact = { callId: call.key, callKey: call.key, name: call.tool, args: call.args }
       // Hosts may hand over a mutable input object; a change after the card was shown voids the grant.
       const originalArguments = JSON.stringify(call.args)
-      const hostFacts = await host.approvals.facts(ref, tool)
+      const hostFacts = await currentFacts(host, ref, tool)
       const decision = decideApproval(
         call,
         hostFacts,
@@ -46,7 +59,7 @@ export function gateHandlers(host: HostPorts): GateHandlers {
       const policy = hostFacts.commandPolicy
       if (answer.kind === 'granted' && policy !== undefined) {
         const args = answer.args ?? decision.args ?? call.args
-        const latest = await host.approvals.facts(ref, { ...tool, args })
+        const latest = await currentFacts(host, ref, { ...tool, args })
         const checked = decideApproval(
           { ...call, args },
           latest,

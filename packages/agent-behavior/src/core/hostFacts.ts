@@ -27,6 +27,8 @@ export type ApprovalHostFacts = {
   readonly miseMutation?: string
   /** The root session's effective permission mode also governs child installation decisions. */
   readonly globalInstallPermissionMode?: PermissionMode
+  /** The mode these facts were derived under; the gate gathers them again if it changed meanwhile. */
+  readonly permissionMode?: PermissionMode
   /** The host's destructive-command detector flagged the call. */
   readonly destructive: boolean
   /** A host block enforced before every permission-mode shortcut, such as a mandatory command denial. */
