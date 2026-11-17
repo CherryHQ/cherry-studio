@@ -62,6 +62,32 @@ afterEach(async () => {
 describe('lifecycle memory owner', () => {
   const dbh = setupTestDatabase()
 
+  it('keeps correction metadata in maintenance reads and out of native current reads', async () => {
+    const native = service.open(authority())
+    const empty = await native.read('MEMORY.md')
+    await native.commit([{ kind: 'write', receipt: empty.receipt, content: '- "Old fact"\n' }], approve)
+    const correction = {
+      quote: 'Old fact',
+      text: 'New fact',
+      reason: 'corrected' as const,
+      recordedAt: '2026-11-17T10:00:00.000Z',
+      sources: [{ kind: 'chat' as const, conversationId: 't', messageId: 'm', sourceVersion: 'v' }]
+    }
+    await expect(native.prepareRevisions(empty.receipt, [correction])).rejects.toThrow('Only extraction')
+    const extraction = service.open(authority(), 'extraction')
+    const proposal = await extraction.prepareRevisions((await extraction.read('MEMORY.md')).receipt, [correction])
+    await extraction.commit([proposal], approve)
+    const visible = await native.read('MEMORY.md')
+    expect(visible.receipt).not.toBe('')
+    expect(visible.content).not.toContain('Old fact')
+    const organizer = service.open(authority(), 'dreaming')
+    const full = await organizer.read('MEMORY.md')
+    expect(full.content).toContain('retirement')
+    expect(full.receipt).not.toBe('')
+    expect(await native.revisions()).toHaveLength(1)
+    await organizer.commit([{ kind: 'write', receipt: full.receipt, content: `${full.content}\n` }], approve)
+  })
+
   async function seedAgentSession() {
     const agentId = randomUUID()
     const sessionId = randomUUID()

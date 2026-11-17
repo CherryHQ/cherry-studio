@@ -8,7 +8,7 @@ import type { MemoryScope } from '@shared/types/memory'
 
 import { isMemoryEditor, type MemoryAuthority } from './memoryAuthority'
 import type { MemoryLegacyOriginal, MemoryMutationSource } from './memoryBackups'
-import type { MemoryEntry, MemoryUse } from './memoryEntries'
+import type { MemoryEntry, MemoryRevision, MemoryUse } from './memoryEntries'
 import { memoryEntryPreview } from './memoryFiles'
 import {
   type MemoryAccess,
@@ -25,6 +25,12 @@ export interface MemorySession extends Disposable {
   validateModelReads(): Promise<void>
   assertRuntimeSafe(assertHistory?: (protection: string | null) => void): Promise<void>
   read(target: string, purpose?: MemoryUse): ReturnType<MemoryStore['read']>
+  revisions(): ReturnType<MemoryStore['revisions']>
+  prepareRevisions(
+    receipt: string,
+    revisions: readonly MemoryRevision[],
+    additions?: readonly string[]
+  ): ReturnType<MemoryStore['prepareRevisions']>
   commit(
     mutations: readonly MemoryMutation[],
     approve: MemoryApproval,
@@ -113,7 +119,8 @@ export class MemoryService extends BaseService {
           access,
           target,
           source === 'controlled' ? purpose : 'extraction',
-          extractionSources
+          extractionSources,
+          source !== 'controlled'
         )
         if (source === 'dreaming' && !view.receipt) throw new Error('Structured memory organization is not available')
         validations.push(view.validate)
@@ -130,6 +137,12 @@ export class MemoryService extends BaseService {
           return memoryEntryPreview(view.content ?? '')
         }),
       read,
+      revisions: () => run((store) => store.revisions(access)),
+      prepareRevisions: (receipt, revisions, additions) =>
+        run((store) => {
+          if (source !== 'extraction') throw new Error('Only extraction may prepare evidence-bound corrections')
+          return store.prepareRevisions(access, receipt, revisions, additions)
+        }),
       validateModelReads,
       assertRuntimeSafe: (assertHistory) => run((store) => store.assertRuntimeSafe(access, assertHistory)),
       commit: (mutations, approve, readReceipts, legacy, managedTargets) =>
