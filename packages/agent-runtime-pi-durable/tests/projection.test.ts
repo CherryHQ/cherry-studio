@@ -7,7 +7,7 @@ import type {
   LiveState,
   TaskId
 } from '@earendil-works/pi-durable'
-import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { describe, expect, it, onTestFinished } from 'vitest'
 
 import { runtimeId, type ObservationPayload } from '@cherrystudio/agent-runtime'
 
