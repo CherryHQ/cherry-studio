@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -5,6 +7,8 @@ import { describe, expect, it, vi } from 'vitest'
 import type * as CherryStudioUi from '@cherrystudio/ui'
 
 import { MarkdownLivePreview } from '../MarkdownLivePreview'
+
+const markdownStyles = readFileSync('src/renderer/assets/styles/markdown.css', 'utf8')
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
@@ -69,6 +73,33 @@ describe('Markdown document live preview', () => {
     expect(await screen.findByRole('heading', { name: 'Heading' })).toBeVisible()
     expect(onChange).not.toHaveBeenCalled()
   })
+
+  it.each(['{Enter}', '{Shift>}{Enter}{/Shift}'])(
+    'preserves entered line breaks in the rendered paragraph after blur (%s)',
+    async (key) => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(
+        <>
+          <style>{markdownStyles}</style>
+          <MarkdownLivePreview label="Document" value="Original" onChange={onChange} />
+          <button type="button">Outside</button>
+        </>
+      )
+
+      await user.click(await screen.findByText('Original', { selector: '[data-ui~="markdown.paragraph"]' }))
+      await user.paste('First line')
+      await user.keyboard(key)
+      await user.paste('Second line ')
+      await user.click(screen.getByRole('button', { name: 'Outside' }))
+
+      expect(onChange).toHaveBeenLastCalledWith('First line\nSecond line Original')
+      const paragraph = await screen.findByText('First line Second line Original')
+      expect(paragraph.textContent).toBe('First line\nSecond line Original')
+      // Collapsing whitespace made a saved Enter look as though it disappeared on blur.
+      expect(['pre-line', 'pre-wrap', 'break-spaces']).toContain(getComputedStyle(paragraph).whiteSpace)
+    }
+  )
 
   it.each([
     ['first', 'First explanation.'],

@@ -184,7 +184,7 @@ export function MarkdownLivePreview({ value, onChange, readOnly = false, label }
   }, [editor])
 
   return (
-    <div className="markdown static-markdown markdown-live-preview">
+    <div className="markdown markdown-live-preview">
       <EditorContent editor={editor} />
       <PreviewTargetsContext value={snapshot.targets}>
         <Suspense fallback={null}>

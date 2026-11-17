@@ -8,6 +8,6 @@ Inactive top-level blocks render through one full `AppMarkdown` document, so ref
 
 Source remains authoritative: paragraph nodes represent literal source lines, including carriage returns, trailing spaces and template-like text. Frontmatter is masked only for rendering. No Markdown serializer rewrites the file. The source-mode control also exposes frontmatter and malformed content.
 
-Use the existing `markdown` and `static-markdown` styles. Widget containers use `display: contents` to retain margin collapse, and rich-text editor styles exclude this document surface. Local file hosts wrap the surface in `MarkdownFileHostProvider` to retain relative image and file-link resolution.
+Use the existing `markdown` styles, which preserve soft line breaks in rendered paragraphs after editing loses focus. Widget containers use `display: contents` to retain margin collapse, and rich-text editor styles exclude this document surface. Local file hosts wrap the surface in `MarkdownFileHostProvider` to retain relative image and file-link resolution.
 
 Focused tests live in `__tests__`; exercise the document component, source preservation, Composer syntax/key contracts and the consuming pane together. Electron validation must include focus transitions, composition, real file writes and light/dark layout comparison. Full-document parsing and rendering are not virtualized; use source mode for very large documents when editing latency matters.
