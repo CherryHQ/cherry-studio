@@ -18,7 +18,7 @@ Exactly these, each with a single charter:
 |---|---|---|
 | `core` | **App runtime** | Business-agnostic infrastructure concerned only with running the app. The test: lift `core/` onto a different Electron app, add other business code, and you have a different application. Business-agnostic is **necessary, not sufficient**: `core` holds only the **non-removable** substrate the app cannot run without — removable capabilities route to `services/` even when they must execute early in startup (§4). One kind of thing — the app substrate: lifecycle / DI container, path registry, logger, window manager, scheduler & jobs, preboot, diagnostics, security primitives (IPC source trust). |
 | `ipc` | **Cross-process boundary** | Electron's defining inter-process mechanism — special and important enough to stand alone. **IpcApi** (schema + router + handler) is the typed boundary for migrated domains; the legacy root `ipc.ts` still coexists as the tracked §7 gap. |
-| `data` | **Data layer** | The general business-data store — a first-class data layer, hence independent. Holds DbService / CacheService / PreferenceService / DataApiService / BootConfig, DB schemas, and the v1→v2 migrators (which by design read domain data — throwaway migration code). Detailed in [Data System Reference](../data/README.md). |
+| `data` | **Data layer** | The general business-data store — a first-class data layer, hence independent. Holds DbService / CacheService / PreferenceService / DataApiService / BootConfig, DB schemas, and read-only legacy upgrade detection. Detailed in [Data System Reference](../data/README.md). |
 | `ai` | **Core domain** | Cherry Studio *is* an AI client, so AI earns its own top-level home: everything tied to the AI essence lives here (providers, middleware, MCP, agents, stream manager). Mirrors `@shared/ai`. |
 | `features` | **Domain modules** | Business domains, one directory each. A complex domain bundles its own related services / utils / etc. under `features/<domain>/`. |
 | `services` | **Business services** | Business feature services. A simple service is a single file; a larger one is organized into its own subdirectory. |
@@ -126,7 +126,7 @@ This page describes the **target**. Where current code does not yet match it, th
 |---|---|---|
 | legacy `ipc.ts` | v1 IPC registration at the process root, coexisting with IpcApi | domains migrate into `ipc/` (IpcApi) incrementally until `ipc.ts` is retired (§1) |
 
-By-design edges are **not** deviations and are deliberately omitted: the `data/migration/v2/` migrators reading domain data (§1) and `@logger` / `@application` ambient access from any tier (§3).
+By-design edges are **not** deviations and are deliberately omitted: `@logger` / `@application` ambient access from any tier (§3).
 
 ## 8. Related
 

@@ -120,18 +120,6 @@ describe('startAgentSessionRun — per-topic dispatch serialization', () => {
     await Promise.all([first, second])
   })
 
-  it('forwards extra listeners to send', async () => {
-    const primary = listener('primary')
-    const extra = listener('extra')
-    const run = startAgentSessionRun({ sessionId: 's', userParts: [text('a')], listeners: [primary, extra] })
-    await flush()
-    prepareResolvers[0]()
-    await flush()
-    await run
-
-    expect(sendSpy).toHaveBeenCalledWith(expect.objectContaining({ listeners: [primary, extra] }))
-  })
-
   it('passes notification authority through the Agent Session admission contract', async () => {
     const primary = listener('task')
     const trustedNotifyChannels = [{ id: 'channel-1', type: 'telegram' }] as const

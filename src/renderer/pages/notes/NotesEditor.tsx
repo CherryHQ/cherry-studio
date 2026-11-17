@@ -205,12 +205,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     if (!activeNodeId) {
       return (
         <div data-ui="notes.editor" className="flex h-full w-full flex-1 items-center justify-center">
-          <EmptyState
-            preset="no-note"
-            title={t('notes.empty')}
-            actionLabel={t('notes.new_note')}
-            onAction={onCreateNote}
-          />
+          <EmptyState title={t('notes.empty')} actionLabel={t('notes.new_note')} onAction={onCreateNote} />
         </div>
       )
     }
@@ -218,11 +213,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     if (contentLoadError) {
       return (
         <div data-ui="notes.editor" className="flex h-full w-full flex-1 items-center justify-center">
-          <EmptyState
-            preset="no-note"
-            title={t('notes.load_failed')}
-            description={t('notes.load_failed_description')}
-          />
+          <EmptyState title={t('notes.load_failed')} description={t('notes.load_failed_description')} />
         </div>
       )
     }

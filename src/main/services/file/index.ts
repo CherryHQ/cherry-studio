@@ -39,6 +39,7 @@ export type {
   ReadResult
 } from './FileManager'
 export { FileManager } from './FileManager'
+export { classifyFileFailure } from './failureFacts'
 export { FileEditService } from './FileEditService'
 export { ContentCommittedMetadataPendingError, StaleVersionError } from './FileManager'
 export { DirectoryTreeManager, DirectoryTreeStoppedError, type TreeOwner } from './tree/DirectoryTreeManager'
@@ -84,7 +85,7 @@ export { readByPath, readChunkByPath, writeIfUnchangedByPath } from './utils/con
 
 // Live on-disk metadata by path (`fs.stat` projection). Consumed by the File
 // IPC batch-metadata handler.
-export { assertOutsideManagedStorageMutation } from './utils/managedStorageGuard'
+export { assertOutsideManagedStorageMutation, isInsideManagedStorage } from './utils/managedStorageGuard'
 export { getMetadataByPath } from './utils/metadata'
 export { openRequestPath, resolveRequestedPath } from './utils/requestedPath'
 

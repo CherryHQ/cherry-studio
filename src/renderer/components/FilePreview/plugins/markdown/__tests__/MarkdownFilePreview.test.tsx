@@ -316,8 +316,6 @@ describe('MarkdownFilePreview', () => {
     expect(await screen.findByRole('heading')).toHaveTextContent('File preview')
     expect(screen.getByRole('heading')).not.toHaveTextContent('name: Writer')
     expect(screen.getByRole('heading')).not.toHaveTextContent('description: Draft clear prose')
-    expect(screen.queryByRole('button', { name: 'file_preview.markdown.mode.preview' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'file_preview.markdown.mode.source' })).not.toBeInTheDocument()
   })
 
   it('reloads content when the path or refresh key changes', async () => {

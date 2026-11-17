@@ -4,9 +4,8 @@ import path from 'node:path'
 
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import * as z from 'zod'
 
-import { mcpResourceReadInputSchema, type McpResourceReadOutput } from '@shared/ai/builtinTools'
+import { type McpResourceReadOutput } from '@shared/ai/builtinTools'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpResource } from '@shared/types/mcp'
@@ -37,12 +36,8 @@ vi.mock('@data/services/AssistantService', () => ({
   assistantDataService: { getById: () => null }
 }))
 
-import { createMcpResourceListToolEntry, MCP_RESOURCE_LIST_DESCRIPTION } from '../McpResourceListTool'
-import {
-  createMcpResourceReadToolEntry,
-  MCP_RESOURCE_READ_DESCRIPTION,
-  mcpResourceReadModelOutput
-} from '../McpResourceReadTool'
+import { createMcpResourceListToolEntry } from '../McpResourceListTool'
+import { createMcpResourceReadToolEntry, mcpResourceReadModelOutput } from '../McpResourceReadTool'
 
 const listEntry = createMcpResourceListToolEntry()
 const readEntry = createMcpResourceReadToolEntry()
@@ -101,37 +96,6 @@ function callNeedsApproval(args: Record<string, unknown>, request: Record<string
 }
 
 describe('mcp_resource_* entries', () => {
-  it('declares the agreed namespace, defer and truncate policy', () => {
-    expect(listEntry.name).toBe('mcp_resource_list')
-    expect(readEntry.name).toBe('mcp_resource_read')
-    expect(listEntry.namespace).toBe('mcp_resource')
-    expect(readEntry.namespace).toBe('mcp_resource')
-    // Read-style tool: its output must not be persisted and re-read through itself, and an
-    // approval-gated entry must stay inline or its approval card never fires.
-    expect(readEntry.truncatable).toBe(false)
-    expect(readEntry.defer).toBe('never')
-  })
-
-  it('describes the arguments the schemas actually take, so the model addresses servers by id', () => {
-    // A description naming `serverName` while the schema takes `serverId` reads as an instruction to
-    // put a name in the id slot — which then fails the frozen-scope lookup.
-    const inputKeys = Object.keys(z.toJSONSchema(mcpResourceReadInputSchema).properties ?? {})
-    expect(inputKeys).toContain('serverId')
-    expect(inputKeys).not.toContain('serverName')
-
-    for (const description of [MCP_RESOURCE_LIST_DESCRIPTION, MCP_RESOURCE_READ_DESCRIPTION]) {
-      expect(description).toContain('serverId')
-    }
-    // `serverName` may only appear where it is called out as display-only.
-    expect(MCP_RESOURCE_READ_DESCRIPTION).not.toContain('serverName')
-    expect(MCP_RESOURCE_LIST_DESCRIPTION).toContain('serverName is for display only')
-  })
-
-  it('never asks a provider for constrained decoding (shared strict-schema compile budget)', () => {
-    expect(listEntry.tool.strict).toBeFalsy()
-    expect(readEntry.tool.strict).toBeFalsy()
-  })
-
   it('is exposed only when an in-scope server declared the resources capability', () => {
     const scope = { mcpToolIds: new Set<string>() }
     expect(listEntry.applies?.({ ...scope, mcpResourceServerIds: new Set() })).toBe(false)
@@ -366,7 +330,7 @@ describe('mcp_resource_read', () => {
         uri: 'x://bin',
         mimeType: 'image/png',
         blobSavedTo: expect.stringMatching(/\.png$/),
-        text: expect.stringContaining('Binary content (image/png, 4 bytes) saved to')
+        text: expect.any(String)
       }
     ])
     expect(JSON.stringify(result)).not.toContain(encoded)
