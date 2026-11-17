@@ -18,6 +18,15 @@ export class FileObservationSession {
   private readonly waiters = new Set<() => void>()
   private release?: () => void
   private idleTimer?: ReturnType<typeof setTimeout>
+  private reconnect?: () => Promise<void>
+
+  refresh = async (): Promise<void> => {
+    if (this.state.coverage !== 'live') {
+      await this.reconnect?.()
+      await this.whenReady().catch(() => {})
+    }
+    this.update(this.state.coverage, this.state.error)
+  }
 
   constructor(
     private readonly handle: FileHandle,
@@ -69,7 +78,7 @@ export class FileObservationSession {
     let cancelled = false
     let resource: FileObservationResource | undefined
     let unsubscribe: (() => void) | undefined
-    let recovering = false
+    let connection: Promise<void> | undefined
     const close = () => {
       unsubscribe?.()
       unsubscribe = undefined
@@ -81,9 +90,8 @@ export class FileObservationSession {
           .catch((error: unknown) => logger.warn('File observation cleanup failed', { error }))
       }
     }
-    const connect = async () => {
-      if (recovering || cancelled) return
-      recovering = true
+    const connectOnce = async () => {
+      if (cancelled) return
       close()
       if (this.state.coverage !== 'starting') this.update('starting')
       try {
@@ -118,20 +126,30 @@ export class FileObservationSession {
       } catch (error) {
         close()
         if (!cancelled) this.update('unavailable', error instanceof Error ? error : new Error(String(error)))
-      } finally {
-        recovering = false
       }
+    }
+    const connect = (): Promise<void> => {
+      connection ??= connectOnce().finally(() => {
+        connection = undefined
+      })
+      return connection
+    }
+    const reconnect = async () => {
+      await connection
+      if (this.state.coverage !== 'live') await connect()
     }
     const revalidate = () => {
       if (cancelled || document.visibilityState === 'hidden') return
       if (this.state.coverage === 'live') this.update('live')
       else void connect()
     }
+    this.reconnect = reconnect
     window.addEventListener('focus', revalidate)
     document.addEventListener('visibilitychange', revalidate)
     void connect()
     return () => {
       cancelled = true
+      if (this.reconnect === reconnect) this.reconnect = undefined
       close()
       window.removeEventListener('focus', revalidate)
       document.removeEventListener('visibilitychange', revalidate)

@@ -268,10 +268,29 @@ export class DirectoryTreeManager extends BaseService {
   async create(
     owner: TreeOwner,
     rootPath: string,
-    options: DirectoryTreeOptions | undefined
+    options: DirectoryTreeOptions | undefined,
+    refresh = false
   ): Promise<CreateTreeIpcResult> {
     const { windowId, webContents: sender } = owner
     const key = builderKey(rootPath, options)
+    if (refresh) {
+      const pending = this.inflight.get(key)
+      if (pending) await pending
+      const cached = this.sharedBuilders.get(key)
+      if (cached) {
+        for (const consumer of cached.consumers.values()) {
+          if (consumer.phase === 'active' && !consumer.sender.isDestroyed()) {
+            sendMutation(consumer.sender, {
+              treeId: consumer.treeId,
+              revision: ++consumer.revision,
+              event: { type: 'status', coverage: 'stale' }
+            })
+          }
+        }
+        this.evictDisposedBuilder(cached)
+        cached.builder.dispose()
+      }
+    }
     await this.acquireBuilder(key, rootPath, options)
     // Re-read the canonical record rather than trusting the awaited one. Every create
     // waiting on the same in-flight acquisition receives the record as it was, and

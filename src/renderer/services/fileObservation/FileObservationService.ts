@@ -9,6 +9,7 @@ class FileObservationService {
     getSnapshot: () => FileObservationState
     subscribe: (listener: () => void) => () => void
     whenReady: () => Promise<void>
+    refresh: () => Promise<void>
   } {
     const key = JSON.stringify([handle.kind, handle.kind === 'path' ? handle.path : handle.entryId])
     const current = () => {
@@ -25,7 +26,8 @@ class FileObservationService {
     return {
       getSnapshot: () => current().getSnapshot(),
       subscribe: (listener) => current().subscribe(listener),
-      whenReady: () => current().whenReady()
+      whenReady: () => current().whenReady(),
+      refresh: () => current().refresh()
     }
   }
 }

@@ -5,6 +5,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore
 } from 'react'
@@ -42,6 +43,7 @@ export interface FileEditSession {
   setDraft(next: string): void
   discard(): Promise<void>
   reload(): Promise<void>
+  refresh(): Promise<void>
   keepDraft(): Promise<void>
   flush(): Promise<void>
   prepareMutation(): Promise<PreparedFileMutation>
@@ -67,24 +69,30 @@ export function useFileEditSession(
   const key = stableHandle ? keyOf(stableHandle) : undefined
   const request = useMemo(() => ({ key, manager, ownerId }), [key, manager, ownerId])
   const [acquired, setAcquired] = useState<{ request: typeof request; lease?: SessionLease; error?: Error }>()
+  const retryAcquisition = useRef<(() => Promise<void>) | undefined>(undefined)
   useLayoutEffect(() => {
     if (!stableHandle || !key) return
     let cancelled = false
     let lease: SessionLease | undefined
-    void manager.acquire(ownerId, stableHandle).then(
-      (result) => {
+    const acquire = async () => {
+      setAcquired({ request })
+      try {
+        const result = await manager.acquire(ownerId, stableHandle)
         if (cancelled) result.release()
         else {
           lease = result
           setAcquired({ request, lease })
         }
-      },
-      (error: unknown) => {
+      } catch (error) {
         if (!cancelled) setAcquired({ request, error: error instanceof Error ? error : new Error(String(error)) })
+        throw error
       }
-    )
+    }
+    retryAcquisition.current = acquire
+    void acquire().catch(() => {})
     return () => {
       cancelled = true
+      if (retryAcquisition.current === acquire) retryAcquisition.current = undefined
       lease?.release()
     }
   }, [manager, ownerId, key, stableHandle, request])
@@ -118,11 +126,15 @@ export function useFileEditSession(
     () => ({
       discard: () => invoke('discard'),
       reload: () => invoke('reload'),
+      refresh: () =>
+        lease
+          ? lease.refresh()
+          : (retryAcquisition.current?.() ?? Promise.reject(new Error('File session is not ready'))),
       keepDraft: () => invoke('keepLocal'),
       flush: () => invoke('flush'),
       prepareMutation: () => manager.prepareMutation()
     }),
-    [invoke, manager]
+    [invoke, manager, lease]
   )
 
   return useMemo(() => {

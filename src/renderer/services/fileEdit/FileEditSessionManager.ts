@@ -66,6 +66,7 @@ export interface SessionLease {
   reload(): Promise<void>
   keepLocal(): Promise<void>
   invalidate(): Promise<void>
+  refresh(): Promise<void>
   release(): void
 }
 
@@ -206,7 +207,7 @@ export class FileEditSessionManager {
       if (opened) void this.invalidate(opened)
     })
     try {
-      await observation.whenReady()
+      await observation.whenReady().catch(() => {})
       if (this.mutationSettled || epoch !== this.acquisitionEpoch) throw new AcquisitionInterruptedError()
       let version = observation.getSnapshot().version
       let disk = await this.read(resource)
@@ -314,6 +315,13 @@ export class FileEditSessionManager {
       reload: () => command(() => this.replace(session, 'reload')),
       keepLocal: () => command(() => this.replace(session, 'keep')),
       invalidate: () => this.invalidate(session),
+      refresh: () =>
+        command(async () => {
+          await session.observation.refresh()
+          await this.invalidate(session)
+          if (session.snapshot.freshness !== 'known')
+            throw session.snapshot.readError ?? new Error('File refresh failed')
+        }),
       release: () => {
         if (released) return
         released = true
@@ -505,7 +513,7 @@ export class FileEditSessionManager {
     const revision = session.snapshot.revision
     session.needsRevalidation = false
     try {
-      await session.observation.whenReady()
+      await session.observation.whenReady().catch(() => {})
       const disk = await this.read(session.resource)
       if (
         session.observation.getSnapshot().version !== observedVersion ||
@@ -515,7 +523,7 @@ export class FileEditSessionManager {
         (session.snapshot.sealed && !preparing)
       )
         return
-      this.publish(session, { readError: undefined })
+      this.publish(session, { readError: undefined, freshness: 'known' })
       if (session.snapshot.isDirty) {
         if (disk.baseline.contentHash !== session.disk.baseline.contentHash) this.publish(session, { conflict: true })
         else this.adoptBaseline(session, disk)

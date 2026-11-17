@@ -13,8 +13,8 @@ const whenUnavailable = async () => {
 
 export function useFileObservation(
   path: AbsoluteFilePath | undefined
-): FileObservationState & { whenReady: () => Promise<void> } {
+): FileObservationState & { whenReady: () => Promise<void>; refresh: () => Promise<void> } {
   const session = useMemo(() => (path ? fileObservationService.get(createFilePathHandle(path)) : undefined), [path])
   const state = useSyncExternalStore(session?.subscribe ?? emptySubscribe, session?.getSnapshot ?? emptySnapshot)
-  return { ...state, whenReady: session?.whenReady ?? whenUnavailable }
+  return { ...state, whenReady: session?.whenReady ?? whenUnavailable, refresh: session?.refresh ?? whenUnavailable }
 }

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { SerializedTreeNode } from '@shared/utils/file'
 
 import { useArtifactFileTreeModel } from '../useArtifactFileTreeModel'
+const originalApi = window.api
 
 const disk = vi.hoisted(() => ({ files: ['old.txt'], nextId: 0 }))
 vi.mock('@renderer/ipc', () => ({
@@ -31,9 +32,9 @@ beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   disk.files = ['old.txt']
   vi.stubGlobal('api', {
-    ...window.api,
+    ...originalApi,
     file: {
-      ...window.api.file,
+      ...originalApi?.file,
       listDirectoryEntries: async () =>
         disk.files.map((name) => ({ path: `/workspace/src/${name}`, isDirectory: false }))
     }
@@ -71,4 +72,27 @@ it('replaces stale children after a collapsed directory changes without a later 
   rerender({ expandedIds: new Set(['src']) })
   await waitFor(() => expect(result.current.nodeById.has('src/new.txt')).toBe(true))
   expect(result.current.nodeById.has('src/old.txt')).toBe(false)
+})
+
+it('refreshes expanded children and an active search without changing the expansion or query', async () => {
+  const expanded = new Set(['src'])
+  const { result } = renderHook(() =>
+    useArtifactFileTreeModel({
+      workspacePath: '/workspace',
+      treeOpen: true,
+      expandedIds: expanded,
+      searchKeyword: 'txt',
+      enableFileSearch: true,
+      selectedFile: null,
+      onExpandedIdsChange: () => {}
+    })
+  )
+  await waitFor(() => expect(result.current.nodeById.has('src/old.txt')).toBe(true))
+  disk.files = ['new.txt']
+  await act(async () => {
+    await result.current.refresh()
+  })
+  expect(result.current.nodeById.has('src/new.txt')).toBe(true)
+  expect(result.current.nodeById.has('src/old.txt')).toBe(false)
+  expect(result.current.effectiveExpandedIds.has('src')).toBe(true)
 })

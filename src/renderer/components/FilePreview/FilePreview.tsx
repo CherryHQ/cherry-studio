@@ -185,6 +185,7 @@ function FilePreviewPluginRenderer({
 }
 
 export interface FilePreviewProps {
+  onLoadStateChange?: (state: { refreshKey: number; status: 'loading' | 'ready' | 'error' }) => void
   filePath: AbsoluteFilePath
   header?: ReactNode
   refreshKey?: number
@@ -219,7 +220,8 @@ export function FilePreview({
   refreshKey = 0,
   type = 'file',
   onSelectionReference,
-  onLineComment
+  onLineComment,
+  onLoadStateChange
 }: FilePreviewProps) {
   const file = useMemo(() => {
     try {
@@ -230,6 +232,7 @@ export function FilePreview({
     }
   }, [filePath])
   const observation = useFileObservation(file?.filePath)
+  const { t } = useTranslation()
   const waitForObservation = observation.whenReady
   const sourceRevision = `${refreshKey}:${observation.version}`
   const pluginGeneration = useRef({ sourceRevision, value: refreshKey })
@@ -245,10 +248,12 @@ export function FilePreview({
       start() {
         const generation = Symbol()
         current = generation
-        promise = waitForObservation().then(() => {
-          if (current !== generation) throw new Error('Preview metadata request superseded')
-          return ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath))
-        })
+        promise = waitForObservation()
+          .catch(() => {})
+          .then(() => {
+            if (current !== generation) throw new Error('Preview metadata request superseded')
+            return ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath))
+          })
         // The host and retained source attach in passive effects, after this layout effect.
         void promise.catch(() => {})
         return promise
@@ -264,6 +269,18 @@ export function FilePreview({
   }, [file, sourceRevision, waitForObservation])
   const requestKey = metadataRequest?.key ?? ''
   const [resolution, setResolution] = useState<FilePreviewResolution>({ requestKey: '', status: 'loading' })
+  useEffect(() => {
+    onLoadStateChange?.({
+      refreshKey,
+      status: !file
+        ? 'error'
+        : resolution.requestKey !== requestKey || resolution.status === 'loading'
+          ? 'loading'
+          : resolution.status === 'unavailable' || resolution.status === 'load_error'
+            ? 'error'
+            : 'ready'
+    })
+  }, [file, onLoadStateChange, refreshKey, requestKey, resolution])
   const selectionRequestRef = useRef<ReturnType<FilePreviewMetadataRequest> | null>(null)
   useLayoutEffect(() => {
     selectionRequestRef.current = metadataRequest?.start() ?? null
@@ -353,8 +370,6 @@ export function FilePreview({
 
   if (!file) {
     preview = <FilePreviewState kind="invalid_path" />
-  } else if (observation.coverage === 'unavailable') {
-    preview = <FilePreviewState kind="load_error" />
   } else if (
     resolution.status === 'loading' ||
     (resolution.requestKey !== requestKey &&
@@ -384,5 +399,16 @@ export function FilePreview({
     preview = <FilePreviewState kind="unsupported" filePath={resolution.file.filePath} />
   }
 
-  return <FilePreviewLayout.Shell header={header}>{preview}</FilePreviewLayout.Shell>
+  return (
+    <FilePreviewLayout.Shell header={header}>
+      {observation.coverage === 'unavailable' && (
+        <div
+          role="status"
+          className="shrink-0 border-b border-warning-border bg-warning-subtle px-3 py-2 text-xs text-warning-subtle-foreground">
+          {t('file_preview.observation_unavailable')}
+        </div>
+      )}
+      {preview}
+    </FilePreviewLayout.Shell>
+  )
 }

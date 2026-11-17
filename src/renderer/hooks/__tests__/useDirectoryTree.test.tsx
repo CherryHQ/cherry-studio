@@ -64,6 +64,35 @@ function makeSnapshot(rootPath: string, files: string[]): SerializedTreeNode {
 }
 
 describe('useDirectoryTree', () => {
+  it('refreshes explicitly without clearing the displayed snapshot, and retains it after a read failure', async () => {
+    mocks.create.mockResolvedValue({
+      treeId: 'refresh-old',
+      revision: 0,
+      snapshot: makeSnapshot('/refresh', ['old.md'])
+    })
+    mocks.onMutation.mockReturnValue(() => {})
+    const { result } = renderHook(() => useDirectoryTree('/refresh'))
+    await waitFor(() => expect(result.current.root?.hasChild('old.md')).toBe(true))
+    const next = Promise.withResolvers<CreateTreeIpcResult>()
+    mocks.create.mockReturnValueOnce(next.promise)
+    let refresh!: Promise<void>
+    act(() => {
+      refresh = result.current.refresh()
+    })
+    expect(result.current.root?.hasChild('old.md')).toBe(true)
+    await act(async () => {
+      next.resolve({ treeId: 'refresh-new', revision: 0, snapshot: makeSnapshot('/refresh', ['new.md']) })
+      await refresh
+    })
+    expect(result.current.root?.hasChild('new.md')).toBe(true)
+    expect(result.current.root?.hasChild('old.md')).toBe(false)
+    mocks.create.mockRejectedValueOnce(new Error('directory offline'))
+    await act(async () => {
+      await expect(result.current.refresh()).rejects.toThrow('directory offline')
+    })
+    expect(result.current.root?.hasChild('new.md')).toBe(true)
+  })
+
   it('returns the initial snapshot once file.tree.create resolves', async () => {
     const snapshot = makeSnapshot('/notes', ['a.md', 'b.md'])
     mocks.create.mockResolvedValue({ treeId: 't-1', revision: 0, snapshot })

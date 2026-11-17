@@ -109,9 +109,11 @@ export class DirectoryTreeSession {
   private mirror: MirrorState | null = null
   private state: DirectoryTreeState = { root: null, isLoading: false, error: null, version: 0, treeId: null }
   private readonly listeners = new Set<() => void>()
+  private readonly refreshWaiters = new Set<() => void>()
   private release?: () => void
   private idleTimer?: ReturnType<typeof setTimeout>
   private recoveryAttempts = 0
+  private refreshing?: Promise<void>
 
   constructor(
     private readonly rootPath: string,
@@ -121,6 +123,31 @@ export class DirectoryTreeSession {
 
   getSnapshot = (): DirectoryTreeState => this.state
   getNode = (path: string): TreeNode | null => this.mirror?.nodes.get(path) ?? null
+
+  refresh = (): Promise<void> => {
+    if (this.refreshing) return this.refreshing
+    const task = new Promise<void>((resolve, reject) => {
+      const settled = () => {
+        if (this.state.isLoading) return
+        this.refreshWaiters.delete(settled)
+        if (this.state.error) reject(this.state.error)
+        else if (this.state.treeId) resolve()
+        else reject(new Error('Directory refresh was interrupted'))
+      }
+      this.refreshWaiters.add(settled)
+      if (!this.state.isLoading) {
+        this.update({ isLoading: true, error: null })
+        this.recoveryAttempts = 0
+        this.release?.()
+        this.release = this.start(true)
+      }
+      settled()
+    })
+    this.refreshing = task.finally(() => {
+      this.refreshing = undefined
+    })
+    return this.refreshing
+  }
 
   subscribe = (listener: () => void): (() => void) => {
     clearTimeout(this.idleTimer)
@@ -144,6 +171,7 @@ export class DirectoryTreeSession {
   private update(patch: Partial<DirectoryTreeState>): void {
     this.state = { ...this.state, ...patch }
     for (const listener of this.listeners) listener()
+    for (const waiter of this.refreshWaiters) waiter()
   }
 
   private recover(): void {
@@ -153,14 +181,14 @@ export class DirectoryTreeSession {
     this.release = this.start()
   }
 
-  private start(): () => void {
+  private start(preserveSnapshot = false): () => void {
     const rootPath = this.rootPath
     let cancelled = false
     let released = false
     let unsubscribeMutations: (() => void) | null = null
     let createdTreeId: string | null = null
 
-    this.update({ root: null, treeId: null, isLoading: true, error: null })
+    this.update({ ...(preserveSnapshot ? {} : { root: null }), treeId: null, isLoading: true, error: null })
 
     const disposeTree = (treeId: string): void => {
       ipcApi.request('file.tree.dispose', { treeId }).catch((err) => {
@@ -194,7 +222,8 @@ export class DirectoryTreeSession {
         for (let attempt = 1; attempt <= MAX_ACTIVATION_ATTEMPTS; attempt += 1) {
           const result: CreateTreeIpcResult = await ipcApi.request('file.tree.create', {
             rootPath: AbsoluteFilePathSchema.parse(rootPath),
-            options: this.options
+            options: this.options,
+            ...(preserveSnapshot ? { refresh: true } : {})
           })
           if (cancelled) {
             disposeTree(result.treeId)

@@ -64,6 +64,22 @@ function snapshot(text: string): FileEditRead {
 }
 
 describe('file editing lifetime', () => {
+  it('checks disk explicitly while preserving a draft, detects conflict, and reports read failure separately from saving', async () => {
+    const lease = await manager.acquire('manual-refresh', handle)
+    lease.setAutoSave(false)
+    lease.acceptEdit('local draft')
+    await lease.refresh()
+    expect(lease.getSnapshot()).toMatchObject({ draft: 'local draft', conflict: false, isDirty: true })
+    disk = snapshot('external version')
+    await lease.refresh()
+    expect(lease.getSnapshot()).toMatchObject({ draft: 'local draft', conflict: true })
+    expect(writes).toEqual([])
+    vi.mocked(ipcApi.request).mockRejectedValueOnce(new Error('Read unavailable'))
+    await expect(lease.refresh()).rejects.toThrow('File refresh failed')
+    expect(lease.getSnapshot()).toMatchObject({ draft: 'local draft', conflict: true })
+    expect(lease.getSnapshot().saveError).toBeUndefined()
+  })
+
   it('retains a failed draft after release and rejects callbacks from the previous attachment', async () => {
     const first = await manager.acquire('notes', handle)
     failWrite = true

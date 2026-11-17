@@ -60,11 +60,15 @@ After preparation, the caller performs rename, move, or deletion and calls the i
 
 ## Revalidation
 
-Each editing instance acquires [file observation](./file-observation.md) directly, independently of directory tree expansion. Notes and Skills do not forward tree events to editors. The initial read follows observation activation; revalidation also runs on focus, visible-document transitions, and reattachment. Detached drafts release observation after a ten-second grace period once accepted saves settle; they keep their draft and recovery state and revalidate when attached again. Notifications invalidate knowledge; they never supply a replacement draft. Save correctness relies on conditional writes even when notifications are delayed or absent.
+Each editing instance acquires [file observation](./file-observation.md) directly, independently of directory tree expansion. Notes and Skills do not forward tree events to editors. The initial read attempts observation activation first; if observation fails, a coherent file read remains available without certifying automatic updates; revalidation also runs on focus, visible-document transitions, and reattachment. Detached drafts release observation after a ten-second grace period once accepted saves settle; they keep their draft and recovery state and revalidate when attached again. Notifications invalidate knowledge; they never supply a replacement draft. Save correctness relies on conditional writes even when notifications are delayed or absent.
 
 Revalidation coalesces notifications into one in-flight read. A reread checks its observation version, read generation, draft revision, pending writes, and mutation barrier before adopting a result. Clean content can refresh; dirty content remains in memory and differing disk bytes set a conflict. Notifications deferred during a save or barrier are revalidated when the session becomes available.
 
 A transient observation read failure is logged and leaves freshness unknown. It does not erase the draft or create a save failure. Missing/retargeted leases, or failed revalidation during mutation completion, make the current binding unavailable. An explicit reload can clear the read error after a successful read; actual save failures retain their separate retry state.
+
+The artifact toolbar shows waiting, saving, saved, failed, or paused feedback derived from the editing session. A successful reply for an older draft cannot mark newer input as saved. With autosave disabled, dirty content is labelled unsaved. Save failures retain their retry/discard actions.
+
+`refresh()` checks the disk baseline without saving or discarding the draft. An unchanged dirty baseline preserves the editor; differing disk bytes expose a conflict. Read failure rejects the explicit refresh without creating or clearing a save failure. Failed initial acquisitions can be retried through the hook. The toolbar disables checking during a save; replacing a draft remains an explicit reload choice.
 
 ## Closing and recovery
 

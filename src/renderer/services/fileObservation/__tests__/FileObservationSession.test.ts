@@ -91,3 +91,18 @@ it('exposes acquisition failure and retries on focus without restarting the rend
   expect(reference.getSnapshot().coverage).toBe('live')
   release()
 })
+
+it('lets a manual refresh reconnect unavailable observation without a window focus event', async () => {
+  transport.request.mockRejectedValueOnce(new Error('Watcher unavailable'))
+  const reference = fileObservationService.get(
+    createFilePathHandle(AbsoluteFilePathSchema.parse('/registry/manual.txt'))
+  )
+  const release = reference.subscribe(() => {})
+  await expect(reference.whenReady()).rejects.toThrow('Watcher unavailable')
+  await reference.refresh()
+  expect(reference.getSnapshot().coverage).toBe('live')
+  const version = reference.getSnapshot().version
+  await reference.refresh()
+  expect(reference.getSnapshot().version).toBeGreaterThan(version)
+  release()
+})

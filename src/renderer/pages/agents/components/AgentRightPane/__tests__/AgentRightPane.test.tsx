@@ -249,7 +249,7 @@ vi.mock('@renderer/ipc', async (importActual) => ({
 }))
 
 vi.mock('@renderer/services/toast', () => ({
-  toast: { error: toastErrorMock }
+  toast: { error: toastErrorMock, closeToast: vi.fn() }
 }))
 
 vi.mock('@renderer/utils/filePath', () => ({

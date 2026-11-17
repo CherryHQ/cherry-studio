@@ -41,6 +41,10 @@ The canonical `FilePreview` host acquires observation before reading metadata an
 
 Renderer subscriptions retain a ten-second idle grace period. Returning after release establishes new coverage. Focus and visible-document transitions invalidate live content or retry unavailable coverage. Detached drafts release their subscription after their own bounded grace once saves settle, including when a detached save fails, while retaining draft recovery; conditional saves still validate the baseline.
 
+Directory sessions expose an explicit `refresh()` that reacquires a snapshot while retaining the displayed tree until replacement succeeds. The request bypasses the warm Main projection and scans again; other consumers of that projection receive stale status and reacquire their own baseline. The artifact tree refreshes its root, retained expanded directories, and active search together. It preserves view state and does not reload the current editor.
+
+File observation exposes `refresh()` to invalidate a live consumer or retry unavailable observation. The artifact file command refreshes the preview, or checks an editor's disk baseline while preserving its draft. File reads remain available if observation setup fails; a successful read does not certify restored observation. Tree and current-file buttons appear in their own visible regions, with independent progress and failure feedback.
+
 ## Failure and recovery
 
 Initial setup can fail; `unavailable` is distinct from a missing file or empty content. Watcher errors invalidate coverage, and system resume marks active scopes stale. Directory builders publish a status mutation before disposal; directory sessions take a new snapshot. File invalidations recheck target mappings even when observation began on a regular file, so replacing it with a symlink triggers rebinding. File sessions release the obsolete subscription and reconnect, with at most three activation attempts. An acquisition failure or exhausted activation leaves an explicit error and can retry on focus/visibility return.

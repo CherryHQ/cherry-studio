@@ -197,10 +197,11 @@ interface WorkspaceFileTreeResult {
   isLoading: boolean
   hasLoaded: boolean
   error?: Error
+  refresh(): Promise<void>
 }
 
 const useWorkspaceFileTree = (path: string | undefined, watchMissingRoot: boolean): WorkspaceFileTreeResult => {
-  const { root, version, isLoading, error } = useDirectoryTree(
+  const { root, version, isLoading, error, refresh } = useDirectoryTree(
     path,
     watchMissingRoot ? ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS : WORKSPACE_TREE_OPTIONS
   )
@@ -214,54 +215,55 @@ const useWorkspaceFileTree = (path: string | undefined, watchMissingRoot: boolea
     tree,
     isLoading,
     hasLoaded: !isLoading && root !== null,
-    error: error ?? undefined
+    error: error ?? undefined,
+    refresh
   }
 }
 
-function useArtifactFileSearch(workspacePath: string | undefined, searchKeyword: string): FileTreeNode[] | null {
+function useArtifactFileSearch(workspacePath: string | undefined, searchKeyword: string) {
   const [searchTree, setSearchTree] = useState<FileTreeNode[] | null>(null)
-  const searchGenerationRef = useRef(0)
+  const searchGenerationRef = useRef<symbol | undefined>(undefined)
+
+  const refresh = useCallback(async () => {
+    const trimmedSearch = searchKeyword.trim()
+    if (!workspacePath || !trimmedSearch) return
+    const generation = Symbol()
+    searchGenerationRef.current = generation
+    const entries = await window.api.file.listDirectoryEntries(AbsoluteFilePathSchema.parse(workspacePath), {
+      recursive: true,
+      maxDepth: 0,
+      includeHidden: false,
+      includeFiles: true,
+      includeDirectories: false,
+      maxEntries: ARTIFACT_FILE_SEARCH_MAX_ENTRIES,
+      searchPattern: trimmedSearch
+    })
+    if (generation !== searchGenerationRef.current) return
+    setSearchTree(projectDirectoryEntries(workspacePath, entries))
+  }, [searchKeyword, workspacePath])
 
   useEffect(() => {
-    const trimmedSearch = searchKeyword.trim()
-    if (!workspacePath || !trimmedSearch) {
-      searchGenerationRef.current += 1
+    searchGenerationRef.current = undefined
+    if (!workspacePath || !searchKeyword.trim()) {
       setSearchTree(null)
       return
     }
-
-    const generation = searchGenerationRef.current + 1
-    searchGenerationRef.current = generation
-
     const timeout = setTimeout(() => {
-      void (async () => {
-        try {
-          const entries = await window.api.file.listDirectoryEntries(AbsoluteFilePathSchema.parse(workspacePath), {
-            recursive: true,
-            maxDepth: 0,
-            includeHidden: false,
-            includeFiles: true,
-            includeDirectories: false,
-            maxEntries: ARTIFACT_FILE_SEARCH_MAX_ENTRIES,
-            searchPattern: trimmedSearch
-          })
-          if (generation !== searchGenerationRef.current) return
-          setSearchTree(projectDirectoryEntries(workspacePath, entries))
-        } catch (err) {
-          if (generation !== searchGenerationRef.current) return
-          const normalized = err instanceof Error ? err : new Error(String(err))
-          logger.warn(`Failed to search workspace files: ${workspacePath}`, normalized)
-          setSearchTree(null)
-        }
-      })()
+      void refresh().catch((err: unknown) => {
+        logger.warn(
+          `Failed to search workspace files: ${workspacePath}`,
+          err instanceof Error ? err : new Error(String(err))
+        )
+      })
     }, ARTIFACT_FILE_SEARCH_DEBOUNCE_MS)
 
     return () => {
       clearTimeout(timeout)
+      searchGenerationRef.current = undefined
     }
-  }, [searchKeyword, workspacePath])
+  }, [refresh, searchKeyword, workspacePath])
 
-  return searchTree
+  return { searchTree, refresh }
 }
 
 function useLazyArtifactFileTree({
@@ -336,7 +338,10 @@ function useLazyArtifactFileTree({
     }
     return { displayTree: mergeLazyChildren(tree, children), isLoading: loading }
   }, [sessions, tree, version])
-  return { displayTree, isLoading, loadDirectoryChildren }
+  const refresh = useCallback(async () => {
+    await Promise.all([...sessions.values()].map(({ session }) => session.refresh()))
+  }, [sessions])
+  return { displayTree, isLoading, loadDirectoryChildren, refresh }
 }
 
 /** True when `selectedFile` resolves to a file node in the current tree. */
@@ -364,6 +369,7 @@ export interface UseArtifactFileTreeModelParams {
 }
 
 export interface ArtifactFileTreeModel {
+  refresh(): Promise<void>
   filteredTree: FileTreeNode[]
   effectiveExpandedIds: ReadonlySet<string>
   nodeById: ReadonlyMap<string, FileTreeNode>
@@ -405,14 +411,18 @@ export function useArtifactFileTreeModel({
     }
   }, [invalidWorkspacePath, workspacePath])
 
-  const { tree, isLoading, hasLoaded, error } = useWorkspaceFileTree(
-    treeOpen ? validWorkspacePath : undefined,
-    watchMissingRoot
-  )
+  const {
+    tree,
+    isLoading,
+    hasLoaded,
+    error,
+    refresh: refreshRoot
+  } = useWorkspaceFileTree(treeOpen ? validWorkspacePath : undefined, watchMissingRoot)
   const {
     displayTree,
     isLoading: isLazyLoading,
-    loadDirectoryChildren
+    loadDirectoryChildren,
+    refresh: refreshChildren
   } = useLazyArtifactFileTree({
     workspacePath: validWorkspacePath,
     treeOpen,
@@ -438,10 +448,13 @@ export function useArtifactFileTreeModel({
   )
 
   const trimmedFileSearch = enableFileSearch ? searchKeyword.trim() : ''
-  const searchTree = useArtifactFileSearch(
+  const { searchTree, refresh: refreshSearch } = useArtifactFileSearch(
     treeOpen && enableFileSearch ? validWorkspacePath : undefined,
     trimmedFileSearch
   )
+  const refresh = useCallback(async () => {
+    await Promise.all([refreshRoot(), refreshChildren(), refreshSearch()])
+  }, [refreshRoot, refreshChildren, refreshSearch])
   const searchableTree = useMemo(() => {
     if (!trimmedFileSearch || !searchTree) return displayTree
     return mergeFileTreeNodeLists(displayTree, searchTree)
@@ -537,6 +550,7 @@ export function useArtifactFileTreeModel({
   )
 
   return {
+    refresh,
     filteredTree: visibleTree,
     effectiveExpandedIds,
     nodeById,

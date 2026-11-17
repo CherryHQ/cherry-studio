@@ -17,6 +17,7 @@ import { hasRenderedFilePreview } from '@renderer/components/FilePreview'
 import type * as OpenTargetModule from '@renderer/components/OpenTarget'
 import { FileEditSessionContext, useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { FileEditSessionManager } from '@renderer/services/fileEdit/FileEditSessionManager'
+import { toast } from '@renderer/services/toast'
 import type { ComposerFileReference } from '@renderer/types/selectionReference'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -1066,6 +1067,7 @@ describe('ArtifactPane', () => {
 
   function titleModel(): ArtifactFileTreeModel {
     return {
+      refresh: async () => {},
       filteredTree: [],
       effectiveExpandedIds: new Set(),
       nodeById: new Map(),
@@ -1728,6 +1730,81 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('file-preview')).toHaveAttribute('data-preview-type', 'artifact')
   })
 
+  it('checks an edited file for external changes without saving or discarding its draft', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.agent.file_pane.auto_save', false)
+    try {
+      mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
+      mocks.ipcRequest
+        .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('first')))
+        .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external')))
+        .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external')))
+      render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+      fireEvent.click(await screen.findByTestId('tree-node-notes.txt'))
+      const editor = await screen.findByTestId('code-editor')
+      fireEvent.change(editor, { target: { value: 'local draft' } })
+      fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh.check_file' }))
+      const conflict = await screen.findByRole('dialog')
+      expect(editor).toHaveValue('local draft')
+      expect(screen.getByText('agent.preview_pane.edit.paused')).toBeInTheDocument()
+      expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.edit.write')).toHaveLength(0)
+      fireEvent.click(within(conflict).getByRole('button', { name: 'agent.preview_pane.edit.conflict.reload' }))
+      await waitFor(() => expect(screen.getByTestId('code-editor')).toHaveValue('external'))
+    } finally {
+      MockUsePreferenceUtils.setPreferenceValue('feature.agent.file_pane.auto_save', true)
+    }
+  })
+
+  it('refreshes the file tree without replacing an open draft', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.agent.file_pane.auto_save', false)
+    try {
+      mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
+      mocks.ipcRequest.mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('first')))
+      render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+      fireEvent.click(await screen.findByTestId('tree-node-notes.txt'))
+      fireEvent.change(await screen.findByTestId('code-editor'), { target: { value: 'local draft' } })
+      fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.toggle_tree' }))
+      mockWorkspaceTree('/tmp/workspace', ['notes.txt', 'new.txt'])
+      fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh.tree' }))
+      expect(await screen.findByTestId('tree-node-new.txt')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.toggle_tree' }))
+      expect(await screen.findByTestId('code-editor')).toHaveValue('local draft')
+      expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.edit.write')).toHaveLength(0)
+    } finally {
+      MockUsePreferenceUtils.setPreferenceValue('feature.agent.file_pane.auto_save', true)
+    }
+  })
+
+  it('shows waiting, saving and saved feedback without acknowledging newer input from an older save', async () => {
+    const firstWrite = Promise.withResolvers<{ mtime: number; size: number }>()
+    mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
+    mocks.fsReadText.mockResolvedValue('first')
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('first')))
+      .mockReturnValueOnce(firstWrite.promise)
+      .mockResolvedValueOnce({ mtime: 3, size: 6 })
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    fireEvent.click(await screen.findByTestId('tree-node-notes.txt'))
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    const editor = await within(overlay).findByTestId('code-editor')
+    expect(within(overlay).getByRole('status')).toHaveTextContent('common.saved')
+    fireEvent.change(editor, { target: { value: 'second' } })
+    expect(within(overlay).getByRole('status')).toHaveTextContent('agent.preview_pane.edit.waiting')
+    await waitFor(
+      () => expect(within(overlay).getByRole('status')).toHaveTextContent('agent.preview_pane.edit.saving'),
+      { timeout: 3000 }
+    )
+    fireEvent.change(editor, { target: { value: 'latest' } })
+    await act(async () => {
+      firstWrite.resolve({ mtime: 2, size: 6 })
+      await firstWrite.promise
+    })
+    expect(within(overlay).getByRole('status')).not.toHaveTextContent('common.saved')
+    await waitFor(() => expect(within(overlay).getByRole('status')).toHaveTextContent('common.saved'), {
+      timeout: 3000
+    })
+    expect(editor).toHaveValue('latest')
+  })
+
   it('autosaves an oversized in-memory draft — the size cap gates loading for edit, not writing', async () => {
     const oversizedDraft = '你'.repeat(Math.floor(ARTIFACT_PREVIEW_MAX_SIZE_BYTES / 3) + 1)
     const oversizedDraftBytes = new Blob([oversizedDraft]).size
@@ -1912,12 +1989,16 @@ describe('ArtifactPane', () => {
 
     const saveFailure = await screen.findByRole('alert', {}, { timeout: 3000 })
     expect(saveFailure).toHaveTextContent('agent.preview_pane.edit.save_failed')
+    expect(screen.getByText('common.save_failed')).toBeInTheDocument()
     expect(screen.getByTestId('code-editor')).toHaveValue('unsaved draft\n')
 
     fireEvent.click(within(saveFailure).getByRole('button', { name: 'agent.preview_pane.edit.discard' }))
 
     await waitFor(() => expect(screen.getByTestId('code-editor')).toHaveValue('first\n'))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(toast.getToastQueue().toasts.some((item) => item.title === 'agent.preview_pane.edit.save_failed')).toBe(
+      false
+    )
   })
 
   it('offers to reload the latest file after a stale write is rejected', async () => {

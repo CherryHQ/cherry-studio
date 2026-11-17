@@ -4,6 +4,7 @@ import { DirectoryTreeSession, type DirectoryTreeState } from '@renderer/service
 import type { DirectoryTreeOptions, TreeMutationEvent, TreeNode } from '@shared/utils/file'
 
 export interface UseDirectoryTreeResult extends DirectoryTreeState {
+  refresh(): Promise<void>
   /** O(1) lookup keyed by absolute path. Stable across mutations. */
   getNode(absPath: string): TreeNode | null
 }
@@ -12,6 +13,7 @@ const EMPTY: DirectoryTreeState = { root: null, treeId: null, isLoading: false, 
 const emptySnapshot = () => EMPTY
 const emptySubscribe = () => () => undefined
 const emptyNode = () => null
+const emptyRefresh = async () => {}
 
 /**
  * @param onMutation Receives every revision after the mirror applies it, including activation replay
@@ -41,5 +43,5 @@ export function useDirectoryTree(
     previous.current = session
   }, [session])
   const state = useSyncExternalStore(session?.subscribe ?? emptySubscribe, session?.getSnapshot ?? emptySnapshot)
-  return { ...state, getNode: session?.getNode ?? emptyNode }
+  return { ...state, getNode: session?.getNode ?? emptyNode, refresh: session?.refresh ?? emptyRefresh }
 }

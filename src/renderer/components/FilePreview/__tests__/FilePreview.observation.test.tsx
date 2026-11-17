@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
+import i18n from '@renderer/i18n/resolver'
 import type { FileObservationResource } from '@shared/ipc/schemas/fileObservation'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
@@ -12,15 +13,19 @@ const fixture = vi.hoisted(() => ({
   text: 'first',
   revision: 0,
   listener: undefined as ((event: FileObservationResource) => void) | undefined,
-  pending: undefined as Promise<string> | undefined
+  pending: undefined as Promise<string> | undefined,
+  observationUnavailable: false,
+  metadataUnavailable: false
 }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: async (route: string) => {
+      if (route === 'file.observe.open' && fixture.observationUnavailable) throw new Error('Observation unavailable')
       if (route === 'file.observe.open')
         return { subscriptionId: 'observation', revision: fixture.revision, coverage: 'live' }
       if (route === 'file.observe.activate') return true
       if (route === 'file.observe.close') return
+      if (route === 'file.get_metadata' && fixture.metadataUnavailable) throw new Error('Read unavailable')
       if (route === 'file.get_metadata') return { kind: 'file', type: 'text', size: 5, modifiedAt: 1 }
       throw new Error(route)
     },
@@ -39,6 +44,8 @@ beforeEach(() => {
   fixture.text = 'first'
   fixture.revision = 0
   fixture.pending = undefined
+  fixture.observationUnavailable = false
+  fixture.metadataUnavailable = false
   vi.stubGlobal('api', {
     ...originalApi,
     fs: { ...originalApi.fs, readText: async () => fixture.pending ?? fixture.text }
@@ -64,6 +71,21 @@ it('refreshes an open preview after equal-length external changes with unchanged
   invalidate('other')
   expect(await screen.findByText('other')).toBeInTheDocument()
   expect(screen.queryByText('first')).not.toBeInTheDocument()
+})
+
+it('reads the file when observation is unavailable and reports a failed manual read before allowing another refresh', async () => {
+  fixture.observationUnavailable = true
+  const path = AbsoluteFilePathSchema.parse('/outside/manual.txt')
+  const view = render(<FilePreview filePath={path} refreshKey={0} />)
+  expect(await screen.findByText('first')).toBeInTheDocument()
+  fixture.metadataUnavailable = true
+  view.rerender(<FilePreview filePath={path} refreshKey={1} />)
+  expect(await screen.findByText(i18n.t('file_preview.unavailable.title'))).toBeInTheDocument()
+  expect(screen.queryByText('first')).not.toBeInTheDocument()
+  fixture.metadataUnavailable = false
+  fixture.text = 'latest manual content'
+  view.rerender(<FilePreview filePath={path} refreshKey={2} />)
+  expect(await screen.findByText('latest manual content')).toBeInTheDocument()
 })
 
 it('rejects a superseded content read when another invalidation arrives during loading', async () => {

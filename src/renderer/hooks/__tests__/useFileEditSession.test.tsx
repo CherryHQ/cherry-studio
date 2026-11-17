@@ -58,6 +58,18 @@ it('preserves BOM, CRLF and raw Markdown on untouched load and after an actual e
   ])
 })
 
+it('retries a failed initial acquisition through refresh without requiring navigation', async () => {
+  ipc.request.mockRejectedValueOnce(new Error('File unavailable'))
+  const { result } = renderHook(() => useFileEditSession(handle, 'retry-open'), { wrapper })
+  await waitFor(() => expect(result.current.status).toBe('error'))
+  await act(async () => {
+    await result.current.refresh()
+  })
+  await waitFor(() => expect(result.current.status).toBe('ready'))
+  expect(result.current.draft).toBe('base')
+  expect(writes).toEqual([])
+})
+
 it.each<[Uint8Array, string]>([
   [new Uint8Array([0xff]), 'encoding'],
   [new TextEncoder().encode('a\r\nb\n'), 'mixed-line-endings']

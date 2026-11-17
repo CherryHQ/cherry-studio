@@ -194,6 +194,10 @@ Each create request receives its own `treeId`, but the manager shares one builde
 normalized `(rootPath, options)`. Option keys and extension-array order are canonicalized for the
 dedupe key, and concurrent creates share the same in-flight build.
 
+`file.tree.create` accepts an optional `refresh` flag. It retires the cached shared projection, marks other consumers stale so they reacquire a baseline, and scans the requested scope again. Recreating a subscription without this flag can reuse a warm cached projection.
+
+`DirectoryTreeSession.refresh()` coalesces explicit requests and reacquires the snapshot/activation handoff. It retains the displayed snapshot during that request and after failure. The artifact model refreshes the root and retained lazy-directory sessions, reruns an active search, and keeps expansion, selection and query ownership in the caller. The command does not force a whole-workspace recursive scan or reload an open editor.
+
 ## 6. Resource Lifecycle
 
 When WindowManager destroys the owning managed window (`onWindowDestroyed`), all of its tree IDs

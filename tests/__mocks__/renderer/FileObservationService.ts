@@ -11,6 +11,7 @@ export function createMockFileObservationService() {
       },
       getSnapshot: () => state,
       whenReady: async () => {},
+      refresh: async () => {},
       subscribe: (listener: () => void) => {
         listeners.add(listener)
         return () => {
