@@ -96,7 +96,7 @@ const fake = vi.hoisted(() => {
     replayBudget: undefined as number | undefined,
     onStarted: undefined as undefined | ((listeners: StreamListener[]) => Promise<void>),
     manager: {
-      withDispatchLock: vi.fn(async (_topic: string, run: () => Promise<unknown>) => run()),
+      withDispatchLock: vi.fn(async <TResult>(_topic: string, run: () => Promise<TResult>) => run()),
       whenTerminalDispatchSettled: async () => {},
       isWriteQuiesced: false,
       send: vi.fn(),

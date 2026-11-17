@@ -40,7 +40,7 @@ const jobManager = {
 const busyTopicIds = new Set<string>()
 const aiStreamManager = {
   hasUnsettledTopicWork: vi.fn((topicId: string) => busyTopicIds.has(topicId)),
-  withDispatchLock: vi.fn(async (_topicId: string, operation: () => Promise<unknown>) => operation())
+  withDispatchLock: vi.fn(async <TResult>(_topicId: string, operation: () => Promise<TResult>) => operation())
 }
 
 beforeEach(() => {

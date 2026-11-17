@@ -73,7 +73,7 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
       // `inputs` carries the request body only — url/method/headers are dedicated attributes so the
       // viewer can render them as detail rows / their own tabs instead of cramming them into the body.
       const requestBody = readRequestBody(init?.body, maxBodyBytes)
-      if (requestBody !== undefined) span.setAttribute('inputs', stringifyBody(requestBody))
+      if (requestBody !== undefined) span.setAttribute('inputs', requestBody)
     } catch (error) {
       logger.warn('httpTraceFetch request-span setup failed; proceeding untraced', { error })
       span.end()
@@ -210,26 +210,18 @@ function applyFinalBodyInputs(span: Span, init: RequestInit | undefined, maxBody
   }
   if (typeof finalBody !== 'string') return
   const parsed = readRequestBody(finalBody, maxBodyBytes)
-  if (parsed !== undefined) span.setAttribute('inputs', stringifyBody(parsed))
+  if (parsed !== undefined) span.setAttribute('inputs', parsed)
 }
 
-function readRequestBody(body: BodyInit | null | undefined, maxBytes: number): unknown {
-  // LLM requests send a JSON string. Non-string bodies (streams, FormData,
-  // Blob) aren't synchronously readable here — skip them.
+function readRequestBody(body: BodyInit | null | undefined, maxBytes: number): string | undefined {
+  // LLM requests send JSON strings; streams and FormData are not synchronously readable.
   if (typeof body !== 'string') return undefined
-  return body.length <= maxBytes ? parseJsonMaybe(body) : truncate(body, maxBytes)
-}
-
-/** Coerce a captured body to the string an OTel attribute requires. */
-function stringifyBody(body: unknown): string {
-  return typeof body === 'string' ? body : JSON.stringify(body)
-}
-
-function parseJsonMaybe(value: string): unknown {
+  if (body.length > maxBytes) return truncate(body, maxBytes)
   try {
-    return JSON.parse(value)
+    const parsed: unknown = JSON.parse(body)
+    return typeof parsed === 'string' ? parsed : JSON.stringify(parsed)
   } catch {
-    return value
+    return body
   }
 }
 

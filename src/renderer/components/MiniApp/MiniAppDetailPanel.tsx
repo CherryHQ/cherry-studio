@@ -208,7 +208,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
   }, [reload])
 
   /** Every write goes through here: one spinner, one error surface, one reload after. */
-  const run = async (action: () => Promise<unknown>, { reloadAfter = true } = {}) => {
+  const run = async <TResult,>(action: () => Promise<TResult>, { reloadAfter = true } = {}) => {
     setBusy(true)
     setError(null)
     try {

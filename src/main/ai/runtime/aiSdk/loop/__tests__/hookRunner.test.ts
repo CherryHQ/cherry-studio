@@ -1,8 +1,8 @@
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import type { ToolSet } from 'ai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
-import { wrapToolsWithExecutionHooks } from '../hookRunner'
+import { safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from '../hookRunner'
 import type { AgentLoopHooks, ToolExecutionEndEvent, ToolExecutionStartEvent } from '../types'
 
 /** Minimal tool-execute options the wrapper reads (`toolCallId`, `messages`). */
@@ -108,5 +108,25 @@ describe('wrapToolsWithExecutionHooks', () => {
     await expect(wrapped.myTool.execute!({}, EXECUTE_OPTIONS)).rejects.toBe(boom)
     expect(onToolExecutionEnd).toHaveBeenCalledTimes(1)
     expect(onToolExecutionEnd.mock.calls[0][0].toolOutput).toEqual({ type: 'tool-error', error: boom })
+  })
+})
+
+describe('forwarded hook result contracts', () => {
+  it('preserves callback arguments and awaits its result', async () => {
+    const wrapped = wrapForwardedHook('prepareStep', async (step: number) => ({ temperature: step / 10 }))
+    expectTypeOf(wrapped).toEqualTypeOf<((step: number) => Promise<{ temperature: number } | undefined>) | undefined>()
+    expect(await wrapped?.(3)).toEqual({ temperature: 0.3 })
+  })
+
+  it('returns undefined when a synchronous hook throws or an asynchronous hook rejects', async () => {
+    expect(
+      await safeCall('sync', () => {
+        throw new Error('sync failure')
+      })
+    ).toBeUndefined()
+    const wrapped = wrapForwardedHook('async', async () => {
+      throw new Error('async failure')
+    })
+    expect(await wrapped?.()).toBeUndefined()
   })
 })

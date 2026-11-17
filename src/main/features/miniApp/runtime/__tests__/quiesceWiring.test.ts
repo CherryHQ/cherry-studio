@@ -31,7 +31,7 @@ vi.mock('@application', async () => {
   const { mockMiniAppApplication } = await import('../../__tests__/applicationMock')
   return mockMiniAppApplication({
     MiniAppRuntimeService: {
-      withAppQuiesced: vi.fn(async (appId: string, mutate: () => Promise<unknown>) => {
+      withAppQuiesced: vi.fn(async <TResult>(appId: string, mutate: () => Promise<TResult>) => {
         spy.onEntry = { row: hasRow(appId), tree: fs.existsSync(miniAppInstallPath(appId)) }
         return mutate()
       }),

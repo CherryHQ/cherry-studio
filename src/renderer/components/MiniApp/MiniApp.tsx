@@ -13,11 +13,12 @@ import { PendingPermissionsDialog } from '@renderer/components/MiniApp/PendingPe
 import { UpdateReviewDialog } from '@renderer/components/MiniApp/UpdateReviewDialog'
 import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useMiniAppAttentionFor } from '@renderer/hooks/useMiniAppAttention'
+import type { UseMiniAppsReturn } from '@renderer/hooks/useMiniApps'
 import { useMiniAppUpdate } from '@renderer/hooks/useMiniAppUpdate'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api/errors'
-import type { MiniApp, MiniAppStatus } from '@shared/data/types/miniApp'
+import type { MiniApp } from '@shared/data/types/miniApp'
 
 import MiniAppDetailPanel from './MiniAppDetailPanel'
 
@@ -26,9 +27,9 @@ interface Props {
   onClick?: () => void
   onOpen: (appId: string, displayName: string, icon?: string) => void
   onEditCustom?: (appId: string) => void
-  onUpdateStatus: (appId: string, status: MiniAppStatus) => Promise<unknown>
-  onHide: (appId: string) => Promise<unknown>
-  onRemoveCustom: (appId: string) => Promise<unknown>
+  onUpdateStatus: UseMiniAppsReturn['updateAppStatus']
+  onHide: UseMiniAppsReturn['hideMiniApp']
+  onRemoveCustom: UseMiniAppsReturn['removeCustomMiniApp']
   onToggleSidebarFavorite: (appId: string) => void
   isPinned: boolean
   isSidebarFavorite: boolean

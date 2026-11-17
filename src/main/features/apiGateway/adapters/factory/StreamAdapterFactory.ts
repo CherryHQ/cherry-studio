@@ -9,17 +9,19 @@ import { AnthropicSseFormatter } from '../formatters/AnthropicSseFormatter'
 import { GeminiSseFormatter } from '../formatters/GeminiSseFormatter'
 import { OpenAiResponsesSseFormatter } from '../formatters/OpenAiResponsesSseFormatter'
 import { OpenAiSseFormatter } from '../formatters/OpenAiSseFormatter'
-import type { ISseFormatter, IStreamAdapter, OutputFormat, StreamAdapterOptions } from '../interfaces'
+import type { ISseFormatter, OutputFormat, StreamAdapterOptions } from '../interfaces'
 import { AiSdkToAnthropicSse } from '../stream/AiSdkToAnthropicSse'
 import { AiSdkToGeminiSse } from '../stream/AiSdkToGeminiSse'
 import { AiSdkToOpenAiResponsesSse } from '../stream/AiSdkToOpenAiResponsesSse'
 import { AiSdkToOpenAiSse } from '../stream/AiSdkToOpenAiSse'
 
+type GatewayStreamAdapter = AiSdkToAnthropicSse | AiSdkToGeminiSse | AiSdkToOpenAiResponsesSse | AiSdkToOpenAiSse
+
 /**
  * Registry entry for adapter and formatter classes
  */
 interface RegistryEntry {
-  adapterClass: new (options: StreamAdapterOptions) => IStreamAdapter
+  adapterClass: new (options: StreamAdapterOptions) => GatewayStreamAdapter
   formatterClass: new () => ISseFormatter
 }
 
@@ -80,7 +82,7 @@ export class StreamAdapterFactory {
    * @returns A stream adapter instance
    * @throws Error if format is not supported
    */
-  static createAdapter(format: OutputFormat, options: StreamAdapterOptions): IStreamAdapter {
+  static createAdapter(format: OutputFormat, options: StreamAdapterOptions): GatewayStreamAdapter {
     const entry = this.registry.get(format)
     if (!entry) {
       throw new Error(

@@ -30,7 +30,7 @@ vi.mock('@application', async () => {
   const { mockMiniAppApplication } = await import('../../__tests__/applicationMock')
   return mockMiniAppApplication({
     MiniAppRuntimeService: {
-      withAppQuiesced: (_appId: string, mutate: () => Promise<unknown>) => mutate(),
+      withAppQuiesced: <TResult>(_appId: string, mutate: () => Promise<TResult>) => mutate(),
       recovered: Promise.resolve(new Set<string>()),
       clearUnrepaired: vi.fn(),
       noteUpdateAvailable: vi.fn()

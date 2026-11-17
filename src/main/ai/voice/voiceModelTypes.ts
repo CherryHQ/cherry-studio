@@ -1,3 +1,4 @@
+import type { NativeSuccess } from '@cherrystudio/system-speech/contracts'
 import type {
   LocalSpeechModelId,
   LocalSpeechVoice,
@@ -28,7 +29,10 @@ interface VoiceModelDefinition {
 
 type TranscriptionResources =
   | {
-      installLocale(language: string, signal?: AbortSignal): Promise<unknown>
+      installLocale(
+        language: string,
+        signal?: AbortSignal
+      ): Promise<Extract<NativeSuccess, { operation: 'install_asr_assets' }>['result']>
       download?: never
       cancelDownload?: never
       remove?: never

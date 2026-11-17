@@ -49,7 +49,7 @@ function errorCauses(error: unknown): object[] {
 }
 
 /** Preserve transport provenance before the SDK wraps an Electron/Node fetch failure. */
-export function normalizeMcpTransportError(error: unknown): unknown {
+export function normalizeMcpTransportError<TError>(error: TError): TError | McpTransportError {
   if (!(error instanceof Error) || error instanceof McpTransportError) return error
   const causes = errorCauses(error)
   if (

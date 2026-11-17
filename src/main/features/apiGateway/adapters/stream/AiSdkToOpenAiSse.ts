@@ -99,7 +99,7 @@ interface ToolCallState {
  * const outputStream = adapter.transform(aiSdkStream)
  * ```
  */
-export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
+export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk, OpenAiCompatibleCompletion> {
   private createdTimestamp: number
   private toolCalls: Map<string, ToolCallState> = new Map()
   private currentToolCallIndex = 0

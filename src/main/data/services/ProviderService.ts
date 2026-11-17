@@ -52,13 +52,23 @@ import { isRetiredProvider } from '../retiredProviders'
 
 const logger = loggerService.withContext('DataApi:ProviderService')
 
-function applyJsonMergePatch(target: unknown, patch: unknown): unknown {
+type ProviderSettingsPatchValue =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | ProviderSettingsPatchValue[]
+  | { [key: string]: ProviderSettingsPatchValue }
+
+function applyJsonMergePatch(
+  target: ProviderSettingsPatchValue,
+  patch: ProviderSettingsPatchValue
+): ProviderSettingsPatchValue {
   if (patch === null || typeof patch !== 'object' || Array.isArray(patch)) return patch
 
-  const result: Record<string, unknown> =
-    target !== null && typeof target === 'object' && !Array.isArray(target)
-      ? { ...(target as Record<string, unknown>) }
-      : {}
+  const result: Record<string, ProviderSettingsPatchValue> =
+    target !== null && typeof target === 'object' && !Array.isArray(target) ? { ...target } : {}
 
   for (const [key, value] of Object.entries(patch)) {
     if (value == null) {

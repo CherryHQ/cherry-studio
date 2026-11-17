@@ -40,7 +40,7 @@ async function readMarketplace<T>(url: string, read: (response: Response) => Pro
   }
 }
 
-async function readMarketplaceJson(response: Response): Promise<unknown> {
+async function readMarketplaceJson<TResult>(response: Response, schema: z.ZodType<TResult>): Promise<TResult> {
   if (!response.body) throw new Error('Empty CherryIN response')
   const reader = response.body.getReader()
   const chunks: Uint8Array[] = []
@@ -53,7 +53,7 @@ async function readMarketplaceJson(response: Response): Promise<unknown> {
       if (size > MAX_MARKETPLACE_JSON_BYTES) throw new Error('CherryIN response exceeds the size limit')
       chunks.push(value)
     }
-    return JSON.parse(new TextDecoder().decode(Buffer.concat(chunks, size)))
+    return schema.parse(JSON.parse(new TextDecoder().decode(Buffer.concat(chunks, size))))
   } finally {
     // readMarketplace aborts the request on every exit, including an oversized body.
     reader.releaseLock()
@@ -74,16 +74,14 @@ export async function listMarketplaceSkills(input: { offset: number; limit: numb
   url.searchParams.set('limit', String(input.limit))
   url.searchParams.set('offset', String(input.offset))
   url.searchParams.set('sort', 'popular')
-  const page = await readMarketplace(url.href, async (response) =>
-    CherrySkillPageSchema.parse(await readMarketplaceJson(response))
-  )
+  const page = await readMarketplace(url.href, async (response) => readMarketplaceJson(response, CherrySkillPageSchema))
   return { items: page.items.map(summarizeSkill), pagination: page.pagination }
 }
 
 export async function getMarketplaceSkill(id: string, readMembers = false): Promise<MarketplaceSkillDetail> {
   const skill = await readMarketplace(
     `${CHERRY_SKILL_MARKETPLACE_URL}/api/skills/${encodeURIComponent(id)}`,
-    async (response) => CherrySkillDetailSchema.parse(await readMarketplaceJson(response))
+    async (response) => readMarketplaceJson(response, CherrySkillDetailSchema)
   )
   if (skill.id !== id) throw new Error('CherryIN skill is unavailable')
   const detail = { ...summarizeSkill(skill), longDescription: skill.longDescription }
