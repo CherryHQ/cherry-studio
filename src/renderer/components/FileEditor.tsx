@@ -1,5 +1,5 @@
 import type { FileContents, FileOptions, LineAnnotation, SelectedLineRange } from '@pierre/diffs'
-import { VirtualizedFile, Virtualizer } from '@pierre/diffs'
+import { DEFAULT_VIRTUAL_FILE_METRICS, VirtualizedFile, Virtualizer } from '@pierre/diffs'
 import type * as PierreEdit from '@pierre/diffs/edit'
 import type { EditorFactory, EditorOptions } from '@pierre/diffs/edit'
 import { EditProvider, File, useWorkerPool, VirtualizerContext, WorkerPoolContextProvider } from '@pierre/diffs/react'
@@ -133,6 +133,7 @@ export default function FileEditor({
   const fontSize = messageFontSize - 1
   // Pierre places the caret at a row's integer offsetTop, so fractional rows leave it poking past the line highlight.
   const lineHeight = Math.round(fontSize * 1.6)
+  const metrics = useMemo(() => ({ ...DEFAULT_VIRTUAL_FILE_METRICS, lineHeight }), [lineHeight])
   const { activeCodeTheme: theme, isCodeThemeDark } = useCodeStyle()
   const runtimeOptions = useMemo(() => ({ ...highlighterOptions, theme }), [theme])
   const editable = !readOnly && onChange !== undefined
@@ -207,7 +208,7 @@ export default function FileEditor({
       }
       if (revealedLocation.current === location || !(instance instanceof VirtualizedFile)) return
       cancelAnimationFrame(navigationFrame.current ?? 0)
-      navigationFrame.current = requestAnimationFrame(() => {
+      navigationFrame.current = requestAnimationFrame(function revealLocation() {
         const viewport = virtualizer.getRoot()
         if (!node.isConnected || !viewport) return
         const lineCount = Math.max(1, liveContents.current.split('\n').length)
@@ -220,12 +221,15 @@ export default function FileEditor({
         hasLocationHighlight.current = true
         const scrollTop = viewport instanceof Document ? window.scrollY : viewport.scrollTop
         const viewportHeight = viewport instanceof Document ? window.innerHeight : viewport.clientHeight
+        if (viewportHeight === 0) return
         if (lastNavigationTop.current === top && top >= scrollTop && top < scrollTop + viewportHeight) {
           revealedLocation.current = location
           return
         }
         lastNavigationTop.current = top
+        virtualizer.markDOMDirty()
         virtualizer.scrollTo({ top, behavior: 'instant' })
+        navigationFrame.current = requestAnimationFrame(revealLocation)
       })
     },
     [location, virtualizer]
@@ -332,6 +336,7 @@ export default function FileEditor({
       className={cn('pb-[var(--chat-composer-inset,0px)]', expanded ? 'min-h-full' : 'h-full min-h-0 overflow-auto')}>
       <File
         file={input.file}
+        metrics={metrics}
         options={options}
         edit={createEditor !== undefined}
         editorOptions={editorOptions}
