@@ -263,29 +263,32 @@ export type RuntimeReasoning = z.infer<typeof RuntimeReasoningSchema>
 
 export type ParameterSupport = z.infer<typeof ParameterSupportDbSchema>
 
-/** Runtime form: strict parameter support with more fields (not derivable from DB form — different shape) */
+/** Runtime support retains catalog ranges and accepts legacy flat bounds. */
 export const RuntimeParameterSupportSchema = z.object({
   temperature: z
     .object({
       supported: z.boolean(),
-      min: z.number(),
-      max: z.number(),
+      range: NumericRangeSchema.optional(),
+      min: z.number().optional(),
+      max: z.number().optional(),
       default: z.number().optional()
     })
     .optional(),
   topP: z
     .object({
       supported: z.boolean(),
-      min: z.number(),
-      max: z.number(),
+      range: NumericRangeSchema.optional(),
+      min: z.number().optional(),
+      max: z.number().optional(),
       default: z.number().optional()
     })
     .optional(),
   topK: z
     .object({
       supported: z.boolean(),
-      min: z.number(),
-      max: z.number()
+      range: NumericRangeSchema.optional(),
+      min: z.number().optional(),
+      max: z.number().optional()
     })
     .optional(),
   frequencyPenalty: z.boolean().optional(),
@@ -407,6 +410,8 @@ export const ModelSchema = z.object({
   supportsStreaming: z.boolean(),
   /** Reasoning configuration */
   reasoning: RuntimeReasoningSchema.optional(),
+  /** User-row provenance for request defaults; never persisted as model metadata. */
+  userDefaultReasoningEffort: ReasoningEffortSchema.optional(),
   /** Whether this exact provider-model pair supports the provider's Fast transport. */
   supportsFastMode: z.boolean().optional(),
   /** Endpoint-projected request controls safe to expose to the renderer. */
@@ -428,6 +433,8 @@ export const ModelSchema = z.object({
   parameterSupport: RuntimeParameterSupportSchema.optional(),
 
   pricing: RuntimeModelPricingSchema.optional(),
+  /** Runtime provenance; never inferred by comparing prices with the catalog. */
+  hasCustomPricing: z.boolean().optional(),
 
   /**
    * Painting-page metadata (per-mode `supports.*` widget specs).

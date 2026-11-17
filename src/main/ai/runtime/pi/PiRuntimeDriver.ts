@@ -4,6 +4,8 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
+import { loggerService } from '@logger'
+import { logAiFailure } from '@main/ai/errorReporting'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
@@ -14,11 +16,14 @@ import type {
   AgentSessionRuntimeDriver,
   OrphanSessionReclaimOptions
 } from '../types'
+import { classifyPiFailure } from './failureFacts'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
 import { forkPiSession } from './piFork'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
 import { ensureRetiredSessionHistory, migrateRetiredSessionHistories } from './retiredSessionHistory'
 import { piWorkspaceRelocation } from './workspaceRelocation'
+
+const logger = loggerService.withContext('PiRuntimeDriver')
 
 export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly workspaceRelocation = piWorkspaceRelocation
@@ -29,7 +34,7 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   }
   readonly recoverSessions = migrateRetiredSessionHistories
 
-  async validateSession(session: AgentSessionEntity): Promise<void> {
+  async validateSession(session: AgentSessionEntity, opts?: { headless?: boolean }): Promise<void> {
     await ensureRetiredSessionHistory(session.id)
     const cwd = session.workspace?.path
     if (!cwd) {
@@ -39,7 +44,10 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
       throw new Error(`pi agent session ${session.id} has no agent`)
     }
     const agent = agentService.getAgent(session.agentId)
-    if (!agent?.model) {
+    // Headless runs execute the agent default, so a stale session override
+    // must not fail (or pass) preflight for them.
+    const effectiveModel = opts?.headless ? agent?.model : (session.model ?? agent?.model)
+    if (!effectiveModel) {
       throw new Error(`pi agent ${session.agentId} has no model configured`)
     }
     await prepareAgentSessionWorkspaceDirectory(session)
@@ -55,7 +63,13 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
           nativeSessionId: undefined
         }
       : input
-    return new PiRuntimeConnection(migratedInput).start()
+    const connection = new PiRuntimeConnection(migratedInput)
+    try {
+      return await connection.start()
+    } catch (error) {
+      logAiFailure(logger, 'Pi startup failed', error, 'agent.pi.start', classifyPiFailure(error))
+      throw error
+    }
   }
 
   /**

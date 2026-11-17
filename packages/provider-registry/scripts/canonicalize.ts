@@ -1,4 +1,3 @@
-import type { Provider } from '../src/providers/types'
 /**
  * Build-time canonicalization — the id-folding the catalog generator applies to every model id.
  * Shares the runtime resolver's `normalizeModelId` helpers but is INTENTIONALLY different in one way:
@@ -7,6 +6,7 @@ import type { Provider } from '../src/providers/types'
  * Lives in its own module (not inside `generate-catalog.ts`, whose import runs the generation IIFE) so
  * tests can import `canonOf` without triggering a live upstream fetch.
  */
+import type { Provider } from '../src/providers/types'
 import {
   expandKnownPrefixes,
   normalizeVersionSeparators,

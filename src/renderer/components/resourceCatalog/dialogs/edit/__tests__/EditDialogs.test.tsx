@@ -5,6 +5,7 @@ vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () =>
   }
 })
 
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -395,6 +396,13 @@ vi.mock('react-i18next', async (importOriginal) => {
           'agent.tasks.intervalUnit': 'minutes',
           'library.config.agent.field.heartbeat_enabled.label': 'Heartbeat',
           'library.config.agent.field.heartbeat_interval.label': 'Heartbeat interval',
+          'library.config.agent.field.language.label': 'Reply language',
+          'library.config.agent.field.language.mode.inherit': 'Use global',
+          'library.config.agent.field.language.mode.off': 'No constraint',
+          'library.config.agent.field.language.mode.custom': 'Custom',
+          'settings.agent.language.follow_conversation': 'Follow conversation language',
+          'settings.agent.language.combo_label': 'Reply language preset',
+          'settings.agent.language.custom_label': 'Custom reply language',
           'library.config.agent.field.model.hint': 'Primary agent model.',
           'library.config.agent.field.model.hint.claude_code': 'Pins the opus alias (ANTHROPIC_MODEL).',
           'library.config.agent.field.model.label': 'Model',
@@ -1718,6 +1726,56 @@ describe('edit dialogs', () => {
     expect(screen.queryByRole('button', { name: 'Model (Opus) Help' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Plan model Help' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Small model Help' })).not.toBeInTheDocument()
+  })
+
+  it('reflects the global reply language without saving an agent override', async () => {
+    const previous = MockUsePreferenceUtils.getPreferenceValue('agent.language')
+    try {
+      MockUsePreferenceUtils.setPreferenceValue('agent.language', '日本語')
+      const view = render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+      const mode = screen.getByRole('combobox', { name: 'Reply language' })
+      expect(mode).toHaveTextContent('Use global · 日本語')
+      MockUsePreferenceUtils.setPreferenceValue('agent.language', null)
+      view.rerender(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+      await waitFor(() => expect(mode).toHaveTextContent('Use global · Follow conversation language'))
+      expect(updateAgentMock).not.toHaveBeenCalled()
+    } finally {
+      MockUsePreferenceUtils.setPreferenceValue('agent.language', previous)
+    }
+  })
+
+  it('persists reply language modes and trims a custom language', async () => {
+    const user = userEvent.setup()
+    render(
+      <AgentEditDialog
+        open
+        resource={{ ...AGENT, configuration: { ...AGENT.configuration, language: 'English' } }}
+        onOpenChange={vi.fn()}
+      />
+    )
+    const mode = screen.getByRole('combobox', { name: 'Reply language' })
+    await user.click(mode)
+    await user.click(screen.getByRole('option', { name: /^Use global/ }))
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenLastCalledWith({ body: { configuration: { language: undefined } } })
+    )
+    expect(screen.queryByRole('textbox', { name: 'Custom reply language' })).not.toBeInTheDocument()
+
+    await user.click(mode)
+    await user.click(screen.getByRole('option', { name: 'No constraint' }))
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenLastCalledWith({ body: { configuration: { language: null } } })
+    )
+
+    await user.click(mode)
+    await user.click(screen.getByRole('option', { name: 'Custom' }))
+    const custom = screen.getByRole('textbox', { name: 'Custom reply language' })
+    await user.clear(custom)
+    await user.type(custom, ' Français ')
+    await user.tab()
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenLastCalledWith({ body: { configuration: { language: 'Français' } } })
+    )
   })
 
   it('persists a heartbeat timeout edit independently of the interval', async () => {

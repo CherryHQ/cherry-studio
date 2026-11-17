@@ -7,6 +7,7 @@ import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfi
 import type { AgentLanguage } from '@shared/data/types/agentLanguage'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { CodeCli } from '@shared/types/codeCli'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
 
 import type { PreferenceSchemas } from './preferenceSchemas'
@@ -110,6 +111,7 @@ export enum ThemeMode {
 export type LanguageVarious =
   | 'zh-CN'
   | 'zh-TW'
+  | 'cs-CZ'
   | 'de-DE'
   | 'el-GR'
   | 'en-US'
@@ -368,8 +370,6 @@ export interface WebSearchProvider {
 // ============================================================================
 // CodeCLI Types
 // ============================================================================
-
-import { CodeCli } from '@shared/types/codeCli'
 
 export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'claude-code',

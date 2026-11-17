@@ -1,11 +1,7 @@
 import { useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useQuery } from '@data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
-import { loggerService } from '@logger'
-import { toast } from '@renderer/services/toast'
-import { splitApiKeyString } from '@renderer/utils/api'
 import type {
   PreferenceDefaultScopeType,
   WebSearchCapability,
@@ -15,8 +11,6 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/webSearchProviders'
 import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
-
-const logger = loggerService.withContext('useWebSearch')
 
 export type WebSearchBasicAuthPatch = {
   username?: string
@@ -208,25 +202,6 @@ export const useWebSearchProviders = () => {
       return setDefaultFetchUrlsProviderId(provider.id)
     }
   }
-}
-
-export const useSyncZhipuWebSearchApiKeys = () => {
-  const { setApiKeys } = useWebSearchProviders()
-  const { t } = useTranslation()
-
-  return useCallback(
-    (providerId: string, apiKey: string) => {
-      if (providerId !== 'zhipu') {
-        return
-      }
-
-      void setApiKeys('zhipu', splitApiKeyString(apiKey)).catch((error) => {
-        logger.error('Failed to sync Zhipu web search API keys', error as Error)
-        toast.error(t('settings.tool.websearch.errors.zhipu_sync_failed'))
-      })
-    },
-    [setApiKeys, t]
-  )
 }
 
 export const useWebSearchSettings = (): WebSearchSettingsState & {

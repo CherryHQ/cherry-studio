@@ -22,7 +22,7 @@ vi.mock('@ai-sdk/openai-compatible', () => ({
 }))
 
 vi.mock('../dmxapi/dmxapiTransport', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
     createDmxapiTransport: (settings: { apiKey: string; baseURL?: string }) => {
