@@ -1615,6 +1615,7 @@ export class AiService extends BaseService {
   ) {
     const { provider, model, assistant } = this.getProviderAndModel(request)
     const built = await buildAgentParams({
+      memoryAgentSessionId: request.usageContext?.agentSessionId,
       traceContext: request.usageContext?.traceContext,
       request,
       signal,

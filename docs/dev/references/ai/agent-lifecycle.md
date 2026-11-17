@@ -175,6 +175,8 @@ Linked or special files prevent compression rather than being silently omitted.
 Archive shutdown drains pending Claude idle-prewarm preparation and subprocess disposal
 before filesystem work starts, including idle or replaced entries already detached
 from the warm-query map. Failed disposal remains tracked and blocks conversion until retried.
+Prewarm registration is serialized per session. Matching requests reuse the parked process,
+and shutdown also drains direct prewarm calls that have not registered a process yet.
 
 Workspace registration and storage reclamation share `AgentWorkspaceStorageService`
 in the AI domain. Registration enters through `ai.agent.workspace.register` IPC;

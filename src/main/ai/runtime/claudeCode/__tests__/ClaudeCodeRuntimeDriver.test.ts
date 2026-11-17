@@ -1,13 +1,40 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Worker } from 'node:worker_threads'
 
 import { getSessionMessages } from '@anthropic-ai/claude-agent-sdk'
+import type * as ClaudeSdk from '@anthropic-ai/claude-agent-sdk'
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
+import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { MemoryService } from '@main/ai/memory/MemoryService'
+import { BaseService } from '@main/core/lifecycle'
+
 import type { RuntimeForkResult } from '../../fork'
+import type * as Warmup from '../agentSessionWarmup'
+import { ClaudeCodeRuntimeDriver } from '../ClaudeCodeRuntimeDriver'
+import { ClaudeCodeSessionStateService } from '../ClaudeCodeSessionStateService'
+import { ClaudeCodeWarmQueryManager } from '../ClaudeCodeWarmQueryManager'
 import { forkClaudeSession } from '../claudeFork'
+import { createClaudeCodeIdentityHooks } from '../identityHooks'
+import * as processDiagnostics from '../processExitDiagnostics'
+
+const memoryRuntimeMocks = vi.hoisted(() => ({ build: vi.fn(), startup: vi.fn(), runtime: vi.fn() }))
+vi.mock('../agentSessionWarmup', async (original) => ({
+  ...(await original<typeof Warmup>()),
+  buildClaudeCodeQueryRequestForAgentSession: memoryRuntimeMocks.build
+}))
+vi.mock('@anthropic-ai/claude-agent-sdk', async (original) => ({
+  ...(await original<typeof ClaudeSdk>()),
+  startup: memoryRuntimeMocks.startup
+}))
+vi.mock('@cherrystudio/agent-runtime-claude-code', () => ({ createClaudeCodeRuntime: memoryRuntimeMocks.runtime }))
 
 vi.mock('../forkWorker?nodeWorker', () => ({
   default: (options: ConstructorParameters<typeof Worker>[1]) =>
@@ -699,5 +726,155 @@ describe('Claude native forks', () => {
     await mkdir(path.dirname(file), { recursive: true })
     await writeFile(file, content)
     await expect(forkClaudeSession(forkInput())).rejects.toMatchObject({ reason })
+  })
+})
+
+describe('Claude warm memory handoff', () => {
+  const dbh = setupTestDatabase()
+  beforeEach(() => {
+    BaseService.resetInstances()
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+    MockApplicationUtils.resetServices()
+  })
+
+  it('refreshes identity in an authorized session and blocks it after shared memory is cleared', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'claude-memory-identity-'))
+    vi.spyOn(application, 'getPath').mockImplementation((key, name) => path.join(root, key, name ?? ''))
+    dbh.db
+      .insert(agentTable)
+      .values({ id: 'agent', type: 'claude-code', name: 'A', instructions: '', orderKey: 'a0' })
+      .run()
+    dbh.db.insert(agentWorkspaceTable).values({ id: 'workspace', name: 'W', path: root, orderKey: 'a0' }).run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({ id: 'session', agentId: 'agent', workspaceId: 'workspace', name: 'S', orderKey: 'a0' })
+      .run()
+    const agentDataPath = application.getPath('feature.agents.data', 'agent')
+    await mkdir(agentDataPath, { recursive: true })
+    const memory = new MemoryService()
+    MockApplicationUtils.setService('MemoryService', memory)
+    MockApplicationUtils.setService('AgentSessionRuntimeService', {
+      getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' })
+    })
+    const editor = memory.open({ scope: { kind: 'shared' }, assertAuthorized: () => undefined })
+    try {
+      await editor.entry()
+      await writeFile(application.getPath('feature.memory.data', 'MEMORY.md'), 'Shared context')
+      const soul = path.join(agentDataPath, 'SOUL.md')
+      await writeFile(soul, 'Persona A')
+      const hooks = createClaudeCodeIdentityHooks(agentDataPath, 'session')
+      const submit = () =>
+        hooks.UserPromptSubmit![0].hooks[0]({ hook_event_name: 'UserPromptSubmit' } as never, undefined, {
+          signal: new AbortController().signal
+        })
+      expect(await submit()).toMatchObject({
+        hookSpecificOutput: { additionalContext: expect.stringContaining('Persona A') }
+      })
+      await writeFile(soul, 'Persona B refreshed')
+      const changed = new Date(Date.now() + 1000)
+      await utimes(soul, changed, changed)
+      const refreshed = await submit()
+      expect(refreshed).toMatchObject({
+        hookSpecificOutput: { additionalContext: expect.stringContaining('Persona B refreshed') }
+      })
+      const context = 'hookSpecificOutput' in refreshed && refreshed.hookSpecificOutput
+      expect(context && 'additionalContext' in context && context.additionalContext).toContain('Shared context')
+      expect(context && 'additionalContext' in context && context.additionalContext).not.toContain('Persona A')
+      expect(await submit()).toEqual({})
+
+      const preview = await editor.previewClear()
+      await editor.clear(preview.token, async () => () => undefined)
+      expect(await submit()).toMatchObject({ continue: false })
+    } finally {
+      editor.dispose()
+      await memory['_doStop']()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it.each(['open', 'handoff', 'none'] as const)('guards the runtime receiver when invalidated at %s', async (phase) => {
+    const root = await mkdtemp(path.join(tmpdir(), 'claude-memory-handoff-'))
+    vi.spyOn(application, 'getPath').mockImplementation((key, name) => path.join(root, key, name ?? ''))
+    vi.spyOn(processDiagnostics, 'createClaudeCodeProcessDiagnostics').mockImplementation(() => ({
+      reference: crypto.randomUUID(),
+      exited: Promise.resolve()
+    }))
+    dbh.db
+      .insert(agentTable)
+      .values({ id: 'agent', type: 'claude-code', name: 'A', instructions: '', orderKey: 'a0' })
+      .run()
+    dbh.db.insert(agentWorkspaceTable).values({ id: 'workspace', name: 'W', path: root, orderKey: 'a0' }).run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({ id: 'session', agentId: 'agent', workspaceId: 'workspace', name: 'S', orderKey: 'a0' })
+      .run()
+    await mkdir(path.join(root, 'feature.agents.data', 'agent'), { recursive: true })
+    const memory = new MemoryService()
+    const manager = new ClaudeCodeWarmQueryManager()
+    MockApplicationUtils.setService('MemoryService', memory)
+    MockApplicationUtils.setService('ClaudeCodeWarmQueryManager', manager)
+    MockApplicationUtils.setService('ClaudeCodeSessionStateService', new ClaudeCodeSessionStateService())
+    const editor = memory.open({ scope: { kind: 'shared' }, assertAuthorized: () => undefined })
+    await editor.entry()
+    const file = path.join(root, 'feature.memory.data', 'MEMORY.md')
+    await writeFile(file, 'OLD_FACT_TOOL_RESULT_SUMMARY')
+    const clear = async () => {
+      const preview = await editor.previewClear()
+      await editor.clear(preview.token, async () => () => undefined)
+    }
+    const warm = { query: () => undefined, [Symbol.asyncDispose]: async () => undefined }
+    const request = { key: 'session', options: { model: 'sonnet', resume: 'native-old', cwd: root }, settings: {} }
+    memoryRuntimeMocks.build.mockResolvedValue(request)
+    memoryRuntimeMocks.startup.mockResolvedValue(warm)
+    const received: unknown[] = []
+    let observe: ((batch: any) => Promise<void>) | undefined
+    const handle = {
+      thread: { id: 'native-old' },
+      claude: {
+        start: (query: unknown) => {
+          received.push(query)
+          return { status: 'confirmed' }
+        },
+        observe: async (listener: typeof observe) => {
+          observe = listener
+          if (phase === 'handoff') await clear()
+          return { status: 'confirmed', value: { drain: async () => {}, stop: async () => {} } }
+        }
+      }
+    }
+    memoryRuntimeMocks.runtime.mockReturnValue({
+      open: async () => {
+        if (phase === 'open') await clear()
+        return { status: 'confirmed', value: handle }
+      },
+      shutdown: async () => {
+        await observe?.({ events: [{ type: 'closed', reason: 'shutdown' }], retracted: [], invocations: [] })
+        return { status: 'confirmed' }
+      }
+    })
+    try {
+      await manager.prewarm(request)
+      const connecting = new ClaudeCodeRuntimeDriver().connect({
+        agentId: 'agent',
+        sessionId: 'session',
+        modelId: 'test::test',
+        resumeToken: 'native-old'
+      })
+      if (phase === 'none') {
+        const connection = await connecting
+        expect(received).toEqual([{ query: warm, exited: expect.any(Promise) }])
+        await connection.close()
+      } else {
+        await expect(connecting).rejects.toThrow()
+        expect(received).toEqual([])
+        expect(await readFile(file, 'utf8')).not.toContain('OLD_FACT_TOOL_RESULT_SUMMARY')
+      }
+    } finally {
+      await manager.closeAll()
+      editor.dispose()
+      await memory['onStop']()
+    }
   })
 })
