@@ -87,4 +87,22 @@ describe('HeartbeatEditorDialog', () => {
     expect(screen.getByRole('button', { name: 'Save and run once' })).toBeDisabled()
     expect(screen.getByText(en['agent.heartbeat.enable_first'])).toBeVisible()
   })
+
+  it('reloads the saved tasks when reopened before the discarded editor unmounts', async () => {
+    const user = userEvent.setup()
+    const saved = { ...original, content: 'Saved heartbeat tasks' }
+    vi.mocked(ipcApi.request).mockResolvedValue(saved)
+    const onOpenChange = vi.fn()
+    const { rerender } = render(<HeartbeatEditorDialog agentId="a1" enabled open onOpenChange={onOpenChange} />)
+    const editor = await screen.findByRole('textbox', { name: 'Heartbeat tasks' })
+    await waitFor(() => expect(editor).toHaveValue(saved.content))
+    await user.clear(editor)
+    await user.type(editor, 'Discarded draft')
+
+    rerender(<HeartbeatEditorDialog agentId="a1" enabled open={false} onOpenChange={onOpenChange} />)
+    rerender(<HeartbeatEditorDialog agentId="a1" enabled open onOpenChange={onOpenChange} />)
+
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Heartbeat tasks' })).toHaveValue(saved.content))
+    expect(ipcApi.request).not.toHaveBeenCalledWith('ai.agent.heartbeat.write', expect.anything())
+  })
 })

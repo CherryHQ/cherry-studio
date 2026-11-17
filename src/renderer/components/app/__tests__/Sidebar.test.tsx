@@ -202,19 +202,42 @@ describe('app Sidebar', () => {
   })
 
   it.each([
-    { isMac: false, isFullscreen: false },
-    { isMac: true, isFullscreen: false },
-    { isMac: true, isFullscreen: true }
+    { isMac: false, isFullscreen: false, width: 170 },
+    { isMac: false, isFullscreen: false, width: 50 },
+    { isMac: false, isFullscreen: false, width: 0 },
+    { isMac: true, isFullscreen: true, width: 170 },
+    { isMac: true, isFullscreen: true, width: 50 },
+    { isMac: true, isFullscreen: true, width: 0 }
   ])(
-    'keeps standalone settings and notification actions out of the sidebar on macOS=$isMac fullscreen=$isFullscreen',
-    ({ isMac, isFullscreen }) => {
+    'opens settings directly on macOS=$isMac fullscreen=$isFullscreen at sidebar width $width',
+    async ({ isMac, isFullscreen, width }) => {
       mocks.isMac = isMac
+      mocks.sidebarWidth = width
+      const user = userEvent.setup()
       render(<Sidebar isFullscreen={isFullscreen} />)
-      expect(screen.queryByRole('button', { name: 'settings.title' })).not.toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'notification.center.title' })).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'User' })).toBeVisible()
+      if (width === 0) fireEvent.mouseEnter(screen.getByTestId('docked-sidebar'))
+      const sidebar = screen.getByTestId(width === 0 ? 'floating-sidebar' : 'docked-sidebar')
+      const settings = within(sidebar).getByRole('button', { name: 'settings.title' })
+
+      expect(settings).toBeVisible()
+      await user.click(settings)
+
+      expect(mocks.openSettingsTab).toHaveBeenCalledWith()
+      expect(screen.queryByLabelText('sidebar.account_menu')).not.toBeInTheDocument()
     }
   )
+
+  it('shows the same standalone settings action as other platforms when macOS enters fullscreen', () => {
+    mocks.isMac = true
+    const view = render(<Sidebar />)
+    expect(screen.queryByRole('button', { name: 'settings.title' })).not.toBeInTheDocument()
+
+    view.rerender(<Sidebar isFullscreen />)
+    expect(screen.getByRole('button', { name: 'settings.title' })).toBeVisible()
+
+    view.rerender(<Sidebar />)
+    expect(screen.queryByRole('button', { name: 'settings.title' })).not.toBeInTheDocument()
+  })
 
   it('shows unread state on the account trigger without clearing it when opening the menu', async () => {
     mocks.hasUnread = true
@@ -262,8 +285,17 @@ describe('app Sidebar', () => {
   it('marks the account avatar until a Subscribe touchpoint has been used', async () => {
     mocks.subscribePromptSeen = false
     vi.mocked(window.api.ipcApi.request).mockImplementation(async (route) =>
-      route === 'cherry_cloud.status.get'
-        ? { ok: true, data: { phase: 'signed-out', accountId: null, displayName: null } }
+      route === 'cherry_cloud.account.get'
+        ? {
+            ok: true,
+            data: {
+              status: { phase: 'signed-out', accountId: null, displayName: null, scopeId: 'out', revision: 1 },
+              reason: 'initial',
+              account: { freshness: 'unknown', error: null },
+              models: { freshness: 'unknown', error: null },
+              plans: { freshness: 'unknown', error: null }
+            }
+          }
         : { ok: true, data: undefined }
     )
     const { unmount } = render(<Sidebar />)
@@ -285,8 +317,17 @@ describe('app Sidebar', () => {
     mocks.subscribePromptSeen = false
     mocks.edition = 'global'
     vi.mocked(window.api.ipcApi.request).mockImplementation(async (route) =>
-      route === 'cherry_cloud.status.get'
-        ? { ok: true, data: { phase: 'signed-out', accountId: null, displayName: null } }
+      route === 'cherry_cloud.account.get'
+        ? {
+            ok: true,
+            data: {
+              status: { phase: 'signed-out', accountId: null, displayName: null, scopeId: 'out', revision: 1 },
+              reason: 'initial',
+              account: { freshness: 'unknown', error: null },
+              models: { freshness: 'unknown', error: null },
+              plans: { freshness: 'unknown', error: null }
+            }
+          }
         : { ok: true, data: undefined }
     )
 
@@ -349,7 +390,6 @@ describe('app Sidebar', () => {
     if (width === 0) fireEvent.mouseEnter(screen.getByTestId('docked-sidebar'))
     const sidebar = screen.getByTestId(width === 0 ? 'floating-sidebar' : 'docked-sidebar')
 
-    expect(within(sidebar).queryByRole('button', { name: 'settings.title' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'help.title' })).not.toBeInTheDocument()
 
     await user.click(within(sidebar).getByRole('button', { name: 'User' }))

@@ -140,7 +140,7 @@ function toCitationSkeleton(output: unknown): unknown | undefined {
   }
 }
 
-/** Return the serialized JSON string when a payload exceeds the renderer transport budget. */
+/** Serialize an oversized payload for reuse in transport checks and revision hashing. */
 function serializeOversizedToolOutput(output: unknown): string | undefined {
   if (output === undefined || output === null) return undefined
   try {
@@ -148,7 +148,7 @@ function serializeOversizedToolOutput(output: unknown): string | undefined {
     if (serialized === undefined) return undefined
     // UTF-16 code units are a lower bound on UTF-8 bytes, so this short-circuits without encoding.
     if (serialized.length > DEFER_TOOL_OUTPUT_BYTES) return serialized
-    return Buffer.byteLength(serialized, 'utf8') > DEFER_TOOL_OUTPUT_BYTES ? serialized : undefined
+    return new TextEncoder().encode(serialized).length > DEFER_TOOL_OUTPUT_BYTES ? serialized : undefined
   } catch {
     return undefined
   }
@@ -161,7 +161,7 @@ function exceedsToolOutputTransportLimit(output: unknown): boolean {
 
 export function shouldDeferToolOutput(output: unknown): boolean {
   if (output === undefined || output === null || isDeferredToolOutput(output)) return false
-  return exceedsToolOutputTransportLimit(output)
+  return serializeOversizedToolOutput(output) !== undefined
 }
 
 function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): DeferredToolOutput {
@@ -169,7 +169,7 @@ function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): De
   if (skeleton === undefined) return deferred
 
   const projected = { ...deferred, skeleton } satisfies DeferredToolOutput
-  if (!exceedsToolOutputTransportLimit(projected)) return projected
+  if (serializeOversizedToolOutput(projected) === undefined) return projected
 
   const entities = Array.isArray(skeleton)
     ? skeleton

@@ -23,6 +23,7 @@ import {
   ClaudeCodeSessionStateService,
   ClaudeCodeWarmQueryManager
 } from '@main/ai/runtime/claudeCode'
+import { SkillSubscriptionService } from '@main/ai/skills/SkillSubscriptionService'
 import { AiStreamManager } from '@main/ai/streamManager'
 import { VoiceSessionService } from '@main/ai/voice/VoiceSessionService'
 import { RuntimeActivityService } from '@main/core/application/RuntimeActivityService'
@@ -47,6 +48,7 @@ import { AutomationReplService } from '@main/services/automation'
 import { BinaryManager } from '@main/services/binaryManager'
 import { CherryCloudNotificationService } from '@main/services/cherryCloud/CherryCloudNotificationService'
 import { CherryCloudService } from '@main/services/cherryCloud/CherryCloudService'
+import { CherryInModelSyncService } from '@main/services/CherryInModelSyncService'
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
@@ -131,6 +133,7 @@ export const services = {
   AnalyticsService,
   AppMenuService,
   AppService,
+  SkillSubscriptionService,
   CodeCliService,
   CommandService,
   ConversationNavigationService,
@@ -208,6 +211,7 @@ export const services = {
   AppUpdaterService,
   AutoBackupService,
   ProviderRegistryUpdaterService,
+  CherryInModelSyncService,
   SchedulerService,
   JobManager,
   TrashService

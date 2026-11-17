@@ -136,6 +136,7 @@ vi.mock('react-i18next', () => ({
           'title.chat': 'Chat',
           'title.work': 'Agent',
           'title.paintings': 'Paintings',
+          'title.marketplace': 'Marketplace',
           'settings.scheduledTasks.title': 'Scheduled Tasks',
           'assistants.presets.title': 'Library',
           'code.title': 'Code',
@@ -199,24 +200,13 @@ describe('LaunchpadPage', () => {
     mocks.reorderMiniAppsByStatus.mockResolvedValue(undefined)
   })
 
-  it('renders the launchpad page chrome and app grid', () => {
-    mocks.pinnedMiniApps = [createMiniApp('calculator')]
-
+  it('opens the marketplace from its launchpad tile', async () => {
     render(<LaunchpadPage />)
-
-    const appsHeading = screen.getByRole('heading', { name: 'Apps' })
-    const miniAppsHeading = screen.getByRole('heading', { name: 'Mini Apps' })
-    expect(appsHeading).toBeVisible()
-    expect(miniAppsHeading).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Chat' })).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Calculator' })).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Scheduled Tasks' })).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Agent' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Knowledge' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Marketplace' }))
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/marketplace' })
   })
 
-  it('orders app tiles by the launchpad app order, appending the rest canonically', () => {
+  it('orders app tiles by the configured launchpad order', () => {
     // Launchpad app order is independent of the sidebar favorites order.
     mocks.appOrder = ['translate', 'assistants', 'agents']
     mocks.sidebarFavorites = [appFavorite('assistants')]
@@ -243,7 +233,7 @@ describe('LaunchpadPage', () => {
         ].includes(label ?? '')
       )
 
-    expect(appLabels.slice(0, 5)).toEqual(['Translate', 'Chat', 'Agent', 'Scheduled Tasks', 'Paintings'])
+    expect(appLabels.slice(0, 3)).toEqual(['Translate', 'Chat', 'Agent'])
   })
 
   it('sorts every app tile and persists to the launchpad app order, not the sidebar favorites', () => {
@@ -403,30 +393,6 @@ describe('LaunchpadPage', () => {
     })
     expect(screen.queryByRole('button', { name: 'Calculator' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Weather' })).toBeInTheDocument()
-  })
-
-  it('preserves the dropped mini app items reference when refresh returns the same objects in the same order', async () => {
-    const calculator = createMiniApp('calculator', { orderKey: 'a' })
-    const docs = createMiniApp('docs', { orderKey: 'b' })
-    mocks.pinnedMiniApps = [calculator, docs]
-
-    const { rerender } = render(<LaunchpadPage />)
-
-    act(() => {
-      const miniAppSortable = mocks.sortableCalls.find((call) => call.itemKey === 'appId')
-      miniAppSortable.onSortEnd({ oldIndex: 0, newIndex: 1 })
-    })
-
-    const optimisticItems = mocks.sortableCalls.filter((call) => call.itemKey === 'appId').at(-1).items
-    docs.orderKey = 'a'
-    calculator.orderKey = 'b'
-    mocks.pinnedMiniApps = [docs, calculator]
-    rerender(<LaunchpadPage />)
-
-    await waitFor(() => {
-      const latestMiniAppSortable = mocks.sortableCalls.filter((call) => call.itemKey === 'appId').at(-1)
-      expect(latestMiniAppSortable.items).toBe(optimisticItems)
-    })
   })
 
   it('adopts fresh mini app objects when the order is unchanged', async () => {

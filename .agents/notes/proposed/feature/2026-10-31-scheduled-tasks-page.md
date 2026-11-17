@@ -125,6 +125,10 @@ Ordinary scheduled tasks currently create `conversation` sessions; heartbeat use
 Each execution normally creates a new session, while `reuseSession` uses a bound session.
 The task exposes `reuseSessionId`, run records expose `TaskRunLogEntity.sessionId`, and execution writes `job.metadata.sessionId`.
 
+Store the one-to-many ownership once in `agent_session.taskId`, referencing `job_schedule.id`. `isTaskReuseTarget` selects at most one owned session per task, enforced by a partial unique index; a CHECK rejects reuse targets without an owner. Clearing reuse preserves task ownership and ordinary-topic exclusion. Agent task deletion clears the reuse marker through `AgentTaskService` before deleting the schedule in the same transaction. The generic `JobScheduleService` has no session dependency. Restoring a conversation clears both fields. Two task foreign keys were rejected because they duplicate the owner identity and can disagree; a separate join table is unnecessary for one-to-many ownership.
+
+The unshipped migration `0035_agent_session_task_ownership` converts the previous unique binding into ownership plus the reuse marker and backfills other owned sessions from surviving job metadata/output. Its table rebuild must preserve messages, child sessions, and timestamps. Historical runs whose logs and binding are already gone cannot be attributed by this migration.
+
 Resolve the right pane in this order:
 
 1. An explicitly selected historical run takes priority: verify that it belongs to the selected task, then read its session.
@@ -134,7 +138,8 @@ Resolve the right pane in this order:
 
 Never use `agentId` alone to open the Agent's most recent session; it may belong to unrelated work.
 Use the existing session reads and type checks. Do not bypass deleted, inaccessible, or `background` session boundaries.
-If an explicitly selected historical session is unavailable, show that selection's error rather than silently substitute another run.
+If an explicitly selected run has no recorded conversation or its session was deleted, keep the selection and show
+that run's recorded time, status, and stored result/error text without substituting a conversation or requiring retry.
 
 `useTaskConversation` and the existing conversation resolver page through the log DataApi endpoint, with at most 50 records per page. The obsolete settings-only `useTaskLogs` wrapper is removed; the endpoint remains available.
 The confirmed search budget is at most two automatic pages, or 100 records, followed by an explicit action to search older conversations.
@@ -163,7 +168,7 @@ The same session in Agents, Scheduled tasks, and another window must retain the 
 | Missed task has no associated conversation | Show the existing unavailable-conversation feedback and retain the missed-time reason on its row |
 | Searching older records | Distinguish loading, more records available, and exhausted history |
 | Latest run is queued or failed without a session | Show the real execution state without fabricated messages |
-| Task, Agent, or session is unavailable | Explain the unavailable resource and keep other tasks selectable |
+| Task or Agent is unavailable, or transport, permission, or task-ownership checks fail | Explain the error and keep other tasks selectable |
 | One group fails to load | Offer retry within that group; leave the other groups and usable conversation working |
 | Conversation resolution fails | Offer retry in the right pane without falling back to another task or the Agent's latest session |
 

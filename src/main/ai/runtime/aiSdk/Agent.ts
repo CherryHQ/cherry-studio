@@ -1,5 +1,5 @@
 /**
- * Streaming agent loop. See `docs/dev/references/ai/agent-loop.md`.
+ * AI SDK execution and stream lifecycle. See `docs/dev/references/ai/agent-loop.md`.
  */
 
 import {
@@ -7,12 +7,13 @@ import {
   InvalidResponseDataError,
   type LanguageModelUsage,
   type ModelMessage,
+  stepCountIs,
   type ToolSet,
   type UIMessage,
   type UIMessageChunk
 } from 'ai'
 
-import { createAgent } from '@cherrystudio/ai-core'
+import { createAgent, createExecutor } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { isAbortError } from '@main/utils/error'
@@ -93,9 +94,55 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     return composeHooks(parts)
   }
 
-  private async buildAiSdkAgent(hooks: AgentLoopHooks) {
+  private async buildExecution(hooks: AgentLoopHooks) {
     const params = this.params
     const opts = params.options ?? {}
+    const settings = {
+      toolChoice: opts.toolChoice,
+      activeTools: opts.activeTools,
+      maxOutputTokens: opts.maxOutputTokens,
+      temperature: opts.temperature,
+      topP: opts.topP,
+      topK: opts.topK,
+      presencePenalty: opts.presencePenalty,
+      frequencyPenalty: opts.frequencyPenalty,
+      stopSequences: opts.stopSequences,
+      seed: opts.seed,
+      maxRetries: opts.maxRetries,
+      timeout: opts.timeout,
+      headers: opts.headers,
+      providerOptions: opts.providerOptions,
+      experimental_telemetry: opts.telemetry,
+      experimental_context: opts.context,
+      experimental_download: opts.download,
+      onStepFinish: wrapForwardedHook('onStepFinish', hooks.onStepFinish)
+    }
+    if (params.contextOwner === 'caller') {
+      const executor = await createExecutor<AppProviderSettingsMap, T>(
+        params.providerId,
+        params.providerSettings,
+        params.plugins
+      )
+      const tools = params.tools
+        ? Object.fromEntries(
+            Object.entries(params.tools).map(([name, tool]) => [name, { ...tool, execute: undefined }])
+          )
+        : undefined
+      const singleStep = {
+        ...settings,
+        model: params.modelId,
+        system: params.system,
+        tools,
+        maxRetries: 0,
+        stopWhen: stepCountIs(1)
+      }
+      return {
+        stream: (input: { messages: ModelMessage[]; abortSignal?: AbortSignal }) =>
+          executor.streamText({ ...singleStep, ...input }),
+        generate: (input: ({ prompt: string } | { messages: ModelMessage[] }) & { abortSignal?: AbortSignal }) =>
+          executor.generateText({ ...singleStep, ...input })
+      }
+    }
     const toolsWithHooks = wrapToolsWithExecutionHooks(params.tools, hooks)
     const forwardedPrepareStep = wrapForwardedHook('prepareStep', hooks.prepareStep)
     const prepareStep: AgentLoopHooks['prepareStep'] = async (options) => {
@@ -123,48 +170,26 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       plugins: params.plugins,
       wrapModel: params.wrapModel,
       agentSettings: {
-        // Tools
+        ...settings,
         tools: toolsWithHooks,
-        toolChoice: opts.toolChoice,
-        activeTools: opts.activeTools,
-        // System
         instructions: params.system,
-        // CallSettings (model parameters)
-        maxOutputTokens: opts.maxOutputTokens,
-        temperature: opts.temperature,
-        topP: opts.topP,
-        topK: opts.topK,
-        presencePenalty: opts.presencePenalty,
-        frequencyPenalty: opts.frequencyPenalty,
-        stopSequences: opts.stopSequences,
-        seed: opts.seed,
-        maxRetries: opts.maxRetries,
-        timeout: opts.timeout,
-        headers: opts.headers,
-        // Provider-specific
-        providerOptions: opts.providerOptions,
-        // Loop control
         stopWhen: opts.stopWhen,
-        // Experimental
-        experimental_telemetry: opts.telemetry,
-        experimental_context: opts.context,
         experimental_repairToolCall: opts.repairToolCall,
-        experimental_download: opts.download,
-        prepareStep,
-        onStepFinish: wrapForwardedHook('onStepFinish', hooks.onStepFinish)
+        prepareStep
       }
     })
   }
 
   async generate(
     input: { prompt: string } | { messages: ModelMessage[] },
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    mode: 'generate' | 'stream' = 'generate'
   ): Promise<{ text: string; usage: LanguageModelUsage; finishReason: FinishReason; rawFinishReason?: string }> {
     const hooks = this.composedHooks()
     try {
       await safeCall('onStart', hooks.onStart)
       signal?.throwIfAborted()
-      const aiAgent = await this.buildAiSdkAgent(hooks)
+      const execution = await this.buildExecution(hooks)
       const generateInput =
         'prompt' in input
           ? { prompt: input.prompt, ...(signal && { abortSignal: signal }) }
@@ -178,12 +203,42 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
               ),
               ...(signal && { abortSignal: signal })
             }
-      const result = await aiAgent.generate(generateInput)
+      const result = await (async () => {
+        if (mode === 'generate') return execution.generate(generateInput)
+
+        const stream = await execution.stream({
+          messages:
+            'prompt' in generateInput ? [{ role: 'user', content: generateInput.prompt }] : generateInput.messages,
+          ...(signal && { abortSignal: signal })
+        })
+        let finished = false
+        for await (const part of stream.fullStream) {
+          signal?.throwIfAborted()
+          if (part.type === 'error') throw part.error
+          if (part.type === 'abort') throw signal?.reason ?? new Error('Model check aborted')
+          if (part.type === 'finish') finished = true
+        }
+        signal?.throwIfAborted()
+        const [text, usage, finishReason, rawFinishReason, steps] = await Promise.all([
+          stream.text,
+          stream.usage,
+          stream.finishReason,
+          stream.rawFinishReason,
+          stream.steps
+        ])
+        if (!finished || !text.trim() || (finishReason !== 'stop' && finishReason !== 'length')) {
+          throw new InvalidResponseDataError({ message: 'Invalid response from model check', data: undefined })
+        }
+        return { text, usage, finishReason, rawFinishReason, steps }
+      })()
       signal?.throwIfAborted()
-      const terminalError = resolveToolLoopTerminalError({
-        steps: result.steps,
-        stopWhen: this.params.options?.stopWhen
-      })
+      const terminalError =
+        this.params.contextOwner === 'caller'
+          ? undefined
+          : resolveToolLoopTerminalError({
+              steps: result.steps,
+              stopWhen: this.params.options?.stopWhen
+            })
       if (terminalError) throw terminalError
       await safeCall('onFinish', hooks.onFinish)
       return {
@@ -298,7 +353,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     ;(async () => {
       await safeCall('onStart', hooks.onStart)
 
-      const aiAgent = await this.buildAiSdkAgent(hooks)
+      const execution = await this.buildExecution(hooks)
 
       const messages = initialMessages
       // Shape only the conversion input — keep `messages` (originalMessages for the
@@ -311,7 +366,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       )
       let hasUsedProvidedMessageId = false
 
-      const result = await aiAgent.stream({
+      const result = await execution.stream({
         messages: modelMessages,
         abortSignal: signal
       })
@@ -382,10 +437,13 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         await safeCall('onAbort', hooks.onAbort)
         return
       }
-      const terminalError = resolveToolLoopTerminalError({
-        steps: steps ?? [],
-        stopWhen: params.options?.stopWhen
-      })
+      const terminalError =
+        this.params.contextOwner === 'caller'
+          ? undefined
+          : resolveToolLoopTerminalError({
+              steps: steps ?? [],
+              stopWhen: params.options?.stopWhen
+            })
       if (terminalError) throw terminalError
       if (pendingFinish) {
         if (!(await commitFinish(pendingFinish))) {

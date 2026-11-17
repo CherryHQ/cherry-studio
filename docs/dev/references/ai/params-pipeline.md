@@ -5,6 +5,7 @@ sources:
   - src/main/ai/runtime/aiSdk/params/feature.ts
   - src/main/ai/runtime/aiSdk/params/features/internalFeatures.ts
   - src/main/ai/runtime/aiSdk/params/features/qwenAnthropicWebTools.ts
+  - src/main/ai/runtime/aiSdk/params/features/toolSchemaCompatibility.ts
 ---
 
 # Params Pipeline
@@ -38,12 +39,31 @@ never enter this pipeline; they use `resolveSdkConfig` directly.
 
 `AiStreamRequest` requires `conversation.topicId` as its sole stream-topic
 field. `conversation.id` may instead identify the longer-lived agent session;
-non-streaming requests such as probes may omit `topicId`.
+headless requests such as probes may omit `topicId`, even when the provider
+response is streamed and consumed entirely in the main process.
 
 Callers (chat, agent session, translate, prompt-only) shape their own
 `AiChatRequest` and hand it in. The pipeline refines the request-local
 `sdkConfig.providerSettings.fetch` when HTTP tracing or custom-parameter body
 passthrough is required.
+
+For `contextOwner: 'caller'`, the caller supplies the prompt, tools, and history.
+The pipeline uses `request.system` and `callOverrides.tools` without Cherry's
+system assembly, registry selection, deferred-tool exposition, or web-tool
+routing. It does not move system messages into Responses `instructions` or set
+`systemMessageMode: 'remove'`. Feature collection and AI SDK middleware still
+run, as does `Agent.stream()`'s `messageRules` normalization. Caller requests
+omit loop stop conditions and AI tool repair; their execution uses single-step
+`streamText` / `generateText` instead of `ToolLoopAgent`.
+
+On `openai-chat-completions`, tool-schema middleware removes only `propertyNames`
+for recognizable Gemini raw model IDs. Recognition is a compatibility heuristic,
+not proof of endpoint schema support; opaque upstream aliases remain unrecognized.
+This intentionally relaxes provider-visible key constraints rather than converting
+them losslessly. Validation ownership is unchanged: MCP tools keep their compiled
+validator against the original schema, while caller-owned gateway tools remain the
+caller's responsibility. Responses, Ollama, Anthropic Messages and undefined
+endpoint scopes receive no new treatment from this pass.
 
 ## RequestFeature
 

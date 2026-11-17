@@ -6,6 +6,7 @@ import {
   type ThreadSnapshot
 } from '@cherrystudio/agent-runtime'
 
+import { cloneHistoryData } from './cloneHistoryData'
 import type { ClaudeControl, ClaudeControlState } from './control'
 import type { ClaudeInvocation, ClaudeNativeMessage, ClaudeObservation, ClaudeObservationSink } from './types'
 
@@ -53,8 +54,8 @@ export class ClaudeFeed {
         : [],
       live: [...this.live],
       replaces: Object.fromEntries(this.replaces),
-      legacy: structuredClone(this.legacy),
-      native: structuredClone([...this.native.values()]),
+      legacy: this.legacy,
+      native: [...this.native.values()],
       retracted: [...this.retracted]
     }
   }
@@ -69,9 +70,16 @@ export class ClaudeFeed {
   ): void {
     if (this.ended) return
     if (state) this.controlState = state
+    // oxlint-disable-next-line no-restricted-globals -- Own the legacy map only when bindings change; ordinary deltas omit it.
     if (legacy) this.legacy = structuredClone(legacy)
     const replaces: Record<string, string> = {}
-    native = native.filter((value) => !value.message.uuid || !this.retracted.has(value.message.uuid))
+    native = native
+      .filter((value) => !value.message.uuid || !this.retracted.has(value.message.uuid))
+      .map((value) =>
+        value.source === 'live' && value.message.type === 'assistant' && value.message.error
+          ? { ...value, isApiErrorMessage: true as const }
+          : value
+      )
     events = events.map((event) => this.state.publish(event) ?? event)
     for (const event of events) {
       if (event.type === 'message.upsert') {
@@ -105,7 +113,7 @@ export class ClaudeFeed {
             : `${message.subtype}:${'task_id' in message ? message.task_id : ''}`
           : message.uuid
       if (key && !(value.source === 'archive' && this.native.get(key)?.source === 'live'))
-        this.native.set(key, structuredClone(value))
+        this.native.set(key, cloneHistoryData(value))
     }
     const batch: ClaudeObservation = {
       events,
@@ -117,7 +125,7 @@ export class ClaudeFeed {
         event.type === 'message.upsert' && this.live.has(event.message.id) ? [event.message.id] : []
       ),
       replaces,
-      legacy: structuredClone(this.legacy),
+      legacy: legacy ? this.legacy : undefined,
       retracted: [...this.pendingRetractions]
     }
     this.pendingRetractions.clear()

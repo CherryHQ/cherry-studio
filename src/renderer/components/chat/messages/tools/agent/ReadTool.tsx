@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import { formatFileSize } from '@renderer/utils/file'
+import { getFilePreviewFileName } from '@renderer/utils/filePreview'
 
 import type {
   ReadToolInput as ReadToolInputType,
@@ -33,9 +34,10 @@ const normalizeOutputString = (output?: ReadToolOutputType): string | null => {
   if (!output) return null
 
   const toText = (item: TextOutput) => removeSystemReminderTags(item.text)
+  const content = typeof output === 'object' && 'content' in output ? output.content : output
 
-  if (Array.isArray(output)) {
-    return output
+  if (Array.isArray(content)) {
+    return content
       .filter((item): item is TextOutput => item.type === 'text')
       .map(toText)
       .join('')
@@ -75,7 +77,7 @@ export function ReadTool({
   const errorText = hasError ? extractToolErrorText(output) : undefined
   const outputString = errorText ?? normalizeOutputString(output)
   const stats = errorText ? null : getOutputStats(outputString)
-  const filename = input?.file_path?.split('/').pop()
+  const filename = input?.file_path ? getFilePreviewFileName(input.file_path) : undefined
   const language = getLanguageByFilePath(input?.file_path ?? '')
   const { data: truncatedOutput, isTruncated, originalLength } = truncateOutput(outputString)
   const strippedOutput = truncatedOutput ? (errorText ? truncatedOutput : stripLineNumbers(truncatedOutput)) : null

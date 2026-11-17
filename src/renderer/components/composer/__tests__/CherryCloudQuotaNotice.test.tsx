@@ -16,7 +16,9 @@ vi.mock('@renderer/services/cherryCloudSubscription', () => ({ startCherryCloudS
 
 const request = vi.mocked(window.api.ipcApi.request)
 const tracked = () =>
-  request.mock.calls.filter(([route]) => route === 'cherry_cloud.analytics.track').map(([, event]) => event)
+  request.mock.calls
+    .filter(([route]) => route === 'cherry_cloud.analytics.track')
+    .map(([, event]) => (event && typeof event === 'object' && 'payload' in event ? event.payload : undefined))
 
 beforeEach(() => vi.clearAllMocks())
 
@@ -87,4 +89,22 @@ describe('CherryCloudQuotaNotice', () => {
       )
     }
   )
+})
+
+it('offers no purchase or login while quota subscription facts are unknown', () => {
+  render(
+    <CherryCloudQuotaNotice exhaustion={{ reason: 'quota_exhausted', isFreeModel: true, isSubscribed: undefined }} />
+  )
+  expect(screen.queryByRole('button', { name: '去订阅' })).toBeNull()
+  expect(screen.queryByRole('button', { name: '登录' })).toBeNull()
+  expect(tracked()).not.toContainEqual(expect.objectContaining({ event: 'subscription_quota_exhausted_view' }))
+})
+
+it.each(['loading', 'error', 'stale'] as const)('keeps %s session/plan facts neutral', (state) => {
+  render(
+    <CherryCloudQuotaNotice exhaustion={{ reason: 'unknown', state, isFreeModel: false, isSubscribed: undefined }} />
+  )
+  expect(screen.queryByRole('button', { name: '登录' })).toBeNull()
+  expect(screen.queryByRole('button', { name: '去订阅' })).toBeNull()
+  expect(screen.queryByText('当前套餐不包含该模型')).toBeNull()
 })

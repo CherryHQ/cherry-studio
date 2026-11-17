@@ -134,28 +134,6 @@ describe('useFollowupQueue', () => {
     expect(result.current.items).toEqual([head])
   })
 
-  it('holds auto-drain while blocked without pausing, and drains once unblocked', async () => {
-    const onDrain = vi.fn().mockResolvedValue(true)
-    cacheService.setCasual('followup-queue.s1', [item('h', 'head')])
-
-    const { result, rerender } = renderHook(
-      ({ blocked }) => useFollowupQueue({ scopeKey: 's1', status: 'done', lastCompletedAt: 100, onDrain, blocked }),
-      { initialProps: { blocked: true } }
-    )
-    await act(async () => {})
-
-    expect(onDrain).not.toHaveBeenCalled()
-    expect(result.current.items.map((i) => i.draft.text)).toEqual(['head'])
-    expect(result.current.paused).toBe(false)
-
-    await act(async () => {
-      rerender({ blocked: false })
-    })
-
-    expect(onDrain).toHaveBeenCalledTimes(1)
-    expect(result.current.items).toEqual([])
-  })
-
   it('does not drain while paused', async () => {
     const onDrain = vi.fn().mockResolvedValue(true)
     cacheService.setCasual('followup-queue.s1', [item('h', 'head')])

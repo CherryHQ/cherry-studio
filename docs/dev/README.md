@@ -35,7 +35,7 @@
 | [Agent Lifecycle](./references/ai/agent-lifecycle.md) | Agent lifecycle command ownership, atomic archive and restore, schedule recovery, purge, and backup quiescing |
 | [Agent Loop](./references/ai/agent-loop.md) | The Agent class wrapping single-pass AI SDK streaming with composeHooks-merged hook contributions and error semantics |
 | [Agent Prompt Layers](./references/ai/agent-prompt-layers.md) | Precedence and lifecycle of agent prompt sources — System Prompt, workspace system.md, SOUL.md persona, and variables |
-| [Agent Session Fork](./references/ai/agent-session-fork.md) | Native Agent session forks — service ownership, opaque checkpoints, workspace handling, publication, and recovery |
+| [Agent Session Fork](./references/ai/agent-session-fork.md) | Native Agent history operations — service ownership, opaque checkpoints, workspace handling, publication, and recovery |
 | [Agent Session Runtime](./references/ai/agent-session-runtime.md) | Host/driver split for agent sessions — turn lifecycle, follow-up queue, resume tokens, and shared prompt materializer |
 | [AI Usage Records](./references/ai/ai-usage-records.md) | Immutable ai_usage_record analytics — capture ownership, frozen attribution snapshots, and MessageStats projection |
 | [Browser Use — Gap Analysis & Design](./references/ai/browser-use-design.md) | Browser automation design, ownership boundaries, capability gaps, and delivery roadmap |
@@ -89,7 +89,7 @@
 
 | Document | Description |
 |----------|-------------|
-| [Chat Reference](./references/chat/README.md) | Current chat-domain map covering shared renderer modules, page-owned adapters, rich clipboard, and the message tree |
+| [Chat Reference](./references/chat/README.md) | Current chat-domain map covering shared renderer modules, page-owned adapters, rich clipboard, the message tree, and ordinary-chat context handling |
 | [Composer Rich Clipboard](./references/chat/composer-rich-clipboard.md) | Private clipboard format that preserves composer tokens across copy/paste between message surfaces and the composer |
 | [Message Tree](./references/chat/message-tree.md) | Message-tree model for topic chat: adjacency list, virtual root, sibling groups, invariants, delete semantics |
 
@@ -136,7 +136,7 @@
 | [Preference System Overview](./references/data/preference-overview.md) | Preference architecture - generated key schema, SQLite ownership, BootConfig routing, renderer cache, and cross-window sync |
 | [Preference Schema Guide](./references/data/preference-schema-guide.md) | How to add Preference keys through the data-classify generator without editing generated schemas |
 | [Preference Usage Guide](./references/data/preference-usage.md) | Current usePreference, useMultiplePreferences, and direct PreferenceService APIs |
-| [Migration V2 (Main Process)](./references/data/v2-migration-guide.md) | One-shot v1-to-v2 migration engine - upgrade gate, migrator contracts, data source readers, status tracking |
+| [Upgrading v1 Data](./references/data/v2-migration-guide.md) | Upgrade old profiles through a fixed migration-capable release before starting the current application |
 
 ### Diagnostics
 

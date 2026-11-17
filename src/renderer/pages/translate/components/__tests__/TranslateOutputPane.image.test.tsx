@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { toCanvas } from 'html-to-image'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
@@ -74,6 +74,9 @@ beforeAll(() => {
 afterAll(() => {
   vi.unstubAllGlobals()
 })
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 beforeEach(() => {
   vi.mocked(toCanvas)
     .mockReset()
@@ -86,7 +89,12 @@ describe('copy translated output as an image', () => {
     const text = 'First translated line\n' + 'Long translation\n'.repeat(200) + 'Last translated line'
     const view = render(<TranslateOutputPane {...props()} translatedContent={text} />)
     const body = view.container.querySelector<HTMLDivElement>('[data-ui="translate.output-content"]')!
-    body.style.cssText = '--card: rgb(24, 24, 24)'
+    const getPropertyValue = CSSStyleDeclaration.prototype.getPropertyValue
+    vi.spyOn(CSSStyleDeclaration.prototype, 'getPropertyValue').mockImplementation(
+      function (this: CSSStyleDeclaration, name) {
+        return name === '--card' ? 'rgb(24, 24, 24)' : getPropertyValue.call(this, name)
+      }
+    )
     Object.defineProperties(body, { scrollWidth: { value: 360 }, scrollHeight: { value: 4096 } })
     fireEvent.click(button())
     await waitFor(() => expect(write).toHaveBeenCalledOnce())

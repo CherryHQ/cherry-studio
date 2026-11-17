@@ -6,6 +6,8 @@ import {
   splitAgentSessionMessageData
 } from '@data/services/agentSessionMessageTree'
 
+import { seedSessionRoot } from './messageTree'
+
 export type AgentSessionMessageFixture = Omit<InsertAgentSessionMessageRow, 'data'> & { data: AgentSessionMessageData }
 
 /**
@@ -20,7 +22,7 @@ export function insertAgentSessionMessages(
     const { data, parts } = splitAgentSessionMessageData(fixture.data)
     const inserted = db
       .insert(agentSessionMessageTable)
-      .values({ ...fixture, data })
+      .values({ ...fixture, parentId: fixture.parentId ?? seedSessionRoot(db, fixture.sessionId), data })
       .returning({ id: agentSessionMessageTable.id, updatedAt: agentSessionMessageTable.updatedAt })
       .get()
     replaceAgentSessionMessagePartsTx(db, {

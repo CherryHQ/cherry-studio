@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { dataApiService } from '@data/DataApiService'
 import { isHiddenPart } from '@renderer/components/chat/messages/blocks/messagePartLayouts'
+import { useMessageAuthorAvatarSources } from '@renderer/components/chat/messages/hooks/useMessageAuthorAvatarSources'
 import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
   pickMessageHeaderActions,
@@ -20,6 +21,7 @@ import {
   type MessageListRuntime,
   type MessageListSelectAllPagination,
   type MessageListState,
+  type MessageUserProfile,
   type MessageRuntime,
   type MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
@@ -36,6 +38,7 @@ import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
+import type { AgentSessionHistoryActions } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
@@ -54,6 +57,8 @@ const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
   const { default: popup } = await import('@renderer/components/ObsidianExportPopup')
   return popup.show({ title, messages, processingMethod: '1' })
 }
+
+const canDeleteMessage = (message: MessageListItem): boolean => message.role !== 'assistant'
 
 const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
 
@@ -103,12 +108,10 @@ export type NavigateToForkSource = (input: { sourceSessionId: string; returnSess
 interface AgentMessageListParams {
   topic: Topic
   messages: CherryUIMessage[]
+  historyActions?: Readonly<Record<string, AgentSessionHistoryActions | undefined>>
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
-  assistantProfile?: {
-    name?: string
-    avatar?: string
-  }
+  assistantProfile?: MessageUserProfile & { id?: string }
   assistantId?: string
   isLoading: boolean
   hasOlder?: boolean
@@ -175,6 +178,7 @@ const requireWorkspaceFilePath = (workspacePath: string | undefined, rawPath: st
 export function useAgentMessageListProviderValue({
   topic,
   messages,
+  historyActions,
   partsByMessageId,
   streamingLayers,
   assistantProfile,
@@ -295,6 +299,7 @@ export function useAgentMessageListProviderValue({
     partsByMessageId: displayPartsByMessageId,
     streamingLayers: displayStreamingLayers,
     deleteMessage,
+    canDeleteMessage,
     diagnosticReport,
     getDoctorSubject,
     selectAllPagination
@@ -441,6 +446,10 @@ export function useAgentMessageListProviderValue({
     },
     [sessionId, t, notifyError]
   )
+  const agentRenderConfig = useMemo(
+    () => ({ ...renderConfig, keepIntermediateAssistantText: true, expandToolSteps: true }),
+    [renderConfig]
+  )
   const state = useMemo<MessageListState>(
     () => ({
       topic,
@@ -456,7 +465,7 @@ export function useAgentMessageListProviderValue({
       messageNavigation,
       ...DEFAULT_MESSAGE_LIST_CONFIG,
       listKey: resolvedAgentId,
-      renderConfig,
+      renderConfig: agentRenderConfig,
       menuConfig,
       selection: selectionController.selection,
       getMessageUiState: messageUiStateCache.getMessageUiState,
@@ -480,7 +489,7 @@ export function useAgentMessageListProviderValue({
       normalInteractionsEnabled,
       displayPartsByMessageId,
       renderActiveTurnStatus,
-      renderConfig,
+      agentRenderConfig,
       resolvedAgentId,
       selectionController.selection,
       displayStreamingLayers,
@@ -493,7 +502,12 @@ export function useAgentMessageListProviderValue({
       setActiveBranch: normalInteractionsEnabled ? setActiveBranch : undefined,
       editLabel: t('agent.edit_resend.label'),
       canEditMessage: (message) =>
-        normalInteractionsEnabled && !!startEditing && !editBusy && message.role === 'user' && !message.delivery,
+        normalInteractionsEnabled &&
+        !!startEditing &&
+        !editBusy &&
+        historyActions?.[message.id]?.edit === null &&
+        message.role === 'user' &&
+        !message.delivery,
       startEditing: startEditing
         ? (message) => {
             void startEditing(message.id)
@@ -503,13 +517,14 @@ export function useAgentMessageListProviderValue({
       forkSession: normalInteractionsEnabled
         ? {
             label: t('agent_session_fork.label'),
-            availability: (message) => agentSessionForkAvailability(t, message),
+            availability: (message) => agentSessionForkAvailability(t, message, historyActions?.[message.id]),
             run: forkSession
           }
         : undefined,
       loadOlder,
       bindRuntime,
       deleteMessage,
+      canDeleteMessage,
       ...exportActions,
       ...errorActions,
       ...pickMessageLeafActions(leafCapabilities),
@@ -540,6 +555,7 @@ export function useAgentMessageListProviderValue({
       setActiveBranch,
       startEditing,
       editBusy,
+      historyActions,
       navigateToForkSource,
       openForkSourceSession,
       t,
@@ -574,15 +590,21 @@ export function useAgentMessageListProviderValue({
     ]
   )
 
+  const assistantAvatarSources = useMessageAuthorAvatarSources(messageItems, topic.id)
   const meta = useMemo<MessageListMeta>(
     () => ({
       selectionLayer: true,
       userProfile: headerCapabilities.userProfile,
       assistantProfile,
+      authorAvatars:
+        assistantProfile?.id && assistantProfile.avatar !== undefined
+          ? new Map([[assistantProfile.id, assistantProfile.avatar]])
+          : undefined,
+      assistantAvatarSources,
       imageExportFileName: topic.name,
       aiUsageMessageKind: 'agent-session'
     }),
-    [assistantProfile, headerCapabilities.userProfile, topic.name]
+    [assistantProfile, assistantAvatarSources, headerCapabilities.userProfile, topic.name]
   )
 
   return useMemo(() => ({ state, actions, meta }), [actions, meta, state])

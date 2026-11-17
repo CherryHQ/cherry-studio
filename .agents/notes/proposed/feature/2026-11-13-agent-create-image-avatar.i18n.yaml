@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-13-agent-create-image-avatar.md
+2026-11-13-agent-create-image-avatar.md: cf882abe3cdab15b244ab476093383e11767e989
+2026-11-13-agent-create-image-avatar.zh.md: 91469cc54582cc6b34e26741dcb0b1543c48cbd6

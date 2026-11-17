@@ -1,6 +1,13 @@
 import { isToolUIPart } from 'ai'
 
-import type { Observation, ObservationPayload, ObservationSink, RuntimeMessage, ThreadSnapshot } from './contracts'
+import type {
+  InputId,
+  Observation,
+  ObservationPayload,
+  ObservationSink,
+  RuntimeMessage,
+  ThreadSnapshot
+} from './contracts'
 
 const immutableOutputs = new WeakSet<object>()
 const acceptedToolParts = new WeakSet<object>()
@@ -41,6 +48,7 @@ function freezeOutput(value: unknown, seen = new WeakSet<object>()): boolean {
 export function cloneObservationValue<T>(value: T): T {
   const copies = new WeakMap<object, object>()
   const clone = (item: unknown): unknown => {
+    // oxlint-disable-next-line no-restricted-globals -- Preserve native rejection of unsupported values at acceptance.
     if (typeof item === 'function' || typeof item === 'symbol') return structuredClone(item)
     if (typeof item !== 'object' || item === null || immutableOutputs.has(item)) return item
     const known = copies.get(item)
@@ -52,6 +60,7 @@ export function cloneObservationValue<T>(value: T): T {
       return result
     }
     if (Object.getPrototypeOf(item) !== Object.prototype && Object.getPrototypeOf(item) !== null)
+      // oxlint-disable-next-line no-restricted-globals -- Non-JSON native payloads require the platform clone at acceptance.
       return structuredClone(item)
     const result: Record<string, unknown> = {}
     copies.set(item, result)
@@ -119,7 +128,27 @@ export class ThreadFeed {
   }
 
   get snapshot(): ThreadSnapshot {
-    return structuredClone(this.value)
+    return cloneObservationValue(this.value)
+  }
+
+  get state(): Omit<ThreadSnapshot, 'messages'> {
+    const { type, inputs, activity, contextUsage, subagents } = this.value
+    // oxlint-disable-next-line no-restricted-globals -- Copy only non-message state for internal reads; never traverse history here.
+    return structuredClone({ type, inputs, activity, contextUsage, subagents })
+  }
+
+  get messageIds(): string[] {
+    return this.value.messages.map((message) => message.id)
+  }
+
+  message(id: string | undefined): RuntimeMessage | undefined {
+    const message = this.value.messages.find((message) => message.id === id)
+    // oxlint-disable-next-line no-restricted-globals -- Copy one selected message instead of the complete history for adapter lookups.
+    return message && cloneObservationValue(message)
+  }
+
+  messageInputId(id: string): InputId | undefined {
+    return this.value.messages.find((message) => message.id === id)?.metadata?.inputId
   }
 
   /** Adapters can read owned snapshots without copying history; mutations go through publish(). */

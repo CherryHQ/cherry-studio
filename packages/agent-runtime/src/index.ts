@@ -45,3 +45,5 @@ export {
   ThreadFeed
 } from './observation'
 export { RuntimeMessageStream } from './messageStream'
+
+export { projectNestedTool, type NestedToolRecord } from './nestedTool'

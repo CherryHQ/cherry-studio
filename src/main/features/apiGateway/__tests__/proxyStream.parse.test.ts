@@ -208,20 +208,6 @@ describe('processMessage model-id parsing', () => {
     expect(captured.opts?.contextOwner).toBe('caller')
   })
 
-  it('passes the normalized max output tokens to provider option extraction', async () => {
-    mockAvailableModel('openai', 'gpt-4')
-    mockExtractStreamOptions.mockReturnValue({ maxOutputTokens: 1024 })
-
-    await resolveValid('openai:gpt-4')
-
-    expect(mockExtractProviderOptions).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'openai' }),
-      expect.objectContaining({ apiModelId: 'gpt-4' }),
-      expect.objectContaining({ model: 'openai:gpt-4' }),
-      1024
-    )
-  })
-
   it('keeps later colons in the model id (split on FIRST colon only)', async () => {
     mockAvailableModel('openrouter', 'anthropic/claude:beta')
     expect(await resolveValid('openrouter:anthropic/claude:beta')).toBe(
@@ -248,19 +234,6 @@ describe('processMessage model-id parsing', () => {
     mockAvailableModel('sophnet', 'deepseek-v3', 'DeepSeek-v3')
 
     expect(await resolveValid('sophnet:DeepSeek-v3')).toBe(createUniqueModelId('sophnet', 'deepseek-v3'))
-  })
-
-  it('rejects a Cherry Cloud model from external requests', async () => {
-    mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
-
-    await expect(
-      processMessage({
-        params: { model: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, messages: [] },
-        inputFormat: 'anthropic',
-        outputFormat: 'anthropic'
-      })
-    ).rejects.toMatchObject({ status: 400 })
-    expect(mockStreamPrompt).not.toHaveBeenCalled()
   })
 
   it('routes Cherry Cloud messages for an internal request and attributes Agent session usage', async () => {

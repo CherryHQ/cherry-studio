@@ -9,7 +9,7 @@ const Menlo = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const MenloIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Menlo, {
   Avatar: MenloAvatar,
-  colorPrimary: '#FF5C00'
+  colorPrimary: '#fff0e8'
 })
 
 export default MenloIcon

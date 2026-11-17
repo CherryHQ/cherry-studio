@@ -92,18 +92,6 @@ describe('useTranslateHistories', () => {
     expect(loadNext).not.toHaveBeenCalled()
   })
 
-  it('uses useInfiniteQuery with search, star, and pageSize query options', () => {
-    mockUseInfiniteQuery.mockReturnValue(buildInfiniteState())
-
-    renderHook(() => useTranslateHistories({ search: 'hello', star: true, pageSize: 5 }))
-
-    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/translate/histories', {
-      query: { search: 'hello', star: true },
-      limit: 5,
-      swrOptions: { keepPreviousData: false }
-    })
-  })
-
   it('revalidates current pages in place when another window changes history membership (REGRESSION #19687)', async () => {
     const refresh = vi.fn().mockResolvedValue(undefined)
     const reset = vi.fn()

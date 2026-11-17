@@ -66,6 +66,10 @@ function toGeminiFinishReason(reason: FinishReason | undefined): string {
     // Gemini reports STOP even when the turn ends on a function call.
     case 'stop':
     case 'tool-calls':
+      return 'STOP'
+    // An unrecognised/abnormal upstream termination must not be reported as a normal STOP (#24438).
+    case 'other':
+      return 'OTHER'
     default:
       return 'STOP'
   }
@@ -204,7 +208,8 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
     this.emit({
       candidates: [{ content: { role: 'model', parts: [] }, finishReason: this.finishReason, index: 0 }],
       usageMetadata: this.buildUsageMetadata(),
-      modelVersion: this.state.model
+      modelVersion: this.state.model,
+      responseId: this.state.messageId
     })
   }
 
@@ -218,7 +223,8 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
         }
       ],
       usageMetadata: this.buildUsageMetadata(),
-      modelVersion: this.state.model
+      modelVersion: this.state.model,
+      responseId: this.state.messageId
     }
   }
 }

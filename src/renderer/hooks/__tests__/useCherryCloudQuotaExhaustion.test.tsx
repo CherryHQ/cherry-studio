@@ -1,6 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
-import { SWRConfig } from 'swr'
+import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
@@ -9,7 +7,41 @@ import type { CherryCloudAccountPlans } from '@shared/ipc/schemas/cherryCloud'
 
 import { useCherryCloudQuotaExhaustion } from '../useCherryCloudQuotaExhaustion'
 
-const request = vi.mocked(window.api.ipcApi.request)
+const facts = vi.hoisted(() => ({
+  freshness: 'fresh' as 'fresh' | 'unknown' | 'stale',
+  availabilityError: undefined as Error | undefined,
+  exhausted: true,
+  locked: false,
+  phase: 'signed-in' as 'signed-in' | 'signed-out' | undefined,
+  loadState: 'ready' as 'ready' | 'loading' | 'error',
+  plansReady: true,
+  plansFreshness: 'fresh' as 'fresh' | 'unknown' | 'stale',
+  plansError: undefined as Error | undefined,
+  plans: undefined as CherryCloudAccountPlans | undefined,
+  activePaid: undefined as CherryCloudAccountPlans['entitlements'][number] | undefined,
+  upcomingPaid: undefined as CherryCloudAccountPlans['entitlements'][number] | undefined
+}))
+
+vi.mock('../useCherryCloudModelAvailability', () => ({
+  useCherryCloudModelAvailability: () => ({
+    availabilityFreshness: facts.freshness,
+    availabilityError: facts.availabilityError,
+    isModelFree: (model: Model) => model.id.endsWith('free-model'),
+    isModelLocked: () => facts.freshness === 'fresh' && facts.locked,
+    isModelUnavailable: () => facts.freshness === 'fresh' && facts.exhausted
+  })
+}))
+vi.mock('../useCherryCloudPlans', () => ({
+  useCherryCloudPlans: () => ({
+    session: { status: facts.phase ? { phase: facts.phase } : null, loadState: facts.loadState },
+    plansQuery: { data: facts.plans, error: facts.plansError },
+    isPlansReady: facts.plansReady,
+    plansFreshness: facts.plansFreshness,
+    activePaid: facts.activePaid,
+    upcomingPaid: facts.upcomingPaid
+  })
+}))
+
 const freeModel = {
   id: createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'free-model'),
   providerId: CHERRY_CLOUD_PROVIDER_ID
@@ -76,48 +108,36 @@ const paidPlan = (): CherryCloudAccountPlans['entitlements'][number] => ({
   quota_pools: []
 })
 
-const wrapper = ({ children }: { children: ReactNode }) => (
-  <SWRConfig value={{ provider: () => new Map() }}>{children}</SWRConfig>
-)
-
 beforeEach(() => {
-  vi.clearAllMocks()
-  request.mockImplementation(async (route) => {
-    if (route === 'cherry_cloud.status.get') {
-      return { ok: true, data: { phase: 'signed-in', accountId: 'account-1', displayName: null } }
-    }
-    if (route === 'cherry_cloud.models.sync') {
-      return {
-        ok: true,
-        data: {
-          entitledModelIds: [freeModel.id, paidModel.id],
-          freeModelIds: [freeModel.id],
-          availableModelIds: { agent: [freeModel.id, paidModel.id], general: [freeModel.id, paidModel.id] },
-          quotaExhaustedModelIds: [freeModel.id]
-        }
-      }
-    }
-    if (route === 'cherry_cloud.account_plans.get') return { ok: true, data: plans }
-    return { ok: true, data: undefined }
+  Object.assign(facts, {
+    freshness: 'fresh',
+    availabilityError: undefined,
+    exhausted: true,
+    locked: false,
+    phase: 'signed-in',
+    loadState: 'ready',
+    plansReady: true,
+    plansFreshness: 'fresh',
+    plansError: undefined,
+    plans,
+    activePaid: undefined,
+    upcomingPaid: undefined
   })
 })
 
 describe('useCherryCloudQuotaExhaustion', () => {
-  it('reports an exhausted free model with the earliest time any pool serves it again', async () => {
-    const { result } = renderHook(() => useCherryCloudQuotaExhaustion(freeModel), { wrapper })
-
-    await waitFor(() =>
-      expect(result.current).toEqual({
-        reason: 'quota_exhausted',
-        isFreeModel: true,
-        isSubscribed: false,
-        recoversAt: '2026-10-27T11:00:00.000Z'
-      })
-    )
+  it('uses the first recovering pool after every exhausted window in that pool has recovered', () => {
+    const { result } = renderHook(() => useCherryCloudQuotaExhaustion(freeModel))
+    expect(result.current).toEqual({
+      reason: 'quota_exhausted',
+      isFreeModel: true,
+      isSubscribed: false,
+      recoversAt: '2026-10-27T11:00:00.000Z'
+    })
   })
 
-  it('promises no recovery time when a paid subscription month runs out before its period ends', async () => {
-    const monthPlans: CherryCloudAccountPlans = {
+  it('does not invent recovery time from an exhausted monthly period without a reported recovery', () => {
+    facts.plans = {
       ...plans,
       entitlements: [
         {
@@ -142,59 +162,64 @@ describe('useCherryCloudQuotaExhaustion', () => {
         }
       ]
     }
-    const defaultRequest = request.getMockImplementation()
-    request.mockImplementation(async (route, ...args) =>
-      route === 'cherry_cloud.account_plans.get' ? { ok: true, data: monthPlans } : defaultRequest!(route, ...args)
-    )
+    const { result } = renderHook(() => useCherryCloudQuotaExhaustion(freeModel))
+    expect(result.current).toMatchObject({ reason: 'quota_exhausted', recoversAt: undefined })
+  })
 
-    const { result } = renderHook(() => useCherryCloudQuotaExhaustion(freeModel), { wrapper })
-
-    await waitFor(() => expect(request).toHaveBeenCalledWith('cherry_cloud.account_plans.get', undefined))
-    await waitFor(() =>
-      expect(result.current).toEqual({
+  it.each(['loading', 'error', 'stale'] as const)(
+    'keeps %s account plans unknown instead of offering another subscription',
+    (state) => {
+      facts.plansReady = false
+      facts.plansFreshness = state === 'stale' ? 'stale' : 'unknown'
+      facts.plansError = state === 'error' ? new Error('offline') : undefined
+      const { result, rerender } = renderHook(() => useCherryCloudQuotaExhaustion(freeModel))
+      expect(result.current).toMatchObject({
         reason: 'quota_exhausted',
-        isFreeModel: true,
-        isSubscribed: false,
+        isSubscribed: undefined,
         recoversAt: undefined
       })
-    )
+      facts.locked = true
+      facts.exhausted = false
+      rerender()
+      expect(result.current).toMatchObject({ reason: 'unknown', state, isSubscribed: undefined })
+    }
+  )
+
+  it('does not turn an unobserved session into signed-out', () => {
+    Object.assign(facts, { phase: undefined, loadState: 'loading', locked: true, exhausted: false, plansReady: false })
+    const { result } = renderHook(() => useCherryCloudQuotaExhaustion(paidModel, true))
+    expect(result.current).toMatchObject({ reason: 'unknown', state: 'loading', isSubscribed: undefined })
   })
+
+  it.each(['unknown', 'stale'] as const)(
+    'does not use %s model facts as a quota or permission decision',
+    (freshness) => {
+      facts.freshness = freshness
+      const { result } = renderHook(() => useCherryCloudQuotaExhaustion(freeModel))
+      expect(result.current).toMatchObject({ reason: 'unknown', state: freshness === 'stale' ? 'stale' : 'loading' })
+    }
+  )
 
   it.each([
-    ['a signed-out account', 'signed-out', [], 'sign_in_required'],
-    ['an account without a subscription', 'signed-in', [], 'subscription_required'],
-    ['a subscription whose plan lacks the model', 'signed-in', [paidPlan()], 'not_in_plan']
-  ] as const)('blocks a model the server does not offer to %s', async (_case, phase, entitlements, reason) => {
-    const defaultRequest = request.getMockImplementation()
-    request.mockImplementation(async (route, ...args) => {
-      if (route === 'cherry_cloud.status.get') {
-        return { ok: true, data: { phase, accountId: phase === 'signed-in' ? 'account-1' : null, displayName: null } }
-      }
-      if (route === 'cherry_cloud.models.sync') {
-        return {
-          ok: true,
-          data: {
-            entitledModelIds: [],
-            freeModelIds: [],
-            availableModelIds: { agent: [], general: [] },
-            quotaExhaustedModelIds: []
-          }
-        }
-      }
-      if (route === 'cherry_cloud.account_plans.get')
-        return { ok: true, data: { ...plans, entitlements: [...entitlements] } }
-      return defaultRequest!(route, ...args)
+    ['signed-out', undefined, 'sign_in_required'],
+    ['signed-in', undefined, 'subscription_required'],
+    ['signed-in', 'active', 'not_in_plan'],
+    ['signed-in', 'upcoming', 'not_in_plan']
+  ] as const)('uses confirmed account and purchase facts (%s/%s)', (phase, paid, reason) => {
+    Object.assign(facts, {
+      phase,
+      locked: true,
+      exhausted: false,
+      activePaid: paid === 'active' ? paidPlan() : undefined,
+      upcomingPaid: paid === 'upcoming' ? { ...paidPlan(), state: 'upcoming' } : undefined
     })
-
-    const { result } = renderHook(() => useCherryCloudQuotaExhaustion(paidModel, true), { wrapper })
-
-    await waitFor(() => expect(result.current?.reason).toBe(reason))
+    const { result } = renderHook(() => useCherryCloudQuotaExhaustion(paidModel, true))
+    expect(result.current?.reason).toBe(reason)
   })
 
-  it('reports nothing for a model with quota left', async () => {
-    const { result } = renderHook(() => useCherryCloudQuotaExhaustion(paidModel), { wrapper })
-
-    await waitFor(() => expect(request).toHaveBeenCalledWith('cherry_cloud.models.sync', undefined))
+  it('reports no obstacle for a current model with quota left', () => {
+    facts.exhausted = false
+    const { result } = renderHook(() => useCherryCloudQuotaExhaustion(paidModel))
     expect(result.current).toBeNull()
   })
 })

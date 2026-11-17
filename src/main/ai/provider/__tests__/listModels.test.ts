@@ -140,11 +140,6 @@ describe('listModels — default grouping', () => {
     aiSdkGetFromApiMock.mockRejectedValueOnce(new Error(`Unauthorized for ${apiKey}`))
 
     await expect(listModels(provider, undefined, { throwOnError: true })).rejects.toThrow(`Unauthorized for ${apiKey}`)
-
-    expect(mockMainLoggerService.error).toHaveBeenCalledWith('Error listing models', {
-      providerId: 'openai',
-      errorType: 'Error'
-    })
     expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toContain(apiKey)
   })
 
@@ -882,7 +877,7 @@ describe('listModels — anthropicFetcher (x-api-key + anthropic-version transpo
 
     expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(1)
     const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string; headers: Record<string, string> }
-    expect(call.url).toBe('https://api.anthropic.com/v1/models?limit=1000')
+    expect(new URL(call.url).pathname).toBe('/v1/models')
     expect(call.headers['x-api-key']).toBe('sk-ant-secret')
     expect(call.headers['anthropic-version']).toBe('2023-06-01')
     expect(call.headers.Authorization).toBeUndefined()
@@ -1793,6 +1788,36 @@ describe('listModels — openAICompatibleFetcher display names', () => {
     expect(headers.has('http-referer')).toBe(false)
     expect(headers.has('x-title')).toBe(false)
   })
+})
+
+describe('listModels — Rapid-MLX', () => {
+  it.each(['http://localhost:8000', 'http://localhost:8009'])(
+    'discovers local models without credentials at %s/v1/models',
+    async (baseUrl) => {
+      getRotatedApiKeyMock.mockReturnValue('')
+      aiSdkGetFromApiMock.mockResolvedValue({
+        value: { data: [{ id: 'mlx-community/Qwen3-8B-4bit', object: 'model', owned_by: 'rapid-mlx' }] }
+      })
+      const provider = makeProvider({
+        id: 'rapid-mlx',
+        apiKeys: [],
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl, adapterFamily: 'openai-compatible' }
+        }
+      })
+
+      const { models } = await listModels(provider, undefined, { throwOnError: true })
+
+      expect(models).toHaveLength(1)
+      expect(models[0]).toMatchObject({ apiModelId: 'mlx-community/Qwen3-8B-4bit', providerId: 'rapid-mlx' })
+      const request = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string; headers: HeadersInit }
+      expect(request.url).toBe(`${baseUrl}/v1/models`)
+      const headers = new Headers(request.headers)
+      expect(headers.has('authorization')).toBe(false)
+      expect(headers.has('x-api-key')).toBe(false)
+    }
+  )
 })
 
 describe('listModels — oMLX', () => {

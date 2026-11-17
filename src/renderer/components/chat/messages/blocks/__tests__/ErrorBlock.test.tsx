@@ -182,6 +182,31 @@ required service tier.`
     expect(diagnostic).toHaveTextContent(copy.recovery)
   })
 
+  it.each([enUS, zhCN])('explains output truncation without blaming the network', (catalog) => {
+    mocks.translations = new Map(Object.entries(catalog))
+    mocks.i18nKeys.add('error.output_token_limit_reached')
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'Error',
+          message: 'Durable response ended: length',
+          stack: null,
+          streamStage: 'response-stream',
+          reason: 'output-truncated',
+          finishReason: 'length',
+          i18nKey: 'output_token_limit_reached'
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(catalog['error.output_token_limit_reached'])).toBeInTheDocument()
+    expect(screen.queryByText(catalog['error.diagnosis.stream'])).not.toBeInTheDocument()
+    expect(screen.queryByText(GO_TO_SETTINGS_LABEL)).not.toBeInTheDocument()
+  })
+
   it('renders a known app-owned i18nKey without AI diagnosis', () => {
     const i18nKey = 'tool_call_limit_reached'
     const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
@@ -203,6 +228,32 @@ required service tier.`
     )
 
     expect(screen.getByText(`error.${i18nKey}`)).toBeInTheDocument()
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
+  })
+
+  it('renders actionable Claude Code session-bus guidance without AI diagnosis', () => {
+    const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
+    mocks.actions = { diagnoseMessageError }
+    mocks.translations = new Map(Object.entries(enUS))
+    mocks.i18nKeys.add('error.claude_code_session_bus_missing')
+    mocks.i18nKeys.add('error.claude_code_session_bus_missing_detail')
+
+    const { container } = render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ClaudeCodeSessionBusUnavailableError',
+          message: 'Claude Code requires an active Linux session bus',
+          stack: null,
+          i18nKey: 'claude_code_session_bus_missing',
+          detailI18nKey: 'claude_code_session_bus_missing_detail'
+        }}
+        message={message}
+      />
+    )
+
+    expect(container).toHaveTextContent(enUS['error.claude_code_session_bus_missing'])
+    expect(container).toHaveTextContent(enUS['error.claude_code_session_bus_missing_detail'])
     expect(diagnoseMessageError).not.toHaveBeenCalled()
   })
 
@@ -277,11 +328,12 @@ required service tier.`
                 lastError: {
                   name: 'AI_APICallError',
                   statusCode: 429,
+                  providerErrorCategory: 'quota',
                   responseBody: JSON.stringify({ error: { message: planText, type: 'rate_limit_error' } })
                 },
                 errors: []
               }
-            : { name: 'AI_APICallError', message: body, stack: null, statusCode: 429 }
+            : { name: 'AI_APICallError', message: body, stack: null, statusCode: 429, providerErrorCategory: 'quota' }
         }
         message={cloudMessage}
       />
@@ -293,7 +345,7 @@ required service tier.`
     expect(screen.queryByText(GO_TO_SETTINGS_LABEL)).toBeNull()
   })
 
-  it('still describes a Cherry AI plan rejection that carries no wording of its own', () => {
+  it('keeps an unspecified Cloud HTTP 429 as a rate limit', () => {
     const cloudMessage = {
       ...message,
       model: { id: 'qwen3.8-flash', name: 'Qwen 3.8 Flash', provider: 'cherryai-subscription' }
@@ -307,7 +359,8 @@ required service tier.`
       />
     )
 
-    expect(screen.getByText('models.detail.quota_exhausted')).toBeInTheDocument()
+    expect(screen.getByText('error.diagnosis.rate_limit')).toBeInTheDocument()
+    expect(screen.queryByText('models.detail.quota_exhausted')).toBeNull()
     expect(screen.getByText(/HTTP 429/)).toBeInTheDocument()
   })
 

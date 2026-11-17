@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, utim
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { insertAgentSessionMessages, setupTestDatabase } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
@@ -94,6 +94,7 @@ describe('sweepAgentOrphans', () => {
       .insert(agentSessionTable)
       .values({ id: sessionId, agentId: null, name: sessionId, workspaceId: `ws-${sessionId}`, orderKey: 'a0' })
     insertAgentSessionMessages(dbh.db, {
+      parentId: seedSessionRoot(dbh.db, sessionId),
       id: `msg-${sessionId}`,
       sessionId,
       role: 'user',

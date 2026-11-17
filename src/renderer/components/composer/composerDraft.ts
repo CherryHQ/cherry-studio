@@ -1,5 +1,4 @@
 import type { Editor, JSONContent } from '@tiptap/core'
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 
 import { isComposerInputTokenKind, isComposerMessageTokenKind } from '@renderer/utils/composerTokenPolicy'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -11,9 +10,9 @@ import type {
 } from '@shared/data/types/uiParts'
 import { FileTypeSchema } from '@shared/types/file'
 
+import { createComposerLineParagraphs } from './composerTokenMarkers'
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
 import { createPromptVariableContent } from './promptVariables'
-import { getComposerInputLeafText } from './quickPanel'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
 import { normalizeComposerTokenAttrs } from './tokens'
 
@@ -123,10 +122,7 @@ function createComposerContent(
 
   if (!tokens.length) {
     appendTextContent(nodes, text)
-    return {
-      type: 'doc',
-      content: [{ type: 'paragraph', ...(nodes.length > 0 && { content: nodes }) }]
-    }
+    return { type: 'doc', content: createComposerLineParagraphs(nodes) }
   }
 
   let cursor = 0
@@ -155,10 +151,7 @@ function createComposerContent(
     appendTextContent(nodes, text.slice(cursor))
   }
 
-  return {
-    type: 'doc',
-    content: [{ type: 'paragraph', ...(nodes.length > 0 && { content: nodes }) }]
-  }
+  return { type: 'doc', content: createComposerLineParagraphs(nodes) }
 }
 
 export function createComposerDocumentContent(text: string, composer?: ComposerMessageSnapshot): JSONContent {
@@ -167,10 +160,12 @@ export function createComposerDocumentContent(text: string, composer?: ComposerM
 
 export function createComposerDraftContent(
   draft: { text: string; tokens: readonly ComposerSerializedToken[] },
-  options: { tokenizeVariables?: boolean } = {}
+  options: { tokenizeVariables?: boolean; literalFencedCode?: boolean } = {}
 ): JSONContent {
   const inputTokens = draft.tokens.filter((token) => isComposerInputTokenKind(token.kind))
-  if (!inputTokens.length && options.tokenizeVariables !== false) return createPromptVariableContent(draft.text)
+  if (!inputTokens.length && options.tokenizeVariables !== false) {
+    return createPromptVariableContent(draft.text, { literalFencedCode: options.literalFencedCode })
+  }
 
   return createComposerContent(draft.text, inputTokens, isComposerInputTokenKind)
 }
@@ -241,19 +236,6 @@ export function serializeComposerDocument(source: ComposerSerializableSource): C
   visitNode(json)
 
   return { text, tokens }
-}
-
-/**
- * The text `serializeComposerDocument` attributes to a leaf node. For any length measured
- * against the serialized draft — a replacement budget over a selection — a token atom must
- * count by its prompt text; the plain leaf callback counts it as empty and undercharges the
- * text the replacement removes.
- */
-export function getComposerSerializedLeafText(node: ProseMirrorNode): string {
-  if (node.type.name === COMPOSER_TOKEN_NODE_NAME) {
-    return composerTokenText(normalizeComposerTokenAttrs(node.attrs ?? {}))
-  }
-  return getComposerInputLeafText(node)
 }
 
 /**

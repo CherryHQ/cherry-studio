@@ -1,4 +1,9 @@
+import { and, eq, sql } from 'drizzle-orm'
+
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { messageTable } from '@data/db/schemas/message'
+import type { DbType, DbOrTx } from '@data/db/types'
 
 type InsertMessageRow = typeof messageTable.$inferInsert
 
@@ -30,4 +35,35 @@ export function rootRow(topicId: string): InsertMessageRow {
 export function withRoot(topicId: string, messages: InsertMessageRow[]): InsertMessageRow[] {
   const id = `vroot-${topicId}`
   return [rootRow(topicId), ...messages.map((m) => (m.parentId == null ? { ...m, parentId: id } : m))]
+}
+
+/** Create a root for direct SQL fixtures without changing the selected head or session timestamps. */
+export function seedSessionRoot(db: DbOrTx, sessionId: string): string {
+  const existing = db
+    .select({ id: agentSessionMessageTable.id })
+    .from(agentSessionMessageTable)
+    .where(and(eq(agentSessionMessageTable.sessionId, sessionId), eq(agentSessionMessageTable.role, 'root')))
+    .get()
+  if (existing) return existing.id
+  return db
+    .insert(agentSessionMessageTable)
+    .values({ sessionId, role: 'root', data: {}, status: 'success', createdAt: 1, updatedAt: 1 })
+    .returning({ id: agentSessionMessageTable.id })
+    .get().id
+}
+
+/** Link fixture rows in the given order and select the last row without changing timestamps. */
+export function linkSessionMessageChain(db: DbType, sessionId: string, messageIds: readonly string[]): void {
+  let parentId = seedSessionRoot(db, sessionId)
+  for (const id of messageIds) {
+    db.update(agentSessionMessageTable)
+      .set({ parentId, updatedAt: sql`${agentSessionMessageTable.updatedAt}` })
+      .where(and(eq(agentSessionMessageTable.sessionId, sessionId), eq(agentSessionMessageTable.id, id)))
+      .run()
+    parentId = id
+  }
+  db.update(agentSessionTable)
+    .set({ activeNodeId: parentId, updatedAt: sql`${agentSessionTable.updatedAt}` })
+    .where(eq(agentSessionTable.id, sessionId))
+    .run()
 }

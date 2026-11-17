@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/process/2026-11-09-active-release-backport.md
+2026-11-09-active-release-backport.md: 28d9ff9a0583c57c5e5332f482c3947f02f15c60
+2026-11-09-active-release-backport.zh.md: 1be87687129d18627688787bfaa154013b317ed0

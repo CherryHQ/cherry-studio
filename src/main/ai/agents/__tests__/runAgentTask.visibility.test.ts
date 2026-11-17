@@ -104,7 +104,7 @@ describe('scheduled session visibility', () => {
       const sessions = await run('__heartbeat__', workspace)
       expect(sessions).toHaveLength(2)
       expect(sessions.map((row) => row.type)).toEqual(['background', 'background'])
-      expect(agentSessionService.listByCursor().items).toEqual([])
+      expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items).toEqual([])
       expect(agentSessionService.getLatestActive()).toBeNull()
       expect(sessions.map((row) => agentSessionService.getById(row.id).workspace.type)).toEqual(['system', 'system'])
       expect(agentWorkspaceService.list()).toEqual([])
@@ -145,18 +145,14 @@ describe('scheduled session visibility', () => {
   it('keeps scheduled task sessions addressable but out of ordinary conversations', async () => {
     const sessions = await run('summarize the project')
     expect(sessions).toHaveLength(1)
-    expect(agentSessionService.listByCursor().items).toEqual([])
-    expect(agentSessionService.listByCursor({ ids: [sessions[0].id] }).items.map((row) => row.id)).toEqual([
-      sessions[0].id
-    ])
-    expect(sessions[0].sourceTaskScheduleId).toBeTruthy()
-    const repeated = await run('summarize the project', undefined, sessions[0].sourceTaskScheduleId!)
-    expect(repeated).toHaveLength(2)
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items).toEqual([])
     expect(
-      repeated.every(
-        (row) => row.sourceTaskScheduleId === sessions[0].sourceTaskScheduleId && row.taskScheduleId === null
-      )
-    ).toBe(true)
+      agentSessionService.listByCursor({ scope: 'ordinary', ids: [sessions[0].id] }).items.map((row) => row.id)
+    ).toEqual([sessions[0].id])
+    expect(sessions[0].taskId).toBeTruthy()
+    const repeated = await run('summarize the project', undefined, sessions[0].taskId!)
+    expect(repeated).toHaveLength(2)
+    expect(repeated.every((row) => row.taskId === sessions[0].taskId && !row.isTaskReuseTarget)).toBe(true)
     expect(agentSessionService.getLatestActive()).toBeNull()
     expect(agentSessionService.getById(sessions[0].id).workspace.type).toBe('system')
   })

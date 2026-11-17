@@ -1,5 +1,6 @@
 import { ipcApi } from '@renderer/ipc'
 import { getAppEdition } from '@renderer/utils/appEdition'
+import type { InputFor } from '@shared/ipc/types'
 
 import { openExternalWebsite } from './website'
 
@@ -14,8 +15,11 @@ async function openCherryCloudPage(path: string, { entrySource, flowId }: PageAt
   return openExternalWebsite(url.toString())
 }
 
-export function openCherryCloudAccountPortal(attribution: PageAttribution = {}): Promise<void> {
-  return openCherryCloudPage('/account/plans', attribution)
+export async function openCherryCloudAccountPortal(
+  attribution: Partial<InputFor<'cherry_cloud.account_portal.open'>> = {}
+): Promise<{ outcome: 'opened' | 'superseded' }> {
+  const scopeId = attribution.scopeId ?? (await ipcApi.request('cherry_cloud.status.get')).scopeId
+  return ipcApi.request('cherry_cloud.account_portal.open', { ...attribution, scopeId })
 }
 
 // The official website has no test deployment, so every China-edition build links the production FAQ.
