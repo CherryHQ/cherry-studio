@@ -29,6 +29,9 @@ const AgentSessionApiRetryStatus = ({ sessionId, fallback = null }: { sessionId:
   // Not retrying → yield to the default processing placeholder passed by the renderer.
   if (retry.status !== 'retrying') return <>{fallback}</>
 
+  const announced = t('agent.session.api_retry.retrying', { attempt: retry.attempt, max: retry.maxRetries })
+  // The countdown only changes the visual label: announcing it each tick would re-read the
+  // same sentence every 500ms, so assistive tech gets the attempt, not the remaining seconds.
   const label =
     remainingSeconds > 0
       ? t('agent.session.api_retry.retrying_in', {
@@ -36,7 +39,7 @@ const AgentSessionApiRetryStatus = ({ sessionId, fallback = null }: { sessionId:
           max: retry.maxRetries,
           seconds: remainingSeconds
         })
-      : t('agent.session.api_retry.retrying', { attempt: retry.attempt, max: retry.maxRetries })
+      : announced
 
   const tooltip = t('agent.session.api_retry.reason', {
     error: retry.errorCategory,
@@ -47,8 +50,11 @@ const AgentSessionApiRetryStatus = ({ sessionId, fallback = null }: { sessionId:
     <div
       title={tooltip}
       data-testid="agent-session-api-retry"
-      className="flex min-h-7 flex-row items-center gap-1.5 py-0.5 text-[13px] leading-5 text-foreground-tertiary select-none">
-      <span>{label}</span>
+      className="my-1 flex min-h-9 flex-row items-center gap-2 rounded-md border border-warning-border bg-warning-subtle px-3 py-1.5 text-sm font-semibold leading-5 text-foreground select-none">
+      <span aria-live="polite" className="sr-only">
+        {announced}
+      </span>
+      <span aria-hidden>{label}</span>
       <BeatLoader color="currentColor" size={4} speedMultiplier={0.8} />
     </div>
   )

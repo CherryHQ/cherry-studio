@@ -164,6 +164,21 @@ describe('reply ownership and delivery', () => {
     expect(getAgentSessionRuntimeReply(m.state, second)?.admission).toBe('admitted')
   })
 
+  it('launches the steer continuation when storage reclassifies the source turn as an error', () => {
+    // An empty success stored as `error` is a classification of the ROW, not a verdict on the roll:
+    // the boundary already handed the accepted input and its buffered chunks to the continuation.
+    const m = machine()
+    const chunk = { type: 'data-status', data: 'waiting' } as const
+    m.open(first)
+    m.send({ type: 'steer-boundary', turn: second })
+    m.send({ type: 'buffer-chunk', turn: second, chunk })
+    expect(m.send({ type: 'turn-terminal', turn: first, status: 'error' })).toEqual([
+      { type: 'schedule-launch', target: { kind: 'reply', turn: second } }
+    ])
+    expect(m.state.launch).toEqual({ kind: 'scheduled', target: { kind: 'reply', turn: second } })
+    expect(getAgentSessionRuntimeNativeTurn(m.state)).toBe(second)
+  })
+
   it('gives steer facts to the reserved successor while the source is still persisting', () => {
     const m = machine()
     m.open(first)
