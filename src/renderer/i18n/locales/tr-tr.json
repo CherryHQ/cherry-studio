@@ -5157,6 +5157,7 @@
   "settings.mcp.headersTooltip": "HTTP istekleri için özel üst bilgiler",
   "settings.mcp.install": "Yükle",
   "settings.mcp.instructions.empty": "Geçerli bağlantı için talimat bulunmuyor.",
+  "settings.mcp.instructions.load_failed": "Sunucu talimatları yüklenemedi",
   "settings.mcp.instructions.source": "{{name}} tarafından sağlanmıştır. Bu yönergeler izin vermez veya becerileri etkinleştirmez.",
   "settings.mcp.instructions.title": "Sunucu talimatları",
   "settings.mcp.instructions.truncated": "Talimatlar uzunluk sınırını aşıyor. Modele yalnızca görüntülenen bölüm gönderilir.",

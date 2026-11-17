@@ -5157,6 +5157,7 @@
   "settings.mcp.headersTooltip": "Tiêu đề tùy chỉnh cho yêu cầu HTTP",
   "settings.mcp.install": "Cài đặt",
   "settings.mcp.instructions.empty": "Không có hướng dẫn từ kết nối hiện tại.",
+  "settings.mcp.instructions.load_failed": "Không thể tải hướng dẫn của máy chủ",
   "settings.mcp.instructions.source": "Do {{name}} cung cấp. Hướng dẫn này không cấp quyền hoặc kích hoạt kỹ năng.",
   "settings.mcp.instructions.title": "Hướng dẫn của máy chủ",
   "settings.mcp.instructions.truncated": "Hướng dẫn vượt quá giới hạn độ dài. Chỉ phần trích đoạn hiển thị được gửi đến mô hình.",

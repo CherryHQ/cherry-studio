@@ -5157,6 +5157,7 @@
   "settings.mcp.headersTooltip": "En-têtes personnalisés pour les requêtes HTTP",
   "settings.mcp.install": "Installer",
   "settings.mcp.instructions.empty": "Aucune instruction disponible pour la connexion actuelle.",
+  "settings.mcp.instructions.load_failed": "Impossible de charger les instructions du serveur",
   "settings.mcp.instructions.source": "Fournies par {{name}}. Ces indications n’accordent aucune permission et n’activent aucune compétence.",
   "settings.mcp.instructions.title": "Instructions du serveur",
   "settings.mcp.instructions.truncated": "Les instructions dépassent la longueur maximale. Seul l’extrait affiché est envoyé au modèle.",

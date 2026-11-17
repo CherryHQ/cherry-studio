@@ -5157,6 +5157,7 @@
   "settings.mcp.headersTooltip": "ส่วนหัวที่กำหนดเองสำหรับคำขอ HTTP",
   "settings.mcp.install": "ติดตั้ง",
   "settings.mcp.instructions.empty": "ไม่มีคำแนะนำจากการเชื่อมต่อปัจจุบัน",
+  "settings.mcp.instructions.load_failed": "โหลดคำแนะนำของเซิร์ฟเวอร์ไม่สำเร็จ",
   "settings.mcp.instructions.source": "ให้โดย {{name}} คำแนะนำนี้ไม่ได้มอบสิทธิ์หรือเปิดใช้ทักษะใด ๆ",
   "settings.mcp.instructions.title": "คำแนะนำของเซิร์ฟเวอร์",
   "settings.mcp.instructions.truncated": "คำแนะนำนี้เกินขีดจำกัดความยาว มีเพียงส่วนที่แสดงเท่านั้นที่ถูกส่งให้โมเดล",

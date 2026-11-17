@@ -5157,6 +5157,7 @@
   "settings.mcp.headersTooltip": "Προσαρμοσμένες κεφαλίδες HTTP αιτήσεων",
   "settings.mcp.install": "Εγκατάσταση",
   "settings.mcp.instructions.empty": "Δεν υπάρχουν διαθέσιμες οδηγίες για την τρέχουσα σύνδεση.",
+  "settings.mcp.instructions.load_failed": "Δεν ήταν δυνατή η φόρτωση των οδηγιών διακομιστή",
   "settings.mcp.instructions.source": "Παρέχονται από {{name}}. Αυτές οι οδηγίες δεν παραχωρούν δικαιώματα ούτε ενεργοποιούν δεξιότητες.",
   "settings.mcp.instructions.title": "Οδηγίες διακομιστή",
   "settings.mcp.instructions.truncated": "Οι οδηγίες υπερβαίνουν το όριο μήκους. Μόνο το εμφανιζόμενο απόσπασμα αποστέλλεται στο μοντέλο.",

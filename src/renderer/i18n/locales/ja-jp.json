@@ -5157,6 +5157,7 @@
   "settings.mcp.headersTooltip": "HTTP リクエストのカスタムヘッダー",
   "settings.mcp.install": "インストール",
   "settings.mcp.instructions.empty": "現在の接続には指示がありません。",
+  "settings.mcp.instructions.load_failed": "サーバー指示を読み込めませんでした",
   "settings.mcp.instructions.source": "{{name}} が提供する説明です。権限の付与やスキルの有効化は行いません。",
   "settings.mcp.instructions.title": "サーバー指示",
   "settings.mcp.instructions.truncated": "指示が長さの上限を超えています。表示されている抜粋のみモデルに送信されます。",

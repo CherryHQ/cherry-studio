@@ -5157,6 +5157,7 @@
   "settings.mcp.headersTooltip": "HTTP 請求的自定義標頭",
   "settings.mcp.install": "安裝",
   "settings.mcp.instructions.empty": "目前連線未提供指令。",
+  "settings.mcp.instructions.load_failed": "無法載入伺服器指令",
   "settings.mcp.instructions.source": "由 {{name}} 提供。這些說明不會授予權限或啟用技能。",
   "settings.mcp.instructions.title": "伺服器指令",
   "settings.mcp.instructions.truncated": "指令超出長度限制，僅將目前顯示的片段傳送給模型。",

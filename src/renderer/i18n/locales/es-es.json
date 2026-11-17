@@ -5157,6 +5157,7 @@
   "settings.mcp.headersTooltip": "Encabezados personalizados para solicitudes HTTP",
   "settings.mcp.install": "Instalar",
   "settings.mcp.instructions.empty": "No hay instrucciones disponibles para la conexión actual.",
+  "settings.mcp.instructions.load_failed": "No se pudieron cargar las instrucciones del servidor",
   "settings.mcp.instructions.source": "Proporcionadas por {{name}}. Estas indicaciones no otorgan permisos ni activan habilidades.",
   "settings.mcp.instructions.title": "Instrucciones del servidor",
   "settings.mcp.instructions.truncated": "Las instrucciones superan el límite de longitud. Solo se envía al modelo el fragmento mostrado.",

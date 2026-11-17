@@ -5157,6 +5157,7 @@
   "settings.mcp.headersTooltip": "Cabeçalhos HTTP personalizados para as pedidos",
   "settings.mcp.install": "Instalar",
   "settings.mcp.instructions.empty": "Não existem instruções disponíveis para a ligação atual.",
+  "settings.mcp.instructions.load_failed": "Não foi possível carregar as instruções do servidor",
   "settings.mcp.instructions.source": "Fornecidas por {{name}}. Estas orientações não concedem permissões nem ativam competências.",
   "settings.mcp.instructions.title": "Instruções do servidor",
   "settings.mcp.instructions.truncated": "As instruções excedem o limite de comprimento. Apenas o excerto apresentado é enviado ao modelo.",

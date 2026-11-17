@@ -5157,6 +5157,7 @@
   "settings.mcp.headersTooltip": "Intestazioni personalizzate per le richieste HTTP",
   "settings.mcp.install": "Installa",
   "settings.mcp.instructions.empty": "Nessuna istruzione disponibile dalla connessione attuale.",
+  "settings.mcp.instructions.load_failed": "Impossibile caricare le istruzioni del server",
   "settings.mcp.instructions.source": "Fornite da {{name}}. Queste indicazioni non concedono permessi né attivano abilità.",
   "settings.mcp.instructions.title": "Istruzioni del server",
   "settings.mcp.instructions.truncated": "Queste istruzioni superano il limite di lunghezza. Solo l'estratto visualizzato viene inviato al modello.",
