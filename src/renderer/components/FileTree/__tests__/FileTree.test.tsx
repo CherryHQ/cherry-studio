@@ -122,7 +122,7 @@ describe('FileTree - editable form (all callbacks)', () => {
         renderList={passthroughRenderList}
       />
     )
-    const input = screen.getByRole('textbox') as HTMLInputElement
+    const input = screen.getByRole<HTMLInputElement>('textbox')
     const renamedRow = input.closest('[data-node-id="a"]')!
     const rootRow = screen.getByText('Root').closest('[data-node-id="root"]')!
     expect(input.value).toBe('A.md')
@@ -215,7 +215,7 @@ describe('FileTree - search box', () => {
         renderList={passthroughRenderList}
       />
     )
-    const input = screen.getByTestId('file-tree-search-input') as HTMLInputElement
+    const input = screen.getByTestId<HTMLInputElement>('file-tree-search-input')
     expect(input.value).toBe('hello')
     fireEvent.change(input, { target: { value: 'updated' } })
     expect(onSearchKeywordChange).toHaveBeenCalledWith('updated')

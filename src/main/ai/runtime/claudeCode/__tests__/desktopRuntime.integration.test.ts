@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url'
 import { startup, type SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import sharp from 'sharp'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -31,6 +32,7 @@ import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { pipeMessageStream } from '@main/ai/streamManager/pipeMessageStream'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { getSentryLogContext } from '@shared/utils/sentry'
 
 import { ClaudeFeed } from '../../../../../../packages/agent-runtime-claude-code/src/observation'
 import { fixture, spawnChild } from '../../../../../../packages/agent-runtime-claude-code/tests/nativeFixture'
@@ -757,10 +759,16 @@ it('submits native image blocks and local document paths through the common owne
   const connection = await test.connect()
   await connection.send(input)
   const request = await test.request()
-  const sent = JSON.stringify(request.body.messages)
-  expect(sent).toContain(attachment)
-  expect(sent).toContain(image)
-  expect(sent).toContain('Inspect these attachments')
+  const content = request.body.messages.flatMap((message) => (Array.isArray(message.content) ? message.content : []))
+  const sentText = content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
+  expect(sentText).toContain(path.resolve(attachment))
+  expect(content).toContainEqual(
+    expect.objectContaining({
+      type: 'image',
+      source: expect.objectContaining({ type: 'base64', media_type: 'image/png', data: image })
+    })
+  )
+  expect(sentText).toContain('Inspect these attachments')
   request.reply.block({ type: 'text', text: 'Attachments received' })
   request.reply.finish()
   await test.wait('turn-complete')
@@ -1244,6 +1252,12 @@ it.each(['current-answer', 'history-only', 'user-only'])(
     expect(test.events.filter((event) => event.type === 'turn-complete')).toHaveLength(
       source === 'current-answer' ? 1 : 0
     )
+    const reported = mockMainLoggerService.error.mock.calls
+      .map((call) => call[1])
+      .find((entry) => entry?.operation === 'agent.claude.prompt')
+    expect(reported).toMatchObject({
+      failure: { runtime: 'claude-code', outcome: source === 'current-answer' ? 'recovered' : 'failed' }
+    })
     wire.exit()
   },
   30000
@@ -1295,54 +1309,66 @@ it('maps native SDK usage to product token totals once per response', async () =
   ])
 })
 
-it('publishes the native resume identity before a failed first result', async () => {
-  const wire = wireProcess()
-  const test = await desktop({ spawnClaudeCodeProcess: () => wire.process })
-  const connection = await test.connect()
-  const context = sessionContexts(test.sessionId).find((context) => context.nativeThreadId)!
-  await connection.send(test.input('First input fails'))
-  await expect.poll(() => wire.inputs.length).toBe(1)
-  wire.send({
-    type: 'result',
-    subtype: 'error_during_execution',
-    uuid: randomUUID(),
-    session_id: context.nativeThreadId!,
-    user_message_uuid: wire.inputs[0].uuid,
-    duration_ms: 1,
-    duration_api_ms: 1,
-    is_error: true,
-    num_turns: 1,
-    stop_reason: null,
-    total_cost_usd: 0,
-    errors: ['Native failure'],
-    modelUsage: {},
-    permission_denials: [],
-    usage: {
-      input_tokens: 1,
-      output_tokens: 0,
-      cache_creation_input_tokens: 0,
-      cache_read_input_tokens: 0,
-      cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
-      iterations: [],
-      server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
-      service_tier: 'standard',
-      inference_geo: 'us',
-      speed: 'standard'
-    }
-  })
-  await expect
-    .poll(() => test.events.find((event) => event.type === 'error'))
-    .toMatchObject({
-      error: { message: 'Native failure' }
+it.each([
+  { subtype: 'error_during_execution', message: 'Native failure', eligible: true },
+  { subtype: 'error_max_turns', message: 'Limit reached', eligible: false },
+  { subtype: 'error_during_execution', message: 'insufficient balance', eligible: false }
+] as const)(
+  'publishes and classifies a failed first result: $message',
+  async ({ subtype, message: errorMessage, eligible }) => {
+    const wire = wireProcess()
+    const test = await desktop({ spawnClaudeCodeProcess: () => wire.process })
+    const connection = await test.connect()
+    const context = sessionContexts(test.sessionId).find((context) => context.nativeThreadId)!
+    await connection.send(test.input('First input fails'))
+    await expect.poll(() => wire.inputs.length).toBe(1)
+    wire.send({
+      type: 'result',
+      subtype,
+      uuid: randomUUID(),
+      session_id: context.nativeThreadId!,
+      user_message_uuid: wire.inputs[0].uuid,
+      duration_ms: 1,
+      duration_api_ms: 1,
+      is_error: true,
+      num_turns: 1,
+      stop_reason: null,
+      total_cost_usd: 0,
+      errors: [errorMessage],
+      modelUsage: {},
+      permission_denials: [],
+      usage: {
+        input_tokens: 1,
+        output_tokens: 0,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
+        iterations: [],
+        server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
+        service_tier: 'standard',
+        inference_geo: 'us',
+        speed: 'standard'
+      }
     })
-  const resume = test.events.findIndex(
-    (event) => event.type === 'resume-token' && event.token === context.nativeThreadId
-  )
-  expect(resume).toBeGreaterThanOrEqual(0)
-  expect(resume).toBeLessThan(test.events.findIndex((event) => event.type === 'error'))
-  expect(test.events.some((event) => event.type === 'turn-complete')).toBe(false)
-  wire.exit()
-})
+    await expect
+      .poll(() => test.events.find((event) => event.type === 'error'))
+      .toMatchObject({
+        error: { message: errorMessage, reportingHandled: true }
+      })
+    const resume = test.events.findIndex(
+      (event) => event.type === 'resume-token' && event.token === context.nativeThreadId
+    )
+    expect(resume).toBeGreaterThanOrEqual(0)
+    expect(resume).toBeLessThan(test.events.findIndex((event) => event.type === 'error'))
+    expect(test.events.some((event) => event.type === 'turn-complete')).toBe(false)
+    const records = mockMainLoggerService.error.mock.calls
+      .map((call) => call[1])
+      .filter((entry) => entry?.operation === 'agent.claude.prompt' && !entry.reportingHandled)
+    expect(records).toHaveLength(1)
+    expect(getSentryLogContext({ ...records[0], level: 'error' }) !== undefined).toBe(eligible)
+    wire.exit()
+  }
+)
 
 // Catches a mid-turn mode switch that only reaches the next turn: the real SDK subprocess would run
 // (or refuse) the turn's next tool call under the mode the user just left.

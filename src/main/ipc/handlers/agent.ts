@@ -6,6 +6,7 @@ import path from 'node:path'
 import { shell } from 'electron'
 
 import { application } from '@application'
+import { loggerService } from '@logger'
 import {
   agentDataDirectoryPath,
   assertAgentStorageDirectory,
@@ -14,9 +15,12 @@ import {
 } from '@main/ai/agents/agentDataDirectory'
 import { withAgentMemoryFileLock } from '@main/ai/agents/agentMemoryFileLock'
 import { listBuiltinToolPolicies, toMcpRuntimeName } from '@main/ai/toolApproval/builtinToolPolicy'
+import { logFailure } from '@main/core/logger/logFailure'
 import { agentAvatarService } from '@main/services/AgentAvatarService'
 import type { AgentMemoryFile, agentRequestSchemas } from '@shared/ipc/schemas/agent'
 import type { IpcHandlersFor } from '@shared/ipc/types'
+
+const logger = loggerService.withContext('AgentMemory')
 
 /** Files the memory viewer can show. Paths are fixed here — never supplied by the renderer. */
 const MEMORY_FILES = [
@@ -38,6 +42,24 @@ const MAX_FILE_BYTES = 1024 * 1024
 export const AGENT_MEMORY_CONFLICT = 'AGENT_MEMORY_CONFLICT'
 export const AGENT_MEMORY_TOO_LARGE = 'AGENT_MEMORY_TOO_LARGE'
 export const AGENT_MEMORY_READ_ONLY = 'AGENT_MEMORY_READ_ONLY'
+
+function expectedMemoryWriteError(reason: 'conflict' | 'too_large' | 'read_only'): Error {
+  const message = {
+    conflict: AGENT_MEMORY_CONFLICT,
+    too_large: AGENT_MEMORY_TOO_LARGE,
+    read_only: AGENT_MEMORY_READ_ONLY
+  }[reason]
+  const error = new Error(message)
+  logFailure(
+    logger,
+    'Agent memory write rejected',
+    error,
+    'agent.memory.write',
+    { source: 'application', kind: 'expected', reason, outcome: 'failed' },
+    'warn'
+  )
+  return error
+}
 
 type FileStats = Stats
 
@@ -173,8 +195,8 @@ async function writeMemoryFile(
 ): Promise<AgentMemoryFile> {
   // The journal is append-only and written concurrently by the running agent.
   // Replacing it from the editor would silently drop entries.
-  if (file.key === 'journal') throw new Error(AGENT_MEMORY_READ_ONLY)
-  if (Buffer.byteLength(content, 'utf8') > MAX_FILE_BYTES) throw new Error(AGENT_MEMORY_TOO_LARGE)
+  if (file.key === 'journal') throw expectedMemoryWriteError('read_only')
+  if (Buffer.byteLength(content, 'utf8') > MAX_FILE_BYTES) throw expectedMemoryWriteError('too_large')
 
   await ensureAgentStorageDirectory(root, directory)
   if (file.segments.length > 1) {
@@ -189,8 +211,8 @@ async function writeMemoryFile(
     if (existing && (!existing.isFile() || existing.isSymbolicLink())) {
       throw new Error(`Agent memory file must be a real file: ${filePath}`)
     }
-    if (existing && existing.size > MAX_FILE_BYTES) throw new Error(AGENT_MEMORY_TOO_LARGE)
-    if (revisionOf(existing) !== expectedVersion) throw new Error(AGENT_MEMORY_CONFLICT)
+    if (existing && existing.size > MAX_FILE_BYTES) throw expectedMemoryWriteError('too_large')
+    if (revisionOf(existing) !== expectedVersion) throw expectedMemoryWriteError('conflict')
 
     // Write beside the target, then replace it. The lock serializes every writer
     // in this process; the second revision check still guards the runtime tool,
@@ -198,7 +220,7 @@ async function writeMemoryFile(
     const tempPath = path.join(path.dirname(filePath), `.${path.basename(filePath)}.${randomUUID()}.tmp`)
     try {
       await writeFile(tempPath, content, { encoding: 'utf8', mode: 0o600, flag: 'wx' })
-      if (revisionOf(await lstatIfExists(filePath)) !== expectedVersion) throw new Error(AGENT_MEMORY_CONFLICT)
+      if (revisionOf(await lstatIfExists(filePath)) !== expectedVersion) throw expectedMemoryWriteError('conflict')
       await rename(tempPath, filePath)
     } finally {
       await rm(tempPath, { force: true })

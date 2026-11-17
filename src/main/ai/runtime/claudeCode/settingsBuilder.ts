@@ -52,10 +52,13 @@ import {
   toCherryBuiltinRuntimeName,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
+import { checkCommand, commandContextChangedReason } from '@main/ai/toolApproval/commandPolicy'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { t } from '@main/i18n'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import {
   KB_READ_TOOL_NAME,
@@ -79,12 +82,14 @@ import {
   resolveClaudeExecutablePath,
   resolveRequestedOutputTokens
 } from './environment'
+import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
 import {
   approvalRequiredRuntimeNames,
   ASK_USER_QUESTION_TOOL_NAME,
   GLOBAL_INSTALL_PLAN_DENIAL,
   GLOBAL_INSTALL_UNATTENDED_DENIAL,
-  HEADLESS_INTERACTIVE_TOOL_DENIAL
+  HEADLESS_INTERACTIVE_TOOL_DENIAL,
+  shellToolDialect
 } from './guardRules'
 import { buildClaudeCodeHooks, surfaceExitPlanModeInput } from './hooks'
 import { buildMcpServers, buildMcpToolMetadata, warmAgentMcpToolCaches } from './mcpCatalog'
@@ -540,6 +545,11 @@ async function buildToolPermissions(
     }
 
     const permissionMode = snapshot.getPermissionMode()
+    const dialect = shellToolDialect(toolName)
+    const checkShell = (command: string, mode: typeof permissionMode) =>
+      checkCommand({ command, dialect: dialect ?? 'bash', cwd, builtinRole, permissionMode: mode })
+    const commandPolicy =
+      dialect && typeof input.command === 'string' ? await checkShell(input.command, permissionMode) : undefined
     const globalInstall =
       toolName === 'Bash' && typeof input.command === 'string' && detectGlobalInstall(input.command) !== null
     if (globalInstall && permissionMode === 'plan') {
@@ -552,6 +562,22 @@ async function buildToolPermissions(
     // lifts it for `bypassApproval: 'lift'` tools — instead of relying on the SDK skipping
     // `canUseTool` under bypassPermissions.
     const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
+    const shellGuard = commandPolicy
+      ? await evaluateToolGuards(CLAUDE_TOOL_GUARD_RULES, {
+          toolName,
+          input,
+          permissionMode,
+          builtinRole,
+          mountedServers,
+          pluginDirectories,
+          cwd,
+          agentDataPath,
+          interaction: interactionState,
+          isDisabled: (name) => snapshot.isDisabled(name)
+        })
+      : undefined
+    if (shellGuard?.effect === 'deny') return { behavior: 'deny', message: shellGuard.reason }
+    const commandRequiresApproval = shellGuard?.effect === 'ask'
     const policy = findBuiltinToolPolicy(toolName, mountedServers)
     const delegationApproval =
       policy?.approval === 'delegation'
@@ -563,6 +589,7 @@ async function buildToolPermissions(
     // Ordinary delegation is approved by PreToolUse. Reaching this callback means the SDK still
     // requires a user decision, even when matchedAskRule is absent.
     const approvalHoldsInThisMode =
+      commandRequiresApproval ||
       installApprovalHolds ||
       policy?.approval === 'delegation' ||
       (policy?.approval === 'required' &&
@@ -592,12 +619,12 @@ async function buildToolPermissions(
     // Resolved per turn, so an interactive turn on a channel-linked session still prompts.
     const isBackgroundAgent =
       (typeof opts.agentID === 'string' && opts.agentID.length > 0) || interactionState.currentTurn === 'headless'
-    const requiresUserResponse = requiresInteractiveResponder || opts.matchedAskRule !== undefined
+    const requiresUserResponse =
+      requiresInteractiveResponder ||
+      opts.matchedAskRule !== undefined ||
+      (commandPolicy !== undefined && permissionMode !== 'auto' && permissionMode !== 'bypassPermissions')
 
-    // Background agents do not inherit the parent permission mode. Let ordinary requests proceed
-    // without multiplying approval clicks; explicit PreToolUse deny hooks still run before this
-    // callback and remain authoritative. A user-configured ask rule and tools that need actual
-    // user-authored input stay on the interaction path below.
+    // Shell consent follows the root's current mode, including background children.
     if (isBackgroundAgent && !requiresUserResponse) {
       return { behavior: 'allow', updatedInput: input }
     }
@@ -620,6 +647,7 @@ async function buildToolPermissions(
     }
 
     const presentation = !hasLiveTurnStream || isBackgroundAgent ? 'message' : 'stream'
+    const originalInput = JSON.stringify(input)
     const approvalId = randomUUID()
     const emit = sessionState().peekToolApprovalEmitter(session.id)?.emit
     if (!emit) {
@@ -635,7 +663,30 @@ async function buildToolPermissions(
         originalInput: input,
         presentation,
         signal: opts.signal,
-        resolve: (decision) => resolve(decisionToPermissionResult(decision, input))
+        resolve: (decision) => {
+          if (!decision.approved || !commandPolicy) {
+            resolve(decisionToPermissionResult(decision, input))
+            return
+          }
+          const updated = decision.updatedInput ?? input
+          void checkShell(
+            typeof updated.command === 'string' ? updated.command : '',
+            sessionState().getToolPolicySnapshot(session.id)?.getPermissionMode()
+          )
+            .then((checked) => {
+              if (checked.effect === 'deny')
+                resolve({ behavior: 'deny', message: checked.reason ?? t('command_approval.configuration_error') })
+              else if (
+                opts.signal.aborted ||
+                checked.context !== commandPolicy.context ||
+                snapshot.isDisabled(toolName) ||
+                JSON.stringify(input) !== originalInput
+              )
+                resolve({ behavior: 'deny', message: commandContextChangedReason() })
+              else resolve(decisionToPermissionResult(decision, input))
+            })
+            .catch(() => resolve({ behavior: 'deny', message: t('command_approval.configuration_error') }))
+        }
       })
       if (!pending) return
       emit({
@@ -645,7 +696,22 @@ async function buildToolPermissions(
         input,
         presentation,
         providerMetadata: {
-          cherry: { transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport, toolName } satisfies CherryToolMeta
+          cherry: {
+            transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport,
+            toolName,
+            ...(commandPolicy
+              ? {
+                  commandPolicy: {
+                    ...commandPolicy.evidence,
+                    reason:
+                      shellGuard?.reason ??
+                      commandPolicy.reason ??
+                      opts.decisionReason ??
+                      t('command_approval.permission_required')
+                  }
+                }
+              : {})
+          } satisfies CherryToolMeta
         }
       })
     })

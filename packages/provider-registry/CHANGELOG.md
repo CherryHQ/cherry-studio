@@ -1,5 +1,17 @@
 # @cherrystudio/provider-registry
 
+## 0.6.4
+
+### Patch Changes
+
+- [#24776](https://github.com/CherryHQ/cherry-studio/pull/24776) [`2e3424b`](https://github.com/CherryHQ/cherry-studio/commit/2e3424be3be4229195cd05cc5604dd6313e261f9) Thanks [@DeJeune](https://github.com/DeJeune)! - Correct sampling support for GPT 5.6 Luna, Kimi K3, and MiniMax M3 models, and declare official GLM 5-series sampling ranges.
+
+## 0.6.3
+
+### Patch Changes
+
+- [#24749](https://github.com/CherryHQ/cherry-studio/pull/24749) [`442ccc5`](https://github.com/CherryHQ/cherry-studio/commit/442ccc59195cc4cc070da9770c79b9ed65ceddb3) Thanks [@DeJeune](https://github.com/DeJeune)! - Add GPT-6.2 Astra and Sol with API pricing, reasoning controls, web search, and Codex model offers.
+
 ## 0.6.2
 
 ### Patch Changes
