@@ -18,6 +18,7 @@ import type { KnowledgeAddItemConflict, KnowledgeAddItemInput, KnowledgeItemType
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
 
 import { useKnowledgePage } from '../KnowledgePageProvider'
+import { type KnowledgeUrlEntry, parseKnowledgeUrls } from '../utils/parseKnowledgeUrls'
 import AddKnowledgeItemDialogFooter from './addKnowledgeItemDialog/AddKnowledgeItemDialogFooter'
 import AddKnowledgeItemDialogHeader from './addKnowledgeItemDialog/AddKnowledgeItemDialogHeader'
 import AddKnowledgeItemDialogSourceTabs from './addKnowledgeItemDialog/AddKnowledgeItemDialogSourceTabs'
@@ -30,6 +31,7 @@ type ConflictResolution = 'rename' | 'replace'
 interface PendingConflictState {
   items: KnowledgeAddItemInput[]
   conflicts: KnowledgeAddItemConflict[]
+  invalid?: KnowledgeUrlEntry[]
 }
 
 interface AddKnowledgeItemDialogProps {
@@ -48,15 +50,6 @@ const knowledgeFilePickerExtensions = knowledgeSupportedFileExts.map((ext) => ex
 
 const isSupportedKnowledgeFile = (fileName: string) => knowledgeSupportedFileExtSet.has(getFileExtension(fileName))
 
-const isValidKnowledgeUrl = (value: string) => {
-  try {
-    new URL(value)
-    return true
-  } catch {
-    return false
-  }
-}
-
 const describeFileMetadata = (file: { origin_name?: string; name?: string }) => file.origin_name || file.name
 
 const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogProps) => {
@@ -70,6 +63,8 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   const [selectedNotes, setSelectedNotes] = useState<NoteItem[]>([])
   const [noteDraft, setNoteDraft] = useState<NoteDraft>({ title: '', content: '' })
   const [urlValue, setUrlValue] = useState('')
+  const parsedUrls = useMemo(() => parseKnowledgeUrls(urlValue), [urlValue])
+  const [urlAcceptedCount, setUrlAcceptedCount] = useState<number | null>(null)
   const [submitErrorMessage, setSubmitErrorMessage] = useState('')
   const [isResolvingSubmit, setIsResolvingSubmit] = useState(false)
   const [pendingConflict, setPendingConflict] = useState<PendingConflictState | null>(null)
@@ -115,14 +110,16 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     setNoteDraft((current) => ({ ...current, content }))
   }, [])
 
+  const isSubmitting = isResolvingSubmit || isSubmittingItems
+
   const canSubmit = useMemo(() => {
-    if (!selectedBaseId) {
+    if (!selectedBaseId || isSubmitting) {
       return false
     }
 
     switch (activeSource) {
       case 'url':
-        return urlValue.trim().length > 0
+        return parsedUrls.valid.length > 0
       case 'note':
         // A drafted note needs both halves: the title becomes the item's `source`
         // (schema-required, non-empty) and empty content indexes to nothing.
@@ -132,12 +129,20 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       default:
         return false
     }
-  }, [activeSource, noteDraft.content, noteDraft.title, noteMode, selectedBaseId, selectedNotes.length, urlValue])
+  }, [
+    activeSource,
+    noteDraft.content,
+    noteDraft.title,
+    noteMode,
+    selectedBaseId,
+    selectedNotes.length,
+    parsedUrls.valid.length,
+    isSubmitting
+  ])
 
   const buildPanelSubmitItems = useCallback(async (): Promise<KnowledgeAddItemInput[]> => {
     if (activeSource === 'url') {
-      const url = urlValue.trim()
-      return [{ type: 'url' as const, data: { source: url, url } }]
+      return parsedUrls.valid.map(({ value }) => ({ type: 'url' as const, data: { source: value, url: value } }))
     }
 
     if (activeSource === 'note') {
@@ -158,16 +163,23 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     }
 
     return []
-  }, [activeSource, noteDraft.content, noteDraft.title, noteMode, selectedNotes, urlValue])
+  }, [activeSource, noteDraft.content, noteDraft.title, noteMode, selectedNotes, parsedUrls.valid])
 
-  // 'detect' (first pass) surfaces the conflict dialog when same-name collisions
-  // exist; 'rename'/'replace' apply the user's choice. Closes the whole dialog
-  // once the batch is actually added.
   const submitWithStrategy = useCallback(
-    async (items: KnowledgeAddItemInput[], conflictStrategy: 'detect' | ConflictResolution) => {
+    async (
+      items: KnowledgeAddItemInput[],
+      conflictStrategy: 'detect' | ConflictResolution,
+      invalid?: KnowledgeUrlEntry[]
+    ) => {
       const result = await submitKnowledgeItems(items, conflictStrategy)
       if (result.status === 'conflicts') {
-        setPendingConflict({ items, conflicts: result.conflicts })
+        setPendingConflict({ items, invalid, conflicts: result.conflicts })
+        return
+      }
+      if (invalid?.length) {
+        setPendingConflict(null)
+        setUrlValue(invalid.map(({ value }) => value).join('\n'))
+        setUrlAcceptedCount(items.length)
         return
       }
       handleOpenChange(false)
@@ -176,27 +188,33 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   )
 
   const handleSubmit = useCallback(() => {
-    if (!canSubmit || isResolvingSubmit) {
-      return
-    }
-
-    if (activeSource === 'url' && !isValidKnowledgeUrl(urlValue.trim())) {
-      setSubmitErrorMessage(t('library.import_dialog.error.invalid_url'))
+    if (!canSubmit || isResolvingSubmit || pendingConflict) {
       return
     }
 
     setSubmitErrorMessage('')
     setIsResolvingSubmit(true)
 
+    const invalid = activeSource === 'url' ? parsedUrls.invalid : undefined
+    setUrlAcceptedCount(null)
     void buildPanelSubmitItems()
-      .then((items) => submitWithStrategy(items, 'detect'))
+      .then((items) => submitWithStrategy(items, 'detect', invalid))
       .catch((error) => {
         setSubmitErrorMessage(formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error')))
       })
       .finally(() => {
         setIsResolvingSubmit(false)
       })
-  }, [activeSource, buildPanelSubmitItems, canSubmit, isResolvingSubmit, submitWithStrategy, t, urlValue])
+  }, [
+    activeSource,
+    buildPanelSubmitItems,
+    canSubmit,
+    isResolvingSubmit,
+    submitWithStrategy,
+    t,
+    parsedUrls.invalid,
+    pendingConflict
+  ])
 
   const collectResolvedFileInputs = useCallback(
     async <T,>(
@@ -260,7 +278,9 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   // on mount, then submit. A ref guards against the effect running twice (StrictMode / re-renders).
   const directPickStartedRef = useRef(false)
   useEffect(() => {
+    setUrlAcceptedCount(null)
     if (!open) {
+      setPendingConflict(null)
       directPickStartedRef.current = false
       return
     }
@@ -327,7 +347,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       }
 
       setPendingResolution(resolution)
-      void submitWithStrategy(pendingConflict.items, resolution)
+      void submitWithStrategy(pendingConflict.items, resolution, pendingConflict.invalid)
         .catch((error) => {
           setPendingConflict(null)
           const message = formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error'))
@@ -354,24 +374,29 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     }
   }, [directPick, handleOpenChange])
 
-  const isSubmitting = isResolvingSubmit || isSubmittingItems
-
   return (
     <>
       {directPick ? null : (
         <Dialog open={open} onOpenChange={handleOpenChange}>
-          <DialogContent
-            closeOnOverlayClick={false}
-            size={activeSource === 'url' ? 'sm' : 'lg'}
-            className="flex max-h-[70vh] flex-col overflow-hidden">
+          <DialogContent closeOnOverlayClick={false} size="lg" className="flex max-h-[70vh] flex-col overflow-hidden">
             <AddKnowledgeItemDialogHeader title={t('knowledge.data_source.add_dialog.title')} />
             <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pr-1">
+              {activeSource === 'url' && urlAcceptedCount !== null ? (
+                <p role="status" className="mb-2 shrink-0 text-xs text-muted-foreground">
+                  {t('knowledge.data_source.add_dialog.url.partial_success', {
+                    accepted: urlAcceptedCount,
+                    invalid: parsedUrls.invalid.length
+                  })}
+                </p>
+              ) : null}
               <AddKnowledgeItemDialogSourceTabs
                 activeSource={activeSource}
                 noteMode={noteMode}
                 selectedNotes={selectedNotes}
                 noteDraft={noteDraft}
                 urlValue={urlValue}
+                urlErrors={parsedUrls.invalid}
+                disabled={isSubmitting || pendingConflict !== null}
                 onNoteModeChange={handleNoteModeChange}
                 onNoteToggle={handleNoteToggle}
                 onNoteSelectionChange={handleNoteSelectionChange}
@@ -379,6 +404,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
                 onNoteDraftContentChange={handleNoteDraftContentChange}
                 onUrlValueChange={(value) => {
                   setSubmitErrorMessage('')
+                  setUrlAcceptedCount(null)
                   setUrlValue(value)
                 }}
               />
@@ -388,6 +414,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
               canSubmit={canSubmit}
               errorMessage={submitErrorMessage}
               isSubmitting={isSubmitting}
+              validUrlCount={parsedUrls.valid.length}
               // A draft submits exactly one note, and picks made before switching modes
               // are not part of it — report nothing so the footer stays quiet.
               selectedNoteCount={noteMode === 'create' ? 0 : selectedNotes.length}

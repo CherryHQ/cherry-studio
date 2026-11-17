@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -113,6 +113,7 @@ vi.mock('@renderer/components/RichEditor/RichEditor', () => ({
 
 vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')
+  const Textarea = await import('@cherrystudio/ui/components/primitives/textarea')
 
   const DialogContext = React.createContext<{ onOpenChange: (open: boolean) => void; open: boolean }>({
     onOpenChange: () => undefined,
@@ -120,6 +121,7 @@ vi.mock('@cherrystudio/ui', async () => {
   })
 
   return {
+    Textarea,
     Button: ({
       children,
       type = 'button',
@@ -249,7 +251,19 @@ vi.mock('@cherrystudio/ui', async () => {
 vi.mock('react-i18next', () => {
   // A single stable `t` reference (like the real react-i18next), so effects that depend
   // on `t` are not re-triggered every render.
-  const t = (key: string, options?: { count?: number; defaultValue?: string; file_types?: string }) => {
+  const t = (
+    key: string,
+    options?: {
+      count?: number
+      defaultValue?: string
+      file_types?: string
+      line?: number
+      index?: number
+      value?: string
+      accepted?: number
+      invalid?: number
+    }
+  ) => {
     const translations = {
       'common.add': '添加',
       'common.cancel': '取消',
@@ -280,6 +294,10 @@ vi.mock('react-i18next', () => {
       'knowledge.data_source.add_dialog.unsupported_files_skipped': `已跳过 ${options?.count ?? 0} 个不支持的文件`,
       'chat.save.knowledge.error.file_partial_failed': `${options?.count ?? 0} file(s) could not be saved`,
       'knowledge.data_source.add_dialog.url.description': '输入网页链接：',
+      'knowledge.data_source.add_dialog.footer.selected_urls': `${options?.count} 个合法链接待添加`,
+      'knowledge.data_source.add_dialog.url.invalid_entry': `第 ${options?.line} 行，第 ${options?.index} 项：${options?.value} — 请输入完整 HTTP(S) URL。`,
+      'knowledge.data_source.add_dialog.url.partial_success': `已接受 ${options?.accepted} 项 / 待修正 ${options?.invalid} 项`,
+      'knowledge.data_source.add_dialog.url.more_errors': `+${options?.count} more`,
       'knowledge.data_source.add_dialog.url.help': '将自动抓取页面文本并分块索引',
       'knowledge.data_source.add_dialog.url.placeholder': 'https://example.com',
       'library.import_dialog.error.invalid_url': '无效的 URL'
@@ -860,64 +878,208 @@ describe('AddKnowledgeItemDialog', () => {
   })
 
   describe('url source (panel)', () => {
-    it('enables url submit only after input', () => {
-      setPendingAddSource('url')
-      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+    const urlInput = () => screen.getByRole('textbox', { name: '输入网页链接：' })
+    const urlItems = (urls: string[]) => urls.map((url) => ({ type: 'url', data: { source: url, url } }))
+    const urls = Array.from({ length: 10 }, (_, i) => `https://example.com/${i}`)
 
+    it.each(['', ' ,\r\n \t,, '])('disables submit for empty or separator-only input: %j', async (value) => {
+      setPendingAddSource('url')
+      const user = userEvent.setup()
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      await user.click(urlInput())
+      if (value) await user.paste(value)
       expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
-      fireEvent.change(screen.getByPlaceholderText('https://example.com'), {
-        target: { value: 'https://example.com' }
-      })
-      expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
+      expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
     })
 
-    it('submits url source body through the generic hook, trimming the input', async () => {
-      setPendingAddSource('url')
-      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
-
-      fireEvent.change(screen.getByPlaceholderText('https://example.com'), {
-        target: { value: ' https://example.com ' }
-      })
-      fireEvent.click(screen.getByRole('button', { name: '添加' }))
-
-      await waitFor(() => {
-        expect(mockSubmitKnowledgeItems).toHaveBeenLastCalledWith(
-          [{ type: 'url', data: { source: 'https://example.com', url: 'https://example.com' } }],
-          'detect'
-        )
-      })
-    })
-
-    it('rejects an invalid url without submitting or closing the panel', async () => {
+    it('submits ten distinct URLs once through detect and closes after acceptance', async () => {
       setPendingAddSource('url')
       const onOpenChange = vi.fn()
       const user = userEvent.setup()
       render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
-
-      await user.type(screen.getByPlaceholderText('https://example.com'), 'not a valid URL')
+      await user.click(urlInput())
+      await user.paste(
+        urls.slice(0, 3).join('\r\n') + ', ' + urls.slice(3, 6).join('\t') + '\n' + urls.slice(6).join(' ')
+      )
+      expect(screen.getByText('10 个合法链接待添加')).toBeInTheDocument()
       await user.click(screen.getByRole('button', { name: '添加' }))
-
-      expect(await screen.findByRole('alert')).toHaveTextContent('无效的 URL')
-      expect(screen.getByRole('dialog')).toBeInTheDocument()
-      expect(onOpenChange).not.toHaveBeenCalledWith(false)
-      expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+      expect(mockSubmitKnowledgeItems.mock.calls).toEqual([[urlItems(urls), 'detect']])
     })
 
-    it('shows an inline error and keeps the panel open when the url submit fails', async () => {
+    it('trims a single URL, submits its exact original value, and closes', async () => {
       setPendingAddSource('url')
+      const user = userEvent.setup()
+      const onOpenChange = vi.fn()
+      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      await user.click(urlInput())
+      await user.paste(' https://example.com ')
+      await user.click(screen.getByRole('button', { name: '添加' }))
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+      expect(mockSubmitKnowledgeItems.mock.calls).toEqual([[urlItems(['https://example.com']), 'detect']])
+    })
+
+    it('accepts nine valid entries, retains the invalid token, and submits only its correction next', async () => {
+      setPendingAddSource('url')
+      const onOpenChange = vi.fn()
+      const user = userEvent.setup()
+      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      const dialog = screen.getByRole('dialog')
+      await user.click(urlInput())
+      await user.paste([...urls.slice(0, 4), 'not-a-url', ...urls.slice(4, 9)].join('\n'))
+      expect(screen.getByText('第 5 行，第 5 项：not-a-url — 请输入完整 HTTP(S) URL。')).toBeInTheDocument()
+      expect(screen.getByText('9 个合法链接待添加')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
+      await user.click(screen.getByRole('button', { name: '添加' }))
+      expect(await screen.findByRole('status')).toHaveTextContent('已接受 9 项 / 待修正 1 项')
+      expect(screen.getByRole('dialog')).toBe(dialog)
+      expect(onOpenChange).not.toHaveBeenCalled()
+      expect(urlInput()).toHaveValue('not-a-url')
+      expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
+      expect(mockSubmitKnowledgeItems.mock.calls).toEqual([[urlItems(urls.slice(0, 9)), 'detect']])
+      await user.clear(urlInput())
+      await user.paste(urls[9])
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: '添加' }))
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+      expect(mockSubmitKnowledgeItems.mock.calls).toEqual([
+        [urlItems(urls.slice(0, 9)), 'detect'],
+        [urlItems([urls[9]]), 'detect']
+      ])
+    })
+
+    it('shows all-invalid input immediately without enabling submit', async () => {
+      setPendingAddSource('url')
+      const onOpenChange = vi.fn()
+      const user = userEvent.setup()
+      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      await user.type(urlInput(), 'not-a-url')
+      expect(screen.getByText('第 1 行，第 1 项：not-a-url — 请输入完整 HTTP(S) URL。')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
+      expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
+      expect(onOpenChange).not.toHaveBeenCalled()
+    })
+
+    it('bounds invalid feedback to 100 entries and reports the remainder', async () => {
+      setPendingAddSource('url')
+      const user = userEvent.setup()
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      await user.click(urlInput())
+      await user.paste(Array.from({ length: 105 }, (_, i) => `bad-${i}`).join('\n'))
+      expect(screen.getAllByRole('listitem')).toHaveLength(101)
+      expect(screen.getByText('+5 more')).toBeInTheDocument()
+      expect(within(screen.getByRole('list')).queryByText(/bad-100/)).not.toBeInTheDocument()
+    })
+
+    it('keeps the batch unchanged and shows a footer error if submission fails', async () => {
+      setPendingAddSource('url')
+      const user = userEvent.setup()
       mockSubmitKnowledgeItems.mockRejectedValueOnce(new Error('create failed'))
       const onOpenChange = vi.fn()
       render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
-
-      fireEvent.change(screen.getByPlaceholderText('https://example.com'), {
-        target: { value: 'https://example.com' }
-      })
-      fireEvent.click(screen.getByRole('button', { name: '添加' }))
-
-      const alert = await screen.findByRole('alert')
-      expect(alert).toHaveTextContent('添加数据源失败: create failed')
+      const value = 'https://example.com\nnot-a-url'
+      await user.click(urlInput())
+      await user.paste(value)
+      await user.click(screen.getByRole('button', { name: '添加' }))
+      expect(await screen.findByRole('alert')).toHaveTextContent('添加数据源失败: create failed')
+      expect(urlInput()).toHaveValue(value)
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+      expect(mockSubmitKnowledgeItems.mock.calls).toEqual([[urlItems(['https://example.com']), 'detect']])
       expect(toast.error).not.toHaveBeenCalled()
-      expect(onOpenChange).not.toHaveBeenCalledWith(false)
+      expect(onOpenChange).not.toHaveBeenCalled()
+    })
+
+    it('disables editing while the submission is pending', async () => {
+      setPendingAddSource('url')
+      const user = userEvent.setup()
+      let finish!: (result: { status: string }) => void
+      mockSubmitKnowledgeItems.mockReturnValueOnce(
+        new Promise((resolve) => {
+          finish = resolve
+        })
+      )
+      const onOpenChange = vi.fn()
+      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      await user.click(urlInput())
+      await user.paste(urls[0])
+      await user.click(screen.getByRole('button', { name: '添加' }))
+      await waitFor(() => expect(urlInput()).toBeDisabled())
+      expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
+      await waitFor(() => expect(mockSubmitKnowledgeItems.mock.calls).toEqual([[urlItems([urls[0]]), 'detect']]))
+      finish({ status: 'added' })
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    })
+
+    it.each([
+      ['全部保留', 'rename'],
+      ['替换', 'replace']
+    ])('replays the valid snapshot on %s without the invalid token', async (label, strategy) => {
+      setPendingAddSource('url')
+      mockSubmitKnowledgeItems.mockResolvedValueOnce({
+        status: 'conflicts',
+        conflicts: [{ type: 'url', title: urls[0] }]
+      })
+      const onOpenChange = vi.fn()
+      const user = userEvent.setup()
+      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      const original = `${urls[0]}\n${urls[0]}\nnot-a-url`
+      const items = urlItems([urls[0], urls[0]])
+      await user.click(urlInput())
+      await user.paste(original)
+      await user.click(screen.getByRole('button', { name: '添加' }))
+      const resolve = await screen.findByRole('button', { name: label })
+      expect(urlInput()).toBeDisabled()
+      expect(urlInput()).toHaveValue(original)
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+      expect(onOpenChange).not.toHaveBeenCalled()
+      expect(mockSubmitKnowledgeItems.mock.calls).toEqual([[items, 'detect']])
+      await user.click(resolve)
+      expect(await screen.findByRole('status')).toHaveTextContent('已接受 2 项 / 待修正 1 项')
+      expect(urlInput()).toHaveValue('not-a-url')
+      expect(urlInput()).toBeEnabled()
+      expect(mockSubmitKnowledgeItems.mock.calls).toEqual([
+        [items, 'detect'],
+        [items, strategy]
+      ])
+      expect(onOpenChange).not.toHaveBeenCalled()
+    })
+
+    it('restores the untouched original input when URL conflict selection is cancelled', async () => {
+      setPendingAddSource('url')
+      const user = userEvent.setup()
+      mockSubmitKnowledgeItems.mockResolvedValueOnce({
+        status: 'conflicts',
+        conflicts: [{ type: 'url', title: urls[0] }]
+      })
+      const onOpenChange = vi.fn()
+      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      const original = `${urls[0]}, ${urls[0]}\nnot-a-url`
+      await user.click(urlInput())
+      await user.paste(original)
+      await user.click(screen.getByRole('button', { name: '添加' }))
+      await screen.findByText('存在同名数据源')
+      await user.click(screen.getAllByRole('button', { name: '取消' }).at(-1)!)
+      await waitFor(() => expect(urlInput()).toBeEnabled())
+      expect(urlInput()).toHaveValue(original)
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+      expect(mockSubmitKnowledgeItems.mock.calls).toEqual([[urlItems([urls[0], urls[0]]), 'detect']])
+      expect(onOpenChange).not.toHaveBeenCalled()
+    })
+
+    it('clears URL input, errors and partial acceptance when reopened', async () => {
+      setPendingAddSource('url')
+      const user = userEvent.setup()
+      const { rerender } = render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      await user.click(urlInput())
+      await user.paste(`${urls[0]}\nnot-a-url`)
+      await user.click(screen.getByRole('button', { name: '添加' }))
+      await screen.findByRole('status')
+      rerender(<AddKnowledgeItemDialog open={false} onOpenChange={vi.fn()} />)
+      rerender(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      expect(urlInput()).toHaveValue('')
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+      expect(screen.queryByRole('list')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
     })
   })
 

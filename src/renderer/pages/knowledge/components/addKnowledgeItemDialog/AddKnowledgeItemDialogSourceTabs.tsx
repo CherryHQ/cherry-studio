@@ -1,5 +1,6 @@
 import type { KnowledgeItemType } from '@shared/data/types/knowledge'
 
+import type { KnowledgeUrlEntry } from '../../utils/parseKnowledgeUrls'
 import NoteSourceContent from './sources/NoteSourceContent'
 import UrlSourceContent from './sources/UrlSourceContent'
 import type { NoteDraft, NoteItem, NoteSourceMode } from './types'
@@ -9,6 +10,8 @@ interface AddKnowledgeItemDialogSourceTabsProps {
   noteMode: NoteSourceMode
   selectedNotes: NoteItem[]
   noteDraft: NoteDraft
+  urlErrors: KnowledgeUrlEntry[]
+  disabled: boolean
   urlValue: string
   onNoteModeChange: (mode: NoteSourceMode) => void
   onNoteToggle: (note: NoteItem) => void
@@ -24,6 +27,8 @@ const AddKnowledgeItemDialogSourceTabs = ({
   selectedNotes,
   noteDraft,
   urlValue,
+  urlErrors,
+  disabled,
   onNoteModeChange,
   onNoteToggle,
   onNoteSelectionChange,
@@ -48,7 +53,14 @@ const AddKnowledgeItemDialogSourceTabs = ({
           />
         )
       case 'url':
-        return <UrlSourceContent value={urlValue} onValueChange={onUrlValueChange} />
+        return (
+          <UrlSourceContent
+            value={urlValue}
+            onValueChange={onUrlValueChange}
+            urlErrors={urlErrors}
+            disabled={disabled}
+          />
+        )
       default:
         return null
     }
