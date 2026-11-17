@@ -39,16 +39,14 @@ export function parseMatchPattern(pattern: string): ParsedMatchPattern | null {
   if (!execResult) {
     return null
   }
-  const groups = execResult.groups as
-    | { allURLs: string }
-    | { allURLs?: never; scheme: string; host: string; path: string }
-  return groups.allURLs != null
+  const [, allURLs, scheme, host, path] = execResult
+  return allURLs != null
     ? { allURLs: true }
     : {
         allURLs: false,
-        scheme: groups.scheme.toLowerCase(),
-        host: groups.host.toLowerCase(),
-        path: groups.path
+        scheme: scheme.toLowerCase(),
+        host: host.toLowerCase(),
+        path
       }
 }
 
