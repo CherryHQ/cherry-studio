@@ -88,8 +88,8 @@ describe('WebContentsListener coalescing', () => {
     l.onChunk(chunk('text-delta', { id: 't1', delta: '!' }), undefined, undefined, undefined, 8)
     l.onChunk(chunk('text-end', { id: 't1' }), undefined, undefined, undefined, 9)
 
-    expect(wc.send.mock.calls[0][2].seq).toBe(8)
-    expect(wc.send.mock.calls[1][2].seq).toBe(9)
+    expect(wc.send.mock.calls[0][2].sequence).toBe(8)
+    expect(wc.send.mock.calls[1][2].sequence).toBe(9)
   })
 
   it('omits the ingest index when the caller has none', () => {
@@ -99,7 +99,7 @@ describe('WebContentsListener coalescing', () => {
     l.onChunk(chunk('text-end', { id: 't1' }))
 
     expect(wc.send).toHaveBeenCalledTimes(1)
-    expect(wc.send.mock.calls[0][2]).not.toHaveProperty('seq')
+    expect(wc.send.mock.calls[0][2]).not.toHaveProperty('sequence')
   })
 
   it('flushes pending buffer when a non-mergeable chunk arrives', () => {
