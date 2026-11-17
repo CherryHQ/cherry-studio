@@ -3,8 +3,8 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-11-14T13:47:05.390Z
- * Total icons: 175
+ * Generated at: 2026-11-16T16:26:22.066Z
+ * Total icons: 176
  */
 export { Ai302Icon as Ai302 } from './302ai'
 export { MinTop3Icon as MinTop3 } from './3min-top'
@@ -63,6 +63,7 @@ export { FeloIcon as Felo } from './felo'
 export { FirecrawlIcon as Firecrawl } from './firecrawl'
 export { FireworksIcon as Fireworks } from './fireworks'
 export { FlowithIcon as Flowith } from './flowith'
+export { FortytwoIcon as Fortytwo } from './fortytwo/fortytwo'
 export { GammaIcon as Gamma } from './gamma/gamma'
 export { GensparkIcon as Genspark } from './genspark'
 export { GiteeAiIcon as GiteeAi } from './gitee-ai'

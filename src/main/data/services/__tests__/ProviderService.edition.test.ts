@@ -19,16 +19,11 @@ vi.mock('@data/migration/v1MigrationOrigin', () => ({
   isMigratedFromV1: () => migrationOrigin.current
 }))
 
-vi.mock('@cherrystudio/provider-registry/node', () => {
+vi.mock('@cherrystudio/provider-registry/node', async () => {
+  const { default: catalog } = await import('../../../../../packages/provider-registry/data/providers.json')
   class RegistryLoader {
     loadProviders() {
-      return [
-        {
-          id: 'global-only',
-          availableInEditions: ['global'],
-          endpointConfigs: {}
-        }
-      ]
+      return catalog.providers.filter((provider) => provider.id === 'fortytwo')
     }
     loadModels() {
       return []
@@ -57,8 +52,8 @@ describe('ProviderService edition availability', () => {
   it('makes a persisted global-only provider unavailable to every runtime read and mutation in China', async () => {
     await dbh.db.insert(userProviderTable).values([
       {
-        providerId: 'global-only',
-        presetProviderId: 'global-only',
+        providerId: 'fortytwo',
+        presetProviderId: 'fortytwo',
         name: 'Global only',
         apiKeys: [{ id: 'key-1', key: 'secret', isEnabled: true }],
         orderKey: 'a0'
@@ -76,25 +71,25 @@ describe('ProviderService edition availability', () => {
     expect(displayMetadataSpy).toHaveBeenCalledTimes(2)
     displayMetadataSpy.mockRestore()
     expect(providerService.listAvailableProviderIds()).toEqual(new Set(['custom-provider']))
-    expect(providerService.listAvailableProviderIds(['global-only', 'custom-provider'])).toEqual(
+    expect(providerService.listAvailableProviderIds(['fortytwo', 'custom-provider'])).toEqual(
       new Set(['custom-provider'])
     )
-    expect(providerService.isAvailableByProviderId('global-only')).toBe(false)
+    expect(providerService.isAvailableByProviderId('fortytwo')).toBe(false)
 
     const calls: Array<() => unknown> = [
-      () => providerService.assertAvailable('global-only'),
-      () => providerService.getByProviderId('global-only'),
-      () => providerService.resolveApiKey('global-only'),
-      () => providerService.getApiKeys('global-only'),
-      () => providerService.getAuthConfig('global-only'),
-      () => providerService.addApiKey('global-only', 'new-secret'),
-      () => providerService.replaceApiKeys('global-only', []),
-      () => providerService.updateApiKey('global-only', 'key-1', { label: 'Changed' }),
-      () => providerService.deleteApiKey('global-only', 'key-1'),
-      () => providerService.update('global-only', { name: 'Changed' }),
-      () => providerService.move('global-only', { position: 'last' }),
-      () => providerService.reorder([{ id: 'global-only', anchor: { position: 'last' } }]),
-      () => providerService.delete('global-only')
+      () => providerService.assertAvailable('fortytwo'),
+      () => providerService.getByProviderId('fortytwo'),
+      () => providerService.resolveApiKey('fortytwo'),
+      () => providerService.getApiKeys('fortytwo'),
+      () => providerService.getAuthConfig('fortytwo'),
+      () => providerService.addApiKey('fortytwo', 'new-secret'),
+      () => providerService.replaceApiKeys('fortytwo', []),
+      () => providerService.updateApiKey('fortytwo', 'key-1', { label: 'Changed' }),
+      () => providerService.deleteApiKey('fortytwo', 'key-1'),
+      () => providerService.update('fortytwo', { name: 'Changed' }),
+      () => providerService.move('fortytwo', { position: 'last' }),
+      () => providerService.reorder([{ id: 'fortytwo', anchor: { position: 'last' } }]),
+      () => providerService.delete('fortytwo')
     ]
 
     for (const invoke of calls) {
@@ -104,23 +99,23 @@ describe('ProviderService edition availability', () => {
     const [persisted] = await dbh.db
       .select()
       .from(userProviderTable)
-      .where(eq(userProviderTable.providerId, 'global-only'))
+      .where(eq(userProviderTable.providerId, 'fortytwo'))
     expect(persisted.name).toBe('Global only')
     expect(persisted.apiKeys).toEqual([{ id: 'key-1', key: 'secret', isEnabled: true }])
   })
 
   it('enforces edition availability in provider-backed registry reads', async () => {
     await dbh.db.insert(userProviderTable).values({
-      providerId: 'global-only',
-      presetProviderId: 'global-only',
+      providerId: 'fortytwo',
+      presetProviderId: 'fortytwo',
       name: 'Global only',
       orderKey: 'a0'
     })
 
-    expect(() => providerRegistryService.resolveModels('global-only', ['model'])).toThrowError(
+    expect(() => providerRegistryService.resolveModels('fortytwo', ['model'])).toThrowError(
       expect.objectContaining({ code: ErrorCode.NOT_FOUND })
     )
-    expect(() => providerRegistryService.getImageGenerationSupport('global-only', 'model')).toThrowError(
+    expect(() => providerRegistryService.getImageGenerationSupport('fortytwo', 'model')).toThrowError(
       expect.objectContaining({ code: ErrorCode.NOT_FOUND })
     )
   })
@@ -129,7 +124,7 @@ describe('ProviderService edition availability', () => {
     expect(() =>
       providerService.create({
         providerId: 'global-only-copy',
-        presetProviderId: 'global-only',
+        presetProviderId: 'fortytwo',
         name: 'Global only copy'
       })
     ).toThrowError(expect.objectContaining({ code: ErrorCode.INVALID_OPERATION }))
@@ -144,24 +139,24 @@ describe('ProviderService edition availability', () => {
   it('keeps the same persisted provider available in the global edition', async () => {
     applicationEdition.current = 'global'
     await dbh.db.insert(userProviderTable).values({
-      providerId: 'global-only',
-      presetProviderId: 'global-only',
+      providerId: 'fortytwo',
+      presetProviderId: 'fortytwo',
       name: 'Global only',
       orderKey: 'a0'
     })
 
-    expect(providerService.getByProviderId('global-only').id).toBe('global-only')
+    expect(providerService.getByProviderId('fortytwo').id).toBe('fortytwo')
   })
 
   it('keeps every persisted provider available for users migrated from v1', async () => {
     migrationOrigin.current = true
     await dbh.db.insert(userProviderTable).values({
-      providerId: 'global-only',
-      presetProviderId: 'global-only',
+      providerId: 'fortytwo',
+      presetProviderId: 'fortytwo',
       name: 'Global only',
       orderKey: 'a0'
     })
 
-    expect(providerService.list({}).map((provider) => provider.id)).toEqual(['global-only'])
+    expect(providerService.list({}).map((provider) => provider.id)).toEqual(['fortytwo'])
   })
 })

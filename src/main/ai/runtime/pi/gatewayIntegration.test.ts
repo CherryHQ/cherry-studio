@@ -127,6 +127,7 @@ describe('native Pi through the production gateway', () => {
   let upstreamClosed = false
   let protocol: InputFormat = 'openai'
   const requests: Array<Record<string, unknown>> = []
+  const upstreamHeaders: Headers[] = []
   let call: (body: Record<string, unknown>) => { content?: string; tool_calls?: unknown[] }
   let rejectUpstream:
     | (() =>
@@ -175,6 +176,7 @@ describe('native Pi through the production gateway', () => {
     await new Promise<void>((done) => gateway.listen(0, '127.0.0.1', done))
     mocks.gatewayUrl = `http://127.0.0.1:${(gateway.address() as AddressInfo).port}`
     requests.length = 0
+    upstreamHeaders.length = 0
     holdResponse = false
     upstreamClosed = false
     protocol = 'openai'
@@ -187,6 +189,7 @@ describe('native Pi through the production gateway', () => {
       for await (const chunk of req) raw += chunk
       const body = JSON.parse(raw)
       requests.push(body)
+      upstreamHeaders.push(new Headers(Object.entries(req.headers).map(([name, value]) => [name, String(value)])))
       const rejection = rejectUpstream?.()
       if (rejection) {
         const { status = 400, retryAfter, ...error } = rejection
@@ -388,6 +391,62 @@ describe('native Pi through the production gateway', () => {
       observe: () => {}
     })
   }
+
+  it.each([
+    { label: 'canonical built-in', presetProviderId: 'port', override: false, expected: true },
+    { label: 'custom preset clone', presetProviderId: 'fortytwo', override: false, expected: false },
+    { label: 'fully custom', presetProviderId: null, override: false, expected: false },
+    { label: 'caller override', presetProviderId: 'port', override: true, expected: true }
+  ])(
+    'preserves attribution and key isolation for $label through native Pi and the gateway',
+    async ({ presetProviderId, override, expected }) => {
+      const providerId = presetProviderId === 'port' && !override ? 'fortytwo' : 'port'
+      if (providerId === 'fortytwo') {
+        const provider = dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'port')).get()!
+        const model = dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'port::wire-model')).get()!
+        dbh.db
+          .insert(userProviderTable)
+          .values({ ...provider, providerId, presetProviderId: 'fortytwo' })
+          .run()
+        dbh.db
+          .insert(userModelTable)
+          .values({ ...model, id: 'fortytwo::wire-model', providerId })
+          .run()
+      }
+      dbh.db
+        .update(userProviderTable)
+        .set({
+          presetProviderId: providerId === 'fortytwo' ? 'fortytwo' : presetProviderId,
+          providerSettings: {
+            extraHeaders: {
+              'X-Literal': '$ENV!command',
+              ...(override ? { 'http-referer': 'https://caller.example', 'x-title': 'Caller title' } : {})
+            }
+          }
+        })
+        .where(eq(userProviderTable.providerId, providerId))
+        .run()
+      const binding = await createPiGatewayModelBinding(
+        { sessionId: 'attribution-session' },
+        providerService.getByProviderId(providerId),
+        modelService.getByKey(providerId, 'wire-model')
+      )
+      const result = await binding.modelRuntime.completeSimple(
+        binding.model,
+        normalizeContext({ messages: [{ role: 'user', content: 'hello', timestamp: 1 }] })
+      )
+      expect(result.stopReason).toBe('stop')
+      expect(upstreamHeaders).toHaveLength(1)
+      const headers = upstreamHeaders[0]
+      expect(headers.get('authorization')).toBe('Bearer fixture-local-key')
+      expect(headers.get('authorization')).not.toContain('internal-fixture-key')
+      expect(headers.get('x-literal')).toBe('$ENV!command')
+      expect(headers.get('http-referer')).toBe(
+        override ? 'https://caller.example' : expected ? 'https://cherry-ai.com' : null
+      )
+      expect(headers.get('x-title')).toBe(override ? 'Caller title' : expected ? 'Cherry Studio' : null)
+    }
+  )
 
   it.each([
     { adapterFamily: undefined, presetProviderId: 'omlx', expected: 'instructions' },

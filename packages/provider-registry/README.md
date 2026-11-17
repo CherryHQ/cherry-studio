@@ -145,6 +145,15 @@ The three `data/*.json` files are generated. Edit `src/creators/` or `src/provid
 and run the generator; never hand-edit catalog data. Contributor instructions and
 architecture documentation live in this package's source repository.
 
+To refresh an explicit source-owned provider and its offers without fetching upstream catalogues or changing canonical models and other providers, use:
+
+```bash
+pnpm --filter @cherrystudio/provider-registry exec tsx scripts/generate-catalog.ts --write --provider fortytwo
+pnpm exec oxfmt --write packages/provider-registry/data/providers.json packages/provider-registry/data/provider-models.json packages/provider-registry/src/patterns/server-tool-models.gen.ts
+```
+
+`--provider` is repeatable and requires explicit offers referencing existing canonical model IDs. It rejects external-enrichment, standalone and template sources, unknown or empty selections, missing canonical references, and combinations with `--model` or `--providers-only`. Use full generation when introducing canonical or standalone models.
+
 For provider connection or server-tool selector changes, `--providers-only` rebuilds
 provider configuration and tool eligibility from the committed model catalog and
 provider-owned standalone models, without fetching upstream catalogs:

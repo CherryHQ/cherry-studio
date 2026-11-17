@@ -12080,6 +12080,52 @@
       "providerId": "fireworks"
     },
     {
+      "apiModelId": "qwen/qwen3.8-27b",
+      "capabilities": {
+        "force": ["function-call", "reasoning", "image-recognition", "structured-output"]
+      },
+      "endpointTypes": ["openai-chat-completions"],
+      "inputModalities": ["text", "image"],
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 235929
+      },
+      "modelId": "qwen3-8-27b",
+      "outputModalities": ["text"],
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.085
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.425
+        },
+        "inputTokenTiers": [],
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.55
+        }
+      },
+      "providerId": "fortytwo",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "anthropic/claude-3-haiku",
       "modelId": "claude-3-haiku",
       "pricing": {
@@ -45032,5 +45078,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "0a3942b5c6a225a2"
+  "version": "35b4f07c3bc6a857"
 }
