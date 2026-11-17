@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUI from '@cherrystudio/ui'
+import type { ConfirmActionParams } from '@renderer/components/popups/ConfirmActionPopup'
 import { cacheService } from '@renderer/data/CacheService'
 import { dataApiService } from '@renderer/data/DataApiService'
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
@@ -238,7 +239,7 @@ vi.mock('@renderer/components/SaveToKnowledgePopup', () => ({
 // The confirm-and-run dialog itself is covered by its own unit test; here we just let it run
 // the gated action (as if the user confirmed).
 const { confirmActionShow } = vi.hoisted(() => ({
-  confirmActionShow: vi.fn(async (options?: { action?: () => unknown }) => {
+  confirmActionShow: vi.fn(async (options?: Partial<Pick<ConfirmActionParams, 'action'>>) => {
     await options?.action?.()
     return true
   })

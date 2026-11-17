@@ -74,7 +74,7 @@ const LISTED_MODELS = {
 }
 
 /** Answer `local_model.list` for every test, and layer the test's own routes over it. */
-function mockRoutes(handler: (route: string, input?: { id: string }) => unknown): void {
+function mockRoutes<TResult>(handler: (route: string, input?: { id: string }) => TResult): void {
   mockRequest.mockImplementation((route: string, input?: { id: string }) =>
     route === 'local_model.list' ? Promise.resolve(LISTED_MODELS) : Promise.resolve(handler(route, input))
   )

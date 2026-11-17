@@ -1,3 +1,5 @@
+import type * as z from 'zod'
+
 import type { RouteDef } from '@shared/ipc/define'
 import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
 import type { IpcContext, IpcHandlersFor } from '@shared/ipc/types'
@@ -20,7 +22,7 @@ export class IpcRouter<S extends Record<string, RouteDef>> {
     private readonly handlers: IpcHandlersFor<S>
   ) {}
 
-  async dispatch(route: string, input: unknown, ctx: IpcContext): Promise<unknown> {
+  async dispatch(route: string, input: unknown, ctx: IpcContext): Promise<z.infer<S[keyof S]['output']>> {
     // Own-property guard: a bare `schemas[route]` resolves inherited members
     // (__proto__, constructor, toString, …) to truthy Object.prototype values, which
     // would slip past a plain truthiness check and surface as an INTERNAL TypeError.
