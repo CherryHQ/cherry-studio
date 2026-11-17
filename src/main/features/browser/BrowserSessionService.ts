@@ -143,13 +143,16 @@ export class BrowserSessionService extends BaseService {
         ? new AgentBrowserController(this, this.agentBrowser, { agentId: owner.ownerId, sessionId: owner.sessionId })
         : new SessionBrowserController(this, {
             assertAvailable: () => this.assertTopicAvailable(owner.sessionId, owner.ownerId),
-            get: () => this.topicBrowser.get(context),
+            get: (tabId) => this.topicBrowser.get(context, tabId),
+            list: () => this.topicBrowser.list(context),
             focusInput: (target, options) => this.topicBrowser.focusInput(context, target, options),
-            ensureGuest: (signal, url) => this.topicBrowser.ensureGuest(context, signal, url),
+            ensureGuest: (signal, url, options) => this.topicBrowser.ensureGuest(context, signal, url, options),
             reveal: (target) =>
-              application
-                .get('IpcApiService')
-                .send(target.windowId, 'browser.pane.open_requested', { scope: 'topic', sessionId: owner.sessionId })
+              application.get('IpcApiService').send(target.windowId, 'browser.pane.open_requested', {
+                scope: 'topic',
+                sessionId: owner.sessionId,
+                pageId: target.pageId
+              })
           })
     const control = new BrowserControlSession(() => {
       this.servers.delete(control)

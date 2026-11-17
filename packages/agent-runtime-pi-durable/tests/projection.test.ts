@@ -7,11 +7,11 @@ import type {
   LiveState,
   TaskId
 } from '@earendil-works/pi-durable'
-import { describe, expect, it, onTestFinished } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import { runtimeId, type ObservationPayload } from '@cherrystudio/agent-runtime'
 
-import { DurableProjection } from '../src/projection'
+import { DurableProjection, type DurableObservation } from '../src/projection'
 
 const conversationId = 1 as ConversationId
 const taskId = 7 as TaskId
@@ -41,8 +41,32 @@ function setup(initial: ConversationView) {
   return { projection, events, errors, update: (next: ConversationView) => projection.update(next) }
 }
 const live = (attempt = 1): LiveState => ({
-  run: { taskId, inputs: [] },
+  run: { taskId, inputs: [], turns: 0 },
   generation: { attempt, message: JSON.parse(JSON.stringify(fauxAssistantMessage('same text'))) }
+})
+
+it('copies only the newly published history when updating a view without observers', () => {
+  const projection = new DurableProjection({ backendId: runtimeId('backend'), id: runtimeId('1') }, (error) => {
+    throw error
+  })
+  const entries = Array.from({ length: 32 }, (_, index) => entry(index + 1, `saved-${index}`))
+  projection.update(view(entries))
+  // oxlint-disable-next-line no-restricted-properties -- Measure real clone work without replacing the copy or isolation behavior.
+  const clone = globalThis.structuredClone
+  let copiedMessages = 0
+  const measured = vi.spyOn(globalThis, 'structuredClone').mockImplementation((value, options) => {
+    if (value && typeof value === 'object' && 'messages' in value && Array.isArray(value.messages))
+      copiedMessages += value.messages.length
+    return clone(value, options)
+  })
+  try {
+    projection.update(view(entries))
+    expect(copiedMessages).toBe(entries.length)
+  } finally {
+    measured.mockRestore()
+  }
+  expect(projection.feed.snapshot.messages).toHaveLength(entries.length)
+  onTestFinished(() => projection.close())
 })
 
 describe('Durable preview identity', () => {
@@ -90,7 +114,7 @@ describe('Durable preview identity', () => {
     const assistant: EntryRecord = { ...entry(10, ''), model: [message] }
     update(
       view([assistant], {
-        run: { taskId, inputs: [] },
+        run: { taskId, inputs: [], turns: 0 },
         tools: [{ callId: 'call', name: 'echo', status: 'running', taskId: 8 as TaskId, output: 'partial' }]
       })
     )
@@ -137,4 +161,46 @@ describe('Durable preview identity', () => {
       ]
     })
   })
+})
+
+// Recovered live output must reach the product writer instead of becoming historical for the whole run.
+it('keeps an active preview live when attaching midway through a generation', async () => {
+  const { projection, update } = setup(view([entry(5, 'older committed answer')], live()))
+  const batches: DurableObservation[] = []
+  const observation = projection.observe((batch) => {
+    batches.push(batch)
+  })
+  await observation.drain()
+  const active = batches[0]
+  expect(
+    active.events
+      .flatMap((event) =>
+        event.type === 'snapshot' ? event.messages.filter((message) => active.live.includes(message.id)) : []
+      )
+      .flatMap((message) => message.parts)
+  ).toContainEqual(expect.objectContaining({ type: 'text', text: 'same text' }))
+  update(view([entry(5, 'older committed answer'), entry(11, 'recovered final answer')]))
+  await observation.drain()
+  const final = batches.at(-1)!
+  const delivered = final.events.flatMap((event) =>
+    event.type === 'snapshot' ? event.messages.filter((message) => final.live.includes(message.id)) : []
+  )
+  expect(delivered.flatMap((message) => message.parts)).toContainEqual(
+    expect.objectContaining({ type: 'text', text: 'recovered final answer' })
+  )
+  expect(delivered.flatMap((message) => message.parts)).not.toContainEqual(
+    expect.objectContaining({ type: 'text', text: 'older committed answer' })
+  )
+})
+
+// A resumed native task can reuse its attempt number; it must not resurrect a source the product retired.
+it('gives a returning preview a fresh identity after its previous instance committed', () => {
+  const { projection, update } = setup(view([], live()))
+  const interrupted = projection.feed.snapshot.messages[0].id
+  update(view([entry(10, 'interrupted partial')]))
+  update(view([entry(10, 'interrupted partial')], live()))
+  const resumed = projection.feed.snapshot.messages.at(-1)!.id
+  expect(resumed).not.toBe(interrupted)
+  update(view([entry(10, 'interrupted partial'), entry(11, 'resumed final answer')]))
+  expect(projection.aliases).toMatchObject({ 'entry:10:0': interrupted, 'entry:11:0': resumed })
 })

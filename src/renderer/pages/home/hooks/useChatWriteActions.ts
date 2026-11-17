@@ -1,5 +1,6 @@
 import type { ChatRequestOptions } from 'ai'
 import { useCallback, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 /**
  * Build the `ChatWriteActions` bag passed down through context.
@@ -131,6 +132,7 @@ export function useChatWriteActions(params: Params): Result {
     createMessageTrigger,
     setActiveNodeTrigger
   } = cache
+  const { t } = useTranslation()
   const startNewContextPromiseRef = useRef<Promise<void> | null>(null)
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
 
@@ -275,13 +277,14 @@ export function useChatWriteActions(params: Params): Result {
       })
       try {
         await patchMessageTrigger({ params: { id: messageId }, body: { data: { parts: editedParts } } })
+        setMessages((messages) => messages.map((msg) => (msg.id === messageId ? { ...msg, parts: editedParts } : msg)))
         logger.info('Edited message', { messageId, partCount: editedParts.length })
       } catch (err) {
         await rollbackBranch()
         throw err
       }
     },
-    [patchMessageTrigger, rollbackBranch, seedOptimisticBranch]
+    [patchMessageTrigger, rollbackBranch, seedOptimisticBranch, setMessages]
   )
 
   const capabilityBody = useMemo<Record<string, unknown>>(
@@ -308,8 +311,8 @@ export function useChatWriteActions(params: Params): Result {
         target?.role === 'assistant' &&
         targetStatus !== 'pending' &&
         (targetStatus === 'error' || targetStatus === 'paused' || (target.parts?.length ?? 0) === 0)
-      // Composer selection only overrides failed retries.
-      const regenerateModelId = options?.modelId ?? (isFailedAssistant ? composerModelId : undefined)
+      // Pending replies are not a regeneration target; otherwise use the current composer selection.
+      const regenerateModelId = options?.modelId ?? (targetStatus === 'pending' ? undefined : composerModelId)
       const retryModelId =
         target?.role === 'assistant'
           ? (regenerateModelId ?? (target.metadata?.modelId as UniqueModelId | undefined))
@@ -493,13 +496,13 @@ export function useChatWriteActions(params: Params): Result {
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('setActiveNode on unpersisted message', { messageId, topicId: topic.id })
-          toast.warning('Message is still syncing — try again in a moment')
+          toast.warning(t('message.error.still_syncing'))
           return
         }
         throw err
       }
     },
-    [setActiveNodeTrigger, topic.id]
+    [setActiveNodeTrigger, t, topic.id]
   )
 
   const handleSetActiveBranch = useCallback<ChatWriteActions['setActiveBranch']>(
@@ -515,7 +518,7 @@ export function useChatWriteActions(params: Params): Result {
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('setActiveBranch on unpersisted message', { throughNodeId, topicId: topic.id })
-          toast.warning('Message is still syncing — try again in a moment')
+          toast.warning(t('message.error.still_syncing'))
           return
         }
         throw err
@@ -530,7 +533,7 @@ export function useChatWriteActions(params: Params): Result {
         throw err
       }
     },
-    [setActiveNodeTrigger, topic.id]
+    [setActiveNodeTrigger, t, topic.id]
   )
 
   const handlePause = useCallback<ChatWriteActions['pause']>(() => {

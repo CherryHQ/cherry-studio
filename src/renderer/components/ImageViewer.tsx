@@ -144,11 +144,19 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
       try {
         const blob = await getImageBlobFromSource(item.src)
         const { flipX, flipY, rotation } = context.transform
-        const pngBlob =
-          rotation % 360 !== 0 || flipX || flipY
-            ? await transformImageToPng(blob, { flipX, flipY, rotation })
-            : await convertImageToPng(blob)
-        const saved = await window.api.file.saveImage(getImageSaveName(item), await blobToDataUrl(pngBlob))
+        const outputBlob =
+          blob.type === 'image/gif'
+            ? blob
+            : rotation % 360 !== 0 || flipX || flipY
+              ? await transformImageToPng(blob, { flipX, flipY, rotation })
+              : await convertImageToPng(blob)
+        const name = getImageSaveName(item)
+        const saved =
+          outputBlob.type === 'image/gif'
+            ? await window.api.file.save(`${name}.gif`, new Uint8Array(await outputBlob.arrayBuffer()), {
+                filters: [{ name: 'GIF', extensions: ['gif'] }]
+              })
+            : await window.api.file.saveImage(name, await blobToDataUrl(outputBlob))
         if (saved) {
           toast.success(t('common.saved'))
         }

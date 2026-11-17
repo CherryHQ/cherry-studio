@@ -90,11 +90,7 @@ const ObsidianSettings: FC = () => {
               </SelectContent>
             </Select>
           ) : (
-            <EmptyState
-              compact
-              preset="no-resource"
-              description={error || t('settings.data.obsidian.default_vault_no_vaults')}
-            />
+            <EmptyState compact description={error || t('settings.data.obsidian.default_vault_no_vaults')} />
           )}
         </RowFlex>
       </SettingRow>

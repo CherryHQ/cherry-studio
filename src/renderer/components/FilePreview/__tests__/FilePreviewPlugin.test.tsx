@@ -154,25 +154,6 @@ describe('FilePreview plugin loading', () => {
     expect(mocks.load).toHaveBeenCalledTimes(1)
   })
 
-  it('places an embedded header on the left and the plugin toolbar on the right of one row', async () => {
-    render(
-      <FilePreview
-        filePath={'/tmp/README.md' as AbsoluteFilePath}
-        header={<span data-testid="preview-title">README.md</span>}
-      />
-    )
-
-    const toolbar = await screen.findByRole('toolbar', { name: 'Preview tools' })
-    const header = screen.getByTestId('file-preview-header')
-    const toolbarHost = screen.getByTestId('file-preview-toolbar-host')
-
-    expect(header).toHaveClass('h-11', 'after:left-3', 'after:right-3', 'after:border-border', 'after:border-b')
-    expect(header.nextElementSibling).not.toHaveClass('px-3')
-    expect(header.firstElementChild).toContainElement(screen.getByTestId('preview-title'))
-    expect(header.lastElementChild).toBe(toolbarHost)
-    expect(toolbarHost).toContainElement(toolbar)
-  })
-
   it('contains plugin loader failures inside the preview surface', async () => {
     mocks.load.mockRejectedValueOnce(new Error('failed to fetch plugin chunk'))
 

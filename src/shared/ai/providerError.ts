@@ -17,6 +17,7 @@ const EMPTY_RESPONSE_MESSAGE = 'Invalid response: empty response body. Retry or 
 const INVALID_JSON_MESSAGE = 'Invalid JSON data. Retry or check the provider endpoint and model.'
 const INVALID_STRUCTURE_MESSAGE =
   'Type validation failed: unexpected data structure. Check the provider endpoint and model.'
+const INTERRUPTED_RESPONSE_MESSAGE = 'Connection interrupted while receiving the response. Retry the turn.'
 const TERMINATED_RESPONSE_MESSAGE = 'Invalid response: response processing terminated. Retry the turn.'
 const UNPROCESSABLE_RESPONSE_MESSAGE =
   'Invalid response: the provider response could not be processed. Retry or check the provider endpoint and model.'
@@ -122,6 +123,13 @@ function providerErrorCodes(value: unknown, decodeDepth = 0): string {
     .join('\n')
 }
 
+const CLAUDE_CODE_REJECTION_PREFIX = /^API Error: Request rejected \(\d{3}\) \u00b7 /
+
+/** Drops the `API Error: Request rejected (429) · ` prefix Claude Code puts before a provider's own rejection text. */
+export function stripClaudeCodeRejectionPrefix(text: string): string {
+  return text.replace(CLAUDE_CODE_REJECTION_PREFIX, '')
+}
+
 export function getSafeProviderErrorMessage(source: ProviderErrorSource): string {
   const text = payloadText(source.responseBody) || payloadText(source.data) || providerPayloadText(source.message)
   return text.length > MAX_PROVIDER_ERROR_MESSAGE_LENGTH ? `${text.slice(0, MAX_PROVIDER_ERROR_MESSAGE_LENGTH)}…` : text
@@ -186,6 +194,18 @@ function apiResponseDiagnostic(error: APICallError, depth: number): string | und
   if (message !== 'failed to process successful response' && message !== 'invalid json response') return undefined
   if (message === 'invalid json response' && error.responseBody === '') return EMPTY_RESPONSE_MESSAGE
   if (depth + 1 < MAX_NESTED_PROVIDER_ERROR_DEPTH) {
+    if (
+      error.cause instanceof Error &&
+      (/^net::ERR_(INCOMPLETE_CHUNKED_ENCODING|CONNECTION_CLOSED|CONNECTION_RESET|EMPTY_RESPONSE)$/.test(
+        error.cause.message
+      ) ||
+        (error.cause instanceof TypeError &&
+          error.cause.message === 'terminated' &&
+          error.cause.cause instanceof Error &&
+          'code' in error.cause.cause &&
+          error.cause.cause.code === 'UND_ERR_SOCKET'))
+    )
+      return INTERRUPTED_RESPONSE_MESSAGE
     const diagnostic = sdkResponseDiagnostic(error.cause)
     if (diagnostic) return diagnostic
     if (
@@ -226,13 +246,24 @@ function serializeNestedProviderErrorAtDepth(value: unknown, depth: number): Ser
     const diagnostic = apiResponseDiagnostic(value, depth)
     const message = diagnostic ?? safeMessage
     const category = classifyErrorCategory({
-      text: [safeMessage, providerErrorCodes(value.responseBody), providerErrorCodes(value.data)].join('\n'),
+      text: [
+        payloadText(value.responseBody),
+        payloadText(value.data),
+        providerPayloadText(value.message),
+        providerErrorCodes(value.responseBody),
+        providerErrorCodes(value.data)
+      ].join('\n'),
       status: value.statusCode
     })
     return {
       name: value.name,
       message,
-      providerErrorCategory: diagnostic && (category === 'unknown' || category === 'parse') ? 'parse' : category,
+      providerErrorCategory:
+        diagnostic === INTERRUPTED_RESPONSE_MESSAGE
+          ? 'network'
+          : diagnostic && (category === 'unknown' || category === 'parse')
+            ? 'parse'
+            : category,
       stack: null,
       cause: null,
       url: '',

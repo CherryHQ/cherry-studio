@@ -93,8 +93,15 @@ export async function canonicalGenerate<T extends PaintingData>(
 
   // 1. Validate / coerce raw form params through the central catalog. Soft-fail:
   //    a bad / legacy value must never break submit, so fall back to raw params.
-  const rawParams = painting.params ?? {}
-  const validated = buildParamsSchema(options.support, options.mode).safeParse(rawParams)
+  const rawParams = { ...painting.params }
+  const outputFormat = options.support?.modes?.[mode]?.supports?.outputFormat
+  // A generation draft can retain GIF after references select a static-only edit adapter.
+  if (rawParams.outputFormat === 'gif' && outputFormat?.type === 'enum' && !outputFormat.options.includes('gif')) {
+    delete rawParams.outputFormat
+    delete rawParams.frameCount
+    delete rawParams.frameDurationMs
+  }
+  const validated = buildParamsSchema(options.support, mode).safeParse(rawParams)
   const source: Record<string, unknown> = validated.success ? validated.data : rawParams
 
   // 2. Build the canonical `paramValues` bag: drop blanks (mirrors main's
@@ -105,6 +112,11 @@ export async function canonicalGenerate<T extends PaintingData>(
     if (key === 'customSize_width' || key === 'customSize_height') continue
     if (value === undefined || value === '' || value === null) continue
     paramValues[key] = value
+  }
+
+  // GIF sheets have a shared pixel budget; let the API fit frame dimensions automatically.
+  if (paramValues.outputFormat === 'gif' && options.support?.modes?.[mode]?.supports?.frameCount) {
+    paramValues.size = 'auto'
   }
 
   // 3. Custom size: the customSize widget pairs `size: 'custom'` with

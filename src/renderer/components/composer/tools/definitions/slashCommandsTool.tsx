@@ -1,4 +1,4 @@
-import { Terminal } from 'lucide-react'
+import { Target, Terminal } from 'lucide-react'
 
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
@@ -77,9 +77,9 @@ const slashCommandsTool = defineTool({
           return []
         }
 
-        // Flat root-panel launchers: each slash command is its own "/" root suggestion row.
-        // `sources: ['root-panel']` keeps them out of the "+" popover menu.
+        // Goal is a mode entry; other slash commands remain trailing root suggestions.
         const commandLaunchers: ComposerToolLauncher[] = slashCommands.map((cmd, index) => {
+          const isGoal = cmd.command === '/goal' && cmd.builtin !== false
           const descriptionKey = liveCommands
             ? cmd.builtin === true
               ? SLASH_COMMAND_DESCRIPTION_KEYS[cmd.command]
@@ -89,18 +89,29 @@ const slashCommandsTool = defineTool({
           return {
             id: `slash-command:${cmd.command}`,
             kind: 'command' as const,
-            sources: ['root-panel'] as const,
-            // Render below regular root-panel launchers such as Skills.
-            rootPanelPlacement: 'trailing' as const,
-            order: 20 + (index + 1) / 100,
-            label: cmd.command,
+            sources: isGoal ? ['popover', 'root-panel'] : ['root-panel'],
+            rootPanelPlacement: isGoal ? undefined : 'trailing',
+            order: isGoal ? 79.5 : 20 + (index + 1) / 100,
+            label: isGoal ? t('agent.input.goal_mode.title') : cmd.command,
             description: descriptionKey ? t(descriptionKey, cmd.description || '') : cmd.description || '',
             searchAliases: [
               slashCommandsLabel,
+              ...(isGoal ? [cmd.command] : []),
               ...(descriptionKey ? getQuickPanelSearchAliases(t, descriptionKey) : [])
             ],
-            icon: <Terminal size={16} />,
+            icon: isGoal ? <Target size={16} /> : <Terminal size={16} />,
             action: ({ inputAdapter }) => {
+              if (isGoal) {
+                if (inputAdapter) {
+                  if (!/^\/goal(?:\s|$)/.test(inputAdapter.getText())) {
+                    inputAdapter.insertText('/goal ', { position: 'start' })
+                  }
+                  inputAdapter.focus()
+                } else {
+                  actions.onTextChange((prev) => (/^\/goal(?:\s|$)/.test(prev) ? prev : `/goal ${prev}`))
+                }
+                return
+              }
               insertSlashCommand(cmd.command, actions.onTextChange, inputAdapter)
             }
           }

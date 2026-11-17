@@ -59,9 +59,10 @@ function ConfirmDialog({
   overlayClassName
 }: ConfirmDialogProps) {
   const handleConfirm = React.useCallback(async () => {
+    if (open === false) return
     const result = await onConfirm?.()
     if (result !== false) onOpenChange?.(false)
-  }, [onConfirm, onOpenChange])
+  }, [onConfirm, onOpenChange, open])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

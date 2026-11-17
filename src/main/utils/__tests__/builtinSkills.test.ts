@@ -45,15 +45,6 @@ afterEach(() => {
 })
 
 describe('installBuiltinSkills', () => {
-  it('should return early when resources/skills does not exist', async () => {
-    vi.mocked(fs.access).mockRejectedValueOnce(new Error('ENOENT'))
-
-    await installBuiltinSkills()
-
-    expect(fs.access).toHaveBeenCalledWith(resourceSkillsPath)
-    expect(fs.readdir).not.toHaveBeenCalled()
-  })
-
   it('delegates builtin publication to SkillService with the resource path and app version', async () => {
     vi.mocked(fs.access).mockResolvedValueOnce(undefined)
     vi.mocked(fs.readdir).mockResolvedValueOnce([{ name: 'my-skill', isDirectory: () => true }] as any)

@@ -430,12 +430,12 @@ describe('RuntimeExecutor.generateText', () => {
         })
       ).rejects.toThrow('Generation failed')
 
-      // onError receives the original error and context with core fields
+      // onError receives the original error and context holding the resolved model
       expect(errorPlugin.onError).toHaveBeenCalledWith(
         error,
         expect.objectContaining({
           providerId: 'openai',
-          model: 'gpt-4'
+          model: mockLanguageModel
         })
       )
     })

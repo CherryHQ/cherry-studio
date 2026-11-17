@@ -43,7 +43,7 @@ describe('promptHandlers', () => {
 
   describe('/prompts', () => {
     it('should reject empty search query before calling the service', async () => {
-      await expect(promptHandlers['/prompts'].GET({ query: { search: '   ' } } as never)).rejects.toHaveProperty(
+      await expect(promptHandlers['/prompts'].GET({ query: { search: '   ' } })).rejects.toHaveProperty(
         'name',
         'ZodError'
       )

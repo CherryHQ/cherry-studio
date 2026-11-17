@@ -164,8 +164,10 @@ vi.mock('@cherrystudio/ui', async () => {
   const React = require('react')
   // Real implementation: its filtering/normalization contract is what callers
   // are tested against, and a stub would drift from it.
+  const { KeyboardLayerProvider } = await import('@cherrystudio/ui/components/primitives/keyboard-layer')
   const { InputNumber } = await import('@cherrystudio/ui/components/primitives/input-number')
   const { BarVisualizer } = await import('@cherrystudio/ui/components/primitives/bar-visualizer')
+  const { Progress } = await import('@cherrystudio/ui/components/primitives/progress')
   const { InputGroupInputNumber } = await import('@cherrystudio/ui/components/primitives/input-group')
   const { createCodeHighlightPlugin } =
     await import('@cherrystudio/ui/components/composites/markdown/plugins/code-highlight')
@@ -182,6 +184,7 @@ vi.mock('@cherrystudio/ui', async () => {
   const AccordionItemContext = React.createContext({ disabled: false, value: '' })
   const FormFieldNameContext = React.createContext(undefined)
   return {
+    KeyboardLayerProvider,
     BarVisualizer,
     createCodeHighlightPlugin,
     // Markdown — `@cherrystudio/ui` barrel re-exports composites/markdown (#16228).
@@ -851,6 +854,7 @@ vi.mock('@cherrystudio/ui', async () => {
         tooltipText ? React.createElement('div', { 'data-testid': 'tooltip-content' }, tooltipText) : null
       )
     },
+    Progress,
     CircularProgress: ({ value, renderLabel, showLabel, ...props }) =>
       React.createElement(
         'div',

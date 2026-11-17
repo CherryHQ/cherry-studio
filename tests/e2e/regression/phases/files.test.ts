@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { copyFile, mkdir, mkdtemp, rm, stat, writeFile, access, readFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, rm, stat, writeFile, access, readFile, readdir, realpath } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 
 import * as XLSX from '@e965/xlsx'
@@ -19,8 +19,9 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
 import { evaluateCdpExpression } from '../../../../scripts/e2e/regression/cdpClient'
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { observeExternalResource, registerExternalResource } from '../../../../scripts/e2e/regression/externalResources'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
-import { chooseNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
+import { chooseNativeFile, chooseNativeFiles } from '../../../../scripts/e2e/regression/systemAutomation'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { expect, test } from '../fixture'
 import { createRtfPreviewFixtures } from '../fixtures/rtfPreviewFixtures'
@@ -382,7 +383,7 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
 
 test(...caseDefinition('MP-68'), async ({ app, mainWindow }, testInfo) => {
   let page = mainWindow
-  const root = await mkdtemp(join(process.cwd(), 'tests/e2e/regression/mp68-assets-'))
+  const root = await mkdtemp(join(app.paths.fixtures, 'mp68-assets-'))
   const upload = join(root, 'upload')
   const documents = app.fixturesPath('documents')
   const images = app.fixturesPath('images')
@@ -456,45 +457,13 @@ test(...caseDefinition('MP-68'), async ({ app, mainWindow }, testInfo) => {
   try {
     const chooseFiles = async (path: string, multiple: boolean) => {
       await view().getByRole('button', { name: 'Upload files', exact: true }).click()
-      if (app.record.platform !== 'macos') throw new Error('MP-68 multi-file native chooser requires macOS automation')
-      const script = [
-        'on run argv',
-        'tell application "System Events"',
-        'tell (first application process whose unix id is (item 2 of argv as integer))',
-        'set frontmost to true',
-        'log "MP-68 waiting for native Open dialog"',
-        'repeat 100 times',
-        'if exists (first button of splitter group 1 of window 1 whose name is "Open" or name is "打开") then exit repeat',
-        'delay 0.1',
-        'end repeat',
-        'if not (exists (first button of splitter group 1 of window 1 whose name is "Open" or name is "打开")) then error "Native file dialog was not found"',
-        'log "MP-68 native dialog found"',
-        'keystroke "g" using {command down, shift down}',
-        'repeat 100 times',
-        'if exists text field 1 of sheet 1 of window 1 then exit repeat',
-        'delay 0.1',
-        'end repeat',
-        'if not (exists text field 1 of sheet 1 of window 1) then error "Go to Folder input was not found"',
-        'keystroke "a" using command down',
-        'keystroke (item 1 of argv)',
-        'delay 0.5',
-        'key code 36',
-        'repeat 100 times',
-        'if not (exists sheet 1 of window 1) then exit repeat',
-        'delay 0.1',
-        'end repeat',
-        'delay 1',
-        ...(multiple ? ['key code 36', 'delay 0.5', 'keystroke "a" using command down'] : []),
-        'delay 0.3',
-        'click (first button of splitter group 1 of window 1 whose name is "Open" or name is "打开")',
-        'end tell',
-        'end tell',
-        'end run'
-      ].join('\n')
-      execFileSync('osascript', ['-e', script, '--', multiple ? `${path}/` : path, String(app.record.electronPid)], {
-        timeout: 45_000,
-        stdio: 'inherit'
-      })
+      if (multiple) {
+        chooseNativeFiles(
+          app.record.platform,
+          app.paths,
+          (await readdir(path)).map((name) => join(path, name))
+        )
+      } else chooseNativeFile(app.record.platform, app.paths, path)
     }
     await selectSidebarApp(page, 'Files')
     await expect(view()).toBeVisible()
@@ -580,7 +549,7 @@ test(...caseDefinition('MP-68'), async ({ app, mainWindow }, testInfo) => {
 })
 
 test(...caseDefinition('MP-69'), async ({ app, mainWindow: page }, testInfo) => {
-  const root = await mkdtemp(join(process.cwd(), 'tests/e2e/regression/mp69-assets-'))
+  const root = await mkdtemp(join(app.paths.fixtures, 'mp69-assets-'))
   const prefix = `mp69-${Date.now()}`
   const fixtures = [
     { name: `${prefix}-sample.pdf`, type: 'document', label: 'Document' },
@@ -659,6 +628,8 @@ test(...caseDefinition('MP-69'), async ({ app, mainWindow: page }, testInfo) => 
       expect(result.failed).toEqual([])
       expect(result.succeeded).toHaveLength(1)
     }
+    // IPC fixture writes do not invalidate the already-mounted renderer's DataApi caches.
+    await page.reload()
     await selectSidebarApp(page, 'Files')
     await expect(view).toBeVisible()
     await screenshot('MP-69 file library with seeded files')
@@ -666,7 +637,7 @@ test(...caseDefinition('MP-69'), async ({ app, mainWindow: page }, testInfo) => 
     expect(all.nextCursor, 'All fixtures and existing files must fit in the verification page').toBeUndefined()
     const allNames = all.items.map(({ name, ext }) => (ext ? `${name}.${ext}` : name))
     // The library renders only its visible window, so it is read while scrolling.
-    const scroller = content.locator('[data-scrolling]').first()
+    const scroller = content.locator('[data-slot="scroll-area-viewport"]').first()
     const listedText = () => collectVirtualizedText(page, scroller)
     const expectListed = async (names: string[], message: string) => {
       const text = await listedText()
@@ -820,8 +791,10 @@ test(...caseDefinition('MP-70'), async ({ app, mainWindow: page }, testInfo) => 
     const pdfPath = physicalResult.data[pdfId]
     expect(pdfPath).toBeTruthy()
     await files.getByText('sample.pdf', { exact: true }).click({ button: 'right' })
+    const folderResource = registerExternalResource(app.paths, app.record.platform, { kind: 'folder', path: pdfPath! })
     await page.getByRole('menuitem', { name: 'Show in folder', exact: true }).click()
     if (app.record.platform === 'macos') {
+      const canonicalPdfPath = await realpath(pdfPath!)
       let selectedPath: string | undefined
       const finderSelection = () => {
         selectedPath = execFileSync(
@@ -842,8 +815,8 @@ test(...caseDefinition('MP-70'), async ({ app, mainWindow: page }, testInfo) => 
         ).trim()
         return selectedPath
       }
-      await expect.soft.poll(finderSelection, { timeout: 15_000 }).toBe(pdfPath)
-      if (selectedPath === pdfPath) {
+      await expect.soft.poll(finderSelection, { timeout: 15_000 }).toBe(canonicalPdfPath)
+      if (selectedPath === canonicalPdfPath) {
         const finderDirectory = execFileSync(
           'osascript',
           ['-e', 'tell application "Finder" to get POSIX path of (target of front window as alias)'],
@@ -851,20 +824,33 @@ test(...caseDefinition('MP-70'), async ({ app, mainWindow: page }, testInfo) => 
         )
           .trim()
           .replace(/\/$/, '')
-        expect(finderDirectory).toBe(dirname(pdfPath!))
+        expect(finderDirectory).toBe(dirname(canonicalPdfPath))
         await testInfo.attach('MP-70 Finder location', {
           body: JSON.stringify({ selected: finderSelection(), directory: finderDirectory }),
           contentType: 'application/json'
         })
       }
     } else {
-      // "Show in folder" hands the path to the platform file manager; the selection readback
-      // above is Finder-only, so other platforms record the action without claiming a result.
+      await expect
+        .poll(() =>
+          execFileSync(
+            'powershell.exe',
+            [
+              '-NoProfile',
+              '-NonInteractive',
+              '-Command',
+              '(New-Object -ComObject Shell.Application).Windows() | ForEach-Object { $_.Document.SelectedItems() } | ForEach-Object { $_.Path }'
+            ],
+            { encoding: 'utf8', timeout: 10_000 }
+          )
+        )
+        .toContain(pdfPath!)
       await testInfo.attach('MP-70 file manager location', {
-        body: JSON.stringify({ platform: app.record.platform, expectedPath: pdfPath, selectionVerified: false }),
+        body: JSON.stringify({ platform: app.record.platform, expectedPath: pdfPath, selectionVerified: true }),
         contentType: 'application/json'
       })
     }
+    observeExternalResource(app.paths, folderResource)
     await page.bringToFront()
     await attachScreenshot('MP-70 PDF reveal action completed')
 
@@ -1005,11 +991,4 @@ test(...caseDefinition('MP-71'), async ({ app, mainWindow: page }, testInfo) => 
     )
     await rm(directory, { recursive: true, force: true })
   }
-})
-
-test(...caseDefinition('MP-72'), async () => {
-  test.skip(
-    true,
-    'UNCOVERED: referencing library files in chat has no supported UI entry point. The attachment button opens a native file picker, and library rows do not provide file-reference drag data.'
-  )
 })
