@@ -5,7 +5,11 @@
     "es2022": true
   },
   "globals": {},
-  "jsPlugins": ["@shadcn/lint", "./scripts/lint/scroll-area.mjs"],
+  "jsPlugins": [
+    "@shadcn/lint",
+    "./scripts/lint/scroll-area.mjs",
+    { "name": "anti-slop", "specifier": "./scripts/lint/anti-slop/index.ts" }
+  ],
   "ignorePatterns": [
     "node_modules/**",
     "build/**",
@@ -21,7 +25,8 @@
     "packages/**/dist",
     "native/system-speech/dist",
     "eslint.config.mjs",
-    "scripts/data-classify/**"
+    "scripts/data-classify/**",
+    "scripts/lint/anti-slop/**"
   ],
   "options": {
     "typeAware": true
@@ -111,6 +116,24 @@
   ],
   "plugins": ["unicorn", "typescript", "oxc", "import"],
   "rules": {
+    "anti-slop/no-array-filter-map": "error",
+    "anti-slop/no-chained-type-assertions": "error",
+    "anti-slop/no-conditional-empty-object-spread": "error",
+    "anti-slop/no-known-value-widening": "error",
+    "anti-slop/no-module-mocking": "error",
+    "anti-slop/no-object-parameters": "error",
+    "anti-slop/no-reduce-accumulator-copy": "error",
+    "anti-slop/no-reflect-apply": "error",
+    "anti-slop/no-reflect-get": "error",
+    "anti-slop/no-runtime-typeof": "error",
+    "anti-slop/no-shape-in-symbol-names": "error",
+    "anti-slop/no-unknown-parameters": "error",
+    "anti-slop/no-unknown-returns": "error",
+    "anti-slop/no-unknown-type-aliases": "error",
+    "anti-slop/no-unsafe-dictionary-type": "error",
+    "anti-slop/no-widen-then-assert": "error",
+    "anti-slop/require-readable-spacing": "error",
+    "anti-slop/require-safety-comment-for-type-assertion": "error",
     "no-array-constructor": "off",
     "no-caller": "error",
     "no-eval": "error",
@@ -160,6 +183,7 @@
     "oxc/erasing-op": "error",
     "oxc/missing-throw": "error",
     "oxc/number-arg-out-of-range": "error",
+    "oxc/no-accumulating-spread": "error",
     "oxc/only-used-in-recursion": "off",
     "oxc/uninvoked-array-callback": "error",
     "typescript/await-thenable": "warn",

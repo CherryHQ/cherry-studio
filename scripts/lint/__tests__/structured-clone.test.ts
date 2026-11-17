@@ -17,6 +17,7 @@ afterAll(() => rmSync(directory, { recursive: true, force: true }))
 function lint(source: string, filename = 'probe.ts') {
   const file = join(directory, filename)
   writeFileSync(file, source)
+
   const result = spawnSync(
     process.execPath,
     [binary, '--config', config, '--format', 'json', '--deny-warnings', file],
@@ -24,7 +25,9 @@ function lint(source: string, filename = 'probe.ts') {
       encoding: 'utf8'
     }
   )
+
   if (result.error) throw result.error
+
   return { status: result.status, ...JSON.parse(result.stdout) }
 }
 
@@ -47,6 +50,7 @@ describe('structuredClone restrictions in the repository lint gate', () => {
           `export const { structuredClone: destructured } = ${object}`
         ].join('\n')
       )
+
       expect(result.status).toBe(1)
       expect(result.diagnostics).toHaveLength(5)
       expect(result.diagnostics).toEqual(
@@ -69,6 +73,7 @@ describe('structuredClone restrictions in the repository lint gate', () => {
         'export const rejected = structuredClone({})'
       ].join('\n')
     )
+
     expect(result.status).toBe(1)
     expect(result.diagnostics).toMatchObject([
       { code: 'eslint(no-restricted-globals)', labels: [{ span: { line: 3 } }] }
@@ -83,7 +88,7 @@ describe('structuredClone restrictions in the repository lint gate', () => {
   it('allows local functions and unrelated methods with the same name', () => {
     expect(
       lint(
-        'function structuredClone(value: string) { return value }\nconst local = { structuredClone }; export const value = local.structuredClone("text")'
+        'function structuredClone(value: string) { return value }\n\nconst local = { structuredClone }; export const value = local.structuredClone("text")'
       ).status
     ).toBe(0)
   })

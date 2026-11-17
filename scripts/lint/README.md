@@ -1,5 +1,36 @@
 # Lint rules
 
+## Anti-slop
+
+The local [anti-slop plugin](anti-slop/UPSTREAM.md) runs in the existing Oxlint
+gate, including CI and `lint:fix`. All 18 generic rules and native
+`oxc/no-accumulating-spread` are configured as errors in `.oxlintrc.json`.
+`oxlint` and `@oxlint/plugins` must stay pinned to the same exact version.
+
+Upstream has no official npm package and supports copying its source. The plugin
+lives directly under `scripts/lint/anti-slop/`; its source, licenses and provenance
+are preserved. Repository lint, formatting and application typechecking exclude
+this upstream copy. Its production entry points can be typechecked separately
+with TypeScript import extensions enabled. Effect sources are retained but not
+registered because this repository has no direct Effect dependency.
+
+Full enforcement exposes existing migration debt: the repository lint gate remains
+red until that debt is cleared. Do not disable rules, lower severities, exempt owned
+source directories or disguise module mocks to make it pass. Boundary parsing,
+reflection, assertions and test dependencies need contract-specific migration;
+replacing omitted fields with `undefined` or changing callback order is not a safe
+mechanical cleanup. The [migration Spec](../../.agents/notes/proposed/process/2026-11-18-anti-slop-lint.md)
+defines the target and incremental acceptance criteria.
+
+Run `pnpm test:scripts scripts/lint/__tests__/anti-slop.test.ts` to verify rejection
+probes for every enabled rule and supported alternatives. Use
+`pnpm exec oxlint --deny-warnings <changed-files>` for a cleanup batch. Run spacing
+autofix only on that batch, then the formatter, and confirm a second pass is stable.
+Existing consumer tests must still pass; lint alone does not prove behavior.
+
+These AST/scope rules do not perform cross-file TypeScript type analysis, establish
+accumulator ownership or prove that all quadratic work is absent.
+
 ## Structured cloning
 
 The built-in Oxlint rules `no-restricted-globals` and `no-restricted-properties`
