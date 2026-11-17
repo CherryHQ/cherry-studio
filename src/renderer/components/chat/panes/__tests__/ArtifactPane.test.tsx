@@ -1786,7 +1786,7 @@ describe('ArtifactPane', () => {
     fireEvent.click(await screen.findByTestId('tree-node-notes.txt'))
     const overlay = await screen.findByTestId('artifact-file-preview-overlay')
     const editor = await within(overlay).findByTestId('code-editor')
-    expect(within(overlay).getByRole('status')).toHaveTextContent('common.saved')
+    expect(within(overlay).queryByText('common.saved')).not.toBeInTheDocument()
     fireEvent.change(editor, { target: { value: 'second' } })
     expect(within(overlay).getByRole('status')).toHaveTextContent('agent.preview_pane.edit.waiting')
     await waitFor(
@@ -1803,6 +1803,10 @@ describe('ArtifactPane', () => {
       timeout: 3000
     })
     expect(editor).toHaveValue('latest')
+    await waitFor(() => expect(within(overlay).queryByText('common.saved')).not.toBeInTheDocument(), {
+      timeout: 3000
+    })
+    expect(editor).toBeInTheDocument()
   })
 
   it('autosaves an oversized in-memory draft — the size cap gates loading for edit, not writing', async () => {

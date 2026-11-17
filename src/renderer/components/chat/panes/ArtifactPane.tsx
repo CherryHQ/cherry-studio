@@ -56,6 +56,7 @@ import {
 import { useFileObservation } from '@renderer/hooks/useFileObservation'
 import { useFileSize } from '@renderer/hooks/useFileSize'
 import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
+import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import {
@@ -466,6 +467,16 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const fileSize = useFileSize(previewWorkspacePath, previewFilePath, contentRefreshToken, knownFileSizeBytes)
   const canCopyPreviewContent = canCopyFileContent(previewFilePath ?? null, isText, fileSize)
   const isEditDirty = fileSession?.isDirty ?? false
+  const editSessionId = editMode === 'edit' ? fileSession?.sessionId : undefined
+  const saveCount = fileSession?.saveCount ?? 0
+  const observedSave = useRef({ sessionId: editSessionId, count: saveCount })
+  const [recentlySavedSessionId, showSaved] = useTemporaryValue<string | undefined>(undefined)
+  useEffect(() => {
+    const previous = observedSave.current
+    observedSave.current = { sessionId: editSessionId, count: saveCount }
+    const saved = previous.sessionId === editSessionId && previous.count !== saveCount && !isEditDirty
+    showSaved(saved ? editSessionId : undefined)
+  }, [editSessionId, isEditDirty, saveCount, showSaved])
   const saveStatus =
     editMode === 'edit' && fileSession?.sessionId
       ? fileSession.isSaving
@@ -488,7 +499,9 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                   tone: 'text-muted-foreground',
                   spinning: false
                 }
-              : { label: t('common.saved'), icon: Check, tone: 'text-muted-foreground', spinning: false }
+              : recentlySavedSessionId === fileSession.sessionId
+                ? { label: t('common.saved'), icon: Check, tone: 'text-muted-foreground', spinning: false }
+                : null
       : null
   const editorDraft = editMode === 'edit' && fileSession?.status === 'ready' ? fileSession.draft : ''
   const wordWrapUnavailable = useMemo(() => hasUnwrappableLine(editorDraft), [editorDraft])

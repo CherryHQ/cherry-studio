@@ -32,6 +32,7 @@ export interface FileEditSession {
   readOnly: boolean
   savedContent: string
   savedSizeBytes?: number
+  saveCount: number
   draft: string
   isDirty: boolean
   isSaving: boolean
@@ -152,6 +153,7 @@ export function useFileEditSession(
       readOnly: !lease?.writable || !!snapshot?.sealed || !!snapshot?.readError,
       savedContent: snapshot?.savedContent ?? '',
       savedSizeBytes: snapshot?.savedSizeBytes,
+      saveCount: snapshot?.saveCount ?? 0,
       draft: snapshot?.draft ?? '',
       isDirty: snapshot?.isDirty ?? false,
       isSaving: snapshot?.isSaving ?? false,

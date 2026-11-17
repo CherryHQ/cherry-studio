@@ -18,6 +18,7 @@ export interface SessionSnapshot {
   readonly savedContent: string
   readonly savedSizeBytes: number
   readonly revision: number
+  readonly saveCount: number
   readonly documentEpoch: number
   readonly bindingEpoch: number
   readonly isDirty: boolean
@@ -240,6 +241,7 @@ export class FileEditSessionManager {
           savedContent: disk.content,
           savedSizeBytes: disk.baseline.version.size,
           revision: 0,
+          saveCount: 0,
           documentEpoch: 1,
           bindingEpoch: 0,
           isDirty: false,
@@ -435,7 +437,11 @@ export class FileEditSessionManager {
           data: encodeFileText(text, disk.lineEnding, disk.hasBom)
         })
         this.adoptBaseline(session, { ...disk, content: text, baseline: result.baseline })
-        this.publish(session, { metadataRecoveryPending: result.metadataRecoveryPending, saveError: undefined })
+        this.publish(session, {
+          saveCount: session.snapshot.saveCount + 1,
+          metadataRecoveryPending: result.metadataRecoveryPending,
+          saveError: undefined
+        })
         return
       } catch (error) {
         if (!(error instanceof IpcError) || error.code !== fileErrorCodes.STALE_VERSION) throw error
