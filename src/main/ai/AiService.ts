@@ -59,6 +59,7 @@ import {
 } from '@shared/utils/model'
 import { isExternalCliProvider, isOllamaProvider } from '@shared/utils/provider'
 import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
+import { isSystemProviderId } from '@shared/utils/systemProviderId'
 
 import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
@@ -1030,15 +1031,16 @@ export class AiService extends BaseService {
   async runImageRequest(requestId: string, payload: AiImageRequest): Promise<AiImageResult> {
     // Paintings is this route's only caller; a user cancel is not an outcome.
     let requestSignal: AbortSignal | undefined
+    const providerId = payload.uniqueModelId && parseUniqueModelId(payload.uniqueModelId).providerId
     const report = (status: 'success' | 'error', count?: number) =>
       trackMainProductEvent({
         event: 'feature_used',
         feature: 'paintings',
         action: 'image_generated',
         status,
-        ...(payload.uniqueModelId && {
-          modelSource: analyticsModelSource(parseUniqueModelId(payload.uniqueModelId).providerId)
-        }),
+        ...(providerId && { modelSource: analyticsModelSource(providerId) }),
+        // Custom provider ids are user-chosen, so only system providers are named.
+        ...(providerId && isSystemProviderId(providerId) && { target: providerId }),
         ...(count !== undefined && { count })
       })
     try {

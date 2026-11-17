@@ -15,7 +15,7 @@ export const analyticsModelSourceSchema = z.enum(['cherry_free', 'cherry_cloud',
 export type AnalyticsModelSource = z.infer<typeof analyticsModelSourceSchema>
 
 // Preset identifiers only (built-in mini app ids, provider ids, data-ui tokens); never user-entered names.
-const presetIdSchema = z.string().regex(/^[a-z0-9][a-z0-9:._-]{0,119}$/)
+export const presetIdSchema = z.string().regex(/^[a-z0-9][a-z0-9:._-]{0,119}$/)
 
 const featureSchema = z.enum([
   'translate',

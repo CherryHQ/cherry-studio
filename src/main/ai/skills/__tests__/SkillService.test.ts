@@ -2618,11 +2618,11 @@ describe('SkillService', () => {
       vi.mocked(parseSkillMetadata).mockReset()
     })
 
-    function servePackage(files: Record<string, string>, collection = true) {
+    function servePackage(files: Record<string, string>, collection = true, id = itemId) {
       const zip = new AdmZip()
       for (const [name, content] of Object.entries(files)) zip.addFile(name, Buffer.from(content))
       const item = {
-        id: itemId,
+        id,
         name: { en: 'one', zh: null },
         description: { en: '', zh: null },
         longDescription: { en: '', zh: null },
@@ -2635,7 +2635,7 @@ describe('SkillService', () => {
         icon: null,
         packageSize: null,
         packageName: 'skills.zip',
-        downloadUrl: `https://skills.cherryin.ai/api/skills/${encodeURIComponent(itemId)}/download`,
+        downloadUrl: `https://skills.cherryin.ai/api/skills/${encodeURIComponent(id)}/download`,
         hasPackage: true,
         downloads: 1,
         releaseDate: '2026-09-22'
@@ -2760,6 +2760,27 @@ describe('SkillService', () => {
       expect(retried.installed.map((skill) => skill.folderName)).toEqual(['two'])
       expect(retried.alreadyInstalled.map((skill) => skill.id)).toEqual([partial.installed[0].id])
       expect(await fs.promises.readFile(path.join(firstDir, 'user-note.txt'), 'utf8')).toBe('keep')
+    })
+
+    it('reports marketplace members with their catalog id, and a member that fails as an error', async () => {
+      const trackProductEvent = vi.fn()
+      MockApplicationUtils.setService('AnalyticsService', { trackProductEvent })
+      servePackage(
+        { 'one/SKILL.md': '---\nname: one\n---\n# One', 'two/SKILL.md': '---\nname: two\n---\n# Two' },
+        true,
+        'pdf-tools'
+      )
+      dbh.db
+        .insert(agentGlobalSkillTable)
+        .values({ id: SKILL_ID_2, name: 'two', folderName: 'two', source: 'local', contentHash: 'user' })
+        .run()
+      try {
+        await new SkillService().installMarketplace('pdf-tools')
+        const base = { event: 'feature_used', feature: 'skills', action: 'skill_installed', target: 'pdf-tools' }
+        expect(trackProductEvent.mock.calls).toEqual([[{ ...base, status: 'success' }], [{ ...base, status: 'error' }]])
+      } finally {
+        MockApplicationUtils.resetServices()
+      }
     })
 
     it.each<Record<string, string>>([

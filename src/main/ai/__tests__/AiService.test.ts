@@ -1073,6 +1073,22 @@ describe('AiService', () => {
       ])
     })
 
+    it('names a system provider as the target, never a user-chosen custom provider id', async () => {
+      const service = createService()
+      vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [{ id: 'file-1' }] as never })
+
+      await service.runImageRequest('request-4', {
+        ...imagePayload,
+        uniqueModelId: createUniqueModelId('silicon', 'm')
+      })
+      await service.runImageRequest('request-5', {
+        ...imagePayload,
+        uniqueModelId: createUniqueModelId('my-private-relay', 'm')
+      })
+
+      expect(trackedEvents().map((event) => event.target)).toEqual(['silicon', undefined])
+    })
+
     it('reports a failed generation as an error and still rejects', async () => {
       const service = createService()
       vi.spyOn(service, 'generateImage').mockRejectedValue(new Error('provider down'))

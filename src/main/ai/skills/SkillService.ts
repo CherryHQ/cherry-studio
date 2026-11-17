@@ -17,6 +17,7 @@ import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@m
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
 import { skillErrorCodes } from '@shared/ipc/errors/skill'
+import { presetIdSchema } from '@shared/ipc/schemas/analytics'
 import type { SkillCatalogEntry } from '@shared/types/skill'
 import type {
   SkillImportSystemOptions,
@@ -56,10 +57,20 @@ const logger = loggerService.withContext('SkillService')
 
 const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
 const BUILTIN_VERSION_FILE = '.version'
+const CHERRY_MARKETPLACE_NAMESPACE = marketplaceSkillNamespace('')
 
-/** User skills carry no preset id, so no target. */
-function reportSkillInstalled(status: 'success' | 'error'): void {
-  trackMainProductEvent({ event: 'feature_used', feature: 'skills', action: 'skill_installed', status })
+/** Only Cherry's own marketplace catalog ids are reported; other sources name user or third-party skills. */
+function reportSkillInstalled(status: 'success' | 'error', namespace: string | null | undefined): void {
+  const target = namespace?.startsWith(CHERRY_MARKETPLACE_NAMESPACE)
+    ? namespace.slice(CHERRY_MARKETPLACE_NAMESPACE.length)
+    : undefined
+  trackMainProductEvent({
+    event: 'feature_used',
+    feature: 'skills',
+    action: 'skill_installed',
+    status,
+    ...(target && presetIdSchema.safeParse(target).success && { target })
+  })
 }
 
 type SkillRemoteUpdateErrorCode = (typeof skillErrorCodes)[keyof typeof skillErrorCodes]
@@ -624,7 +635,7 @@ export class SkillService {
     try {
       return await this.addSkillDirToLibrary(skillDir, source, sourceUrl, provenance)
     } catch (error) {
-      reportSkillInstalled('error')
+      reportSkillInstalled('error', provenance.namespace)
       throw error
     }
   }
@@ -741,7 +752,7 @@ export class SkillService {
       this.enableForAllAgents(inserted.id)
     } else {
       // Only first installs report success; any failed attempt reports an error.
-      reportSkillInstalled('success')
+      reportSkillInstalled('success', provenance.namespace)
     }
 
     logger.info('Skill installed', { id: inserted.id, name: metadata.name, folderName: destFolderName, source })
