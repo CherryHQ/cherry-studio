@@ -2472,6 +2472,13 @@ describe('MessageService', () => {
       expect(path[2].parentId).toBe('m-a2')
     })
 
+    it('returns only the last messages of the path when asked for a tail', async () => {
+      await seedMultiModelTree()
+
+      expect(messageService.getPathToNode('m-follow', { last: 2 }).map((m) => m.id)).toEqual(['m-a2', 'm-follow'])
+      expect(messageService.getPathToNode('m-follow', { last: 0 })).toEqual([])
+    })
+
     it('loads a path longer than the SQLite bound-variable limit', async () => {
       const count = 33_000
       const rows = withRoot(

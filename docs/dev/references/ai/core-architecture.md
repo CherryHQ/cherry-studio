@@ -152,7 +152,8 @@ src/main/ai/
 
 src/main/ipc/handlers/ai.ts        ← IpcApi transport adapters
 src/renderer/services/aiTransport/ ← MessageProjectionService, StreamDispatchService, overlays
-src/renderer/hooks/               ← useChatWithHistory, useToolApprovalBridge, useTopicStreamStatus
+src/renderer/hooks/               ← useChatWithHistory, useTopicStreamStatus
+src/renderer/pages/home/hooks/    ← useToolApprovalBridge
 packages/aiCore/                  ← @cherrystudio/ai-core (Agent + plugins + provider extensions)
 packages/provider-registry/       ← provider catalog, registry-utils (adapterFamily inference)
 ```
