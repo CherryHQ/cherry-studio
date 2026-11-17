@@ -427,7 +427,7 @@ describe('session MCP skills through real protocol and persistence', () => {
       const interactions = await createPiInteractionPorts({
         input: { sessionId, agentId, modelId: 'test::model' },
         approval,
-        toolCallId: async () => event.toolCallId,
+        toolCallIdentity: async () => ({ toolCallId: event.toolCallId }),
         emit: (event) => {
           if (event.type !== 'tool-approval-request') return
           if (onRequest) onRequest(event.request.approvalId)

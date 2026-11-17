@@ -54,8 +54,8 @@ so tool details remain in its transcript. The host does not reconstruct tool spa
 `piBehaviorHost.ts` connects shared behavior to the existing approval registry, question cards, model
 catalog, native Pi model binding and output files. `piApprovalFacts.ts` collects tool, workspace and
 interaction facts; `agent-behavior` decides permission policy. Cross-session delegation still requires
-an interactive user turn. Child threads default to `bypassPermissions`; root threads use the live agent permission mode.
-Child tools retain the root's disabled-tool and non-bypassable approval restrictions.
+an interactive user turn. Root and child threads use the root's live agent permission mode,
+interaction state and tool restrictions; delegation never grants `bypassPermissions`.
 
 The interaction host also binds remote-skill approvals to their original provenance, cancels them
 on invalidation, and forwards single-use load receipts through the shared gate's approved arguments.

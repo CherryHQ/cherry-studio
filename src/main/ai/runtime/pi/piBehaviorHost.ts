@@ -32,7 +32,7 @@ type HostOptions = {
   bindModel?: (model: Model) => Promise<Binding>
   approval: PiApprovalContext
   usageSessionId(thread: ThreadId): Promise<string>
-  toolCallId(call: CallRef): Promise<string>
+  toolCallIdentity(call: CallRef): Promise<{ toolCallId: string; parentToolCallId?: string }>
   emit(event: AgentRuntimeEvent): void
   observe(event: BehaviorEvent): void
 }
@@ -137,8 +137,7 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
     settings: {
       goalDefaults: () => ({ maxGoalRounds: 100, maxGoalRoundsCeiling: 1000, blockedAfter: 3 }),
       autonomy: () => 'auto',
-      permissionMode: (thread) =>
-        thread === options.root() ? (approval.getPermissionMode() ?? 'default') : 'bypassPermissions',
+      permissionMode: () => approval.getPermissionMode() ?? 'default',
       attendance: () => approval.getInteractionState().userResponse,
       maxBackground: () => DEFAULT_MAX_BACKGROUND,
       offloadThreshold: () => 20_000
@@ -163,16 +162,22 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
 }
 
 export async function createPiInteractionPorts(
-  options: Pick<HostOptions, 'input' | 'approval' | 'emit' | 'toolCallId'>
+  options: Pick<HostOptions, 'input' | 'approval' | 'emit' | 'toolCallIdentity'>
 ): Promise<Pick<HostPorts, 'approvals' | 'questions'>> {
   const { callKeyOf } = await import('@cherrystudio/agent-behavior')
   const { input, approval } = options
   const outcomes = new Map<string, ApprovalOutcome>()
   const skillApprovals = new WeakMap<CallRef, NonNullable<ReturnType<McpSkillService['toolApproval']>>>()
 
-  async function ask(call: CallRef, name: string, args: Record<string, JsonValue>, signal: AbortSignal) {
+  async function ask(
+    call: CallRef,
+    name: string,
+    args: Record<string, JsonValue>,
+    signal: AbortSignal,
+    details?: JsonValue
+  ) {
     signal.throwIfAborted()
-    const toolCallId = await options.toolCallId(call)
+    const { toolCallId, parentToolCallId } = await options.toolCallIdentity(call)
     signal.throwIfAborted()
     const presentation = approval.getInteractionState().userResponse
     if (presentation === 'unavailable') return undefined
@@ -197,7 +202,14 @@ export async function createPiInteractionPorts(
             toolName: name,
             input: args,
             presentation,
-            providerMetadata: { cherry: { transport: PI_TRANSPORT, toolName: name } }
+            providerMetadata: {
+              cherry: {
+                transport: PI_TRANSPORT,
+                toolName: name,
+                ...(parentToolCallId ? { parentToolCallId } : {}),
+                ...(details === undefined ? {} : { commandPolicy: z.json().parse(details) })
+              }
+            }
           }
         })
     })
@@ -226,7 +238,7 @@ export async function createPiInteractionPorts(
           approvalRequired: facts.approvalRequired || !!skillApproval
         }
       },
-      async ask({ call, tool }, signal) {
+      async ask({ call, tool, details }, signal) {
         const id = approvalId(call)
         outcomes.set(id, { call, state: 'pending' })
         try {
@@ -245,7 +257,8 @@ export async function createPiInteractionPorts(
               call,
               tool.name,
               args,
-              skillApproval ? AbortSignal.any([signal, skillApproval.signal]) : signal
+              skillApproval ? AbortSignal.any([signal, skillApproval.signal]) : signal,
+              details
             )
             if (decision?.approved && skillApproval) {
               if (decision.updatedInput) decision = { approved: false }
