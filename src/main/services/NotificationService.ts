@@ -58,6 +58,7 @@ export class NotificationService extends BaseService {
   private readonly activeNotifications = new Set<ElectronNotification>()
   /** Conversations with an unviewed reply or pending approval; drives the Windows taskbar badge. */
   private readonly unreadConversations = new Set<string>()
+  private taskbarBadgeEnabled = false
 
   protected onStop(): void {
     this.activeNotifications.clear()
@@ -70,8 +71,12 @@ export class NotificationService extends BaseService {
         .get('PreferenceService')
         .subscribeMultipleChanges([...OS_NOTIFICATION_PREF_KEYS], () => this.syncDockBadgeWithNotificationPrefs())
     )
+    this.taskbarBadgeEnabled = application.get('PreferenceService').get(TASKBAR_BADGE_PREF_KEY)
     this.registerDisposable(
-      application.get('PreferenceService').subscribeChange(TASKBAR_BADGE_PREF_KEY, () => this.syncTaskbarBadge())
+      application.get('PreferenceService').subscribeChange(TASKBAR_BADGE_PREF_KEY, () => {
+        this.taskbarBadgeEnabled = application.get('PreferenceService').get(TASKBAR_BADGE_PREF_KEY)
+        this.syncTaskbarBadge()
+      })
     )
     this.registerDisposable(
       application.get('WindowManager').onWindowCreatedByType(WindowType.Main, () => this.syncTaskbarBadge())
@@ -105,7 +110,7 @@ export class NotificationService extends BaseService {
   private syncTaskbarBadge(): void {
     if (!isWin) return
 
-    const count = application.get('PreferenceService').get(TASKBAR_BADGE_PREF_KEY) ? this.unreadConversations.size : 0
+    const count = this.taskbarBadgeEnabled ? this.unreadConversations.size : 0
     let overlay: Electron.NativeImage | null = null
     if (count > 0) {
       const { buffer, width, height } = renderTaskbarBadgeBitmap(count)
