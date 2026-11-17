@@ -55,6 +55,24 @@ required service tier.`
   })
 })
 
+it('titles an unusable media attachment in the app language instead of the raw English message', () => {
+  const message = "Cherry Studio couldn't turn this audio or video attachment into text."
+  const key = toast.errorFromException(
+    {
+      name: 'NonNativeMediaAnalysisError',
+      message,
+      i18nKey: 'media_unreadable_without_preprocessing',
+      providerErrorCategory: 'media'
+    },
+    { provider: { id: 'openai', name: 'OpenAI' }, modelName: 'Text Model' }
+  )
+
+  const shown = toast.getToastQueue().toasts.find((item) => item.key === key)
+  expect(shown?.title).toBe(enUS['error.diagnosis.media'])
+  expect(shown?.title).not.toBe(message)
+  expect(shown?.action).toBeUndefined()
+})
+
 it('keeps Cloud rate limits retryable even when their text mentions quota', async () => {
   const retry = vi.fn().mockResolvedValue(false)
   const key = toast.errorFromException(
