@@ -1588,7 +1588,7 @@
   "error.no_response": "Žádná odpověď",
   "error.ocr_detail_empty": "OCR proběhlo, ale v obrázku nenašlo žádný čitelný text. Pokud obrázek text obsahuje, zkontrolujte nastavený procesor OCR (např. jazyková nastavení) v Nastavení → Zpracování souborů, nebo přepněte procesor.",
   "error.ocr_detail_failed": "Nastavený procesor OCR selhal: {{reason}} Zkontrolujte nebo přepněte procesor OCR v Nastavení → Zpracování souborů.",
-  "error.ollama_context_memory": "Při načítání kontextu o {{effective}} tokenech došlo v Ollamě paměť (tento model podporuje {{trained}}).",
+  "error.ollama_context_memory": "Při načítání kontextu o {{effective}} tokenech došlo v aplikaci Ollama paměť (tento model podporuje {{trained}}).",
   "error.ollama_context_retry": "Zkusit znovu s menším kontextem",
   "error.ollama_context_retry_toast": "Limit kontextu byl snížen. Zkuste to znovu odesláním zprávy.",
   "error.originalError": "Původní chyba",
