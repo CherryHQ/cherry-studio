@@ -475,7 +475,7 @@ describe('fileHandlers', () => {
     await fileHandlers['file.show_in_folder']({ kind: 'entry', entryId: ids[0] }, ctx)
 
     expect(fileManager.rename).toHaveBeenCalledWith(ids[0], 'renamed')
-    expect(fileManager.open).toHaveBeenCalledWith(ids[0])
+    expect(fileManager.open).toHaveBeenCalledExactlyOnceWith(ids[0], { channel: 'file.open' })
     expect(fileManager.showInFolder).toHaveBeenCalledWith(ids[0])
   })
 
@@ -483,7 +483,7 @@ describe('fileHandlers', () => {
     await fileHandlers['file.open']({ kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath }, ctx)
     await fileHandlers['file.show_in_folder']({ kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath }, ctx)
 
-    expect(safeOpenMock).toHaveBeenCalledWith('/tmp/report.md')
+    expect(safeOpenMock).toHaveBeenCalledExactlyOnceWith('/tmp/report.md', { channel: 'file.open' })
     expect(showPathInFolderMock).toHaveBeenCalledWith('/tmp/report.md')
     expect(fileManager.open).not.toHaveBeenCalled()
     expect(fileManager.showInFolder).not.toHaveBeenCalled()
