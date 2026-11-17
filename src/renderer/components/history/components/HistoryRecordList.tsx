@@ -10,6 +10,7 @@ import { useCommandHandler } from '@renderer/hooks/command'
 
 import type { HistoryRecordDescriptor, HistoryRowActions, HistoryRowState } from '../historyRecordsDescriptor'
 import type { SelectAllState } from '../useHistoryRecordsController'
+import { HistoryEmptyScene } from './HistoryEmptyScene'
 import { formatHistoryTime, HistoryRecordRow, HistoryTableHeader, HistoryVirtualTable } from './HistoryTableParts'
 
 const PERMANENT_DELETE_ACTION_IDS = new Set(['topic.delete-permanently', 'session.delete-permanently'])
@@ -215,7 +216,13 @@ export function HistoryRecordList<T>({
   const emptyDescription = isLoading ? descriptor.strings.loadingDescription : descriptor.strings.emptyDescription
   const emptyContent = (
     <div className="flex min-h-[320px] items-center justify-center px-5 py-8">
-      <EmptyState compact icon={MessageSquareText} title={emptyTitle} description={emptyDescription} />
+      <EmptyState
+        compact
+        icon={isLoading ? MessageSquareText : undefined}
+        scene={isLoading ? undefined : <HistoryEmptyScene title={descriptor.strings.titleColumnLabel} />}
+        title={emptyTitle}
+        description={emptyDescription}
+      />
     </div>
   )
 

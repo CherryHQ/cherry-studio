@@ -30,6 +30,8 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { matchesPinyinInitials } from '@renderer/utils/pinyin'
 import { cn } from '@renderer/utils/style'
 
+import { AssistantLibraryEmptyScene } from './AssistantLibraryEmptyScene'
+
 // Local "browse everything" tab that sits before the preset categories. It is dialog-only —
 // the shared catalog surface has no such concept — so it lives here rather than in the catalog hook.
 const LIBRARY_ALL_TAB = '__all__'
@@ -247,6 +249,7 @@ export function AssistantLibraryDialog({
               <AssistantLibraryPresetListSkeleton />
             ) : visiblePresets.length === 0 ? (
               <EmptyState
+                scene={<AssistantLibraryEmptyScene />}
                 title={
                   search ? t('library.assistant_catalog.no_match_title') : t('library.assistant_catalog.empty_title')
                 }

@@ -62,6 +62,7 @@ import {
   GlobalSearchGroupHeader,
   GlobalSearchRecentHint,
   GlobalSearchRow,
+  GlobalSearchEmptyState,
   GlobalSearchState
 } from './GlobalSearchResults'
 import type {
@@ -935,7 +936,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     ) : messageError ? (
       <GlobalSearchState label={t('globalSearch.error')} />
     ) : showMessageEmptyState ? (
-      <GlobalSearchState label={hasQuery ? t('common.no_results') : t('globalSearch.messageSearch.hint')} />
+      <GlobalSearchEmptyState label={hasQuery ? t('common.no_results') : t('globalSearch.messageSearch.hint')} />
     ) : (
       <div className="flex h-full min-h-0 flex-col">
         <div className="min-h-0 flex-1">
@@ -1109,7 +1110,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         ) : error ? (
           <GlobalSearchState label={t('globalSearch.error')} />
         ) : showEmptyState ? (
-          <GlobalSearchState label={hasQuery ? t('common.no_results') : t('globalSearch.recent_hint')} />
+          <GlobalSearchEmptyState label={hasQuery ? t('common.no_results') : t('globalSearch.recent_hint')} />
         ) : (
           <div className="relative h-full">
             <GroupedVirtualList

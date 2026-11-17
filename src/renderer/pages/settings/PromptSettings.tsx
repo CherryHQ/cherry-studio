@@ -22,6 +22,7 @@ import {
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@data/hooks/useReorder'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
+import { ResourceGridEmptyScene } from '@renderer/components/resourceCatalog/catalog'
 import { PromptEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { SettingsContentBody, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import {
@@ -284,6 +285,7 @@ export function PromptSettings() {
         ) : visiblePrompts.length === 0 ? (
           <EmptyState
             compact
+            scene={<ResourceGridEmptyScene />}
             title={normalizedSearch ? t('library.empty_state.no_match_title') : t('settings.prompts.noPrompts')}
             description={normalizedSearch ? t('library.empty_state.no_match_description') : undefined}
             className="py-14"
