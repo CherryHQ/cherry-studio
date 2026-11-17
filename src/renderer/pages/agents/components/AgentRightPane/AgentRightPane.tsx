@@ -890,8 +890,9 @@ function AgentRightPaneStateProvider({
     previousSessionIdRef.current = sessionId
     if (!sessionChanged) return
     const kept = fileTabs.filter((tab) => tab.previewType !== 'file')
-    if (kept.length === fileTabs.length) return
-    showFileTabs(kept, previewFileSelection?.previewType === 'file' ? (kept[0] ?? null) : previewFileSelection)
+    const next = previewFileSelection?.previewType === 'file' ? (kept[0] ?? null) : previewFileSelection
+    if (kept.length === fileTabs.length && !next?.location) return
+    showFileTabs(kept, next ? { ...next, location: undefined } : null)
   }, [fileTabs, previewFileSelection, sessionId, showFileTabs])
 
   const requestFileEditMode = useCallback((mode: AgentFileEditorMode) => {

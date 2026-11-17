@@ -3449,6 +3449,40 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
   })
 
+  it.each([false, true])('clears source navigation on session changes (attachment tab=%s)', async (attachment) => {
+    resolveArtifactPaneFileSelectionMock.mockImplementation((workspacePath: string, filePath: string) => ({
+      workspacePath,
+      filePath
+    }))
+    const user = userEvent.setup()
+    const pane = (sessionId: string) => (
+      <TestAgentRightPane
+        defaultOpen
+        sessionId={sessionId}
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <OpenArtifactButton path="source.ts" location={{ line: 42 }} label="located source" />
+        <PreviewInputButton path="/workspace/notes.md" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(pane('session-a'))
+    if (attachment) {
+      await user.click(screen.getByRole('button', { name: 'Preview attachment' }))
+      await screen.findByTestId('artifact-file-preview-overlay')
+    }
+    await user.click(screen.getByRole('button', { name: 'located source' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-source-location', JSON.stringify({ line: 42 }))
+    )
+
+    rerender(pane('session-b'))
+
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-source-location', 'null')
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('source.ts')
+  })
+
   it('drops every attachment tab when the session changes and keeps workspace files open', async () => {
     const user = userEvent.setup()
     fileTreeModelState.hasLoaded = true

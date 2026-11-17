@@ -211,7 +211,7 @@ export default function FileEditor({
       navigationFrame.current = requestAnimationFrame(function revealLocation() {
         const viewport = virtualizer.getRoot()
         if (!node.isConnected || !viewport) return
-        const lineCount = Math.max(1, liveContents.current.split('\n').length)
+        const lineCount = Math.max(1, liveContents.current.split(/\r\n|\r|\n/).length)
         const start = Math.min(location.line, lineCount)
         const end = Math.min(location.endLine ?? location.line, lineCount)
         const position = instance.getLinePosition(start)

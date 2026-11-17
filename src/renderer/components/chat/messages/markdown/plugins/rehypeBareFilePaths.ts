@@ -362,6 +362,14 @@ export function findBareFilePathMatches(value: string, platform: BareFilePathPla
       !isUnquotedTerminator(value[end]) &&
       !isLikelySentenceBoundary(value, end, platform, hasClearFileExtensionFromState(filenameState))
     ) {
+      const locationSuffix =
+        value[end] === ':' && hasClearFileExtensionFromState(filenameState)
+          ? value.slice(end).match(/^:\d+(?::\d+)?(?=$|[\s.,;!?)\]])/)?.[0]
+          : undefined
+      if (locationSuffix) {
+        end += locationSuffix.length
+        break
+      }
       appendFilenameCharacter(filenameState, value, end)
       end += 1
     }
