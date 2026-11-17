@@ -100,6 +100,7 @@ export async function openDurableHarness(
     const registry = createRegistry()
     for (const extension of extensions) registry.install(extension)
     behavior = createPiDurableBehavior({
+      lineage: new Map(),
       install,
       configureChild: options.configureChild ?? ((child) => ({ model: modelOf(child) })),
       onError: (error) => errors.push(error)
