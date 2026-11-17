@@ -131,7 +131,7 @@ vi.mock('react-i18next', () => ({
         'common.no_results': 'No results',
         'common.open': 'Open',
         'common.unnamed': 'Unnamed',
-        'globalSearch.error': 'Search failed',
+        'globalSearch.preview_error': "Couldn't load messages",
         'globalSearch.messageSearch.roles.assistant': 'Assistant',
         'globalSearch.messageSearch.roles.system': 'System',
         'globalSearch.messageSearch.roles.tool': 'Tool',
@@ -442,7 +442,7 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     setScrollGeometry(scroller, { scrollTop: 20, scrollHeight: 4020 })
     rerender(<GlobalSearchMessagePreviewPanel {...props} />)
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Search failed')
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load messages")
 
     setScrollGeometry(scroller, { scrollTop: 0, scrollHeight: 4020 })
     fireEvent.scroll(scroller)
