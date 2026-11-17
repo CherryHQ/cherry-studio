@@ -107,7 +107,9 @@ export async function createPiGatewayModelBinding(
         })
         void stream
           .result()
-          .then((message) => onUsage?.(message.usage, options?.sessionId, message.responseId))
+          .then((message) => {
+            if (!options?.readOnlyFork) onUsage?.(message.usage, options?.sessionId, message.responseId)
+          })
           .catch((error) => {
             loggerService
               .withContext('PiGatewayModelBinding')

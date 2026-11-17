@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
+import { canSuggestPrompt } from '@earendil-works/pi-ai/utils/query-fork'
 import {
   ConversationBusy,
   ProviderDoc,
@@ -86,6 +87,7 @@ export interface PiDurableThreadHandle extends ThreadHandle {
         readonly handle: PiDurableThreadHandle
       }>
     >
+    predictPrompt(prompt: string, signal: AbortSignal): Promise<string>
     facts(): Promise<ConversationFacts>
     providerSessionId(): Promise<string | undefined>
     behaviorToolCallId(call: CallRef): Promise<string | undefined>
@@ -651,6 +653,14 @@ export async function createPiDurableRuntime(
             return rejected('open-child', 'closed')
           }
           return { status: 'confirmed', value: { relation: found.value, handle: opened.value } }
+        },
+        async predictPrompt(prompt, signal) {
+          if (unavailable() || signal.aborted) return ''
+          const fork = await entry.conversation.createQueryFork(context)
+          if (!canSuggestPrompt(fork.messages) || unavailable() || signal.aborted) return ''
+          const { message, calledTool } = await fork.query(prompt, AbortSignal.any([signal, closingAccess.signal]))
+          if (calledTool || signal.aborted || unavailable() || message?.stopReason !== 'stop') return ''
+          return message.content.find((part) => part.type === 'text')?.text ?? ''
         },
         providerSessionId: async () => (await native.snapshot(ProviderDoc, entry.conversation.id, context))?.sessionId,
         facts: () => native.commit((tx) => readFacts(tx, entry.conversation.id), context),

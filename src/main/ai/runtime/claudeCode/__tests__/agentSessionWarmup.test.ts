@@ -233,6 +233,28 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.knowledgeBaseIds).toEqual(['kb-selected'])
   })
 
+  it('opts interactive cold and warm queries into native prediction and disables headless generation', async () => {
+    mocks.preferenceGet.mockImplementation((key) => (key === 'agent.input.suggestions.enabled' ? true : undefined))
+    expect((await buildClaudeCodeQueryRequestForAgentSession('session-1'))?.options.promptSuggestions).toBe(true)
+    expect((await buildClaudeCodeWarmQueryRequestForAgentSession('session-1'))?.options.promptSuggestions).toBe(true)
+    expect(
+      (
+        await buildClaudeCodeQueryRequestForAgentSession(
+          'session-1',
+          undefined,
+          undefined,
+          'default',
+          false,
+          [],
+          'standard',
+          true
+        )
+      )?.options.promptSuggestions
+    ).toBe(false)
+    mocks.preferenceGet.mockReturnValue(false)
+    expect((await buildClaudeCodeWarmQueryRequestForAgentSession('session-1'))?.options.promptSuggestions).toBe(false)
+  })
+
   it('passes the connection rebuild signature into the warm query request', async () => {
     const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
     const current = await deriveConnectionConfig('session-1')
@@ -269,7 +291,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       false,
       [],
       'standard',
-      true
+      false
     )
     const overrideRequest = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
