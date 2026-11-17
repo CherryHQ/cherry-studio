@@ -67,7 +67,9 @@ const mockWindowManager = {
   onWindowCreated: vi.fn(() => ({ dispose: vi.fn() })),
   onWindowDestroyed: vi.fn(() => ({ dispose: vi.fn() })),
   onWindowCreatedByType: vi.fn(() => ({ dispose: vi.fn() })),
-  onWindowDestroyedByType: vi.fn(() => ({ dispose: vi.fn() }))
+  onWindowDestroyedByType: vi.fn(() => ({ dispose: vi.fn() })),
+  onWindowReleasedToPool: vi.fn(() => ({ dispose: vi.fn() })),
+  onWindowReleasedToPoolByType: vi.fn(() => ({ dispose: vi.fn() }))
 }
 
 /**
