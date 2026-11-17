@@ -11,7 +11,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
@@ -32,6 +32,7 @@ import { readForkResources } from '@main/ai/agentSession/fork/resources'
 import { bindNativeInput, prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { getPiTraceContext, observabilitySinks } from '@main/ai/observability'
+import { checkCommand } from '@main/ai/toolApproval/commandPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -114,7 +115,15 @@ vi.mock('@main/utils/shellEnv', () => ({
   getPathFromEnvironment: () => undefined
 }))
 
+// Load the grammars before tests redirect application paths.
+beforeAll(() => checkCommand({ command: 'true', dialect: 'bash', permissionMode: 'default' }))
+
 // Real Runtime, native Pi and SQLite; only provider/environment configuration is substituted.
+/** An approval crosses the runtime boundary and starts a native tool, so the one-second default is a race on CI. */
+const APPROVAL_WAIT = { timeout: 10_000 } as const
+// Native child scheduling and archive projection can exceed the one-second poll default on Windows CI.
+const CHILD_WAIT = { timeout: 10_000 } as const
+
 describe('desktop Pi Durable connection', () => {
   const dbh = setupTestDatabase()
   let directory: string
@@ -652,7 +661,7 @@ describe('desktop Pi Durable connection', () => {
       child.connection.send({ message: message('write fork') })
     ])
     const approvals = (events: AgentRuntimeEvent[]) => events.filter((event) => event.type === 'tool-approval-request')
-    await expect.poll(() => approvals(parent.events).length + approvals(child.events).length).toBe(2)
+    await expect.poll(() => approvals(parent.events).length + approvals(child.events).length, APPROVAL_WAIT).toBe(2)
     const parentPrompt = script.calls.find((call) => call.model.provider === sourceId)?.systemPrompt
     const forkPrompt = script.calls.find((call) => call.model.provider === forkId)?.systemPrompt
     expect(parentPrompt).toContain('Parent instructions only')
@@ -1246,14 +1255,14 @@ describe('desktop Pi Durable connection', () => {
     const { connection, events } = await connect()
     await connection.send({ message: message('write and ask') })
     const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
-    await expect.poll(() => approvals().length).toBe(1)
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
     expect(existsSync(join(directory, 'original.txt'))).toBe(false)
     expect(approvals()[0].request.toolCallId).toBe('write')
     toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, {
       approved: true,
       updatedInput: { path: 'approved.txt', content: 'approved' }
     })
-    await expect.poll(() => approvals().length).toBe(2)
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(2)
     expect(approvals()[1].request).toMatchObject({ toolCallId: 'ask', toolName: 'AskUserQuestion' })
     toolApprovalRegistry.dispatch(approvals()[1].request.approvalId, {
       approved: true,
@@ -1298,7 +1307,7 @@ describe('desktop Pi Durable connection', () => {
     const { connection, events } = await connect()
     await connection.send({ message: message('ask then write') })
     const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
-    await expect.poll(() => approvals().length).toBe(1)
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
 
     snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: to }
     expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
@@ -1308,7 +1317,7 @@ describe('desktop Pi Durable connection', () => {
     })
 
     if (asksForWrite) {
-      await expect.poll(() => approvals().length).toBe(2)
+      await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(2)
       expect(approvals()[1].request).toMatchObject({ toolCallId: 'write' })
       expect(existsSync(join(directory, 'after-switch.txt'))).toBe(false)
       toolApprovalRegistry.dispatch(approvals()[1].request.approvalId, { approved: true })
@@ -1329,14 +1338,14 @@ describe('desktop Pi Durable connection', () => {
       events.flatMap((event) => (event.type === 'tool-approval-request' ? [event.request.approvalId] : []))
     const first = await connect()
     await first.connection.send({ message: message('write') })
-    await expect.poll(() => approvals(first.events)).toHaveLength(1)
+    await expect.poll(() => approvals(first.events), APPROVAL_WAIT).toHaveLength(1)
 
     await first.connection.close()
     subscription.dispose()
     expect(aborted).toEqual(approvals(first.events))
 
     const second = await connect()
-    await expect.poll(() => approvals(second.events)).toEqual(approvals(first.events))
+    await expect.poll(() => approvals(second.events), APPROVAL_WAIT).toEqual(approvals(first.events))
     expect(existsSync(join(directory, 'a.txt'))).toBe(false)
   })
 
@@ -1488,7 +1497,7 @@ describe('desktop Pi Durable connection', () => {
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
-  it('lets subagents write without approval when the root uses default permissions', async () => {
+  it('requires approval for subagent writes when the root uses default permissions', async () => {
     snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
     let root = ''
     script = respondingModel((call) => {
@@ -1510,9 +1519,17 @@ describe('desktop Pi Durable connection', () => {
     })
     const { connection, events } = await connect()
     await connection.send({ message: message('delegate') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
+    expect(approvals()[0].request).toMatchObject({
+      toolCallId: 'child-write',
+      toolName: 'write',
+      providerMetadata: { cherry: { parentToolCallId: 'spawn' } }
+    })
+    expect(existsSync(join(directory, 'child-result.txt'))).toBe(false)
+    toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, { approved: true })
     await done(events, 10_000)
     expect(readFileSync(join(directory, 'child-result.txt'), 'utf8')).toBe('child completed')
-    expect(events.filter((event) => event.type === 'tool-approval-request')).toEqual([])
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
@@ -1550,18 +1567,18 @@ describe('desktop Pi Durable connection', () => {
       const user = message('delegate')
       await connection.send({ message: user })
       await held.reached
-      await done(events)
+      await done(events, CHILD_WAIT.timeout)
       const view = await connection.childProjection('spawn')
       expect(view).toBeDefined()
       expect(view!.snapshot().canSubmit).toBe(true)
       expect(text(events)).not.toContain('child first')
       held.open()
-      await expect.poll(() => JSON.stringify(view!.snapshot().messages)).toContain('child first answer')
-      await expect.poll(() => view!.snapshot().active).toBe(false)
+      await expect.poll(() => JSON.stringify(view!.snapshot().messages), CHILD_WAIT).toContain('child first answer')
+      await expect.poll(() => view!.snapshot().active, CHILD_WAIT).toBe(false)
       const contextId = view!.snapshot().contextId
       const childIdentity = contexts.context(contextId).nativeThreadId
       await connection.messageChild(contextId, 'continue research')
-      await expect.poll(() => JSON.stringify(view!.snapshot().messages)).toContain('child continued answer')
+      await expect.poll(() => JSON.stringify(view!.snapshot().messages), CHILD_WAIT).toContain('child continued answer')
       expect(contexts.context(contextId).nativeThreadId).toBe(childIdentity)
       const childMessage = view!
         .snapshot()
@@ -1569,8 +1586,9 @@ describe('desktop Pi Durable connection', () => {
           message.parts.some((part) => part.type === 'text' && part.text === 'child continued answer')
         )!
       await expect
-        .poll(() =>
-          events.filter((event) => event.type === 'response-start' && event.responseId === 'child-response-2')
+        .poll(
+          () => events.filter((event) => event.type === 'response-start' && event.responseId === 'child-response-2'),
+          CHILD_WAIT
         )
         .toContainEqual({
           type: 'response-start',
@@ -1599,7 +1617,9 @@ describe('desktop Pi Durable connection', () => {
       expect(JSON.stringify(restored?.snapshot().messages)).toContain('child continued answer')
       expect(text(reopened.events)).toBe('')
       await reopened.connection.messageChild(contextId, 'continue after reopen')
-      await expect.poll(() => JSON.stringify(restored!.snapshot().messages)).toContain('child answer after reopen')
+      await expect
+        .poll(() => JSON.stringify(restored!.snapshot().messages), CHILD_WAIT)
+        .toContain('child answer after reopen')
       expect(script.calls[0].model.id).toBe(MODEL.id)
     }
   )
