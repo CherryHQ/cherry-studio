@@ -1,9 +1,8 @@
+import fs from 'node:fs'
 /**
  * Reads the failed message a doctor analysis is bound to. Everything returned here is headed for a
  * model prompt, so it is redacted and treated as untrusted text.
  */
-
-import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
@@ -25,6 +24,7 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
 import type { Message } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { DoctorAgentIncident } from '@shared/types/doctorAgent'
+import type { Serializable } from '@shared/types/serializable'
 
 import { redactForModel } from './doctorWrites'
 
@@ -60,8 +60,8 @@ export function truncateText(text: string, limit: number): string {
 }
 
 /** Redacts secrets, then neutralizes prompt-boundary tricks in every string. */
-export function untrustedForModel(value: unknown): unknown {
-  const walk = (val: unknown): unknown => {
+export function untrustedForModel(value: unknown): Serializable {
+  const walk = (val: Serializable): Serializable => {
     if (typeof val === 'string') return defangSystemReminderTags(sanitizeUntrustedText(val))
     if (Array.isArray(val)) return val.map(walk)
     if (typeof val === 'object' && val !== null) {
@@ -145,7 +145,7 @@ function compactMessage(message: IncidentMessage): unknown {
 }
 
 /** Where the failed message lives, which Agent or assistant produced it, and its errors. */
-export function incidentOverview(incident: DoctorAgentIncident): unknown {
+export function incidentOverview(incident: DoctorAgentIncident): Serializable {
   const kind = conversationKind(incident)
   const conversationId = conversationIdOf(incident.topicId)
   const message = readIncidentMessage(incident)
@@ -195,7 +195,7 @@ function precedingMessages(incident: DoctorAgentIncident, count: number): Incide
 }
 
 /** The failed message and the `before` messages leading up to it, oldest first. */
-export function incidentMessages(incident: DoctorAgentIncident, before: number): unknown {
+export function incidentMessages(incident: DoctorAgentIncident, before: number): Serializable {
   let messages: unknown[]
   try {
     messages = precedingMessages(incident, before).map(compactMessage)
@@ -219,7 +219,7 @@ function truncateStrings(value: unknown): unknown {
  * App log entries (oldest first) that name this conversation, from the most recent log files. Entries stay
  * parsed: text redaction on a raw JSON line treats a leading `agentSessionId` key as a secret and eats the line.
  */
-export function incidentLogs(incident: DoctorAgentIncident, limit: number): unknown {
+export function incidentLogs(incident: DoctorAgentIncident, limit: number): Serializable {
   const ids = new Set([incident.topicId, conversationIdOf(incident.topicId)])
   const logsDir = application.getPath('app.logs')
   const files = fs.existsSync(logsDir)
@@ -290,7 +290,7 @@ function originOf(url: unknown): string | undefined {
 }
 
 /** Where the request went (now and at error time) and what it asked for, without any conversation text. */
-export function incidentRequest(incident: DoctorAgentIncident): unknown {
+export function incidentRequest(incident: DoctorAgentIncident): Serializable {
   const message = readIncidentMessage(incident)
   if (!message) return { missing: true }
   let route: { endpointType?: string; baseUrl?: string; optionsNamespace?: string; providerId: string } | undefined
@@ -325,7 +325,7 @@ export function incidentRequest(incident: DoctorAgentIncident): unknown {
 }
 
 /** The Agent runtime's own transcript around the failure: API errors, retries, failing tools, hook errors. */
-export async function incidentTranscript(incident: DoctorAgentIncident, maxEntries: number): Promise<unknown> {
+export async function incidentTranscript(incident: DoctorAgentIncident, maxEntries: number): Promise<Serializable> {
   if (conversationKind(incident) !== 'agent') return { unavailable: 'only Agent sessions keep a runtime transcript' }
   const sessionId = conversationIdOf(incident.topicId)
   const session = agentSessionService.getById(sessionId)

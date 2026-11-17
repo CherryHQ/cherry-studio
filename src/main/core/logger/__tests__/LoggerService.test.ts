@@ -60,6 +60,25 @@ describe('LoggerService file output', () => {
     flags.dev = false
   })
 
+  it('writes structured metadata with unsupported values as valid JSON', async () => {
+    const { loggerService, readLine } = await loadLogger()
+    loggerService.withContext('MetadataTest').info('metadata', {
+      integer: 1n,
+      callback: () => 'private callback',
+      missing: undefined,
+      nonFinite: Infinity,
+      keep: 'visible'
+    })
+
+    expect(await readLine()).toMatchObject({
+      integer: '<redacted>',
+      callback: '<redacted>',
+      missing: null,
+      nonFinite: null,
+      keep: 'visible'
+    })
+  })
+
   it('keeps module/process when the call carries data arguments', async () => {
     const { loggerService, lines, readLine } = await loadLogger()
     const error = Object.assign(new Error('io fail'), { code: 'EFAKE' })

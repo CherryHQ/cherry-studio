@@ -80,6 +80,32 @@ describe('redactRecord', () => {
 })
 
 describe('redactDeep', () => {
+  it('normalizes unsupported values so diagnostic payloads can be serialized', () => {
+    const result = redactDeep({
+      missing: undefined,
+      integer: 1n,
+      callback: () => 'private callback body',
+      symbol: Symbol('private symbol description'),
+      numbers: [Infinity, NaN, -Infinity],
+      keep: [null, true, 42]
+    })
+    expect(result).toEqual({
+      missing: null,
+      integer: REDACTED,
+      callback: REDACTED,
+      symbol: REDACTED,
+      numbers: [null, null, null],
+      keep: [null, true, 42]
+    })
+    expect(JSON.parse(JSON.stringify(result))).toEqual(result)
+  })
+
+  it('retains reserved own keys while redacting nested secrets', () => {
+    const result = redactDeep({ ['__proto__']: { password: 'private', keep: 'visible' } })
+    expect(result).toEqual({ ['__proto__']: { password: REDACTED, keep: 'visible' } })
+    expect(JSON.stringify(result)).not.toContain('private')
+  })
+
   it('redacts sensitive keys at any depth, keeps benign ones', () => {
     const out = redactDeep({ authorization: 'Bearer x', keep: 'ok', nested: { apiKey: 'k' } }) as Record<string, any>
     expect(out.authorization).toBe(REDACTED)
@@ -123,6 +149,10 @@ describe('redactDeep', () => {
 })
 
 describe('redactServerKey (issue #18648)', () => {
+  it.each(['null', '42', 'true', '"text"'])('rejects a non-object server config: %s', (value) => {
+    expect(redactServerKey(value)).toBe('<unparseable-serverKey>')
+  })
+
   it('redacts env and headers values from a serialized server key', () => {
     const key = JSON.stringify({
       baseUrl: '',
