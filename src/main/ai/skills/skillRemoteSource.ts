@@ -225,7 +225,8 @@ async function fetchFromGithub(
   identifier: string,
   openTempDir: () => Promise<string>
 ): Promise<Omit<FetchedSkill, 'tempDir'>> {
-  const { transportRepoUrl, oid, target, sourceUrl, descriptorFileName, repo } = await resolveGithubSkillTarget(identifier)
+  const { transportRepoUrl, oid, target, sourceUrl, descriptorFileName, repo } =
+    await resolveGithubSkillTarget(identifier)
 
   const tempDir = await openTempDir()
   const commit = await fetchGithubCommit(transportRepoUrl, oid, tempDir)
