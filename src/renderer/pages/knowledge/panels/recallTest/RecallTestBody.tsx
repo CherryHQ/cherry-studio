@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { EmptyState } from '@cherrystudio/ui'
 
+import { RecallEmptyScene } from './RecallEmptyScene'
 import RecallResultCard from './RecallResultCard'
 import { useRecallResult } from './RecallTestProvider'
 import { formatRecallPercent, formatRecallScore } from './utils'
@@ -59,6 +60,7 @@ const RecallEmptyState = () => {
   return (
     <div className="h-full min-h-0 min-w-0 overflow-x-hidden overflow-y-auto [&::-webkit-scrollbar]:hidden">
       <EmptyState
+        scene={<RecallEmptyScene />}
         title={t('knowledge.recall.empty_title')}
         description={t('knowledge.recall.empty_description')}
         className="h-full"

@@ -12,6 +12,7 @@ import { ipcApi } from '@renderer/ipc'
 import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils/error'
 import type { KnowledgeItem, KnowledgeItemChunk } from '@shared/data/types/knowledge'
 
+import { ChunkEmptyScene } from './DataSourceEmptyScenes'
 import { toKnowledgeItemRowViewModel } from './utils/selectors'
 
 const logger = loggerService.withContext('KnowledgeItemChunkDetailPanel')
@@ -168,7 +169,12 @@ const KnowledgeItemChunkDetailPanel = ({
             <KnowledgeItemChunkState>{error.message}</KnowledgeItemChunkState>
           ) : null}
           {!isItemLoading && !isLoading && !itemError && !error && chunks.length === 0 ? (
-            <EmptyState title={t('knowledge.data_source.empty_description')} compact className="h-full" />
+            <EmptyState
+              scene={<ChunkEmptyScene />}
+              title={t('knowledge.data_source.empty_description')}
+              compact
+              className="h-full"
+            />
           ) : null}
         </ScrollArea>
       )}

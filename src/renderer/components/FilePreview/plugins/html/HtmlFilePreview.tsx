@@ -1,4 +1,3 @@
-import FileCode from 'lucide-react/dist/esm/icons/file-code'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import { lazy, type ReactNode, Suspense, useLayoutEffect, useMemo, useState } from 'react'
@@ -18,6 +17,7 @@ import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webviewAnnotation'
 import { toSafeFileUrl } from '@shared/utils/file'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
+import { FilePreviewEmptyScene } from '../../FilePreviewEmptyScene'
 import type { FilePreviewPluginProps } from '../../types'
 import { type HtmlFilePreviewMode, HtmlFilePreviewToolbar } from './HtmlFilePreviewToolbar'
 
@@ -76,7 +76,7 @@ function HtmlPreviewEmpty() {
 
   return (
     <EmptyState
-      icon={FileCode}
+      scene={<FilePreviewEmptyScene kind="empty" />}
       title={t('file_preview.html.empty.title')}
       description={t('file_preview.html.empty.description')}
       className="h-full"
