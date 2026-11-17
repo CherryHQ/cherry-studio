@@ -100,17 +100,17 @@ function FilePreviewState({ kind, filePath, error }: FilePreviewStateProps) {
           className="h-full"
           actionLabel={openablePath ? t('file_preview.unsupported.action') : undefined}
           onAction={openablePath ? handleOpenWithDefaultApp : undefined}
+          detail={
+            error != null && (kind === 'load_error' || kind === 'unavailable') ? (
+              <ErrorDetailAction
+                error={error}
+                message={description}
+                source="file.preview"
+                operation={kind === 'load_error' ? 'file.preview.render' : 'file.preview.load'}
+              />
+            ) : undefined
+          }
         />
-        {error != null && (kind === 'load_error' || kind === 'unavailable') ? (
-          <div className="flex justify-center pb-4">
-            <ErrorDetailAction
-              error={error}
-              message={description}
-              source="file.preview"
-              operation={kind === 'load_error' ? 'file.preview.render' : 'file.preview.load'}
-            />
-          </div>
-        ) : null}
       </FilePreviewLayout.Content>
     </FilePreviewLayout.Frame>
   )

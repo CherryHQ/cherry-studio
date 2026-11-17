@@ -50,10 +50,10 @@ function MarkdownPreviewError({ error }: { error: Error }) {
         title={t('file_preview.markdown.read_error.title')}
         description={description}
         className="min-h-0 flex-1"
+        detail={
+          <ErrorDetailAction error={error} message={description} source="file.preview" operation="file.preview.read" />
+        }
       />
-      <div className="flex justify-center pb-4">
-        <ErrorDetailAction error={error} message={description} source="file.preview" operation="file.preview.read" />
-      </div>
     </div>
   )
 }

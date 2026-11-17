@@ -81,6 +81,8 @@ outline navigation, emit diagnostics while the rest of the document remains usab
 
 `onError` receives a `PreviewError` with a stable `code` and an optional underlying
 `cause`. Error messages are diagnostic details, not localized UI copy.
+`errorDetail` renders host content, such as a link to the host's error details, directly
+under the load-error message. Unsupported and too-large states do not show it.
 
 | Code | Meaning |
 | --- | --- |
