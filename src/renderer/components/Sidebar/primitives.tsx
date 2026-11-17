@@ -3,14 +3,6 @@ import { isEmoji } from '@renderer/utils/naming'
 
 import type { SidebarUser } from './types'
 
-export function DefaultLogo({ title }: { title: string }) {
-  return (
-    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/15 text-sm font-medium text-primary">
-      {title ? title.slice(0, 1).toUpperCase() : ''}
-    </div>
-  )
-}
-
 /** Returns true if the string is NOT a URL — i.e., should be rendered as text (emoji or initial). */
 function isTextAvatar(str?: string): boolean {
   if (
@@ -35,16 +27,19 @@ export function UserAvatar({ user, className }: { user: SidebarUser; className?:
   const isEmojiAvatar = user.avatar ? isEmoji(user.avatar) : false
 
   return (
-    <div className={`overflow-hidden rounded-full ${className ?? ''}`}>
-      {user.avatar && !isTextAvatar(user.avatar) ? (
-        <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
-      ) : isEmojiAvatar ? (
-        <EmojiIcon emoji={user.avatar!} fluid />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-blue-400 to-indigo-500 text-[10px] text-white">
-          {getUserAvatarFallback(user)}
-        </div>
-      )}
+    <div className={`relative ${className ?? ''}`}>
+      <div className="h-full w-full overflow-hidden rounded-full">
+        {user.avatar && !isTextAvatar(user.avatar) ? (
+          <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
+        ) : isEmojiAvatar ? (
+          <EmojiIcon emoji={user.avatar!} fluid />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-blue-400 to-indigo-500 text-[10px] text-white">
+            {getUserAvatarFallback(user)}
+          </div>
+        )}
+      </div>
+      {user.indicator}
     </div>
   )
 }

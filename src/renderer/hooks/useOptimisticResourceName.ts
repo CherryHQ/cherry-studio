@@ -18,6 +18,17 @@ interface OptimisticNameOverlay {
   settled: boolean
 }
 
+function applyNameOverlays<T extends VersionedNamedResource>(
+  items: readonly T[],
+  overlays: ReadonlyMap<string, OptimisticNameOverlay>
+): readonly T[] {
+  if (overlays.size === 0) return items
+  return items.map((item) => {
+    const overlay = overlays.get(item.id)
+    return overlay === undefined ? item : { ...item, name: overlay.name }
+  })
+}
+
 /**
  * Keeps the latest submitted resource name visible until the versioned source becomes authoritative.
  *
@@ -30,17 +41,14 @@ export function useOptimisticResourceName<T extends VersionedNamedResource>(sour
   const sourceItemsRef = useRef(sourceItems)
   const requestIdRef = useRef(0)
   const queuesRef = useRef(new SequencerByKey<string>())
+  const nameOverlaysRef = useRef(nameOverlays)
   sourceItemsRef.current = sourceItems
+  nameOverlaysRef.current = nameOverlays
 
-  const items = useMemo(
-    () =>
-      nameOverlays.size === 0
-        ? sourceItems
-        : sourceItems.map((item) => {
-            const overlay = nameOverlays.get(item.id)
-            return overlay === undefined ? item : { ...item, name: overlay.name }
-          }),
-    [nameOverlays, sourceItems]
+  const items = useMemo(() => applyNameOverlays(sourceItems, nameOverlays), [nameOverlays, sourceItems])
+  const withOptimisticNames = useCallback(
+    (source: readonly T[]) => applyNameOverlays(source, nameOverlaysRef.current),
+    []
   )
 
   useEffect(() => {
@@ -124,5 +132,5 @@ export function useOptimisticResourceName<T extends VersionedNamedResource>(sour
     })
   }, [])
 
-  return { items, rename }
+  return { items, rename, withOptimisticNames }
 }

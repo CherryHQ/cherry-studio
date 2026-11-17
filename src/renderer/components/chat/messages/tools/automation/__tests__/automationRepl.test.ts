@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { normalizeToolErrorResponse } from '../../toolResponse'
-import { parseAutomationReplOutput } from '../automationRepl'
+import { buildToolResponseFromPart, normalizeToolErrorResponse } from '../../toolResponse'
+import { getAutomationCell, parseAutomationReplOutput } from '../automationRepl'
 
 const failedCell = {
   isError: true,
@@ -28,4 +28,43 @@ describe('parseAutomationReplOutput', () => {
       isError: true
     })
   })
+})
+
+it('correlates only validated cell IDs without reading target apps from tool output', () => {
+  const cell = '12345678-1234-4234-8234-123456789abc'
+  expect(getAutomationCell({ content: [], structuredContent: { replContext: { cell } } })).toBe(cell)
+  expect(
+    getAutomationCell({
+      isError: true,
+      content: [{ type: 'text', text: 'Failed' }],
+      structuredContent: { replContext: { cell } }
+    })
+  ).toBe(cell)
+  expect(
+    getAutomationCell([
+      { type: 'text', text: `REPL_CONTEXT ${JSON.stringify({ cell })}`, annotations: { audience: ['assistant'] } }
+    ])
+  ).toBe(cell)
+  expect(getAutomationCell([{ type: 'text', text: `REPL_CONTEXT ${JSON.stringify({ cell })}` }])).toBe(cell)
+  expect(getAutomationCell({ content: [], structuredContent: { replContext: { cell: 'invalid' } } })).toBeUndefined()
+})
+
+it('recovers the cell from Claude and Pi Durable text-only results without matching observation text', () => {
+  const cell = '12345678-1234-4234-8234-123456789abc'
+  const output = `OBSERVATION Finder\nREPL_CONTEXT ${JSON.stringify({ cell })}`
+  expect(getAutomationCell(output)).toBe(cell)
+  expect(getAutomationCell({ content: [{ type: 'text', text: output }], isError: false })).toBe(cell)
+  expect(getAutomationCell(normalizeToolErrorResponse(output))).toBe(cell)
+  expect(getAutomationCell(`${output}\n`)).toBe(cell)
+  expect(getAutomationCell(`${output}\nMore observed text`)).toBeUndefined()
+  expect(getAutomationCell('REPL_CONTEXT {"cell":"invalid"}')).toBeUndefined()
+  const part = {
+    type: 'dynamic-tool' as const,
+    toolName: 'mcp__automation__js',
+    toolCallId: 'claude-call',
+    input: {},
+    state: 'output-available' as const,
+    output: { content: output, metadata: { type: 'mcp', name: 'js', serverId: 'automation' } }
+  }
+  expect(getAutomationCell(buildToolResponseFromPart(part)?.response)).toBe(cell)
 })

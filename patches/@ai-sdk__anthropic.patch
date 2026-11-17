@@ -1,3 +1,37 @@
+diff --git a/dist/index.d.mts b/dist/index.d.mts
+--- a/dist/index.d.mts
++++ b/dist/index.d.mts
+@@ -29,11 +29,11 @@
+     /**
+      * Number of input tokens consumed in this iteration.
+      */
+-    inputTokens: number;
++    inputTokens?: number | null;
+     /**
+      * Number of output tokens generated in this iteration.
+      */
+-    outputTokens: number;
++    outputTokens?: number | null;
+     /**
+      * Number of cache-creation input tokens consumed in this iteration.
+      */
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -29,11 +29,11 @@
+     /**
+      * Number of input tokens consumed in this iteration.
+      */
+-    inputTokens: number;
++    inputTokens?: number | null;
+     /**
+      * Number of output tokens generated in this iteration.
+      */
+-    outputTokens: number;
++    outputTokens?: number | null;
+     /**
+      * Number of cache-creation input tokens consumed in this iteration.
+      */
 diff --git a/dist/index.js b/dist/index.js
 --- a/dist/index.js
 +++ b/dist/index.js
@@ -10,6 +44,103 @@ diff --git a/dist/index.js b/dist/index.js
            }),
            import_v42.z.object({
              type: import_v42.z.literal("redacted_thinking"),
+@@ -367,8 +367,8 @@
+       stop_details: anthropicStopDetailsSchema.nullish(),
+       input_transformations: import_v42.z.array(anthropicInputTransformationSchema).nullish(),
+       usage: import_v42.z.looseObject({
+-        input_tokens: import_v42.z.number(),
+-        output_tokens: import_v42.z.number(),
++        input_tokens: import_v42.z.number().nullish(),
++        output_tokens: import_v42.z.number().nullish(),
+         output_tokens_details: import_v42.z.object({
+           thinking_tokens: import_v42.z.number().nullish()
+         }).nullish(),
+@@ -383,13 +383,13 @@
+               import_v42.z.literal("fallback_message")
+             ]),
+             model: import_v42.z.string().nullish(),
+-            input_tokens: import_v42.z.number(),
+-            output_tokens: import_v42.z.number(),
++            input_tokens: import_v42.z.number().nullish(),
++            output_tokens: import_v42.z.number().nullish(),
+             cache_creation_input_tokens: import_v42.z.number().nullish(),
+             cache_read_input_tokens: import_v42.z.number().nullish()
+           })
+         ).nullish()
+-      }),
++      }).nullish().transform((usage) => ({ ...usage })),
+       container: import_v42.z.object({
+         expires_at: import_v42.z.string(),
+         id: import_v42.z.string(),
+@@ -433,10 +433,10 @@
+           model: import_v42.z.string().nullish(),
+           role: import_v42.z.string().nullish(),
+           usage: import_v42.z.looseObject({
+-            input_tokens: import_v42.z.number(),
++            input_tokens: import_v42.z.number().nullish(),
+             cache_creation_input_tokens: import_v42.z.number().nullish(),
+             cache_read_input_tokens: import_v42.z.number().nullish()
+-          }),
++          }).nullish().transform((usage) => ({ ...usage })),
+           // Programmatic tool calling: content may be pre-populated for deferred tool calls
+           content: import_v42.z.array(
+             import_v42.z.discriminatedUnion("type", [
+@@ -792,7 +792,7 @@
+         }),
+         usage: import_v42.z.looseObject({
+           input_tokens: import_v42.z.number().nullish(),
+-          output_tokens: import_v42.z.number(),
++          output_tokens: import_v42.z.number().nullish(),
+           output_tokens_details: import_v42.z.object({
+             thinking_tokens: import_v42.z.number().nullish()
+           }).nullish(),
+@@ -807,13 +807,13 @@
+                 import_v42.z.literal("fallback_message")
+               ]),
+               model: import_v42.z.string().nullish(),
+-              input_tokens: import_v42.z.number(),
+-              output_tokens: import_v42.z.number(),
++              input_tokens: import_v42.z.number().nullish(),
++              output_tokens: import_v42.z.number().nullish(),
+               cache_creation_input_tokens: import_v42.z.number().nullish(),
+               cache_read_input_tokens: import_v42.z.number().nullish()
+             })
+           ).nullish()
+-        }),
++        }).nullish().transform((usage) => ({ ...usage })),
+         input_transformations: import_v42.z.array(anthropicInputTransformationSchema).nullish(),
+         context_management: import_v42.z.object({
+           applied_edits: import_v42.z.array(
+@@ -2018,8 +2018,8 @@
+     if (executorIterations.length > 0) {
+       const totals = executorIterations.reduce(
+         (acc, iter) => ({
+-          input: acc.input + iter.input_tokens,
+-          output: acc.output + iter.output_tokens
++          input: acc.input == null || iter.input_tokens == null ? void 0 : acc.input + iter.input_tokens,
++          output: acc.output == null || iter.output_tokens == null ? void 0 : acc.output + iter.output_tokens
+         }),
+         { input: 0, output: 0 }
+       );
+@@ -2035,14 +2035,14 @@
+   }
+   return {
+     inputTokens: {
+-      total: inputTokens + cacheCreationTokens + cacheReadTokens,
+-      noCache: inputTokens,
++      total: inputTokens == null ? void 0 : inputTokens + cacheCreationTokens + cacheReadTokens,
++      noCache: inputTokens ?? void 0,
+       cacheRead: cacheReadTokens,
+       cacheWrite: cacheCreationTokens
+     },
+     outputTokens: {
+-      total: outputTokens,
+-      text: reasoningTokens == null ? void 0 : outputTokens - reasoningTokens,
++      total: outputTokens ?? void 0,
++      text: reasoningTokens == null || outputTokens == null ? void 0 : outputTokens - reasoningTokens,
+       reasoning: reasoningTokens
+     },
+     raw: rawUsage != null ? rawUsage : usage
 @@ -3798,7 +3798,7 @@
        warnings.push({
          type: "compatibility",
@@ -45,10 +176,48 @@ diff --git a/dist/index.js b/dist/index.js
      } else {
        if (isAnthropicModel && topP != null && temperature != null) {
          warnings.push({
+@@ -4843,8 +4845,8 @@
+       raw: void 0
+     };
+     const usage = {
+-      input_tokens: 0,
+-      output_tokens: 0,
++      input_tokens: void 0,
++      output_tokens: void 0,
+       cache_creation_input_tokens: 0,
+       cache_read_input_tokens: 0,
+       iterations: null
+@@ -5639,7 +5641,9 @@
+               if (value.usage.input_tokens != null && usage.input_tokens !== value.usage.input_tokens) {
+                 usage.input_tokens = value.usage.input_tokens;
+               }
+-              usage.output_tokens = value.usage.output_tokens;
++              if (value.usage.output_tokens != null) {
++                usage.output_tokens = value.usage.output_tokens;
++              }
+               if (value.usage.output_tokens_details != null) {
+                 usage.output_tokens_details = value.usage.output_tokens_details;
+               }
+@@ -5747,6 +5751,7 @@
+       }
+       if (((_b = result.value) == null ? void 0 : _b.type) === "error") {
+         const error = result.value.error;
++        if (import_provider3.TypeValidationError.isInstance(error)) throw error;
+         throw new import_provider3.APICallError({
+           message: error.message,
+           url,
 diff --git a/dist/index.mjs b/dist/index.mjs
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -126,7 +126,7 @@
+@@ -17,6 +17,7 @@
+ // src/anthropic-messages-language-model.ts
+ import {
+   APICallError,
++  TypeValidationError,
+   InvalidResponseDataError
+ } from "@ai-sdk/provider";
+ import {
+@@ -126,7 +127,7 @@
            z2.object({
              type: z2.literal("thinking"),
              thinking: z2.string(),
@@ -57,7 +226,104 @@ diff --git a/dist/index.mjs b/dist/index.mjs
            }),
            z2.object({
              type: z2.literal("redacted_thinking"),
-@@ -3854,7 +3854,7 @@
+@@ -367,8 +368,8 @@
+       stop_details: anthropicStopDetailsSchema.nullish(),
+       input_transformations: z2.array(anthropicInputTransformationSchema).nullish(),
+       usage: z2.looseObject({
+-        input_tokens: z2.number(),
+-        output_tokens: z2.number(),
++        input_tokens: z2.number().nullish(),
++        output_tokens: z2.number().nullish(),
+         output_tokens_details: z2.object({
+           thinking_tokens: z2.number().nullish()
+         }).nullish(),
+@@ -383,13 +384,13 @@
+               z2.literal("fallback_message")
+             ]),
+             model: z2.string().nullish(),
+-            input_tokens: z2.number(),
+-            output_tokens: z2.number(),
++            input_tokens: z2.number().nullish(),
++            output_tokens: z2.number().nullish(),
+             cache_creation_input_tokens: z2.number().nullish(),
+             cache_read_input_tokens: z2.number().nullish()
+           })
+         ).nullish()
+-      }),
++      }).nullish().transform((usage) => ({ ...usage })),
+       container: z2.object({
+         expires_at: z2.string(),
+         id: z2.string(),
+@@ -433,10 +434,10 @@
+           model: z2.string().nullish(),
+           role: z2.string().nullish(),
+           usage: z2.looseObject({
+-            input_tokens: z2.number(),
++            input_tokens: z2.number().nullish(),
+             cache_creation_input_tokens: z2.number().nullish(),
+             cache_read_input_tokens: z2.number().nullish()
+-          }),
++          }).nullish().transform((usage) => ({ ...usage })),
+           // Programmatic tool calling: content may be pre-populated for deferred tool calls
+           content: z2.array(
+             z2.discriminatedUnion("type", [
+@@ -792,7 +793,7 @@
+         }),
+         usage: z2.looseObject({
+           input_tokens: z2.number().nullish(),
+-          output_tokens: z2.number(),
++          output_tokens: z2.number().nullish(),
+           output_tokens_details: z2.object({
+             thinking_tokens: z2.number().nullish()
+           }).nullish(),
+@@ -807,13 +808,13 @@
+                 z2.literal("fallback_message")
+               ]),
+               model: z2.string().nullish(),
+-              input_tokens: z2.number(),
+-              output_tokens: z2.number(),
++              input_tokens: z2.number().nullish(),
++              output_tokens: z2.number().nullish(),
+               cache_creation_input_tokens: z2.number().nullish(),
+               cache_read_input_tokens: z2.number().nullish()
+             })
+           ).nullish()
+-        }),
++        }).nullish().transform((usage) => ({ ...usage })),
+         input_transformations: z2.array(anthropicInputTransformationSchema).nullish(),
+         context_management: z2.object({
+           applied_edits: z2.array(
+@@ -2048,8 +2049,8 @@
+     if (executorIterations.length > 0) {
+       const totals = executorIterations.reduce(
+         (acc, iter) => ({
+-          input: acc.input + iter.input_tokens,
+-          output: acc.output + iter.output_tokens
++          input: acc.input == null || iter.input_tokens == null ? void 0 : acc.input + iter.input_tokens,
++          output: acc.output == null || iter.output_tokens == null ? void 0 : acc.output + iter.output_tokens
+         }),
+         { input: 0, output: 0 }
+       );
+@@ -2065,14 +2066,14 @@
+   }
+   return {
+     inputTokens: {
+-      total: inputTokens + cacheCreationTokens + cacheReadTokens,
+-      noCache: inputTokens,
++      total: inputTokens == null ? void 0 : inputTokens + cacheCreationTokens + cacheReadTokens,
++      noCache: inputTokens ?? void 0,
+       cacheRead: cacheReadTokens,
+       cacheWrite: cacheCreationTokens
+     },
+     outputTokens: {
+-      total: outputTokens,
+-      text: reasoningTokens == null ? void 0 : outputTokens - reasoningTokens,
++      total: outputTokens ?? void 0,
++      text: reasoningTokens == null || outputTokens == null ? void 0 : outputTokens - reasoningTokens,
+       reasoning: reasoningTokens
+     },
+     raw: rawUsage != null ? rawUsage : usage
+@@ -3854,7 +3855,7 @@
        warnings.push({
          type: "compatibility",
          feature: "maxOutputTokens",
@@ -66,7 +332,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        });
      }
      if (rejectsSamplingParameters) {
-@@ -3996,12 +3996,12 @@
+@@ -3996,12 +3997,12 @@
      const thinkingDisplay = thinkingType === "adaptive" && thinking != null && "display" in thinking ? thinking.display : void 0;
      const thinkingBlockBinding = thinking != null && "blockBinding" in thinking ? thinking.blockBinding : void 0;
      const sendThinkingConfig = sendThinking || thinkingBlockBinding != null;
@@ -81,7 +347,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        temperature,
        top_k: topK,
        top_p: topP,
-@@ -4177,7 +4177,9 @@
+@@ -4177,7 +4178,9 @@
            details: "topP is not supported when thinking is enabled"
          });
        }
@@ -92,6 +358,36 @@ diff --git a/dist/index.mjs b/dist/index.mjs
      } else {
        if (isAnthropicModel && topP != null && temperature != null) {
          warnings.push({
+@@ -4899,8 +4902,8 @@
+       raw: void 0
+     };
+     const usage = {
+-      input_tokens: 0,
+-      output_tokens: 0,
++      input_tokens: void 0,
++      output_tokens: void 0,
+       cache_creation_input_tokens: 0,
+       cache_read_input_tokens: 0,
+       iterations: null
+@@ -5695,7 +5698,9 @@
+               if (value.usage.input_tokens != null && usage.input_tokens !== value.usage.input_tokens) {
+                 usage.input_tokens = value.usage.input_tokens;
+               }
+-              usage.output_tokens = value.usage.output_tokens;
++              if (value.usage.output_tokens != null) {
++                usage.output_tokens = value.usage.output_tokens;
++              }
+               if (value.usage.output_tokens_details != null) {
+                 usage.output_tokens_details = value.usage.output_tokens_details;
+               }
+@@ -5803,6 +5808,7 @@
+       }
+       if (((_b = result.value) == null ? void 0 : _b.type) === "error") {
+         const error = result.value.error;
++        if (TypeValidationError.isInstance(error)) throw error;
+         throw new APICallError({
+           message: error.message,
+           url,
 diff --git a/dist/internal/index.js b/dist/internal/index.js
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
@@ -104,6 +400,73 @@ diff --git a/dist/internal/index.js b/dist/internal/index.js
            }),
            import_v42.z.object({
              type: import_v42.z.literal("redacted_thinking"),
+@@ -361,8 +361,8 @@
+       stop_details: anthropicStopDetailsSchema.nullish(),
+       input_transformations: import_v42.z.array(anthropicInputTransformationSchema).nullish(),
+       usage: import_v42.z.looseObject({
+-        input_tokens: import_v42.z.number(),
+-        output_tokens: import_v42.z.number(),
++        input_tokens: import_v42.z.number().nullish(),
++        output_tokens: import_v42.z.number().nullish(),
+         output_tokens_details: import_v42.z.object({
+           thinking_tokens: import_v42.z.number().nullish()
+         }).nullish(),
+@@ -377,13 +377,13 @@
+               import_v42.z.literal("fallback_message")
+             ]),
+             model: import_v42.z.string().nullish(),
+-            input_tokens: import_v42.z.number(),
+-            output_tokens: import_v42.z.number(),
++            input_tokens: import_v42.z.number().nullish(),
++            output_tokens: import_v42.z.number().nullish(),
+             cache_creation_input_tokens: import_v42.z.number().nullish(),
+             cache_read_input_tokens: import_v42.z.number().nullish()
+           })
+         ).nullish()
+-      }),
++      }).nullish().transform((usage) => ({ ...usage })),
+       container: import_v42.z.object({
+         expires_at: import_v42.z.string(),
+         id: import_v42.z.string(),
+@@ -427,10 +427,10 @@
+           model: import_v42.z.string().nullish(),
+           role: import_v42.z.string().nullish(),
+           usage: import_v42.z.looseObject({
+-            input_tokens: import_v42.z.number(),
++            input_tokens: import_v42.z.number().nullish(),
+             cache_creation_input_tokens: import_v42.z.number().nullish(),
+             cache_read_input_tokens: import_v42.z.number().nullish()
+-          }),
++          }).nullish().transform((usage) => ({ ...usage })),
+           // Programmatic tool calling: content may be pre-populated for deferred tool calls
+           content: import_v42.z.array(
+             import_v42.z.discriminatedUnion("type", [
+@@ -786,7 +786,7 @@
+         }),
+         usage: import_v42.z.looseObject({
+           input_tokens: import_v42.z.number().nullish(),
+-          output_tokens: import_v42.z.number(),
++          output_tokens: import_v42.z.number().nullish(),
+           output_tokens_details: import_v42.z.object({
+             thinking_tokens: import_v42.z.number().nullish()
+           }).nullish(),
+@@ -801,13 +801,13 @@
+                 import_v42.z.literal("fallback_message")
+               ]),
+               model: import_v42.z.string().nullish(),
+-              input_tokens: import_v42.z.number(),
+-              output_tokens: import_v42.z.number(),
++              input_tokens: import_v42.z.number().nullish(),
++              output_tokens: import_v42.z.number().nullish(),
+               cache_creation_input_tokens: import_v42.z.number().nullish(),
+               cache_read_input_tokens: import_v42.z.number().nullish()
+             })
+           ).nullish()
+-        }),
++        }).nullish().transform((usage) => ({ ...usage })),
+         input_transformations: import_v42.z.array(anthropicInputTransformationSchema).nullish(),
+         context_management: import_v42.z.object({
+           applied_edits: import_v42.z.array(
 @@ -1614,7 +1614,7 @@
          anthropicTools2.push({
            name: tool.name,
@@ -113,6 +476,36 @@ diff --git a/dist/internal/index.js b/dist/internal/index.js
            cache_control: cacheControl,
            ...eagerInputStreaming ? { eager_input_streaming: true } : {},
            ...supportsStrictTools === true && tool.strict != null ? { strict: tool.strict } : {},
+@@ -2012,8 +2012,8 @@
+     if (executorIterations.length > 0) {
+       const totals = executorIterations.reduce(
+         (acc, iter) => ({
+-          input: acc.input + iter.input_tokens,
+-          output: acc.output + iter.output_tokens
++          input: acc.input == null || iter.input_tokens == null ? void 0 : acc.input + iter.input_tokens,
++          output: acc.output == null || iter.output_tokens == null ? void 0 : acc.output + iter.output_tokens
+         }),
+         { input: 0, output: 0 }
+       );
+@@ -2029,14 +2029,14 @@
+   }
+   return {
+     inputTokens: {
+-      total: inputTokens + cacheCreationTokens + cacheReadTokens,
+-      noCache: inputTokens,
++      total: inputTokens == null ? void 0 : inputTokens + cacheCreationTokens + cacheReadTokens,
++      noCache: inputTokens ?? void 0,
+       cacheRead: cacheReadTokens,
+       cacheWrite: cacheCreationTokens
+     },
+     outputTokens: {
+-      total: outputTokens,
+-      text: reasoningTokens == null ? void 0 : outputTokens - reasoningTokens,
++      total: outputTokens ?? void 0,
++      text: reasoningTokens == null || outputTokens == null ? void 0 : outputTokens - reasoningTokens,
+       reasoning: reasoningTokens
+     },
+     raw: rawUsage != null ? rawUsage : usage
 @@ -3565,7 +3565,7 @@
          ])
        );
@@ -157,10 +550,48 @@ diff --git a/dist/internal/index.js b/dist/internal/index.js
      } else {
        if (isAnthropicModel && topP != null && temperature != null) {
          warnings.push({
+@@ -4837,8 +4839,8 @@
+       raw: void 0
+     };
+     const usage = {
+-      input_tokens: 0,
+-      output_tokens: 0,
++      input_tokens: void 0,
++      output_tokens: void 0,
+       cache_creation_input_tokens: 0,
+       cache_read_input_tokens: 0,
+       iterations: null
+@@ -5633,7 +5635,9 @@
+               if (value.usage.input_tokens != null && usage.input_tokens !== value.usage.input_tokens) {
+                 usage.input_tokens = value.usage.input_tokens;
+               }
+-              usage.output_tokens = value.usage.output_tokens;
++              if (value.usage.output_tokens != null) {
++                usage.output_tokens = value.usage.output_tokens;
++              }
+               if (value.usage.output_tokens_details != null) {
+                 usage.output_tokens_details = value.usage.output_tokens_details;
+               }
+@@ -5741,6 +5745,7 @@
+       }
+       if (((_b = result.value) == null ? void 0 : _b.type) === "error") {
+         const error = result.value.error;
++        if (import_provider3.TypeValidationError.isInstance(error)) throw error;
+         throw new import_provider3.APICallError({
+           message: error.message,
+           url,
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
-@@ -110,7 +110,7 @@
+@@ -1,6 +1,7 @@
+ // src/anthropic-messages-language-model.ts
+ import {
+   APICallError,
++  TypeValidationError,
+   InvalidResponseDataError
+ } from "@ai-sdk/provider";
+ import {
+@@ -110,7 +111,7 @@
            z2.object({
              type: z2.literal("thinking"),
              thinking: z2.string(),
@@ -169,7 +600,74 @@ diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
            }),
            z2.object({
              type: z2.literal("redacted_thinking"),
-@@ -1634,7 +1634,7 @@
+@@ -351,8 +352,8 @@
+       stop_details: anthropicStopDetailsSchema.nullish(),
+       input_transformations: z2.array(anthropicInputTransformationSchema).nullish(),
+       usage: z2.looseObject({
+-        input_tokens: z2.number(),
+-        output_tokens: z2.number(),
++        input_tokens: z2.number().nullish(),
++        output_tokens: z2.number().nullish(),
+         output_tokens_details: z2.object({
+           thinking_tokens: z2.number().nullish()
+         }).nullish(),
+@@ -367,13 +368,13 @@
+               z2.literal("fallback_message")
+             ]),
+             model: z2.string().nullish(),
+-            input_tokens: z2.number(),
+-            output_tokens: z2.number(),
++            input_tokens: z2.number().nullish(),
++            output_tokens: z2.number().nullish(),
+             cache_creation_input_tokens: z2.number().nullish(),
+             cache_read_input_tokens: z2.number().nullish()
+           })
+         ).nullish()
+-      }),
++      }).nullish().transform((usage) => ({ ...usage })),
+       container: z2.object({
+         expires_at: z2.string(),
+         id: z2.string(),
+@@ -417,10 +418,10 @@
+           model: z2.string().nullish(),
+           role: z2.string().nullish(),
+           usage: z2.looseObject({
+-            input_tokens: z2.number(),
++            input_tokens: z2.number().nullish(),
+             cache_creation_input_tokens: z2.number().nullish(),
+             cache_read_input_tokens: z2.number().nullish()
+-          }),
++          }).nullish().transform((usage) => ({ ...usage })),
+           // Programmatic tool calling: content may be pre-populated for deferred tool calls
+           content: z2.array(
+             z2.discriminatedUnion("type", [
+@@ -776,7 +777,7 @@
+         }),
+         usage: z2.looseObject({
+           input_tokens: z2.number().nullish(),
+-          output_tokens: z2.number(),
++          output_tokens: z2.number().nullish(),
+           output_tokens_details: z2.object({
+             thinking_tokens: z2.number().nullish()
+           }).nullish(),
+@@ -791,13 +792,13 @@
+                 z2.literal("fallback_message")
+               ]),
+               model: z2.string().nullish(),
+-              input_tokens: z2.number(),
+-              output_tokens: z2.number(),
++              input_tokens: z2.number().nullish(),
++              output_tokens: z2.number().nullish(),
+               cache_creation_input_tokens: z2.number().nullish(),
+               cache_read_input_tokens: z2.number().nullish()
+             })
+           ).nullish()
+-        }),
++        }).nullish().transform((usage) => ({ ...usage })),
+         input_transformations: z2.array(anthropicInputTransformationSchema).nullish(),
+         context_management: z2.object({
+           applied_edits: z2.array(
+@@ -1634,7 +1635,7 @@
          anthropicTools2.push({
            name: tool.name,
            description: tool.description,
@@ -178,7 +676,37 @@ diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
            cache_control: cacheControl,
            ...eagerInputStreaming ? { eager_input_streaming: true } : {},
            ...supportsStrictTools === true && tool.strict != null ? { strict: tool.strict } : {},
-@@ -3611,7 +3611,7 @@
+@@ -2032,8 +2033,8 @@
+     if (executorIterations.length > 0) {
+       const totals = executorIterations.reduce(
+         (acc, iter) => ({
+-          input: acc.input + iter.input_tokens,
+-          output: acc.output + iter.output_tokens
++          input: acc.input == null || iter.input_tokens == null ? void 0 : acc.input + iter.input_tokens,
++          output: acc.output == null || iter.output_tokens == null ? void 0 : acc.output + iter.output_tokens
+         }),
+         { input: 0, output: 0 }
+       );
+@@ -2049,14 +2050,14 @@
+   }
+   return {
+     inputTokens: {
+-      total: inputTokens + cacheCreationTokens + cacheReadTokens,
+-      noCache: inputTokens,
++      total: inputTokens == null ? void 0 : inputTokens + cacheCreationTokens + cacheReadTokens,
++      noCache: inputTokens ?? void 0,
+       cacheRead: cacheReadTokens,
+       cacheWrite: cacheCreationTokens
+     },
+     outputTokens: {
+-      total: outputTokens,
+-      text: reasoningTokens == null ? void 0 : outputTokens - reasoningTokens,
++      total: outputTokens ?? void 0,
++      text: reasoningTokens == null || outputTokens == null ? void 0 : outputTokens - reasoningTokens,
+       reasoning: reasoningTokens
+     },
+     raw: rawUsage != null ? rawUsage : usage
+@@ -3611,7 +3612,7 @@
          ])
        );
      }
@@ -187,7 +715,7 @@ diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
      if (schema.required != null) {
        result.required = schema.required;
      }
-@@ -3838,7 +3838,7 @@
+@@ -3838,7 +3839,7 @@
        warnings.push({
          type: "compatibility",
          feature: "maxOutputTokens",
@@ -196,7 +724,7 @@ diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
        });
      }
      if (rejectsSamplingParameters) {
-@@ -3980,12 +3980,12 @@
+@@ -3980,12 +3981,12 @@
      const thinkingDisplay = thinkingType === "adaptive" && thinking != null && "display" in thinking ? thinking.display : void 0;
      const thinkingBlockBinding = thinking != null && "blockBinding" in thinking ? thinking.blockBinding : void 0;
      const sendThinkingConfig = sendThinking || thinkingBlockBinding != null;
@@ -211,7 +739,7 @@ diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
        temperature,
        top_k: topK,
        top_p: topP,
-@@ -4161,7 +4161,9 @@
+@@ -4161,7 +4162,9 @@
            details: "topP is not supported when thinking is enabled"
          });
        }
@@ -222,3 +750,231 @@ diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
      } else {
        if (isAnthropicModel && topP != null && temperature != null) {
          warnings.push({
+@@ -4883,8 +4886,8 @@
+       raw: void 0
+     };
+     const usage = {
+-      input_tokens: 0,
+-      output_tokens: 0,
++      input_tokens: void 0,
++      output_tokens: void 0,
+       cache_creation_input_tokens: 0,
+       cache_read_input_tokens: 0,
+       iterations: null
+@@ -5679,7 +5682,9 @@
+               if (value.usage.input_tokens != null && usage.input_tokens !== value.usage.input_tokens) {
+                 usage.input_tokens = value.usage.input_tokens;
+               }
+-              usage.output_tokens = value.usage.output_tokens;
++              if (value.usage.output_tokens != null) {
++                usage.output_tokens = value.usage.output_tokens;
++              }
+               if (value.usage.output_tokens_details != null) {
+                 usage.output_tokens_details = value.usage.output_tokens_details;
+               }
+@@ -5787,6 +5792,7 @@
+       }
+       if (((_b = result.value) == null ? void 0 : _b.type) === "error") {
+         const error = result.value.error;
++        if (TypeValidationError.isInstance(error)) throw error;
+         throw new APICallError({
+           message: error.message,
+           url,
+diff --git a/src/anthropic-message-metadata.ts b/src/anthropic-message-metadata.ts
+--- a/src/anthropic-message-metadata.ts
++++ b/src/anthropic-message-metadata.ts
+@@ -28,12 +28,12 @@
+   /**
+    * Number of input tokens consumed in this iteration.
+    */
+-  inputTokens: number;
++  inputTokens?: number | null;
+
+   /**
+    * Number of output tokens generated in this iteration.
+    */
+-  outputTokens: number;
++  outputTokens?: number | null;
+
+   /**
+    * Number of cache-creation input tokens consumed in this iteration.
+diff --git a/src/anthropic-messages-api.ts b/src/anthropic-messages-api.ts
+--- a/src/anthropic-messages-api.ts
++++ b/src/anthropic-messages-api.ts
+@@ -964,8 +964,8 @@
+         .array(anthropicInputTransformationSchema)
+         .nullish(),
+       usage: z.looseObject({
+-        input_tokens: z.number(),
+-        output_tokens: z.number(),
++        input_tokens: z.number().nullish(),
++        output_tokens: z.number().nullish(),
+         output_tokens_details: z
+           .object({
+             thinking_tokens: z.number().nullish(),
+@@ -983,14 +983,14 @@
+                 z.literal('fallback_message'),
+               ]),
+               model: z.string().nullish(),
+-              input_tokens: z.number(),
+-              output_tokens: z.number(),
++              input_tokens: z.number().nullish(),
++              output_tokens: z.number().nullish(),
+               cache_creation_input_tokens: z.number().nullish(),
+               cache_read_input_tokens: z.number().nullish(),
+             }),
+           )
+           .nullish(),
+-      }),
++      }).nullish().transform((usage) => ({ ...usage })),
+       container: z
+         .object({
+           expires_at: z.string(),
+@@ -1043,10 +1043,10 @@
+           model: z.string().nullish(),
+           role: z.string().nullish(),
+           usage: z.looseObject({
+-            input_tokens: z.number(),
++            input_tokens: z.number().nullish(),
+             cache_creation_input_tokens: z.number().nullish(),
+             cache_read_input_tokens: z.number().nullish(),
+-          }),
++          }).nullish().transform((usage) => ({ ...usage })),
+           // Programmatic tool calling: content may be pre-populated for deferred tool calls
+           content: z
+             .array(
+@@ -1418,7 +1418,7 @@
+         }),
+         usage: z.looseObject({
+           input_tokens: z.number().nullish(),
+-          output_tokens: z.number(),
++          output_tokens: z.number().nullish(),
+           output_tokens_details: z
+             .object({
+               thinking_tokens: z.number().nullish(),
+@@ -1436,14 +1436,14 @@
+                   z.literal('fallback_message'),
+                 ]),
+                 model: z.string().nullish(),
+-                input_tokens: z.number(),
+-                output_tokens: z.number(),
++                input_tokens: z.number().nullish(),
++                output_tokens: z.number().nullish(),
+                 cache_creation_input_tokens: z.number().nullish(),
+                 cache_read_input_tokens: z.number().nullish(),
+               }),
+             )
+             .nullish(),
+-        }),
++        }).nullish().transform((usage) => ({ ...usage })),
+         input_transformations: z
+           .array(anthropicInputTransformationSchema)
+           .nullish(),
+diff --git a/src/anthropic-messages-language-model.ts b/src/anthropic-messages-language-model.ts
+--- a/src/anthropic-messages-language-model.ts
++++ b/src/anthropic-messages-language-model.ts
+@@ -1,5 +1,6 @@
+ import {
+   APICallError,
++  TypeValidationError,
+   InvalidResponseDataError,
+   type JSONObject,
+   type LanguageModelV3,
+@@ -1686,8 +1687,8 @@
+       raw: undefined,
+     };
+     const usage: AnthropicMessagesUsage = {
+-      input_tokens: 0,
+-      output_tokens: 0,
++      input_tokens: undefined,
++      output_tokens: undefined,
+       cache_creation_input_tokens: 0,
+       cache_read_input_tokens: 0,
+       iterations: null,
+@@ -2749,7 +2750,9 @@
+               ) {
+                 usage.input_tokens = value.usage.input_tokens;
+               }
+-              usage.output_tokens = value.usage.output_tokens;
++              if (value.usage.output_tokens != null) {
++                usage.output_tokens = value.usage.output_tokens;
++              }
+               if (value.usage.output_tokens_details != null) {
+                 usage.output_tokens_details = value.usage.output_tokens_details;
+               }
+@@ -2901,6 +2904,7 @@
+       // We handle the case where the first chunk is an error here and transform
+       // it into an APICallError.
+       if (result.value?.type === 'error') {
++        if (TypeValidationError.isInstance(result.value.error)) throw result.value.error;
+         const error = result.value.error as { message: string; type: string };
+
+         throw new APICallError({
+diff --git a/src/convert-anthropic-messages-usage.ts b/src/convert-anthropic-messages-usage.ts
+--- a/src/convert-anthropic-messages-usage.ts
++++ b/src/convert-anthropic-messages-usage.ts
+@@ -19,15 +19,15 @@
+ export type AnthropicUsageIteration = {
+   type: 'compaction' | 'message' | 'advisor_message' | 'fallback_message';
+   model?: string | null;
+-  input_tokens: number;
+-  output_tokens: number;
++  input_tokens?: number | null;
++  output_tokens?: number | null;
+   cache_creation_input_tokens?: number | null;
+   cache_read_input_tokens?: number | null;
+ };
+
+ export type AnthropicMessagesUsage = {
+-  input_tokens: number;
+-  output_tokens: number;
++  input_tokens?: number | null;
++  output_tokens?: number | null;
+   output_tokens_details?: {
+     thinking_tokens?: number | null;
+   } | null;
+@@ -66,8 +66,8 @@
+   // answer comes from the fallback model, so the executor `message` iteration
+   // is the blocked primary attempt (zero output). The top-level totals already
+   // reflect the fallback answer, so they are used directly.
+-  let inputTokens: number;
+-  let outputTokens: number;
++  let inputTokens: number | null | undefined;
++  let outputTokens: number | null | undefined;
+
+   const servedByFallback = usage.iterations?.some(
+     iter => iter.type === 'fallback_message',
+@@ -79,10 +79,10 @@
+     );
+
+     if (executorIterations.length > 0) {
+-      const totals = executorIterations.reduce(
++      const totals = executorIterations.reduce<{ input: number | undefined; output: number | undefined }>(
+         (acc, iter) => ({
+-          input: acc.input + iter.input_tokens,
+-          output: acc.output + iter.output_tokens,
++          input: acc.input == null || iter.input_tokens == null ? undefined : acc.input + iter.input_tokens,
++          output: acc.output == null || iter.output_tokens == null ? undefined : acc.output + iter.output_tokens,
+         }),
+         { input: 0, output: 0 },
+       );
+@@ -99,15 +99,15 @@
+
+   return {
+     inputTokens: {
+-      total: inputTokens + cacheCreationTokens + cacheReadTokens,
+-      noCache: inputTokens,
++      total: inputTokens == null ? undefined : inputTokens + cacheCreationTokens + cacheReadTokens,
++      noCache: inputTokens ?? undefined,
+       cacheRead: cacheReadTokens,
+       cacheWrite: cacheCreationTokens,
+     },
+     outputTokens: {
+-      total: outputTokens,
++      total: outputTokens ?? undefined,
+       text:
+-        reasoningTokens == null ? undefined : outputTokens - reasoningTokens,
++        reasoningTokens == null || outputTokens == null ? undefined : outputTokens - reasoningTokens,
+       reasoning: reasoningTokens,
+     },
+     raw: rawUsage ?? usage,

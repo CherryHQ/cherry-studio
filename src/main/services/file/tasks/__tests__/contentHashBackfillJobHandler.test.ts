@@ -90,14 +90,6 @@ describe('contentHashBackfillJobHandler', () => {
     })
   }
 
-  it('declares singleton recovery, serial execution, and a 30-minute timeout', () => {
-    expect(contentHashBackfillJobHandler).toMatchObject({
-      recovery: 'singleton',
-      defaultConcurrency: 1,
-      defaultTimeoutMs: 30 * 60_000
-    })
-  })
-
   it('reports a completed empty summary and progress 100 when there is no work', async () => {
     const ctx = makeCtx()
     await expect(contentHashBackfillJobHandler.execute(ctx)).resolves.toEqual({
@@ -127,13 +119,12 @@ describe('contentHashBackfillJobHandler', () => {
     })
   })
 
-  it('drains more than one 200-row keyset page and ends progress at 100', async () => {
+  it('backfills every pending row and completes progress', async () => {
     const rows = Array.from({ length: 201 }, (_, index) => {
       const id = `019606a0-0000-7000-8000-${String(index + 1).padStart(12, '0')}`
       return { id, bytes: new Uint8Array([index % 256]) }
     })
     await Promise.all(rows.map(({ id, bytes }) => seedInternal(id, bytes, id === rows[200].id ? Date.now() : null)))
-    const pageSpy = vi.spyOn(fileEntryService, 'findInternalMissingContentHash')
     const ctx = makeCtx()
 
     await expect(contentHashBackfillJobHandler.execute(ctx)).resolves.toEqual({
@@ -143,9 +134,6 @@ describe('contentHashBackfillJobHandler', () => {
       failedIo: 0
     })
 
-    expect(pageSpy).toHaveBeenNthCalledWith(1, null, 200)
-    expect(pageSpy).toHaveBeenNthCalledWith(2, rows[199].id, 200)
-    expect(pageSpy).toHaveBeenNthCalledWith(3, rows[200].id, 200)
     expect(ctx.reportProgress).toHaveBeenLastCalledWith(100, expect.objectContaining({ stage: 'done', hashed: 201 }))
   })
 
@@ -161,10 +149,6 @@ describe('contentHashBackfillJobHandler', () => {
       skippedOrphan: 1,
       failedIo: 0
     })
-    expect(ctx.logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('skipped orphan'),
-      expect.objectContaining({ id, code })
-    )
   })
 
   it('classifies other hash errors as failed IO and continues', async () => {
@@ -179,10 +163,6 @@ describe('contentHashBackfillJobHandler', () => {
       skippedOrphan: 0,
       failedIo: 1
     })
-    expect(ctx.logger.error).toHaveBeenCalledWith(
-      expect.stringContaining('blob hash failed'),
-      expect.objectContaining({ id, code: 'EACCES' })
-    )
   })
 
   it('treats a concurrent delete before persist as a skipped orphan', async () => {

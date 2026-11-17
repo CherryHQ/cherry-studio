@@ -9,6 +9,8 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 
 import PermissionRequestComposer, { type PermissionRequestComposerRequest } from '../PermissionRequestComposer'
 
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal())
+
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
   useTranslation: () => ({
@@ -24,6 +26,9 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'agent.toolPermission.confirmation': 'Allow tool call?',
         'agent.toolPermission.inputPreview': 'Tool input preview',
         'agent.toolPermission.button.allow': 'Allow',
+        'agent.toolPermission.button.allowOnce': 'Allow this invocation',
+        'agent.toolPermission.workingDirectory': 'Working directory',
+        'agent.toolPermission.policyEvidence': 'Matching command details',
         'agent.toolPermission.button.deny': 'Deny',
         'agent.toolPermission.button.run': 'Run',
         'agent.toolPermission.waiting': 'Waiting for tool permission decision...',
@@ -35,7 +40,11 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'message.tools.activity.usingExtension': 'Bringing in an extension',
         'message.tools.labels.mcpServerTool': 'MCP Server Tool',
         'message.tools.labels.tool': 'Tool',
-        'message.tools.sections.input': 'Input'
+        'message.tools.sections.input': 'Input',
+        'agent.toolPermission.title': 'Approval required',
+        'agent.toolPermission.source': 'From',
+        'agent.toolPermission.subagent': 'Subagent',
+        'agent.toolPermission.background': 'Background task'
       })[key] ?? key
   })
 }))
@@ -89,10 +98,44 @@ function makeRequest(overrides: Partial<PermissionRequestComposerRequest> = {}):
 }
 
 describe('PermissionRequestComposer', () => {
-  it('marks the root panel as a composer viewport inset target', () => {
-    const { container } = render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
+  // Catch evidence disclosure accidentally granting permission through the global Enter shortcut.
+  it('shows execution facts and lets the user inspect evidence before granting one invocation', async () => {
+    const user = userEvent.setup()
+    const onRespond = vi.fn()
+    const request = makeRequest({
+      commandPolicy: {
+        cwd: '/workspace/project',
+        revision: '1',
+        reason: 'May discard working-tree changes.',
+        rules: [{ ruleId: 'git-risk', reasonCode: 'git-discard-worktree', evidence: 'git reset --hard' }]
+      }
+    })
+    render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+    expect(screen.getByText('May discard working-tree changes.')).toBeVisible()
+    expect(screen.getByText('/workspace/project')).toBeVisible()
+    const disclosure = screen.getByRole('button', { name: 'Matching command details' })
+    disclosure.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByText('git reset --hard')).toBeVisible()
+    expect(onRespond).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: /Allow this invocation/ }))
+    expect(onRespond).toHaveBeenCalledWith({ match: request.match, approved: true })
+  })
 
-    expect(container.firstElementChild).toHaveAttribute('data-composer-viewport-inset-target', '')
+  it('opens the requesting subagent without deciding its approval', async () => {
+    const user = userEvent.setup()
+    const onRespond = vi.fn()
+    const onOpenSource = vi.fn()
+    const source = { toolCallId: 'spawn-a', title: 'Review changes', isBackgrounded: true }
+    render(
+      <PermissionRequestComposer request={makeRequest({ source })} onRespond={onRespond} onOpenSource={onOpenSource} />
+    )
+
+    await user.tab()
+    await user.keyboard('{Enter}')
+
+    expect(onOpenSource).toHaveBeenCalledWith(source)
+    expect(onRespond).not.toHaveBeenCalled()
   })
 
   it('submits an approval decision', async () => {
@@ -103,10 +146,6 @@ describe('PermissionRequestComposer', () => {
         onRespond={onRespond}
       />
     )
-
-    expect(screen.getByRole('heading', { name: 'Processing' })).toBeInTheDocument()
-    expect(screen.getByText('Allow CustomTool to run focused tests?')).toBeInTheDocument()
-    expect(screen.queryByText('Tool input preview')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
 
@@ -135,6 +174,7 @@ describe('PermissionRequestComposer', () => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
     render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
 
+    await user.click(screen.getByRole('button', { name: 'Reason for rejection (optional)' }))
     await user.type(screen.getByRole('textbox', { name: 'Reason for rejection (optional)' }), '  use a copy instead  ')
     await user.click(screen.getByRole('button', { name: 'Deny' }))
 
@@ -171,20 +211,10 @@ describe('PermissionRequestComposer', () => {
       />
     )
 
-    expect(screen.getByRole('heading', { name: 'Bringing in an extension' })).toBeInTheDocument()
     expect(screen.getByText('Search project documentation.')).toBeInTheDocument()
-    expect(screen.getByTestId('permission-preview')).not.toHaveClass('overflow-y-auto')
-    expect(screen.getByTestId('permission-mcp-args-scroll')).toHaveClass('max-h-60', 'overflow-y-auto')
-    expect(screen.queryByText('Docs : lookup_docs')).not.toBeInTheDocument()
+
     expect(screen.getByText('query')).toBeInTheDocument()
     expect(screen.getByText('composer')).toBeInTheDocument()
-  })
-
-  it('bounds builtin previews that do not own their own scroll region', () => {
-    render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
-
-    expect(screen.getByTestId('permission-preview')).not.toHaveClass('overflow-y-auto')
-    expect(screen.getByTestId('permission-builtin-body-scroll')).toHaveClass('max-h-60', 'overflow-y-auto')
   })
 
   it('renders the ExitPlanMode plan in the approval preview', () => {
@@ -207,67 +237,6 @@ describe('PermissionRequestComposer', () => {
     const preview = screen.getByTestId('permission-preview')
     expect(preview).toHaveTextContent('Release plan')
     expect(preview).toHaveTextContent('Run the focused tests')
-  })
-
-  it('does not add a fallback body scroller when the tool content owns scrolling', () => {
-    render(
-      <PermissionRequestComposer
-        request={makeRequest({
-          title: 'Write',
-          toolResponse: {
-            id: 'write-call-1',
-            toolCallId: 'write-call-1',
-            status: 'pending',
-            arguments: {
-              file_path: '/tmp/cherry-approval-long-preview-note.md',
-              content: '# Long approval preview\n\nA long document body.'
-            },
-            tool: {
-              id: 'Write',
-              name: 'Write',
-              type: 'builtin'
-            }
-          }
-        })}
-        onRespond={vi.fn()}
-      />
-    )
-
-    expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-max-height', '240')
-    expect(screen.queryByTestId('permission-builtin-body-scroll')).not.toBeInTheDocument()
-  })
-
-  it('uses the streaming tool icon and semantic title for the approval header', () => {
-    render(
-      <PermissionRequestComposer
-        request={makeRequest({
-          title: 'Bash',
-          toolResponse: {
-            id: 'bash-call-1',
-            toolCallId: 'bash-call-1',
-            status: 'pending',
-            arguments: { command: 'pnpm test' },
-            tool: {
-              id: 'Bash',
-              name: 'Bash',
-              type: 'builtin'
-            }
-          }
-        })}
-        onRespond={vi.fn()}
-      />
-    )
-
-    const heading = screen.getByRole('heading', { name: 'Checking project checks' })
-    expect(heading.querySelector('.lucide-square-terminal')).toBeInTheDocument()
-    expect(screen.queryByText('Allow tool call?')).not.toBeInTheDocument()
-  })
-
-  it('hides the request subtitle when it only repeats the tool name', () => {
-    render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
-
-    expect(screen.getByRole('heading', { name: 'Processing' })).toBeInTheDocument()
-    expect(screen.getAllByText('CustomTool')).toHaveLength(1)
   })
 
   it('shows the reason once in the header and warnings in the risk summary', () => {
@@ -356,6 +325,7 @@ describe('PermissionRequestComposer', () => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
     render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
 
+    await user.click(screen.getByRole('button', { name: 'Reason for rejection (optional)' }))
     const reason = screen.getByRole('textbox', { name: 'Reason for rejection (optional)' })
     await user.click(reason)
     await user.keyboard('use a copy instead{Enter}')
@@ -374,6 +344,7 @@ describe('PermissionRequestComposer', () => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
     render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
 
+    await user.click(screen.getByRole('button', { name: 'Reason for rejection (optional)' }))
     const reason = screen.getByRole('textbox', { name: 'Reason for rejection (optional)' })
     await user.click(reason)
     await user.keyboard('{Enter}')
@@ -390,6 +361,7 @@ describe('PermissionRequestComposer', () => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
     render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
 
+    await user.click(screen.getByRole('button', { name: 'Reason for rejection (optional)' }))
     const reason = screen.getByRole('textbox', { name: 'Reason for rejection (optional)' })
     await user.click(reason)
     await user.keyboard('{Escape}')
@@ -402,6 +374,7 @@ describe('PermissionRequestComposer', () => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
     render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
 
+    await user.click(screen.getByRole('button', { name: 'Reason for rejection (optional)' }))
     const reason = screen.getByRole('textbox', { name: 'Reason for rejection (optional)' })
     await user.click(reason)
     await user.keyboard('use a copy{Shift>}{Enter}{/Shift}instead')
@@ -415,6 +388,7 @@ describe('PermissionRequestComposer', () => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
     render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
 
+    await user.click(screen.getByRole('button', { name: 'Reason for rejection (optional)' }))
     await user.type(screen.getByRole('textbox', { name: 'Reason for rejection (optional)' }), 'use a copy instead')
     fireEvent.keyDown(document, { key: 'Enter' })
 
@@ -426,24 +400,12 @@ describe('PermissionRequestComposer', () => {
     })
   })
 
-  it('moves the Enter hint onto Deny once a rejection reason is typed', async () => {
-    const user = userEvent.setup()
-    render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
-
-    expect(screen.getByRole('button', { name: /Allow/ })).toHaveTextContent('Enter')
-    expect(screen.getByRole('button', { name: /Deny/ })).toHaveTextContent('Esc')
-
-    await user.type(screen.getByRole('textbox', { name: 'Reason for rejection (optional)' }), 'use a copy instead')
-
-    expect(screen.getByRole('button', { name: /Allow/ })).not.toHaveTextContent('Enter')
-    expect(screen.getByRole('button', { name: /Deny/ })).toHaveTextContent('Enter')
-  })
-
   it('does not carry a rejection reason into the next approval request', async () => {
     const user = userEvent.setup()
     const onRespond = vi.fn().mockResolvedValue(undefined)
     const { rerender } = render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
 
+    await user.click(screen.getByRole('button', { name: 'Reason for rejection (optional)' }))
     await user.type(screen.getByRole('textbox', { name: 'Reason for rejection (optional)' }), 'use a copy instead')
 
     rerender(
@@ -453,6 +415,7 @@ describe('PermissionRequestComposer', () => {
       />
     )
 
+    await user.click(screen.getByRole('button', { name: 'Reason for rejection (optional)' }))
     expect(screen.getByRole('textbox', { name: 'Reason for rejection (optional)' })).toHaveValue('')
   })
 

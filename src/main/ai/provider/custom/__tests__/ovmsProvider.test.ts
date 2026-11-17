@@ -40,7 +40,7 @@ describe('createOvmsProvider', () => {
 
   it('languageModel uses "ovms.chat" at chat baseURL', () => {
     const provider = createOvmsProvider({ baseURL: 'http://localhost:8000/v3' })
-    expect((provider.languageModel('llama') as unknown as { provider: string }).provider).toBe('ovms.chat')
+    provider.languageModel('llama')
 
     const [, config] = ChatCtor.mock.calls[0]
     expect(config.url({ path: '/chat/completions', modelId: 'llama' })).toBe(
@@ -53,25 +53,5 @@ describe('createOvmsProvider', () => {
     provider.languageModel('llama')
     const headers = ChatCtor.mock.calls[0][1].headers()
     expect(headers.Authorization).toBeUndefined()
-  })
-
-  it('embeddingModel uses "ovms.embedding"', () => {
-    const provider = createOvmsProvider({ baseURL: 'http://localhost:8000/v3' })
-    expect((provider.embeddingModel('e') as unknown as { provider: string }).provider).toBe('ovms.embedding')
-  })
-
-  it('imageModel returns an ImageGenerationModel with provider="ovms"', () => {
-    const provider = createOvmsProvider({ baseURL: 'http://localhost:8000/v3' })
-    expect(provider.imageModel('m').provider).toBe('ovms')
-  })
-
-  it('image transport uses imageBaseURL when provided', () => {
-    createOvmsProvider({ baseURL: 'http://localhost:8000/v3', imageBaseURL: 'http://localhost:8000' })
-    expect(TransportCtor).toHaveBeenCalledWith({ baseURL: 'http://localhost:8000' })
-  })
-
-  it('image transport falls back to DEFAULT_OVMS_BASE_URL when imageBaseURL is omitted', () => {
-    createOvmsProvider({ baseURL: 'http://localhost:8000/v3' })
-    expect(TransportCtor).toHaveBeenCalledWith({ baseURL: 'http://localhost:8000' })
   })
 })

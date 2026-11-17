@@ -1,4 +1,6 @@
-<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="none">
+<rect width="120" height="120" fill="#6664e6"/>
+<g fill="none" transform="translate(0 0) scale(1.00000000) translate(0.0000 0.0000)">
 <rect width="120" height="120" fill="white"/>
 <rect width="120" height="120" fill="url(#paint0_linear_1_5752)"/>
 <mask id="mask0_1_5752" style="mask-type:luminance" maskUnits="userSpaceOnUse" x="19" y="18" width="83" height="83">
@@ -14,4 +16,5 @@
 <stop offset="1" stop-color="#4E13BE"/>
 </linearGradient>
 </defs>
+</g>
 </svg>

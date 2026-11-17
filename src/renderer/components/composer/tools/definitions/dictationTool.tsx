@@ -9,6 +9,7 @@ import type {
 import { DICTATION_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
+import { useDictationEnabled } from '@renderer/hooks/useDictationEnabled'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { dictationService, type DictationErrorCategory, type DictationPhase } from '@renderer/services/voice'
 
@@ -36,7 +37,7 @@ const PHASE_TRANSLATION_KEYS: Record<Exclude<DictationPhase, 'idle'>, string> = 
 function dictationErrorKey(error?: DictationErrorCategory) {
   switch (error) {
     case 'model_required':
-      return 'settings.voice.status.unconfigured'
+      return 'settings.voice.status.model_required'
     case 'unsupported':
     case 'asset_required':
     case 'voice_unavailable':
@@ -70,6 +71,7 @@ function runAction(action: () => unknown | Promise<unknown>, inputAdapter?: Quic
 }
 
 const DictationComposerRuntime = ({ context }: { context: DictationContext }) => {
+  const enabled = useDictationEnabled()
   const { launcher, t } = context
   const snapshot = useSyncExternalStore(
     dictationService.subscribe,
@@ -191,15 +193,18 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
         id: 'dictation:open-settings',
         kind: 'command',
         sources: ['root-panel'],
-        label: t('settings.voice.action.open_settings'),
+        label: t(
+          error === 'model_required' ? 'settings.dependencies.localModels.title' : 'settings.voice.action.open_settings'
+        ),
         icon: <Settings />,
-        action: () => openSettingsTab('/settings/voice')
+        action: () => openSettingsTab(error === 'model_required' ? '/settings/local-models' : '/settings/voice')
       })
     }
 
     return [
       {
         ...DICTATION_TOOLBAR_MANIFEST.toolbar,
+        hidden: !enabled,
         sources: ['root-panel'] as const,
         label: actionLabel,
         description: status,
@@ -230,7 +235,7 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
         }
       }
     ]
-  }, [elapsedMs, error, phase, recoveryAvailable, retryAvailable, t])
+  }, [enabled, elapsedMs, error, phase, recoveryAvailable, retryAvailable, t])
 
   useEffect(() => launcher.registerLaunchers(launchers), [launcher, launchers])
   return null

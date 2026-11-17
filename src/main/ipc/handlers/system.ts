@@ -42,7 +42,13 @@ export const systemHandlers: IpcHandlersFor<typeof systemRequestSchemas> = {
   'system.get_native_theme': async () => (nativeTheme.shouldUseDarkColors ? ThemeMode.dark : ThemeMode.light),
   'system.toggle_dev_tools': async (_input, { senderId }) => {
     if (!senderId) return
-    application.get('WindowManager').getWindow(senderId)?.webContents.toggleDevTools()
+    const webContents = application.get('WindowManager').getWindow(senderId)?.webContents
+    if (!webContents) return
+    if (webContents.isDevToolsOpened()) {
+      webContents.closeDevTools()
+    } else {
+      webContents.openDevTools({ mode: 'bottom' })
+    }
   },
   'system.get_fonts': async () => {
     try {
@@ -64,7 +70,7 @@ export const systemHandlers: IpcHandlersFor<typeof systemRequestSchemas> = {
     openScreenCaptureSettings()
   },
   'system.shell.open_path': async (path) => {
-    await openRequestPath(path)
+    await openRequestPath(path, undefined, { channel: 'system.shell.open_path' })
   },
   'system.shell.open_external_website': async (input) => {
     const { url, options } = typeof input === 'string' ? { url: input, options: undefined } : input

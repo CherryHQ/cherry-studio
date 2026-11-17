@@ -1,5 +1,5 @@
 import type { FileContents, FileOptions, LineAnnotation, SelectedLineRange } from '@pierre/diffs'
-import { Virtualizer } from '@pierre/diffs'
+import { DEFAULT_VIRTUAL_FILE_METRICS, VirtualizedFile, Virtualizer } from '@pierre/diffs'
 import type * as PierreEdit from '@pierre/diffs/edit'
 import type { EditorFactory, EditorOptions } from '@pierre/diffs/edit'
 import { EditProvider, File, useWorkerPool, VirtualizerContext, WorkerPoolContextProvider } from '@pierre/diffs/react'
@@ -11,6 +11,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import FileCommentBox from '@renderer/components/FileCommentBox'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import type { FileLocation } from '@renderer/types/fileLocation'
 import { CHERRY_EDITOR_CSS } from '@renderer/utils/pierreCodeTheme'
 import { hasUnwrappableLine } from '@renderer/utils/softWrap'
 import { cn } from '@renderer/utils/style'
@@ -88,6 +89,7 @@ export interface LineComment {
 }
 
 interface Props {
+  location?: FileLocation
   fileName: string
   value: string
   sessionKey?: string
@@ -122,12 +124,16 @@ export default function FileEditor({
   indentGuides = false,
   showWhitespace = false,
   scrollPastEnd = false,
-  onLineComment
+  onLineComment,
+  location
 }: Props) {
   const { t } = useTranslation()
   const [messageFontSize] = usePreference('chat.message.font_size')
   const [showLineNumbers] = usePreference('chat.code.show_line_numbers')
   const fontSize = messageFontSize - 1
+  // Pierre places the caret at a row's integer offsetTop, so fractional rows leave it poking past the line highlight.
+  const lineHeight = Math.round(fontSize * 1.6)
+  const metrics = useMemo(() => ({ ...DEFAULT_VIRTUAL_FILE_METRICS, lineHeight }), [lineHeight])
   const { activeCodeTheme: theme, isCodeThemeDark } = useCodeStyle()
   const runtimeOptions = useMemo(() => ({ ...highlighterOptions, theme }), [theme])
   const editable = !readOnly && onChange !== undefined
@@ -175,9 +181,64 @@ export default function FileEditor({
   }, [])
   // Wrapping a multi-megabyte line (minified bundles, source maps) freezes layout for seconds.
   const canWrap = useMemo(() => !hasUnwrappableLine(value), [value])
+  const revealedLocation = useRef<FileLocation | undefined>(undefined)
+  const hasLocationHighlight = useRef(false)
+  const navigationFrame = useRef<number | undefined>(undefined)
+  const lastNavigationTop = useRef<number | undefined>(undefined)
+  const requestedLocation = useRef<FileLocation | undefined>(undefined)
+  const navigateToLocation = useCallback<NonNullable<FileOptions<undefined, undefined>['onPostRender']>>(
+    (node, instance, phase) => {
+      if (phase === 'unmount') {
+        revealedLocation.current = undefined
+        lastNavigationTop.current = undefined
+        hasLocationHighlight.current = false
+        cancelAnimationFrame(navigationFrame.current ?? 0)
+        return
+      }
+      if (requestedLocation.current !== location) {
+        requestedLocation.current = location
+        lastNavigationTop.current = undefined
+        cancelAnimationFrame(navigationFrame.current ?? 0)
+      }
+      if (!location) {
+        if (hasLocationHighlight.current) instance.setSelectedLines(null)
+        hasLocationHighlight.current = false
+        revealedLocation.current = undefined
+        return
+      }
+      if (revealedLocation.current === location || !(instance instanceof VirtualizedFile)) return
+      cancelAnimationFrame(navigationFrame.current ?? 0)
+      navigationFrame.current = requestAnimationFrame(function revealLocation() {
+        const viewport = virtualizer.getRoot()
+        if (!node.isConnected || !viewport) return
+        const lineCount = Math.max(1, liveContents.current.split(/\r\n|\r|\n/).length)
+        const start = Math.min(location.line, lineCount)
+        const end = Math.min(location.endLine ?? location.line, lineCount)
+        const position = instance.getLinePosition(start)
+        if (!position) return
+        const top = virtualizer.getOffsetInScrollContainer(node) + position.top
+        instance.setSelectedLines({ start, end })
+        hasLocationHighlight.current = true
+        const scrollTop = viewport instanceof Document ? window.scrollY : viewport.scrollTop
+        const viewportHeight = viewport instanceof Document ? window.innerHeight : viewport.clientHeight
+        if (viewportHeight === 0) return
+        if (lastNavigationTop.current === top && top >= scrollTop && top < scrollTop + viewportHeight) {
+          revealedLocation.current = location
+          return
+        }
+        lastNavigationTop.current = top
+        virtualizer.markDOMDirty()
+        virtualizer.scrollTo({ top, behavior: 'instant' })
+        navigationFrame.current = requestAnimationFrame(revealLocation)
+      })
+    },
+    [location, virtualizer]
+  )
+
   const options = useMemo<FileOptions<undefined, undefined>>(
     () => ({
       disableFileHeader: true,
+      onPostRender: navigateToLocation,
       preferredHighlighter: 'highlights',
       useTokenTransformer: true,
       theme,
@@ -199,7 +260,8 @@ export default function FileEditor({
       indentGuides,
       showWhitespace,
       commentable,
-      openCommentDraft
+      openCommentDraft,
+      navigateToLocation
     ]
   )
   const editorOptions = useMemo<EditorOptions<'file', undefined, undefined>>(
@@ -274,6 +336,7 @@ export default function FileEditor({
       className={cn('pb-[var(--chat-composer-inset,0px)]', expanded ? 'min-h-full' : 'h-full min-h-0 overflow-auto')}>
       <File
         file={input.file}
+        metrics={metrics}
         options={options}
         edit={createEditor !== undefined}
         editorOptions={editorOptions}
@@ -282,7 +345,7 @@ export default function FileEditor({
         onEditComplete={() => 'accept'}
         lineAnnotations={commentAnnotations}
         // The gutter click selects lines; clear it so the box sits on the editor's own background.
-        selectedLines={commentable ? null : undefined}
+        selectedLines={commentable && !location ? null : undefined}
         renderAnnotation={
           commentable
             ? () => (
@@ -299,12 +362,12 @@ export default function FileEditor({
           {
             '--diffs-font-family': 'var(--code-font-family)',
             '--diffs-font-size': `${fontSize}px`,
-            '--diffs-line-height': `${fontSize * 1.6}px`,
+            '--diffs-line-height': `${lineHeight}px`,
             '--diffs-tab-size': tabSize
           } as CSSProperties
         }
       />
-      {scrollPastEnd && !expanded ? <div aria-hidden style={{ height: `calc(100% - ${fontSize * 1.6}px)` }} /> : null}
+      {scrollPastEnd && !expanded ? <div aria-hidden style={{ height: `calc(100% - ${lineHeight}px)` }} /> : null}
     </div>
   )
 

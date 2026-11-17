@@ -32,7 +32,7 @@ repos:
         name: Bilingual pairing (staged content)
         language: system
         entry: pnpm docs:check-pairing --cached
-        files: '^(\.agents/notes/|CONTRIBUTING(?:\.i18n\.yaml|(?:\.zh)?\.md)$|docs/i18n/)'
+        files: '^(\.agents/notes/|CONTRIBUTING(?:\.i18n\.yaml|(?:\.zh)?\.md)$|docs/dev/i18n/)'
         stages: [pre-commit]
         always_run: true
         pass_filenames: false

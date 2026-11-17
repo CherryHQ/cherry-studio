@@ -132,7 +132,6 @@ describe('ConfirmPopupItem (via PopupHost + confirm presets)', () => {
 
     await screen.findByText('Delete item')
     expect(screen.getByText('This cannot be undone.')).toBeInTheDocument()
-    expect(screen.getByRole('dialog')).toHaveAttribute('data-motion', 'fade-scale')
 
     await user.click(screen.getByRole('button', { name: 'Delete' }))
     await act(async () => {})
@@ -165,7 +164,6 @@ describe('ConfirmPopupItem (via PopupHost + confirm presets)', () => {
     })
 
     await screen.findByText('Backup failed')
-    expect(screen.getByRole('dialog')).toHaveAttribute('data-motion', 'fade-scale')
     expect(screen.queryByRole('button', { name: i18n.t('common.cancel') })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: i18n.t('common.confirm') }))

@@ -4,12 +4,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
+import { ScrollArea } from '@cherrystudio/ui'
 import { Button, EmptyState, SearchInput, Tooltip, useDropzone } from '@cherrystudio/ui'
 import { InstallConsentDialog } from '@renderer/components/MiniApp/InstallConsentDialog'
 import App from '@renderer/components/MiniApp/MiniApp'
 import { Navbar, NavbarCenter } from '@renderer/components/Navbar'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { useTabs } from '@renderer/hooks/tab'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useMiniAppInstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
@@ -36,6 +37,7 @@ const MiniAppsPage: FC = () => {
   const [newAppOpen, setNewAppOpen] = useState(false)
   // Non-null mounts the consent dialog for that builtin app; the toolbar has no install entry.
   const [install, setInstall] = useState<{ builtinAppId: string } | null>(null)
+  const installPanel = useExitPresence(install)
   const [editingApp, setEditingApp] = useState<MiniApp | null>(null)
   const {
     allApps,
@@ -93,6 +95,7 @@ const MiniAppsPage: FC = () => {
   }, [])
   const visibility = useMiniAppVisibility()
   const droppedInstall = useMiniAppInstallPreview(() => undefined)
+  const droppedPreview = useExitPresence(droppedInstall.preview)
   const packageDropzone = useMiniAppPackageDrop(droppedInstall.settle)
   const hasOpenDialog =
     settingsOpen || newAppOpen || editingApp !== null || install !== null || droppedInstall.preview !== null
@@ -151,7 +154,7 @@ const MiniAppsPage: FC = () => {
           className="pointer-events-none absolute inset-3 z-50 flex items-center justify-center rounded-xl border-2 border-border-strong border-dashed bg-card">
           <div className="flex max-w-sm flex-col items-center gap-3 px-6 text-center">
             <span className="flex size-12 items-center justify-center rounded-full bg-accent">
-              <PackagePlus className="size-6 text-foreground-secondary" strokeWidth={1.5} />
+              <PackagePlus className="size-6 text-muted-foreground" strokeWidth={1.5} />
             </span>
             <p className="font-medium text-foreground text-sm">{t('miniApp.install.drop_here')}</p>
             <p className="text-muted-foreground text-xs">{t('miniApp.install.pick_hint')}</p>
@@ -167,7 +170,12 @@ const MiniAppsPage: FC = () => {
         <div className="flex shrink-0 items-start justify-end p-3">
           <div className="flex items-center gap-1">
             <Tooltip content={t('miniApp.add.title')}>
-              <Button variant="ghost" size="icon-sm" aria-label={t('miniApp.add.title')} onClick={openCreateAppPanel}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('miniApp.add.title')}
+                onClick={openCreateAppPanel}
+                className="text-muted-foreground">
                 <Plus size={14} />
               </Button>
             </Tooltip>
@@ -175,7 +183,8 @@ const MiniAppsPage: FC = () => {
               variant="ghost"
               size="icon-sm"
               aria-label={t('settings.miniApps.display_title')}
-              onClick={() => setSettingsOpen(true)}>
+              onClick={() => setSettingsOpen(true)}
+              className="text-muted-foreground">
               <Menu size={14} />
             </Button>
           </div>
@@ -195,7 +204,10 @@ const MiniAppsPage: FC = () => {
         </div>
 
         {/* Body: loading / error / empty / grid */}
-        <Scrollbar className="min-h-0 flex-1 px-8 pb-10">
+        <ScrollArea
+          contentProps={{ className: 'px-8 pb-10' }}
+
+          className="min-h-0 flex-1">
           <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col">
             {isLoading ? (
               <div className="flex flex-1 items-center justify-center">
@@ -207,10 +219,7 @@ const MiniAppsPage: FC = () => {
               </div>
             ) : filteredApps.length === 0 && filteredBuiltins.length === 0 ? (
               <div className="flex flex-1 items-center justify-center">
-                <EmptyState
-                  preset={search ? 'no-result' : 'no-miniapp'}
-                  title={search ? t('common.no_results') : t('miniApp.title')}
-                />
+                <EmptyState title={search ? t('common.no_results') : t('miniApp.title')} />
               </div>
             ) : (
               <>
@@ -240,10 +249,10 @@ const MiniAppsPage: FC = () => {
                       aria-label={t('miniApp.add.title')}
                       className="group h-auto min-h-[104px] w-[92px] flex-col justify-start gap-0 bg-transparent px-0 pt-1 text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground focus-visible:bg-transparent"
                       onClick={openCreateAppPanel}>
-                      <span className="mini-app-icon-frame flex size-[58px] items-center justify-center rounded-[14px] border border-border-subtle border-dashed bg-background-subtle transition-[border-color,background-color] duration-[160ms] ease-in-out group-hover:bg-accent group-focus-visible:border-ring group-focus-visible:bg-accent motion-reduce:transition-none">
+                      <span className="mini-app-icon-frame relative flex size-14 items-center justify-center rounded-[50%] [corner-shape:squircle] border-border-subtle after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:[corner-shape:inherit] after:border after:border-inherit bg-background-subtle after:border-dashed transition-[border-color,background-color] duration-[160ms] ease-in-out group-hover:bg-accent group-focus-visible:border-ring group-focus-visible:bg-accent motion-reduce:transition-none">
                         <Plus className="size-6" strokeWidth={1.5} />
                       </span>
-                      <span className="mt-2 min-h-9 max-w-[92px] whitespace-normal text-center text-[13px] text-muted-foreground leading-[18px]">
+                      <span className="mt-2 min-h-9 w-full max-w-[92px] truncate text-center text-[13px] text-muted-foreground leading-[18px]">
                         {t('miniApp.add.title')}
                       </span>
                     </Button>
@@ -262,10 +271,14 @@ const MiniAppsPage: FC = () => {
                           type="button"
                           className="flex min-h-[104px] w-[92px] cursor-pointer flex-col items-center pt-1 outline-none hover:[&_.mini-app-icon-frame]:bg-accent focus-visible:[&_.mini-app-icon-frame]:border-ring focus-visible:[&_.mini-app-icon-frame]:bg-accent"
                           onClick={() => setInstall({ builtinAppId: entry.appId })}>
-                          <span className="mini-app-icon-frame flex size-[58px] items-center justify-center overflow-hidden rounded-[14px] border border-border-subtle transition-[border-color,background-color] duration-[160ms] ease-in-out motion-reduce:transition-none">
-                            <img src={entry.iconUrl} alt="" className="size-14 rounded-[inherit]" />
+                          <span className="mini-app-icon-frame relative flex size-14 items-center justify-center overflow-hidden rounded-[50%] [corner-shape:squircle] border-border-subtle after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:[corner-shape:inherit] after:border after:border-inherit transition-[border-color,background-color] duration-[160ms] ease-in-out motion-reduce:transition-none">
+                            <img
+                              src={entry.iconUrl}
+                              alt=""
+                              className="size-14 rounded-[inherit] [corner-shape:inherit]"
+                            />
                           </span>
-                          <span className="mt-2 min-h-9 max-w-[92px] select-none overflow-hidden whitespace-normal text-center text-[13px] text-muted-foreground leading-[18px] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box] [overflow-wrap:anywhere]">
+                          <span className="mt-2 min-h-9 w-full max-w-[92px] select-none truncate text-center text-[13px] text-muted-foreground leading-[18px]">
                             {entry.name}
                           </span>
                         </button>
@@ -276,7 +289,7 @@ const MiniAppsPage: FC = () => {
               </>
             )}
           </div>
-        </Scrollbar>
+        </ScrollArea>
 
         <MiniAppSettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)}>
           {/* Generous gap so the two groups read as distinct, not as one list. */}
@@ -286,11 +299,22 @@ const MiniAppsPage: FC = () => {
           </div>
         </MiniAppSettingsPanel>
         <NewMiniAppPanel open={newAppOpen || editingApp != null} app={editingApp} onClose={closeCustomAppPanel} />
-        {/* Mounted only while open: unmounting is one of the panel's cancel paths. */}
-        {install && <InstallMiniAppPanel builtinAppId={install.builtinAppId} onClose={() => setInstall(null)} />}
-        {droppedInstall.preview && (
+        {installPanel.value && (
+          <InstallMiniAppPanel
+            open={install !== null}
+            builtinAppId={installPanel.value.builtinAppId}
+            onClose={() => setInstall(null)}
+          />
+        )}
+        {droppedPreview.value && (
           <InstallConsentDialog
-            preview={droppedInstall.preview}
+            key={
+              droppedPreview.value.kind === 'upgrade'
+                ? droppedPreview.value.update.updateToken
+                : droppedPreview.value.installToken
+            }
+            open={droppedInstall.preview !== null}
+            preview={droppedPreview.value}
             busy={droppedInstall.busy}
             onCancel={droppedInstall.cancelPreview}
             onConfirm={droppedInstall.confirm}

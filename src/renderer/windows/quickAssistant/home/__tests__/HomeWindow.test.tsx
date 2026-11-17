@@ -68,8 +68,8 @@ vi.mock('@renderer/ipc', () => ({
   useIpcOn: vi.fn()
 }))
 
-vi.mock('@ai-sdk/react', () => ({
-  useChat: () => ({
+vi.mock('@renderer/hooks/useStreamCommands', () => ({
+  useStreamCommands: () => ({
     messages: state.messages,
     sendMessage: state.sendMessage,
     stop: state.stopChat,
@@ -124,7 +124,6 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: (
     _topicId: string,
     _executions: unknown[],
-    _messages: CherryUIMessage[],
     options?: {
       onUpdate?: (executionId: string, event: Pick<ExecutionFinishEvent, 'attemptId' | 'message'>) => void
       onFinish?: (executionId: string, event: ExecutionFinishEvent) => void
@@ -374,7 +373,7 @@ describe('HomeWindow', () => {
     render(<HomeWindow draggable={false} />)
     await waitFor(() => expect(state.voiceTargetRegistration).not.toBeNull())
 
-    const input = screen.getByTestId('quick-input') as HTMLInputElement
+    const input = screen.getByTestId<HTMLInputElement>('quick-input')
     fireEvent.change(input, { target: { value: 'hello world' } })
     input.setSelectionRange(6, 11)
 

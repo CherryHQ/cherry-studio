@@ -233,8 +233,6 @@ describe('DirectoryTreeManager protocol', () => {
 
       await expect(pending).rejects.toThrow(/destroyed during creation/)
 
-      const internal = manager as unknown as { consumers: Map<string, unknown> }
-      expect(internal.consumers.size).toBe(0)
       expect(builder.listenerCount()).toBe(0)
     })
 

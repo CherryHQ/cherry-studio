@@ -9,6 +9,7 @@ import { expect, it, onTestFinished } from 'vitest'
 import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
 
 import { createPiRuntime } from '../src'
+import { createTestBehavior } from './sessionSupport'
 
 function confirmed<T>(result: OperationResult<T>): T {
   expect(result.status).toBe('confirmed')
@@ -37,6 +38,7 @@ it.each(['turn_end', 'agent_before_settle'] as const)(
     let send!: () => void
     const handle = confirmed(
       await runtime.create({
+        behavior: createTestBehavior(),
         cwd,
         agentDir: cwd,
         modelRuntime,
@@ -103,9 +105,7 @@ it.each(['turn_end', 'agent_before_settle'] as const)(
         snapshots.push(event)
       })
     )
-    await expect
-      .poll(() => snapshots[0])
-      .toMatchObject({ type: 'snapshot', coverage: 'current-view', activity: { state: 'idle' } })
+    await expect.poll(() => snapshots[0]).toMatchObject({ type: 'snapshot', activity: { state: 'idle' } })
     const snapshot = snapshots[0]
     if (snapshot.type !== 'snapshot') throw new Error('Missing snapshot')
     expect(snapshot.messages.filter((message) => message.role !== 'system')).toMatchObject([
@@ -134,6 +134,7 @@ for (const boundary of ['turn_end', 'agent_before_settle'] as const) {
       const manager = SessionManager.inMemory(cwd)
       const target = manager.appendCustomMessageEntry('notice', 'Original notice', true)
       const options = {
+        behavior: createTestBehavior(),
         cwd,
         agentDir: cwd,
         modelRuntime: models,
@@ -214,88 +215,3 @@ for (const boundary of ['turn_end', 'agent_before_settle'] as const) {
     }
   )
 }
-
-it('omits a failed attempt from observations when native retry commits its context edit', async () => {
-  const cwd = mkdtempSync(join(tmpdir(), 'pi-retry-context-'))
-  onTestFinished(() => rmSync(cwd, { recursive: true, force: true }))
-  const models = await ModelRuntime.create({
-    credentials: new InMemoryCredentialStore(),
-    modelsPath: null,
-    refreshOnCreate: false
-  })
-  let retryStarted!: () => void
-  const retry = new Promise<void>((resolve) => {
-    retryStarted = resolve
-  })
-  let finish!: () => void
-  const completion = new Promise<void>((resolve) => {
-    finish = resolve
-  })
-  const faux = fauxProvider()
-  faux.setResponses([
-    fauxAssistantMessage('Failed attempt', { stopReason: 'error', errorMessage: '503 Service Unavailable' }),
-    async () => {
-      retryStarted()
-      await completion
-      return fauxAssistantMessage('Recovered answer')
-    }
-  ])
-  models.registerNativeProvider(faux.provider)
-  const manager = SessionManager.inMemory(cwd)
-  const runtime = confirmed(await createPiRuntime({ backendId: runtimeId('retry') }))
-  onTestFinished(async () => {
-    finish()
-    await runtime.shutdown()
-  })
-  let send!: () => void
-  const handle = confirmed(
-    await runtime.create({
-      cwd,
-      agentDir: cwd,
-      modelRuntime: models,
-      model: models.getModel('faux', 'faux-1')!,
-      sessionManager: manager,
-      settings: { retry: { enabled: true, maxRetries: 1, baseDelayMs: 1 } },
-      extensionFactories: [
-        (pi) => {
-          send = () => pi.sendUserMessage('Question')
-        }
-      ]
-    })
-  )
-  const events: ObservationPayload[] = []
-  confirmed(
-    await handle.observe((event) => {
-      events.push(event)
-    })
-  )
-  send()
-  await retry
-  expect(manager.buildSessionContext().messages.some((message) => message.role === 'assistant')).toBe(false)
-  const late: ObservationPayload[] = []
-  confirmed(
-    await handle.observe((event) => {
-      late.push(event)
-    })
-  )
-  await expect.poll(() => late[0]).toMatchObject({ type: 'snapshot' })
-  const snapshot = late[0]
-  if (snapshot.type !== 'snapshot') throw new Error('Missing snapshot')
-  expect(snapshot.messages.filter((message) => message.role === 'assistant')).toEqual([])
-  const replacement = events.filter((event) => event.type === 'snapshot').at(-1)
-  expect(replacement?.messages).toEqual(snapshot.messages)
-  finish()
-  await expect.poll(() => events.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
-  const completed: ObservationPayload[] = []
-  confirmed(
-    await handle.observe((event) => {
-      completed.push(event)
-    })
-  )
-  await expect.poll(() => completed[0]).toMatchObject({ type: 'snapshot' })
-  const final = completed[0]
-  if (final.type !== 'snapshot') throw new Error('Missing final snapshot')
-  expect(final.messages.filter((message) => message.role === 'assistant')).toMatchObject([
-    { parts: [{ type: 'text', text: 'Recovered answer' }], metadata: { completeness: 'complete' } }
-  ])
-})

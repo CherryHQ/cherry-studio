@@ -20,10 +20,9 @@ const PDFJS_RESOURCE_EXTENSIONS = {
 } as const
 
 /**
- * Serves pdf.js's bundled CMaps / standard fonts from the packaged application
- * tree. In packaged builds `app.root` is the asar and `readFile` reads inside it
- * through Electron's fs patch, so no unpacking is needed; in development it is
- * the repository root with the same node_modules layout.
+ * Serves pdf.js's CMaps / standard fonts. Packaged builds ship them as
+ * `extraResources` under `Resources/pdfjs/`; in development they are read from
+ * `node_modules/pdfjs-dist`.
  */
 export const pdfjsHandlers: IpcHandlersFor<typeof pdfjsRequestSchemas> = {
   'pdfjs.resource.read': async ({ kind, name }) => {

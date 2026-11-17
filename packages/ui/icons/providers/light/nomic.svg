@@ -1,4 +1,6 @@
-<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="none">
+<rect width="120" height="120" fill="var(--icon-neutral-background, #FFFFFF)"/>
+<g fill="none" transform="translate(18 18) scale(1.27918782) translate(-27.6667 -27.0000)">
 <mask id="mask0_1_5977" style="mask-type:luminance" maskUnits="userSpaceOnUse" x="28" y="51" width="65" height="18">
 <path d="M93 51H28V68.7273H93V51Z" fill="white"/>
 </mask>
@@ -10,5 +12,6 @@
 <path d="M40.1706 51H44.2801V68.6915H40.1706V51Z" fill="black"/>
 <path d="M35.9621 51C36.337 53.9191 37.9344 56.4085 40.1708 57.8383L40.1708 68.6915C40.1441 68.6915 40.1172 68.6912 40.0901 68.6912C39.1848 66.0448 36.486 60.8847 32.1655 59.3492L31.9519 59.2771V51H35.9621Z" fill="black"/>
 <path d="M28 59.2772H32.1095V68.6922H28V59.2772Z" fill="black"/>
+</g>
 </g>
 </svg>

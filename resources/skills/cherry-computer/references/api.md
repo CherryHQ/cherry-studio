@@ -22,6 +22,7 @@ interface AXState {
   target: string
   app: object
   window: object
+  inputChannel: { kind: 'accessibility' | 'page'; page?: string; reason?: object }
   text?: string
   tree: { status: 'available'; elements: AXElement[]; truncated: ('nodes' | 'depth' | 'text')[] }
       | { status: 'unavailable'; reason: object }
@@ -29,7 +30,7 @@ interface AXState {
 }
 interface App {
   getAXState(options?: AXOptions | { cursor: string }): Promise<AXState>
-  getScreenshot(): Promise<{ id: string; target: string; screenshot: object }>
+  getScreenshot(): Promise<{ id: string; target: string; inputChannel: AXState['inputChannel']; screenshot: object }>
   getAXStateAndScreenshot(options?: AXOptions): Promise<AXState & { screenshot: object }>
   click(ref: string): Promise<{ status: 'completed' }>
   clickAt(x: number, y: number): Promise<{ status: 'completed' }>
@@ -41,6 +42,8 @@ interface App {
   performSecondaryAction(ref: string, actionId: string): Promise<{ status: 'completed' }>
 }
 ```
+
+Every observation includes `inputChannel`, including screenshot observations and cached AX pages. `kind: 'page'` means text and keys target a Chrome DevTools Protocol page; `page` identifies its title. `kind: 'accessibility'` means platform accessibility/native window input. When input is unavailable, `reason` explains the restriction. Read this metadata before typing; the runtime selects the channel during observation.
 
 Observation methods automatically emit structured state and/or images, linked by an observation ID; do not print the same observation again. Use `tree.elements` for extraction and each element's complete `id` as its action ref. `parentId` may refer to a node on another page. `text` remains a human-readable outline in the JS return value, but is not a parsing format and is not emitted alongside the structured nodes. Do not regex, split or otherwise parse that outline; names/values can contain quotes, newlines and `actions=`. Do not invent `.data`, `.outline` or `.snapshotId` fields. A screenshot-only observation does not supply element refs. `screenshot.status` and `tree.status` describe availability independently; permission failure is not an empty application.
 
@@ -61,7 +64,7 @@ Zero matches means only that this filter found nothing **on this page**. Check r
 
 Perform one or more already-determined actions, then observe before deciding the next step. Prefer AX-based input. Coordinates require a fresh screenshot and use its image pixels. Every action invalidates element/coordinate refs and page cursors. Keyboard operations can continue targeting the same app/window; clicking another element requires a fresh AX observation. App methods validate ownership and target freshness on the host.
 
-`typeText` sends text as keyboard input to the bound application on macOS; it also works for keyboard-driven controls such as calculators without an editable AX field. It does not set the AX value or activate another application. Use `setValue` when explicitly replacing an editable control's value. Newlines send Return and may submit a form. Other platforms retain their native input restrictions and report unsupported input explicitly.
+`typeText` uses the observed input channel. With the accessibility channel on macOS, it sends keyboard text to the bound application; it also works for keyboard-driven controls such as calculators without an editable AX field. It does not set the AX value or activate another application. Use `setValue` when explicitly replacing an editable control's value. Newlines send Return and may submit a form. Other platforms retain their native input restrictions and report unsupported input explicitly.
 
 A text role alone does not imply editability. Use `setValue` only when the observed
 node's `actions` includes it. Some browser address bars expose a read-only display

@@ -16,6 +16,7 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { FileIntakeService } from '../FileIntakeService'
 import { FileManager } from '../FileManager'
+import { fileIntakeLimits } from '../intakeTypes'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -41,6 +42,7 @@ describe('managed file intake publication', () => {
     manager = new FileManager()
   })
   afterEach(async () => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
     await rm(root, { recursive: true, force: true })
   })
@@ -165,6 +167,22 @@ describe('managed file intake publication', () => {
     await manager.runEntryCleanup()
     expect(fileEntryService.findById(entry.id)).toBeNull()
     await intake.drain()
+  })
+
+  it('wakes for cleanup only while uploads are staged', async () => {
+    Object.assign(application.get('FileManager'), { intakes: manager.intakes })
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+    const intake = new FileIntakeService()
+    await intake._doInit()
+    expect(vi.getTimerCount()).toBe(0)
+    const owner = { ownerId: 'phone', quotaKey: 'phone' }
+    await intake.prepare(owner, { uploadId: 'staged', filename: 'a.txt', mediaType: 'text/plain', byteLength: 4 })
+    expect(vi.getTimerCount()).toBe(1)
+    vi.setSystemTime(Date.now() + fileIntakeLimits.retentionMs + 1)
+    await vi.advanceTimersByTimeAsync(1000)
+    await vi.waitFor(() => expect(vi.getTimerCount()).toBe(0))
+    await expect(intake.get(owner, 'staged')).rejects.toThrow('not found')
+    await intake._doStop()
   })
 
   it('rejects corrupt bytes before exposing a FileEntry', async () => {

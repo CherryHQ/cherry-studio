@@ -265,12 +265,39 @@ function omitToolInputExamples(options: LanguageModelV3CallOptions): LanguageMod
 }
 
 class CherryInAnthropicMessagesLanguageModel extends AnthropicMessagesLanguageModel {
+  private prepareOptions(options: LanguageModelV3CallOptions): LanguageModelV3CallOptions {
+    const prepared = omitToolInputExamples(options)
+    if (!/^(?:anthropic\/)?claude-sonnet-4[.-]5(?:-\d{8})?$/i.test(this.modelId)) return prepared
+
+    // CherryIN's Bedrock route for Sonnet 4.5 rejects the per-tool wire field.
+    return {
+      ...prepared,
+      providerOptions: {
+        ...prepared.providerOptions,
+        [CHERRYIN_PROVIDER_NAME]: {
+          ...prepared.providerOptions?.[CHERRYIN_PROVIDER_NAME],
+          toolStreaming: false
+        }
+      },
+      tools: prepared.tools?.map((tool) => {
+        if (tool.type !== 'function' || tool.providerOptions?.anthropic?.eagerInputStreaming !== true) return tool
+        return {
+          ...tool,
+          providerOptions: {
+            ...tool.providerOptions,
+            anthropic: { ...tool.providerOptions.anthropic, eagerInputStreaming: false }
+          }
+        }
+      })
+    }
+  }
+
   override doGenerate(options: LanguageModelV3CallOptions) {
-    return super.doGenerate(omitToolInputExamples(options))
+    return super.doGenerate(this.prepareOptions(options))
   }
 
   override doStream(options: LanguageModelV3CallOptions) {
-    return super.doStream(omitToolInputExamples(options))
+    return super.doStream(this.prepareOptions(options))
   }
 }
 
@@ -292,6 +319,7 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
     new CherryInAnthropicMessagesLanguageModel(modelId, {
       provider: `${CHERRYIN_PROVIDER_NAME}.anthropic`,
       baseURL: anthropicBaseURL,
+      supportsStrictTools: false,
       headers: () => {
         const headers = getJsonHeaders()
         const apiKey = toBearerToken(headers.Authorization)

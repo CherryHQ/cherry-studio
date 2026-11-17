@@ -38,7 +38,12 @@ function captureGateway() {
 }
 
 describe('Gateway image request envelope', () => {
-  for (const modelId of ['openai/gpt-image-2.5-flare', 'openai/gpt-image-2.5-sunburst']) {
+  for (const modelId of [
+    'openai/gpt-image-2.5-flare',
+    'openai/gpt-image-2.5-sunburst',
+    'openai/gpt-image-2.6-flare',
+    'openai/gpt-image-2.6-sunburst'
+  ]) {
     for (const quality of ['low', 'high']) {
       it.each(['imageModel', 'image'] as const)(`${modelId} ${quality} via %s`, async (entryPoint) => {
         const params = { quality, size: '1536x864', numImages: 1 }
