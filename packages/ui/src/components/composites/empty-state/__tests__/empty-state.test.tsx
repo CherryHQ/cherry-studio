@@ -42,6 +42,14 @@ describe('EmptyState', () => {
     expect(onAction).toHaveBeenCalledTimes(2)
   })
 
+  it('keeps the detail inside the empty state, right after the message', () => {
+    render(<EmptyState title="Load failed" description="Try again" detail={<a href="#">Details</a>} />)
+    const description = screen.getByText('Try again')
+    const detail = screen.getByRole('link', { name: 'Details' })
+    expect(description.parentElement).toContainElement(detail)
+    expect(description.compareDocumentPosition(detail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('renders secondary button and fires callback', () => {
     const onSecondary = vi.fn()
     render(<EmptyState title="Empty" secondaryLabel="Learn more" onSecondary={onSecondary} />)
