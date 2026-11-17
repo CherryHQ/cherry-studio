@@ -758,11 +758,10 @@ function deriveRouteFacts(
   // through the gateway. Agent traffic carries internal usage headers, so agent-only providers
   // are allowed.
   for (const ref of modelRefs) {
-    const address = `${ref.providerId}:${ref.apiModelId}`
-    if (!ref.provider || !ref.model) {
-      throw new Error(`Agent model "${address}" is not available: the configured provider or model no longer exists.`)
-    }
-    assertAgentGatewayModelAvailable(ref.provider, ref.model, address)
+    // A sub-model slot whose provider/model no longer resolves keeps the upstream fallback
+    // (raw model id, slots independent); only resolved refs get the availability pre-flight.
+    if (!ref.provider || !ref.model) continue
+    assertAgentGatewayModelAvailable(ref.provider, ref.model, `${ref.providerId}:${ref.apiModelId}`)
   }
 
   const slotModelId = (ref: RuntimeModelRef) =>

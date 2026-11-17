@@ -29,12 +29,12 @@ export async function createPiGatewayModelBinding(
   onUsage?: (usage: Usage, nativeSessionId: string | undefined, responseId?: string) => void,
   sharedModels?: ModelRuntime
 ) {
-  // Fail fast on stale/disabled/unroutable Agent models before materialization (#20285):
-  // a late generic gateway 400 hides the actual configuration error.
-  assertAgentGatewayModelAvailable(provider, model, `${provider.id}:${getRawModelId(model)}`)
   if (!isPiCompatibleModel(provider, model)) {
     throw new Error(`Provider "${provider.id}" cannot be routed through the internal gateway for pi agents`)
   }
+  // Fail fast on stale/disabled Agent models before materialization (#20285):
+  // a late generic gateway 400 hides the actual configuration error.
+  assertAgentGatewayModelAvailable(provider, model, `${provider.id}:${getRawModelId(model)}`)
   const preferredEndpoint =
     model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) &&
     model.endpointTypes.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)

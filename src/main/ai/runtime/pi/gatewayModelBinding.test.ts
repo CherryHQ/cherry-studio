@@ -650,10 +650,11 @@ it('rejects disabled or unroutable gateway models before materialization', async
   await expect(
     createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, { ...model, isEnabled: false })
   ).rejects.toThrow('the model is disabled')
+  // Unroutable providers keep the pre-existing specific rejection (#20285 covers stale config).
   await expect(
     createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, { ...model, capabilities: ['embedding'] })
-  ).rejects.toThrow('not available through the API gateway')
+  ).rejects.toThrow('cannot be routed through the internal gateway')
   await expect(
     createPiGatewayModelBinding({ sessionId: 'session-1' }, { ...provider, authMethods: ['external-cli'] }, model)
-  ).rejects.toThrow('not available through the API gateway')
+  ).rejects.toThrow('cannot be routed through the internal gateway')
 })
