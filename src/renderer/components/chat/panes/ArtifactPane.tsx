@@ -959,6 +959,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
 
   const previewContent = overlaySelection ? (
     <FilePreview
+      location={overlaySelection.location}
       filePath={getArtifactPaneSelectionPath(overlaySelection)}
       refreshKey={contentRefreshToken}
       onLoadStateChange={handlePreviewLoadState}
@@ -1124,6 +1125,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
             {editMode === 'edit' && fileSession?.status === 'ready' ? (
               <Suspense fallback={<LoadingState label={t('common.loading')} />}>
                 <FileEditor
+                  location={overlaySelection.location}
                   // Pierre measures tab stops when it attaches, so a tab-size change remounts the editor.
                   key={`${previewKey}:${fileSession.sessionId}:${fileSession.documentEpoch}:${paneSettings.tabSize}`}
                   sessionKey={`artifact:${previewKey}:${fileSession.sessionId}:${fileSession.documentEpoch}`}

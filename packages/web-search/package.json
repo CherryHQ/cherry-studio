@@ -373,7 +373,7 @@
     "prepack": "pnpm build",
     "test": "vitest run --config vitest.config.ts",
     "test:package": "pnpm typecheck && pnpm build && node scripts/check-package.mjs",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/web-search/tsconfig.json"
   },
   "dependencies": {
     "eventsource-parser": "3.1.1",
