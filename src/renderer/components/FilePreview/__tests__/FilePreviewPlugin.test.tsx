@@ -1,16 +1,26 @@
+import type * as SentryRenderer from '@sentry/electron/renderer'
 import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { FilePreviewLayout, FilePreviewToolbar } from '@cherrystudio/file-preview/react'
+import { initSentry } from '@renderer/services/sentry'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type * as FilePreviewRegistryModule from '../filePreviewRegistry'
 
 const mocks = vi.hoisted(() => ({
+  captureException: vi.fn(),
   ipcApiRequest: vi.fn(),
   load: vi.fn()
+}))
+
+vi.unmock('@logger')
+vi.mock('@sentry/electron/renderer', async (importOriginal) => ({
+  ...(await importOriginal<typeof SentryRenderer>()),
+  init: vi.fn(),
+  captureException: mocks.captureException
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -48,6 +58,8 @@ vi.mock('../filePreviewRegistry', async (importOriginal) => {
 import { FilePreview } from '../FilePreview'
 
 beforeEach(() => {
+  vi.stubEnv('DEV', false)
+  initSentry()
   vi.spyOn(console, 'error').mockImplementation(() => {})
   mocks.ipcApiRequest.mockResolvedValue({
     kind: 'file',
@@ -93,6 +105,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  vi.unstubAllEnvs()
   vi.clearAllMocks()
   vi.restoreAllMocks()
 })
@@ -164,9 +177,10 @@ describe('FilePreview plugin loading', () => {
   })
 
   it('contains plugin render failures inside the preview surface', async () => {
+    const error = new Error('plugin render failed')
     mocks.load.mockResolvedValueOnce({
       default: () => {
-        throw new Error('plugin render failed')
+        throw error
       }
     })
 
@@ -174,5 +188,18 @@ describe('FilePreview plugin loading', () => {
 
     expect(await screen.findByText('file_preview.load_error.title')).toBeInTheDocument()
     expect(screen.getByText('file_preview.load_error.description')).toBeInTheDocument()
+    expect(mocks.captureException).toHaveBeenCalledExactlyOnceWith(
+      error,
+      expect.objectContaining({
+        tags: expect.objectContaining({
+          operation: 'react.render',
+          'capture.source': 'log',
+          'failure.source': 'application',
+          'failure.kind': 'defect',
+          'failure.reason': 'render_failed',
+          'failure.outcome': 'failed'
+        })
+      })
+    )
   })
 })
