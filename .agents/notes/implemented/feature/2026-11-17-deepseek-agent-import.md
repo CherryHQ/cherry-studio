@@ -14,7 +14,7 @@ The supplied November 17 export uses `export_format_version: 3`, `chat_session_i
 
 ### Entry point and scope
 
-The Agent group menu provides an import action for a selected Pi Durable Agent. The user selects the original ZIP, reviews conversation/message counts and warnings, and imports it into new sessions under that Agent. Each source conversation becomes one session; import never appends to an existing conversation. The destination Agent supplies the model, workspace policy, and permissions for future turns. Imports do not run a model or tools. Unsupported Agent runtimes show an explanation rather than silently creating ordinary chat Topics or changing the Agent type.
+Settings → Data → Import external application data provides the DeepSeek import entry. The user selects a destination Agent using the shared Agent selector before opening the import dialog. The Agent group menu has no import action. The user selects the original ZIP, reviews conversation/message counts and warnings, and imports it into new sessions under that Agent. Each source conversation becomes one session; import never appends to an existing conversation. The destination Agent supplies the model, workspace policy, and permissions for future turns. Imports do not run a model or tools. Unsupported Agent runtimes show an explanation rather than silently creating ordinary chat Topics or changing the Agent type.
 
 This first version supports the observed DeepSeek v3 ZIP format and Pi Durable. It does not add ChatGPT/Claude Agent import, synchronize a DeepSeek account, restore DeepSeek authentication, or reconstruct files absent from the export. Existing Assistant import stays independent.
 
@@ -62,7 +62,7 @@ The sample is not a published schema guarantee; unsupported formats must fail cl
 
 ## Verification
 
-- AC1 — `AgentImportPopup.test.tsx` verifies preview, unsupported runtimes, and progress after dialog reopening. Electron imports through the new dialog and normal Agent navigation. Existing Assistant import code is untouched.
+- AC1 — `ImportMenuSettings.test.tsx` verifies destination selection and opening Agent import from Settings; `AgentImportPopup.test.tsx` verifies preview, unsupported runtimes, and progress after dialog reopening. Electron imports through the new dialog and normal Agent navigation. Existing Assistant import code is untouched.
 - AC2 — `deepseek.test.ts` and `deepseekArchive.test.ts` cover parent ordering, sibling selection, empty/untitled sessions, invalid graphs, unknown fragments, duplicate paths, link entries, and limits. The private sample passes aggregate assertions for 106 sessions and 500 messages.
 - AC3 — Content tests preserve reasoning, search text, missing-file labels, and zero historical usage. File-backed import publishes all 500 sample messages without starting a Harness; native tests observe no provider calls before a new submission.
 - AC4 — `durableImport.test.ts` closes/reopens real native SQLite, retries preparation, and submits each sibling to a scripted provider with branch-specific context assertions. The projection test excludes duplicate imported display entries. Electron continuation before and after process restart reaches a local OpenAI-compatible stub with both historical roles and matched original content.
