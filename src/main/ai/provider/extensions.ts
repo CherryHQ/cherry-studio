@@ -363,9 +363,8 @@ export const ModelscopeExtension = ProviderExtension.create({
 /**
  * DashScope (Bailian) Extension - OpenAI-compatible chat + embedding,
  * native DashScope async submit/poll image generation against
- * `/api/v1/services/aigc/*`. Image baseURL is derived per-call from the
- * user's chat baseURL by `buildDashScopeConfig`, so cn/intl/proxy hosts
- * track the user's provider config without hardcoded region URLs.
+ * `/api/v1/services/aigc/*`. Image requests use the transport's default
+ * mainland origin unless `imageBaseURL` is supplied.
  */
 export const DashScopeExtension = ProviderExtension.create({
   name: 'dashscope',

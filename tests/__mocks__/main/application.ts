@@ -1,4 +1,10 @@
+import { createRequire } from 'node:module'
+import { dirname, resolve } from 'node:path'
+
 import { vi } from 'vitest'
+
+import type { NotificationRecord, TaskResultNotificationInput } from '@shared/data/types/notification'
+import type { NotificationSource } from '@shared/types/notification'
 
 import { mockAttachmentPresenceService } from './AttachmentPresenceService'
 import { MockMainCacheServiceExport } from './CacheService'
@@ -61,7 +67,9 @@ const mockWindowManager = {
   onWindowCreated: vi.fn(() => ({ dispose: vi.fn() })),
   onWindowDestroyed: vi.fn(() => ({ dispose: vi.fn() })),
   onWindowCreatedByType: vi.fn(() => ({ dispose: vi.fn() })),
-  onWindowDestroyedByType: vi.fn(() => ({ dispose: vi.fn() }))
+  onWindowDestroyedByType: vi.fn(() => ({ dispose: vi.fn() })),
+  onWindowReleasedToPool: vi.fn(() => ({ dispose: vi.fn() })),
+  onWindowReleasedToPoolByType: vi.fn(() => ({ dispose: vi.fn() }))
 }
 
 /**
@@ -80,6 +88,14 @@ const mockIpcApiService = {
 export const mockJobManager = {
   registerHandler: vi.fn(),
   enqueue: vi.fn(() => ({ id: 'mock-job-id', snapshot: {}, finished: Promise.resolve({}) }))
+}
+
+export const mockNotificationService = {
+  publishTaskResult: vi.fn(async (_input: TaskResultNotificationInput) => true),
+  publish: vi.fn(
+    async (_input: Partial<NotificationRecord>, _options?: { source?: NotificationSource; completion?: boolean }) =>
+      true
+  )
 }
 
 const serviceOverrides = new Map<string, unknown>()
@@ -105,8 +121,12 @@ export const defaultServiceInstances = {
   MainWindowService: mockMainWindowService,
   WindowManager: mockWindowManager,
   IpcApiService: mockIpcApiService,
+  NotificationService: mockNotificationService,
   JobManager: mockJobManager,
-  PowerService: { preventSleep: vi.fn(() => ({ dispose: vi.fn() })) },
+  PowerService: {
+    preventSleep: vi.fn(() => ({ dispose: vi.fn() })),
+    onResume: vi.fn(() => ({ dispose: vi.fn() }))
+  },
   RuntimeActivityService: { begin: vi.fn(() => ({ dispose: vi.fn() })), hasActiveTasks: vi.fn(() => false) }
 } as const
 
@@ -161,12 +181,13 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
     getOptional: vi.fn((name: string) => container.getOptional(name)),
     getExisting: vi.fn((name: string) => container.getInstance(name)),
     getContainer: vi.fn(() => container),
-    // Deterministic stub for path lookups — returns "/mock/<key>" (or
-    // "/mock/<key>/<filename>") so tests that instantiate services with
-    // class field initializers like `application.getPath('feature.xxx')`
-    // don't blow up. Override per-test with vi.spyOn if you need a
-    // specific value.
-    getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`)),
+    // Keep registry paths absolute on every host, including a drive on Windows.
+    // Override per-test with vi.spyOn when a fixture needs a specific location.
+    getPath: vi.fn((key: string, filename?: string) =>
+      key === 'feature.agents.command_parser_assets'
+        ? resolve(dirname(createRequire(import.meta.url).resolve('@vscode/tree-sitter-wasm')), filename ?? '')
+        : resolve('/mock', key, filename ?? '')
+    ),
     registerAll: vi.fn(),
     initPathRegistry: vi.fn(),
     bootstrap: vi.fn().mockResolvedValue(undefined),
@@ -176,6 +197,7 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
     forceExit: vi.fn(),
     // Graceful quit entry point (real Application.quit()). Tests can assert it was called.
     quit: vi.fn(),
+    markQuitting: vi.fn(),
     // Tests can mutate `application.isQuitting = true` to exercise quit-aware code paths.
     isQuitting: false
   }

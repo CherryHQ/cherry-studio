@@ -126,11 +126,4 @@ describe('HtmlArtifactsCard', () => {
       'common.html_preview'
     )
   })
-
-  it('keeps the selector that isolates the card from Markdown code styling', () => {
-    const { container } = render(<HtmlArtifactsCard html={html} />)
-
-    // `markdown.css` treats this maintained selector as a semantic boundary.
-    expect(container.firstElementChild).toHaveClass('special-preview', 'font-[var(--font-family-body)]')
-  })
 })

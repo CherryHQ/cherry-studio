@@ -13,6 +13,7 @@ import {
   DialogTitle,
   Label
 } from '@cherrystudio/ui'
+import { cacheService } from '@renderer/data/CacheService'
 import { ipcApi } from '@renderer/ipc'
 
 const categories = [
@@ -55,9 +56,14 @@ function BrowserClearContent({
     setBusy(true)
     setError(false)
     try {
+      let rememberedPagesCleared = false
       for (const { kind } of categories) {
         if (!selected[kind]) continue
         await ipcApi.request('browser.data.clear', { kind })
+        if (!rememberedPagesCleared && (kind === 'history' || kind === 'site_data')) {
+          cacheService.setPersist('ui.browser.last_urls', {})
+          rememberedPagesCleared = true
+        }
         setSelected((current) => ({ ...current, [kind]: false }))
       }
       onDone()

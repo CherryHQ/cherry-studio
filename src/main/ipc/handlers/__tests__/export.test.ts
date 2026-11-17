@@ -31,11 +31,6 @@ describe('exportHandlers', () => {
     expect(exportToWordMock).toHaveBeenCalledWith('# hi', 'doc', 'w1')
   })
 
-  it('get_obsidian_vaults returns the vault list', async () => {
-    getVaultsMock.mockReturnValue([{ path: '/v', name: 'v' }])
-    expect(await exportHandlers['export.obsidian.get_vaults'](undefined, ctx)).toEqual([{ path: '/v', name: 'v' }])
-  })
-
   it('get_obsidian_files queries the requested vault', async () => {
     getFilesMock.mockResolvedValue([{ path: '/v/a.md', type: 'markdown', name: 'a.md' }])
     expect(await exportHandlers['export.obsidian.get_files']({ vaultName: 'v' }, ctx)).toEqual([

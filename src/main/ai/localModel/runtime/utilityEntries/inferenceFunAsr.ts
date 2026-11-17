@@ -6,11 +6,10 @@ import type {
   UtilityProcessLogger
 } from '@main/core/utilityProcess/runtime/serveUtilityProcess'
 
+import { computeFunAsrNanoChunkSamples, FUNASR_ASR_SAMPLE_RATE, readFunAsrNanoLimits } from './funasrNanoLimits'
 import { cacheResource, getSherpa } from './inferenceRuntime'
 
-const ASR_SAMPLE_RATE = 16_000
 const VAD_WINDOW_SIZE = 512
-const MAX_SEGMENT_SAMPLES = 25 * ASR_SAMPLE_RATE
 const ASR_NUM_THREADS = Math.min(4, availableParallelism())
 const COPY_NATIVE_SAMPLES = false
 
@@ -26,7 +25,7 @@ function getRecognizer(modelPaths: FunAsrModelPaths, logger: UtilityProcessLogge
     try {
       const { OfflineRecognizer } = getSherpa()
       const recognizer = new OfflineRecognizer({
-        featConfig: { sampleRate: ASR_SAMPLE_RATE, featureDim: 80 },
+        featConfig: { sampleRate: FUNASR_ASR_SAMPLE_RATE, featureDim: 80 },
         modelConfig: {
           funasrNano: {
             encoderAdaptor: modelPaths.encoder,
@@ -61,7 +60,7 @@ function getDetector(modelPath: string): Promise<any> {
             minSilenceDuration: 0.5,
             windowSize: VAD_WINDOW_SIZE
           },
-          sampleRate: ASR_SAMPLE_RATE,
+          sampleRate: FUNASR_ASR_SAMPLE_RATE,
           debug: false,
           numThreads: 1
         },
@@ -74,9 +73,9 @@ function getDetector(modelPath: string): Promise<any> {
 }
 
 function toRecognizerSampleRate(samples: Float32Array, sampleRate: number): Float32Array {
-  if (sampleRate === ASR_SAMPLE_RATE) return samples
+  if (sampleRate === FUNASR_ASR_SAMPLE_RATE) return samples
   const { LinearResampler } = getSherpa()
-  return new LinearResampler(sampleRate, ASR_SAMPLE_RATE).flush(samples)
+  return new LinearResampler(sampleRate, FUNASR_ASR_SAMPLE_RATE).flush(samples)
 }
 
 function detectSpeech(detector: any, samples: Float32Array): Array<{ samples: Float32Array; start: number }> {
@@ -101,7 +100,7 @@ function detectSpeech(detector: any, samples: Float32Array): Array<{ samples: Fl
 
 function decodeSegment(recognizer: any, samples: Float32Array): string {
   const stream = recognizer.createStream()
-  stream.acceptWaveform({ sampleRate: ASR_SAMPLE_RATE, samples })
+  stream.acceptWaveform({ sampleRate: FUNASR_ASR_SAMPLE_RATE, samples })
   recognizer.decode(stream)
   return recognizer.getResult(stream).text.trim()
 }
@@ -117,16 +116,35 @@ export async function transcribeFunAsr(
   const speechSegments = detectSpeech(detector, samples)
   if (!speechSegments.length) return { text: '', segments: [] }
 
+  // The FunASR Nano decoder generates the transcript inside the same KV window
+  // that holds the prompt and the audio tokens; oversized chunks get their
+  // tail silently dropped. Cap chunks at what the downloaded model can carry
+  // with a guaranteed output reserve instead of a fixed duration.
+  const limits = await readFunAsrNanoLimits(modelPaths)
+  const maxChunkSamples = computeFunAsrNanoChunkSamples(limits)
+  if (limits.usedFallback) logger.warn('FunASR Nano model metadata incomplete; using documented chunk limits')
+  else
+    logger.debug('FunASR Nano chunk limits', {
+      maxTotalLen: limits.maxTotalLen,
+      samplesPerAudioToken: limits.samplesPerAudioToken,
+      maxChunkSamples
+    })
+
   const recognizer = await getRecognizer(modelPaths, logger)
   const segments: AsrSegment[] = []
 
   for (const speech of speechSegments) {
-    for (let offset = 0; offset < speech.samples.length; offset += MAX_SEGMENT_SAMPLES) {
-      const chunk = speech.samples.subarray(offset, offset + MAX_SEGMENT_SAMPLES)
+    for (let offset = 0; offset < speech.samples.length; offset += maxChunkSamples) {
+      const chunk = speech.samples.subarray(offset, offset + maxChunkSamples)
       const text = decodeSegment(recognizer, chunk)
-      if (!text) continue
-      const start = (speech.start + offset) / ASR_SAMPLE_RATE
-      segments.push({ text, start, end: start + chunk.length / ASR_SAMPLE_RATE })
+      if (!text) {
+        logger.debug('FunASR Nano chunk decoded empty', {
+          startSecond: (speech.start + offset) / FUNASR_ASR_SAMPLE_RATE
+        })
+        continue
+      }
+      const start = (speech.start + offset) / FUNASR_ASR_SAMPLE_RATE
+      segments.push({ text, start, end: start + chunk.length / FUNASR_ASR_SAMPLE_RATE })
     }
   }
 

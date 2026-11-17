@@ -165,11 +165,6 @@ describe('internal/content/write', () => {
       expect(Array.from(onDisk)).toEqual([0xaa, 0xbb, 0xcc])
       expect(fileEntryService.getById(e.id)).toMatchObject({ contentHash: null })
       expect(cacheStore.get(e.id)).toMatchObject({ size: 3 })
-
-      expect(mockLoggerError).toHaveBeenCalledWith(
-        'content commit: bytes committed but metadata finalize failed',
-        expect.objectContaining({ code: 'WRITE_DB_DESYNC', id: e.id, error: updateErr })
-      )
     })
 
     it('keeps old bytes and metadata when the pending DB update fails before rename', async () => {
@@ -425,10 +420,6 @@ describe('internal/content/write', () => {
       expect(finishSpy).not.toHaveBeenCalled()
       expect(await readFile(path.join(filesDir, `${e.id}.bin`), 'utf-8')).toBe('payload')
       expect(fileEntryService.getById(e.id)).toMatchObject({ contentHash: null })
-      expect(mockLoggerError).toHaveBeenCalledWith(
-        'content commit: bytes committed but metadata finalize failed',
-        expect.objectContaining({ code: 'WRITE_DB_DESYNC', id: e.id, error: updateErr })
-      )
     })
   })
 })

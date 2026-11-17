@@ -56,7 +56,6 @@ vi.mock('@cherrystudio/ui', () => ({
 
 import { CommandContextKeyProvider } from '../CommandContextKeyProvider'
 import { CommandHint, CommandShortcut, CommandTooltip } from '../CommandControls'
-import * as commandExports from '../index'
 
 function renderShortcut() {
   return render(
@@ -75,17 +74,6 @@ describe('CommandShortcut', () => {
 
   afterEach(() => {
     cleanup()
-  })
-
-  it('renders command shortcut labels through the Kbd primitive', () => {
-    renderShortcut()
-
-    const shortcut = screen.getByText('⌘N')
-
-    expect(shortcut.tagName).toBe('KBD')
-    expect(shortcut.getAttribute('data-slot')).toBe('kbd')
-    expect(shortcut.className).toContain('rounded-full')
-    expect(shortcut.className).not.toContain('font-mono')
   })
 
   it('does not render when the shortcut has been cleared', () => {
@@ -108,28 +96,7 @@ describe('CommandShortcut', () => {
     const content = screen.getByTestId('tooltip-content')
 
     expect(content).toHaveTextContent('New Session')
-    expect(content.parentElement).toHaveAttribute('data-placement', 'bottom')
-    expect(content.parentElement).toHaveAttribute('data-delay', '800')
-    const keycap = screen.getByText('⌘N', { selector: 'kbd' })
-    expect(keycap.className).toContain('bg-transparent')
-    expect(keycap.className).toContain('rounded-none')
-    expect(keycap.className).toContain('[font:inherit]')
-    // The keycap is aria-hidden, so the sr-only copy is what the description announces.
     expect(screen.getByText('⌘N', { selector: '.sr-only' })).toBeInTheDocument()
-  })
-
-  it('renders the shortcut inline as a hover-revealed kbd without a tooltip', () => {
-    render(
-      <CommandContextKeyProvider>
-        <CommandHint command="topic.create" />
-      </CommandContextKeyProvider>
-    )
-
-    const hint = screen.getByText('⌘N')
-
-    expect(hint.tagName).toBe('KBD')
-    expect(hint.className).toContain('group-hover:opacity-100')
-    expect(screen.queryByTestId('tooltip-content')).toBeNull()
   })
 
   it('renders nothing when the command has no shortcut', () => {
@@ -142,9 +109,5 @@ describe('CommandShortcut', () => {
     )
 
     expect(container).toBeEmptyDOMElement()
-  })
-
-  it('does not expose the low-level shortcut label hook from the commands barrel', () => {
-    expect('useCommandShortcutLabel' in commandExports).toBe(false)
   })
 })

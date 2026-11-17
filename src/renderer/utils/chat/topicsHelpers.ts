@@ -47,6 +47,8 @@ export type TopicDisplayGroupOptions = {
 
 export type TopicDisplaySortOptions = {
   assistantRankById?: ReadonlyMap<string, number>
+  /** Time mode only: order rows inside each time group by manual `orderKey` instead of recency. */
+  manualOrder?: boolean
   mode: TopicDisplayMode
   now?: Parameters<typeof getResourceTimeBucket>[1]
 }
@@ -150,14 +152,6 @@ export function moveAssistantGroupAfterDrop(
 
 export function normalizeTopicDropPayload(payload: ResourceListItemReorderPayload): ResourceListItemReorderPayload {
   return payload
-}
-
-export function groupTopicByPinned(topic: Pick<Topic, 'pinned'>, pinnedLabel: string, topicLabel: string) {
-  if (topic.pinned) {
-    return { id: 'pinned', label: pinnedLabel }
-  }
-
-  return { id: 'topics', label: topicLabel }
 }
 
 export function getTopicTimeBucket(
@@ -267,6 +261,8 @@ export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'assistantId' |
     getRank: (topic) =>
       topic.pinned === true ? 0 : TOPIC_TIME_BUCKET_RANK[getTopicTimeBucket(topic.lastActivityAt, options.now)],
     isPinned,
-    compareWithinGroup: compareResourceRecency((topic) => topic.lastActivityAt)
+    compareWithinGroup: options.manualOrder
+      ? (a, b) => compareResourceOrderKey(readOptionalOrderKey(a), readOptionalOrderKey(b))
+      : compareResourceRecency((topic) => topic.lastActivityAt)
   })
 }

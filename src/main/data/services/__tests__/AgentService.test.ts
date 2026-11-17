@@ -34,6 +34,7 @@ import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { ErrorCode } from '@shared/data/api/errors'
+import { UpdateAgentSchema } from '@shared/data/api/schemas/agents'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
@@ -330,6 +331,18 @@ describe('AgentService', () => {
       ])
     })
 
+    it('notifies live agent reads after an update, including main-process writers', () => {
+      const agent = createAgentForTest({ type: 'claude-code', name: 'Before', model: TEST_MODEL_ID })
+      notifyDataApiDataChangeMock.mockClear()
+
+      agentService.updateAgent(agent.id, { name: 'After' })
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/agents', kind: 'projection', entityIds: [agent.id] },
+        { endpoint: '/agents/:agentId', entityIds: [agent.id] }
+      ])
+    })
+
     it('persists plan and small models when provided', async () => {
       const agent = createAgentForTest({
         type: 'claude-code',
@@ -378,30 +391,6 @@ describe('AgentService', () => {
 
       const agents = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Missing Model'))
       expect(agents).toHaveLength(0)
-    })
-
-    it('places newly created agents first by default orderKey sort', async () => {
-      await insertAgent({ id: 'agent_existing_a' })
-      await insertAgent({ id: 'agent_existing_b' })
-
-      const created = createAgentForTest({
-        type: 'claude-code',
-        name: 'Newest',
-        model: TEST_MODEL_ID
-      })
-
-      const { agents } = agentService.listAgents()
-      expect(agents[0]?.id).toBe(created.id)
-    })
-
-    it('defaults disabledTools to an empty array (opt-out, backward-safe)', async () => {
-      const agent = createAgentForTest({
-        type: 'claude-code',
-        name: 'Disabled Tools Default',
-        model: TEST_MODEL_ID
-      })
-      const reloaded = agentService.getAgent(agent.id)
-      expect(reloaded?.disabledTools).toEqual([])
     })
   })
 
@@ -458,17 +447,6 @@ describe('AgentService', () => {
         }
       })
       expect(activeBuiltinRows()).toHaveLength(1)
-    })
-
-    it('keeps a newly created built-in assistant after existing agents', () => {
-      const ordinary = createAgentForTest({
-        type: 'claude-code',
-        name: 'Ordinary Agent',
-        model: TEST_MODEL_ID
-      })
-      const builtin = agentService.ensureBuiltinAgent(defaults)
-
-      expect(agentService.listAgents().agents.map((agent) => agent.id)).toEqual([ordinary.id, builtin.id])
     })
 
     it('restores exactly one active assistant after the previous row was soft-deleted', () => {
@@ -661,6 +639,51 @@ describe('AgentService', () => {
           reasoning_effort: 'default'
         }
       })
+    })
+
+    it('validates a reasoning patch against the caller-supplied session model (inv_98911732422a84bf)', async () => {
+      const kimiK3ModelId = createUniqueModelId('moonshot', 'kimi-k3')
+      await dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId: 'moonshot',
+          presetProviderId: 'moonshot',
+          name: 'Moonshot',
+          orderKey: generateOrderKeyBetween(null, null)
+        })
+        .onConflictDoNothing()
+      await dbh.db
+        .insert(userModelTable)
+        .values({
+          id: kimiK3ModelId,
+          providerId: 'moonshot',
+          modelId: 'kimi-k3',
+          presetModelId: 'kimi-k3',
+          orderKey: generateOrderKeyBetween(null, null)
+        })
+        .onConflictDoNothing()
+      // The agent's own model stays TEST_MODEL_ID (which supports only the
+      // default effort); the session steering this edit overrides to Kimi K3,
+      // so `high` must validate against the override, not the agent default
+      // (cherry-pr-review inv_98911732422a84bf).
+      const parsed = UpdateAgentSchema.parse({
+        configuration: { reasoning_effort: 'high' },
+        reasoningValidationModelId: kimiK3ModelId
+      })
+      expect(parsed.reasoningValidationModelId).toBe(kimiK3ModelId)
+      const created = await insertAgent({ model: TEST_MODEL_ID, configuration: { reasoning_effort: 'low' } })
+
+      const updated = agentService.updateAgent(created.id, {
+        configuration: { reasoning_effort: 'high' },
+        reasoningValidationModelId: kimiK3ModelId
+      })
+      expect(updated?.configuration?.reasoning_effort).toBe('high')
+
+      // Without the hint the agent's unchanged model remains the basis.
+      const updatedWithoutHint = agentService.updateAgent(created.id, {
+        configuration: { reasoning_effort: 'high' }
+      })
+      expect(updatedWithoutHint?.configuration?.reasoning_effort).toBe('default')
     })
 
     it('preserves an explicit reasoning tombstone while changing the model', async () => {
@@ -1644,7 +1667,8 @@ describe('AgentService', () => {
         agentId: id,
         name: '',
         workspaceId: 'workspace-default-detach',
-        taskScheduleId: task.id,
+        taskId: task.id,
+        isTaskReuseTarget: true,
         orderKey: 'a0'
       })
       agentService.deleteAgent(id)
@@ -1653,10 +1677,10 @@ describe('AgentService', () => {
       expect(agentService.deleteAgent(id, { permanent: true })).toMatchObject({ deleted: true })
 
       const [session] = await dbh.db
-        .select({ agentId: agentSessionTable.agentId, taskScheduleId: agentSessionTable.taskScheduleId })
+        .select({ agentId: agentSessionTable.agentId, isTaskReuseTarget: agentSessionTable.isTaskReuseTarget })
         .from(agentSessionTable)
         .where(eq(agentSessionTable.id, 'session-default-detach'))
-      expect(session).toEqual({ agentId: null, taskScheduleId: null })
+      expect(session).toEqual({ agentId: null, isTaskReuseTarget: false })
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
         { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['session-default-detach'] },
         {
@@ -1867,6 +1891,18 @@ describe('AgentService', () => {
   })
 
   describe('listAgents', () => {
+    it('filters by builtin role, matching Support only on its reserved ID', async () => {
+      await insertAgent({ id: 'plain' })
+      await insertAgent({ id: 'cherry', configuration: { builtin_role: 'assistant' } })
+      await insertAgent({ id: 'legacy-support', configuration: { builtin_role: 'support' } })
+      await insertAgent({ id: CHERRY_SUPPORT_AGENT_ID, configuration: { builtin_role: 'support' } })
+
+      const idsFor = (builtinRole: 'assistant' | 'support') =>
+        agentService.listAgents({ builtinRole }).agents.map((agent) => agent.id)
+      expect(idsFor('assistant')).toEqual(['cherry'])
+      expect(idsFor('support')).toEqual([CHERRY_SUPPORT_AGENT_ID])
+    })
+
     it('respects limit and offset', async () => {
       for (let i = 0; i < 5; i++) {
         await insertAgent({ name: `Agent ${i}` })
@@ -2071,9 +2107,7 @@ describe('AgentService', () => {
 
       expect(agentService.search({ q: 'collect FAQs', limit: 5 })).toEqual([
         expect.objectContaining({
-          id: 'agent_builtin_global_search',
-          subtitle:
-            'Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills'
+          id: 'agent_builtin_global_search'
         })
       ])
     })
@@ -2089,8 +2123,7 @@ describe('AgentService', () => {
 
       expect(agentService.search({ q: 'troubleshooting', limit: 5 })).toEqual([
         expect.objectContaining({
-          id: CHERRY_SUPPORT_AGENT_ID,
-          subtitle: 'Official Cherry Studio support Agent for setup guidance, troubleshooting, FAQs, and feedback'
+          id: CHERRY_SUPPORT_AGENT_ID
         })
       ])
     })

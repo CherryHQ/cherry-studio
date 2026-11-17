@@ -39,6 +39,7 @@ export type {
   ReadResult
 } from './FileManager'
 export { FileManager } from './FileManager'
+export { classifyFileFailure } from './failureFacts'
 export { FileEditService } from './FileEditService'
 export { ContentCommittedMetadataPendingError, StaleVersionError } from './FileManager'
 export { DirectoryTreeManager, DirectoryTreeStoppedError, type TreeOwner } from './tree/DirectoryTreeManager'
@@ -72,7 +73,7 @@ export { toFileInfo } from './toFileInfo'
 // Path-level system helpers. `safeOpen` is the public default-open primitive and
 // `openRequestPath` is the only sanctioned door for renderer-supplied path text;
 // raw Electron shell access remains internal to the file module.
-export { safeOpen, showInFolder } from './system'
+export { copyFileToClipboard, getClipboardCopyStatus, safeOpen, showInFolder } from './system'
 
 // Handle dispatch — resolves a `FileHandle` to its operation. The public
 // entry point for the File IPC handlers (kept out of `internal/` deep imports).
@@ -84,7 +85,7 @@ export { readByPath, readChunkByPath, writeIfUnchangedByPath } from './utils/con
 
 // Live on-disk metadata by path (`fs.stat` projection). Consumed by the File
 // IPC batch-metadata handler.
-export { assertOutsideManagedStorageMutation } from './utils/managedStorageGuard'
+export { assertOutsideManagedStorageMutation, isInsideManagedStorage } from './utils/managedStorageGuard'
 export { getMetadataByPath } from './utils/metadata'
 export { openRequestPath, resolveRequestedPath } from './utils/requestedPath'
 

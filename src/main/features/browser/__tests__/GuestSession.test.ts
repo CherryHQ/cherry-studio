@@ -216,6 +216,86 @@ describe('GuestSession command lifetime', () => {
     expect(session.busy).toBe(false)
   })
 
+  it('attaches without Runtime.enable for an ordinary command', async () => {
+    const { session, mock } = setup()
+    await session.send('DOM.describeNode', { backendNodeId: 1 })
+    const methods = mock.debugger.sendCommand.mock.calls.map(([method]) => method)
+    expect(methods).not.toContain('Runtime.enable')
+    expect(methods).toEqual(
+      expect.arrayContaining(['Page.enable', 'DOM.enable', 'Accessibility.enable', 'Page.getFrameTree'])
+    )
+  })
+
+  it('enableRuntime is idempotent per attachment and re-enables after detach', async () => {
+    const { session, mock } = setup()
+    expect(await session.enableRuntime()).toBe(true)
+    expect(await session.enableRuntime()).toBe(false)
+    expect(mock.debugger.sendCommand.mock.calls.filter(([method]) => method === 'Runtime.enable')).toHaveLength(1)
+    mock.debugger.detach()
+    expect(await session.enableRuntime()).toBe(true)
+    expect(mock.debugger.sendCommand.mock.calls.filter(([method]) => method === 'Runtime.enable')).toHaveLength(2)
+  })
+
+  it('enableRuntime rolls back a failed enable so the next call retries', async () => {
+    const { session, mock } = setup()
+    const fallback = mock.debugger.sendCommand.getMockImplementation()!
+    let failed = false
+    mock.debugger.sendCommand.mockImplementation(async (method, params) => {
+      if (method === 'Runtime.enable' && !failed) {
+        failed = true
+        throw new Error('Runtime.enable failed')
+      }
+      return fallback(method, params)
+    })
+    await expect(session.enableRuntime()).rejects.toThrow('Runtime.enable failed')
+    expect(await session.enableRuntime()).toBe(true)
+    expect(mock.debugger.sendCommand.mock.calls.filter(([method]) => method === 'Runtime.enable')).toHaveLength(2)
+  })
+
+  it('enableRuntime shares one in-flight enable between concurrent callers', async () => {
+    const { session, mock } = setup()
+    const fallback = mock.debugger.sendCommand.getMockImplementation()!
+    const started = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<object>()
+    mock.debugger.sendCommand.mockImplementation(async (method, params) => {
+      if (method === 'Runtime.enable') {
+        started.resolve()
+        await release.promise
+        return undefined
+      }
+      return fallback(method, params)
+    })
+    const first = session.enableRuntime()
+    await started.promise
+    const second = session.enableRuntime()
+    release.resolve({})
+    await expect(Promise.all([first, second])).resolves.toEqual([true, false])
+    expect(mock.debugger.sendCommand.mock.calls.filter(([method]) => method === 'Runtime.enable')).toHaveLength(1)
+  })
+
+  it('readConsoleMessages reports recordingStarted and returns entries after enabling', async () => {
+    const fixture = createGuest()
+    const session = new GuestSession(fixture.guest, 'managed')
+    sessions.push(session)
+    const { mock } = fixture
+    const fallback = mock.debugger.sendCommand.getMockImplementation()!
+    mock.debugger.sendCommand.mockImplementation(async (method, params) => {
+      if (method === 'Runtime.enable')
+        mock.debugger.emit('message', {}, 'Runtime.consoleAPICalled', {
+          type: 'log',
+          args: [{ type: 'string', value: 'hello' }],
+          timestamp: 1,
+          executionContextId: 1
+        })
+      return fallback(method, params)
+    })
+    const first = await session.readConsoleMessages()
+    expect(first.recordingStarted).toBe(true)
+    expect(first.messages.map((entry) => entry.text)).toEqual(['hello'])
+    const second = await session.readConsoleMessages()
+    expect(second.recordingStarted).toBe(false)
+  })
+
   it('rejects the command that opens a dialog without replaying it after dismissal', async () => {
     const { session, mock } = setup()
     await session.send('Runtime.enable')
@@ -372,6 +452,35 @@ describe('GuestSession annotation context lifetime', () => {
     comment: 'Adjust this button',
     element: { selector: '#submit', tagName: 'button', text: 'Submit', ariaLabel: null, role: 'button' }
   }
+
+  it('enables Runtime before creating the annotation isolated world', async () => {
+    const { session, mock } = setup()
+    const fallback = mock.debugger.sendCommand.getMockImplementation()!
+    mock.debugger.sendCommand.mockImplementation(async (method, params) => {
+      if (method === 'Page.createIsolatedWorld') return { executionContextId: 73 }
+      if (method === 'Runtime.evaluate') return { result: { objectId: 'submit' } }
+      if (method === 'DOM.describeNode') return { node: { backendNodeId: 1 } }
+      if (method === 'Accessibility.getAXNodeAndAncestors')
+        return {
+          nodes: [
+            {
+              nodeId: 'submit',
+              backendDOMNodeId: 1,
+              ignored: false,
+              role: { value: 'button' },
+              name: { value: 'Submit' }
+            }
+          ]
+        }
+      return fallback(method, params)
+    })
+    await expect(session.describeElement(annotation, { remaining: 100 })).resolves.toMatchObject({
+      status: 'available',
+      tree: { name: 'Submit' }
+    })
+    const methods = mock.debugger.sendCommand.mock.calls.map(([method]) => method)
+    expect(methods.indexOf('Runtime.enable')).toBeLessThan(methods.indexOf('Page.createIsolatedWorld'))
+  })
 
   it('ignores destruction of an unrelated context while creating the annotation world', async () => {
     const { session, mock } = setup()

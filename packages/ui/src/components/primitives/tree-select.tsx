@@ -8,6 +8,7 @@ import { cn } from '../../lib/utils'
 import { Button } from './button'
 import { Input } from './input'
 import { Popover, PopoverContent, PopoverTrigger } from './popover'
+import { ScrollArea } from './scroll-area'
 
 const treeSelectTriggerVariants = cva(
   cn(
@@ -377,16 +378,17 @@ export function TreeSelect({
             />
           </div>
         )}
-        <div
-          role="tree"
-          className="overflow-y-auto py-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/40"
+        <ScrollArea
+          type="auto"
+          viewportProps={{ role: 'tree' }}
+          contentProps={{ className: 'py-1' }}
           style={{ maxHeight }}>
           {visibleTree.length > 0 ? (
             renderNodes(visibleTree)
           ) : (
             <div className="px-2 py-6 text-center text-sm text-muted-foreground">{emptyText}</div>
           )}
-        </div>
+        </ScrollArea>
       </PopoverContent>
       {name && <input type="hidden" name={name} value={value ?? ''} />}
     </Popover>
