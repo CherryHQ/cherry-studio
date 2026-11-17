@@ -2,19 +2,34 @@
 // ExportService
 
 import fs from 'fs'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import type * as Docx from 'docx'
-import type { ExternalHyperlink, Table, TableCell, TableRow, TextRun } from 'docx'
+import type { ExternalHyperlink, ImageRun, Table, TableCell, TableRow, TextRun } from 'docx'
 import { type BrowserWindow, dialog } from 'electron'
+import { fileTypeFromBuffer } from 'file-type'
 import type MarkdownIt from 'markdown-it'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
+import { transcodeToPng } from '@main/utils/image'
+import { parseDataUrl } from '@shared/utils/dataUrl'
 
 const logger = loggerService.withContext('ExportService')
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+const docxImageTypes = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/bmp': 'bmp' } as const
+const isWindowsFileReference = (src: string) => /^(?:file:\/\/)?[a-z]:\\/i.test(src)
+const isRecognizedLocalFileReference = (src: string) =>
+  isWindowsFileReference(src) || src.startsWith('/') || (/^file:\/\//i.test(src) && URL.canParse(src))
+const isImageDataUri = (src: string) => /^data:image\//i.test(src)
+
 export class ExportService {
-  private convertMarkdownToDocxElements(markdown: string, md: MarkdownIt, docx: typeof Docx) {
+  private async convertMarkdownToDocxElements(
+    markdown: string,
+    md: MarkdownIt,
+    docx: typeof Docx
+  ): Promise<Array<Docx.Paragraph | Docx.Table>> {
     const {
       AlignmentType,
       BorderStyle,
@@ -30,7 +45,7 @@ export class ExportService {
       WidthType
     } = docx
     const tokens = md.parse(markdown, {})
-    const elements: any[] = []
+    const elements: Array<Docx.Paragraph | Docx.Table> = []
     const listCounters: Array<number | null> = []
     let quoteLevel = 0
     const quoteBorder = { left: { style: BorderStyle.SINGLE, size: 3, color: 'CCCCCC' } }
@@ -58,13 +73,67 @@ export class ExportService {
         })
         .join('')
 
-    const processInlineTokens = (
+    const resolveImage = async (src: string): Promise<ImageRun | null> => {
+      let bytes: Uint8Array
+      if (isImageDataUri(src)) {
+        const data = parseDataUrl(src.replace(/^data:/i, 'data:'))
+        if (!data || data.mediaType?.toLowerCase() === 'image/svg+xml') return null
+        if (data.isBase64) {
+          const payload = decodeURIComponent(data.data)
+          if (/[^a-z\d+/=\s]/i.test(payload)) return null
+          bytes = Buffer.from(payload, 'base64')
+        } else {
+          if (/%(?![\da-f]{2})/i.test(data.data)) return null
+          bytes = Buffer.from(
+            data.data.replace(/%([\da-f]{2})/gi, (_match, hex) => String.fromCharCode(parseInt(hex, 16))),
+            'latin1'
+          )
+        }
+      } else if (isRecognizedLocalFileReference(src)) {
+        const filePath = /^file:\/\//i.test(src) ? fileURLToPath(src) : src
+        const stat = await fs.promises.stat(filePath)
+        if (!stat.isFile() || stat.size > MAX_IMAGE_BYTES) return null
+        bytes = await fs.promises.readFile(filePath)
+      } else {
+        return null
+      }
+      if (bytes.byteLength > MAX_IMAGE_BYTES) return null
+      const detected = await fileTypeFromBuffer(bytes)
+      if (!detected?.mime.startsWith('image/') || detected.mime === 'image/svg+xml') return null
+
+      const sharp = (await import('sharp')).default
+      const image = sharp(bytes)
+      const { width: naturalWidth, height: naturalHeight } = await image.metadata()
+      if (
+        !naturalWidth ||
+        !naturalHeight ||
+        naturalWidth <= 0 ||
+        naturalHeight <= 0 ||
+        !Number.isFinite(naturalWidth) ||
+        !Number.isFinite(naturalHeight)
+      ) {
+        return null
+      }
+      // Metadata only reads headers; stats forces decoding even for formats embedded unchanged.
+      await image.stats()
+      if (!(detected.mime in docxImageTypes)) bytes = await transcodeToPng(bytes)
+      if (bytes.byteLength > MAX_IMAGE_BYTES) return null
+      const embeddedType = await fileTypeFromBuffer(bytes)
+      const type = docxImageTypes[embeddedType?.mime as keyof typeof docxImageTypes]
+      if (!type) return null
+      const scale = Math.min(1, 600 / naturalWidth)
+      const width = Math.max(1, Math.round(naturalWidth * scale))
+      const height = Math.max(1, Math.round(naturalHeight * scale))
+      return new docx.ImageRun({ type, data: bytes, transformation: { width, height } })
+    }
+
+    const processInlineTokens = async (
       tokens: any[],
       isHeaderRow: boolean,
       isQuote = false
-    ): (TextRun | ExternalHyperlink)[] => {
-      const runs: (TextRun | ExternalHyperlink)[] = []
-      let linkRuns: TextRun[] = []
+    ): Promise<Array<TextRun | ExternalHyperlink | ImageRun>> => {
+      const runs: Array<TextRun | ExternalHyperlink | ImageRun> = []
+      let linkRuns: Array<TextRun | ImageRun> = []
       let linkUrl = ''
       let boldStack = 0 // 跟踪嵌套的粗体标记
       let italicStack = 0 // 跟踪嵌套的斜体标记
@@ -128,6 +197,16 @@ export class ExportService {
             pushRun({ text: token.content, ...runFormat() })
             break
           case 'image':
+            try {
+              const image = await resolveImage(token.attrGet('src') ?? '')
+              if (image) {
+                if (linkUrl) linkRuns.push(image)
+                else runs.push(image)
+                break
+              }
+            } catch (error) {
+              logger.warn('Unable to embed Word image', error as Error)
+            }
             pushRun({ text: inlineText(token.children), ...runFormat() })
             break
           case 'code_inline':
@@ -146,7 +225,7 @@ export class ExportService {
           const level = parseInt(token.tag.slice(1)) as 1 | 2 | 3 | 4 | 5 | 6
           elements.push(
             new Paragraph({
-              children: processInlineTokens(tokens[i + 1].children || [], false),
+              children: await processInlineTokens(tokens[i + 1].children || [], false),
               heading: HeadingLevel[`HEADING_${level}`],
               spacing: {
                 before: 240,
@@ -162,7 +241,7 @@ export class ExportService {
           const quoteStyle = quoteLevel > 0 ? { indent: { left: quoteLevel * 720 }, border: quoteBorder } : {}
           elements.push(
             new Paragraph({
-              children: processInlineTokens(inlineTokens, false, quoteLevel > 0),
+              children: await processInlineTokens(inlineTokens, false, quoteLevel > 0),
               ...quoteStyle,
               spacing: {
                 before: 120,
@@ -199,7 +278,9 @@ export class ExportService {
               children: [
                 new TextRun({ text: itemNumber == null ? '•' : `${itemNumber}.`, bold: true }),
                 new TextRun({ text: '\t' }),
-                ...(hasLeadParagraph ? processInlineTokens(tokens[i + 2].children || [], false, quoteLevel > 0) : [])
+                ...(hasLeadParagraph
+                  ? await processInlineTokens(tokens[i + 2].children || [], false, quoteLevel > 0)
+                  : [])
               ],
               indent: { left: (listCounters.length + quoteLevel) * 720 },
               ...(quoteLevel > 0 ? { border: quoteBorder } : {})
@@ -317,7 +398,7 @@ export class ExportService {
             children: [
               new Paragraph({
                 children: cellContent.children
-                  ? processInlineTokens(cellContent.children, isHeaderRow || isFirstColumn)
+                  ? await processInlineTokens(cellContent.children, isHeaderRow || isFirstColumn)
                   : [new TextRun({ text: cellContent.content || '', bold: isHeaderRow || isFirstColumn })],
                 alignment: AlignmentType.CENTER
               })
@@ -398,7 +479,23 @@ export class ExportService {
       }
 
       const [{ default: MarkdownIt }, docx] = await Promise.all([import('markdown-it'), import('docx')])
-      const elements = this.convertMarkdownToDocxElements(markdown, new MarkdownIt(), docx)
+      const md = new MarkdownIt()
+      const defaultValidateLink = md.validateLink
+      const defaultNormalizeLink = md.normalizeLink
+      md.validateLink = (url) => defaultValidateLink(url) || isRecognizedLocalFileReference(url) || isImageDataUri(url)
+      md.normalizeLink = (url) => {
+        if (isWindowsFileReference(url)) {
+          return pathToFileURL(url.replace(/^file:\/\//i, ''), { windows: true }).href
+        }
+        if (url.startsWith('/')) return pathToFileURL(url, { windows: false }).href
+        return defaultNormalizeLink(url)
+      }
+      // Link validation also changes reference definitions; image-free exports keep the default parser.
+      if (!md.parse(markdown, {}).some((token) => token.children?.some((child) => child.type === 'image'))) {
+        md.validateLink = defaultValidateLink
+        md.normalizeLink = defaultNormalizeLink
+      }
+      const elements = await this.convertMarkdownToDocxElements(markdown, md, docx)
 
       const doc = new docx.Document({
         styles: {
