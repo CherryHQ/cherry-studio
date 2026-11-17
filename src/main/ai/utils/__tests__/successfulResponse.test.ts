@@ -38,6 +38,118 @@ const TERMINATED = 'Invalid response: response processing terminated. Retry the 
 const MODEL_ID = 'fixture-provider::fixture-model'
 const encoder = new TextEncoder()
 
+describe('streaming model check', () => {
+  async function probe(body: BodyInit, signal = new AbortController().signal, status = 200) {
+    const fetch = vi.fn(async () => new Response(body, { status }))
+    const model = createOpenAICompatible({
+      name: 'probe',
+      baseURL: 'https://probe.invalid/v1',
+      apiKey: 'selected-key',
+      fetch
+    }).chatModel('selected-model')
+    createAgentMock.mockResolvedValue({
+      stream: async (options: Parameters<typeof streamText>[0]) =>
+        streamText({ ...options, model, maxRetries: 0, onError: () => {} })
+    })
+    const agent = new Agent({
+      providerId: 'openai-compatible',
+      providerSettings: { name: 'probe', baseURL: 'https://probe.invalid/v1' },
+      modelId: 'selected-model'
+    })
+    const result = await agent.generate({ prompt: 'hi' }, signal, 'stream')
+    const request = fetch.mock.calls[0] as unknown as [string, RequestInit]
+    expect(request[0]).toBe('https://probe.invalid/v1/chat/completions')
+    expect(JSON.parse(request[1].body as string)).toMatchObject({ model: 'selected-model', stream: true })
+    expect(new Headers(request[1].headers).get('authorization')).toBe('Bearer selected-key')
+    return result
+  }
+
+  it('accepts a complete stream through the real adapter', async () => {
+    const { first, end } = fixture('compatible')
+    await expect(probe(first + end)).resolves.toMatchObject({ text: 'OK', finishReason: 'stop' })
+  })
+
+  it('accepts a normal output-token limit', async () => {
+    const { first, end } = fixture('compatible')
+    await expect(probe(first + end.replace('"stop"', '"length"'))).resolves.toMatchObject({ finishReason: 'length' })
+  })
+
+  it('consumes the Anthropic adapter stream to completion', async () => {
+    const { first, end } = fixture('anthropic')
+    const { model } = modelFor('anthropic', first + end, 'text/event-stream')
+    createAgentMock.mockResolvedValue({
+      stream: async (options: Parameters<typeof streamText>[0]) =>
+        streamText({ ...options, model, maxRetries: 0, onError: () => {} })
+    })
+    const agent = new Agent({ providerId: 'anthropic', providerSettings: {}, modelId: 'fixture-model' })
+    await expect(agent.generate({ prompt: 'hi' }, undefined, 'stream')).resolves.toMatchObject({
+      text: 'OK',
+      finishReason: 'stop'
+    })
+  })
+
+  it('rejects cancellation after the response begins', async () => {
+    const controller = new AbortController()
+    const reason = new Error('probe deadline')
+    const consumed = Promise.withResolvers<void>()
+    const body = new ReadableStream<Uint8Array>({
+      start(stream) {
+        stream.enqueue(encoder.encode(fixture('compatible').first))
+        controller.signal.addEventListener('abort', () => stream.error(reason), { once: true })
+      },
+      pull() {
+        consumed.resolve()
+      }
+    })
+    const result = expect(probe(body, controller.signal)).rejects.toBe(reason)
+    await consumed.promise
+    controller.abort(reason)
+    await result
+  })
+
+  it.each(['html', 'wrong-shape', 'truncated', 'empty', 'late-error', 'filtered'])(
+    'rejects %s instead of reporting connectivity',
+    async (kind) => {
+      const { first, end } = fixture('compatible')
+      const bodies: Record<string, string> = {
+        html: '<html>gateway failure</html>',
+        'wrong-shape': 'data: {"candidates":[]}\n\n',
+        truncated: first,
+        empty: end,
+        'late-error': first + 'data: {"error":{"message":"upstream failed","type":"server_error"}}\n\n',
+        filtered: first + end.replace('"stop"', '"content_filter"')
+      }
+      await expect(probe(bodies[kind])).rejects.toThrow()
+    }
+  )
+
+  it.each([401, 403])('preserves HTTP %s failures', async (status) => {
+    await expect(probe('{"error":{"message":"denied"}}', undefined, status)).rejects.toMatchObject({
+      statusCode: status
+    })
+  })
+
+  it('waits for the terminal response after receiving text', async () => {
+    const { first, end } = fixture('compatible')
+    let controller!: ReadableStreamDefaultController<Uint8Array>
+    const body = new ReadableStream<Uint8Array>({
+      start(value) {
+        controller = value
+        controller.enqueue(encoder.encode(first))
+      }
+    })
+    let settled = false
+    const result = probe(body).finally(() => {
+      settled = true
+    })
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    expect(settled).toBe(false)
+    controller.enqueue(encoder.encode(end))
+    controller.close()
+    await expect(result).resolves.toMatchObject({ text: 'OK' })
+  })
+})
+
 function fixture(kind: 'compatible' | 'anthropic') {
   const compatible = kind === 'compatible'
   const valid = compatible
