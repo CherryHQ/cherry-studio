@@ -79,6 +79,30 @@ describe('tool gate', () => {
     expect(JSON.stringify(w.fake.persistentLog())).not.toContain(`cherry.approval:${result.callKey}`)
   })
 
+  // Catches a decision that applies the new mode to facts derived under the old one: a risky shell call checked in
+  // `default` carries no destructive flag, so switching to `auto` mid-check would run it without asking.
+  it('gathers approval facts again when the permission mode changed while they were gathered', async () => {
+    let mode: 'default' | 'auto' = 'default'
+    const w = world({
+      extra: register(tool('bash')),
+      host: {
+        approvalFacts: () => {
+          const facts = { ...ALLOWED, autoApproved: false, permissionMode: mode, destructive: mode === 'auto' }
+          mode = 'auto'
+          return facts
+        }
+      },
+      patchHost: (host) => ({ ...host, settings: { ...host.settings, permissionMode: () => mode } })
+    })
+    const t = await w.fake.createThread()
+    w.fake.script(t, [callTool('bash', { command: 'rm file' }), reply('done')])
+    w.host.answerApproval({ kind: 'denied' })
+    await w.fake.sendUser(t, 'go')
+    await w.fake.settle()
+    expect(w.host.asked.approvals).toBe(1)
+    expect(toolResults(await w.read(t))[0]).toMatchObject({ isError: true })
+  })
+
   // Catches the gate ignoring the goal round's call window, so a stuck model repeats a call forever (R4, block half).
   it('blocks the third identical call in a goal round', async () => {
     const w = world({

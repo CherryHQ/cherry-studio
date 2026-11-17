@@ -1,4 +1,6 @@
 import { loggerService } from '@logger'
+import { logFailure } from '@main/core/logger/logFailure'
+import { classifyDataApiFailure } from '@main/data/failureFacts'
 import { toDataApiError } from '@shared/data/api/errors'
 import type { DataRequest, DataResponse, Middleware, RequestContext } from '@shared/data/api/types'
 
@@ -77,9 +79,15 @@ export class MiddlewareEngine {
         try {
           await next()
         } catch (error) {
-          logger.error(`Request error: ${req.method} ${req.path}`, error as Error)
-
           const apiError = toDataApiError(error, `${req.method} ${req.path}`)
+          logFailure(
+            logger,
+            `Request error: ${req.method} ${req.path}`,
+            error,
+            'data.middleware',
+            classifyDataApiFailure(error, apiError)
+          )
+          apiError.reportingHandled = true
           res.error = apiError.toJSON() // Serialize for IPC transmission
           res.status = apiError.status
         }

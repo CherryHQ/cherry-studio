@@ -1,6 +1,6 @@
 // Registers MessageService in the data-service registry (topic purge resolves it).
 import '@data/services/MessageService'
-import { rootRow, setupTestDatabase } from '@test-helpers/db'
+import { rootRow, setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
@@ -210,6 +210,7 @@ describe('trashPurgeJobHandler', () => {
       }
     ])
     await dbh.db.insert(agentSessionMessageTable).values({
+      parentId: seedSessionRoot(dbh.db, 'session-expired'),
       id: 'asm-expired',
       sessionId: 'session-expired',
       role: 'user',

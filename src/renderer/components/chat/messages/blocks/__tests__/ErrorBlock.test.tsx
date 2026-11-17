@@ -182,6 +182,31 @@ required service tier.`
     expect(diagnostic).toHaveTextContent(copy.recovery)
   })
 
+  it.each([enUS, zhCN])('explains output truncation without blaming the network', (catalog) => {
+    mocks.translations = new Map(Object.entries(catalog))
+    mocks.i18nKeys.add('error.output_token_limit_reached')
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'Error',
+          message: 'Durable response ended: length',
+          stack: null,
+          streamStage: 'response-stream',
+          reason: 'output-truncated',
+          finishReason: 'length',
+          i18nKey: 'output_token_limit_reached'
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(catalog['error.output_token_limit_reached'])).toBeInTheDocument()
+    expect(screen.queryByText(catalog['error.diagnosis.stream'])).not.toBeInTheDocument()
+    expect(screen.queryByText(GO_TO_SETTINGS_LABEL)).not.toBeInTheDocument()
+  })
+
   it('renders a known app-owned i18nKey without AI diagnosis', () => {
     const i18nKey = 'tool_call_limit_reached'
     const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
@@ -314,7 +339,7 @@ required service tier.`
       />
     )
 
-    expect(screen.getByText('models.detail.quota_exhausted')).toBeInTheDocument()
+    expect(screen.getByText('models.detail.quota_insufficient_for_request')).toBeInTheDocument()
     expect(screen.getByText(planText)).toBeInTheDocument()
     expect(screen.queryByText(/API Error|HTTP 429/)).toBeNull()
     expect(screen.queryByText(GO_TO_SETTINGS_LABEL)).toBeNull()
@@ -335,7 +360,7 @@ required service tier.`
     )
 
     expect(screen.getByText('error.diagnosis.rate_limit')).toBeInTheDocument()
-    expect(screen.queryByText('models.detail.quota_exhausted')).toBeNull()
+    expect(screen.queryByText('models.detail.quota_insufficient_for_request')).toBeNull()
     expect(screen.getByText(/HTTP 429/)).toBeInTheDocument()
   })
 
