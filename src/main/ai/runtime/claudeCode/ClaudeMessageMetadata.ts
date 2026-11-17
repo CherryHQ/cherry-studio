@@ -16,6 +16,7 @@ import { stripClaudeCodeRejectionPrefix } from '@shared/ai/providerError'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import { isMcpContentBlock } from '@shared/utils/mcp'
 
+import { CLAUDE_MEMORY_UNCONFIRMED, isClaudeMemoryWorkingCopy } from './memoryTools'
 import type { McpToolDisplayMetadata } from './types'
 
 type ClaudeToolUseBlock = BetaToolUseBlock | BetaServerToolUseBlock | BetaMCPToolUseBlock
@@ -34,6 +35,7 @@ type ToolMetadata = {
 export class ClaudeMessageMetadata {
   private readonly reminders = new Set<string>()
   private readonly rejectedMessages = new Set<string>()
+  private readonly unconfirmedMemoryCalls = new Set<string>()
   private readonly thinking = new Map<
     string,
     Map<number, { startedAt: number; elapsedFrom: number; thinkingMs?: number }>
@@ -48,6 +50,18 @@ export class ClaudeMessageMetadata {
     if (refreshAll) this.catalog = structuredClone(this.mcpToolMetadata)
     for (const native of batch.native) {
       const message = native.message
+      if (message.type === 'user' && 'tool_use_result' in message) {
+        const result = message.tool_use_result
+        if (isRecord(result)) {
+          const filePath = isRecord(result.file) ? result.file.filePath : result.filePath
+          if (isClaudeMemoryWorkingCopy(filePath) && Array.isArray(message.message.content))
+            for (const block of message.message.content)
+              if (block.type === 'tool_result') {
+                if (!this.unconfirmedMemoryCalls.has(block.tool_use_id)) refreshAll = true
+                this.unconfirmedMemoryCalls.add(block.tool_use_id)
+              }
+        }
+      }
       if (message.type === 'assistant' && native.isApiErrorMessage && !this.rejectedMessages.has(message.uuid)) {
         this.rejectedMessages.add(message.uuid)
         refreshAll = true
@@ -111,6 +125,26 @@ export class ClaudeMessageMetadata {
           providerExecuted: true,
           title: this.getToolTitle(state),
           callProviderMetadata: { ...part.callProviderMetadata, ...metadata }
+        }
+        if (part.state === 'output-available') {
+          const result = normalizeClaudeToolResult(part.output)
+          const scratchWrite =
+            ['Write', 'Edit'].includes(part.toolName) &&
+            typeof result === 'string' &&
+            /^(?:The file |File created successfully at: ).*[\\/]cherry-memory-native-[a-z\d]+[\\/][a-f\d-]+\.md/i.test(
+              result
+            )
+          if (
+            (['Read', 'Write', 'Edit'].includes(part.toolName) && this.unconfirmedMemoryCalls.has(part.toolCallId)) ||
+            scratchWrite
+          )
+            return {
+              ...part,
+              ...decoration,
+              state: 'output-error' as const,
+              output: undefined,
+              errorText: CLAUDE_MEMORY_UNCONFIRMED
+            }
         }
         if (part.state === 'output-available')
           return {

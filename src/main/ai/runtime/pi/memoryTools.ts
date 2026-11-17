@@ -92,7 +92,19 @@ export function createPiMemoryTools(
       description: `${original.description}\nFor managed memory files, read the complete file first (omit offset/limit), then pass its memoryReceipt to write or edit. Reading an absent file supplies the baseline for creation. Entry injection is not a full read. Only these controlled operations provide memory backups and conflict checks.`,
       parameters:
         original.name === 'read'
-          ? original.parameters
+          ? {
+              ...original.parameters,
+              properties: {
+                ...('properties' in original.parameters
+                  ? (original.parameters.properties as Record<string, unknown>)
+                  : {}),
+                memoryPurpose: {
+                  type: 'string',
+                  enum: ['current', 'historical'],
+                  description: 'Use historical only for past facts; forgotten facts remain unavailable.'
+                }
+              }
+            }
           : {
               ...original.parameters,
               properties: {
@@ -128,13 +140,17 @@ export function createPiMemoryTools(
           if (args.offset !== undefined || args.limit !== undefined)
             throw new Error('Memory reads must be complete; omit offset and limit')
           const session = sessionFor(approvedTarget, signal)
-          const file = await session.read(approvedTarget.path)
+          const file = await session.read(
+            approvedTarget.path,
+            args.memoryPurpose === 'historical' ? 'historical' : 'current'
+          )
           signal?.throwIfAborted()
           if (file.content !== null && Buffer.byteLength(file.content, 'utf8') > MEMORY_MAX_BYTES)
             throw new Error(
               'This memory file exceeds the model read budget. Review the full file in Settings before editing it.'
             )
-          reads.set(file.receipt, { path: approvedTarget.path, scope: scopeKey(approvedTarget), hash: file.hash })
+          if (file.receipt)
+            reads.set(file.receipt, { path: approvedTarget.path, scope: scopeKey(approvedTarget), hash: file.hash })
           return {
             content: [
               {
@@ -143,7 +159,7 @@ export function createPiMemoryTools(
                   path: approvedTarget.absolutePath,
                   content: file.content,
                   hash: file.hash,
-                  memoryReceipt: file.receipt
+                  memoryReceipt: file.receipt || undefined
                 })
               }
             ],
@@ -191,7 +207,7 @@ export function createPiMemoryTools(
           return { content: [{ type: 'text', text: JSON.stringify(committed) }], details: undefined }
         }
         const current = await session.read(target.path)
-        if (current.hash !== baseline.hash || current.content === null)
+        if (!current.receipt || current.hash !== baseline.hash || current.content === null)
           throw new Error('Memory changed since the bound read')
         const edit = pi.createEditToolDefinition(context.workspacePath, {
           operations: {

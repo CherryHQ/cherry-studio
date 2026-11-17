@@ -94,6 +94,7 @@ const userDataSqliteWrite = async (ctx: ToolGuardContext): Promise<GuardHit | nu
 }
 
 const uncontrolledMemoryFile = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
+  if (ctx.controlledMemory && ['Read', 'Write', 'Edit'].includes(ctx.toolName)) return null
   const fields: Record<string, string> = { ...WORKSPACE_PATH_FIELDS, MultiEdit: 'file_path', LS: 'path' }
   const field = fields[ctx.toolName]
   if (!field) return null
@@ -132,6 +133,7 @@ const unsupportedImageRead = (ctx: ToolGuardContext): GuardHit | null => {
 }
 
 const pathOutsideAllowedRoots = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
+  if (ctx.controlledMemory && ['Read', 'Write', 'Edit'].includes(ctx.toolName)) return null
   const pathField = WORKSPACE_PATH_FIELDS[ctx.toolName as keyof typeof WORKSPACE_PATH_FIELDS]
   if (!pathField) return null
   const requestedPath = ctx.input?.[pathField]

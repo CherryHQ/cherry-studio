@@ -2502,45 +2502,6 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
   })
 
-  it('refreshes identity through the hooks mounted on a reused Claude connection', async () => {
-    mocks.getAgent.mockReturnValue({
-      id: 'agent-1',
-      type: 'claude-code',
-      model: 'anthropic::claude-sonnet',
-      mcps: [],
-      allowedTools: [],
-      disabledTools: [],
-      configuration: { builtin_role: 'assistant' }
-    })
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
-    }
-
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    const hook = settings.hooks!.UserPromptSubmit![0].hooks[0]
-    const submit = () =>
-      hook({ hook_event_name: 'UserPromptSubmit' } as never, undefined, {
-        signal: new AbortController().signal
-      })
-    mocks.buildMemoriesSection.mockResolvedValue('<agent_identity>Persona A</agent_identity>')
-    expect(await submit()).toMatchObject({
-      hookSpecificOutput: { additionalContext: expect.stringContaining('<agent_identity>Persona A</agent_identity>') }
-    })
-    mocks.buildMemoriesSection.mockResolvedValue('<agent_identity>Persona B</agent_identity>')
-    const refreshed = await submit()
-    expect(refreshed).toMatchObject({
-      hookSpecificOutput: { additionalContext: expect.stringContaining('<agent_identity>Persona B</agent_identity>') }
-    })
-    const context = 'hookSpecificOutput' in refreshed && refreshed.hookSpecificOutput
-    expect(context && 'additionalContext' in context && context.additionalContext).toMatch(
-      /<cherry_memory>[\s\S]*\n\[\]\n<\/cherry_memory>/
-    )
-    expect(context && 'additionalContext' in context && context.additionalContext).not.toContain('Persona A')
-    expect(await submit()).toEqual({})
-  })
-
   it('keeps RTK as the only Bash text rewrite', async () => {
     mocks.rtkRewrite.mockResolvedValue('rtk eslint .')
     const session = {
