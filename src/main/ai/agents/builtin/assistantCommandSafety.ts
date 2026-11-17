@@ -3,6 +3,8 @@ import { parseShellCommand, resolveCommand, type ShellCommand, type ShellHeredoc
 interface DestructiveCommandPattern {
   reason: string
   pattern: RegExp
+  /** Scan the payload-blanked text (quotes kept) instead of the quote-and-comment skeleton. */
+  rawText?: boolean
 }
 
 // PowerShell identifier/name characters with every Unicode whitespace excluded: whitespace
@@ -54,7 +56,7 @@ const PS_PAREN_TARGET = String.raw`(?<!\.)(?:${PS_PAREN_TARGET_L2}|${PS_PAREN_TA
 const SHELL_ARGUMENT_PATTERN = String.raw`(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s;&|]+)`
 const GIT_GLOBAL_OPTION_PATTERN = String.raw`(?:(?:-C|-c|--exec-path|--git-dir|--work-tree|--namespace|--super-prefix|--config-env)\s+${SHELL_ARGUMENT_PATTERN}|(?:--exec-path|--git-dir|--work-tree|--namespace|--super-prefix|--config-env|--list-cmds|--attr-source)=${SHELL_ARGUMENT_PATTERN}|-p|--paginate|--no-pager|--bare|--no-replace-objects|--literal-pathspecs|--no-literal-pathspecs|--glob-pathspecs|--noglob-pathspecs|--icase-pathspecs|--no-optional-locks|--no-lazy-fetch|--no-advice)`
 const GIT_DESTRUCTIVE_COMMAND_PATTERN = new RegExp(
-  String.raw`\bgit(?:\s+${GIT_GLOBAL_OPTION_PATTERN})*\s+(?:clean\b|reset\s+--hard\b|checkout\s+(?:(?:[^\s;&|]+)\s+)?--(?:\s|$)|checkout\s+\.(?:[\\/][^\s;&|]*)?(?:\s|$)|(?:checkout|switch)\b[^\r\n;&|]*(?:--discard-changes|--force|-f)(?:\s|$)|restore\b|branch\s+-D\b|stash\s+(?:drop|clear)\b)`,
+  String.raw`\bgit(?:\s+${GIT_GLOBAL_OPTION_PATTERN})*\s+(?:clean\b|reset\s+--hard\b|checkout\s+(?:(?:[^\s;&|]+)\s+)?--(?:\s|$)|checkout\s+\.(?:[\\/][^\s;&|]*)?(?:\s|$)|(?:checkout|switch)\b[^\r\n;&|]*(?:--discard-changes|--force|-f)(?:\s|$)|restore\b(?![^\r\n;&|]*--staged(?![^\r\n;&|]*--worktree))|branch\s+-D\b|stash\s+(?:drop|clear)\b)`,
   'i'
 )
 
@@ -621,6 +623,13 @@ function analyzeArgv(argv: readonly string[] | undefined, depth: number): string
 
 function reasonForNestedCommand(name: string, args: readonly string[], depth: number): string | undefined {
   if (depth >= MAX_ANALYSIS_DEPTH) return undefined
+  if (name === 'command') {
+    let rest = args
+    while (rest[0] === '-p') rest = rest.slice(1)
+    // `command -v|-V` only looks up its argument; anything else executes it.
+    if (rest[0] === '-v' || rest[0] === '-V') return undefined
+    return analyzeArgv(rest, depth)
+  }
   if (SHELLS.has(name)) return analyzeNested(shellCodeArgument(args), depth)
   if (PYTHON.has(name)) {
     const code = optionValue(args, ['-c'])
@@ -1871,7 +1880,11 @@ function hashtableValueDeletion(s: string): boolean {
 const DESTRUCTIVE_COMMAND_PATTERNS: readonly DestructiveCommandPattern[] = [
   {
     reason: 'permanent file deletion',
-    pattern: /\b(?:rm|unlink|shred|srm)\b/i
+    // Command position only: after a separator/substitution opener, optionally behind an exec
+    // wrapper (sudo/xargs/time/...). Arguments (`echo rm`, `command -v rm`, `docker image inspect
+    // rm`) are not execution; container/remote wrappers are resolved by `analyze` instead.
+    pattern:
+      /(?:^|[\r\n;&|(`]|\|\||&&|\$\()\s*(?:(?:sudo|doas|xargs|time|env|nice|nohup|watch|ionice|stdbuf|chrt)\b[^\r\n;&|()]*?)?\b(?:rm|unlink|shred|srm)\b/i
   },
   {
     reason: 'permanent Windows file deletion',
@@ -1879,7 +1892,10 @@ const DESTRUCTIVE_COMMAND_PATTERNS: readonly DestructiveCommandPattern[] = [
   },
   {
     reason: 'permanent Windows file deletion',
-    pattern: WINDOWS_AMBIGUOUS_DELETE_PATTERN
+    // cmd/powershell payloads legitimately carry deletion tokens inside quotes (`cmd /c "@del x"`),
+    // so this pattern keeps the unblanked text; interpreter payloads are blanked there too.
+    pattern: WINDOWS_AMBIGUOUS_DELETE_PATTERN,
+    rawText: true
   },
   {
     reason: 'scripted permanent file deletion',
@@ -1905,12 +1921,12 @@ const DESTRUCTIVE_COMMAND_PATTERNS: readonly DestructiveCommandPattern[] = [
   {
     reason: 'destructive infrastructure operation',
     pattern:
-      /\b(?:terraform\s+destroy|kubectl\s+delete|helm\s+uninstall)\b|\bdocker\b[\s\S]*\b(?:prune|rmi?)\b|\b(?:aws|gcloud|az)\b[\s\S]*\b(?:delete|destroy|remove)\b/i
+      /\b(?:terraform\s+destroy|kubectl\s+delete|helm\s+uninstall)\b|\bdocker(?:\s+--?[a-zA-Z][^\s;&|]*)*(?:\s+(?:builder|buildx|config|container|context|image|network|node|plugin|secret|service|stack|swarm|system|volume))?(?:\s+--?[a-zA-Z][^\s;&|]*)*\s+(?:prune|rmi?)\b|\b(?:aws|gcloud|az)\b[\s\S]*\b(?:delete|destroy|remove)\b/i
   },
   {
     reason: 'system shutdown or service destruction',
     pattern:
-      /\b(?:shutdown|reboot|poweroff|halt)\b|\bsystemctl\s+(?:disable|mask)\b|\blaunchctl\s+(?:unload|remove)\b|\bsc(?:\.exe)?\s+delete\b|\breg(?:\.exe)?\s+delete\b/i
+      /(?<!-)\b(?:shutdown|reboot|poweroff|halt)\b|\bsystemctl\s+(?:disable|mask)\b|\blaunchctl\s+(?:unload|remove)\b|\bsc(?:\.exe)?\s+delete\b|\breg(?:\.exe)?\s+delete\b/i
   },
   {
     reason: 'security-log or shell-history erasure',
@@ -1922,19 +1938,107 @@ const DESTRUCTIVE_COMMAND_PATTERNS: readonly DestructiveCommandPattern[] = [
   }
 ]
 
+/**
+ * Replace heredoc bodies with spaces (newlines kept) so the raw fallback scans below only see the
+ * command lines. Executing consumers (shells, python, node, databases) are already handled by
+ * `reasonForHeredoc`, and unquoted bodies have their expansions analyzed there too; anything left
+ * is prose shipped to a non-executing consumer, which must not trip the raw patterns.
+ */
+function blankHeredocBodies(command: string): string {
+  const { heredocs } = parseShellCommand(command)
+  if (heredocs.length === 0) return command
+  let skeleton = command
+  let cursor = 0
+  for (const heredoc of heredocs) {
+    const lineIndex = skeleton.indexOf(heredoc.line, cursor)
+    if (lineIndex === -1) continue
+    let bodyStart = lineIndex + heredoc.line.length
+    if (skeleton[bodyStart] === '\r') bodyStart++
+    if (skeleton[bodyStart] === '\n') bodyStart++
+    if (!skeleton.startsWith(heredoc.body, bodyStart)) continue
+    const blanked = heredoc.body.replace(/[^\r\n]/g, ' ')
+    skeleton = skeleton.slice(0, bodyStart) + blanked + skeleton.slice(bodyStart + heredoc.body.length)
+    cursor = bodyStart + heredoc.body.length
+  }
+  return skeleton
+}
+
+/**
+ * Blank the bodies of scripting-interpreter code payloads (`python3 -c "…"`, `node -e '…'`).
+ * `reasonForNestedCommand` already analyzes those as code with literal-aware stripping; leaving
+ * their text in the raw scans re-reads language keywords (`del`) and string literals
+ * (`'os.remove(x)'`) as shell commands. Shell/powershell/cmd payloads stay visible: their quoting
+ * is part of the obfuscation surface the Windows scanners cover.
+ */
+function blankInterpreterPayloads(command: string): string {
+  return command.replace(
+    /\b(?:python3?|py|node|nodejs)\b(?:\s+--?[a-zA-Z][\w-]*)*\s+(?:-c|-e|--eval|-p|--print)\s+(["'])(?:[^\\]|\\.)*?\1/g,
+    (whole, quote: string) => {
+      const openQuote = whole.indexOf(quote)
+      const body = whole.slice(openQuote + 1, -1)
+      return whole.slice(0, openQuote + 1) + body.replace(/[^\r\n]/g, ' ') + whole.slice(-1)
+    }
+  )
+}
+
+/**
+ * Blank quoted-string interiors and `#` comments so the raw fallback scans only see text the shell
+ * would treat as command syntax. Backtick and `$(…)` substitution contents still execute, so they
+ * are left visible (and are analyzed via `substitutions` regardless). A `#` starts a comment only
+ * where a word can start; `echo foo#bar` keeps its text.
+ */
+function blankQuotedAndComments(command: string): string {
+  const chars = command.split('')
+  let index = 0
+  let wordStart = true
+  while (index < chars.length) {
+    const char = chars[index]
+    if (char === '\\') {
+      wordStart = false
+      index += 2
+      continue
+    }
+    if (char === "'" || char === '"') {
+      const close = findClosingQuote(command, index + 1, char)
+      const end = close === -1 ? command.length : close
+      for (let j = index + 1; j < end; j++) if (chars[j] !== '\n' && chars[j] !== '\r') chars[j] = ' '
+      wordStart = false
+      index = close === -1 ? command.length : close + 1
+      continue
+    }
+    if (char === '#' && wordStart) {
+      while (index < chars.length && chars[index] !== '\n') {
+        chars[index] = ' '
+        index++
+      }
+      wordStart = true
+      continue
+    }
+    wordStart = /\s/.test(char) || ';&|()<>'.includes(char)
+    index++
+  }
+  return chars.join('')
+}
+
 export function detectDestructiveAssistantCommand(command: string): string | undefined {
   const normalized = command.replace(/\\\r?\n|\^\r?\n|`\r?\n/g, ' ')
   // A fork bomb is a shell construct, not a command with arguments; tokenizing would split it apart.
   if (/:\(\)\s*\{[^}]*:\|:&\s*;?\s*\}\s*;?\s*:/.test(normalized)) return 'a process-exhaustion payload'
+  // `payloadBlanked` keeps shell-level quoting for the Windows scanners (cmd/powershell quoting is
+  // executable syntax there); `scanned` additionally blanks quoted interiors and comments so the
+  // POSIX fallback patterns only match words the shell would treat as command syntax.
+  const payloadBlanked = blankInterpreterPayloads(blankHeredocBodies(normalized))
+  const scanned = blankQuotedAndComments(payloadBlanked)
   return (
     analyze(normalized, 0) ??
-    DESTRUCTIVE_COMMAND_PATTERNS.find(({ pattern }) => pattern.test(normalized))?.reason ??
-    (longGlueStartDeletion(normalized) ||
-    getCommandLookupDeletion(normalized) ||
-    (normalized.includes('<#') && getCommandLookupDeletion(blankBlockComments(normalized))) ||
-    hashtableValueDeletion(normalized) ||
-    aliasBindDeletion(normalized) ||
-    commentGapDeletion(normalized)
+    DESTRUCTIVE_COMMAND_PATTERNS.find(({ pattern, rawText }) => pattern.test(rawText ? payloadBlanked : scanned))
+      ?.reason ??
+    (longGlueStartDeletion(payloadBlanked) ||
+    getCommandLookupDeletion(payloadBlanked) ||
+    (payloadBlanked.includes('<#') && getCommandLookupDeletion(blankBlockComments(payloadBlanked))) ||
+    hashtableValueDeletion(payloadBlanked) ||
+    aliasBindDeletion(payloadBlanked) ||
+    commentGapDeletion(payloadBlanked)
       ? 'permanent Windows file deletion'
       : undefined)
   )
