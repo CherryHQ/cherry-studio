@@ -86,7 +86,7 @@ export type WebSearchImageResult = Readonly<{
 
 export type WebSearchResultSet = Readonly<{
   providerId: RemoteProviderId
-  capability: WebSearchCapability
+  capability: 'searchKeywords' | 'fetchUrls'
   input: string
   results: readonly WebSearchResult[]
 }>
@@ -139,6 +139,10 @@ export type ProviderRegistration = Readonly<{
   capabilities: readonly WebSearchCapability[]
 }>
 
+export type WebSearchExecuteResult<C extends WebSearchCall> = C extends WebSearchSearchImagesCall
+  ? WebSearchImageResultSet
+  : WebSearchResultSet
+
 export interface WebSearchClient {
-  execute(call: WebSearchCall): Promise<WebSearchResultSet | WebSearchImageResultSet>
+  execute<C extends WebSearchCall>(call: C): Promise<WebSearchExecuteResult<C>>
 }

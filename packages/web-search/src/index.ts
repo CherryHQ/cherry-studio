@@ -7,6 +7,7 @@ export type {
   WebSearchCapability,
   WebSearchClient,
   WebSearchCredentials,
+  WebSearchExecuteResult,
   WebSearchFetchUrlsCall,
   WebSearchHttpRequest,
   WebSearchHttpResponse,

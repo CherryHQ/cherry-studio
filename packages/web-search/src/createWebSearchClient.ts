@@ -4,6 +4,7 @@ import type {
   RemoteProviderId,
   WebSearchCall,
   WebSearchClient,
+  WebSearchExecuteResult,
   WebSearchImageResult,
   WebSearchImageResultSet,
   WebSearchResult,
@@ -27,7 +28,7 @@ export function createWebSearchClient(deps: {
     }
     providers.set(id, { provider: registration.provider, capabilities: [...registration.capabilities] })
   }
-  async function execute(call: WebSearchCall): Promise<WebSearchResultSet | WebSearchImageResultSet> {
+  async function execute<C extends WebSearchCall>(call: C): Promise<WebSearchExecuteResult<C>> {
     if (call.signal?.aborted)
       throw new WebSearchError(
         { ...call, kind: 'cancelled', code: 'request_cancelled', message: 'Web search cancelled' },
@@ -51,7 +52,7 @@ export function createWebSearchClient(deps: {
         input: call.input,
         results: mapped as WebSearchImageResult[]
       }
-      return resultSet
+      return resultSet as WebSearchExecuteResult<C>
     }
     const resultSet: WebSearchResultSet = {
       providerId: call.providerId,
@@ -59,7 +60,7 @@ export function createWebSearchClient(deps: {
       input: call.input,
       results: mapped as WebSearchResult[]
     }
-    return resultSet
+    return resultSet as WebSearchExecuteResult<C>
   }
 
   return { execute }

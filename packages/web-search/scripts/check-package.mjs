@@ -101,7 +101,9 @@ try {
         return { status: 200, headers: {}, bodyText: '{}' }
       } } })
     const call: WebSearchCall = { providerId: 'tavily', capability: 'searchKeywords', input: 'package', config: { maxResults: 1 } }
-    void client.execute(call).then((response) => { response.results satisfies readonly WebSearchResult[] })
+    void client.execute(call).then((response) => {
+      if (response.capability !== 'searchImages') response.results satisfies readonly WebSearchResult[]
+    })
     // @ts-expect-error Search calls require a result limit.
     const invalid: WebSearchCall = { providerId: 'tavily', capability: 'searchKeywords', input: 'package', config: {} }
     void invalid
