@@ -1,4 +1,4 @@
-import { Pin, Plus, SquarePen } from 'lucide-react'
+import { Inbox, Pin, Plus, SquarePen } from 'lucide-react'
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   memo,
@@ -13,7 +13,7 @@ import {
 } from 'react'
 
 import { ScrollArea } from '@cherrystudio/ui'
-import { Checkbox, EmptyState } from '@cherrystudio/ui'
+import { Checkbox, EmptyStateMessage } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import {
@@ -686,7 +686,9 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     : undefined
 
   const listContent = loading ? null : flatItems.length === 0 ? (
-    <EmptyState compact description={labels.emptyText} className="min-h-full px-3 py-4" />
+    <EmptyStateMessage icon={Inbox} className="min-h-full justify-center px-3 py-4 text-muted-foreground text-xs">
+      {labels.emptyText}
+    </EmptyStateMessage>
   ) : (
     sections.map((section, sectionIndex) => {
       if (section.items.length === 0) return null

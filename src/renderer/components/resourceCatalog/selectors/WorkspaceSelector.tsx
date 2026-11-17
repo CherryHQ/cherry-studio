@@ -1,9 +1,9 @@
-import { CircleSlash, Folder, FolderPlus, Trash2 } from 'lucide-react'
+import { CircleSlash, Folder, FolderOpen, FolderPlus, Trash2 } from 'lucide-react'
 import { lazy, type ReactElement, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ScrollArea } from '@cherrystudio/ui'
-import { EmptyState } from '@cherrystudio/ui'
+import { EmptyStateMessage } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from '@renderer/components/ModelSelector'
 import {
@@ -207,11 +207,9 @@ export function WorkspaceSelector({
   }
 
   const workspaceListContent = isLoading ? null : filteredWorkspaces.length === 0 ? (
-    <EmptyState
-      compact
-      description={t('agent.session.workspace_selector.empty_text')}
-      className="min-h-full px-3 py-4"
-    />
+    <EmptyStateMessage icon={FolderOpen} className="min-h-full justify-center px-3 py-4 text-muted-foreground text-xs">
+      {t('agent.session.workspace_selector.empty_text')}
+    </EmptyStateMessage>
   ) : (
     filteredWorkspaces.map(renderWorkspaceRow)
   )

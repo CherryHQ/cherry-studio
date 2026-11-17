@@ -194,6 +194,7 @@ export function UsageDistributionChart({
               {isEmpty ? (
                 <EmptyState
                   compact
+                  scene={<UsageEmptyScene />}
                   title={t('settings.usage.explore.noBreakdown')}
                   description={t('settings.usage.explore.noBreakdownDescription')}
                 />
