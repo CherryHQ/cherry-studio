@@ -190,7 +190,7 @@ vi.mock('../../../../build/icon.png?asset', () => ({ default: '/mock/icon.png' }
 
 // BaseService.ipcHandle/ipcOn/registerDisposable rely on real ipc internals; bypass them here.
 vi.mock('@main/core/lifecycle', async () => {
-  const actual = (await vi.importActual('@main/core/lifecycle')) as Record<string, unknown>
+  const actual = await vi.importActual<Record<string, unknown>>('@main/core/lifecycle')
   class StubBase {
     ipcHandle = vi.fn()
     ipcOn = vi.fn()

@@ -24,6 +24,7 @@ import { selectVisibleModel } from '../helpers/models'
 import { selectSidebarApp, dismissOnboarding, openHelpMenu } from '../helpers/navigation'
 import { closeSettings, openSettingsSection } from '../helpers/settings'
 import { revealVirtualized } from '../helpers/virtualList'
+import { ctrlWheelZoom } from '../scenarios/ctrlWheelZoom'
 import { feishuChannelSettings } from '../scenarios/feishuChannelSettings'
 import { fontsAndZoom } from '../scenarios/fontsAndZoom'
 import { longUserMessageExpansion } from '../scenarios/longUserMessageExpansion'
@@ -353,6 +354,10 @@ test(...caseDefinition('MP-105'), async ({ app, mainWindow }, testInfo) => {
 
 test(...caseDefinition('MP-106'), async ({ app, mainWindow }, testInfo) => {
   await fontsAndZoom(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('ZOOM-01'), async ({ app, mainWindow }, testInfo) => {
+  await ctrlWheelZoom(app, mainWindow, testInfo)
 })
 
 test(...caseDefinition('MP-107'), async ({ app, mainWindow }, testInfo) => {
