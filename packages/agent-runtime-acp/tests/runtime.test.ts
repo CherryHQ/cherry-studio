@@ -496,7 +496,7 @@ describe('projection and observation', () => {
         status: 'completed'
       }
     ])
-    expect(frames.filter((frame) => frame.update).map((frame) => frame.update?.sessionUpdate)).toEqual([
+    expect(frames.flatMap((frame) => (frame.update ? [frame.update?.sessionUpdate] : []))).toEqual([
       'agent_thought_chunk',
       'agent_message_chunk',
       'tool_call',

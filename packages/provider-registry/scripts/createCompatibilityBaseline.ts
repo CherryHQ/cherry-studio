@@ -49,9 +49,9 @@ async function createCompatibilityBaseline(): Promise<void> {
     })
     renameSync(temporaryPath, targetPath)
     // CI runs the baseline with bare `node` against a checkout that has no node_modules.
-    const leaked = [...readFileSync(targetPath, 'utf8').matchAll(/^import\b.*?['"]([^'"]+)['"]/gm)]
-      .map(([, id]) => id)
-      .filter((id) => !id.startsWith('node:'))
+    const leaked = [...readFileSync(targetPath, 'utf8').matchAll(/^import\b.*?['"]([^'"]+)['"]/gm)].flatMap(([, id]) =>
+      !id.startsWith('node:') ? [id] : []
+    )
     if (leaked.length > 0) {
       rmSync(targetPath)
       throw new Error(`Baseline is not dependency-free, it imports ${leaked.join(', ')}`)

@@ -27,7 +27,10 @@ function chainVoid<K extends VoidHookKey>(
   key: K
 ): AgentLoopHooks[K] | undefined {
   type Fn = NonNullable<AgentLoopHooks[K]>
-  const fns = parts.map((p) => p[key]).filter((f): f is Fn => Boolean(f))
+  const fns = parts.flatMap((p) => {
+    const f = p[key]
+    return f ? [f] : []
+  })
   if (fns.length === 0) return undefined
   if (fns.length === 1) return fns[0]
   const composed = async (...args: Parameters<Fn>): Promise<void> => {
@@ -43,7 +46,10 @@ function chainVoid<K extends VoidHookKey>(
 }
 
 function chainOnError(parts: ReadonlyArray<Partial<AgentLoopHooks>>): AgentLoopHooks['onError'] | undefined {
-  const fns = parts.map((p) => p.onError).filter((f): f is NonNullable<AgentLoopHooks['onError']> => Boolean(f))
+  const fns = parts.flatMap((p) => {
+    const f = p.onError
+    return f ? [f] : []
+  })
   if (fns.length === 0) return undefined
   if (fns.length === 1) return fns[0]
   return async (ctx: ErrorContext) => {
@@ -75,7 +81,10 @@ function chainOnError(parts: ReadonlyArray<Partial<AgentLoopHooks>>): AgentLoopH
  * SDK consumes.
  */
 function chainPrepareStep(parts: ReadonlyArray<Partial<AgentLoopHooks>>): AgentLoopHooks['prepareStep'] | undefined {
-  const fns = parts.map((p) => p.prepareStep).filter((f): f is NonNullable<AgentLoopHooks['prepareStep']> => Boolean(f))
+  const fns = parts.flatMap((p) => {
+    const f = p.prepareStep
+    return f ? [f] : []
+  })
   if (fns.length === 0) return undefined
   if (fns.length === 1) return fns[0]
   return async (options) => {

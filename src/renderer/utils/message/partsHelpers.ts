@@ -22,9 +22,11 @@ import type { TranslationPartData } from '@shared/data/types/uiParts'
  */
 export function getTextFromParts(parts: CherryMessagePart[]): string {
   return parts
-    .filter((p): p is Extract<CherryMessagePart, { type: 'text' }> => p.type === 'text')
-    .map((p) => p.text)
-    .filter((t) => t.trim().length > 0)
+    .flatMap((part) => {
+      if (part.type !== 'text') return []
+      const text = part.text
+      return text.trim().length > 0 ? [text] : []
+    })
     .join('\n\n')
 }
 
@@ -33,9 +35,11 @@ export function getTextFromParts(parts: CherryMessagePart[]): string {
  */
 export function getReasoningFromParts(parts: CherryMessagePart[]): string {
   return parts
-    .filter((p): p is Extract<CherryMessagePart, { type: 'reasoning' }> => p.type === 'reasoning')
-    .map((p) => p.text)
-    .filter((t) => t.trim().length > 0)
+    .flatMap((part) => {
+      if (part.type !== 'reasoning') return []
+      const text = part.text
+      return text.trim().length > 0 ? [text] : []
+    })
     .join('\n\n')
 }
 
@@ -81,9 +85,5 @@ export function canEditAssistantMessageParts(parts: CherryMessagePart[]): boolea
  * Extract translation content from data-translation parts.
  */
 export function getTranslationFromParts(parts: CherryMessagePart[]): TranslationPartData[] {
-  return parts
-    .filter(
-      (p): p is { type: 'data-translation'; id?: string; data: TranslationPartData } => p.type === 'data-translation'
-    )
-    .map((p) => p.data)
+  return parts.flatMap((part) => (part.type === 'data-translation' ? [part.data] : []))
 }

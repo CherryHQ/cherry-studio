@@ -1204,7 +1204,12 @@ function detectType(items: MessageItem[]): IncomingMessage['type'] {
 }
 
 function extractText(items: MessageItem[]): string {
-  return items.map(extractItemText).filter(Boolean).join('\n')
+  return items
+    .flatMap((item) => {
+      const text = extractItemText(item)
+      return text ? [text] : []
+    })
+    .join('\n')
 }
 
 function extractItemText(item: MessageItem): string {

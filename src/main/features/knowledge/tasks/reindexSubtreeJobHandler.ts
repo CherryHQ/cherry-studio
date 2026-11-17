@@ -16,11 +16,7 @@ import type { FileProcessingWaitManager } from '../ingestion/FileProcessingWaitM
 import type { KnowledgeItemScheduler } from '../ingestion/KnowledgeIngestionService'
 import { canKnowledgeItemReacquireSource, isContainerKnowledgeItem, isIndexableKnowledgeItem } from '../items'
 import { deleteKnowledgeItemFilesBestEffort } from '../pathStorage'
-import {
-  type KnowledgeReacquireProducer,
-  type KnowledgeReacquireWrite,
-  resolveKnowledgeReacquireProducer
-} from '../pipeline/sources/reacquire'
+import { type KnowledgeReacquireWrite, resolveKnowledgeReacquireProducer } from '../pipeline/sources/reacquire'
 import { deleteKnowledgeItemVectors } from '../pipeline/vectorstore/vectorCleanup'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import type { KnowledgeReindexSubtreePayload } from './jobTypes'
@@ -254,10 +250,11 @@ async function produceReacquireWrites(
   baseId: string,
   roots: KnowledgeItem[]
 ): Promise<Map<string, KnowledgeReacquireWrite>> {
-  const producers = roots
-    .filter(isIndexableKnowledgeItem)
-    .map((item) => ({ itemId: item.id, produce: resolveKnowledgeReacquireProducer(item) }))
-    .filter((entry): entry is { itemId: string; produce: KnowledgeReacquireProducer } => entry.produce !== null)
+  const producers = roots.flatMap((item) => {
+    if (!isIndexableKnowledgeItem(item)) return []
+    const produce = resolveKnowledgeReacquireProducer(item)
+    return produce ? [{ itemId: item.id, produce }] : []
+  })
 
   ctx.signal.throwIfAborted()
   const settled = await Promise.allSettled(

@@ -316,7 +316,7 @@ export class ChildThreadProjection {
       for (const row of this.materialize(message, id)) next.set(row.id, row)
     }
     const mappings = new Map([...Object.entries(this.nativeIds), ...this.productIds])
-    const retained = new Set([...mappings].filter(([source]) => !this.removed.has(source)).map(([, id]) => id))
+    const retained = new Set([...mappings].flatMap(([source, id]) => (!this.removed.has(source) ? [id] : [])))
     for (const source of this.removed) {
       const id = mappings.get(source)
       if (id && !retained.has(id)) next.delete(id)

@@ -548,34 +548,37 @@ class QqAdapter extends ChannelAdapter {
     const token = await this.getAccessToken()
 
     await Promise.all(
-      attachments
-        .filter((att) => !att.size || att.size <= MAX_FILE_SIZE_BYTES)
-        .map(async (att) => {
-          try {
-            const url = att.url.startsWith('http') ? att.url : `https://${att.url}`
-            // SSRF guard: reject local/private/credentialed/non-http(s) targets from the
-            // inbound payload before we fetch with the bot token (and before the retry).
-            const safeUrl = sanitizeRemoteUrl(url)
-            const response = await net.fetch(safeUrl, {
-              headers: { Authorization: `QQBot ${token}`, 'X-Union-Appid': this.appId }
-            })
-            if (!response.ok) {
-              // Retry without auth header (some CDN URLs are public)
-              const retry = await net.fetch(safeUrl)
-              if (!retry.ok) return
-              const buffer = Buffer.from(await retry.arrayBuffer())
-              // `att.size` is attacker-supplied metadata; cap on the real downloaded bytes.
-              if (buffer.length > MAX_FILE_SIZE_BYTES) return
-              await this.pushAttachment(att, buffer, images, files)
-            } else {
-              const buffer = Buffer.from(await response.arrayBuffer())
-              if (buffer.length > MAX_FILE_SIZE_BYTES) return
-              await this.pushAttachment(att, buffer, images, files)
+      attachments.flatMap((att) => {
+        if (att.size && att.size > MAX_FILE_SIZE_BYTES) return []
+        return [
+          (async () => {
+            try {
+              const url = att.url.startsWith('http') ? att.url : `https://${att.url}`
+              // SSRF guard: reject local/private/credentialed/non-http(s) targets from the
+              // inbound payload before we fetch with the bot token (and before the retry).
+              const safeUrl = sanitizeRemoteUrl(url)
+              const response = await net.fetch(safeUrl, {
+                headers: { Authorization: `QQBot ${token}`, 'X-Union-Appid': this.appId }
+              })
+              if (!response.ok) {
+                // Retry without auth header (some CDN URLs are public)
+                const retry = await net.fetch(safeUrl)
+                if (!retry.ok) return
+                const buffer = Buffer.from(await retry.arrayBuffer())
+                // `att.size` is attacker-supplied metadata; cap on the real downloaded bytes.
+                if (buffer.length > MAX_FILE_SIZE_BYTES) return
+                await this.pushAttachment(att, buffer, images, files)
+              } else {
+                const buffer = Buffer.from(await response.arrayBuffer())
+                if (buffer.length > MAX_FILE_SIZE_BYTES) return
+                await this.pushAttachment(att, buffer, images, files)
+              }
+            } catch {
+              this.log.warn('Failed to download QQ attachment', { filename: att.filename, url: att.url })
             }
-          } catch {
-            this.log.warn('Failed to download QQ attachment', { filename: att.filename, url: att.url })
-          }
-        })
+          })()
+        ]
+      })
     )
 
     return {

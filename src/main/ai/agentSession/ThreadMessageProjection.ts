@@ -139,7 +139,7 @@ export class ThreadMessageProjection {
         throw error
       }
       if (changed.size > 1)
-        return [...this.entries.values()].filter((entry) => changed.has(entry.view.id)).map((entry) => entry.view)
+        return [...this.entries.values()].flatMap((entry) => (changed.has(entry.view.id) ? [entry.view] : []))
       return [...changed.values()].filter((message) => this.entries.get(message.id)?.view === message)
     })
     this.pending = accepted.then(

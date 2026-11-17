@@ -121,9 +121,10 @@ export function aggregateApiKeyResults(keyResults: ApiKeyWithStatus[]): {
   const failedResults = keyResults.filter((result) => result.status === HealthStatus.FAILED)
 
   if (failedResults.length > 0) {
-    const errorStrings = failedResults
-      .map((result) => healthCheckErrorToDisplayString(result.error))
-      .filter((s) => s !== '')
+    const errorStrings = failedResults.flatMap((result) => {
+      const s = healthCheckErrorToDisplayString(result.error)
+      return s !== '' ? [s] : []
+    })
     const errors = [...new Set(errorStrings)].join('; ')
 
     return {

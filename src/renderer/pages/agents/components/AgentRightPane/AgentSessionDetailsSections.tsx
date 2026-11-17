@@ -495,11 +495,7 @@ export function AgentSessionDetailsSections({
         />
       </div>
       <Accordion type="multiple">
-        {sections
-          .filter(({ visible }) => visible)
-          .map(({ id }) => (
-            <Fragment key={id}>{content[id]}</Fragment>
-          ))}
+        {sections.flatMap(({ visible, id }) => (visible ? [<Fragment key={id}>{content[id]}</Fragment>] : []))}
       </Accordion>
     </>
   )

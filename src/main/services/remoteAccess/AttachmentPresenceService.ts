@@ -107,29 +107,29 @@ export class AttachmentPresenceService extends BaseService {
       }
   }
   async list(sessionId: string): Promise<AgentAttachmentSelection[]> {
+    // Capture eligibility before upload queries can advance time or trigger presence changes.
+    const selections = [...this.rows.values()].filter(
+      (row) => row.input.sessionId === sessionId && row.expiresAt > Date.now()
+    )
     return Promise.all(
-      [...this.rows.values()]
-        .filter((row) => row.input.sessionId === sessionId && row.expiresAt > Date.now())
-        .map(async (row) => {
-          const receipt = row.commandId
-            ? remoteCommandService.get({ ...row.auth, commandId: row.commandId })
+      selections.map(async (row) => {
+        const receipt = row.commandId ? remoteCommandService.get({ ...row.auth, commandId: row.commandId }) : undefined
+        const messageId =
+          receipt?.result && typeof receipt.result === 'object' && 'userMessageId' in receipt.result
+            ? String(receipt.result.userMessageId)
             : undefined
-          const messageId =
-            receipt?.result && typeof receipt.result === 'object' && 'userMessageId' in receipt.result
-              ? String(receipt.result.userMessageId)
-              : undefined
-          const items = await Promise.all(
-            row.input.items.map(async (item) => {
-              try {
-                return { ...item, upload: await application.get('FileIntakeService').get(row.owner, item.uploadId) }
-              } catch (error) {
-                if (error instanceof FileIntakeError && error.code === 'NOT_FOUND') return item
-                throw error
-              }
-            })
-          )
-          return { ...row.input, items, ...(messageId ? { messageId } : {}) }
-        })
+        const items = await Promise.all(
+          row.input.items.map(async (item) => {
+            try {
+              return { ...item, upload: await application.get('FileIntakeService').get(row.owner, item.uploadId) }
+            } catch (error) {
+              if (error instanceof FileIntakeError && error.code === 'NOT_FOUND') return item
+              throw error
+            }
+          })
+        )
+        return { ...row.input, items, ...(messageId ? { messageId } : {}) }
+      })
     )
   }
 }

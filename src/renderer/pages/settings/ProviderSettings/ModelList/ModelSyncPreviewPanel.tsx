@@ -302,9 +302,9 @@ export default function ModelSyncPreviewPanel(props: ModelSyncPreviewPanelProps)
     }
 
     const isAllInProvider = models.every((model) => localModelIds.has(model.id))
-    const removableGroupModelIds = models
-      .filter((model) => localModelIds.has(model.id) && props.removableModelIds.has(model.id))
-      .map((model) => model.id)
+    const removableGroupModelIds = models.flatMap((model) =>
+      localModelIds.has(model.id) && props.removableModelIds.has(model.id) ? [model.id] : []
+    )
     const title = isAllInProvider
       ? t('settings.models.manage.remove_whole_group')
       : t('settings.models.manage.add_whole_group')

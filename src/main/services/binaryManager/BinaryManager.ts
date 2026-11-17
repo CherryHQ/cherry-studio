@@ -1770,7 +1770,7 @@ export class BinaryManager extends BaseService {
    * availability.
    */
   private async appliedRuntimeDefinitions(definitions: CustomToolDefinition[]): Promise<CustomToolDefinition[]> {
-    const runtimeNames = definitions.filter((entry) => isRuntimeDependency(entry.tool)).map((entry) => entry.name)
+    const runtimeNames = definitions.flatMap((entry) => (isRuntimeDependency(entry.tool) ? [entry.name] : []))
     if (runtimeNames.length === 0) return definitions
 
     const snapshots = await this.getToolSnapshots(runtimeNames)

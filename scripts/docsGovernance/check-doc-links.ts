@@ -84,7 +84,10 @@ function checkFile(filePath: string): BrokenLink[] {
 }
 
 function main() {
-  const scanDirs = ['docs', 'src', 'packages', '.agents'].map((d) => path.join(ROOT, d)).filter((d) => fs.existsSync(d))
+  const scanDirs = ['docs', 'src', 'packages', '.agents'].flatMap((d) => {
+    const mapped = path.join(ROOT, d)
+    return fs.existsSync(mapped) ? [mapped] : []
+  })
 
   let allFiles: string[] = []
   for (const dir of scanDirs) {

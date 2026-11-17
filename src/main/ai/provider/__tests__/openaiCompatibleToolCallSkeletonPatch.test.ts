@@ -44,8 +44,9 @@ function assertCall(parts: LanguageModelV3StreamPart[], id: string, input: strin
   ])
   expect(
     parts
-      .filter((part) => part.type === 'tool-input-delta' && part.id === id)
-      .map((part) => part.type === 'tool-input-delta' && part.delta)
+      .flatMap((part) =>
+        part.type === 'tool-input-delta' && part.id === id ? [part.type === 'tool-input-delta' && part.delta] : []
+      )
       .join('')
   ).toBe(input)
   expect(parts.filter((part) => part.type === 'tool-call' && part.toolCallId === id)).toEqual([

@@ -56,7 +56,7 @@ function layer<Id extends string, Outcome>(checks: readonly EngineCheck<Id, Outc
   }
   const layers: EngineCheck<Id, Outcome>[][] = []
   while (remaining.size > 0) {
-    const ready = [...remaining].filter(([, deps]) => deps.length === 0).map(([id]) => id)
+    const ready = [...remaining].flatMap(([id, deps]) => (deps.length === 0 ? [id] : []))
     if (ready.length === 0)
       throw new DoctorEngineError(`Cycle in check prerequisites: ${[...remaining.keys()].join(', ')}`)
     layers.push(ready.map((id) => byId.get(id)!))

@@ -185,11 +185,11 @@ export function createWebSearchMenuEntry(
 export function getWebSearchFeatureSections(
   providers: readonly WebSearchProvider[]
 ): WebSearchProviderFeatureSection[] {
-  return WEB_SEARCH_CAPABILITY_ORDER.map((capability) => {
-    const entries = providers
-      .map((provider) => createWebSearchMenuEntry(provider, capability))
-      .filter((entry): entry is WebSearchProviderMenuEntry => Boolean(entry))
-
-    return { capability, entries }
-  }).filter((section) => section.entries.length > 0)
+  return WEB_SEARCH_CAPABILITY_ORDER.flatMap((capability) => {
+    const entries = providers.flatMap((provider) => {
+      const entry = createWebSearchMenuEntry(provider, capability)
+      return entry ? [entry] : []
+    })
+    return entries.length > 0 ? [{ capability, entries }] : []
+  })
 }

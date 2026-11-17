@@ -172,7 +172,7 @@ export class ChannelMessageHandler {
         timeout
       ])
       if (winner === 'done') return { stragglerIds: [] }
-      const stragglerIds = snapshot.filter(([id]) => this.pendingAdmissions.has(id)).map(([id]) => id)
+      const stragglerIds = snapshot.flatMap(([id]) => (this.pendingAdmissions.has(id) ? [id] : []))
       logger.warn('drainInFlight timed out with unadmitted channel work', {
         timeoutMs: opts.timeoutMs,
         stragglerIds
@@ -347,8 +347,10 @@ export class ChannelMessageHandler {
 
     const first = messages[0]
     const mergedText = messages
-      .map((m) => m.text)
-      .filter(Boolean)
+      .flatMap((message) => {
+        const text = message.text
+        return text ? [text] : []
+      })
       .join('\n')
     const mergedImages = messages.flatMap((m) => m.images ?? [])
     const mergedFiles = messages.flatMap((m) => m.files ?? [])

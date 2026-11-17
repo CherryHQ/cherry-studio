@@ -790,9 +790,7 @@ describe('ChatComposer', () => {
     mocks.getNoteReferenceItems.mockResolvedValue([])
     mocks.reconcileTokens.mockReset()
     mocks.reconcileTokens.mockImplementation((draftTokens: readonly ComposerSerializedToken[]) => {
-      const knowledgeTokenIds = new Set(
-        draftTokens.filter((token) => token.kind === 'knowledge').map((token) => token.id)
-      )
+      const knowledgeTokenIds = new Set(draftTokens.flatMap((token) => (token.kind === 'knowledge' ? [token.id] : [])))
       const configuredKnowledgeBaseIds = new Set(mocks.assistant?.knowledgeBaseIds ?? [])
       const selectableKnowledgeBases =
         configuredKnowledgeBaseIds.size === 0
@@ -3146,7 +3144,7 @@ describe('ChatComposer', () => {
 
     // Deleting the file token in the editor prunes the attached file through reconcile.
     mocks.reconcileTokens.mockImplementation((draftTokens: readonly ComposerSerializedToken[]) => {
-      const fileTokenIds = new Set(draftTokens.filter((token) => token.kind === 'file').map((token) => token.id))
+      const fileTokenIds = new Set(draftTokens.flatMap((token) => (token.kind === 'file' ? [token.id] : [])))
       mocks.setFiles((previousFiles: any[]) =>
         previousFiles.filter((file) => fileTokenIds.has(`file:${file.fileTokenSourceId}`))
       )

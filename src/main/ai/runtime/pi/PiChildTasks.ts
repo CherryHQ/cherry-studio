@@ -47,14 +47,18 @@ export class PiChildTasks {
     if (!listRunning) return
     this.emit({
       type: 'background-tasks',
-      tasks: views
-        .filter((view) => view.status !== 'finished')
-        .map((view) => ({
-          id: view.sessionId,
-          type: 'subagent',
-          description: view.description,
-          toolCallId: this.origin(view.sessionId)?.toolCallId
-        }))
+      tasks: views.flatMap((view) =>
+        view.status !== 'finished'
+          ? [
+              {
+                id: view.sessionId,
+                type: 'subagent',
+                description: view.description,
+                toolCallId: this.origin(view.sessionId)?.toolCallId
+              }
+            ]
+          : []
+      )
     })
   }
 }

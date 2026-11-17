@@ -7,6 +7,7 @@ import { withCherryMeta } from '@shared/data/types/uiParts'
 
 import {
   getComposerTextFromMessage,
+  getComposerTextFromParts,
   getComposerTokenClipboardText,
   getRenderableComposerTokens,
   replaceComposerTokenPromptText
@@ -160,5 +161,21 @@ describe('getComposerTextFromMessage', () => {
       ])
     ])
     expect(getComposerTextFromMessage(message, 'FALLBACK')).toBe('cmd-label do it')
+  })
+})
+
+describe('composer text callback boundaries', () => {
+  it('retains selected text parts when a token resolver changes the source array', () => {
+    const parts: CherryMessagePart[] = [
+      composerTextPart('first', [token({ promptText: 'first' })]),
+      { type: 'text', text: 'second' }
+    ]
+
+    const result = getComposerTextFromParts(parts, () => {
+      parts.pop()
+      return 'resolved'
+    })
+
+    expect(result).toBe('resolved\n\nsecond')
   })
 })

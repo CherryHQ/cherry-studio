@@ -102,9 +102,11 @@ export class ClaudeProjection {
 
   deny(toolCallId: string): ObservationPayload[] {
     this.denied.add(toolCallId)
-    return [...this.messages.values()]
-      .filter((message) => message.parts.some((part) => part.type === 'dynamic-tool' && part.toolCallId === toolCallId))
-      .map((message) => this.upsert(message))
+    return [...this.messages.values()].flatMap((message) =>
+      message.parts.some((part) => part.type === 'dynamic-tool' && part.toolCallId === toolCallId)
+        ? [this.upsert(message)]
+        : []
+    )
   }
 
   committed(archive: ClaudeArchive): ClaudeArchive {
@@ -276,7 +278,7 @@ export class ClaudeProjection {
 
   private preview(): ObservationPayload[] {
     if (!this.stream?.message) return []
-    const indices = new Set([...this.stream.blocks.values()].filter((block) => !block.bound).map((block) => block.part))
+    const indices = new Set([...this.stream.blocks.values()].flatMap((block) => (!block.bound ? [block.part] : [])))
     const parts = this.stream.message.parts.filter((_, index) => indices.has(index))
     if (!parts.length) return []
     const message = { ...this.stream.message, id: this.stream.id, parts }
@@ -435,7 +437,7 @@ export class ClaudeProjection {
 
   restore(messages: readonly SessionMessage[], entries: readonly NativeArchiveEntry[]): ClaudeArchive {
     const before = this.feed.snapshot
-    const metadata = new Map(entries.filter((entry) => entry.uuid).map((entry) => [entry.uuid!, entry]))
+    const metadata = new Map(entries.flatMap((entry) => (entry.uuid ? [[entry.uuid, entry]] : [])))
     const removals = entries.flatMap((entry) => {
       const ids = entry.supersedes ?? entry.retracted_message_uuids
       return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : []

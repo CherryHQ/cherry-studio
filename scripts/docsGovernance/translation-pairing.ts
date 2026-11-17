@@ -54,7 +54,7 @@ export const pairAnchor = (argument: string): string => {
 const isPairingArtifact = (file: string): boolean => file.endsWith('.md') || file.endsWith('.i18n.yaml')
 
 export const pairAnchorsFromPaths = (files: readonly string[]): string[] =>
-  [...new Set(files.filter(isPairingArtifact).map(pairAnchor))].sort()
+  [...new Set(files.flatMap((file) => (isPairingArtifact(file) ? [pairAnchor(file)] : [])))].sort()
 
 export const corpusPairAnchors = (roots: readonly string[], discoveredFiles: readonly string[]): string[] =>
   pairAnchorsFromPaths([...roots.filter(isPairingArtifact), ...discoveredFiles])
@@ -143,7 +143,7 @@ export const isExcluded = (source: string, manifest: PairingManifest): boolean =
 
 export const parsePairingArgs = (args: string[]): PairingRequest => {
   const flags = args.filter((arg) => arg.startsWith('--'))
-  const anchors = [...new Set(args.filter((arg) => !arg.startsWith('--')).map(pairAnchor))].sort()
+  const anchors = [...new Set(args.flatMap((arg) => (!arg.startsWith('--') ? [pairAnchor(arg)] : [])))].sort()
   const invalidAnchors = anchors.filter((anchor) => !validRepoPath(anchor))
   if (invalidAnchors.length)
     throw new Error(`pair paths must be normalized repo-relative paths: ${invalidAnchors.join(', ')}`)

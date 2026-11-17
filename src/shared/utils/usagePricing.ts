@@ -15,9 +15,10 @@ function pricingCurrency(pricing: RuntimeModelPricing): AiUsagePricingSnapshot['
     pricing.cacheWrite,
     ...(pricing.inputTokenTiers ?? []).flatMap((tier) => [tier.input, tier.output, tier.cacheRead, tier.cacheWrite])
   ].filter((rate) => rate !== undefined)
-  const explicitCurrencies = tokenRates
-    .map((rate) => rate.currency)
-    .filter((currency): currency is AiUsagePricingSnapshot['currency'] => currency !== undefined)
+  const explicitCurrencies = tokenRates.flatMap((rate) => {
+    const currency = rate.currency
+    return currency !== undefined ? [currency] : []
+  })
   if (explicitCurrencies.length === 0) return undefined
   if (explicitCurrencies.some((currency) => currency !== explicitCurrencies[0])) return undefined
   return explicitCurrencies[0]

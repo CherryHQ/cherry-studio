@@ -124,20 +124,19 @@ export function ModelTypeFilterTabs({
               </span>
             </TabsTrigger>
           ))}
-          {MODEL_TYPE_FILTERS.filter((filter) => !hideEmptyFilters || counts[filter] > 0 || value === filter).map(
-            (filter) => {
-              const Icon = CAPABILITY_FILTER_ICONS[filter]
-              return (
-                <TabsTrigger key={filter} value={filter} className={modelSyncClasses.manageTabsTrigger}>
-                  <Icon className="size-3.5 shrink-0" aria-hidden />
-                  <span className="truncate">{t(CAPABILITY_FILTER_LABEL_KEYS[filter])}</span>
-                  <span className={modelSyncClasses.manageTabCount} aria-hidden>
-                    {counts[filter]}
-                  </span>
-                </TabsTrigger>
-              )
-            }
-          )}
+          {MODEL_TYPE_FILTERS.flatMap((filter) => {
+            if (!(!hideEmptyFilters || counts[filter] > 0 || value === filter)) return []
+            const Icon = CAPABILITY_FILTER_ICONS[filter]
+            return [
+              <TabsTrigger key={filter} value={filter} className={modelSyncClasses.manageTabsTrigger}>
+                <Icon className="size-3.5 shrink-0" aria-hidden />
+                <span className="truncate">{t(CAPABILITY_FILTER_LABEL_KEYS[filter])}</span>
+                <span className={modelSyncClasses.manageTabCount} aria-hidden>
+                  {counts[filter]}
+                </span>
+              </TabsTrigger>
+            ]
+          })}
         </TabsList>
       </HorizontalScrollContainer>
     </Tabs>

@@ -1342,8 +1342,8 @@ function insertRowsTx(
 }
 
 function messageReadModelEffects(refs: readonly MessageReadModelTarget[]): DataApiDataChangeEffect[] {
-  const chatIds = refs.filter((ref) => ref.kind === 'chat').map((ref) => ref.id)
-  const agentIds = refs.filter((ref) => ref.kind === 'agent-session').map((ref) => ref.id)
+  const chatIds = refs.flatMap((ref) => (ref.kind === 'chat' ? [ref.id] : []))
+  const agentIds = refs.flatMap((ref) => (ref.kind === 'agent-session' ? [ref.id] : []))
   const chatIdsByTopic = new Map<string, string[]>()
   const agentIdsBySession = new Map<string, string[]>()
   for (const ref of refs) {

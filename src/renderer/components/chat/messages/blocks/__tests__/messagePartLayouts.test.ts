@@ -68,7 +68,7 @@ function entriesWithSpecialParts(): PartEntry[] {
 }
 
 function nonTextIndexes(items: readonly PartEntry[]): number[] {
-  return items.filter((entry) => entry.part.type !== 'text').map((entry) => entry.index)
+  return items.flatMap((entry) => (entry.part.type !== 'text' ? [entry.index] : []))
 }
 
 describe('projectLiveMessageParts', () => {

@@ -129,10 +129,7 @@ function fakeModel(
 }
 
 function joinedDelta(parts: LanguageModelV3StreamPart[], type: 'reasoning-delta' | 'text-delta'): string {
-  return parts
-    .filter((part): part is Extract<LanguageModelV3StreamPart, { type: typeof type }> => part.type === type)
-    .map((part) => part.delta)
-    .join('')
+  return parts.flatMap((part) => (part.type === type ? [part.delta] : [])).join('')
 }
 
 function partTypes(parts: LanguageModelV3StreamPart[]): string[] {

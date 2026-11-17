@@ -182,50 +182,52 @@ export function AgentContextUsageSummary({
       )}
       {showCategories && groups.some((group) => group.rows?.length) && (
         <Accordion type="multiple">
-          {groups
-            .filter((group) => group.rows?.length)
-            .map((group) => (
-              <AccordionItem key={group.id} value={group.id} className="border-0 first:border-t-0">
-                <AccordionTrigger className="group gap-2 px-3 py-2 text-xs font-normal text-muted-foreground [&>svg]:hidden">
-                  <span className="flex min-w-0 flex-1 items-center gap-2">
-                    <ChevronRight
-                      aria-hidden
-                      className="size-3 shrink-0 transition-transform duration-150 group-data-[state=open]:rotate-90 motion-reduce:transition-none"
-                    />
-                    <span className="flex-1">{label(group.id)}</span>
-                    <span className="tabular-nums">{formatExact(group.rows?.length ?? 0)}</span>
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="pt-0 pb-2 text-xs">
-                  <ScrollArea
-                    className="max-h-60"
-                    viewportProps={{ className: 'overflow-x-hidden', tabIndex: 0 }}
-                    contentProps={{ className: 'pl-8 pr-3', role: 'list', 'aria-label': label(group.id) }}>
-                    {group.rows?.map((row) => (
-                      <div
-                        key={row.id}
-                        role="listitem"
-                        className="flex min-w-0 items-center justify-between gap-3 py-1 text-muted-foreground">
-                        <span className="min-w-0 truncate" title={row.name}>
-                          {row.name}
-                        </span>
-                        <span
-                          className="shrink-0 text-muted-foreground tabular-nums"
-                          title={[
-                            row.tokens === undefined ? undefined : formatExact(row.tokens),
-                            row.precision === 'estimated' && t('chat.message.token_details.cost_estimated'),
-                            row.status
-                          ]
-                            .filter(Boolean)
-                            .join(' · ')}>
-                          {row.tokens === undefined ? '—' : formatTokens(row.tokens)}
-                        </span>
-                      </div>
-                    ))}
-                  </ScrollArea>
-                </AccordionContent>
-              </AccordionItem>
-            ))}
+          {groups.flatMap((group) =>
+            group.rows?.length
+              ? [
+                  <AccordionItem key={group.id} value={group.id} className="border-0 first:border-t-0">
+                    <AccordionTrigger className="group gap-2 px-3 py-2 text-xs font-normal text-muted-foreground [&>svg]:hidden">
+                      <span className="flex min-w-0 flex-1 items-center gap-2">
+                        <ChevronRight
+                          aria-hidden
+                          className="size-3 shrink-0 transition-transform duration-150 group-data-[state=open]:rotate-90 motion-reduce:transition-none"
+                        />
+                        <span className="flex-1">{label(group.id)}</span>
+                        <span className="tabular-nums">{formatExact(group.rows?.length ?? 0)}</span>
+                      </span>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-0 pb-2 text-xs">
+                      <ScrollArea
+                        className="max-h-60"
+                        viewportProps={{ className: 'overflow-x-hidden', tabIndex: 0 }}
+                        contentProps={{ className: 'pl-8 pr-3', role: 'list', 'aria-label': label(group.id) }}>
+                        {group.rows?.map((row) => (
+                          <div
+                            key={row.id}
+                            role="listitem"
+                            className="flex min-w-0 items-center justify-between gap-3 py-1 text-muted-foreground">
+                            <span className="min-w-0 truncate" title={row.name}>
+                              {row.name}
+                            </span>
+                            <span
+                              className="shrink-0 text-muted-foreground tabular-nums"
+                              title={[
+                                row.tokens === undefined ? undefined : formatExact(row.tokens),
+                                row.precision === 'estimated' && t('chat.message.token_details.cost_estimated'),
+                                row.status
+                              ]
+                                .filter(Boolean)
+                                .join(' · ')}>
+                              {row.tokens === undefined ? '—' : formatTokens(row.tokens)}
+                            </span>
+                          </div>
+                        ))}
+                      </ScrollArea>
+                    </AccordionContent>
+                  </AccordionItem>
+                ]
+              : []
+          )}
         </Accordion>
       )}
     </ContextUsageSummary>

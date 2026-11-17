@@ -70,9 +70,9 @@ export class CdpBrowserController extends BrowserPageController {
           const contents = [...info.tabs.values()].map((tab) => tab.view.webContents)
           if (info.tabBarView) contents.push(info.tabBarView.webContents)
           return [
-            ...contents
-              .filter((guest) => !guest.isDestroyed())
-              .map((guest) => once(guest, 'destroyed', { signal: controller.signal })),
+            ...contents.flatMap((guest) =>
+              !guest.isDestroyed() ? [once(guest, 'destroyed', { signal: controller.signal })] : []
+            ),
             ...(info.window.isDestroyed() ? [] : [once(info.window, 'closed', { signal: controller.signal })])
           ]
         })

@@ -89,7 +89,10 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
   const resolveModelsPath: ProviderResolveModelsPath = `/providers/${providerId}/models:resolve`
   const resolved = (await dataApiService.get(resolveModelsPath, {
     query: {
-      ids: filteredModels.map((model) => model.apiModelId ?? '').filter(Boolean)
+      ids: filteredModels.flatMap((model) => {
+        const id = model.apiModelId
+        return id ? [id] : []
+      })
     }
   })) as Model[]
 
