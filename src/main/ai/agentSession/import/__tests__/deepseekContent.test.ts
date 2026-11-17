@@ -85,9 +85,6 @@ it('keeps search and opened pages as inert records without inventing answer cita
     input: { url: 'https://example.com/open' },
     output: { title: 'Opened page' }
   })
-  expect(JSON.stringify(result.model)).toContain('Relevant evidence')
-  expect(JSON.stringify(result.model)).toContain('example question')
-  expect(JSON.stringify(result.model)).toContain('https://example.com/open')
 })
 
 it('retains zero-result searches as visible inert history', async () => {
@@ -107,9 +104,6 @@ it('retains zero-result searches as visible inert history', async () => {
       input: { queries: ['unanswered question'] },
       output: { type: 'TOOL_SEARCH', queries: ['unanswered question'], results: [], status: 'FINISHED' }
     })
-  )
-  expect(result.model.content).toEqual(
-    expect.arrayContaining([expect.objectContaining({ text: expect.stringContaining('unanswered question') })])
   )
 })
 
@@ -147,7 +141,6 @@ it('stores an independent image and keeps reasoning, missing files, and searches
       })
     ])
   )
-  expect(JSON.stringify(result.model)).toContain(image.toString('base64'))
   expect(JSON.stringify(result.parts)).toContain('missing.pdf')
   const assistant = message(2, 1, 'ASSISTANT', 'Partial answer')
   assistant.status = 'TIMEOUT'
@@ -166,8 +159,4 @@ it('stores an independent image and keeps reasoning, missing files, and searches
   expect(answer.parts).toEqual(
     expect.arrayContaining([expect.objectContaining({ type: 'reasoning', text: 'Historical thought' })])
   )
-  expect(JSON.stringify(answer.model)).toContain('https://example.com')
-  if (answer.model.role !== 'assistant') throw new Error('Expected assistant history')
-  expect(answer.model.content.every((part) => part.type === 'text')).toBe(true)
-  expect(answer.model.usage.totalTokens).toBe(0)
 })

@@ -10,7 +10,6 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
-import { dataApiService } from '@data/DataApiService'
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
@@ -24,7 +23,6 @@ export function AgentImportDialog({ agentId, open, resolve }: Props) {
   const { t } = useTranslation()
   const invalidate = useInvalidateCache()
   const navigation = useConversationNavigation('agents')
-  const [supported, setSupported] = useState<boolean>()
   const [snapshot, setSnapshot] = useState<AgentImportSnapshot | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -41,10 +39,10 @@ export function AgentImportDialog({ agentId, open, resolve }: Props) {
   })
   useEffect(() => {
     let alive = true
-    Promise.all([dataApiService.get(`/agents/${agentId}`), ipcApi.request('ai.agent.import.status', { agentId })])
-      .then(([agent, value]) => {
+    ipcApi
+      .request('ai.agent.import.status', { agentId })
+      .then((value) => {
         if (!alive) return
-        setSupported(agent.type === 'pi-durable')
         accept(value)
       })
       .catch((cause) => {
@@ -79,7 +77,6 @@ export function AgentImportDialog({ agentId, open, resolve }: Props) {
           <DialogTitle>{t('agent.import.title')}</DialogTitle>
           <DialogDescription>{t('agent.import.description')}</DialogDescription>
         </DialogHeader>
-        {supported === false && <p role="alert">{t('agent.import.unsupported')}</p>}
         <div aria-live="polite" className="space-y-3">
           {snapshot && (
             <>
@@ -121,14 +118,12 @@ export function AgentImportDialog({ agentId, open, resolve }: Props) {
               {t('common.open')}
             </Button>
           )}
-          {supported && (
-            <Button
-              variant="outline"
-              disabled={busy || running}
-              onClick={() => void act(() => ipcApi.request('ai.agent.import.prepare', { agentId }))}>
-              {t('common.select')}
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            disabled={busy || running}
+            onClick={() => void act(() => ipcApi.request('ai.agent.import.prepare', { agentId }))}>
+            {t('common.select')}
+          </Button>
           {running && snapshot ? (
             <Button
               disabled={busy}
@@ -137,7 +132,6 @@ export function AgentImportDialog({ agentId, open, resolve }: Props) {
             </Button>
           ) : (
             snapshot &&
-            supported &&
             !completed && (
               <Button
                 variant="emphasis"

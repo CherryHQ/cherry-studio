@@ -167,7 +167,6 @@
   "agent.import.source_status": "Status im ursprünglichen Export: {{status}}",
   "agent.import.summary": "{{conversations}} Unterhaltungen · {{messages}} Nachrichten",
   "agent.import.title": "DeepSeek importieren",
-  "agent.import.unsupported": "Wählen Sie einen Pi Durable-Agenten zum Importieren des DeepSeek-Verlaufs.",
   "agent.input.goal_mode.title": "Zielmodus",
   "agent.input.placeholder": "Geben Sie eine Nachricht ein. Geben Sie / ein, um Pfade oder Befehle zu suchen, oder @ für Dateien und Sitzungen.",
   "agent.input.placeholder_steering": "Notiz hinzufügen – wird nach dem aktuellen Schritt zugestellt",

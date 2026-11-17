@@ -167,7 +167,6 @@
   "agent.import.source_status": "Starea exportului original: {{status}}",
   "agent.import.summary": "{{conversations}} conversații · {{messages}} mesaje",
   "agent.import.title": "Importă DeepSeek",
-  "agent.import.unsupported": "Selectează un agent Pi Durable pentru a importa istoricul DeepSeek.",
   "agent.input.goal_mode.title": "Mod obiectiv",
   "agent.input.placeholder": "Introdu mesajul aici - @ selectează calea, / selectează comanda",
   "agent.input.placeholder_steering": "Adaugă o notă — va fi livrată după pasul curent",

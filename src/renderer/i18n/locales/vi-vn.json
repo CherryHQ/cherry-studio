@@ -167,7 +167,6 @@
   "agent.import.source_status": "Trạng thái trong bản xuất gốc: {{status}}",
   "agent.import.summary": "{{conversations}} cuộc trò chuyện · {{messages}} tin nhắn",
   "agent.import.title": "Nhập DeepSeek",
-  "agent.import.unsupported": "Chọn tác nhân Pi Durable để nhập lịch sử DeepSeek.",
   "agent.input.goal_mode.title": "Chế độ mục tiêu",
   "agent.input.placeholder": "Nhập tin nhắn của bạn ở đây - @ chọn đường dẫn, / chọn lệnh",
   "agent.input.placeholder_steering": "Thêm ghi chú — sẽ được gửi sau bước hiện tại",

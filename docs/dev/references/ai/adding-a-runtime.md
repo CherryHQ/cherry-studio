@@ -108,7 +108,10 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      `resume-token` whenever the runtime learns a recovery handle, `error` on
      failure.
    - `send(input)` — deliver a user message; `input.systemReminder` marks a
-     steer, wrap it with `wrapSteerReminder(...)`.
+     steer, wrap it with `wrapSteerReminder(...)`. Apply optional model-only
+     `input.context` through ordinary input/attachment conversion with
+     `withAgentContext` or `buildAgentUserContent`; keep native admission validation
+     tied to the original message parts. The Session host owns history selection.
    - `reconcile(input)` — re-derive the desired connection state. Serialize concurrent
      calls per connection; hot-apply safe policy facts before returning `rebuild` for
      spawn-frozen differences, apply permission-mode changes even during an active turn

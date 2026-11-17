@@ -167,7 +167,6 @@
   "agent.import.source_status": "Stato dell’esportazione originale: {{status}}",
   "agent.import.summary": "{{conversations}} conversazioni · {{messages}} messaggi",
   "agent.import.title": "Importa DeepSeek",
-  "agent.import.unsupported": "Seleziona un agente Pi Durable per importare la cronologia DeepSeek.",
   "agent.input.goal_mode.title": "Modalità obiettivo",
   "agent.input.placeholder": "Scrivi un messaggio. Digita / per cercare percorsi o comandi, @ per file e sessioni.",
   "agent.input.placeholder_steering": "Aggiungi una nota: verrà recapitata dopo il passaggio corrente",

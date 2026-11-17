@@ -237,7 +237,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       return
     }
     try {
-      await this.submit(input, input.systemReminder ? wrapSteerReminder(text) : text, 'follow-up')
+      const prompt = input.context ? buildAgentUserContent(input.message, input.context) : text
+      await this.submit(input, input.systemReminder ? wrapSteerReminder(prompt) : prompt, 'follow-up')
     } catch (error) {
       if (!running) this.sending = false
       throw error
@@ -251,8 +252,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   redirect(input: AgentRuntimeCommand): boolean {
     if (!this.active || this.closing) return false
     this.steers.add(input.message.id)
-    void this.submit(input, wrapSteerReminder(buildAgentUserContent(input.message)), 'steer').catch((error) =>
-      this.fail(error)
+    void this.submit(input, wrapSteerReminder(buildAgentUserContent(input.message, input.context)), 'steer').catch(
+      (error) => this.fail(error)
     )
     return true
   }

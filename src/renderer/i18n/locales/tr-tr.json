@@ -167,7 +167,6 @@
   "agent.import.source_status": "Orijinal dışa aktarma durumu: {{status}}",
   "agent.import.summary": "{{conversations}} konuşma · {{messages}} mesaj",
   "agent.import.title": "DeepSeek içe aktar",
-  "agent.import.unsupported": "DeepSeek geçmişini içe aktarmak için bir Pi Durable aracısı seçin.",
   "agent.input.goal_mode.title": "Hedef modu",
   "agent.input.placeholder": "Bir mesaj yazın. Yolları veya komutları aramak için /, dosyalar ve oturumlar için @ yazın.",
   "agent.input.placeholder_steering": "Not ekleyin — mevcut adımdan sonra iletilecek",

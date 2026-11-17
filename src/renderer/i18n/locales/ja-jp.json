@@ -167,7 +167,6 @@
   "agent.import.source_status": "元のエクスポートの状態: {{status}}",
   "agent.import.summary": "会話 {{conversations}} 件 · メッセージ {{messages}} 件",
   "agent.import.title": "DeepSeek をインポート",
-  "agent.import.unsupported": "DeepSeek の履歴をインポートするには Pi Durable エージェントを選択してください。",
   "agent.input.goal_mode.title": "ゴールモード",
   "agent.input.placeholder": "メッセージをここに入力 - @でパスを選択、/でコマンドを選択",
   "agent.input.placeholder_steering": "補足を追加 — 現在のステップの後に届きます",

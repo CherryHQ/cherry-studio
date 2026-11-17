@@ -167,7 +167,6 @@
   "agent.import.source_status": "État dans l’export d’origine : {{status}}",
   "agent.import.summary": "{{conversations}} conversations · {{messages}} messages",
   "agent.import.title": "Importer DeepSeek",
-  "agent.import.unsupported": "Sélectionnez un Agent Pi Durable pour importer l’historique DeepSeek.",
   "agent.input.goal_mode.title": "Mode objectif",
   "agent.input.placeholder": "Entrez votre message ici - @ sélectionner le chemin, / sélectionner la commande",
   "agent.input.placeholder_steering": "Ajoutez une note — elle sera transmise après l'étape en cours",

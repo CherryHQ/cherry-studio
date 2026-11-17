@@ -1,6 +1,5 @@
 import { extname } from 'node:path'
 
-import type { Message, ImageContent, TextContent } from '@earendil-works/pi-ai'
 import { fileTypeFromBuffer } from 'file-type'
 import { v7 as uuid } from 'uuid'
 
@@ -13,7 +12,6 @@ import type { DeepseekMessage } from './deepseek'
 
 export interface ImportedContent {
   parts: CherryMessagePart[]
-  model: Message
 }
 
 export async function deepseekContent(
@@ -23,10 +21,8 @@ export async function deepseekContent(
   saveFile: (sourceId: string, entryId: string) => void
 ): Promise<ImportedContent> {
   const parts: CherryMessagePart[] = []
-  const native: Array<TextContent | ImageContent> = []
   const text = (value: string) => {
     parts.push({ type: 'text', text: value })
-    native.push({ type: 'text', text: value })
   }
   for (const part of source.fragments) {
     switch (part.type) {
@@ -43,7 +39,6 @@ export async function deepseekContent(
             { ...(part.elapsed_secs != null && { thinkingMs: part.elapsed_secs * 1000 }) }
           )
         )
-        native.push({ type: 'text', text: `${t('agent.import.reasoning')}\n${part.content}` })
         break
       case 'TOOL_SEARCH':
       case 'TOOL_OPEN':
@@ -67,7 +62,6 @@ export async function deepseekContent(
           output: part,
           callProviderMetadata: { cherry: { tool: { type: 'provider' } } }
         })
-        native.push({ type: 'text', text: `${t('agent.import.search')}\n${JSON.stringify(part, null, 2)}` })
         break
       case 'FILE':
         for (const file of part.files) {
@@ -97,37 +91,8 @@ export async function deepseekContent(
           parts.push(
             withCherryMeta({ type: 'file', url, filename: file.file_name, mediaType }, { fileEntryId: entryId })
           )
-          if (file.is_image) native.push({ type: 'image', data: bytes.toString('base64'), mimeType: mediaType })
-          else
-            native.push({
-              type: 'text',
-              text: `Attached file ${JSON.stringify(file.file_name)}: ${manager.getPhysicalPath(entryId)}`
-            })
         }
     }
   }
-  const timestamp = Date.parse(source.inserted_at)
-  if (source.role === 'USER') return { parts, model: { role: 'user', content: native, timestamp } }
-  if (native.some((part) => part.type === 'image')) throw new Error('DeepSeek assistant image messages are unsupported')
-  return {
-    parts,
-    model: {
-      role: 'assistant',
-      content: native.filter((part) => part.type === 'text'),
-      timestamp,
-      api: 'openai-completions',
-      provider: 'deepseek',
-      model: 'imported-history',
-      // Provider adapters discard error-stop messages; source failure remains in product history.
-      stopReason: 'stop',
-      usage: {
-        input: 0,
-        output: 0,
-        cacheRead: 0,
-        cacheWrite: 0,
-        totalTokens: 0,
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
-      }
-    }
-  }
+  return { parts }
 }

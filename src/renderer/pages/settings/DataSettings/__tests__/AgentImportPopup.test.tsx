@@ -1,8 +1,7 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { t } from 'i18next'
 import { afterEach, expect, it, vi } from 'vitest'
 
-import { dataApiService } from '@data/DataApiService'
 import { ipcApi } from '@renderer/ipc'
 import type { AgentImportSnapshot } from '@shared/ai/agentImport'
 
@@ -31,7 +30,6 @@ const snapshot: AgentImportSnapshot = {
 }
 
 it('previews the archive before starting and restores background progress after reopening', async () => {
-  vi.mocked(dataApiService.get).mockResolvedValue({ type: 'pi-durable' })
   let current: AgentImportSnapshot | null = null
   vi.spyOn(ipcApi, 'request').mockImplementation(async (route) => {
     if (route === 'ai.agent.import.status') return current as never
@@ -49,11 +47,4 @@ it('previews the archive before starting and restores background progress after 
   render(<AgentImportDialog open agentId="agent" resolve={vi.fn()} />)
   expect(await screen.findByRole('button', { name: t('common.stop') })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: t('common.select') })).toBeDisabled()
-})
-it('explains unsupported runtimes without offering an import action', async () => {
-  vi.mocked(dataApiService.get).mockResolvedValue({ type: 'claude-code' })
-  vi.spyOn(ipcApi, 'request').mockResolvedValue(null)
-  render(<AgentImportDialog open agentId="agent" resolve={vi.fn()} />)
-  await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(t('agent.import.unsupported')))
-  expect(screen.queryByRole('button', { name: t('common.select') })).not.toBeInTheDocument()
 })

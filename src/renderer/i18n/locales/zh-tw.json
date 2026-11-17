@@ -167,7 +167,6 @@
   "agent.import.source_status": "原始匯出狀態：{{status}}",
   "agent.import.summary": "{{conversations}} 個工作階段 · {{messages}} 則訊息",
   "agent.import.title": "匯入 DeepSeek",
-  "agent.import.unsupported": "請選擇 Pi Durable 智慧體以匯入 DeepSeek 歷史記錄。",
   "agent.input.goal_mode.title": "目標模式",
   "agent.input.placeholder": "輸入訊息，輸入 / 搜尋路徑或指令，輸入 @ 引用檔案或工作階段",
   "agent.input.placeholder_steering": "補充說明，將在目前步驟後送達",

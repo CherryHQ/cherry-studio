@@ -103,8 +103,11 @@ A root opens only the native identity bound to its captured product branch. Conf
 submitted contexts require one existing, identity-checked file. Only a never-submitted creation intent
 may have no file yet; Pi flushes lazily, except that locally handled commands explicitly persist
 their native state before acknowledgement. Cherry publishes its resume token after native persistence.
-There is no reconstruction from product messages. The connection stays owned while idle until explicit
-retirement or application shutdown; stopping cancels native execution and manual compaction before
+There is no reconstruction of native files from product messages. For a branch without prior
+native input, the Session host can include product history as model-only reference context in the
+first submission, using ordinary attachment paths. Fresh bindings capture the selected product
+position so siblings do not share an unrelated native conversation.
+The connection stays owned while idle until explicit retirement or application shutdown; stopping cancels native execution and manual compaction before
 waiting for admission to finish. Queued inputs Pi never placed are marked aborted in the live projection
 and are not automatically resent after a stop/error. Startup terminalizes Pi's abandoned product
 placeholders while preserving native bindings and history; delivery recovery owns persisted delivery turns.

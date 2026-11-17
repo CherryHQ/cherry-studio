@@ -34,6 +34,7 @@ import { openDurableStorage } from '@main/ai/agentSession/durableNativeContext'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
 import { readForkResources } from '@main/ai/agentSession/fork/resources'
 import { bindNativeInput, prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
+import { readSessionHistory } from '@main/ai/agentSession/sessionHistory'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { getPiTraceContext, observabilitySinks } from '@main/ai/observability'
 import { checkCommand } from '@main/ai/toolApproval/commandPolicy'
@@ -224,6 +225,60 @@ describe('desktop Pi Durable connection', () => {
     runtimeDriverRegistry.clearForTest()
     for (const connection of connections.splice(0)) await connection.close()
     vi.restoreAllMocks()
+  })
+  it('continues unbound history on separate native branches and retains it after reopening', async () => {
+    const user = message('Remember mango')
+    const selected = messages.saveMessage({
+      sessionId: input.sessionId,
+      message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Mango recorded' }] } }
+    })
+    const sibling = messages.saveMessage({
+      sessionId: input.sessionId,
+      parentId: user.id,
+      message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Sibling banana' }] } }
+    })
+    messages.selectBranch(input.sessionId, selected.id)
+    input.branchHead = selected.id
+    const first = await connect()
+    expect(script.calls).toHaveLength(0)
+    const prompt = message('Continue mango')
+    await first.connection.send({ message: prompt, context: await readSessionHistory(input.sessionId, prompt.id) })
+    const answer = await savedAnswer(first)
+    const firstRequest = JSON.stringify(script.calls[0].messages)
+    expect(firstRequest).toContain('Remember mango')
+    expect(firstRequest).toContain('Mango recorded')
+    expect(firstRequest).not.toContain('Sibling banana')
+    await first.connection.close()
+
+    messages.selectBranch(input.sessionId, sibling.id)
+    input.branchHead = sibling.id
+    setScript([assistantReply('Sibling continued')])
+    const other = await connect()
+    expect(other.connection.contextId).not.toBe(first.connection.contextId)
+    const siblingPrompt = message('Continue banana')
+    await other.connection.send({
+      message: siblingPrompt,
+      context: await readSessionHistory(input.sessionId, siblingPrompt.id)
+    })
+    await savedAnswer(other)
+    const siblingRequest = JSON.stringify(script.calls[0].messages)
+    expect(siblingRequest).toContain('Remember mango')
+    expect(siblingRequest).toContain('Sibling banana')
+    expect(siblingRequest).not.toContain('Mango recorded')
+    await other.connection.close()
+
+    messages.selectBranch(input.sessionId, answer.id)
+    input.branchHead = answer.id
+    setScript([assistantReply('Resumed')])
+    const reopened = await connect()
+    const followup = message('What did I say?')
+    expect(await readSessionHistory(input.sessionId, followup.id)).toBeUndefined()
+    await reopened.connection.send({ message: followup })
+    await savedAnswer(reopened)
+    const resumedRequest = JSON.stringify(script.calls[0].messages)
+    expect(resumedRequest).toContain('Mango recorded')
+    expect(resumedRequest).not.toContain('Sibling banana')
+    expect(resumedRequest.match(/Previous conversation history/g)).toHaveLength(1)
   })
   it.each([false, true])('materializes the captured model name for headless=%s', async (headless) => {
     const { buildAgentRuntimePrompt } = await vi.importActual<typeof AgentPrompt>('../agentPrompt')

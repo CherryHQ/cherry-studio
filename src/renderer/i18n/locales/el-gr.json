@@ -167,7 +167,6 @@
   "agent.import.source_status": "Κατάσταση αρχικής εξαγωγής: {{status}}",
   "agent.import.summary": "Συνομιλίες: {{conversations}} · Μηνύματα: {{messages}}",
   "agent.import.title": "Εισαγωγή DeepSeek",
-  "agent.import.unsupported": "Επιλέξτε πράκτορα Pi Durable για εισαγωγή ιστορικού DeepSeek.",
   "agent.input.goal_mode.title": "Λειτουργία στόχου",
   "agent.input.placeholder": "Εισάγετε το μήνυμά σας εδώ - @ επιλέξτε διαδρομή, / επιλέξτε εντολή",
   "agent.input.placeholder_steering": "Προσθέστε σημείωση — θα παραδοθεί μετά το τρέχον βήμα",

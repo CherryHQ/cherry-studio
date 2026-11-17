@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto'
-import { copyFile, mkdir, rename, rm } from 'node:fs/promises'
 
 import { eq } from 'drizzle-orm'
 import { v5 as uuid } from 'uuid'
@@ -9,24 +8,22 @@ import { application } from '@application'
 import { appStateTable } from '@data/db/schemas/appState'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
-import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
-import { allocateDurableBackendTx } from '@main/ai/runtime/piDurable/durableContext'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { agentImportSnapshotSchema, type AgentImportSnapshot } from '@shared/ai/agentImport'
 
-import { createDurableBackend, reconcileDurableBackend } from '../durableNativeContext'
-import { deepseekFiles, type DeepseekConversation } from './deepseek'
-import { deepseekArchiveDigest, openDeepseekArchive } from './deepseekArchive'
-import { deepseekContent } from './deepseekContent'
-import { importDurableHistory } from './durableImport'
+import { getConversationImporter } from './importers'
+import type { ConversationImporter, ImportArchive } from './types'
 
-const operationSchema = agentImportSnapshotSchema.extend({ digest: z.string().regex(/^[a-f0-9]{64}$/) })
+const operationSchema = agentImportSnapshotSchema.extend({
+  digest: z.string().regex(/^[a-f0-9]{64}$/),
+  importerId: z.string().optional(),
+  sourceFile: z.string().optional()
+})
 const receiptSchema = z.object({
   sessionId: z.uuid(),
-  backendId: z.uuid(),
   published: z.boolean(),
   files: z.record(z.string(), z.string())
 })
@@ -66,11 +63,8 @@ export class AgentImportService extends BaseService {
 
   private assertAgent(agentId: string) {
     const agent = agentService.getAgent(agentId)
-    if (!agent || agent.type !== 'pi-durable') throw new Error('DeepSeek import requires a Pi Durable Agent')
+    if (!agent) throw new Error('Import requires an existing Agent')
     return agent
-  }
-  private archivePath(digest: string) {
-    return application.getPath('feature.agents.imports', `${digest}.zip`)
   }
   private operation(id: string) {
     return operationSchema.parse(readState(`agent-import:operation:${id}`))
@@ -106,7 +100,7 @@ export class AgentImportService extends BaseService {
   }
 
   listActiveWork(): Array<{ id: string; summary: string }> {
-    return [...this.preparations.values(), ...this.runs.keys()].map((id) => ({ id, summary: 'DeepSeek Agent import' }))
+    return [...this.preparations.values(), ...this.runs.keys()].map((id) => ({ id, summary: 'Agent history import' }))
   }
 
   async drainInFlight({ timeoutMs }: { timeoutMs: number }): Promise<{ stragglerIds: string[] }> {
@@ -124,68 +118,58 @@ export class AgentImportService extends BaseService {
     return { stragglerIds: this.listActiveWork().map(({ id }) => id) }
   }
 
-  prepare(agentId: string, file: string): Promise<AgentImportSnapshot> {
+  prepare(agentId: string, file: string, importerId?: string): Promise<AgentImportSnapshot> {
     if (this.stopping || this.pauseHolds.size) return Promise.reject(new Error('Agent imports are paused'))
     if ([...this.preparations.values()].includes(agentId))
       return Promise.reject(new Error('An import preview is already running'))
-    const work = this.prepareArchive(agentId, file)
+    const work = this.prepareArchive(agentId, file, getConversationImporter(importerId))
     this.preparations.set(work, agentId)
     void work.finally(() => this.preparations.delete(work)).catch(() => {})
     return work
   }
 
-  private async prepareArchive(agentId: string, file: string): Promise<AgentImportSnapshot> {
+  private async prepareArchive(
+    agentId: string,
+    file: string,
+    importer: ConversationImporter
+  ): Promise<AgentImportSnapshot> {
     this.assertAgent(agentId)
     if (this.stopping || [...this.runs.keys()].some((id) => this.operation(id).agentId === agentId))
       throw new Error('An import is already running')
-    await mkdir(application.getPath('feature.agents.imports'), { recursive: true })
-    const temporary = application.getPath('feature.agents.imports', `${randomUUID()}.tmp`)
+    const digest = await importer.digest(file)
+    const archive = await importer.open(file)
+    let preview: Awaited<ReturnType<ImportArchive['preview']>>
     try {
-      await deepseekArchiveDigest(file)
-      await copyFile(file, temporary)
-      const digest = await deepseekArchiveDigest(temporary)
-      const archive = await openDeepseekArchive(temporary)
-      let count = 0
-      const missingFiles: string[] = []
-      try {
-        for (const item of archive.index) {
-          const source = await archive.load(item.id)
-          count += source.messages.length
-          if (count > 100_000) throw new Error('DeepSeek archive has too many messages')
-          for (const attachment of deepseekFiles(source))
-            if (attachment.export_path === null) missingFiles.push(attachment.file_name)
-        }
-      } finally {
-        await archive.close()
-      }
-      const id = uuid(`${agentId}:${digest}`, namespace)
-      const previous = readState(`agent-import:operation:${id}`)
-      const operation: Operation = previous
-        ? operationSchema.parse(previous)
-        : {
-            id,
-            revision: 0,
-            agentId,
-            digest,
-            status: 'ready',
-            conversations: archive.index.length,
-            messages: count,
-            imported: 0,
-            skipped: 0,
-            failed: 0,
-            remaining: archive.index.length,
-            missingFiles,
-            sessionIds: []
-          }
-      await rename(temporary, this.archivePath(digest))
-      application.get('DbService').withWriteTx((tx) => {
-        writeState(tx, `agent-import:operation:${id}`, operation)
-        writeState(tx, `agent-import:latest:${agentId}`, id)
-      })
-      return this.status(agentId)!
+      preview = await archive.preview()
     } finally {
-      await rm(temporary, { force: true })
+      await archive.close()
     }
+    const id = uuid(`${agentId}:${digest}`, namespace)
+    const previous = readState(`agent-import:operation:${id}`)
+    const operation: Operation = previous
+      ? { ...operationSchema.parse(previous), importerId: importer.id, sourceFile: file }
+      : {
+          id,
+          revision: 0,
+          agentId,
+          digest,
+          importerId: importer.id,
+          sourceFile: file,
+          status: 'ready',
+          conversations: archive.sourceIds.length,
+          messages: preview.messages,
+          imported: 0,
+          skipped: 0,
+          failed: 0,
+          remaining: archive.sourceIds.length,
+          missingFiles: preview.missingFiles,
+          sessionIds: []
+        }
+    application.get('DbService').withWriteTx((tx) => {
+      writeState(tx, `agent-import:operation:${id}`, operation)
+      writeState(tx, `agent-import:latest:${agentId}`, id)
+    })
+    return this.status(agentId)!
   }
 
   start(id: string): AgentImportSnapshot {
@@ -222,14 +206,15 @@ export class AgentImportService extends BaseService {
 
   private async run(operation: Operation, signal: AbortSignal): Promise<void> {
     try {
-      const file = this.archivePath(operation.digest)
-      if ((await deepseekArchiveDigest(file)) !== operation.digest) throw new Error('DeepSeek archive changed')
-      const archive = await openDeepseekArchive(file)
+      const file = z.string().parse(operation.sourceFile)
+      const importer = getConversationImporter(operation.importerId)
+      if ((await importer.digest(file)) !== operation.digest) throw new Error('Import file changed')
+      const archive = await importer.open(file)
       try {
-        for (const item of archive.index) {
+        for (const sourceId of archive.sourceIds) {
           signal.throwIfAborted()
           this.assertAgent(operation.agentId)
-          const result = await this.importConversation(operation, await archive.load(item.id), archive.read, signal)
+          const result = await this.importConversation({ operation, importer, archive, sourceId, signal })
           operation[result.published ? 'skipped' : 'imported']++
           operation.remaining--
           operation.sessionIds.push(result.sessionId)
@@ -250,19 +235,25 @@ export class AgentImportService extends BaseService {
     this.save(operation)
   }
 
-  private async importConversation(
-    operation: Operation,
-    source: DeepseekConversation,
-    read: (name: string) => Promise<Buffer>,
+  private async importConversation({
+    operation,
+    importer,
+    archive,
+    sourceId,
+    signal
+  }: {
+    operation: Operation
+    importer: ConversationImporter
+    archive: ImportArchive
+    sourceId: string
     signal: AbortSignal
-  ) {
-    const key = `agent-import:conversation:${operation.id}:${source.id}`
+  }) {
+    const key = `agent-import:conversation:${operation.id}:${sourceId}`
     const receipt = application.get('DbService').withWriteTx((tx) => {
       const saved = tx.select().from(appStateTable).where(eq(appStateTable.key, key)).get()?.value
       if (saved) return receiptSchema.parse(saved)
       const value = {
         sessionId: randomUUID(),
-        backendId: allocateDurableBackendTx(tx).id,
         published: false,
         files: {} as Record<string, string>
       }
@@ -270,110 +261,53 @@ export class AgentImportService extends BaseService {
       return value
     })
     if (receipt.published) return receipt
-    const content = new Map<string, Awaited<ReturnType<typeof deepseekContent>>>()
-    const productId = (id: number) => uuid(String(id), receipt.sessionId)
-    for (const message of source.messages) {
-      signal.throwIfAborted()
-      content.set(
-        productId(message.id),
-        await deepseekContent(message, read, receipt.files, (sourceId, entryId) => {
-          Object.defineProperty(receipt.files, sourceId, {
-            value: entryId,
-            enumerable: true,
-            configurable: true,
-            writable: true
-          })
-          application.get('DbService').withWriteTx((tx) => writeState(tx, key, receipt))
+    const source = await archive.load(sourceId, {
+      signal,
+      files: receipt.files,
+      saveFile: (id, entryId) => {
+        Object.defineProperty(receipt.files, id, {
+          value: entryId,
+          enumerable: true,
+          configurable: true,
+          writable: true
         })
-      )
-    }
-    if (contexts.backend(receipt.backendId).state === 'creating') {
-      try {
-        await createDurableBackend(receipt.backendId)
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+        application.get('DbService').withWriteTx((tx) => writeState(tx, key, receipt))
       }
-    }
-    const { createSession } = await import('@earendil-works/pi-durable')
-    const { BACKGROUND_CONTEXT } = await import('@earendil-works/chord/context')
-    const native = createSession(await reconcileDurableBackend(receipt.backendId))
-    let nodes: Awaited<ReturnType<typeof importDurableHistory>>
-    try {
-      nodes = await importDurableHistory(
-        native,
-        receipt.sessionId,
-        source.messages.map((message) => ({
-          id: productId(message.id),
-          parentId: message.parent_id === null ? null : productId(message.parent_id),
-          model: content.get(productId(message.id))!.model
-        })),
-        signal
-      )
-    } finally {
-      await native.close(BACKGROUND_CONTEXT)
-    }
+    })
+    const productId = (id: string) => uuid(id, receipt.sessionId)
     signal.throwIfAborted()
     const agent = this.assertAgent(operation.agentId)
     application.get('DbService').withWriteTx((tx) => {
       agentSessionService.createTx(
         tx,
         receipt.sessionId,
-        { agentId: agent.id, name: source.title || 'DeepSeek', workspace: { type: 'system' } },
+        { agentId: agent.id, name: source.name, workspace: { type: 'system' } },
         'conversation',
-        Date.parse(source.inserted_at)
+        source.createdAt
       )
-      const orderedTimes = new Map<number, number>()
+      const orderedTimes = new Map<string, number>()
       const rows = source.messages.map((message) => {
-        const id = productId(message.id)
-        const node = nodes[id]
-        const parentTime = message.parent_id === null ? undefined : orderedTimes.get(message.parent_id)
-        const sourceTime = Date.parse(message.inserted_at)
+        const id = productId(message.sourceId)
+        const parentTime = message.parentSourceId === null ? undefined : orderedTimes.get(message.parentSourceId)
+        const sourceTime = message.createdAt
         const createdAt = parentTime === undefined ? sourceTime : Math.max(sourceTime, parentTime + 1)
-        orderedTimes.set(message.id, createdAt)
-        const checkpoint = {
-          runtime: 'pi-durable' as const,
-          backendId: receipt.backendId,
-          conversationId: node.conversationId,
-          entryId: node.entryId
-        }
+        orderedTimes.set(message.sourceId, createdAt)
         return {
           id,
-          parentId: message.parent_id === null ? null : productId(message.parent_id),
-          role: message.role === 'USER' ? 'user' : 'assistant',
-          status: message.status === 'FINISHED' ? 'success' : 'error',
-          data: {
-            parts: content.get(id)!.parts,
-            importedHistory: {
-              source: 'deepseek' as const,
-              messageId: String(message.id),
-              insertedAt: message.inserted_at,
-              status: message.status,
-              missingFiles: message.fragments.flatMap((part) =>
-                part.type === 'FILE'
-                  ? part.files
-                      .filter((file) => file.export_path === null)
-                      .map((file) => ({
-                        id: file.id,
-                        name: file.file_name,
-                        size: file.file_size,
-                        isImage: file.is_image
-                      }))
-                  : []
-              )
-            },
-            ...(message.role === 'ASSISTANT' &&
-              message.status === 'FINISHED' && { runtimeAnchor: { checkpoint, excludedMessageIds: [] } })
-          },
+          parentId: message.parentSourceId === null ? null : productId(message.parentSourceId),
+          role: message.role,
+          status: message.status,
+          data: message.data,
           messageSnapshot:
-            message.role === 'ASSISTANT'
+            message.role === 'assistant' && message.model
               ? {
                   id: agent.id,
-                  name: 'DeepSeek',
-                  emoji: '🐋',
-                  model: { id: 'imported-history', name: 'DeepSeek', provider: 'deepseek' }
+                  name: importer.name,
+                  emoji: importer.emoji,
+                  model: message.model
                 }
               : null,
-          runtimeResumeToken: node.conversationId,
+          runtimeResumeToken: null,
           createdAt,
           updatedAt: createdAt
         }
@@ -382,20 +316,9 @@ export class AgentImportService extends BaseService {
         tx,
         receipt.sessionId,
         rows,
-        source.current_message_id === null ? null : productId(source.current_message_id)
+        source.activeSourceId === null ? null : productId(source.activeSourceId)
       )
-      for (const row of rows) {
-        const node = nodes[row.id]
-        contexts.reserveBranchTx(tx, {
-          id: node.contextId,
-          sessionId: receipt.sessionId,
-          backendId: receipt.backendId,
-          anchorMessageId: row.id,
-          nativeThreadId: node.conversationId,
-          checkpointMapping: { fork: {} }
-        })
-      }
-      agentSessionService.finishHistoryImportTx(tx, receipt.sessionId, Date.parse(source.updated_at))
+      agentSessionService.finishHistoryImportTx(tx, receipt.sessionId, source.updatedAt)
       writeState(tx, key, { ...receipt, published: true })
     })
     try {

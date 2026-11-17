@@ -1185,15 +1185,51 @@ relocation admission blocks. Workspace guards consult that owner, and verified r
 removes the block. Pending retired-runtime sessions defer native-history work to the
 existing migration below.
 
+## First submission without native history
+
+`AgentSessionRuntimeService` supplies a selected product-history prefix as model-only
+`AgentRuntimeCommand.context` when a branch has no previous native input. The generic
+`readSessionHistory` reader follows message parents, excludes the current input and
+unfinished deliveries, and retains role labels, reasoning, full historical tool records
+and managed file parts. Drivers use their ordinary input and attachment conversion.
+Native admission still checks the original product message parts; reference context does
+not rewrite user messages or dispatch historical tools.
+
+Fresh native bindings use the selected product position as their anchor, keeping sibling
+paths independent. Subsequent inputs and reopening reuse the ordinary native conversation.
+Known native identities follow their existing recovery rules; a missing native store is
+never silently replaced with product history. This path creates no native-history files,
+rebuild state or historical checkpoints and does not inspect import provenance.
+
 ## DeepSeek Agent history import
 
-`AgentImportService` imports DeepSeek v3 ZIP exports into new Pi Durable Agent sessions. Settings → Data → Import external application data opens a preview with counts and unavailable-file warnings after selecting the destination Agent. Main owns the selected file, bounded archive reads, validation, progress, cancellation, and retry; closing the dialog does not cancel work. Other runtimes cannot import this format.
+`AgentImportService` publishes normalized `ConversationImporter` results into new sessions
+for existing Agents. `DeepSeekImporter` handles the supported DeepSeek v3 ZIP format,
+including validation, source-field normalization, content and managed attachments. The
+service handles progress, retry and database publication without reading source fields.
+Settings → Data → Import external application data opens a preview after selecting the
+Agent. Main owns bounded archive reads, validation, progress, cancellation and retry;
+closing the dialog does not cancel work. The importer writes the complete product parent
+graph, selected head and managed attachments without creating native history or tokens.
+The generic first-submission mechanism above supplies continuation context.
 
-The importer preserves the complete parent graph and source selected head. It writes inert `cherry.imported-history` native entries through the public Session API, with one native conversation per message prefix. A committed parent is required before a descendant can fork. Per-node native receipts make interrupted preparation resumable. The native projection omits these entries because the product message tree already owns their display. Historical reasoning and searches become labeled text in model context, never executable tools; source failure states remain on product rows. Model-history entries use a normal terminal stop so provider adapters do not discard partially completed source text.
+Operation snapshots, latest-operation pointers and per-source publication receipts use
+`agent-import:operation:`, `agent-import:latest:` and `agent-import:conversation:` in
+`app_state`. Operations retain their importer ID, with the default importer used for older
+records. The archive digest and Agent identify retries. A synchronous product
+transaction publishes each session, its messages, file references and receipt. Cancellation
+preserves completed sessions. Agent lifecycle pause/drain includes preparation and import.
+The original ZIP is read directly without copying, modifying or deleting it. Operations
+retain its path and digest and verify the digest before import; a moved or unavailable
+source must be reselected. Completed sessions use managed attachments independently of ZIP.
 
-Operation snapshots, latest-operation pointers, and per-source publication receipts use the `agent-import:operation:`, `agent-import:latest:`, and `agent-import:conversation:` namespaces in `app_state`. The archive digest and destination Agent identify retries. Native preparation completes before one synchronous product transaction publishes session, messages, branch bindings, file references, and its receipt. Cancellation stops before the next publication and preserves completed sessions. Agent lifecycle ingress pause/drain includes archive preparation and import, so backup and restore cannot overlap their writes.
-
-Search/open/image-search records use completed standard tool parts with generated call IDs, observed input and complete output. Existing tool-call/result components display them interleaved with reasoning in source order, retaining queries, snippets, links, source status, and zero-result searches. They do not create pending runtime work. Search results do not create synthetic answer citations or a citation footer. Imported source failures and empty messages display the original export status rather than a runtime error. Conflicting attachment IDs within a conversation fail validation before publication. Available images are copied into FileManager and encoded in native context; missing files remain explicit text. Frozen archives under `feature.agents.imports`, prepared native stores, and manual-cleanup file entries remain identifiable for retry rather than being destructively reclaimed. This retention also keeps historical file paths available to native continuations. Import does not recreate absent payloads or import DeepSeek credentials, billing, pending tasks, or approvals.
+Search/open/image-search records use completed standard tool parts with observed input
+and complete output, interleaved with reasoning in source order. Queries, snippets, links,
+source status and zero-result searches remain visible without synthetic answer citations.
+Source failures and empty messages show export status rather than a runtime error.
+Conflicting attachment IDs fail validation. Files and images use ordinary Harness
+attachment conversion; missing files remain explicit text. No credentials, billing,
+pending tasks, approvals or historical native Fork/Edit checkpoints are imported.
 
 ## Retired Agent runtime migration
 

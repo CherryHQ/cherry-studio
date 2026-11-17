@@ -167,7 +167,6 @@
   "agent.import.source_status": "สถานะในการส่งออกต้นฉบับ: {{status}}",
   "agent.import.summary": "{{conversations}} การสนทนา · {{messages}} ข้อความ",
   "agent.import.title": "นำเข้า DeepSeek",
-  "agent.import.unsupported": "เลือกเอเจนต์ Pi Durable เพื่อนำเข้าประวัติ DeepSeek",
   "agent.input.goal_mode.title": "โหมดเป้าหมาย",
   "agent.input.placeholder": "พิมพ์ข้อความ พิมพ์ / เพื่อค้นหาพาธหรือคำสั่ง @ เพื่ออ้างอิงไฟล์และเซสชัน",
   "agent.input.placeholder_steering": "เพิ่มหมายเหตุ — จะส่งถึงหลังขั้นตอนปัจจุบัน",
