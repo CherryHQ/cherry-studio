@@ -23,8 +23,11 @@ export const globToolDefinition = {
 }
 
 // Handler implementation
-export async function handleGlobTool(args: z.infer<typeof GlobToolSchema>, baseDir: string): Promise<CallToolResult> {
-  const searchPath = args.path || baseDir
+export async function handleGlobTool(
+  args: z.infer<typeof GlobToolSchema>,
+  baseDir: string | string[]
+): Promise<CallToolResult> {
+  const searchPath = args.path || (Array.isArray(baseDir) ? baseDir[0] : baseDir)
   const validPath = await validatePath(searchPath, baseDir)
 
   // Verify the search directory exists

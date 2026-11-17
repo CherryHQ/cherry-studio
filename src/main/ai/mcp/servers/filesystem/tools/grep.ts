@@ -68,12 +68,15 @@ function parseRipgrepMatch(line: string): GrepMatch | null {
 }
 
 // Handler implementation
-export async function handleGrepTool(data: z.infer<typeof GrepToolSchema>, baseDir: string): Promise<CallToolResult> {
+export async function handleGrepTool(
+  data: z.infer<typeof GrepToolSchema>,
+  baseDir: string | string[]
+): Promise<CallToolResult> {
   if (!data.pattern) {
     throw new Error('Pattern is required for grep')
   }
 
-  const searchPath = data.path || baseDir
+  const searchPath = data.path || (Array.isArray(baseDir) ? baseDir[0] : baseDir)
   const validPath = await validatePath(searchPath, baseDir)
 
   const matches: GrepMatch[] = []
@@ -233,7 +236,7 @@ export async function handleGrepTool(data: z.infer<typeof GrepToolSchema>, baseD
 
           const absoluteFilePath = path.isAbsolute(parsedMatch.file)
             ? parsedMatch.file
-            : path.resolve(baseDir, parsedMatch.file)
+            : path.resolve(Array.isArray(baseDir) ? baseDir[0] : baseDir, parsedMatch.file)
 
           // Re-validate each result to filter out symlink escapes
           try {

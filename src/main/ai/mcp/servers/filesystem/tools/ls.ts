@@ -19,8 +19,11 @@ export const lsToolDefinition = {
 }
 
 // Handler implementation
-export async function handleLsTool(args: z.infer<typeof LsToolSchema>, baseDir: string): Promise<CallToolResult> {
-  const targetPath = args.path || baseDir
+export async function handleLsTool(
+  args: z.infer<typeof LsToolSchema>,
+  baseDir: string | string[]
+): Promise<CallToolResult> {
+  const targetPath = args.path || (Array.isArray(baseDir) ? baseDir[0] : baseDir)
   const validPath = await validatePath(targetPath, baseDir)
 
   // Verify the target exists and is a directory before walking it: the recursive
