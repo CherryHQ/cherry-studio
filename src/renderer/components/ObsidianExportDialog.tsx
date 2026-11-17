@@ -408,12 +408,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
     }
 
     return (
-      <EmptyState
-        compact
-        preset="no-resource"
-        className="min-h-20 py-4"
-        description={i18n.t('chat.topics.export.obsidian_no_vaults')}
-      />
+      <EmptyState compact className="min-h-20 py-4" description={i18n.t('chat.topics.export.obsidian_no_vaults')} />
     )
   }
 
@@ -446,7 +441,6 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
     return (
       <EmptyState
         compact
-        preset="no-resource"
         className="min-h-20 py-4"
         description={i18n.t('chat.topics.export.obsidian_select_vault_first')}
       />
