@@ -2948,6 +2948,7 @@
   "models.detail.model_id": "Ταυτότητα Μοντέλου",
   "models.detail.provider": "Πάροχος",
   "models.detail.quota_exhausted": "Το όριο του προγράμματος εξαντλήθηκε· αναμένεται επαναφορά",
+  "models.detail.quota_insufficient_for_request": "Το όριο του προγράμματος δεν επαρκεί για αυτό το αίτημα",
   "models.edit": "Επεξεργασία μοντέλου",
   "models.group.ungrouped": "Χωρίς ομαδοποίηση",
   "models.multi_select.label": "Πολλαπλή επιλογή",
