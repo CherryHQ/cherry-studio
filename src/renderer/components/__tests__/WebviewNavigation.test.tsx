@@ -6,10 +6,11 @@ import type { WebviewTag } from 'electron'
 import { createInstance } from 'i18next'
 import { I18nextProvider } from 'react-i18next'
 import { SWRConfig } from 'swr'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
 import en from '@renderer/i18n/locales/en-us.json'
+import type { BrowserVisit } from '@shared/data/api/schemas/browserVisits'
 
 import { WebviewNavigation } from '../WebviewNavigation'
 
@@ -22,7 +23,7 @@ const i18n = createInstance()
 const visit = (url: string, title: string) => ({ id: title, title, url, visitedAt: 1, source: 'local' })
 const report = visit('http://internal.test/reports?lang=zh#latest', 'Monthly report')
 const recent = [report, { ...report, title: 'Old report title' }, visit('https://example.com/', 'Example')]
-const result = (items = recent) => ({ items, hasMore: false })
+const result = (items: BrowserVisit[] = recent) => ({ items, hasMore: false })
 
 beforeAll(async () => {
   await i18n.init({ lng: 'en', resources: { en: { translation: en } }, keySeparator: false })
@@ -59,6 +60,27 @@ function setup(historyEnabled = true, url = 'https://current.test/') {
 }
 
 describe('Browser address history', () => {
+  it('uses a cached website icon for suggestions without fetching an external favicon service', async () => {
+    const favicon = 'data:image/png;base64,cached-favicon'
+    class CachedImage {
+      complete = true
+      naturalWidth = 16
+      addEventListener() {}
+      removeEventListener() {}
+      set src(_value: string) {}
+    }
+    const originalImage = globalThis.Image
+    vi.stubGlobal('Image', CachedImage)
+    onTestFinished(() => {
+      globalThis.Image = originalImage
+    })
+    vi.mocked(dataApiService.get).mockResolvedValue(result([{ ...report, favicon }]))
+    const { address } = setup()
+    await userEvent.click(address)
+    await screen.findByRole('option', { name: /Monthly report/ })
+    await waitFor(() => expect(screen.getByRole('presentation')).toHaveAttribute('src', favicon))
+  })
+
   it('loads history only on focus, deduplicates URLs and opens a searched result with the keyboard', async () => {
     const user = userEvent.setup()
     const { address, loadURL } = setup()
@@ -104,6 +126,15 @@ describe('Browser address history', () => {
     expect(loadURL).toHaveBeenCalledWith('http://localhost:3000/new')
   })
 
+  it('navigates to a bare IPv6 loopback address', async () => {
+    const user = userEvent.setup()
+    const { address, loadURL } = setup(false)
+    await user.click(address)
+    await user.clear(address)
+    await user.type(address, '::1/status{Enter}')
+    expect(loadURL).toHaveBeenCalledWith('http://[::1]/status')
+  })
+
   it('dismisses suggestions with Escape and restores the current address without navigation', async () => {
     const user = userEvent.setup()
     const { address, loadURL } = setup()
@@ -147,6 +178,27 @@ describe('Browser address history', () => {
     expect(loadURL).toHaveBeenCalledWith('https://new.test/')
   })
 
+  it('keeps the last suggestions while the closing popover animates out', async () => {
+    const getComputedStyle = window.getComputedStyle
+    const styleSpy = vi.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudo) => {
+      const style = getComputedStyle(element, pseudo)
+      if (element.getAttribute('role') !== 'dialog') return style
+      // jsdom has no animations; Radix Presence keeps closing content mounted only while one runs.
+      return Object.defineProperty(style, 'animationName', {
+        get: () => (element.getAttribute('data-state') === 'closed' ? 'exit' : 'enter')
+      })
+    })
+    onTestFinished(() => styleSpy.mockRestore())
+    const user = userEvent.setup()
+    const { address } = setup()
+    await user.click(address)
+    await screen.findByRole('option', { name: /Monthly report/ })
+    await user.tab()
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-state', 'closed')
+    expect(screen.getByRole('option', { name: /Monthly report/ })).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
   it('does not expose ordinary browser history in preview surfaces', async () => {
     const user = userEvent.setup()
     const { address } = setup(false)
@@ -159,6 +211,19 @@ describe('Browser address history', () => {
 })
 
 describe('Browser address display', () => {
+  it('selects the whole URL when the focusing click drifts, then allows drag selection', async () => {
+    const user = userEvent.setup()
+    const url = 'https://github.com/maizzle/framework?tab=readme#start'
+    const { address } = setup(false, url)
+    const input = address as HTMLInputElement
+    const drag = [{ keys: '[MouseLeft>]', target: input, offset: 3 }, { offset: 12 }, { keys: '[/MouseLeft]' }]
+    await user.pointer(drag)
+    expect(input).toHaveFocus()
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, url.length])
+    await user.pointer(drag)
+    expect([input.selectionStart, input.selectionEnd]).toEqual([3, 12])
+  })
+
   it.each([
     ['https://github.com/maizzle/framework?tab=readme#start', 'github.com'],
     ['http://localhost:3000/reports?lang=zh#latest', 'localhost:3000'],

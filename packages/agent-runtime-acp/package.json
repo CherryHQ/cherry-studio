@@ -1,0 +1,29 @@
+{
+  "name": "@cherrystudio/agent-runtime-acp",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Stable ACP v1 execution and observation adapter.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./v1": {
+      "types": "./dist/v1.d.mts",
+      "default": "./dist/v1.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "2.4.0",
+    "@cherrystudio/agent-runtime": "workspace:*",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.4",
+    "tsdown": "^0.22.14",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vitest": "^5.0.1"
+  }
+}

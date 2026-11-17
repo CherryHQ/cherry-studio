@@ -10,6 +10,7 @@
 import * as z from 'zod'
 
 import { CURRENCY, objectValues } from './model'
+import { BillingResolutionSchema } from './providerBilling'
 
 const FiniteNonnegativeNumberSchema = z.number().nonnegative().refine(Number.isFinite)
 const FiniteNonnegativeIntegerSchema = z.number().int().nonnegative().refine(Number.isSafeInteger)
@@ -34,6 +35,7 @@ export const AiUsageCostBreakdownSchema = z.strictObject({
 export type AiUsageCostBreakdown = z.infer<typeof AiUsageCostBreakdownSchema>
 
 export const AiUsagePricingSnapshotSchema = z.strictObject({
+  billing: BillingResolutionSchema.optional(),
   currency: z.enum(objectValues(CURRENCY)),
   inputPerMillionTokens: FiniteNonnegativeNumberSchema.optional(),
   outputPerMillionTokens: FiniteNonnegativeNumberSchema.optional(),

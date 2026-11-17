@@ -1,22 +1,36 @@
-import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import {
+  SESSION_CREATE_TOOL_NAME,
+  SESSION_READ_TOOL_NAME,
+  SESSION_SEARCH_TOOL_NAME,
+  SESSION_SEND_TOOL_NAME
+} from '@shared/ai/agentSessionDelivery'
 
 import type { ToolResponseLike } from '../toolResponse'
 
 export interface SessionCreateResult {
   ok: true
   sessionId: string
+  agentId?: string
   delivery?: {
     status?: string
+    sender?: { agentId?: string }
+    receiver?: { agentId?: string }
+    receiverSnapshot?: { agentName?: string }
   }
 }
 
 export interface SessionToolTarget {
   agentName?: string
-  kind: 'create' | 'send'
+  /** Which surface the session opens on: `agent` via sessionId, `assistant` via topicId. */
+  conversationType: 'agent' | 'assistant'
+  kind: 'create' | 'send' | 'search' | 'read'
   renderKey: string
   sessionId: string
   sessionName: string
 }
+
+/** session_search may return many matches; that many cards keep the reply readable. */
+export const MAX_SESSION_SEARCH_RESULT_CARDS = 3
 
 function isSessionCreateToolName(toolName: string | undefined): boolean {
   return toolName === SESSION_CREATE_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`
@@ -26,9 +40,21 @@ function isSessionSendToolName(toolName: string | undefined): boolean {
   return toolName === SESSION_SEND_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_SEND_TOOL_NAME}`
 }
 
+function isSessionSearchToolName(toolName: string | undefined): boolean {
+  return toolName === SESSION_SEARCH_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_SEARCH_TOOL_NAME}`
+}
+
+function isSessionReadToolName(toolName: string | undefined): boolean {
+  return toolName === SESSION_READ_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_READ_TOOL_NAME}`
+}
+
 export function isCherrySessionToolResponse(toolResponse: ToolResponseLike): boolean {
   const { tool } = toolResponse
-  const isSessionTool = isSessionCreateToolName(tool.name) || isSessionSendToolName(tool.name)
+  const isSessionTool =
+    isSessionCreateToolName(tool.name) ||
+    isSessionSendToolName(tool.name) ||
+    isSessionSearchToolName(tool.name) ||
+    isSessionReadToolName(tool.name)
   if (!isSessionTool) return false
   return tool.type !== 'mcp' || ('serverId' in tool && tool.serverId === 'cherry-tools')
 }
@@ -70,11 +96,41 @@ export function parseSessionCreateResult(value: unknown): SessionCreateResult | 
   const candidate = parseJsonResult(value)
   if (!isRecord(candidate) || candidate.ok !== true || typeof candidate.sessionId !== 'string') return undefined
   const delivery = isRecord(candidate.delivery) ? candidate.delivery : undefined
+  const sender = delivery && isRecord(delivery.sender) ? delivery.sender : undefined
+  const receiver = delivery && isRecord(delivery.receiver) ? delivery.receiver : undefined
+  const receiverSnapshot = delivery && isRecord(delivery.receiverSnapshot) ? delivery.receiverSnapshot : undefined
+
   return {
     ok: true,
     sessionId: candidate.sessionId,
-    delivery: delivery && typeof delivery.status === 'string' ? { status: delivery.status } : undefined
+    agentId: typeof candidate.agentId === 'string' ? candidate.agentId : undefined,
+    delivery: delivery
+      ? {
+          status: typeof delivery.status === 'string' ? delivery.status : undefined,
+          sender: sender ? { agentId: typeof sender.agentId === 'string' ? sender.agentId : undefined } : undefined,
+          receiver: receiver
+            ? { agentId: typeof receiver.agentId === 'string' ? receiver.agentId : undefined }
+            : undefined,
+          receiverSnapshot: receiverSnapshot
+            ? {
+                agentName: typeof receiverSnapshot.agentName === 'string' ? receiverSnapshot.agentName : undefined
+              }
+            : undefined
+        }
+      : undefined
   }
+}
+
+/**
+ * The card may only claim "this agent" when the tool result proves the new session stayed with the caller.
+ * @param result Parsed session_create payload
+ * @returns Target Agent name when the new session lives under a different Agent, else undefined
+ */
+export function getSessionCreateTargetAgentName(result: SessionCreateResult | undefined): string | undefined {
+  const receiverId = result?.delivery?.receiver?.agentId ?? result?.agentId
+  const senderId = result?.delivery?.sender?.agentId
+  if (!receiverId || !senderId || receiverId === senderId) return undefined
+  return result?.delivery?.receiverSnapshot?.agentName?.trim() || undefined
 }
 
 export function parseSessionSendResult(value: unknown): SessionSendResult | undefined {
@@ -107,33 +163,101 @@ export function parseSessionSendResult(value: unknown): SessionSendResult | unde
   }
 }
 
-export function getSessionToolTarget(toolResponse: ToolResponseLike): SessionToolTarget | undefined {
-  if (!isCherrySessionToolResponse(toolResponse)) return undefined
+export interface SessionSearchResultSession {
+  agentName?: string
+  isCurrent: boolean
+  sessionId: string
+  sessionName: string
+}
+
+export function parseSessionSearchResult(value: unknown): SessionSearchResultSession[] {
+  const candidate = parseJsonResult(value)
+  if (!isRecord(candidate) || !Array.isArray(candidate.sessions)) return []
+
+  return candidate.sessions.filter(
+    (session): session is SessionSearchResultSession =>
+      isRecord(session) &&
+      typeof session.sessionId === 'string' &&
+      session.isCurrent !== true &&
+      typeof session.sessionName === 'string'
+  )
+}
+
+export interface SessionReadResult {
+  conversationType: 'agent' | 'assistant'
+  sessionId: string
+}
+
+export function parseSessionReadResult(value: unknown): SessionReadResult | undefined {
+  const candidate = parseJsonResult(value)
+  if (!isRecord(candidate) || typeof candidate.sessionId !== 'string') return undefined
+  // Temporary conversations are ephemeral and have no addressable surface to open.
+  if (candidate.source !== 'agent' && candidate.source !== 'topic') return undefined
+  return { conversationType: candidate.source === 'topic' ? 'assistant' : 'agent', sessionId: candidate.sessionId }
+}
+
+export function getSessionToolTargets(toolResponse: ToolResponseLike): SessionToolTarget[] {
+  if (!isCherrySessionToolResponse(toolResponse)) return []
   const toolName = toolResponse.tool.name
   const args = toolResponse.arguments
   const input = isRecord(args) ? args : undefined
+  const renderKey = toolResponse.toolCallId ?? toolResponse.id
 
   if (isSessionCreateToolName(toolName)) {
     const result = parseSessionCreateResult(toolResponse.response)
-    if (!result) return undefined
+    if (!result) return []
     const title = typeof input?.title === 'string' ? input.title.trim() : ''
-    return {
-      kind: 'create',
-      renderKey: toolResponse.toolCallId ?? toolResponse.id,
-      sessionId: result.sessionId,
-      sessionName: title
-    }
+    return [
+      {
+        agentName: getSessionCreateTargetAgentName(result),
+        conversationType: 'agent',
+        kind: 'create',
+        renderKey,
+        sessionId: result.sessionId,
+        sessionName: title
+      }
+    ]
   }
 
-  if (!isSessionSendToolName(toolName)) return undefined
-  const result = parseSessionSendResult(toolResponse.response)
-  const sessionId = result?.delivery?.receiver?.sessionId
-  if (!sessionId) return undefined
-  return {
-    agentName: result.delivery?.receiverSnapshot?.agentName?.trim() || undefined,
-    kind: 'send',
-    renderKey: toolResponse.toolCallId ?? toolResponse.id,
-    sessionId,
-    sessionName: result.delivery?.receiverSnapshot?.sessionName?.trim() || ''
+  if (isSessionSendToolName(toolName)) {
+    const result = parseSessionSendResult(toolResponse.response)
+    const sessionId = result?.delivery?.receiver?.sessionId
+    if (!sessionId) return []
+    return [
+      {
+        agentName: result.delivery?.receiverSnapshot?.agentName?.trim() || undefined,
+        conversationType: 'agent',
+        kind: 'send',
+        renderKey,
+        sessionId,
+        sessionName: result.delivery?.receiverSnapshot?.sessionName?.trim() || ''
+      }
+    ]
   }
+
+  if (isSessionSearchToolName(toolName)) {
+    return parseSessionSearchResult(toolResponse.response)
+      .slice(0, MAX_SESSION_SEARCH_RESULT_CARDS)
+      .map((session) => ({
+        agentName: session.agentName?.trim() || undefined,
+        conversationType: 'agent' as const,
+        kind: 'search' as const,
+        renderKey: `${renderKey}:${session.sessionId}`,
+        sessionId: session.sessionId,
+        sessionName: session.sessionName.trim()
+      }))
+  }
+
+  if (!isSessionReadToolName(toolName)) return []
+  const result = parseSessionReadResult(toolResponse.response)
+  if (!result) return []
+  return [
+    {
+      conversationType: result.conversationType,
+      kind: 'read',
+      renderKey,
+      sessionId: result.sessionId,
+      sessionName: ''
+    }
+  ]
 }

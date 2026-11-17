@@ -278,15 +278,13 @@ function SkillSearchBody({
   const getResultKey = useCallback(
     (index: number) => {
       const result = results[index]
-      return result ? `${result.sourceRegistry}:${result.slug}` : index
+      return result ? result.installSource : index
     },
     [results]
   )
 
   if (!query.trim()) {
-    return (
-      <EmptyState preset="no-resource" title={emptyTitle} description={emptyDescription} className="min-h-0 flex-1" />
-    )
+    return <EmptyState title={emptyTitle} description={emptyDescription} className="min-h-0 flex-1" />
   }
 
   if (searching) {
@@ -300,7 +298,6 @@ function SkillSearchBody({
   if (error) {
     return (
       <EmptyState
-        preset="no-result"
         title={t('common.error')}
         description={t('library.skill_marketplace.search_failed_description')}
         className="min-h-0 flex-1"
@@ -311,7 +308,6 @@ function SkillSearchBody({
   if (results.length === 0) {
     return (
       <EmptyState
-        preset="no-result"
         title={t('library.skill_marketplace.no_results_title')}
         description={t('library.skill_marketplace.no_results_description')}
         className="min-h-0 flex-1"
@@ -327,7 +323,7 @@ function SkillSearchBody({
       overscan={6}
       getItemKey={getResultKey}
       role="list"
-      className="[&::-webkit-scrollbar]:!w-0.75 box-border px-6 pt-1 pb-1 [&::-webkit-scrollbar-thumb]:rounded-full">
+      contentProps={{ className: 'px-6 pt-1 pb-1' }}>
       {(result, index) => (
         <SkillSearchResultRow
           result={result}

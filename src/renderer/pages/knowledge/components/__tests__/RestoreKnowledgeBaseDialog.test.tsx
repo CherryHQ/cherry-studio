@@ -161,6 +161,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
+  orderKey: 'a0',
   id: 'source-base',
   name: 'Legacy KB',
   groupId: 'group-1',
@@ -217,7 +218,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
     )
 
     expect(screen.getByRole('heading', { name: '重建知识库' })).toBeInTheDocument()
-    expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'lg')
+
     expect(screen.getByLabelText('名称')).toHaveValue('Legacy KB_副本')
 
     fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })

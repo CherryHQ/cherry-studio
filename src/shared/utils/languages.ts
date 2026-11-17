@@ -6,11 +6,15 @@ export const languageEnglishNameMap: Record<LanguageVarious, string> = {
   'en-US': 'English',
   'es-ES': 'Spanish',
   'fr-FR': 'French',
+  'it-IT': 'Italian',
   'ja-JP': 'Japanese',
+  'pl-PL': 'Polish',
   'pt-PT': 'Portuguese',
   'ro-RO': 'Romanian',
   'ru-RU': 'Russian',
+  'th-TH': 'Thai',
   'zh-CN': 'Chinese (Simplified)',
+  'cs-CZ': 'Czech',
   'vi-VN': 'Vietnamese',
   'zh-TW': 'Chinese (Traditional)',
   'tr-TR': 'Turkish'
@@ -20,6 +24,7 @@ export const languageEnglishNameMap: Record<LanguageVarious, string> = {
 export const languageNativeNameMap: Record<LanguageVarious, string> = {
   'zh-CN': '中文',
   'zh-TW': '中文（繁体）',
+  'cs-CZ': 'Čeština',
   'en-US': 'English',
   'de-DE': 'Deutsch',
   'ja-JP': '日本語',
@@ -27,10 +32,13 @@ export const languageNativeNameMap: Record<LanguageVarious, string> = {
   'el-GR': 'Ελληνικά',
   'es-ES': 'Español',
   'fr-FR': 'Français',
+  'pl-PL': 'Polski',
   'pt-PT': 'Português',
   'ro-RO': 'Română',
+  'th-TH': 'ภาษาไทย',
   'vi-VN': 'Tiếng Việt',
-  'tr-TR': 'Türkçe'
+  'tr-TR': 'Türkçe',
+  'it-IT': 'Italiano'
 }
 
 export const defaultLanguage = 'en-US'

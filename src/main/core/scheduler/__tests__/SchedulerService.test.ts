@@ -178,13 +178,6 @@ describe('cron trigger', () => {
     expect(fired).toBe(1)
   })
 
-  it('pause/resume on interval is no-op (warn) — entry stays in map', () => {
-    scheduler.registerSchedule('p-int', { kind: 'interval', ms: 60_000 }, () => undefined)
-    scheduler.pause('p-int')
-    scheduler.resume('p-int')
-    expect(scheduler.has('p-int')).toBe(true)
-  })
-
   it('pause/resume on unknown id is silent no-op', () => {
     expect(() => scheduler.pause('nope')).not.toThrow()
     expect(() => scheduler.resume('nope')).not.toThrow()

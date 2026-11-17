@@ -52,21 +52,28 @@ export const TopicArchiveSection: FC<ArchiveDomainSectionProps> = ({
   isPermanentDeleting,
   onRequestDelete
 }) => {
-  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/topics', {
-    query: ARCHIVED_ITEMS_QUERY,
+  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/archives', {
+    query: { domain: 'topics' },
     limit: 50
   })
-  const topics = useInfiniteFlatItems(pages)
+  const entries = useInfiniteFlatItems(pages)
   useDataChange('/topics', () => void refresh())
   const items = useMemo<ArchiveItem[]>(
-    () => topics.map((topic) => ({ id: topic.id, name: topic.name, deletedAt: toEpochMs(topic.deletedAt) })),
-    [topics]
+    () =>
+      entries.map((entry) => ({
+        id: entry.entityId,
+        name: entry.name,
+        deletedAt: toEpochMs(entry.deletedAt),
+        parentName: entry.parentName
+      })),
+    [entries]
   )
 
   const actions = useTopicArchiveActions(refresh)
 
   return (
     <ArchiveSection
+      domain="topics"
       icon={MessageSquare}
       batchToolbarContainer={batchToolbarContainer}
       isBatchMode={isBatchMode}
@@ -123,6 +130,7 @@ export const AgentArchiveSection: FC<ArchiveDomainSectionProps> = ({
 
   return (
     <ArchiveSection
+      domain="agents"
       icon={SIDEBAR_ICON_COMPONENTS.agents}
       batchToolbarContainer={batchToolbarContainer}
       isBatchMode={isBatchMode}
@@ -157,21 +165,28 @@ export const SessionArchiveSection: FC<ArchiveDomainSectionProps> = ({
   isPermanentDeleting,
   onRequestDelete
 }) => {
-  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/agent-sessions', {
-    query: ARCHIVED_ITEMS_QUERY,
+  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/archives', {
+    query: { domain: 'sessions' },
     limit: 50
   })
-  const sessions = useInfiniteFlatItems(pages)
+  const entries = useInfiniteFlatItems(pages)
   useDataChange('/agent-sessions', () => void refresh())
   const items = useMemo<ArchiveItem[]>(
-    () => sessions.map((session) => ({ id: session.id, name: session.name, deletedAt: toEpochMs(session.deletedAt) })),
-    [sessions]
+    () =>
+      entries.map((entry) => ({
+        id: entry.entityId,
+        name: entry.name,
+        deletedAt: toEpochMs(entry.deletedAt),
+        parentName: entry.parentName
+      })),
+    [entries]
   )
 
   const actions = useSessionArchiveActions(refresh)
 
   return (
     <ArchiveSection
+      domain="sessions"
       icon={ListTodo}
       batchToolbarContainer={batchToolbarContainer}
       isBatchMode={isBatchMode}
@@ -228,6 +243,7 @@ export const AssistantArchiveSection: FC<ArchiveDomainSectionProps> = ({
 
   return (
     <ArchiveSection
+      domain="assistants"
       icon={SIDEBAR_ICON_COMPONENTS.assistants}
       batchToolbarContainer={batchToolbarContainer}
       isBatchMode={isBatchMode}
@@ -305,6 +321,7 @@ export const PaintingArchiveSection: FC<ArchiveDomainSectionProps> = ({
 
   return (
     <ArchiveSection
+      domain="paintings"
       icon={SIDEBAR_ICON_COMPONENTS.paintings}
       batchToolbarContainer={batchToolbarContainer}
       isBatchMode={isBatchMode}
@@ -350,6 +367,7 @@ export const FileArchiveSection: FC<ArchiveDomainSectionProps> = ({
 
   return (
     <ArchiveSection
+      domain="files"
       icon={SIDEBAR_ICON_COMPONENTS.files}
       batchToolbarContainer={batchToolbarContainer}
       isBatchMode={isBatchMode}

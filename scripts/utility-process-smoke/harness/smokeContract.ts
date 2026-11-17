@@ -5,9 +5,21 @@
  */
 
 import { defineUtilityProcess } from '../../../src/main/core/utilityProcess/defineUtilityProcess'
-import type { UtilityProcessMethod } from '../../../src/main/core/utilityProcess/types'
+import type {
+  UtilityProcessMethod,
+  UtilityProcessStreamMethod,
+  UtilityProcessStreamFrame
+} from '../../../src/main/core/utilityProcess/types'
+
+export const streamLimits = { maxFrameBytes: 4096, maxBufferedBytes: 8192, maxBufferedFrames: 3, maxPendingWrites: 2 }
+export const streamOptions = { input: streamLimits, output: streamLimits }
 
 export type SmokeContract = {
+  streams: {
+    duplex: UtilityProcessStreamMethod<void, UtilityProcessStreamFrame, UtilityProcessStreamFrame, number>
+    produce: UtilityProcessStreamMethod<number, never, UtilityProcessStreamFrame, number>
+    streamStall: UtilityProcessStreamMethod<void, never, UtilityProcessStreamFrame, never>
+  }
   methods: {
     ping: UtilityProcessMethod<void, string>
     /** Round-trips a large typed array and reports what the child received. */

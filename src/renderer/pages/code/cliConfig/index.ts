@@ -6,6 +6,7 @@ export {
   CLAUDE_MODEL_ROLES,
   getClaudeContextModelId,
   hasClaudeDetailedModels,
+  setClaudeOneMMarker,
   stripClaudeDetailedModels,
   stripClaudeOneMMarker
 } from './claudeModels'

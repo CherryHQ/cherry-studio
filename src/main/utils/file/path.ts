@@ -47,7 +47,7 @@ export function isPathInside(child: string, parent: string): boolean {
   const b = normalizePathForComparison(parent)
   if (a === b) return false
   const rel = path.relative(b, a)
-  return rel.length > 0 && !rel.startsWith('..') && !path.isAbsolute(rel)
+  return rel.length > 0 && !isOutsidePath(rel)
 }
 
 /** True iff `candidate` equals `container` or is a descendant of it. */
@@ -69,6 +69,18 @@ export function isSameOrInside(candidate: string, container: string): boolean {
  */
 export function isOutsidePath(relativePath: string): boolean {
   return relativePath === '..' || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)
+}
+
+/**
+ * Key under which case- and normalization-insensitive filesystems (Windows, default macOS volumes)
+ * treat two path segments as one name. Unlike `isPathInside`, it folds on every host, so a check
+ * built on it gives the same answer on every platform.
+ *
+ * `toLowerCase` (not `toLocaleLowerCase`) to keep this free of locale surprises such as tr-TR's
+ * I→ı.
+ */
+export function foldPathSegment(segment: string): string {
+  return segment.normalize('NFC').toLowerCase()
 }
 
 /**

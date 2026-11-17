@@ -10,6 +10,9 @@ import { Node, Project } from 'ts-morph'
 
 const RENDERER_DIR = path.join(__dirname, '../src/renderer')
 const MAIN_DIR = path.join(__dirname, '../src/main')
+const FILE_PREVIEW_DIR = path.join(__dirname, '../packages/file-preview/src')
+const SOURCE_DIRECTORIES = { renderer: RENDERER_DIR, main: MAIN_DIR, 'file-preview': FILE_PREVIEW_DIR }
+type FindingSource = keyof typeof SOURCE_DIRECTORIES
 const EXTENSIONS = ['.tsx', '.ts']
 const IGNORED_DIRS = ['__tests__', 'node_modules', 'i18n', 'locales', 'types', 'assets']
 const IGNORED_FILES = ['*.test.ts', '*.test.tsx', '*.d.ts', '*prompts*.ts']
@@ -44,12 +47,15 @@ const CONTEXT_SENSITIVE_ATTRIBUTES: Record<string, string[]> = {
 
 const UI_PROPERTIES = ['message', 'text', 'title', 'label', 'placeholder', 'description', 'detail']
 
+const TOAST_CALLEE = /^(window\.)?toast\.(error|info|loading|success|warning)$/
+const TOAST_TEXT_PROPERTIES = ['title', 'description']
+
 interface Finding {
   file: string
   line: number
   content: string
   type: 'chinese' | 'english'
-  source: 'renderer' | 'main'
+  source: FindingSource
   nodeType: string
 }
 
@@ -78,7 +84,7 @@ function createFinding(
   node: Node,
   sourceFile: SourceFile,
   type: 'chinese' | 'english',
-  source: 'renderer' | 'main',
+  source: FindingSource,
   nodeType: string
 ): Finding {
   return {
@@ -137,6 +143,38 @@ function shouldSkipNode(node: Node): boolean {
   }
 
   return false
+}
+
+function isToastFirstArgument(node: Node): boolean {
+  const call = node.getParent()
+  return (
+    !!call &&
+    Node.isCallExpression(call) &&
+    call.getArguments()[0] === node &&
+    TOAST_CALLEE.test(call.getExpression().getText())
+  )
+}
+
+function getToastText(node: Node): string | undefined {
+  let text: string
+  if (Node.isStringLiteral(node) || Node.isNoSubstitutionTemplateLiteral(node)) {
+    text = node.getLiteralValue()
+  } else if (Node.isTemplateExpression(node)) {
+    text = [node.getHead(), ...node.getTemplateSpans().map((span) => span.getLiteral())]
+      .map((part) => part.getLiteralText())
+      .join(' ')
+  } else {
+    return undefined
+  }
+
+  const parent = node.getParent()
+  const isToastText =
+    isToastFirstArgument(node) ||
+    (!!parent &&
+      Node.isPropertyAssignment(parent) &&
+      TOAST_TEXT_PROPERTIES.includes(parent.getName()) &&
+      isToastFirstArgument(parent.getParentOrThrow()))
+  return isToastText && /\p{L}/u.test(text) ? text : undefined
 }
 
 function isNonUIString(text: string): boolean {
@@ -227,7 +265,7 @@ class HardcodedStringDetector {
     })
   }
 
-  scanFile(filePath: string, source: 'renderer' | 'main'): Finding[] {
+  scanFile(filePath: string, source: FindingSource): Finding[] {
     const findings: Finding[] = []
 
     try {
@@ -243,8 +281,23 @@ class HardcodedStringDetector {
     return findings
   }
 
-  private checkNode(node: Node, sourceFile: SourceFile, source: 'renderer' | 'main', findings: Finding[]): void {
+  private checkNode(node: Node, sourceFile: SourceFile, source: FindingSource, findings: Finding[]): void {
+    if (
+      !Node.isJsxText(node) &&
+      !Node.isJsxAttribute(node) &&
+      !Node.isStringLiteral(node) &&
+      !Node.isTemplateExpression(node) &&
+      !Node.isNoSubstitutionTemplateLiteral(node)
+    )
+      return
     if (shouldSkipNode(node)) return
+
+    // Toast text is always user-visible, so a literal there blocks in every language.
+    const toastText = getToastText(node)
+    if (toastText !== undefined) {
+      findings.push(createFinding(node, sourceFile, hasCJK(toastText) ? 'chinese' : 'english', source, 'ToastCall'))
+      return
+    }
 
     if (Node.isJsxText(node)) {
       const text = node.getText().trim()
@@ -290,7 +343,7 @@ class HardcodedStringDetector {
           if (!isNonUIString(value)) {
             if (hasCJK(value)) {
               findings.push(createFinding(node, sourceFile, 'chinese', source, 'JsxAttribute'))
-            } else if (source === 'renderer' && hasEnglishUIText(value)) {
+            } else if (source !== 'main' && hasEnglishUIText(value)) {
               findings.push(createFinding(node, sourceFile, 'english', source, 'JsxAttribute'))
             }
           }
@@ -351,7 +404,7 @@ function shouldSkipFile(filePath: string, baseDir: string): boolean {
   return false
 }
 
-function scanDirectory(dir: string, source: 'renderer' | 'main', detector: HardcodedStringDetector): Finding[] {
+function scanDirectory(dir: string, source: FindingSource, detector: HardcodedStringDetector): Finding[] {
   const findings: Finding[] = []
 
   if (!fs.existsSync(dir)) {
@@ -368,7 +421,7 @@ function scanDirectory(dir: string, source: 'renderer' | 'main', detector: Hardc
         findings.push(...scanDirectory(fullPath, source, detector))
       }
     } else if (entry.isFile() && EXTENSIONS.some((ext) => entry.name.endsWith(ext))) {
-      if (!shouldSkipFile(fullPath, source === 'renderer' ? RENDERER_DIR : MAIN_DIR)) {
+      if (!shouldSkipFile(fullPath, SOURCE_DIRECTORIES[source])) {
         findings.push(...detector.scanFile(fullPath, source))
       }
     }
@@ -384,6 +437,7 @@ function formatFindings(findings: Finding[]): string {
 
   const rendererFindings = findings.filter((f) => f.source === 'renderer')
   const mainFindings = findings.filter((f) => f.source === 'main')
+  const filePreviewFindings = findings.filter((f) => f.source === 'file-preview')
   const chineseFindings = findings.filter((f) => f.type === 'chinese')
   const englishFindings = findings.filter((f) => f.type === 'english')
 
@@ -431,10 +485,21 @@ function formatFindings(findings: Finding[]): string {
     }
   }
 
+  if (filePreviewFindings.length > 0) {
+    output += '\n📦 File Preview Package:\n'
+    output += '-'.repeat(50) + '\n'
+    for (const finding of filePreviewFindings) {
+      const relativePath = path.relative(FILE_PREVIEW_DIR, finding.file)
+      output += `\n📍 ${relativePath}:${finding.line} [${finding.nodeType}, ${finding.type}]\n`
+      output += `   ${finding.content}\n`
+    }
+  }
+
   output += '\n' + '='.repeat(50) + '\n'
   output += `Total: ${findings.length} potential issues found\n`
   output += `  - Renderer: ${rendererFindings.length} (Chinese: ${rendererFindings.filter((f) => f.type === 'chinese').length}, English: ${rendererFindings.filter((f) => f.type === 'english').length})\n`
   output += `  - Main: ${mainFindings.length} (Chinese: ${mainFindings.length})\n`
+  output += `  - File preview: ${filePreviewFindings.length}\n`
   output += `  - Total Chinese: ${chineseFindings.length}\n`
   output += `  - Total English: ${englishFindings.length}\n`
 
@@ -448,17 +513,18 @@ export function main(): void {
 
   const rendererFindings = scanDirectory(RENDERER_DIR, 'renderer', detector)
   const mainFindings = scanDirectory(MAIN_DIR, 'main', detector)
-  const findings = [...rendererFindings, ...mainFindings]
+  const filePreviewFindings = scanDirectory(FILE_PREVIEW_DIR, 'file-preview', detector)
+  const findings = [...rendererFindings, ...mainFindings, ...filePreviewFindings]
 
   const output = formatFindings(findings)
   console.log(output)
 
   // Strict mode for CI
   const strictMode = process.env.I18N_STRICT === 'true' || process.argv.includes('--strict')
-  const chineseCount = findings.filter((f) => f.type === 'chinese').length
+  const blockingCount = findings.filter((f) => f.type === 'chinese' || f.nodeType === 'ToastCall').length
 
-  if (strictMode && chineseCount > 0) {
-    console.error('\n❌ Hardcoded Chinese strings detected in strict mode!')
+  if (strictMode && blockingCount > 0) {
+    console.error('\n❌ Hardcoded Chinese strings or toast text detected in strict mode!')
     console.error('Please replace these with i18n keys using the t() function.')
     process.exit(1)
   }

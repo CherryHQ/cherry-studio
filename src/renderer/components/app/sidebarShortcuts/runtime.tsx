@@ -13,7 +13,6 @@ import {
 import { useQuery, useDataChange } from '@renderer/data/hooks/useDataApi'
 import { useTabs } from '@renderer/hooks/tab'
 import { findConversationTab } from '@renderer/utils/conversationNavigation'
-import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import { getSidebarApp, tabBelongsToApp } from '@renderer/utils/sidebar'
 import type { SidebarShortcutItem, SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { createSidebarShortcutId } from '@shared/data/preference/preferenceTypes'
@@ -274,32 +273,25 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
     (destination, options) => {
       if (!options?.inNewTab) {
         if (activeTab && destination.matchesCurrent?.(activeTab.url)) return
-        if (activeTab && destination.conversation && findConversationTab([activeTab], destination.conversation)) return
         const existing = destination.conversation
-          ? findConversationTab(tabs, destination.conversation)
+          ? (activeTab && findConversationTab([activeTab], destination.conversation)) ||
+            findConversationTab(tabs, destination.conversation)
           : tabs.find(
               (tab) => tab.type === 'route' && (destination.matchesTab?.(tab.url) ?? tab.url === destination.url)
             )
         if (existing) {
-          setActiveTab(existing.id)
+          if (destination.metadata) {
+            updateTab(existing.id, { metadata: { ...existing.metadata, ...destination.metadata } })
+          }
+          if (existing.id !== activeTab?.id) setActiveTab(existing.id)
           return
         }
         if (activeTab && !activeTab.isPinned) {
-          if (miniAppIdFromTabUrl(activeTab.url)) {
-            // Keep this tab alive for the WebView pool, so the destination gets its own tab. Reuse was
-            // already resolved above for destinations that declare an identity.
-            openTab(destination.url, {
-              forceNew: true,
-              title: destination.title,
-              icon: destination.icon
-            })
-            return
-          }
           updateTab(activeTab.id, {
             url: destination.url,
             title: destination.title,
             icon: destination.icon,
-            metadata: undefined
+            metadata: destination.metadata ?? {}
           })
           return
         }
@@ -307,7 +299,8 @@ export function useSidebarActivationGateway(): SidebarActivationGateway {
       openTab(destination.url, {
         forceNew: true,
         title: destination.title,
-        icon: destination.icon
+        icon: destination.icon,
+        metadata: destination.metadata
       })
     },
     [activeTab, openTab, setActiveTab, tabs, updateTab]

@@ -65,6 +65,7 @@ const filenameMap: Record<string, string> = {
   'LICENSE.md': 'license',
   'CHANGELOG.md': 'changelog',
   'README.md': 'readme',
+  'CLAUDE.md': 'claude',
   '.env': 'tune',
   '.env.local': 'tune',
   '.env.development': 'tune',
@@ -100,11 +101,13 @@ const extensionMap: Record<string, string> = {
   json: 'json',
   jsonc: 'json',
   json5: 'json',
+  jsonl: 'json',
   yaml: 'yaml',
   yml: 'yaml',
   toml: 'toml',
   xml: 'xml',
-  csv: 'csv',
+  csv: 'table',
+  tsv: 'table',
   ini: 'settings',
   cfg: 'settings',
   conf: 'settings',
@@ -113,11 +116,29 @@ const extensionMap: Record<string, string> = {
   // Markup / Docs
   md: 'markdown',
   mdx: 'mdx',
+  markdown: 'markdown',
+  mmd: 'mermaid',
+  mermaid: 'mermaid',
   rst: 'readme',
   txt: 'document',
+  text: 'document',
   pdf: 'pdf',
+  epub: 'epub',
   tex: 'tex',
   latex: 'tex',
+
+  // Office documents (material-icon-theme names the suites `word` / `powerpoint`; the spreadsheet
+  // glyph is `table` — there is no `excel` icon in the collection)
+  doc: 'word',
+  docx: 'word',
+  odt: 'word',
+  rtf: 'word',
+  xls: 'table',
+  xlsx: 'table',
+  ods: 'table',
+  ppt: 'powerpoint',
+  pptx: 'powerpoint',
+  odp: 'powerpoint',
 
   // Systems languages
   c: 'c',
@@ -132,7 +153,7 @@ const extensionMap: Record<string, string> = {
   zig: 'zig',
   asm: 'assembly',
   s: 'assembly',
-  wasm: 'wasm',
+  wasm: 'webassembly',
 
   // JVM
   java: 'java',
@@ -167,16 +188,16 @@ const extensionMap: Record<string, string> = {
   m: 'objective-c',
   mm: 'objective-cpp',
   cs: 'csharp',
-  vb: 'visualbasic',
+  vb: 'visualstudio',
 
   // Shell
-  sh: 'shell',
-  bash: 'shell',
-  zsh: 'shell',
-  fish: 'shell',
+  sh: 'console',
+  bash: 'console',
+  zsh: 'console',
+  fish: 'console',
   ps1: 'powershell',
-  bat: 'windows',
-  cmd: 'windows',
+  bat: 'console',
+  cmd: 'console',
 
   // Database
   sql: 'database',
@@ -197,6 +218,9 @@ const extensionMap: Record<string, string> = {
   jpeg: 'image',
   gif: 'image',
   webp: 'image',
+  avif: 'image',
+  heic: 'image',
+  heif: 'image',
   ico: 'image',
   bmp: 'image',
 
@@ -215,6 +239,7 @@ const extensionMap: Record<string, string> = {
   zip: 'zip',
   tar: 'zip',
   gz: 'zip',
+  tgz: 'zip',
   bz2: 'zip',
   xz: 'zip',
   '7z': 'zip',

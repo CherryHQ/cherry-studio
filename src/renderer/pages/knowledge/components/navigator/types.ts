@@ -1,11 +1,16 @@
-import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
+import type { ComponentProps, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 
 import type { KnowledgePageBaseGroupSection } from '@renderer/pages/knowledge/utils/group'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
+import type { ReorderKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 export interface BaseNavigatorContentProps {
+  onReorderBase?: (id: string, request: ReorderKnowledgeBaseDto) => Promise<void>
+  onReorderGroup?: (id: string, anchor: OrderRequest) => Promise<void>
+  isReordering?: boolean
   isLoading: boolean
   sections: KnowledgePageBaseGroupSection[]
   groups: Group[]
@@ -23,6 +28,8 @@ export interface BaseNavigatorContentProps {
 }
 
 export interface BaseNavigatorGroupSectionProps {
+  dragDisabled?: boolean
+  indicator?: { id: string; position: 'before' | 'after' } | null
   section: KnowledgePageBaseGroupSection
   group?: Group
   groupLabel: string
@@ -41,6 +48,7 @@ export interface BaseNavigatorGroupSectionProps {
 }
 
 export interface BaseNavigatorSectionTriggerProps {
+  dragProps?: ComponentProps<'button'>
   label: string
   leadingSlot?: ReactNode
   actionSlot?: ReactNode
@@ -51,6 +59,7 @@ export interface BaseNavigatorResizeHandleProps {
 }
 
 export interface KnowledgeBaseRowProps {
+  dragProps?: ComponentProps<'button'>
   base: KnowledgeBaseListItem
   groups: Group[]
   selected: boolean
@@ -64,6 +73,7 @@ export interface KnowledgeBaseRowProps {
 }
 
 export interface KnowledgeGroupRowProps {
+  dragProps?: ComponentProps<'button'>
   group: Group
   onRenameGroup: (group: Pick<Group, 'id' | 'name'>) => void
   onCreateBase: (groupId: string) => void

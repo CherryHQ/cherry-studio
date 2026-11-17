@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { useInfiniteFlatItems, useInfiniteQuery, useInvalidateCache, useMutation } from '@data/hooks/useDataApi'
+import { useReorder } from '@data/hooks/useReorder'
 import { loggerService } from '@logger'
+import { reorderLocally } from '@renderer/data/utils/reorder'
 import { ipcApi } from '@renderer/ipc'
 import type { KnowledgeBaseListItem, UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
@@ -9,6 +11,7 @@ import type { CreateKnowledgeBaseDto, RestoreKnowledgeBaseDto } from '@shared/da
 
 const logger = loggerService.withContext('useKnowledgeBases')
 const EMPTY_KNOWLEDGE_BASES: KnowledgeBaseListItem[] = []
+const KNOWLEDGE_BASES_QUERY = { sortBy: 'orderKey', sortOrder: 'asc' } as const
 
 const normalizeError = (error: unknown): Error => {
   if (error instanceof Error) {
@@ -31,6 +34,7 @@ export const useKnowledgeBases = (options: { enabled?: boolean; revalidateOnFocu
   const enabled = options.enabled !== false
   const [revalidateAllPages, setRevalidateAllPages] = useState(false)
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/knowledge-bases', {
+    query: KNOWLEDGE_BASES_QUERY,
     limit: KNOWLEDGE_BASES_MAX_LIMIT,
     enabled: options.enabled,
     swrOptions: {
@@ -66,6 +70,20 @@ export const useKnowledgeBases = (options: { enabled?: boolean; revalidateOnFocu
     refetch: refresh
   }
 }
+
+export const useKnowledgeBaseReorder = () =>
+  useReorder('/knowledge-bases', {
+    query: KNOWLEDGE_BASES_QUERY,
+    infinite: { limit: KNOWLEDGE_BASES_MAX_LIMIT },
+    computeOptimistic: (items, id, anchor, idKey, request) => {
+      const moving = items.find((item) => item[idKey] === id)
+      if (!moving) throw new Error(`Knowledge base ${id} not found in the cached list`)
+      const groupId = 'anchor' in request && request.groupId !== undefined ? request.groupId : (moving.groupId ?? null)
+      const destination = items.filter((item) => item[idKey] !== id && (item.groupId ?? null) === groupId)
+      const reordered = reorderLocally([...destination, { ...moving, groupId }], id, anchor, idKey)
+      return [...items.filter((item) => item[idKey] !== id && (item.groupId ?? null) !== groupId), ...reordered]
+    }
+  })
 
 export const useCreateKnowledgeBase = () => {
   const [isCreating, setIsCreating] = useState(false)

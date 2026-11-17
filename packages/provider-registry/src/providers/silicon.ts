@@ -60,7 +60,7 @@ export default openaiCompatible({
     official: 'https://www.siliconflow.cn'
   },
   modelsDevProvider: 'siliconflow',
-  overrides: siliconReasoningModels.map((modelId) => ({
+  modelTemplates: siliconReasoningModels.map((modelId) => ({
     modelId,
     reasoningContracts: {
       'openai-chat-completions': { wire: siliconReasoningWire }

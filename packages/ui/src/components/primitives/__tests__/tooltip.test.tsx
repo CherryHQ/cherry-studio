@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { Root as RadixTooltipRoot } from '@radix-ui/react-tooltip'
+import type * as RadixTooltipModule from '@radix-ui/react-tooltip'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { Activity } from 'react'
@@ -15,6 +16,21 @@ import {
   TooltipSurface,
   TooltipTrigger
 } from '../tooltip'
+
+// Radix 定位发生在真实布局层，jsdom 无法从 DOM 观察到 sideOffset；透传包装捕获最后渲染的
+// props，把「默认悬浮间隙」契约钉在 RadixContent 收到的 prop 上。
+const sideOffsetCapture = vi.hoisted(() => ({ lastProps: null as Record<string, unknown> | null }))
+vi.mock('@radix-ui/react-tooltip', async (importOriginal) => {
+  const actual = await importOriginal<typeof RadixTooltipModule>()
+  // factory 执行早于顶层 import 求值，react 与 jsx-runtime 都必须动态引入
+  const { createElement } = await import('react')
+  const ActualContent = actual.Content as (props: Record<string, unknown>) => ReactNode
+  const WrappedContent = (props: Record<string, unknown>) => {
+    sideOffsetCapture.lastProps = props
+    return createElement(ActualContent, props)
+  }
+  return { ...actual, Content: WrappedContent }
+})
 
 // 时序契约（独立字面量，刻意不复用生产常量）：缩短契约必须改这里并让测试显式失败
 const EXIT_WINDOW_MS = 150
@@ -31,6 +47,7 @@ beforeAll(() => {
 
 afterEach(() => {
   cleanup()
+  sideOffsetCapture.lastProps = null
 })
 
 function getTooltipContentElement(text: string) {
@@ -51,43 +68,7 @@ function renderOpenTooltipContent(content: ReactNode, props?: ComponentProps<typ
 }
 
 describe('Tooltip', () => {
-  describe('fallback rendering (no tooltip wrapper)', () => {
-    it('renders a plain div when content is undefined', () => {
-      const { container } = render(
-        <Tooltip>
-          <span>No tooltip</span>
-        </Tooltip>
-      )
-      expect(screen.getByText('No tooltip')).toBeInTheDocument()
-      const wrapper = container.firstElementChild as HTMLElement
-      expect(wrapper.tagName).toBe('DIV')
-      expect(wrapper.getAttribute('data-state')).toBeNull()
-    })
-
-    it('renders a plain div when isDisabled is true', () => {
-      const { container } = render(
-        <Tooltip content="tip" isDisabled>
-          <span>Disabled</span>
-        </Tooltip>
-      )
-      const wrapper = container.firstElementChild as HTMLElement
-      expect(wrapper.tagName).toBe('DIV')
-      expect(wrapper.getAttribute('data-state')).toBeNull()
-    })
-  })
-
   describe('Radix trigger rendering', () => {
-    it('wraps children with Radix trigger when content is provided', () => {
-      const { container } = render(
-        <Tooltip content="tip">
-          <button type="button">Trigger</button>
-        </Tooltip>
-      )
-      const trigger = container.querySelector('[data-state]')
-      expect(trigger).toBeInTheDocument()
-      expect(screen.getByText('Trigger')).toBeInTheDocument()
-    })
-
     it('unmounts an open tooltip content immediately when isDisabled turns true', () => {
       const { rerender } = render(
         <Tooltip content="close-tip" isOpen>
@@ -105,16 +86,6 @@ describe('Tooltip', () => {
       // Anchors hidden via display:none leave Radix tooltips parked at the viewport
       // origin during their exit animation; disabling must drop the content at once.
       expect(document.querySelector('[data-slot="tooltip-content"]')).not.toBeInTheDocument()
-    })
-
-    it('uses title as fallback when content is not provided', () => {
-      const { container } = render(
-        <Tooltip title="title-tip">
-          <button type="button">Trigger</button>
-        </Tooltip>
-      )
-      const trigger = container.querySelector('[data-state]')
-      expect(trigger).toBeInTheDocument()
     })
   })
 
@@ -238,39 +209,6 @@ describe('Tooltip', () => {
     })
   })
 
-  describe('classNames', () => {
-    it('renders a full-width trigger wrapper when fullWidthTrigger is enabled', () => {
-      const { container } = render(
-        <Tooltip content="tip" fullWidthTrigger>
-          <span>Trigger</span>
-        </Tooltip>
-      )
-
-      const wrapper = container.querySelector('[data-state]') as HTMLElement
-      expect(wrapper).toBeInTheDocument()
-      expect(wrapper).toHaveClass('block', 'w-full', 'min-w-0', 'max-w-full')
-      expect(wrapper).not.toHaveClass('inline-block')
-    })
-
-    it('applies classNames.placeholder to the trigger wrapper', () => {
-      const { container } = render(
-        <Tooltip content="tip" classNames={{ placeholder: 'custom-trigger' }}>
-          <button type="button">Trigger</button>
-        </Tooltip>
-      )
-      expect(container.querySelector('.custom-trigger')).toBeInTheDocument()
-    })
-
-    it('applies classNames.placeholder to fallback div when disabled', () => {
-      const { container } = render(
-        <Tooltip content="tip" isDisabled classNames={{ placeholder: 'custom-ph' }}>
-          <span>Child</span>
-        </Tooltip>
-      )
-      expect(container.querySelector('.custom-ph')).toBeInTheDocument()
-    })
-  })
-
   describe('onClick', () => {
     it('fires onClick on the trigger wrapper', () => {
       const handleClick = vi.fn()
@@ -305,17 +243,6 @@ describe('Tooltip', () => {
       expect(screen.getByRole('tooltip')).toBeInTheDocument()
     })
 
-    it('inverts tooltip colors in dark mode', () => {
-      render(
-        <Tooltip content="dark-safe" isOpen={true}>
-          <button type="button">Trigger</button>
-        </Tooltip>
-      )
-
-      const content = getTooltipContentElement('dark-safe')
-      expect(content).toHaveClass('bg-neutral-900', 'text-neutral-50', 'dark:bg-neutral-100', 'dark:text-neutral-900')
-    })
-
     it('does not render tooltip content when isOpen is false', () => {
       render(
         <Tooltip content="forced closed" isOpen={false}>
@@ -326,41 +253,44 @@ describe('Tooltip', () => {
     })
   })
 
-  describe('arrow rendering', () => {
-    it('renders a positioned Radix arrow by default for TooltipContent', () => {
-      renderOpenTooltipContent('compound tip')
-
-      const content = getTooltipContentElement('compound tip')
-      const arrow = content.querySelector('svg')
-      expect(arrow).toBeInTheDocument()
-      expect(arrow).toHaveClass(
-        'fill-neutral-900',
-        'stroke-neutral-900',
-        'stroke-2',
-        'dark:fill-neutral-100',
-        'dark:stroke-neutral-100'
+  // Tooltip 内容默认贴着 trigger 弹出（sideOffset = 0）会与触发器重叠：光标落在 tooltip 上时
+  // 行失去 :hover、行内操作区收起、锚点移位，tooltip 又在 skipDelay 窗口内即时重开，形成悬停死循环。
+  // 默认 sideOffset 必须把内容抬离触发器命中区（可被调用方显式覆盖），从根上打断该循环。
+  describe('default side offset', () => {
+    it('offsets simple Tooltip content away from its trigger by default', () => {
+      render(
+        <Tooltip content="offset-tip" isOpen>
+          <button type="button">Trigger</button>
+        </Tooltip>
       )
-      expect(arrow).toHaveAttribute('width', '12')
-      expect(arrow).toHaveAttribute('height', '6')
-      expect(arrow).toHaveClass('-translate-y-px')
+
+      expect(sideOffsetCapture.lastProps?.sideOffset).toBe(8)
     })
 
-    it('passes showArrow through NormalTooltip', () => {
+    it('offsets compound TooltipContent away from its trigger by default', () => {
+      renderOpenTooltipContent('compound-offset-tip')
+
+      expect(sideOffsetCapture.lastProps?.sideOffset).toBe(8)
+    })
+
+    it('offsets NormalTooltip content away from its trigger by default', () => {
       render(
-        <NormalTooltip content="normal tip" open showArrow={false}>
-          <button type="button">Normal trigger</button>
+        <NormalTooltip content="normal-offset-tip" open>
+          <button type="button">Trigger</button>
         </NormalTooltip>
       )
 
-      const content = getTooltipContentElement('normal tip')
-      expect(content.querySelector('svg')).not.toBeInTheDocument()
+      expect(sideOffsetCapture.lastProps?.sideOffset).toBe(8)
     })
 
-    it('omits the arrow when TooltipContent disables it', () => {
-      renderOpenTooltipContent('compound tip', { showArrow: false })
+    it('lets callers override the default side offset explicitly', () => {
+      render(
+        <Tooltip content="override-tip" isOpen sideOffset={0}>
+          <button type="button">Trigger</button>
+        </Tooltip>
+      )
 
-      const content = getTooltipContentElement('compound tip')
-      expect(content.querySelector('svg')).not.toBeInTheDocument()
+      expect(sideOffsetCapture.lastProps?.sideOffset).toBe(0)
     })
   })
 

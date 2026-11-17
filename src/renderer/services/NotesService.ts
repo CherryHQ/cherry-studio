@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { getFileDirectory } from '@renderer/utils/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { TreeDirRoot, TreeNode } from '@shared/utils/file'
 
 const logger = loggerService.withContext('NotesService')
@@ -153,7 +154,7 @@ export async function resolveNotesPath(parentPath: string): Promise<ResolvedNote
   }
 
   try {
-    const isValid = await window.api.file.validateNotesDirectory(basePath)
+    const isValid = await ipcApi.request('file.validate_notes_directory', AbsoluteFilePathSchema.parse(basePath))
     if (isValid) {
       return {
         path: basePath,

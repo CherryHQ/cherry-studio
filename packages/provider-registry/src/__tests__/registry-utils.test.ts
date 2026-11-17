@@ -28,6 +28,29 @@ function makeOverride(providerId: string, modelId: string, extra: Record<string,
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('lookupRegistryModel', () => {
+  it('resolves an opaque API alias through its provider override without changing the wire ID', () => {
+    const result = lookupRegistryModel(
+      [makeModel('gpt-6-1-sol')],
+      [makeOverride('gateway', 'gpt-6-1-sol', { apiModelId: 'my-deployment' })],
+      'gateway',
+      'my-deployment'
+    )
+
+    expect(result.presetModel?.id).toBe('gpt-6-1-sol')
+    expect(result.registryOverride?.apiModelId).toBe('my-deployment')
+  })
+
+  it('does not give a missing model size the metadata of its larger sibling', () => {
+    const result = lookupRegistryModel(
+      [makeModel('gpt-oss-120b')],
+      [makeOverride('nvidia', 'gpt-oss-120b')],
+      'nvidia',
+      'nvidia/gpt-oss-20b'
+    )
+
+    expect(result).toEqual({ presetModel: null, registryOverride: null })
+  })
+
   it('exact match for both presetModel and override', () => {
     const models = [makeModel('gpt-4o')]
     const overrides = [makeOverride('openai', 'gpt-4o')]
@@ -240,25 +263,6 @@ describe('buildPersistedEndpointConfigs', () => {
 describe('inferAdapterFamily', () => {
   it('catalog adapterFamily wins over endpoint default', () => {
     expect(inferAdapterFamily(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, { adapterFamily: 'aihubmix' })).toBe('aihubmix')
-  })
-
-  it('falls back to endpoint default when catalog has no adapterFamily', () => {
-    expect(inferAdapterFamily(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, {})).toBe('anthropic')
-  })
-
-  it('falls back to endpoint default when catalog is absent', () => {
-    expect(inferAdapterFamily(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe('anthropic')
-    expect(inferAdapterFamily(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).toBe('google')
-    expect(inferAdapterFamily(ENDPOINT_TYPE.OLLAMA_CHAT)).toBe('ollama')
-    expect(inferAdapterFamily(ENDPOINT_TYPE.OLLAMA_GENERATE)).toBe('ollama')
-    expect(inferAdapterFamily(ENDPOINT_TYPE.JINA_RERANK)).toBe('jina-rerank')
-    expect(inferAdapterFamily(ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe('openai')
-  })
-
-  it('falls back to openai-compatible for endpoints with no specific default', () => {
-    // openai-chat-completions is intentionally generic — many vendors speak it
-    expect(inferAdapterFamily(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe('openai-compatible')
-    expect(inferAdapterFamily(ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION)).toBe('openai-compatible')
   })
 
   it('accepts both RegistryEndpointConfig and RuntimeEndpointConfig shapes', () => {

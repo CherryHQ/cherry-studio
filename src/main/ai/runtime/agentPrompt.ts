@@ -37,12 +37,13 @@ export interface BuildAgentRuntimePromptOptions {
   agentDataPath: string
   agent: AgentEntity
   citationsGuidance?: string
-  /** Runtime-loaded root workspace instructions, if they are not already supplied by the native base. */
-  workspaceInstructions?: string
   /** Context required only when a custom system.md replaces the runtime's native base. */
   customBaseContext?: string
   /** Materialized effective language; when omitted the preference is read live. */
   effectiveLanguage?: string | null
+  mcpInstructions?: string
+  /** Effective turn model display name for `{{model_name}}`; defaults to `agent.modelName`. */
+  modelName?: string | null
 }
 
 const promptBuilder = new PromptBuilder()
@@ -53,9 +54,10 @@ export async function buildAgentRuntimePrompt({
   agentDataPath,
   agent,
   citationsGuidance,
-  workspaceInstructions,
   customBaseContext,
-  effectiveLanguage
+  effectiveLanguage,
+  mcpInstructions,
+  modelName
 }: BuildAgentRuntimePromptOptions): Promise<AgentRuntimePrompt> {
   const builtinRole = agent.configuration?.builtin_role as string | undefined
   const isAssistant = builtinRole === 'assistant'
@@ -71,7 +73,7 @@ export async function buildAgentRuntimePrompt({
   if (builtinRole) await provisionBuiltinAgent(agentDataPath, builtinRole)
 
   const resolvedInstructions = instructions?.trim()
-    ? await replacePromptVariables(instructions, agent.modelName ?? undefined)
+    ? await replacePromptVariables(instructions, modelName ?? agent.modelName ?? undefined)
     : ''
   const hasAgentInstructions = Boolean(resolvedInstructions.trim())
   const parts = await promptBuilder.buildPromptParts(
@@ -86,10 +88,10 @@ export async function buildAgentRuntimePrompt({
     hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
     REPORT_ARTIFACTS_PROMPT,
     hasAgentInstructions ? buildAgentInstructionsSection(resolvedInstructions) : undefined,
-    workspaceInstructions,
     parts.context,
     parts.base.kind === 'custom' ? customBaseContext : undefined,
     citationsGuidance,
+    mcpInstructions,
     getLanguageInstruction(agent, effectiveLanguage)
   ]
     .filter(Boolean)

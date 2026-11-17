@@ -1,5 +1,5 @@
 import type { FC } from 'react'
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
@@ -16,9 +16,10 @@ import type {
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import { isUniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import ChatComposerSlot from './ChatComposerSlot'
@@ -33,11 +34,13 @@ interface Props {
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   locateMessageId?: string
+  locateToEnd?: boolean
   onLocateMessageHandled?: () => void
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
   assistantContext?: ChatComposerResolvedContext
   providers?: Provider[]
   onConversationControlsChange?: ChatConversationControlsChangeHandler
+  composerModelId?: UniqueModelId
 }
 
 /**
@@ -56,11 +59,13 @@ const ChatContent: FC<Props> = ({
   onNewTopic,
   onCreateEmptyTopic,
   locateMessageId,
+  locateToEnd,
   onLocateMessageHandled,
   onBranchLiveStateChange,
   assistantContext,
   providers,
-  onConversationControlsChange
+  onConversationControlsChange,
+  composerModelId
 }) => {
   const {
     uiMessages,
@@ -82,11 +87,13 @@ const ChatContent: FC<Props> = ({
       onNewTopic={onNewTopic}
       onCreateEmptyTopic={onCreateEmptyTopic}
       locateMessageId={locateMessageId}
+      locateToEnd={locateToEnd}
       onLocateMessageHandled={onLocateMessageHandled}
       onBranchLiveStateChange={onBranchLiveStateChange}
       assistantContext={assistantContext}
       providers={providers}
       onConversationControlsChange={onConversationControlsChange}
+      composerModelId={composerModelId}
       isHistoryLoading={isHistoryLoading}
       isHistoryStale={isHistoryStale}
       initialMessages={uiMessages}
@@ -129,11 +136,13 @@ const ChatContentInner: FC<InnerProps> = ({
   onNewTopic,
   onCreateEmptyTopic,
   locateMessageId,
+  locateToEnd,
   onLocateMessageHandled,
   onBranchLiveStateChange,
   assistantContext,
   providers,
   onConversationControlsChange,
+  composerModelId,
   isHistoryLoading,
   isHistoryStale,
   initialMessages,
@@ -147,6 +156,7 @@ const ChatContentInner: FC<InnerProps> = ({
   messagesCacheMutate
 }) => {
   const { t } = useTranslation()
+  const [supportsImageInput, setSupportsImageInput] = useState(false)
   const { reserveBranch } = useTopicBranchActions(topic.id)
   const assistant = assistantContext?.assistant
   const locateLoadRequestRef = useRef<string | undefined>(undefined)
@@ -159,9 +169,25 @@ const ChatContentInner: FC<InnerProps> = ({
     activeNodeId,
     messagesCacheMutate,
     assistant,
+    composerModelId,
     onBranchLiveStateChange
   })
   const locateRuntimeMessage = runtime.locateMessage
+  const handleConversationControlsChange = useCallback<ChatConversationControlsChangeHandler>(
+    (snapshot) => {
+      setSupportsImageInput(snapshot?.supportsImageInput ?? false)
+      onConversationControlsChange?.(snapshot)
+    },
+    [onConversationControlsChange]
+  )
+  const addGeneratedImageToComposer = useCallback<NonNullable<MessageListActions['addGeneratedImageToComposer']>>(
+    (image) =>
+      EventEmitter.emit(EVENT_NAMES.ADD_CHAT_COMPOSER_IMAGE_REFERENCE, {
+        topicId: topic.id,
+        ...image
+      }),
+    [topic.id]
+  )
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
   const contextUsage = useMemo<ChatContextUsageSource | null>(() => {
     if (isHistoryStale) return null
@@ -176,21 +202,13 @@ const ChatContentInner: FC<InnerProps> = ({
   }, [activeNodeId, isHistoryStale, uiMessages])
 
   useEffect(() => {
-    if (!locateMessageId) {
+    if (!locateMessageId && !locateToEnd) {
       locateLoadRequestRef.current = undefined
       return
     }
-
-    if (uiMessages.some((message) => message.id === locateMessageId)) {
-      locateLoadRequestRef.current = undefined
-      window.requestAnimationFrame(() => {
-        locateRuntimeMessage(locateMessageId, true)
-      })
-      onLocateMessageHandled?.()
-      return
-    }
-
-    if (hasOlder && !isHistoryLoading) {
+    if (isHistoryLoading || isHistoryStale) return
+    const targetLoaded = uiMessages.some((message) => message.id === locateMessageId)
+    if (!targetLoaded && !locateToEnd && hasOlder) {
       const requestKey = `${locateMessageId}:${uiMessages.length}`
       if (locateLoadRequestRef.current !== requestKey) {
         locateLoadRequestRef.current = requestKey
@@ -198,12 +216,22 @@ const ChatContentInner: FC<InnerProps> = ({
       }
       return
     }
-
-    if (!hasOlder && !isHistoryLoading) {
-      locateLoadRequestRef.current = undefined
-      onLocateMessageHandled?.()
-    }
-  }, [hasOlder, isHistoryLoading, loadOlder, locateMessageId, locateRuntimeMessage, onLocateMessageHandled, uiMessages])
+    locateLoadRequestRef.current = undefined
+    // Claim scroll ownership before the list's pending initial-restore frame.
+    if (locateToEnd || !targetLoaded) locateRuntimeMessage(null)
+    else if (locateMessageId) locateRuntimeMessage(locateMessageId, true)
+    onLocateMessageHandled?.()
+  }, [
+    hasOlder,
+    isHistoryLoading,
+    isHistoryStale,
+    loadOlder,
+    locateMessageId,
+    locateToEnd,
+    locateRuntimeMessage,
+    onLocateMessageHandled,
+    uiMessages
+  ])
 
   const isEmptyConversation = !isHistoryLoading && runtime.messages.length === 0
   const main = (
@@ -227,6 +255,7 @@ const ChatContentInner: FC<InnerProps> = ({
         hasOlder={hasOlder}
         selectAllPagination={selectAllPagination}
         openCitationsPanel={onOpenCitationsPanel}
+        addGeneratedImageToComposer={supportsImageInput ? addGeneratedImageToComposer : undefined}
         onStartBranchDraft={reserveBranch}
       />
     </div>
@@ -242,7 +271,7 @@ const ChatContentInner: FC<InnerProps> = ({
       composerContext={runtime.composerContext}
       assistantContext={assistantContext}
       providers={providers}
-      onConversationControlsChange={onConversationControlsChange}
+      onConversationControlsChange={handleConversationControlsChange}
     />
   ) : (
     <ChatComposerSlot
@@ -257,7 +286,7 @@ const ChatContentInner: FC<InnerProps> = ({
       composerContext={runtime.composerContext}
       assistantContext={assistantContext}
       providers={providers}
-      onConversationControlsChange={onConversationControlsChange}
+      onConversationControlsChange={handleConversationControlsChange}
     />
   )
   const placement = runtime.shouldRenderHomeComposer ? 'home' : 'docked'

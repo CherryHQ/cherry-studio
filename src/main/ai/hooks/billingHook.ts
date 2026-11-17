@@ -58,10 +58,11 @@ function recordLanguageInvocation(
   requestId: string,
   usage: LanguageModelV3Usage,
   metrics: RecordAiInvocationInput['metrics'],
-  completedAt: number
+  completedAt: number,
+  record: (input: RecordAiInvocationInput) => void
 ): void {
   const providerCost = extractProviderCostWithCurrency(usage.raw, context.reportedCostCurrency)
-  aiUsageRecordService.recordInvocation({
+  record({
     requestId,
     context,
     modality: 'language',
@@ -72,10 +73,16 @@ function recordLanguageInvocation(
   })
 }
 
-export function createLanguageUsageMiddleware(context: AiUsageCaptureContext): LanguageModelMiddleware {
+export type AiUsageCaptureSource = AiUsageCaptureContext | (() => AiUsageCaptureContext)
+
+export function createLanguageUsageMiddleware(
+  source: AiUsageCaptureSource,
+  record: (input: RecordAiInvocationInput) => void = (input) => aiUsageRecordService.recordInvocation(input)
+): LanguageModelMiddleware {
   return {
     specificationVersion: 'v3',
     wrapGenerate: async ({ doGenerate }) => {
+      const context = typeof source === 'function' ? source() : source
       const requestId = `ai-sdk:${context.providerId}:${crypto.randomUUID()}`
       const startedAt = performance.now()
       const result = await doGenerate()
@@ -84,11 +91,13 @@ export function createLanguageUsageMiddleware(context: AiUsageCaptureContext): L
         requestId,
         result.usage,
         { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
-        Date.now()
+        Date.now(),
+        record
       )
       return result
     },
     wrapStream: async ({ doStream }) => {
+      const context = typeof source === 'function' ? source() : source
       const requestId = `ai-sdk:${context.providerId}:${crypto.randomUUID()}`
       const startedAt = performance.now()
       const result = await doStream()
@@ -130,7 +139,8 @@ export function createLanguageUsageMiddleware(context: AiUsageCaptureContext): L
                   timeCompletionMs: Math.max(0, Math.round(now - startedAt)),
                   ...(thinkingDurationMs !== undefined ? { timeThinkingMs: thinkingDurationMs } : {})
                 },
-                Date.now()
+                Date.now(),
+                record
               )
             }
 
@@ -144,8 +154,11 @@ export function createLanguageUsageMiddleware(context: AiUsageCaptureContext): L
   }
 }
 
-export function createAiUsagePlugin(context: AiUsageCaptureContext): AiPlugin {
-  const middleware = createLanguageUsageMiddleware(context)
+export function createAiUsagePlugin(
+  context: AiUsageCaptureSource,
+  record?: (input: RecordAiInvocationInput) => void
+): AiPlugin {
+  const middleware = createLanguageUsageMiddleware(context, record)
   return definePlugin({
     name: 'ai-usage-capture',
     configureContext(requestContext) {

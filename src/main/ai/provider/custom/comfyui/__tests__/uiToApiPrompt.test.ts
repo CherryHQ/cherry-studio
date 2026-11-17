@@ -285,6 +285,153 @@ describe('convertUiWorkflowToPrompt', () => {
     expect(sampler?.inputs).toMatchObject({ seed: 456, steps: expectedSteps })
   })
 
+  it('reads promoted widget values against the subgraph inputs, not the instance input list', () => {
+    const { prompt } = convertUiWorkflowToPrompt(
+      {
+        nodes: [
+          {
+            id: 5,
+            type: 'sub-1',
+            // The saved instance list starts at the second promoted widget. The
+            // frontend rebuilds this list from the subgraph's own inputs before
+            // it reads the values, so the omission must not shift them.
+            inputs: [
+              { name: 'steps', link: null, widget: { name: 'steps' } },
+              { name: 'ckpt_name', link: null, widget: { name: 'ckpt_name' } }
+            ],
+            widgets_values: ['a harbour at dusk', 7, 'model.safetensors'],
+            outputs: [{ name: 'IMAGE', links: [] }]
+          }
+        ],
+        links: [],
+        definitions: {
+          subgraphs: [
+            {
+              id: 'sub-1',
+              inputNode: { id: -10 },
+              inputs: [
+                { name: 'text', linkIds: [34] },
+                { name: 'steps', linkIds: [35] },
+                { name: 'ckpt_name', linkIds: [36] }
+              ],
+              nodes: [
+                {
+                  id: 27,
+                  type: 'CLIPTextEncode',
+                  inputs: [
+                    { name: 'text', link: 34, widget: { name: 'text' } },
+                    { name: 'clip', link: null }
+                  ]
+                },
+                { id: 28, type: 'KSampler', inputs: [{ name: 'steps', link: 35, widget: { name: 'steps' } }] },
+                {
+                  id: 29,
+                  type: 'CheckpointLoaderSimple',
+                  inputs: [{ name: 'ckpt_name', link: 36, widget: { name: 'ckpt_name' } }]
+                }
+              ],
+              links: [link(34, -10, 0, 27, 0), link(35, -10, 1, 28, 0), link(36, -10, 2, 29, 0)]
+            }
+          ]
+        }
+      },
+      objectInfo
+    )
+
+    const encode = Object.values(prompt).find((node) => node.class_type === 'CLIPTextEncode')
+    const sampler = Object.values(prompt).find((node) => node.class_type === 'KSampler')
+    const loader = Object.values(prompt).find((node) => node.class_type === 'CheckpointLoaderSimple')
+    expect(encode?.inputs.text).toBe('a harbour at dusk')
+    expect(sampler?.inputs.steps).toBe(7)
+    expect(loader?.inputs.ckpt_name).toBe('model.safetensors')
+  })
+
+  it('reports the text widget a subgraph promotes on its instance', () => {
+    const { promotedText } = convertUiWorkflowToPrompt(
+      {
+        nodes: [
+          {
+            id: 5,
+            type: 'sub-1',
+            inputs: [
+              { name: 'string_a', link: null, widget: { name: 'string_a' } },
+              { name: 'steps', link: null, widget: { name: 'steps' } }
+            ],
+            widgets_values: ['a harbour at dusk', 7],
+            outputs: []
+          }
+        ],
+        links: [],
+        definitions: {
+          subgraphs: [
+            {
+              id: 'sub-1',
+              inputNode: { id: -10 },
+              inputs: [
+                { name: 'string_a', type: 'STRING', linkIds: [34] },
+                { name: 'steps', type: 'INT', linkIds: [35] }
+              ],
+              nodes: [
+                {
+                  id: 27,
+                  type: 'CLIPTextEncode',
+                  inputs: [
+                    { name: 'text', link: 34, widget: { name: 'text' } },
+                    { name: 'clip', link: null }
+                  ]
+                },
+                { id: 28, type: 'KSampler', inputs: [{ name: 'steps', link: 35, widget: { name: 'steps' } }] }
+              ],
+              links: [link(34, -10, 0, 27, 0), link(35, -10, 1, 28, 0)]
+            }
+          ]
+        }
+      },
+      objectInfo
+    )
+
+    // Only the STRING promotion is a text entry point, and it names the widget
+    // the value has to be written to inside the subgraph.
+    expect(promotedText).toEqual([{ nodeId: '2', input: 'text' }])
+  })
+
+  it('keeps the interior value of a promoted input the instance never bound', () => {
+    const { prompt } = convertUiWorkflowToPrompt(
+      {
+        nodes: [{ id: 5, type: 'sub-1', inputs: [], widgets_values: [], outputs: [{ name: 'IMAGE', links: [] }] }],
+        links: [],
+        definitions: {
+          subgraphs: [
+            {
+              id: 'sub-1',
+              inputNode: { id: -10 },
+              inputs: [{ name: 'text', linkIds: [34] }],
+              nodes: [
+                {
+                  id: 27,
+                  type: 'CLIPTextEncode',
+                  inputs: [
+                    { name: 'text', link: 34, widget: { name: 'text' } },
+                    { name: 'clip', link: null }
+                  ],
+                  widgets_values: ['the text saved inside the subgraph']
+                }
+              ],
+              links: [link(34, -10, 0, 27, 0)]
+            }
+          ]
+        }
+      },
+      objectInfo
+    )
+
+    // A promotion the instance carries no value for is the interior's own
+    // value, not an absent input: the frontend registers the promoted widget
+    // with the interior value and only overwrites it when the instance binds one.
+    const encode = Object.values(prompt).find((node) => node.class_type === 'CLIPTextEncode')
+    expect(encode?.inputs.text).toBe('the text saved inside the subgraph')
+  })
+
   it('points a consumer of a subgraph output at the inner producer', () => {
     const { prompt } = convertUiWorkflowToPrompt(
       {
@@ -1053,5 +1200,151 @@ describe('required inputs the workflow carries no value for', () => {
     // rejects the prompt when the key is absent at all. A dynamic combo's
     // entries are objects, so nothing is invented for it.
     expect(prompt['1'].inputs).toEqual({ steps: 25, sampler_name: 'euler', modalities: 'IMAGE' })
+  })
+})
+
+describe('seeds the workflow set to randomize', () => {
+  const rangedInfo: ObjectInfo = {
+    ...objectInfo,
+    RangedSampler: {
+      input: {
+        required: {
+          seed: ['INT', { min: 10, max: 20, step: 2, control_after_generate: true }],
+          steps: ['INT', { min: 1, max: 10, control_after_generate: true }],
+          sampler_name: [['euler', 'res_multistep'], { control_after_generate: true }]
+        }
+      }
+    }
+  }
+  const sampler = (control: string): UiNode => ({
+    id: 1,
+    type: 'KSampler',
+    widgets_values: [7, control, 20, 8, 'euler', 'normal', 1]
+  })
+
+  it('draws a fresh seed per conversion inside the widget’s range', () => {
+    const { prompt } = convertUiWorkflowToPrompt({ nodes: [sampler('randomize')], links: [] }, objectInfo, {
+      random: () => 0.5
+    })
+
+    // No declared bounds: the frontend's own 0 … 2^50.
+    expect(prompt['1'].inputs.seed).toBe(562949953421312)
+    expect(prompt['1'].inputs.steps).toBe(20)
+
+    const ranged = convertUiWorkflowToPrompt(
+      {
+        nodes: [
+          {
+            id: 1,
+            type: 'RangedSampler',
+            widgets_values: [12, 'randomize', 5, 'randomize', 'euler', 'randomize']
+          }
+        ],
+        links: []
+      },
+      rangedInfo,
+      { random: () => 0.99 }
+    )
+    // min 10, max 20, step 2 → the top step is 18; 1 … 10 → 9. A combo has no
+    // range to draw from and keeps its option.
+    expect(ranged.prompt['1'].inputs).toEqual({ seed: 18, steps: 9, sampler_name: 'euler' })
+  })
+
+  it('keeps the saved seed for any other control mode, and without a source of randomness', () => {
+    for (const control of ['fixed', 'increment', 'decrement']) {
+      const { prompt } = convertUiWorkflowToPrompt({ nodes: [sampler(control)], links: [] }, objectInfo, {
+        random: () => 0.5
+      })
+      expect(prompt['1'].inputs.seed).toBe(7)
+    }
+    const { prompt } = convertUiWorkflowToPrompt({ nodes: [sampler('randomize')], links: [] }, objectInfo)
+    expect(prompt['1'].inputs.seed).toBe(7)
+  })
+
+  it('reads the mode from a named map, as the current frontend saves it', () => {
+    const named = (control: string): UiNode => ({
+      ...sampler('fixed'),
+      widgets_values_named: { seed: 7, control_after_generate: control, steps: 20 }
+    })
+    const random = { random: () => 0.5 }
+
+    expect(
+      convertUiWorkflowToPrompt({ nodes: [named('randomize')], links: [] }, objectInfo, random).prompt['1'].inputs.seed
+    ).toBe(562949953421312)
+    expect(
+      convertUiWorkflowToPrompt({ nodes: [named('fixed')], links: [] }, objectInfo, random).prompt['1'].inputs.seed
+    ).toBe(7)
+  })
+
+  it('redraws a seed a subgraph promotes when the sampler inside is set to randomize', () => {
+    // The Qwen Image 2.1 templates: the instance binds the seed, the interior
+    // sampler holds the control mode for the widget the promotion proxies.
+    const workflow = (control: string) => ({
+      nodes: [
+        { id: 5, type: 'sub-1', inputs: [{ name: 'seed', link: null, widget: { name: 'seed' } }], widgets_values: [7] }
+      ],
+      links: [],
+      definitions: {
+        subgraphs: [
+          {
+            id: 'sub-1',
+            inputNode: { id: -10 },
+            outputNode: { id: -20 },
+            inputs: [{ name: 'seed', type: 'INT', linkIds: [34] }],
+            nodes: [
+              {
+                id: 27,
+                type: 'KSampler',
+                inputs: [{ name: 'seed', link: 34, widget: { name: 'seed' } }],
+                widgets_values: [0, control, 20, 8, 'euler', 'normal', 1],
+                widgets_values_named: { seed: 0, control_after_generate: control, steps: 20 }
+              }
+            ],
+            links: [link(34, -10, 0, 27, 0)]
+          }
+        ]
+      }
+    })
+    const seedOf = (control: string) =>
+      Object.values(convertUiWorkflowToPrompt(workflow(control), objectInfo, { random: () => 0.5 }).prompt)[0].inputs
+        .seed
+
+    expect(seedOf('randomize')).toBe(562949953421312)
+    expect(seedOf('fixed')).toBe(7)
+  })
+
+  it('redraws a PrimitiveNode that feeds a seed, and only that one', () => {
+    const { prompt } = convertUiWorkflowToPrompt(
+      {
+        nodes: [
+          {
+            id: 1,
+            type: 'PrimitiveNode',
+            outputs: [{ name: 'INT', links: [1], widget: { name: 'seed' } }],
+            widgets_values: [7, 'randomize']
+          },
+          {
+            id: 2,
+            type: 'PrimitiveNode',
+            outputs: [{ name: 'INT', links: [2], widget: { name: 'steps' } }],
+            widgets_values: [30, 'randomize']
+          },
+          {
+            id: 3,
+            type: 'KSampler',
+            inputs: [
+              { name: 'seed', link: 1, widget: { name: 'seed' } },
+              { name: 'steps', link: 2, widget: { name: 'steps' } }
+            ],
+            widgets_values: [0, 'fixed', 20, 8, 'euler', 'normal', 1]
+          }
+        ],
+        links: [link(1, 1, 0, 3, 0), link(2, 2, 0, 3, 1)]
+      },
+      objectInfo,
+      { random: () => 0.25 }
+    )
+
+    expect(prompt['3'].inputs).toMatchObject({ seed: 281474976710656, steps: 30 })
   })
 })

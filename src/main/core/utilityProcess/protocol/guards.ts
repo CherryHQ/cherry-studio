@@ -4,6 +4,7 @@
  * Child-safe.
  */
 
+import { isStreamLimits } from '../streamFrame'
 import { PROTOCOL, PROTOCOL_VERSION } from './constants'
 import type { ChildFrame, ConnectFrame, FrameIdentity, LogLevel, MainFrame, RemoteErrorShape } from './frames'
 
@@ -50,10 +51,31 @@ export function isMainFrame(value: unknown): value is MainFrame {
   if (!isFrameIdentity(value)) return false
   const frame = value as unknown as Record<string, unknown>
   switch (frame.kind) {
+    case 'stream-open':
+      return (
+        isRequestId(frame.requestId) &&
+        typeof frame.method === 'string' &&
+        frame.method.length > 0 &&
+        'input' in frame &&
+        isStreamLimits(frame.inputLimits) &&
+        isStreamLimits(frame.outputLimits)
+      )
     case 'request':
       return (
         isRequestId(frame.requestId) && typeof frame.method === 'string' && frame.method.length > 0 && 'input' in frame
       )
+    case 'host-reply':
+      return (
+        isRequestId(frame.requestId) &&
+        isRequestId(frame.callId) &&
+        isRecord(frame.outcome) &&
+        ('value' in frame.outcome || isRemoteError(frame.outcome.error))
+      )
+    case 'stream-data':
+    case 'stream-credit':
+    case 'stream-end':
+    case 'stream-end-ack':
+      return isStreamMessage(frame)
     case 'cancel':
       return isRequestId(frame.requestId)
     case 'shutdown':
@@ -67,8 +89,22 @@ export function isChildFrame(value: unknown): value is ChildFrame {
   if (!isFrameIdentity(value)) return false
   const frame = value as unknown as Record<string, unknown>
   switch (frame.kind) {
+    case 'stream-data':
+    case 'stream-credit':
+    case 'stream-end':
+    case 'stream-end-ack':
+      return isStreamMessage(frame)
+    case 'stream-closed':
+      return isRequestId(frame.requestId)
     case 'ready':
       return true
+    case 'host-call':
+      return (
+        isRequestId(frame.requestId) &&
+        isRequestId(frame.callId) &&
+        typeof frame.method === 'string' &&
+        'input' in frame
+      )
     case 'event':
       return isRequestId(frame.requestId) && 'event' in frame
     case 'result':
@@ -90,4 +126,14 @@ export function isChildFrame(value: unknown): value is ChildFrame {
     default:
       return false
   }
+}
+
+function isStreamMessage(frame: Record<string, unknown>): boolean {
+  if (!isRequestId(frame.requestId) || !Number.isSafeInteger(frame.sequence)) return false
+  if (frame.kind === 'stream-end' || frame.kind === 'stream-end-ack') return (frame.sequence as number) >= 0
+  if ((frame.sequence as number) < 1) return false
+  return (
+    frame.kind === 'stream-credit' ||
+    (typeof frame.metadata === 'string' && (frame.payload === undefined || frame.payload instanceof Uint8Array))
+  )
 }

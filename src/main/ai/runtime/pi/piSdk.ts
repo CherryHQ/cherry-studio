@@ -17,28 +17,9 @@ export function loadPiSdk() {
   return import('@earendil-works/pi-coding-agent')
 }
 
-/**
- * The api-family layer under pi-coding-agent. pi drives providers through these
- * pure `stream`/`streamSimple` functions; a transport-adapter provider wraps the
- * openai-responses family here so it can inject per-call OAuth creds without pi
- * learning any provider specifics. Same ESM-only dynamic-import contract as
- * {@link loadPiSdk} — `@earendil-works/pi-ai` is pinned to pi-coding-agent's own
- * version so this is the identical implementation pi would use by default.
- */
+/** Load Pi's native model types and credentials with the same ESM boundary as the coding SDK. */
 export function loadPiAi() {
   return import('@earendil-works/pi-ai')
-}
-
-export function loadPiAiCompat() {
-  return import('@earendil-works/pi-ai/compat')
-}
-
-export function loadPiOpenAiResponsesApi() {
-  return import('@earendil-works/pi-ai/api/openai-responses')
-}
-
-export function loadPiAnthropicMessagesApi() {
-  return import('@earendil-works/pi-ai/api/anthropic-messages')
 }
 
 type PiStreamSimple = NonNullable<ProviderConfig['streamSimple']>
@@ -52,9 +33,6 @@ export async function loadPiApiStreamSimple(api: PiApi): Promise<PiStreamSimple>
       return (await import('@earendil-works/pi-ai/api/openai-completions')).streamSimple as unknown as PiStreamSimple
     case 'openai-responses':
       return (await import('@earendil-works/pi-ai/api/openai-responses')).streamSimple as unknown as PiStreamSimple
-    case 'azure-openai-responses':
-      return (await import('@earendil-works/pi-ai/api/azure-openai-responses'))
-        .streamSimple as unknown as PiStreamSimple
     case 'google-generative-ai':
       return (await import('@earendil-works/pi-ai/api/google-generative-ai')).streamSimple as unknown as PiStreamSimple
   }

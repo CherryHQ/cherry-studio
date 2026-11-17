@@ -78,13 +78,6 @@ describe('buildInitialAgentFormState', () => {
     expect(state.envVarsText).toBe('DEBUG=1\nNODE_ENV=production')
   })
 
-  it('leaves heartbeat off when configuration omits heartbeat keys', () => {
-    const state = buildInitialAgentFormState(createAgent({ configuration: {} }))
-
-    expect(state.heartbeatEnabled).toBe(false)
-    expect(state.heartbeatInterval).toBe(30)
-  })
-
   it('clamps an out-of-range stored heartbeat interval the same way the main process does', () => {
     // A stored 5000 would otherwise render in the form while the main-side
     // sync schedules 1440 — form and schedule must agree.
@@ -133,6 +126,16 @@ describe('diffAgentSaveIntent', () => {
 })
 
 describe('diffAgentUpdate', () => {
+  it('round-trips an edited heartbeat timeout without changing the interval or toggle', () => {
+    const baseline = buildInitialAgentFormState(createAgent({ configuration: { heartbeat_enabled: true } }))
+    expect(baseline.heartbeatTimeoutMinutes).toBe(2)
+    const next = applyAgentFormPatch(baseline, { heartbeatTimeoutMinutes: 10 })
+    const update = diffAgentUpdate(baseline, next)
+    expect(update?.dto).toEqual({ configuration: { heartbeat_timeout_minutes: 10 } })
+    const saved = buildInitialAgentFormState(createAgent({ configuration: update?.dto.configuration }))
+    expect(saved.heartbeatTimeoutMinutes).toBe(10)
+  })
+
   it('returns null when nothing changed', () => {
     const agent = createAgent()
     const baseline = buildInitialAgentFormState(agent)

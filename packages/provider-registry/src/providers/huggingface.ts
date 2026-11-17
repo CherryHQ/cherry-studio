@@ -6,9 +6,15 @@ export default defineProvider({
   availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-responses',
   endpointConfigs: {
+    // The router serves every model it lists over Anthropic Messages too, which is how HF documents
+    // running Claude Code on it (huggingface.co/docs/inference-providers/en/integrations/claude-code).
     'anthropic-messages': {
       adapterFamily: 'anthropic',
       baseUrl: 'https://router.huggingface.co/v1/'
+    },
+    'openai-chat-completions': {
+      adapterFamily: 'openai-compatible',
+      baseUrl: 'https://router.huggingface.co/v1'
     },
     'openai-responses': {
       adapterFamily: 'open-responses',

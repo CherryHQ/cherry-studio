@@ -7,7 +7,7 @@ import type { OcrRecognitionResult, OcrTextLine } from '@shared/ipc/schemas/scre
 const logger = loggerService.withContext('ScreenshotOcr')
 
 export function isScreenshotOcrAvailable(): boolean {
-  return isMac || isWin || application.get('LocalModelService').isCapabilityReady('ocr')
+  return isMac || isWin || application.get('LocalModelService').isDefaultModelReady('ocr')
 }
 
 export async function recognizeScreenshotText(
@@ -32,12 +32,12 @@ export async function recognizeScreenshotText(
         }))
       }
     } catch (error) {
-      if (!application.get('LocalModelService').isCapabilityReady('ocr')) throw error
+      if (!application.get('LocalModelService').isDefaultModelReady('ocr')) throw error
       logger.warn('System OCR failed; falling back to the local model', error as Error)
     }
   }
 
-  if (!application.get('LocalModelService').isCapabilityReady('ocr')) return { status: 'unavailable' }
+  if (!application.get('LocalModelService').isDefaultModelReady('ocr')) return { status: 'unavailable' }
   const result = await application.get('OcrInferenceService').recognize({ kind: 'bytes', imageBytes })
   return { status: 'ok', lines: result.lines.filter((words) => words.length > 0).map(mergePaddleLine) }
 }

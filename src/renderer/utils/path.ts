@@ -122,13 +122,14 @@ export const getRelativePath = (from: AbsoluteFilePath, to: AbsoluteFilePath): P
 }
 
 /**
- * Joins a base path and a relative segment with a single separator, tolerating both `/` and `\`
- * and a trailing separator on `base`. Leading separators on `rel` are stripped so the result stays
- * anchored to `base`.
+ * Joins `base` and `rel` with one separator. On a POSIX absolute base, `\` is a filename byte:
+ * only `/` is stripped or treated as a separator. Drive, UNC, and every other base keep both.
  */
 // TOOD: Use AbsoluteFilePath as signature
 export const joinPath = (base: string, rel: string): string => {
-  const trimmed = rel.replace(/^[/\\]+/, '')
+  const posixAbsolute = base.startsWith('/') && !base.startsWith('//')
+  const trimmed = posixAbsolute ? rel.replace(/^\/+/, '') : rel.replace(/^[/\\]+/, '')
   if (!base) return trimmed
-  return /[/\\]$/.test(base) ? `${base}${trimmed}` : `${base}/${trimmed}`
+  const baseHasSeparator = posixAbsolute ? base.endsWith('/') : /[/\\]$/.test(base)
+  return baseHasSeparator ? `${base}${trimmed}` : `${base}/${trimmed}`
 }

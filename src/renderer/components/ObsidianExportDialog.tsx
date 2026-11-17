@@ -293,11 +293,13 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       if (rawContent) {
         markdown = rawContent
       } else if (topic) {
-        markdown = await topicToMarkdown(topic, exportReasoning)
+        markdown = await topicToMarkdown(topic, exportReasoning, undefined, undefined, undefined, true)
       } else if (messages && messages.length > 0) {
-        markdown = await messagesToMarkdown(messages, exportReasoning)
+        markdown = await messagesToMarkdown(messages, exportReasoning, undefined, undefined, true)
       } else if (message) {
-        markdown = exportReasoning ? await messageToMarkdownWithReasoning(message) : await messageToMarkdown(message)
+        markdown = exportReasoning
+          ? await messageToMarkdownWithReasoning(message, undefined, undefined, true)
+          : await messageToMarkdown(message, undefined, undefined, true)
       } else {
         markdown = ''
       }
@@ -406,12 +408,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
     }
 
     return (
-      <EmptyState
-        compact
-        preset="no-resource"
-        className="min-h-20 py-4"
-        description={i18n.t('chat.topics.export.obsidian_no_vaults')}
-      />
+      <EmptyState compact className="min-h-20 py-4" description={i18n.t('chat.topics.export.obsidian_no_vaults')} />
     )
   }
 
@@ -444,7 +441,6 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
     return (
       <EmptyState
         compact
-        preset="no-resource"
         className="min-h-20 py-4"
         description={i18n.t('chat.topics.export.obsidian_select_vault_first')}
       />
@@ -453,12 +449,12 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
 
   return (
     <Dialog open={openState} onOpenChange={handleOpenChange}>
-      <DialogContent closeOnOverlayClick={false} className="sm:max-w-[600px]">
-        <DialogHeader>
+      <DialogContent closeOnOverlayClick={false} className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-[600px]">
+        <DialogHeader className="shrink-0">
           <DialogTitle>{i18n.t('chat.topics.export.obsidian_atributes')}</DialogTitle>
         </DialogHeader>
-        {error && <Alert className="mb-1" message={error} type="error" showIcon />}
-        <div className="space-y-4">
+        {error && <Alert className="mb-1 shrink-0" message={error} type="error" showIcon />}
+        <div className="min-h-0 space-y-4 overflow-y-auto">
           <FormRow label={i18n.t('chat.topics.export.obsidian_title')}>
             <Input
               autoFocus
@@ -527,7 +523,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
             </FormRow>
           )}
         </div>
-        <DialogFooter>
+        <DialogFooter className="shrink-0">
           <Button type="button" variant="outline" onClick={handleCancel}>
             {i18n.t('common.cancel')}
           </Button>

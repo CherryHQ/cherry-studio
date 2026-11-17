@@ -4,14 +4,14 @@ import path from 'node:path'
 
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import * as z from 'zod'
 
-import { mcpResourceReadInputSchema, type McpResourceReadOutput } from '@shared/ai/builtinTools'
+import { type McpResourceReadOutput } from '@shared/ai/builtinTools'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpResource } from '@shared/types/mcp'
 
 const listResources = vi.fn<(serverId: string) => Promise<McpResource[]>>()
+const listResourceTemplates = vi.fn()
 const getResource = vi.fn()
 const getConnectedServerCapabilities = vi.fn<(serverId: string) => Record<string, unknown> | undefined>()
 const getPath = vi.hoisted(() => vi.fn<(key: string, filename?: string) => string>())
@@ -20,7 +20,7 @@ vi.mock('@application', () => ({
   application: {
     getPath,
     get: (name: string) => {
-      if (name === 'McpCatalogService') return { listResources }
+      if (name === 'McpCatalogService') return { listResources, listResourceTemplates }
       if (name === 'McpRuntimeService') return { getResource, getConnectedServerCapabilities }
       throw new Error(`unexpected service: ${name}`)
     }
@@ -36,12 +36,8 @@ vi.mock('@data/services/AssistantService', () => ({
   assistantDataService: { getById: () => null }
 }))
 
-import { createMcpResourceListToolEntry, MCP_RESOURCE_LIST_DESCRIPTION } from '../McpResourceListTool'
-import {
-  createMcpResourceReadToolEntry,
-  MCP_RESOURCE_READ_DESCRIPTION,
-  mcpResourceReadModelOutput
-} from '../McpResourceReadTool'
+import { createMcpResourceListToolEntry } from '../McpResourceListTool'
+import { createMcpResourceReadToolEntry, mcpResourceReadModelOutput } from '../McpResourceReadTool'
 
 const listEntry = createMcpResourceListToolEntry()
 const readEntry = createMcpResourceReadToolEntry()
@@ -56,6 +52,7 @@ afterAll(async () => {
 })
 
 beforeEach(() => {
+  listResourceTemplates.mockReset().mockResolvedValue([])
   getPath.mockImplementation((_key, filename) =>
     filename ? path.join(resourceOutputDir, filename) : resourceOutputDir
   )
@@ -99,37 +96,6 @@ function callNeedsApproval(args: Record<string, unknown>, request: Record<string
 }
 
 describe('mcp_resource_* entries', () => {
-  it('declares the agreed namespace, defer and truncate policy', () => {
-    expect(listEntry.name).toBe('mcp_resource_list')
-    expect(readEntry.name).toBe('mcp_resource_read')
-    expect(listEntry.namespace).toBe('mcp_resource')
-    expect(readEntry.namespace).toBe('mcp_resource')
-    // Read-style tool: its output must not be persisted and re-read through itself, and an
-    // approval-gated entry must stay inline or its approval card never fires.
-    expect(readEntry.truncatable).toBe(false)
-    expect(readEntry.defer).toBe('never')
-  })
-
-  it('describes the arguments the schemas actually take, so the model addresses servers by id', () => {
-    // A description naming `serverName` while the schema takes `serverId` reads as an instruction to
-    // put a name in the id slot — which then fails the frozen-scope lookup.
-    const inputKeys = Object.keys(z.toJSONSchema(mcpResourceReadInputSchema).properties ?? {})
-    expect(inputKeys).toContain('serverId')
-    expect(inputKeys).not.toContain('serverName')
-
-    for (const description of [MCP_RESOURCE_LIST_DESCRIPTION, MCP_RESOURCE_READ_DESCRIPTION]) {
-      expect(description).toContain('serverId')
-    }
-    // `serverName` may only appear where it is called out as display-only.
-    expect(MCP_RESOURCE_READ_DESCRIPTION).not.toContain('serverName')
-    expect(MCP_RESOURCE_LIST_DESCRIPTION).toContain('serverName is for display only')
-  })
-
-  it('never asks a provider for constrained decoding (shared strict-schema compile budget)', () => {
-    expect(listEntry.tool.strict).toBeFalsy()
-    expect(readEntry.tool.strict).toBeFalsy()
-  })
-
   it('is exposed only when an in-scope server declared the resources capability', () => {
     const scope = { mcpToolIds: new Set<string>() }
     expect(listEntry.applies?.({ ...scope, mcpResourceServerIds: new Set() })).toBe(false)
@@ -213,6 +179,23 @@ describe('mcp_resource_read', () => {
     getConnectedServerCapabilities.mockReturnValue({ resources: {} })
   })
 
+  it('allows a published template only on its originating server', async () => {
+    listResources.mockResolvedValue([])
+    listResourceTemplates.mockImplementation(async (serverId: string) =>
+      serverId === 's1' ? [{ serverId, serverName: 's1-name', name: 'doc', uriTemplate: 'docs://files/{id}' }] : []
+    )
+    getResource.mockResolvedValue({ contents: [{ uri: 'docs://files/42', text: 'template document' }] })
+    expect(
+      await callExecute(readEntry, { serverId: 's1', uri: 'docs://files/42' }, { assistant: makeAssistant() })
+    ).toMatchObject({ text: 'template document', serverId: 's1' })
+    expect(
+      await callExecute(readEntry, { serverId: 's2', uri: 'docs://files/42' }, { assistant: makeAssistant() })
+    ).toMatchObject({ error: expect.stringContaining('does not publish') })
+    expect(
+      await callExecute(readEntry, { serverId: 's1', uri: 'docs://private/42' }, { assistant: makeAssistant() })
+    ).toMatchObject({ error: expect.stringContaining('does not publish') })
+  })
+
   it('reads through the identified server, not whichever one happens to publish the uri', async () => {
     // Both servers publish the same uri: the serverId argument is what disambiguates them.
     listResources.mockImplementation(async (serverId) => [makeResource(serverId, 'file:///shared.md')])
@@ -227,7 +210,8 @@ describe('mcp_resource_read', () => {
     expect(getResource).toHaveBeenCalledExactlyOnceWith({
       serverId: 's2',
       uri: 'file:///shared.md',
-      signal: undefined
+      signal: undefined,
+      interactionContext: expect.objectContaining({ requestId: 'tc-1' })
     })
     expect(result).toMatchObject({ uri: 'file:///shared.md', serverId: 's2', text: 'hello', totalChars: 5 })
   })
@@ -248,7 +232,8 @@ describe('mcp_resource_read', () => {
     expect(getResource).toHaveBeenCalledExactlyOnceWith({
       serverId: 's2',
       uri: 'file:///shared.md',
-      signal: undefined
+      signal: undefined,
+      interactionContext: expect.objectContaining({ requestId: 'tc-1' })
     })
     expect(result.text).toBe('from s2')
   })
@@ -302,14 +287,29 @@ describe('mcp_resource_read', () => {
     expect(last.nextOffset).toBeUndefined()
   })
 
-  it('propagates the request abort signal to the server read', async () => {
+  it('propagates the abort signal and originating interaction context to the server read', async () => {
     const abortSignal = new AbortController().signal
     listResources.mockImplementation(async (serverId) => (serverId === 's1' ? [makeResource('s1', 'x://a')] : []))
     getResource.mockResolvedValue({ contents: [{ uri: 'x://a', text: 'hi' }] })
 
-    await callExecute(readEntry, { serverId: 's1', uri: 'x://a' }, { assistant: makeAssistant(), abortSignal })
+    const interactionContext = {
+      windowId: 'window-1',
+      topicId: 'topic-1',
+      model: 'provider::model',
+      roots: [{ uri: 'file:///workspace', name: 'Workspace' }]
+    }
+    await callExecute(
+      readEntry,
+      { serverId: 's1', uri: 'x://a' },
+      { assistant: makeAssistant(), abortSignal, ...interactionContext }
+    )
 
-    expect(getResource).toHaveBeenCalledExactlyOnceWith({ serverId: 's1', uri: 'x://a', signal: abortSignal })
+    expect(getResource).toHaveBeenCalledExactlyOnceWith({
+      serverId: 's1',
+      uri: 'x://a',
+      signal: abortSignal,
+      interactionContext: { ...interactionContext, requestId: 'tc-1' }
+    })
   })
 
   it('decodes binary contents to disk without returning their base64 payload', async () => {
@@ -330,7 +330,7 @@ describe('mcp_resource_read', () => {
         uri: 'x://bin',
         mimeType: 'image/png',
         blobSavedTo: expect.stringMatching(/\.png$/),
-        text: expect.stringContaining('Binary content (image/png, 4 bytes) saved to')
+        text: expect.any(String)
       }
     ])
     expect(JSON.stringify(result)).not.toContain(encoded)

@@ -6,7 +6,7 @@
  * needs no edit.
  *
  * KNOWN GAP (#18898): only the Claude Code runtime evaluates this table. Pi returns before any
- * equivalent check under bypassPermissions and dsh has none, so a built-in Agent on those runtimes
+ * equivalent check under bypassPermissions, so a built-in Agent on those runtimes
  * is not held to these rules — a pre-existing hole this table inherited, not a design choice. Do
  * not describe these as cross-runtime guarantees until every runtime shares the evaluator.
  */
@@ -49,8 +49,9 @@ export const BUILTIN_AGENT_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     match: { when: destructiveBuiltinOperation },
     effect: 'deny',
     reason: (hit) =>
-      `This built-in Agent blocked ${hit.evidence}. It must never permanently delete data or bypass this safeguard. ` +
-      'For a confirmed file or directory inside the session workspace, use mcp__assistant-files__move_to_trash; protected paths cannot be deleted.'
+      `This built-in Tool Guard blocked ${hit.evidence}. It is enforced by Cherry Studio itself; there is no hook in your settings to inspect or edit. ` +
+      'It must never permanently delete data or bypass this safeguard. For a confirmed file or directory inside the session workspace, ' +
+      'use mcp__assistant-files__move_to_trash, which moves it to the operating-system trash; protected paths cannot be deleted.'
   },
   {
     // Feedback skills submit through Bash under the user's identity (Lark form / GitHub issue).
@@ -83,7 +84,7 @@ export const BUILTIN_AGENT_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   },
   {
     // The result is useful only when AgentChat can present its user-owned review dialog.
-    // Headless deny holds on Claude Code only until #18898 closes the Pi/DSH gap.
+    // Headless deny holds on Claude Code only until #18898 closes the Pi gap.
     id: 'support-diagnostic-draft',
     appliesTo: { roles: [BUILTIN_AGENT_ROLE.SUPPORT, BUILTIN_AGENT_ROLE.ASSISTANT] },
     match: { tool: 'mcp__assistant__prepare_diagnostic_report' },

@@ -25,6 +25,8 @@ export interface SidebarActivationGateway {
        * Defaults to exact URL equality; view-only destinations (apps) opt out with `() => false`.
        */
       matchesTab?: (url: string) => boolean
+      /** Pending activation request, independent of conversation identity. */
+      metadata?: { agentPinPending?: boolean }
     },
     options?: { inNewTab?: boolean }
   ): void

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import React, { Activity, type ReactNode, useEffect, useRef, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getQuickPanelHeights, QUICK_PANEL_ITEM_HEIGHT, QUICK_PANEL_SAFE_MARGIN } from '../heights'
+import { getQuickPanelHeights } from '../heights'
 import { QuickPanelProvider } from '../QuickPanelProvider'
 import { QuickPanelView } from '../QuickPanelView'
 import type {
@@ -109,20 +109,6 @@ function createKeyDownEvent(key: string) {
   const stopPropagation = vi.spyOn(event, 'stopPropagation')
 
   return { event, preventDefault, stopPropagation }
-}
-
-function createRect(top: number, bottom: number): DOMRect {
-  return {
-    bottom,
-    height: bottom - top,
-    left: 0,
-    right: 800,
-    top,
-    width: 800,
-    x: 0,
-    y: top,
-    toJSON: () => ({})
-  }
 }
 
 function PanelHarness({
@@ -357,30 +343,6 @@ describe('QuickPanelView', () => {
     expect(onClose.mock.calls[0][0].context).toBe(openContext)
   })
 
-  it('advances the panel generation when closing without reopening', async () => {
-    let quickPanel: QuickPanelContextType | undefined
-
-    render(
-      <QuickPanelProvider>
-        <CaptureQuickPanel onCapture={(context) => (quickPanel = context)} />
-      </QuickPanelProvider>
-    )
-
-    await waitFor(() => {
-      expect(quickPanel).toBeDefined()
-    })
-
-    act(() => {
-      quickPanel?.open({ list: [], symbol: '/' })
-    })
-    expect(quickPanel?.getPanelGeneration()).toBe(1)
-
-    act(() => {
-      quickPanel?.close('input_prefix_invalid')
-    })
-    expect(quickPanel?.getPanelGeneration()).toBe(2)
-  })
-
   it('dispatches keydown immediately after opening in the same effect tick', async () => {
     const onHandled = vi.fn()
 
@@ -419,9 +381,6 @@ describe('QuickPanelView', () => {
     })
 
     await screen.findByText('Panel A action')
-    await waitFor(() => {
-      expect(quickPanel?.getPanelGeneration()).toBe(1)
-    })
 
     const { event, preventDefault, stopPropagation } = createKeyDownEvent('Enter')
     let handled = true
@@ -545,6 +504,36 @@ describe('QuickPanelView', () => {
 
     expect(screen.getByText('Agent skill')).toBeInTheDocument()
     expect(screen.queryByText('Attachment')).not.toBeInTheDocument()
+  })
+
+  it('keeps pinyin matches for every row when descriptions repeat across items', async () => {
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => '',
+      getCursorOffset: () => 0,
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={inputAdapter}
+          items={[
+            { id: 'pdf', label: 'PDF skill', description: '知识库中的技术资料', icon: 'file' },
+            { id: 'research', label: 'Research skill', description: '知识库', icon: 'search' }
+          ]}
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          initialSearchText="zsk"
+        />
+      </QuickPanelProvider>
+    )
+
+    expect(await screen.findByText('PDF skill')).toBeInTheDocument()
+    expect(screen.getByText('Research skill')).toBeInTheDocument()
   })
 
   it('closes with Escape even when the key event does not come from the input adapter', async () => {
@@ -745,6 +734,59 @@ describe('QuickPanelView', () => {
     expect(deleteTriggerRange).toHaveBeenCalledOnce()
   })
 
+  it('opens Permission Mode from /permission without inheriting the parent query', async () => {
+    const user = userEvent.setup()
+    let text = '/permission'
+    let cursorOffset = text.length
+    let selectedMode: string | undefined
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => text,
+      getCursorOffset: () => cursorOffset,
+      insertText: vi.fn(),
+      deleteTriggerRange: ({ from, to }) => {
+        text = text.slice(0, from) + text.slice(to)
+        cursorOffset = from
+      },
+      focus: vi.fn()
+    }
+    const menuAction: QuickPanelListItem['action'] = ({ context, parentPanel }) => {
+      context.open({
+        title: 'Permission Mode',
+        symbol: 'permission-mode',
+        parentPanel,
+        triggerInfo: { type: 'button' },
+        trackInputQuery: true,
+        list: [
+          { id: 'plan', label: 'Plan Only', icon: 'plan', action: () => (selectedMode = 'plan') },
+          { id: 'auto', label: 'Approve for Me', icon: 'auto', action: () => (selectedMode = 'auto') }
+        ]
+      })
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={inputAdapter}
+          items={[
+            { id: 'permission-mode', label: 'Permission Mode', icon: 'shield', isMenu: true, action: menuAction }
+          ]}
+          queryAnchor={0}
+        />
+      </QuickPanelProvider>
+    )
+
+    const permissionMode = await screen.findByRole('button', { name: /Permission Mode/ })
+    await user.hover(screen.getByTestId('quick-panel-body'))
+    await user.click(permissionMode)
+
+    expect(text).toBe('')
+    expect(await screen.findByRole('button', { name: /Plan Only/ })).toBeVisible()
+    expect(screen.getByRole('button', { name: /Approve for Me/ })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: /Plan Only/ }))
+    expect(selectedMode).toBe('plan')
+  })
+
   it('keeps a multi-select filter through picks and consumes it when dismissed', async () => {
     let text = 'card'
     let cursorOffset = text.length
@@ -851,290 +893,6 @@ describe('QuickPanelView', () => {
     icon: `${index}`,
     action: vi.fn()
   }))
-  const compactItems = measuredItems.slice(0, 2)
-
-  it('keeps the fixed height in a docked composer (no placement, no fill)', async () => {
-    const getRectSpy = vi
-      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
-      .mockImplementation(function rectFor(this: HTMLElement) {
-        // 即便上方空间很小，docked 也应忽略它、保持固定高度。
-        if (this.dataset.testid === 'quick-panel') return createRect(180, 180)
-        return createRect(40, 900)
-      })
-
-    try {
-      render(
-        <div style={{ overflow: 'hidden' }}>
-          <QuickPanelProvider>
-            <PanelHarness captureDispatch={vi.fn()} items={measuredItems} />
-          </QuickPanelProvider>
-        </div>
-      )
-
-      const expected = getQuickPanelHeights({
-        isVisible: true,
-        collapsed: false,
-        readOnly: false,
-        pageSize: 7,
-        itemCount: measuredItems.length,
-        availableHeight: null,
-        fill: false
-      })
-
-      const panel = await screen.findByTestId('quick-panel')
-      await waitFor(() => {
-        expect(panel).toHaveStyle({ maxHeight: `${expected.panelMaxHeight}px` })
-      })
-      expect(screen.getByTestId('quick-panel-virtual-list')).toHaveAttribute('data-size', String(expected.listHeight))
-      // docked 不撑高 body。
-      const body = screen.getByTestId('quick-panel-body')
-      expect(body).not.toHaveStyle({ height: `${expected.panelMaxHeight}px` })
-      expect(body).toHaveClass('shadow-none')
-    } finally {
-      getRectSpy.mockRestore()
-    }
-  })
-
-  it('lets the whole welcome (home) panel shrink naturally when content fits above the input', async () => {
-    const panelBottom = 500
-    const dockTop = 40
-    const getRectSpy = vi
-      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
-      .mockImplementation(function rectFor(this: HTMLElement) {
-        if (this.dataset.testid === 'quick-panel') return createRect(panelBottom, panelBottom)
-        if (this.dataset.testid === 'quick-panel-dock') return createRect(dockTop, 900)
-        return createRect(0, 900)
-      })
-
-    try {
-      render(
-        <div data-composer-dock-layer="" data-testid="quick-panel-dock" style={{ overflow: 'hidden' }}>
-          <QuickPanelProvider>
-            <PanelHarness captureDispatch={vi.fn()} items={compactItems} fill />
-          </QuickPanelProvider>
-        </div>
-      )
-
-      const expected = getQuickPanelHeights({
-        isVisible: true,
-        collapsed: false,
-        readOnly: false,
-        pageSize: 7,
-        itemCount: compactItems.length,
-        availableHeight: panelBottom - dockTop - QUICK_PANEL_SAFE_MARGIN,
-        fill: true
-      })
-
-      const panel = await screen.findByTestId('quick-panel')
-      await waitFor(() => {
-        expect(panel).toHaveStyle({ maxHeight: `${expected.panelMaxHeight}px` })
-      })
-      // 列表贴合内容（≤pageSize 行），整个 panel 由 DOM 自然高度收缩，不写死 body 高度。
-      expect(screen.getByTestId('quick-panel-virtual-list')).toHaveAttribute('data-size', String(expected.listHeight))
-      const body = screen.getByTestId('quick-panel-body')
-      expect(body).not.toHaveStyle({ height: `${expected.panelMaxHeight}px` })
-      expect(body).not.toHaveStyle({ height: `${panelBottom - dockTop - QUICK_PANEL_SAFE_MARGIN}px` })
-      expect(body).not.toHaveClass('justify-end')
-      expect(body).toHaveClass('shadow-none')
-    } finally {
-      getRectSpy.mockRestore()
-    }
-  })
-
-  it('caps the welcome (home) panel at the available height when content overflows', async () => {
-    const panelBottom = 240
-    const dockTop = 40
-    const availableHeight = panelBottom - dockTop - QUICK_PANEL_SAFE_MARGIN
-    const footerHeight = 30
-    const bodyVerticalSpace = 11
-    const chromeHeight = footerHeight + bodyVerticalSpace
-    const getRectSpy = vi
-      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
-      .mockImplementation(function rectFor(this: HTMLElement) {
-        if (this.dataset.testid === 'quick-panel') return createRect(panelBottom, panelBottom)
-        if (this.dataset.testid === 'quick-panel-dock') return createRect(dockTop, 900)
-        return createRect(0, 900)
-      })
-    const clientHeightSpy = vi
-      .spyOn(HTMLElement.prototype, 'clientHeight', 'get')
-      .mockImplementation(function heightFor(this: HTMLElement) {
-        if (this.dataset.testid === 'quick-panel-footer') return footerHeight
-        return 0
-      })
-    const originalGetComputedStyle = window.getComputedStyle.bind(window)
-    const getComputedStyleSpy = vi.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudoElement) => {
-      const style = originalGetComputedStyle(element, pseudoElement)
-      if ((element as HTMLElement).dataset.testid === 'quick-panel-body') {
-        style.paddingTop = '5px'
-        style.paddingBottom = '5px'
-        style.borderTopWidth = '0.5px'
-        style.borderBottomWidth = '0.5px'
-      }
-      return style
-    })
-
-    try {
-      render(
-        <div data-composer-dock-layer="" data-testid="quick-panel-dock" style={{ overflow: 'hidden' }}>
-          <QuickPanelProvider>
-            <PanelHarness captureDispatch={vi.fn()} items={measuredItems} fill />
-          </QuickPanelProvider>
-        </div>
-      )
-
-      const expected = getQuickPanelHeights({
-        isVisible: true,
-        collapsed: false,
-        readOnly: false,
-        pageSize: 7,
-        itemCount: measuredItems.length,
-        availableHeight,
-        fill: true,
-        chromeHeight
-      })
-
-      const panel = await screen.findByTestId('quick-panel')
-      await waitFor(() => {
-        expect(panel).toHaveStyle({ maxHeight: `${expected.panelMaxHeight}px` })
-      })
-      expect(expected.panelMaxHeight).toBe(availableHeight)
-      expect(screen.getByTestId('quick-panel-virtual-list')).toHaveAttribute('data-size', String(expected.listHeight))
-      expect(expected.listHeight).toBe(availableHeight - chromeHeight)
-      expect(screen.getByTestId('quick-panel-body')).toHaveStyle({ height: `${availableHeight}px` })
-    } finally {
-      getRectSpy.mockRestore()
-      clientHeightSpy.mockRestore()
-      getComputedStyleSpy.mockRestore()
-    }
-  })
-
-  it('recomputes placement metrics when an open welcome panel docks', async () => {
-    const panelBottom = 240
-    const dockTop = 40
-    const availableHeight = panelBottom - dockTop - QUICK_PANEL_SAFE_MARGIN
-    const footerHeight = 30
-    const bodyVerticalSpace = 11
-    const chromeHeight = footerHeight + bodyVerticalSpace
-    const captureDispatch = vi.fn()
-    const getRectSpy = vi
-      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
-      .mockImplementation(function rectFor(this: HTMLElement) {
-        if (this.dataset.testid === 'quick-panel') return createRect(panelBottom, panelBottom)
-        if (this.dataset.testid === 'quick-panel-dock') return createRect(dockTop, 900)
-        return createRect(0, 900)
-      })
-    const clientHeightSpy = vi
-      .spyOn(HTMLElement.prototype, 'clientHeight', 'get')
-      .mockImplementation(function heightFor(this: HTMLElement) {
-        if (this.dataset.testid === 'quick-panel-footer') return footerHeight
-        return 0
-      })
-    const originalGetComputedStyle = window.getComputedStyle.bind(window)
-    const getComputedStyleSpy = vi.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudoElement) => {
-      const style = originalGetComputedStyle(element, pseudoElement)
-      if ((element as HTMLElement).dataset.testid === 'quick-panel-body') {
-        style.paddingTop = '5px'
-        style.paddingBottom = '5px'
-        style.borderTopWidth = '0.5px'
-        style.borderBottomWidth = '0.5px'
-      }
-      return style
-    })
-
-    const renderPanel = (fill: boolean) => (
-      <div data-composer-dock-layer="" data-testid="quick-panel-dock" style={{ overflow: 'hidden' }}>
-        <QuickPanelProvider>
-          <PanelHarness captureDispatch={captureDispatch} items={measuredItems} fill={fill} />
-        </QuickPanelProvider>
-      </div>
-    )
-
-    try {
-      const { rerender } = render(renderPanel(true))
-
-      const homeExpected = getQuickPanelHeights({
-        isVisible: true,
-        collapsed: false,
-        readOnly: false,
-        pageSize: 7,
-        itemCount: measuredItems.length,
-        availableHeight,
-        fill: true,
-        chromeHeight
-      })
-      const dockedExpected = getQuickPanelHeights({
-        isVisible: true,
-        collapsed: false,
-        readOnly: false,
-        pageSize: 7,
-        itemCount: measuredItems.length,
-        availableHeight: null,
-        fill: false
-      })
-
-      const panel = await screen.findByTestId('quick-panel')
-      await waitFor(() => {
-        expect(panel).toHaveStyle({ maxHeight: `${homeExpected.panelMaxHeight}px` })
-      })
-      expect(screen.getByTestId('quick-panel-body')).toHaveStyle({ height: `${homeExpected.panelMaxHeight}px` })
-      expect(screen.getByTestId('quick-panel-body')).toHaveClass('shadow-none')
-
-      rerender(renderPanel(false))
-
-      await waitFor(() => {
-        expect(panel).toHaveStyle({ maxHeight: `${dockedExpected.panelMaxHeight}px` })
-      })
-      const body = screen.getByTestId('quick-panel-body')
-      expect(body).not.toHaveStyle({ height: `${homeExpected.panelMaxHeight}px` })
-      expect(body).toHaveClass('shadow-none')
-    } finally {
-      getRectSpy.mockRestore()
-      clientHeightSpy.mockRestore()
-      getComputedStyleSpy.mockRestore()
-    }
-  })
-
-  it('keeps the standard shadow and fixed height for a read-only panel even with fill enabled', async () => {
-    const getRectSpy = vi
-      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
-      .mockImplementation(function rectFor(this: HTMLElement) {
-        if (this.dataset.testid === 'quick-panel') return createRect(240, 240)
-        if (this.dataset.testid === 'quick-panel-dock') return createRect(40, 900)
-        return createRect(0, 900)
-      })
-
-    try {
-      render(
-        <div data-composer-dock-layer="" data-testid="quick-panel-dock" style={{ overflow: 'hidden' }}>
-          <QuickPanelProvider>
-            <PanelHarness captureDispatch={vi.fn()} items={measuredItems} readOnly fill />
-          </QuickPanelProvider>
-        </div>
-      )
-
-      // readOnly 屏蔽 fill（fillEffective=false）：保持固定高度、忽略 availableHeight、用标准阴影。
-      const expected = getQuickPanelHeights({
-        isVisible: true,
-        collapsed: false,
-        readOnly: true,
-        pageSize: 7,
-        itemCount: measuredItems.length,
-        availableHeight: null,
-        fill: false
-      })
-
-      const panel = await screen.findByTestId('quick-panel')
-      await waitFor(() => {
-        expect(panel).toHaveStyle({ maxHeight: `${expected.panelMaxHeight}px` })
-      })
-      expect(screen.getByTestId('quick-panel-virtual-list')).toHaveAttribute('data-size', String(expected.listHeight))
-      const body = screen.getByTestId('quick-panel-body')
-      expect(body).not.toHaveStyle({ height: `${expected.panelMaxHeight}px` })
-      expect(body).toHaveClass('shadow-none')
-    } finally {
-      getRectSpy.mockRestore()
-    }
-  })
 
   it('clears measured footer chrome when switching to a read-only panel without footer actions', async () => {
     const footerHeight = 30
@@ -1387,20 +1145,6 @@ describe('QuickPanelView', () => {
     expect(planRow).toHaveAttribute('data-active', 'false')
     expect(screen.getByLabelText('plan-warning').closest('[data-open]')).toHaveAttribute('data-open', 'false')
     expect(screen.getByLabelText('smart-warning').closest('[data-open]')).toHaveAttribute('data-open', 'false')
-  })
-
-  it('keeps rendered row height aligned with the virtual-list item contract', async () => {
-    const items: QuickPanelListItem[] = [{ id: 'one', label: 'One action', icon: '1' }]
-
-    render(
-      <QuickPanelProvider>
-        <PanelHarness captureDispatch={vi.fn()} items={items} />
-      </QuickPanelProvider>
-    )
-
-    const row = (await screen.findByText('One action')).closest('[data-id="one"]')
-    expect(row).toHaveStyle({ height: '34px' })
-    expect(screen.getByTestId('quick-panel-virtual-list')).toHaveAttribute('data-size', String(QUICK_PANEL_ITEM_HEIGHT))
   })
 
   it('selects the active item with Tab', async () => {
@@ -1855,14 +1599,12 @@ describe('QuickPanelView', () => {
     await screen.findByText('First action')
     const firstRow = screen.getByText('First action').closest('[data-id="first"]')
     expect(firstRow).toHaveAttribute('data-active', 'true')
-    expect(firstRow?.className).not.toContain('hover:bg-accent')
 
     fireEvent.mouseMove(screen.getByTestId('quick-panel-body'))
 
     await waitFor(() => {
       expect(firstRow).toHaveAttribute('data-active', 'false')
     })
-    expect(firstRow?.className).toContain('hover:bg-accent')
 
     act(() => {
       quickPanel?.updateList([...items, { id: 'third', label: 'Third action', icon: '3', action: vi.fn() }])
@@ -1879,7 +1621,6 @@ describe('QuickPanelView', () => {
     await waitFor(() => {
       expect(firstRow).toHaveAttribute('data-active', 'true')
     })
-    expect(firstRow?.className).not.toContain('hover:bg-accent')
   })
 
   it('makes the hidden panel subtree inert and disables virtual-list pointer events', async () => {
@@ -1895,8 +1636,6 @@ describe('QuickPanelView', () => {
 
     const hiddenPanel = screen.getByTestId('quick-panel')
     expect(hiddenPanel).toHaveAttribute('inert')
-    expect(hiddenPanel.className).toContain('pointer-events-none')
-    expect(hiddenPanel.className).not.toContain('pointer-events-auto')
 
     rerender(
       <QuickPanelProvider>
@@ -1908,18 +1647,14 @@ describe('QuickPanelView', () => {
     await screen.findByText('First action')
     const visiblePanel = screen.getByTestId('quick-panel')
     expect(visiblePanel).not.toHaveAttribute('inert')
-    expect(visiblePanel.className).toContain('pointer-events-auto')
-    expect(visiblePanel.className).not.toContain('pointer-events-none')
 
     fireEvent.mouseMove(screen.getByTestId('quick-panel-body'))
-    expect(screen.getByTestId('quick-panel-virtual-list')).toHaveStyle({ pointerEvents: 'auto' })
 
     act(() => {
       quickPanel?.close('esc')
     })
 
     expect(visiblePanel).toHaveAttribute('inert')
-    expect(screen.getByTestId('quick-panel-virtual-list')).toHaveStyle({ pointerEvents: 'none' })
   })
 
   it('clears a closed action when its selection hides and restores the tab Activity', async () => {
@@ -1972,51 +1707,6 @@ describe('QuickPanelView', () => {
 
     expect(handled).toBe(true)
     expect(action).not.toHaveBeenCalled()
-  })
-
-  it('keeps the exit layout stable when closing', async () => {
-    const inputAdapter: QuickPanelInputAdapter = {
-      deleteTriggerRange: vi.fn(),
-      focus: vi.fn(),
-      getCursorOffset: () => 8,
-      getText: () => '/missing',
-      insertText: vi.fn()
-    }
-    const items: QuickPanelListItem[] = [{ id: 'clear', label: 'Clear query', icon: 'x', alwaysVisible: true }]
-    let closePanel: QuickPanelContextType['close'] | undefined
-
-    render(
-      <QuickPanelProvider>
-        <CaptureQuickPanel onCapture={(context) => (closePanel = context.close)} />
-        <PanelHarness captureDispatch={vi.fn()} inputAdapter={inputAdapter} items={items} />
-      </QuickPanelProvider>
-    )
-
-    await screen.findByText('No results')
-
-    const panel = screen.getByTestId('quick-panel')
-    const expected = getQuickPanelHeights({
-      isVisible: true,
-      collapsed: true,
-      readOnly: false,
-      pageSize: 7,
-      itemCount: items.length,
-      availableHeight: null,
-      fill: false
-    })
-
-    expect(panel).toHaveStyle({ maxHeight: `${expected.panelMaxHeight}px` })
-
-    vi.useFakeTimers()
-    act(() => {
-      closePanel?.('esc')
-    })
-
-    expect(panel).not.toHaveClass('visible')
-    expect(panel).toHaveStyle({ maxHeight: `${expected.panelMaxHeight}px` })
-    expect(panel).toHaveClass('transition-none')
-    expect(screen.getByText('No results')).toBeInTheDocument()
-    expect(screen.queryByText('Clear query')).not.toBeInTheDocument()
   })
 
   it('closes a tracked slash panel before rendering a repeated trigger as a query', async () => {

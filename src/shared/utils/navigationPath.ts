@@ -38,6 +38,7 @@ export function isAllowedNavigationPath(path: string, allowedRoutes: readonly st
 const KNOWN_NAVIGATION_ROUTES = [
   '/app/chat',
   '/app/paintings',
+  '/app/marketplace',
   '/app/translate',
   '/app/files',
   '/app/notes',
@@ -69,6 +70,7 @@ const KNOWN_NAVIGATION_ROUTES = [
   '/settings/scheduled-tasks',
   '/settings/skills',
   '/settings/usage',
+  '/settings/profile',
   '/settings/mcp/servers',
   '/settings/mcp/builtin',
   '/settings/mcp/marketplaces',

@@ -18,26 +18,38 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  *   result. Session scope alone is not enough: after the user moves to display B, a
  *   delayed request from display A's overlay would otherwise copy or save A's stale
  *   selection.
+ * - Result routes also bind the media id to that window's current capture, since
+ *   a pooled window can finish encoding a previous session's image late.
  *
  * A failed predicate returns silently rather than throwing — a late call is a normal
  * race (Esc pressed while another overlay is still reporting), not an error.
  */
 export const screenshotHandlers: IpcHandlersFor<typeof screenshotRequestSchemas> = {
+  'screenshot.submit_result': async ({ mediaId, ...result }, ctx) => {
+    const service = application.get('ScreenshotOverlayService')
+    if (!ctx.senderId || !service.isActiveCapture(ctx.senderId, mediaId)) return
+    await service.submitResult(result)
+  },
   // Deliberately only sender-scoped: this is how an in-app control starts a capture, and
   // no session exists yet, so any session predicate would make the feature unreachable.
   // `startCapture` refuses when the feature is off or a session is already up.
-  'screenshot.capture': async () => {
+  'screenshot.capture': async (_input, ctx) => {
     // Awaited so a failure reaches the caller instead of becoming an unhandled rejection.
-    await application.get('ScreenshotOverlayService').startCapture()
+    await application.get('ScreenshotOverlayService').startCapture(ctx.senderId ?? undefined)
   },
-  'screenshot.commit': async (result, ctx) => {
+  'screenshot.commit': async ({ mediaId, ...result }, ctx) => {
     const service = application.get('ScreenshotOverlayService')
-    if (!ctx.senderId || !service.isActiveOverlay(ctx.senderId)) return
+    if (!ctx.senderId || !service.isActiveCapture(ctx.senderId, mediaId)) return
     await service.commit(result)
   },
-  'screenshot.save': async (result, ctx) => {
+  'screenshot.copy': async ({ mediaId, ...result }, ctx) => {
     const service = application.get('ScreenshotOverlayService')
-    if (!ctx.senderId || !service.isActiveOverlay(ctx.senderId)) return
+    if (!ctx.senderId || !service.isActiveCapture(ctx.senderId, mediaId)) return
+    await service.copy(result)
+  },
+  'screenshot.save': async ({ mediaId, ...result }, ctx) => {
+    const service = application.get('ScreenshotOverlayService')
+    if (!ctx.senderId || !service.isActiveCapture(ctx.senderId, mediaId)) return
     await service.save(result)
   },
   // Session-scoped only: Esc on ANY overlay should cancel the whole capture.

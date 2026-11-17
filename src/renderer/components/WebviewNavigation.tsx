@@ -1,10 +1,20 @@
 import type { WebviewTag } from 'electron'
-import { ArrowLeft, ArrowRight, ExternalLink, History, RotateCw } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ExternalLink, Globe, RotateCw } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Input, Popover, PopoverAnchor, PopoverContent, Tooltip } from '@cherrystudio/ui'
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+  Button,
+  Input,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  Tooltip
+} from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
@@ -29,6 +39,7 @@ interface Props {
   isWebviewReady: boolean
   isHostActive: boolean
   target: WebviewAnnotationTarget
+  autoFocusAddress?: boolean
   onReload?: () => void
   onNavigate?: (url: string) => void
   onAnnotationSaved?: (payload: WebviewAnnotationSavedPayload) => void
@@ -54,6 +65,7 @@ export function WebviewNavigation({
   isWebviewReady,
   isHostActive,
   target,
+  autoFocusAddress = false,
   onReload,
   onNavigate,
   onAnnotationSaved,
@@ -77,14 +89,17 @@ export function WebviewNavigation({
     url: currentUrl || initialUrl
   })
   const addressInputRef = useRef<HTMLInputElement | null>(null)
+  useEffect(() => {
+    if (autoFocusAddress && isWebviewReady && isHostActive) addressInputRef.current?.focus()
+  }, [autoFocusAddress, isWebviewReady, isHostActive])
   const [isAddressFocused, setIsAddressFocused] = useState(false)
   const historyListId = useId()
   const [historyOpen, setHistoryOpen] = useState(false)
-  const [historySearch, setHistorySearch] = useState('')
+  const [search, setSearchState] = useState('')
+  const setSearch = useCallback((value: string) => setSearchState(value.trim().slice(0, 500)), [])
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [activeSuggestion, setActiveSuggestion] = useState(-1)
   const showHistory = historyEnabled && historyOpen && isHostActive && isWebviewReady
-  const search = historySearch.trim().slice(0, 500)
   useEffect(() => {
     if (!showHistory) return
     const timer = setTimeout(() => setDebouncedSearch(search), 200)
@@ -97,7 +112,8 @@ export function WebviewNavigation({
   } = useQuery('/browser-visits', {
     query: { search: debouncedSearch, offset: 0, limit: 20 },
     enabled: showHistory && search === debouncedSearch,
-    swrOptions: { keepPreviousData: false }
+    // Hold the last list while the closing popover animates out; while open, never show another search's results.
+    swrOptions: { keepPreviousData: !showHistory }
   })
   const suggestions =
     search === debouncedSearch
@@ -176,9 +192,9 @@ export function WebviewNavigation({
     isAddressEditingRef.current = true
     setIsAddressFocused(true)
     setHistoryOpen(true)
-    setHistorySearch('')
+    setSearch('')
     setActiveSuggestion(-1)
-  }, [isAddressEditingRef])
+  }, [isAddressEditingRef, setSearch])
 
   const handleAddressBlur = useCallback(() => {
     setIsAddressFocused(false)
@@ -282,9 +298,15 @@ export function WebviewNavigation({
               value={isAddressFocused ? addressValue : addressDisplay}
               onChange={(event) => {
                 setAddressValue(event.target.value)
-                setHistorySearch(event.target.value)
+                setSearch(event.target.value)
                 setActiveSuggestion(-1)
                 setHistoryOpen(true)
+              }}
+              onMouseDown={(event) => {
+                if (event.button !== 0 || document.activeElement === event.currentTarget) return
+                // Without this, pointer drift during the focusing click extends the select-all into a partial range.
+                event.preventDefault()
+                event.currentTarget.focus()
               }}
               onFocus={handleAddressFocus}
               onBlur={handleAddressBlur}
@@ -352,7 +374,12 @@ export function WebviewNavigation({
                 )}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => navigateToAddress(visit.url)}>
-                <History aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+                <Avatar className="size-4 shrink-0 rounded-none">
+                  <AvatarImage src={visit.favicon} alt="" />
+                  <AvatarFallback className="rounded-none bg-transparent text-muted-foreground">
+                    <Globe aria-hidden="true" className="size-4" />
+                  </AvatarFallback>
+                </Avatar>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm">{visit.title || visit.url}</span>
                   <span className="block truncate text-muted-foreground text-xs">{visit.url}</span>

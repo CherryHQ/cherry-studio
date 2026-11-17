@@ -4,7 +4,7 @@
  * keeps a cold or dead server from stalling session start (issue #16242).
  */
 
-import type { McpServerConfig } from '@anthropic-ai/claude-agent-sdk'
+import type { McpSdkServerConfigWithInstance, McpServerConfig } from '@anthropic-ai/claude-agent-sdk'
 
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
@@ -19,6 +19,7 @@ import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { McpTool } from '@shared/types/mcp'
 
 import type { McpToolDisplayMetadata } from './types'
@@ -33,7 +34,8 @@ export function buildMcpServers(
   linkedChannelSnapshot?: LinkedChannelSnapshot,
   agentDataPath = session.workspace.path,
   selectedKnowledgeBaseIds: readonly string[] = [],
-  notificationContext?: AgentNotificationContext
+  notificationContext?: AgentNotificationContext,
+  effectiveModelId?: UniqueModelId | null
 ): Record<string, McpServerConfig> | undefined {
   const servers = buildAgentMcpServers(
     session,
@@ -43,10 +45,20 @@ export function buildMcpServers(
     linkedChannelSnapshot,
     agentDataPath,
     selectedKnowledgeBaseIds,
-    notificationContext
+    notificationContext,
+    effectiveModelId
   )
+
   return Object.fromEntries(
-    Object.entries(servers).map(([id, server]) => [id, { type: 'sdk', ...server } satisfies McpServerConfig])
+    Object.entries(servers).map(([id, { name, connect }]) => [
+      id,
+      {
+        type: 'sdk',
+        name,
+        // The SDK only calls `connect` on its own 2025-era transport; v2 serves that era.
+        instance: { connect } as unknown as McpSdkServerConfigWithInstance['instance']
+      } satisfies McpServerConfig
+    ])
   )
 }
 

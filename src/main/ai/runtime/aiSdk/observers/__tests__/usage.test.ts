@@ -45,6 +45,23 @@ function makeStep(usage: LanguageModelUsage) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 describe('attachUsageObserver', () => {
+  it('keeps continuation billing totals separate from the persisted context anchor', () => {
+    const { agent, written } = makeFakeAgent()
+    attachUsageObserver(agent as any)
+    agent.fire('onStart')
+    agent.fire('onStepFinish', {
+      usage: { inputTokens: 203, outputTokens: 8, totalTokens: 211 },
+      providerMetadata: { google: { initialPromptTokenCount: 100 } }
+    })
+    const chunk = written[0] as Extract<CherryUIMessageChunk, { type: 'message-metadata' }>
+    expect(chunk.messageMetadata?.stats).toMatchObject({
+      inputTokens: 203,
+      outputTokens: 8,
+      totalTokens: 211,
+      contextTokens: 108
+    })
+  })
+
   it('emits totalTokens as running sum and contextTokens as last-step value', () => {
     const { agent, written } = makeFakeAgent()
 

@@ -1,5 +1,7 @@
-import type { ComponentProps } from 'react'
+import { useNavigate } from '@tanstack/react-router'
+import { type ComponentProps, useCallback } from 'react'
 
+import type { MessageListState } from '@renderer/components/chat/messages/types'
 import type {
   MessageListActions,
   MessageListSelectAllPagination,
@@ -9,17 +11,21 @@ import type {
 import type { ConversationComposerPlacement } from '@renderer/components/composer/ConversationComposerStage'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { Citation } from '@renderer/types/message'
+import type { AgentSessionHistoryActions } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 import { useAgentRightPaneActions } from './components/AgentRightPane'
 import AgentSessionMessages from './components/AgentSessionMessages'
+import type { NavigateToForkSource } from './messages/agentMessageListAdapter'
 
 interface AgentChatMainProps {
   placement: ConversationComposerPlacement
   sessionMessagesEnabled: boolean
   agentId?: string
   sessionId: string
+  workspacePath?: string
   messages: CherryUIMessage[]
+  historyActions?: Readonly<Record<string, AgentSessionHistoryActions | undefined>>
   activeAgent: GetAgentResponse | undefined
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers: MessageStreamingLayers
@@ -30,6 +36,8 @@ interface AgentChatMainProps {
   selectAllPagination?: MessageListSelectAllPagination
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
+  getMessageSiblings?: MessageListState['getMessageSiblings']
+  setActiveBranch?: MessageListActions['setActiveBranch']
   deleteMessage: (messageId: string) => Promise<void>
   startEditing: (messageId: string) => Promise<void>
   editBusy: boolean
@@ -41,7 +49,9 @@ export default function AgentChatMain({
   sessionMessagesEnabled,
   agentId,
   sessionId,
+  workspacePath,
   messages,
+  historyActions,
   activeAgent,
   partsByMessageId,
   streamingLayers,
@@ -53,10 +63,19 @@ export default function AgentChatMain({
   onOpenCitationsPanel,
   openDiagnosticReport,
   deleteMessage,
+  getMessageSiblings,
+  setActiveBranch,
   startEditing,
   editBusy,
   respondToolApproval
 }: AgentChatMainProps) {
+  const navigate = useNavigate()
+  const navigateToForkSource = useCallback<NavigateToForkSource>(
+    ({ sourceSessionId, returnSessionId }) =>
+      navigate({ to: '/app/agents', search: { sessionId: sourceSessionId, forkReturnSessionId: returnSessionId } }),
+    [navigate]
+  )
+
   if (placement !== 'docked' || !sessionMessagesEnabled) {
     return <div className="h-full min-h-0 flex-1" />
   }
@@ -67,7 +86,9 @@ export default function AgentChatMain({
         <AgentSessionMessagesWithAgentRightPaneAction
           agentId={agentId}
           sessionId={sessionId}
+          workspacePath={workspacePath}
           messages={messages}
+          historyActions={historyActions}
           activeAgent={activeAgent}
           partsByMessageId={partsByMessageId}
           streamingLayers={streamingLayers}
@@ -78,10 +99,13 @@ export default function AgentChatMain({
           selectAllPagination={selectAllPagination}
           onOpenCitationsPanel={onOpenCitationsPanel}
           openDiagnosticReport={openDiagnosticReport}
+          getMessageSiblings={getMessageSiblings}
+          setActiveBranch={setActiveBranch}
           deleteMessage={agentId ? deleteMessage : undefined}
           startEditing={agentId ? startEditing : undefined}
           editBusy={editBusy}
           respondToolApproval={agentId ? respondToolApproval : undefined}
+          navigateToForkSource={navigateToForkSource}
         />
       </div>
     </div>
@@ -93,8 +117,10 @@ const AgentSessionMessagesWithAgentRightPaneAction = (props: ComponentProps<type
     isAgentToolFlowActive,
     canOpenAgentToolFlow,
     canOpenArtifactFile,
+    canPreviewInputFileInRightPane,
     openAgentToolFlow,
     openArtifactFile,
+    previewInputFileInRightPane,
     openBrowserUrl,
     openExternalUrl
   } = useAgentRightPaneActions()
@@ -104,6 +130,7 @@ const AgentSessionMessagesWithAgentRightPaneAction = (props: ComponentProps<type
       isAgentToolFlowActive={isAgentToolFlowActive}
       openAgentToolFlow={canOpenAgentToolFlow ? openAgentToolFlow : undefined}
       openArtifactFile={canOpenArtifactFile ? openArtifactFile : undefined}
+      previewInputFile={canPreviewInputFileInRightPane ? previewInputFileInRightPane : undefined}
       openBrowserUrl={openBrowserUrl}
       openExternalUrl={openExternalUrl}
     />

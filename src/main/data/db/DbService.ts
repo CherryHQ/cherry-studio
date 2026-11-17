@@ -5,6 +5,7 @@ import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 
 import { application } from '@application'
+import { registerKnowledgeFunctions } from '@data/db/knowledgeFunctions'
 import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 import { BaseService, ErrorHandling, Injectable, Priority, ServicePhase } from '@main/core/lifecycle'
@@ -51,6 +52,7 @@ export class DbService extends BaseService {
       // persistent connection for the process lifetime, so the per-connection PRAGMAs set
       // once in configurePragmas() never need replaying.
       this.sqlite = new Database(application.getPath('app.database.file'))
+      registerKnowledgeFunctions(this.sqlite)
       this.db = drizzle({ client: this.sqlite, casing: 'snake_case' })
       if (DIAGNOSTICS_ENABLED) this.installSlowQueryProbe()
       logger.info('Database connection initialized', {

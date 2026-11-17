@@ -19,7 +19,7 @@ describe('isLoopbackAddress', () => {
   })
 
   it('rejects LAN and mapped-LAN addresses', () => {
-    for (const address of ['192.168.1.8', '10.0.0.5', '::ffff:192.168.1.8']) {
+    for (const address of ['192.168.1.8', '10.0.0.5', '::ffff:192.168.1.8', 'fd00::2', '2001:db8::2']) {
       expect(isLoopbackAddress(address)).toBe(false)
     }
   })
@@ -36,25 +36,28 @@ describe('screenLanRequest', () => {
     expect(screenLanRequest(requestFrom('POST', '127.0.0.1'), '/v1/chat/completions')).toBeUndefined()
   })
 
-  it('blocks every LAN caller', () => {
-    expect(screenLanRequest(requestFrom('POST', '192.168.1.8'), '/v1/chat/completions')).toEqual({
+  it.each(['192.168.1.8', 'fd00::2', '2001:db8::2'])('blocks non-loopback HTTP callers from %s', (address) => {
+    expect(screenLanRequest(requestFrom('POST', address), '/v1/chat/completions')).toEqual({
       error: expect.stringContaining('not reachable over the LAN')
     })
   })
 
-  it('lets a LAN peer reach only the remote-access WebSocket upgrade', () => {
-    expect(
-      screenLanRequest(requestFrom('GET', '192.168.1.8', { upgrade: 'websocket' }), '/v1/remote/connect')
-    ).toBeUndefined()
-    expect(screenLanRequest(requestFrom('GET', '192.168.1.8'), '/v1/remote/connect')).toEqual({
-      error: expect.stringContaining('not reachable over the LAN')
-    })
-    expect(screenLanRequest(requestFrom('GET', '192.168.1.8'), '/v1/mcps/x/mcp')).toEqual({
-      error: expect.stringContaining('not reachable over the LAN')
-    })
-  })
+  it.each(['192.168.1.8', 'fd00::2', '2001:db8::2'])(
+    'lets %s reach only the remote-access WebSocket upgrade',
+    (address) => {
+      expect(
+        screenLanRequest(requestFrom('GET', address, { upgrade: 'websocket' }), '/v1/remote/connect')
+      ).toBeUndefined()
+      expect(screenLanRequest(requestFrom('GET', address), '/v1/remote/connect')).toEqual({
+        error: expect.stringContaining('not reachable over the LAN')
+      })
+      expect(screenLanRequest(requestFrom('GET', address), '/v1/mcps/x/mcp')).toEqual({
+        error: expect.stringContaining('not reachable over the LAN')
+      })
+    }
+  )
 
-  it.each(['127.0.0.1', '192.168.1.8'])(
+  it.each(['127.0.0.1', '192.168.1.8', '::1', 'fd00::2'])(
     'blocks remote upgrades from %s when only a local lease keeps the gateway running',
     (address) => {
       MockMainPreferenceServiceUtils.setPreferenceValue('feature.api_gateway.enabled', false)

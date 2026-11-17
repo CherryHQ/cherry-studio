@@ -1,0 +1,84 @@
+diff --git a/dist/index.js b/dist/index.js
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1490,7 +1490,7 @@
+ 
+ // src/get-model-path.ts
+ function getModelPath(modelId) {
+-  return modelId.includes("/") ? modelId : `models/${modelId}`;
++  return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ 
+ // src/google-generative-ai-options.ts
+@@ -3807,7 +3807,7 @@
+       parameters
+     };
+     const { responseHeaders, value: response } = await (0, import_provider_utils17.postJsonToApi)({
+-      url: `${this.config.baseURL}/models/${this.modelId}:predict`,
++      url: `${this.config.baseURL}/${getModelPath(this.modelId)}:predict`,
+       headers: (0, import_provider_utils17.combineHeaders)(await (0, import_provider_utils17.resolve)(this.config.headers), headers),
+       body,
+       failedResponseHandler: googleFailedResponseHandler,
+@@ -3966,7 +3966,7 @@
+   }
+ };
+ function isGeminiModel(modelId) {
+-  return modelId.startsWith("gemini-");
++  return /^(?:google\/|models\/)?(?:gemini-|nano-banana-)/i.test(modelId);
+ }
+ var googleImageResponseSchema = (0, import_provider_utils17.lazySchema)(
+   () => (0, import_provider_utils17.zodSchema)(
+diff --git a/dist/index.mjs b/dist/index.mjs
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -1523,7 +1523,7 @@
+ 
+ // src/get-model-path.ts
+ function getModelPath(modelId) {
+-  return modelId.includes("/") ? modelId : `models/${modelId}`;
++  return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ 
+ // src/google-generative-ai-options.ts
+@@ -3875,7 +3875,7 @@
+       parameters
+     };
+     const { responseHeaders, value: response } = await postJsonToApi4({
+-      url: `${this.config.baseURL}/models/${this.modelId}:predict`,
++      url: `${this.config.baseURL}/${getModelPath(this.modelId)}:predict`,
+       headers: combineHeaders4(await resolve4(this.config.headers), headers),
+       body,
+       failedResponseHandler: googleFailedResponseHandler,
+@@ -4034,7 +4034,7 @@
+   }
+ };
+ function isGeminiModel(modelId) {
+-  return modelId.startsWith("gemini-");
++  return /^(?:google\/|models\/)?(?:gemini-|nano-banana-)/i.test(modelId);
+ }
+ var googleImageResponseSchema = lazySchema13(
+   () => zodSchema13(
+diff --git a/dist/internal/index.js b/dist/internal/index.js
+--- a/dist/internal/index.js
++++ b/dist/internal/index.js
+@@ -1019,7 +1019,7 @@
+ 
+ // src/get-model-path.ts
+ function getModelPath(modelId) {
+-  return modelId.includes("/") ? modelId : `models/${modelId}`;
++  return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ 
+ // src/google-error.ts
+diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
+--- a/dist/internal/index.mjs
++++ b/dist/internal/index.mjs
+@@ -1014,7 +1014,7 @@
+ 
+ // src/get-model-path.ts
+ function getModelPath(modelId) {
+-  return modelId.includes("/") ? modelId : `models/${modelId}`;
++  return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ 
+ // src/google-error.ts

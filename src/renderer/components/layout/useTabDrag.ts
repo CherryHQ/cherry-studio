@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { loggerService } from '@logger'
 import type { Tab } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { applyHorizontalRubberBandTranslateX } from './tabDragRubberBand'
+
+const logger = loggerService.withContext('useTabDrag')
 
 const DRAG_THRESHOLD = 5
 const DETACH_THRESHOLD = 30
@@ -293,14 +296,22 @@ export function useTabDrag({
           const allTabs = [...pinnedTabs, ...normalTabs]
           const tab = allTabs.find((t) => t.id === dragState.tabId)
           if (tab) {
-            void ipcApi.request('tab.detach', {
-              ...tab,
-              x: e.screenX - 400,
-              y: e.screenY - 20
-            })
+            const drag = dragRef.current
+            void ipcApi
+              .request('tab.detach', {
+                ...tab,
+                x: e.screenX - 400,
+                y: e.screenY - 20
+              })
+              .then(() => {
+                closeTab(tab.id)
+                drag.tabClosed = true
+              })
+              .catch((error) => {
+                logger.error('Tab detach failed', error)
+                if (dragRef.current === drag) setDragState(null)
+              })
             dragRef.current.detachedCreated = true
-            closeTab(dragState.tabId)
-            dragRef.current.tabClosed = true
             didDragRef.current = true
           }
         } else if (!dragRef.current.tabClosed) {
@@ -335,11 +346,7 @@ export function useTabDrag({
       // key off the ref that the detach branch sets synchronously.
       const detaching = dragState.mode === 'detach' || dragRef.current.detachedCreated
       if (detaching) {
-        if (!dragRef.current.tabClosed && dragRef.current.tabType === 'normal') {
-          closeTab(dragState.tabId)
-        }
-        // A fast drop can beat the pointermoves that position the fresh sub-window
-        // (SubWindowService keeps position-aware windows hidden until a move shows them).
+        // Send the final position even when no further pointermove follows the detach.
         if (dragRef.current.detachedCreated) {
           window.electron.ipcRenderer.send(IpcChannel.Tab_MoveWindow, {
             tabId: dragState.tabId,

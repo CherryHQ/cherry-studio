@@ -15,6 +15,7 @@ export const browserRequestSchemas = {
     input: z.strictObject({
       sessionId: z.uuid(),
       scope: z.enum(['agent', 'topic']).optional(),
+      pageId: z.uuid(),
       webviewId: z.number().int().positive()
     }),
     output: z.strictObject({ tabId: z.uuid() })
@@ -41,11 +42,43 @@ export const browserRequestSchemas = {
   'browser.pane.detach': defineRoute({
     input: z.strictObject({ sessionId: z.uuid(), scope: z.enum(['agent', 'topic']).optional(), tabId: z.uuid() }),
     output: z.void()
+  }),
+  'browser.input.focused': defineRoute({
+    input: z.strictObject({
+      sessionId: z.uuid(),
+      scope: z.enum(['agent', 'topic']).optional(),
+      tabId: z.uuid(),
+      requestId: z.uuid(),
+      status: z.enum(['focused', 'background', 'unavailable'])
+    }),
+    output: z.void()
   })
 }
 
 export type BrowserEventSchemas = {
+  'browser.input.focus_requested': {
+    sessionId: string
+    scope: 'agent' | 'topic'
+    tabId: string
+    requestId: string
+    expiresAt: number
+  }
   'browser.cursor.state': BrowserCursorState
-  'browser.guest.ensure_requested': { sessionId: string; scope?: 'agent' | 'topic'; url?: string }
-  'browser.pane.open_requested': { sessionId: string; scope?: 'agent' | 'topic'; url?: string }
+  'browser.guest.ensure_requested': {
+    sessionId: string
+    scope?: 'agent' | 'topic'
+    url?: string
+    pageId: string
+    action: 'create' | 'navigate'
+    activate: boolean
+  }
+  'browser.pane.open_requested': { sessionId: string; scope?: 'agent' | 'topic'; url?: string; pageId?: string }
+  'browser.page.execution': {
+    sessionId: string
+    scope: 'agent' | 'topic'
+    pageId: string
+    tabId: string
+    executing: boolean
+    webviewId: number
+  }
 }

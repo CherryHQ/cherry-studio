@@ -1,23 +1,48 @@
 import { randomUUID } from 'node:crypto'
+import { once } from 'node:events'
+import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockFileIntakeUtils } from '@test-mocks/main/FileIntakeService'
 import type { UIMessageChunk } from 'ai'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { WebSocket, WebSocketServer } from 'ws'
 
 import { application } from '@application'
 import type * as RemoteProtocol from '@cherrystudio/remote-protocol'
-import { remoteLimits } from '@cherrystudio/remote-protocol'
+import { jsonRpcResponseSchema, remoteLimits } from '@cherrystudio/remote-protocol'
+import {
+  agentEventBatchSchema as legacyBatchSchema,
+  applyAgentEvents as applyLegacyEvents,
+  installAgentCheckpoint as installLegacyCheckpoint
+} from '@cherrystudio/remote-protocol-v0/agent'
 import {
   type AgentCheckpointPage,
   type AgentEventBatch,
   type AgentProjection,
+  type AgentMethod,
+  type AgentParams,
+  type AgentResult,
+  agentMethods,
   applyAgentEvents,
   installAgentCheckpoint
 } from '@cherrystudio/remote-protocol/agent'
-import type { SecureChannel } from '@cherrystudio/remote-transport'
+import {
+  type ChannelOptions,
+  type SecureChannel,
+  acceptSecureChannel,
+  connectSecureChannel,
+  createDeviceIdentity,
+  deviceIdentityId,
+  RemoteSocketStream
+} from '@cherrystudio/remote-transport'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { jobTable } from '@data/db/schemas/job'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -27,7 +52,11 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
+import { fileEntryService } from '@data/services/FileEntryService'
+import { fileRefService } from '@data/services/FileRefService'
+import { jobScheduleService } from '@data/services/JobScheduleService'
 import { remoteCommandService } from '@data/services/RemoteCommandService'
+import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
 import { AgentSessionMessageBackend } from '@main/ai/agentSession/persistence/AgentSessionMessageBackend'
 import { startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { StreamErrorResult } from '@main/ai/streamManager'
@@ -38,10 +67,16 @@ import {
 import { PersistenceListener } from '@main/ai/streamManager/listeners/PersistenceListener'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService } from '@main/core/lifecycle'
+import { FileManager, FileIntakeService } from '@main/services/file'
+import type { FileManagerDeps } from '@main/services/file/internal/deps'
+import { createInternal } from '@main/services/file/internal/entry/create'
+import { FileEntryIdSchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 
-import { RemoteAgentHub } from '../agentJournal'
+import { COALESCE_WINDOW_MS, RemoteAgentHub } from '../agentJournal'
 import { sha256, sliceContent, toMessageModel } from '../agentQueries'
+import { AttachmentPresenceService } from '../AttachmentPresenceService'
 import { RemoteAccessService } from '../RemoteAccessService'
 import { RemoteConnection } from '../RemoteConnection'
 import { RemotePairing } from '../RemotePairing'
@@ -51,6 +86,13 @@ const fake = vi.hoisted(() => {
   const streams = new Map<string, StreamListener[]>()
   return {
     streams,
+    files: {
+      publishIntake: vi.fn(),
+      getById: vi.fn(),
+      createInternalEntry: vi.fn(),
+      getUrl: vi.fn(),
+      getPhysicalPath: vi.fn()
+    },
     replayBudget: undefined as number | undefined,
     onStarted: undefined as undefined | ((listeners: StreamListener[]) => Promise<void>),
     manager: {
@@ -59,6 +101,7 @@ const fake = vi.hoisted(() => {
       isWriteQuiesced: false,
       send: vi.fn(),
       hasLiveStream: (topicId: string) => streams.has(topicId),
+      hasUnsettledTopicWork: (topicId: string) => streams.has(topicId),
       addListener: (topicId: string, listener: StreamListener) => {
         const listeners = streams.get(topicId)
         if (!listeners) return false
@@ -69,7 +112,17 @@ const fake = vi.hoisted(() => {
         beforeAbort?.()
       })
     },
-    runtime: { assertSessionWritable() {}, isSessionBusy: () => false, respondToolApproval: vi.fn(() => true) }
+    runtime: {
+      assertSessionWritable() {},
+      async prepareBranch() {},
+      isSessionBusy: () => false,
+      isSessionBusyForArchive: () => false,
+      respondToolApproval: vi.fn(() => true),
+      cancelSessionForks: async () => {},
+      closeSession: async () => {},
+      recoverSessionForks: async () => {}
+    },
+    delivery: { drainSessionQueues: async () => {}, kick() {} }
   }
 })
 
@@ -88,7 +141,12 @@ vi.mock('@cherrystudio/remote-protocol', async (importOriginal) => {
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ AiStreamManager: fake.manager, AgentSessionRuntimeService: fake.runtime } as never)
+  return mockApplicationFactory({
+    FileManager: fake.files,
+    AiStreamManager: fake.manager,
+    AgentSessionRuntimeService: fake.runtime,
+    AgentSessionDeliveryService: fake.delivery
+  } as never)
 })
 
 vi.mock('@main/ai/streamManager', () => ({
@@ -120,7 +178,18 @@ vi.mock('@main/ai/streamManager', () => ({
 }))
 
 const integrity = { sha256 }
+const taskRequests = [
+  ['agent.tasks.list', {}],
+  ['agent.tasks.get', { taskId: 'missing' }],
+  ['agent.tasks.runs.list', { taskId: 'missing' }],
+  ['agent.tasks.runs.get', { taskId: 'missing', runId: 'missing' }],
+  ['agent.tasks.content.read', { taskId: 'missing', contentId: 'prompt', revision: '0', offset: '0', maxBytes: 1 }]
+] as const
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 3))
+const settleDeltas = async () => {
+  await new Promise<void>((resolve) => setTimeout(resolve, COALESCE_WINDOW_MS))
+  for (let i = 0; i < 5; i++) await tick()
+}
 
 function makeChannel(remoteIdentity: string, notifications: unknown[]): SecureChannel {
   return {
@@ -166,7 +235,8 @@ describe('remote agent access', () => {
       { jsonrpc: '2.0', id: randomUUID(), method, params },
       undefined
     )) as { result?: unknown; error?: unknown }
-    if (response.error) throw response.error
+    if (response.error)
+      throw Object.assign(new Error(), response.error, { message: `${method}: ${JSON.stringify(response.error)}` })
     return response.result
   }
   it('returns a durable target rejection with the admission reason and never resends it', async () => {
@@ -216,7 +286,7 @@ describe('remote agent access', () => {
     }
   }
   const drain = async (projection: AgentProjection): Promise<AgentProjection> => {
-    for (let i = 0; i < 5; i++) await tick()
+    await settleDeltas()
     for (const notification of notifications.splice(0) as Array<{ method: string; params: AgentEventBatch }>) {
       expect(notification.method).toBe('agent.events')
       const applied = applyAgentEvents(projection, notification.params, {}, integrity)
@@ -289,10 +359,376 @@ describe('remote agent access', () => {
       new RemotePairing(),
       new RemoteTokens(),
       () => {},
-      hub
+      hub,
+      async () => ({ desktopIdentity: 'desktop', endpoints: [] })
     )
     await call('connection.hello', { protocolVersions: [1] })
     await call('connection.authenticate', { deviceId: device.id })
+  })
+
+  it.each([0, 2])('reads tasks and results with timeoutMinutes=%i', async (timeoutMinutes) => {
+    const prompt = '任务内容'.repeat(2000)
+    const task = jobScheduleService.create({
+      type: 'agent.task',
+      name: 'Daily report',
+      trigger: { kind: 'cron', expr: '0 9 * * *' },
+      jobInputTemplate: { agentId: 'agent-1', prompt, timeoutMinutes, workspace: { type: 'system' } },
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+    dbh.db.update(agentSessionTable).set({ taskId: task.id }).where(eq(agentSessionTable.id, sessionId)).run()
+    const messageId = randomUUID()
+    agentSessionMessageService.saveMessage({
+      sessionId,
+      message: {
+        id: messageId,
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'Scheduled result' }] }
+      }
+    })
+    dbh.db
+      .insert(jobTable)
+      .values({
+        id: 'task-run',
+        type: 'agent.task',
+        queue: 'agent:agent-1',
+        scheduleId: task.id,
+        status: 'completed',
+        scheduledAt: 1000,
+        startedAt: 2000,
+        finishedAt: 3000,
+        input: { secret: 'private input' },
+        metadata: { sessionId },
+        output: { kind: 'executed', result: 'Report ready' }
+      })
+      .run()
+    expect(await call('agent.tasks.list', {})).toMatchObject({ items: [{ taskId: task.id }], nextCursor: null })
+    const detail = await call('agent.tasks.get', { taskId: task.id })
+    expect(detail.task).toMatchObject({
+      name: 'Daily report',
+      timeoutMinutes,
+      prompt: { ref: { sha256: sha256(Buffer.from(prompt)) } }
+    })
+    const runs = await call('agent.tasks.runs.list', { taskId: task.id })
+    expect(runs).toMatchObject({
+      items: [
+        {
+          runId: 'task-run',
+          status: 'completed',
+          outcome: 'executed',
+          summary: 'Report ready',
+          resultLocation: { kind: 'session', sessionId }
+        }
+      ]
+    })
+    expect((await call('agent.tasks.runs.get', { taskId: task.id, runId: 'task-run' })).run).toEqual(runs.items[0])
+    expect(JSON.stringify(runs)).not.toContain('private')
+    const content = await call('agent.tasks.content.read', {
+      taskId: task.id,
+      contentId: detail.task.prompt.ref.contentId,
+      revision: detail.task.prompt.ref.revision,
+      offset: '0',
+      maxBytes: 24_576
+    })
+    expect(Buffer.from(content.dataBase64, 'base64').toString('utf8')).toBe(prompt)
+    const discovered = await call('agent.sessions.list', {})
+    expect(discovered.items.map((session: { sessionId: string }) => session.sessionId)).toContain(sessionId)
+    const { session } = await call('agent.sessions.get', { sessionId })
+    expect(await call('agent.messages.list', { sessionId, historyRevision: session.historyRevision })).toMatchObject({
+      items: [{ messageId }]
+    })
+    const ordinary = agentSessionService.create({
+      agentId: 'agent-1',
+      name: 'Unrelated',
+      workspace: { type: 'system' }
+    })
+    dbh.db.delete(jobTable).where(eq(jobTable.id, 'task-run')).run()
+    expect(await call('agent.tasks.runs.list', { taskId: task.id })).toEqual({ items: [], nextCursor: null })
+    const history = await call('agent.sessions.list', { taskId: task.id, agentId: 'agent-1', limit: 1 })
+    expect(history.items.map((item: { sessionId: string }) => item.sessionId)).toEqual([sessionId])
+    expect(
+      await call('agent.messages.list', {
+        sessionId: history.items[0].sessionId,
+        historyRevision: history.items[0].historyRevision
+      })
+    ).toMatchObject({ items: [{ messageId }] })
+    expect(await call('agent.sessions.list', { taskId: 'missing' })).toEqual({ items: [], nextCursor: null })
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((item) => item.id)).toEqual([ordinary.id])
+    await expect(call('agent.tasks.list', { statuses: [] })).rejects.toMatchObject({ code: -32602 })
+    await expect(call('agent.tasks.get', { taskId: 'missing' })).rejects.toMatchObject({
+      data: { reason: 'NOT_FOUND' }
+    })
+  })
+
+  it('rechecks authorization for every Task read after expiry or revocation', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + remoteLimits.tokenMs + 1)
+    try {
+      for (const [method, params] of taskRequests)
+        await expect(call(method, params)).rejects.toMatchObject({ data: { reason: 'TOKEN_EXPIRED' } })
+    } finally {
+      now.mockRestore()
+    }
+    const auth = connection.requireCapability('agent')
+    apiGatewayPairedDeviceService.revokeRemoteCapability(auth.deviceId, 'agent')
+    for (const [method, params] of taskRequests)
+      await expect(call(method, params)).rejects.toMatchObject({ data: { reason: 'GRANT_REVOKED' } })
+  })
+
+  it('continues Task pages and opens saved results through typed encrypted WebSocket RPC after reconnect', async () => {
+    const tasks = ['Report', 'Other report'].map((name) =>
+      jobScheduleService.create({
+        type: 'agent.task',
+        name,
+        trigger: { kind: 'interval', ms: 60_000 },
+        jobInputTemplate: { agentId: 'agent-1', prompt: name, timeoutMinutes: 2, workspace: { type: 'system' } },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+    )
+    for (const id of ['run-a', 'run-b'])
+      dbh.db
+        .insert(jobTable)
+        .values({
+          id,
+          type: 'agent.task',
+          scheduleId: tasks[0].id,
+          queue: 'agent:agent-1',
+          status: 'completed',
+          scheduledAt: 1000,
+          finishedAt: 2000,
+          createdAt: 1000,
+          input: {},
+          metadata: { sessionId },
+          output: { kind: 'executed' }
+        })
+        .run()
+    const messageId = randomUUID()
+    agentSessionMessageService.saveMessage({
+      sessionId,
+      message: {
+        id: messageId,
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'Saved report' }] }
+      }
+    })
+    const [desktop, phone] = await Promise.all([createDeviceIdentity(), createDeviceIdentity()])
+    const { device } = apiGatewayPairedDeviceService.approveRemote({
+      name: 'Typed client',
+      platform: 'ios',
+      peerIdentity: deviceIdentityId(phone),
+      capabilities: ['agent']
+    })
+    const logger: ChannelOptions['logger'] = {
+      forComponent: () =>
+        Object.assign(() => {}, { enabled: false, error() {}, trace() {}, newScope: () => logger.forComponent('test') })
+    }
+    const server = new WebSocketServer({ host: '127.0.0.1', port: 0 })
+    await once(server, 'listening')
+    const address = server.address()
+    if (typeof address === 'string' || !address) throw new Error('Missing WebSocket address')
+    let taskCursor: string | undefined
+    let runCursor: string | undefined
+    const taskIds: string[] = []
+    const runIds: string[] = []
+    try {
+      for (let reconnect = 0; reconnect < 2; reconnect++) {
+        const accepted = new Promise<WebSocket>((resolve) => server.once('connection', resolve))
+        const phoneSocket = new WebSocket(`ws://127.0.0.1:${address.port}`)
+        await once(phoneSocket, 'open')
+        const desktopSocket = await accepted
+        const options = { logger, protocolVersions: [1], signal: AbortSignal.timeout(5000) }
+        const [client, channel] = await Promise.all([
+          connectSecureChannel(new RemoteSocketStream(phoneSocket, logger.forComponent('client'), 'outbound'), {
+            ...options,
+            identity: phone,
+            remoteIdentity: deviceIdentityId(desktop)
+          }),
+          acceptSecureChannel(new RemoteSocketStream(desktopSocket, logger.forComponent('server'), 'inbound'), {
+            ...options,
+            identity: desktop
+          })
+        ])
+        const remote = new RemoteConnection(
+          channel,
+          new RemotePairing(),
+          new RemoteTokens(),
+          () => {},
+          hub,
+          async () => ({ desktopIdentity: deviceIdentityId(desktop), endpoints: [] })
+        )
+        const exchange = async (method: string, params: unknown) => {
+          await client.write({ jsonrpc: '2.0', id: randomUUID(), method, params })
+          await channel.write(await remote.rpc.receive(await channel.read(options.signal), undefined))
+          const response = jsonRpcResponseSchema.parse(await client.read(options.signal))
+          if ('error' in response) throw new Error(JSON.stringify(response.error))
+          return response.result
+        }
+        async function request<M extends AgentMethod>(method: M, params: AgentParams<M>): Promise<AgentResult<M>>
+        async function request(
+          method: AgentMethod,
+          params: AgentParams<AgentMethod>
+        ): Promise<AgentResult<AgentMethod>> {
+          return agentMethods[method].result.parse(await exchange(method, params))
+        }
+        try {
+          await exchange('connection.hello', { protocolVersions: [1] })
+          await exchange('connection.authenticate', { deviceId: device.id })
+          const page = await request('agent.tasks.list', { limit: 1, cursor: taskCursor })
+          taskIds.push(...page.items.map((item) => item.taskId))
+          taskCursor = page.nextCursor ?? undefined
+          const detail = await request('agent.tasks.get', { taskId: tasks[0].id })
+          expect(detail.task.prompt).toEqual({ text: 'Report' })
+          const runs = await request('agent.tasks.runs.list', { taskId: tasks[0].id, limit: 1, cursor: runCursor })
+          runIds.push(...runs.items.map((run) => run.runId))
+          runCursor = runs.nextCursor ?? undefined
+          const { run } = await request('agent.tasks.runs.get', { taskId: tasks[0].id, runId: runs.items[0].runId })
+          if (run.resultLocation.kind !== 'session') throw new Error('Expected saved conversation')
+          const { session } = await request('agent.sessions.get', { sessionId: run.resultLocation.sessionId })
+          const messages = await request('agent.messages.list', {
+            sessionId: session.sessionId,
+            historyRevision: session.historyRevision
+          })
+          expect(messages.items.map((message) => message.messageId)).toEqual([messageId])
+        } finally {
+          remote.dispose()
+          client.abort(new Error('Reconnect'))
+          channel.abort(new Error('Reconnect'))
+          phoneSocket.terminate()
+          desktopSocket.terminate()
+        }
+      }
+      expect(new Set(taskIds)).toEqual(new Set(tasks.map((task) => task.id)))
+      expect(runIds).toEqual(['run-b', 'run-a'])
+      expect(taskCursor).toBeUndefined()
+      expect(runCursor).toBeUndefined()
+    } finally {
+      for (const socket of server.clients) socket.terminate()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  })
+
+  it('sends the managed file directly without a second entry and deduplicates after staging is removed', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-attachment-'))
+    const paths = vi
+      .spyOn(application, 'getPath')
+      .mockImplementation((key, filename) => path.join(root, key, filename ?? ''))
+    const intake = new FileIntakeService()
+    MockFileIntakeUtils.setImplementation(intake)
+    const files = new FileManager()
+    Object.assign(application.get('FileManager'), { intakes: files.intakes })
+    fake.files.publishIntake.mockImplementation((input) => files.publishIntake(input))
+    fake.files.getById.mockImplementation((id) => files.getById(id))
+    try {
+      await mkdir(application.getPath('feature.files.data'), { recursive: true })
+      const workspacePath = path.join(root, 'workspace')
+      await mkdir(workspacePath)
+      const workspace = dbh.db.transaction((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, workspacePath))
+      sessionId = agentSessionService.create({
+        agentId: 'agent-1',
+        name: 'Files',
+        workspace: { type: 'user', workspaceId: workspace.id }
+      }).id
+      fake.files.createInternalEntry.mockImplementation((params) =>
+        createInternal({ fileEntryService } as FileManagerDeps, params)
+      )
+      fake.files.getPhysicalPath.mockImplementation((id) => {
+        const entry = fileEntryService.getById(FileEntryIdSchema.parse(id))
+        return application.getPath('feature.files.data', `${entry.id}${entry.ext ? '.' + entry.ext : ''}`)
+      })
+      fake.files.getUrl.mockImplementation((id) => pathToFileURL(fake.files.getPhysicalPath(id)).href)
+      const bytes = Buffer.from('managed attachment')
+      const uploadId = randomUUID()
+      const presence = new AttachmentPresenceService()
+      for (const name of ['present', 'submitting', 'list'] as const)
+        Object.assign(application.get('AttachmentPresenceService'), { [name]: presence[name].bind(presence) })
+      const selectionId = randomUUID()
+      await call('agent.attachments.present', {
+        selectionId,
+        sessionId,
+        sequence: '1',
+        items: [
+          {
+            attachmentId: uploadId,
+            uploadId,
+            filename: 'report.txt',
+            mediaType: 'text/plain',
+            byteLength: bytes.length
+          }
+        ]
+      })
+      await call('agent.uploads.prepare', {
+        uploadId,
+        filename: 'report.txt',
+        mediaType: 'text/plain',
+        byteLength: bytes.length
+      })
+      await connection.receiveUpload({
+        kind: 'upload',
+        requestId: randomUUID(),
+        uploadId,
+        writerEpoch: '0',
+        offset: '0',
+        bytes
+      })
+      await call('agent.uploads.complete', { uploadId, writerEpoch: '0' })
+      await expect.poll(async () => (await call('agent.uploads.get', { uploadId })).state).toBe('ready')
+      const { session } = await call('agent.sessions.get', { sessionId })
+      const params = {
+        commandId: randomUUID(),
+        sessionId,
+        text: '',
+        expectedIdleRevision: session.idleRevision,
+        attachments: [{ uploadId }],
+        selectionId
+      }
+      const receipt = await call('agent.messages.send', params)
+      expect(receipt.status).toBe('applied')
+      const { session: current } = await call('agent.sessions.get', { sessionId })
+      const history = await call('agent.messages.list', { sessionId, historyRevision: current.historyRevision })
+      const message = history.items.find((item: { role: string }) => item.role === 'user')
+      expect((await presence.list(sessionId))[0].messageId).toBe(message.messageId)
+      const file = (
+        await call('agent.parts.list', { sessionId, messageId: message.messageId, messageRevision: message.revision })
+      ).items[0]
+      expect(file).toMatchObject({ kind: 'file', name: 'report.txt', ref: { sha256: sha256(bytes) } })
+      const submitted = vi.mocked(startAgentSessionRun).mock.calls.at(-1)![0].userParts[0]
+      expect(submitted.type).toBe('file')
+      if (submitted.type !== 'file') throw new Error('Expected file')
+      const working = fileURLToPath(submitted.url)
+      expect(working).toBe(files.getPhysicalPath(FileEntryIdSchema.parse(readCherryMeta(submitted)?.fileEntryId)))
+      expect(readCherryMeta(submitted)?.workingFileEntryId).toBeUndefined()
+      expect(fileEntryService.findMany().map((entry) => entry.id)).toEqual([readCherryMeta(submitted)?.fileEntryId])
+      expect(await readFile(working)).toEqual(bytes)
+      expect(
+        fileEntryService.getById(FileEntryIdSchema.parse(readCherryMeta(submitted)?.fileEntryId)).cleanupPolicy
+      ).toBe('delete_when_unreferenced')
+      const entryId = FileEntryIdSchema.parse(readCherryMeta(submitted)?.fileEntryId)
+      expect(
+        fileRefService
+          .findByEntryId(entryId)
+          .map((ref) => ref.sourceType)
+          .sort()
+      ).toEqual(['agent_session_message'])
+      const read = await call('agent.content.read', {
+        sessionId,
+        contentId: file.ref.contentId,
+        revision: file.ref.revision,
+        offset: '0',
+        maxBytes: 24576
+      })
+      expect(Buffer.from(read.dataBase64, 'base64')).toEqual(bytes)
+      await writeFile(working, 'agent edited the managed file')
+      expect(await readFile(files.getPhysicalPath(entryId), 'utf8')).toBe('agent edited the managed file')
+      await call('agent.uploads.cancel', { uploadId })
+      expect(fileRefService.countByEntryIds([entryId]).get(entryId)).toBe(1)
+      const before = vi.mocked(startAgentSessionRun).mock.calls.length
+      expect(await call('agent.messages.send', params)).toEqual(receipt)
+      expect(vi.mocked(startAgentSessionRun).mock.calls.length).toBe(before)
+    } finally {
+      await intake.drain()
+      paths.mockRestore()
+      await rm(root, { recursive: true, force: true })
+    }
   })
 
   it.each([false, true])('sends again after a post-turn rename (manual=%s)', async (manual) => {
@@ -474,6 +910,14 @@ describe('remote agent access', () => {
       const message = history.items.find((item: { messageId: string }) => item.messageId === anchor)
       expect(message).toMatchObject({ status: 'error', failure: projection.executions[receipt.executionId].failure })
       expect(message.failure.message).toContain('OpenCode Go subscription')
+      const summaries = await call('agent.messages.list', {
+        sessionId,
+        historyRevision: projection.session.historyRevision,
+        partsMode: 'paged'
+      })
+      const summary = summaries.items.find((item: { messageId: string }) => item.messageId === anchor)
+      expect(summary).toMatchObject({ status: 'error', failure: message.failure, partsMode: 'paged' })
+      expect(summary).not.toHaveProperty('partIds')
       const stored = agentSessionMessageService.getSessionMessage(sessionId, anchor)
       expect(stored.data.parts?.filter((part) => part.type === 'text')).toHaveLength(partial ? 1 : 0)
       expect(await call('agent.commands.get', { commandId })).toMatchObject({ status: 'applied' })
@@ -653,6 +1097,17 @@ describe('remote agent access', () => {
       outputTokens: 0,
       cacheReadTokens: 12
     })
+    const summaries = await call('agent.messages.list', {
+      sessionId,
+      historyRevision: projection.session.historyRevision,
+      partsMode: 'paged'
+    })
+    expect(summaries.items.find((message: { messageId: string }) => message.messageId === anchor)).toMatchObject({
+      partsMode: 'paged',
+      status: 'success',
+      usage: { totalTokens: 40, outputTokens: 0, cacheReadTokens: 12 },
+      model: { modelId: 'model', providerId: 'provider', name: 'Historical model' }
+    })
   })
 
   it('keeps message model identity independent from the current agent model', async () => {
@@ -805,7 +1260,7 @@ describe('remote agent access', () => {
   })
 
   it('rolls back a created session when its receipt cannot commit', async () => {
-    const before = agentSessionService.listByCursor().items.map((session) => session.id)
+    const before = agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((session) => session.id)
     const settle = vi.spyOn(remoteCommandService, 'settle').mockImplementationOnce(() => {
       throw new Error('Disk failure')
     })
@@ -816,7 +1271,7 @@ describe('remote agent access', () => {
         workspace: { kind: 'system' }
       })
       expect(receipt.status).toBe('interrupted')
-      expect(agentSessionService.listByCursor().items.map((session) => session.id)).toEqual(before)
+      expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((session) => session.id)).toEqual(before)
     } finally {
       settle.mockRestore()
     }
@@ -851,6 +1306,7 @@ describe('remote agent access', () => {
           await gate
           return run()
         })
+      const capturedParentId = agentSessionMessageService.captureHead(sessionId)
       const validate = vi.spyOn(agentChatContextProvider, 'validateDispatch').mockImplementation(async () => {
         if (phase === 'preparation') {
           entered()
@@ -860,9 +1316,11 @@ describe('remote agent access', () => {
           sessionId,
           topicId: `agent-session:${sessionId}`,
           agentId: 'agent-1',
+          parentMessageId: capturedParentId,
           agentUpdatedAt: new Date().toISOString(),
           agentType: 'claude-code',
           agentName: 'Agent',
+          agentDefaultModel: null,
           uniqueModelId: 'revision-provider::model',
           reasoningEffort: 'default',
           serviceTier: 'standard',
@@ -953,9 +1411,11 @@ describe('remote agent access', () => {
         sessionId,
         topicId: `agent-session:${sessionId}`,
         agentId: 'agent-1',
+        parentMessageId: agentSessionMessageService.captureHead(sessionId),
         agentUpdatedAt: new Date().toISOString(),
         agentType: 'claude-code',
         agentName: 'Agent',
+        agentDefaultModel: null,
         uniqueModelId: 'reservation-provider::model',
         reasoningEffort: 'default',
         serviceTier: 'standard',
@@ -1136,7 +1596,8 @@ describe('remote agent access', () => {
       new RemotePairing(),
       new RemoteTokens(),
       () => {},
-      hub
+      hub,
+      async () => ({ desktopIdentity: 'desktop', endpoints: [] })
     )
     await other.rpc.receive(
       { jsonrpc: '2.0', id: 1, method: 'connection.hello', params: { protocolVersions: [1] } },
@@ -1149,6 +1610,349 @@ describe('remote agent access', () => {
     expect(
       await other.rpc.receive({ jsonrpc: '2.0', id: 3, method: 'agent.sessions.list', params: {} }, undefined)
     ).toMatchObject({ error: { data: { reason: 'FORBIDDEN' } } })
+    for (const [method, params] of taskRequests)
+      expect(await other.rpc.receive({ jsonrpc: '2.0', id: randomUUID(), method, params }, undefined)).toMatchObject({
+        error: { data: { reason: 'FORBIDDEN' } }
+      })
+    other.dispose()
+  })
+
+  it('keeps streaming replacements across the content-reference threshold in the same journal epoch', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    const epoch = journal.epoch
+    const answerId = randomUUID()
+    for (const length of [4096, 4097, 5000]) {
+      const text = '界'.repeat(length)
+      for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? [])
+        listener.onMessage?.(
+          { id: answerId, role: 'assistant', parts: [{ type: 'text', text, state: 'streaming' }] },
+          undefined,
+          'messages'
+        )
+      expect(journal.epoch).toBe(epoch)
+      const part = journal.projection.parts[journal.projection.messages[answerId].partIds[0]]
+      expect(part).toMatchObject({ state: 'streaming', content: { text } })
+      const checkpoint = journal.capture()
+      const installed = installAgentCheckpoint(
+        checkpoint.descriptor,
+        checkpoint.pages,
+        Object.fromEntries(checkpoint.content),
+        integrity
+      )
+      if (!installed.ok) throw new Error(installed.reason)
+      expect(installed.projection.parts[part.partId]).toMatchObject({ content: { text } })
+    }
+    await finish(answerId, [{ type: 'text', text: 'Final', state: 'done' }])
+    expect(journal.epoch).toBe(epoch)
+    expect(Object.values(journal.projection.executions)).toEqual([
+      expect.objectContaining({ status: 'completed', durable: true })
+    ])
+  })
+
+  // An offline client must resolve every retained streaming reference even after the answer commits.
+  it('keeps terminal replay content until the replay window is evicted', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    const checkpoint = journal.capture()
+    const baseline = installAgentCheckpoint(checkpoint.descriptor, checkpoint.pages, {}, integrity)
+    if (!baseline.ok) throw new Error(baseline.reason)
+    const answerId = randomUUID()
+    const text = '界'.repeat(5000)
+    for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? []) {
+      listener.onMessage?.(
+        { id: answerId, role: 'assistant', parts: [{ type: 'text', text, state: 'streaming' }] },
+        undefined,
+        'messages'
+      )
+    }
+    await finish(answerId, [{ type: 'text', text: 'Final', state: 'done' }])
+    const events = journal.eventsAfter(Number(baseline.cursor.seq), Infinity)
+    const content: Record<string, Uint8Array> = {}
+    for (const event of events) {
+      if (event.kind !== 'part.created' && event.kind !== 'part.replaced') continue
+      const part = event.payload.part
+      if (part.kind === 'file' || !('ref' in part.content)) continue
+      const ref = part.content.ref
+      const read = await call('agent.content.read', {
+        sessionId,
+        contentId: ref.contentId,
+        revision: ref.revision,
+        offset: '0',
+        maxBytes: 24_576
+      })
+      expect(Buffer.from(read.dataBase64, 'base64').toString()).toBe(text)
+      content[`${ref.contentId}:${ref.revision}`] = Buffer.from(read.dataBase64, 'base64')
+    }
+    expect(Object.keys(content)).toHaveLength(1)
+    const applied = applyAgentEvents(
+      baseline.projection,
+      { subscriptionId: 'replay', sessionId, streamEpoch: journal.epoch, events },
+      content,
+      integrity
+    )
+    if (!applied.ok) throw new Error(applied.reason)
+    expect(applied.projection.messages[answerId]).toBeUndefined()
+    expect(Object.values(applied.projection.executions)).toEqual([
+      expect.objectContaining({ status: 'completed', durable: true })
+    ])
+    journal.trimReplay(0)
+    expect(journal.firstRetainedSeq).toBe(Number(journal.cursor.seq) + 1)
+    expect(journal.pins.size).toBe(0)
+    expect(journal.replayBytes).toBe(0)
+  })
+
+  it('projects replacement views in order and replays removals without reviving old content', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    const publish = (parts: CherryMessagePart[]) => {
+      for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? [])
+        listener.onMessage?.({ id: 'answer', role: 'assistant', parts }, undefined, 'messages')
+    }
+    publish([
+      { type: 'text', text: 'Withdrawn', state: 'streaming' },
+      { type: 'text', text: 'Tail', state: 'done' }
+    ])
+    const checkpoint = journal.capture()
+    const baseline = installAgentCheckpoint(checkpoint.descriptor, checkpoint.pages, {}, integrity)
+    if (!baseline.ok) throw new Error(baseline.reason)
+    publish([
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'call',
+        toolName: 'Bash',
+        state: 'input-available',
+        input: { command: 'pwd' }
+      },
+      { type: 'text', text: 'Tail', state: 'done' }
+    ])
+    publish([{ type: 'text', text: 'Replacement', state: 'done' }])
+    const events = journal.eventsAfter(Number(baseline.cursor.seq), Infinity)
+    const batch: AgentEventBatch = { subscriptionId: 'test', sessionId, streamEpoch: journal.epoch, events }
+    const applied = applyAgentEvents(baseline.projection, batch, {}, integrity)
+    if (!applied.ok) throw new Error(applied.reason)
+    expect(applied.projection.messages.answer.partIds).toHaveLength(1)
+    expect(applied.projection.parts[applied.projection.messages.answer.partIds[0]]).toMatchObject({
+      kind: 'text',
+      content: { text: 'Replacement' },
+      state: 'completed'
+    })
+    expect(applyAgentEvents(applied.projection, batch, {}, integrity)).toEqual(applied)
+    const legacy = installLegacyCheckpoint(checkpoint.descriptor, checkpoint.pages, {}, integrity)
+    if (!legacy.ok) throw new Error(legacy.reason)
+    expect(applyLegacyEvents(legacy.projection, legacyBatchSchema.parse(batch), {}, integrity).ok).toBe(true)
+  })
+
+  it('coalesces Unicode deltas within a bounded window and replays them from a checkpoint', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+    emit({ type: 'text-start', id: 'text' }, 'answer')
+    const checkpoint = journal.capture()
+    const baseline = installAgentCheckpoint(checkpoint.descriptor, checkpoint.pages, {}, integrity)
+    if (!baseline.ok) throw new Error(baseline.reason)
+    emit({ type: 'text-delta', id: 'text', delta: '你' }, 'answer')
+    await vi.advanceTimersByTimeAsync(COALESCE_WINDOW_MS / 2)
+    emit({ type: 'text-delta', id: 'text', delta: '好🌍' }, 'answer')
+    await vi.advanceTimersByTimeAsync(COALESCE_WINDOW_MS / 2 - 1)
+    expect(journal.cursor).toEqual(checkpoint.descriptor.cursor)
+    await vi.advanceTimersByTimeAsync(1)
+    emit({ type: 'text-delta', id: 'text', delta: '！' }, 'answer')
+    emit({ type: 'text-end', id: 'text' }, 'answer')
+    const events = journal.eventsAfter(Number(baseline.cursor.seq), Infinity)
+    expect(events.filter((event) => event.kind === 'part.append').map((event) => event.payload)).toMatchObject([
+      { offsetUtf8: '0', text: '你好🌍' },
+      { offsetUtf8: '10', text: '！' }
+    ])
+    const batch: AgentEventBatch = { subscriptionId: 'test', sessionId, streamEpoch: journal.epoch, events }
+    const applied = applyAgentEvents(baseline.projection, batch, {}, integrity)
+    if (!applied.ok) throw new Error(applied.reason)
+    expect(applied.projection.parts['answer:text:text']).toMatchObject({
+      content: { text: '你好🌍！' },
+      state: 'completed'
+    })
+    const replayed = applyAgentEvents(applied.projection, batch, {}, integrity)
+    expect(replayed).toEqual(applied)
+  })
+
+  it.each(['你', '你'.repeat(6000)])(
+    'keeps journal checkpoints and merged events compatible with published 0.1.0 (%#)',
+    async (prefix) => {
+      const answerId = randomUUID()
+      const journal = hub.journal(sessionId)
+      await journal.startRun('hi', 'agent-1', () => {})
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+      emit({ type: 'text-start', id: 'text' }, answerId)
+      emit({ type: 'text-delta', id: 'text', delta: prefix }, answerId)
+      await vi.advanceTimersByTimeAsync(COALESCE_WINDOW_MS)
+      const checkpoint = journal.capture()
+      const baseline = installLegacyCheckpoint(
+        JSON.parse(JSON.stringify(checkpoint.descriptor)),
+        JSON.parse(JSON.stringify(checkpoint.pages)),
+        Object.fromEntries(checkpoint.content),
+        integrity
+      )
+      if (!baseline.ok) throw new Error(baseline.reason)
+      const before = baseline.projection.parts[`${answerId}:text:text`]
+      expect(Object.keys(before).sort()).toEqual(['content', 'executionId', 'kind', 'partId', 'revision', 'state'])
+      expect(before.content).toEqual({ text: prefix })
+      emit({ type: 'text-delta', id: 'text', delta: '好' }, answerId)
+      emit({ type: 'text-delta', id: 'text', delta: '🌍' }, answerId)
+      emit({ type: 'text-end', id: 'text' }, answerId)
+      let projection = baseline.projection
+      const applySuffix = () => {
+        while (Number(projection.cursor.seq) < Number(journal.cursor.seq)) {
+          const events = journal.eventsAfter(Number(projection.cursor.seq), 12_000)
+          const batch = legacyBatchSchema.parse(
+            JSON.parse(
+              JSON.stringify({
+                subscriptionId: 'legacy-phone',
+                sessionId,
+                streamEpoch: journal.epoch,
+                events
+              })
+            )
+          )
+          const applied = applyLegacyEvents(projection, batch, {}, integrity)
+          if (!applied.ok) throw new Error(applied.reason)
+          projection = applied.projection
+        }
+      }
+      const events = journal.eventsAfter(Number(baseline.cursor.seq), Infinity)
+      const append = events.find((event) => event.kind === 'part.append')!
+      expect(append.payload).toMatchObject({
+        baseRevision: before.revision,
+        offsetUtf8: String(prefix.length * 3),
+        text: '好🌍'
+      })
+      expect(BigInt(append.payload.revision)).toBeGreaterThan(BigInt(before.revision))
+      applySuffix()
+      expect(projection.parts[`${answerId}:text:text`]).toMatchObject({
+        content: { text: prefix + '好🌍' },
+        state: 'completed'
+      })
+      const finalCheckpoint = journal.capture()
+      expect(
+        installLegacyCheckpoint(
+          JSON.parse(JSON.stringify(finalCheckpoint.descriptor)),
+          JSON.parse(JSON.stringify(finalCheckpoint.pages)),
+          Object.fromEntries(finalCheckpoint.content),
+          integrity
+        ).ok
+      ).toBe(true)
+      vi.useRealTimers()
+      await finish(answerId, [{ type: 'text', text: prefix + '好🌍' }])
+      applySuffix()
+      expect(projection.messages[answerId]).toBeUndefined()
+      expect(Object.values(projection.executions)).toEqual([
+        expect.objectContaining({ status: 'completed', durable: true })
+      ])
+    }
+  )
+
+  it('rejects deleting an active session without dropping its buffered text', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+    emit({ type: 'text-start', id: 'text' }, 'answer')
+    emit({ type: 'text-delta', id: 'text', delta: 'Tail' }, 'answer')
+    BaseService.resetInstances()
+    const lifecycle = new AgentLifecycleService()
+    await expect(lifecycle.archiveSessions([sessionId])).rejects.toMatchObject({ name: 'AgentSessionArchiveBusyError' })
+    expect(agentSessionService.getConversationById(sessionId).id).toBe(sessionId)
+    await vi.advanceTimersByTimeAsync(COALESCE_WINDOW_MS)
+    expect(journal.projection.parts['answer:text:text']).toMatchObject({ content: { text: 'Tail' } })
+  })
+
+  it('flushes the terminal tail before deleting the containing workspace', async () => {
+    const answerId = randomUUID()
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    const workspaceId = agentSessionService.getConversationById(sessionId).workspaceId
+    emit({ type: 'text-start', id: 'text' }, answerId)
+    emit({ type: 'text-delta', id: 'text', delta: 'Tail' }, answerId)
+    fake.manager.abortAndDrain.mockImplementationOnce(async () => {
+      expect(journal.projection.parts[`${answerId}:text:text`]).toMatchObject({ content: { text: '' } })
+      await finish(answerId, [{ type: 'text', text: 'Tail' }], 'paused')
+      expect(agentSessionMessageService.getSessionMessage(sessionId, answerId).data.parts).toEqual([
+        { type: 'text', text: 'Tail' }
+      ])
+    })
+    BaseService.resetInstances()
+    const lifecycle = new AgentLifecycleService()
+    await expect(lifecycle.deleteWorkspace(workspaceId)).resolves.toEqual({ deletedIds: [sessionId] })
+    const events = journal.eventsAfter(0, Infinity)
+    expect(events.find((event) => event.kind === 'part.append')?.payload).toMatchObject({ text: 'Tail' })
+    expect(events.findIndex((event) => event.kind === 'part.append')).toBeLessThan(
+      events.findIndex((event) => event.kind === 'message.removed')
+    )
+    expect(() => agentSessionService.getConversationById(sessionId)).toThrow()
+  })
+
+  it('flushes reasoning and tool input before changing parts or replacing input', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    emit({ type: 'reasoning-start', id: 'reason' }, 'answer')
+    emit({ type: 'reasoning-delta', id: 'reason', delta: 'Think' }, 'answer')
+    emit({ type: 'reasoning-delta', id: 'reason', delta: ' first' }, 'answer')
+    emit({ type: 'tool-input-start', toolCallId: 'call', toolName: 'read' }, 'answer')
+    emit({ type: 'tool-input-delta', toolCallId: 'call', inputTextDelta: '{"path":' }, 'answer')
+    emit({ type: 'tool-input-delta', toolCallId: 'call', inputTextDelta: '"a"}' }, 'answer')
+    emit({ type: 'tool-input-available', toolCallId: 'call', toolName: 'read', input: { path: 'a' } }, 'answer')
+    const events = journal.eventsAfter(0, Infinity)
+    expect(events.filter((event) => event.kind === 'part.append').map((event) => event.payload)).toMatchObject([
+      { partId: 'answer:reasoning:reason', text: 'Think first' },
+      { partId: 'answer:tool:call:in', text: '{"path":"a"}' }
+    ])
+    expect(events.at(-1)?.kind).toBe('part.replaced')
+    expect(journal.projection.parts['answer:tool:call:in']).toMatchObject({
+      content: { text: '{"path":"a"}' },
+      state: 'completed'
+    })
+  })
+
+  it.each(['success', 'paused', 'error'] as const)('flushes pending text before terminal %s events', async (status) => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+    emit({ type: 'text-start', id: 'text' }, 'answer')
+    emit({ type: 'text-delta', id: 'text', delta: 'Last words' }, 'answer')
+    const listener = fake.streams.get(`agent-session:${sessionId}`)![0]
+    if (status === 'success') await listener.onDone({ status, anchorMessageId: 'answer' })
+    else if (status === 'paused') await listener.onPaused({ status, anchorMessageId: 'answer' })
+    else
+      await listener.onError({
+        status,
+        anchorMessageId: 'answer',
+        error: { name: 'Error', message: 'Failed', stack: null }
+      })
+    expect(journal.projection.parts['answer:text:text']).toMatchObject({ content: { text: 'Last words' } })
+    expect(journal.projection.messages.answer.status).toBe(status)
+    const events = journal.eventsAfter(0, Infinity)
+    expect(events.findIndex((event) => event.kind === 'part.append')).toBeLessThan(
+      events.findIndex((event) => event.kind === 'message.updated')
+    )
+    const cursor = journal.cursor
+    await vi.advanceTimersByTimeAsync(COALESCE_WINDOW_MS)
+    expect(journal.cursor).toEqual(cursor)
+  })
+
+  it('splits escaped text below the wire limit and cancels pending flushes on disposal', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
+    const epoch = journal.epoch
+    emit({ type: 'text-start', id: 'text' }, 'answer')
+    const text = '\u0000'.repeat(8192) + '🌍'
+    emit({ type: 'text-delta', id: 'text', delta: text }, 'answer')
+    expect(journal.epoch).toBe(epoch)
+    expect(journal.projection.parts['answer:text:text']).toMatchObject({ content: { text } })
+    emit({ type: 'text-delta', id: 'text', delta: 'pending' }, 'answer')
+    const cursor = journal.cursor
+    journal.dispose()
+    await vi.advanceTimersByTimeAsync(COALESCE_WINDOW_MS)
+    expect(journal.cursor).toEqual(cursor)
+    expect(journal.projection.parts['answer:text:text']).toMatchObject({ content: { text } })
   })
 
   it('streams a remote send through checkpoint, live events, approval and durable history without gaps', async () => {
@@ -1330,7 +2134,8 @@ describe('remote agent access', () => {
       new RemotePairing(),
       new RemoteTokens(),
       () => {},
-      hub
+      hub,
+      async () => ({ desktopIdentity: 'desktop', endpoints: [] })
     )
     const { device } = { device: apiGatewayPairedDeviceService.list()[0] }
     await reconnect.rpc.receive(
@@ -1355,7 +2160,7 @@ describe('remote agent access', () => {
       },
       undefined
     )
-    for (let i = 0; i < 5; i++) await tick()
+    await settleDeltas()
     const batch = (other[0] as { params: AgentEventBatch }).params
     expect(Number(batch.events[0].seq)).toBe(Number(projection.cursor.seq) + 1)
     const applied = applyAgentEvents(projection, batch, {}, integrity)

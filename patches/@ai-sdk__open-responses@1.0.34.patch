@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..a96fff7fd467756e268ed400d8a7df12445e3602 100644
+index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..83f10a1a770adb5049c62db0e8ba1dfeb980c939 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -89,9 +89,18 @@ async function convertToOpenResponsesInput({
@@ -47,15 +47,19 @@ index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..a96fff7fd467756e268ed400d8a7df12
              } else if (chunk.type === "response.reasoning_text.delta") {
                const reasoningChunk = chunk;
                controller.enqueue({
-@@ -577,6 +591,7 @@ var OpenResponsesLanguageModel = class {
+@@ -577,8 +591,11 @@ var OpenResponsesLanguageModel = class {
              } else if (chunk.type === "response.output_item.done" && chunk.item.type === "reasoning") {
                controller.enqueue({ type: "reasoning-end", id: chunk.item.id });
                isActiveReasoning = false;
 +              activeReasoningId = null;
              } else if (chunk.type === "response.output_item.added" && chunk.item.type === "message") {
                controller.enqueue({ type: "text-start", id: chunk.item.id });
++            } else if (chunk.type === "response.output_text.delta" && chunk.item_id === "SSE-Keep-Alive" && chunk["SSE-Keep-Alive"] === true) {
++              return;
              } else if (chunk.type === "response.output_text.delta") {
-@@ -606,8 +621,8 @@ var OpenResponsesLanguageModel = class {
+               controller.enqueue({
+                 type: "text-delta",
+@@ -606,8 +623,8 @@ var OpenResponsesLanguageModel = class {
              }
            },
            flush(controller) {
@@ -67,7 +71,7 @@ index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..a96fff7fd467756e268ed400d8a7df12
              controller.enqueue({
                type: "finish",
 diff --git a/dist/index.mjs b/dist/index.mjs
-index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..bf720e89213a9748411d256e1b1c76188a9e23c8 100644
+index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..9636569f9016ffd81929b82531a2b7900329c9fb 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -75,9 +75,18 @@ async function convertToOpenResponsesInput({
@@ -115,15 +119,19 @@ index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..bf720e89213a9748411d256e1b1c7618
              } else if (chunk.type === "response.reasoning_text.delta") {
                const reasoningChunk = chunk;
                controller.enqueue({
-@@ -566,6 +580,7 @@ var OpenResponsesLanguageModel = class {
+@@ -566,8 +580,11 @@ var OpenResponsesLanguageModel = class {
              } else if (chunk.type === "response.output_item.done" && chunk.item.type === "reasoning") {
                controller.enqueue({ type: "reasoning-end", id: chunk.item.id });
                isActiveReasoning = false;
 +              activeReasoningId = null;
              } else if (chunk.type === "response.output_item.added" && chunk.item.type === "message") {
                controller.enqueue({ type: "text-start", id: chunk.item.id });
++            } else if (chunk.type === "response.output_text.delta" && chunk.item_id === "SSE-Keep-Alive" && chunk["SSE-Keep-Alive"] === true) {
++              return;
              } else if (chunk.type === "response.output_text.delta") {
-@@ -595,8 +610,8 @@ var OpenResponsesLanguageModel = class {
+               controller.enqueue({
+                 type: "text-delta",
+@@ -595,8 +612,8 @@ var OpenResponsesLanguageModel = class {
              }
            },
            flush(controller) {
@@ -179,7 +187,7 @@ index 2e06c35c5d13146dbb42ba9bbe61828bb4bd1a66..4e36fecc5c4a6afddf54a067db4ab5a9
          if (assistantContent.length > 0) {
            input.push({
 diff --git a/src/responses/open-responses-language-model.ts b/src/responses/open-responses-language-model.ts
-index 2650edaed75f2bb981f584f702b5da2894241b70..eac6ff3712948c9652b93310a2cbb79c3874e421 100644
+index 2650edaed75f2bb981f584f702b5da2894241b70..af2fed1ef181330385afa93a1adba20f4d87a135 100644
 --- a/src/responses/open-responses-language-model.ts
 +++ b/src/responses/open-responses-language-model.ts
 @@ -338,6 +338,7 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
@@ -206,7 +214,20 @@ index 2650edaed75f2bb981f584f702b5da2894241b70..eac6ff3712948c9652b93310a2cbb79c
              }
  
              // Text events
-@@ -501,8 +504,9 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
+@@ -467,6 +470,12 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
+               chunk.item.type === 'message'
+             ) {
+               controller.enqueue({ type: 'text-start', id: chunk.item.id });
++            } else if (
++              chunk.type === 'response.output_text.delta' &&
++              chunk.item_id === 'SSE-Keep-Alive' &&
++              (chunk as Record<string, unknown>)['SSE-Keep-Alive'] === true
++            ) {
++              return;
+             } else if (chunk.type === 'response.output_text.delta') {
+               controller.enqueue({
+                 type: 'text-delta',
+@@ -501,8 +510,9 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
            },
  
            flush(controller) {

@@ -3,7 +3,7 @@ import type TurndownService from 'turndown'
 import { applyTableRules } from '@main/utils/htmlToMarkdown'
 
 import { type BrowserScreenshot, captureScreenshot, type ScreenshotOptions } from '../actions/screenshot'
-import type { BrowserPointerFeedback } from '../BrowserCursor'
+import type { BrowserActionOptions, BrowserPointerFeedback } from '../BrowserCursor'
 import type { GuestSession } from '../session/GuestSession'
 import { logger } from './types'
 
@@ -13,14 +13,21 @@ export abstract class BrowserPageController {
   abstract getSession(
     privateMode?: boolean,
     tabId?: string
-  ): Promise<{ tabId: string; session: GuestSession; signal?: AbortSignal; pointer?: BrowserPointerFeedback }>
+  ): Promise<{
+    tabId: string
+    session: GuestSession
+    signal?: AbortSignal
+    pointer?: BrowserPointerFeedback
+    focusInput?: BrowserActionOptions['focusInput']
+  }>
   abstract open(
     url: string,
     timeout?: number,
     privateMode?: boolean,
     newTab?: boolean,
     showWindow?: boolean,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    tabId?: string
   ): Promise<{ currentUrl: string; title: string; tabId: string }>
   abstract validateUrl(url: string): string
 

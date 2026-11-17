@@ -1,0 +1,95 @@
+# @cherrystudio/file-preview
+
+## Unreleased
+
+### Patch Changes
+
+- Change the package license from AGPL-3.0-only to MIT.
+
+## 0.4.0
+
+### Minor Changes
+
+- [#24494](https://github.com/CherryHQ/cherry-studio/pull/24494) [`2130f5e`](https://github.com/CherryHQ/cherry-studio/commit/2130f5ebe23c7d668d49e549200fd147d4f7d580) Thanks [@markiceman](https://github.com/markiceman)! - Add Czech (cs-CZ) translations.
+
+## 0.3.0
+
+### Minor Changes
+
+- [#24255](https://github.com/CherryHQ/cherry-studio/pull/24255) [`90552d6`](https://github.com/CherryHQ/cherry-studio/commit/90552d6e3429725b9df57b5357c7ba18ee0fc2cf) Thanks [@walec51](https://github.com/walec51)! - Add Polish (pl-PL) translations.
+
+## 0.2.7
+
+### Patch Changes
+
+- [#24234](https://github.com/CherryHQ/cherry-studio/pull/24234) [`2e65759`](https://github.com/CherryHQ/cherry-studio/commit/2e6575901a59e6edb5748a2df18713f48635f658) Thanks [@DeJeune](https://github.com/DeJeune)! - Standardize public libraries on MIT and include package-local license files.
+
+## 0.2.6
+
+### Patch Changes
+
+- [#24226](https://github.com/CherryHQ/cherry-studio/pull/24226) [`c6a70f5`](https://github.com/CherryHQ/cherry-studio/commit/c6a70f5325f7f4784da0bc691c43a5ad087aaf29) Thanks [@DeJeune](https://github.com/DeJeune)! - Keep preview scroll boundaries unpadded and reserve bottom clearance after long content while preserving full-height internally scrolling previews.
+
+## 0.2.5
+
+### Patch Changes
+
+- [#23122](https://github.com/CherryHQ/cherry-studio/pull/23122) [`11be419`](https://github.com/CherryHQ/cherry-studio/commit/11be419b8bc15f8180501695858a25b486fbd033) Thanks [@angri450](https://github.com/angri450)! - Fit DOCX previews to the pane width, allow them to scale up to 200%, and remove the grey mat around pages.
+
+## 0.2.4
+
+### Patch Changes
+
+- [#23515](https://github.com/CherryHQ/cherry-studio/pull/23515) [`5dabea2`](https://github.com/CherryHQ/cherry-studio/commit/5dabea2c85f467b52d87946b1486c6c1a8de260c) Thanks [@DeJeune](https://github.com/DeJeune)! - Use overlay scrollbars in document previews and PDF outlines so native scrollbar gutters do not reduce content width.
+
+## 0.2.3
+
+### Patch Changes
+
+- [#22548](https://github.com/CherryHQ/cherry-studio/pull/22548) [`a48cb07`](https://github.com/CherryHQ/cherry-studio/commit/a48cb075dda8053226081617308a157c4be4039e) Thanks [@WhiteZeek](https://github.com/WhiteZeek)! - Enable native text selection and copying in DOCX previews while preserving paragraph references during text dragging.
+
+## 0.2.2
+
+### Patch Changes
+
+- [#22348](https://github.com/CherryHQ/cherry-studio/pull/22348) [`909214f`](https://github.com/CherryHQ/cherry-studio/commit/909214f68dd50bc04f1687c5ffc8845d4aac4fc4) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Add Italian translations for file-preview controls and messages.
+
+## 0.2.1
+
+### Patch Changes
+
+- [#20897](https://github.com/CherryHQ/cherry-studio/pull/20897) [`9e64ff8`](https://github.com/CherryHQ/cherry-studio/commit/9e64ff899b6ec4cb5b6a765baa0ba42fb325596e) Thanks [@ousugo](https://github.com/ousugo)! - Preserve valid reading state when refreshing the same document, while replacing its source session and rejecting obsolete selection and failure callbacks.
+
+## 0.2.0
+
+### Minor Changes
+
+- [#22376](https://github.com/CherryHQ/cherry-studio/pull/22376) [`3d75b7a`](https://github.com/CherryHQ/cherry-studio/commit/3d75b7a0ac6078f0821ebba7ce88a6af8835665f) Thanks [@DeJeune](https://github.com/DeJeune)! - Add read-only RTF previews with formatted text, Unicode and legacy code pages, embedded images, safe links, and a 10 MiB source limit.
+
+## 0.1.3
+
+### Patch Changes
+
+- [#22031](https://github.com/CherryHQ/cherry-studio/pull/22031) [`0041d52`](https://github.com/CherryHQ/cherry-studio/commit/0041d522ff6856036ef008255c451d3291e4ac7d) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - DOCX preview now honours the OOXML default lineRule (auto) when w:spacing omits it.
+
+## 0.1.2
+
+### Patch Changes
+
+- [#19894](https://github.com/CherryHQ/cherry-studio/pull/19894) [`ff3a9c6`](https://github.com/CherryHQ/cherry-studio/commit/ff3a9c6beabd1e9613e0a6f77e217207578d409b) Thanks [@SiinXu](https://github.com/SiinXu)! - Show a PowerPoint-specific fallback when a PPTX archive exceeds the previewer's ZIP safety limits. This is separate from files whose compressed source is larger than 25 MiB, and it reuses the existing external-open action.
+
+## 0.1.1
+
+### Patch Changes
+
+- [#21534](https://github.com/CherryHQ/cherry-studio/pull/21534) [`3d389c5`](https://github.com/CherryHQ/cherry-studio/commit/3d389c5dfaa2fe68773cb6aed9f925f2263dce33) Thanks [@SiinXu](https://github.com/SiinXu)! - Keep SVG file previews sharp when zooming without changing their initial size.
+
+## 0.1.0
+
+### Minor Changes
+
+- [#21407](https://github.com/CherryHQ/cherry-studio/pull/21407) [`555f219`](https://github.com/CherryHQ/cherry-studio/commit/555f219cea1531d0a40f72c4bdc405dec86bddf6) Thanks [@zhangjiadi225](https://github.com/zhangjiadi225)! - Publish the portable React document preview package for PDF, DOCX, PPTX, XLSX and images.
+  The package includes rendering controls, scoped styles, workers, PDF resources and
+  translations, with host-provided document access and selection/error callbacks.
+  Consumers can import the `core`, `react`, `styles.css` and `assets/*` entry points
+  without depending on the Cherry Studio workspace or applying dependency patches.

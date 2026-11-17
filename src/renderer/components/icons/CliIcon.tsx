@@ -44,7 +44,8 @@ const OPTICAL_VIEWBOXES: Partial<Record<CodeCli, string>> = {
   [CodeCli.OPEN_CODE]: '16 16 88 88',
   [CodeCli.HERMES]: '26 26 68 68',
   [CodeCli.OPENCLAW]: '26 26 68 68',
-  [CodeCli.DEEPSEEK_HARNESS]: '26 26 68 68'
+  [CodeCli.DEEPSEEK_HARNESS]: '26 26 68 68',
+  [CodeCli.MINIMAX_CODE]: '26 26 68 68'
 }
 
 interface CliIconProps {

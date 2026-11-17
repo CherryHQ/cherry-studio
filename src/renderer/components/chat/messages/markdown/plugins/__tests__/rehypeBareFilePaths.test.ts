@@ -71,6 +71,20 @@ describe('findBareFilePathMatches', () => {
     expect(paths('See /tmp/docs and/or continue below', 'posix')).toEqual([])
   })
 
+  it('does not linkify a lone slash run in prose such as an inline division formula', () => {
+    expect(paths('I = (E₀∠δ - U)/jX_s…\n定子电流！', 'posix')).toEqual([])
+    expect(paths('P = (E₀U·sinδ)/X_d。', 'posix')).toEqual([])
+  })
+
+  it('keeps single-segment absolute paths that carry a filename signal', () => {
+    expect(paths('Open /README.md, /tmp/.env and /etc/hosts.', 'posix')).toEqual([
+      '/README.md',
+      '/tmp/.env',
+      '/etc/hosts'
+    ])
+    expect(paths("Open '/logs' now", 'posix')).toEqual(['/logs'])
+  })
+
   it('keeps paths followed by line and tab boundaries', () => {
     expect(paths('/tmp/first.txt\n/tmp/second.txt\t~/third.txt', 'posix')).toEqual([
       '/tmp/first.txt',
@@ -267,5 +281,38 @@ describe('rehypeBareFilePaths', () => {
 
     expect(collectMarkers(tree)).toHaveLength(0)
     expect((tree.children[0] as Element).children).toEqual([{ type: 'text', value: '/Users/lee/raw.txt' }])
+  })
+})
+
+describe('rehypeBareFilePaths className handling', () => {
+  const elementWithClassName = (className: unknown): Element =>
+    ({
+      type: 'element',
+      tagName: 'div',
+      properties: { className },
+      children: [{ type: 'text', value: '/Users/lee/math.txt' }]
+    }) as unknown as Element
+
+  const markerCount = (className: unknown): number =>
+    collectMarkers(transform({ type: 'root', children: [elementWithClassName(className)] }, 'posix')).length
+
+  it('skips an array-valued className containing katex', () => {
+    expect(markerCount(['katex', 'other'])).toBe(0)
+  })
+
+  it('skips a string-valued className containing katex', () => {
+    expect(markerCount('katex katex-display')).toBe(0)
+  })
+
+  it('linkifies text under an ordinary className', () => {
+    expect(markerCount(['plain'])).toBe(1)
+  })
+
+  it('linkifies text when className is missing', () => {
+    expect(markerCount(undefined)).toBe(1)
+  })
+
+  it('treats a numeric className as ordinary content', () => {
+    expect(markerCount(5)).toBe(1)
   })
 })

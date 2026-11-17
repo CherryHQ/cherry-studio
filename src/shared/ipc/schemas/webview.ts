@@ -17,12 +17,21 @@ import { defineRoute } from '../define'
  * cancels the native save dialog (they throw if the guest webContents is gone).
  */
 export const webviewRequestSchemas = {
+  'webview.debugging.get_state': defineRoute({
+    input: z.strictObject({ webviewId: z.number().int().positive() }),
+    output: z.strictObject({ attached: z.boolean(), revision: z.number().int().nonnegative() })
+  }),
   'webview.set_open_link_external': defineRoute({
     input: z.object({ webviewId: z.number(), isExternal: z.boolean() }),
     output: z.void()
   }),
   'webview.set_spell_check_enabled': defineRoute({
     input: z.object({ webviewId: z.number(), isEnable: z.boolean() }),
+    output: z.void()
+  }),
+  /** Host-side visibility; main freezes a guest that stays hidden. */
+  'webview.set_visible': defineRoute({
+    input: z.object({ webviewId: z.number(), visible: z.boolean() }),
     output: z.void()
   }),
   'webview.export_annotations': defineRoute({
@@ -38,4 +47,8 @@ export const webviewRequestSchemas = {
   }),
   'webview.print_to_pdf': defineRoute({ input: z.object({ webviewId: z.number() }), output: z.string().nullable() }),
   'webview.save_as_html': defineRoute({ input: z.object({ webviewId: z.number() }), output: z.string().nullable() })
+}
+
+export type WebviewEventSchemas = {
+  'webview.debugging.changed': { webviewId: number; attached: boolean; revision: number }
 }

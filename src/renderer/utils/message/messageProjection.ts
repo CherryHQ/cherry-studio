@@ -1,5 +1,4 @@
 import {
-  type BranchMessage,
   type CherryMessagePart,
   type CherryUIMessage,
   type Message as SharedMessage,
@@ -16,6 +15,7 @@ export function sharedMessageToUIMessage(shared: SharedMessage): CherryUIMessage
       parentId: shared.parentId,
       siblingsGroupId: shared.siblingsGroupId || undefined,
       modelId: shared.modelId ?? undefined,
+      modelSelection: shared.data.modelSelection,
       messageSnapshot: shared.messageSnapshot ?? undefined,
       status: shared.status,
       turnOptions: shared.data.turnOptions,
@@ -38,30 +38,4 @@ export function uiMessagesToPartsMap(messages: CherryUIMessage[]): Record<string
     }
   }
   return map
-}
-
-export function branchMessagesToFullUIMessages(branchItems: BranchMessage[]): CherryUIMessage[] {
-  const messages: CherryUIMessage[] = []
-  const seen = new Set<string>()
-
-  const pushMessage = (message: SharedMessage) => {
-    if (seen.has(message.id)) return
-    seen.add(message.id)
-    messages.push(sharedMessageToUIMessage(message))
-  }
-
-  for (const item of branchItems) {
-    if (!item.siblingsGroup?.length) {
-      pushMessage(item.message)
-      continue
-    }
-
-    const group = [item.message, ...item.siblingsGroup].sort((a, b) => {
-      const timeCompare = a.createdAt.localeCompare(b.createdAt)
-      return timeCompare === 0 ? a.id.localeCompare(b.id) : timeCompare
-    })
-    group.forEach(pushMessage)
-  }
-
-  return messages
 }

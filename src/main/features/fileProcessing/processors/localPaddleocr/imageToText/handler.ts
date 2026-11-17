@@ -16,7 +16,7 @@ export const localPaddleocrImageToTextHandler: FileProcessingCapabilityHandler<'
     if (file.type !== FILE_TYPE.IMAGE) {
       throw new Error('Local PaddleOCR only supports image files')
     }
-    if (!application.get('LocalModelService').isCapabilityReady('ocr')) {
+    if (!application.get('LocalModelService').isDefaultModelReady('ocr')) {
       throw new Error('Local PaddleOCR model is not downloaded')
     }
 

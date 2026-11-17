@@ -1,0 +1,24 @@
+diff --git a/scripts/node-addon-api/CMakeLists.txt b/scripts/node-addon-api/CMakeLists.txt
+--- a/scripts/node-addon-api/CMakeLists.txt
++++ b/scripts/node-addon-api/CMakeLists.txt
+@@ -89,9 +89,16 @@ target_link_libraries(${PROJECT_NAME} ${CMAKE_JS_LIB})
+ target_link_libraries(${PROJECT_NAME}
+   sherpa-onnx-c-api
+   onnxruntime
++)
++
++if(MSVC)
++  target_link_libraries(${PROJECT_NAME} delayimp)
++else()
++  target_link_libraries(${PROJECT_NAME}
+-  -Wl,-rpath,$ENV{SHERPA_ONNX_INSTALL_DIR}/lib
+-  -Wl,-rpath,${SHERPA_ONNX_RPATH_ORIGIN}
++    -Wl,-rpath,$ENV{SHERPA_ONNX_INSTALL_DIR}/lib
++    -Wl,-rpath,${SHERPA_ONNX_RPATH_ORIGIN}
+-)
++  )
++endif()
+-
++
+ if(MSVC AND CMAKE_JS_NODELIB_DEF AND CMAKE_JS_NODELIB_TARGET)
+   # Generate node.lib

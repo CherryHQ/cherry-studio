@@ -381,6 +381,12 @@ export function getReadableToolActivity(
   active: boolean,
   t: Translate
 ): ToolActivity | undefined {
+  if (toolName === 'automation_repl' || toolName === 'mcp__automation__js') {
+    return { label: getStringArg(args, 'title') ?? t('message.tools.automation.execute') }
+  }
+  if (toolName === 'automation_repl_reset' || toolName === 'mcp__automation__reset') {
+    return { label: t('message.tools.automation.reset') }
+  }
   const labels = getActivityLabels(active, t)
   const searchText = getStringInput(args) ?? getStringArg(args, 'pattern') ?? getStringArg(args, 'query')
 

@@ -111,6 +111,7 @@ describe('fetchResolvedProviderModels', () => {
     } = await fetchResolvedProviderModels('ollama')
 
     expect(model).toMatchObject({
+      name: 'Qwen3 32B',
       presetModelId: 'qwen3-32b',
       capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
       reasoning: {
@@ -145,7 +146,10 @@ describe('fetchResolvedProviderModels', () => {
     expect(models[0].name).toBe('Qwen1.5 1.8b Chat')
   })
 
-  it('keeps a provider display name for an unmatched custom model', async () => {
+  it.each([
+    { kind: 'custom', presetModelId: undefined },
+    { kind: 'preset', presetModelId: 'custom-model' }
+  ])('keeps a provider display name for a $kind model', async ({ presetModelId }) => {
     listModelsMock.mockResolvedValueOnce({
       models: [
         {
@@ -161,6 +165,7 @@ describe('fetchResolvedProviderModels', () => {
         id: 'custom::custom-model',
         providerId: 'custom',
         apiModelId: 'custom-model',
+        presetModelId,
         name: 'Custom Model'
       }
     ])
@@ -329,5 +334,27 @@ describe('toCreateModelDto', () => {
     })
 
     expect(dto.capabilities).toBeUndefined()
+  })
+})
+
+it('preserves fetched Poe routing through registry enrichment and the create DTO', async () => {
+  const row = {
+    id: 'poe::perplexity-adv-deep-research',
+    providerId: 'poe',
+    apiModelId: 'perplexity-adv-deep-research',
+    name: 'perplexity-adv-deep-research'
+  }
+  listModelsMock.mockResolvedValueOnce({ models: [{ ...row, endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] }] })
+  dataApiGetMock.mockResolvedValueOnce([
+    { ...row, name: 'Perplexity research', endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] }
+  ])
+  const {
+    models: [model]
+  } = await fetchResolvedProviderModels('poe')
+  expect(model.endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
+  expect(toCreateModelDto('poe', model)).toMatchObject({
+    providerId: 'poe',
+    modelId: row.apiModelId,
+    endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
   })
 })

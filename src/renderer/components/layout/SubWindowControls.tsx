@@ -12,11 +12,6 @@ import { cn } from '@renderer/utils/style'
 
 const logger = loggerService.withContext('SubWindowControls')
 
-/**
- * Detached-window title-bar controls: pin (always-on-top) + back-to-main. Self-contained —
- * the back action re-attaches the window's single tab via the tab IPC API (SubWindowService
- * closes this window after broadcasting).
- */
 export const SubWindowControls = () => {
   const { t } = useTranslation()
   const { tabs, activeTabId } = useTabs()

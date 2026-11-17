@@ -23,6 +23,7 @@ type Props = BaseProps &
     | {
         phase: 'completed'
         outcome: 'success' | 'error'
+        defaultExpanded?: boolean
       }
   )
 
@@ -95,7 +96,10 @@ const ActiveProcessHeader = React.memo(function ActiveProcessHeader({
 const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props) {
   const { children, message, toolItems } = props
   const { t } = useTranslation()
-  const [isExpanded, setIsExpanded] = useMessageDisclosureState('completed-process')
+  const [isExpanded, setIsExpanded] = useMessageDisclosureState(
+    'completed-process',
+    props.phase === 'completed' && (props.defaultExpanded ?? false)
+  )
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
   const runtimeTiming = message.stats?.runtimeTiming
   const completedElapsedMs = useMemo(() => {

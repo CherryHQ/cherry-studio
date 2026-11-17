@@ -9,7 +9,7 @@ import { loadProviderIconCatalog, PROVIDER_ICON_META_CATALOG, type ProviderIconK
 import { loggerService } from '@logger'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { getProviderLabelKey } from '@renderer/i18n/label'
-import { isSystemProviderId } from '@renderer/types/provider'
+import { isSystemProviderId } from '@shared/utils/systemProviderId'
 
 const logger = loggerService.withContext('ProviderLogoPicker')
 

@@ -18,9 +18,15 @@ import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
-import type { ExportableMessage } from '@renderer/types/messageExport'
+import type {
+  ExportableMessage,
+  ExportMessagesToObsidian,
+  MessageExportTarget,
+  MessageExportView
+} from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { getTitleFromString, messagesToPlainText, processCitations } from '@renderer/utils/export'
@@ -116,12 +122,12 @@ export class ExportService {
     return queuedCapture
   }
 
-  public captureScrollableAsDataUrl(elRef: ScrollableCaptureRef) {
-    return this.enqueueImageCapture(() => captureScrollableAsDataUrlUtil(elRef))
+  public captureScrollableAsDataUrl(elRef: ScrollableCaptureRef, backdropVariable?: string) {
+    return this.enqueueImageCapture(() => captureScrollableAsDataUrlUtil(elRef, backdropVariable))
   }
 
-  public captureScrollableAsBlob(elRef: ScrollableCaptureRef, func: ScrollableBlobCallback) {
-    return this.enqueueImageCapture(() => captureScrollableAsBlobUtil(elRef, func))
+  public captureScrollableAsBlob(elRef: ScrollableCaptureRef, func: ScrollableBlobCallback, backdropVariable?: string) {
+    return this.enqueueImageCapture(() => captureScrollableAsBlobUtil(elRef, func, backdropVariable))
   }
 }
 
@@ -282,7 +288,8 @@ const createBaseMarkdown = async (
   includeReasoning: boolean = false,
   excludeCitations: boolean = false,
   normalizeCitations: boolean = true,
-  rawContentOverride?: string
+  rawContentOverride?: string,
+  attributeModel: boolean = false
 ): Promise<{ titleSection: string; reasoningSection: string; contentSection: string; citation: string }> => {
   const forceDollarMathInMarkdown = await preferenceService.get('data.export.markdown.force_dollar_math')
   const author = 'messageSnapshot' in message ? message.messageSnapshot : undefined
@@ -290,7 +297,8 @@ const createBaseMarkdown = async (
   // (e.g. topic exports), so the model/provider still render when those export prefs are on.
   const model = message.model ?? author?.model
   const roleText = await getRoleText(message.role, model?.name, model?.provider, author)
-  const titleSection = `## ${roleText}`
+  const modelLabel = attributeModel && message.role === 'assistant' ? model?.name : undefined
+  const titleSection = modelLabel ? `## ${roleText}\n\n**${modelLabel}**` : `## ${roleText}`
   let reasoningSection = ''
 
   if (includeReasoning) {
@@ -384,7 +392,8 @@ export async function getMessageTitle(message: ExportableMessage, length = 30): 
 export const messageToMarkdown = async (
   message: ExportableMessage,
   excludeCitations?: boolean,
-  rawContentOverride?: string
+  rawContentOverride?: string,
+  attributeModel?: boolean
 ): Promise<string> => {
   const { excludeCitationsInExport, standardizeCitationsInExport } = await preferenceService.getMultiple({
     excludeCitationsInExport: 'data.export.markdown.exclude_citations',
@@ -396,7 +405,8 @@ export const messageToMarkdown = async (
     false,
     shouldExcludeCitations,
     standardizeCitationsInExport,
-    rawContentOverride
+    rawContentOverride,
+    attributeModel
   )
   return [titleSection, '', contentSection, citation].join('\n')
 }
@@ -404,7 +414,8 @@ export const messageToMarkdown = async (
 export const messageToMarkdownWithReasoning = async (
   message: ExportableMessage,
   excludeCitations?: boolean,
-  rawContentOverride?: string
+  rawContentOverride?: string,
+  attributeModel?: boolean
 ): Promise<string> => {
   const { excludeCitationsInExport, standardizeCitationsInExport } = await preferenceService.getMultiple({
     excludeCitationsInExport: 'data.export.markdown.exclude_citations',
@@ -416,7 +427,8 @@ export const messageToMarkdownWithReasoning = async (
     true,
     shouldExcludeCitations,
     standardizeCitationsInExport,
-    rawContentOverride
+    rawContentOverride,
+    attributeModel
   )
   return [titleSection, '', reasoningSection, contentSection, citation].join('\n')
 }
@@ -425,11 +437,14 @@ export const messagesToMarkdown = async (
   messages: ExportableMessage[],
   exportReasoning?: boolean,
   excludeCitations?: boolean,
-  rawContentOverrides?: Map<string, string>
+  rawContentOverrides?: Map<string, string>,
+  attributeModel?: boolean
 ): Promise<string> => {
   const converter = exportReasoning ? messageToMarkdownWithReasoning : messageToMarkdown
   const markdowns = await Promise.all(
-    messages.map((message) => converter(message, excludeCitations, rawContentOverrides?.get(message.id)))
+    messages.map((message) =>
+      converter(message, excludeCitations, rawContentOverrides?.get(message.id), attributeModel)
+    )
   )
   return markdowns.join('\n---\n')
 }
@@ -439,7 +454,8 @@ export const topicToMarkdown = async (
   exportReasoning?: boolean,
   excludeCitations?: boolean,
   rawContentOverrides?: Map<string, string>,
-  messagesOverride?: ExportableMessage[]
+  messagesOverride?: ExportableMessage[],
+  attributeModel?: boolean
 ): Promise<string> => {
   const topicName = `# ${topic.name}`
 
@@ -449,7 +465,9 @@ export const topicToMarkdown = async (
 
   if (messages && messages.length > 0) {
     return (
-      topicName + '\n\n' + (await messagesToMarkdown(messages, exportReasoning, excludeCitations, rawContentOverrides))
+      topicName +
+      '\n\n' +
+      (await messagesToMarkdown(messages, exportReasoning, excludeCitations, rawContentOverrides, attributeModel))
     )
   }
 
@@ -702,55 +720,85 @@ export const exportMessageAsMarkdown = async (
   excludeCitations?: boolean,
   chooseImageMode?: ImageModeChooser
 ): Promise<void> => {
+  await exportMessagesAsMarkdown([message], exportReasoning, undefined, chooseImageMode, excludeCitations)
+}
+
+export const exportMessagesAsMarkdown = async (
+  messages: ExportableMessage[],
+  exportReasoning?: boolean,
+  title?: string,
+  chooseImageMode?: ImageModeChooser,
+  excludeCitations?: boolean
+): Promise<boolean> => {
+  if (messages.length === 0) return false
   if (getExportState()) {
     toast.warning(i18n.t('message.warn.export.exporting'))
-    return
+    return false
   }
 
   setExportingState(true)
+  let markdownExportPath: string | null = null
+  try {
+    markdownExportPath = await preferenceService.get('data.export.markdown.path')
+    const fileTitle = title?.trim() || (await getMessageTitle(messages[0]))
+    const timestamp = markdownExportPath ? ` ${dayjs().format('YYYY-MM-DD-HH-mm-ss')}` : ''
+    const fileName = removeSpecialCharactersForFileName(fileTitle) + timestamp + '.md'
+    const built = await buildMarkdownWithImages(
+      messages,
+      (overrides) => messagesToMarkdown(messages, exportReasoning, excludeCitations, overrides),
+      chooseImageMode
+    )
+    if (!built) return false
 
-  const buildWithOverrides = async (overrides?: Map<string, string>): Promise<string> => {
-    const rawContentOverride = overrides?.get(message.id)
-    return exportReasoning
-      ? await messageToMarkdownWithReasoning(message, excludeCitations, rawContentOverride)
-      : await messageToMarkdown(message, excludeCitations, rawContentOverride)
+    const filePath = markdownExportPath
+      ? markdownExportPath + '/' + fileName
+      : await window.api.file.save(fileName, built.markdown)
+    if (!filePath) return false
+    if (markdownExportPath) await window.api.file.write(filePath, built.markdown)
+    await exportImageAssets(filePath, built.markdown, built.pendingWrites)
+    toast.success(
+      i18n.t(
+        markdownExportPath ? 'message.success.markdown.export.preconf' : 'message.success.markdown.export.specified'
+      )
+    )
+    return true
+  } catch (error) {
+    toast.error(
+      i18n.t(markdownExportPath ? 'message.error.markdown.export.preconf' : 'message.error.markdown.export.specified')
+    )
+    logger.error('Failed to export messages as markdown:', error as Error)
+    return false
+  } finally {
+    setExportingState(false)
   }
+}
 
-  const markdownExportPath = await preferenceService.get('data.export.markdown.path')
-  if (!markdownExportPath) {
-    try {
-      const title = await getMessageTitle(message)
-      const fileName = removeSpecialCharactersForFileName(title) + '.md'
-      const built = await buildMarkdownWithImages([message], buildWithOverrides, chooseImageMode)
-      if (!built) return
-      const result = await window.api.file.save(fileName, built.markdown)
-      if (result) {
-        await exportImageAssets(result, built.markdown, built.pendingWrites)
-        toast.success(i18n.t('message.success.markdown.export.specified'))
-      }
-    } catch (error: any) {
-      toast.error(i18n.t('message.error.markdown.export.specified'))
-      logger.error('Failed to export message as markdown:', error)
-    } finally {
-      setExportingState(false)
-    }
-  } else {
-    try {
-      const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
-      const title = await getMessageTitle(message)
-      const fileName = removeSpecialCharactersForFileName(title) + ` ${timestamp}.md`
-      const built = await buildMarkdownWithImages([message], buildWithOverrides, chooseImageMode)
-      if (!built) return
-      const mdPath = markdownExportPath + '/' + fileName
-      await window.api.file.write(mdPath, built.markdown)
-      await exportImageAssets(mdPath, built.markdown, built.pendingWrites)
-      toast.success(i18n.t('message.success.markdown.export.preconf'))
-    } catch (error: any) {
-      toast.error(i18n.t('message.error.markdown.export.preconf'))
-      logger.error('Failed to export message as markdown:', error)
-    } finally {
-      setExportingState(false)
-    }
+export async function exportMessagesToTarget(
+  messages: MessageExportView[],
+  target: MessageExportTarget,
+  options: { title?: string; exportToObsidian: ExportMessagesToObsidian; chooseImageMode: ImageModeChooser }
+): Promise<boolean> {
+  if (messages.length === 0) return false
+  if (target === 'markdown' || target === 'markdown-reason') {
+    return exportMessagesAsMarkdown(messages, target === 'markdown-reason', options.title, options.chooseImageMode)
+  }
+  const title = options.title ?? (await getMessageTitle(messages[0]))
+  switch (target) {
+    case 'word':
+      return ipcApi.request('export.word.from_markdown', {
+        markdown: await messagesToMarkdown(messages),
+        fileName: removeSpecialCharactersForFileName(title)
+      })
+    case 'notion':
+      return exportMessagesToNotion(title, messages)
+    case 'yuque':
+      return (await exportMarkdownToYuque(title, await messagesToMarkdown(messages))) != null
+    case 'obsidian':
+      return options.exportToObsidian(title.replace(/\\/g, '_'), messages)
+    case 'joplin':
+      return (await exportMarkdownToJoplin(title, messages)) != null
+    case 'siyuan':
+      return exportMarkdownToSiyuan(title, await messagesToMarkdown(messages))
   }
 }
 
@@ -1310,19 +1358,18 @@ export const exportMarkdownToJoplin = async (
 
   setExportingState(true)
 
-  let content: string
-  if (typeof contentOrMessages === 'string') {
-    content = contentOrMessages
-  } else if (Array.isArray(contentOrMessages)) {
-    content = await messagesToMarkdown(contentOrMessages, joplinExportReasoning, excludeCitationsInExport)
-  } else {
-    // 单条Message
-    content = joplinExportReasoning
-      ? await messageToMarkdownWithReasoning(contentOrMessages, excludeCitationsInExport)
-      : await messageToMarkdown(contentOrMessages, excludeCitationsInExport)
-  }
-
   try {
+    let content: string
+    if (typeof contentOrMessages === 'string') {
+      content = contentOrMessages
+    } else if (Array.isArray(contentOrMessages)) {
+      content = await messagesToMarkdown(contentOrMessages, joplinExportReasoning, excludeCitationsInExport)
+    } else {
+      content = joplinExportReasoning
+        ? await messageToMarkdownWithReasoning(contentOrMessages, excludeCitationsInExport)
+        : await messageToMarkdown(contentOrMessages, excludeCitationsInExport)
+    }
+
     const baseUrl = joplinUrl.endsWith('/') ? joplinUrl : `${joplinUrl}/`
     const response = await fetch(`${baseUrl}notes?token=${joplinToken}`, {
       method: 'POST',
@@ -1361,7 +1408,7 @@ export const exportMarkdownToJoplin = async (
  * @param title 笔记标题
  * @param content 笔记内容
  */
-export const exportMarkdownToSiyuan = async (title: string, content: string): Promise<void> => {
+export const exportMarkdownToSiyuan = async (title: string, content: string): Promise<boolean> => {
   const { siyuanApiUrl, siyuanToken, siyuanBoxId, siyuanRootPath } = await preferenceService.getMultiple({
     siyuanApiUrl: 'data.integration.siyuan.api_url',
     siyuanToken: 'data.integration.siyuan.token',
@@ -1371,12 +1418,12 @@ export const exportMarkdownToSiyuan = async (title: string, content: string): Pr
 
   if (getExportState()) {
     toast.warning(i18n.t('message.warn.export.exporting'))
-    return
+    return false
   }
 
   if (!siyuanApiUrl || !siyuanToken || !siyuanBoxId) {
     toast.error(i18n.t('message.error.siyuan.no_config'))
-    return
+    return false
   }
 
   setExportingState(true)
@@ -1411,9 +1458,11 @@ export const exportMarkdownToSiyuan = async (title: string, content: string): Pr
     await createSiyuanDoc(siyuanApiUrl, siyuanToken, siyuanBoxId, docPath, content)
 
     toast.success(i18n.t('message.success.siyuan.export'))
+    return true
   } catch (error) {
     logger.error('Failed to export to Siyuan:', error as Error)
     toast.error(i18n.t('message.error.siyuan.export') + (error instanceof Error ? `: ${error.message}` : ''))
+    return false
   } finally {
     setExportingState(false)
   }
@@ -1475,9 +1524,16 @@ async function createSiyuanDoc(
 }
 
 const saveContentToNotes = async (title: string, content: string, folderPath: string): Promise<void> => {
-  await addNote(title, content, folderPath)
+  const { path } = await addNote(title, content, folderPath)
 
-  toast.success(i18n.t('message.success.notes.export'))
+  toast.success({
+    title: i18n.t('message.success.notes.export'),
+    timeout: 5000,
+    action: {
+      label: i18n.t('notes.open'),
+      onClick: () => openRoute('/app/notes', { notePath: path })
+    }
+  })
 }
 
 const handleNotesExportError = (error: unknown): void => {

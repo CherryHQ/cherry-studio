@@ -3,7 +3,25 @@
  * Child-safe: types only.
  */
 
+import type { UtilityProcessStreamLimits } from '../types'
 import type { PROTOCOL, PROTOCOL_VERSION } from './constants'
+
+export type StreamMessage =
+  | { kind: 'stream-data'; sequence: number; metadata: string; payload?: Uint8Array }
+  | { kind: 'stream-credit'; sequence: number }
+  | { kind: 'stream-end'; sequence: number }
+  | { kind: 'stream-end-ack'; sequence: number }
+
+export type StreamFrame = FrameIdentity & { requestId: number } & StreamMessage
+export type StreamOpenFrame = FrameIdentity & {
+  kind: 'stream-open'
+  requestId: number
+  method: string
+  input: unknown
+  inputLimits: UtilityProcessStreamLimits
+  outputLimits: UtilityProcessStreamLimits
+}
+export type StreamClosedFrame = FrameIdentity & { kind: 'stream-closed'; requestId: number }
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
@@ -29,7 +47,13 @@ export type ConnectFrame = FrameIdentity & { kind: 'connect'; initData: unknown 
 export type RequestFrame = FrameIdentity & { kind: 'request'; requestId: number; method: string; input: unknown }
 export type CancelFrame = FrameIdentity & { kind: 'cancel'; requestId: number }
 export type ShutdownFrame = FrameIdentity & { kind: 'shutdown' }
-export type MainFrame = RequestFrame | CancelFrame | ShutdownFrame
+export type HostReplyFrame = FrameIdentity & {
+  kind: 'host-reply'
+  requestId: number
+  callId: number
+  outcome: { value: unknown } | { error: RemoteErrorShape }
+}
+export type MainFrame = RequestFrame | CancelFrame | ShutdownFrame | HostReplyFrame | StreamOpenFrame | StreamFrame
 
 export type ReadyFrame = FrameIdentity & { kind: 'ready' }
 export type EventFrame = FrameIdentity & { kind: 'event'; requestId: number; event: unknown }
@@ -45,6 +69,9 @@ export type LogFrame = FrameIdentity & {
 }
 export type ProtocolErrorFrame = FrameIdentity & { kind: 'protocol-error'; message: string; requestId?: number }
 export type ChildFrame =
+  | StreamFrame
+  | StreamClosedFrame
+  | (FrameIdentity & { kind: 'host-call'; requestId: number; callId: number; method: string; input: unknown })
   | ReadyFrame
   | EventFrame
   | ResultFrame
