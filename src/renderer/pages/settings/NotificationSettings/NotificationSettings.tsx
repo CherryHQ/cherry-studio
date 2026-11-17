@@ -13,9 +13,9 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { isWin } from '@renderer/utils/platform'
 import { toast } from '@renderer/services/toast'
 import type { NotificationSource } from '@renderer/types/notification'
+import { isWin } from '@renderer/utils/platform'
 
 const logger = loggerService.withContext('NotificationSettings')
 
