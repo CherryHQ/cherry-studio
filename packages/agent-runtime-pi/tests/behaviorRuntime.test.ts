@@ -2,7 +2,7 @@ import { join } from 'node:path'
 
 import { defineTool, SessionManager } from '@earendil-works/pi-coding-agent'
 import { obj } from '@earendil-works/pi-schema'
-import { expect, it, onTestFinished } from 'vitest'
+import { expect, it, onTestFinished, vi } from 'vitest'
 
 import { createScriptedHost } from '@cherrystudio/agent-behavior'
 import {
@@ -13,6 +13,7 @@ import {
 } from '@cherrystudio/agent-runtime'
 
 import { createPiRuntime, type PiSessionOptions, type PiObservation } from '../src'
+import * as piHarness from '../src/behavior/harness'
 import { assistantReply, createTestBinding, MODEL, respondingModel, tempDir, type TestStream } from './sessionSupport'
 import { gate, subagentCall, toolCallPart } from './subagentSupport'
 
@@ -43,6 +44,7 @@ const inputs = (events: ObservationPayload[], id: string) =>
 async function setup(stream: TestStream, options: Partial<PiSessionOptions> = {}) {
   const cwd = tempDir('behavior-runtime')
   const errors: unknown[] = []
+  const errorReports: unknown[][] = []
   const host = createScriptedHost({
     settings: {
       goalDefaults: { maxGoalRounds: 3, maxGoalRoundsCeiling: 50, blockedAfter: 3 },
@@ -67,15 +69,16 @@ async function setup(stream: TestStream, options: Partial<PiSessionOptions> = {}
     await createPiRuntime({
       backendId: runtimeId('pi'),
       load: async (ref) => (ref.id === config.sessionManager?.getSessionId() ? config : undefined),
-      onError: (error) => {
-        errors.push(error)
+      onError: (...report) => {
+        errors.push(report[0])
+        errorReports.push(report)
       }
     })
   )
   onTestFinished(async () => {
     await runtime.shutdown()
   })
-  return { runtime, config, host, errors }
+  return { runtime, config, host, errors, errorReports }
 }
 
 // Catches bypassing the adapter for native inputs, and losing correlation through native preflight and queues.
@@ -550,6 +553,60 @@ it('rejects an empty native summary without changing the compacted history', asy
   expect((await root.pi.compact()).status).not.toBe('confirmed')
   expect(root.pi.history().some((entry) => entry.type === 'compaction')).toBe(false)
   expect(provider.calls).toHaveLength(2)
+})
+
+it('associates a failed native compaction with its exact owner and original error', async () => {
+  const provider = respondingModel((_call, index) =>
+    index === 1 ? assistantReply('answer') : { ...assistantReply([], 'error'), errorMessage: 'insufficient balance' }
+  )
+  const { runtime, config, errorReports } = await setup(provider.model)
+  const root = confirmed(await runtime.create(config))
+  const events = await observe(root)
+  await root.input.submit(draft('question'))
+  await expect.poll(() => inputs(events, 'question').at(-1)?.outcome).toBe('completed')
+  expect((await root.pi.compact()).status).not.toBe('confirmed')
+  expect(errorReports).toHaveLength(1)
+  expect(errorReports[0]).toEqual([
+    expect.any(Error),
+    {
+      operation: 'compact',
+      thread: root.thread,
+      compactionFailure: { aborted: false, errorMessage: expect.stringContaining('insufficient balance') }
+    }
+  ])
+  expect(root.pi.history().some((entry) => entry.type === 'compaction')).toBe(false)
+})
+
+it('keeps an unexpected onCompacted failure distinct from a failed native compaction', async () => {
+  const failure = new TypeError('Unexpected post-compaction callback failure')
+  const createBehavior = piHarness.createPiBehavior
+  const creatingBehavior = vi.spyOn(piHarness, 'createPiBehavior').mockImplementation((options) =>
+    createBehavior({
+      ...options,
+      install: (ports) => {
+        const register = ports.lifecycle.register
+        ports.lifecycle.register = (handlers) =>
+          register({
+            ...handlers,
+            onCompacted: async (...args) => {
+              await handlers.onCompacted(...args)
+              throw failure
+            }
+          })
+        options.install(ports)
+      }
+    })
+  )
+  onTestFinished(() => creatingBehavior.mockRestore())
+  const provider = respondingModel((_call, index) => assistantReply(index === 1 ? 'answer' : 'native summary'))
+  const { runtime, config, errorReports } = await setup(provider.model)
+  const root = confirmed(await runtime.create(config))
+  const events = await observe(root)
+  await root.input.submit(draft('question'))
+  await expect.poll(() => inputs(events, 'question').at(-1)?.outcome).toBe('completed')
+  expect((await root.pi.compact()).status).not.toBe('confirmed')
+  expect(root.pi.history().some((entry) => entry.type === 'compaction')).toBe(true)
+  expect(errorReports).toEqual([[failure, { operation: 'compact', thread: root.thread }]])
 })
 
 // Catches a missing tool gate (the denied write runs) or a question result never reaching the native model context.
