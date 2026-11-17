@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
+import { promptSuggestionForDisplay } from '@shared/ai/promptSuggestion'
 import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -37,7 +38,7 @@ export function useAgentPromptSuggestion({
   const observedBusyOwner = useRef<symbol>(undefined)
   const attempted = useRef<string>(undefined)
   const [dismissedTurn, setDismissedTurn] = useState<string>()
-  const [result, setResult] = useState<{ turnKey: string; text: string }>()
+  const [result, setResult] = useState<{ turnKey: string; owner: symbol; text: string }>()
   const context = useMemo(() => {
     if (busy) return ''
     return JSON.stringify(
@@ -58,7 +59,6 @@ export function useAgentPromptSuggestion({
     !!model &&
     lastMessage?.role === 'assistant' &&
     lastMessage.metadata?.status === 'success' &&
-    observedBusyOwner.current === owner &&
     turnKey !== dismissedTurn
 
   useEffect(() => {
@@ -83,20 +83,23 @@ export function useAgentPromptSuggestion({
         .request('ai.agent.session.predict_prompt', { sessionId, replyId, modelId, requestId })
         .then((prediction) => {
           if (prediction.supported || cancelled) return prediction
-          return ipcApi.request('ai.text.generate', {
-            requestId,
-            uniqueModelId: modelId,
-            reasoningEffort,
-            disableTools: true,
-            system: SUGGESTION_PROMPT,
-            prompt: context,
-            requestOptions: { maxRetries: 0, timeout: 10_000 }
-          })
+          if (observedBusyOwner.current !== owner) return { text: '' }
+          return ipcApi
+            .request('ai.text.generate', {
+              requestId,
+              uniqueModelId: modelId,
+              reasoningEffort,
+              disableTools: true,
+              system: SUGGESTION_PROMPT,
+              prompt: context,
+              requestOptions: { maxRetries: 0, timeout: 10_000 }
+            })
+            .then(({ text }) => ({ text: text.trim().length <= 120 ? text.trim() : '' }))
         })
         .then(({ text }) => {
-          const suggestion = text.trim()
-          if (!cancelled && suggestion && suggestion.length <= 120 && !suggestion.includes('\n')) {
-            setResult({ turnKey, text: suggestion })
+          const suggestion = promptSuggestionForDisplay(text)
+          if (!cancelled && suggestion) {
+            setResult({ turnKey, owner, text: suggestion })
           }
         })
         .catch(() => undefined)
@@ -109,8 +112,8 @@ export function useAgentPromptSuggestion({
         void ipcApi.request('ai.text.abort', { requestId }).catch(() => undefined)
       }
     }
-  }, [context, eligible, replyId, modelId, reasoningEffort, sessionId, turnKey])
+  }, [context, eligible, replyId, modelId, reasoningEffort, sessionId, turnKey, owner])
 
   const dismiss = useCallback(() => setDismissedTurn(turnKey), [turnKey])
-  return { text: eligible && result?.turnKey === turnKey ? result.text : '', dismiss }
+  return { text: eligible && result?.turnKey === turnKey && result.owner === owner ? result.text : '', dismiss }
 }

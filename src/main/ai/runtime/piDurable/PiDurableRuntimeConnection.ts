@@ -31,7 +31,7 @@ import { PiChildTasks } from '../pi/PiChildTasks'
 import { PiInvalidConnectionSnapshotError } from '../pi/piConnectionSignature'
 import { PiMessageMetadata } from '../pi/PiMessageMetadata'
 import { PiTurnUsage } from '../pi/PiTurnUsage'
-import { PROMPT_SUGGESTION_INSTRUCTION, promptSuggestionHeaders } from '../promptSuggestion'
+import { PROMPT_SUGGESTION_INSTRUCTION } from '../promptSuggestion'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -148,11 +148,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   async predictPrompt(signal: AbortSignal): Promise<string> {
     if (!this.handle || this.closing) return ''
-    return this.handle.durable.predictPrompt(
-      PROMPT_SUGGESTION_INSTRUCTION,
-      signal,
-      promptSuggestionHeaders(this.input.modelId)
-    )
+    return this.handle.durable.predictPrompt(PROMPT_SUGGESTION_INSTRUCTION, signal)
   }
 
   async send(input: AgentRuntimeCommand): Promise<void> {

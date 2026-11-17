@@ -107,3 +107,30 @@ it('ignores events from a different native session', async () => {
   state.accept(suggestion)
   expect(await pending).toBe('run the tests')
 })
+
+it('seeds a resident snapshot and clears it on the next real user message', async () => {
+  const state = new ClaudePromptSuggestion()
+  state.accept({
+    ...suggestion,
+    events: [{ type: 'snapshot', messages: [], inputs: [], activity: { state: 'idle' } }],
+    native: [{ source: 'live', message: result }, ...suggestion.native]
+  })
+  expect(await state.read(new AbortController().signal)).toBe('run the tests')
+  state.accept({
+    events: [],
+    retracted: [],
+    native: [
+      {
+        source: 'live',
+        message: {
+          type: 'user',
+          session_id: 'native',
+          parent_tool_use_id: null,
+          message: { role: 'user', content: 'continue' }
+        }
+      }
+    ]
+  })
+  state.accept(suggestion)
+  expect(await state.read(new AbortController().signal)).toBe('')
+})

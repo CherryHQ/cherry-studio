@@ -55,7 +55,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import { AsyncEventQueue } from '@shared/utils/async'
 
 import { resolveApiGatewayRuntime } from '../agentApiGateway'
-import { PROMPT_SUGGESTION_INSTRUCTION, promptSuggestionHeaders } from '../promptSuggestion'
+import { PROMPT_SUGGESTION_INSTRUCTION } from '../promptSuggestion'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -386,11 +386,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   async predictPrompt(signal: AbortSignal): Promise<string> {
     if (!this.handle || this.closing) return ''
-    return this.handle.pi.predictPrompt(
-      PROMPT_SUGGESTION_INSTRUCTION,
-      signal,
-      promptSuggestionHeaders(this.input.modelId)
-    )
+    return this.handle.pi.predictPrompt(PROMPT_SUGGESTION_INSTRUCTION, signal)
   }
 
   async send(input: AgentRuntimeCommand): Promise<void> {

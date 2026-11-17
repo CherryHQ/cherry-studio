@@ -98,7 +98,7 @@ it('bounds prediction context while retaining the latest text from each message'
   expect(context[0].text.endsWith('LATEST')).toBe(true)
 })
 
-it('does not spend a request when opening history or when disabled or unsuccessful', async () => {
+it('only reads session state on history opening and does not generate when disabled or unsuccessful', async () => {
   const { rerender } = renderHook(useAgentPromptSuggestion, { initialProps: { ...initial, busy: false } })
   await act(() => vi.advanceTimersByTimeAsync(300))
   rerender({ ...initial, messages: [reply('failed', 'error')], busy: false })
@@ -106,7 +106,8 @@ it('does not spend a request when opening history or when disabled or unsuccessf
   MockUsePreferenceUtils.setPreferenceValue('agent.input.suggestions.enabled', false)
   rerender({ ...initial, messages: [reply('new')], busy: false })
   await act(() => vi.advanceTimersByTimeAsync(300))
-  expect(request).not.toHaveBeenCalled()
+  expect(request.mock.calls.filter(([route]) => route === 'ai.agent.session.predict_prompt')).toHaveLength(1)
+  expect(request.mock.calls.some(([route]) => route === 'ai.text.generate')).toBe(false)
 })
 
 it('cancels on user input and never resurrects the suggestion after clearing the draft', async () => {
@@ -198,5 +199,13 @@ it('does not replace native suppression with a renderer model request', async ()
   const { result, rerender } = renderHook(useAgentPromptSuggestion, { initialProps: initial })
   await complete(rerender)
   expect(result.current.text).toBe('')
+  expect(request.mock.calls.some(([route]) => route === 'ai.text.generate')).toBe(false)
+})
+
+it('seeds the composer from an existing session prediction without generating another', async () => {
+  request.mockResolvedValue({ supported: true, text: 'run the tests' })
+  const { result } = renderHook(useAgentPromptSuggestion, { initialProps: { ...initial, busy: false } })
+  await act(() => vi.advanceTimersByTimeAsync(0))
+  expect(result.current.text).toBe('run the tests')
   expect(request.mock.calls.some(([route]) => route === 'ai.text.generate')).toBe(false)
 })

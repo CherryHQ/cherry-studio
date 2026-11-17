@@ -1001,6 +1001,7 @@ it('predicts from durable context without committing prediction messages or task
   const { runtime, faux } = await setup()
   faux.setResponses([
     fauxAssistantMessage('Fixed the original issue.'),
+    fauxAssistantMessage('Checked the fix.'),
     (context) => {
       expect(context.messages).toEqual(
         expect.arrayContaining([
@@ -1015,6 +1016,9 @@ it('predicts from durable context without committing prediction messages or task
   ])
   const root = confirmed(await runtime.create(sessionOptions))
   expect((await root.input.submit(draft('Fix the original issue'))).status).toBe('acknowledged')
+  await runtime.settled()
+  expect(await root.durable.predictPrompt('exact prediction instruction', new AbortController().signal)).toBe('')
+  await root.input.submit(draft('Check the fix'))
   await runtime.settled()
   const before = confirmed(await root.archive())
   const facts = await root.durable.facts()

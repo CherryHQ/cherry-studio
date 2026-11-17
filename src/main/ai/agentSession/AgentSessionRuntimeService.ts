@@ -280,7 +280,13 @@ type RuntimeState = AgentSessionRuntimeState<AgentSessionTurn, PendingAgentSessi
 type RuntimeStateEvent = AgentSessionRuntimeStateEvent<AgentSessionTurn, PendingAgentSessionTurn>
 
 type AgentSessionRuntimeEntry = {
-  prediction?: { requestId: string; replyId: string; controller: AbortController }
+  prediction?: {
+    requestId?: string
+    replyId: string
+    modelId: UniqueModelId
+    controller: AbortController
+    result: Promise<string>
+  }
   closing?: true
   interactionWindowId?: string
   sessionId: string
@@ -625,10 +631,23 @@ export class AgentSessionRuntimeService extends BaseService {
     const entry = this.entries.get(input.sessionId)
     const supported = !entry || ['claude-code', 'pi', 'pi-durable'].includes(entry.agentType)
     const empty = { supported, text: '' }
-    if (!supported || !entry) return empty
+    const prediction = entry?.prediction
+    if (!supported || !prediction || prediction.replyId !== input.replyId || prediction.modelId !== input.modelId)
+      return empty
+    prediction.requestId = input.requestId
+    const text = await prediction.result
+    return prediction.controller.signal.aborted ? empty : { supported, text }
+  }
+
+  private startPromptPrediction(entry: AgentSessionRuntimeEntry): void {
     const connection = this.currentConnection(entry)
     const turn = getAgentSessionRuntimeCurrentTurn(entry.runtimeState)
+    if (!turn || !connection?.predictPrompt || entry.prediction?.replyId === turn.assistantMessageId) return
+    const modelId = entry.modelId
     const eligible = () =>
+      entry.modelId === modelId &&
+      (!entry.interactionWindowId ||
+        application.get('WindowManager').getWindow(entry.interactionWindowId)?.isFocused() === true) &&
       this.isCurrentEntry(entry) &&
       !entry.closing &&
       this.runtimeStatus(entry) === 'idle' &&
@@ -636,23 +655,29 @@ export class AgentSessionRuntimeService extends BaseService {
       this.currentConnection(entry) === connection &&
       getAgentSessionRuntimeCurrentTurn(entry.runtimeState) === turn &&
       entry.runtimeState.lastTerminal === 'success' &&
-      !turn?.headless &&
-      !turn?.origin &&
-      turn?.assistantMessageId === input.replyId &&
-      entry.modelId === input.modelId &&
+      !turn.headless &&
+      !turn.origin &&
+      agentService.getAgent(entry.agentId)?.configuration?.permission_mode !== 'plan' &&
       application.get('PreferenceService').get('agent.input.suggestions.enabled')
-    if (!eligible() || !connection?.predictPrompt || entry.prediction?.replyId === input.replyId) return empty
+    if (!eligible()) return
     entry.prediction?.controller.abort()
     const controller = new AbortController()
-    entry.prediction = { requestId: input.requestId, replyId: input.replyId, controller }
-    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)])
-    try {
-      const text = await connection.predictPrompt(signal)
-      return eligible() && !signal.aborted ? { supported, text: normalizePromptSuggestion(text) } : empty
-    } catch (error) {
-      if (!signal.aborted) logger.debug('Prompt prediction unavailable', { sessionId: input.sessionId, error })
-      return empty
-    }
+    const result = Promise.resolve().then(async () => {
+      if (!eligible() || controller.signal.aborted) return ''
+      try {
+        const text = await connection.predictPrompt!(controller.signal)
+        return eligible() && !controller.signal.aborted
+          ? entry.agentType === 'claude-code'
+            ? text
+            : normalizePromptSuggestion(text)
+          : ''
+      } catch (error) {
+        if (!controller.signal.aborted)
+          logger.debug('Prompt prediction unavailable', { sessionId: entry.sessionId, error })
+        return ''
+      }
+    })
+    entry.prediction = { replyId: turn.assistantMessageId, modelId: entry.modelId, controller, result }
   }
 
   abortPromptPrediction(sessionId: string, requestId: string): void {
@@ -1285,6 +1310,7 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.runtimeState.execution.kind === 'steer-transition' &&
       entry.runtimeState.execution.source.turn === completedTurn
     this.applyRuntimeStateEvent(entry, { type: 'turn-terminal', turn: completedTurn, status })
+    if (status === 'success' && !isRowRoll) this.startPromptPrediction(entry)
     this._onTurnTerminal.fire({
       sessionId,
       assistantMessageId: completedTurn.assistantMessageId,

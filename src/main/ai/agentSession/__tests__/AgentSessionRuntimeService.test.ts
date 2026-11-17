@@ -642,7 +642,7 @@ describe('AgentSessionRuntimeService', () => {
     }
   )
 
-  it.each(['disabled', 'headless', 'failure'] as const)(
+  it.each(['disabled', 'headless', 'failure', 'plan', 'unfocused'] as const)(
     'does not generate a prediction for %s turns',
     async (reason) => {
       await defaultServiceInstances.PreferenceService.set('agent.input.suggestions.enabled', reason !== 'disabled')
@@ -650,6 +650,12 @@ describe('AgentSessionRuntimeService', () => {
       service.beginTurn({ ...baseTurnInput, agentType: 'pi', headless: reason === 'headless' })
       const predictPrompt = vi.fn(async () => 'run tests')
       getEntry(service).connection = { close: vi.fn(), send: vi.fn(), events: [], predictPrompt }
+      if (reason === 'plan')
+        mocks.getAgent.mockReturnValue({ id: 'agent-1', configuration: { permission_mode: 'plan' } })
+      if (reason === 'unfocused') {
+        getEntry(service).interactionWindowId = 1
+        mocks.getWindow.mockReturnValue({ isFocused: () => false })
+      }
       service.markTurnTerminal('session-1', reason === 'failure' ? 'error' : 'success')
       expect(
         await service.predictPrompt({
@@ -686,17 +692,15 @@ describe('AgentSessionRuntimeService', () => {
       requestId: crypto.randomUUID()
     }
     expect(await service.predictPrompt({ ...input, replyId: 'older-reply' })).toEqual({ supported: true, text: '' })
-    expect(predictPrompt).not.toHaveBeenCalled()
+    expect(predictPrompt).toHaveBeenCalledTimes(1)
     const pending = service.predictPrompt(input)
-    expect(await service.predictPrompt({ ...input, requestId: crypto.randomUUID() })).toEqual({
-      supported: true,
-      text: ''
-    })
+    const secondReader = service.predictPrompt({ ...input, requestId: crypto.randomUUID() })
     expect(predictPrompt).toHaveBeenCalledTimes(1)
     service.beginTurn({ ...baseTurnInput, agentType: 'pi', assistantMessageId: 'assistant-2' })
     expect(signal.aborted).toBe(true)
     finish('stale prediction')
     expect(await pending).toEqual({ supported: true, text: '' })
+    expect(await secondReader).toEqual({ supported: true, text: '' })
     await service.closeSession('session-1')
   })
 

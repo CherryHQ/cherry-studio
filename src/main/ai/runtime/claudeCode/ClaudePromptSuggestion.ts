@@ -13,12 +13,14 @@ export class ClaudePromptSuggestion {
   }
 
   accept(batch: ClaudeObservation): void {
-    if (batch.events.some((event) => event.type === 'snapshot' || event.type === 'gap')) {
+    if (batch.events.some((event) => event.type === 'gap')) {
       this.clear()
       return
     }
+    if (batch.events.some((event) => event.type === 'snapshot')) this.clear()
     for (const { message, source } of batch.native) {
       if (source !== 'live') continue
+      if (message.type === 'user' && !message.isSynthetic && !message.parent_tool_use_id) this.clear()
       if (message.type === 'result') {
         this.clear()
         if (message.subtype === 'success' && !message.is_error && !batch.state?.aborted)

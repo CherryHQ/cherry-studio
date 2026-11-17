@@ -885,9 +885,9 @@ it('isolates child restore failures and recovers the same child after its model 
 
 it('predicts from native context without appending history or executing a tool response', async () => {
   const provider = respondingModel((_call, n) =>
-    n === 1
+    n <= 2
       ? assistantReply('Fixed the original issue.')
-      : n === 2
+      : n === 3
         ? assistantReply('run the tests')
         : assistantReply([toolCallPart('prediction-tool', 'bash', { command: 'echo forbidden' })], 'toolUse')
   )
@@ -895,17 +895,21 @@ it('predicts from native context without appending history or executing a tool r
   const root = confirmed(await runtime.create(config))
   expect((await root.input.submit(draft('Fix the original issue'))).status).toBe('acknowledged')
   await root.pi.settled()
+  expect(await root.pi.predictPrompt('exact prediction instruction', new AbortController().signal)).toBe('')
+  expect(provider.calls).toHaveLength(1)
+  await root.input.submit(draft('Check the fix'))
+  await root.pi.settled()
   const before = root.pi.history()
   expect(await root.pi.predictPrompt('exact prediction instruction', new AbortController().signal)).toBe(
     'run the tests'
   )
-  expect(provider.calls[1].messages).toEqual(
+  expect(provider.calls[2].messages).toEqual(
     expect.arrayContaining([expect.objectContaining({ role: 'user', content: 'exact prediction instruction' })])
   )
-  expect(JSON.stringify(provider.calls[1].messages)).toContain('Fix the original issue')
-  expect(provider.calls[1].tools).toEqual([])
+  expect(JSON.stringify(provider.calls[2].messages)).toContain('Fix the original issue')
+  expect(provider.calls[2].tools).toEqual(provider.calls[1].tools)
   expect(root.pi.history()).toEqual(before)
   expect(await root.pi.predictPrompt('exact prediction instruction', new AbortController().signal)).toBe('')
   expect(root.pi.history()).toEqual(before)
-  expect(provider.calls).toHaveLength(3)
+  expect(provider.calls).toHaveLength(4)
 })

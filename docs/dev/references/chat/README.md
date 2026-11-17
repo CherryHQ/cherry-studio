@@ -71,7 +71,7 @@ turn completes successfully. `agent.input.suggestions.enabled` defaults to
 `true` and can be disabled in the input settings. Ordinary chat, message
 editing and reopening history do not generate suggestions.
 
-Tab fills the suggestion as literal editable text without sending; Escape
+Tab or the forward arrow (Right in LTR, Left in RTL) fills literal editable text without sending; Escape
 cancels it for that reply. Existing drafts, attachments and queued follow-ups
 suppress it. Quick-panel handling, prompt-variable navigation, Shift+Tab and
 IME composition keep their existing behavior. Unaccepted suggestions are not
@@ -80,7 +80,7 @@ session/model change or new turn.
 
 Claude Code uses its native suggestion option and events, preserving the runtime's
 suppression rules. Pi and Pi Durable predict from their effective native context,
-including compaction, through an isolated tool-free request using the active model
+including compaction, through a detached request that aborts tool calls using the active model
 and the Claude Code suggestion instruction. No prediction is written to history or
 submitted as an Agent turn. See [Agent Session Runtime](../ai/agent-session-runtime.md#next-prompt-suggestions)
 for ownership and cancellation. Other runtimes retain the four-message text-only

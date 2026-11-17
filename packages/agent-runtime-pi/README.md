@@ -338,9 +338,22 @@ through the same tool mapping as direct calls.
 
 ## Detached prompt prediction
 
-`pi.predictPrompt(instruction, signal, headers?)` reads the current idle session's
-compacted projection into an isolated context and makes one native model request.
-It strips executable tool declarations, rejects tool-call output, and never submits
-input or appends native history. The host owns eligibility and source-reply validation;
-owner shutdown aborts the request, and released accesses discard its result. The provider request has no retries
-and a ten-second timeout.
+`pi.predictPrompt(instruction, signal)` uses the patched native
+`AgentSession.createQueryFork()` to snapshot the idle compacted session projection.
+The shared pi-ai fork makes one streaming model request without submitting input,
+writing transcript/history, creating tasks or changing goals. It retains the parent
+model, reasoning, session identity and tool declarations, but aborts at the first
+streamed tool call before any tool can execute. Owner shutdown cancels the request.
+
+The pi-ai dependency patch carries `skipCacheWrite` through provider option conversion.
+Anthropic, Anthropic-compatible chat completions and Bedrock retain the parent's
+explicit cache breakpoints and add none for the response/prediction suffix. This is
+not `cacheRetention: 'none'`: cache reads remain enabled. Automatic server-side cache
+writes are provider-controlled; the flag does not promise to disable those writes.
+Continuation state and parent reply usage/budget accounting are not updated by the fork.
+There is no prediction-specific reasoning, timeout or retry override.
+
+Prediction requires at least two assistant messages, a successful latest response,
+and documented uncached/cache-write token gates. The host owns turn-end scheduling,
+focus/Plan/preference gates and source-reply validation; renderer reads consume the
+existing ephemeral result without triggering another query.

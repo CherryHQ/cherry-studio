@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto'
 
+import { canSuggestPrompt } from '@earendil-works/pi-ai/utils/query-fork'
 import {
   type AgentSession,
   type SessionEntry,
   type ToolDefinition,
-  convertToLlm,
   SessionManager,
   SettingsManager
 } from '@earendil-works/pi-coding-agent'
@@ -67,7 +67,7 @@ export interface PiThreadHandle extends ThreadHandle {
         readonly handle: PiThreadHandle
       }>
     >
-    predictPrompt(prompt: string, signal: AbortSignal, headers?: Record<string, string>): Promise<string>
+    predictPrompt(prompt: string, signal: AbortSignal): Promise<string>
     history(): readonly SessionEntry[]
     /** Read committed entries through owner shutdown, until this access is released. */
     archive(): ReturnType<PiProjection['archive']>
@@ -332,39 +332,13 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
           }
           return { status: 'confirmed', value: { relation: found.value, handle: opened.value } }
         },
-        async predictPrompt(prompt, signal, headers) {
-          if (unavailable() || signal.aborted || !entry.session.isIdle || !entry.session.model) return ''
-          // oxlint-disable-next-line no-restricted-globals -- Providers may transform messages; prediction must not mutate native history.
-          const messages = structuredClone(convertToLlm(entry.session.sessionManager.buildSessionProjection().messages))
-          for (const message of messages) {
-            if (message.role === 'system') {
-              delete message.toolsAdded
-              delete message.toolsRemoved
-            }
-          }
-          messages.push({ role: 'user', content: prompt, timestamp: Date.now() })
-          const result = await entry.session.modelRuntime.completeSimple(
-            entry.session.model,
-            { messages },
-            {
-              signal: AbortSignal.any([signal, closingAccess.signal]),
-              toolChoice: 'none',
-              headers,
-              maxRetries: 0,
-              timeoutMs: 10_000
-            }
-          )
-          if (
-            signal.aborted ||
-            unavailable() ||
-            result.stopReason !== 'stop' ||
-            result.content.some((part) => part.type === 'toolCall')
-          )
-            return ''
-          return result.content
-            .filter((part) => part.type === 'text')
-            .map((part) => part.text)
-            .join('')
+        async predictPrompt(prompt, signal) {
+          if (unavailable() || signal.aborted || !entry.session.isIdle) return ''
+          const fork = entry.session.createQueryFork()
+          if (!canSuggestPrompt(fork.messages) || unavailable() || signal.aborted) return ''
+          const { message, calledTool } = await fork.query(prompt, AbortSignal.any([signal, closingAccess.signal]))
+          if (calledTool || signal.aborted || unavailable() || message?.stopReason !== 'stop') return ''
+          return message.content.find((part) => part.type === 'text')?.text ?? ''
         },
         // oxlint-disable-next-line no-restricted-globals -- Explicit history reads return isolated native branch entries to the host.
         history: () => (unavailable() ? [] : structuredClone(entry.session.sessionManager.getBranch())),
