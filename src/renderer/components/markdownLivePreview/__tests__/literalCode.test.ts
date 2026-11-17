@@ -2,12 +2,12 @@ import { Editor, type JSONContent } from '@tiptap/core'
 import { TextSelection } from '@tiptap/pm/state'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { createComposerDraftContent, serializeComposerDocument } from '../../composerDraft'
-import { createComposerInputAdapter } from '../../composerInputAdapter'
-import { getComposerPlainTextPasteOverride } from '../../composerPaste'
-import { createComposerEditorPreset } from '../../composerPreset'
-import { createPromptVariableInlineContent, tokenizePromptVariablesInEditor } from '../../promptVariables'
-import type { ComposerDraftToken } from '../../tokens'
+import { createComposerDraftContent, serializeComposerDocument } from '../../composer/composerDraft'
+import { createComposerInputAdapter } from '../../composer/composerInputAdapter'
+import { getComposerPlainTextPasteOverride } from '../../composer/composerPaste'
+import { createComposerEditorPreset } from '../../composer/composerPreset'
+import { createPromptVariableInlineContent, tokenizePromptVariablesInEditor } from '../../composer/promptVariables'
+import type { ComposerDraftToken } from '../../composer/tokens'
 
 const editors: Editor[] = []
 

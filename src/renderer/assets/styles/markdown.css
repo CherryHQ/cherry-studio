@@ -9,12 +9,12 @@
   word-break: normal;
 }
 
-.markdown h1:first-child,
-.markdown h2:first-child,
-.markdown h3:first-child,
-.markdown h4:first-child,
-.markdown h5:first-child,
-.markdown h6:first-child {
+.markdown h1:first-child:not(.markdown-live-block:not([data-preview-first]) > *),
+.markdown h2:first-child:not(.markdown-live-block:not([data-preview-first]) > *),
+.markdown h3:first-child:not(.markdown-live-block:not([data-preview-first]) > *),
+.markdown h4:first-child:not(.markdown-live-block:not([data-preview-first]) > *),
+.markdown h5:first-child:not(.markdown-live-block:not([data-preview-first]) > *),
+.markdown h6:first-child:not(.markdown-live-block:not([data-preview-first]) > *) {
   margin-top: 0;
 }
 
@@ -78,20 +78,21 @@
   white-space: pre-line;
 }
 
-.markdown p:last-child {
+.markdown p:last-child:not(.markdown-live-block:not([data-preview-last]) > *) {
   margin-bottom: 0;
 }
 
-.markdown p:only-child {
+.markdown p:only-child:not(.markdown-live-block:not([data-preview-last]) > *) {
   margin-bottom: 0;
 }
 
-.markdown p:first-child {
+.markdown p:first-child:not(.markdown-live-block:not([data-preview-first]) > *) {
   margin-top: 0;
 }
 
 .markdown p:has(+ ul),
-.markdown p:has(+ ol) {
+.markdown p:has(+ ol),
+.markdown .markdown-live-block[data-preview-next='list'] > p {
   margin-bottom: 0.35em;
 }
 
@@ -331,7 +332,8 @@
   border-radius: 0;
 }
 
-.markdown pre + pre {
+.markdown pre + pre,
+.markdown .markdown-live-block[data-preview-previous='code'] > pre {
   margin-top: 0.75em;
 }
 

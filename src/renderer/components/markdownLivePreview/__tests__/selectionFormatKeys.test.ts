@@ -4,8 +4,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { isMac } from '@renderer/utils/platform'
 
-import { createComposerDraftContent, serializeComposerDocument } from '../../composerDraft'
-import { createComposerEditorPreset } from '../../composerPreset'
+import { createComposerDraftContent, serializeComposerDocument } from '../../composer/composerDraft'
+import { createComposerEditorPreset } from '../../composer/composerPreset'
 import { createMarkdownSession } from '../markdownSession'
 import { handleMarkdownFormatKey } from '../selectionFormatKeys'
 
