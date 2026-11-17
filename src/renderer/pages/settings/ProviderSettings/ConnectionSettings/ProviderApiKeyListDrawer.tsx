@@ -3,10 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuidv4 } from 'uuid'
 
-import { ScrollArea } from '@cherrystudio/ui'
+import { ScrollArea, EmptyState } from '@cherrystudio/ui'
 import { Button, Input, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useProviderApiKeys, useProviderMutations } from '@renderer/hooks/useProvider'
+import { ApiKeyEmptyScene } from '@renderer/pages/settings/SettingsEmptyScenes'
 import { toast } from '@renderer/services/toast'
 import { maskApiKey } from '@renderer/utils/api'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
@@ -178,7 +179,9 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
         <div className={apiKeyListClasses.listWrap}>
           <ScrollArea className={apiKeyListClasses.listScroller}>
             {apiKeys.length === 0 && !draft ? (
-              <div className="px-4 py-6 text-center text-muted-foreground text-sm">{t('error.no_api_key')}</div>
+              <div className="flex justify-center px-4 py-4">
+                <EmptyState compact scene={<ApiKeyEmptyScene />} title={t('error.no_api_key')} />
+              </div>
             ) : null}
             {apiKeys.map((entry) => (
               <div key={entry.id} className={apiKeyListClasses.keyRow}>

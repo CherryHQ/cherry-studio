@@ -13,6 +13,7 @@ import type {
 } from '@shared/data/api/schemas/aiUsageRecords'
 import type { Currency } from '@shared/data/types/model'
 
+import { UsageEmptyScene } from '../SettingsEmptyScenes'
 import {
   type BoundedTimeRange,
   buildChartSeries,
@@ -158,6 +159,7 @@ export function UsageDistributionChart({
     return (
       <EmptyState
         compact
+        scene={<UsageEmptyScene />}
         title={t('settings.usage.explore.noBreakdown')}
         description={t('settings.usage.explore.noBreakdownDescription')}
       />

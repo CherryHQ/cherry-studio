@@ -13,6 +13,7 @@ import {
 import { formatFileSize } from '@renderer/utils/file'
 import type { McpResource } from '@shared/types/mcp'
 
+import { McpEmptyScene } from '../SettingsEmptyScenes'
 import { McpDetailItem, McpDetailList } from './McpDetailList'
 import McpResourcePreview from './McpResourcePreview'
 
@@ -84,7 +85,7 @@ const McpResourcesSection = ({ resources }: McpResourcesSectionProps) => {
           </Accordion>
         </>
       ) : (
-        <EmptyState compact description={t('settings.mcp.resources.noResourcesAvailable')} />
+        <EmptyState compact scene={<McpEmptyScene />} description={t('settings.mcp.resources.noResourcesAvailable')} />
       )}
     </div>
   )

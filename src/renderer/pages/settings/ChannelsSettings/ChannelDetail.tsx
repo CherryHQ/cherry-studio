@@ -42,6 +42,7 @@ import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { ChannelStatus } from '@shared/data/types/channel'
 
+import { ChannelsEmptyScene } from '../SettingsEmptyScenes'
 import { getFormForType } from './ChannelForms'
 import type { AvailableChannel, ChannelData, ChannelUpdates } from './channelTypes'
 
@@ -597,6 +598,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
             {channelList.length === 0 && (
               <EmptyState
                 compact
+                scene={<ChannelsEmptyScene />}
                 description={t('agent.channels.noInstances', { type: channelDef.name })}
                 className="py-8"
               />

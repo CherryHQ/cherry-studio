@@ -40,6 +40,7 @@ import type { ProtocolMcpInstallRequest } from '@shared/data/types/mcpProtocolIn
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { isBrowserMcpServer } from '@shared/utils/mcp'
 
+import { McpEmptyScene } from '../SettingsEmptyScenes'
 import AddMcpServerModal from './AddMcpServerModal'
 import McpProtocolInstallDialog from './McpProtocolInstallDialog'
 import McpServerCard from './McpServerCard'
@@ -377,6 +378,7 @@ const McpServersList: FC = () => {
                 ) : (
                   <EmptyState
                     compact
+                    scene={<McpEmptyScene />}
                     description={mcpServers.length === 0 ? t('settings.mcp.noServers') : t('common.no_results')}
                     className="py-12"
                   />

@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, Badge, Button, Checkbox, EmptyState, Spinner, T
 import { useIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
+import { ProviderModelsEmptyScene } from '@renderer/pages/settings/SettingsEmptyScenes'
 import { getModelLogoRef } from '@renderer/utils/model'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
@@ -344,6 +345,7 @@ export default function ModelSyncPreviewPanel(props: ModelSyncPreviewPanelProps)
     return (
       <EmptyState
         compact
+        scene={<ProviderModelsEmptyScene />}
         title={searchActive ? t('common.no_results') : t('settings.models.empty')}
         className="min-h-52"
       />

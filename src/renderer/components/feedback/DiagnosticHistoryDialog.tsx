@@ -24,6 +24,7 @@ import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
 import { diagnosticReportUrl } from '@shared/utils/diagnostics'
 
+import { DiagnosticEmptyScene } from './DiagnosticEmptyScene'
 import { DIAGNOSTIC_STATUS_TRANSLATION_KEYS } from './diagnosticStatusLabels'
 
 const logger = loggerService.withContext('DiagnosticHistoryDialog')
@@ -113,7 +114,11 @@ export function DiagnosticHistoryDialog({ open, onOpenChange }: DiagnosticHistor
               </div>
             ) : null}
             {!isLoading && !error && data?.items.length === 0 ? (
-              <EmptyState title={t('settings.about.feedback.history.empty')} className="py-10" />
+              <EmptyState
+                scene={<DiagnosticEmptyScene />}
+                title={t('settings.about.feedback.history.empty')}
+                className="py-6"
+              />
             ) : null}
             {hasReports ? (
               <ul className="divide-y divide-border-subtle overflow-hidden rounded-lg border border-border-subtle">

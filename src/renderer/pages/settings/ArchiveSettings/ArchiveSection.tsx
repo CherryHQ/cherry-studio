@@ -9,6 +9,7 @@ import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import type { ArchiveDomain } from '@shared/data/api/schemas/archives'
 
+import { ArchiveEmptyScene } from '../SettingsEmptyScenes'
 import type { ArchiveBatchOutcome, ArchiveItem } from './archive'
 import ArchiveItemRow from './ArchiveItemRow'
 
@@ -234,7 +235,7 @@ const ArchiveSection: FC<ArchiveSectionProps> = ({
       ) : (
         <>
           {items.length === 0 ? (
-            <EmptyState title={t('settings.data.trash.empty.section')} />
+            <EmptyState scene={<ArchiveEmptyScene />} title={t('settings.data.trash.empty.section')} />
           ) : (
             <div>
               {items.map((item) => (
