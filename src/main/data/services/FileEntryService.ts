@@ -14,7 +14,7 @@
  *   and cache invalidation are orchestrated by FileManager — this service
  *   is strictly query/insert/update/delete.
  *
- * See [architecture.md](../../../docs/references/file/architecture.md) for the
+ * See [architecture.md](../../../docs/dev/references/file/architecture.md) for the
  * module-level layering rules.
  */
 
@@ -259,8 +259,8 @@ export interface FileEntryService {
    */
   findManualUnreferenced(query?: { origin?: FileEntryOrigin }): FileEntry[]
 
-  /** Auto-policy entries past grace with zero persistent refs (trashed included) — backs the GC pass. */
-  findCleanupCandidates(opts: { graceMs: number; limit: number }): FileEntry[]
+  /** Auto-policy entries past grace with zero persistent refs; excludes active runtime consumers before the batch limit. */
+  findCleanupCandidates(opts: { graceMs: number; limit: number; excludedIds?: readonly FileEntryId[] }): FileEntry[]
 
   /**
    * All entry ids regardless of trashed state — backs the FS orphan sweep,
@@ -322,7 +322,7 @@ type FileEntryRow = typeof fileEntryTable.$inferSelect
  * ms-epoch for timestamps, so the helpers' translations would actively
  * misshape the row. The dispatch-then-parse pattern here is the
  * discriminated-union counterpart and is documented in
- * `docs/references/data/data-api-in-main.md` (§"When `nullsToUndefined +
+ * `docs/dev/references/data/data-api-in-main.md` (§"When `nullsToUndefined +
  * spread` is NOT a fit") as an accepted alternative.
  */
 function rowToFileEntry(row: FileEntryRow): FileEntry {
@@ -742,13 +742,14 @@ class FileEntryServiceImpl implements FileEntryService {
     return rows.map((r) => rowToFileEntrySafe(r.entry)).filter((e): e is FileEntry => e !== null)
   }
 
-  findCleanupCandidates(opts: { graceMs: number; limit: number }): FileEntry[] {
+  findCleanupCandidates(opts: { graceMs: number; limit: number; excludedIds?: readonly FileEntryId[] }): FileEntry[] {
     const conditions: SQL[] = [
       // NOTE: no deletedAt filter — trashed auto entries are reclaimed too (spec §5.1)
       eq(fileEntryTable.cleanupPolicy, 'delete_when_unreferenced'),
       lt(fileEntryTable.createdAt, Date.now() - opts.graceMs),
       ...persistentRefAbsenceConditions()
     ]
+    if (opts.excludedIds?.length) conditions.push(notInArray(fileEntryTable.id, [...opts.excludedIds]))
     const rows = this.getDb()
       .select({ entry: fileEntryTable })
       .from(fileEntryTable)

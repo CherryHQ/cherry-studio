@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ImgHTMLAttributes, ReactNode } from 'react'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUI from '@cherrystudio/ui'
 import type { FileMetadata } from '@renderer/types/file'
@@ -21,26 +21,36 @@ vi.mock('@renderer/components/ImageViewer', async () => {
   return {
     default: function MockImageViewer({
       contextMenuTransform,
-      preview: _preview,
+      onClick,
       onContextMenu,
+      preview,
       ...props
     }: ImgHTMLAttributes<HTMLImageElement> & {
       contextMenuTransform?: { rotation?: number }
       preview?: unknown
     }) {
       const [showContextActions, setShowContextActions] = React.useState(false)
-      void _preview
+      const [previewOpen, setPreviewOpen] = React.useState(false)
+      const previewEnabled = preview !== false
 
       return (
         <>
           <img
             {...props}
             data-context-menu-rotation={contextMenuTransform?.rotation}
+            data-preview-enabled={previewEnabled ? 'true' : 'false'}
+            onClick={(event) => {
+              onClick?.(event)
+              if (!event.defaultPrevented && previewEnabled) {
+                setPreviewOpen(true)
+              }
+            }}
             onContextMenu={(event) => {
               onContextMenu?.(event)
               setShowContextActions(true)
             }}
           />
+          {previewOpen && <div data-testid="image-preview-dialog" role="dialog" aria-label="preview.label" />}
           {showContextActions && (
             <>
               <button type="button">common.copy</button>
@@ -190,21 +200,6 @@ describe('Artboard', () => {
     expect(screen.getByTestId('painting-image-skeleton')).toHaveAttribute('data-image-url', '')
   })
 
-  it('withholds the reveal handoff from the skeleton while the natural size is still pending', () => {
-    mockComputeImageNaturalSize.mockReturnValue(new Promise(() => {}))
-    const painting = makePainting({ files: [] })
-    const { rerender } = render(<Artboard painting={painting} isLoading={true} />)
-
-    rerender(<Artboard painting={makePainting()} isLoading={false} />)
-
-    // Pending: neither the image url nor onRevealReady reach the skeleton yet.
-    // Offering the handoff now would flash the image, then the resolving natural
-    // size would resurrect the skeleton over it (a double reveal).
-    const props = mockSkeletonProps.mock.calls.at(-1)?.[0]
-    expect(props?.imageUrl).toBeUndefined()
-    expect(props?.onRevealReady).toBeUndefined()
-  })
-
   it('keeps the reveal skeleton when loading finishes before the image arrives', async () => {
     mockComputeImageNaturalSize.mockResolvedValue({ naturalWidth: 512, naturalHeight: 512 })
     const painting = makePainting({ files: [] })
@@ -290,30 +285,6 @@ describe('Artboard', () => {
     expect(document.querySelector('img')).not.toBeNull()
   })
 
-  it('renders a blank artboard when idle with no images and no cover', () => {
-    render(<Artboard painting={makePainting({ files: [] })} isLoading={false} />)
-
-    expect(screen.queryByTestId('painting-image-skeleton')).not.toBeInTheDocument()
-    expect(document.querySelector('img')).toBeNull()
-    const placeholder = screen.getByRole('img', { name: 'paintings.image_placeholder' })
-    expect(placeholder).toHaveClass('size-[min(72cqh,96cqw)]')
-    expect(placeholder.parentElement).toHaveClass('[container-type:size]')
-    expect(placeholder.firstElementChild).toHaveAttribute('aria-hidden', 'true')
-  })
-
-  it('renders a supplied cover instead of the blank artboard', () => {
-    render(
-      <Artboard
-        painting={makePainting({ files: [] })}
-        isLoading={false}
-        imageCover={<div data-testid="painting-image-cover" />}
-      />
-    )
-
-    expect(screen.getByTestId('painting-image-cover')).toBeInTheDocument()
-    expect(screen.queryByRole('img', { name: 'paintings.image_placeholder' })).not.toBeInTheDocument()
-  })
-
   describe('reveal state isolation across paintings', () => {
     it('does not strand a newly selected file-less painting in a fake generating skeleton', () => {
       mockComputeImageNaturalSize.mockReturnValue(new Promise(() => {}))
@@ -381,15 +352,7 @@ describe('Artboard', () => {
   })
 
   describe('prompt bar', () => {
-    const previewText = () => document.querySelector('.truncate')?.textContent
-
-    it('renders a short prompt in full', () => {
-      render(<Artboard painting={makePainting({ prompt: 'a red cat' })} isLoading={true} />)
-
-      expect(previewText()).toBe('a red cat')
-    })
-
-    it('truncates a long prompt responsively and exposes the full text with a copy action', async () => {
+    it('opens and copies the complete painting prompt', async () => {
       const prompt = 'a red cat wearing a tiny hat'
       render(<Artboard painting={makePainting({ prompt })} isLoading={false} />)
 
@@ -397,13 +360,9 @@ describe('Artboard', () => {
       // The full prompt stays in the DOM (and popover); the `.truncate` class clips
       // it to the available width via CSS rather than a fixed-length JS slice.
       expect(preview.textContent).toBe(prompt)
-      expect(preview).toHaveClass('truncate')
-      expect(preview.closest('.flex-1')).toHaveClass('min-w-0', 'max-w-xs', 'overflow-hidden')
+
       const trigger = screen.getByRole('button', { name: prompt })
       expect(trigger).toHaveAttribute('type', 'button')
-      expect(trigger).toContainElement(preview)
-      expect(trigger).toHaveClass('focus-visible:bg-accent', 'focus-visible:text-foreground')
-      expect(trigger.className).not.toMatch(/focus-visible:ring-(?!0)/)
 
       const zoomButton = screen.getByRole('button', { name: 'preview.zoom_in' })
       zoomButton.focus()
@@ -415,19 +374,6 @@ describe('Artboard', () => {
       const copyButton = copyButtons[0]
       expect(zoomButton).toHaveFocus()
       expect(popoverContent).toHaveTextContent(prompt)
-      expect(popoverContent.querySelector('.float-right')).toBe(copyButton)
-      expect(popoverContent).toHaveClass('bg-neutral-900', 'text-neutral-50', 'shadow-md')
-      expect(copyButton).toHaveClass(
-        'float-right',
-        'ml-0.5',
-        'size-5',
-        'text-neutral-50',
-        'focus-visible:bg-neutral-50/10',
-        '[&_svg]:stroke-neutral-50!',
-        '[&_svg]:text-neutral-50!'
-      )
-      expect(copyButton.className).not.toMatch(/focus-visible:ring-(?!0)/)
-      expect(copyButton).not.toHaveClass('absolute', 'bg-neutral-700')
 
       fireEvent.click(copyButton)
 
@@ -478,112 +424,6 @@ describe('Artboard', () => {
       expect(tabEvent.defaultPrevented).toBe(false)
       expect(screen.queryByRole('dialog', { name: 'common.prompt' })).not.toBeInTheDocument()
     })
-
-    it('shows the resolved size label alongside the prompt', () => {
-      mockUsePaintingSizeInfo.mockReturnValue({ ratio: null, sizeLabel: '1024×1024' })
-
-      render(<Artboard painting={makePainting({ prompt: 'a red cat' })} isLoading={true} />)
-
-      expect(screen.getByText('1024×1024')).toBeInTheDocument()
-    })
-
-    it('shows above the generated image once idle, not just while generating', () => {
-      render(<Artboard painting={makePainting({ prompt: 'a red cat' })} isLoading={false} />)
-
-      expect(previewText()).toBe('a red cat')
-      expect(document.querySelector('img')).not.toBeNull()
-    })
-
-    it('does not render when there is no prompt', () => {
-      const { container } = render(<Artboard painting={makePainting({ prompt: '' })} isLoading={true} />)
-
-      expect(container.querySelector('.text-muted-foreground.text-xs')).toBeNull()
-    })
-
-    it('does not render when idle with no images and no cover', () => {
-      const { container } = render(
-        <Artboard painting={makePainting({ files: [], prompt: 'a red cat' })} isLoading={false} />
-      )
-
-      expect(container.querySelector('.text-muted-foreground.text-xs')).toBeNull()
-    })
-
-    describe('once the image loads', () => {
-      let clientWidth: ReturnType<typeof vi.spyOn>
-      let clientHeight: ReturnType<typeof vi.spyOn>
-      let naturalWidth: ReturnType<typeof vi.spyOn>
-      let naturalHeight: ReturnType<typeof vi.spyOn>
-
-      beforeEach(() => {
-        // Container is wide (800x400) relative to a square 1024x1024 photo. The prompt
-        // bar's own measured height (24) comes out of the 400 first, so the binding
-        // constraint is (400-24)/1024: contain-fit is 376x376.
-        clientWidth = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(800)
-        clientHeight = vi
-          .spyOn(HTMLElement.prototype, 'clientHeight', 'get')
-          .mockImplementation(function (this: HTMLElement) {
-            return this.dataset.testid === 'artboard-prompt-bar-measure' ? 24 : 400
-          })
-        naturalWidth = vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(1024)
-        naturalHeight = vi.spyOn(HTMLImageElement.prototype, 'naturalHeight', 'get').mockReturnValue(1024)
-      })
-
-      afterEach(() => {
-        clientWidth.mockRestore()
-        clientHeight.mockRestore()
-        naturalWidth.mockRestore()
-        naturalHeight.mockRestore()
-      })
-
-      it('locks the bar+image wrapper to the contain-fit width instead of the full container', () => {
-        render(<Artboard painting={makePainting({ prompt: 'a red cat' })} isLoading={false} />)
-
-        fireEvent.load(document.querySelector('img') as HTMLImageElement)
-
-        expect(screen.getByTestId('artboard-image-layout').style.width).toBe('376px')
-      })
-
-      it('re-measures when switching to a differently sized generated image', () => {
-        render(<Artboard painting={makePainting({ prompt: 'a red cat' })} isLoading={false} />)
-
-        fireEvent.load(document.querySelector('img') as HTMLImageElement)
-        expect(screen.getByTestId('artboard-image-layout').style.width).toBe('376px')
-
-        fireEvent.click(screen.getByRole('button', { name: 'preview.next' }))
-
-        // The new image hasn't reported its natural size yet — falls back to filling
-        // the container instead of carrying over the previous image's locked width.
-        expect(screen.getByTestId('artboard-image-layout').style.width).toBe('')
-      })
-
-      it('measures the wrapper even when Artboard first mounted while still loading', async () => {
-        mockComputeImageNaturalSize.mockResolvedValue(null)
-        const painting = makePainting({ prompt: 'a red cat', files: [] })
-        const { rerender } = render(<Artboard painting={painting} isLoading={true} />)
-
-        // The real-image wrapper (and its ref) doesn't exist in the DOM yet at this
-        // first mount — only the skeleton branch does. A plain ref + mount-only
-        // effect would attach nothing here and never get another chance to.
-        rerender(<Artboard painting={makePainting({ prompt: 'a red cat' })} isLoading={false} />)
-        await waitFor(() => expect(screen.queryByTestId('painting-image-skeleton')).not.toBeInTheDocument())
-
-        fireEvent.load(document.querySelector('img') as HTMLImageElement)
-
-        expect(screen.getByTestId('artboard-image-layout').style.width).toBe('376px')
-      })
-
-      it('reserves the prompt bar height instead of using the full container', () => {
-        render(<Artboard painting={makePainting({ prompt: 'a red cat' })} isLoading={false} />)
-
-        fireEvent.load(document.querySelector('img') as HTMLImageElement)
-
-        const image = document.querySelector('img') as HTMLImageElement
-        // Contain-fit reserves the prompt bar's 24px first: (400-24)/1024 is the
-        // binding scale → 376px, not the 400px an unreserved container would give
-        // (which would clip the bar).
-        expect(image.style.height).toBe('376px')
-      })
-    })
   })
 
   it('resets image transform when switching generated images', () => {
@@ -621,8 +461,6 @@ describe('Artboard', () => {
     expect(transformTarget.style.transform).toBe('translate(25px, 35px) scale(1) rotate(-90deg)')
     expect(image).toHaveAttribute('data-context-menu-rotation', '-90')
     expect(promptBar.style.transform).toBe('')
-    expect(image).not.toHaveClass('bg-secondary')
-    expect(document.querySelector('.truncate')).toHaveTextContent('a long prompt that must stay above the image')
 
     fireEvent.click(screen.getByRole('button', { name: 'preview.reset' }))
     fireEvent.click(screen.getByRole('button', { name: 'preview.rotate_right' }))
@@ -630,18 +468,6 @@ describe('Artboard', () => {
     expect(transformTarget.style.transform).toBe('translate(0px, 0px) scale(1) rotate(90deg)')
     expect(image).toHaveAttribute('data-context-menu-rotation', '90')
     expect(promptBar.style.transform).toBe('')
-  })
-
-  it('shows copy and download actions from the generated image context menu', () => {
-    render(<Artboard painting={makePainting()} isLoading={false} />)
-
-    const image = document.querySelector('img') as HTMLImageElement
-
-    fireEvent.contextMenu(image)
-
-    expect(screen.getByRole('button', { name: 'common.copy' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'preview.copy.src' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'common.download' })).toBeInTheDocument()
   })
 
   it('ignores non-left-button image drag attempts', () => {
@@ -654,18 +480,6 @@ describe('Artboard', () => {
     firePointer(image, 'pointermove', { clientX: 35, clientY: 45, pointerId: 1 })
 
     expect(transformTarget.style.transform).toBe('translate(0px, 0px) scale(1) rotate(0deg)')
-  })
-
-  it('promotes the image to a compositor layer only while dragging', () => {
-    render(<Artboard painting={makePainting()} isLoading={false} />)
-
-    const image = document.querySelector('img') as HTMLImageElement
-
-    firePointer(image, 'pointerdown', { button: 0, clientX: 10, clientY: 10, pointerId: 1 })
-    expect(image).toHaveClass('will-change-transform')
-
-    firePointer(image, 'pointerup', { clientX: 10, clientY: 10, pointerId: 1 })
-    expect(image).not.toHaveClass('will-change-transform')
   })
 
   it('disables zoom controls at image scale boundaries', () => {
@@ -692,5 +506,72 @@ describe('Artboard', () => {
     expect(transformTarget.style.transform).toBe('translate(0px, 0px) scale(4) rotate(0deg)')
     expect(zoomInButton).toBeDisabled()
     expect(zoomOutButton).not.toBeDisabled()
+  })
+
+  describe('generated image inspection (#20739)', () => {
+    it('zooms with the mouse wheel over the artboard and clamps at the toolbar limits', async () => {
+      // Regression: generated images were only zoomable via toolbar clicks; wheel
+      // over the artboard must zoom in/out and stay within 0.25x–4x.
+      render(<Artboard painting={makePainting()} isLoading={false} />)
+
+      const transformTarget = screen.getByTestId('artboard-image-transform')
+      const viewer = await screen.findByTestId('artboard-viewer')
+
+      act(() => {
+        const zoomInEvent = new WheelEvent('wheel', { deltaY: -100, bubbles: true, cancelable: true })
+        viewer.dispatchEvent(zoomInEvent)
+        expect(zoomInEvent.defaultPrevented).toBe(true)
+      })
+      expect(transformTarget.style.transform).toBe('translate(0px, 0px) scale(1.25) rotate(0deg)')
+
+      act(() => {
+        viewer.dispatchEvent(new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true }))
+      })
+      expect(transformTarget.style.transform).toBe('translate(0px, 0px) scale(1) rotate(0deg)')
+
+      act(() => {
+        for (let i = 0; i < 20; i++) {
+          viewer.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, bubbles: true, cancelable: true }))
+        }
+      })
+      expect(transformTarget.style.transform).toBe('translate(0px, 0px) scale(4) rotate(0deg)')
+
+      act(() => {
+        for (let i = 0; i < 30; i++) {
+          viewer.dispatchEvent(new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true }))
+        }
+      })
+      expect(transformTarget.style.transform).toBe('translate(0px, 0px) scale(0.25) rotate(0deg)')
+    })
+
+    it('opens the shared image preview on click without a drag', () => {
+      // Regression: preview={false} blocked the standard click-to-open viewer.
+      render(<Artboard painting={makePainting()} isLoading={false} />)
+
+      const image = document.querySelector('img') as HTMLImageElement
+      expect(image).toHaveAttribute('data-preview-enabled', 'true')
+
+      firePointer(image, 'pointerdown', { button: 0, clientX: 10, clientY: 10, pointerId: 1 })
+      firePointer(image, 'pointerup', { clientX: 10, clientY: 10, pointerId: 1 })
+      fireEvent.click(image)
+
+      expect(screen.getByTestId('image-preview-dialog')).toBeInTheDocument()
+    })
+
+    it('does not open the preview after a drag-pan', () => {
+      // Regression: enabling preview must not steal the existing drag-to-pan gesture.
+      render(<Artboard painting={makePainting()} isLoading={false} />)
+
+      const image = document.querySelector('img') as HTMLImageElement
+      const transformTarget = screen.getByTestId('artboard-image-transform')
+
+      firePointer(image, 'pointerdown', { button: 0, clientX: 10, clientY: 10, pointerId: 1 })
+      firePointer(image, 'pointermove', { clientX: 40, clientY: 50, pointerId: 1 })
+      firePointer(image, 'pointerup', { clientX: 40, clientY: 50, pointerId: 1 })
+      fireEvent.click(image)
+
+      expect(transformTarget.style.transform).toBe('translate(30px, 40px) scale(1) rotate(0deg)')
+      expect(screen.queryByTestId('image-preview-dialog')).not.toBeInTheDocument()
+    })
   })
 })

@@ -1,4 +1,3 @@
-import { useChat } from '@ai-sdk/react'
 import { ChevronDown, Loader2 } from 'lucide-react'
 import type { FC } from 'react'
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
@@ -10,15 +9,18 @@ import { toMessageListItem } from '@renderer/components/chat/messages/utils/mess
 import CopyButton from '@renderer/components/CopyButton'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
+import { useStreamCommands } from '@renderer/hooks/useStreamCommands'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { ipcChatTransport } from '@renderer/services/aiTransport'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
+import { expandSelectionPrompt } from '@renderer/utils/selectionAction'
 import { cn } from '@renderer/utils/style'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { SELECTION_ACTION_RUNNER } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { SELECTION_BUILTIN_ACTION_ID, type SelectionAction } from '@shared/types/selection'
 
 import { getSelectionActionErrorMessage } from '../errorMessage'
+import { ResultReadAloudButton } from './ResultReadAloudButton'
 import WindowFooter from './WindowFooter'
 
 // Lazy boundary (S6b): keeps the heavy message-content chain out of the action
@@ -30,27 +32,28 @@ const ActionResultContent = React.lazy(importActionResultContent)
 
 const logger = loggerService.withContext('ActionGeneral')
 
-// Stable empty array — temp-topic has no DB-backed uiMessages to seed from.
-const EMPTY_UI_MESSAGES: CherryUIMessage[] = []
 interface Props {
-  action: SelectionActionItem
+  action: SelectionAction
+  sourceEntityId: string
   scrollToBottom?: () => void
 }
 
-const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
+const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToBottom }) => {
   const { t } = useTranslation()
   const [language] = usePreference('app.language')
   const [showOriginal, setShowOriginal] = useState(false)
 
   const [quickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
-  const { assistant: chosenAssistant, isLoading: isChosenLoading } = useAssistant(action.assistantId ?? '')
-  const shouldUseFallback = action.isBuiltIn && !action.assistantId && !!quickAssistantId
+  const assistantId =
+    !action.isBuiltIn && action.runner === SELECTION_ACTION_RUNNER.ASSISTANT ? action.assistantId : undefined
+  const { assistant: chosenAssistant, isLoading: isChosenLoading } = useAssistant(assistantId ?? '')
+  const shouldUseFallback = action.isBuiltIn && !!quickAssistantId
   const { assistant: fallbackAssistant, isLoading: isFallbackLoading } = useAssistant(
     shouldUseFallback ? quickAssistantId : ''
   )
   const chosenAssistantId = chosenAssistant?.id ?? fallbackAssistant?.id
   const waitingForConfiguredAssistant =
-    (Boolean(action.assistantId) && isChosenLoading) || (shouldUseFallback && isFallbackLoading)
+    (Boolean(assistantId) && isChosenLoading) || (shouldUseFallback && isFallbackLoading)
 
   // Temporary in-memory topic — never touches SQLite, released on unmount.
   const { topicId: temporaryTopicId, ready } = useTemporaryTopic({
@@ -59,57 +62,33 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   })
 
   const promptContent = useMemo(() => {
-    let userContent = ''
-    switch (action.id) {
-      case 'summary':
-        userContent = t('selection.action.prompt.summary', { language }) + action.selectedText
-        break
-      case 'explain':
-        userContent = t('selection.action.prompt.explain', { language }) + action.selectedText
-        break
-      case 'refine':
-        userContent = t('selection.action.prompt.refine', { text: action.selectedText ?? '' })
-        break
-      default:
-        if (!action.prompt) {
-          userContent = action.selectedText || ''
-          break
-        }
-
-        if (action.prompt.includes('{{text}}')) {
-          userContent = action.prompt.replaceAll('{{text}}', () => action.selectedText!)
-          break
-        }
-
-        userContent = action.prompt + '\n\n' + action.selectedText
+    if (action.isBuiltIn) {
+      switch (action.id) {
+        case SELECTION_BUILTIN_ACTION_ID.SUMMARY:
+          return t('selection.action.prompt.summary', { language }) + action.selectedText
+        case SELECTION_BUILTIN_ACTION_ID.EXPLAIN:
+          return t('selection.action.prompt.explain', { language }) + action.selectedText
+        case SELECTION_BUILTIN_ACTION_ID.REFINE:
+          return t('selection.action.prompt.refine', { text: action.selectedText ?? '' })
+      }
+      return action.selectedText || ''
     }
-    return userContent
+
+    return expandSelectionPrompt(action.prompt, action.selectedText ?? '')
   }, [action, language, t])
 
   const [isPreparing, setIsPreparing] = useState(false)
   const [completionError, setCompletionError] = useState<string | null>(null)
   const [requestStartedAt, setRequestStartedAt] = useState('')
 
-  const { sendMessage, stop: stopChat } = useChat<CherryUIMessage>({
-    // Once the temporary topic id arrives, the chat reinitializes with it.
-    // Before that we use a stable placeholder so `useChat` doesn't thrash across renders.
-    id: temporaryTopicId ?? 'pending-temp',
-    transport: ipcChatTransport,
-    experimental_throttle: 50,
-    onError: (err) => {
-      setIsPreparing(false)
-      setCompletionError(getSelectionActionErrorMessage(err, t))
-    }
+  const { sendMessage, stop: stopChat } = useStreamCommands(temporaryTopicId ?? 'pending-temp', undefined, (err) => {
+    setIsPreparing(false)
+    setCompletionError(getSelectionActionErrorMessage(err, t))
   })
 
-  // Temp-topic: no pre-allocated DB row, so the reader keys overlay by the
-  // start-chunk id; `liveAssistants` is the streamed snapshot list.
+  // Temporary topics use the message identities assigned by Main.
   const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
-  const { liveAssistants } = useExecutionOverlay(
-    temporaryTopicId ?? 'pending-temp',
-    activeExecutions,
-    EMPTY_UI_MESSAGES
-  )
+  const { liveAssistants } = useExecutionOverlay(temporaryTopicId ?? 'pending-temp', activeExecutions)
 
   useEffect(() => {
     if (isPending) {
@@ -154,8 +133,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     setCompletionError(null)
     setRequestStartedAt(new Date().toISOString())
     setIsPreparing(true)
-    // topicId comes from useChat id; Main resolves assistant/model from topic.assistantId.
-    // No body fields are read by IpcChatTransport for this codepath.
+    // topicId is captured by the command hook; Main resolves assistant/model from topic.assistantId.
     void sendMessage({ text: promptContent })
   }, [chosenAssistantId, promptContent, ready, sendMessage, temporaryTopicId, waitingForConfiguredAssistant])
 
@@ -225,7 +203,11 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
         )}
       </div>
       <div className="min-h-3" />
-      <WindowFooter loading={isStreaming} onPause={handlePause} onRegenerate={handleRegenerate} content={content} />
+      <WindowFooter loading={isStreaming} onPause={handlePause} onRegenerate={handleRegenerate} content={content}>
+        {!isStreaming && !isPreparing && !error && content.trim() && (
+          <ResultReadAloudButton text={content} sourceEntityId={sourceEntityId} />
+        )}
+      </WindowFooter>
     </>
   )
 })

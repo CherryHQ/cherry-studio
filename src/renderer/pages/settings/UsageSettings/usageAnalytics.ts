@@ -3,6 +3,7 @@ import type {
   AiUsageRecordDailyCost,
   AiUsageRecordGroupIdentity,
   AiUsageRecordStatsMetrics,
+  AiUsageRecordStatsResponse,
   AiUsageRecordTimelineBucket
 } from '@shared/data/api/schemas/aiUsageRecords'
 import type { Currency } from '@shared/data/types/model'
@@ -15,7 +16,6 @@ export const GROUP_BY_KEYS = ['provider', 'model', 'apiKey', 'source'] as const
 export const METRIC_KEYS = ['tokens', 'requests', 'cost'] as const
 export const CHART_TYPE_KEYS = ['bar', 'line', 'pie'] as const
 export const ROLLUP_KEYS = ['total', 'daily', 'weekly', 'monthly'] as const
-export const TREND_ROLLUP_KEYS = ['daily', 'weekly', 'monthly'] as const
 export const TOP_COUNT_KEYS = [5, 10, 20] as const
 
 export type WindowKey = (typeof WINDOW_KEYS)[number]
@@ -333,4 +333,16 @@ export function getTimelineSeries(
 export function getRatioChange(current: number | undefined, previous: number | undefined): number | undefined {
   if (current === undefined || previous === undefined || previous <= 0) return undefined
   return (current - previous) / previous
+}
+
+export function buildTotalChartSeries(
+  stats: Pick<AiUsageRecordStatsResponse, 'buckets' | 'other'>,
+  metric: UsageMetricKey
+): UsageChartSeries[] {
+  const series = stats.buckets.map((bucket) => {
+    const total = getMetricValue(bucket, metric)
+    return { key: getBucketKey(bucket), identity: bucket, values: [total], total }
+  })
+  const otherTotal = getMetricValue(stats.other, metric)
+  return [...series, { key: 'other', values: [otherTotal], total: otherTotal }].filter((item) => item.total > 0)
 }

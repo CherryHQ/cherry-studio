@@ -26,13 +26,11 @@ describe('useWrapTool', () => {
       { initialProps: { enabled: true, wrapped: false, wrappable: true } }
     )
 
-    expect(result.current[0]).toMatchObject({ id: 'wrap', tooltip: 'code_block.wrap.on' })
     expect(result.current[0].visible?.()).toBe(true)
     act(() => result.current[0].onClick?.())
     expect(toggle).toHaveBeenCalledOnce()
 
     rerender({ enabled: true, wrapped: true, wrappable: false })
-    expect(result.current[0]).toMatchObject({ id: 'wrap', tooltip: 'code_block.wrap.off' })
     expect(result.current[0].visible?.()).toBe(false)
 
     rerender({ enabled: false, wrapped: true, wrappable: false })

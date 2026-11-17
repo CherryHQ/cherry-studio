@@ -62,7 +62,10 @@ export interface TopicActionContext {
   onCopyMarkdown: TopicMenuHandler
   onCopyPlainText: TopicMenuHandler
   onDelete: TopicDeleteHandler
+  /** Irreversible delete. Absent means the menu has no permanent-delete entry. */
   onDeletePermanently?: TopicDeleteHandler
+  /** Configured `resource.delete_permanently` label. Empty omits the hint. */
+  permanentDeleteShortcut?: string
   onExportImage: TopicMenuHandler
   onExportJoplin: TopicMenuHandler
   onExportMarkdown: TopicMenuHandler
@@ -555,17 +558,12 @@ topicActionRegistry.registerAction({
   order: 100,
   surface: 'menu',
   danger: true,
-  availability: ({ isArchiveBlocked, t, topic, onDeletePermanently }) => ({
-    visible: !topic.pinned && !!onDeletePermanently,
+  shortcut: ({ permanentDeleteShortcut }) => permanentDeleteShortcut ?? '',
+  // Same pin/busy gate as Archive. Callers mark an in-flight delete with isArchiveBlocked.
+  availability: ({ isArchiveBlocked, onDeletePermanently, t, topic }) => ({
+    visible: Boolean(onDeletePermanently) && !topic.pinned,
     enabled: !isArchiveBlocked,
-    reason: isArchiveBlocked ? t('chat.topics.delete.blocked_generation') : undefined
-  }),
-  confirm: ({ t, topic }) => ({
-    title: t('settings.data.trash.permanent_delete.confirm_title'),
-    description: `${topic.name}\n${t('settings.data.trash.permanent_delete.confirm_content')}`,
-    confirmText: t('common.delete_permanently'),
-    cancelText: t('common.cancel'),
-    destructive: true
+    reason: isArchiveBlocked ? t('recycle_bin.move.blocked_generation') : undefined
   })
 })
 

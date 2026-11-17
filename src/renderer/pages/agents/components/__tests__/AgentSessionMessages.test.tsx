@@ -47,25 +47,20 @@ describe('AgentSessionMessages', () => {
     ipcRequestMock.mockClear()
   })
 
-  it('normalizes blank agent avatars before passing the assistant profile to the message list', () => {
+  it('uses the active session workspace path for message actions', () => {
     render(
       <AgentSessionMessages
         agentId="agent-1"
         sessionId="session-1"
+        workspacePath="/Users/alice/Data/Agents/agent-1/session-1"
         messages={[]}
-        activeAgent={{ id: 'agent-1', name: 'Blank avatar agent', configuration: { avatar: '   ' } } as any}
         partsByMessageId={{}}
         isLoading={false}
       />
     )
 
     expect(useAgentMessageListProviderValueMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        assistantProfile: {
-          name: 'Blank avatar agent',
-          avatar: '🤖'
-        }
-      })
+      expect.objectContaining({ workspacePath: '/Users/alice/Data/Agents/agent-1/session-1' })
     )
   })
 
@@ -85,38 +80,5 @@ describe('AgentSessionMessages', () => {
 
     view.unmount()
     expect(ipcRequestMock).toHaveBeenCalledWith('ai.agent.session.close_warm', { sessionId: 'session-1' })
-  })
-
-  it('anchors background status to the latest assistant with content instead of an empty pending placeholder', () => {
-    const settledAssistant = {
-      id: 'assistant-settled',
-      role: 'assistant',
-      parts: [{ type: 'text', text: 'Main answer' }]
-    }
-    const pendingAssistant = {
-      id: 'assistant-pending',
-      role: 'assistant',
-      parts: []
-    }
-
-    render(
-      <AgentSessionMessages
-        agentId="agent-1"
-        sessionId="session-1"
-        messages={[settledAssistant, { id: 'user-follow-up', role: 'user', parts: [] }, pendingAssistant] as any}
-        partsByMessageId={{
-          'assistant-settled': [{ type: 'text', text: 'Main answer' }] as any
-        }}
-        isLoading={false}
-      />
-    )
-
-    expect(useAgentMessageListProviderValueMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        messageTail: expect.objectContaining({
-          messageId: 'assistant-settled'
-        })
-      })
-    )
   })
 })

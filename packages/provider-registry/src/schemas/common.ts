@@ -5,7 +5,9 @@
 
 import * as z from 'zod'
 
-import { CURRENCY, objectValues } from './enums'
+import { CURRENCY, ENDPOINT_TYPE, objectValues } from './enums'
+
+export const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
 
 export const ModelIdSchema = z.string().min(1)
 export const ProviderIdSchema = z.string().min(1)

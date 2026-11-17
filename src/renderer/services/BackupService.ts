@@ -151,15 +151,6 @@ export async function backupToWebdav({ customFileName = '' }: ManualBackupOption
         toast.warning(message)
       } else {
         setWebDAVSyncState({ lastSyncError: null })
-        void notificationService.send({
-          id: uuid(),
-          type: 'success',
-          title: i18n.t('common.success'),
-          message: i18n.t('message.backup.success'),
-          silent: false,
-          timestamp: Date.now(),
-          source: 'backup'
-        })
         toast.success(i18n.t('message.backup.success'))
       }
     } else {
@@ -169,15 +160,6 @@ export async function backupToWebdav({ customFileName = '' }: ManualBackupOption
     }
   } catch (error: any) {
     const message = getLocalizedBackupErrorMessage(error, 'message.backup.failed', { tlsCertificateHint: true })
-    void notificationService.send({
-      id: uuid(),
-      type: 'error',
-      title: i18n.t('message.backup.failed'),
-      message,
-      silent: false,
-      timestamp: Date.now(),
-      source: 'backup'
-    })
     setWebDAVSyncState({ lastSyncError: message })
     toast.error(message)
     logger.error('[Backup] backupToWebdav: Error uploading file to WebDAV:', error)
@@ -243,15 +225,6 @@ export async function backupToS3({ customFileName = '' }: ManualBackupOptions = 
         toast.warning(message)
       } else {
         setS3SyncState({ lastSyncError: null })
-        void notificationService.send({
-          id: uuid(),
-          type: 'success',
-          title: i18n.t('common.success'),
-          message: i18n.t('message.backup.success'),
-          silent: false,
-          timestamp: Date.now(),
-          source: 'backup'
-        })
         toast.success(i18n.t('message.backup.success'))
       }
     } else {
@@ -261,15 +234,6 @@ export async function backupToS3({ customFileName = '' }: ManualBackupOptions = 
     }
   } catch (error: any) {
     const message = getLocalizedBackupErrorMessage(error)
-    void notificationService.send({
-      id: uuid(),
-      type: 'error',
-      title: i18n.t('message.backup.failed'),
-      message,
-      silent: false,
-      timestamp: Date.now(),
-      source: 'backup'
-    })
     setS3SyncState({ lastSyncError: message })
     logger.error('backupToS3: Error uploading file to S3:', error)
     toast.error(message)
@@ -308,17 +272,6 @@ export async function restoreFromS3(fileName?: string) {
   }
 }
 
-// Data producer for the export-to-phone file flow, consumed by main's
-// LegacyBackupManager.createLanTransferBackup. The feature's UI is offline until
-// the mobile side ships; kept with the rest of the dormant lan-transfer plumbing.
-export async function getBackupData() {
-  return JSON.stringify({
-    time: new Date().getTime(),
-    version: 5,
-    localStorage
-  })
-}
-
 /**
  * Backup to local directory
  */
@@ -354,15 +307,6 @@ export async function backupToLocal({ customFileName = '' }: ManualBackupOptions
         toast.warning(message)
       } else {
         setLocalBackupSyncState({ lastSyncError: null })
-        void notificationService.send({
-          id: uuid(),
-          type: 'success',
-          title: i18n.t('common.success'),
-          message: i18n.t('message.backup.success'),
-          silent: false,
-          timestamp: Date.now(),
-          source: 'backup'
-        })
       }
     } else {
       const message = i18n.t('message.backup.failed')

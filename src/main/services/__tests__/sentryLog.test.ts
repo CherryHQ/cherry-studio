@@ -22,7 +22,11 @@ vi.unmock('@logger')
 vi.unmock('winston')
 vi.unmock('winston-daily-rotate-file')
 vi.mock('@main/core/paths/constants', () => ({ LOGS_DIR: tmpLogsDir }))
-vi.mock('@sentry/electron/main', () => ({ captureException: captureExceptionMock }))
+vi.mock('@sentry/electron/main', () => ({
+  captureException: captureExceptionMock,
+  addIntegration: vi.fn(),
+  sentryMinidumpIntegration: () => ({ name: 'SentryMinidump' })
+}))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
@@ -38,6 +42,11 @@ import { loggerService } from '@logger'
 
 import { AnalyticsService } from '../AnalyticsService'
 import { SentryLogService } from '../SentryLogService'
+
+// LoggerService registers this handler when @logger is imported; clearMocks wipes that call before each test.
+const logToMainHandler = vi
+  .mocked(ipcMain.handle)
+  .mock.calls.find(([channel]) => channel === IpcChannel.App_LogToMain)![1]
 
 let service: SentryLogService
 const drainLogs = () => new Promise((resolve) => setImmediate(resolve))
@@ -104,14 +113,14 @@ describe('Sentry log reporting', () => {
 
   it('does not recapture renderer logs that are reported through the renderer SDK', async () => {
     setConsent(true)
-    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([channel]) => channel === IpcChannel.App_LogToMain)![1]
     const error = new TypeError('Render failed')
     const componentStack = '\n    at MessageList (app:///messages.js:20:3)'
-    handler(
+    logToMainHandler(
       {} as Electron.IpcMainInvokeEvent,
       { process: 'renderer', window: 'main', module: 'ErrorBoundary', context: { apiKey: 'secret' } },
       'error',
       'Caught a render error',
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       structuredClone([
         { name: error.name, errorMessage: error.message, stack: error.stack },
         { componentStack, prompt: 'private conversation' }

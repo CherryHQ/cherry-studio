@@ -26,9 +26,9 @@ describe('buildSystemSkillSources', () => {
       }).map((source) => [source.id, source.directoryPath])
     )
 
-    expect(byId.get('claude-code')).toBe(path.join('/configs/claude', 'skills'))
-    expect(byId.get('codex')).toBe(path.join('/configs/codex', 'skills'))
-    expect(byId.get('opencode')).toBe(path.join('/configs/xdg', 'opencode', 'skills'))
-    expect(byId.get('agents-xdg')).toBe(path.join('/configs/xdg', 'agents', 'skills'))
+    expect(byId.get('claude-code')).toBe(path.resolve('/configs/claude', 'skills'))
+    expect(byId.get('codex')).toBe(path.resolve('/configs/codex', 'skills'))
+    expect(byId.get('opencode')).toBe(path.resolve('/configs/xdg', 'opencode', 'skills'))
+    expect(byId.get('agents-xdg')).toBe(path.resolve('/configs/xdg', 'agents', 'skills'))
   })
 })

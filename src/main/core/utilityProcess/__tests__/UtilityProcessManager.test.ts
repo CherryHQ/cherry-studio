@@ -68,7 +68,7 @@ function createManager(
       return
     }
     const { options: serve, state } = echoServeOptions((error) => child.triggerFatal(error), {
-      id: serviceName.slice(SERVICE_NAME_PREFIX.length),
+      id: serviceName.slice(SERVICE_NAME_PREFIX.length).split(':')[0],
       ...options.serve
     })
     states.push(state)
@@ -111,6 +111,23 @@ describe('UtilityProcessManager', () => {
     expect(manager.client(otherDefinition)).not.toBe(first)
     expect(adapter.spawns).toHaveLength(0)
     await manager._doStop()
+  })
+
+  it('owns independent instances and cannot respawn a disposed instance', async () => {
+    const { manager, adapter } = createManager()
+    await manager._doInit()
+    const first = manager.createInstance(echoDefinition)
+    const second = manager.createInstance(echoDefinition)
+    expect(await Promise.all([first.request('ping', undefined), second.request('ping', undefined)])).toEqual([
+      'pong',
+      'pong'
+    ])
+    expect(adapter.spawns).toHaveLength(2)
+    await first.dispose()
+    await expect(first.request('ping', undefined)).rejects.toThrow('closed')
+    expect(await second.request('echo', 'still alive')).toBe('still alive')
+    await manager._doStop()
+    await expect(second.request('ping', undefined)).rejects.toThrow('closed')
   })
 
   it('rejects a definition object that was not registered', async () => {

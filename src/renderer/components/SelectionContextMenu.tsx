@@ -1,6 +1,7 @@
-import { useCallback } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { ipcApi } from '@renderer/ipc'
@@ -8,7 +9,11 @@ import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { isHttpUrl } from '@shared/utils/url'
 
+import { TextSelectionToolbar } from './TextSelectionToolbar'
+
 const logger = loggerService.withContext('SelectionContextMenu')
+
+const MARKDOWN_FENCE_LINE = /^(?:`{3,}[^`]*|~{3,}.*)$/
 
 const TEXT_BLOCK_TAGS = new Set(['BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'P', 'PRE', 'TR'])
 
@@ -21,7 +26,7 @@ interface SelectionContextMenuProps {
  * Extract text content from a Selection, restoring KaTeX formulas to their TeX source and
  * filtering out line numbers in code viewers.
  */
-function extractSelectedText(selection: Selection): string {
+function extractSelectedText(selection: Selection, mathOptions?: { singleDollar: boolean }): string {
   if (selection.rangeCount === 0 || selection.isCollapsed) {
     return ''
   }
@@ -47,10 +52,22 @@ function extractSelectedText(selection: Selection): string {
 
   fragment.querySelectorAll('.line-number').forEach((el) => el.remove())
   fragment.querySelectorAll('.katex-mathml + .katex-html').forEach((el) => el.remove())
+  // Literal dollars anywhere in the selection can pair with generated math fences.
+  const allowDollarFences = mathOptions?.singleDollar && !fragment.textContent?.includes('$')
+  const inlineMathSources = new Map<Node, string>()
   katexMathMlElements.forEach((element) => {
     const texSource = element.querySelector('annotation')?.textContent
     if (texSource !== null && texSource !== undefined) {
-      element.replaceWith(document.createTextNode(texSource))
+      const textNode = document.createTextNode(texSource)
+      if (mathOptions) {
+        // MathML retains display mode even when the selection excludes the outer KaTeX wrapper.
+        if (element.querySelector('math[display="block"]')) {
+          textNode.textContent = `\n$$\n${texSource}\n$$\n`
+        } else {
+          inlineMathSources.set(textNode, texSource)
+        }
+      }
+      element.replaceWith(textNode)
     }
   })
 
@@ -61,7 +78,14 @@ function extractSelectedText(selection: Selection): string {
 
   while (node) {
     if (node.nodeType === Node.TEXT_NODE) {
-      result += node.textContent
+      const texSource = inlineMathSources.get(node)
+      if (texSource !== undefined) {
+        // Adjacent dollar fences would merge separate formulas.
+        const useDollars = allowDollarFences && !result.endsWith('$')
+        result += useDollars ? `$${texSource}$` : `\\(${texSource}\\)`
+      } else {
+        result += node.textContent
+      }
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       const element = node as Element
       if (element.tagName === 'BR') {
@@ -82,10 +106,14 @@ function extractSelectedText(selection: Selection): string {
 }
 
 /**
- * Right-click actions for website links and selected text in conversation content.
+ * Context menu and automatic toolbar actions for selected conversation content.
  */
 const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, openBrowserUrl }) => {
   const { t } = useTranslation()
+  const [mathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
+  const [notesPath] = usePreference('feature.notes.path')
+  const savingNote = useRef(false)
+  const [isSavingNote, setIsSavingNote] = useState(false)
   const handleCopy = useCallback(
     (text: string) => {
       navigator.clipboard
@@ -103,8 +131,31 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
     void window.api.quoteToMainWindow(text)
   }, [])
 
+  const handleSaveToNotes = useCallback(
+    async (text: string) => {
+      if (!text.trim() || savingNote.current) return
+      savingNote.current = true
+      setIsSavingNote(true)
+      try {
+        const { exportContentToNotes } = await import('@renderer/services/ExportService')
+        const title = text
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .find((line) => line && !MARKDOWN_FENCE_LINE.test(line))
+        await exportContentToNotes(title?.slice(0, 50) || t('notes.untitled_note'), text, notesPath)
+      } catch (error) {
+        // The Notes exporter owns the write-failure toast.
+        logger.error('Failed to save selection to Notes', error as Error)
+      } finally {
+        savingNote.current = false
+        setIsSavingNote(false)
+      }
+    },
+    [notesPath, t]
+  )
+
   const getMenuItems = useCallback(
-    (text: string): CommandContextMenuExtraItem[] => {
+    (text: string, quoteText: string, canSaveSelection: boolean): CommandContextMenuExtraItem[] => {
       if (text.length === 0) return []
 
       return [
@@ -118,17 +169,42 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
           type: 'item',
           id: 'selection.quote',
           label: t('chat.message.quote'),
-          onSelect: () => handleQuote(text)
-        }
+          onSelect: () => handleQuote(quoteText)
+        },
+        ...(canSaveSelection
+          ? [
+              {
+                type: 'item' as const,
+                id: 'selection.save-notes',
+                label: t('notes.save'),
+                enabled: !isSavingNote && !!quoteText.trim(),
+                onSelect: () => void handleSaveToNotes(quoteText)
+              }
+            ]
+          : [])
       ]
     },
-    [handleCopy, handleQuote, t]
+    [handleCopy, handleQuote, handleSaveToNotes, isSavingNote, t]
   )
 
   const getExtraItems = useCallback(
     (event: React.MouseEvent): CommandContextMenuExtraItem[] => {
       const selection = window.getSelection()
       const selectedText = selection ? extractSelectedText(selection) : ''
+      const quoteText = selection ? extractSelectedText(selection, { singleDollar: mathEnableSingleDollar }) : ''
+      const range = selection?.rangeCount ? selection.getRangeAt(0) : null
+      const canSaveSelection =
+        !!range &&
+        [range.startContainer, range.endContainer].every((node) => {
+          const element = node instanceof Element ? node : node.parentElement
+          return (
+            element &&
+            event.currentTarget.contains(element) &&
+            !element.closest(
+              'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]'
+            )
+          )
+        })
       const target = event.target instanceof Element ? event.target : null
       const anchor = target?.closest('a[href]')
       const href = anchor?.getAttribute('href')
@@ -164,18 +240,28 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
             onSelect: () => handleCopy(href)
           }
         ]
-        return selectedLinkText ? [...getMenuItems(selectedLinkText), { type: 'separator' }, ...linkItems] : linkItems
+        return selectedLinkText
+          ? [...getMenuItems(selectedLinkText, quoteText, canSaveSelection), { type: 'separator' }, ...linkItems]
+          : linkItems
       }
 
-      return getMenuItems(selectedText)
+      return getMenuItems(selectedText, quoteText, canSaveSelection)
     },
-    [getMenuItems, handleCopy, openBrowserUrl, t]
+    [getMenuItems, handleCopy, mathEnableSingleDollar, openBrowserUrl, t]
   )
 
   return (
-    <CommandContextMenu location="chat.message.context" getExtraItems={getExtraItems}>
-      {children}
-    </CommandContextMenu>
+    <TextSelectionToolbar
+      onCopy={(selection) => handleCopy(extractSelectedText(selection))}
+      onQuote={(selection) => handleQuote(extractSelectedText(selection, { singleDollar: mathEnableSingleDollar }))}
+      onSaveToNotes={(selection) =>
+        void handleSaveToNotes(extractSelectedText(selection, { singleDollar: mathEnableSingleDollar }))
+      }
+      isSavingNote={isSavingNote}>
+      <CommandContextMenu location="chat.message.context" getExtraItems={getExtraItems}>
+        {children}
+      </CommandContextMenu>
+    </TextSelectionToolbar>
   )
 }
 

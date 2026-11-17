@@ -6,6 +6,10 @@ import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 const preset = (name: string) => PRESET_MCP_SERVERS.find((server) => server.name === name)
 
 describe('PRESET_MCP_SERVERS', () => {
+  it('ships the filesystem server with no platform-shaped baseDir default', () => {
+    expect(preset(BuiltinMcpServerNames.filesystem)?.args ?? []).toEqual([])
+  })
+
   it('models flomo and nowledge-mem as the HTTP endpoints they are', () => {
     // The seeder writes these URLs onto installed rows, so the exact endpoint is the contract.
     expect(preset(BuiltinMcpServerNames.flomo)).toEqual(
@@ -27,6 +31,7 @@ describe('PRESET_MCP_SERVERS', () => {
       expect.objectContaining({
         type: 'streamableHttp',
         baseUrl: 'https://mcp.qveris.ai/mcp',
+        // QVeris signs in via MCP OAuth by default; QVERIS_API_KEY stays as an optional fallback.
         env: { QVERIS_API_KEY: '' },
         shouldConfig: true,
         isActive: false

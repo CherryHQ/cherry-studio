@@ -1,0 +1,196 @@
+import { readFileSync, renameSync, writeFileSync } from 'node:fs'
+
+import { parseTaskSelection, REGRESSION_CASES, selectCases, serializeTaskSelection, supportsPlatform } from './cases'
+import type { CapabilityResult, CaseStatus, RegressionRun, RunMetadata, RunVerdict } from './types'
+
+export function createRun(metadata: RunMetadata): RegressionRun {
+  const selection = parseTaskSelection(metadata.task)
+  const selected = selectCases(selection)
+  const selectedIds = new Set(selected.map(({ id }) => id))
+  return {
+    schemaVersion: 2,
+    metadata: { providerMode: 'mock', ...metadata, task: serializeTaskSelection(selection) },
+    startedAt: new Date().toISOString(),
+    capabilities: {},
+    phases: Object.fromEntries(
+      [...new Set(selected.filter(({ id }) => supportsPlatform(id, metadata.platform)).map(({ phase }) => phase))].map(
+        (phase) => [phase, { status: 'pending', errors: [] }]
+      )
+    ),
+    cases: Object.fromEntries(
+      REGRESSION_CASES.map((testCase) => {
+        const isSelected = selectedIds.has(testCase.id)
+        const supported = supportsPlatform(testCase.id, metadata.platform)
+        return [
+          testCase.id,
+          {
+            id: testCase.id,
+            status: isSelected && supported ? 'pending' : 'not_applicable',
+            summary: !isSelected
+              ? `Not selected by task ${metadata.task}`
+              : !supported
+                ? `Not supported on ${metadata.platform}`
+                : ''
+          }
+        ]
+      })
+    )
+  }
+}
+
+export function beginCase(run: RegressionRun, caseId: string): RegressionRun {
+  const result = run.cases[caseId]
+  if (!result) throw new Error(`Unknown regression case: ${caseId}`)
+  if (result.status === 'not_applicable') throw new Error(`${caseId} is not applicable in ${run.metadata.mode} mode`)
+  return {
+    ...run,
+    cases: {
+      ...run.cases,
+      [caseId]: { ...result, status: 'running', startedAt: result.startedAt ?? new Date().toISOString() }
+    }
+  }
+}
+
+export function completeE2eCase(
+  run: RegressionRun,
+  caseId: string,
+  status: Extract<CaseStatus, 'blocked' | 'failed' | 'passed'>,
+  summary: string,
+  artifacts: string[] = [],
+  dataSources: string[] = []
+): RegressionRun {
+  const result = run.cases[caseId]
+  if (!result) throw new Error(`Unknown regression case: ${caseId}`)
+  if (result.status === 'not_applicable') throw new Error(`${caseId} is not applicable in ${run.metadata.mode} mode`)
+  if (!summary.trim()) throw new Error(`${caseId} requires a non-empty result summary`)
+
+  return {
+    ...run,
+    cases: {
+      ...run.cases,
+      [caseId]: {
+        ...result,
+        artifacts,
+        dataSources,
+        status,
+        summary: summary.trim(),
+        finishedAt: new Date().toISOString()
+      }
+    }
+  }
+}
+
+export function finalizeRun(run: RegressionRun): RegressionRun {
+  const cases = Object.fromEntries(
+    Object.entries(run.cases).map(([caseId, result]) => {
+      if (result.status !== 'pending' && result.status !== 'running') return [caseId, result]
+      return [
+        caseId,
+        {
+          ...result,
+          status: 'blocked' as const,
+          summary: 'Task did not finish before the final report',
+          finishedAt: new Date().toISOString()
+        }
+      ]
+    })
+  )
+  const phases = Object.fromEntries(
+    Object.entries(run.phases).map(([id, phase]) => [
+      id,
+      ['pending', 'running'].includes(phase.status)
+        ? { ...phase, status: 'blocked' as const, errors: [...phase.errors, 'Phase interrupted before completion'] }
+        : phase
+    ])
+  )
+  return { ...run, cases, phases, finishedAt: new Date().toISOString() }
+}
+
+export function setCapabilities(run: RegressionRun, capabilities: Record<string, CapabilityResult>): RegressionRun {
+  return { ...run, capabilities }
+}
+
+export function updateRunMetadata(run: RegressionRun, metadata: Partial<RunMetadata>): RegressionRun {
+  return { ...run, metadata: { ...run.metadata, ...metadata } }
+}
+
+export function getRunVerdict(run: RegressionRun): RunVerdict {
+  const applicable = Object.values(run.cases).filter(({ status }) => status !== 'not_applicable')
+  if (run.metadata.providerMode !== 'mock' || !run.metadata.mockVersion) return 'mock_blocked'
+  const phases = Object.values(run.phases)
+  // A task whose every case is unsupported on this platform has nothing to execute here;
+  // excluding it is a correct result, not a blocked one.
+  if (applicable.length === 0 && phases.length === 0) {
+    return 'mock_not_applicable'
+  }
+  if (
+    phases.some(({ status, errors }) => status === 'failed' || (errors.length > 0 && status !== 'blocked')) ||
+    applicable.some(({ status }) => status === 'failed')
+  )
+    return 'mock_failed'
+  if (
+    phases.length === 0 ||
+    phases.some(({ status }) => status !== 'passed') ||
+    applicable.length === 0 ||
+    applicable.some(({ status }) => status !== 'passed')
+  )
+    return 'mock_blocked'
+  return 'mock_pass'
+}
+
+export function readRun(filePath: string): RegressionRun {
+  const run = JSON.parse(readFileSync(filePath, 'utf8')) as RegressionRun
+  if (run.schemaVersion !== 2) throw new Error('Unsupported regression state version; initialize a new run directory')
+  return run
+}
+
+export function writeRun(filePath: string, run: RegressionRun): void {
+  const temporaryPath = `${filePath}.tmp-${process.pid}`
+  writeFileSync(temporaryPath, `${JSON.stringify(run, null, 2)}\n`, { mode: 0o600 })
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      renameSync(temporaryPath, filePath)
+      return
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (process.platform !== 'win32' || !['EACCES', 'EBUSY', 'EPERM'].includes(code ?? '') || attempt >= 5) {
+        throw error
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50 * 2 ** attempt)
+    }
+  }
+}
+
+/**
+ * Record the case ids one Playwright execution actually collected for a phase (TOOL-20261117-01).
+ *
+ * The reporter calls this when execution starts, so the ids come from the same run that produced
+ * the per-case statuses. A `--grep` rerun is then judged against this list instead of a separate
+ * `--list` collected before/after it, which could see a different registration set.
+ */
+export function recordSelection(
+  run: RegressionRun,
+  phaseId: string,
+  caseIds: string[],
+  recordedAt = new Date().toISOString()
+): RegressionRun {
+  const phase = run.phases[phaseId]
+  if (!phase) throw new Error(`Unknown or unselected regression phase: ${phaseId}`)
+  if (caseIds.length === 0) throw new Error(`Phase ${phaseId} execution collected no cases`)
+  if (new Set(caseIds).size !== caseIds.length) throw new Error(`Phase ${phaseId} execution collected duplicate cases`)
+  return {
+    ...run,
+    selections: { ...run.selections, [phaseId]: { ids: [...caseIds], recordedAt } }
+  }
+}
+
+export function updatePhase(
+  run: RegressionRun,
+  phaseId: string,
+  status: RegressionRun['phases'][string]['status'],
+  errors: string[] = []
+): RegressionRun {
+  const phase = run.phases[phaseId]
+  if (!phase) throw new Error(`Unknown or unselected regression phase: ${phaseId}`)
+  return { ...run, phases: { ...run.phases, [phaseId]: { status, errors: [...phase.errors, ...errors] } } }
+}

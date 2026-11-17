@@ -4,7 +4,7 @@
  */
 
 export const PROTOCOL = 'cherry.utility-process'
-export const PROTOCOL_VERSION = 1
+export const PROTOCOL_VERSION = 2
 
 /** Spawn → `ready` deadline. Fixed by design: heavy work belongs in handlers, not `initialize`. */
 export const READY_TIMEOUT_MS = 10_000

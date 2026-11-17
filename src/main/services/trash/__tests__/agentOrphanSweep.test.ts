@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, utim
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
@@ -15,7 +15,10 @@ import { PiRuntimeDriver } from '@main/ai/runtime/pi/PiRuntimeDriver'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { AgentSessionRuntimeDriver } from '@main/ai/runtime/types'
 
-const { restoreJournalMock } = vi.hoisted(() => ({ restoreJournalMock: { hasPendingRestore: vi.fn(() => false) } }))
+const { restoreJournalMock, closeSessionForArchive } = vi.hoisted(() => ({
+  restoreJournalMock: { hasPendingRestore: vi.fn(() => false) },
+  closeSessionForArchive: vi.fn().mockResolvedValue(undefined)
+}))
 vi.mock('@data/db/restore/restoreJournal', () => restoreJournalMock)
 
 const { sweepAgentOrphans } = await import('@main/ai/agents/agentOrphanSweep')
@@ -46,9 +49,14 @@ describe('sweepAgentOrphans', () => {
   beforeEach(() => {
     restoreJournalMock.hasPendingRestore.mockReturnValue(false)
     runtimeClaimedResumeTokens.clear()
+    closeSessionForArchive.mockResolvedValue(undefined)
     applicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') {
-        return { listClaimedResumeTokens: () => new Set(runtimeClaimedResumeTokens) }
+        return {
+          listClaimedResumeTokens: () => new Set(runtimeClaimedResumeTokens),
+          cancelSessionForks: async () => {},
+          closeSessionForArchive
+        }
       }
       return originalApplicationGet(name)
     })
@@ -87,6 +95,7 @@ describe('sweepAgentOrphans', () => {
       .insert(agentSessionTable)
       .values({ id: sessionId, agentId: null, name: sessionId, workspaceId: `ws-${sessionId}`, orderKey: 'a0' })
     await dbh.db.insert(agentSessionMessageTable).values({
+      parentId: seedSessionRoot(dbh.db, sessionId),
       id: `msg-${sessionId}`,
       sessionId,
       role: 'user',
@@ -177,6 +186,21 @@ describe('sweepAgentOrphans', () => {
     expect(existsSync(dateDir)).toBe(false)
   })
 
+  it('retains orphan files and deletion intent until native shutdown succeeds', async () => {
+    const orphan = path.join(workspacesRoot, '2026-08-19', 'session-purged')
+    mkdirSync(orphan, { recursive: true })
+    writeFileSync(path.join(orphan, 'output.txt'), 'recoverable output')
+    makeStale(orphan)
+    closeSessionForArchive.mockRejectedValueOnce(new Error('native process still open'))
+    await sweepAgentOrphans()
+    expect(existsSync(path.join(orphan, 'output.txt'))).toBe(true)
+    expect(existsSync(`${orphan}.storage.json`)).toBe(true)
+    makeStale(`${orphan}.storage.json`)
+    await sweepAgentOrphans()
+    expect(existsSync(orphan)).toBe(false)
+    expect(existsSync(`${orphan}.storage.json`)).toBe(false)
+  })
+
   it('stands aside while a restore is staged — its dirs are on disk before the DB claims them', async () => {
     restoreJournalMock.hasPendingRestore.mockReturnValue(true)
     const orphan = path.join(root, AGENT_GONE)
@@ -214,12 +238,10 @@ describe('sweepAgentOrphans', () => {
     function registerDriver(type: string, reclaim: AgentSessionRuntimeDriver['reclaimOrphanSessions']) {
       runtimeDriverRegistry.register({
         type,
-        capabilities: ['agent-session'],
         validateSession: vi.fn(),
-        listAvailableTools: vi.fn(),
         connect: vi.fn(),
         reclaimOrphanSessions: reclaim
-      } as unknown as AgentSessionRuntimeDriver)
+      })
     }
 
     afterEach(() => runtimeDriverRegistry.clearForTest())
@@ -296,14 +318,14 @@ describe('sweepAgentOrphans', () => {
     })
 
     it('isolates a failing runtime so the others still reclaim', async () => {
-      registerDriver('dsh', async () => {
-        throw new Error('dsh reclaim exploded')
+      registerDriver('failing-runtime', async () => {
+        throw new Error('runtime reclaim exploded')
       })
       registerDriver('pi', async () => ({ removed: ['/tmp/pi.jsonl'] }))
 
       const { removed, failedDrivers } = await sweepAgentOrphans()
 
-      expect(failedDrivers).toEqual(['dsh'])
+      expect(failedDrivers).toEqual(['failing-runtime'])
       expect(removed).toContain('/tmp/pi.jsonl')
     })
   })

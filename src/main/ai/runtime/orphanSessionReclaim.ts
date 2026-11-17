@@ -20,7 +20,7 @@ export async function listEntries(dir: string): Promise<Dirent[]> {
 
 /**
  * Newest mtime anywhere under `target`. Recursive because a runtime's log can
- * sit below the directory being reclaimed (dsh writes `{project}/{session}/session.jsonl`),
+ * sit below the directory being reclaimed (delegated sessions can own nested transcripts),
  * and a directory's own mtime does not move when a child file is appended to.
  * Symlinks are never followed — `Dirent.isDirectory()` is lstat-based.
  */

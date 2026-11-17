@@ -42,14 +42,12 @@ export interface StreamChunkPayload {
   executionId?: UniqueModelId
   /** Unique runtime attempt. Distinguishes repeated runs of the same model against the same row. */
   attemptId?: number
+  /** Last source chunk covered by this payload, monotonic within a managed execution attempt. */
+  sequence?: number
+  /** First source chunk in a coalesced live or replay payload, including a partially retained split delta. */
+  firstSequence?: number
   /** Assistant row this execution writes to. Disambiguates same-model chained turns. */
   anchorMessageId?: string
-  /**
-   * Per-topic ingest index assigned by main. A re-attaching renderer drops
-   * pre-attach live chunks at or below the replay watermark — main already
-   * sent those to a stale/parallel listener and they are inside the snapshot.
-   */
-  seq?: number
   chunk: UIMessageChunk
 }
 
@@ -153,6 +151,8 @@ type AiStreamRegenerateTarget =
 /** Stream ended. */
 export interface StreamDonePayload {
   topicId: string
+  /** Submitted Agent user row that owns this execution, including queued follow-ups. */
+  userMessageId?: string
   executionId?: UniqueModelId
   attemptId?: number
   /** Highest attempt owned by this topic lifecycle; attempts through it are terminal when isTopicDone is true. */
@@ -165,6 +165,8 @@ export interface StreamDonePayload {
 /** Stream error. */
 export interface StreamErrorPayload {
   topicId: string
+  /** Submitted Agent user row that owns this execution, including queued follow-ups. */
+  userMessageId?: string
   /** Multi-model: which model's execution errored. */
   executionId?: UniqueModelId
   attemptId?: number
@@ -247,9 +249,7 @@ export interface AiToolApprovalRespondRequest extends ApprovalDecision {
   anchorId?: string
 }
 
-export interface AiToolApprovalRespondResponse {
-  ok: boolean
-}
+export type AiToolApprovalRespondResponse = { ok: true } | { ok: false; reason: 'undelivered' | 'rejected' }
 
 /** Subscribe to a topic's stream state. */
 export interface AiStreamAttachRequest {
@@ -302,8 +302,8 @@ export type AiStreamAttachResponse =
   | {
       status: 'attached'
       bufferedChunks: StreamChunkPayload[]
-      /** Executions still in their streaming phase, in launch order. Undefined only for older Main builds. */
-      activeExecutions?: ActiveExecution[]
+      replayThrough: Record<number, number>
+      replayFrom?: Record<number, number>
     }
   | ({ status: 'done' } & AiStreamAttachTerminal)
   | ({ status: 'paused' } & AiStreamAttachTerminal)

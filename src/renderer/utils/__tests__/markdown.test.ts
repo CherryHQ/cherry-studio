@@ -155,10 +155,10 @@ describe('markdown', () => {
       )
     })
 
-    it('matches the rendered code text, which carries one trailing newline', () => {
-      const result = updateCodeBlock('```js\nconst a = 1\n```', 'const a = 1\n', 'const a = 2')
+    it('matches and preserves a real trailing blank line in the code document', () => {
+      const result = updateCodeBlock('```js\nconst a = 1\n\n```', 'const a = 1\n', 'const a = 2\n')
 
-      expect(result).toBe('```js\nconst a = 2\n```')
+      expect(result).toBe('```js\nconst a = 2\n\n```')
     })
 
     it('matches an SVG block whose blank lines were removed for rendering', () => {
@@ -209,7 +209,7 @@ describe('markdown', () => {
       const html = '<!DOCTYPE html>\n<html>\n<body>\n\n<h1>Hi</h1>\n\n</body>\n</html>'
       const updated = html.replace('Hi', 'Hello')
 
-      const result = updateCodeBlock(`Here is the page:\n\n${html}\n\nDone $a_b$.`, `${html}\n`, updated)
+      const result = updateCodeBlock(`Here is the page:\n\n${html}\n\nDone $a_b$.`, html, updated)
 
       expect(result).toBe(`Here is the page:\n\n${updated}\n\nDone $a_b$.`)
     })
@@ -334,6 +334,19 @@ describe('markdown', () => {
       Inline: ![icon](image_url)
     `
       expect(purifyMarkdownImages(input)).toBe(expected)
+    })
+
+    it('should handle whitespace-separated base64 chunks', () => {
+      const input = '![wrapped](data:image/png;base64,AAAA\n  BBBB CCCC)'
+      expect(purifyMarkdownImages(input)).toBe('![wrapped](image_url)')
+    })
+
+    it('should give up quickly on a base64 image missing its closing parenthesis', () => {
+      const input = `![cut](data:image/png;base64,${'A'.repeat(30)}`
+      const startedAt = performance.now()
+
+      expect(purifyMarkdownImages(input)).toBe(input)
+      expect(performance.now() - startedAt).toBeLessThan(1_000)
     })
   })
 })

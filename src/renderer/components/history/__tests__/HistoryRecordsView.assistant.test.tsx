@@ -1,3 +1,4 @@
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -5,7 +6,9 @@ import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUI from '@cherrystudio/ui'
+import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@renderer/data/DataApiService'
+import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import type * as PlatformModule from '@renderer/utils/platform'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -13,20 +16,6 @@ import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic } from '@shared/data/types/topic'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { trashErrorCodes } from '@shared/ipc/errors/trash'
-
-import deDE from '../../../i18n/locales/de-de.json'
-import elGR from '../../../i18n/locales/el-gr.json'
-import enUS from '../../../i18n/locales/en-us.json'
-import esES from '../../../i18n/locales/es-es.json'
-import frFR from '../../../i18n/locales/fr-fr.json'
-import jaJP from '../../../i18n/locales/ja-jp.json'
-import ptPT from '../../../i18n/locales/pt-pt.json'
-import roRO from '../../../i18n/locales/ro-ro.json'
-import ruRU from '../../../i18n/locales/ru-ru.json'
-import trTR from '../../../i18n/locales/tr-tr.json'
-import viVN from '../../../i18n/locales/vi-vn.json'
-import zhCN from '../../../i18n/locales/zh-cn.json'
-import zhTW from '../../../i18n/locales/zh-tw.json'
 
 const hookMocks = vi.hoisted(() => ({
   isMac: false,
@@ -146,9 +135,13 @@ vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   }
 }))
 
-vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: hookMocks.useCache
-}))
+vi.mock('@renderer/data/hooks/useCache', async (importOriginal) => {
+  const actual = await importOriginal<typeof UseCacheModule>()
+  return {
+    ...actual,
+    useCache: hookMocks.useCache
+  }
+})
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: () => ['cherry', () => {}],
@@ -267,6 +260,11 @@ const { confirmActionShow } = vi.hoisted(() => ({
 }))
 vi.mock('@renderer/components/popups/ConfirmActionPopup', () => ({ default: { show: confirmActionShow } }))
 
+const permanentDeletePopupMocks = vi.hoisted(() => ({ show: vi.fn() }))
+vi.mock('@renderer/components/chat/DeleteConversationOwnerConfirmDialog', () => ({
+  permanentDeletePopup: permanentDeletePopupMocks
+}))
+
 vi.mock('@renderer/services/copy', () => ({
   copyTopicAsMarkdown: vi.fn(),
   copyTopicAsPlainText: vi.fn()
@@ -336,9 +334,12 @@ vi.mock('react-i18next', () => ({
         'recycle_bin.move.confirm_action': 'Move to Recycle Bin',
         'recycle_bin.move.confirm_title': 'Move to Recycle Bin?',
         'recycle_bin.already_moved': 'Already in Recycle Bin',
+        'recycle_bin.delete.busy': 'Stop generation before permanently deleting this conversation.',
+        'recycle_bin.delete.pinned': 'Unpin this conversation before permanently deleting it.',
+        'recycle_bin.delete.stale': 'This item has already been deleted or archived. Refresh the list and try again.',
         'recycle_bin.move.blocked_generation': 'Stop generation before moving this conversation to the Recycle Bin.',
         'recycle_bin.move_failed': 'Could not move to Recycle Bin',
-        'history.records.bulkDelete': 'Batch Delete',
+        'history.records.bulkArchive': 'Batch Archive',
         'history.records.bulkDeleteTopics.description': 'Delete {{count}} selected conversation(s)?',
         'history.records.bulkDeleteTopics.title': 'Delete selected conversations',
         'history.records.bulkMove': 'Batch Move',
@@ -436,11 +437,13 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
 function setupAssistantHistory({
   activeRecordId = null,
   assistants = [createAssistant()],
+  onLocalPermanentDeletePendingChange,
   pinnedIds,
   topics = [createTopic()]
 }: {
   activeRecordId?: string | null
   assistants?: Assistant[]
+  onLocalPermanentDeletePendingChange?: (id: string | null) => void
   pinnedIds?: string[]
   topics?: Topic[]
 } = {}) {
@@ -461,6 +464,7 @@ function setupAssistantHistory({
       onClose={onClose}
       onRecordSelect={onRecordSelect}
       onActiveRecordChange={onActiveRecordChange}
+      onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
     />
   )
 
@@ -472,7 +476,7 @@ const flushCommandMenuAction = flushAnimationFrame
 
 async function clickBulkDelete() {
   await act(async () => {
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Batch Archive/ }))
     await flushAnimationFrame()
   })
 }
@@ -480,6 +484,7 @@ let assistantHistoryLoaded = false
 
 describe('HistoryRecordsView assistant mode', () => {
   beforeEach(async () => {
+    MockCacheUtils.resetMocks()
     hookMocks.isMac = false
     document.body.innerHTML = '<div id="home-page"></div><div id="agent-page"></div>'
     MockUseDataApiUtils.resetMocks()
@@ -490,6 +495,8 @@ describe('HistoryRecordsView assistant mode', () => {
       hookMocks.clearTopicMessagesTrigger
     )
     confirmActionShow.mockClear()
+    permanentDeletePopupMocks.show.mockReset()
+    permanentDeletePopupMocks.show.mockResolvedValue(false)
     hookMocks.useAgents.mockReset()
     hookMocks.useTopics.mockReset()
     hookMocks.useAssistants.mockReset()
@@ -604,7 +611,7 @@ describe('HistoryRecordsView assistant mode', () => {
       boxes.filter((box) => !box.hasAttribute('disabled')).every((box) => box.getAttribute('aria-checked') === 'true')
     ).toBe(true)
     expect(screen.getByRole('checkbox', { name: 'Select all' })).toBeChecked()
-    expect(screen.getByRole('button', { name: /Batch Delete/ })).toHaveTextContent('Batch Delete (2)')
+    expect(screen.getByRole('button', { name: /Batch Archive/ })).toHaveTextContent('Batch Archive (2)')
     await user.keyboard('{Control>}a{/Control}')
     expect(screen.getByRole('checkbox', { name: 'Select all' })).toBeChecked()
   })
@@ -699,26 +706,14 @@ describe('HistoryRecordsView assistant mode', () => {
 
     expect(screen.getByRole('region', { name: 'History' })).toBeInTheDocument()
     expect(screen.getByRole('table')).toBeInTheDocument()
-    expect(screen.getByTestId('history-virtual-list')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
     const pinButton = screen.getByTestId('history-pin-button')
     expect(pinButton).toHaveAccessibleName('Unpin Conversation')
     fireEvent.click(pinButton)
     expect(hookMocks.togglePin).toHaveBeenCalledWith('topic-alpha')
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
-    expect(screen.queryByText('Messages')).not.toBeInTheDocument()
-    expect(screen.queryByText('消息')).not.toBeInTheDocument()
 
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
-    const alphaCells = within(alphaRow).getAllByRole('cell')
-    expect(within(alphaCells[1]).getAllByText('A').length).toBeGreaterThan(0)
-    expect(within(alphaCells[1]).getByText('Alpha assistant')).toBeInTheDocument()
-    expect(within(alphaCells[2]).queryByText('A')).not.toBeInTheDocument()
-    const headerCells = screen.getAllByRole('columnheader')
-    expect(headerCells[1]).toHaveTextContent('Assistant')
-    expect(headerCells[2]).toHaveTextContent('Conversation')
-    expect(screen.queryByTestId('history-open-button')).not.toBeInTheDocument()
 
     fireEvent.click(alphaRow)
 
@@ -730,9 +725,6 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(hookMocks.openConversationTab).toHaveBeenCalledWith('topic-alpha', 'Alpha topic', { forceNew: true })
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
-    expect(hookMocks.useSessions).not.toHaveBeenCalled()
-    expect(hookMocks.useTopics).toHaveBeenCalledWith()
-    expect(hookMocks.useAgents).not.toHaveBeenCalled()
   })
 
   it('keeps the loading state until the shared full-topic source commits', () => {
@@ -1020,7 +1012,7 @@ describe('HistoryRecordsView assistant mode', () => {
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
     fireEvent.click(within(alphaRow).getByRole('checkbox'))
 
-    expect(screen.getByRole('button', { name: 'Batch Delete' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Batch Archive' })).toBeDisabled()
     expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
   })
 
@@ -1058,7 +1050,7 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(alphaCheckbox).toHaveAttribute('aria-checked', 'true')
     expect(betaCheckbox).toHaveAttribute('aria-checked', 'false')
     expect(gammaCheckbox).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByRole('button', { name: /Batch Delete/ })).toHaveTextContent('Batch Delete (2)')
+    expect(screen.getByRole('button', { name: /Batch Archive/ })).toHaveTextContent('Batch Archive (2)')
   })
 
   it('bulk moves selected topics to another assistant from the query toolbar', async () => {
@@ -1160,17 +1152,6 @@ describe('HistoryRecordsView assistant mode', () => {
     )
     expect(alphaCheckbox).toHaveAttribute('aria-checked', 'false')
     expect(betaCheckbox).toHaveAttribute('aria-checked', 'true')
-  })
-
-  it('renders the embedded shell without transition animation', () => {
-    setupAssistantHistory()
-
-    const page = screen.getByTestId('history-records-view')
-    expect(page).toHaveClass('flex')
-    expect(page).toHaveClass('flex-1')
-    expect(page).toHaveClass('bg-card')
-    expect(page).not.toHaveClass('absolute')
-    expect(page).not.toHaveStyle({ willChange: 'clip-path' })
   })
 
   it('renders inside the owning container instead of the first home page element', () => {
@@ -1461,6 +1442,23 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(screen.queryByText('Renamed topic')).not.toBeInTheDocument()
   })
 
+  it('disables automatic rename only for the topic already being renamed', () => {
+    MockCacheUtils.triggerCacheChange('topic.renaming', ['topic-alpha'])
+    setupAssistantHistory({
+      topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })]
+    })
+
+    const getRenameAction = (name: string) => {
+      const menu = screen.getByText(name).closest('[data-testid="context-menu"]')
+      const content = menu?.querySelector<HTMLElement>('[data-testid="context-menu-content"]')
+      if (!content) throw new Error(`Missing context menu for ${name}`)
+      return within(content).getByRole('button', { name: 'Generate conversation name' })
+    }
+
+    expect(getRenameAction('Alpha topic')).toBeDisabled()
+    expect(getRenameAction('Beta topic')).toBeEnabled()
+  })
+
   it('clears automatic topic renaming without a success reveal after a failed history update', async () => {
     let rejectUpdate!: (reason?: unknown) => void
     hookMocks.getTopicMessages.mockResolvedValueOnce([{}, {}])
@@ -1734,89 +1732,417 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
     expect(toast.info).toHaveBeenCalledWith('Already in Recycle Bin')
   })
-})
 
-describe('HistoryRecordsView locale resources', () => {
-  it('defines the real history and delete dialog keys used by the page', () => {
-    const requiredGlobalKeys = [
-      'chat.topics.manage.delete.confirm.content',
-      'chat.topics.manage.delete.confirm.title',
-      'common.archive',
-      'common.back',
-      'common.cancel',
-      'common.delete',
-      'common.delete_permanently',
-      'common.required_field',
-      'common.save',
-      'recycle_bin.already_moved',
-      'recycle_bin.move_failed'
-    ]
-    const requiredRuntimeRecordKeys = [
-      'clearSearch',
-      'filter.selectAgent',
-      'filter.selectAssistant',
-      'filter.statusLabel',
-      'filter.statusPlaceholder',
-      'filter.unlinkedAssistant',
-      'table.conversation'
-    ]
-    const requiredRecordKeys = [
-      'agentTitle',
-      'bulkMove',
-      'bulkMoveTopics.confirm',
-      'bulkMoveTopics.description',
-      'bulkMoveTopics.empty',
-      'bulkMoveTopics.error',
-      'bulkMoveTopics.partialSuccess',
-      'bulkMoveTopics.placeholder',
-      'bulkMoveTopics.success',
-      'bulkMoveTopics.target',
-      'bulkMoveTopics.title',
-      'clearSearch',
-      'empty.description',
-      'empty.sessionsDescription',
-      'empty.sessionsTitle',
-      'empty.title',
-      'filter.statusLabel',
-      'filter.unlinkedAssistant',
-      'loading.description',
-      'loading.sessionsDescription',
-      'loading.sessionsTitle',
-      'loading.title',
-      'searchSession',
-      'searchTopic',
-      'shortTitle',
-      'status.completed',
-      'status.failed',
-      'status.running',
-      'table.emptyValue',
-      'table.actions',
-      'table.conversation',
-      'table.session',
-      'table.time',
-      'title'
-    ]
-    const originalLocaleResources = [enUS, zhCN, zhTW]
-    const runtimeLocaleResources = [enUS, zhCN, zhTW, deDE, elGR, esES, frFR, jaJP, ptPT, roRO, ruRU, trTR, viVN]
+  it('offers permanent deletion beside Archive in the history context menu', () => {
+    setupAssistantHistory({
+      topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })]
+    })
 
-    for (const resource of runtimeLocaleResources) {
-      for (const key of requiredGlobalKeys) {
-        expect(resource[key]).toEqual(expect.any(String))
+    const menuContent = screen
+      .getByText('Alpha topic')
+      .closest('[data-testid="context-menu"]')
+      ?.querySelector('[data-testid="context-menu-content"]')
+
+    expect(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' })).toBeEnabled()
+    expect(within(menuContent as HTMLElement).getByRole('button', { name: /Delete Permanently/ })).toBeEnabled()
+  })
+
+  it('does not permanently delete a history topic before confirmation or on cancel', async () => {
+    const user = userEvent.setup()
+    setupAssistantHistory()
+    const menuContent = screen
+      .getByText('Alpha topic')
+      .closest('[data-testid="context-menu"]')
+      ?.querySelector('[data-testid="context-menu-content"]')
+
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: /Delete Permanently/ }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+
+    expect(permanentDeletePopupMocks.show).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'conversation',
+        name: 'Alpha topic',
+        action: expect.any(Function)
+      })
+    )
+    expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+  })
+
+  it('keeps history neighbor B when NOT_FOUND would otherwise activate globally latest C before the topic delete reply', async () => {
+    // Display order [C, A, B]. Unguarded HomePage recovery replaces A with non-null C
+    // before deletion settles, and History then skips planned neighbor B.
+    const user = userEvent.setup()
+    let currentPending: string | null = null
+    const events: string[] = []
+    const topics = [
+      createTopic({ id: 'topic-c', name: 'Latest topic', lastActivityAt: '2026-05-16T08:00:00.000Z' }),
+      createTopic({ id: 'topic-a', name: 'Active topic', lastActivityAt: '2026-05-15T08:00:00.000Z' }),
+      createTopic({ id: 'topic-b', name: 'Neighbor topic', lastActivityAt: '2026-05-14T08:00:00.000Z' })
+    ]
+    const view = setupAssistantHistory({
+      activeRecordId: 'topic-a',
+      topics,
+      onLocalPermanentDeletePendingChange: (id) => {
+        currentPending = id
+        events.push(id === null ? 'clear' : `pending:${id}`)
       }
-
-      for (const key of requiredRuntimeRecordKeys) {
-        const value = resource[`history.records.${key}`]
-        expect(value).toEqual(expect.any(String))
-        expect(value).not.toMatch(/^\[to be translated]/)
+    })
+    view.onActiveRecordChange.mockImplementation((topic: Topic | null) => {
+      events.push(`select:${topic?.id ?? 'null'}`)
+    })
+    hookMocks.deleteTopic.mockImplementation(async () => {
+      if (currentPending !== 'topic-a') {
+        await act(async () => {
+          view.rerender(
+            <HistoryRecordsView
+              mode="assistant"
+              open
+              activeRecordId="topic-c"
+              onClose={view.onClose}
+              onRecordSelect={view.onRecordSelect}
+              onActiveRecordChange={view.onActiveRecordChange}
+              onLocalPermanentDeletePendingChange={(id) => {
+                currentPending = id
+                events.push(id === null ? 'clear' : `pending:${id}`)
+              }}
+            />
+          )
+        })
       }
+      return { deletedIds: ['topic-a'], deletedCount: 1 }
+    })
+    permanentDeletePopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
+      await action()
+      return true
+    })
+    const menuContent = screen
+      .getByText('Active topic')
+      .closest('[data-testid="context-menu"]')
+      ?.querySelector('[data-testid="context-menu-content"]')
+
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: /Delete Permanently/ }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+
+    expect(view.onActiveRecordChange).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-b' }))
+    expect(events).toEqual(['pending:topic-a', 'select:topic-b', 'clear'])
+    expect(currentPending).toBeNull()
+  })
+
+  it('does not arm the chat pending guard when permanent delete is cancelled', async () => {
+    const user = userEvent.setup()
+    const pending: Array<string | null> = []
+    setupAssistantHistory({
+      activeRecordId: 'topic-alpha',
+      onLocalPermanentDeletePendingChange: (id) => {
+        pending.push(id)
+      }
+    })
+    const menuContent = screen
+      .getByText('Alpha topic')
+      .closest('[data-testid="context-menu"]')
+      ?.querySelector('[data-testid="context-menu-content"]')
+
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: /Delete Permanently/ }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+
+    expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
+    expect(pending).toEqual([])
+  })
+
+  it('permanently deletes the confirmed active history topic without Undo', async () => {
+    const user = userEvent.setup()
+    permanentDeletePopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
+      await action()
+      return true
+    })
+    hookMocks.deleteTopic.mockResolvedValueOnce({ deletedIds: ['topic-alpha'], deletedCount: 1 })
+    const { onActiveRecordChange } = setupAssistantHistory({
+      activeRecordId: 'topic-alpha',
+      topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })]
+    })
+    const menuContent = screen
+      .getByText('Alpha topic')
+      .closest('[data-testid="context-menu"]')
+      ?.querySelector('[data-testid="context-menu-content"]')
+
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: /Delete Permanently/ }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+
+    expect(hookMocks.deleteTopic).toHaveBeenCalledExactlyOnceWith('topic-alpha', {
+      permanent: true,
+      targetState: 'active'
+    })
+    expect(onActiveRecordChange).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-beta', name: 'Beta topic' }))
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(hookMocks.refetchTopics).not.toHaveBeenCalled()
+  })
+
+  it('selects the pre-delete neighbor when the deleted history row is already gone', async () => {
+    const user = userEvent.setup()
+    const alpha = createTopic({ lastActivityAt: '2026-05-14T10:00:00.000Z' })
+    const beta = createTopic({
+      id: 'topic-beta',
+      name: 'Beta topic',
+      lastActivityAt: '2026-05-14T09:00:00.000Z'
+    })
+    const gamma = createTopic({
+      id: 'topic-gamma',
+      name: 'Gamma topic',
+      lastActivityAt: '2026-05-14T08:00:00.000Z'
+    })
+    permanentDeletePopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
+      await action()
+      return true
+    })
+    const view = setupAssistantHistory({
+      activeRecordId: 'topic-alpha',
+      topics: [alpha, beta, gamma]
+    })
+    hookMocks.deleteTopic.mockImplementation(async () => {
+      hookMocks.useTopics.mockReturnValue({ topics: [beta, gamma], error: undefined, isLoading: false })
+      await act(async () => {
+        view.rerender(
+          <HistoryRecordsView
+            mode="assistant"
+            open
+            activeRecordId="topic-alpha"
+            onClose={view.onClose}
+            onRecordSelect={view.onRecordSelect}
+            onActiveRecordChange={view.onActiveRecordChange}
+          />
+        )
+      })
+      return { deletedIds: ['topic-alpha'], deletedCount: 1 }
+    })
+    const menuContent = screen
+      .getByText('Alpha topic')
+      .closest('[data-testid="context-menu"]')
+      ?.querySelector('[data-testid="context-menu-content"]')
+
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: /Delete Permanently/ }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+
+    expect(view.onActiveRecordChange).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-beta' }))
+    expect(view.onActiveRecordChange).not.toHaveBeenCalledWith(null)
+  })
+
+  it('keeps a history selection the user changed while permanent delete was pending', async () => {
+    const user = userEvent.setup()
+    const alpha = createTopic({ lastActivityAt: '2026-05-14T10:00:00.000Z' })
+    const beta = createTopic({
+      id: 'topic-beta',
+      name: 'Beta topic',
+      lastActivityAt: '2026-05-14T09:00:00.000Z'
+    })
+    permanentDeletePopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
+      await action()
+      return true
+    })
+    const view = setupAssistantHistory({
+      activeRecordId: 'topic-alpha',
+      topics: [alpha, beta]
+    })
+    hookMocks.deleteTopic.mockImplementation(async () => {
+      hookMocks.useTopics.mockReturnValue({ topics: [beta], error: undefined, isLoading: false })
+      await act(async () => {
+        view.rerender(
+          <HistoryRecordsView
+            mode="assistant"
+            open
+            activeRecordId="topic-beta"
+            onClose={view.onClose}
+            onRecordSelect={view.onRecordSelect}
+            onActiveRecordChange={view.onActiveRecordChange}
+          />
+        )
+      })
+      return { deletedIds: ['topic-alpha'], deletedCount: 1 }
+    })
+    const menuContent = screen
+      .getByText('Alpha topic')
+      .closest('[data-testid="context-menu"]')
+      ?.querySelector('[data-testid="context-menu-content"]')
+
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: /Delete Permanently/ }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+
+    expect(hookMocks.deleteTopic).toHaveBeenCalledOnce()
+    expect(view.onActiveRecordChange).not.toHaveBeenCalled()
+  })
+
+  it('disables history permanent deletion while the row is already generating', () => {
+    cacheService.setShared(
+      'topic.stream.statuses.topic-alpha' as never,
+      {
+        status: 'pending',
+        awaitingApprovalAnchors: []
+      } as never
+    )
+    setupAssistantHistory()
+
+    const menuContent = screen
+      .getByText('Alpha topic')
+      .closest('[data-testid="context-menu"]')
+      ?.querySelector('[data-testid="context-menu-content"]')
+
+    expect(within(menuContent as HTMLElement).getByRole('button', { name: /Delete Permanently/ })).toBeDisabled()
+    expect(within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' })).toBeDisabled()
+    expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
+  })
+
+  it('disables history permanent deletion when generation starts after the row rendered', async () => {
+    setupAssistantHistory()
+    const permanentDeleteButton = () => {
+      const menuContent = screen
+        .getByText('Alpha topic')
+        .closest('[data-testid="context-menu"]')
+        ?.querySelector('[data-testid="context-menu-content"]')
+      return within(menuContent as HTMLElement).getByRole('button', { name: /Delete Permanently/ })
     }
 
-    for (const resource of originalLocaleResources) {
-      // The `history.v2.*` namespace was renamed to `history.records.*`; no key may go back.
-      expect(Object.keys(resource).filter((key) => key.startsWith('history.v2.'))).toEqual([])
-      for (const key of requiredRecordKeys) {
-        expect(resource[`history.records.${key}`]).toEqual(expect.any(String))
+    expect(permanentDeleteButton()).toBeEnabled()
+
+    act(() => {
+      cacheService.setShared(
+        'topic.stream.statuses.topic-alpha' as never,
+        {
+          status: 'pending',
+          awaitingApprovalAnchors: []
+        } as never
+      )
+    })
+
+    await vi.waitFor(() => expect(permanentDeleteButton()).toBeDisabled())
+    expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
+  })
+
+  it('rechecks pinned and busy state when history permanent deletion is confirmed', async () => {
+    const user = userEvent.setup()
+    let confirm: (() => Promise<void>) | undefined
+    permanentDeletePopupMocks.show.mockImplementation((params: { action: () => Promise<void> }) => {
+      confirm = params.action
+      return new Promise(() => undefined)
+    })
+    const view = setupAssistantHistory({
+      topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })]
+    })
+    const menuContent = screen
+      .getByText('Alpha topic')
+      .closest('[data-testid="context-menu"]')
+      ?.querySelector('[data-testid="context-menu-content"]')
+    await user.click(within(menuContent as HTMLElement).getByRole('button', { name: /Delete Permanently/ }))
+    await act(async () => {
+      await flushCommandMenuAction()
+    })
+    expect(confirm).toEqual(expect.any(Function))
+
+    cacheService.setShared(
+      'topic.stream.statuses.topic-alpha' as never,
+      {
+        status: 'pending',
+        awaitingApprovalAnchors: []
+      } as never
+    )
+    await expect(confirm?.()).rejects.toThrow('Stop generation before permanently deleting this conversation.')
+    expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
+    expect(toast.info).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+
+    cacheService.deleteShared('topic.stream.statuses.topic-alpha' as never)
+    hookMocks.usePins.mockReturnValue({ pinnedIds: ['topic-alpha'], togglePin: hookMocks.togglePin })
+    view.rerender(
+      <HistoryRecordsView
+        mode="assistant"
+        open
+        onClose={view.onClose}
+        onRecordSelect={view.onRecordSelect}
+        onActiveRecordChange={view.onActiveRecordChange}
+      />
+    )
+    await expect(confirm?.()).rejects.toThrow('Unpin this conversation before permanently deleting it.')
+    expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
+    expect(hookMocks.refetchTopics).not.toHaveBeenCalled()
+    expect(toast.info).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('refreshes and rejects when history permanent deletion is stale or fails', async () => {
+    const user = userEvent.setup()
+    let failure: unknown
+    permanentDeletePopupMocks.show.mockImplementation(async ({ action }: { action: () => Promise<void> }) => {
+      try {
+        await action()
+      } catch (error) {
+        failure = error
+        return false
       }
+      return true
+    })
+    hookMocks.deleteTopic.mockResolvedValueOnce({ deletedIds: [], deletedCount: 0 })
+    const pending: Array<string | null> = []
+    const { onActiveRecordChange } = setupAssistantHistory({
+      activeRecordId: 'topic-alpha',
+      topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
+      onLocalPermanentDeletePendingChange: (id) => {
+        pending.push(id)
+      }
+    })
+    const openPermanentDelete = async () => {
+      const menuContent = screen
+        .getByText('Alpha topic')
+        .closest('[data-testid="context-menu"]')
+        ?.querySelector('[data-testid="context-menu-content"]')
+      await user.click(within(menuContent as HTMLElement).getByRole('button', { name: /Delete Permanently/ }))
+      await act(async () => {
+        await flushCommandMenuAction()
+      })
     }
+
+    await openPermanentDelete()
+    expect(failure).toEqual(
+      expect.objectContaining({
+        message: 'This item has already been deleted or archived. Refresh the list and try again.'
+      })
+    )
+    expect(hookMocks.deleteTopic).toHaveBeenCalledExactlyOnceWith('topic-alpha', {
+      permanent: true,
+      targetState: 'active'
+    })
+    expect(hookMocks.refetchTopics).toHaveBeenCalledOnce()
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
+    expect(pending).toEqual(['topic-alpha', null])
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(toast.info).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+
+    failure = undefined
+    hookMocks.refetchTopics.mockClear()
+    hookMocks.deleteTopic.mockReset()
+    hookMocks.deleteTopic.mockRejectedValueOnce(
+      new IpcError(trashErrorCodes.TRASH_TARGET_NOT_FOUND, 'Topic already archived')
+    )
+    await openPermanentDelete()
+    expect(failure).toEqual(
+      expect.objectContaining({
+        message: 'This item has already been deleted or archived. Refresh the list and try again.'
+      })
+    )
+    expect(hookMocks.refetchTopics).toHaveBeenCalledOnce()
+    expect(onActiveRecordChange).not.toHaveBeenCalled()
+    expect(pending).toEqual(['topic-alpha', null, 'topic-alpha', null])
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
   })
 })

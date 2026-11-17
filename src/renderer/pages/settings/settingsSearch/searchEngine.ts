@@ -1,4 +1,5 @@
-import { toPinyinForms } from './pinyin'
+import { toPinyinForms } from '@renderer/utils/pinyin'
+
 import type { SettingsSearchResult, SettingsSearchSection } from './types'
 import { getSettingDomId } from './types'
 

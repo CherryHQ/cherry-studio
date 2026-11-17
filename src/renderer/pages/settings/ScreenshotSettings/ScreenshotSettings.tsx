@@ -4,20 +4,22 @@ import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge, Button, DescriptionSwitch, NormalTooltip } from '@cherrystudio/ui'
+import { Badge, Button, NormalTooltip, HelpTooltip, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
   SettingDivider,
   SettingGroup,
+  SettingRow,
+  SettingRowTitle,
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
-import { isMac } from '@renderer/utils/platform'
-import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY } from '@shared/data/presets/localModel'
+import { isMac, isWin } from '@renderer/utils/platform'
+import { DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY } from '@shared/data/presets/localModel'
 import type { OutputFor } from '@shared/ipc/types'
 import { commandShortcutPreferenceKey } from '@shared/utils/command'
 import { formatShortcutDisplay } from '@shared/utils/shortcut'
@@ -64,7 +66,7 @@ const ScreenshotSettings: FC = () => {
   const [screenshotEnabled, setScreenshotEnabled] = usePreference('feature.screenshot.enabled')
   const [autoOcr, setAutoOcr] = usePreference('feature.screenshot.auto_ocr')
   const [captureBinding] = usePreference('shortcut.screenshot.capture')
-  const ocrModel = useLocalModel(LOCAL_MODEL_BUNDLE_BY_CAPABILITY.ocr)
+  const ocrModel = useLocalModel(DEFAULT_LOCAL_MODEL_BUNDLE_BY_CAPABILITY.ocr)
 
   const captureShortcut = formatShortcutDisplay(captureBinding.binding, isMac)
   const captureShortcutEnabled = captureBinding.enabled
@@ -124,21 +126,26 @@ const ScreenshotSettings: FC = () => {
   }
 
   const permissionView = resolvePermissionView(permissionStatus, restartRequired, promptUnavailable)
-  const ocrReady = ocrModel.status === 'ready'
+  const systemOcrAvailable = isMac || isWin
+  const ocrReady = systemOcrAvailable || ocrModel.status === 'ready'
 
   return (
     <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.screenshot.title')}</SettingTitle>
         <SettingDivider />
-        <DescriptionSwitch
-          size="sm"
-          label={t('settings.screenshot.enable.title')}
-          description={t('settings.screenshot.enable.description')}
-          checked={screenshotEnabled}
-          onCheckedChange={(checked) => void setScreenshotEnabled(checked)}
-        />
-
+        <SettingRow>
+          <SettingRowTitle>
+            {t('settings.screenshot.enable.title')}
+            <HelpTooltip content={t('settings.screenshot.enable.description')} />
+          </SettingRowTitle>
+          <Switch
+            size="sm"
+            aria-label={t('settings.screenshot.enable.title')}
+            checked={screenshotEnabled}
+            onCheckedChange={(checked) => void setScreenshotEnabled(checked)}
+          />
+        </SettingRow>
         {permissionView && (
           <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-border p-3">
             <div className="min-w-0">
@@ -162,15 +169,11 @@ const ScreenshotSettings: FC = () => {
         )}
 
         <SettingDivider />
-        {/* Mirrors DescriptionSwitch's own markup (p-2, gap-1, size="sm" type scale) so this
-            row lines up with the switches above it — there is no read-only variant to reuse. */}
-        <div className="flex w-full justify-between gap-3 p-2">
-          <div className="flex min-w-0 flex-col gap-1">
-            <p className="font-medium text-sm leading-4 tracking-normal">{t('settings.screenshot.shortcut.title')}</p>
-            <span className="text-[10px] text-muted-foreground leading-3">
-              {t('settings.screenshot.shortcut.description')}
-            </span>
-          </div>
+        <SettingRow className="gap-3">
+          <SettingRowTitle>
+            {t('settings.screenshot.shortcut.title')}
+            <HelpTooltip content={t('settings.screenshot.shortcut.description')} />
+          </SettingRowTitle>
           <div className="flex shrink-0 items-center gap-2">
             {captureShortcut ? (
               <>
@@ -205,23 +208,28 @@ const ScreenshotSettings: FC = () => {
               {t('settings.screenshot.shortcut.link')}
             </Link>
           </div>
-        </div>
+        </SettingRow>
       </SettingGroup>
-
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.screenshot.ocr.title')}</SettingTitle>
         <SettingDivider />
-        <DescriptionSwitch
-          size="sm"
-          label={t('settings.screenshot.ocr.auto.title')}
-          description={t('settings.screenshot.ocr.auto.description')}
-          checked={autoOcr}
-          disabled={!ocrReady}
-          onCheckedChange={(checked) => void setAutoOcr(checked)}
-        />
-
-        <div className="mt-2 px-2">
-          {ocrReady ? (
+        <SettingRow>
+          <SettingRowTitle>
+            {t('settings.screenshot.ocr.auto.title')}
+            <HelpTooltip content={t('settings.screenshot.ocr.auto.description')} />
+          </SettingRowTitle>
+          <Switch
+            size="sm"
+            aria-label={t('settings.screenshot.ocr.auto.title')}
+            checked={autoOcr}
+            disabled={!ocrReady}
+            onCheckedChange={(checked) => void setAutoOcr(checked)}
+          />
+        </SettingRow>
+        <div className="mt-2">
+          {systemOcrAvailable ? (
+            <Badge variant="secondary">{t('provider.system')}</Badge>
+          ) : ocrReady ? (
             <Badge variant="secondary">{t('settings.screenshot.ocr.model.ready')}</Badge>
           ) : ocrModel.status === 'downloading' ? (
             <div className="flex items-center justify-between gap-3 text-muted-foreground text-xs">

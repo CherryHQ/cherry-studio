@@ -14,7 +14,7 @@ export function stripMarkdownFormatting(text: string) {
     .replace(/\*\*(.*?)\*\*/g, '$1')
     .replace(/\*(.*?)\*/g, '$1')
     .replace(/`(.*?)`/g, '$1')
-    .replace(/#+\s/g, '')
+    .replace(/^#{1,6}\s/gm, '')
     .replace(/<[^>]*>/g, '')
 }
 

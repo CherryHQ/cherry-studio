@@ -1,24 +1,22 @@
+import * as z from 'zod'
+
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileHandle } from '@shared/data/types/file'
-import type { FileProcessingOutputTarget } from '@shared/data/types/fileProcessing'
+import { FileProcessingArtifactSchema, type FileProcessingOutputTarget } from '@shared/data/types/fileProcessing'
 
 /**
  * JobRegistry declaration merging for file-processing job types.
  *
- * Background and remote-poll are separate because they have different recovery
- * semantics, timeouts, and (in remote-poll) cross-restart metadata shape.
+ * Background and remote-poll are separate because they have different timeouts
+ * and (in remote-poll) a persisted remote-state metadata shape.
  * Background is split again by `FileProcessorRuntime`: a concurrency cap is a
  * per-type knob, and one value cannot be right for both an inference worker and
  * an HTTP call. All three share an identical payload — the difference is which
  * JobHandler runs them, and under which cap.
  *
- * `'file-processing.background'` deliberately keeps its original name for the
- * *remote* half even though the local half reads as the odd one out. Job types
- * are persisted in `jobTable.type`, and a non-terminal row whose type has no
- * registered handler is cancelled outright by startup recovery — bypassing
- * `finalizeJob`, so neither `publishState` nor `onSettled` fires. Keeping the
- * old string means every row already on disk at upgrade time runs to completion
- * with exactly its pre-upgrade behaviour. Do not "fix" the asymmetry.
+ * `'file-processing.background'` keeps its original name for the *remote* half
+ * even though the local half reads as the odd one out: job types are persisted
+ * in `jobTable.type`, so a rename strands the rows already on disk.
  */
 declare module '@main/core/job/jobRegistry' {
   interface JobRegistry {
@@ -37,6 +35,10 @@ export interface FileProcessingJobPayload {
   }
   processorId: FileProcessorId
 }
+
+/** What a file-processing job stores as its output; a completed task carries the artifact. */
+export const FileProcessingJobOutputSchema = z.object({ artifact: FileProcessingArtifactSchema }).strict()
+export type FileProcessingJobOutput = z.infer<typeof FileProcessingJobOutputSchema>
 
 /**
  * Dispatch queue for a processor, one per processor so a slow one never blocks

@@ -1,5 +1,31 @@
 # @cherrystudio/extension-table-plus
 
+## Unreleased
+
+### Patch Changes
+
+- Include the existing MIT license terms with the upstream Tiptap copyright notice and Cherry Studio contributor attribution.
+
+## 3.0.15
+
+### Patch Changes
+
+- [#24590](https://github.com/CherryHQ/cherry-studio/pull/24590) [`7a14371`](https://github.com/CherryHQ/cherry-studio/commit/7a14371ce83304e985c22a8455c654b383ccae55) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Fix ESM and TypeScript import entry points for the package root and all five table subpaths to reference the generated files.
+
+## 3.0.14
+
+### Patch Changes
+
+- [#24234](https://github.com/CherryHQ/cherry-studio/pull/24234) [`2e65759`](https://github.com/CherryHQ/cherry-studio/commit/2e6575901a59e6edb5748a2df18713f48635f658) Thanks [@DeJeune](https://github.com/DeJeune)! - Standardize public libraries on MIT and include package-local license files.
+
+## 3.0.13
+
+### Patch Changes
+
+- [#19907](https://github.com/CherryHQ/cherry-studio/pull/19907) [`5c2045f`](https://github.com/CherryHQ/cherry-studio/commit/5c2045ff63477097bdcb45691c45735ad2aabd33) Thanks [@kovsu](https://github.com/kovsu)! - Clear a reused `<col>` element's stale `width` and `min-width` before applying the current column declaration in `TableView.updateColumns`. A column that lost its stored width previously kept the old `width` alongside the new `min-width`, so it stayed locked at its previous size after inserting a column or resizing. Columns narrower than `cellMinWidth` are also no longer rewritten on every update.
+
+- [#16118](https://github.com/CherryHQ/cherry-studio/pull/16118) [`22ffb62`](https://github.com/CherryHQ/cherry-studio/commit/22ffb62f628a1932b71b893134068418e28c0245) Thanks [@DeJeune](https://github.com/DeJeune)! - Align the `@tiptap/core` and `@tiptap/pm` devDependencies to 3.26.1 to match the editor's Tiptap upgrade. No public API change.
+
 ## 3.0.12
 
 ### Patch Changes

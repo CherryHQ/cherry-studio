@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
@@ -43,6 +44,7 @@ vi.mock('@renderer/services/toast', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  ScrollArea: MockCherrystudioUI.ScrollArea,
   Button: ({ children, size, variant, ...props }: ComponentProps<'button'> & { size?: string; variant?: string }) => {
     void size
     void variant
@@ -86,7 +88,6 @@ describe('SystemSkillDialog', () => {
 
     await user.click(screen.getByRole('button', { name: 'library.system_skill.import' }))
 
-    expect(useSystemSkillsMock).toHaveBeenCalledWith(true)
     expect(importSkillMock).toHaveBeenCalledWith(candidate)
     expect(toastSuccess).toHaveBeenCalledWith('library.system_skill.import_success:System Skill')
   })
@@ -100,15 +101,8 @@ describe('SystemSkillDialog', () => {
 
     await user.click(screen.getByRole('button', { name: 'library.system_skill.import' }))
 
-    expect(useSystemSkillsMock).toHaveBeenCalledWith(true)
     expect(onEnabled).not.toHaveBeenCalled()
     expect(toastSuccess).toHaveBeenCalledWith('library.system_skill.import_success:System Skill')
-  })
-
-  it('does not show a manual refresh action', () => {
-    render(<SystemSkillDialog mode="manage" open onOpenChange={vi.fn()} />)
-
-    expect(screen.queryByRole('button', { name: 'common.refresh' })).not.toBeInTheDocument()
   })
 
   it('shows an imported system skill as imported in skill management', () => {

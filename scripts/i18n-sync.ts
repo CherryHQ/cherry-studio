@@ -1,6 +1,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
+import { type LocaleKeySpec, localeKeySpec } from './i18n-plurals'
 import { sortedObjectByKeys } from './sort'
 
 const baseLocale = process.env.TRANSLATION_BASE_LOCALE ?? 'en-us'
@@ -8,27 +9,28 @@ const baseFileName = `${baseLocale}.json`
 
 const catalogDirectories = [
   path.join(__dirname, '../src/renderer/i18n/locales'),
-  path.join(__dirname, '../src/main/i18n/locales')
+  path.join(__dirname, '../src/main/i18n/locales'),
+  path.join(__dirname, '../packages/file-preview/src/locales')
 ]
 
 /** Catalogs are flat: every key is a dotted path mapping straight to its translated string. */
 type I18N = { [key: string]: string }
 
 /**
- * Sync target catalog to match the template's key set
- * 1. Add keys that exist in template but missing in target (with '[to be translated]')
- * 2. Remove keys that exist in target but not in template
+ * Sync target catalog to match its expected key set (see i18n-plurals.ts)
+ * 1. Add required keys missing in target (with '[to be translated]' and the English source text)
+ * 2. Remove keys the target may not contain; the locale's own plural forms are kept
  */
-function sync(target: I18N, template: I18N): void {
-  for (const key in template) {
+function sync(target: I18N, template: I18N, spec: LocaleKeySpec): void {
+  for (const key of spec.required) {
     if (!(key in target)) {
-      target[key] = `[to be translated]:${template[key]}`
+      target[key] = `[to be translated]:${template[spec.sourceKey.get(key) ?? key]}`
       console.log(`Added new property: ${key}`)
     }
   }
 
   for (const targetKey in target) {
-    if (!(targetKey in template)) {
+    if (!spec.allowed.has(targetKey)) {
       console.log(`Removed excess property: ${targetKey}`)
       delete target[targetKey]
     }
@@ -80,7 +82,7 @@ function syncCatalog(localesDir: string) {
       continue
     }
 
-    sync(targetJson, baseJson)
+    sync(targetJson, baseJson, localeKeySpec(baseJson, filePath))
 
     const sortedJson = sortedObjectByKeys(targetJson)
 

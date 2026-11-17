@@ -3,10 +3,12 @@ import { createServer, type Server } from 'node:http'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CustomFetchModule from '@main/ai/utils/customFetch'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { makeProvider } from '../../__tests__/fixtures/provider'
+import { GeminiModelsResponseSchema } from '../listModelsSchemas'
 
 const { getRotatedApiKeyMock } = vi.hoisted(() => ({
   getRotatedApiKeyMock: vi.fn<() => string>()
@@ -35,6 +37,17 @@ vi.mock('@main/services/CopilotService', () => ({
     getToken: vi.fn()
   }
 }))
+
+// Listing issues its HTTP through `customFetch` (Electron `net.fetch`, the Chromium stack),
+// which has no Chromium behind it under Vitest. Delegate to Node's fetch so the real
+// loopback server below stays reachable; the transport is not what this suite exercises.
+vi.mock('@main/ai/utils/customFetch', async () => {
+  const actual = await vi.importActual<typeof CustomFetchModule>('@main/ai/utils/customFetch')
+  return {
+    ...actual,
+    customFetch: (input: string | URL | Request, init?: RequestInit) => globalThis.fetch(input, init)
+  }
+})
 
 const { listModels } = await import('../listModels')
 
@@ -65,6 +78,61 @@ afterEach(async () => {
         })
     )
   )
+})
+
+describe('listModels - Gemini pagination token compatibility', () => {
+  const models = [
+    { name: 'models/gemini-test', displayName: 'Gemini Test', supportedGenerationMethods: ['generateContent'] }
+  ]
+
+  it.each([
+    { token: null, expected: undefined },
+    { token: undefined, expected: undefined },
+    { token: '', expected: '' },
+    { token: 'next-page', expected: 'next-page' }
+  ])('lists models with nextPageToken=$token', async ({ token, expected }) => {
+    const body = { models, nextPageToken: token }
+    const port = await listen(
+      createServer((_request, response) => {
+        response.setHeader('content-type', 'application/json')
+        response.end(JSON.stringify(body))
+      })
+    )
+    const provider = makeProvider({
+      id: 'custom-gemini',
+      presetProviderId: SystemProviderIds.gemini,
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: `http://127.0.0.1:${port}` }
+      }
+    })
+
+    const result = await listModels(provider, undefined, { throwOnError: true })
+
+    expect(result.models).toEqual([
+      expect.objectContaining({
+        id: 'custom-gemini::gemini-test',
+        apiModelId: 'gemini-test',
+        name: 'Gemini Test'
+      })
+    ])
+    expect(GeminiModelsResponseSchema.parse(body).nextPageToken).toBe(expected)
+  })
+
+  it.each([123, {}, [], false])('rejects an invalid pagination token: %j', (nextPageToken) => {
+    const result = GeminiModelsResponseSchema.safeParse({ models, nextPageToken })
+    expect(result.success).toBe(false)
+    if (!result.success) expect(result.error.issues.map((issue) => issue.path)).toContainEqual(['nextPageToken'])
+  })
+
+  it('still rejects model entries without a name when the pagination token is null', () => {
+    const result = GeminiModelsResponseSchema.safeParse({
+      models: [{ displayName: 'Missing ID' }],
+      nextPageToken: null
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) expect(result.error.issues.map((issue) => issue.path)).toContainEqual(['models', 0, 'name'])
+  })
 })
 
 describe('listModels - LM Studio response isolation', () => {
@@ -98,7 +166,7 @@ describe('listModels - LM Studio response isolation', () => {
       }
     })
 
-    const models = await listModels(provider)
+    const { models } = await listModels(provider)
 
     expect(models.map((model) => model.apiModelId)).toEqual(['first-model', 'second-model'])
     expect(models[0]?.name).toBe('First Model')

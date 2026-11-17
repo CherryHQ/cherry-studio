@@ -1,0 +1,292 @@
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
+
+import { probeCapabilities } from './capabilities'
+import { parseTaskSelection, PHASE_IDS, resolveWorkflowTasks, selectCases, serializeTaskSelection } from './cases'
+import { getSensitiveConfigValues, loadTestConfig } from './config'
+import { cleanupExternalResources } from './externalResources'
+import { createFixtures } from './fixtureFiles'
+import { prepareRelease } from './installation'
+import { launchApp, stopOwnedApp } from './lifecycle'
+import { prepareMacRuntime } from './macRuntime'
+import { assertMockRequests, startMockProvider, stopMockProvider, verifyMockProvider } from './mockProvider'
+import { ensureRunDirectories, getRunPaths } from './paths'
+import { runPhase } from './phases'
+import { createRedactor } from './redaction'
+import { resolveRepositoryRef } from './ref'
+import { aggregateRuns, renderAggregateMarkdown, writeReports } from './report'
+import {
+  createRun,
+  finalizeRun,
+  getRunVerdict,
+  readRun,
+  setCapabilities,
+  updatePhase,
+  updateRunMetadata,
+  writeRun
+} from './state'
+import { PLATFORMS, RUN_MODES } from './types'
+import { cleanupWindowsNotificationShortcut } from './windowsNotificationShortcut'
+
+function argument(name: string, required = true): string | undefined {
+  const index = process.argv.indexOf(`--${name}`)
+  const value = index >= 0 ? process.argv[index + 1] : undefined
+  if (required && (!value || value.startsWith('--'))) throw new Error(`--${name} is required`)
+  return value
+}
+
+function oneOf<T extends string>(value: string, choices: readonly T[], label: string): T {
+  if (!choices.includes(value as T)) throw new Error(`${label} must be one of: ${choices.join(', ')}`)
+  return value as T
+}
+
+function outputLine(name: string, value: string): void {
+  const output = process.env.GITHUB_OUTPUT
+  if (output) appendFileSync(output, `${name}=${value}\n`)
+  else process.stdout.write(`${name}=${value}\n`)
+}
+
+function runDirectory() {
+  const value = argument('run-dir') ?? ''
+  const paths = getRunPaths(value)
+  ensureRunDirectories(paths)
+  return paths
+}
+
+function sanitizeRunKey(value: string): string {
+  return value.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 80)
+}
+
+function findFiles(root: string, fileName: string): string[] {
+  if (!existsSync(root)) return []
+  return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+    const filePath = join(root, entry.name)
+    if (entry.isDirectory()) return findFiles(filePath, fileName)
+    return entry.name === fileName ? [filePath] : []
+  })
+}
+
+function redactLogs(paths: ReturnType<typeof getRunPaths>): void {
+  const values = getSensitiveConfigValues()
+  const redact = createRedactor(values)
+  const outputDirectory = join(paths.output, 'logs')
+  mkdirSync(outputDirectory, { recursive: true })
+  if (!existsSync(paths.logs)) return
+  for (const entry of readdirSync(paths.logs, { withFileTypes: true })) {
+    if (!entry.isFile()) continue
+    const source = join(paths.logs, entry.name)
+    const content = readFileSync(source, 'utf8')
+    writeFileSync(join(outputDirectory, entry.name), redact(content), {
+      mode: 0o600
+    })
+  }
+}
+
+async function resolveRefCommand(): Promise<void> {
+  const requested = argument('requested') ?? ''
+  const repository = argument('repository') ?? ''
+  const resolvedRef = resolveRepositoryRef(requested, repository)
+  outputLine('mode', resolvedRef.kind)
+  outputLine('name', resolvedRef.name)
+  outputLine('ref', resolvedRef.ref)
+  outputLine('sha', resolvedRef.sha)
+}
+
+function selectTasksCommand(): void {
+  const inputs = JSON.parse(argument('inputs-json') ?? '{}')
+  const resolved = resolveWorkflowTasks(inputs)
+  for (const [name, value] of Object.entries(resolved)) outputLine(name, value)
+}
+
+async function initializeCommand(): Promise<void> {
+  const paths = runDirectory()
+  const mode = oneOf(argument('mode') ?? '', RUN_MODES, 'mode')
+  const platform = oneOf(argument('platform') ?? '', PLATFORMS, 'platform')
+  const task = parseTaskSelection(argument('task', false) ?? 'all')
+  const ref = argument('ref') ?? ''
+  const sha = argument('sha') ?? ''
+  const runner = argument('runner') ?? ''
+  const appVersion = mode === 'tag' ? ref.replace(/^v/, '') : `development-${sha.slice(0, 7)}`
+  let run = createRun({
+    appVersion,
+    commitSha: sha,
+    mode,
+    platform,
+    ref,
+    runner,
+    task: serializeTaskSelection(task)
+  })
+  await createFixtures(paths)
+  run = setCapabilities(run, probeCapabilities(platform, paths))
+  writeRun(paths.runState, run)
+}
+
+async function preflightCommand(): Promise<void> {
+  const task = parseTaskSelection(argument('task', false) ?? 'all')
+  const directory = argument('run-dir', false)
+  if (!directory) {
+    if (selectCases(task).every(({ id }) => id === 'C-03' || id === 'MP-86')) return
+    throw new Error('--run-dir is required for mock preflight')
+  }
+  await verifyMockProvider(getRunPaths(directory))
+  loadTestConfig(directory)
+}
+
+async function releaseCommand(): Promise<void> {
+  const paths = runDirectory()
+  let run = readRun(paths.runState)
+  if (run.metadata.mode !== 'tag') throw new Error('Release preparation is only valid for a tag run')
+  const repository = argument('repository') ?? ''
+  const installation = await prepareRelease(paths, {
+    repository,
+    ref: run.metadata.ref,
+    platform: run.metadata.platform,
+    arch: argument('arch') ?? ''
+  })
+  run = updateRunMetadata(run, { artifactName: installation.artifactName, artifactSha256: installation.artifactSha256 })
+  writeRun(paths.runState, run)
+}
+
+async function launchCommand(): Promise<void> {
+  const paths = runDirectory()
+  const run = readRun(paths.runState)
+  const targetRoot = argument('target-root') ?? ''
+  const runKey = sanitizeRunKey(
+    argument('run-key', false) ??
+      `${process.env.GITHUB_RUN_ID ?? Date.now()}-${process.env.GITHUB_RUN_ATTEMPT ?? 1}-${run.metadata.platform}`
+  )
+  await launchApp(paths, {
+    mode: run.metadata.mode,
+    platform: run.metadata.platform,
+    profile: 'authenticated',
+    runKey,
+    targetRoot
+  })
+}
+
+async function finalizeCommand(): Promise<void> {
+  const paths = runDirectory()
+  let current = readRun(paths.runState)
+  try {
+    if (existsSync(join(paths.root, 'mock.json'))) await assertMockRequests(paths)
+    else if (existsSync(join(paths.logs, 'aimock-summary.json'))) {
+      const summary = JSON.parse(readFileSync(join(paths.logs, 'aimock-summary.json'), 'utf8'))
+      if (summary.unmatched > 0) throw new Error(`Mock provider received ${summary.unmatched} unmatched requests`)
+    }
+  } catch (error) {
+    const phase = selectCases(parseTaskSelection(current.metadata.task))[0].phase
+    current = updatePhase(current, phase, 'failed', [String(error)])
+  }
+  const run = finalizeRun(current)
+  writeRun(paths.runState, run)
+  redactLogs(paths)
+  writeReports(run, paths.output)
+}
+
+async function gateCommand(): Promise<void> {
+  const paths = runDirectory()
+  const verdict = getRunVerdict(readRun(paths.runState))
+  process.stdout.write(`Cherry regression verdict: ${verdict}\n`)
+  if (!verdict.endsWith('_pass') && !verdict.endsWith('_not_applicable')) process.exitCode = 1
+}
+
+async function aggregateCommand(): Promise<void> {
+  const input = resolve(argument('input') ?? '')
+  const output = resolve(argument('output') ?? '')
+  const resultFiles = findFiles(input, 'results.json')
+  const runs = resultFiles.map(readRun)
+  const report = aggregateRuns(runs)
+  mkdirSync(output, { recursive: true })
+  const markdown = renderAggregateMarkdown(report)
+  writeFileSync(join(output, 'combined-results.json'), `${JSON.stringify(report, null, 2)}\n`)
+  writeFileSync(join(output, 'combined-report.md'), markdown)
+  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${markdown}\n`)
+  process.stdout.write(`Cherry aggregate regression verdict: ${report.verdict}\n`)
+}
+
+async function aggregateGateCommand(): Promise<void> {
+  const reportPath = resolve(argument('report') ?? '')
+  const report = JSON.parse(readFileSync(reportPath, 'utf8')) as {
+    verdict: string
+  }
+  if (!report.verdict.endsWith('_pass') && !report.verdict.endsWith('_not_applicable')) {
+    process.stderr.write(`Cherry aggregate regression failed: ${report.verdict}\n`)
+    process.exitCode = 1
+  }
+}
+
+async function cleanupCommand(): Promise<void> {
+  const paths = runDirectory()
+  const errors: unknown[] = []
+  for (const cleanup of [
+    () => stopOwnedApp(paths),
+    () => stopMockProvider(paths),
+    () => cleanupExternalResources(paths),
+    () => cleanupWindowsNotificationShortcut(paths)
+  ]) {
+    try {
+      await Promise.resolve(cleanup())
+    } catch (error) {
+      errors.push(error)
+    }
+  }
+  if (errors.length) throw new AggregateError(errors, `Regression cleanup failed: ${errors.map(String).join('; ')}`)
+}
+
+async function main(): Promise<void> {
+  const command = process.argv[2]
+  switch (command) {
+    case 'mock-start':
+      await startMockProvider(runDirectory())
+      break
+    case 'mock-stop':
+      await stopMockProvider(runDirectory())
+      break
+    case 'select-tasks':
+      selectTasksCommand()
+      break
+    case 'resolve-ref':
+      await resolveRefCommand()
+      break
+    case 'initialize':
+      await initializeCommand()
+      break
+    case 'preflight':
+      await preflightCommand()
+      break
+    case 'release':
+      await releaseCommand()
+      break
+    case 'prepare-mac-runtime':
+      await prepareMacRuntime(runDirectory(), resolve(argument('target-root') ?? ''))
+      break
+    case 'launch':
+      await launchCommand()
+      break
+    case 'run-phase':
+      await runPhase(runDirectory(), oneOf(argument('phase') ?? '', PHASE_IDS, 'phase'))
+      break
+    case 'finalize':
+      await finalizeCommand()
+      break
+    case 'gate':
+      await gateCommand()
+      break
+    case 'aggregate':
+      await aggregateCommand()
+      break
+    case 'aggregate-gate':
+      await aggregateGateCommand()
+      break
+    case 'cleanup':
+      await cleanupCommand()
+      break
+    default:
+      throw new Error(`Unknown Cherry regression command: ${command ?? '(missing)'}`)
+  }
+}
+
+main().catch((error) => {
+  process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`)
+  process.exitCode = 1
+})

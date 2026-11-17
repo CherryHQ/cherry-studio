@@ -1,4 +1,4 @@
-import { CheckCircle2, CircleAlert, Copy } from 'lucide-react'
+import { Check, CheckCircle2, CircleAlert, Copy } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -10,6 +10,7 @@ import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
 import { cn } from '@renderer/utils/style'
 
+import { useCopyToClipboard } from '../hooks/useCopyToClipboard'
 import { ProviderSettingsSubtitle } from '../primitives/ProviderSettingsPrimitives'
 
 const logger = loggerService.withContext('GithubCopilotSettings')
@@ -38,6 +39,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
   const [loading, setLoading] = useState<boolean>(false)
   const [verificationPageOpened, setVerificationPageOpened] = useState<boolean>(false)
   const [currentStep, setCurrentStep] = useState<number>(0)
+  const [userCodeCopied, copyUserCode] = useCopyToClipboard()
 
   const providerRateLimit = provider?.settings?.rateLimit ?? 10
   const rateLimitRef = useRef(providerRateLimit)
@@ -162,16 +164,6 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
     }
   }, [t, provider?.apiKeys, provider?.settings, deleteApiKey, updateProvider])
 
-  const handleCopyUserCode = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(userCode)
-      toast.success(t('common.copied'))
-    } catch (error) {
-      logger.error('Failed to copy to clipboard:', error as Error)
-      toast.error(t('common.copy_failed'))
-    }
-  }, [userCode, t])
-
   const handleOpenVerificationPage = useCallback(() => {
     if (verificationUri) {
       void openExternalWebsite(verificationUri)
@@ -292,8 +284,8 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                   </div>
                   <div className="flex min-h-6 flex-row items-center justify-between">
                     <Input value={userCode} readOnly className="mr-2 font-mono text-sm font-semibold" />
-                    <Button type="button" variant="secondary" onClick={handleCopyUserCode}>
-                      <Copy className="size-4" />
+                    <Button type="button" variant="secondary" onClick={() => void copyUserCode(userCode)}>
+                      {userCodeCopied ? <Check className="size-4 text-success" /> : <Copy className="size-4" />}
                       {t('common.copy')}
                     </Button>
                   </div>

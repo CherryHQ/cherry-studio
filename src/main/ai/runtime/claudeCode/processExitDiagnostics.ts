@@ -4,6 +4,7 @@ import { classifyErrorCategory, type ErrorCategory, extractHttpStatus } from '@s
 
 export interface ClaudeCodeProcessDiagnostics {
   readonly reference: string
+  exited?: Promise<void>
   terminalReason?: string
   category?: ErrorCategory
   exitCode?: number
@@ -76,4 +77,17 @@ export function createClaudeCodeProcessExitError(
     ...(diagnostics.exitCode !== undefined ? { processExitCode: diagnostics.exitCode } : {}),
     ...(diagnostics.exitSignal ? { processExitSignal: diagnostics.exitSignal } : {})
   })
+}
+
+/** Preserve interrupted output only when native abortion or a truncated JSON frame proves the boundary. */
+export function canSalvageClaudeOutput(error: unknown, bufferedChars: number, aborted: boolean): boolean {
+  if (aborted) return true
+  const value = error as { name?: string; message?: string } | null
+  return (
+    bufferedChars >= 512 &&
+    value?.name?.toLowerCase() === 'syntaxerror' &&
+    /unexpected end of (?:json input|input|string)|unexpected eof|end of file|unterminated string/i.test(
+      value.message ?? ''
+    )
+  )
 }

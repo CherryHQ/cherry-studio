@@ -7,7 +7,7 @@ import { parse } from 'yaml'
 import { resolveSentryBuildSettings } from '../../electron.vite.config'
 
 const projectRoot = path.join(import.meta.dirname, '..', '..')
-const workflowFiles = ['release.yml', 'nightly-build.yml', 'preview-release.yml', 'sync-to-gitcode.yml']
+const workflowFiles = ['release.yml', 'nightly-build.yml', 'preview-release.yml']
 
 describe('Sentry production build', () => {
   afterEach(() => {

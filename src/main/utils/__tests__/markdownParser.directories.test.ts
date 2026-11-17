@@ -35,7 +35,7 @@ describe('findAllSkillDirectories', () => {
     ])
   })
 
-  it('skips hidden directories and node_modules', async () => {
+  it('skips arbitrary hidden directories and node_modules', async () => {
     const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'skill-directories-'))
     tempDirs.push(root)
     const visible = path.join(root, 'skills', 'my-skill')
@@ -55,5 +55,25 @@ describe('findAllSkillDirectories', () => {
     const result = await findAllSkillDirectories(root, root)
 
     expect(result.map((candidate) => fwd(candidate.sourcePath))).toEqual(['skills/my-skill'])
+  })
+
+  it('allows dot-prefixed community convention directories only at the root', async () => {
+    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'skill-directories-'))
+    tempDirs.push(root)
+    await Promise.all(
+      ['.agents', '.claude', '.gemini', 'nested/.agents', 'nested/.claude', 'nested/.gemini'].map(async (dir) => {
+        const skillDir = path.join(root, dir, 'skills', 'my-skill')
+        await fs.promises.mkdir(skillDir, { recursive: true })
+        await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), '# skill')
+      })
+    )
+
+    const result = await findAllSkillDirectories(root, root)
+
+    expect(result.map((candidate) => fwd(candidate.sourcePath)).sort()).toEqual([
+      '.agents/skills/my-skill',
+      '.claude/skills/my-skill',
+      '.gemini/skills/my-skill'
+    ])
   })
 })

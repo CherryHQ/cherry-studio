@@ -46,7 +46,8 @@ function reservedUIMessageToBranchMessage(topicId: string, message: CherryUIMess
       parentId: metadata.parentId ?? null,
       role: message.role,
       data: {
-        parts: message.parts ?? []
+        parts: message.parts ?? [],
+        modelSelection: metadata.modelSelection
       },
       searchableText: '',
       status:

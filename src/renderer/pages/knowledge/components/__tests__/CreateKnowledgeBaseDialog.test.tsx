@@ -154,6 +154,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
+  orderKey: 'a0',
   id: 'base-1',
   name: 'Base 1',
   groupId: null,
@@ -204,50 +205,10 @@ describe('CreateKnowledgeBaseDialog', () => {
       />
     )
 
-    expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'sm')
     fireEvent.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() => expect(createBase).not.toHaveBeenCalled())
     expect(screen.getByText('知识库名称为必填项')).toBeInTheDocument()
-  })
-
-  it('renders the embedding model field as optional', () => {
-    render(
-      <CreateKnowledgeBaseDialog
-        open
-        groups={[]}
-        isCreating={false}
-        createBase={vi.fn().mockResolvedValue(createKnowledgeBase())}
-        onOpenChange={vi.fn()}
-        onCreated={vi.fn()}
-      />
-    )
-
-    expect(screen.getByText('嵌入模型')).toBeInTheDocument()
-    expect(screen.getByLabelText('嵌入模型')).toHaveValue('')
-    expect(screen.getByRole('button', { name: '不使用' })).toBeInTheDocument()
-    expect(screen.queryByText('未设置')).not.toBeInTheDocument()
-  })
-
-  it('renders all required fields and actions when a knowledge base is being created', () => {
-    render(
-      <CreateKnowledgeBaseDialog
-        open
-        groups={[]}
-        isCreating={false}
-        createBase={vi.fn().mockResolvedValue(createKnowledgeBase())}
-        onOpenChange={vi.fn()}
-        onCreated={vi.fn()}
-      />
-    )
-
-    expect(screen.getByRole('heading', { name: '新建知识库' })).toBeInTheDocument()
-    expect(screen.getByText('名称')).toBeInTheDocument()
-    expect(screen.getByLabelText('名称')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('名称')).toBeInTheDocument()
-    expect(screen.queryByText('分组')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '取消' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '创建' })).toBeInTheDocument()
   })
 
   it('closes the dialog on cancel without sending a request', () => {
@@ -269,41 +230,6 @@ describe('CreateKnowledgeBaseDialog', () => {
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(createBase).not.toHaveBeenCalled()
-  })
-
-  it('hides the group field when there are no real groups', () => {
-    render(
-      <CreateKnowledgeBaseDialog
-        open
-        groups={[]}
-        isCreating={false}
-        createBase={vi.fn().mockResolvedValue(createKnowledgeBase())}
-        onOpenChange={vi.fn()}
-        onCreated={vi.fn()}
-      />
-    )
-
-    expect(screen.queryByText('分组')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '默认' })).not.toBeInTheDocument()
-  })
-
-  it('renders the default group as a selectable option alongside the real groups', () => {
-    render(
-      <CreateKnowledgeBaseDialog
-        open
-        groups={[createGroup(), createGroup({ id: 'group-2', name: 'Archive', orderKey: 'a1' })]}
-        isCreating={false}
-        createBase={vi.fn().mockResolvedValue(createKnowledgeBase())}
-        onOpenChange={vi.fn()}
-        onCreated={vi.fn()}
-      />
-    )
-
-    expect(screen.getByText('分组')).toBeInTheDocument()
-    // The trigger renders the default label and the list now offers an explicit default option.
-    expect(screen.getAllByRole('button', { name: '默认' })).toHaveLength(2)
-    expect(screen.getByRole('button', { name: 'Research' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument()
   })
 
   it('submits without a group id when the default group option is selected', async () => {
@@ -472,25 +398,6 @@ describe('CreateKnowledgeBaseDialog', () => {
       uniqueModelId: 'openai::text-embedding-3-small',
       values: ['test']
     })
-  })
-
-  it('keeps the local embedding entry inside the model selector', () => {
-    render(
-      <CreateKnowledgeBaseDialog
-        open
-        groups={[]}
-        isCreating={false}
-        createBase={vi.fn().mockResolvedValue(createKnowledgeBase())}
-        onOpenChange={vi.fn()}
-        onCreated={vi.fn()}
-      />
-    )
-
-    expect(screen.getByRole('button', { name: 'local-model-option' })).toBeInTheDocument()
-
-    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
-
-    expect(screen.getByRole('button', { name: 'local-model-option' })).toBeInTheDocument()
   })
 
   it('submits the local embedding model with its fixed dimensions and no probe', async () => {

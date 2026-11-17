@@ -4,7 +4,13 @@ import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
 import { isCodexProviderId } from '@shared/data/presets/codex'
 import { isGrokCliProviderId } from '@shared/data/presets/grokCli'
 import type { Provider } from '@shared/data/types/provider'
-import { isAwsBedrockProvider, isProviderSupportAuth, isVertexProvider, matchesPreset } from '@shared/utils/provider'
+import {
+  hasApiKeys,
+  isAwsBedrockProvider,
+  isProviderSupportAuth,
+  isVertexProvider,
+  matchesPreset
+} from '@shared/utils/provider'
 
 import type { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 
@@ -19,6 +25,7 @@ const LoginOauthPanel = lazy(() => import('./LoginOauthPanel'))
 const OvmsSettings = lazy(() => import('./OvmsSettings'))
 const ProviderOauth = lazy(() => import('./ProviderOauth'))
 const VertexAiSettings = lazy(() => import('./VertexAiSettings'))
+const DoubaoSetupGuide = lazy(() => import('./DoubaoSetupGuide'))
 
 export type ProviderSpecificPlacement = 'beforeAuth' | 'afterAuth'
 
@@ -37,7 +44,7 @@ export const PROVIDER_SPECIFIC_SETTINGS_REGISTRY: Record<ProviderSpecificPlaceme
   beforeAuth: [
     {
       key: 'oauth',
-      when: ({ provider }) => isProviderSupportAuth(provider),
+      when: ({ provider }) => isProviderSupportAuth(provider) || (provider.id === 'silicon' && hasApiKeys(provider)),
       render: (providerId) => <ProviderOauth providerId={providerId} />
     },
     {
@@ -54,6 +61,11 @@ export const PROVIDER_SPECIFIC_SETTINGS_REGISTRY: Record<ProviderSpecificPlaceme
       key: 'dmxapi-settings',
       when: ({ meta }) => meta.isDmxapi,
       render: (providerId) => <DmxapiSettings providerId={providerId} />
+    },
+    {
+      key: 'doubao-setup-guide',
+      when: ({ provider }) => matchesPreset(provider, 'doubao'),
+      render: (providerId) => <DoubaoSetupGuide providerId={providerId} />
     },
     {
       key: 'claude-code-settings',

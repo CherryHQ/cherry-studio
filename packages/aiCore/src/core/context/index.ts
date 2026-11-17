@@ -1,5 +1,6 @@
 export { type AISDKMessage, fromAISDK, toAISDK } from './adapter'
 export { compactModelMessages } from './compaction'
+export { isContextOverflowError } from './contextOverflow'
 export { compactHistory, type CompactionPlan, planCompaction, type PlanCompactionOptions } from './durableCompaction'
 export { ensureValidHistory } from './ensureValidHistory'
 export {
@@ -33,6 +34,7 @@ export {
   type VFSStorageAdapter
 } from './offloader'
 export { ContextPrompts, PERSISTED_OUTPUT_TAG } from './prompts'
+export { getContextTokens } from './usage'
 export { type EntityToolOutputCodec, type TruncateOptions, truncateToolResults } from './truncator'
 export type {
   Attachment,

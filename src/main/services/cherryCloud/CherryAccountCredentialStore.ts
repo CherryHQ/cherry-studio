@@ -11,6 +11,7 @@ const logger = loggerService.withContext('CherryAccountCredentialStore')
 
 const sessionSchema = z
   .object({
+    apiOrigin: z.url().optional(),
     accountId: z.string().min(1),
     sessionId: z.string().min(1),
     refreshToken: z.string().min(1),

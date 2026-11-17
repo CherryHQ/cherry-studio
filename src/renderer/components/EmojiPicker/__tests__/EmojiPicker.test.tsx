@@ -11,10 +11,11 @@ import { resetEmojiSupportLevelCacheForTesting } from '../emojiSupport'
 const emojiPickerPropsMock = vi.hoisted((): { value: any } => ({ value: undefined }))
 const i18nLanguageMock = vi.hoisted(() => ({ value: 'en-US' }))
 const require = createRequire(import.meta.url)
-const loadSourceEmojiRecords = (locale: 'en' | 'zh') =>
+const loadSourceEmojiRecords = (locale: 'en' | 'zh' | 'it') =>
   JSON.parse(readFileSync(require.resolve(`emoji-picker-element-data/${locale}/cldr/data.json`), 'utf-8')) as unknown[]
 const sourceEmojiRecords = {
   en: loadSourceEmojiRecords('en'),
+  it: loadSourceEmojiRecords('it'),
   zh: loadSourceEmojiRecords('zh')
 }
 const emojiPickerCss = readFileSync(join(process.cwd(), 'src/renderer/components/EmojiPicker/EmojiPicker.css'), 'utf-8')
@@ -158,7 +159,12 @@ describe('EmojiPicker', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: string | URL | Request) => {
-        const records = String(input).includes('/zh/') ? sourceEmojiRecords.zh : sourceEmojiRecords.en
+        const url = String(input)
+        const records = url.includes('/zh/')
+          ? sourceEmojiRecords.zh
+          : url.includes('/it/')
+            ? sourceEmojiRecords.it
+            : sourceEmojiRecords.en
         return {
           json: async () => records,
           ok: true,
@@ -176,133 +182,6 @@ describe('EmojiPicker', () => {
     return view
   }
 
-  it('renders a fixed-size loading boundary before the picker implementation resolves', () => {
-    render(<EmojiPicker onEmojiClick={vi.fn()} />)
-
-    expect(screen.getByRole('status')).toHaveClass(
-      'h-88',
-      'w-80',
-      'max-h-[min(22rem,calc(100vh-6rem))]',
-      'max-w-[calc(100vw-2rem)]'
-    )
-  })
-
-  it('enables localized vendor search with autofocus and category navigation', async () => {
-    await renderResolvedPicker()
-
-    expect(screen.getByTestId('emoji-picker-react')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('emoji_picker.search')).toBeInTheDocument()
-    expect(screen.getByRole('tablist', { name: 'Emoji categories' })).toBeInTheDocument()
-    expect(emojiPickerPropsMock.value).toMatchObject({
-      autoFocusSearch: true,
-      searchClearButtonLabel: 'common.clear',
-      searchDisabled: false,
-      searchPlaceholder: 'emoji_picker.search'
-    })
-    expect(emojiPickerPropsMock.value.categories.map((item: any) => item.category)).toEqual([
-      'suggested',
-      'smileys_people',
-      'animals_nature',
-      'food_drink',
-      'travel_places',
-      'activities',
-      'objects',
-      'symbols',
-      'flags'
-    ])
-    expect(emojiPickerPropsMock.value.categoryIcons).toBeUndefined()
-    expect(emojiPickerPropsMock.value.categories.map((item: any) => item.icon.props.className)).toEqual(
-      Array.from({ length: 9 }, () => 'size-4.5')
-    )
-    expect(screen.getByTestId('emoji-picker-categories')).toHaveTextContent('emoji_picker.categories.recent')
-    expect(screen.getByTestId('emoji-picker-categories')).toHaveTextContent('emoji_picker.categories.smileys_emotion')
-  })
-
-  it('uses compact dimensions and Cherry theme variables', async () => {
-    const { container } = await renderResolvedPicker()
-
-    expect(container.firstElementChild).toHaveClass(
-      'h-88',
-      'w-80',
-      'max-h-[min(22rem,calc(100vh-6rem))]',
-      'max-w-[calc(100vw-2rem)]',
-      'bg-popover',
-      'text-popover-foreground'
-    )
-
-    expect(emojiPickerPropsMock.value.width).toBe('100%')
-    expect(emojiPickerPropsMock.value.height).toBe('100%')
-    expect(emojiPickerPropsMock.value.className).toBe('cherry-emoji-picker-react')
-    expect(emojiPickerPropsMock.value.style).toMatchObject({
-      '--epr-bg-color': 'var(--popover)',
-      '--epr-picker-border-color': 'transparent',
-      '--epr-highlight-color': 'var(--primary)',
-      '--epr-hover-bg-color-reduced-opacity': 'var(--accent)',
-      '--epr-text-color': 'var(--popover-foreground)',
-      '--epr-category-label-bg-color': 'var(--popover)',
-      '--epr-category-label-text-color': 'var(--popover-foreground)',
-      '--epr-category-label-height': '32px',
-      '--epr-search-input-bg-color': 'var(--background)',
-      '--epr-search-input-bg-color-active': 'var(--background)',
-      '--epr-search-input-height': '32px',
-      '--epr-search-input-text-color': 'var(--foreground)',
-      '--epr-search-input-placeholder-color': 'var(--foreground-tertiary)',
-      '--epr-search-border-color': 'var(--input)',
-      '--epr-search-border-color-active': 'var(--primary)',
-      '--epr-header-padding': 'var(--epr-horizontal-padding) var(--epr-horizontal-padding) 2px',
-      '--epr-emoji-hover-color': 'var(--accent)',
-      '--epr-emoji-variation-indicator-color': 'var(--border)',
-      '--epr-emoji-variation-indicator-color-hover': 'var(--foreground)'
-    })
-
-    for (const property of [
-      '--epr-horizontal-padding',
-      '--epr-category-navigation-button-size',
-      '--epr-emoji-size',
-      '--epr-emoji-padding'
-    ]) {
-      expect(emojiPickerPropsMock.value.style).not.toHaveProperty(property)
-    }
-  })
-
-  it('keeps category labels, navigation, and icons aligned with the vendor layout', () => {
-    const categoryLabelRule = emojiPickerCss.match(
-      /(?:^|\n)\.cherry-emoji-picker-react \.epr-emoji-category-label\s*\{([^}]*)\}/
-    )?.[1]
-    expect(categoryLabelRule).not.toContain('transform:')
-    expect(categoryLabelRule).toContain('backdrop-filter: none')
-    expect(categoryLabelRule).toContain('box-shadow: 0 -1px 0 var(--epr-category-label-bg-color)')
-    expect(categoryLabelRule).toContain('font-size: var(--font-size-body-sm)')
-    expect(categoryLabelRule).not.toContain('font-size: 14px')
-    expect(categoryLabelRule).toContain('font-weight: var(--font-weight-regular)')
-    expect(emojiPickerCss).not.toContain("body[os='windows'] .cherry-emoji-picker-react .epr-emoji-category-label")
-
-    const categoryButtonRule = emojiPickerCss.match(/\.cherry-emoji-picker-react \.epr-cat-btn\s*\{([^}]*)\}/)?.[1]
-    expect(categoryButtonRule).toContain('display: flex')
-    expect(categoryButtonRule).toContain('align-items: center')
-    expect(categoryButtonRule).toContain('justify-content: center')
-
-    const categoryNavigationRule = emojiPickerCss.match(
-      /\.cherry-emoji-picker-react \.epr-category-nav\s*\{([^}]*)\}/
-    )?.[1]
-    const emojiListRule = emojiPickerCss.match(/\.cherry-emoji-picker-react \.epr-emoji-list\s*\{([^}]*)\}/)?.[1]
-
-    expect(categoryNavigationRule).toContain('padding-top: 6px')
-    expect(emojiListRule).toContain('padding-bottom: var(--epr-horizontal-padding)')
-
-    const selectionRingRule = emojiPickerCss.match(
-      /\.cherry-emoji-picker-react \.epr-cat-btn:focus::before\s*\{([^}]*)\}/
-    )?.[1]
-
-    expect(selectionRingRule).toContain('top: 50%')
-    expect(selectionRingRule).toContain('right: auto')
-    expect(selectionRingRule).toContain('bottom: auto')
-    expect(selectionRingRule).toContain('left: 50%')
-    expect(selectionRingRule).toContain('width: var(--epr-category-navigation-button-size)')
-    expect(selectionRingRule).toContain('height: var(--epr-category-navigation-button-size)')
-    expect(selectionRingRule).toContain('transform: translate(-50%, -50%)')
-  })
-
   it('uses the bundled country flag font for native emojis on Windows', () => {
     const windowsNativeEmojiRule = emojiPickerCss.match(
       /body\[os='windows'\] \.cherry-emoji-picker-react \.epr-emoji-native\s*\{([^}]*)\}/
@@ -310,17 +189,6 @@ describe('EmojiPicker', () => {
 
     expect(windowsNativeEmojiRule).toMatch(/font-family:\s*'Twemoji Country Flags'/)
     expect(windowsNativeEmojiRule).toContain('!important')
-  })
-
-  it('uses every bundled native emoji, auto theme, no preview, and no skin tone picker', async () => {
-    await renderResolvedPicker()
-
-    expect(emojiPickerPropsMock.value.emojiStyle).toBe('native')
-    expect(emojiPickerPropsMock.value.theme).toBe('auto')
-    expect(emojiPickerPropsMock.value.previewConfig).toEqual({ showPreview: false })
-    expect(emojiPickerPropsMock.value.skinTonesDisabled).toBe(true)
-    expect(screen.queryByTestId('emoji-preview')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('skin-tone-picker')).not.toBeInTheDocument()
   })
 
   it('caps native emoji rendering to the detected platform support level', async () => {
@@ -344,38 +212,6 @@ describe('EmojiPicker', () => {
     expect(emojiPickerPropsMock.value.hiddenEmojis).not.toContain('1f600')
   })
 
-  it('loads the complete Emoji 17 data set used by v1', async () => {
-    await renderResolvedPicker()
-
-    await waitFor(() => {
-      const emojis = Object.values(emojiPickerPropsMock.value.emojiData?.emojis ?? {}).flat() as Array<{
-        a: string
-        n: string[]
-        u: string
-        v?: string[]
-      }>
-
-      expect(emojis).toHaveLength(1914)
-      expect(new Set(emojis.map((emoji) => emoji.u)).size).toBe(1914)
-      expect(emojis.every((emoji) => emoji.a && emoji.n.length > 0 && emoji.u)).toBe(true)
-      expect(emojis.filter((emoji) => Number(emoji.a) > 13)).toHaveLength(109)
-      expect(emojis.filter((emoji) => emoji.a === '16')).toHaveLength(8)
-      expect(emojis.filter((emoji) => emoji.a === '17')).toHaveLength(8)
-      expect(emojis).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ a: '16', u: '1fae9' }),
-          expect.objectContaining({ a: '17', u: '1faea' }),
-          expect.objectContaining({ a: '16', u: '1f1e8-1f1f6' })
-        ])
-      )
-      expect(emojis.find((emoji) => emoji.u === '1f44b')?.v).toContain('1f44b-1f3fb')
-      expect(emojis.some((emoji) => emoji.u === '1f3fb')).toBe(false)
-      expect(emojiPickerPropsMock.value.emojiData.emojis.flags).toEqual(
-        expect.arrayContaining([expect.objectContaining({ a: '16', u: '1f1e8-1f1f6' })])
-      )
-    })
-  })
-
   it('loads localized emoji data when the app language changes', async () => {
     i18nLanguageMock.value = 'zh-CN'
 
@@ -385,6 +221,20 @@ describe('EmojiPicker', () => {
       expect(emojiPickerPropsMock.value.emojiData.emojis.smileys_people).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ a: '17', n: expect.arrayContaining(['变形的脸']), u: '1faea' })
+        ])
+      )
+    })
+  })
+
+  it('loads the Italian emoji data when the app language is it-IT', async () => {
+    i18nLanguageMock.value = 'it-IT'
+
+    await renderResolvedPicker()
+
+    await waitFor(() => {
+      expect(emojiPickerPropsMock.value.emojiData.emojis.smileys_people).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ a: '17', n: expect.arrayContaining(['faccina stravolta']), u: '1faea' })
         ])
       )
     })

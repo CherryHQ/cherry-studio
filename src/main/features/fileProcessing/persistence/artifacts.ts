@@ -1,10 +1,7 @@
-import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
-import type { FileProcessingArtifact, FileProcessingJobOutput } from '@shared/data/types/fileProcessing'
-import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing'
-import type { AbsoluteFilePath } from '@shared/types/file'
+import type { FileProcessingArtifact } from '@shared/data/types/fileProcessing'
 
 import type { FileProcessingHandlerOutput } from '../processors/types'
-import type { FileProcessingJobPayload } from '../tasks/shared'
+import type { FileProcessingJobOutput, FileProcessingJobPayload } from '../tasks/shared'
 import { markdownResultStore } from './MarkdownResultStore'
 
 interface FileProcessingJobOutputContext {
@@ -19,24 +16,6 @@ export async function createFileProcessingJobOutput(
 ): Promise<FileProcessingJobOutput> {
   const artifact = await createFileProcessingArtifact(ctx.jobId, ctx.input, output, ctx.signal)
   return { artifact }
-}
-
-export function getFileProcessingMarkdownArtifactPath(snapshot: JobSnapshot): AbsoluteFilePath {
-  const output = FileProcessingJobOutputSchema.parse(snapshot.output)
-  if (!isMarkdownFileArtifact(output.artifact)) {
-    throw new Error(`File processing job ${snapshot.id} completed without a markdown path artifact`)
-  }
-  return output.artifact.path
-}
-
-export function isMarkdownFileArtifact(
-  artifact: FileProcessingArtifact
-): artifact is Extract<FileProcessingArtifact, { kind: 'file'; format: 'markdown' }> {
-  return artifact.kind === 'file' && artifact.format === 'markdown'
-}
-
-export function getFileProcessingFailureMessage(snapshot: JobSnapshot): string {
-  return snapshot.error?.message ?? 'no error details'
 }
 
 /**

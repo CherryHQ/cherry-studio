@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid'
 import {
   Badge,
   Button,
+  HelpTooltip,
   InputGroup,
   InputGroupInput,
   Label,
@@ -66,6 +67,11 @@ const IMAGE_ENDPOINT_TYPES = new Set<EndpointType>([
   ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
   ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
 ])
+
+/** Which image draft carries the host of an image endpoint. */
+function imageDraftFieldFor(type: EndpointType): ProviderImageEndpointDraftField {
+  return type === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT ? 'imageEditBaseUrl' : 'imageGenerationBaseUrl'
+}
 
 const DEFAULT_CHAT_ENDPOINT_TYPES = new Set<EndpointType>([
   ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -288,8 +294,13 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     if (!provider) return
 
     // Validate the selected default baseUrl — non-empty + URL-shape, unless
-    // this is Vertex (whose text endpoints are account-managed).
-    const defaultEndpointDraft = trim(endpointDrafts[defaultChatEndpoint]?.baseUrl ?? '')
+    // this is Vertex (whose text endpoints are account-managed). A provider with
+    // no chat endpoint defaults to its image endpoint, and `resolveEndpointTypes`
+    // keeps image endpoints out of `endpointDrafts`, so its host is validated here.
+    const defaultEndpointIsImage = IMAGE_ENDPOINT_TYPES.has(defaultChatEndpoint)
+    const defaultEndpointDraft = defaultEndpointIsImage
+      ? trim(imageEndpointDraft[imageDraftFieldFor(defaultChatEndpoint)])
+      : trim(endpointDrafts[defaultChatEndpoint]?.baseUrl ?? '')
     const isAccountManagedProvider = provider.authType === 'iam-gcp'
     if (!isAccountManagedProvider && (!defaultEndpointDraft || !validateApiHost(defaultEndpointDraft))) {
       toast.error(t('settings.provider.api_host_no_valid'))
@@ -313,7 +324,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     const textEndpointConfigs = mergeEndpointConfigs(provider.endpointConfigs, endpointDrafts)
     const nextEndpointConfigs = mergeProviderImageEndpointDraft(textEndpointConfigs, imageEndpointDraft)
     const previousDefaultBaseUrl = trim(provider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
-    const defaultEndpointChanged = defaultChatEndpoint !== primaryEndpoint
+    const defaultEndpointChanged = !defaultEndpointIsImage && defaultChatEndpoint !== primaryEndpoint
 
     let parsedHeaders: Record<string, string>
     if (headersUiMode === 'json') {
@@ -330,7 +341,9 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     try {
       await updateProvider({
         endpointConfigs: nextEndpointConfigs,
-        defaultChatEndpoint,
+        // `defaultChatEndpoint` names a text endpoint; an image-only provider
+        // keeps the value it already has instead of recording an image one.
+        defaultChatEndpoint: defaultEndpointIsImage ? provider.defaultChatEndpoint : defaultChatEndpoint,
         providerSettings: {
           ...provider.settings,
           extraHeaders: buildExtraHeadersReplacementPatch(sourceHeaders, parsedHeaders)
@@ -423,6 +436,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                 <Label className="text-[13px] text-foreground" htmlFor={inputId}>
                   {label}
                 </Label>
+                {isDefault && <HelpTooltip content={t('settings.provider.api_host_drawer_hint')} />}
                 {isDefault ? (
                   <Badge
                     variant="secondary"
@@ -455,11 +469,6 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                   autoComplete="off"
                 />
               </InputGroup>
-              {isDefault && (
-                <p className="text-xs leading-relaxed wrap-break-word text-muted-foreground">
-                  {t('settings.provider.api_host_drawer_hint')}
-                </p>
-              )}
             </div>
           )
         })}
@@ -498,6 +507,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
         <div className="space-y-2.5">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
             <span className="text-xs text-muted-foreground">{t('settings.provider.copilot.custom_headers')}</span>
+            {headersUiMode === 'json' && <HelpTooltip content={t('settings.provider.copilot.headers_description')} />}
             <Tooltip content={toggleLabel}>
               <button
                 type="button"
@@ -587,9 +597,6 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                 placeholder={t('settings.provider.copilot.headers_json_placeholder')}
                 className={customHeaderDrawerClasses.headersJsonEditor}
               />
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                {t('settings.provider.copilot.headers_description')}
-              </p>
             </div>
           )}
         </div>

@@ -6,8 +6,9 @@
  * survives.
  */
 
+import './ModelSpeedControl.css'
 import { ChevronDown, Gauge, Zap } from 'lucide-react'
-import { type ComponentProps, type ReactNode, useCallback, useMemo, useRef } from 'react'
+import { type ComponentProps, type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Popover, PopoverContent, PopoverTrigger, RadioGroup, RadioGroupItem, Slider } from '@cherrystudio/ui'
@@ -178,6 +179,7 @@ export function ModelSpeedControl({
   onFastModeChange
 }: ModelSpeedControlProps) {
   const { t } = useTranslation()
+  const [peakBurst, setPeakBurst] = useState(0)
   const reasoningOptions = useMemo(() => {
     const declaredEfforts = new Set(deriveThinkingOptions(model) ?? [])
     return SLIDER_EFFORT_ORDER.filter((effort) => declaredEfforts.has(effort))
@@ -193,6 +195,7 @@ export function ModelSpeedControl({
   if (!supportsReasoning && !supportsServiceTier && !supportsFast) return null
 
   const sliderEfforts = reasoningOptions.filter((effort) => effort !== 'default')
+  const supportsDisableThinking = sliderEfforts.includes('none')
   const showEffortSlider = sliderEfforts.filter((effort) => effort !== 'none' && effort !== 'auto').length > 1
 
   // A model swap reconciles in an effect owned by the caller. During that one render, preserve
@@ -208,6 +211,7 @@ export function ModelSpeedControl({
       : effectiveReasoningEffort
   const selectedIndex = sliderSelection === 'default' ? -1 : sliderEfforts.indexOf(sliderSelection)
   const currentIndex = selectedIndex >= 0 ? selectedIndex : 0
+  const isPeakEffort = effectiveReasoningEffort !== 'default' && currentIndex === sliderEfforts.length - 1
   const displayedEffort = showEffortSlider ? effectiveReasoningEffort : selectedOption
   const effortLabel = displayedEffort ? t(EFFORT_LABEL_KEYS[displayedEffort]) : ''
   const effortControlLabel = t('agent.speed.effort')
@@ -217,22 +221,25 @@ export function ModelSpeedControl({
   const triggerLabel = fastMode ? t('agent.speed.fast') : t('agent.speed.label')
   const handleSliderValueChange = (index: number) => {
     const effort = sliderEfforts[index]
-    if (effort) onReasoningEffortChange(effort)
+    if (effort) {
+      if (index === sliderEfforts.length - 1 && !isPeakEffort) setPeakBurst((burst) => burst + 1)
+      onReasoningEffortChange(effort)
+    }
   }
 
   return (
-    <Popover>
+    <Popover onOpenChange={() => setPeakBurst(0)}>
       <PopoverTrigger asChild>
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          className="h-8 gap-1 rounded-md px-2.5 text-muted-foreground text-xs hover:text-foreground"
+          className="h-7 gap-1 rounded-md px-1.5 text-muted-foreground text-xs hover:text-foreground focus-visible:text-foreground dark:text-foreground dark:hover:text-foreground dark:focus-visible:text-foreground"
           aria-label={t('agent.speed.title')}>
           <Gauge size={14} className="shrink-0" />
           <span>{supportsReasoning ? effortLabel : supportsServiceTier ? serviceTierLabel : triggerLabel}</span>
           {supportsReasoning && fastMode && supportsFast ? <span>· {t('agent.speed.fast')}</span> : null}
-          <ChevronDown size={13} className="shrink-0 text-muted-foreground" />
+          <ChevronDown size={13} className="shrink-0 text-muted-foreground dark:text-current" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -268,6 +275,17 @@ export function ModelSpeedControl({
                     {t(EFFORT_LABEL_KEYS.default)}
                   </Button>
                 ) : null}
+                {supportsDisableThinking && effectiveReasoningEffort !== 'none' ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 rounded-md bg-muted/60 px-2 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+                    aria-pressed={false}
+                    onClick={() => onReasoningEffortChange('none')}>
+                    {t(EFFORT_LABEL_KEYS.none)}
+                  </Button>
+                ) : null}
                 {supportsFast ? (
                   <Button
                     type="button"
@@ -301,31 +319,43 @@ export function ModelSpeedControl({
                 min={0}
                 max={sliderEfforts.length - 1}
                 step={1}
+                snapOnRelease
                 size="lg"
                 getThumbAriaLabel={() => effortControlLabel}
                 getThumbAriaValueText={() => effortLabel}
                 className={cn(
-                  'h-7',
-                  '[&_[data-slot=slider-track]]:h-1.5 [&_[data-slot=slider-track]]:bg-muted [&_[data-slot=slider-track]]:shadow-inner',
+                  'model-speed-effort-slider h-7',
+                  isPeakEffort && 'model-speed-effort-slider-peak',
+                  'cursor-pointer [&_[data-slot=slider-track]]:h-4 [&_[data-slot=slider-track]]:bg-muted',
                   '[&_[data-slot=slider-range]]:bg-primary',
                   '[&_[data-slot=slider-thumb]]:z-20 [&_[data-slot=slider-thumb]]:size-[18px] [&_[data-slot=slider-thumb]]:rounded-full',
-                  '[&_[data-slot=slider-thumb]]:border-border [&_[data-slot=slider-thumb]]:bg-popover! [&_[data-slot=slider-thumb]]:shadow-sm',
+                  '[&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-popover! [&_[data-slot=slider-thumb]]:shadow-xs',
                   '[&_[data-slot=slider-thumb]:hover]:ring-0'
                 )}
                 onValueChange={([index]) => handleSliderValueChange(index)}
               />
-              <div className="pointer-events-none absolute inset-x-3 top-1/2 z-10 h-0">
-                {sliderEfforts.map((effort, index) =>
-                  index === currentIndex ? null : (
-                    <span
-                      key={effort}
-                      data-slot="model-speed-effort-step"
-                      data-index={index}
-                      className="-translate-x-1/2 -translate-y-1/2 absolute size-1 rounded-full bg-background"
-                      style={{ left: `${(index / (sliderEfforts.length - 1)) * 100}%` }}
-                    />
-                  )
-                )}
+              {isPeakEffort && peakBurst > 0 ? (
+                <span key={peakBurst} aria-hidden="true" className="model-speed-effort-splash">
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                </span>
+              ) : null}
+              <div className="pointer-events-none absolute inset-x-[9px] top-1/2 z-10 h-0">
+                {sliderEfforts.map((effort, index) => (
+                  <span
+                    key={effort}
+                    data-slot="model-speed-effort-step"
+                    data-index={index}
+                    className={cn(
+                      '-translate-x-1/2 -translate-y-1/2 absolute size-0.5 rounded-full bg-background transition-opacity duration-100 motion-reduce:transition-none',
+                      index === currentIndex && 'opacity-0'
+                    )}
+                    style={{ left: `${(index / (sliderEfforts.length - 1)) * 100}%` }}
+                  />
+                ))}
               </div>
             </WheelStepControl>
           </div>

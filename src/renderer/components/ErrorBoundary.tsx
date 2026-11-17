@@ -5,8 +5,8 @@ import { useTranslation } from 'react-i18next'
 
 import { Alert, Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ErrorFallbackCopyButton, ErrorFallbackDetails } from '@renderer/components/ErrorFallbackDetails'
 import { ipcApi } from '@renderer/ipc'
-import { formatErrorDetails } from '@renderer/utils/errorDetails'
 
 const logger = loggerService.withContext('ErrorBoundary')
 const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): ReactNode => {
@@ -19,23 +19,22 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
     await ipcApi.request('window.main.reload')
   }
   return (
-    <div className="flex w-full items-center justify-center p-2">
-      <Alert
-        message={t('error.boundary.default.message')}
-        showIcon
-        description={formatErrorDetails(error)}
-        type="error"
-        action={
-          <div className="flex items-center gap-2">
-            <Button size="sm" onClick={debug}>
-              {t('error.boundary.default.devtools')}
-            </Button>
+    <div className="flex min-w-0 w-full justify-center overflow-auto p-3">
+      <Alert className="min-w-0 max-w-xl bg-background-subtle text-foreground shadow-none" showIcon type="error">
+        <div className="min-w-0 space-y-3">
+          <p className="font-medium">{t('error.boundary.default.message')}</p>
+          <ErrorFallbackDetails error={error} />
+          <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" onClick={reload}>
               {t('error.boundary.default.reload')}
             </Button>
+            <ErrorFallbackCopyButton error={error} />
+            <Button variant="outline" size="sm" onClick={debug}>
+              {t('error.boundary.default.devtools')}
+            </Button>
           </div>
-        }
-      />
+        </div>
+      </Alert>
     </div>
   )
 }

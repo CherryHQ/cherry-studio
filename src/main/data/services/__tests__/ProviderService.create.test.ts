@@ -50,7 +50,11 @@ describe('ProviderService.create — endpoint config overrides', () => {
     { providerId: 'github', presetProviderId: undefined },
     { providerId: 'github-copy', presetProviderId: 'github' },
     { providerId: 'yi', presetProviderId: undefined },
-    { providerId: 'yi-copy', presetProviderId: 'yi' }
+    { providerId: 'yi-copy', presetProviderId: 'yi' },
+    { providerId: 'hunyuan', presetProviderId: undefined },
+    { providerId: 'hunyuan-copy', presetProviderId: 'hunyuan' },
+    { providerId: 'tencent-cloud-ti', presetProviderId: undefined },
+    { providerId: 'tencent-cloud-ti-copy', presetProviderId: 'tencent-cloud-ti' }
   ])('rejects creation of a retired provider identity ($providerId)', ({ providerId, presetProviderId }) => {
     expect(() =>
       providerService.create({

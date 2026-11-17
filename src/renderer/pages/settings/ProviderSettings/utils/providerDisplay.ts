@@ -1,5 +1,6 @@
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import i18n from '@renderer/i18n/resolver'
+import { matchesSearchText } from '@renderer/utils/pinyin'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig, Provider } from '@shared/data/types/provider'
 import { isLoginBasedProvider } from '@shared/utils/provider'
@@ -58,7 +59,7 @@ export function matchKeywordsInProvider(keywords: string[], provider: Provider, 
   if (keywords.length === 0) return true
   const base = getProviderSearchString(provider)
   const searchStr = (extraSearchString ? `${base} ${extraSearchString}` : base).toLowerCase()
-  return keywords.every((kw) => searchStr.includes(kw))
+  return keywords.every((kw) => matchesSearchText(searchStr, kw))
 }
 
 /**

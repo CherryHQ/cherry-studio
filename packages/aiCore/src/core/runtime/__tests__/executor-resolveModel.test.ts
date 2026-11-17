@@ -334,15 +334,6 @@ describe('RuntimeExecutor - Model Resolution', () => {
   })
 
   describe('Edge Cases', () => {
-    it('should handle empty string modelId', async () => {
-      await executor.generateText({
-        model: '',
-        messages: [{ role: 'user', content: 'Test' }]
-      })
-
-      expect(mockProvider.languageModel).toHaveBeenCalledWith('')
-    })
-
     it('should handle model resolution errors gracefully', async () => {
       mockProvider.languageModel.mockImplementation(() => {
         throw new Error('Model not found')
@@ -355,72 +346,44 @@ describe('RuntimeExecutor - Model Resolution', () => {
         })
       ).rejects.toThrow('Model not found')
     })
-
-    it('should handle concurrent model resolutions', async () => {
-      const promises = [
-        executor.generateText({ model: 'gpt-4', messages: [{ role: 'user', content: 'Test 1' }] }),
-        executor.generateText({ model: 'gpt-4-turbo', messages: [{ role: 'user', content: 'Test 2' }] }),
-        executor.generateText({ model: 'gpt-3.5-turbo', messages: [{ role: 'user', content: 'Test 3' }] })
-      ]
-
-      await Promise.all(promises)
-
-      expect(mockProvider.languageModel).toHaveBeenCalledTimes(3)
-    })
-
-    it('should accept model object even without specificationVersion', async () => {
-      const invalidModel = {
-        provider: 'test',
-        modelId: 'test-model'
-        // Missing specificationVersion
-      } as any
-
-      // Plugin engine doesn't validate direct model objects
-      await expect(
-        executor.generateText({
-          model: invalidModel,
-          messages: [{ role: 'user', content: 'Test' }]
-        })
-      ).resolves.toBeDefined()
-    })
   })
 
-  describe('Type Safety Validation', () => {
-    it('should ensure resolved model is LanguageModelV3', async () => {
-      const v3Model = createMockLanguageModel({
-        specificationVersion: 'v3'
-      })
+  describe('Executor Reuse', () => {
+    it('keeps the plugin chain fixed across repeated calls on one executor', async () => {
+      const userPlugin = { name: 'user-plugin' }
+      const userPlugins = [userPlugin]
+      const reused = RuntimeExecutor.create('openai', mockProvider, mockProviderConfigs.openai, userPlugins)
 
-      mockProvider.languageModel.mockReturnValue(v3Model)
+      for (let i = 0; i < 3; i++) {
+        await reused.generateText({ model: 'gpt-4', messages: [{ role: 'user', content: 'Hello' }] })
+      }
+      await reused.streamText({ model: mockLanguageModel, messages: [{ role: 'user', content: 'Hello' }] })
+      await reused.generateImage({ model: 'dall-e-3', prompt: 'A cat' })
 
-      await executor.generateText({
-        model: 'gpt-4',
-        messages: [{ role: 'user', content: 'Test' }]
-      })
-
-      expect(generateText).toHaveBeenCalledWith(
-        expect.objectContaining({
-          model: expect.objectContaining({
-            specificationVersion: 'v3'
-          })
-        })
-      )
+      expect(reused.pluginEngine.getPlugins()).toEqual([userPlugin])
+      expect(userPlugins).toEqual([userPlugin])
     })
 
-    it('should not enforce specification version for direct models', async () => {
-      const v1Model = {
-        specificationVersion: 'v1',
-        provider: 'test',
-        modelId: 'test'
-      } as any
+    it('resolves an image id through imageModel after a text call on the same executor', async () => {
+      await executor.generateText({ model: 'gpt-4', messages: [{ role: 'user', content: 'Hello' }] })
+      mockProvider.languageModel.mockClear()
 
-      // Direct models bypass validation in the plugin engine
-      await expect(
-        executor.generateText({
-          model: v1Model,
-          messages: [{ role: 'user', content: 'Test' }]
-        })
-      ).resolves.toBeDefined()
+      await executor.generateImage({ model: 'dall-e-3', prompt: 'A cat' })
+
+      expect(mockProvider.imageModel).toHaveBeenCalledWith('dall-e-3')
+      expect(mockProvider.languageModel).not.toHaveBeenCalled()
+      expect(generateImage).toHaveBeenCalledWith(expect.objectContaining({ model: mockImageModel }))
+    })
+
+    it('resolves a language id through languageModel after an image call on the same executor', async () => {
+      await executor.generateImage({ model: 'dall-e-3', prompt: 'A cat' })
+      mockProvider.imageModel.mockClear()
+
+      await executor.generateText({ model: 'gpt-4', messages: [{ role: 'user', content: 'Hello' }] })
+
+      expect(mockProvider.languageModel).toHaveBeenCalledWith('gpt-4')
+      expect(mockProvider.imageModel).not.toHaveBeenCalled()
+      expect(generateText).toHaveBeenCalledWith(expect.objectContaining({ model: mockLanguageModel }))
     })
   })
 })

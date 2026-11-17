@@ -5,6 +5,7 @@ import { act, cleanup, render, waitFor } from '@testing-library/react'
 import { Activity, useLayoutEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { cacheService } from '@renderer/data/CacheService'
 import {
   agentBrowserRuntimeService as runtime,
   topicBrowserRuntimeService as topicRuntime
@@ -231,6 +232,48 @@ describe('AgentBrowserRuntimeHost', () => {
     expect(overlayPlane).toContainElement(runtime.get('session-a')?.overlays ?? null)
   })
 
+  it('tracks the favicon per page and clears it only for a new main document', async () => {
+    runtime.ensure('session-a', 'https://example.com/')
+    const view = render(<Harness visible />)
+    await waitFor(() => expect(bridge.binding).toBe(42))
+    const guest = view.getByTestId('webview-browser-guest')
+    const emit = (type: string, values: object) => {
+      act(() => {
+        guest.dispatchEvent(Object.assign(new Event(type), values))
+      })
+    }
+    emit('page-favicon-updated', { favicons: ['file:///private/icon.png', 'https://example.com/favicon.ico'] })
+    expect(runtime.get('session-a')?.favicon).toBe('https://example.com/favicon.ico')
+    emit('did-start-navigation', { isMainFrame: false, isInPlace: false })
+    emit('did-start-navigation', { isMainFrame: true, isInPlace: true })
+    expect(runtime.get('session-a')?.favicon).toBe('https://example.com/favicon.ico')
+    emit('did-start-navigation', { isMainFrame: true, isInPlace: false })
+    expect(runtime.get('session-a')?.favicon).toBeUndefined()
+    emit('page-favicon-updated', { favicons: ['https://next.test/icon.png'] })
+    expect(runtime.get('session-a')?.favicon).toBe('https://next.test/icon.png')
+    emit('page-favicon-updated', { favicons: [] })
+    expect(runtime.get('session-a')?.favicon).toBeUndefined()
+  })
+
+  it('ends loading when subframe loading stops after the main document finished', async () => {
+    runtime.ensure('session-a', 'https://example.com/')
+    const view = render(<Harness visible />)
+    await waitFor(() => expect(bridge.binding).toBe(42))
+    const guest = view.getByTestId('webview-browser-guest')
+    act(() => {
+      guest.dispatchEvent(new Event('did-finish-load'))
+    })
+    expect(runtime.get('session-a')?.loading).toBe(false)
+    act(() => {
+      guest.dispatchEvent(new Event('did-start-loading'))
+    })
+    expect(runtime.get('session-a')?.loading).toBe(true)
+    act(() => {
+      guest.dispatchEvent(new Event('did-stop-loading'))
+    })
+    expect(runtime.get('session-a')?.loading).toBe(false)
+  })
+
   it('clears only chat selections after an agent browser press', async () => {
     const outside = document.createElement('div')
     outside.textContent = 'Outside selection'
@@ -268,6 +311,66 @@ describe('AgentBrowserRuntimeHost', () => {
     expect(chatSelection.rangeCount).toBe(0)
   })
 
+  it.each(['switch', 'close'] as const)('keeps a running guest after tab %s until its turn ends', async (action) => {
+    const key = 'topic.stream.statuses.agent-session:session-a' as const
+    const status = { activeExecutions: [], awaitingApprovalAnchors: [] }
+    cacheService.setShared(key, { ...status, status: 'streaming' })
+    runtime.ensure('session-a', 'https://example.com/')
+    const view = render(<Harness visible />)
+    await waitFor(() => expect(bridge.binding).toBe(42))
+    const guest = view.getByTestId('webview-browser-guest')
+
+    if (action === 'switch') act(() => runtime.declare('session-b', 'tab-a'))
+    else bridge.tabs = []
+    view.rerender(<Harness visible={false} />)
+    act(() => runtime.reconcileOwners(new Set(bridge.tabs.map((tab) => tab.id))))
+    act(() => cacheService.setShared(key, { ...status, status: 'awaiting-approval' }))
+    act(() =>
+      bridge.listeners.get('browser.guest.ensure_requested')?.({
+        sessionId: 'session-a',
+        pageId: runtime.get('session-a')?.pageId,
+        action: 'create',
+        activate: false
+      })
+    )
+
+    expect(view.getByTestId('webview-browser-guest')).toBe(guest)
+    expect(bridge.binding).toBe(42)
+    expect(runtime.get('session-a')?.anchor).toBeNull()
+    act(() => cacheService.setShared(key, { ...status, status: 'done' }))
+    await waitFor(() => expect(bridge.binding).toBeUndefined())
+    expect(guest.isConnected).toBe(false)
+    expect(runtime.get('session-a')).toBeUndefined()
+    act(() => runtime.ensure('session-a'))
+    expect(runtime.get('session-a')).toBeUndefined()
+  })
+
+  it('can create a guest after switching away during a pending turn and retain it when switching back', async () => {
+    const key = 'topic.stream.statuses.agent-session:session-a' as const
+    const status = { activeExecutions: [], awaitingApprovalAnchors: [] }
+    cacheService.setShared(key, { ...status, status: 'pending' })
+    const view = render(<Harness visible={false} />)
+    act(() => runtime.declare('session-b', 'tab-a'))
+    act(() =>
+      bridge.listeners.get('browser.guest.ensure_requested')?.({
+        sessionId: 'session-a',
+        pageId: runtime.get('session-a')?.pageId,
+        action: 'create',
+        activate: false
+      })
+    )
+    await waitFor(() => expect(bridge.binding).toBe(42))
+    const guest = view.getByTestId('webview-browser-guest')
+
+    act(() => runtime.declare('session-a', 'tab-a'))
+    view.rerender(<Harness visible />)
+    act(() => cacheService.setShared(key, { ...status, status: 'done' }))
+    expect(view.getByTestId('webview-browser-guest')).toBe(guest)
+    expect(bridge.binding).toBe(42)
+    act(() => runtime.close('session-a'))
+    await waitFor(() => expect(bridge.binding).toBeUndefined())
+  })
+
   it('releases the previous session guest when its only owning tab changes sessions', async () => {
     runtime.ensure('session-a', 'https://example.com/')
     const view = render(<Harness visible />)
@@ -299,7 +402,14 @@ describe('AgentBrowserRuntimeHost', () => {
 
   it('creates an execution target on request without mounting the hidden panel', async () => {
     render(<Harness visible={false} />)
-    act(() => bridge.listeners.get('browser.guest.ensure_requested')?.({ sessionId: 'session-a' }))
+    act(() =>
+      bridge.listeners.get('browser.guest.ensure_requested')?.({
+        sessionId: 'session-a',
+        pageId: runtime.get('session-a')?.pageId,
+        action: 'create',
+        activate: false
+      })
+    )
     await waitFor(() => expect(bridge.binding).toBe(42))
     expect(livePresentation).toBe(0)
     expect(runtime.get('session-a')?.ready).toBe(true)

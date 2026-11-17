@@ -17,6 +17,7 @@ import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
 
+import { publishScheduledTaskResult } from './agentTaskNotification'
 import { type AgentTaskInput, runAgentTask } from './runAgentTask'
 
 declare module '@main/core/job/jobRegistry' {
@@ -24,7 +25,7 @@ declare module '@main/core/job/jobRegistry' {
     'agent.task': {
       agentId: string
       prompt: string
-      workspace: AgentTaskInput['workspace']
+      workspace?: AgentTaskInput['workspace']
       reuseRevision: number
       /** Per-task timeout in minutes. Enforced inside `runAgentTask`; handler-level
        *  `defaultTimeoutMs` is intentionally unset so each task may set its own value. */
@@ -78,6 +79,13 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
     }
     if (event.scheduleId) {
       agentTaskService.notifyRunChange(event.scheduleId, event.jobId, 'projection')
+    }
+    if (event.scheduleId) {
+      try {
+        await publishScheduledTaskResult(event.jobId)
+      } catch (error) {
+        logger.warn('Failed to publish settled task result', { jobId: event.jobId, error })
+      }
     }
     if (event.status !== 'failed' || !event.scheduleId) return
     // Captured once — closure capture would lose the narrowing above.

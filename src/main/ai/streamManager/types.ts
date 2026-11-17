@@ -1,6 +1,7 @@
 import type { Span } from '@opentelemetry/api'
 import type { UIMessageChunk } from 'ai'
 
+import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import type { StreamChunkPayload, TopicStreamStatus } from '@shared/ai/transport'
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
@@ -9,6 +10,7 @@ import type { SerializedError } from '@shared/types/error'
 
 import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import type { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
+import type { PersistedAssistant } from './persistence/PersistenceBackend'
 
 // ── Re-export shared types for consumers ────────────────────────────
 
@@ -39,7 +41,12 @@ export interface TransportTimings {
 
 // ── Stream terminal results ─────────────────────────────────────────
 
-export interface StreamDoneResult {
+interface TerminalOutcome {
+  userMessageId?: string
+  persistence?: { status: 'saved'; message: PersistedAssistant } | { status: 'failed'; failure: ExecutionFailure }
+}
+
+export interface StreamDoneResult extends TerminalOutcome {
   finalMessage?: CherryUIMessage
   status: 'success'
   modelId?: UniqueModelId
@@ -52,7 +59,9 @@ export interface StreamDoneResult {
   runtimeTiming?: MessageRuntimeTiming
 }
 
-export interface StreamPausedResult {
+export interface StreamPausedResult extends TerminalOutcome {
+  /** Main-process abort provenance; absent reasons are interruptions, not confirmed user cancellation. */
+  reason?: string
   finalMessage?: CherryUIMessage
   status: 'paused'
   modelId?: UniqueModelId
@@ -64,7 +73,8 @@ export interface StreamPausedResult {
   runtimeTiming?: MessageRuntimeTiming
 }
 
-export interface StreamErrorResult {
+export interface StreamErrorResult extends TerminalOutcome {
+  failure?: ExecutionFailure
   error: SerializedError
   /** Whatever accumulated before the error — same shape as the success case. */
   finalMessage?: CherryUIMessage
@@ -80,7 +90,20 @@ export interface StreamErrorResult {
 
 // ── StreamListener ──────────────────────────────────────────────────
 
+export type MessageStreamEvent =
+  | { type: 'error'; error: unknown }
+  | { type: 'message'; parts: CherryUIMessage['parts'] }
+  | { type: 'control'; chunk: UIMessageChunk }
+
+/** One content producer per execution: either SDK chunks or authoritative message views. */
+export type AiStreamSource =
+  | { kind: 'chunks'; stream: ReadableStream<UIMessageChunk> }
+  | { kind: 'messages'; stream: ReadableStream<MessageStreamEvent> }
+
 export interface StreamListener {
+  /** A durable caller (scheduled job) publishes its own final result. */
+  readonly ownsTaskResult?: boolean
+  readonly windowId?: string
   /** Stable id used for dedup, detach-by-match, and logging. */
   readonly id: string
   /** Orders terminal persistence before notifications and cleanup work after them. */
@@ -91,11 +114,13 @@ export interface StreamListener {
     sourceModelId?: UniqueModelId,
     anchorMessageId?: string,
     attemptId?: number,
-    seq?: number
+    sequence?: number
   ): void
+  onMessage?(message: CherryUIMessage, sourceModelId?: UniqueModelId, sourceKind?: AiStreamSource['kind']): void
   onDone(result: StreamDoneResult): void | Promise<void>
   onPaused(result: StreamPausedResult): void | Promise<void>
-  onError(result: StreamErrorResult): void | Promise<void>
+  /** The original exception is available only to in-process prompt listeners. */
+  onError(result: StreamErrorResult, originalError?: unknown): void | Promise<void>
   /** Returning `false` removes the listener immediately. */
   isAlive(): boolean
 }
@@ -108,6 +133,10 @@ export interface StreamListener {
  * running independently against the same listeners and siblingsGroupId.
  */
 export interface StreamExecution {
+  /** Stable user-task identity across retries and tool-approval continuations. */
+  taskIds?: readonly string[]
+  /** Agent input identity survives a queued turn receiving a new execution attempt. */
+  userMessageId?: string
   /** Format: "providerId::modelId". */
   modelId: UniqueModelId
   /** Unique identity for this run, even when modelId and anchorMessageId are reused by retry. Monotonic within the Main-process lifetime; newer attempts have larger values. */
@@ -121,9 +150,12 @@ export interface StreamExecution {
   status: 'streaming' | 'done' | 'error' | 'aborted'
   /** Per-execution history ring; delta entries are capped by `maxDeltaBytes`. Ordinary overflow drops oldest and bumps `droppedChunks`; eviction pauses while an approval is pending. */
   buffer: StreamChunkPayload[]
+  sequence: number
   droppedChunks: number
-  /** Latest accumulated snapshot from `readUIMessageStream`. Undefined until the first snapshot lands. */
+  /** Latest authoritative message view. Undefined until the first snapshot lands. */
+  sourceKind?: AiStreamSource['kind']
   finalMessage?: CherryUIMessage
+  persistence?: TerminalOutcome['persistence']
   /**
    * Compaction anchors emitted during this turn, newest last.
    *
@@ -141,6 +173,7 @@ export interface StreamExecution {
   pendingApprovalToolCallIds?: Set<string>
   /** `tool-input-start` toolCallIds with no terminal output yet. Their openers skip ring eviction so attach replay keeps the live handoff parseable. */
   openToolInputIds?: Set<string>
+  resolvedToolApprovals?: Map<string, boolean>
   /** Approval ids already published during this execution. */
   publishedApprovalIds?: Set<string>
   error?: SerializedError
@@ -155,7 +188,19 @@ export interface StreamExecution {
 
 // ── ActiveStream ────────────────────────────────────────────────────
 
+export interface ConversationUnsuccessfulEvent {
+  topicId: string
+  resultId: string
+  messageId?: string
+  status: 'failed' | 'interrupted' | 'cancelled'
+  finishedAt: number
+  durationMs: number
+  errorSummary?: string
+}
+
 export interface ConversationCompletedEvent {
+  completedTaskCount?: number
+  responseText?: string
   topicId: string
   turnId: string
   completedAt: number
@@ -169,15 +214,13 @@ export interface ConversationCompletedEvent {
  *   → all done → 'done' | any error (none streaming) → 'error' | all aborted → 'aborted'
  */
 export interface ActiveStream {
+  hasTaskResultOwner?: boolean
+  completedTaskCount?: number
+  completionFailed?: boolean
+  terminalLifecyclePending?: boolean
   topicId: string
   /** Unique per stream lifecycle for renderer-side unread/seen tracking. */
   turnId: string
-  /**
-   * Next per-topic chunk index. Assigned at ingest so buffer entries, the
-   * attach snapshot, and live broadcasts share one ordering a re-attaching
-   * renderer can de-duplicate against.
-   */
-  nextChunkSeq: number
   /** Key = `UniqueModelId`. */
   executions: Map<UniqueModelId, StreamExecution>
   /** Shared across all executions. Key = `listener.id`. */

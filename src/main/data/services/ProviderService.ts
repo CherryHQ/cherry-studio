@@ -18,6 +18,7 @@ import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteError
 import type { DbType } from '@data/db/types'
 import { isMigratedFromV1 } from '@data/migration/v1MigrationOrigin'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
+import { notifyModelsDeleted, selectSessionsUsingModelsTx } from '@data/services/modelDeletionEffects'
 import { pinService } from '@data/services/PinService'
 import type { ProviderDisplayMetadata, ReasoningProviderContext } from '@data/services/ProviderRegistryService'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
@@ -43,6 +44,7 @@ import type {
   ProviderSettings
 } from '@shared/data/types/provider'
 import { DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
+import { ProviderBillingSchema } from '@shared/data/types/providerBilling'
 import { maskApiKey } from '@shared/utils/api'
 import { resolveEndpointDialect } from '@shared/utils/provider'
 
@@ -71,30 +73,30 @@ function applyJsonMergePatch(target: unknown, patch: unknown): unknown {
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
 export type ProviderIdentity = Pick<UserProviderRow, 'providerId' | 'presetProviderId'>
 
-function isProviderAvailableInCurrentEdition(provider: Pick<Provider, 'availableInEditions'>): boolean {
+function isProviderAvailableInCurrentEdition(
+  provider: Pick<Provider, 'availableInEditions'>,
+  db?: Pick<DbType, 'select'>
+): boolean {
   const availableInEditions = provider.availableInEditions
-  return isMigratedFromV1() || !availableInEditions || availableInEditions.includes(getAppEdition())
+  return isMigratedFromV1(db) || !availableInEditions || availableInEditions.includes(getAppEdition())
 }
 
-function getAvailableProviderMetadata(row: ProviderIdentity): ProviderDisplayMetadata | null {
+function getAvailableProviderMetadata(
+  row: ProviderIdentity,
+  db?: Pick<DbType, 'select'>
+): ProviderDisplayMetadata | null {
   if (isRetiredProvider(row.providerId, row.presetProviderId)) return null
 
   const metadata = getDataService('ProviderRegistryService').getProviderDisplayMetadata(
     row.providerId,
     row.presetProviderId
   )
-  return isProviderAvailableInCurrentEdition(metadata) ? metadata : null
+  return isProviderAvailableInCurrentEdition(metadata, db) ? metadata : null
 }
 
-/**
- * Edition availability of a persisted provider, decided from the identity columns
- * alone: static registry metadata, the build-time edition, and the preboot v1-origin
- * flag. Callers that already hold `providerId` / `presetProviderId` — anything reading
- * inside someone else's transaction — must use this instead of a service method that
- * opens its own connection.
- */
-export function isProviderIdentityAvailable(row: ProviderIdentity): boolean {
-  return getAvailableProviderMetadata(row) !== null
+/** Edition availability from provider metadata, the build edition, and persisted v1 migration origin. */
+export function isProviderIdentityAvailable(row: ProviderIdentity, db?: Pick<DbType, 'select'>): boolean {
+  return getAvailableProviderMetadata(row, db) !== null
 }
 
 function rowToReasoningProviderContext(
@@ -412,7 +414,7 @@ class ProviderService {
       .where(ids ? inArray(userProviderTable.providerId, ids) : undefined)
       .all()
 
-    return new Set(rows.filter(isProviderIdentityAvailable).map((row) => row.providerId))
+    return new Set(rows.filter((row) => isProviderIdentityAvailable(row)).map((row) => row.providerId))
   }
 
   /** Resolve provider registry contexts inside a caller-owned database transaction. */
@@ -435,7 +437,7 @@ class ProviderService {
       .all()
     const contexts = new Map<string, ReasoningProviderContext>()
     for (const row of rows) {
-      const metadata = getAvailableProviderMetadata(row)
+      const metadata = getAvailableProviderMetadata(row, tx)
       if (metadata) contexts.set(row.providerId, rowToReasoningProviderContext(row, metadata))
     }
     return contexts
@@ -491,6 +493,7 @@ class ProviderService {
    * Create a new provider
    */
   create(dto: CreateProviderDto): Provider {
+    if (dto.providerSettings?.billing) ProviderBillingSchema.parse(dto.providerSettings.billing)
     if (isRetiredProvider(dto.providerId, dto.presetProviderId)) {
       throw DataApiErrorFactory.invalidOperation(`create provider ${dto.providerId}`, 'provider is retired')
     }
@@ -533,7 +536,8 @@ class ProviderService {
             isEnabled: false
           }
           return insertWithOrderKey(tx, userProviderTable, values, {
-            pkColumn: userProviderTable.providerId
+            pkColumn: userProviderTable.providerId,
+            position: 'first'
           }) as UserProviderRow
         }),
       {
@@ -547,9 +551,8 @@ class ProviderService {
   }
 
   /**
-   * Update an existing provider. A false-to-true enabled transition moves the
-   * provider to the first position in the same transaction; redundant enabled
-   * writes preserve the user's current order.
+   * Update an existing provider. Enabling or disabling does not change
+   * `orderKey`; callers that want a new position must use `move` / `reorder`.
    */
   update(providerId: string, dto: UpdateProviderInput): Provider {
     assertManagedCherryProviderPatchAllowed(providerId, dto)
@@ -569,7 +572,6 @@ class ProviderService {
           providerId: userProviderTable.providerId,
           providerSettings: userProviderTable.providerSettings,
           endpointConfigs: userProviderTable.endpointConfigs,
-          isEnabled: userProviderTable.isEnabled,
           presetProviderId: userProviderTable.presetProviderId
         })
         .from(userProviderTable)
@@ -614,17 +616,9 @@ class ProviderService {
           current.providerSettings,
           dto.providerSettings
         ) as Partial<ProviderSettings>
+        if (updates.providerSettings?.billing) ProviderBillingSchema.parse(updates.providerSettings.billing)
       }
 
-      if (dto.isEnabled === true && !current.isEnabled) {
-        try {
-          applyMoves(tx, userProviderTable, [{ id: providerId, anchor: { position: 'first' } }], {
-            pkColumn: userProviderTable.providerId
-          })
-        } catch (error) {
-          this.rethrowOrderError(error)
-        }
-      }
       if (dto.isEnabled !== undefined) updates.isEnabled = dto.isEnabled
 
       const [updated] = tx
@@ -972,6 +966,8 @@ class ProviderService {
   delete(providerId: string): void {
     assertManagedCherryProviderMutationAllowed(providerId, `delete provider ${providerId}`)
 
+    const providerModelIds: string[] = []
+    let affectedSessionIds: string[] = []
     const deletedModelCount = application.get('DbService').withWriteTx((tx) => {
       const [provider] = tx
         .select({
@@ -1003,11 +999,15 @@ class ProviderService {
         .where(eq(userModelTable.providerId, providerId))
         .all()
 
+      providerModelIds.push(...models.map((model) => model.id))
       pinService.purgeForEntitiesTx(
         tx,
         'model',
         models.map((model) => model.id)
       )
+      // Read affected session overrides before the provider-row delete: the FK
+      // cascade clears agent_session.model (via user_model) inside this same tx.
+      affectedSessionIds = selectSessionsUsingModelsTx(tx, providerModelIds)
 
       // DB-only: drop the logo slot's ref (the file is preserved per the
       // file layer's policy). The FK cascade would also clear it on row delete;
@@ -1028,6 +1028,7 @@ class ProviderService {
     })
 
     if (deletedModelCount > 0) pinService.notifyPurged()
+    notifyModelsDeleted(providerModelIds, affectedSessionIds)
 
     logger.info('Deleted provider', { providerId })
   }

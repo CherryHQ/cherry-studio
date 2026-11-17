@@ -14,15 +14,21 @@ export class AgentBrowserRegistry extends BrowserGuestRegistry {
     super((id) => agentSessionService.getById(id).agentId ?? '', 'agent', claims)
   }
 
-  override get(context: AgentBrowserContext | BrowserGuestContext) {
-    return super.get('agentId' in context ? { ownerId: context.agentId, sessionId: context.sessionId } : context)
+  override get(context: AgentBrowserContext | BrowserGuestContext, tabId?: string) {
+    return super.get('agentId' in context ? { ownerId: context.agentId, sessionId: context.sessionId } : context, tabId)
   }
 
-  override ensureGuest(context: AgentBrowserContext | BrowserGuestContext, signal: AbortSignal, url?: string) {
+  override ensureGuest(
+    context: AgentBrowserContext | BrowserGuestContext,
+    signal: AbortSignal,
+    url?: string,
+    options?: { pageId?: string; newTab?: boolean }
+  ) {
     return super.ensureGuest(
       'agentId' in context ? { ownerId: context.agentId, sessionId: context.sessionId } : context,
       signal,
-      url
+      url,
+      options
     )
   }
 }

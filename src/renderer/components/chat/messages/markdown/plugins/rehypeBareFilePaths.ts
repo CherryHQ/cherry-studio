@@ -403,7 +403,18 @@ export function findBareFilePathMatches(value: string, platform: BareFilePathPla
       !continuedAcrossWhitespace &&
       scannedEnd === index + candidate.length &&
       /[ \t]/u.test(value[scannedEnd] ?? '')
-    if (hasAmbiguousWhitespaceBoundary || !isValidPath(candidate, platform, continuedAcrossWhitespace)) {
+    // A root-absolute candidate whose only separator is the leading slash ("/jX_s" in
+    // "(E₀∠δ - U)/jX_s") is prose division, not a path; require a filename-like leaf.
+    const looksLikeProseSlash =
+      platform === 'posix' &&
+      candidate.startsWith('/') &&
+      !candidate.slice(1).includes('/') &&
+      !hasFilenameLikeLeaf(candidate, platform)
+    if (
+      looksLikeProseSlash ||
+      hasAmbiguousWhitespaceBoundary ||
+      !isValidPath(candidate, platform, continuedAcrossWhitespace)
+    ) {
       index = Math.max(index, scannedEnd - 1)
       continue
     }
@@ -426,7 +437,8 @@ function createMarker(path: string): Element {
 
 function isSkippedElement(node: Element): boolean {
   if (SKIPPED_ELEMENTS.has(node.tagName)) return true
-  const className = node.properties?.className
+  // hast types className as Array<string>, but parsed trees carry any runtime shape; narrow from unknown.
+  const className: unknown = node.properties?.className
   const classes = Array.isArray(className) ? className : typeof className === 'string' ? className.split(/\s+/) : []
   return classes.some((value) => typeof value === 'string' && value.startsWith('katex'))
 }

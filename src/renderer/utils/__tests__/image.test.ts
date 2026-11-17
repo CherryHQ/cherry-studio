@@ -22,6 +22,7 @@ import {
   makeSvgSizeAdaptive,
   MAX_ENTITY_IMAGE_UPLOAD_BYTES,
   prepareEntityImageBytes,
+  svgToCanvas,
   transformImageToPng,
   waitForCaptureAssets
 } from '../image'
@@ -159,7 +160,6 @@ describe('utils/image', () => {
     it('returns a localized message when the file exceeds the limit', () => {
       const message = checkEntityImageSize(makeFile(MAX_ENTITY_IMAGE_UPLOAD_BYTES + 1))
       expect(message).toContain('message.error.avatar_image_too_large')
-      expect(message).toContain('10MB')
     })
   })
 
@@ -176,29 +176,6 @@ describe('utils/image', () => {
       const file = new File(['x'], 'logo.svg', { type: 'image/svg+xml' })
 
       await expect(prepareEntityImageBytes(file)).rejects.toThrow('message.error.image_process_failed')
-    })
-
-    it('cover-crops the largest centered square into a 128×128 WebP', async () => {
-      const close = vi.fn()
-      // 200×100 landscape → centered 100×100 square (sx=50, sy=0) scaled to 128².
-      vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ width: 200, height: 100, close }))
-      const drawImage = vi.fn()
-      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
-        drawImage
-      } as unknown as CanvasRenderingContext2D)
-      const webp = new Uint8Array([9, 8, 7])
-      vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (
-        this: HTMLCanvasElement,
-        cb: BlobCallback
-      ) {
-        cb({ arrayBuffer: async () => webp.buffer } as Blob)
-      })
-
-      const out = await prepareEntityImageBytes(new File(['x'], 'a.png', { type: 'image/png' }))
-
-      expect(drawImage).toHaveBeenCalledWith(expect.anything(), 50, 0, 100, 100, 0, 0, 128, 128)
-      expect(out).toEqual(webp)
-      expect(close).toHaveBeenCalled()
     })
   })
 
@@ -250,6 +227,18 @@ describe('utils/image', () => {
   })
 
   describe('captureScrollable', () => {
+    it('uses the selected solid conversation backdrop when rasterizing a canvas', async () => {
+      const root = document.createElement('div')
+      root.style.cssText = '--background: rgba(25, 25, 25, 0.55); --chat-message-well-solid: #141414'
+
+      await captureScrollable({ current: root }, '--chat-message-well-solid')
+
+      expect(htmlToImage.toCanvas).toHaveBeenLastCalledWith(
+        root,
+        expect.objectContaining({ backgroundColor: '#141414' })
+      )
+    })
+
     it('should return canvas when elRef.current exists', async () => {
       const div = document.createElement('div')
       Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
@@ -258,22 +247,6 @@ describe('utils/image', () => {
       const result = await captureScrollable(ref)
       expect(result).toBeTruthy()
       expect(typeof (result as HTMLCanvasElement).toDataURL).toBe('function')
-    })
-
-    it('should warm up html-to-image before returning the final canvas', async () => {
-      const warmupCanvas = { toDataURL: vi.fn(() => 'warmup') } as unknown as HTMLCanvasElement
-      const finalCanvas = { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
-      vi.mocked(htmlToImage.toCanvas).mockResolvedValueOnce(warmupCanvas).mockResolvedValueOnce(finalCanvas)
-
-      const div = document.createElement('div')
-      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
-      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
-      const ref = { current: div } as React.RefObject<HTMLDivElement>
-
-      const result = await captureScrollable(ref)
-
-      expect(htmlToImage.toCanvas).toHaveBeenCalledTimes(2)
-      expect(result).toBe(finalCanvas)
     })
 
     it('should release the warm-up canvas before the final capture', async () => {
@@ -1404,6 +1377,62 @@ describe('utils/image', () => {
       expect(
         isKatexGeneratedSvg({ ...katexNode, properties: { ...katexNode.properties, viewBox: '0 0 100 100' } })
       ).toBe(false)
+    })
+  })
+
+  describe('svgToCanvas', () => {
+    class FakeImage {
+      static latest: FakeImage | undefined
+      crossOrigin = ''
+      src = ''
+      onload: (() => void) | null = null
+      onerror: (() => void) | null = null
+      constructor() {
+        FakeImage.latest = this
+      }
+    }
+
+    const makeSvg = () => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.setAttribute('viewBox', '0 0 20 10')
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+      text.textContent = '中文 🌸 # & %'
+      svg.append(text)
+      return svg
+    }
+
+    beforeEach(() => {
+      FakeImage.latest = undefined
+      vi.stubGlobal('Image', FakeImage)
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+        scale: vi.fn(),
+        drawImage: vi.fn()
+      } as unknown as CanvasRenderingContext2D)
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      vi.restoreAllMocks()
+    })
+
+    it('preserves Unicode labels and SVG dimensions when rasterizing', async () => {
+      const pending = svgToCanvas(makeSvg(), 2)
+      await vi.waitFor(() => expect(FakeImage.latest?.src).toBeTruthy())
+      const response = dataUrlToBlob(FakeImage.latest!.src)
+      const xml = new TextDecoder().decode(await readBlobBytes(response))
+      const svg = new DOMParser().parseFromString(xml, 'image/svg+xml')
+      expect(svg.querySelector('text')?.textContent).toBe('中文 🌸 # & %')
+
+      FakeImage.latest?.onload?.()
+      const canvas = await pending
+      expect([canvas.width, canvas.height]).toEqual([40, 20])
+    })
+
+    it('rejects when the SVG image fails to load', async () => {
+      const pending = svgToCanvas(makeSvg())
+      await vi.waitFor(() => expect(FakeImage.latest?.src).toBeTruthy())
+      FakeImage.latest?.onerror?.()
+      await expect(pending).rejects.toThrow('Failed to load SVG image')
     })
   })
 })

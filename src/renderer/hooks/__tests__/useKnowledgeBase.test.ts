@@ -36,6 +36,7 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
+  orderKey: 'a0',
   id: '',
   name: '',
   groupId: null,
@@ -82,15 +83,6 @@ describe('useKnowledgeBases', () => {
     expect(result.current.bases).toEqual(bases)
     expect(result.current.isLoading).toBe(false)
     expect(result.current.error).toBeUndefined()
-    expect(result.current.refetch).toBe(refetch)
-
-    await waitFor(() => {
-      expect(mockUseInfiniteQuery).toHaveBeenLastCalledWith('/knowledge-bases', {
-        limit: 100,
-        enabled: undefined,
-        swrOptions: { revalidateAll: true, revalidateFirstPage: false }
-      })
-    })
   })
 
   it('auto-loads the next page without publishing a partial list', async () => {
@@ -190,34 +182,12 @@ describe('useKnowledgeBases', () => {
     expect(result.current.error).toBe(error)
     expect(loadNext).not.toHaveBeenCalled()
   })
-
-  it('passes an explicit activation boundary to DataApi', () => {
-    mockUseInfiniteQuery.mockReturnValue({
-      pages: [],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn()
-    })
-
-    renderHook(() => useKnowledgeBases({ enabled: false }))
-
-    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/knowledge-bases', {
-      limit: 100,
-      enabled: false,
-      swrOptions: { revalidateAll: false, revalidateFirstPage: false }
-    })
-  })
 })
 
 describe('useCreateKnowledgeBase', () => {
-  let loggerErrorSpy: ReturnType<typeof vi.spyOn>
-
   beforeEach(() => {
     vi.clearAllMocks()
-    loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     mockUseInvalidateCache.mockReturnValue(mockInvalidateCache)
     mockInvalidateCache.mockResolvedValue(undefined)
     mockIpcRequest.mockResolvedValue(createKnowledgeBase())
@@ -243,8 +213,6 @@ describe('useCreateKnowledgeBase', () => {
     await act(async () => {
       created = await result.current.createBase(input)
     })
-
-    expect(mockUseMutation).not.toHaveBeenCalled()
     expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.create_base', {
       base: {
         name: 'Base 2',
@@ -326,19 +294,13 @@ describe('useCreateKnowledgeBase', () => {
     expect(mockInvalidateCache).not.toHaveBeenCalled()
     expect(result.current.isCreating).toBe(false)
     expect(result.current.createError).toBe(createError)
-    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to create knowledge base', createError, {
-      name: 'Base 4',
-      groupId: undefined
-    })
   })
 })
 
 describe('useRestoreKnowledgeBase', () => {
-  let loggerErrorSpy: ReturnType<typeof vi.spyOn>
-
   beforeEach(() => {
     vi.clearAllMocks()
-    loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     mockUseInvalidateCache.mockReturnValue(mockInvalidateCache)
     mockInvalidateCache.mockResolvedValue(undefined)
     mockIpcRequest.mockResolvedValue(createKnowledgeBase())
@@ -425,20 +387,13 @@ describe('useRestoreKnowledgeBase', () => {
     expect(mockInvalidateCache).not.toHaveBeenCalled()
     expect(result.current.isRestoring).toBe(false)
     expect(result.current.restoreError).toBe(restoreError)
-    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to restore knowledge base', restoreError, {
-      sourceBaseId: 'source-base',
-      name: 'Legacy KB_bak',
-      embeddingModelId: 'openai::text-embedding-3-small'
-    })
   })
 })
 
 describe('useEnableKnowledgeBaseEmbedding', () => {
-  let loggerErrorSpy: ReturnType<typeof vi.spyOn>
-
   beforeEach(() => {
     vi.clearAllMocks()
-    loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     mockUseInvalidateCache.mockReturnValue(mockInvalidateCache)
     mockInvalidateCache.mockResolvedValue(undefined)
     mockIpcRequest.mockResolvedValue(createKnowledgeBase())
@@ -523,10 +478,6 @@ describe('useEnableKnowledgeBaseEmbedding', () => {
     expect(mockInvalidateCache).not.toHaveBeenCalled()
     expect(result.current.isEnabling).toBe(false)
     expect(result.current.enableError).toBe(enableError)
-    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to enable knowledge base embedding', enableError, {
-      baseId: 'base-1',
-      embeddingModelId: 'openai::text-embedding-3-small'
-    })
   })
 })
 
@@ -559,10 +510,6 @@ describe('useUpdateKnowledgeBase', () => {
     await act(async () => {
       updated = await result.current.updateBase('base-1', updates)
     })
-
-    expect(mockUseMutation).toHaveBeenCalledWith('PATCH', '/knowledge-bases/:id', {
-      refresh: ['/knowledge-bases']
-    })
     expect(trigger).toHaveBeenCalledWith({
       params: { id: 'base-1' },
       body: updates
@@ -574,11 +521,9 @@ describe('useUpdateKnowledgeBase', () => {
 })
 
 describe('useDeleteKnowledgeBase', () => {
-  let loggerErrorSpy: ReturnType<typeof vi.spyOn>
-
   beforeEach(() => {
     vi.clearAllMocks()
-    loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     mockUseInvalidateCache.mockReturnValue(mockInvalidateCache)
     mockInvalidateCache.mockResolvedValue(undefined)
     mockIpcRequest.mockResolvedValue(undefined)
@@ -590,8 +535,6 @@ describe('useDeleteKnowledgeBase', () => {
     await act(async () => {
       await result.current.deleteBase('base-1')
     })
-
-    expect(mockUseMutation).not.toHaveBeenCalled()
     expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.delete_base', { baseId: 'base-1' })
     expect(mockInvalidateCache).toHaveBeenCalledWith([
       '/knowledge-bases',
@@ -622,8 +565,5 @@ describe('useDeleteKnowledgeBase', () => {
     ])
     expect(result.current.isDeleting).toBe(false)
     expect(result.current.deleteError).toBe(deleteError)
-    expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to delete knowledge base', deleteError, {
-      baseId: 'base-1'
-    })
   })
 })

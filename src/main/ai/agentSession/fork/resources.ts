@@ -13,13 +13,16 @@ export const AgentSessionForkResourcesSchema = z.object({
   version: z.literal(1),
   operationId: z.uuid(),
   targetSessionId: z.uuid(),
+  resumeToken: z.string().optional(),
+  nativePreparations: z.array(z.strictObject({ backendId: z.uuid(), contextId: z.uuid() })).optional(),
   createdAt: z.number().int(),
   artifactDirectory: z.string(),
   artifactIdentity: z.string().optional(),
   workspace: z.string().optional(),
   workspaceIdentity: z.string().optional(),
   published: z.array(z.strictObject({ source: z.string(), target: z.string(), identity: z.string().optional() })),
-  workspaceDisposition: z.literal('retained').optional()
+  workspaceDisposition: z.literal('retained').optional(),
+  nativeDisposition: z.literal('retained').optional()
 })
 
 export type AgentSessionForkResources = z.infer<typeof AgentSessionForkResourcesSchema>

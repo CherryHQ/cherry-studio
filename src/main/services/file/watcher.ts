@@ -19,7 +19,7 @@
  *   debounce window).
  *
  * Rename detection is intentionally absent: chokidar renames remain
- * `unlink` + `add`. See [file-manager-architecture.md §8](../../../../docs/references/file/file-manager-architecture.md).
+ * `unlink` + `add`. See [file-manager-architecture.md §8](../../../../docs/dev/references/file/file-manager-architecture.md).
  */
 
 import path from 'node:path'
@@ -41,7 +41,7 @@ const logger = loggerService.withContext('file/watcher')
  *
  * Directory variants `addDir` / `unlinkDir` were added when the
  * `DirectoryTreeBuilder` primitive landed (see
- * `docs/references/file/directory-tree.md`) — without them, folder
+ * `docs/dev/references/file/directory-tree.md`) — without them, folder
  * creation / deletion would never reach a subscribed tree builder because
  * chokidar reports those on dedicated channels.
  */
@@ -142,8 +142,9 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
 
   private handleError(err: Error): void {
     const code = (err as NodeJS.ErrnoException).code
-    const isWindowsEperm = isWin && (code === 'EPERM' || err.message.includes('EPERM'))
-    const shouldFallbackToPolling = code === 'EMFILE' || err.message.includes('EMFILE') || isWindowsEperm
+    const isWindowsLockError =
+      isWin && (code === 'EPERM' || code === 'EBUSY' || err.message.includes('EPERM') || err.message.includes('EBUSY'))
+    const shouldFallbackToPolling = code === 'EMFILE' || err.message.includes('EMFILE') || isWindowsLockError
     if (!this.closed && !this.usingPolling && shouldFallbackToPolling) {
       logger.warn(`chokidar native watcher hit ${code ?? 'an OS error'}; falling back to polling`, err)
       const oldWatcher = this.fsw
@@ -198,7 +199,7 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
    * correctness baseline, so a missed watcher match is never a correctness
    * bug: it only delays a badge update until the next `check()`, which is
    * benign and self-healing. See
-   * `docs/references/file/file-manager-architecture.md §11.3 "Watcher
+   * `docs/dev/references/file/file-manager-architecture.md §11.3 "Watcher
    * Auto-Wiring"`.
    */
   private handle(ev: RawWatcherPathEvent): void {

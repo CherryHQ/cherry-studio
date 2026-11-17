@@ -1,4 +1,5 @@
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { BrowserWindow } from 'electron'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { application } from '@application'
@@ -271,6 +272,28 @@ describe('PowerService', () => {
       platformMock.isWin = true
     })
 
+    it('keeps power management available without a window when the native addon is blocked', async () => {
+      vi.doMock('@paymoapp/electron-shutdown-handler', () => {
+        throw new Error('An Application Control policy has blocked this file.')
+      })
+      try {
+        MockMainPreferenceServiceUtils.setPreferenceValue(PREF_KEY, true)
+        const service = await createInitedService()
+
+        expect(BrowserWindow).not.toHaveBeenCalled()
+        fire('suspend')
+        expect(service.getPowerPhase()).toBe('suspended')
+        const hold = service.preventSleep('job:blocked-addon')
+        expect(service.isPreventingSleep()).toBe(true)
+        hold.dispose()
+        expect(service.isPreventingSleep()).toBe(false)
+      } finally {
+        vi.doMock('@paymoapp/electron-shutdown-handler', () => ({
+          default: { on: shutdownHandlerOn, setWindowHandle, releaseShutdown, blockShutdown }
+        }))
+      }
+    })
+
     it('blocks shutdown, then runs handlers, releases the block and quits', async () => {
       const service = await createInitedService()
       const handler = vi.fn()
@@ -409,6 +432,21 @@ describe('PowerService', () => {
       await (service as any).onStop()
       expect(psbStop).toHaveBeenCalledTimes(1)
       expect(service.isPreventingSleep()).toBe(false)
+    })
+  })
+
+  describe('restart', () => {
+    it('keeps firing power events after a stop and a restart', async () => {
+      const service = new PowerService()
+      await service._doInit()
+      await service._doStop()
+      await service._doInit()
+      const spy = vi.fn()
+      service.onSuspend(spy)
+
+      fire('suspend')
+
+      expect(spy).toHaveBeenCalledTimes(1)
     })
   })
 })

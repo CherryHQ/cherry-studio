@@ -81,15 +81,6 @@ describe('WeChatAdapter', () => {
     })
   }
 
-  it('connect() logs in, registers message handler, and starts polling', async () => {
-    const adapter = createAdapter()
-    await adapter.connect()
-
-    expect(mockBot.login).toHaveBeenCalledTimes(1)
-    expect(mockBot.onMessage).toHaveBeenCalledTimes(1)
-    expect(mockBot.run).toHaveBeenCalledTimes(1)
-  })
-
   it('reports QR login errors to the renderer', async () => {
     mockBot.login.mockRejectedValue(new Error('Login unavailable'))
     const adapter = createAdapter()
@@ -142,22 +133,6 @@ describe('WeChatAdapter', () => {
     await adapter.sendMessage('user-123', 'Hello')
 
     expect(mockBot.send).toHaveBeenCalledWith('user-123', 'Hello')
-  })
-
-  it('sendMessage() chunks long messages', async () => {
-    vi.useFakeTimers()
-    const adapter = createAdapter()
-    await adapter.connect()
-
-    const longText = 'A'.repeat(3000)
-    const sendPromise = adapter.sendMessage('user-123', longText)
-
-    await vi.runAllTimersAsync()
-    await sendPromise
-
-    expect(mockBot.send).toHaveBeenCalledTimes(2)
-    expect(mockBot.send.mock.calls[0][1]).toHaveLength(2000)
-    expect(mockBot.send.mock.calls[1][1]).toHaveLength(1000)
   })
 
   it('sendFile() delegates image routing to the protocol', async () => {

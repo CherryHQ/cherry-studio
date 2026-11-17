@@ -19,6 +19,35 @@ const TRANSPARENT_IMAGE_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAA
  */
 export const IMAGE_CAPTURE_ATTRIBUTE = 'data-image-capturing'
 
+/** Virtualized content registers a preparation promise and its restoration at capture time. */
+export class ImageCaptureEvent extends Event {
+  static readonly type = 'prepare-image-capture'
+  readonly preparations: Promise<() => void | Promise<void>>[] = []
+
+  constructor() {
+    super(ImageCaptureEvent.type)
+  }
+}
+
+async function prepareCaptureContents(root: HTMLElement): Promise<() => Promise<void>> {
+  const event = new ImageCaptureEvent()
+  for (const element of [root, ...root.querySelectorAll('[data-image-capture-content]')]) {
+    element.dispatchEvent(event)
+  }
+  const results = await Promise.allSettled(event.preparations)
+  const restore = async () => {
+    for (const result of results.toReversed()) {
+      if (result.status === 'fulfilled') await result.value()
+    }
+  }
+  const failed = results.find((result) => result.status === 'rejected')
+  if (failed) {
+    await restore()
+    throw failed.reason
+  }
+  return restore
+}
+
 /** Marks interactive HTML artifact subtrees; both export paths omit them (shared policy selector). */
 const HTML_ARTIFACT_ATTRIBUTE = 'data-html-artifact'
 
@@ -278,14 +307,18 @@ export async function prepareEntityImageBytes(file: File): Promise<Uint8Array<Ar
  */
 export async function captureElement(elRef: React.RefObject<HTMLElement>) {
   if (elRef.current) {
+    let restoreContents: (() => Promise<void>) | undefined
     try {
       const htmlToImage = await loadHtmlToImage()
+      restoreContents = await prepareCaptureContents(elRef.current)
       const canvas = await htmlToImage.toCanvas(elRef.current)
       const imageData = canvas.toDataURL('image/png')
       return imageData
     } catch (error) {
       logger.error('Error capturing element:', error as Error)
       return Promise.reject()
+    } finally {
+      await restoreContents?.()
     }
   }
   return Promise.resolve(undefined)
@@ -297,11 +330,12 @@ export async function captureElement(elRef: React.RefObject<HTMLElement>) {
  * @param el 目标元素
  * @returns Promise<HTMLCanvasElement | undefined> 捕获的画布对象，如果失败则返回 undefined
  */
-async function captureScrollableElement(el: HTMLElement | null) {
+async function captureScrollableElement(el: HTMLElement | null, backdropVariable = '--background') {
   if (el) {
     const htmlToImage = await loadHtmlToImage()
     let restoreLocalImageSources: (() => void) | undefined
     let restoreRemoteImages: (() => void) | undefined
+    let restoreContents: (() => Promise<void>) | undefined
     const captureMarker = el.getAttribute(IMAGE_CAPTURE_ATTRIBUTE)
 
     try {
@@ -309,6 +343,7 @@ async function captureScrollableElement(el: HTMLElement | null) {
       // attribute (e.g. unclipped table viewports) can change the scroll size,
       // and html-to-image freezes computed styles at clone time.
       el.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, '')
+      restoreContents = await prepareCaptureContents(el)
 
       // Wait for webfonts before cloning. The clone pins every element's
       // computed width/height, so text re-laid-out with fallback font metrics
@@ -353,7 +388,7 @@ async function captureScrollableElement(el: HTMLElement | null) {
       const fontEmbedCSS = await buildFontEmbedCSS()
       const captureOptions = {
         filter: filterHiddenElements,
-        backgroundColor: getComputedStyle(el).getPropertyValue('--background'),
+        backgroundColor: getComputedStyle(el).getPropertyValue(backdropVariable),
         cacheBust: true,
         fontEmbedCSS,
         imagePlaceholder: TRANSPARENT_IMAGE_PLACEHOLDER,
@@ -390,13 +425,15 @@ async function captureScrollableElement(el: HTMLElement | null) {
       }
       restoreLocalImageSources?.()
       restoreRemoteImages?.()
+      await restoreContents?.()
     }
   }
 
   return Promise.resolve(undefined)
 }
 
-export const captureScrollable = (elRef: React.RefObject<HTMLElement | null>) => captureScrollableElement(elRef.current)
+export const captureScrollable = (elRef: React.RefObject<HTMLElement | null>, backdropVariable?: string) =>
+  captureScrollableElement(elRef.current, backdropVariable)
 
 let fontEmbedCSSCache: string | undefined
 
@@ -501,13 +538,14 @@ async function buildFontEmbedCSS(): Promise<string> {
  * @returns Promise<string | undefined> PNG data URL，失败返回 undefined
  */
 export const captureScrollableImage = async (
-  elRef: React.RefObject<HTMLElement | null>
+  elRef: React.RefObject<HTMLElement | null>,
+  backdropVariable?: string
 ): Promise<string | undefined> => {
   const el = elRef.current
   if (!el) return undefined
 
   await waitForCaptureAssets(el)
-  const canvas = await captureScrollableElement(el)
+  const canvas = await captureScrollableElement(el, backdropVariable)
   return canvas?.toDataURL('image/png')
 }
 
@@ -516,8 +554,11 @@ export const captureScrollableImage = async (
  * @param elRef 可滚动元素的引用
  * @returns Promise<string | undefined> 图像数据 URL，如果失败则返回 undefined
  */
-export const captureScrollableAsDataUrl = async (elRef: React.RefObject<HTMLElement | null>) => {
-  return captureScrollableImage(elRef)
+export const captureScrollableAsDataUrl = async (
+  elRef: React.RefObject<HTMLElement | null>,
+  backdropVariable?: string
+) => {
+  return captureScrollableImage(elRef, backdropVariable)
 }
 
 /**
@@ -545,8 +586,12 @@ export function dataUrlToBlob(dataUrl: string): Blob {
  * @param func Blob 回调函数
  * @returns Promise<void> 处理结果
  */
-export const captureScrollableAsBlob = async (elRef: React.RefObject<HTMLElement | null>, func: BlobCallback) => {
-  const dataUrl = await captureScrollableImage(elRef)
+export const captureScrollableAsBlob = async (
+  elRef: React.RefObject<HTMLElement | null>,
+  func: BlobCallback,
+  backdropVariable?: string
+) => {
+  const dataUrl = await captureScrollableImage(elRef, backdropVariable)
   if (dataUrl) {
     func(dataUrlToBlob(dataUrl))
   }
@@ -835,7 +880,7 @@ export const captureScrollableIframeAsBlob = async (
  * @param scale 缩放比例
  * @returns {Promise<HTMLCanvasElement>} 转换后的 Canvas 元素
  */
-export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanvasElement> => {
+export const svgToCanvas = async (svgElement: SVGElement, scale = 3): Promise<HTMLCanvasElement> => {
   // 获取 SVG 尺寸信息
   // 优先使用 viewBox；ECharts 等 SVG 渲染器可能直接设置 width/height 属性且没有 viewBox
   const viewBox = svgElement.getAttribute('viewBox')?.split(' ').map(Number) || []
@@ -848,18 +893,6 @@ export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanv
   // 序列化 SVG 内容
   const svgData = new XMLSerializer().serializeToString(svgElement)
 
-  let svgBase64: string
-  try {
-    // 使用 TextEncoder 处理 Unicode 字符
-    const encoder = new TextEncoder()
-    const encodedData = encoder.encode(svgData)
-    const binaryString = Array.from(encodedData, (byte) => String.fromCodePoint(byte)).join('')
-    svgBase64 = `data:image/svg+xml;base64,${btoa(binaryString)}`
-  } catch (error) {
-    logger.warn('TextEncoder method failed, falling back to legacy method', error as Error)
-    svgBase64 = `data:image/svg+xml;base64,${btoa(decodeURIComponent(encodeURIComponent(svgData)))}`
-  }
-
   // 创建 Canvas
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')
@@ -870,6 +903,9 @@ export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanv
 
   canvas.width = width * scale
   canvas.height = height * scale
+
+  // Blob URLs containing foreignObject taint Chromium canvases; data URLs preserve HTML labels.
+  const svgUrl = await blobToDataUrl(new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' }))
 
   return new Promise<HTMLCanvasElement>((resolve, reject) => {
     const img = new Image()
@@ -889,7 +925,7 @@ export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanv
       reject(new Error('Failed to load SVG image'))
     }
 
-    img.src = svgBase64
+    img.src = svgUrl
   })
 }
 

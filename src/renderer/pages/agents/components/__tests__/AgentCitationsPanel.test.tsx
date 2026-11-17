@@ -16,13 +16,42 @@ vi.unmock('@cherrystudio/ui')
 
 const url = 'https://example.com/reference?q=a%20b#section'
 
-describe('Agent citation link context menu', () => {
+describe('Agent citation links', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.spyOn(ipcApi, 'request').mockImplementation(async (route) => {
       if (route === 'citation.fetch_preview') return { content: 'Reference preview' } as never
       return undefined as never
     })
+  })
+
+  it.each(['websearch', 'knowledge'] as const)('opens a %s source with left and middle clicks', async (type) => {
+    const onClose = vi.fn()
+    render(
+      <CommandSharedPreferencesContext value={{ menuPresentationMode: 'cherry', shortcutPreferences: {} }}>
+        <Suspense fallback={null}>
+          <AgentCitationsPanel
+            open
+            onClose={onClose}
+            citations={[{ type, number: 1, url, title: 'Reference source' }]}
+          />
+        </Suspense>
+      </CommandSharedPreferencesContext>
+    )
+    const link = await screen.findByRole('link', { name: 'Reference source' }, { timeout: 5000 })
+
+    const middleClick = new MouseEvent('auxclick', { button: 1, bubbles: true, cancelable: true })
+    fireEvent(link, middleClick)
+    expect(middleClick.defaultPrevented).toBe(true)
+    expect(ipcApi.request).toHaveBeenCalledWith('navigation.open_route_in_main', {
+      path: `/app/browser?${new URLSearchParams({ url })}`
+    })
+    expect(openBrowserUrl).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+
+    fireEvent.click(link)
+    expect(openBrowserUrl).toHaveBeenCalledExactlyOnceWith(url)
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it.each(['websearch', 'knowledge'] as const)(

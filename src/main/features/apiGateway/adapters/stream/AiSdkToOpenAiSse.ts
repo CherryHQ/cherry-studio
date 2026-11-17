@@ -106,6 +106,10 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
   private finishReason: OpenAiFinishReason = null
   private reasoningContent = ''
 
+  override getMessageId(): string {
+    return `chatcmpl-${this.state.messageId}`
+  }
+
   constructor(options: StreamAdapterOptions) {
     super(options)
     this.createdTimestamp = Math.floor(Date.now() / 1000)
@@ -116,7 +120,7 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
    */
   private createBaseChunk(delta: OpenAiCompatibleDelta): OpenAiCompatibleChunk {
     return {
-      id: `chatcmpl-${this.state.messageId}`,
+      id: this.getMessageId(),
       object: 'chat.completion.chunk',
       created: this.createdTimestamp,
       model: this.state.model,
@@ -163,6 +167,7 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
         break
 
       // === Tool Events ===
+      case 'tool-input-error':
       case 'tool-input-available':
         this.handleToolCall({
           toolCallId: chunk.toolCallId,
@@ -198,6 +203,9 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
       this.state.cacheReadTokens = metadata.stats.inputTokenDetails.cacheReadTokens
     }
     if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
+    if (metadata.stats?.outputTokenDetails?.reasoningTokens !== undefined) {
+      this.state.reasoningTokens = metadata.stats.outputTokenDetails.reasoningTokens
+    }
   }
 
   private buildUsage(): NonNullable<ChatCompletion['usage']> {
@@ -207,6 +215,9 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
       total_tokens: this.state.inputTokens + this.state.outputTokens,
       ...(this.state.cacheReadTokens !== undefined
         ? { prompt_tokens_details: { cached_tokens: this.state.cacheReadTokens } }
+        : {}),
+      ...(this.state.reasoningTokens !== undefined
+        ? { completion_tokens_details: { reasoning_tokens: this.state.reasoningTokens } }
         : {})
     }
   }
@@ -263,7 +274,11 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
     }
 
     const index = this.currentToolCallIndex++
-    const argsString = JSON.stringify(args)
+    // Default arg-less calls to `{}` — `JSON.stringify(undefined)` is `undefined`,
+    // which JSON serialization drops entirely, so the emitted tool_call would be
+    // missing the required `arguments` field. The Responses and Anthropic adapters
+    // already default the same way.
+    const argsString = JSON.stringify(args ?? {})
 
     this.toolCalls.set(toolCallId, {
       index,
@@ -322,7 +337,7 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
   protected finalize(): void {
     // Emit final chunk with finish_reason and usage
     const finalChunk: OpenAiCompatibleChunk = {
-      id: `chatcmpl-${this.state.messageId}`,
+      id: this.getMessageId(),
       object: 'chat.completion.chunk',
       created: this.createdTimestamp,
       model: this.state.model,
@@ -378,7 +393,7 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
     }
 
     return {
-      id: `chatcmpl-${this.state.messageId}`,
+      id: this.getMessageId(),
       object: 'chat.completion',
       created: this.createdTimestamp,
       model: this.state.model,

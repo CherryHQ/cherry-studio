@@ -1,7 +1,10 @@
+import { Blob as NodeBlob } from 'node:buffer'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { COMPOSER_FILE_KIND, FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { createInternalEntryInputSchema } from '@shared/ipc/schemas/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { buildFilePartsForAttachments } from '../buildFileParts'
@@ -50,8 +53,29 @@ describe('buildFilePartsForAttachments', () => {
       url: 'file:///p/fe-1.png',
       mediaType: 'image/png',
       filename: 'image.png',
-      providerMetadata: { cherry: { fileEntryId: 'fe-1', fileTokenSourceId: 'source-1' } }
+      providerMetadata: {
+        cherry: { fileEntryId: 'fe-1', fileTokenSourceId: 'source-1', originalPath: '/tmp/image.png' }
+      }
     })
+  })
+
+  it('persists a received image from its owned Blob without a temporary path', async () => {
+    const bytes = new Uint8Array([137, 80, 78, 71])
+    const blob = new NodeBlob([bytes], { type: 'image/png' }) as Blob
+    const [part] = await buildFilePartsForAttachments([attachment({ path: undefined, blob })])
+    expect(window.api.file.createInternalEntry).toHaveBeenCalledWith({
+      source: 'bytes',
+      data: bytes,
+      name: 'image.png',
+      ext: 'png',
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
+    expect(() =>
+      createInternalEntryInputSchema.parse(vi.mocked(window.api.file.createInternalEntry).mock.calls[0][0])
+    ).not.toThrow()
+    expect(part.url).toBe('file:///p/fe-1.png')
+    expect(part.providerMetadata?.cherry?.fileTokenSourceId).toBe('source-1')
+    expect(new Uint8Array(await blob.arrayBuffer())).toEqual(bytes)
   })
 
   it('uses the real MIME from getMetadata for documents (not octet-stream)', async () => {
@@ -114,6 +138,7 @@ describe('buildFilePartsForAttachments', () => {
     expect(part.providerMetadata?.cherry).toEqual({
       fileEntryId: 'fe-1',
       fileTokenSourceId: 'source-1',
+      originalPath: '/tmp/pasted_text.txt',
       composerFileKind: 'pasted-text'
     })
   })

@@ -1,0 +1,125 @@
+[
+  {
+    "name": "legacy LAN",
+    "input": {
+      "t": "cherry-studio-pair",
+      "name": "Desktop",
+      "desktopIdentity": "12D3KooWDesktop",
+      "invitationId": "invitation",
+      "invitationSecret": "secret",
+      "protocolVersions": [1],
+      "v": 2,
+      "ips": ["192.168.1.8"],
+      "port": 24444
+    },
+    "valid": true
+  },
+  {
+    "name": "TLS proxy",
+    "input": {
+      "t": "cherry-studio-pair",
+      "name": "Desktop",
+      "desktopIdentity": "12D3KooWDesktop",
+      "invitationId": "invitation",
+      "invitationSecret": "secret",
+      "protocolVersions": [1],
+      "v": 3,
+      "endpoints": [
+        {
+          "host": "desktop.example.com",
+          "port": 24443,
+          "security": "wss"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "IPv6 VPN",
+    "input": {
+      "t": "cherry-studio-pair",
+      "name": "Desktop",
+      "desktopIdentity": "12D3KooWDesktop",
+      "invitationId": "invitation",
+      "invitationSecret": "secret",
+      "protocolVersions": [1],
+      "v": 3,
+      "endpoints": [
+        {
+          "host": "fd7a::2",
+          "port": 24444,
+          "security": "ws"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "DNS must not masquerade as IP",
+    "input": {
+      "t": "cherry-studio-pair",
+      "name": "Desktop",
+      "desktopIdentity": "12D3KooWDesktop",
+      "invitationId": "invitation",
+      "invitationSecret": "secret",
+      "protocolVersions": [1],
+      "v": 2,
+      "ips": ["desktop.example.com"],
+      "port": 443
+    },
+    "valid": false
+  },
+  {
+    "name": "credentials in host",
+    "input": {
+      "t": "cherry-studio-pair",
+      "name": "Desktop",
+      "desktopIdentity": "12D3KooWDesktop",
+      "invitationId": "invitation",
+      "invitationSecret": "secret",
+      "protocolVersions": [1],
+      "v": 3,
+      "endpoints": [
+        {
+          "host": "user@host/path",
+          "port": 443,
+          "security": "wss"
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "missing port",
+    "input": {
+      "t": "cherry-studio-pair",
+      "name": "Desktop",
+      "desktopIdentity": "12D3KooWDesktop",
+      "invitationId": "invitation",
+      "invitationSecret": "secret",
+      "protocolVersions": [1],
+      "v": 3,
+      "endpoints": [
+        {
+          "host": "desktop.example.com",
+          "security": "wss"
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "no endpoints",
+    "input": {
+      "t": "cherry-studio-pair",
+      "name": "Desktop",
+      "desktopIdentity": "12D3KooWDesktop",
+      "invitationId": "invitation",
+      "invitationSecret": "secret",
+      "protocolVersions": [1],
+      "v": 3,
+      "endpoints": []
+    },
+    "valid": false
+  }
+]

@@ -9,7 +9,13 @@ import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu 
 import BaseNavigatorSectionTrigger from './BaseNavigatorSectionTrigger'
 import type { KnowledgeGroupRowProps } from './types'
 
-const KnowledgeGroupRow = ({ group, onRenameGroup, onCreateBase, onDeleteGroup }: KnowledgeGroupRowProps) => {
+const KnowledgeGroupRow = ({
+  group,
+  onRenameGroup,
+  onCreateBase,
+  onDeleteGroup,
+  dragProps
+}: KnowledgeGroupRowProps) => {
   const { t } = useTranslation()
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
@@ -65,6 +71,7 @@ const KnowledgeGroupRow = ({ group, onRenameGroup, onCreateBase, onDeleteGroup }
         <div className="w-full">
           <BaseNavigatorSectionTrigger
             label={group.name}
+            dragProps={dragProps}
             actionSlot={
               <CommandPopupMenu
                 location="webcontents.context"

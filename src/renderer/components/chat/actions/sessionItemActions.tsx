@@ -11,12 +11,12 @@ import {
   PinIcon,
   PinOffIcon,
   Sparkles,
+  Trash,
   UploadIcon
 } from 'lucide-react'
 
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import EditIcon from '@renderer/components/icons/EditIcon'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
@@ -39,6 +39,7 @@ export type SessionExportMenuOptions = Record<
 export interface SessionActionContext {
   exportMenuOptions?: Partial<SessionExportMenuOptions>
   isActiveInCurrentTab: boolean
+  isDeleting?: boolean
   isRenaming?: boolean
   onAutoRename?: () => void | Promise<void>
   onCopyImage?: () => void | Promise<void>
@@ -46,6 +47,7 @@ export interface SessionActionContext {
   onCopyPlainText?: () => void | Promise<void>
   onDelete: () => void | Promise<void>
   onDeletePermanently?: () => void | Promise<void>
+  permanentDeleteShortcut?: string
   isBusy?: boolean
   onExportImage?: () => void | Promise<void>
   onExportJoplin?: () => void | Promise<void>
@@ -290,7 +292,10 @@ sessionActionRegistry.registerCommand({
 
 sessionActionRegistry.registerCommand({
   id: 'session.delete-permanently',
-  run: ({ onDeletePermanently }) => onDeletePermanently?.()
+  run: ({ isBusy, isDeleting, onDeletePermanently, pinned }) => {
+    if (!onDeletePermanently || pinned || isBusy || isDeleting) return
+    return onDeletePermanently()
+  }
 })
 
 sessionActionRegistry.registerAction({
@@ -511,28 +516,22 @@ sessionActionRegistry.registerAction({
   group: 'danger',
   order: 90,
   surface: 'menu',
-  availability: ({ pinned, isBusy }) => ({ visible: !pinned, enabled: !isBusy })
+  availability: ({ isBusy }) => ({ enabled: !isBusy })
 })
 
 sessionActionRegistry.registerAction({
   id: 'session.delete-permanently',
   commandId: 'session.delete-permanently',
   label: ({ t }) => t('common.delete_permanently'),
-  icon: () => <DeleteIcon size={14} className="lucide-custom" />,
+  icon: () => <Trash size={14} />,
   group: 'danger',
   order: 100,
   surface: 'menu',
   danger: true,
-  availability: ({ pinned, isBusy, onDeletePermanently }) => ({
-    visible: !pinned && !!onDeletePermanently,
-    enabled: !isBusy
-  }),
-  confirm: ({ t, sessionName }) => ({
-    title: t('settings.data.trash.permanent_delete.confirm_title'),
-    description: `${sessionName}\n${t('settings.data.trash.permanent_delete.confirm_content')}`,
-    confirmText: t('common.delete_permanently'),
-    cancelText: t('common.cancel'),
-    destructive: true
+  shortcut: ({ permanentDeleteShortcut }) => permanentDeleteShortcut ?? '',
+  availability: ({ isBusy, isDeleting, onDeletePermanently, pinned }) => ({
+    visible: Boolean(onDeletePermanently) && !pinned,
+    enabled: !isBusy && !isDeleting
   })
 })
 

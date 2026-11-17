@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-07-preload-sandbox-bundles.md
+2026-11-07-preload-sandbox-bundles.md: 581a1fbe58b4a11c25c02b326dd6f90a5e4a3fd4
+2026-11-07-preload-sandbox-bundles.zh.md: f601986e9c5682afec47c491e2f69005edd4246d

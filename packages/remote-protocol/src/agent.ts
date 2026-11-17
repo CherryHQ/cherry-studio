@@ -1,0 +1,81 @@
+export {
+  workspaceSelectionSchema,
+  interactionResponseSchema,
+  questionInputSchema,
+  agentAuthorizationSchema,
+  agentCursorSchema,
+  sessionSchema,
+  messageSchema,
+  messageSummarySchema,
+  messageListItemSchema,
+  messageUsageSchema,
+  modelSummarySchema,
+  partSchema,
+  executionSchema,
+  interactionSchema,
+  contentRefSchema,
+  commandReceiptSchema
+} from './agent/resources'
+export type {
+  AgentWorkspaceSelection,
+  AgentInteractionResponse,
+  AgentAuthorization,
+  AgentCursor,
+  AgentSession,
+  AgentMessage,
+  AgentMessageSummary,
+  AgentMessageListItem,
+  AgentMessageUsage,
+  AgentPart,
+  AgentExecution,
+  AgentInteraction,
+  ContentRef,
+  CommandReceipt
+} from './agent/resources'
+export { agentMethods } from './agent/methods'
+export type { AgentMethod, AgentMutation, AgentParams, AgentResult } from './agent/methods'
+export {
+  taskMethods,
+  taskStatusSchema,
+  taskTriggerSchema,
+  taskSummarySchema,
+  taskDetailSchema,
+  taskRunSchema,
+  taskResultLocationSchema
+} from './agent/tasks'
+export type {
+  TaskMethod,
+  TaskStatus,
+  TaskTrigger,
+  TaskSummary,
+  TaskDetail,
+  TaskRun,
+  TaskResultLocation
+} from './agent/tasks'
+export { agentEventSchema, agentEventBatchSchema, agentNotificationSchema, agentProjectionSchema } from './agent/events'
+export type { AgentEvent, AgentEventBatch, AgentProjection } from './agent/events'
+export {
+  agentCheckpointDescriptorSchema,
+  agentCheckpointPageSchema,
+  encodeAgentCheckpointPage
+} from './agent/checkpoints'
+export type { AgentCheckpointDescriptor, AgentCheckpointPage } from './agent/checkpoints'
+export { encodeAgentCommand } from './agent/commands'
+export { applyAgentEvents, installAgentCheckpoint, textByteLength } from './agent/reducer'
+export type { MaterializedContent, ApplyAgentEventsResult, InstallAgentCheckpointResult } from './agent/reducer'
+
+export { agentUploadLimits, uploadMetadataSchema, uploadReferenceSchema, uploadReferencesSchema } from './agent/uploads'
+export type {
+  AgentUploadComplete,
+  AgentUploadMetadata,
+  AgentUploadReference,
+  AgentUploadState,
+  AgentUploadResume
+} from './agent/uploads'
+
+export {
+  attachmentSelectionSchema,
+  attachmentDraftManifestSchema,
+  attachmentDraftSubmissionSchema
+} from './agent/attachmentDrafts'
+export type { AgentAttachmentSelection, AgentAttachmentDraftItem } from './agent/attachmentDrafts'

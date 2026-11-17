@@ -1,13 +1,63 @@
-import { ErrorCode, JSONRPC_VERSION } from '@modelcontextprotocol/sdk/types.js'
-import { ElysiaCustomStatusResponse, type ErrorHandler } from 'elysia'
+import { JSONRPC_VERSION, ProtocolErrorCode } from '@modelcontextprotocol/server'
+import { APICallError } from 'ai'
+import { ElysiaCustomStatusResponse, type ErrorHandler, ValidationError } from 'elysia'
 
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
+import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import { DataApiError } from '@shared/data/api/errors'
+import type { SerializedError } from '@shared/types/error'
 
 import type { OutputFormat } from './adapters'
 
 const logger = loggerService.withContext('ApiGatewayErrors')
+
+const providerDetails = Symbol('internal provider details')
+type ProviderDetails = {
+  body: Record<string, unknown>
+  error: Record<string, unknown>
+  headers: Record<string, string>
+}
+type InternalError = SerializedError & { [providerDetails]: ProviderDetails }
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined
+}
+
+/** Retain provider response details only for authenticated in-process runtime requests. */
+export function internalGatewayError(error: unknown, fallback: SerializedError): SerializedError {
+  if (!(error instanceof Error) && !APICallError.isInstance(error)) return fallback
+  const api = APICallError.isInstance(error) ? error : undefined
+  let body: Record<string, unknown> = {}
+  try {
+    body = record(JSON.parse(api?.responseBody ?? '')) ?? {}
+  } catch {
+    body = record(api?.data) ?? (api?.responseBody ? { message: api.responseBody } : {})
+  }
+  const cause = error.cause instanceof Error ? error.cause : undefined
+  const causeCode = record(cause)?.code
+  const headers = Object.fromEntries(
+    Object.entries(api?.responseHeaders ?? {}).filter(([name]) =>
+      /^(retry-after|request-id|x-request-id|(?:x-|anthropic-)?ratelimit-[a-z0-9-]+)$/i.test(name)
+    )
+  )
+  const detail = {
+    ...(causeCode !== undefined && { code: causeCode }),
+    ...(record(body.error) ?? body),
+    ...(cause && {
+      cause: { name: cause.name, message: cause.message, ...(typeof causeCode === 'string' && { code: causeCode }) }
+    })
+  }
+  return {
+    ...fallback,
+    message: error.message,
+    [providerDetails]: { body, error: detail, headers }
+  }
+}
+
+function detailsOf(error: unknown): ProviderDetails | undefined {
+  return error !== null && typeof error === 'object' ? (error as InternalError)[providerDetails] : undefined
+}
 
 type GatewayErrorContext = Parameters<ErrorHandler<{ DATA_API: DataApiError }>>[0]
 
@@ -42,7 +92,7 @@ const restEnvelope = (code: string, message: string, details?: Record<string, un
  */
 export const MCP_TRANSPORT_ERROR = -32000
 
-export const jsonRpcEnvelope = (code: ErrorCode | typeof MCP_TRANSPORT_ERROR, message: string) => ({
+export const jsonRpcEnvelope = (code: ProtocolErrorCode | typeof MCP_TRANSPORT_ERROR, message: string) => ({
   jsonrpc: JSONRPC_VERSION,
   error: { code, message },
   id: null
@@ -78,19 +128,29 @@ function googleStatusName(status: number): string {
 }
 
 /**
- * Best-effort `{ status, message, type }` from any thrown value — a real `Error`,
+ * Best-effort `{ status, message, type, name, code }` from any thrown value — a real `Error`,
  * an OpenAI / AI-SDK error, or a `SerializedError` plain object (carrying
  * `statusCode` / `message`, as produced by `AiStreamManager.onError` and thrown by
- * `processMessage`). Reads only status/message/type; the AI-SDK `APICallError`
+ * `processMessage`). Reads only status/message/type/name/code; the AI-SDK `APICallError`
  * extras (`stack`, `url`, `requestBodyValues`, `responseBody`, `responseHeaders`)
  * are intentionally ignored so they never reach the client.
  */
-function extractError(error: unknown): { status?: number; message?: string; type?: string } {
+function extractError(error: unknown): {
+  status?: number
+  message?: string
+  type?: string
+  name?: string
+  code?: string
+  category?: string
+} {
   if (error === null || typeof error !== 'object') return {}
   const e = error as {
+    name?: unknown
+    code?: unknown
     status?: unknown
     statusCode?: unknown
     message?: unknown
+    providerErrorCategory?: unknown
     error?: { type?: unknown; message?: unknown }
   }
   // Prefer `status` (HTTP libs / OpenAI APIError), then `statusCode` (AI-SDK APICallError / SerializedError).
@@ -99,7 +159,10 @@ function extractError(error: unknown): { status?: number; message?: string; type
   const message =
     typeof e.error?.message === 'string' ? e.error.message : typeof e.message === 'string' ? e.message : undefined
   const type = typeof e.error?.type === 'string' ? e.error.type : undefined
-  return { status, message, type }
+  const name = typeof e.name === 'string' ? e.name : undefined
+  const code = typeof e.code === 'string' ? e.code : undefined
+  const category = typeof e.providerErrorCategory === 'string' ? e.providerErrorCategory : undefined
+  return { status, message, type, name, code, category }
 }
 
 /**
@@ -113,6 +176,44 @@ function safeMessage(status: number | undefined, message: string | undefined): s
   const fallback = 'Internal server error'
   if (status !== undefined) return message && message.length > 0 ? message : fallback
   return isDev && message && message.length > 0 ? message : fallback
+}
+
+function normalizeProviderError(error: unknown): {
+  statusCode: number
+  message: string
+  type?: string
+  category?: string
+} {
+  const extracted = extractError(error)
+  const details = detailsOf(error)
+  const { status, name, code, category } = extracted
+  const message = typeof details?.error.message === 'string' ? details.error.message : extracted.message
+  const type = typeof details?.error.type === 'string' ? details.error.type : extracted.type
+  if (status !== undefined)
+    return {
+      statusCode: status >= 200 && status < 300 ? 502 : status,
+      message:
+        !details && status === 400 && category === 'context_length'
+          ? `context_length_exceeded: ${safeMessage(status, message)}`
+          : safeMessage(status, message),
+      type,
+      category
+    }
+  if (name === 'AI_InvalidArgumentError') {
+    return { statusCode: 400, message: getSafeProviderErrorMessage({ message }) || 'Invalid request parameters', type }
+  }
+  if (
+    name === 'TimeoutError' ||
+    message === 'Upstream idle timeout exceeded' ||
+    message === 'Stream idle timeout exceeded' ||
+    message === 'Idle timeout exceeded'
+  ) {
+    return { statusCode: 504, message: 'Upstream request timed out', type }
+  }
+  if (name === 'AbortError' || name === 'ResponseAborted' || code === 'ABORT_ERR') {
+    return { statusCode: 504, message: 'Upstream stream aborted', type }
+  }
+  return { statusCode: 500, message: details && message ? message : safeMessage(undefined, message), type }
 }
 
 /** Anthropic error `type` for a status (the Anthropic vocabulary uses `api_error` for 5xx). */
@@ -134,16 +235,27 @@ function transformAnthropicError(error: unknown): {
   statusCode: number
   errorResponse: { type: 'error'; error: { type: string; message: string; requestId?: string } }
 } {
-  const { status, message, type } = extractError(error)
-  const statusCode = status ?? 500
+  const { statusCode, message, type, category } = normalizeProviderError(error)
+  const details = detailsOf(error)
   const errorType = type ?? anthropicTypeForStatus(statusCode)
+  const clientMessage =
+    details &&
+    statusCode === 400 &&
+    category === 'context_length' &&
+    !message.toLowerCase().includes('prompt is too long')
+      ? `Prompt is too long: ${message}`
+      : message
   const requestId =
     error !== null && typeof error === 'object' && typeof (error as { request_id?: unknown }).request_id === 'string'
       ? (error as { request_id: string }).request_id
       : undefined
   return {
     statusCode,
-    errorResponse: { type: 'error', error: { type: errorType, message: safeMessage(status, message), requestId } }
+    errorResponse: {
+      ...details?.body,
+      type: 'error',
+      error: { ...details?.error, type: errorType, message: clientMessage, ...(requestId && { requestId }) }
+    }
   }
 }
 
@@ -165,12 +277,29 @@ const openaiTypeAndCodeForStatus = (status: number): { type: string; code: strin
  */
 function transformOpenAiError(error: unknown): {
   statusCode: number
-  errorResponse: { error: { message: string; type: string; code: string } }
+  errorResponse: { error: { message: string; type: string; code: string | null } }
 } {
-  const { status, message } = extractError(error)
-  const statusCode = status ?? 500
-  const { type, code } = openaiTypeAndCodeForStatus(statusCode)
-  return { statusCode, errorResponse: { error: { message: safeMessage(status, message), type, code } } }
+  const { statusCode, message, category } = normalizeProviderError(error)
+  const details = detailsOf(error)
+  // OpenAI's own quota code: clients such as Pi treat it as final instead of retrying a rate limit.
+  const { type, code } =
+    category === 'quota'
+      ? { type: 'insufficient_quota', code: 'insufficient_quota' }
+      : statusCode === 400 && category === 'context_length'
+        ? { type: 'invalid_request_error', code: 'context_length_exceeded' }
+        : openaiTypeAndCodeForStatus(statusCode)
+  return {
+    statusCode,
+    errorResponse: {
+      ...details?.body,
+      error: {
+        ...details?.error,
+        message,
+        type: typeof details?.error.type === 'string' ? details.error.type : type,
+        code: typeof details?.error.code === 'string' || details?.error.code === null ? details.error.code : code
+      }
+    }
+  }
 }
 
 /**
@@ -183,9 +312,19 @@ function transformGoogleError(error: unknown): {
   statusCode: number
   errorResponse: { error: { code: number; message: string; status: string } }
 } {
-  const { status, message } = extractError(error)
-  const statusCode = status ?? 500
-  return { statusCode, errorResponse: googleEnvelope(statusCode, safeMessage(status, message)) }
+  const { statusCode, message } = normalizeProviderError(error)
+  const details = detailsOf(error)
+  return {
+    statusCode,
+    errorResponse: {
+      ...details?.body,
+      error: {
+        ...details?.error,
+        ...(typeof details?.error.code === 'string' && { provider_code: details.error.code }),
+        ...googleEnvelope(statusCode, message).error
+      }
+    }
+  }
 }
 
 /**
@@ -210,7 +349,8 @@ export function buildStreamErrorFrame(outputFormat: OutputFormat, error: unknown
     // Responses streams use named events; `type: 'error'` is the event discriminator,
     // distinct from the OpenAI error `type` (carried as part of the message envelope).
     const { message, code } = errorResponse.error
-    return `event: error\ndata: ${JSON.stringify({ type: 'error', code, message })}\n\n`
+    const details = detailsOf(error)
+    return `event: error\ndata: ${JSON.stringify({ ...details?.body, type: 'error', code, message, ...(details && { error: errorResponse.error }) })}\n\n`
   }
   return `data: ${JSON.stringify(errorResponse)}\n\n`
 }
@@ -222,7 +362,9 @@ export function buildStreamErrorFrame(outputFormat: OutputFormat, error: unknown
  */
 export function anthropicErrorHandler({ code, error, status }: GatewayErrorContext) {
   if (code === 'VALIDATION') {
-    return status(400, anthropicEnvelope('invalid_request_error', messageOf(error, 'Invalid request parameters')))
+    const issue = error instanceof ValidationError ? error.all[0] : undefined
+    const message = issue ? `${issue.path}: ${issue.message}` : 'Invalid request parameters'
+    return status(400, anthropicEnvelope('invalid_request_error', message))
   }
   if (code === 'NOT_FOUND') {
     return status(404, anthropicEnvelope('not_found_error', 'Not found'))
@@ -294,7 +436,7 @@ export function googleErrorHandler({ code, error, status }: GatewayErrorContext)
  * Cherry REST error handler — for Cherry's own endpoints (`knowledge-bases`,
  * `models`) and the app-level fallback (`/health`, `/`, unmatched routes). Speaks
  * the same `{ error: { code, message, details? } }` vocabulary as the v2 data
- * layer (`ErrorCode` / `ERROR_STATUS_MAP`), so there is no provider delegate.
+ * layer (`ProtocolErrorCode` / `ERROR_STATUS_MAP`), so there is no provider delegate.
  */
 export function restErrorHandler({ code, error, status }: GatewayErrorContext) {
   if (error instanceof DataApiError) {
@@ -310,6 +452,23 @@ export function restErrorHandler({ code, error, status }: GatewayErrorContext) {
     return status(400, restEnvelope('BAD_REQUEST', 'Malformed request body'))
   }
 
+  // Preserve classified HTTP status from errors that carry it (e.g. idle timeout → 504).
+  const explicitStatus = (error as { status?: number })?.status
+  if (explicitStatus && explicitStatus >= 500 && explicitStatus !== 500) {
+    const statusCode = explicitStatus
+    return status(
+      statusCode,
+      restEnvelope(
+        statusCode >= 503 ? 'SERVICE_UNAVAILABLE' : 'INTERNAL_SERVER_ERROR',
+        isDev
+          ? messageOf(error, `Server error ${statusCode}`)
+          : statusCode === 504
+            ? 'Upstream idle timeout exceeded'
+            : 'Internal server error'
+      )
+    )
+  }
+
   logger.error('API gateway request error', { code, error })
   // Don't leak raw internal error messages to clients in production.
   return status(
@@ -323,16 +482,16 @@ export function restErrorHandler({ code, error, status }: GatewayErrorContext) {
  * client, so a framework-level failure it never reaches the route for — a body Elysia
  * could not parse, an unknown server id — must still arrive as JSON-RPC.
  *
- * `MCP_TRANSPORT_ERROR` for the resource failures: `ErrorCode` names -32000
+ * `MCP_TRANSPORT_ERROR` for the resource failures: `ProtocolErrorCode` names -32000
  * `ConnectionClosed`, which is not what happened, and it is the code both the SDK's
  * transport and this route's 403/405 responders already use for a transport-level refusal.
  */
 function mcpErrorHandler({ code, error, status }: GatewayErrorContext) {
   if (code === 'PARSE') {
-    return status(400, jsonRpcEnvelope(ErrorCode.ParseError, 'Parse error'))
+    return status(400, jsonRpcEnvelope(ProtocolErrorCode.ParseError, 'Parse error'))
   }
   if (code === 'VALIDATION') {
-    return status(400, jsonRpcEnvelope(ErrorCode.InvalidRequest, messageOf(error, 'Invalid Request')))
+    return status(400, jsonRpcEnvelope(ProtocolErrorCode.InvalidRequest, messageOf(error, 'Invalid Request')))
   }
   if (code === 'NOT_FOUND') {
     return status(404, jsonRpcEnvelope(MCP_TRANSPORT_ERROR, 'Not found'))
@@ -344,7 +503,7 @@ function mcpErrorHandler({ code, error, status }: GatewayErrorContext) {
   logger.error('API gateway request error', { code, error })
   return status(
     500,
-    jsonRpcEnvelope(ErrorCode.InternalError, isDev ? messageOf(error, 'Internal error') : 'Internal error')
+    jsonRpcEnvelope(ProtocolErrorCode.InternalError, isDev ? messageOf(error, 'Internal error') : 'Internal error')
   )
 }
 
@@ -377,6 +536,8 @@ export function gatewayErrorHandler(ctx: GatewayErrorContext) {
   if (ctx.code === 'PARSE' && ctx.error.cause instanceof ElysiaCustomStatusResponse) {
     return ctx.error.cause
   }
+  const details = detailsOf(ctx.error)
+  if (details && ctx.set) Object.assign(ctx.set.headers, details.headers)
   switch (dialectForPath(ctx.request)) {
     case 'anthropic':
       return anthropicErrorHandler(ctx)

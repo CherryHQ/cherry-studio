@@ -1,6 +1,8 @@
 import { createOpenAI } from '@ai-sdk/openai'
 import { describe, expect, it } from 'vitest'
 
+import { coerceCodexRequestBody } from '../codex'
+
 /**
  * Guards the sampling-parameter hunk in patches/@ai-sdk__openai@3.0.109.patch.
  * `forceReasoning` exists to make the adapter emit `reasoning` for models its
@@ -57,6 +59,23 @@ async function capture(
 }
 
 describe('patched @ai-sdk/openai sampling parameters', () => {
+  it.each(
+    ['gpt-6.1-sol', 'gpt-6.1-terra'].flatMap((modelId) =>
+      ['low', 'medium', 'high', 'xhigh', 'max'].map((effort) => [modelId, effort])
+    )
+  )('sends %s reasoning effort %s through the Responses and Codex wire', async (modelId, reasoningEffort) => {
+    const { body, warnings } = await capture(modelId, { reasoningEffort, withoutLogprobs: true })
+
+    expect(body.model).toBe(modelId)
+    expect(body.reasoning).toEqual({ effort: reasoningEffort })
+    const codexBody = JSON.parse(coerceCodexRequestBody(JSON.stringify(body)) as string)
+    expect(codexBody.model).toBe(modelId)
+    expect(codexBody.reasoning).toEqual({ effort: reasoningEffort })
+    expect(body.temperature).toBeUndefined()
+    expect(body.top_p).toBeUndefined()
+    expect(warnings).not.toContainEqual(expect.objectContaining({ feature: 'reasoningEffort' }))
+  })
+
   it.each(['qwen3-max', 'doubao-seed-2-1-pro-260628'])('keeps temperature and top_p for %s', async (modelId) => {
     const { body } = await capture(modelId)
 

@@ -2,6 +2,7 @@ import { APICallError, RetryError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
+import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { AgentSessionForkError } from '@main/ai/runtime/fork/checkpoint'
 import { AiStreamAdmissionError } from '@main/ai/streamManager'
@@ -13,23 +14,35 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 const {
   appGetMock,
   agentSessionMessageService,
+  agentSessionService,
   fileEntryService,
   messageService,
   createAgent,
-  createBuiltinSupportSession
+  createBuiltinAssistantSession,
+  createBuiltinSkillSession,
+  createBuiltinSupportSession,
+  openRequestPath
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   agentSessionMessageService: { getSessionMessage: vi.fn() },
+  agentSessionService: { getById: vi.fn() },
   fileEntryService: { findById: vi.fn() },
   messageService: { getById: vi.fn() },
   createAgent: vi.fn(),
-  createBuiltinSupportSession: vi.fn()
+  createBuiltinAssistantSession: vi.fn(),
+  createBuiltinSkillSession: vi.fn(),
+  createBuiltinSupportSession: vi.fn(),
+  openRequestPath: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessageService }))
+vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService }))
 vi.mock('@data/services/FileEntryService', () => ({ fileEntryService }))
 vi.mock('@data/services/MessageService', () => ({ messageService }))
+vi.mock('@main/services/file', () => ({ openRequestPath }))
 vi.mock('@main/ai/agents/createAgent', () => ({ createAgent }))
+vi.mock('@main/ai/agents/createBuiltinAssistantSession', () => ({ createBuiltinAssistantSession }))
+vi.mock('@main/ai/agents/createBuiltinSkillSession', () => ({ createBuiltinSkillSession }))
 vi.mock('@main/ai/agents/createBuiltinSupportSession', () => ({ createBuiltinSupportSession }))
 vi.mock('@main/ai/agents/AgentLifecycleService', () => ({
   AgentSessionArchiveBusyError: class AgentSessionArchiveBusyError extends Error {
@@ -53,7 +66,7 @@ const aiService = {
 }
 
 const aiStreamManager = {
-  dispatch: vi.fn(),
+  dispatchCommand: vi.fn(),
   attach: vi.fn(),
   detach: vi.fn(),
   abort: vi.fn(),
@@ -100,6 +113,7 @@ const windowManager = { getWindow: vi.fn() }
 beforeEach(() => {
   vi.clearAllMocks()
   createAgent.mockImplementation(async (request: object) => ({ id: 'agent-1', ...request }))
+  createBuiltinSkillSession.mockReturnValue({ id: 'skill-session', agentId: 'cherry-assistant' })
   createBuiltinSupportSession.mockReturnValue({ id: 'feedback-session', agentId: 'cherry-support' })
   // The ownership gate's happy path: entries with the tool-output store's fixed attributes.
   fileEntryService.findById.mockReturnValue({
@@ -201,23 +215,6 @@ describe('aiHandlers', () => {
     })
   })
 
-  it('delegates placeholder reuse and duplicate cleanup to the delivery owner', async () => {
-    const response = {
-      session: { id: 'session-retained' },
-      created: false,
-      deletedDuplicateSessionIds: ['session-duplicate']
-    }
-    agentLifecycleService.reuseOrCreateSession.mockResolvedValue(response)
-
-    await expect(
-      aiHandlers['ai.agent.session.reuse_or_create']({ agentId: 'agent-1', workspace: { type: 'system' } }, ctx)
-    ).resolves.toBe(response)
-    expect(agentLifecycleService.reuseOrCreateSession).toHaveBeenCalledWith({
-      agentId: 'agent-1',
-      workspace: { type: 'system' }
-    })
-  })
-
   it('delegates mixed-effect Agent deletion to the delivery owner', async () => {
     agentLifecycleService.archiveAgent.mockResolvedValue({ deleted: true, deletedSessionIds: ['session-1'] })
 
@@ -246,11 +243,21 @@ describe('aiHandlers', () => {
     expect(agentLifecycleService.deleteWorkspace).toHaveBeenCalledWith('workspace-1')
   })
 
-  it('delegates Support-session creation and returns its id', async () => {
-    const result = await aiHandlers['ai.agent.support_session.create'](undefined, ctx)
+  it('reports a missing workspace as a branchable Assistant-session error', async () => {
+    createBuiltinAssistantSession.mockImplementation(() => {
+      throw DataApiErrorFactory.notFound('Workspace', 'gone')
+    })
 
-    expect(createBuiltinSupportSession).toHaveBeenCalledTimes(1)
-    expect(result).toEqual({ sessionId: 'feedback-session' })
+    await expect(
+      aiHandlers['ai.agent.assistant_session.create']({ workspace: { type: 'user', workspaceId: 'gone' } }, ctx)
+    ).rejects.toMatchObject({ code: aiErrorCodes.AI_AGENT_WORKSPACE_NOT_FOUND })
+  })
+
+  it('delegates Skill-session creation with the selected Skill and returns its id', async () => {
+    const result = await aiHandlers['ai.agent.skill_session.create']({ skillId: 'skill-1' }, ctx)
+
+    expect(createBuiltinSkillSession).toHaveBeenCalledExactlyOnceWith('skill-1')
+    expect(result).toEqual({ sessionId: 'skill-session' })
   })
 
   it('generate_text forwards the request and returns the AiService result', async () => {
@@ -285,22 +292,6 @@ describe('aiHandlers', () => {
     expect(result).toBe(out)
   })
 
-  it('check_model forwards the request and returns latency', async () => {
-    aiService.checkModel.mockResolvedValue({ latency: 42 })
-    const request = { uniqueModelId: 'openai::gpt-4o', apiKeyOverride: 'sk-selected', timeout: 5000 } as const
-    const result = await aiHandlers['ai.provider.model.check'](request, ctx)
-    expect(aiService.checkModel).toHaveBeenCalledWith(request)
-    expect(result).toEqual({ latency: 42 })
-  })
-
-  it('embed_many forwards the request and returns embeddings', async () => {
-    const out = { embeddings: [[0, 1]] }
-    aiService.embedMany.mockResolvedValue(out)
-    const result = await aiHandlers['ai.embedding.embed_many']({ uniqueModelId: 'openai::e', values: ['a'] }, ctx)
-    expect(aiService.embedMany).toHaveBeenCalledWith({ uniqueModelId: 'openai::e', values: ['a'] })
-    expect(result).toBe(out)
-  })
-
   it('generate_image unwraps { requestId, payload } into runImageRequest', async () => {
     const payload = {
       uniqueModelId: 'openai::img' as const,
@@ -327,14 +318,6 @@ describe('aiHandlers', () => {
     const result = await aiHandlers['ai.text.abort']({ requestId: 'r1' }, ctx)
     expect(aiService.abortRequest).toHaveBeenCalledWith('r1')
     expect(result).toBeUndefined()
-  })
-
-  it('list_models forwards the request and returns the models', async () => {
-    const models = [{ id: 'openai::gpt-4o' }]
-    aiService.listModels.mockResolvedValue(models)
-    const result = await aiHandlers['ai.provider.model.list']({ providerId: 'openai', throwOnError: true }, ctx)
-    expect(aiService.listModels).toHaveBeenCalledWith({ providerId: 'openai', throwOnError: true })
-    expect(result).toBe(models)
   })
 
   // The point of the migration: a provider failure is re-thrown as an AI_REQUEST_FAILED
@@ -426,29 +409,70 @@ describe('aiHandlers', () => {
 })
 
 describe('aiHandlers — streaming', () => {
-  it('stream_open resolves the sender WebContents and dispatches to AiStreamManager', async () => {
-    const req = { trigger: 'submit-message', topicId: 't', userMessageParts: [] } as never
-    aiStreamManager.dispatch.mockResolvedValue({ mode: 'started' })
+  it('reports an unsupported edit checkpoint as an edit failure while preserving other fork failures', async () => {
+    const input = {
+      sessionId: 'session-1',
+      target: { messageId: 'user-1', version: 'version-1' },
+      userMessageParts: [{ type: 'text', text: 'Replacement' }]
+    } as never
 
-    const result = await aiHandlers['ai.stream.open'](req, { senderId: 'w1' })
+    aiStreamManager.dispatchCommand.mockRejectedValueOnce(new AgentSessionForkError('unsupported_checkpoint'))
+    await expect(aiHandlers['ai.agent.session.edit_resend'](input, ctx)).rejects.toMatchObject({
+      code: aiErrorCodes.AI_AGENT_SESSION_EDIT_FAILED,
+      data: { reason: 'checkpoint_unsupported' }
+    })
 
-    expect(windowManager.getWindow).toHaveBeenCalledWith('w1')
-    expect(aiStreamManager.dispatch).toHaveBeenCalledTimes(1)
-    // Second arg is the parsed request; first is the freshly built WebContentsListener.
-    expect(aiStreamManager.dispatch.mock.calls[0][1]).toBe(req)
+    aiStreamManager.dispatchCommand.mockRejectedValueOnce(new AgentSessionForkError('workspace_changed'))
+    await expect(aiHandlers['ai.agent.session.edit_resend'](input, ctx)).rejects.toMatchObject({
+      code: aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED,
+      data: { reason: 'workspace_changed' }
+    })
+  })
+
+  it.each([
+    {
+      route: 'ai.stream.open',
+      input: { trigger: 'submit-message', topicId: 't', userMessageParts: [] },
+      command: { trigger: 'submit-message', topicId: 't', userMessageParts: [] }
+    },
+    {
+      route: 'ai.agent.session.edit_resend',
+      input: {
+        sessionId: 'session-1',
+        target: { messageId: 'user-1', version: 'version-1' },
+        userMessageParts: [{ type: 'text', text: 'Replacement' }]
+      },
+      command: {
+        trigger: 'edit-agent-message',
+        topicId: 'agent-session:session-1',
+        editTarget: { messageId: 'user-1', version: 'version-1' },
+        userMessageParts: [{ type: 'text', text: 'Replacement' }]
+      }
+    }
+  ] as const)('$route binds interaction requests to the managed sender window', async ({ route, input, command }) => {
+    aiStreamManager.dispatchCommand.mockResolvedValue({ mode: 'started' })
+
+    const result = await aiHandlers[route](input as never, { senderId: 'w1' })
+
+    expect(aiStreamManager.dispatchCommand.mock.calls.map(([request]) => request)).toEqual([
+      { ...command, interactionWindowId: 'w1' }
+    ])
     expect(result).toEqual({ mode: 'started' })
   })
 
-  it('stream_open throws when the sender is not a managed window', async () => {
-    windowManager.getWindow.mockReturnValue(undefined)
-    await expect(aiHandlers['ai.stream.open']({ topicId: 't' } as never, { senderId: null })).rejects.toThrow(
-      'requires a managed window'
-    )
-    expect(aiStreamManager.dispatch).not.toHaveBeenCalled()
-  })
+  it.each(['ai.stream.open', 'ai.agent.session.edit_resend'] as const)(
+    '%s rejects input from an unmanaged sender window',
+    async (route) => {
+      windowManager.getWindow.mockReturnValue(undefined)
+      await expect(
+        aiHandlers[route]({ topicId: 't', sessionId: 'session-1' } as never, { senderId: null })
+      ).rejects.toThrow('requires a managed window')
+      expect(aiStreamManager.dispatchCommand).not.toHaveBeenCalled()
+    }
+  )
 
   it('stream_open exposes a branchable admission reason without leaking a hardcoded message', async () => {
-    aiStreamManager.dispatch.mockRejectedValue(
+    aiStreamManager.dispatchCommand.mockRejectedValue(
       new AiStreamAdmissionError(aiStreamAdmissionReasons.MODEL_ALREADY_IN_LIVE_GROUP)
     )
 
@@ -669,6 +693,30 @@ describe('aiHandlers — agent sessions & tasks', () => {
     expect(claudeCodeWarmQueryManager.closeAgentSessionWarm).not.toHaveBeenCalled()
   })
 
+  // Relative paths reported by a session's tools are resolved against that session's workspace,
+  // and only main knows it — the renderer sends the path text verbatim.
+  it('open_path resolves the raw path against the session workspace', async () => {
+    agentSessionService.getById.mockReturnValue({ workspace: { path: '/home/alice/project' } })
+
+    await aiHandlers['ai.agent.session.open_path']({ sessionId: 's1', path: 'assets/logo.png' }, ctx)
+
+    expect(openRequestPath).toHaveBeenCalledExactlyOnceWith('assets/logo.png', '/home/alice/project', {
+      channel: 'ai.agent.session.open_path'
+    })
+  })
+
+  // A workspace row that is not an absolute path must not steer resolution; the caller's own
+  // absolute path still opens, and a relative one fails rather than resolving against the cwd.
+  it('open_path drops a workspace path that is not absolute', async () => {
+    agentSessionService.getById.mockReturnValue({ workspace: { path: 'project' } })
+
+    await aiHandlers['ai.agent.session.open_path']({ sessionId: 's1', path: '/opt/out.png' }, ctx)
+
+    expect(openRequestPath).toHaveBeenCalledExactlyOnceWith('/opt/out.png', undefined, {
+      channel: 'ai.agent.session.open_path'
+    })
+  })
+
   it('respond_tool_approval delegates to AiService with the resolved sender WebContents', async () => {
     aiService.respondToolApproval.mockResolvedValue({ ok: true })
     const payload = { approvalId: 'a1', approved: true }
@@ -811,5 +859,17 @@ describe('aiHandlers — agent task commands', () => {
     const error = await aiHandlers['ai.agent.task.run']({ agentId: 'agent-1', taskId: 'gone' }, ctx).catch((e) => e)
     expect(error).toBeInstanceOf(IpcError)
     expect(error.code).toBe(aiErrorCodes.AI_AGENT_TASK_NOT_FOUND)
+  })
+})
+
+describe('aiHandlers — temporary topics', () => {
+  it('releases a leased temporary topic on delete', async () => {
+    const topic = await aiHandlers['ai.temporary_topic.create']({ name: 'Quick question' }, ctx)
+    expect(temporaryChatService.hasTopic(topic.id)).toBe(true)
+
+    await aiHandlers['ai.temporary_topic.delete']({ id: topic.id }, ctx)
+
+    expect(temporaryChatService.hasTopic(topic.id)).toBe(false)
+    await expect(aiHandlers['ai.temporary_topic.persist']({ id: topic.id }, ctx)).rejects.toThrow(/not found/i)
   })
 })

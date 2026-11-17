@@ -1,6 +1,4 @@
-import { getProviderLabelKey } from '@renderer/i18n/label'
-import i18n from '@renderer/i18n/resolver'
-import { isSystemProvider, type Provider } from '@renderer/types/provider'
+import { matchesSearchText } from '@renderer/utils/pinyin'
 
 /**
  * 判断一个字符串是否包含由另一个字符串表示的 keywords
@@ -23,7 +21,7 @@ export function includeKeywords(target: string, keywords: string | string[]): bo
   if (!target || typeof target !== 'string') return false
   const targetLower = target.toLowerCase()
 
-  return nonEmptyKeywords.every((keyword) => targetLower.includes(keyword.toLowerCase()))
+  return nonEmptyKeywords.every((keyword) => matchesSearchText(targetLower, keyword))
 }
 
 /**
@@ -35,25 +33,4 @@ export function includeKeywords(target: string, keywords: string | string[]): bo
  */
 export function matchKeywordsInString(keywords: string | string[], value: string): boolean {
   return includeKeywords(value, keywords)
-}
-
-/**
- * 检查 Provider 是否匹配所有关键词
- * @param keywords 关键词字符串（空格分隔）或关键词数组
- * @param provider 被搜索的 Provider 对象
- * @returns 匹配所有关键词则返回 true
- */
-export function matchKeywordsInProvider(keywords: string | string[], provider: Provider): boolean {
-  return includeKeywords(getProviderSearchString(provider), keywords)
-}
-
-/**
- * 获取 Provider 的搜索字符串，它和 getFancyProviderName 不同
- * @param provider Provider 对象
- * @returns 搜索字符串
- */
-function getProviderSearchString(provider: Provider) {
-  return isSystemProvider(provider)
-    ? `${i18n.t(getProviderLabelKey(provider.id))} ${provider.id} ${provider.name}`
-    : `${provider.id} ${provider.name}`
 }

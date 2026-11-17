@@ -1,10 +1,12 @@
-import mime from 'mime-types'
+import mime from 'mime'
 
 import { ipcApi } from '@renderer/ipc'
 import { FILE_TYPE, type FileMetadata, type FileType } from '@renderer/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { GB, KB, MB } from '@shared/utils/constants'
 import { audioExts, createFilePathHandle, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
+
+/** Wildcard entry accepting every extension, matching the file dialog's all-files filter. */
+export const anyFileExt = '*'
 
 /**
  * 从文件路径中提取目录路径。
@@ -31,37 +33,32 @@ export function getFileExtension(filePath: string): string {
 }
 
 /**
- * 从文件路径中移除文件扩展名。
+ * 从文件路径中移除文件扩展名。前导点是隐藏文件名（`.env`）而非扩展名，
+ * 目录名里也可能带点（`/srv/app.d/file`），故只按基名的最后一个点判断。
+ *
  * @param {string} filePath 文件路径
  * @returns {string} 移除扩展名后的文件路径
  */
 export function removeFileExtension(filePath: string): string {
-  const parts = filePath.split('.')
-  if (parts.length > 1) {
-    return parts.slice(0, -1).join('.')
-  }
-  return filePath
+  const separatorIndex = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
+  const baseName = separatorIndex === -1 ? filePath : filePath.slice(separatorIndex + 1)
+  const dotIndex = baseName.lastIndexOf('.')
+  if (dotIndex <= 0) return filePath
+  return filePath.slice(0, filePath.length - (baseName.length - dotIndex))
 }
 
-/**
- * 格式化文件大小，根据大小返回以 MB 或 KB 为单位的字符串。
- * @param {number} size 文件大小（字节）
- * @returns {string} 格式化后的文件大小字符串
- */
-export function formatFileSize(size: number): string {
-  if (size >= GB) {
-    return (size / GB).toFixed(1) + ' GB'
-  }
+export function formatFileSize(bytes: number | null | undefined): string {
+  if (bytes === null || bytes === undefined || !Number.isFinite(bytes)) return '—'
+  if (bytes < 1024) return `${bytes} B`
 
-  if (size >= MB) {
-    return (size / MB).toFixed(1) + ' MB'
+  const units = ['KB', 'MB', 'GB', 'TB'] as const
+  let value = bytes / 1024
+  let unitIndex = 0
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024
+    unitIndex += 1
   }
-
-  if (size >= KB) {
-    return (size / KB).toFixed(0) + ' KB'
-  }
-
-  return (size / KB).toFixed(2) + ' KB'
+  return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`
 }
 
 /**
@@ -79,17 +76,31 @@ export function removeSpecialCharactersForFileName(str: string): string {
 }
 
 /**
+ * 判断扩展名是否被允许列表接受，遵守 anyFileExt 通配符。
+ *
+ * 所有对能力列表的接受判断都必须走这里：直接用 `supportExts.includes(ext)` 会悄悄
+ * 恢复通配符已经解除的格式过滤（剪贴板图片粘贴就是这样被拒的）。
+ * @param {string} ext 待判断的扩展名（含点号）
+ * @param {readonly string[]} supportExts 支持的文件扩展名列表
+ * @returns {boolean} 被接受返回true，否则返回false
+ */
+export function isSupportedExtension(ext: string, supportExts: readonly string[]): boolean {
+  return supportExts.includes(anyFileExt) || supportExts.includes(ext)
+}
+
+/**
  * 检查文件是否为支持的类型。
  * 支持的文件类型包括:
- * 1. 文件扩展名在supportExts集合中的文件
- * 2. 文本文件
+ * 1. supportExts 含有通配符 anyFileExt（不做任何过滤）
+ * 2. 文件扩展名在supportExts集合中的文件
+ * 3. 文本文件
  * @param {string} filePath 文件路径
  * @param {Set<string>} supportExts 支持的文件扩展名集合
  * @returns {Promise<boolean>} 如果文件类型受支持返回true，否则返回false
  */
 export async function isSupportedFile(filePath: string, supportExts: Set<string>): Promise<boolean> {
   try {
-    if (supportExts.has(getFileExtension(filePath))) {
+    if (supportExts.has(anyFileExt) || supportExts.has(getFileExtension(filePath))) {
       return true
     }
 
@@ -122,7 +133,7 @@ export async function filterSupportedFiles(files: FileMetadata[], supportExts: s
 
 export const mime2type = (mimeStr: string): FileType => {
   const mimeType = mimeStr.toLowerCase()
-  const ext = mime.extension(mimeType)
+  const ext = mime.getExtension(mimeType)
   if (ext) {
     if (textExts.includes(ext)) {
       return FILE_TYPE.TEXT

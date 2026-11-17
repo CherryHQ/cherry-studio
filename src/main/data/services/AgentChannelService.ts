@@ -12,6 +12,7 @@ import {
 import type { DbOrTx } from '@data/db/types'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { t } from '@main/i18n'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import {
   ActiveAgentChannelConfigSchemasByType,
@@ -82,7 +83,6 @@ export class AgentChannelService {
           permissionMode?: AgentPermissionMode | null
         }
   ): AgentChannelEntity {
-    const database = application.get('DbService').getDb()
     const isActive = data.isActive ?? true
 
     const insertData: InsertChannelRow = {
@@ -95,7 +95,10 @@ export class AgentChannelService {
       permissionMode: data.permissionMode
     }
 
-    const result = database.insert(channelsTable).values(insertData).returning().all()
+    const result = application.get('DbService').withWriteTx((tx) => {
+      this.validateStreamBot(tx, data.type, insertData.config, isActive)
+      return tx.insert(channelsTable).values(insertData).returning().all()
+    })
 
     if (!result[0]) {
       throw DataApiErrorFactory.invalidOperation('create channel', 'database insert returned no row')
@@ -230,9 +233,11 @@ export class AgentChannelService {
     updates: Partial<
       Pick<ChannelRow, 'name' | 'agentId' | 'config' | 'isActive' | 'activeChatIds' | 'permissionMode'> & {
         workspace: AgentSessionWorkspaceSource
+        configPatch: Record<string, unknown>
       }
     >
   ): AgentChannelEntity | null {
+    const { configPatch, ...fields } = updates
     const result = application.get('DbService').withWriteTx((tx) => {
       const existing = tx.select().from(channelsTable).where(eq(channelsTable.id, id)).limit(1).all()[0]
       if (!existing) return null
@@ -240,12 +245,19 @@ export class AgentChannelService {
       const isActive = updates.isActive ?? existing.isActive
       const config = validateChannelConfig(
         existing.type,
-        updates.config !== undefined ? updates.config : existing.config,
+        configPatch !== undefined
+          ? { ...normalizeChannelConfig(existing.config), ...configPatch }
+          : updates.config !== undefined
+            ? updates.config
+            : existing.config,
         isActive
       )
+      this.validateStreamBot(tx, existing.type, config, isActive, id)
       const normalizedUpdates = {
-        ...updates,
-        ...(updates.config !== undefined || updates.isActive !== undefined ? { config } : {})
+        ...fields,
+        ...(configPatch !== undefined || updates.config !== undefined || updates.isActive !== undefined
+          ? { config }
+          : {})
       }
       const updated = tx
         .update(channelsTable)
@@ -276,8 +288,26 @@ export class AgentChannelService {
     return result.length > 0
   }
 
+  private validateStreamBot(tx: DbOrTx, type: AgentChannelType, config: unknown, active: boolean, id?: string): void {
+    if ((type !== 'wecom' && type !== 'dingtalk') || !active) return
+    const key = type === 'wecom' ? 'bot_id' : 'client_id'
+    const botId = (config as Record<string, string>)[key]
+    const conflict = tx
+      .select()
+      .from(channelsTable)
+      .where(and(eq(channelsTable.type, type), eq(channelsTable.isActive, true)))
+      .all()
+      .some((row) => row.id !== id && (row.config as Record<string, string>)[key]?.trim() === botId)
+    if (conflict)
+      throw DataApiErrorFactory.invalidOperation(
+        'activate channel',
+        type === 'wecom' ? t('common.wecom_duplicate_bot') : t('common.dingtalk_duplicate_bot')
+      )
+  }
+
   private notifyReadModelChange(id: string, kind: 'membership' | 'projection'): void {
     notifyDataApiDataChange([
+      { endpoint: '/agent-workspaces', kind: 'membership' },
       { endpoint: '/agent-channels', kind, entityIds: [id] },
       { endpoint: '/agent-channels/:channelId', routeParams: { channelId: id }, entityIds: [id] }
     ])

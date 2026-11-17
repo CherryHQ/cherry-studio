@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React, { useEffect, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createUnifiedQuickPanelOpenOptions } from '@renderer/components/composer/quickPanel'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import {
@@ -231,5 +232,42 @@ describe('KnowledgeBaseToolRuntime QuickPanel integration', () => {
     await waitFor(() => {
       expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible')
     })
+  })
+
+  it('selects a knowledge base through the unified root panel', async () => {
+    let quickPanel: QuickPanelContextType | undefined
+    const input = createInputAdapter()
+    const onSelect = vi.fn()
+    let registeredLauncher: Parameters<ToolLauncherApi['registerLaunchers']>[0][number] | undefined
+    const launcher: ToolLauncherApi = {
+      registerLaunchers: vi.fn((entries) => {
+        registeredLauncher = entries[0]
+        return vi.fn()
+      })
+    }
+
+    render(
+      <QuickPanelProvider>
+        <ControlledKnowledgeBaseRuntime launcher={launcher} onSelect={onSelect} />
+        <QuickPanelBridge inputAdapter={input.adapter} onContext={(context) => (quickPanel = context)} />
+      </QuickPanelProvider>
+    )
+
+    await waitFor(() => expect(registeredLauncher).toBeDefined())
+    await waitFor(() => expect(quickPanel).toBeDefined())
+
+    act(() => {
+      quickPanel!.open(
+        createUnifiedQuickPanelOpenOptions([registeredLauncher!], {
+          inputAdapter: input.adapter,
+          quickPanel: quickPanel!,
+          initialSearchText: 'Knowledge One'
+        })
+      )
+    })
+
+    fireEvent.click(await screen.findByText('Knowledge One'))
+
+    await waitFor(() => expect(onSelect).toHaveBeenCalledWith([mocks.knowledgeBases[0]]))
   })
 })

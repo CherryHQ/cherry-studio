@@ -1,4 +1,4 @@
-import { trace } from '@opentelemetry/api'
+import { ROOT_CONTEXT, TraceFlags, trace } from '@opentelemetry/api'
 import type { TelemetrySettings } from 'ai'
 
 import { application } from '@application'
@@ -12,17 +12,25 @@ import type { RequestScope } from './scope'
  * attribute spans to.
  */
 export function buildTelemetry(scope: RequestScope): TelemetrySettings | undefined {
-  const topicId = scope.requestContext.topicId
+  const topicId = scope.traceContext?.topicId ?? scope.requestContext.topicId
   if (!topicId) return undefined
   const developerModeEnabled = application.get('PreferenceService').get('app.developer_mode.enabled')
   if (!developerModeEnabled) return undefined
 
+  const parentContext = scope.traceContext
+    ? trace.setSpanContext(ROOT_CONTEXT, {
+        traceId: scope.traceContext.traceId,
+        spanId: scope.traceContext.rootSpanId,
+        traceFlags: TraceFlags.SAMPLED,
+        isRemote: true
+      })
+    : undefined
   const modelName = scope.model.name ?? scope.model.id
   return {
     isEnabled: true,
     recordInputs: true,
     recordOutputs: true,
-    tracer: new AdapterTracer(trace.getTracer(TRACER_NAME), topicId, modelName),
+    tracer: new AdapterTracer(trace.getTracer(TRACER_NAME), topicId, modelName, parentContext),
     functionId: `ai-request-${scope.requestContext.requestId}`,
     metadata: {
       providerId: String(scope.sdkConfig.providerId),

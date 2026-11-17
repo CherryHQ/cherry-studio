@@ -4,15 +4,19 @@ import { application } from '@application'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { defaultLanguage } from '@shared/utils/languages'
 
+import csCZ from './locales/cs-cz.json'
 import deDE from './locales/de-de.json'
 import elGR from './locales/el-gr.json'
 import EnUs from './locales/en-us.json'
 import esES from './locales/es-es.json'
 import frFR from './locales/fr-fr.json'
+import itIT from './locales/it-it.json'
 import JaJP from './locales/ja-jp.json'
+import plPL from './locales/pl-pl.json'
 import ptPT from './locales/pt-pt.json'
 import roRO from './locales/ro-ro.json'
 import RuRu from './locales/ru-ru.json'
+import ThTH from './locales/th-th.json'
 import trTR from './locales/tr-tr.json'
 import viVN from './locales/vi-vn.json'
 import ZhCn from './locales/zh-cn.json'
@@ -25,19 +29,39 @@ const locales = Object.fromEntries(
     ['zh-TW', ZhTw],
     ['ja-JP', JaJP],
     ['ru-RU', RuRu],
+    ['cs-CZ', csCZ],
     ['de-DE', deDE],
     ['el-GR', elGR],
     ['es-ES', esES],
     ['fr-FR', frFR],
+    ['pl-PL', plPL],
     ['pt-PT', ptPT],
     ['ro-RO', roRO],
+    ['th-TH', ThTH],
     ['vi-VN', viVN],
-    ['tr-TR', trTR]
+    ['tr-TR', trTR],
+    ['it-IT', itIT]
   ].map(([locale, translation]) => [locale, { translation }])
 )
 
 /** Every language main carries a catalog for — the source of truth other modules should key off of. */
 export const SUPPORTED_LANGUAGES = Object.keys(locales) as LanguageVarious[]
+
+export const resolveSystemLanguage = (locale: string): LanguageVarious => {
+  const normalizedLocale = locale.toLowerCase()
+  const exactMatch = SUPPORTED_LANGUAGES.find((supported) => supported.toLowerCase() === normalizedLocale)
+  if (exactMatch) return exactMatch
+
+  const language = normalizedLocale.split('-')[0]
+  if (language === 'zh') {
+    try {
+      return new Intl.Locale(locale).maximize().script === 'Hant' ? 'zh-TW' : 'zh-CN'
+    } catch {
+      return 'zh-CN'
+    }
+  }
+  return SUPPORTED_LANGUAGES.find((supported) => supported.toLowerCase().split('-')[0] === language) ?? defaultLanguage
+}
 
 export const getAppLanguage = (): LanguageVarious => {
   const language = application.get('PreferenceService').get('app.language')
@@ -47,7 +71,7 @@ export const getAppLanguage = (): LanguageVarious => {
     return language
   }
 
-  return (Object.keys(locales).includes(appLocale) ? appLocale : defaultLanguage) as LanguageVarious
+  return resolveSystemLanguage(appLocale)
 }
 
 /**

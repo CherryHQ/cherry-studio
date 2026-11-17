@@ -1,0 +1,35 @@
+name: CI Performance
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      # Read trusted default-branch code; never execute the measured PR's checkout.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - name: Collect completed CI timings
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/validation/collectMetrics.mjs
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ci-metrics-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}
+          path: .context/ci-metrics/
+          include-hidden-files: true
+          retention-days: 30

@@ -484,7 +484,11 @@ export class TopicService {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) =>
       options.permanent === true
-        ? this.purgeManyByIdsTx(tx, ids, { requireAll: true, targetState: options.targetState })
+        ? this.purgeManyByIdsTx(tx, ids, {
+            requireAll: true,
+            targetState: options.targetState,
+            ...(options.targetState === 'active' ? { protectPinned: true } : {})
+          })
         : this.trashManyByIdsTx(tx, ids, { requireAll: true })
     )
     this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
@@ -535,22 +539,25 @@ export class TopicService {
   private purgeManyByIdsTx(
     tx: DbOrTx,
     ids: string[],
-    options: { requireAll?: boolean; targetState?: 'active' | 'trashed' } = {}
+    options: { requireAll?: boolean; targetState?: 'active' | 'trashed'; protectPinned?: boolean } = {}
   ): string[] {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return []
 
-    const rows = tx
-      .select({ id: topicTable.id })
-      .from(topicTable)
-      .where(
-        and(
-          inArray(topicTable.id, uniqueIds),
-          options.targetState === 'active' ? isNull(topicTable.deletedAt) : isNotNull(topicTable.deletedAt)
+    const deletedIds: string[] = []
+    for (let i = 0; i < uniqueIds.length; i += SQLITE_INARRAY_CHUNK) {
+      const rows = tx
+        .select({ id: topicTable.id })
+        .from(topicTable)
+        .where(
+          and(
+            inArray(topicTable.id, uniqueIds.slice(i, i + SQLITE_INARRAY_CHUNK)),
+            options.targetState === 'active' ? isNull(topicTable.deletedAt) : isNotNull(topicTable.deletedAt)
+          )
         )
-      )
-      .all()
-    const deletedIds = rows.map((row) => row.id)
+        .all()
+      deletedIds.push(...rows.map((row) => row.id))
+    }
 
     if (options.requireAll && deletedIds.length !== uniqueIds.length) {
       const foundIds = new Set(deletedIds)
@@ -559,11 +566,34 @@ export class TopicService {
     }
     if (deletedIds.length === 0) return []
 
+    if (options.protectPinned) {
+      const pinnedIds: string[] = []
+      for (let i = 0; i < deletedIds.length; i += SQLITE_INARRAY_CHUNK) {
+        const rows = tx
+          .select({ entityId: pinTable.entityId })
+          .from(pinTable)
+          .where(
+            and(
+              eq(pinTable.entityType, 'topic'),
+              inArray(pinTable.entityId, deletedIds.slice(i, i + SQLITE_INARRAY_CHUNK))
+            )
+          )
+          .all()
+        pinnedIds.push(...rows.map((row) => row.entityId))
+      }
+      if (pinnedIds.length > 0) {
+        throw DataApiErrorFactory.invalidOperation('delete pinned topic', pinnedIds.sort().join(','))
+      }
+    }
+
     const messageService = getDataService('MessageService')
-    messageService.purgeByTopicIdsTx(tx, deletedIds)
-    tagService.purgeForEntitiesTx(tx, 'topic', deletedIds)
-    pinService.purgeForEntitiesTx(tx, 'topic', deletedIds)
-    tx.delete(topicTable).where(inArray(topicTable.id, deletedIds)).run()
+    for (let i = 0; i < deletedIds.length; i += SQLITE_INARRAY_CHUNK) {
+      const chunk = deletedIds.slice(i, i + SQLITE_INARRAY_CHUNK)
+      messageService.purgeByTopicIdsTx(tx, chunk)
+      tagService.purgeForEntitiesTx(tx, 'topic', chunk)
+      pinService.purgeForEntitiesTx(tx, 'topic', chunk)
+      tx.delete(topicTable).where(inArray(topicTable.id, chunk)).run()
+    }
 
     return deletedIds
   }

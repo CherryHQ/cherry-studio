@@ -415,10 +415,23 @@ async function assertWebReady(url: string): Promise<void> {
   const readyUrl = new URL(url)
   const response = await fetch(readyUrl.toString(), { redirect: 'manual', signal: AbortSignal.timeout(5000) })
   await response.body?.cancel()
+  // RFC 9110 section 10.2.2 allows a relative Location reference; dsh >= 0.1.7-rc.2 emits "./"
+  // for the root request. Resolve the header instead of comparing it verbatim (#21132).
   const exchangedToken =
-    readyUrl.searchParams.has('token') && response.status === 303 && response.headers.get('location') === '/'
+    readyUrl.searchParams.has('token') &&
+    response.status === 303 &&
+    resolvesTo(response.headers.get('location'), readyUrl, '/')
   if (response.status !== 200 && !exchangedToken) {
     throw new Error(`DeepSeek Harness Web UI returned HTTP ${response.status}`)
+  }
+}
+
+function resolvesTo(location: string | null, baseUrl: URL, target: string): boolean {
+  if (!location) return false
+  try {
+    return new URL(location, baseUrl).href === new URL(target, baseUrl).href
+  } catch {
+    return false
   }
 }
 

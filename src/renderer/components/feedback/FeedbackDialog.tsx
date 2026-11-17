@@ -1,9 +1,8 @@
-import { Bot, ChevronRight, FileArchive, Github } from 'lucide-react'
+import { Bot, ChevronRight, FileArchive, Github, Mail } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
-  Badge,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -20,11 +19,11 @@ import { loggerService } from '@logger'
 import { DoctorPopup } from '@renderer/components/doctor'
 import { ipcApi } from '@renderer/ipc'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
-import { POPUP_EXIT_MS } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
 
 export const FEEDBACK_GITHUB_URL = 'https://github.com/CherryHQ/cherry-studio/issues/new/choose'
+const FEEDBACK_EMAIL = 'support@cherry-ai.com'
 
 const logger = loggerService.withContext('FeedbackDialog')
 
@@ -40,14 +39,11 @@ interface FeedbackDialogProps {
 interface FeedbackOptionProps {
   description: string
   icon: ReactNode
-  recommended?: boolean
   title: string
   onSelect: () => void | Promise<void>
 }
 
-function FeedbackOption({ description, icon, recommended = false, title, onSelect }: FeedbackOptionProps) {
-  const { t } = useTranslation()
-
+function FeedbackOption({ description, icon, title, onSelect }: FeedbackOptionProps) {
   return (
     <Item asChild size="sm" variant="outline" className="w-full cursor-pointer rounded-xl hover:bg-accent/50">
       <button type="button" onClick={() => void onSelect()}>
@@ -57,14 +53,7 @@ function FeedbackOption({ description, icon, recommended = false, title, onSelec
           {icon}
         </ItemMedia>
         <ItemContent className="min-w-0 text-left">
-          <ItemTitle>
-            {title}
-            {recommended ? (
-              <Badge className="border-primary/20 bg-primary/10 text-primary">
-                {t('settings.about.feedback.recommended')}
-              </Badge>
-            ) : null}
-          </ItemTitle>
+          <ItemTitle>{title}</ItemTitle>
           <ItemDescription className="line-clamp-none">{description}</ItemDescription>
         </ItemContent>
         <ItemActions>
@@ -78,13 +67,13 @@ function FeedbackOption({ description, icon, recommended = false, title, onSelec
 export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
   const { t } = useTranslation()
 
-  const selectOption = (action: () => void | Promise<void>, delay = 0) => {
+  const selectOption = (action: () => void | Promise<void>) => {
     onOpenChange(false)
     window.setTimeout(() => {
       void Promise.resolve()
         .then(action)
         .catch((error) => logger.error('Failed to run deferred feedback action', error as Error))
-    }, delay)
+    }, 0)
   }
 
   const openAgentFeedback = async () => {
@@ -106,20 +95,33 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
     }
   }
 
+  const openEmailFeedback = async () => {
+    const { version } = await ipcApi.request('app.get_info')
+    const platform = window.electron.process.platform
+    const url = `mailto:${FEEDBACK_EMAIL}?subject=Cherry Studio Feedback&body=%0A%0AVersion: ${version} | Platform: ${platform}`
+    await openExternalWebsite(url)
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="lg" aria-describedby={undefined}>
+      <DialogContent
+        size="lg"
+        aria-describedby={undefined}
+        className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)]">
         <DialogHeader>
           <DialogTitle>{t('settings.about.feedback.dialog.title')}</DialogTitle>
         </DialogHeader>
 
-        <ItemGroup className="gap-3 px-2">
+        <ItemGroup className="min-h-0 gap-3 overflow-y-auto px-2">
           <FeedbackOption
             icon={<FileArchive className="size-5" />}
             title={t('settings.about.feedback.diagnostics.title')}
             description={t('settings.about.feedback.diagnostics.description')}
-            recommended
-            onSelect={() => selectOption(() => void DoctorPopup.show({ initialPanel: 'report' }), POPUP_EXIT_MS)}
+            onSelect={() =>
+              selectOption(async () => {
+                await DoctorPopup.show({ initialPanel: 'report' })
+              })
+            }
           />
           <FeedbackOption
             icon={<Bot className="size-5" />}
@@ -132,6 +134,12 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
             title={t('settings.about.feedback.github.title')}
             description={t('settings.about.feedback.github.description')}
             onSelect={() => selectOption(openGitHubIssue)}
+          />
+          <FeedbackOption
+            icon={<Mail className="size-5" />}
+            title={t('settings.about.contact.title')}
+            description={FEEDBACK_EMAIL}
+            onSelect={() => selectOption(openEmailFeedback)}
           />
         </ItemGroup>
       </DialogContent>

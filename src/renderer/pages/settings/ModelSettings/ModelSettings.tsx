@@ -1,15 +1,14 @@
 import { ArrowRight, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2 } from 'lucide-react'
 import type { FC, ReactNode, Ref } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, InfoTooltip, PageSidePanel, Tooltip } from '@cherrystudio/ui'
+import { Button, PageSidePanel, Tooltip, HelpTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
 import {
   SettingContainer,
-  SettingDescription,
   SettingDivider,
   SettingGroup,
   SettingRow,
@@ -21,7 +20,7 @@ import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
+import { settingsControlClasses } from '@renderer/pages/settings/settingsStyles'
 import { toast } from '@renderer/services/toast'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { cn } from '@renderer/utils/style'
@@ -29,7 +28,16 @@ import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import type { Model } from '@shared/data/types/model'
 import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
 
-import { TopicNamingSettings } from './TopicNamingSettings'
+const TopicNamingSettings = lazy(() =>
+  import('./TopicNamingSettings').then((module) => ({ default: module.TopicNamingSettings }))
+)
+const TranslateSettingsPanelContent = lazy(() =>
+  // Preserve the existing cross-page panel ownership while moving its cost behind the activation boundary.
+  // eslint-disable-next-line import-x/no-restricted-paths
+  import('@renderer/pages/translate/TranslateSettings').then((module) => ({
+    default: module.TranslateSettingsPanelContent
+  }))
+)
 
 const logger = loggerService.withContext('ModelSettings')
 
@@ -77,19 +85,19 @@ const ModelSettingRow: FC<ModelSettingRowProps> = ({
           ? inlineWhenCompact
             ? 'items-center gap-3 py-1'
             : 'flex-col items-stretch gap-3 py-1'
-          : 'items-start gap-6 py-1.5'
+          : 'items-center gap-6 py-1.5'
       )}>
       <div className="min-w-0 flex-1">
         <SettingRowTitle className="gap-2">
           {icon}
           {title}
+          {description && <HelpTooltip content={description} />}
         </SettingRowTitle>
-        {description && <SettingDescription className="mt-1.5 leading-5">{description}</SettingDescription>}
       </div>
       <div
         className={cn(
           'relative flex items-center gap-2',
-          compact ? (inlineWhenCompact ? 'shrink-0' : 'w-full') : 'w-[340px] shrink-0'
+          compact ? (inlineWhenCompact ? 'shrink-0' : 'w-full') : settingsControlClasses.model
         )}>
         {showFocusGuide && (
           <span
@@ -249,6 +257,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               model={selectableDefaultModel}
               providers={providers}
               filter={chatModelFilter}
+              showSubscriptionOffers={!modelFilter}
               compact={compact}
               onSelect={onSelectDefault}
               placeholder={t('settings.models.empty')}
@@ -259,17 +268,18 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             compact={compact}
             id={compact ? undefined : 'setting-model-quick-model'}
             icon={<Rocket size={16} className="lucide-custom shrink-0 text-foreground" />}
-            title={
-              <>
-                {t('settings.models.quick_model.label')}
-                <InfoTooltip content={t('settings.models.quick_model.tooltip')} />
-              </>
-            }
-            description={showDescription ? t('settings.models.quick_model.description') : undefined}>
+            title={t('settings.models.quick_model.label')}
+            description={
+              <div className="space-y-2">
+                {showDescription && <p>{t('settings.models.quick_model.description')}</p>}
+                <p>{t('settings.models.quick_model.tooltip')}</p>
+              </div>
+            }>
             <DefaultModelSelector
               model={selectableQuickModel}
               providers={providers}
               filter={chatModelFilter}
+              showSubscriptionOffers={!modelFilter}
               compact={compact}
               onSelect={onSelectQuick}
               placeholder={t('settings.models.empty')}
@@ -298,6 +308,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               model={selectableTranslateModel}
               providers={providers}
               filter={translateModelFilter}
+              showSubscriptionOffers={!modelFilter}
               compact={compact}
               onSelect={onSelectTranslate}
               placeholder={t('settings.models.empty')}
@@ -335,6 +346,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                   model={paintingModel}
                   providers={providers}
                   filter={paintingModelFilter}
+                  showSubscriptionOffers={false}
                   compact={compact}
                   onSelect={onSelectPainting}
                   placeholder={t('settings.models.empty')}
@@ -353,7 +365,9 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             header={<h2 className={drawerTitleClassName}>{t('settings.models.quick_model.setting_title')}</h2>}
             contentClassName={MODEL_SETTINGS_DRAWER_WIDTH_CLASS}
             bodyClassName={SETTINGS_DRAWER_BODY_CLASS}>
-            <TopicNamingSettings />
+            <Suspense fallback={null}>
+              <TopicNamingSettings />
+            </Suspense>
           </PageSidePanel>
           <PageSidePanel
             open={activePanel === 'translate'}
@@ -362,7 +376,9 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             header={<h2 className={drawerTitleClassName}>{t('settings.translate.title')}</h2>}
             contentClassName={TRANSLATE_DRAWER_WIDTH_CLASS}
             bodyClassName={SETTINGS_DRAWER_BODY_CLASS}>
-            <TranslateSettingsPanelContent />
+            <Suspense fallback={null}>
+              <TranslateSettingsPanelContent />
+            </Suspense>
           </PageSidePanel>
         </>
       )}

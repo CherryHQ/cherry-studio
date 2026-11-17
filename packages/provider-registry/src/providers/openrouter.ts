@@ -1,4 +1,5 @@
 import { CURRENCY } from '../schemas/enums'
+import { fixedSamplingParameterSupport } from './parameterSupports'
 import { defineProvider } from './types'
 import { EFFORT, modeWire } from './wires'
 
@@ -46,7 +47,8 @@ export default defineProvider({
       modelsApiUrls: {
         default: 'https://openrouter.ai/api/v1/models',
         embedding: 'https://openrouter.ai/api/v1/embeddings/models',
-        image: 'https://openrouter.ai/api/v1/images/models'
+        image: 'https://openrouter.ai/api/v1/images/models',
+        reranker: 'https://openrouter.ai/api/v1/models?output_modalities=rerank'
       }
     },
     'openai-image-generation': {
@@ -68,7 +70,7 @@ export default defineProvider({
   },
   modelsDevProvider: 'openrouter',
   standaloneModelIds: ['gpt-5-4-image-2'],
-  overrides: [
+  modelTemplates: [
     // OpenRouter owns this moving router alias; DeepSeek does not publish it as
     // a model. Actual usage cost is authoritative, so omit a static alias price.
     { modelId: 'deepseek-v4-flash-latest', name: 'DeepSeek V4 Flash Latest', pricing: undefined },
@@ -76,6 +78,12 @@ export default defineProvider({
       modelId: 'gpt-5-4-image-2',
       name: 'OpenAI: GPT-5.4 Image 2',
       ownedBy: 'openrouter'
-    }
+    },
+    // OpenRouter forwards sampling params verbatim, so the Moonshot fixed lock reaches
+    // these SKUs through it; declaring it makes the app omit instead of surfacing the 400.
+    ...['kimi-k2-5', 'kimi-k2-6', 'kimi-k2-7-code', 'kimi-k3', 'kimi-latest'].map((modelId) => ({
+      modelId,
+      parameterSupport: fixedSamplingParameterSupport
+    }))
   ]
 })
