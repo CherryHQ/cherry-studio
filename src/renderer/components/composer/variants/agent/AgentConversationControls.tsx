@@ -97,7 +97,6 @@ function AgentControl({
     iconOnly ? COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS : side === 'bottom' && COMPOSER_TOP_BAR_SHRINK_CLASS
   )
   const labelClassName = cn('truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)
-  const chevronClassName = cn('text-muted-foreground', iconOnly && 'hidden')
   const [agentEditDialogTarget, setAgentEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
 
   const avatarButton =
@@ -145,7 +144,10 @@ function AgentControl({
           <span className={cn('max-w-40 text-muted-foreground', labelClassName)}>{selectAgentLabel}</span>
         </>
       )}
-      {agentTriggerMode === 'selector' ? <ChevronDown size={14} className={chevronClassName} /> : null}
+      {agentTriggerMode === 'selector' ? (
+        // Beside the avatar, the chevron alone is the icon-only switch control.
+        <ChevronDown size={14} className={cn('text-muted-foreground', iconOnly && !avatarButton && 'hidden')} />
+      ) : null}
     </Button>
   )
 
@@ -153,7 +155,8 @@ function AgentControl({
     return (
       <>
         {avatarButton}
-        {agentTrigger}
+        {/* Icon-only, the avatar already stands for the Agent and its pane opens the editor. */}
+        {iconOnly && avatarButton ? null : agentTrigger}
         {agentEditDialogTarget ? (
           <React.Suspense fallback={null}>
             <ResourceEditDialogHost

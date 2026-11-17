@@ -156,7 +156,12 @@ export function ChatConversationControls({
       ) : null}
       <span className={cn('max-w-40', labelClassName)}>{assistantName}</span>
       {assistantTriggerAction === 'edit' ? null : (
-        <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && 'hidden')} />
+        // Beside the avatar, the chevron alone is the icon-only switch control.
+        <ChevronDown
+          size={14}
+          aria-hidden
+          className={cn('text-muted-foreground', iconOnly && !avatarButton && 'hidden')}
+        />
       )}
     </Button>
   )
@@ -165,7 +170,10 @@ export function ChatConversationControls({
     <>
       {avatarButton}
       {assistantTriggerAction === 'edit' ? (
-        assistantTrigger
+        // Icon-only, the avatar already stands for the Assistant and its pane opens the editor.
+        iconOnly && avatarButton ? null : (
+          assistantTrigger
+        )
       ) : (
         <AssistantSelector
           multi={false}

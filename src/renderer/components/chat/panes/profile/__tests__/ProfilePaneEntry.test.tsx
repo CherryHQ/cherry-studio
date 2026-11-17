@@ -36,7 +36,13 @@ const profileCapability = {
 
 const scope = {}
 
-function TopBar() {
+function TopBar({
+  iconOnly = false,
+  agentTriggerMode = 'edit'
+}: {
+  iconOnly?: boolean
+  agentTriggerMode?: 'selector' | 'edit'
+}) {
   const profilePane = useProfilePaneToggle()
   const { activePanelId, presentationOpen } = useRightPanelState()
   return (
@@ -48,7 +54,8 @@ function TopBar() {
         selectWorkspaceLabel="Select workspace"
         shouldAutoSelectCreatedAgent={false}
         side="bottom"
-        agentTriggerMode="edit"
+        agentTriggerMode={agentTriggerMode}
+        iconOnly={iconOnly}
         canChangeModel={false}
         onAgentChange={vi.fn()}
         onModelSelect={vi.fn()}
@@ -60,11 +67,14 @@ function TopBar() {
   )
 }
 
-function renderTopBar(capabilities: readonly RightPanelCapability<object>[]) {
+function renderTopBar(
+  capabilities: readonly RightPanelCapability<object>[],
+  topBar: Parameters<typeof TopBar>[0] = {}
+) {
   return render(
     <SWRConfig value={{ provider: () => new Map() }}>
       <RightPanelProvider capabilities={capabilities} scope={scope}>
-        <TopBar />
+        <TopBar {...topBar} />
       </RightPanelProvider>
     </SWRConfig>
   )
@@ -102,5 +112,21 @@ describe('profile pane entry from the top bar', () => {
     renderTopBar([])
 
     expect(screen.queryByRole('button', { name: "View Code Reviewer's profile" })).toBeNull()
+  })
+
+  // Icon-only, the name control had nothing visible left beside the avatar.
+  it('leaves only the avatar for a running conversation once the top bar is icon-only', () => {
+    renderTopBar([profileCapability], { iconOnly: true })
+
+    expect(screen.getByRole('button', { name: "View Code Reviewer's profile" })).toBeInTheDocument()
+    expect(screen.queryByText('Code Reviewer')).toBeNull()
+  })
+
+  it('keeps the Agent switcher beside the avatar in a new conversation once the top bar is icon-only', () => {
+    renderTopBar([profileCapability], { iconOnly: true, agentTriggerMode: 'selector' })
+
+    const switcher = screen.getByText('Code Reviewer').closest('button')
+    expect(switcher).not.toBeNull()
+    expect(switcher).not.toBe(screen.getByRole('button', { name: "View Code Reviewer's profile" }))
   })
 })
