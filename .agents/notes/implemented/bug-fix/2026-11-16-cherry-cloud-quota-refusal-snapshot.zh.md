@@ -15,7 +15,7 @@ Cloud 网关在处理请求前，会预扣"预估输入费用 + 按次费用"，
 客户端不再自行推断请求被拒的原因。
 
 - [`CherryCloudService`](../../../../src/main/services/cherryCloud/CherryCloudService.ts) 不再保存任何拒绝状态。只有某个窗口的已结算用量达到上限（`used_units >= limit_units`）时，额度池才视为耗尽。不使用 `remaining_units`，因为它还扣除了进行中请求的预扣，而这些预扣几秒内就会释放。
-- 消息请求收到 `429 QUOTA_EXHAUSTED` 后（无论是首次响应，还是认证或重放重试后的响应），服务立即返回拒绝，并以 `quota_refusal` 为原因在后台完整刷新账号（账号、模型、套餐）。同一账号范围内并发的拒绝共用这次刷新；刷新未完成时记录日志。
+- 模型请求（`/v1/messages` 或 `/v1/chat/completions`）收到 `429 QUOTA_EXHAUSTED` 后（无论是首次响应，还是认证或重放重试后的响应），服务立即返回拒绝，并以 `quota_refusal` 为原因在后台完整刷新账号（账号、模型、套餐）。同一账号范围内并发的拒绝共用这次刷新；刷新未完成时记录日志。
 - [错误块](../../../../src/renderer/components/chat/messages/blocks/ErrorBlock.tsx)和 [toast](../../../../src/renderer/services/toast.ts) 对所有 Cloud 额度拒绝统一显示"套餐额度不足以完成本次请求"，并显示服务端原文，其中带有网关自己估算的重试时间。输入框的恢复时间也按同样的已结算用量规则计算。
 
 本决定部分取代 [Cherry Cloud 归属 Spec](../../proposed/architecture/2026-11-08-cherry-cloud-ownership-convergence.md) 中"保留 quota-refusal floors"的要求。

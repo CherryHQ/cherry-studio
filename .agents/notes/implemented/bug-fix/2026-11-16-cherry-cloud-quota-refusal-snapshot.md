@@ -15,7 +15,7 @@ The Cloud gateway reserves the estimated input cost plus a per-request charge be
 The client no longer infers why a request was refused.
 
 - [`CherryCloudService`](../../../../src/main/services/cherryCloud/CherryCloudService.ts) keeps no refusal state. A pool is exhausted only while a window's settled usage reaches its limit (`used_units >= limit_units`). `remaining_units` is not used because it also subtracts in-flight reservations, which free up within seconds.
-- When a message request receives `429 QUOTA_EXHAUSTED`, either first or after an auth or replay retry, the service returns the refusal at once and starts a background account refresh (account, models, plans) with reason `quota_refusal`. Concurrent refusals in one account scope share that refresh; a refresh that does not complete is logged.
+- When a model request (`/v1/messages` or `/v1/chat/completions`) receives `429 QUOTA_EXHAUSTED`, either first or after an auth or replay retry, the service returns the refusal at once and starts a background account refresh (account, models, plans) with reason `quota_refusal`. Concurrent refusals in one account scope share that refresh; a refresh that does not complete is logged.
 - The [error block](../../../../src/renderer/components/chat/messages/blocks/ErrorBlock.tsx) and the [toast](../../../../src/renderer/services/toast.ts) title every Cloud quota refusal "Not enough plan quota for this request" and show the server's message, which carries the gateway's own retry estimate. The composer's recovery time uses the same settled-usage rule.
 
 This partially supersedes the "quota-refusal floors" preservation in the [Cherry Cloud ownership Spec](../../proposed/architecture/2026-11-08-cherry-cloud-ownership-convergence.md).

@@ -1260,10 +1260,7 @@ export class CherryCloudService extends BaseService {
     // Cloud strips upstream Cherry-* headers, so upstream 401 bodies cannot invalidate the login.
     const code = response.headers.get('Cherry-Error-Code')
     // The snapshot let this request through, so the next check asks the server again.
-    if (
-      (response.status === 403 && code === 'ENTITLEMENT_INACTIVE') ||
-      (response.status === 429 && code === 'QUOTA_EXHAUSTED')
-    ) {
+    if ((response.status === 403 && code === 'ENTITLEMENT_INACTIVE') || isQuotaRefusal(response)) {
       this.modelSyncCache = null
     }
     if (idempotencyKey && isQuotaRefusal(response)) {
@@ -1312,9 +1309,20 @@ export class CherryCloudService extends BaseService {
     const scopeId = this.getCurrentScopeId()
     if (this.quotaRefusalRefresh?.scopeId === scopeId) return
     const promise: Promise<void> = this.refreshAccount({ scopeId, reason: 'quota_refusal' })
-      .then(({ outcome }) => {
-        if (outcome !== 'refreshed')
-          logger.warn('Cherry Cloud account refresh after a quota refusal did not complete', { outcome })
+      .then((result) => {
+        if (result.outcome === 'refreshed') return
+        const causes =
+          result.outcome === 'failed'
+            ? {
+                account: 'error' in result.receipt.account ? result.receipt.account.error : null,
+                models: 'error' in result.receipt.models ? result.receipt.models.error : null,
+                plans: 'error' in result.receipt.plans ? result.receipt.plans.error : null
+              }
+            : {}
+        logger.warn('Cherry Cloud account refresh after a quota refusal did not complete', {
+          outcome: result.outcome,
+          ...causes
+        })
       })
       .catch((error) => logger.warn('Cherry Cloud account refresh after a quota refusal failed', error as Error))
       .finally(() => {
