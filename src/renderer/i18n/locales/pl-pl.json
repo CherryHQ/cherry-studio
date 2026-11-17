@@ -3060,6 +3060,7 @@
   "notes.export_to_pdf_failed": "Nie udało się wyeksportować do PDF",
   "notes.export_to_pdf_success": "Wyeksportowano do PDF",
   "notes.export_to_word_failed": "Nie udało się wyeksportować do Worda",
+  "notes.favorites_empty": "Brak ulubionych notatek",
   "notes.file_removed_draft": "Ta notatka została usunięta z dysku. Twój niezapisany szkic jest nadal dostępny w edytorze.",
   "notes.load_failed": "Nie udało się załadować notatki",
   "notes.load_failed_description": "Nie udało się odczytać pliku. Edycja została wyłączona, aby chronić zawartość notatki.",

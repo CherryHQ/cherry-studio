@@ -3024,6 +3024,7 @@
   "notes.export_to_pdf_failed": "PDFへのエクスポートに失敗しました",
   "notes.export_to_pdf_success": "PDFにエクスポートされました",
   "notes.export_to_word_failed": "Wordへのエクスポートに失敗しました",
+  "notes.favorites_empty": "お気に入りのノートはまだありません",
   "notes.file_removed_draft": "このノートはディスクから削除されました。保存されていない下書きはエディター内でまだ利用可能です。",
   "notes.load_failed": "ノートの読み込みに失敗しました",
   "notes.load_failed_description": "ファイルを読み取ることができませんでした。ノートの内容を保護するため、編集は無効になっています。",

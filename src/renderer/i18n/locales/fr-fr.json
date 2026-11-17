@@ -3024,6 +3024,7 @@
   "notes.export_to_pdf_failed": "Échec de l'exportation au format PDF",
   "notes.export_to_pdf_success": "Exporté au format PDF",
   "notes.export_to_word_failed": "Échec de l'exportation vers Word",
+  "notes.favorites_empty": "Aucune note favorite pour le moment",
   "notes.file_removed_draft": "Cette note a été supprimée du disque. Votre brouillon non enregistré est toujours disponible dans l'éditeur.",
   "notes.load_failed": "Échec du chargement de la note",
   "notes.load_failed_description": "Le fichier n’a pas pu être lu. L’édition est désactivée pour protéger le contenu de la note.",
