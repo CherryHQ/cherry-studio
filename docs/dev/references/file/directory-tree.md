@@ -199,7 +199,8 @@ described in §3.2.
 - An unreadable root, missing ripgrep binary, or watcher setup failure rejects tree creation.
 - With `watchMissingRoot`, `ENOENT` for the root is an empty valid state; other errors still fail.
 - A watcher error after activation logs and disposes the main-side builder. The current protocol
-  has no terminal push telling an already-mounted renderer that its last snapshot is stale.
+  has no terminal push telling an already-mounted renderer that its last snapshot is stale; a
+  consumer recovers only by calling the hook's `reload()`, whose create replaces the disposed builder.
 - Shutdown during an in-flight create maps `DirectoryTreeStoppedError` to a domain IpcError so the
   renderer can stop quietly.
 
@@ -210,7 +211,8 @@ described in §3.2.
 - `root`, `isLoading`, and `error`;
 - `version`, incremented when a mutation changes the mirror;
 - `treeId` after successful activation;
-- `getNode(path)` backed by the mirror's path map.
+- `getNode(path)` backed by the mirror's path map;
+- `reload()`, which retires the session and runs a fresh create and activate for the same root.
 
 The root object mutates in place, so derived React values must depend on `version`. A side consumer
 that must observe every mutation uses the hook's `onMutation` callback; subscribing later with the
@@ -231,7 +233,8 @@ The `onMutation` callback remains a business-side subscription during the grace 
 activation replay and brief Activity suspension. Once the hook renders a different root, events
 from the previous root are no longer forwarded to that callback. Rendering and expensive projections
 belong to React subscribers; callbacks that need filesystem events must not be conditional on view visibility.
-Revision gaps remain terminal, so retaining the mirror never hides missed mutations.
+Revision gaps remain terminal, so retaining the mirror never hides missed mutations; `reload()`
+starts a new session after a gap or a stopped watcher.
 
 Options are sampled when a root mounts. Changing the options object while `rootPath` is unchanged
 does not rebuild the tree.

@@ -669,6 +669,57 @@ describe('useDirectoryTree', () => {
     expect(result.current.getNode('/notes/skipped.md')).toBeNull()
   })
 
+  it('reload takes a fresh snapshot and releases the previous tree', async () => {
+    mocks.create
+      .mockResolvedValueOnce({ treeId: 't-old', revision: 0, snapshot: makeSnapshot('/notes', ['a.md']) })
+      .mockResolvedValueOnce({ treeId: 't-new', revision: 0, snapshot: makeSnapshot('/notes', ['a.md', 'new.md']) })
+    mocks.onMutation.mockReturnValue(() => {})
+
+    const { result } = renderHook(() => useDirectoryTree('/notes'))
+    await waitFor(() => {
+      expect(result.current.treeId).toBe('t-old')
+    })
+
+    act(() => result.current.reload())
+
+    await waitFor(() => {
+      expect(result.current.treeId).toBe('t-new')
+    })
+    expect(result.current.root?.hasChild('new.md')).toBe(true)
+    expect(mocks.dispose).toHaveBeenCalledWith('t-old')
+  })
+
+  it('reload recovers a stream that went stale on a revision gap', async () => {
+    mocks.create
+      .mockResolvedValueOnce({ treeId: 't-gap', revision: 0, snapshot: makeSnapshot('/notes', []) })
+      .mockResolvedValueOnce({ treeId: 't-fresh', revision: 5, snapshot: makeSnapshot('/notes', ['skipped.md']) })
+    let pushListener: ((payload: TreeMutationPushPayload) => void) | null = null
+    mocks.onMutation.mockImplementation((cb) => {
+      pushListener = cb
+      return () => {
+        pushListener = null
+      }
+    })
+
+    const { result } = renderHook(() => useDirectoryTree('/notes'))
+    await waitFor(() => {
+      expect(result.current.root).not.toBeNull()
+    })
+    act(() => {
+      pushListener?.({ treeId: 't-gap', revision: 2, event: { type: 'removed', path: '/notes/x.md' } })
+    })
+    await waitFor(() => {
+      expect(result.current.error).not.toBeNull()
+    })
+
+    act(() => result.current.reload())
+
+    await waitFor(() => {
+      expect(result.current.root?.hasChild('skipped.md')).toBe(true)
+    })
+    expect(result.current.error).toBeNull()
+  })
+
   it('retakes the handshake when main refuses activation, and publishes the fresh snapshot', async () => {
     vi.spyOn(loggerService, 'warn').mockImplementation(() => undefined)
     mocks.create

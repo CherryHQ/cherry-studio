@@ -1065,7 +1065,8 @@ describe('ArtifactPane', () => {
       isLoading: false,
       hasLoaded: true,
       setExpandedIds: vi.fn(),
-      loadFolder: vi.fn()
+      loadFolder: vi.fn(),
+      reloadTree: vi.fn()
     }
   }
 
@@ -1663,6 +1664,28 @@ describe('ArtifactPane', () => {
         }
       })
     })
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/new.md')).toBeInTheDocument())
+    expect(screen.queryByTestId('tree-node-src/old.md')).not.toBeInTheDocument()
+  })
+
+  it('re-reads a folder from disk when it is expanded again', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    mocks.listDirectoryEntries
+      .mockResolvedValueOnce([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
+      .mockResolvedValue([{ path: '/tmp/workspace/src/new.md', isDirectory: false }])
+
+    render(<ArtifactPaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/old.md')).toBeInTheDocument())
+    await waitFor(() => expect(mocks.treeActivate).toHaveBeenCalledTimes(2))
+
+    // Collapsed folders are unwatched, so a change made meanwhile only shows if re-expanding re-reads.
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+    expect(screen.getByTestId('tree-node-src')).toHaveAttribute('data-expanded', 'false')
+    fireEvent.click(screen.getByTestId('tree-node-src'))
 
     await waitFor(() => expect(screen.getByTestId('tree-node-src/new.md')).toBeInTheDocument())
     expect(screen.queryByTestId('tree-node-src/old.md')).not.toBeInTheDocument()
@@ -2304,5 +2327,110 @@ describe('ArtifactPane', () => {
     })
 
     await waitFor(() => expect(isSelectableFileNode(result.current.nodeById, 'README.md')).toBe(false))
+  })
+
+  describe('refreshing the open file', () => {
+    type UpdatedMutation = {
+      treeId: string
+      revision: number
+      event: { type: 'updated'; path: string; stats: { mtime: number; birthtime: number } }
+    }
+    let pushMutation: ((payload: UpdatedMutation) => void) | undefined
+    let revision = 0
+    const reportUpdated = (path: string) =>
+      act(() => {
+        revision += 1
+        pushMutation?.({
+          treeId: 'tree-1',
+          revision,
+          event: { type: 'updated', path, stats: { mtime: 2, birthtime: 1 } }
+        })
+      })
+    const previewRefreshKey = () => Number(screen.getByTestId('file-preview').getAttribute('data-refresh-key'))
+
+    beforeEach(() => {
+      pushMutation = undefined
+      revision = 0
+      mocks.treeOnMutation.mockImplementation((cb) => {
+        pushMutation = cb as typeof pushMutation
+        return () => {
+          pushMutation = undefined
+        }
+      })
+    })
+
+    it('reloads the preview from disk when the refresh button is pressed', async () => {
+      mockWorkspaceTree('/tmp/workspace', ['report.docx'])
+      render(<ArtifactPaneHarness workspacePath="/tmp/workspace" initialSelectedFile="report.docx" />)
+      await screen.findByTestId('artifact-file-preview-overlay')
+      const before = previewRefreshKey()
+
+      fireEvent.click(
+        within(screen.getByTestId('artifact-pane-header')).getByRole('button', { name: 'common.refresh' })
+      )
+
+      await waitFor(() => expect(previewRefreshKey()).toBe(before + 1))
+    })
+
+    it('re-reads the workspace tree and expanded folders when refresh is pressed with no file open', async () => {
+      let rootPaths = ['src/index.ts']
+      mocks.treeCreate.mockImplementation(async (rootPath: string) => ({
+        treeId: `tree-for-${rootPath}`,
+        revision: 0,
+        snapshot: pathsToSnapshot(rootPath, rootPath === '/tmp/workspace' ? rootPaths : [])
+      }))
+      mocks.listDirectoryEntries
+        .mockResolvedValueOnce([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
+        .mockResolvedValue([{ path: '/tmp/workspace/src/new.md', isDirectory: false }])
+      render(<ArtifactPaneHarness workspacePath="/tmp/workspace" />)
+      await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+      fireEvent.click(screen.getByTestId('tree-node-src'))
+      await waitFor(() => expect(screen.getByTestId('tree-node-src/old.md')).toBeInTheDocument())
+      await waitFor(() => expect(mocks.treeActivate).toHaveBeenCalledTimes(2))
+
+      rootPaths = ['src/index.ts', 'added.md']
+      fireEvent.click(
+        within(screen.getByTestId('artifact-pane-header')).getByRole('button', { name: 'common.refresh' })
+      )
+
+      await waitFor(() => expect(screen.getByTestId('tree-node-added.md')).toBeInTheDocument())
+      await waitFor(() => expect(screen.getByTestId('tree-node-src/new.md')).toBeInTheDocument())
+      expect(screen.queryByTestId('tree-node-src/old.md')).not.toBeInTheDocument()
+    })
+
+    it('reloads the preview when the watcher reports the open file changed, and ignores other files', async () => {
+      mockWorkspaceTree('/tmp/workspace', ['report.docx', 'other.docx'])
+      render(<ArtifactPaneHarness workspacePath="/tmp/workspace" initialSelectedFile="report.docx" />)
+      await screen.findByTestId('file-preview')
+      await waitFor(() => expect(pushMutation).toBeDefined())
+      const before = previewRefreshKey()
+
+      reportUpdated('/tmp/workspace/other.docx')
+      expect(previewRefreshKey()).toBe(before)
+
+      reportUpdated('/tmp/workspace/report.docx')
+      await waitFor(() => expect(previewRefreshKey()).toBe(before + 1))
+    })
+
+    it('loads external content into a clean editor without overwriting a dirty draft', async () => {
+      mockWorkspaceTree('/tmp/workspace', ['main.txt'])
+      const encode = (text: string) => binaryReadResult(new TextEncoder().encode(text))
+      mocks.ipcRequest.mockResolvedValueOnce(encode('v1'))
+      render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+      await waitFor(() => expect(screen.getByTestId('tree-node-main.txt')).toBeInTheDocument())
+      fireEvent.click(screen.getByTestId('tree-node-main.txt'))
+      await waitFor(() => expect(screen.getByTestId('code-editor')).toHaveValue('v1'))
+
+      mocks.ipcRequest.mockResolvedValue(encode('v2'))
+      reportUpdated('/tmp/workspace/main.txt')
+      await waitFor(() => expect(screen.getByTestId('code-editor')).toHaveValue('v2'))
+
+      fireEvent.change(screen.getByTestId('code-editor'), { target: { value: 'my unsaved edit' } })
+      mocks.ipcRequest.mockResolvedValue(encode('v3'))
+      reportUpdated('/tmp/workspace/main.txt')
+
+      expect(await screen.findByRole('dialog')).toBeInTheDocument()
+      expect(screen.getByTestId('code-editor')).toHaveValue('my unsaved edit')
+    })
   })
 })

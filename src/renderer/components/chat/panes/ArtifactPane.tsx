@@ -7,6 +7,7 @@ import {
   Folder,
   List,
   MessageSquareText,
+  RefreshCw,
   Sparkles,
   SquareDashedMousePointer,
   SquarePen
@@ -18,6 +19,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState
@@ -463,6 +465,30 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     setSelectionReference(null)
   }, [pickerActive])
 
+  // The editor reconciles disk changes itself (a dirty draft raises the conflict dialog); the preview re-reads.
+  const refreshFileContent = useCallback(() => {
+    if (editMode === 'edit' && fileSession) {
+      fileSession.notifyExternalChange()
+      return
+    }
+    setKnownFileSizeBytes(undefined)
+    setContentRefreshToken((value) => value + 1)
+  }, [editMode, fileSession])
+
+  const { reloadTree } = model
+  const handleRefresh = useCallback(() => {
+    reloadTree()
+    if (overlaySelection) refreshFileContent()
+  }, [overlaySelection, refreshFileContent, reloadTree])
+
+  const refreshChangedFile = useEffectEvent((path: string) => {
+    if (overlaySelection && path === getArtifactPaneSelectionPath(overlaySelection)) refreshFileContent()
+  })
+  useEffect(() => {
+    if (model.selectedFileChange) refreshChangedFile(model.selectedFileChange.path)
+    // `refreshChangedFile` is an Effect Event; only a new disk change should run this.
+  }, [model.selectedFileChange])
+
   // Successful writes return an exact byte size through the edit session.
   // Invalidate the separate metadata gate whenever that size changes so a
   // saved file that crosses the preview limit cannot reuse stale metadata.
@@ -854,6 +880,19 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       )}
       <div className="ml-auto flex shrink-0 items-center gap-1">
         {treeToggleOnRight ? treeToggle : null}
+        {workspacePath || overlaySelection ? (
+          <Tooltip content={t('common.refresh')} delay={800}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className={TOOLBAR_BUTTON_CLASS}
+              aria-label={t('common.refresh')}
+              onClick={handleRefresh}>
+              <RefreshCw size={16} />
+            </Button>
+          </Tooltip>
+        ) : null}
         <ArtifactPaneSettingsMenu buttonClassName={TOOLBAR_BUTTON_CLASS} wordWrapUnavailable={wordWrapUnavailable} />
         {paneActions}
       </div>

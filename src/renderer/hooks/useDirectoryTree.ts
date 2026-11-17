@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
@@ -19,6 +19,8 @@ import {
 export interface UseDirectoryTreeResult extends DirectoryTreeState {
   /** O(1) lookup keyed by absolute path. Stable across mutations. */
   getNode(absPath: string): TreeNode | null
+  /** Replaces the session with a fresh `file.tree.create`, which also rescans a builder whose watcher died. */
+  reload(): void
 }
 
 const EMPTY: DirectoryTreeState = { root: null, treeId: null, isLoading: false, error: null, version: 0 }
@@ -39,22 +41,23 @@ export function useDirectoryTree(
 ): UseDirectoryTreeResult {
   const inputs = useRef({ rootPath, options, onMutation })
   inputs.current = { rootPath, options, onMutation }
-  const session = useMemo(
-    () =>
-      rootPath
-        ? new DirectoryTreeSession(rootPath, inputs.current.options, (event) => {
-            if (inputs.current.rootPath === rootPath) inputs.current.onMutation?.(event)
-          })
-        : undefined,
-    [rootPath]
-  )
+  const [reloadToken, setReloadToken] = useState(0)
+  const session = useMemo(() => {
+    void reloadToken
+    return rootPath
+      ? new DirectoryTreeSession(rootPath, inputs.current.options, (event) => {
+          if (inputs.current.rootPath === rootPath) inputs.current.onMutation?.(event)
+        })
+      : undefined
+  }, [rootPath, reloadToken])
   const previous = useRef(session)
   useLayoutEffect(() => {
     if (previous.current !== session) previous.current?.dispose()
     previous.current = session
   }, [session])
   const state = useSyncExternalStore(session?.subscribe ?? emptySubscribe, session?.getSnapshot ?? emptySnapshot)
-  return { ...state, getNode: session?.getNode ?? emptyNode }
+  const reload = useCallback(() => setReloadToken((token) => token + 1), [])
+  return { ...state, getNode: session?.getNode ?? emptyNode, reload }
 }
 
 const logger = loggerService.withContext('DirectoryTreeSession')
