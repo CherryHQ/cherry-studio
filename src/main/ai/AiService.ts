@@ -845,6 +845,14 @@ export class AiService extends BaseService {
     request: AsInProcessChat<AiGenerateRequest>,
     extraFeatures: readonly RequestFeature[] = []
   ): Promise<AiGenerateResult> {
+    return this.generateTextWithMode(request, extraFeatures, 'generate')
+  }
+
+  private async generateTextWithMode(
+    request: AsInProcessChat<AiGenerateRequest>,
+    extraFeatures: readonly RequestFeature[],
+    mode: 'generate' | 'stream'
+  ): Promise<AiGenerateResult> {
     logger.info('generateText started', { assistantId: request.assistantId })
     const signal = request.requestOptions?.signal
     // Model messages go directly to generation, not the UI-message context scanner.
@@ -959,7 +967,7 @@ export class AiService extends BaseService {
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
     return this.withRuntimeActivity('ai:generate-text', () =>
-      agent.generate(request.prompt ? { prompt: request.prompt } : { messages: messages ?? [] }, signal)
+      agent.generate(request.prompt ? { prompt: request.prompt } : { messages: messages ?? [] }, signal, mode)
     )
   }
 
@@ -1571,14 +1579,17 @@ export class AiService extends BaseService {
       } else {
         // Latency is the probe's measured output — thinking tokens would pollute it
         // for reasoning-capable models whose provider default enables reasoning.
-        probe = this.generateText({
+        const textRequest = {
           ...probeRequest,
           // A health check has no topic; each probe is its own conversation.
           conversation: { id: `check:${randomUUID()}` },
           system: 'test',
           prompt: 'hi',
-          reasoningEffort: 'none'
-        })
+          reasoningEffort: 'none' as const
+        }
+        probe = model.supportsStreaming
+          ? this.generateTextWithMode(textRequest, [], 'stream')
+          : this.generateText(textRequest)
       }
 
       await Promise.race([probe, aborted])
@@ -1587,6 +1598,7 @@ export class AiService extends BaseService {
     } finally {
       clearTimeout(timeoutHandle)
       signal.removeEventListener('abort', onAbort)
+      controller.abort()
     }
   }
 

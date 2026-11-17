@@ -57,7 +57,9 @@ const entitlementSchema = z.looseObject({
 
 const quotaPoolSchema = z.looseObject({
   model_ids: z.array(z.string().min(1)),
-  windows: z.array(z.looseObject({ remaining_units: z.number().int().nonnegative() })).min(1)
+  windows: z
+    .array(z.looseObject({ limit_units: z.number().int().nonnegative(), used_units: z.number().int().nonnegative() }))
+    .min(1)
 })
 
 export const accountSnapshotSchema = z.looseObject({
