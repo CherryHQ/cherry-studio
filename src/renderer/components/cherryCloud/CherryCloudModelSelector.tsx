@@ -20,6 +20,7 @@ import { getModelLogoRef } from '@renderer/utils/model'
 import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { SubscriptionEntrySource } from '@shared/ipc/schemas/cherryCloud'
 
+import { AMD_FREE_MODELS, isAmdFreeModelsOfferAvailable, openAmdRegistration } from './amdFreeModels'
 import {
   CHERRY_CLOUD_SELECTOR_PROVIDER_IDS,
   isCherryCloudChatOffer,
@@ -160,9 +161,44 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
           }),
     [isAvailabilityReady, isModelHidden, models, offers, open, signedOut, filter, includeAgentOnlyModels, provider]
   )
+  const amdOffer = showSubscriptionOffers && isAmdFreeModelsOfferAvailable()
+  const getAmdAccess = (modelId: string) => {
+    onOpenChange(false)
+    void openAmdRegistration(modelId)
+  }
+  const amdActions: ModelSelectorActionItem[] = amdOffer
+    ? AMD_FREE_MODELS.map((model) => ({
+        key: `amd-free-${model.id}`,
+        type: 'action',
+        groupId: CHERRYAI_PROVIDER_ID,
+        providerId: CHERRY_CLOUD_PROVIDER_ID,
+        label: model.name,
+        searchId: model.id,
+        tags: ['free'],
+        leading: <OfferIcon id={model.id} name={model.name} />,
+        trailing: (
+          <div className="ml-2 flex h-[18px] shrink-0 items-center justify-end gap-1">
+            <SubscriptionTag size={9} label={t('models.amd_free.tag')} className="h-full" />
+            <ModelTag tag="free" size={9} showLabel={false} showTooltip className="h-full items-center" />
+          </div>
+        ),
+        detail: (
+          <ModelSelectorDetailCardContent
+            name={model.name}
+            modelIdentifier={model.id}
+            providerName={t('provider.radeon-cloud')}
+            tags={['free']}
+            description={t('models.amd_free.sign_in_hint')}
+          />
+        ),
+        // After the free CherryAI models (priority 1) and subscription offers.
+        priority: 2,
+        onAction: () => getAmdAccess(model.id)
+      }))
+    : []
   const composition = {
     getModelPresentation,
-    actions,
+    actions: [...amdActions, ...actions],
     providerGroups: [
       {
         id: CHERRYAI_PROVIDER_ID,

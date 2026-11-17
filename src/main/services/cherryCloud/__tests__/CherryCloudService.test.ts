@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto'
+import { createHash, createHmac } from 'node:crypto'
 
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -116,7 +116,12 @@ import { uuid } from 'systeminformation'
 import { application } from '@application'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 
-import { CherryCloudLoginUnavailableError, CherryCloudPortalOpenError, CherryCloudService } from '../CherryCloudService'
+import {
+  CherryCloudAmdEntryError,
+  CherryCloudLoginUnavailableError,
+  CherryCloudPortalOpenError,
+  CherryCloudService
+} from '../CherryCloudService'
 
 const resolveRegistryModels = vi.spyOn(providerRegistryService, 'resolveModels')
 
@@ -1699,6 +1704,100 @@ describe('CherryCloudService', () => {
     expect(mocks.openExternal).toHaveBeenCalledWith(
       'https://cloud.cherryai.com/account/plans?entry=desktop&entry_source=settings&flow_id=00000000-0000-4000-8000-000000000001'
     )
+  })
+
+  describe('AMD entry', () => {
+    const entryPath = '/api/v1/amd/desktop/entry'
+    const entryUrl = `https://cloud.cherryai.com/amd/enter#${token('E')}`
+
+    it('opens the exact single-use entry the signed session request returns', async () => {
+      const service = await createSignedInService()
+      mocks.openExternal.mockClear()
+      mockCloudRoute(entryPath, jsonResponse({ entry_url: entryUrl, expires_in: 60 }))
+
+      await service.openAmdEntry('w1')
+
+      const [[, init]] = requestCalls(entryPath)
+      const headers = new Headers(init.headers)
+      expect(init.method).toBe('POST')
+      expect(init.body).toBeUndefined()
+      expect(headers.get('Authorization')).toBe(`Bearer ${token('F')}`)
+      expect(headers.get('Cherry-Device-ID')).toBe(deviceId)
+      expect(headers.get('Cherry-Signature-Version')).toBe('2')
+      expect(headers.get('Cherry-Body-SHA256')).toBe(createHash('sha256').update('').digest('hex'))
+      expect(mocks.openExternal.mock.calls).toEqual([[entryUrl]])
+    })
+
+    it('requests a fresh entry with a new request id on every click', async () => {
+      const service = await createSignedInService()
+      mockCloudRoute(entryPath, jsonResponse({ entry_url: entryUrl, expires_in: 60 }))
+      mockCloudRoute(entryPath, jsonResponse({ entry_url: entryUrl, expires_in: 60 }))
+
+      await service.openAmdEntry('w1')
+      await service.openAmdEntry('w1')
+
+      const requestIds = requestCalls(entryPath).map(([, init]) => new Headers(init.headers).get('Cherry-Request-ID'))
+      expect(new Set(requestIds).size).toBe(2)
+    })
+
+    it('shares one entry between concurrent clicks', async () => {
+      const service = await createSignedInService()
+      mocks.openExternal.mockClear()
+      mockCloudRoute(entryPath, jsonResponse({ entry_url: entryUrl, expires_in: 60 }))
+
+      await Promise.all([service.openAmdEntry('w1'), service.openAmdEntry('w2')])
+
+      expect(requestCalls(entryPath)).toHaveLength(1)
+      expect(mocks.openExternal).toHaveBeenCalledOnce()
+    })
+
+    it('signs in first when signed out, then opens the entry', async () => {
+      mockAuthorizationFlow()
+      mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
+      mockCloudRoute(entryPath, jsonResponse({ entry_url: entryUrl, expires_in: 60 }))
+      const service = await createService()
+
+      const pending = service.openAmdEntry('w1')
+      await vi.waitFor(async () => expect((await service.getStatus()).phase).toBe('authorizing'))
+      await loopbackCallback()(
+        new URL(
+          `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${authorizationRequestBody().state}`
+        )
+      )
+      await pending
+
+      expect(mocks.openExternal.mock.calls.at(-1)).toEqual([entryUrl])
+      await service._doStop()
+    })
+
+    it.each([
+      ['a refused request', () => cloudErrorResponse(404, 'NOT_FOUND')],
+      [
+        'an entry on another origin',
+        () => jsonResponse({ entry_url: `https://evil.example/amd/enter#${token('E')}`, expires_in: 60 })
+      ],
+      ['a malformed response', () => jsonResponse({ expires_in: 60 })]
+    ])('opens nothing after %s and keeps the credential out of the error', async (_, reply) => {
+      const service = await createSignedInService()
+      mocks.openExternal.mockClear()
+      mockCloudRoute(entryPath, reply())
+
+      const error = await service.openAmdEntry('w1').catch((caught: unknown) => caught)
+
+      expect(error).toBeInstanceOf(CherryCloudAmdEntryError)
+      expect(String((error as Error).message)).not.toContain(token('E'))
+      expect(mocks.openExternal).not.toHaveBeenCalled()
+    })
+
+    it('does not open the entry once the clicking window is gone', async () => {
+      const service = await createSignedInService()
+      mocks.openExternal.mockClear()
+
+      await service.openAmdEntry(null)
+
+      expect(requestCalls(entryPath)).toHaveLength(0)
+      expect(mocks.openExternal).not.toHaveBeenCalled()
+    })
   })
 
   it.each([2, 3])('coalesces %s windows through one portal and admits a later operation', async (clicks) => {

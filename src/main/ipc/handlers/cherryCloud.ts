@@ -1,5 +1,6 @@
 import { application } from '@application'
 import {
+  CherryCloudAmdEntryError,
   CherryCloudLoginUnavailableError,
   CherryCloudPortalOpenError,
   CherryCloudUpgradeRequiredError
@@ -23,6 +24,9 @@ async function runCloudCommand<T>(command: () => Promise<T>): Promise<T> {
     if (error instanceof CherryCloudPortalOpenError) {
       throw new IpcError(cherryCloudErrorCodes.PORTAL_OPEN_FAILED, error.message)
     }
+    if (error instanceof CherryCloudAmdEntryError) {
+      throw new IpcError(cherryCloudErrorCodes.AMD_ENTRY_FAILED, error.message)
+    }
     throw error
   }
 }
@@ -33,6 +37,8 @@ export const cherryCloudHandlers: IpcHandlersFor<typeof cherryCloudRequestSchema
   'cherry_cloud.login.start': async () => runCloudCommand(() => application.get('CherryCloudService').startLogin()),
   'cherry_cloud.subscription.start': async (input, ctx) =>
     runCloudCommand(() => application.get('CherryCloudService').startSubscription(input, ctx.senderId)),
+  'cherry_cloud.amd_entry.open': async (_, ctx) =>
+    runCloudCommand(() => application.get('CherryCloudService').openAmdEntry(ctx.senderId)),
   'cherry_cloud.login.cancel': async () => application.get('CherryCloudService').cancelLogin(),
   'cherry_cloud.session.revoke': async () => application.get('CherryCloudService').revokeCurrentSession(),
   'cherry_cloud.models.sync': async () => application.get('CherryCloudService').syncEntitledModelsIfStale(),

@@ -35,6 +35,15 @@ generic analytics retains consent and transport.
 The [ownership Spec](../../../../.agents/notes/proposed/architecture/2026-11-08-cherry-cloud-ownership-convergence.md)
 records the preservation boundary, deliberate fixes and offline verification limits.
 
+## AMD entry
+
+`openAmdEntry` signs in when required, then sends `POST /api/v1/amd/desktop/entry`
+through `authenticatedFetch`. It has an empty body and uses the v2 device signature,
+so every attempt gets a new request ID. The response's `entry_url` is a 60-second,
+single-use credential that the browser redeems. Main opens it unchanged, fragment
+included, only if it is on the Cloud API origin. Never log, report or persist it.
+Concurrent clicks share one in-flight entry.
+
 ## Login request signing
 
 The desktop client signs authorization creation and exchange requests using the

@@ -89,6 +89,11 @@ export const refreshProductSessionResponseSchema = z.looseObject({
   token_set: tokenSetSchema
 })
 
+export const amdDesktopEntryResponseSchema = z.looseObject({
+  entry_url: z.url(),
+  expires_in: z.number()
+})
+
 const cloudModelIdSchema = z
   .string()
   .min(1)

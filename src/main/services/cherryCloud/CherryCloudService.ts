@@ -45,6 +45,7 @@ import { CherryCloudLoopbackCallback } from './CherryCloudLoopbackCallback'
 import {
   accountSnapshotSchema,
   accountPlansSchema,
+  amdDesktopEntryResponseSchema,
   cloudModelListSchema,
   createDesktopAuthorizationResponseSchema,
   exchangeDesktopAuthorizationResponseSchema,
@@ -142,6 +143,13 @@ export class CherryCloudPortalOpenError extends Error {
   }
 }
 
+export class CherryCloudAmdEntryError extends Error {
+  constructor(reason: string) {
+    super(`AMD entry could not be opened: ${reason}`)
+    this.name = 'CherryCloudAmdEntryError'
+  }
+}
+
 class CherryCloudSessionRequiredError extends Error {
   constructor() {
     super('Cherry Cloud account is not signed in')
@@ -205,6 +213,7 @@ export class CherryCloudService extends BaseService {
   private authorizationOperation: AuthorizationOperation | null = null
   private loginPromise: { operation: AuthorizationOperation; promise: Promise<CherryCloudLoginResult> } | null = null
   private subscriptionPromise: Promise<void> | null = null
+  private amdEntryPromise: Promise<void> | null = null
   private revision = 0
   private readonly accountRefreshQueue = new Sequencer()
   private readonly accountRefreshes = new Set<AbortController>()
@@ -275,6 +284,7 @@ export class CherryCloudService extends BaseService {
     this.authorizationOperation = null
     this.loginPromise = null
     this.subscriptionPromise = null
+    this.amdEntryPromise = null
   }
 
   protected async onDestroy(): Promise<void> {
@@ -915,6 +925,54 @@ export class CherryCloudService extends BaseService {
     return { outcome: 'opened' }
   }
 
+  /** Signs in when required, then opens the single-use AMD entry the server issues to this desktop session. */
+  public async openAmdEntry(senderId: WindowId | null): Promise<void> {
+    if (!this.amdEntryPromise) {
+      const entry = this.openAmdEntryOnce(senderId).finally(() => {
+        if (this.amdEntryPromise === entry) this.amdEntryPromise = null
+      })
+      this.amdEntryPromise = entry
+    }
+    return this.amdEntryPromise
+  }
+
+  private async openAmdEntryOnce(senderId: WindowId | null): Promise<void> {
+    const generation = this.lifecycleGeneration
+    let status = await this.getStatus()
+    if (status.phase !== 'signed-in') {
+      const result = await this.startLogin()
+      if (result.outcome !== 'signed-in') return
+      status = result.status
+    }
+    const isSenderCurrent = () => {
+      const sender = senderId ? application.get('WindowManager').getWindow(senderId) : undefined
+      return (
+        !!sender &&
+        !sender.isDestroyed() &&
+        generation === this.lifecycleGeneration &&
+        this.isCurrentScope(status.scopeId)
+      )
+    }
+    if (!isSenderCurrent()) return
+    const response = await this.authenticatedFetch('/api/v1/amd/desktop/entry', {
+      method: 'POST',
+      signal: AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
+    })
+    if (!response.ok) {
+      discardResponse(response)
+      throw new CherryCloudAmdEntryError(`request failed (${response.status})`)
+    }
+    const payload = amdDesktopEntryResponseSchema.safeParse(await response.json())
+    // The entry URL is a bearer credential: never log it or the response body.
+    if (!payload.success) throw new CherryCloudAmdEntryError('invalid response')
+    const entryUrl = payload.data.entry_url
+    if (new URL(entryUrl).origin !== new URL(resolveCherryCloudApiOrigin()).origin) {
+      throw new CherryCloudAmdEntryError('entry is not on the Cherry Cloud API origin')
+    }
+    if (!isSenderCurrent()) return
+    await abortable(shell.openExternal(entryUrl), AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS))
+  }
+
   private invalidateAccountRefreshes(): void {
     for (const controller of this.accountRefreshes) controller.abort()
     this.accountRefreshes.clear()
@@ -1471,6 +1529,7 @@ export class CherryCloudService extends BaseService {
     this.cloudState = { ...this.cloudState, session: null }
     this.sessionGeneration += 1
     this.subscriptionPromise = null
+    this.amdEntryPromise = null
     this.invalidateAccountRefreshes()
     this.resetAccountFacts()
     this.clearSessionExpiryTimer()

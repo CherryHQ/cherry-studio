@@ -181,7 +181,12 @@ export const cherryCloudAnalyticsEventSchema = z.discriminatedUnion('event', [
   }),
   z.strictObject({ event: z.literal('subscription_usage_view'), subscribed: z.boolean() }),
   z.strictObject({ event: z.literal('subscription_manage_click') }),
-  z.strictObject({ event: z.literal('subscription_faq_click'), subscribed: z.boolean() })
+  z.strictObject({ event: z.literal('subscription_faq_click'), subscribed: z.boolean() }),
+  z.strictObject({
+    event: z.literal('amd_entry_clicked'),
+    flowId: subscriptionFlowIdSchema,
+    modelId: z.string().max(200)
+  })
 ])
 
 export type CherryCloudAnalyticsEvent = z.infer<typeof cherryCloudAnalyticsEventSchema>
@@ -250,6 +255,7 @@ export const cherryCloudRequestSchemas = {
     }),
     output: z.void()
   }),
+  'cherry_cloud.amd_entry.open': defineRoute({ input: z.void(), output: z.void() }),
   'cherry_cloud.login.cancel': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
   'cherry_cloud.session.revoke': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
   'cherry_cloud.models.sync': defineRoute({
