@@ -8,6 +8,7 @@ import { application } from '@application'
 import type { BehaviorEvent, CallRef } from '@cherrystudio/agent-behavior'
 import { runtimeId, type InputState, type Observation, type Subagent } from '@cherrystudio/agent-runtime'
 import type {
+  AgentRuntimeCompaction,
   AgentRuntimeEvent as PiEvent,
   PiObservation,
   PiRuntime,
@@ -345,7 +346,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         ...(shellPath ? { shellPath } : {}),
         ...(loginPathPrefix ? { shellCommandPrefix: loginPathPrefix } : {})
       },
-      compaction: {
+      // A binding-supplied compaction config wins: tests and specialized hosts drive the native
+      // path directly, while production bindings get the derived budgets and host summarizer.
+      compaction: (binding as { compaction?: AgentRuntimeCompaction }).compaction ?? {
         ...resolvePiCompactionSettings(binding.model.contextWindow, binding.model.maxTokens),
         summarize: createPiCompactionSummarizer({
           binding,
