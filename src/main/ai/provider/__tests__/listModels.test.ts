@@ -869,10 +869,12 @@ describe('listModels — TopxAI chat discovery', () => {
       aiSdkGetFromApiMock.mockResolvedValue({
         value: {
           data: [
-            { id: 'gpt-6.2-sol', supported_endpoint_types: ['openai', 'openai-response'] },
+            { id: 'gpt-6.2-sol', supported_endpoint_types: ['openai-response', 'openai'] },
             { id: 'claude-opus-5-5', supported_endpoint_types: ['anthropic', 'openai'] },
             { id: 'jev-1.14.0', supported_endpoint_types: ['systemone'] },
-            { id: 'grok-imagine-video-1.5', supported_endpoint_types: ['openai-video'] },
+            { id: 'gpt-image-2.6-sunburst', supported_endpoint_types: ['image-generation', 'openai', 'image-edit'] },
+            { id: 'gpt-image-2.6-flare', supported_endpoint_types: ['openai', 'image-edit', 'image-generation'] },
+            { id: 'grok-imagine-video-1.5', supported_endpoint_types: ['video-generation'] },
             { id: 'legacy-model' }
           ]
         }

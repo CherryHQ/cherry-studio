@@ -998,10 +998,12 @@ async function listOpenAICompatibleModels(
     abortSignal: signal
   })
   warnSkippedOpenAIModelEntries(provider.id, response)
+  // TopxAI image generators also advertise the generic OpenAI protocol.
   const models = matchesPreset(provider, SystemProviderIds.topxai)
     ? response.data.filter(
         ({ supported_endpoint_types: endpoints }) =>
-          !Array.isArray(endpoints) || endpoints.some((endpoint) => endpoint === 'openai' || endpoint === 'anthropic')
+          !Array.isArray(endpoints) ||
+          (!endpoints.includes('image-generation') && (endpoints.includes('openai') || endpoints.includes('anthropic')))
       )
     : response.data
   return listing(
