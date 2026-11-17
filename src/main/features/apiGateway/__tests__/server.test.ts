@@ -79,7 +79,7 @@ describe('ApiGateway server lifecycle', () => {
         queueMicrotask(() => this.emit('error', error))
         return this
       }
-      return Reflect.apply(listen, this, args)
+      return listen.call(this, ...args)
     })
     service = new ApiGatewayService()
     if (refusals === 3) {
@@ -165,7 +165,7 @@ describe('ApiGateway server lifecycle', () => {
         queueMicrotask(() => this.emit('error', refused))
         return this
       }
-      return Reflect.apply(listen, this, args)
+      return listen.call(this, ...args)
     })
     const endpoint = { host: '127.0.0.1', port: 0 }
     gateway = new ApiGateway(endpoint)

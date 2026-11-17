@@ -252,7 +252,7 @@ describe('ApiGateway listening scope', () => {
     const originalListen = NetServer.prototype.listen
     const listen = vi.spyOn(NetServer.prototype, 'listen').mockImplementation(function (
       this: NetServer,
-      ...args: unknown[]
+      ...args: Parameters<NetServer['listen']>
     ) {
       const options = args[0] as { host?: string }
       if (options?.host === '::1') {
@@ -261,7 +261,7 @@ describe('ApiGateway listening scope', () => {
         process.nextTick(() => this.emit('error', error))
         return this
       }
-      return Reflect.apply(originalListen, this, args)
+      return originalListen.call(this, ...args)
     })
     const exitListeners = process.listenerCount('beforeExit')
     try {
