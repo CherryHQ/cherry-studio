@@ -211,12 +211,25 @@ describe('translateService.open', () => {
     analytics.onDone()
     analytics.onError()
 
+    const base = { event: 'feature_used', feature: 'translate', action: 'translated', modelSource: 'own_key' }
     expect(trackProductEventMock.mock.calls.map(([event]) => event)).toEqual([
-      { event: 'feature_used', feature: 'translate', action: 'translated', status: 'success', modelSource: 'own_key' },
-      { event: 'feature_used', feature: 'translate', action: 'translated', status: 'error', modelSource: 'own_key' }
+      { ...base, status: 'success', target: 'en-us' },
+      { ...base, status: 'error', target: 'en-us' }
     ])
     sender.alive = false
     expect(analytics.isAlive()).toBe(false)
+  })
+
+  it('omits the target language when it is user-created', async () => {
+    getByLangCodeMock.mockReturnValue({ ...TARGET, langCode: 'xx-my', value: 'My dialect' })
+    translateService.open(fakeSender, { streamId: 'translate:custom', text: 'hello', targetLangCode: 'xx-my' })
+    const listeners = (streamPromptMock.mock.calls as unknown as Array<[{ listener: unknown }]>)[0][0]
+      .listener as Array<{ id: string; onDone: () => void }>
+
+    listeners.find((listener) => listener.id.startsWith('analytics:'))!.onDone()
+
+    expect(trackProductEventMock).toHaveBeenCalledTimes(1)
+    expect(trackProductEventMock.mock.calls[0][0]).not.toHaveProperty('target')
   })
 
   it('rejects a streamId that does not carry the translate prefix', async () => {

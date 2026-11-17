@@ -30,6 +30,7 @@ import { providerService } from '@main/data/services/ProviderService'
 import { translateLanguageService } from '@main/data/services/TranslateLanguageService'
 import { analyticsModelSource, trackMainProductEvent } from '@main/services/productAnalytics'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translateLanguages'
 import type { Model } from '@shared/data/types/model'
 import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
@@ -111,13 +112,16 @@ export class TranslateService {
     const { reasoningEffort, callOverrides } = this.resolveRequestParameters(model)
 
     const wcListener = new WebContentsListener(sender, req.streamId)
+    // User-created languages are user-defined, so only built-in codes are reported.
+    const builtinTarget = BUILTIN_TRANSLATE_LANGUAGES.some((language) => language.langCode === req.targetLangCode)
     const report = (status: 'success' | 'error') =>
       trackMainProductEvent({
         event: 'feature_used',
         feature: 'translate',
         action: 'translated',
         status,
-        modelSource: analyticsModelSource(model.providerId)
+        modelSource: analyticsModelSource(model.providerId),
+        ...(builtinTarget && { target: req.targetLangCode })
       })
     // Lives exactly as long as the window's listener, so it never keeps an abandoned translation running.
     const analyticsListener: StreamListener = {

@@ -35,7 +35,7 @@ const featureSchema = z.enum([
   'provider'
 ])
 
-/** One core action of a feature; `target` names a preset (mini app, provider, CLI tool, channel type), else omitted. */
+/** One core action of a feature; `target` names a preset (mini app, provider, CLI tool, channel type, built-in translate language), else omitted. */
 export const featureUsedEventSchema = z.strictObject({
   event: z.literal('feature_used'),
   feature: featureSchema,
