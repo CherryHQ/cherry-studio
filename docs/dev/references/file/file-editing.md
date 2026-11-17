@@ -2,6 +2,7 @@
 description: Independent file editing drafts, conditional persistence, revalidation, and retained draft recovery
 sources:
   - src/main/services/file/FileEditService.ts
+  - src/renderer/services/fileObservation
   - src/renderer/services/fileEdit
   - src/renderer/hooks/useFileEditSession.ts
   - src/renderer/components/FileEditSessionProvider.tsx
@@ -21,7 +22,7 @@ English | [中文](file-editing.zh.md)
 | Renderer manager | Independent drafts, disk baselines, revisions, save queues, attachment generations, mutation barriers, and retained draft inventory |
 | Editor | Interactive document and undo history; callbacks carry attachment and document generations |
 | `FileEditService` | Window-owned edit leases, pinned filesystem targets, and conditional writes |
-| `DirectoryTreeManager` | Existing directory tree watchers and tree invalidation events |
+| `FileObservationService` | Shared native observation independent of directory tree demand |
 
 Notes, each Skill, and each Agent artifact surface use distinct stable owner IDs. The registry matches an owner plus the exact handle kind and locator. Reopening that locator within the same owner restores a retained draft. A replacement attachment invalidates its predecessor's callbacks. Different owners, path aliases, and entry/path handles do not share drafts or elect a writer. Recovery actions address the unique `sessionId`, not a filesystem path.
 
@@ -58,9 +59,9 @@ After preparation, the caller performs rename, move, or deletion and calls the i
 
 ## Revalidation
 
-Notes and Skills reuse existing tree invalidation callbacks. Active editors also reread on window focus, visible-document transitions, and reactivation. Editing adds no dedicated watcher service or shared watcher pool. Notifications invalidate knowledge; they never supply a replacement draft. Save correctness relies on conditional writes even when notifications are delayed or absent.
+Each editing instance acquires [file observation](./file-observation.md) directly, independently of directory tree expansion. Notes and Skills do not forward tree events to editors. The initial read follows observation activation; revalidation also runs on focus, visible-document transitions, and reattachment. Detached drafts release observation after a ten-second grace period once accepted saves settle; they keep their draft and recovery state and revalidate when attached again. Notifications invalidate knowledge; they never supply a replacement draft. Save correctness relies on conditional writes even when notifications are delayed or absent.
 
-A reread checks its generation, draft revision, pending writes, and mutation barrier before adopting a result. Clean content can refresh; dirty content remains in memory and differing disk bytes set a conflict. Notifications deferred during a save or barrier are revalidated when the session becomes available.
+Revalidation coalesces notifications into one in-flight read. A reread checks its observation version, read generation, draft revision, pending writes, and mutation barrier before adopting a result. Clean content can refresh; dirty content remains in memory and differing disk bytes set a conflict. Notifications deferred during a save or barrier are revalidated when the session becomes available.
 
 A transient observation read failure is logged and leaves freshness unknown. It does not erase the draft or create a save failure. Missing/retargeted leases, or failed revalidation during mutation completion, make the current binding unavailable. An explicit reload can clear the read error after a successful read; actual save failures retain their separate retry state.
 

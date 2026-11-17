@@ -270,6 +270,8 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
 
 ## File I/O, States, and Errors
 
+The host acquires [file observation](../../../../docs/dev/references/file/file-observation.md) independently of any directory tree. Observation is active before metadata and content are read. External changes invalidate the source even when size and timestamps appear unchanged. Focus/visibility return revalidates, and observation failure uses the existing load-error state; format plugins never create watchers.
+
 - Opening surfaces should classify a clicked path before choosing UI: open directories in the file browser without a preview selection; send concrete files to `FilePreview`; let missing or inaccessible file selections reach `FilePreview` so it can show the unavailable state.
 - `FilePreview` uses this routing model:
 

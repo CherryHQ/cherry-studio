@@ -5,7 +5,6 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
-  useRef,
   useState,
   useSyncExternalStore
 } from 'react'
@@ -45,7 +44,6 @@ export interface FileEditSession {
   reload(): Promise<void>
   keepDraft(): Promise<void>
   flush(): Promise<void>
-  notifyExternalChange(): void
   prepareMutation(): Promise<PreparedFileMutation>
 }
 
@@ -94,24 +92,6 @@ export function useFileEditSession(
   const lease = acquired?.request === request ? acquired?.lease : undefined
   const acquisitionError = acquired?.request === request ? acquired?.error : undefined
   const snapshot = useSyncExternalStore(lease?.subscribe ?? emptySubscription, lease?.getSnapshot ?? emptySnapshot)
-  const activatedLease = useRef<SessionLease | undefined>(undefined)
-  useEffect(() => {
-    if (!lease) return
-    const refresh = () => {
-      void lease.invalidate()
-    }
-    const visible = () => {
-      if (document.visibilityState === 'visible') refresh()
-    }
-    window.addEventListener('focus', refresh)
-    document.addEventListener('visibilitychange', visible)
-    if (activatedLease.current === lease) refresh()
-    activatedLease.current = lease
-    return () => {
-      window.removeEventListener('focus', refresh)
-      document.removeEventListener('visibilitychange', visible)
-    }
-  }, [lease])
   useEffect(() => {
     lease?.setAutoSave(autoSave)
   }, [lease, autoSave])
@@ -140,12 +120,9 @@ export function useFileEditSession(
       reload: () => invoke('reload'),
       keepDraft: () => invoke('keepLocal'),
       flush: () => invoke('flush'),
-      notifyExternalChange: () => {
-        void lease?.invalidate()
-      },
       prepareMutation: () => manager.prepareMutation()
     }),
-    [invoke, manager, lease]
+    [invoke, manager]
   )
 
   return useMemo(() => {

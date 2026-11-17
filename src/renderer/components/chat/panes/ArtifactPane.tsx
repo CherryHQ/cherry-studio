@@ -469,7 +469,6 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   useEffect(() => {
     if (fileSession?.savedSizeBytes === undefined) return
     setKnownFileSizeBytes(fileSession.savedSizeBytes)
-    setContentRefreshToken((value) => value + 1)
   }, [fileSession?.savedSizeBytes])
 
   // Surface an unresolved external-change conflict as the reload dialog;

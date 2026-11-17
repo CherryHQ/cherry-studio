@@ -633,8 +633,10 @@ describe('useDirectoryTree', () => {
     expect(onMutation).not.toHaveBeenCalled()
   })
 
-  it('reports a forward revision gap instead of applying a stale stream', async () => {
-    mocks.create.mockResolvedValue({ treeId: 't-gap', revision: 2, snapshot: makeSnapshot('/notes', []) })
+  it('recovers a forward revision gap with a new authoritative snapshot', async () => {
+    mocks.create
+      .mockResolvedValueOnce({ treeId: 't-gap', revision: 2, snapshot: makeSnapshot('/notes', []) })
+      .mockResolvedValue({ treeId: 't-fresh', revision: 0, snapshot: makeSnapshot('/notes', ['fresh.md']) })
     let pushListener: ((payload: TreeMutationPushPayload) => void) | null = null
     mocks.onMutation.mockImplementation((cb) => {
       pushListener = cb
@@ -662,10 +664,9 @@ describe('useDirectoryTree', () => {
       })
     })
 
-    await waitFor(() => {
-      expect(result.current.error?.message).toContain('expected 3, received 4')
-    })
-    expect(result.current.root).toBeNull()
+    await waitFor(() => expect(result.current.getNode('/notes/fresh.md')).not.toBeNull())
+    expect(result.current.treeId).toBe('t-fresh')
+    expect(result.current.error).toBeNull()
     expect(result.current.getNode('/notes/skipped.md')).toBeNull()
   })
 
@@ -749,45 +750,22 @@ describe('useDirectoryTree', () => {
     expect(mocks.dispose).toHaveBeenCalledWith('t-gap-activate')
   })
 
-  it('tears the stream down on a revision gap instead of re-reporting every later push', async () => {
-    vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
-    mocks.create.mockResolvedValue({ treeId: 't-gap-once', revision: 2, snapshot: makeSnapshot('/notes', ['a.md']) })
-    const unsubscribe = vi.fn()
-    // Held past `unsubscribe` on purpose, so the test can keep pushing and prove
-    // later payloads are inert rather than merely undeliverable.
-    let listener: ((payload: TreeMutationPushPayload) => void) | null = null
-    mocks.onMutation.mockImplementation((cb) => {
-      listener = cb
-      return unsubscribe
+  it('ignores the old stream after recovering from a revision gap', async () => {
+    mocks.create
+      .mockResolvedValueOnce({ treeId: 'old', revision: 0, snapshot: makeSnapshot('/notes', ['a.md']) })
+      .mockResolvedValue({ treeId: 'fresh', revision: 0, snapshot: makeSnapshot('/notes', ['fresh.md']) })
+    let listener: ((payload: TreeMutationPushPayload) => void) | undefined
+    mocks.onMutation.mockImplementation((callback) => {
+      listener = callback
+      return () => {}
     })
-
     const { result } = renderHook(() => useDirectoryTree('/notes'))
-    await waitFor(() => {
-      expect(result.current.treeId).toBe('t-gap-once')
-    })
-
-    const push = (revision: number) =>
-      act(() => {
-        listener?.({ treeId: 't-gap-once', revision, event: { type: 'removed', path: '/notes/a.md' } })
-      })
-
-    push(4)
-    await waitFor(() => {
-      expect(result.current.error).not.toBeNull()
-    })
-    const firstError = result.current.error
-
-    // A gap is unrecoverable, so the stream and the main-side tree are released.
-    // Staying subscribed would re-gap on every push — a fresh Error each time, which
-    // consumers that toast on `error` turn into an unbounded run of toasts.
-    expect(unsubscribe).toHaveBeenCalled()
-    expect(mocks.dispose).toHaveBeenCalledWith('t-gap-once')
-    expect(result.current.root).toBeNull()
-    expect(result.current.treeId).toBeNull()
-
-    push(5)
-    push(6)
-    expect(result.current.error).toBe(firstError)
-    expect(mocks.dispose).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(result.current.treeId).toBe('old'))
+    const obsolete = listener
+    act(() => obsolete?.({ treeId: 'old', revision: 2, event: { type: 'removed', path: '/notes/a.md' } }))
+    await waitFor(() => expect(result.current.treeId).toBe('fresh'))
+    act(() => obsolete?.({ treeId: 'old', revision: 3, event: { type: 'removed', path: '/notes/fresh.md' } }))
+    expect(result.current.getNode('/notes/fresh.md')).not.toBeNull()
+    expect(result.current.error).toBeNull()
   })
 })

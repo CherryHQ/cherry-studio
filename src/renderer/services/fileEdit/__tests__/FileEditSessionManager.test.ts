@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 
+import { mockFileObservationService } from '@test-mocks/renderer/FileObservationService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ipcApi } from '@renderer/ipc'
@@ -23,6 +24,7 @@ let holdWrite: Promise<void> | undefined
 
 beforeEach(() => {
   vi.useFakeTimers()
+  mockFileObservationService.reset()
   disk = snapshot('a')
   writes = []
   failWrite = false
@@ -416,4 +418,25 @@ describe('file editing lifetime', () => {
     expect(new TextDecoder().decode(disk.data)).toBe('c')
     await prepared.finish()
   })
+})
+
+vi.mock('@renderer/services/fileObservation', async () => {
+  const { mockFileObservationService } = await import('@test-mocks/renderer/FileObservationService')
+  return { fileObservationService: mockFileObservationService }
+})
+
+it('observes clean and dirty editing instances independently while the directory tree is absent', async () => {
+  const clean = await manager.acquire('notes', handle)
+  const dirty = await manager.acquire('agent', handle)
+  dirty.setAutoSave(false)
+  dirty.acceptEdit('local draft')
+  disk = snapshot('external')
+  mockFileObservationService.get(handle).invalidate()
+  await vi.waitFor(() => expect(clean.getSnapshot().draft).toBe('external'))
+  expect(clean.getSnapshot().isDirty).toBe(false)
+  await vi.waitFor(() => expect(dirty.getSnapshot().conflict).toBe(true))
+  expect(dirty.getSnapshot().draft).toBe('local draft')
+  expect(writes).toEqual([])
+  clean.release()
+  dirty.release()
 })

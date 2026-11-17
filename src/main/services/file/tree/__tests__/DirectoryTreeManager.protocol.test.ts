@@ -1,3 +1,4 @@
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import type { WebContents } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -21,6 +22,8 @@ import type {
   TreeMutationEvent,
   TreeMutationPushPayload
 } from '@shared/utils/file'
+
+import { FileObservationService } from '../../observation/FileObservationService'
 
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
   const actual = await (importOriginal as () => Promise<typeof lifecycleModule>)()
@@ -106,6 +109,7 @@ describe('DirectoryTreeManager protocol', () => {
 
   beforeEach(async () => {
     BaseService.resetInstances()
+    MockApplicationUtils.setService('FileObservationService', new FileObservationService())
     builder = makeFakeBuilder()
     createDirectoryTreeMock.mockReset().mockResolvedValue(builder)
     vi.mocked(application.get('WindowManager').onWindowDestroyed).mockImplementation((listener) => {

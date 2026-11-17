@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { loggerService } from '@logger'
 import { type FileTreeNode } from '@renderer/components/FileTree'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
-import { ipcApi } from '@renderer/ipc'
+import { DirectoryTreeSession } from '@renderer/services/DirectoryTreeSession'
 import { joinPath } from '@renderer/utils/path'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeDir, TreeDirRoot, TreeNode } from '@shared/utils/file'
+import type { DirectoryTreeOptions, TreeDir, TreeDirRoot, TreeNode } from '@shared/utils/file'
 
 import { getPathBasename, normalizeArtifactPaneFilePath, WORKSPACE_ROOT_ID } from './artifactPanePath'
 
@@ -15,8 +15,6 @@ const logger = loggerService.withContext('useArtifactFileTreeModel')
 // Level 1 is all a collapsed tree renders, so a deeper initial scan only buys prefetch; a deep
 // watcher over a real workspace exhausts file descriptors (EMFILE) and stalls the main thread.
 const ARTIFACT_TREE_INITIAL_MAX_DEPTH = 1
-/** Handshake rounds before a lazy watcher gives up — see `useDirectoryTree`'s copy. */
-const MAX_ACTIVATION_ATTEMPTS = 3
 const ARTIFACT_FILE_SEARCH_DEBOUNCE_MS = 200
 const ARTIFACT_FILE_SEARCH_MAX_ENTRIES = 200
 const WORKSPACE_TREE_OPTIONS: DirectoryTreeOptions = {
@@ -122,18 +120,8 @@ function mergeLazyChildren(
   return nodes.map((node) => {
     if (node.kind !== 'folder') return node
 
-    const children = node.children ? mergeLazyChildren(node.children, lazyChildrenByDirId) : []
-    const lazyChildren = lazyChildrenByDirId.get(node.id)
-    if (!lazyChildren?.length) return { ...node, children }
-
-    const merged = [...children]
-    const existingIds = new Set(merged.map((child) => child.id))
-    for (const child of lazyChildren) {
-      if (existingIds.has(child.id)) continue
-      existingIds.add(child.id)
-      merged.push(child)
-    }
-    return { ...node, children: mergeLazyChildren(sortFileTreeNodes(merged), lazyChildrenByDirId) }
+    const children = lazyChildrenByDirId.get(node.id) ?? node.children ?? []
+    return { ...node, children: mergeLazyChildren(children, lazyChildrenByDirId) }
   })
 }
 
@@ -276,20 +264,6 @@ function useArtifactFileSearch(workspacePath: string | undefined, searchKeyword:
   return searchTree
 }
 
-interface LazyDirectoryWatcher {
-  treeId?: string
-  unsubscribe?: () => void
-  disposed: boolean
-}
-
-/**
- * Grace period before the lazy directory watchers of an unmounted/hidden tree
- * are actually disposed. Absorbs <Activity> tab switches, which run this
- * hook's cleanups on hide and re-run its effects on show — without the grace,
- * every switch paid a tree.dispose + tree.create IPC per expanded directory.
- */
-const LAZY_WATCHER_DISPOSE_GRACE_MS = 10_000
-
 function useLazyArtifactFileTree({
   workspacePath,
   treeOpen,
@@ -301,268 +275,68 @@ function useLazyArtifactFileTree({
   tree: FileTreeNode[]
   expandedIds: ReadonlySet<string>
 }) {
-  const previousTreeOpenRef = useRef(false)
-  const previousWorkspacePathRef = useRef(workspacePath)
-  const lazyChildrenByDirIdRef = useRef<Map<string, FileTreeNode[]>>(new Map())
-  const lazyLoadingDirIdsRef = useRef<Set<string>>(new Set())
-  const lazyRequestIdsByDirIdRef = useRef<Map<string, number>>(new Map())
-  const lazyDirectoryWatchersRef = useRef<Map<string, LazyDirectoryWatcher>>(new Map())
-  const pendingWatcherDisposeRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const watchersWorkspacePathRef = useRef(workspacePath)
-  const lazyLoadGenerationRef = useRef(0)
-  const currentWorkspacePathRef = useRef(workspacePath)
-  const [lazyChildrenVersion, setLazyChildrenVersion] = useState(0)
-  currentWorkspacePathRef.current = workspacePath
-
-  const bumpLazyVersion = useCallback(() => {
-    setLazyChildrenVersion((version) => version + 1)
-  }, [])
-
-  const disposeLazyDirectoryWatcher = useCallback((dirId: string) => {
-    const watcher = lazyDirectoryWatchersRef.current.get(dirId)
-    if (!watcher) return
-    watcher.disposed = true
-    watcher.unsubscribe?.()
-    if (watcher.treeId) {
-      Promise.resolve(ipcApi.request('file.tree.dispose', { treeId: watcher.treeId })).catch((err) => {
-        logger.warn(`Failed to dispose lazy directory watcher: ${dirId}`, err as Error)
-      })
-    }
-    lazyDirectoryWatchersRef.current.delete(dirId)
-  }, [])
-
-  const disposeLazyDirectoryWatchers = useCallback(() => {
-    for (const dirId of Array.from(lazyDirectoryWatchersRef.current.keys())) {
-      disposeLazyDirectoryWatcher(dirId)
-    }
-  }, [disposeLazyDirectoryWatcher])
-
-  const resetLazyChildren = useCallback(() => {
-    lazyLoadGenerationRef.current += 1
-    lazyChildrenByDirIdRef.current.clear()
-    lazyLoadingDirIdsRef.current.clear()
-    lazyRequestIdsByDirIdRef.current.clear()
-    bumpLazyVersion()
-  }, [bumpLazyVersion])
-
-  // Directory ids are workspace-relative, so cached children cannot cross a workspace boundary.
-  useLayoutEffect(() => {
-    if (previousWorkspacePathRef.current === workspacePath) return
-    previousWorkspacePathRef.current = workspacePath
-    resetLazyChildren()
-  }, [resetLazyChildren, workspacePath])
-
-  const loadDirectoryChildren = useCallback(
-    (dirId: string, options?: { force?: boolean }) => {
-      if (!workspacePath || dirId === WORKSPACE_ROOT_ID) return
-      if (!options?.force && (lazyChildrenByDirIdRef.current.has(dirId) || lazyLoadingDirIdsRef.current.has(dirId))) {
-        return
-      }
-
-      lazyLoadingDirIdsRef.current.add(dirId)
-      bumpLazyVersion()
-      const generation = lazyLoadGenerationRef.current
-      const requestId = (lazyRequestIdsByDirIdRef.current.get(dirId) ?? 0) + 1
-      lazyRequestIdsByDirIdRef.current.set(dirId, requestId)
-      const requestWorkspacePath = workspacePath
-      const dirPath = joinPath(workspacePath, dirId)
-
-      void (async () => {
-        try {
-          // One round trip that classifies each entry — avoids an `isDirectory`
-          // IPC call per entry (was N+1 round trips per expanded folder).
-          const entries = await window.api.file.listDirectoryEntries(AbsoluteFilePathSchema.parse(dirPath), {
-            recursive: false,
-            includeHidden: false,
-            includeFiles: true,
-            includeDirectories: true
-          })
-          const children = entries
-            .map((entry) => {
-              const relativePath = normalizeArtifactPaneFilePath(requestWorkspacePath, entry.path)
-              if (!relativePath) return null
-              return {
-                id: relativePath,
-                name: getPathBasename(relativePath),
-                kind: entry.isDirectory ? 'folder' : 'file',
-                path: joinPath(WORKSPACE_ROOT_ID, relativePath),
-                children: entry.isDirectory ? [] : undefined
-              } satisfies FileTreeNode
-            })
-            .filter((child) => child !== null)
-          if (
-            generation !== lazyLoadGenerationRef.current ||
-            requestId !== lazyRequestIdsByDirIdRef.current.get(dirId) ||
-            requestWorkspacePath !== currentWorkspacePathRef.current
-          ) {
-            return
-          }
-          lazyChildrenByDirIdRef.current.set(dirId, sortFileTreeNodes(children))
-          bumpLazyVersion()
-        } catch (err) {
-          const normalized = err instanceof Error ? err : new Error(String(err))
-          logger.warn(`Failed to load directory children: ${dirPath}`, normalized)
-        } finally {
-          if (
-            generation === lazyLoadGenerationRef.current &&
-            requestId === lazyRequestIdsByDirIdRef.current.get(dirId) &&
-            requestWorkspacePath === currentWorkspacePathRef.current
-          ) {
-            lazyLoadingDirIdsRef.current.delete(dirId)
-            lazyRequestIdsByDirIdRef.current.delete(dirId)
-            bumpLazyVersion()
-          }
-        }
-      })()
-    },
-    [bumpLazyVersion, workspacePath]
+  const { path: scopePath, sessions } = useMemo(
+    () => ({
+      path: workspacePath,
+      sessions: new Map<string, { session: DirectoryTreeSession; release: () => void }>()
+    }),
+    [workspacePath]
   )
-
-  const createLazyDirectoryWatcher = useCallback(
+  const requested = useRef(new Set<string>())
+  const [version, setVersion] = useState(0)
+  const acquire = useCallback(
     (dirId: string) => {
-      if (!workspacePath || dirId === WORKSPACE_ROOT_ID || lazyDirectoryWatchersRef.current.has(dirId)) return
-
-      const watcher: LazyDirectoryWatcher = { disposed: false }
-      lazyDirectoryWatchersRef.current.set(dirId, watcher)
-
-      const requestWorkspacePath = workspacePath
-      const dirPath = joinPath(workspacePath, dirId)
-
-      void (async () => {
-        try {
-          for (let attempt = 1; attempt <= MAX_ACTIVATION_ATTEMPTS; attempt += 1) {
-            const result: CreateTreeIpcResult = await ipcApi.request('file.tree.create', {
-              rootPath: AbsoluteFilePathSchema.parse(dirPath),
-              options: { maxDepth: 1, includeHidden: false }
-            })
-            if (
-              watcher.disposed ||
-              requestWorkspacePath !== currentWorkspacePathRef.current ||
-              lazyDirectoryWatchersRef.current.get(dirId) !== watcher
-            ) {
-              Promise.resolve(ipcApi.request('file.tree.dispose', { treeId: result.treeId })).catch((err) => {
-                logger.warn(`Failed to dispose stale lazy directory watcher: ${dirId}`, err as Error)
-              })
-              return
-            }
-
-            // Assign both before awaiting `activate`, so a concurrent
-            // `disposeLazyDirectoryWatcher` tears this watcher down completely.
-            watcher.treeId = result.treeId
-            watcher.unsubscribe = ipcApi.on('file.tree.mutation', (payload) => {
-              if (payload.treeId !== result.treeId) return
-              loadDirectoryChildren(dirId, { force: true })
-            })
-
-            // A created consumer stays pending: mutations queue main-side until it is
-            // activated. Without this the subtree would freeze at its snapshot and the
-            // queue would grow for as long as the directory stays expanded.
-            const activated = await ipcApi.request('file.tree.activate', {
-              treeId: result.treeId,
-              revision: result.revision
-            })
-            if (activated) {
-              // A refused round means events were dropped while we were unwatched, so
-              // the rendered children predate them. Nothing else re-runs this effect.
-              if (attempt > 1) loadDirectoryChildren(dirId, { force: true })
-              return
-            }
-
-            // Main dropped this consumer (pending-buffer overflow) before we activated.
-            // Release the half-installed watcher and take a fresh snapshot — leaving it
-            // would keep the expanded directory frozen with nothing to un-freeze it.
-            logger.warn(`Lazy directory watcher refused activation, retaking the snapshot: ${dirId}`, { attempt })
-            watcher.unsubscribe?.()
-            watcher.unsubscribe = undefined
-            watcher.treeId = undefined
-            Promise.resolve(ipcApi.request('file.tree.dispose', { treeId: result.treeId })).catch((err) => {
-              logger.warn(`Failed to dispose refused lazy directory watcher: ${dirId}`, err as Error)
-            })
-          }
-          throw new Error(`Lazy directory watcher was refused activation ${MAX_ACTIVATION_ATTEMPTS} times: ${dirId}`)
-        } catch (err) {
-          if (watcher.disposed || lazyDirectoryWatchersRef.current.get(dirId) !== watcher) return
-          // Drops the subscription and the main-side tree too — both may already be
-          // attached if the failure came from `activate` rather than `create`.
-          disposeLazyDirectoryWatcher(dirId)
-          const normalized = err instanceof Error ? err : new Error(String(err))
-          logger.warn(`Failed to watch lazy directory: ${dirPath}`, normalized)
-        }
-      })()
+      if (!scopePath || dirId === WORKSPACE_ROOT_ID || sessions.has(dirId)) return
+      const session = new DirectoryTreeSession(
+        joinPath(scopePath, dirId),
+        { maxDepth: 1, includeHidden: false },
+        () => {}
+      )
+      const record = { session, release: () => {} }
+      sessions.set(dirId, record)
+      record.release = session.subscribe(() => setVersion((value) => value + 1))
     },
-    [disposeLazyDirectoryWatcher, loadDirectoryChildren, workspacePath]
+    [sessions, scopePath]
   )
-
-  const displayTree = useMemo(() => {
-    void lazyChildrenVersion
-    return mergeLazyChildren(tree, lazyChildrenByDirIdRef.current)
-  }, [tree, lazyChildrenVersion])
-
   useEffect(() => {
-    if (previousTreeOpenRef.current && !treeOpen) {
-      resetLazyChildren()
-    }
-    previousTreeOpenRef.current = treeOpen
-  }, [resetLazyChildren, treeOpen])
-
-  useEffect(() => {
-    // A dispose scheduled by the previous cleanup (an <Activity> hide) is
-    // canceled here: the watcher map lives in a ref that survived, so the
-    // still-live watchers are reused instead of recreated.
-    if (pendingWatcherDisposeRef.current !== null) {
-      clearTimeout(pendingWatcherDisposeRef.current)
-      pendingWatcherDisposeRef.current = null
-    }
-    // Watchers watch absolute paths under the previous workspace — after a
-    // workspace switch, surviving watchers must be dropped immediately.
-    if (watchersWorkspacePathRef.current !== workspacePath) {
-      watchersWorkspacePathRef.current = workspacePath
-      disposeLazyDirectoryWatchers()
-    }
+    requested.current.clear()
     return () => {
-      pendingWatcherDisposeRef.current = setTimeout(() => {
-        pendingWatcherDisposeRef.current = null
-        disposeLazyDirectoryWatchers()
-      }, LAZY_WATCHER_DISPOSE_GRACE_MS)
+      for (const { release } of sessions.values()) release()
+      sessions.clear()
     }
-  }, [disposeLazyDirectoryWatchers, workspacePath])
-
+  }, [sessions])
   useEffect(() => {
-    if (!treeOpen) return
-    for (const id of expandedIds) {
-      loadDirectoryChildren(id)
+    const needed = treeOpen ? new Set([...expandedIds, ...requested.current]) : new Set<string>()
+    let removed = false
+    for (const [id, { release }] of sessions) {
+      if (!needed.has(id)) {
+        removed = true
+        release()
+        sessions.delete(id)
+      }
     }
-  }, [expandedIds, loadDirectoryChildren, treeOpen])
-
-  useEffect(() => {
-    if (!treeOpen || !workspacePath) {
-      disposeLazyDirectoryWatchers()
-      return
+    for (const id of needed) acquire(id)
+    if (removed) setVersion((value) => value + 1)
+  }, [acquire, expandedIds, sessions, treeOpen])
+  const loadDirectoryChildren = useCallback(
+    (dirId: string) => {
+      requested.current.add(dirId)
+      acquire(dirId)
+    },
+    [acquire]
+  )
+  const { displayTree, isLoading } = useMemo(() => {
+    void version
+    const children = new Map<string, FileTreeNode[]>()
+    let loading = false
+    for (const [id, { session }] of sessions) {
+      const state = session.getSnapshot()
+      loading ||= state.isLoading
+      if (state.root) children.set(id, projectChildren(state.root, id))
     }
-
-    const nextWatchedIds = new Set(Array.from(expandedIds).filter((id) => id !== WORKSPACE_ROOT_ID))
-    for (const dirId of Array.from(lazyDirectoryWatchersRef.current.keys())) {
-      if (!nextWatchedIds.has(dirId)) disposeLazyDirectoryWatcher(dirId)
-    }
-    for (const dirId of nextWatchedIds) {
-      createLazyDirectoryWatcher(dirId)
-    }
-  }, [
-    createLazyDirectoryWatcher,
-    disposeLazyDirectoryWatcher,
-    disposeLazyDirectoryWatchers,
-    expandedIds,
-    treeOpen,
-    workspacePath
-  ])
-
-  return {
-    displayTree,
-    isLoading:
-      lazyLoadingDirIdsRef.current.size > 0 ||
-      Array.from(expandedIds).some((id) => id !== WORKSPACE_ROOT_ID && !lazyChildrenByDirIdRef.current.has(id)),
-    loadDirectoryChildren
-  }
+    return { displayTree: mergeLazyChildren(tree, children), isLoading: loading }
+  }, [sessions, tree, version])
+  return { displayTree, isLoading, loadDirectoryChildren }
 }
 
 /** True when `selectedFile` resolves to a file node in the current tree. */
@@ -649,12 +423,9 @@ export function useArtifactFileTreeModel({
   const setExpandedIds = useCallback(
     (ids: ReadonlySet<string>) => {
       const nextIds = stripWorkspaceRootId(ids)
-      for (const id of nextIds) {
-        if (!expandedIds.has(id)) loadDirectoryChildren(id)
-      }
       onExpandedIdsChange(nextIds)
     },
-    [expandedIds, loadDirectoryChildren, onExpandedIdsChange]
+    [onExpandedIdsChange]
   )
 
   // Loaded entries attach under their folder's node, which exists only once its ancestors are loaded.

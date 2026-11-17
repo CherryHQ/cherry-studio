@@ -12,7 +12,7 @@ The [earlier lifecycle proposal](2026-10-22-file-edit-session-lifecycle.md) expa
 
 This proposal supersedes the earlier document's current-PR scope and acceptance gate. The earlier document retains the broader design alternatives and future lifecycle discussion; it is not an additional delivery checklist. This is a design revision, not evidence that the branch already implements it. Existing reference documentation continues to describe the current implementation until code changes land.
 
-The focused [file observation and view consistency proposal](2026-11-17-file-observation-and-view-consistency.md) now owns the proposed follow-up for tree/preview observation and partially supersedes the observation deferral here. Independent draft ownership, conditional persistence and this note's other boundaries remain in force; it does not reopen the earlier shared-draft or close-coordination scope.
+The focused [file observation and view consistency decision](../../implemented/architecture/2026-11-17-file-observation-and-view-consistency.md) now owns tree/preview observation and partially supersedes the observation deferral here. Independent draft ownership, conditional persistence and this note's other boundaries remain in force; it does not reopen the earlier shared-draft or close-coordination scope.
 
 ## Proposal
 

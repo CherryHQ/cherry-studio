@@ -89,3 +89,8 @@ it('debounces real edits and rejects a callback captured before a document repla
   act(() => oldEdit('stale replacement'))
   expect(result.current.draft).toBe('changed')
 })
+
+vi.mock('@renderer/services/fileObservation', async () => {
+  const { mockFileObservationService } = await import('@test-mocks/renderer/FileObservationService')
+  return { fileObservationService: mockFileObservationService }
+})

@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next'
 import { FilePreviewLayout } from '@cherrystudio/file-preview/react'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { useFileObservation } from '@renderer/hooks/useFileObservation'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
@@ -228,23 +229,39 @@ export function FilePreview({
       return null
     }
   }, [filePath])
+  const observation = useFileObservation(file?.filePath)
+  const waitForObservation = observation.whenReady
+  const sourceRevision = `${refreshKey}:${observation.version}`
+  const pluginGeneration = useRef({ sourceRevision, value: refreshKey })
+  if (pluginGeneration.current.sourceRevision !== sourceRevision) {
+    pluginGeneration.current = { sourceRevision, value: pluginGeneration.current.value + 1 }
+  }
   const metadataRequest = useMemo(() => {
     if (!file) return null
     let promise: ReturnType<FilePreviewMetadataRequest> | undefined
+    let current: symbol | undefined
     return {
-      key: `${file.filePath}\0${refreshKey}`,
+      key: `${file.filePath}\0${sourceRevision}`,
       start() {
-        promise = Promise.resolve().then(() => ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath)))
+        const generation = Symbol()
+        current = generation
+        promise = waitForObservation().then(() => {
+          if (current !== generation) throw new Error('Preview metadata request superseded')
+          return ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath))
+        })
         // The host and retained source attach in passive effects, after this layout effect.
         void promise.catch(() => {})
         return promise
+      },
+      stop() {
+        current = undefined
       },
       read() {
         if (!promise) throw new Error('Preview metadata request has not started')
         return promise
       }
     }
-  }, [file, refreshKey])
+  }, [file, sourceRevision, waitForObservation])
   const requestKey = metadataRequest?.key ?? ''
   const [resolution, setResolution] = useState<FilePreviewResolution>({ requestKey: '', status: 'loading' })
   const selectionRequestRef = useRef<ReturnType<FilePreviewMetadataRequest> | null>(null)
@@ -252,6 +269,7 @@ export function FilePreview({
     selectionRequestRef.current = metadataRequest?.start() ?? null
     return () => {
       selectionRequestRef.current = null
+      metadataRequest?.stop()
     }
   }, [metadataRequest])
   const reportSelection = useCallback<NonNullable<FilePreviewPluginProps['onSelectionReference']>>(
@@ -335,6 +353,8 @@ export function FilePreview({
 
   if (!file) {
     preview = <FilePreviewState kind="invalid_path" />
+  } else if (observation.coverage === 'unavailable') {
+    preview = <FilePreviewState kind="load_error" />
   } else if (
     resolution.status === 'loading' ||
     (resolution.requestKey !== requestKey &&
@@ -356,7 +376,7 @@ export function FilePreview({
         onSelectionReference={onSelectionReference ? reportSelection : undefined}
         onLineComment={onLineComment}
         plugin={resolution.plugin}
-        refreshKey={refreshKey}
+        refreshKey={pluginGeneration.current.value}
         type={type}
       />
     )

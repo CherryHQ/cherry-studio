@@ -1,6 +1,6 @@
 # Agent Note: 文件观察归属与视图一致性
 
-Status: proposed
+Status: implemented
 
 [English](2026-11-17-file-observation-and-view-consistency.md) | 中文
 
@@ -8,13 +8,13 @@ Status: proposed
 
 外部程序、Agent 和编辑器可以独立修改同一个文件系统。目录成员、文件内容、本地草稿和视图状态有不同的所有者与生命周期。文件名或字节数不变，不能证明内容仍是最新；重新连上 watcher，也不能证明旧缓存仍然有效。
 
-当前代码可独立复现两个问题：目录折叠期间发生外部增删，重新展开后仍复用旧列表；文件发生等长或非等长外部写入后，已打开的预览仍显示旧内容。前者的第一个状态分歧在[文件面板树模型](../../../../src/renderer/components/chat/panes/useArtifactFileTreeModel.ts)：列表缓存与订阅被分开维护。后者在[预览宿主](../../../../src/renderer/components/chat/panes/ArtifactPane.tsx)：它没有完整的内容观察链路；[目录树 builder](../../../../src/main/services/file/tree/builder.ts) 只有启用 `withStats` 才发送内容更新。[#23347](https://github.com/CherryHQ/cherry-studio/issues/23347) 和 [#24151](https://github.com/CherryHQ/cherry-studio/issues/24151) 是本次排查的反馈来源；后者的宽泛症状不能全部归因于这两次复现。
+原实现可独立复现两个问题：目录折叠期间发生外部增删，重新展开后仍复用旧列表；文件发生等长或非等长外部写入后，已打开的预览仍显示旧内容。前者的第一个状态分歧出现在[文件面板树模型](../../../../src/renderer/components/chat/panes/useArtifactFileTreeModel.ts)：列表缓存与订阅被分开维护。后者在[预览宿主](../../../../src/renderer/components/chat/panes/ArtifactPane.tsx)：当时没有完整的内容观察链路；[目录树 builder](../../../../src/main/services/file/tree/builder.ts) 只有启用 `withStats` 才发送内容更新。[#23347](https://github.com/CherryHQ/cherry-studio/issues/23347) 和 [#24151](https://github.com/CherryHQ/cherry-studio/issues/24151) 是本次排查的反馈来源；后者的宽泛症状不能全部归因于这两次复现。
 
-有界 TLA+ 模型暴露了这两个问题，并检查了候选目标的安全不变量。有限版本、抽象读取及缺少公平性约束，不能证明实现正确性、更新时间或最终收敛。真实文件系统与 IPC 重放证明的是当前缺陷，不是本方案的验收结果。
+有界 TLA+ 模型暴露了这两个问题，并检查了候选目标的安全不变量。有限版本、抽象读取及缺少公平性约束，不能证明实现正确性、更新时间或最终收敛。修复前的文件系统与 IPC 重放用于定位缺陷；实现证据列于“验证”。
 
-本方案新承接文件观察与投影一致性的决策，部分接替[独立编辑实例](2026-10-23-independent-file-edit-lifecycle.md)中延后观察能力的范围决定，同时保留独立草稿、现有写入租约、条件保存和恢复。[更早的生命周期提案](2026-10-22-file-edit-session-lifecycle.md)继续作为备选方案的来源，不构成额外交付清单。本方案不恢复共享草稿、别名合并、写者选举或窗口关闭协调器。
+本决策承接文件观察与投影一致性，部分接替[独立编辑实例](../../proposed/architecture/2026-10-23-independent-file-edit-lifecycle.md)中延后观察能力的范围决定，同时保留独立草稿、现有写入租约、条件保存和恢复。[更早的生命周期提案](../../proposed/architecture/2026-10-22-file-edit-session-lifecycle.md)继续作为备选方案的来源，不构成额外交付清单。本决策不恢复共享草稿、别名合并、写者选举或窗口关闭协调器。
 
-## 方案
+## 决策
 
 ### 状态归属与范围
 
@@ -30,7 +30,7 @@ Status: proposed
 
 ### 文件组织
 
-以下是目标布局。未列出的文件保留现有归属；实施时移除被替代的逻辑，不保留两条同时工作的观察链路。
+文件布局分开原生观察、目录投影与 renderer 消费者；被替代的观察路径已移除。
 
 ```text
 src/main/services/file/
@@ -75,15 +75,15 @@ src/renderer/components/chat/panes/
 └── ArtifactPane.tsx
 ```
 
-| 文件或文件组 | 必要改动 |
+| 文件或文件组 | 职责 |
 |---|---|
-| Main `observation/FileObservationService.ts` | 新增生命周期服务，持有物理 scope、进程内租约、renderer 订阅、失效修订号与观察健康状态 |
+| Main `observation/FileObservationService.ts` | 生命周期服务，持有物理 scope、进程内租约、renderer 订阅、失效修订号与观察健康状态 |
 | Main `observation/WatchScope.ts` | 每个 scope 的私有实例，封装 `DirectoryWatcher`、就绪、引用计数与关闭；不是另一个服务／单例 |
-| Main `watcher.ts` | 保留 chokidar 适配器和现有 dangling 存在性联动；迁移后由 builder 直接持有实例的做法被移除 |
+| Main `watcher.ts` | chokidar 适配器及现有 dangling 存在性联动；原生实例只由 WatchScope 持有 |
 | Main `tree/builder.ts` 与 `tree/DirectoryTreeManager.ts` | 获取观察租约，保留扫描／索引／投影和现有 renderer 交接协议，向上传递新鲜度丢失与基线重置 |
 | Main `ipc/handlers/fileObservation.ts` | 薄的所有者／句柄适配器，经现有文件边界解析 entry/path 请求，再委托观察服务 |
 | Shared `ipc/schemas/fileObservation.ts` | 拥有请求／事件 schema 及推导的传输类型，接入 `ipcSchemas.ts` 和 `src/main/ipc/handlers/ipcHandlers.ts`，不增加第二套 preload API |
-| Shared `utils/file/tree.ts` | 扩展投影更新，表达基线替换和 stale/unavailable 状态；不在这里编码本地草稿 |
+| Shared `utils/file/tree.ts` | 投影更新包含 stale/unavailable 状态并触发重新获取基线；本地草稿不属于此模块 |
 | Renderer `services/DirectoryTreeSession.ts` | 从 `useDirectoryTree` 提取现有私有会话，普通与懒加载目录消费者复用同一套基线／更新实现 |
 | Renderer `services/fileObservation/*` | 窗口内注册表和按资源管理的订阅会话，供兼容观察者共享；不持有草稿、撤销或文件字节缓存 |
 | Renderer hooks | 把 React 需求绑定到无界面会话；hook 不拥有第二套 IPC 协议或原生资源 |
@@ -104,7 +104,7 @@ src/renderer/components/chat/panes/
 | 现有行为 | 保留树消费者与交接协议，将原生资源所有权下移 | 保留现有生命周期机制，在内部拆开目录树专属状态 |
 | 接受的成本 | 增加一个服务依赖，以及需要显式清理的租约边界 | 扩大公共 API，由同一生命周期所有者协调两类资源 |
 
-本方案选择拆分，因为两类消费者已经存在，而且资源生命周期不同。只要兼容的树、预览或编辑器仍有需求，物理 scope 就应保留；目录树投影则只随树消费者的需求保留。分开这两个所有者，让只观察文件的消费者无需构造树快照、过滤结果和变更状态，同时让树管理器保留职责集中的投影 API。演进现有管理器也是有效替代方案，可以提供相同的外部行为；服务数量本身不能决定边界。生命周期规范约束选定的所有者如何受管，并不要求一定引入另一个所有者。新增服务本身不构成性能收益的依据。
+实现采用拆分，因为两类消费者已经存在，而且资源生命周期不同。只要兼容的树、预览或编辑器仍有需求，物理 scope 就应保留；目录树投影则只随树消费者的需求保留。分开这两个所有者，让只观察文件的消费者无需构造树快照、过滤结果和变更状态，同时让树管理器保留职责集中的投影 API。演进现有管理器也是有效替代方案，可以提供相同的外部行为；服务数量本身不能决定边界。生命周期规范约束选定的所有者如何受管，并不要求一定引入另一个所有者。新增服务本身不构成性能收益的依据。
 
 拆分要迁移所有权，避免增加第二套原生监听管理：
 
@@ -145,13 +145,13 @@ flowchart TD
 | `FileEditService` | 保留 `WhenReady`；`@DependsOn(['FileManager', 'WindowManager'])` | 固定目标的读写与所有者清理不依赖通知是否可用 |
 | `FileManager` | 保留 `WhenReady`；`@DependsOn(['PowerService', 'JobManager'])` | entry 生命周期、存储与清理维持现有归属 |
 
-只在 `src/main/core/application/serviceRegistry.ts` 新注册 `FileObservationService`，通过现有 file barrel 导出服务类。运行时使用 `application.get('FileObservationService')`。scope 辅助对象和 renderer 会话都是普通实例，不是生命周期服务。
+`FileObservationService` 在 `src/main/core/application/serviceRegistry.ts` 注册，通过现有 file barrel 导出服务类。运行时使用 `application.get('FileObservationService')`。scope 辅助对象和 renderer 会话都是普通实例，不是生命周期服务。
 
 观察服务在进程内接受已验证的文件系统 scope。它不解析 `FileEntry` 行，不导入 `@main/data`，不依赖 `FileManager`／`DirectoryTreeManager`／`FileEditService`，也不把 `IpcApiService` 作为启动依赖。IPC 适配器先经 `FileManager` 解析 entry 句柄再获取 scope，path 句柄沿用现有路径策略。这条调用边不能变成隐藏的服务依赖。定向推送沿用目录树 manager 已使用的所属 WebContents 事件传输。core 服务不反向依赖文件服务。
 
 `DirectoryTreeManager` 为每个共享 builder 获取一个进程内观察租约，并把租约传给 `createDirectoryTree`／builder。builder 显式接收事件源，不查询服务容器，也不创建原生 watcher；租约在初始扫描前已就绪；构建基线期间收到的失效通知会被保留并校准，之后才能把基线视为当前状态。builder 清理时释放租约。物理 scope 共享与投影共享分开，观察服务不构造目录树。
 
-新服务使用生命周期清理和类型化事件。退出时停止接收新请求并释放全部 scope；依赖顺序保证先清理目录树，再清理观察。窗口关闭只释放本窗口订阅，其他窗口或进程内消费者仍可保留 scope。即使观察不可用，文件写入仍由现有编辑服务排空。
+观察服务使用生命周期清理和类型化事件。退出时停止接收新请求并释放全部 scope；依赖顺序保证先清理目录树，再清理观察。窗口关闭只释放本窗口订阅，其他窗口或进程内消费者仍可保留 scope。即使观察不可用，文件写入仍由现有编辑服务排空。
 
 ### 范围与身份
 
@@ -189,11 +189,11 @@ renderer 注册表是具名的窗口内单例 `fileObservationService`，不是 
 | 已挂接编辑器或待完成保存 | 编辑实例持有观察，独立于树／组件挂接 | 用当前草稿／会话代次保护读取 |
 | 已脱离但保留的草稿／失败／冲突 | 有界宽限期后释放观察，保留独立草稿／恢复实例 | 重新挂接时验证；没有连续观察时，条件保存仍是权威 |
 
-提取出的 `DirectoryTreeSession` 拥有基线安装、激活、修订号验证和重置处理。文件面板模型只拥有展开需求和到 `FileTreeNode` 的投影。每个展开目录使用同一会话实现，最新快照替换该目录的子项。移除 `LazyDirectoryWatcher`、展开时独立调用 `listDirectoryEntries` 的路径，以及对过期子项列表做加法合并的逻辑。`loadFolder` 获取必要的目录会话，不展开 UI 行。显式搜索可以保留当前有界列表 API。
+提取出的 `DirectoryTreeSession` 拥有基线安装、激活、修订号验证和重置处理。文件面板模型只拥有展开需求和到 `FileTreeNode` 的投影。每个展开目录使用同一会话实现，最新快照替换该目录的子项。`LazyDirectoryWatcher`、展开时独立调用 `listDirectoryEntries` 的路径，以及对过期子项列表做加法合并的逻辑均已移除。`loadFolder` 获取必要的目录会话，不展开 UI 行。显式搜索可以保留当前有界列表 API。
 
-统一的 `FilePreview` 宿主观察当前资源，包括 Agent 工作区之外的预览。插件消费宿主的 source／刷新代次，不自行建立 watcher。按同一代次重新读取元数据与字节，元数据响应本身不能把旧内容标记为最新。本地 text／Markdown／HTML 插件与现有 portable preview 适配器都要拒绝已被取代的 source 结果。在格式支持原位替换时保留视图状态。portable package 不依赖 Electron／IPC／服务，沿用其现有 source 和 refresh 契约。
+统一的 `FilePreview` 宿主观察当前资源，包括 Agent 工作区之外的预览。插件消费宿主的 source／刷新代次，不自行建立 watcher。元数据与字节按同一代次重新加载，元数据响应本身不能把旧内容标记为最新。插件和 portable preview 适配器拒绝过期结果。宿主刷新代次也传给原生媒体和 artifact HTML 消费者。支持的格式保留阅读状态。portable package 沿用现有 source／refresh 契约，不依赖 Electron／IPC／服务。
 
-已挂接编辑器独立于树观察自己的绑定资源。保存中会话保留观察，直到已接收的操作结束。已脱离的脏／失败／冲突会话在有界宽限期后释放观察，同时保留草稿和现有恢复状态；重新挂接后先重新验证再接纳磁盘内容，每次保存仍验证基线。已完成且脱离的会话释放租约。获取失败时同时释放部分订阅和已打开的编辑租约。观察回调调用带保护的重新验证：干净会话可接纳新字节；脏会话保留草稿并比较磁盘基线。Notes／Skills 消费者迁移后，移除树到编辑器的通知转发，避免同一事件触发两次读取。保存确认仍以写入回复为准，不以 watcher 回声为准。
+已挂接编辑器独立于树观察自己的绑定资源。保存中会话保留观察，直到已接收的操作结束。已脱离的脏／失败／冲突会话在有界宽限期后释放观察，同时保留草稿和现有恢复状态；重新挂接后先重新验证再接纳磁盘内容，每次保存仍验证基线。已完成且脱离的会话释放租约。获取失败时同时释放部分订阅和已打开的编辑租约。观察回调调用带保护的重新验证：干净会话可接纳新字节；脏会话保留草稿并比较磁盘基线。Notes／Skills 到编辑器的树事件转发与 hook 中重复的聚焦监听已移除。保存确认仍以写入回复为准，不以 watcher 回声为准。
 
 ### 协议、新鲜度与恢复
 
@@ -203,27 +203,22 @@ renderer 注册表是具名的窗口内单例 `fileObservationService`，不是 
 | `file.observe.activate` | renderer 先安装监听器再激活，回放有界缓存中的失效通知，包括建立期间的变化 |
 | `file.observe.changed` | 只向所有者发送有序失效／覆盖状态更新；即使 size/mtime 看似不变，内容变化也使已有认识失效 |
 | `file.observe.close` | 幂等释放一个订阅；已关闭或被替代的代次不能向后继发布结果 |
-| 现有 `file.tree.*` | 保留快照／监听器／激活契约，扩展更新以承载完整基线重置及显式 stale/unavailable 状态 |
+| 现有 `file.tree.*` | 保留快照／监听器／激活契约；stale/unavailable 状态触发重新获取完整基线 |
 | 现有读写路由 | 继续作为字节、元数据、目标验证和保存结果的权威；观察不替代它们 |
 
 订阅 ID 标识其生命周期，单调递增的流修订号用于检测该生命周期内的重复／断档和读取过期。磁盘版本／哈希与草稿修订号继续分开。已有身份足以阻止旧结果提交时复用它，不为同一事实增加另一个计数器。
 
-可信的首次读取只能在观察就绪且完成监听器／激活交接后开始。建立期间可以展示旧缓存快照，但就绪后必须重新验证。每个消费者在读取前捕获资源、订阅和读取修订号。提交前任一项变化，结果即过期；保留最新失效标记并再次读取。合并失效需求，每个消费者最多有一个进行中的校准读取。以带版本的读取结果为准给接纳的内容加戳，不能使用更早的元数据预检结果。一致／有界读取检查留在现有文件读取 helper 与 source 适配器，不进入观察服务。这是一套失效状态机，不是每个原始事件都排队重读一次大文档。
+可信的首次读取只能在观察就绪且完成监听器／激活交接后开始。建立期间可以展示旧缓存快照，但就绪后必须重新验证。每个消费者在读取前捕获资源、订阅和读取修订号。提交前任一项变化，结果即过期；保留最新失效标记并再次读取。编辑器将失效合并到一个进行中的重新验证。预览取消机制废弃过期的逻辑读取；已发出的 IPC 仍可能在后台结束。portable 适配器用同代次元数据校验带版本的字节。本地文本读取保留编码探测，并拒绝过期代次。一致／有界读取留在现有文件 helper 与 source 适配器，不进入观察服务。这是一套失效状态机，不是每个原始事件都排队重读一次大文档。
 
 正在建立、中断和恢复中的订阅，都不能证明缓存内容仍然有效。显式观察状态区分 starting、live coverage、stale coverage 和 unavailable coverage；观察链路活跃本身，不代表消费者已经读到最新内容。文件缺失要与空内容、观察失败分开。启动／恢复、流断档、watcher 失败、焦点／可见性返回和显式重试时，将对应消费者标记过期并校准。树的基线重置替换投影；观察中断不能只写日志，却让镜像永久看起来健康。
 
-沿用现有有界建立／重试行为；重试耗尽后保留可操作的 stale/error 状态。本方案保证在收到失效通知或显式恢复触发、且读取成功的条件下完成校准，不承诺固定时延或对操作系统无限期无声漏事件的自主恢复。周期性完整性扫描需要独立决定成本与保证。不能每次事件都哈希所有文件，也不能扫描未使用的整个工作区。
+沿用现有有界建立／重试行为；重试耗尽后保留可操作的 stale/error 状态。实现保证在收到失效通知或显式恢复触发、且读取成功的条件下完成校准，不承诺固定时延或对操作系统无限期无声漏事件的自主恢复。周期性完整性扫描需要独立决定成本与保证。不能每次事件都哈希所有文件，也不能扫描未使用的整个工作区。
 
-### 实施顺序与移除项
+### 已替换的路径
 
-| 层 | 交付与移除项 | 验证所有者 |
-|---|---|---|
-| 1. Main 观察 | 服务注册、scope 租约、按所有者定向的协议及失败／恢复通知，迁移 builder 对原生 watcher 的所有权 | Main 文件系统／协议测试；AC1、AC2、AC6、AC7 |
-| 2. 目录投影 | 提取可复用的 renderer 会话，增加 reset/status 并迁移懒加载目录，删除重复缓存和握手 | Renderer 与 Electron；AC1、AC5、AC6 |
-| 3. 文件消费者 | 接入预览宿主和独立编辑会话，移除按大小失效及重复的功能层转发 | Renderer、file-preview 适配器与 Electron；AC2、AC3、AC4、AC5、AC7 |
-| 4. 验收 | 重放真实事件／读取竞争和 Windows 反馈场景，按实际交付归属对齐文件领域参考文档 | Main、renderer、Electron 与 docs；AC1–AC8 |
-
-每层保证受影响消费者仍可工作，已迁移消费者只走一条路径；最终实现删除未使用的导出、监听器与协议分支。遵循现有 Spec-first stack 流程。本文件保持 proposed，直到已批准的验收条件都有实际证据；模型通过不是实现验收。
+- 原生 watcher 的创建与关闭从目录 builder 迁入观察 scope。
+- 文件面板目录使用统一 renderer 会话，移除了独立列表缓存和重复激活协议。
+- 预览失效不再依赖已保存文件的大小变化。Notes／Skills 转发和 hook 的外部变化代理已移除，编辑实例直接订阅。
 
 ## 考虑过的替代方案
 
@@ -234,22 +229,24 @@ renderer 注册表是具名的窗口内单例 `fileObservationService`，不是 
 - 把内容观察、共享草稿和写入合并成通用文件资源服务：会把本决策扩大到编辑设计已经分离的身份、写者选举和持久化语义。
 - 把原生事件或有序 IPC 修订号当作无损文件系统日志：它们都不保证完整历史、一致字节或保存确认，只用于触发校准。
 
-## 验收条件
+## 验证
 
-- AC1 — 深层目录折叠期间发生外部修改，再展开后，无需额外文件系统事件即可让列表收敛，包括删除缓存中的后代项（verification: renderer and Electron; owner: directory projection）。
-- AC2 — 目录树折叠时，已打开的文件仍能在等长写入、原子替换和删除／重建后更新，包括显式打开的隐藏／ignored 文件及工作区外文件（verification: Main filesystem tests and Electron; owner: file observation and preview）。
-- AC3 — 外部变化更新干净编辑器，但保留独立的脏／失败草稿并暴露已确认冲突；其他功能的草稿和撤销状态保持独立（verification: renderer and Electron; owner: file edit sessions）。
-- AC4 — 加载期间失效，或被另一个文件／工作区取代的读取，不能提交过期内容或错配的 source 元数据；最后一次成功的当前读取可见（verification: renderer and real-source adapter tests; owner: preview source and edit sessions）。
-- AC5 — 基线获取到激活之间的变化、重复推送和修订号断档，不会形成静默过期镜像；恢复时先安装新基线，再宣布投影就绪（verification: Main protocol and renderer tests; owner: observation transport and directory sessions）。
-- AC6 — watcher 错误或系统恢复会使相关视图失效，区分 missing/stale/unavailable 与空内容，并允许无需重启应用即可恢复（verification: Main fault injection and Electron; owner: observation lifecycle）。
-- AC7 — 等价 scope 的消费者共享原生资源；关闭／折叠一个消费者不影响其他观察者，释放最后一个消费者或所属窗口后，在有界宽限期内释放资源，且不扩大递归观察范围（verification: Main lifecycle/resource tests and Electron; owner: observation service）。
-- AC8 — 最终代码只有一个原生监听所有者和一套 renderer 目录交接实现，移除过期的面板缓存／通知转发，依赖保持无环，配对的文件领域参考文档描述实际交付契约（verification: scoped imports/change review and docs gate; owner: integration）。
+- AC1 — `useArtifactFileTreeModel.observation.test.tsx` 与真实 Electron 重放：折叠超过空闲释放期后，外部删建文件，再展开直接采用替换快照，无需后续事件。
+- AC2 — `FileObservationService.test.ts`、`FilePreview.observation.test.tsx` 与真实 Electron：关闭树后的等长写入、原子替换、删除／重建、显式隐藏／工作区外路径，以及符号链接绑定变化。
+- AC3 — `FileEditSessionManager.test.ts`、切换消费者测试与真实 Electron：独立的干净／脏实例接纳磁盘变化，或保留自己的草稿并暴露冲突。
+- AC4 — `FilePreviewRefresh.test.tsx`、`FilePreview.observation.test.tsx` 与 `electronPreviewSource.test.ts`：延迟的过期读取不能替换最新内容，兼容的工作簿阅读状态在刷新后保留。
+- AC5 — `DirectoryTreeManager.protocol.test.ts`、`useDirectoryTree.test.tsx` 与 `FileObservationSession.test.ts`：激活回放、修订号断档恢复，以及拒绝已退役的事件流。
+- AC6 — Main watcher 错误注入、renderer 重连／聚焦测试与真实 Electron `powerMonitor` 挂起／恢复：观察覆盖丢失会显式暴露，并能在不重启 renderer 的情况下恢复。
+- AC7 — Main 原生资源／引用计数与 renderer 空闲重获测试：等价消费者共享资源，释放一个消费者不影响其他消费者，最后一次释放关闭 scope；Electron 预览在树释放后仍保持活跃。
+- AC8 — 限定范围的导入／变更审查、`docs:check`、Node／web 类型检查与针对性 lint：原生 watcher 只有一个所有者，renderer 目录交接只有一套实现，旧转发已移除，观察／编辑配对参考文档与实现一致。
 
-## 风险
+本地验证运行于 macOS。Electron 重放使用真实文件系统操作、preload 和 IPC，不能替代 Windows 或网络文件系统验收。有界模型不作为实现验收证据。
+
+## 后果
 
 - 拆开 scope 与投影生命周期后，可能遗留租约，或在其他消费者仍有需求时关闭 watcher。迁移现有原生资源所有权，保留显式租约释放，验证树／预览的释放顺序与窗口清理；不能继续保留 builder 原有的 watcher 路径。
 - 共享物理观察可能意外扩大递归范围或改变过滤。只共享兼容 scope，并在真实代码工作区测量原生句柄／扫描行为。
 - 首次读取／激活／恢复的竞争可能发布过期内容。保留现有交接协议，验证具体竞争路径，不依赖只统计回调次数的 mock。
 - 校准可能反复解析大文件。合并需求，在允许的重载期间保留过期内容，维持格式自身的字节／range 上限，不引入无界共享内容缓存。
-- 本方案重新承接曾被延后的观察职责。把改动与草稿身份、持久化、关闭协调和崩溃恢复隔离，并与本 Spec 一起更新前一所有者的链接。
+- 本决策重新承接曾被延后的观察职责。把改动与草稿身份、持久化、关闭协调和崩溃恢复隔离，并与本 Spec 一起更新前一所有者的链接。
 - 跨平台 watcher 行为和无声漏事件限定了保证边界。macOS 证据与有界模型不能替代 Windows 验收，也不能证明网络文件系统时延。

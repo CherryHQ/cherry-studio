@@ -1,5 +1,0 @@
-# Bilingual-pair consistency record (docs/dev/i18n/README.md).
-# After editing either side, update its counterpart and re-record with:
-#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-17-file-observation-and-view-consistency.md
-2026-11-17-file-observation-and-view-consistency.md: 7066706ab24d7cef5080bb38797b818a08328393
-2026-11-17-file-observation-and-view-consistency.zh.md: 417621cf6ed38e7eba3e73fae35b11e0aa7d94c3

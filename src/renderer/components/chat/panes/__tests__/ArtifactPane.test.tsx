@@ -21,7 +21,7 @@ import type { ComposerFileReference } from '@renderer/types/selectionReference'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { createFilePathHandle, type SerializedTreeNode } from '@shared/utils/file'
+import { createFilePathHandle, type SerializedTreeNode, type TreeMutationPushPayload } from '@shared/utils/file'
 
 import {
   ARTIFACT_PREVIEW_MAX_SIZE_BYTES,
@@ -220,6 +220,7 @@ function pathsToSnapshot(workspacePath: string, paths: readonly string[]): Seria
     }
   }
   for (const rel of relPaths) {
+    if (rel.endsWith('/')) dirSet.add(rel.replace(/\/+$/, ''))
     if (dirSet.has(rel)) continue // already known to be a parent dir
   }
 
@@ -267,11 +268,13 @@ function pathsToSnapshot(workspacePath: string, paths: readonly string[]): Seria
   return root
 }
 
+const workspaceTrees = new Map<string, { treeId: string; revision: number; snapshot: SerializedTreeNode }>()
+
 function mockWorkspaceTree(workspacePath: string, paths: readonly string[]): void {
   mocks.nextTreeId += 1
   const treeId = `tree-${mocks.nextTreeId}`
   const snapshot = pathsToSnapshot(workspacePath, paths)
-  mocks.treeCreate.mockResolvedValueOnce({ treeId, revision: 0, snapshot })
+  workspaceTrees.set(workspacePath, { treeId, revision: 0, snapshot })
 }
 
 function binaryReadResult(content: Uint8Array) {
@@ -763,12 +766,16 @@ describe('ArtifactPane', () => {
     mocks.nextTreeId = 0
     // Default: every test gets an empty tree unless it queues a fixture
     // via `mockWorkspaceTree(...)` (which calls `mockResolvedValueOnce`).
-    mocks.treeCreate.mockResolvedValue({
-      treeId: 'tree-default',
-      revision: 0,
-      snapshot: pathsToSnapshot('/tmp/workspace', [])
-    })
-    mocks.treeActivate.mockResolvedValue(true)
+    workspaceTrees.clear()
+    mocks.treeCreate.mockReset().mockImplementation(
+      async (root: string) =>
+        workspaceTrees.get(root) ?? {
+          treeId: `tree-default-${root}`,
+          revision: 0,
+          snapshot: pathsToSnapshot(root, [])
+        }
+    )
+    mocks.treeActivate.mockReset().mockResolvedValue(true)
     // `restoreAllMocks` in afterEach wipes out custom implementations, so
     // re-bind via `mockImplementation` (more robust than `mockResolvedValue`
     // for callers that don't await the returned promise — the hook does
@@ -1312,13 +1319,8 @@ describe('ArtifactPane', () => {
 
   it('loads a deep folder whose ancestors were never expanded', async () => {
     mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
-    mocks.listDirectoryEntries.mockImplementation(async (path: string) =>
-      path === '/tmp/workspace/src'
-        ? [{ path: '/tmp/workspace/src/lib', isDirectory: true }]
-        : path === '/tmp/workspace/src/lib'
-          ? [{ path: '/tmp/workspace/src/lib/util.ts', isDirectory: false }]
-          : []
-    )
+    mockWorkspaceTree('/tmp/workspace/src', ['lib/'])
+    mockWorkspaceTree('/tmp/workspace/src/lib', ['util.ts'])
     const { result } = renderHook(() =>
       useArtifactFileTreeModel({
         workspacePath: '/tmp/workspace',
@@ -1331,106 +1333,31 @@ describe('ArtifactPane', () => {
       })
     )
     await waitFor(() => expect(result.current.nodeById.has('src')).toBe(true))
-
     act(() => result.current.loadFolder('src/lib'))
-
-    await waitFor(() =>
-      expect(result.current.nodeById.get('src/lib')?.children?.map((child) => child.id)).toEqual(['src/lib/util.ts'])
-    )
+    await waitFor(() => expect(result.current.nodeById.has('src/lib/util.ts')).toBe(true))
   })
 
-  it('loads deeper directory children when folders are expanded', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
-    mocks.listDirectoryEntries
-      .mockResolvedValueOnce([
-        { path: '/tmp/workspace/src/deep', isDirectory: true },
-        { path: '/tmp/workspace/src/notes.md', isDirectory: false }
-      ])
-      .mockResolvedValueOnce([{ path: '/tmp/workspace/src/deep/file.ts', isDirectory: false }])
-
+  it('loads deeper directory snapshots when folders are expanded', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['src/'])
+    mockWorkspaceTree('/tmp/workspace/src', ['deep/', 'notes.md'])
+    mockWorkspaceTree('/tmp/workspace/src/deep', ['file.ts'])
     render(<ArtifactPaneHarness workspacePath="/tmp/workspace" />)
-    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-src'))
-
-    await waitFor(() =>
-      expect(mocks.listDirectoryEntries).toHaveBeenCalledWith(
-        '/tmp/workspace/src',
-        expect.objectContaining({ recursive: false, includeFiles: true, includeDirectories: true })
-      )
-    )
-    await waitFor(() => expect(screen.getByTestId('tree-node-src/deep')).toBeInTheDocument())
+    fireEvent.click(await screen.findByTestId('tree-node-src'))
+    fireEvent.click(await screen.findByTestId('tree-node-src/deep'))
+    expect(await screen.findByTestId('tree-node-src/deep/file.ts')).toBeInTheDocument()
     expect(screen.getByTestId('tree-node-src/notes.md')).toBeInTheDocument()
-    // Single batched listing per expand — no follow-up isDirectory IPC.
-    expect(mocks.isDirectory).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByTestId('tree-node-src/deep'))
-
-    await waitFor(() =>
-      expect(mocks.listDirectoryEntries).toHaveBeenCalledWith(
-        '/tmp/workspace/src/deep',
-        expect.objectContaining({ recursive: false, includeFiles: true, includeDirectories: true })
-      )
-    )
-    await waitFor(() => expect(screen.getByTestId('tree-node-src/deep/file.ts')).toBeInTheDocument())
   })
 
-  it('ignores stale lazy directory results after the workspace changes', async () => {
-    let resolveListDirectory: (entries: Array<{ path: string; isDirectory: boolean }>) => void = () => undefined
-    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
-    mockWorkspaceTree('/tmp/workspace/src', [])
-    mockWorkspaceTree('/tmp/other-workspace', ['src/other.ts'])
-    mocks.listDirectoryEntries.mockReturnValueOnce(
-      new Promise<Array<{ path: string; isDirectory: boolean }>>((resolve) => {
-        resolveListDirectory = resolve
-      })
-    )
-
+  it('replaces loaded directory children when the workspace changes', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['src/'])
+    mockWorkspaceTree('/tmp/workspace/src', ['old.md'])
+    mockWorkspaceTree('/tmp/other-workspace', ['src/'])
+    mockWorkspaceTree('/tmp/other-workspace/src', ['fresh.md'])
     const { rerender } = render(<ArtifactPaneHarness workspacePath="/tmp/workspace" />)
-    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-src'))
-    await waitFor(() =>
-      expect(mocks.listDirectoryEntries).toHaveBeenCalledWith(
-        '/tmp/workspace/src',
-        expect.objectContaining({ recursive: false, includeFiles: true, includeDirectories: true })
-      )
-    )
-
+    fireEvent.click(await screen.findByTestId('tree-node-src'))
+    expect(await screen.findByTestId('tree-node-src/old.md')).toBeInTheDocument()
     rerender(<ArtifactPaneHarness workspacePath="/tmp/other-workspace" />)
-    await waitFor(() => expect(screen.getByTestId('tree-node-src/other.ts')).toBeInTheDocument())
-
-    await act(async () => {
-      resolveListDirectory([{ path: '/tmp/workspace/src/stale.ts', isDirectory: false }])
-    })
-
-    expect(screen.queryByTestId('tree-node-src/stale.ts')).not.toBeInTheDocument()
-  })
-
-  it('clears loaded lazy directory children after the workspace changes', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
-    mockWorkspaceTree('/tmp/workspace/src', [])
-    mockWorkspaceTree('/tmp/other-workspace', ['src/other.ts'])
-    mockWorkspaceTree('/tmp/other-workspace/src', [])
-    mocks.listDirectoryEntries
-      .mockResolvedValueOnce([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
-      .mockResolvedValueOnce([{ path: '/tmp/other-workspace/src/fresh.md', isDirectory: false }])
-
-    const { rerender } = render(<ArtifactPaneHarness workspacePath="/tmp/workspace" />)
-    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-src'))
-    await waitFor(() => expect(screen.getByTestId('tree-node-src/old.md')).toBeInTheDocument())
-
-    rerender(<ArtifactPaneHarness workspacePath="/tmp/other-workspace" />)
-
-    await waitFor(() =>
-      expect(mocks.listDirectoryEntries).toHaveBeenCalledWith(
-        '/tmp/other-workspace/src',
-        expect.objectContaining({ recursive: false, includeFiles: true, includeDirectories: true })
-      )
-    )
-    await waitFor(() => expect(screen.getByTestId('tree-node-src/fresh.md')).toBeInTheDocument())
+    expect(await screen.findByTestId('tree-node-src/fresh.md')).toBeInTheDocument()
     expect(screen.queryByTestId('tree-node-src/old.md')).not.toBeInTheDocument()
   })
 
@@ -1624,174 +1551,37 @@ describe('ArtifactPane', () => {
     )
   })
 
-  it('reloads expanded lazy directories when their watcher reports a file change', async () => {
-    let pushMutation:
-      | ((payload: {
-          treeId: string
-          revision: number
-          event: { type: 'updated'; path: string; stats: { mtime: number; birthtime: number } }
-        }) => void)
-      | undefined
-    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
-    mocks.listDirectoryEntries
-      .mockResolvedValueOnce([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
-      .mockResolvedValueOnce([{ path: '/tmp/workspace/src/new.md', isDirectory: false }])
-    mocks.treeOnMutation.mockImplementation((cb) => {
-      pushMutation = cb as typeof pushMutation
-      return () => {
-        pushMutation = undefined
-      }
+  it('applies ordered changes to an expanded directory snapshot', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['src/'])
+    mockWorkspaceTree('/tmp/workspace/src', ['old.md'])
+    const listeners = new Set<(payload: TreeMutationPushPayload) => void>()
+    mocks.treeOnMutation.mockImplementation((listener) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
     })
-
     render(<ArtifactPaneHarness workspacePath="/tmp/workspace" />)
-    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-src'))
-    await waitFor(() => expect(screen.getByTestId('tree-node-src/old.md')).toBeInTheDocument())
-    await waitFor(() =>
-      expect(mocks.treeCreate).toHaveBeenCalledWith('/tmp/workspace/src', expect.objectContaining({ maxDepth: 1 }))
-    )
-
+    fireEvent.click(await screen.findByTestId('tree-node-src'))
+    expect(await screen.findByTestId('tree-node-src/old.md')).toBeInTheDocument()
+    const treeId = workspaceTrees.get('/tmp/workspace/src')?.treeId
+    if (!treeId) throw new Error('Missing directory fixture')
     act(() => {
-      pushMutation?.({
-        treeId: 'tree-default',
-        revision: 1,
-        event: {
-          type: 'updated',
-          path: '/tmp/workspace/src/old.md',
-          stats: { mtime: 1, birthtime: 1 }
-        }
-      })
-    })
-
-    await waitFor(() => expect(screen.getByTestId('tree-node-src/new.md')).toBeInTheDocument())
-    expect(screen.queryByTestId('tree-node-src/old.md')).not.toBeInTheDocument()
-  })
-
-  it('activates a lazy directory watcher so buffered mutations are released', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
-    // Queued after the workspace tree, so this is the lazy watcher's create.
-    mocks.treeCreate.mockResolvedValueOnce({
-      treeId: 'lazy-tree',
-      revision: 4,
-      snapshot: pathsToSnapshot('/tmp/workspace/src', [])
-    })
-    mocks.listDirectoryEntries.mockResolvedValue([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
-
-    render(<ArtifactPaneHarness workspacePath="/tmp/workspace" />)
-    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-src'))
-    await waitFor(() =>
-      expect(mocks.treeCreate).toHaveBeenCalledWith('/tmp/workspace/src', expect.objectContaining({ maxDepth: 1 }))
-    )
-
-    // A created consumer is pending main-side; without activate every mutation for
-    // this subtree queues forever and the expanded folder never refreshes.
-    await waitFor(() => expect(mocks.treeActivate).toHaveBeenCalledWith('lazy-tree', 4))
-  })
-
-  it('retakes a lazy directory watcher that main refuses to activate', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
-    mocks.treeCreate
-      .mockResolvedValueOnce({
-        treeId: 'lazy-refused',
-        revision: 0,
-        snapshot: pathsToSnapshot('/tmp/workspace/src', [])
-      })
-      .mockResolvedValueOnce({ treeId: 'lazy-live', revision: 0, snapshot: pathsToSnapshot('/tmp/workspace/src', []) })
-    // Workspace tree activates; the lazy watcher is refused once, then succeeds.
-    mocks.treeActivate.mockResolvedValueOnce(true).mockResolvedValueOnce(false).mockResolvedValue(true)
-    mocks.listDirectoryEntries.mockResolvedValue([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
-
-    render(<ArtifactPaneHarness workspacePath="/tmp/workspace" />)
-    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-src'))
-
-    // Nothing else re-runs this effect, so without a retry the expanded directory
-    // would stay frozen with no live watcher behind it.
-    await waitFor(() => expect(mocks.treeActivate).toHaveBeenCalledWith('lazy-live', 0))
-    expect(mocks.treeDispose).toHaveBeenCalledWith('lazy-refused')
-  })
-
-  it('drops a lazy directory watcher after its retries are exhausted', async () => {
-    const unsubscribe = vi.fn()
-    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
-    mocks.treeCreate.mockResolvedValue({
-      treeId: 'lazy-tree',
-      revision: 0,
-      snapshot: pathsToSnapshot('/tmp/workspace/src', [])
-    })
-    // Workspace tree activates; every lazy attempt is refused.
-    mocks.treeActivate.mockResolvedValueOnce(true).mockResolvedValue(false)
-    mocks.treeOnMutation.mockImplementation(() => unsubscribe)
-    mocks.listDirectoryEntries.mockResolvedValue([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
-
-    render(<ArtifactPaneHarness workspacePath="/tmp/workspace" />)
-    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
-    const workspaceCreates = mocks.treeCreate.mock.calls.length
-
-    fireEvent.click(screen.getByTestId('tree-node-src'))
-
-    // Bounded: three attempts, then give up. Each attempt already attached both a
-    // subscription and a main-side tree, so all of them must be released.
-    await waitFor(() => expect(mocks.treeCreate.mock.calls.length).toBe(workspaceCreates + 3))
-    await waitFor(() => expect(mocks.treeDispose).toHaveBeenCalledWith('lazy-tree'))
-    expect(unsubscribe).toHaveBeenCalled()
-  })
-
-  it('ignores older lazy directory requests when a newer reload wins', async () => {
-    let pushMutation:
-      | ((payload: {
-          treeId: string
-          revision: number
-          event: { type: 'updated'; path: string; stats: { mtime: number; birthtime: number } }
-        }) => void)
-      | undefined
-    let resolveInitial: (entries: Array<{ path: string; isDirectory: boolean }>) => void = () => undefined
-    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
-    mocks.listDirectoryEntries
-      .mockReturnValueOnce(
-        new Promise<Array<{ path: string; isDirectory: boolean }>>((resolve) => {
-          resolveInitial = resolve
+      for (const listener of listeners) {
+        listener({ treeId, revision: 1, event: { type: 'removed', path: '/tmp/workspace/src/old.md' } })
+        listener({
+          treeId,
+          revision: 2,
+          event: {
+            type: 'added',
+            kind: 'file',
+            path: '/tmp/workspace/src/new.md',
+            basename: 'new.md',
+            parentPath: '/tmp/workspace/src'
+          }
         })
-      )
-      .mockResolvedValueOnce([{ path: '/tmp/workspace/src/new.md', isDirectory: false }])
-    mocks.treeOnMutation.mockImplementation((cb) => {
-      pushMutation = cb as typeof pushMutation
-      return () => {
-        pushMutation = undefined
       }
     })
-
-    render(<ArtifactPaneHarness workspacePath="/tmp/workspace" />)
-    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-src'))
-    await waitFor(() => expect(mocks.listDirectoryEntries).toHaveBeenCalledTimes(1))
-    await waitFor(() => expect(pushMutation).toBeDefined())
-
-    act(() => {
-      pushMutation?.({
-        treeId: 'tree-default',
-        revision: 1,
-        event: {
-          type: 'updated',
-          path: '/tmp/workspace/src/new.md',
-          stats: { mtime: 1, birthtime: 1 }
-        }
-      })
-    })
-
-    await waitFor(() => expect(screen.getByTestId('tree-node-src/new.md')).toBeInTheDocument())
-
-    await act(async () => {
-      resolveInitial([{ path: '/tmp/workspace/src/stale.md', isDirectory: false }])
-    })
-
-    expect(screen.getByTestId('tree-node-src/new.md')).toBeInTheDocument()
-    expect(screen.queryByTestId('tree-node-src/stale.md')).not.toBeInTheDocument()
+    expect(await screen.findByTestId('tree-node-src/new.md')).toBeInTheDocument()
+    expect(screen.queryByTestId('tree-node-src/old.md')).not.toBeInTheDocument()
   })
 
   it('searches unloaded deep files and allows selecting the result', async () => {
@@ -1943,14 +1733,7 @@ describe('ArtifactPane', () => {
     const oversizedDraftBytes = new Blob([oversizedDraft]).size
     expect(oversizedDraftBytes).toBeGreaterThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
     let diskSize = 1024
-    let resolveOversizedMetadata!: (value: { kind: 'file'; size: number; type: string }) => void
-    mocks.getMetadata.mockImplementation(() =>
-      diskSize > ARTIFACT_PREVIEW_MAX_SIZE_BYTES
-        ? new Promise((resolve) => {
-            resolveOversizedMetadata = resolve
-          })
-        : Promise.resolve({ kind: 'file', size: diskSize, type: 'text' })
-    )
+    mocks.getMetadata.mockImplementation(async () => ({ kind: 'file', size: diskSize, type: 'text' }))
     mockWorkspaceTree('/tmp/workspace', ['draft.txt'])
     mocks.fsReadText.mockResolvedValue('# small')
     mocks.ipcRequest
@@ -1977,12 +1760,7 @@ describe('ArtifactPane', () => {
     expect((writeCall[1] as { data: Uint8Array }).data.byteLength).toBeGreaterThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
 
     // The active session stays editable even though the saved file is now too large to reopen.
-    await waitFor(() => expect(mocks.getMetadata.mock.calls.length).toBeGreaterThanOrEqual(3))
     expect(within(overlay).getByTestId('code-editor')).toHaveValue(oversizedDraft)
-
-    await act(async () => {
-      resolveOversizedMetadata({ kind: 'file', size: oversizedDraftBytes, type: 'text' })
-    })
   })
 
   it('keeps the editor writable and disables discard while a failed save retry is running', async () => {
@@ -2305,4 +2083,9 @@ describe('ArtifactPane', () => {
 
     await waitFor(() => expect(isSelectableFileNode(result.current.nodeById, 'README.md')).toBe(false))
   })
+})
+
+vi.mock('@renderer/services/fileObservation', async () => {
+  const { mockFileObservationService } = await import('@test-mocks/renderer/FileObservationService')
+  return { fileObservationService: mockFileObservationService }
 })
