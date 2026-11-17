@@ -1,4 +1,3 @@
-import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Assistant } from '@shared/data/types/assistant'
@@ -35,14 +34,12 @@ function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
   } as Assistant
 }
 
-function callExecute(
+async function callExecute(
   args: { query: string; baseIds: string[] },
   ctx: { knowledgeBaseIds?: string[]; abortSignal?: AbortSignal } = {}
-): Promise<unknown> {
-  const execute = entry.tool.execute as (
-    args: { query: string; baseIds: string[] },
-    options: ToolExecutionOptions
-  ) => Promise<unknown>
+) {
+  const execute = entry.tool.execute
+  if (!execute) throw new Error('Expected the knowledge tool to be executable')
   return execute(args, {
     toolCallId: 'tc-1',
     messages: [],
@@ -149,7 +146,7 @@ describe('kb_search', () => {
 
   describe('applies', () => {
     it('returns true only when a base exists AND at least one is in the effective scope', () => {
-      const applies = entry.applies!
+      const applies = entry.applies
       // No base in the system → never applies, even with bound ids.
       expect(
         applies({

@@ -292,7 +292,6 @@ export function useAgentChatRuntimeState({
   const historyAdapter = useMemo<ConversationHistoryAdapter>(
     () => ({
       seedReservedMessages,
-      refresh,
       rollback: refresh
     }),
     [refresh, seedReservedMessages]

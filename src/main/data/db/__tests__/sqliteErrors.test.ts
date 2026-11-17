@@ -34,10 +34,11 @@ function wrapInDrizzleError(inner: Error): Error {
  * its shape. Throws if `fn` returns normally so a missing throw never passes
  * silently.
  */
-function captureThrow(fn: () => unknown): unknown {
+function captureThrow<TResult>(fn: () => TResult): Error {
   try {
     fn()
   } catch (e) {
+    if (!(e instanceof Error)) throw new Error('Expected an Error to be thrown', { cause: e })
     return e
   }
   throw new Error('expected fn to throw, but it returned normally')

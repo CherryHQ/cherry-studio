@@ -13,7 +13,7 @@ import {
 
 import type { NoiseCrypto } from './crypto'
 import { readDeviceIdentity } from './identity'
-import { binaryRecordBytes, encodeRecord, decodeRecord } from './records'
+import { binaryRecordBytes, encodeRecord, decodeRecord, type TransportRecord } from './records'
 
 const profile = 'cherry-remote-noise-xx-v1'
 const unsupportedUpgrade = (): never => {
@@ -27,7 +27,6 @@ const upgrader: Upgrader = {
   getConnectionEncrypters: () => new Map()
 }
 const encode = (value: unknown): Uint8Array => new TextEncoder().encode(JSON.stringify(value))
-const decode = (bytes: Uint8Array): unknown => JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes))
 
 export interface ChannelOptions {
   crypto?: NoiseCrypto
@@ -41,7 +40,7 @@ export interface SecureChannel {
   readonly remoteIdentity: string
   readonly protocolVersion: number
   readonly offeredVersions: readonly number[]
-  read(signal?: AbortSignal): Promise<unknown>
+  read(signal?: AbortSignal): Promise<TransportRecord>
   write(value: unknown, signal?: AbortSignal): Promise<void>
   close(): Promise<void>
   abort(error: Error): void
@@ -108,7 +107,7 @@ export async function connectSecureChannel(
     const offer = protocolSupportSchema.parse({ protocolVersions: options.protocolVersions })
     const prelude = lpStream(stream, { maxDataLength: 4096, maxBufferSize: remoteLimits.recordBytes })
     await prelude.write(encode(offer), { signal: options.signal })
-    const selection = decode((await prelude.read({ signal: options.signal })).subarray())
+    const selection = decodeRecord((await prelude.read({ signal: options.signal })).subarray())
     if (
       typeof selection !== 'object' ||
       selection === null ||
@@ -127,7 +126,7 @@ export async function connectSecureChannel(
 export async function acceptSecureChannel(stream: MessageStream, options: ChannelOptions): Promise<SecureChannel> {
   try {
     const prelude = lpStream(stream, { maxDataLength: 4096, maxBufferSize: remoteLimits.recordBytes })
-    const offer = protocolSupportSchema.parse(decode((await prelude.read({ signal: options.signal })).subarray()))
+    const offer = protocolSupportSchema.parse(decodeRecord((await prelude.read({ signal: options.signal })).subarray()))
     const result = negotiateProtocol({ protocolVersions: options.protocolVersions }, offer)
     if (!result.ok) throw new Error('Unsupported remote protocol')
     await prelude.write(encode(result.selection), { signal: options.signal })

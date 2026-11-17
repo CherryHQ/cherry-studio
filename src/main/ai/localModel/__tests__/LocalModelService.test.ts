@@ -20,8 +20,8 @@ const { scanBundleFiles, isArtifactReady, removeArtifactIfUnused, sweepStaleDown
 }))
 
 const { terminateAsrRuntime, terminateOcrRuntime } = vi.hoisted(() => ({
-  terminateAsrRuntime: vi.fn(async (after: () => Promise<unknown>) => after()),
-  terminateOcrRuntime: vi.fn(async (after: () => Promise<unknown>) => after())
+  terminateAsrRuntime: vi.fn(async <TResult>(after: () => Promise<TResult>) => after()),
+  terminateOcrRuntime: vi.fn(async <TResult>(after: () => Promise<TResult>) => after())
 }))
 
 vi.mock('@application', async () => {
@@ -30,9 +30,9 @@ vi.mock('@application', async () => {
   const originalGet = result.application.get.getMockImplementation()!
   result.application.get.mockImplementation((name: string) => {
     if (name === 'AsrInferenceService')
-      return { removeModelThen: (_id: string, after: () => Promise<unknown>) => terminateAsrRuntime(after) }
+      return { removeModelThen: <TResult>(_id: string, after: () => Promise<TResult>) => terminateAsrRuntime(after) }
     if (name === 'OcrInferenceService')
-      return { removeModelThen: (_id: string, after: () => Promise<unknown>) => terminateOcrRuntime(after) }
+      return { removeModelThen: <TResult>(_id: string, after: () => Promise<TResult>) => terminateOcrRuntime(after) }
     return originalGet(name)
   })
   return result

@@ -271,16 +271,17 @@ describe('MessageService', () => {
       }
     }
 
-    function captureError(run: () => unknown): unknown {
+    function captureError<TResult>(run: () => TResult): Error | undefined {
       try {
         run()
       } catch (error) {
+        if (!(error instanceof Error)) throw new Error('Expected an Error to be thrown', { cause: error })
         return error
       }
       return undefined
     }
 
-    function expectNotFound(run: () => unknown): void {
+    function expectNotFound<TResult>(run: () => TResult): void {
       expect(captureError(run)).toMatchObject({ code: ErrorCode.NOT_FOUND })
     }
 
@@ -294,7 +295,7 @@ describe('MessageService', () => {
         () => messageService.getPathThrough(topicId, user.id),
         () => messageService.getPathToNode(user.id)
       ]) {
-        expectNotFound(read)
+        expectNotFound(() => read())
       }
       expect(messageService.getChildrenByParentId(assistant.id)).toEqual([])
       expect(messageService.isAwaitingInputLeaf(awaitingInput.id, topicId)).toBe(false)

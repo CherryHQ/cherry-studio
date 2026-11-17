@@ -2,8 +2,26 @@ import {
   isUploadChunk,
   remoteLimits,
   uploadChunkHeaderSchema,
-  uploadTransferLimits
+  uploadTransferLimits,
+  type UploadChunk
 } from '@cherrystudio/remote-protocol'
+
+export type JsonControlRecord =
+  | null
+  | boolean
+  | number
+  | string
+  | JsonControlRecord[]
+  | { [key: string]: JsonControlRecord }
+export type TransportRecord = JsonControlRecord | UploadChunk
+
+// Schema parsers can drop reserved object keys; wire validation must retain every key.
+function isJsonControlRecord(value: unknown): value is JsonControlRecord {
+  if (value === null || typeof value === 'boolean' || typeof value === 'string') return true
+  if (typeof value === 'number') return Number.isFinite(value)
+  if (Array.isArray(value)) return value.every(isJsonControlRecord)
+  return typeof value === 'object' && Object.values(value).every(isJsonControlRecord)
+}
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder('utf-8', { fatal: true })
@@ -31,11 +49,13 @@ export function encodeRecord(value: unknown): Uint8Array {
   return bytes
 }
 
-export function decodeRecord(bytes: Uint8Array): unknown {
+export function decodeRecord(bytes: Uint8Array): TransportRecord {
   if (bytes[0] !== 1) {
     const json = bytes
     if (json.length > remoteLimits.recordBytes) throw new Error('Remote record budget exceeded')
-    return JSON.parse(decoder.decode(json))
+    const value: unknown = JSON.parse(decoder.decode(json))
+    if (!isJsonControlRecord(value)) throw new Error('Invalid JSON control record')
+    return value
   }
   if (bytes[0] !== 1 || bytes.length < 3) throw new Error('Unknown remote record')
   const length = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint16(1)

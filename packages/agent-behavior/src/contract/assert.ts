@@ -26,7 +26,7 @@ export function same(actual: unknown, expected: unknown, message: string): void 
 }
 
 /** Resolves to the error `run` rejected with; throws when it resolves instead. */
-export async function rejects(run: () => Promise<unknown>, message: string): Promise<Error> {
+export async function rejects<TResult>(run: () => Promise<TResult>, message: string): Promise<Error> {
   try {
     await run()
   } catch (error) {

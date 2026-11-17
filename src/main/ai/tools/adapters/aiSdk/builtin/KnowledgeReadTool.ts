@@ -47,7 +47,7 @@ const kbReadTool = tool({
   toModelOutput: ({ output }) => knowledgeReadModelOutput(output)
 })
 
-export function createKbReadToolEntry(): ToolEntry {
+export function createKbReadToolEntry() {
   return {
     name: KB_READ_TOOL_NAME,
     namespace: 'kb',
@@ -55,7 +55,7 @@ export function createKbReadToolEntry(): ToolEntry {
     defer: 'never',
     tool: kbReadTool,
     applies: (scope) => scope.hasAnyKnowledgeBase === true && (scope.knowledgeBaseIds?.length ?? 0) > 0
-  }
+  } satisfies ToolEntry
 }
 
 export type KnowledgeReadToolInput = InferToolInput<typeof kbReadTool>

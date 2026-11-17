@@ -41,7 +41,7 @@ const kbSearchTool = tool({
   toModelOutput: ({ output }) => knowledgeSearchModelOutput(output)
 })
 
-export function createKbSearchToolEntry(): ToolEntry {
+export function createKbSearchToolEntry() {
   return {
     name: KB_SEARCH_TOOL_NAME,
     // Entity codec instead of the blanket truncatable:false (same rationale as
@@ -54,7 +54,7 @@ export function createKbSearchToolEntry(): ToolEntry {
     defer: 'never',
     tool: kbSearchTool,
     applies: (scope) => scope.hasAnyKnowledgeBase === true && (scope.knowledgeBaseIds?.length ?? 0) > 0
-  }
+  } satisfies ToolEntry
 }
 
 export type KnowledgeSearchToolInput = InferToolInput<typeof kbSearchTool>

@@ -29,7 +29,7 @@ const webFetchTool = tool({
   toModelOutput: ({ output }) => webLookupModelOutput(output)
 })
 
-export function createWebFetchToolEntry(): ToolEntry {
+export function createWebFetchToolEntry() {
   return {
     name: WEB_FETCH_TOOL_NAME,
     // Entity codec instead of the blanket truncatable:false it used to carry:
@@ -43,7 +43,7 @@ export function createWebFetchToolEntry(): ToolEntry {
     defer: 'auto',
     tool: webFetchTool,
     applies: (scope) => scope.webToolRoutes?.webFetch === 'client'
-  }
+  } satisfies ToolEntry
 }
 
 export type WebFetchToolInput = InferToolInput<typeof webFetchTool>

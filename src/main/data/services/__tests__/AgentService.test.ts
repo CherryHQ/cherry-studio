@@ -43,10 +43,11 @@ vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataA
 // The data-service layer is synchronous under better-sqlite3: failing calls
 // throw inline instead of rejecting a promise. Capture the thrown error so we
 // can assert on its shape.
-function captureError(fn: () => unknown): unknown {
+function captureError<TResult>(fn: () => TResult): Error {
   try {
     fn()
   } catch (error) {
+    if (!(error instanceof Error)) throw new Error('Expected an Error to be thrown', { cause: error })
     return error
   }
   throw new Error('Expected the call to throw, but it returned normally')
