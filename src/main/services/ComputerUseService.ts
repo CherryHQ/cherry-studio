@@ -241,7 +241,7 @@ export class ComputerUseService extends BaseService {
     const control = this.getApp(task, action.appSessionId)
     const client = await this.getClient(task)
     this.assertAvailable(task, control.app.id)
-    return client.act({ ...action, allowGlobalInput: false }, { signal: this.signal(task, signal) })
+    return client.act({ ...action, allowGlobalInput: true }, { signal: this.signal(task, signal) })
   }
 
   async perform(context: ComputerUseTask, action: Action, signal?: AbortSignal) {
@@ -257,10 +257,10 @@ export class ComputerUseService extends BaseService {
     }
     const options = { signal: this.signal(task, signal) }
     if (executor.perform) {
-      await executor.perform({ ...action, allowGlobalInput: false }, options)
+      await executor.perform({ ...action, allowGlobalInput: true }, options)
       return { targetRetained: true as const }
     }
-    const result = await client.act({ ...action, allowGlobalInput: false }, options)
+    const result = await client.act({ ...action, allowGlobalInput: true }, options)
     return {
       targetRetained: false as const,
       snapshot: result.observation.status === 'available' ? result.observation.snapshot : undefined

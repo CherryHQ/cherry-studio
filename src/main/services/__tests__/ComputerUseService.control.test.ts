@@ -24,6 +24,7 @@ class TestService extends ComputerUseService {
 
 function backend(overrides: Partial<ComputerUseClient> = {}) {
   const events: string[] = []
+  const actions: unknown[] = []
   let sequence = 0
   let closed: ((event: ClosedEvent) => void) | undefined
   const snapshot: Snapshot = {
@@ -36,7 +37,7 @@ function backend(overrides: Partial<ComputerUseClient> = {}) {
     screenshot: { status: 'unavailable', reason: { code: 'CAPTURE_FAILED', message: 'No capture' } }
   }
   const client: ComputerUseClient = {
-    ...{ resolveApp: vi.fn(), resolveAppIdentity: vi.fn(), perform: vi.fn() },
+    ...{ resolveApp: vi.fn(), resolveAppIdentity: vi.fn() },
     getCapabilities: async () => ({ platform: 'darwin', capabilities: [] }),
     getPermissionStatus: async () => ({ permissions: [] }),
     requestPermissions: async () => ({ permissions: [] }),
@@ -52,8 +53,13 @@ function backend(overrides: Partial<ComputerUseClient> = {}) {
     },
     getAppState: async () => snapshot,
     act: async (input) => {
+      actions.push(input)
       events.push(`click:${input.appSessionId}`)
       return { status: 'completed', observation: { status: 'available', snapshot } }
+    },
+    perform: async (input) => {
+      actions.push(input)
+      return { status: 'completed', appSessionId: input.appSessionId }
     },
     onClosed: (listener) => {
       closed = listener
@@ -67,7 +73,7 @@ function backend(overrides: Partial<ComputerUseClient> = {}) {
     },
     ...overrides
   }
-  return { client, events, disconnect: (event: ClosedEvent) => closed?.(event) }
+  return { client, events, actions, disconnect: (event: ClosedEvent) => closed?.(event) }
 }
 
 beforeEach(() => {
@@ -275,6 +281,24 @@ describe('desktop control ownership and user stop', () => {
     ).rejects.toMatchObject({ code: 'TASK_CLOSED' })
     expect(native.events.at(-1)).toBe('close')
     await expect(service.openApp(other, 'app')).resolves.toMatchObject({ status: 'active' })
+    await service.stop()
+  })
+
+  it('enables global input for actions after desktop control is authorized', async () => {
+    const native = backend()
+    vi.mocked(ComputerUse.start).mockResolvedValue(native.client)
+    const service = new TestService()
+    const task = service.createTask('owner', 'Conversation')
+    const app = await service.openApp(task, 'app')
+    const action = { appSessionId: app.id, snapshotId: 'snapshot', elementId: 'button', type: 'click' as const }
+
+    await service.act(task, action)
+    await service.perform(task, action)
+
+    expect(native.actions).toEqual([
+      expect.objectContaining({ allowGlobalInput: true }),
+      expect.objectContaining({ allowGlobalInput: true })
+    ])
     await service.stop()
   })
 
