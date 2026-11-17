@@ -280,7 +280,40 @@ describe('installUiClickTracker', () => {
     expect(clicks.map(({ ui }) => ui)).toEqual(['app.sidebar', 'part:button'])
   })
 
+  it('tells sibling controls of one component apart by their analytics names', () => {
+    mount(`
+      <div data-ui="chat.message-menu-bar">
+        <button id="copy" data-ui="part:button" data-analytics="chat.message-menu-bar:copy"><svg id="icon"></svg></button>
+        <button id="retry" data-ui="part:button" data-analytics="chat.message-menu-bar:retry">x</button>
+      </div>`)
+
+    click('#icon')
+    click('#retry')
+
+    expect(clicks.map(({ ui }) => ui)).toEqual(['chat.message-menu-bar:copy', 'chat.message-menu-bar:retry'])
+  })
+
+  it('falls back to the data-ui token when the analytics name is invalid or belongs to another control', () => {
+    mount(`
+      <div data-ui="chat.message"><button id="invalid" data-analytics="Chat Message:Person@Example.com">x</button></div>
+      <div role="button" data-analytics="chat.card:open" data-ui="chat.card"><button id="inner">x</button></div>`)
+
+    click('#invalid')
+    click('#inner')
+
+    expect(clicks.map(({ ui }) => ui)).toEqual(['chat.message', 'chat.card'])
+  })
+
+  it('names a control by an analytics name on a non-control wrapper it renders inside', () => {
+    mount('<span data-analytics="settings.general:theme"><button id="c">x</button></span>')
+
+    click('#c')
+
+    expect(clicks.map(({ ui }) => ui)).toEqual(['settings.general:theme'])
+  })
+
   it.each([
+    ['<div id="c" role="radio" data-ui="t9">x</div>', 'input'],
     ['<button id="c" data-ui="t1">x</button>', 'button'],
     ['<a id="c" data-ui="t2">x</a>', 'link'],
     ['<div id="c" role="menuitem" data-ui="t3">x</div>', 'menuitem'],

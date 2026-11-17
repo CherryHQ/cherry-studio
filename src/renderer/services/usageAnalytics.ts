@@ -224,9 +224,18 @@ const INTERACTIVE_SELECTOR = [
   'input[type="radio"]',
   'input[type="button"]',
   'input[type="submit"]',
-  ...['button', 'link', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'tab', 'checkbox', 'switch', 'option'].map(
-    (role) => `[role="${role}"]`
-  )
+  ...[
+    'button',
+    'link',
+    'menuitem',
+    'menuitemcheckbox',
+    'menuitemradio',
+    'tab',
+    'checkbox',
+    'switch',
+    'option',
+    'radio'
+  ].map((role) => `[role="${role}"]`)
 ].join(', ')
 const CLICK_DEDUPE_MS = 500
 
@@ -239,6 +248,8 @@ function elementKind(element: Element): ClickElement {
     return role
   }
   if (role === 'option') return 'option'
+  // Same kind as a native radio input, which reports as 'input' below.
+  if (role === 'radio') return 'input'
   switch (element.tagName) {
     case 'BUTTON':
       return 'button'
@@ -268,7 +279,15 @@ function uiTokenOf(element: Element): string {
   return part && UI_TOKEN.test(part) ? part : 'unlabeled'
 }
 
-/** Reports clicks on interactive controls by their static data-ui token, without reading any content. */
+// The static data-analytics name on the control or a wrapper it renders inside, never another control's.
+function analyticsNameOf(control: Element): string | undefined {
+  const named = control.closest('[data-analytics]')
+  if (!named || (named !== control && named.matches(INTERACTIVE_SELECTOR))) return undefined
+  const name = named.getAttribute('data-analytics') ?? ''
+  return UI_TOKEN.test(name) ? name : undefined
+}
+
+/** Reports clicks on interactive controls by their static analytics name or data-ui token, without reading any content. */
 export function installUiClickTracker(
   target: Document = document,
   report: (event: Extract<RendererAnalyticsEvent, { event: 'ui_clicked' }>) => void = trackProductEvent
@@ -278,7 +297,7 @@ export function installUiClickTracker(
     try {
       const control = event.target instanceof Element ? event.target.closest(INTERACTIVE_SELECTOR) : null
       if (!control) return
-      const ui = uiTokenOf(control)
+      const ui = analyticsNameOf(control) ?? uiTokenOf(control)
       const now = Date.now()
       if (last && last.ui === ui && now - last.at < CLICK_DEDUPE_MS) return
       last = { ui, at: now }

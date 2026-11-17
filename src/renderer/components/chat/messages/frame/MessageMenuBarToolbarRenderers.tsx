@@ -13,6 +13,9 @@ import type {
   MessageMenuBarTranslationItem
 } from './messageMenuBarActions'
 
+// Toolbar action ids are static registry keys, so they can name the button for click analytics.
+const analyticsName = (action: MessageMenuBarResolvedAction) => `chat.message-menu-bar:${action.id}`
+
 const isMessageMenuBarTranslationDivider = (
   item: MessageMenuBarTranslationItem
 ): item is Extract<MessageMenuBarTranslationItem, { type: 'divider' }> => 'type' in item && item.type === 'divider'
@@ -81,6 +84,7 @@ const ActionButtonWithConfirm = ({
   const button = (
     <MessageActionButton
       className="message-action-button"
+      data-analytics={analyticsName(action)}
       aria-label={label}
       onClick={(e) => {
         e.stopPropagation()
@@ -105,6 +109,7 @@ const ActionButtonWithConfirm = ({
       {(open) => (
         <MessageActionButton
           className="message-action-button"
+          data-analytics={analyticsName(action)}
           aria-label={label}
           onClick={(e) => {
             e.stopPropagation()
@@ -291,7 +296,11 @@ export function renderModelPickerToolbarAction({
           message: actionContext.message,
           messageParts: actionContext.messageParts,
           trigger: (
-            <MessageActionButton className="message-action-button" aria-label={label} softHoverBg={softHoverBg}>
+            <MessageActionButton
+              className="message-action-button"
+              data-analytics={analyticsName(action)}
+              aria-label={label}
+              softHoverBg={softHoverBg}>
               {action.icon}
             </MessageActionButton>
           ),
@@ -316,6 +325,7 @@ export function renderTranslateToolbarAction({
       <Tooltip content={label}>
         <MessageActionButton
           className="message-action-button"
+          data-analytics={analyticsName(action)}
           aria-label={label}
           onClick={(e) => {
             e.stopPropagation()
@@ -367,6 +377,7 @@ const TranslateToolbarAction = ({
       <TranslateMenuPopover items={translationItems} align="center" onOpenChange={handleMenuOpenChange}>
         <MessageActionButton
           className="message-action-button"
+          data-analytics={analyticsName(action)}
           aria-label={label}
           onClick={(e) => e.stopPropagation()}
           softHoverBg={softHoverBg}
@@ -424,6 +435,7 @@ const MoreMenuToolbarAction = ({
         onOpenChange={handleMenuOpenChange}>
         <MessageActionButton
           className="message-action-button"
+          data-analytics={analyticsName(action)}
           aria-label={label}
           onClick={(e) => e.stopPropagation()}
           softHoverBg={softHoverBg}

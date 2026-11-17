@@ -138,7 +138,7 @@ export const rendererAnalyticsEventSchema = z.discriminatedUnion('event', [
   }),
   z.strictObject({
     event: z.literal('ui_clicked'),
-    // Nearest static data-ui token; 'unlabeled' when the clicked control has none.
+    // The control's static data-analytics name, else the nearest static data-ui token; 'unlabeled' when neither exists.
     ui: presetIdSchema,
     page: analyticsPageSchema,
     element: z.enum(['button', 'link', 'menuitem', 'tab', 'checkbox', 'switch', 'option', 'input', 'other']),

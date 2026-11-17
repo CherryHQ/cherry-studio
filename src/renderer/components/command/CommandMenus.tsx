@@ -51,6 +51,8 @@ type CommandIconRenderer = (iconKey: string | undefined) => React.ReactNode
 const logger = loggerService.withContext('CommandMenus')
 
 const menuSource = (location: MenuLocation) => (location === 'command.palette' ? 'palette' : 'menu')
+// Command ids come from the static command catalog, so they can name the menu item for click analytics.
+const commandAnalyticsName = (command: CommandId) => `command.menu:${command}`
 
 export type MaybePromise<T> = T | PromiseLike<T>
 
@@ -258,6 +260,7 @@ function CommandMenuItemView({
       <ContextMenuCheckboxItem
         checked={item.checked}
         disabled={!item.enabled}
+        data-analytics={commandAnalyticsName(item.command)}
         onCheckedChange={() => (onSelectItem ? onSelectItem(() => onExecute(item.command)) : onExecute(item.command))}>
         {content}
       </ContextMenuCheckboxItem>
@@ -267,6 +270,7 @@ function CommandMenuItemView({
   return (
     <ContextMenuItem
       disabled={!item.enabled}
+      data-analytics={commandAnalyticsName(item.command)}
       variant={item.destructive ? 'destructive' : 'default'}
       onSelect={() => (onSelectItem ? onSelectItem(() => onExecute(item.command)) : onExecute(item.command))}>
       {content}
@@ -686,6 +690,7 @@ function CommandDropdownMenuItemView({
       <DropdownMenuCheckboxItem
         checked={item.checked}
         disabled={!item.enabled}
+        data-analytics={commandAnalyticsName(item.command)}
         onCheckedChange={() => (onSelectItem ? onSelectItem(() => onExecute(item.command)) : onExecute(item.command))}>
         {content}
       </DropdownMenuCheckboxItem>
@@ -695,6 +700,7 @@ function CommandDropdownMenuItemView({
   return (
     <DropdownMenuItem
       disabled={!item.enabled}
+      data-analytics={commandAnalyticsName(item.command)}
       variant={item.destructive ? 'destructive' : 'default'}
       onSelect={() => (onSelectItem ? onSelectItem(() => onExecute(item.command)) : onExecute(item.command))}>
       {content}
