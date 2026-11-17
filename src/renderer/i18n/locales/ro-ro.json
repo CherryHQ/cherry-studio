@@ -2946,6 +2946,7 @@
   "models.detail.model_id": "ID model",
   "models.detail.provider": "Furnizor",
   "models.detail.quota_exhausted": "Cota planului a fost epuizată; se așteaptă resetarea",
+  "models.detail.quota_insufficient_for_request": "Cota planului nu este suficientă pentru această solicitare",
   "models.edit": "Editează modelul",
   "models.group.ungrouped": "Neagrupat",
   "models.multi_select.label": "Selecție multiplă",
