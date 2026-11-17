@@ -104,6 +104,7 @@ export async function createAgentRuntimeSession(
   // meterRequests (behavior/harness.ts) wraps session.agent.streamFunction in place after session
   // creation, so the summary stream reads it lazily at summarize time: admission, the run's request
   // cap and summary-usage accounting then cover every host summary attempt.
+  // eslint-disable-next-line prefer-const -- assigned after creation; the closure above reads it lazily
   let meteredSession: AgentSession | undefined
   const meteredSummarize: ((request: CompactionSummaryEventRequest) => ReturnType<CompactionSummarizer>) | undefined =
     summarize
