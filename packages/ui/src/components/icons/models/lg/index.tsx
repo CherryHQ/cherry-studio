@@ -9,7 +9,7 @@ const Lg = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const LgIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Lg, {
   Avatar: LgAvatar,
-  colorPrimary: '#C00C3F'
+  colorPrimary: '#f9e9ee'
 })
 
 export default LgIcon

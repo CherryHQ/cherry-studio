@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-15-computer-use-global-input.md
+2026-11-15-computer-use-global-input.md: 42b529729a4701ab47c182ecd6784671f283d3b3
+2026-11-15-computer-use-global-input.zh.md: 16bc88d48ede84bc78cea0f3e46942c71db6e695

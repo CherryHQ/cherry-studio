@@ -3,7 +3,7 @@ import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ScrollArea } from '@cherrystudio/ui'
+import { ScrollArea, HelpTooltip } from '@cherrystudio/ui'
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Tooltip } from '@cherrystudio/ui'
 import EditIcon from '@renderer/components/icons/EditIcon'
 import { popup } from '@renderer/services/popup'
@@ -202,9 +202,7 @@ export const WebSearchApiKeyList: FC<WebSearchApiKeyListProps> = ({ providerId }
       </div>
 
       <div className="mt-3.5 flex items-center justify-between gap-3">
-        <span className="min-w-0 text-xs leading-tight text-muted-foreground">
-          {t('settings.provider.api_key.tip')}
-        </span>
+        <HelpTooltip content={t('settings.provider.api_key.tip')} />
         <Button
           type="button"
           size="sm"
