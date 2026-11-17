@@ -77,8 +77,7 @@ const mocks = vi.hoisted(() => ({
   catalog: vi.fn(),
   interaction: vi.fn<() => ToolGuardInteractionState>(),
   delegated: vi.fn(),
-  prime: vi.fn(),
-  mcpServers: vi.fn()
+  prime: vi.fn()
 }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory, defaultServiceInstances } = await import('@test-mocks/main/application')
