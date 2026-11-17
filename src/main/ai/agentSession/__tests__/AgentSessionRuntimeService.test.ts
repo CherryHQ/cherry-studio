@@ -2701,8 +2701,7 @@ describe('AgentSessionRuntimeService', () => {
       runtimeDriverRegistry.register({
         type: 'test-runtime',
         connect,
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
+        validateSession: vi.fn()
       })
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
