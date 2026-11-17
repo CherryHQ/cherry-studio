@@ -54,7 +54,23 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const cloudPresentation = getCherryCloudErrorPresentation(serialized, provider?.id, category)
   const planQuota = cloudPresentation.quota
   const presentation: ErrorToastPresentation = planQuota ? { type: 'warning' } : errorToastPresentations[category]
-  const details = planQuota ? cloudPresentation.text : providerErrorText(serialized)
+  const providerDetails = planQuota ? cloudPresentation.text : providerErrorText(serialized)
+  // Admission-time runtime failures (e.g. `ClaudeCodeRuntimeUnavailableError` via
+  // `AI_REQUEST_FAILED`) carry renderer-facing recovery copy in
+  // `i18nKey`/`detailI18nKey`. `providerErrorText` alone would show only the legacy
+  // message, so prefer the app-owned keys — mirroring `ErrorBlock`, where
+  // `claude_code_*` keys stay preferred even when the failed message carries a
+  // model provider (the runtime, not the provider, is at fault).
+  const errorBag = serialized as unknown as Record<string, unknown>
+  const appOwnedKey = typeof errorBag.i18nKey === 'string' ? `error.${errorBag.i18nKey}` : ''
+  const hasAppOwnedKey = appOwnedKey !== '' && i18n.exists(appOwnedKey)
+  const isClaudeRuntimeKey = typeof errorBag.i18nKey === 'string' && errorBag.i18nKey.startsWith('claude_code_')
+  const useAppOwnedCopy = hasAppOwnedKey && (!provider?.id || isClaudeRuntimeKey)
+  const detailFullKey = typeof errorBag.detailI18nKey === 'string' ? `error.${errorBag.detailI18nKey}` : ''
+  const hasAppOwnedDetail = detailFullKey !== '' && i18n.exists(detailFullKey)
+  const detailValues = errorBag.detailI18nValues as Record<string, string> | undefined
+  const appOwnedTitle = useAppOwnedCopy ? i18n.t(appOwnedKey) : undefined
+  const appOwnedDetails = useAppOwnedCopy && hasAppOwnedDetail ? i18n.t(detailFullKey, detailValues) : undefined
   const configure = provider
     ? () => openSettingsTab(`/settings/provider?id=${encodeURIComponent(provider.id)}`)
     : undefined
@@ -76,9 +92,7 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
     key: context.key,
     title: planQuota
       ? i18n.t('models.detail.quota_exhausted')
-      : category === 'unknown'
-        ? details || i18n.t('error.unknown')
-        : i18n.t(diagnosisKey),
+      : (appOwnedTitle ?? (category === 'unknown' ? providerDetails || i18n.t('error.unknown') : i18n.t(diagnosisKey))),
     description:
       [
         context.mcpServer?.name ?? provider?.name,
@@ -89,7 +103,7 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
       ]
         .filter(Boolean)
         .join(' · ') || undefined,
-    details: category === 'unknown' ? undefined : details,
+    details: planQuota ? providerDetails : (appOwnedDetails ?? (category === 'unknown' ? undefined : providerDetails)),
     action:
       run && actionKind
         ? {
