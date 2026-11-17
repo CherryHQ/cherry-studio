@@ -1,6 +1,9 @@
-<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="none">
+<rect width="120" height="120" fill="var(--icon-neutral-background, #FFFFFF)"/>
+<g fill="none" transform="translate(18 18) scale(5.20661157) translate(-3.9333 -3.9333)">
 <path d="M11.592 4H4V11.5936H11.5936V4H11.592Z" fill="#F25022"/>
 <path d="M20 4H12.4064V11.5936H20V4Z" fill="#7FBA00"/>
 <path d="M11.592 12.4064H4V20H11.5936V12.4064H11.592Z" fill="#00A4EF"/>
 <path d="M20 12.4064H12.4064V20H20V12.4064Z" fill="#FFB900"/>
+</g>
 </svg>

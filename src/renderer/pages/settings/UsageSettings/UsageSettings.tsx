@@ -520,7 +520,6 @@ function UsageSettings() {
             <UsagePanel className="@[640px]/usage:p-4 p-3">
               <EmptyState
                 compact
-                preset="no-result"
                 title={t('settings.usage.empty.title')}
                 description={t('settings.usage.empty.description')}
               />

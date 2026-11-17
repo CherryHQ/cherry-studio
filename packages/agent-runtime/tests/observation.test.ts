@@ -18,6 +18,25 @@ const snapshot = (): ThreadSnapshot => ({
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve))
 
 describe('normalized observation delivery', () => {
+  it('reads state and individual message bindings without exposing the stored message graph', () => {
+    const feed = new ThreadFeed(snapshot(), () => {})
+    const message = item('answer')
+    message.metadata = { completeness: 'complete', inputId: runtimeId('input') }
+    feed.publish({ type: 'message.upsert', message })
+    expect(feed.messageInputId('answer')).toBe('input')
+    expect(feed.messageInputId('missing')).toBeUndefined()
+    const state = feed.state
+    expect(state).not.toHaveProperty('messages')
+    Object.assign(state.activity, { state: 'active' })
+    const captured = feed.message('answer')!
+    captured.parts.length = 0
+    const ids = feed.messageIds
+    ids.length = 0
+    expect(feed.snapshot.activity.state).toBe('idle')
+    expect(feed.snapshot.messages[0].parts).toEqual([{ type: 'text', text: 'answer' }])
+    expect(feed.messageIds).toEqual(['answer'])
+  })
+
   it('closes an unrecoverable control backlog without delivering a fabricated completion', async () => {
     const failures: unknown[] = []
     const feed = new ThreadFeed(snapshot(), (error) => failures.push(error))
