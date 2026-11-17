@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/a
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { type IconAvatarProps } from '../../types'
+import { ThinkAnyDark } from './dark'
 import { ThinkAnyLight } from './light'
 
 export function ThinkAnyAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
@@ -10,7 +11,8 @@ export function ThinkAnyAvatar({ size = 32, shape = 'circle', className }: Omit<
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground">
-        <ThinkAnyLight style={{ width: size, height: size }} />
+        <ThinkAnyLight className="dark:hidden" style={{ width: size, height: size }} />
+        <ThinkAnyDark className="hidden dark:block" style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

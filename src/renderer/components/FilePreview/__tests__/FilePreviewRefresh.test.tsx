@@ -176,3 +176,8 @@ describe('FilePreview workbook refresh', () => {
     )
   })
 })
+
+vi.mock('@renderer/services/fileObservation', async () => {
+  const { mockFileObservationService } = await import('@test-mocks/renderer/FileObservationService')
+  return { fileObservationService: mockFileObservationService }
+})

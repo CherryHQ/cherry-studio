@@ -5,7 +5,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { getMiniAppsLogoRef, useMiniAppLogo } from '@renderer/components/icons/miniAppsLogo'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
-import { getIconDisplayConfig, miniAppContainedIcon } from './iconDisplayConfig'
+import { getIconDisplayConfig } from './iconDisplayConfig'
 
 interface Props {
   app: Pick<MiniApp, 'logo' | 'logoSrc' | 'name' | 'background'>
@@ -127,18 +127,15 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', artworkSize, size 
       )
     }
 
-    const imageDisplayConfig = appearance === 'plain' ? miniAppContainedIcon : undefined
-    const imageSize = size * (imageDisplayConfig?.scale ?? 1)
-
     return (
       <img
         src={src}
-        className={appearance === 'plain' ? 'select-none' : 'rounded-2xl border border-border select-none'}
+        className={
+          appearance === 'plain' ? 'shrink-0 object-cover select-none' : 'rounded-2xl border border-border select-none'
+        }
         style={{
-          width: `${imageSize}px`,
-          height: `${imageSize}px`,
-          borderRadius:
-            imageDisplayConfig?.borderRadius === undefined ? undefined : `${imageDisplayConfig.borderRadius}px`,
+          width: `${size}px`,
+          height: `${size}px`,
           backgroundColor: app.background,
           userSelect: 'none',
           ...style

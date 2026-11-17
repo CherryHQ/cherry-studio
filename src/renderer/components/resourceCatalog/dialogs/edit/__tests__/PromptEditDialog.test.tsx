@@ -272,7 +272,7 @@ describe('PromptEditDialog', () => {
       />
     )
 
-    const editor = screen.getByLabelText('prompt-editor') as HTMLTextAreaElement
+    const editor = screen.getByLabelText<HTMLTextAreaElement>('prompt-editor')
     editor.focus()
     editor.setSelectionRange(4, 11)
 
