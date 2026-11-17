@@ -648,6 +648,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-3-pro-image',
           'gemini-3-pro-image-preview',
           'gemini-4-argon',
+          'gemini-4-hydrogen',
           'gemini-flash-latest',
           'gemini-flash-lite-latest',
           'gemini-pro-latest'
@@ -683,6 +684,7 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<
           'gemini-3-pro-image',
           'gemini-3-pro-image-preview',
           'gemini-4-argon',
+          'gemini-4-hydrogen',
           'gemini-flash-latest',
           'gemini-flash-lite-latest',
           'gemini-pro-latest'

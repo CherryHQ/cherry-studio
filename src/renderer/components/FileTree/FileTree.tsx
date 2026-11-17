@@ -10,6 +10,7 @@ import {
   TreeView
 } from '@cherrystudio/ui'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
+import { cn } from '@renderer/utils/style'
 
 import { FileTreeRow } from './FileTreeRow'
 import type { FileTreeNode, FileTreeProps } from './types'
@@ -48,12 +49,14 @@ export function FileTree(props: FileTreeProps) {
     folderIcon,
     showFolderIcons = true,
     renderList,
+    contentProps,
     stickyFolders = true,
     showSearch = false,
     searchKeyword = '',
     onSearchKeywordChange,
     searchPlaceholder,
     searchClearLabel,
+    searchClassName,
     emptyState
   } = props
 
@@ -90,12 +93,13 @@ export function FileTree(props: FileTreeProps) {
         list={flat as FlatTreeItem<FileTreeNode>[]}
         estimateSize={() => DEFAULT_ITEM_SIZE}
         overscan={VIRTUAL_OVERSCAN}
+        contentProps={contentProps}
         isSticky={isSticky}
         getItemDepth={getItemDepth}>
         {(_item, index) => renderItem(index)}
       </DynamicVirtualList>
     ),
-    []
+    [contentProps]
   )
 
   const tree = (
@@ -125,7 +129,7 @@ export function FileTree(props: FileTreeProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center gap-2 px-2 py-2">
+      <div className={cn('flex shrink-0 items-center gap-2 px-2 py-2', searchClassName)}>
         <div className="relative min-w-0 flex-1">
           <Search
             size={14}

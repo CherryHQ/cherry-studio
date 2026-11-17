@@ -18,6 +18,7 @@ const EMPTY_RESPONSE_MESSAGE = 'Invalid response: empty response body. Retry or 
 const INVALID_JSON_MESSAGE = 'Invalid JSON data. Retry or check the provider endpoint and model.'
 const INVALID_STRUCTURE_MESSAGE =
   'Type validation failed: unexpected data structure. Check the provider endpoint and model.'
+const INTERRUPTED_RESPONSE_MESSAGE = 'Connection interrupted while receiving the response. Retry the turn.'
 const TERMINATED_RESPONSE_MESSAGE = 'Invalid response: response processing terminated. Retry the turn.'
 const UNPROCESSABLE_RESPONSE_MESSAGE =
   'Invalid response: the provider response could not be processed. Retry or check the provider endpoint and model.'
@@ -194,6 +195,18 @@ function apiResponseDiagnostic(error: APICallError, depth: number): string | und
   if (message !== 'failed to process successful response' && message !== 'invalid json response') return undefined
   if (message === 'invalid json response' && error.responseBody === '') return EMPTY_RESPONSE_MESSAGE
   if (depth + 1 < MAX_NESTED_PROVIDER_ERROR_DEPTH) {
+    if (
+      error.cause instanceof Error &&
+      (/^net::ERR_(INCOMPLETE_CHUNKED_ENCODING|CONNECTION_CLOSED|CONNECTION_RESET|EMPTY_RESPONSE)$/.test(
+        error.cause.message
+      ) ||
+        (error.cause instanceof TypeError &&
+          error.cause.message === 'terminated' &&
+          error.cause.cause instanceof Error &&
+          'code' in error.cause.cause &&
+          error.cause.cause.code === 'UND_ERR_SOCKET'))
+    )
+      return INTERRUPTED_RESPONSE_MESSAGE
     const diagnostic = sdkResponseDiagnostic(error.cause)
     if (diagnostic) return diagnostic
     if (
@@ -246,7 +259,12 @@ function serializeNestedProviderErrorAtDepth(value: unknown, depth: number): Ser
     return {
       name: value.name,
       message,
-      providerErrorCategory: diagnostic && (category === 'unknown' || category === 'parse') ? 'parse' : category,
+      providerErrorCategory:
+        diagnostic === INTERRUPTED_RESPONSE_MESSAGE
+          ? 'network'
+          : diagnostic && (category === 'unknown' || category === 'parse')
+            ? 'parse'
+            : category,
       stack: null,
       cause: null,
       url: '',

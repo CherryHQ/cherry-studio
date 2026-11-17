@@ -506,6 +506,7 @@ describe('model connectivity against an HTTP provider', () => {
       checkIds: ['config-boot-config-valid']
     })
     expect(global.status).toBe('completed')
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const before = structuredClone(application.get('CacheService').getShared(doctorStateCacheKey('global')))
     const chat = await start()
     const agent = await start({ kind: 'agent', agentId: 'agent' }, 'agent-run')

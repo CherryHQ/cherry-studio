@@ -9,7 +9,7 @@ const Ai302 = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const Ai302Icon: CompoundIcon = /*#__PURE__*/ Object.assign(Ai302, {
   Avatar: Ai302Avatar,
-  colorPrimary: '#3F3FAA'
+  colorPrimary: '#eeeef7'
 })
 
 export default Ai302Icon

@@ -9,7 +9,7 @@ const Gpt4oRealtimePreview = ({ variant, className, ...props }: CompoundIconProp
 
 export const Gpt4oRealtimePreviewIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Gpt4oRealtimePreview, {
   Avatar: Gpt4oRealtimePreviewAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#158445'
 })
 
 export default Gpt4oRealtimePreviewIcon

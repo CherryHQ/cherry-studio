@@ -234,6 +234,7 @@ describe('main web search API providers', () => {
       '*://*/*'
     ]
     const config = { ...runtimeConfig, maxResults: 23, excludeDomains }
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const original = structuredClone(config)
     await provider.searchKeywords('hello', config)
     expect(serializeRequestBody(fetchMock.mock.calls[0][1].body)).toEqual({
