@@ -670,6 +670,41 @@ describe('AgentSessionRuntimeService', () => {
     }
   )
 
+  it.each(['claude-code', 'pi', 'pi-durable'] as const)(
+    'retains an in-flight %s prediction when the window loses focus',
+    async (agentType) => {
+      await defaultServiceInstances.PreferenceService.set('agent.input.suggestions.enabled', true)
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, agentType })
+      const entry = getEntry(service)
+      let focused = true
+      entry.interactionWindowId = 1
+      mocks.getWindow.mockReturnValue({ isFocused: () => focused })
+      let finish!: (text: string) => void
+      entry.connection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        predictPrompt: () => new Promise<string>((resolve) => (finish = resolve))
+      }
+      service.markTurnTerminal('session-1', 'success')
+      const input = {
+        sessionId: 'session-1',
+        replyId: 'assistant-1',
+        modelId: baseTurnInput.modelId,
+        requestId: crypto.randomUUID()
+      }
+      const pending = service.predictPrompt(input)
+      await Promise.resolve()
+      focused = false
+      finish('run tests')
+      expect(await pending).toEqual({ supported: true, text: 'run tests' })
+      focused = true
+      expect(await service.predictPrompt(input)).toEqual({ supported: true, text: 'run tests' })
+      await service.closeSession('session-1')
+    }
+  )
+
   it('binds predictions to the completed reply and cancels them when a new turn starts', async () => {
     await defaultServiceInstances.PreferenceService.set('agent.input.suggestions.enabled', true)
     const service = new AgentSessionRuntimeService()

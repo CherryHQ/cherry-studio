@@ -22,9 +22,27 @@ const messages: Message[] = [
   assistantReply('Checked the fix')
 ]
 
-it.each(['anthropic', 'openai', 'bedrock'] as const)(
-  'preserves parent %s cache breakpoints without caching the fork suffix',
-  async (api) => {
+it.each(
+  (['anthropic', 'openai', 'bedrock'] as const).flatMap((api) =>
+    [0, 1, 3].flatMap((updates) =>
+      (api === 'bedrock' ? [false] : [false, true]).map((midSystem) => ({ api, updates, midSystem }))
+    )
+  )
+)(
+  'preserves parent $api cache breakpoints with $updates system updates (mid-system: $midSystem) without caching the fork suffix',
+  async ({ api, updates, midSystem }) => {
+    const transcript: Message[] = [
+      ...messages.slice(0, 3),
+      ...Array.from(
+        { length: updates },
+        (_, index): Message => ({
+          role: 'system',
+          content: `Updated instruction ${index}`,
+          timestamp: 2
+        })
+      ),
+      ...messages.slice(3)
+    ]
     const payloads: any[] = []
     const model: typeof MODEL = {
       ...MODEL,
@@ -34,7 +52,7 @@ it.each(['anthropic', 'openai', 'bedrock'] as const)(
     const stream: Parameters<typeof createQueryFork>[2] = (target, context, options) =>
       api === 'anthropic'
         ? anthropicStream(
-            { ...target, api: 'anthropic-messages', compat: undefined },
+            { ...target, api: 'anthropic-messages', compat: { supportsMidConvoSystemMessages: midSystem } },
             normalizeContext(context),
             options
           )
@@ -50,7 +68,11 @@ it.each(['anthropic', 'openai', 'bedrock'] as const)(
               options
             )
           : completionsStream(
-              { ...target, api: 'openai-completions', compat: { cacheControlFormat: 'anthropic' } },
+              {
+                ...target,
+                api: 'openai-completions',
+                compat: { cacheControlFormat: 'anthropic', supportsMidConvoSystemMessages: midSystem }
+              },
               normalizeContext(context),
               options
             )
@@ -63,8 +85,8 @@ it.each(['anthropic', 'openai', 'bedrock'] as const)(
         throw new Error('Captured before network')
       }
     }
-    await stream(model, { messages: messages.slice(0, -1) }, options).result()
-    const fork = createQueryFork(model, messages, stream, options)
+    await stream(model, { messages: transcript.slice(0, -1) }, options).result()
+    const fork = createQueryFork(model, transcript, stream, options)
     await fork.query('Predict the next user prompt', new AbortController().signal)
     const [parent, prediction] = payloads
     expect(prediction.tools).toEqual(parent.tools)

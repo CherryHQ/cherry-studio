@@ -646,8 +646,6 @@ export class AgentSessionRuntimeService extends BaseService {
     const modelId = entry.modelId
     const eligible = () =>
       entry.modelId === modelId &&
-      (!entry.interactionWindowId ||
-        application.get('WindowManager').getWindow(entry.interactionWindowId)?.isFocused() === true) &&
       this.isCurrentEntry(entry) &&
       !entry.closing &&
       this.runtimeStatus(entry) === 'idle' &&
@@ -659,7 +657,12 @@ export class AgentSessionRuntimeService extends BaseService {
       !turn.origin &&
       agentService.getAgent(entry.agentId)?.configuration?.permission_mode !== 'plan' &&
       application.get('PreferenceService').get('agent.input.suggestions.enabled')
-    if (!eligible()) return
+    if (
+      !eligible() ||
+      (entry.interactionWindowId &&
+        application.get('WindowManager').getWindow(entry.interactionWindowId)?.isFocused() !== true)
+    )
+      return
     entry.prediction?.controller.abort()
     const controller = new AbortController()
     const result = Promise.resolve().then(async () => {

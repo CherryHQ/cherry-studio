@@ -48,7 +48,8 @@ driver internals behind the same host contract.
 Main starts prediction at the end of an eligible successful interactive root turn.
 `ai.agent.session.predict_prompt` consumes that existing ephemeral result using the
 source reply and model IDs; opening a composer never starts another native prediction.
-Main validates idle ownership, preference, Plan mode and attached-window focus, and
+Main checks attached-window focus before starting prediction; losing focus while it
+is running does not invalidate the result. Main validates idle ownership, preference and Plan mode, and
 cancels on input, context invalidation, connection closure or preference changes.
 `ai.agent.session.abort_prediction` cancels the matching consumer request.
 Tab or the text-direction forward arrow accepts editable text without sending.

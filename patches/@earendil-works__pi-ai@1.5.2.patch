@@ -1,8 +1,18 @@
 diff --git a/dist/api/anthropic-messages.js b/dist/api/anthropic-messages.js
-index 4f7052d2bb80b14c00ac3a1ef0684bbcac166a5b..e737a05bf5573180d716b15ff3ad8fe19539e7dd 100644
+index 4f7052d2bb80b14c00ac3a1ef0684bbcac166a5b..740e41e73c08f96399c2c43e089c5720586ccd2f 100644
 --- a/dist/api/anthropic-messages.js
 +++ b/dist/api/anthropic-messages.js
-@@ -1215,6 +1215,14 @@ function buildParams(model, context, isOAuthToken, options, flags) {
+@@ -554,6 +554,9 @@ export const stream = (model, context, options) => {
+     const stream = new AssistantMessageEventStream();
+     const compat = getAnthropicCompat(model);
+     const normalizedContext = resolveTranscript(context, compat.supportsMidConvoSystemMessages);
++    if (options?.skipCacheWrite) {
++        options = { ...options, cacheReadPrefix: resolveTranscript({ ...context, messages: context.messages.slice(0, options.cacheReadPrefix ?? 0) }, compat.supportsMidConvoSystemMessages).messages.length };
++    }
+     const currentTools = getCurrentTools(normalizedContext.messages);
+     (async () => {
+         const output = {
+@@ -1215,6 +1218,14 @@ function buildParams(model, context, isOAuthToken, options, flags) {
      if (allowedFallbackModels && allowedFallbackModels.length > 0) {
          params.fallbacks = allowedFallbackModels.map((fallback) => ({ model: fallback.model }));
      }
@@ -18,10 +28,20 @@ index 4f7052d2bb80b14c00ac3a1ef0684bbcac166a5b..e737a05bf5573180d716b15ff3ad8fe1
  }
  // Normalize tool call IDs to match Anthropic's required pattern and length
 diff --git a/dist/api/bedrock-converse-stream.js b/dist/api/bedrock-converse-stream.js
-index 2f4d57c12f029a46a731e6c26a1212300ae00019..019844d11835870db772f378d842f3df4f865600 100644
+index 2f4d57c12f029a46a731e6c26a1212300ae00019..4ca4f72497bdf411ee2fde7f59d1bcc053486364 100644
 --- a/dist/api/bedrock-converse-stream.js
 +++ b/dist/api/bedrock-converse-stream.js
-@@ -152,7 +152,7 @@ export const stream = (model, context, options = {}) => {
+@@ -26,6 +26,9 @@ export const stream = (model, context, options = {}) => {
+     const stream = new AssistantMessageEventStream();
+     // Bedrock has no mid-conversation system messages; fold them into the leading prompt.
+     const normalizedContext = collapseSystemMessages(context);
++    if (options?.skipCacheWrite) {
++        options = { ...options, cacheReadPrefix: collapseSystemMessages({ ...context, messages: context.messages.slice(0, options.cacheReadPrefix ?? 0) }).messages.length };
++    }
+     (async () => {
+         const output = {
+             role: "assistant",
+@@ -152,7 +155,7 @@ export const stream = (model, context, options = {}) => {
                  const tools = convertToolConfig(getCurrentTools(normalizedContext.messages), options.toolChoice, supportsStrictMode, disablePreferredStrictTools);
                  let commandInput = {
                      modelId: model.id,
@@ -30,7 +50,7 @@ index 2f4d57c12f029a46a731e6c26a1212300ae00019..019844d11835870db772f378d842f3df
                      system: buildSystemPrompt(initialSystemPrompt, model, cacheRetention, options.env),
                      inferenceConfig: {
                          ...(inferenceMaxTokens !== undefined && { maxTokens: inferenceMaxTokens }),
-@@ -785,7 +785,7 @@ function convertToolResultContent(content) {
+@@ -785,7 +788,7 @@ function convertToolResultContent(content) {
          result.push({ text: EMPTY_TEXT_PLACEHOLDER });
      return result;
  }
@@ -39,7 +59,7 @@ index 2f4d57c12f029a46a731e6c26a1212300ae00019..019844d11835870db772f378d842f3df
      const result = [];
      const transformedMessages = transformMessages(withoutInitialSystemMessage(context.messages), model, normalizeToolCallId);
      for (let i = 0; i < transformedMessages.length; i++) {
-@@ -942,6 +942,14 @@ function convertMessages(context, model, cacheRetention, env) {
+@@ -942,6 +945,14 @@ function convertMessages(context, model, cacheRetention, env) {
              });
          }
      }
@@ -154,10 +174,20 @@ index 704476da084be53d6aa194a5f774fa3ad47f5e9a..7e187133abd4a9f1a635eb9d46f61bb4
      serviceTier?: ResponseCreateParamsStreaming["service_tier"];
      textVerbosity?: "low" | "medium" | "high";
 diff --git a/dist/api/openai-completions.js b/dist/api/openai-completions.js
-index c1b6038c2220633a8caf710288a8f6e6301f7a28..d780aa629cf65a61867c7221349d35f89488cd79 100644
+index c1b6038c2220633a8caf710288a8f6e6301f7a28..d394f60a366c69cf57e514b35182e2fb6797b62d 100644
 --- a/dist/api/openai-completions.js
 +++ b/dist/api/openai-completions.js
-@@ -598,6 +598,14 @@ function buildParams(model, context, options, compat = getCompat(model), cacheRe
+@@ -152,6 +152,9 @@ function resolveCacheRetention(cacheRetention, env) {
+ export const stream = (model, context, options) => {
+     const stream = new AssistantMessageEventStream();
+     const normalizedContext = resolveTranscript(context, getCompat(model).supportsMidConvoSystemMessages);
++    if (options?.skipCacheWrite) {
++        options = { ...options, cacheReadPrefix: resolveTranscript({ ...context, messages: context.messages.slice(0, options.cacheReadPrefix ?? 0) }, getCompat(model).supportsMidConvoSystemMessages).messages.length };
++    }
+     (async () => {
+         const output = {
+             role: "assistant",
+@@ -598,6 +601,14 @@ function buildParams(model, context, options, compat = getCompat(model), cacheRe
      }
      if (cacheControl) {
          applyAnthropicCacheControl(messages, params.tools, cacheControl);
