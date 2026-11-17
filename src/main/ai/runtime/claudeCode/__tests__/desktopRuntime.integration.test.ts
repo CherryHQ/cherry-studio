@@ -1429,6 +1429,53 @@ it.each([
   30000
 )
 
+it('applies a permission-mode tightening to the retained connection when the model is unavailable', async () => {
+  const modelId = 'native-test::claude-sonnet-4-6'
+  const { permissionMode, allowDangerouslySkipPermissions } = createClaudeCodeQueryOptions({
+    modelId,
+    settings: { permissionMode: 'bypassPermissions' }
+  })
+  const test = await desktop({ permissionMode, allowDangerouslySkipPermissions, tools: ['Bash'] })
+  const agentId = randomUUID()
+  // The agent's desired mode is the SDK default (no configuration row); the retained connection
+  // runs loose, so reconcile must tighten the live subprocess back to 'default'.
+  dbh.db
+    .insert(agentTable)
+    .values({ id: agentId, type: 'claude-code', name: 'Agent', instructions: '', orderKey: 'a0' })
+    .run()
+  const agent = agentService.getAgent(agentId)!
+  const snapshot = await createClaudeAgentToolPolicySnapshot({
+    ...agent,
+    configuration: { ...agent.configuration, permission_mode: 'bypassPermissions' }
+  })
+  const built = await ports.build()
+  built.settings.toolPolicySnapshot = snapshot
+  built.connectionConfig.live.toolPolicy.permissionMode = 'bypassPermissions'
+  const connection = await test.connect(undefined, undefined, true, { sessionId: test.sessionId, agentId, modelId })
+  await connection.send(test.input('Write the marker'))
+  const first = await test.request()
+
+  ports.derive.mockResolvedValueOnce({
+    ok: false,
+    reason: 'model-unavailable',
+    error: new Error('model disabled')
+  })
+  expect(await connection.reconcile({ modelId })).toBe('rebuild')
+  expect(snapshot.getPermissionMode()).toBe('default')
+  first.reply.block({
+    type: 'tool_use',
+    id: 'toolu_marker',
+    name: 'Bash',
+    input: { command: `node -e "require('fs').writeFileSync('marker.txt', 'x')"`, description: 'Write marker' }
+  })
+  first.reply.finish('tool_use')
+  const second = await test.request()
+  second.reply.block({ type: 'text', text: 'Done' })
+  second.reply.finish()
+  await test.wait('turn-complete')
+  expect(existsSync(path.join(test.options.cwd, 'marker.txt'))).toBe(false)
+}, 30000)
+
 it('interrupts an active native request before retiring its owner and permits a new connection', async () => {
   const test = await desktop()
   const connection = await test.connect()

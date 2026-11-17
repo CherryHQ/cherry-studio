@@ -372,7 +372,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return run
   }
 
-  /** Refresh the local tool-policy snapshot from the agent when the route cannot be derived. */
+  /**
+   * Refresh the local tool-policy snapshot AND the live permission mode from the agent when the
+   * route cannot be derived. While the model stays unroutable the rebuild can never land, so the
+   * retained connection is the only enforcement point: a permission-mode tightening must reach the
+   * subprocess now (setPermissionMode applies from the next tool call and needs no route), and a
+   * failed apply fails the reconcile closed.
+   */
   private async applyLiveToolPolicyWithoutRoute(): Promise<boolean> {
     const baseline = this.connectionConfig
     if (!this.toolPolicySnapshot || !baseline) return true
@@ -380,14 +386,20 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       const agent = agentService.getAgent(this.input.agentId)
       if (!agent) return true
       await this.toolPolicySnapshot.update(agent)
-      this.toolPolicySnapshot.setPermissionMode(baseline.live.toolPolicy.permissionMode ?? undefined)
-      // Keep the cached facts equal to what the snapshot now enforces, so a later reconcile that
-      // re-derives the same policy still sees the difference. The rebuild baseline is untouched.
+      const permissionMode = agent.configuration?.permission_mode ?? 'default'
+      if ((baseline.live.toolPolicy.permissionMode ?? 'default') !== permissionMode) {
+        if (!this.handle) return false
+        const changed = await this.handle.claude.setPermissionMode(permissionMode)
+        if (changed.status !== 'confirmed') throw new Error(changed.error.message)
+      }
+      this.toolPolicySnapshot.setPermissionMode(permissionMode)
+      // Keep the cached facts equal to what the snapshot and subprocess now enforce, so a later
+      // reconcile that re-derives the same policy still sees the difference. The rebuild baseline is untouched.
       this.connectionConfig = {
         ...baseline,
         live: {
           toolPolicy: {
-            permissionMode: baseline.live.toolPolicy.permissionMode,
+            permissionMode: agent.configuration?.permission_mode ?? null,
             disabledTools: [...(agent.disabledTools ?? [])].sort(),
             mcps: [...(agent.mcps ?? [])].sort()
           }
@@ -426,9 +438,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // close the session silently; a rebuild reconnects through the cold build, whose availability
       // check throws this message into the turn.
       if (derived.reason === 'model-unavailable') {
-        // The retained connection keeps serving an active turn until the rebuild lands, so tool
-        // restrictions the user just tightened must reach its local gate now. The permission mode
-        // stays frozen at the connection's baseline; the rebuild applies any mode change.
+        // The retained connection keeps serving an active turn, and the rebuild below cannot land
+        // while the model stays unroutable, so tightened tool restrictions AND a tightened
+        // permission mode must reach it now; if they cannot be applied, fail closed.
         if (!(await this.applyLiveToolPolicyWithoutRoute())) return 'failed'
         return 'rebuild'
       }
