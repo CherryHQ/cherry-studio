@@ -246,7 +246,7 @@ vi.mock('@renderer/utils/agentSession', () => ({
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({ t: (key: string) => key, i18n: { resolvedLanguage: 'en' } })
 }))
 
 vi.mock('../components/AgentChatNavbar', () => ({
