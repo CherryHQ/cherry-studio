@@ -1,3 +1,5 @@
+import crypto from 'node:crypto'
+
 import {
   isInputRequiredResult,
   SdkHttpError,
@@ -105,7 +107,6 @@ const InteractionElicitRequestSchema = ElicitRequestSchema.extend({
   params: z.union([ElicitRequestFormParamsSchema, ElicitRequestURLParamsSchema.partial({ elicitationId: true })])
 })
 
-const NonEmptyStringSchema = z.string().min(1)
 export const McpCallToolPayloadSchema = z.object({
   serverId: z.string().min(1),
   name: z.string().min(1),
@@ -116,7 +117,6 @@ export const McpGetResourcePayloadSchema = z.object({
   serverId: z.string().min(1),
   uri: z.string().min(1)
 })
-export const McpStringArgSchema = NonEmptyStringSchema
 
 const logger = loggerService.withContext('McpRuntimeService')
 const mcpStatusCacheKey = (serverId: string): SharedCacheKey => `mcp.status.${serverId}`
@@ -308,14 +308,23 @@ export class McpRuntimeService extends BaseService {
   }
 
   public getServerKey(server: McpServer): string {
+    const fingerprint = crypto
+      .createHash('sha256')
+      .update(
+        JSON.stringify({
+          baseUrl: server.baseUrl,
+          command: server.command,
+          args: Array.isArray(server.args) ? server.args : [],
+          registryUrl: server.registryUrl,
+          env: server.env,
+          headers: server.headers
+        })
+      )
+      .digest('hex')
+
     return JSON.stringify({
-      baseUrl: server.baseUrl,
-      command: server.command,
-      args: Array.isArray(server.args) ? server.args : [],
-      registryUrl: server.registryUrl,
-      env: server.env,
-      headers: server.headers,
-      id: server.id
+      id: server.id,
+      fingerprint
     })
   }
 
@@ -570,8 +579,17 @@ export class McpRuntimeService extends BaseService {
   }
 
   public async listTools(serverId: string, cacheMode: CacheMode = 'use'): Promise<Tool[]> {
+    return this.listToolsWithContext(serverId, null, cacheMode)
+  }
+
+  /** Same as `listTools`, but the caller can open the OAuth sign-in browser window. */
+  public async listToolsWithContext(
+    serverId: string,
+    requestContext: McpInteractionContext | null,
+    cacheMode: CacheMode = 'use'
+  ): Promise<Tool[]> {
     const server = this.getServerById(serverId)
-    const connection = await this.getOrCreateConnection(server, null)
+    const connection = await this.getOrCreateConnection(server, requestContext)
     const tools = await connection.listTools(cacheMode)
     if (this.connections.get(this.getServerKey(server)) !== connection)
       throw new DOMException('MCP connection replaced', 'AbortError')

@@ -61,9 +61,12 @@ vi.mock('../localAdapters', async (importOriginal) => {
     voiceAudioProcess: { id: 'voice.audio' }
   }
 })
-vi.mock('@renderer/data/PreferenceService', () => ({
-  preferenceService: { get: vi.fn(), getMultiple: vi.fn() }
-}))
+vi.mock('@renderer/data/PreferenceService', async () => {
+  const { createMockPreferenceService } = await import('@test-mocks/renderer/PreferenceService')
+  return {
+    preferenceService: createMockPreferenceService({ 'feature.voice.recognition.model_id': APPLE_ASR_MODEL_ID })
+  }
+})
 vi.mock('@renderer/i18n/resolver', () => ({
   default: { language: 'en-US', resolvedLanguage: 'en-US' }
 }))
