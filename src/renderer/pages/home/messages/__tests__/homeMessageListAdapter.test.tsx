@@ -11,6 +11,7 @@ import { type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
+import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import type * as MessageListItemUtils from '@renderer/components/chat/messages/utils/messageListItem'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
