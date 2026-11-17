@@ -364,6 +364,7 @@
     "@vitest/web-worker": "^5.0.1",
     "@viz-js/lang-dot": "^1.0.5",
     "@viz-js/viz": "^3.14.0",
+    "@vscode/tree-sitter-wasm": "0.3.1",
     "@wecom/aibot-node-sdk": "1.0.7",
     "@xyflow/react": "^12.4.4",
     "acorn": "8.15.0",
