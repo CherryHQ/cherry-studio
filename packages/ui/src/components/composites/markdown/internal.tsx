@@ -26,7 +26,9 @@ import {
 import type { Pluggable } from 'unified'
 
 import { MarkdownBlockContext } from './context'
+import { FootnoteLink, FootnoteSection } from './footnotes'
 import { rehypeHeadingIds, rehypePrefixSvgReferences, rehypePreserveAnchorTargets } from './plugins'
+import { rehypeFootnotes } from './plugins/rehype-footnotes'
 import {
   FILE_LINK_MARKER_PROPERTY,
   rehypePrepareFileLinks,
@@ -159,6 +161,11 @@ export function MarkdownCore({
 }: MarkdownCoreProps): ReactElement {
   const hasSvgElement = useMemo(() => SVG_ELEMENT_REGEX.test(children), [children])
   const stableComponents = useStableReference(components, isSameComponents)
+  const footnotePrefix = `footnote-${id}-`
+  const renderedComponents = useMemo(
+    () => ({ ...stableComponents, 'footnote-link': FootnoteLink, 'footnote-section': FootnoteSection }),
+    [stableComponents]
+  )
   const stableExtraRehypePlugins = useStableReference(extraRehypePlugins, isSamePluggableList)
   const stableExtraRemarkPlugins = useStableReference(extraRemarkPlugins, isSamePluggableList)
 
@@ -205,13 +212,18 @@ export function MarkdownCore({
       [hardenFn, { ...hardenOptions, linkBlockPolicy: 'text-only', imageBlockPolicy: 'text-only' }] as Pluggable,
       ...(preserveRelativeImageSrcs ? ([relativeImages.restore] as Pluggable[]) : []),
       ...(preserveFileLinkHrefs ? ([rehypeRestoreFileLinks] as Pluggable[]) : []),
-      [rehypeHeadingIds, { prefix: `heading-${id}` }] as Pluggable
+      [rehypeHeadingIds, { prefix: `heading-${id}` }] as Pluggable,
+      [
+        rehypeFootnotes,
+        { prefix: footnotePrefix, clobberPrefix: effectiveSchema.clobberPrefix ?? 'user-content-' }
+      ] as Pluggable
     )
     if (stableExtraRehypePlugins?.length) result.push(...stableExtraRehypePlugins)
     return result
   }, [
     hasSvgElement,
     id,
+    footnotePrefix,
     stableExtraRehypePlugins,
     preserveFileLinkHrefs,
     preserveRelativeImageSrcs,
@@ -226,11 +238,12 @@ export function MarkdownCore({
   const remarkRehypeOptions = useMemo(
     () => ({
       footnoteLabel,
+      clobberPrefix: footnotePrefix,
       footnoteLabelTagName: 'h4' as const,
-      footnoteBackContent: ' ',
+      footnoteBackContent: '↩',
       handlers: defListHastHandlers
     }),
-    [footnoteLabel]
+    [footnoteLabel, footnotePrefix]
   )
 
   const markdownCtx = useMemo(() => ({ content: children }), [children])
@@ -244,7 +257,7 @@ export function MarkdownCore({
           plugins={plugins}
           rehypePlugins={rehypePlugins}
           remarkPlugins={remarkPlugins}
-          components={stableComponents}
+          components={renderedComponents}
           disallowedElements={disallowedElements}
           urlTransform={urlTransform}
           parseIncompleteMarkdown={parseIncompleteMarkdown}

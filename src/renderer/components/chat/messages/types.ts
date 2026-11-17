@@ -12,6 +12,7 @@ import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type {
   ChatMessageStyle,
+  MultiModelFoldDisplayMode,
   MultiModelGridPopoverTrigger,
   MultiModelMessageStyle,
   TranslateLangCode
@@ -67,7 +68,7 @@ export interface MessageGroupRuntime {
 }
 
 export interface MessageSiblingInfo {
-  group: Array<{ id: string }>
+  group: Array<{ id: string; preview?: string }>
   activeIndex: number
 }
 
@@ -272,11 +273,14 @@ export interface MessageRenderConfig {
   codeFancyBlock: boolean
   thoughtAutoCollapse: boolean
   collapseCompletedToolHistory: boolean
+  /** Open tool groups and the finished process by default, so each step reads without a click. */
+  expandToolSteps: boolean
   keepIntermediateAssistantText: boolean
   mathEnableSingleDollar: boolean
   showMessageOutline: boolean
   showEstimatedTokens: boolean
   multiModelMessageStyle: MultiModelMessageStyle
+  multiModelFoldDisplayMode: MultiModelFoldDisplayMode
   multiModelGridColumns: number
   multiModelGridPopoverTrigger: MultiModelGridPopoverTrigger
 }
@@ -292,17 +296,19 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   codeFancyBlock: true,
   thoughtAutoCollapse: true,
   collapseCompletedToolHistory: true,
+  expandToolSteps: false,
   keepIntermediateAssistantText: false,
   mathEnableSingleDollar: false,
   showMessageOutline: false,
   showEstimatedTokens: false,
   multiModelMessageStyle: 'horizontal',
+  multiModelFoldDisplayMode: 'expanded',
   multiModelGridColumns: 2,
   multiModelGridPopoverTrigger: 'click'
 }
 
 export type MessageRenderConfigUpdate = Partial<
-  Pick<MessageRenderConfig, 'multiModelGridColumns' | 'multiModelGridPopoverTrigger'>
+  Pick<MessageRenderConfig, 'multiModelGridColumns' | 'multiModelGridPopoverTrigger' | 'multiModelFoldDisplayMode'>
 >
 
 /**
@@ -373,6 +379,7 @@ export const DEFAULT_MESSAGE_LIST_CONFIG = {
 } as const satisfies Pick<MessageListState, 'estimateSize' | 'overscan' | 'loadOlderDelayMs' | 'loadingResetDelayMs'>
 
 export interface MessageListActions {
+  addGeneratedImageToComposer?: (image: { url: string; name: string }) => void | Promise<void>
   openForkSourceSession?: (sessionId: string) => Promise<void>
   loadOlder?: () => void
   bindRuntime?: (runtime: MessageListRuntime) => void | (() => void)
@@ -454,6 +461,8 @@ export interface MessageListActions {
     parts: CherryMessagePart[],
     options?: { lockedMentionedModels?: Model[] }
   ) => void
+  /** Presentation eligibility for deleting this message on this surface. Absent = every message the action supports. */
+  canDeleteMessage?: (message: MessageListItem) => boolean
   getMessageDeleteAvailability?: (messageId: string) => MessageDeleteAvailability
   deleteMessage?: (messageId: string, options?: DeleteMessageOptions) => void | Promise<void>
   startMessageBranch?: (messageId: string) => void | Promise<void>
@@ -473,6 +482,9 @@ export interface MessageListMeta {
   selectionLayer: boolean
   userProfile?: MessageUserProfile
   assistantProfile?: MessageUserProfile
+  /** Current avatars keyed by author id; absent authors retain their message snapshot. */
+  authorAvatars?: ReadonlyMap<string, string>
+  assistantAvatarSources?: ReadonlyMap<string, string>
   imageExportFileName?: string
   /** Usage-record partition this surface's messages belong to. Defaults to 'chat'. */
   aiUsageMessageKind?: AiUsageRecordMessageKind

@@ -1,3 +1,5 @@
+import { basename, resolve } from 'node:path'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // The override is used only when its manifest and both remote-safe data files
@@ -21,17 +23,17 @@ import { resolveRegistryPaths } from '../registryDataPaths'
 
 const OVERRIDE = '/mock/feature.provider_registry.override'
 const BUNDLED = '/mock/feature.provider_registry.data'
-const MANIFEST = `${OVERRIDE}/manifest.json`
+const MANIFEST = resolve(OVERRIDE, 'manifest.json')
 
 const activePaths = {
-  models: `${OVERRIDE}/models.json`,
-  providers: `${BUNDLED}/providers.json`,
-  providerModels: `${OVERRIDE}/provider-models.json`
+  models: resolve(OVERRIDE, 'models.json'),
+  providers: resolve(BUNDLED, 'providers.json'),
+  providerModels: resolve(OVERRIDE, 'provider-models.json')
 }
 const bundledPaths = {
-  models: `${BUNDLED}/models.json`,
-  providers: `${BUNDLED}/providers.json`,
-  providerModels: `${BUNDLED}/provider-models.json`
+  models: resolve(BUNDLED, 'models.json'),
+  providers: resolve(BUNDLED, 'providers.json'),
+  providerModels: resolve(BUNDLED, 'provider-models.json')
 }
 
 const FILES = { 'models.json': 'a', 'provider-models.json': 'c' }
@@ -45,13 +47,13 @@ const VALID_MANIFEST = JSON.stringify({
 })
 
 function completeOverride(pathname: string): boolean {
-  return [MANIFEST, `${OVERRIDE}/models.json`, `${OVERRIDE}/provider-models.json`].includes(pathname)
+  return [MANIFEST, resolve(OVERRIDE, 'models.json'), resolve(OVERRIDE, 'provider-models.json')].includes(pathname)
 }
 
 function readCompleteOverride(pathname: string): string {
   if (pathname === MANIFEST) return VALID_MANIFEST
-  if (pathname.endsWith('/models.json')) return JSON.stringify({ version: 'a', models: [] })
-  if (pathname.endsWith('/provider-models.json')) return JSON.stringify({ version: 'c', overrides: [] })
+  if (basename(pathname) === 'models.json') return JSON.stringify({ version: 'a', models: [] })
+  if (basename(pathname) === 'provider-models.json') return JSON.stringify({ version: 'c', overrides: [] })
   throw new Error(`unexpected read: ${pathname}`)
 }
 
@@ -97,12 +99,12 @@ describe('registryDataPaths.resolveRegistryPaths', () => {
   })
 
   it('ignores a half-written override (data present, manifest absent) — all-or-nothing', () => {
-    existsSyncMock.mockImplementation((p: string) => p === `${OVERRIDE}/models.json`)
+    existsSyncMock.mockImplementation((p: string) => p === resolve(OVERRIDE, 'models.json'))
     expect(resolveRegistryPaths()).toEqual(bundledPaths)
   })
 
   it('ignores a manifest whose model snapshot is incomplete', () => {
-    existsSyncMock.mockImplementation((p: string) => p !== `${OVERRIDE}/provider-models.json`)
+    existsSyncMock.mockImplementation((p: string) => p !== resolve(OVERRIDE, 'provider-models.json'))
     readFileSyncMock.mockReturnValue(VALID_MANIFEST)
     expect(resolveRegistryPaths()).toEqual(bundledPaths)
   })
@@ -110,7 +112,7 @@ describe('registryDataPaths.resolveRegistryPaths', () => {
   it('ignores model data whose content version does not match the manifest', () => {
     existsSyncMock.mockImplementation(completeOverride)
     readFileSyncMock.mockImplementation((pathname: string) =>
-      pathname.endsWith('/models.json')
+      basename(pathname) === 'models.json'
         ? JSON.stringify({ version: 'wrong', models: [] })
         : readCompleteOverride(pathname)
     )

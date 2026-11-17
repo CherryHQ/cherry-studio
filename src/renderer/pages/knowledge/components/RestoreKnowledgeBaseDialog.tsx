@@ -59,6 +59,7 @@ const RestoreKnowledgeBaseDialog = ({
   const handleSettingsNavigate = useCloseBeforeAction(onOpenChange)
 
   useEffect(() => {
+    if (!open) return
     setValues(createInitialValues(defaultName, initialEmbeddingModelId))
     setHasAttemptedSubmit(false)
     setSubmitError(null)

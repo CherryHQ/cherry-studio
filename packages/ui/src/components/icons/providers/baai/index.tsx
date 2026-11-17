@@ -17,7 +17,7 @@ const Baai = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const BaaiIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Baai, {
   Avatar: BaaiAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#F0F0F0'
 })
 
 export default BaaiIcon

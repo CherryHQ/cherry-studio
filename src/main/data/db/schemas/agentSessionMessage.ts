@@ -1,11 +1,12 @@
 import { asc, desc, sql } from 'drizzle-orm'
-import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { check, foreignKey, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import type { AgentSessionDeliveryEnvelope, AgentSessionDeliveryStatus } from '@shared/ai/agentSessionDelivery'
 import type { MessageData, MessageSnapshot, MessageStats } from '@shared/data/types/message'
 
 import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { agentSessionTable } from './agentSession'
+import { agentSessionContextTable } from './agentSessionContext'
 import { userModelTable } from './userModel'
 
 export const agentSessionMessageTable = sqliteTable(
@@ -16,15 +17,20 @@ export const agentSessionMessageTable = sqliteTable(
       .notNull()
       .references(() => agentSessionTable.id, { onDelete: 'cascade' }),
     role: text().notNull(),
+    parentId: text(),
     // `data` stores MessageData (`{ parts }`); Drizzle handles
     // JSON.stringify/parse automatically via `{ mode: 'json' }`.
-    data: text({ mode: 'json' }).$type<MessageData & { runtimeAnchor?: unknown; nativeSessionId?: string }>().notNull(),
+    data: text({ mode: 'json' })
+      .$type<MessageData & { runtimeAnchor?: unknown; nativeSessionId?: string; deliveryReplyAnchor?: string }>()
+      .notNull(),
     searchableText: text().notNull().default(''),
     status: text().notNull(),
     modelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     messageSnapshot: text({ mode: 'json' }).$type<MessageSnapshot>(),
     stats: text({ mode: 'json' }).$type<MessageStats>(),
     runtimeResumeToken: text(),
+    inputContextId: text().references(() => agentSessionContextTable.id),
+    nativeInputId: text(),
     // Main-authored cross-session attribution and delivery state. Kept outside `data` so renderer
     // message edits cannot forge sender identity or mutate delivery lifecycle.
     delivery: text({ mode: 'json' }).$type<AgentSessionDeliveryEnvelope>(),
@@ -40,6 +46,14 @@ export const agentSessionMessageTable = sqliteTable(
     ...createUpdateTimestamps
   },
   (t) => [
+    uniqueIndex('agent_session_message_session_id_uniq').on(t.sessionId, t.id),
+    foreignKey({ columns: [t.sessionId, t.parentId], foreignColumns: [t.sessionId, t.id] }),
+    check('agent_session_message_root_parent_check', sql`(${t.role} = 'root') = (${t.parentId} IS NULL)`),
+    uniqueIndex('agent_session_message_native_input_uniq').on(t.inputContextId, t.nativeInputId),
+    index('agent_session_message_parent_idx').on(t.sessionId, t.parentId),
+    uniqueIndex('agent_session_message_root_uniq')
+      .on(t.sessionId)
+      .where(sql`${t.role} = 'root'`),
     index('agent_session_message_session_created_id_idx').on(t.sessionId, t.createdAt, t.id),
     index('agent_session_message_created_at_id_idx').on(desc(t.createdAt), asc(t.id)),
     // Backs findPendingAssistantMessageIds (boot reconcile); avoids a full SCAN. Plain, not
@@ -54,7 +68,7 @@ export const agentSessionMessageTable = sqliteTable(
     // FTS5 content_rowid key — UNIQUE so its index keeps the per-row MAX(fts_rowid)+1 assignment
     // O(log N) (see ftsRowid column + message.ts for the rationale).
     uniqueIndex('agent_session_message_fts_rowid_uniq').on(t.ftsRowid),
-    check('agent_session_message_role_check', sql`${t.role} IN ('user', 'assistant', 'system')`),
+    check('agent_session_message_role_check', sql`${t.role} IN ('root', 'user', 'assistant', 'system')`),
     check('agent_session_message_status_check', sql`${t.status} IN ('pending', 'success', 'error', 'paused')`),
     check(
       'agent_session_message_delivery_status_check',

@@ -8,6 +8,8 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
 import WebviewSearch from '@renderer/components/WebviewSearch'
 import { useMiniAppWebview } from '@renderer/hooks/useMiniAppRuntime'
+import { webviewRuntimeService } from '@renderer/services/WebviewRuntimeService'
+import { miniAppResourceKey } from '@renderer/utils/miniAppKeepAlive'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
 import MinimalToolbar, { type SplitMode } from './MinimalToolbar'
@@ -85,6 +87,11 @@ const MiniAppPane: FC<Props> = ({
     if (isReady && webview?.isConnected) webview.reload()
   }, [isReady, webview])
 
+  const handleRestart = useCallback(() => {
+    setCurrentUrl(app.url)
+    webviewRuntimeService.restart(miniAppResourceKey(app.appId))
+  }, [app.appId, app.url])
+
   const handleOpenDevTools = useCallback(() => {
     webview?.openDevTools()
   }, [webview])
@@ -105,6 +112,7 @@ const MiniAppPane: FC<Props> = ({
           currentUrl={currentUrl}
           isWebviewReady={isWebviewReady}
           onReload={handleReload}
+          onRestart={handleRestart}
           onOpenDevTools={handleOpenDevTools}
           splitMode={splitMode}
           splitActive={splitActive}

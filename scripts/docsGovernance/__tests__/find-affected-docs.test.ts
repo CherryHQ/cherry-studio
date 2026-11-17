@@ -22,11 +22,14 @@ describe('docs:affected', () => {
     git(root, 'config', 'user.email', 'docs@example.test')
     git(root, 'config', 'user.name', 'Docs Test')
     git(root, 'config', 'commit.gpgsign', 'false')
-    fs.mkdirSync(path.join(root, 'docs'), { recursive: true })
+    fs.mkdirSync(path.join(root, 'docs/dev'), { recursive: true })
     fs.mkdirSync(path.join(root, 'src/main/foo'), { recursive: true })
     fs.writeFileSync(
-      path.join(root, 'docs/sources-index.json'),
-      JSON.stringify({ version: 1, documents: [{ path: 'docs/references/foo.md', sources: ['././src/main/foo'] }] })
+      path.join(root, 'docs/dev/sources-index.json'),
+      JSON.stringify({
+        version: 1,
+        documents: [{ path: 'docs/dev/references/foo.md', sources: ['././src/main/foo'] }]
+      })
     )
     fs.writeFileSync(path.join(root, 'src/main/foo/a.ts'), 'a\n')
     fs.writeFileSync(path.join(root, 'src/main/foobar.ts'), 'x\n')
@@ -42,7 +45,11 @@ describe('docs:affected', () => {
       execFileSync(process.execPath, [script, '--base', base, '--json'], { cwd: root, encoding: 'utf8' })
     )
     expect(output.documents).toEqual([
-      { document: 'docs/references/foo.md', sources: ['././src/main/foo'], matchedPaths: ['src/main/foo/a.ts'] }
+      {
+        document: 'docs/dev/references/foo.md',
+        sources: ['././src/main/foo'],
+        matchedPaths: ['src/main/foo/a.ts']
+      }
     ])
   })
 })

@@ -196,7 +196,9 @@ function ScheduledTaskCard({ task }: { task: ScheduledTaskListItem }) {
             variant="ghost"
             size="sm"
             className="ms-auto text-muted-foreground"
-            onClick={() => void actions.navigateToRoute?.({ path: `/settings/scheduled-tasks/${task.id}` })}>
+            onClick={() =>
+              void actions.navigateToRoute?.({ path: '/app/scheduled-tasks', query: { taskId: task.id } })
+            }>
             {t('agent.tasks.card.viewTask')}
             <ChevronRight aria-hidden="true" size={14} />
           </Button>

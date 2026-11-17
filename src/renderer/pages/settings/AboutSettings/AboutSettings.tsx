@@ -1,6 +1,6 @@
 import { useLocation, useNavigate, useSearch } from '@tanstack/react-router'
 import { debounce } from 'es-toolkit/compat'
-import { BadgeQuestionMark, Briefcase, Bug, Building2, Github, Globe, Mail, MessageSquareText, Rss } from 'lucide-react'
+import { BadgeQuestionMark, Bug, Building2, Github, Globe, MessageSquareText, Rss, Star } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,7 +11,7 @@ import {
   CircularProgress,
   Divider,
   IndicatorLight,
-  Scrollbar,
+  ScrollArea,
   SegmentedControl,
   Switch,
   Tooltip
@@ -21,15 +21,13 @@ import AppLogo from '@renderer/assets/images/logo.png'
 import { DoctorPopup } from '@renderer/components/doctor'
 import FeedbackDialog from '@renderer/components/feedback/FeedbackDialog'
 import LogoAvatar from '@renderer/components/icons/LogoAvatar'
-import { ReleaseNotes } from '@renderer/components/ReleaseNotes'
 import {
   SettingGroup,
   SettingRow,
   SettingRowTitle,
-  SettingsContentColumn,
-  SettingTitle
+  SettingsContentColumn
 } from '@renderer/components/SettingsPrimitives'
-import UpdateDialogPopup from '@renderer/components/UpdateDialogPopup'
+import { UpgradeReleaseNotes } from '@renderer/components/UpgradeReleaseNotes'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { useOpenReleaseNotes } from '@renderer/hooks/useOpenReleaseNotes'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -57,7 +55,10 @@ const AboutSettings: FC = () => {
   const search = useSearch({ strict: false }) as Partial<Record<typeof DOCTOR_OPEN_QUERY_PARAM, DoctorPanel>>
   const consumedDoctorPanelRef = useRef<DoctorPanel | undefined>(undefined)
 
-  const { appUpdateState, updateAppUpdateState } = useAppUpdateState()
+  const { appUpdateState, updateAppUpdateState, checkForUpdate } = useAppUpdateState(async (releaseInfo) => {
+    const { default: UpdateDialogPopup } = await import('@renderer/components/UpdateDialogPopup')
+    return UpdateDialogPopup.show({ releaseInfo })
+  })
 
   useEffect(() => {
     const initialPanel = search[DOCTOR_OPEN_QUERY_PARAM]
@@ -80,43 +81,10 @@ const AboutSettings: FC = () => {
     void DoctorPopup.show({ initialPanel })
   }, [location.pathname, navigate, search])
 
-  const onCheckUpdate = debounce(
-    async () => {
-      if (appUpdateState.checking || appUpdateState.downloading) {
-        return
-      }
-
-      if (appUpdateState.downloaded) {
-        void UpdateDialogPopup.show({ releaseInfo: appUpdateState.info || null })
-        return
-      }
-
-      updateAppUpdateState({ checking: true, manualCheck: true })
-
-      try {
-        await ipcApi.request('app.updater.check_for_update')
-      } catch {
-        updateAppUpdateState({ manualCheck: false })
-        toast.error(t('settings.about.updateError'))
-      }
-
-      updateAppUpdateState({ checking: false })
-    },
-    2000,
-    { leading: true, trailing: false }
-  )
+  const onCheckUpdate = debounce(checkForUpdate, 2000, { leading: true, trailing: false })
 
   const onOpenWebsite = (url: string) => {
     void openExternalWebsite(url)
-  }
-
-  const mailto = async () => {
-    const email = 'support@cherry-ai.com'
-    const subject = 'Cherry Studio Feedback'
-    const version = (await ipcApi.request('app.get_info')).version
-    const platform = window.electron.process.platform
-    const url = `mailto:${email}?subject=${subject}&body=%0A%0AVersion: ${version} | Platform: ${platform}`
-    onOpenWebsite(url)
   }
 
   const debug = async () => {
@@ -196,32 +164,14 @@ const AboutSettings: FC = () => {
 
   const onOpenDocs = () => {
     const isChinese = i18n.language.startsWith('zh')
-    void openExternalWebsite(isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/docs/en-us')
+    void openExternalWebsite(isChinese ? 'https://cherryai.com.cn/docs' : 'https://cherryai.com/docs')
   }
 
   const testChannels = getAvailableTestChannels()
   const isUpdateReady = appUpdateState.available && appUpdateState.downloaded && !appUpdateState.downloading
-  const releaseNotesText =
-    typeof appUpdateState.info?.releaseNotes === 'string'
-      ? appUpdateState.info.releaseNotes.replace(/\n/g, '\n\n')
-      : (appUpdateState.info?.releaseNotes?.map((note) => note.note).join('\n') ?? '')
-
   return (
     <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
-        <SettingTitle className="gap-2">
-          <span className="text-[15px] font-semibold">{t('settings.about.title')}</span>
-          <button
-            type="button"
-            aria-label={t('settings.about.repository')}
-            onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}
-            className="inline-flex items-center justify-center rounded-md p-1 text-foreground transition-colors hover:bg-muted">
-            <Github aria-hidden="true" className="size-5" />
-          </button>
-        </SettingTitle>
-
-        <Divider className="my-1.5" />
-
         <div className="flex flex-wrap items-center justify-between gap-3 py-1">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <button
@@ -331,9 +281,12 @@ const AboutSettings: FC = () => {
             </SettingRowTitle>
           </SettingRow>
           <Divider className="my-3" />
-          <Scrollbar className="max-h-96 overflow-x-hidden pr-2">
-            <ReleaseNotes content={releaseNotesText} />
-          </Scrollbar>
+          <ScrollArea
+            contentProps={{ className: 'pr-2' }}
+            viewportProps={{ className: 'overflow-x-hidden' }}
+            className="max-h-96">
+            <UpgradeReleaseNotes releaseInfo={appUpdateState.info} />
+          </ScrollArea>
         </SettingGroup>
       )}
 
@@ -356,7 +309,21 @@ const AboutSettings: FC = () => {
           icon={<Globe className="size-4.5" />}
           title={t('settings.about.website.title')}
           actionLabel={t('settings.about.website.button')}
-          onAction={() => onOpenWebsite('https://cherry-ai.com')}
+          onAction={() =>
+            onOpenWebsite(i18n.language.startsWith('zh') ? 'https://cherryai.com.cn' : 'https://cherryai.com')
+          }
+        />
+        <Divider className="my-3" />
+        <AboutActionRow
+          icon={<Github className="size-4.5" />}
+          title={t('settings.about.repository.title')}
+          actionLabel={
+            <>
+              <Star aria-hidden="true" className="lucide-custom size-3.5 text-foreground-tertiary" />
+              {t('settings.about.repository.button')}
+            </>
+          }
+          onAction={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}
         />
         <Divider className="my-3" />
         <AboutActionRow
@@ -371,20 +338,6 @@ const AboutSettings: FC = () => {
           title={t('settings.about.enterprise.title')}
           actionLabel={t('settings.about.website.button')}
           onAction={showEnterprise}
-        />
-        <Divider className="my-3" />
-        <AboutActionRow
-          icon={<Mail className="size-4.5" />}
-          title={t('settings.about.contact.title')}
-          actionLabel={t('settings.about.contact.button')}
-          onAction={mailto}
-        />
-        <Divider className="my-3" />
-        <AboutActionRow
-          icon={<Briefcase className="size-4.5" />}
-          title={t('settings.about.careers.title')}
-          actionLabel={t('settings.about.careers.button')}
-          onAction={() => onOpenWebsite('https://www.cherry-ai.com/careers')}
         />
         <Divider className="my-3" />
         <AboutActionRow
@@ -407,7 +360,7 @@ function AboutActionRow({
   onAction,
   title
 }: {
-  actionLabel: string
+  actionLabel: ReactNode
   icon: ReactNode
   id?: string
   onAction: () => void | Promise<void>

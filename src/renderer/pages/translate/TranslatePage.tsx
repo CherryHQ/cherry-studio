@@ -9,7 +9,8 @@ import { useIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
+import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { ModelSpeedControl } from '@renderer/components/ModelSpeedControl'
 import { Navbar } from '@renderer/components/Navbar'
 import { detectLanguageOrUnknown, useDetectLang, useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
@@ -407,7 +408,7 @@ const TranslatePage: FC = () => {
   //
   // Backfills for different history ids can overlap on this one template-path
   // mutation, which shares `isMutating`/`error` across them (see
-  // docs/references/data/data-api-in-renderer.md). Harmless today because
+  // docs/dev/references/data/data-api-in-renderer.md). Harmless today because
   // nothing here reads that state — revisit if this call site ever does.
   const backfillHistorySourceLanguage = useCallback(
     (historyId: string, rawText: string) => {

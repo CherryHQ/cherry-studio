@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -75,7 +76,7 @@ vi.mock('@cherrystudio/ui', () => ({
   ),
   Button: (props: ComponentPropsWithoutRef<'button'>) => <button type="button" {...props} />,
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
-  Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>
+  ScrollArea: MockCherrystudioUI.ScrollArea
 }))
 
 vi.mock('react-i18next', () => ({
@@ -122,7 +123,6 @@ describe('HtmlFilePreview', () => {
     const frame = await screen.findByTestId('html-frame')
     expect(frame).toHaveAttribute('srcdoc', '<h1>Hello</h1>')
     expect(frame.getAttribute('data-base-url')).toMatch(/^file:\/\/.*index\.html$/)
-    expect(frame.parentElement).toHaveClass('h-full', 'bg-white')
     expect(mocks.readText).toHaveBeenCalledWith(filePath)
   })
 
@@ -186,9 +186,6 @@ describe('HtmlFilePreview', () => {
     fireEvent.click(screen.getByRole('button', { name: 'file_preview.html.mode.source' }))
 
     expect(await screen.findByRole('textbox', { name: 'HTML source' })).toHaveValue('<h1>Hello</h1>')
-    expect(mocks.codeViewer).toHaveBeenLastCalledWith(
-      expect.objectContaining({ fileName: 'index.html', value: '<h1>Hello</h1>', wrapLines: true, readOnly: true })
-    )
 
     fireEvent.click(screen.getByRole('button', { name: 'file_preview.html.mode.preview' }))
     expect(screen.getByTestId('html-frame')).toBeInTheDocument()

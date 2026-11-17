@@ -1,6 +1,6 @@
 /**
  * Scan-based cleanup pass for delete_when_unreferenced file entries.
- * Spec: docs/references/file/file-entry-cleanup.md §5.
+ * Spec: docs/dev/references/file/file-entry-cleanup.md §5.
  *
  * No queue, no triggers: candidates are derived from current DB state, so the
  * pass is idempotent and crash-safe by construction. Discovery uses the

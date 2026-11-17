@@ -57,7 +57,8 @@ A provider declares how to connect + what it serves. Fields:
   `providers.json` (minus `description`, which is templated).
 - `modelsDevProvider` — models.dev key whose listing is this provider's served catalog (with per-model pricing). **Generation-only**, not emitted to `providers.json`.
 - `fetchModels()` — or pull the served list from the provider's own API.
-- `overrides[]` — manual `ProviderModelOverride`s for what the runtime can't derive: bedrock arns, `apiModelId` maps, pricing, image transport, endpoint-keyed reasoning contracts, `disabled`, and standalone models.
+- `overrides[]` — models the provider serves, each with its exact request `apiModelId` (type-required; `modelId` defaults to its canonical key), plus what the runtime can't derive: bedrock arns, pricing, image transport, endpoint-keyed reasoning contracts, `disabled`, and standalone models.
+- `modelTemplates[]` — metadata merged into `modelsDevProvider` listings by canonical `modelId`; the request id comes from the listing.
 
 `openaiCompatible({ id, name, baseUrl, … })` is the helper for the ~half of providers that are a plain OpenAI-compatible endpoint.
 

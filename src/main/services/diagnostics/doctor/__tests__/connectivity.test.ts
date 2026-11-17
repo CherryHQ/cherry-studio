@@ -287,6 +287,31 @@ describe('model connectivity against an HTTP provider', () => {
     expect(requests).toEqual([])
   })
 
+  it('skips Cherry Cloud listings, whose availability is the account entitlement', async () => {
+    dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: 'cherryai-subscription', presetProviderId: 'cherryai', name: 'CherryAI', orderKey: 'a1' })
+      .run()
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'cherryai-subscription::wire-model',
+        providerId: 'cherryai-subscription',
+        modelId: 'wire-model',
+        name: 'Wire model',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: 'a0'
+      })
+      .run()
+    const started = await start({ kind: 'chat', providerId: 'cherryai-subscription', modelId: 'wire-model' })
+    expect(result(started.report, 'provider-model-list')).toMatchObject({
+      status: 'skip',
+      detail: { variant: 'unsupported' }
+    })
+    expect(paths).not.toContain('GET /v1/models')
+  })
+
   it('skips API conversation checks for providers using external CLI authentication', async () => {
     dbh.db.update(userProviderTable).set({ presetProviderId: 'claude-code' }).run()
     const started = await start()
@@ -481,6 +506,7 @@ describe('model connectivity against an HTTP provider', () => {
       checkIds: ['config-boot-config-valid']
     })
     expect(global.status).toBe('completed')
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const before = structuredClone(application.get('CacheService').getShared(doctorStateCacheKey('global')))
     const chat = await start()
     const agent = await start({ kind: 'agent', agentId: 'agent' }, 'agent-run')

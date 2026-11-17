@@ -1,3 +1,5 @@
+import { resolve } from 'node:path'
+
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
@@ -218,7 +220,7 @@ describe('DoctorService.run', () => {
     expect(outcome.report.basics).toMatchObject({
       edition: 'global',
       channel: 'latest',
-      userDataPath: '/mock/app.userdata'
+      userDataPath: resolve('/mock/app.userdata')
     })
     expect(new Date(outcome.report.expiresAt).getTime()).toBeGreaterThan(new Date(outcome.report.finishedAt).getTime())
     expect(state()).toEqual({ status: 'completed', report: outcome.report })

@@ -8,7 +8,7 @@ import {
 } from '@shared/types/skill'
 import { normalizeClaudePlugins, normalizeClawhub, normalizeSkillsSh } from '@shared/utils/skillMarketplace'
 
-import { searchSkills, SKILL_SEARCH_FAILED_ERROR } from '../skillSearch'
+import { loadSkillsShLeaderboard, searchSkills, SKILL_SEARCH_FAILED_ERROR } from '../skillSearch'
 import claudePluginsFixture from './fixtures/claude-plugins-search.json'
 import clawhubDetailFixture from './fixtures/clawhub-detail.json'
 import clawhubSearchFixture from './fixtures/clawhub-search.json'
@@ -274,6 +274,49 @@ describe('searchSkills', () => {
     vi.unstubAllGlobals()
   })
 
+  it('searches only the selected source and reports its failure', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => skillsShFixture })
+    vi.stubGlobal('fetch', fetchMock)
+    const results = await searchSkills('vercel', 'skills.sh')
+    expect(results.map((item) => item.installSource)).toContain('skills.sh:vercel-labs/skills/find-skills')
+    expect(fetchMock.mock.calls.map(([url]) => new URL(url).hostname)).toEqual(['skills.sh'])
+    fetchMock.mockResolvedValue({ ok: false, status: 503 })
+    await expect(searchSkills('vercel', 'skills.sh')).rejects.toThrow(SKILL_SEARCH_FAILED_ERROR)
+  })
+
+  it('keeps leaderboard order and exact skill install targets across pages', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          skills: skillsShFixture.skills.map(({ source, skillId, name, installs }) => ({
+            source,
+            skillId,
+            name,
+            installs
+          })),
+          page: 1,
+          hasMore: false
+        })
+      })
+    )
+    const page = await loadSkillsShLeaderboard(1)
+    expect(page.hasMore).toBe(false)
+    expect(page.items.map((item) => item.installSource)).toEqual(
+      skillsShFixture.skills.map((item) => 'skills.sh:' + item.id)
+    )
+    await expect(loadSkillsShLeaderboard(2)).rejects.toThrow('Invalid skills.sh pagination')
+  })
+
+  it('rejects empty nonterminal leaderboard pages instead of loading forever', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ skills: [], page: 0, hasMore: true }) })
+    )
+    await expect(loadSkillsShLeaderboard(0)).rejects.toThrow('Invalid skills.sh pagination')
+  })
+
   it('should return partial results when some registries fail', async () => {
     const fetchMock = vi.fn(async (url: string | URL) => {
       if (url.toString().startsWith('https://skills.sh/')) {
@@ -320,7 +363,7 @@ describe('searchSkills', () => {
           ],
           count: 2
         }
-      } else if (requestUrl.startsWith('https://claude-plugins.dev/')) {
+      } else if (requestUrl.startsWith('https://api.claude-plugins.dev/')) {
         body = {
           skills: [
             {
@@ -366,7 +409,7 @@ describe('searchSkills', () => {
                 })),
                 count: 2
               }
-            : url.toString().startsWith('https://claude-plugins.dev/')
+            : url.toString().startsWith('https://api.claude-plugins.dev/')
               ? { skills: [] }
               : { results: [] }
       }))

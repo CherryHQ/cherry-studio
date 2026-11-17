@@ -10,7 +10,7 @@
  * All statements must be idempotent: virtual tables use CREATE ... IF NOT EXISTS; triggers use
  * DROP TRIGGER IF EXISTS + CREATE (so an edited trigger body takes effect on existing DBs).
  *
- * See docs/references/data/database-construction.md for the full rationale (~0.1ms O(1) cost,
+ * See docs/dev/references/data/database-construction.md for the full rationale (~0.1ms O(1) cost,
  * the cheap/expensive buckets, and the FTS5 fts_rowid rule).
  *
  * To add new custom SQL:

@@ -47,6 +47,29 @@ const gptImage25ImageGeneration = {
   }
 }
 
+const gptImage26EditSupports = {
+  complexity: { options: ['low', 'medium', 'high'], type: 'enum' as const },
+  outputFormat: { options: ['png', 'jpeg', 'webp', 'gif'], type: 'enum' as const },
+  frameCount: { min: 2, max: 16, default: 9, step: 1, type: 'range' as const },
+  frameDurationMs: { min: 20, max: 655350, default: 200, step: 10, type: 'range' as const },
+  background: gptImageFullSupports.background,
+  numImages: gptImageFullSupports.numImages,
+  quality: gptImageFullSupports.quality,
+  size: gptImageFullSupports.size
+}
+
+const gptImage26ImageGeneration = {
+  modes: {
+    generate: {
+      supports: {
+        ...gptImage26EditSupports,
+        moderation: gptImageFullSupports.moderation
+      }
+    },
+    edit: { supports: gptImage26EditSupports }
+  }
+}
+
 export default defineCreator({
   id: 'openai',
   name: 'OpenAI',
@@ -98,6 +121,26 @@ export default defineCreator({
   // web-search limitations); gpt-5.x sub-versions use the `none` tier and are fine.
   webSearchUnsupportedEfforts: [{ pattern: '^gpt-5(?![.-]\\d)(?!.*chat)', efforts: ['minimal'] }],
   models: [
+    {
+      id: 'gpt-image-2-6-flare',
+      name: 'GPT Image 2.6 Flare',
+      family: 'gpt-image',
+      capabilities: ['image-recognition', 'image-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      endpointTypes: ['openai-image-generation', 'openai-image-edit'],
+      imageGeneration: gptImage26ImageGeneration
+    },
+    {
+      id: 'gpt-image-2-6-sunburst',
+      name: 'GPT Image 2.6 Sunburst',
+      family: 'gpt-image',
+      capabilities: ['image-recognition', 'image-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      endpointTypes: ['openai-image-generation', 'openai-image-edit'],
+      imageGeneration: gptImage26ImageGeneration
+    },
     {
       id: 'gpt-6.1-terra',
       name: 'GPT-6.1 Terra',

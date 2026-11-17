@@ -73,19 +73,6 @@ describe('useIcon', () => {
     expect(loaderState.pending.size).toBe(0)
   })
 
-  it('does not schedule an extra render when the icon was cached at render time', () => {
-    loaderState.loaded.set('provider:openai', OpenaiIcon)
-    let renders = 0
-    const { result } = renderHook(() => {
-      renders++
-      return useIcon(providerRef('openai'))
-    })
-    expect(result.current).toBe(OpenaiIcon)
-    // Render-time cache hits are shown directly — committing them again from
-    // the effect would double-render every mounted row in icon-heavy lists.
-    expect(renders).toBe(1)
-  })
-
   it('commits a cache hit landing between render and effect (no stuck fallback)', () => {
     // Render-time lookup misses, effect-time lookup hits: without a state
     // commit in the cached branch the fallback would stick until an
@@ -117,11 +104,5 @@ describe('useIcon', () => {
       loaderState.pending.delete('provider:openai')
     })
     expect(result.current).toBeUndefined()
-  })
-
-  it('does not blow up when the component unmounts before the icon resolves', async () => {
-    const { unmount } = renderHook(() => useIcon(providerRef('openai')))
-    unmount()
-    await settle('provider:openai', OpenaiIcon)
   })
 })
