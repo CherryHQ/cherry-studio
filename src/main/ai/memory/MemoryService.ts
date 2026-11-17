@@ -207,6 +207,7 @@ export class MemoryService extends BaseService {
   /** A restored filesystem/database must never reuse receipts from the previous state. */
   invalidateAll(): void {
     this.generation++
+    this.entrySnapshots.clear()
     this.invalidated.fire(undefined)
     for (const session of this.sessions) session.dispose()
   }
@@ -215,7 +216,6 @@ export class MemoryService extends BaseService {
     this.stopped = true
     this.invalidateAll()
     if (!(await this.work.drain())) throw new Error('Memory operations did not finish before shutdown')
-    this.entrySnapshots.clear()
     this.stores.clear()
   }
 

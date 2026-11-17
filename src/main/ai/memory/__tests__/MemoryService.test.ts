@@ -1,6 +1,6 @@
 import '@data/services/AgentSessionMessageService'
 import { randomUUID } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, readdir, rmdir, unlink } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rmdir, unlink, writeFile } from 'node:fs/promises'
 import * as fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -501,6 +501,17 @@ describe('lifecycle memory owner', () => {
     const other = await second.read('MEMORY.md')
     await second.commit([{ kind: 'write', receipt: other.receipt, content: 'Still authorized' }], approve)
     expect((await second.read('MEMORY.md')).content).toBe('Still authorized')
+  })
+
+  it('reloads the entry snapshot after restored state invalidates the service', async () => {
+    const initial = service.open(authority())
+    const read = await initial.read('MEMORY.md')
+    await initial.commit([{ kind: 'write', receipt: read.receipt, content: 'Before restore' }], approve)
+    expect((await service.entrySnapshot('conversation', service.open(authority()))).content).toBe('Before restore')
+    await writeFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'Restored content')
+    service.invalidateAll()
+    const restored = service.open(authority())
+    expect((await service.entrySnapshot('conversation', restored)).content).toBe('Restored content')
   })
 
   it('invalidates pre-restore handles even when restored bytes are identical', async () => {
