@@ -4,11 +4,24 @@ import { loggerService } from '@logger'
 import { type FileTreeNode } from '@renderer/components/FileTree'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { ipcApi } from '@renderer/ipc'
+import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { joinPath } from '@renderer/utils/path'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeDir, TreeDirRoot, TreeNode } from '@shared/utils/file'
+import type {
+  CreateTreeIpcResult,
+  DirectoryTreeOptions,
+  TreeDir,
+  TreeDirRoot,
+  TreeMutationEvent,
+  TreeNode
+} from '@shared/utils/file'
 
-import { getPathBasename, normalizeArtifactPaneFilePath, WORKSPACE_ROOT_ID } from './artifactPanePath'
+import {
+  getArtifactPaneSelectionPath,
+  getPathBasename,
+  normalizeArtifactPaneFilePath,
+  WORKSPACE_ROOT_ID
+} from './artifactPanePath'
 
 const logger = loggerService.withContext('useArtifactFileTreeModel')
 
@@ -20,11 +33,13 @@ const MAX_ACTIVATION_ATTEMPTS = 3
 const ARTIFACT_FILE_SEARCH_DEBOUNCE_MS = 200
 const ARTIFACT_FILE_SEARCH_MAX_ENTRIES = 200
 const WORKSPACE_TREE_OPTIONS: DirectoryTreeOptions = {
-  maxDepth: ARTIFACT_TREE_INITIAL_MAX_DEPTH
+  maxDepth: ARTIFACT_TREE_INITIAL_MAX_DEPTH,
+  withStats: true
 }
 export const ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: DirectoryTreeOptions = {
   maxDepth: ARTIFACT_TREE_INITIAL_MAX_DEPTH,
-  watchMissingRoot: true
+  watchMissingRoot: true,
+  withStats: true
 }
 
 const stripWorkspaceRootId = (ids: ReadonlySet<string>): ReadonlySet<string> => {
@@ -211,10 +226,15 @@ interface WorkspaceFileTreeResult {
   error?: Error
 }
 
-const useWorkspaceFileTree = (path: string | undefined, watchMissingRoot: boolean): WorkspaceFileTreeResult => {
+const useWorkspaceFileTree = (
+  path: string | undefined,
+  watchMissingRoot: boolean,
+  onMutation: (event: TreeMutationEvent) => void
+): WorkspaceFileTreeResult => {
   const { root, version, isLoading, error } = useDirectoryTree(
     path,
-    watchMissingRoot ? ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS : WORKSPACE_TREE_OPTIONS
+    watchMissingRoot ? ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS : WORKSPACE_TREE_OPTIONS,
+    onMutation
   )
 
   const tree = useMemo(() => {
@@ -294,13 +314,17 @@ function useLazyArtifactFileTree({
   workspacePath,
   treeOpen,
   tree,
-  expandedIds
+  expandedIds,
+  onMutation
 }: {
   workspacePath?: string
   treeOpen: boolean
   tree: FileTreeNode[]
   expandedIds: ReadonlySet<string>
+  onMutation: (event: TreeMutationEvent) => void
 }) {
+  const onMutationRef = useRef(onMutation)
+  onMutationRef.current = onMutation
   const previousTreeOpenRef = useRef(false)
   const previousWorkspacePathRef = useRef(workspacePath)
   const lazyChildrenByDirIdRef = useRef<Map<string, FileTreeNode[]>>(new Map())
@@ -433,7 +457,7 @@ function useLazyArtifactFileTree({
           for (let attempt = 1; attempt <= MAX_ACTIVATION_ATTEMPTS; attempt += 1) {
             const result: CreateTreeIpcResult = await ipcApi.request('file.tree.create', {
               rootPath: AbsoluteFilePathSchema.parse(dirPath),
-              options: { maxDepth: 1, includeHidden: false }
+              options: { maxDepth: 1, includeHidden: false, withStats: true }
             })
             if (
               watcher.disposed ||
@@ -451,6 +475,7 @@ function useLazyArtifactFileTree({
             watcher.treeId = result.treeId
             watcher.unsubscribe = ipcApi.on('file.tree.mutation', (payload) => {
               if (payload.treeId !== result.treeId) return
+              onMutationRef.current(payload.event)
               loadDirectoryChildren(dirId, { force: true })
             })
 
@@ -590,6 +615,8 @@ export interface UseArtifactFileTreeModelParams {
 }
 
 export interface ArtifactFileTreeModel {
+  /** Invalidates the selected preview when its watched bytes change, independently of size. */
+  fileContentVersion?: { path: string; revision: number }
   filteredTree: FileTreeNode[]
   effectiveExpandedIds: ReadonlySet<string>
   nodeById: ReadonlyMap<string, FileTreeNode>
@@ -631,9 +658,25 @@ export function useArtifactFileTreeModel({
     }
   }, [invalidWorkspacePath, workspacePath])
 
+  const [fileContentVersion, setFileContentVersion] = useState<{ path: string; revision: number }>()
+  const selectedPath =
+    validWorkspacePath && selectedFile
+      ? getArtifactPaneSelectionPath({ workspacePath: validWorkspacePath, filePath: selectedFile })
+      : undefined
+  const onMutation = useCallback(
+    (event: TreeMutationEvent) => {
+      if (event.type !== 'updated' && event.type !== 'added') return
+      const path = normalizeFilePreviewPath(event.path)
+      if (path !== selectedPath) return
+      setFileContentVersion((previous) => ({ path, revision: (previous?.revision ?? 0) + 1 }))
+    },
+    [selectedPath]
+  )
+
   const { tree, isLoading, hasLoaded, error } = useWorkspaceFileTree(
     treeOpen ? validWorkspacePath : undefined,
-    watchMissingRoot
+    watchMissingRoot,
+    onMutation
   )
   const {
     displayTree,
@@ -643,7 +686,8 @@ export function useArtifactFileTreeModel({
     workspacePath: validWorkspacePath,
     treeOpen,
     tree,
-    expandedIds
+    expandedIds,
+    onMutation
   })
 
   const setExpandedIds = useCallback(
@@ -766,6 +810,7 @@ export function useArtifactFileTreeModel({
   )
 
   return {
+    fileContentVersion,
     filteredTree: visibleTree,
     effectiveExpandedIds,
     nodeById,
