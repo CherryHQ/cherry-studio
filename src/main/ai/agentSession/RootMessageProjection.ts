@@ -17,6 +17,8 @@ type Source = { messageId: string; parts: CherryUIMessage['parts'] }
 
 /** Groups native sources into product replies; selected model context never deletes retained sources. */
 export class RootMessageProjection {
+  private readonly retiredToolApprovals = new Set<string>()
+  private readonly approvals = new Map<string, { id: string; approved: boolean }>()
   private readonly sources = new Map<string, Source>()
   private readonly replySources = new Map<string, Set<string>>()
   private readonly removed = new Set<string>()
@@ -41,6 +43,18 @@ export class RootMessageProjection {
       if (!parts) {
         parts = messages.getSessionMessage(context.sessionId, range.messageId).data.parts ?? []
         bodies.set(range.messageId, parts)
+        for (const part of parts) {
+          if (
+            part.type === 'data-agent-task-event' &&
+            part.data.toolUseId &&
+            (part.data.status === 'completed' || part.data.status === 'stopped' || part.data.status === 'error')
+          )
+            this.retiredToolApprovals.add(part.data.toolUseId)
+          if (isToolUIPart(part) && part.state === 'approval-requested')
+            this.retiredToolApprovals.delete(part.toolCallId)
+          if (isToolUIPart(part) && part.approval?.approved !== undefined)
+            this.approvals.set(part.toolCallId, part.approval)
+        }
       }
       this.sources.set(id, { messageId: range.messageId, parts: parts.slice(range.offset, range.offset + range.count) })
       const owned = ranges.get(range.messageId) ?? []
@@ -121,7 +135,12 @@ export class RootMessageProjection {
       if (!isDeepStrictEqual(previous?.parts, message.parts)) changed.add(owner)
       this.sources.set(message.id, { messageId: owner, parts: message.parts })
       for (const part of message.parts) {
-        if (isToolUIPart(part) && part.state.startsWith('output-')) this.pendingTools.delete(part.toolCallId)
+        if (!isToolUIPart(part)) continue
+        if (part.state.startsWith('output-')) this.pendingTools.delete(part.toolCallId)
+        this.extras.set(
+          owner,
+          this.extras.get(owner)!.filter((extra) => !isToolUIPart(extra) || extra.toolCallId !== part.toolCallId)
+        )
       }
       const sources = this.replySources.get(owner) ?? new Set<string>()
       sources.add(message.id)
@@ -134,23 +153,60 @@ export class RootMessageProjection {
     const sources = [...(this.replySources.get(messageId) ?? [])].map((id) => this.sources.get(id)!)
     if (!sources.length && !this.extras.has(messageId)) return undefined
     const parts = sources.flatMap((source) => source.parts).map((part) => this.decorate(part))
-    return [...parts, ...this.pendingParts(messageId, parts), ...(this.extras.get(messageId) ?? [])]
+    const extras = (this.extras.get(messageId) ?? []).map((part) => this.decorateExtra(part))
+    return [...parts, ...this.pendingParts(messageId, [...parts, ...extras]), ...extras]
+  }
+
+  private decorateExtra(part: CherryUIMessage['parts'][number]): CherryUIMessage['parts'][number] {
+    return isToolUIPart(part) &&
+      this.retiredToolApprovals.has(part.toolCallId) &&
+      part.state !== 'output-available' &&
+      part.state !== 'output-error' &&
+      part.state !== 'output-denied'
+      ? { ...part, state: 'input-available', approval: undefined }
+      : part
+  }
+
+  toolCallMessageId(toolCallId: string): string | undefined {
+    this.syncRemoved()
+    return (
+      [...this.sources.values()].find((source) =>
+        source.parts.some((part) => isToolUIPart(part) && part.toolCallId === toolCallId)
+      )?.messageId ??
+      this.pendingTools.get(toolCallId)?.messageId ??
+      [...this.extras].find(([, parts]) =>
+        parts.some((part) => isToolUIPart(part) && part.toolCallId === toolCallId)
+      )?.[0]
+    )
+  }
+
+  get lastMessageId(): string | undefined {
+    this.syncRemoved()
+    return [...this.sources.values()].at(-1)?.messageId
   }
 
   private pendingParts(messageId: string, sources: CherryUIMessage['parts']): CherryUIMessage['parts'] {
     const parts: CherryUIMessage['parts'] = []
     for (const [toolCallId, pending] of this.pendingTools) {
-      if (pending.messageId !== messageId || !pending.input || !pending.approvalId) continue
+      if (
+        pending.messageId !== messageId ||
+        !pending.input ||
+        (!pending.approvalId && !this.retiredToolApprovals.has(toolCallId))
+      )
+        continue
       if (sources.some((part) => isToolUIPart(part) && part.toolCallId === toolCallId)) continue
-      parts.push({
-        type: 'dynamic-tool',
-        toolCallId,
-        toolName: pending.input.toolName,
-        input: pending.input.input,
-        providerExecuted: pending.input.providerExecuted,
-        state: 'approval-requested',
-        approval: { id: pending.approvalId }
-      })
+      parts.push(
+        this.decorate({
+          type: 'dynamic-tool',
+          toolCallId,
+          toolName: pending.input.toolName,
+          input: pending.input.input,
+          providerExecuted: pending.input.providerExecuted,
+          ...(pending.approvalId
+            ? { state: 'approval-requested' as const, approval: { id: pending.approvalId } }
+            : { state: 'input-available' as const })
+        })
+      )
     }
     return parts
   }
@@ -159,6 +215,23 @@ export class RootMessageProjection {
     const chunk = control as CherryUIMessageChunk
     if (!this.extras.has(messageId)) this.extras.set(messageId, [])
     if (chunk.type === 'tool-input-available' || chunk.type === 'tool-approval-request') {
+      if (chunk.type === 'tool-approval-request') {
+        this.retiredToolApprovals.delete(chunk.toolCallId)
+        this.extras.set(
+          messageId,
+          this.extras
+            .get(messageId)!
+            .map((part) =>
+              isToolUIPart(part) &&
+              part.toolCallId === chunk.toolCallId &&
+              part.state !== 'output-available' &&
+              part.state !== 'output-error' &&
+              part.state !== 'output-denied'
+                ? { ...part, state: 'approval-requested', approval: { id: chunk.approvalId } }
+                : part
+            )
+        )
+      }
       const pending = this.pendingTools.get(chunk.toolCallId) ?? { messageId }
       this.pendingTools.set(chunk.toolCallId, {
         ...pending,
@@ -177,14 +250,49 @@ export class RootMessageProjection {
     }
   }
 
+  resolveToolApproval(toolCallId: string, approvalId: string, approved: boolean): void {
+    this.approvals.set(toolCallId, { id: approvalId, approved })
+  }
+
+  retireToolApproval(toolCallId: string): boolean {
+    const pending = this.pendingTools.get(toolCallId)
+    if (this.approvals.has(toolCallId) || this.retiredToolApprovals.has(toolCallId)) return false
+    if (!this.toolCallMessageId(toolCallId)) return false
+    this.retiredToolApprovals.add(toolCallId)
+    if (pending) delete pending.approvalId
+    return true
+  }
+
   private decorate(part: CherryUIMessage['parts'][number]): CherryUIMessage['parts'][number] {
-    if (
-      !isToolUIPart(part) ||
-      part.state === 'output-available' ||
-      part.state === 'output-error' ||
-      part.state === 'output-denied'
-    )
+    if (!isToolUIPart(part)) return part
+    const approval = this.approvals.get(part.toolCallId)
+    if (approval) {
+      if (!approval.approved) {
+        return {
+          ...part,
+          state: 'output-denied',
+          output: undefined,
+          errorText: undefined,
+          approval: { ...approval, approved: false }
+        }
+      }
+      if (part.state === 'output-denied') return part
+      const allowed = { ...approval, approved: true as const }
+      return part.state === 'output-available' || part.state === 'output-error'
+        ? { ...part, approval: allowed }
+        : { ...part, state: 'approval-responded', approval: allowed }
+    }
+    if (part.state === 'output-available' || part.state === 'output-error' || part.state === 'output-denied')
       return part
+    if (part.approval?.approved !== undefined) return part
+    if (this.retiredToolApprovals.has(part.toolCallId)) {
+      return {
+        ...part,
+        state: 'input-available',
+        approval: undefined,
+        input: this.pendingTools.get(part.toolCallId)?.input?.input ?? part.input
+      }
+    }
     const pending = this.pendingTools.get(part.toolCallId)
     if (!pending?.approvalId) return part
     return {
@@ -196,13 +304,10 @@ export class RootMessageProjection {
   }
 
   taskEvent(data: AgentTaskEventPartData): { messageId: string; parts: CherryUIMessage['parts'] } | undefined {
-    this.syncRemoved()
     if (!data.toolUseId) return undefined
-    const owner = [...this.sources.values()].find((source) =>
-      source.parts.some((part) => isToolUIPart(part) && part.toolCallId === data.toolUseId)
-    )
-    if (!owner) return undefined
-    const extras = this.extras.get(owner.messageId) ?? []
+    const messageId = this.toolCallMessageId(data.toolUseId)
+    if (!messageId) return undefined
+    const extras = this.extras.get(messageId) ?? []
     const next = {
       type: 'data-agent-task-event' as const,
       id: `task-${data.taskId}`,
@@ -210,11 +315,11 @@ export class RootMessageProjection {
     }
     const previous = extras.find((part) => part.type === next.type && part.data.taskId === data.taskId)
     if (isDeepStrictEqual(previous, next)) return undefined
-    this.extras.set(owner.messageId, [
+    this.extras.set(messageId, [
       ...extras.filter((part) => part.type !== next.type || part.data.taskId !== data.taskId),
       next
     ])
-    return { messageId: owner.messageId, parts: this.parts(owner.messageId)! }
+    return { messageId, parts: this.parts(messageId)! }
   }
 
   /** Normalize each owned source before flattening so checkpoint ranges describe the saved body. */
@@ -225,12 +330,13 @@ export class RootMessageProjection {
     const normalize = (parts: CherryUIMessage['parts']) =>
       finalizeInterruptedParts(dropEmptyContentParts(stripTransientStatusParts(parts)), status)
     const sourceParts = [...(this.replySources.get(message.id) ?? [])].flatMap((id) => this.sources.get(id)!.parts)
-    const pending = this.pendingParts(message.id, sourceParts)
+    const extras = (this.extras.get(message.id) ?? []).map((part) => this.decorateExtra(part))
+    const pending = this.pendingParts(message.id, [...sourceParts, ...extras])
     for (const id of this.replySources.get(message.id) ?? []) {
       const source = this.sources.get(id)!
       source.parts = normalize(source.parts.map((part) => this.decorate(part)))
     }
-    this.extras.set(message.id, normalize([...pending, ...(this.extras.get(message.id) ?? [])]))
+    this.extras.set(message.id, normalize([...pending, ...extras]))
     for (const [id, tool] of this.pendingTools) if (tool.messageId === message.id) this.pendingTools.delete(id)
     return { ...message, parts: this.parts(message.id) ?? [] }
   }

@@ -84,6 +84,7 @@ export async function fixture(overrides: Partial<ClaudeSessionOptions> = {}) {
   const errors: unknown[] = []
   const children: ChildProcess[] = []
   let count = 0
+  let refusal: { status: number; body: object } | undefined
   const server = createServer((req, res) => {
     if (req.method !== 'POST' || req.url?.split('?')[0] !== '/v1/messages') {
       res.writeHead(404).end('{}')
@@ -95,7 +96,13 @@ export async function fixture(overrides: Partial<ClaudeSessionOptions> = {}) {
       const chunks: Buffer[] = []
       for await (const chunk of req) chunks.push(Buffer.from(chunk))
       const body = JSON.parse(Buffer.concat(chunks).toString())
-      pending.push({ body, reply: modelReply(res, `msg_runtime_${++count}`, body.model) })
+      count++
+      if (refusal) {
+        res.writeHead(refusal.status, { 'Content-Type': 'application/json', 'x-should-retry': 'false' })
+        res.end(JSON.stringify(refusal.body))
+      } else {
+        pending.push({ body, reply: modelReply(res, `msg_runtime_${count}`, body.model) })
+      }
     })().catch((error) => {
       errors.push(error)
       res.destroy()
@@ -158,6 +165,9 @@ export async function fixture(overrides: Partial<ClaudeSessionOptions> = {}) {
       return count
     },
     runtime,
+    refuseRequests(status: number, body: object) {
+      refusal = { status, body }
+    },
     async request() {
       await expect.poll(() => pending.length, { timeout: 15000 }).toBeGreaterThan(0)
       return pending.shift()!

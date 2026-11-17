@@ -18,6 +18,7 @@ import {
 } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
+import { parseAppRouteUrl } from '@renderer/utils/appRouteUrl'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
 
@@ -61,11 +62,7 @@ const CODE_ROUTE_PATH = '/app/code'
 
 function routePathOfTab(tab: Tab): string | null {
   if (tab.type !== 'route') return null
-  try {
-    return new URL(tab.url, 'https://www.cherry-ai.com').pathname
-  } catch {
-    return null
-  }
+  return parseAppRouteUrl(tab.url)?.pathname ?? null
 }
 
 function isTransientMiniAppTab(tab: Tab): boolean {
@@ -117,7 +114,7 @@ export function repairPinnedTabs(raw: unknown, normalTabs: readonly Tab[]): Pinn
     if (entry.type !== 'route' && entry.type !== 'webview') continue
     if (typeof entry.url !== 'string' || !entry.url.trim()) continue
     try {
-      new URL(entry.url, 'https://www.cherry-ai.com')
+      new URL(entry.url, 'https://cherryai.com')
     } catch {
       continue
     }

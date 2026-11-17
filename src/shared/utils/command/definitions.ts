@@ -211,6 +211,16 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'agent.workspace.open',
+    titleKey: 'settings.shortcuts.open_workspace',
+    categoryKey: 'settings.shortcuts.chat',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'O'],
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
     id: 'chat.input.focus',
     titleKey: 'settings.shortcuts.focus_input',
     categoryKey: 'settings.shortcuts.chat',
@@ -350,6 +360,16 @@ export const COMMAND_DEFINITIONS = [
     scope: 'renderer',
     keybinding: {
       defaultBinding: ['CommandOrControl', ']']
+    }
+  }),
+  defineCommand({
+    id: 'resource.delete_permanently',
+    titleKey: 'settings.shortcuts.delete_current_list_item',
+    categoryKey: 'settings.shortcuts.topic',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'Backspace'],
+      when: 'resource.focused && !input.focused'
     }
   }),
   defineCommand({

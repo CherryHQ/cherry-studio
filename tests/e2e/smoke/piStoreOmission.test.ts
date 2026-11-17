@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
 
-import { _electron as electron } from '@playwright/test'
-
 import { AgentEntitySchema } from '../../../src/shared/data/api/schemas/agents'
 import { AgentSessionMessageEntitySchema } from '../../../src/shared/data/api/schemas/agentSessionMessages'
 import { AgentSessionEntitySchema } from '../../../src/shared/data/api/schemas/agentSessions'
@@ -10,20 +8,8 @@ import { createUniqueModelId } from '../../../src/shared/data/types/model'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { startMockChatServer } from '../../helpers/http/mockChatServer'
 import { selectSidebarApp } from '../regression/navigation'
-import { expect, test as base } from './fixtures/electron.fixture'
+import { expect, test } from './fixtures/electron.fixture'
 import { uiLocator } from './utils/uiLocator'
-
-const test = base.extend({
-  electronApp: async ({}, use, testInfo) => {
-    const electronApp = await electron.launch({
-      args: ['.'],
-      env: { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: testInfo.outputPath('profile') },
-      timeout: 60000
-    })
-    await use(electronApp)
-    await electronApp.close()
-  }
-})
 
 test('Work sends custom Pi chat without store to a strict endpoint', async ({ mainWindow: page }, testInfo) => {
   test.setTimeout(120_000)
@@ -41,7 +27,7 @@ test('Work sends custom Pi chat without store to a strict endpoint', async ({ ma
     }, LATEST_PRIVACY_POLICY_VERSION)
     await page.reload()
     await selectSidebarApp(page, 'Chat')
-    await expect(page.locator('[data-ui~="app.shell"]').first()).toBeVisible()
+    await expect(page.locator('[data-ui~="app.content"]').first()).toBeVisible()
     await page.evaluate(() => window.api.preference.set('topic.naming.enabled', false))
     const provider = await page.evaluate(
       ({ providerId, baseUrl }) =>

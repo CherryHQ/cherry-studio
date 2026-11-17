@@ -2,7 +2,11 @@ import { APICallError, EmptyResponseBodyError, JSONParseError, RetryError, TypeV
 import { describe, expect, it } from 'vitest'
 
 import type { SerializedError } from '../../types/error'
-import { getSafeProviderErrorMessage, serializeNestedProviderError } from '../providerError'
+import {
+  getSafeProviderErrorMessage,
+  serializeNestedProviderError,
+  stripClaudeCodeRejectionPrefix
+} from '../providerError'
 
 const PROVIDER_TEXT_FIELDS = [
   ['message', (value: string) => ({ message: value })],
@@ -243,6 +247,16 @@ describe('getSafeProviderErrorMessage', () => {
   })
 })
 
+describe('stripClaudeCodeRejectionPrefix', () => {
+  it.each([
+    ['API Error: Request rejected (429) · 套餐额度已耗尽。', '套餐额度已耗尽。'],
+    ['API Error: 401 Authentication Fails', 'API Error: 401 Authentication Fails'],
+    ['Provider said: API Error: Request rejected (429) · x', 'Provider said: API Error: Request rejected (429) · x']
+  ])('turns %j into %j', (input, expected) => {
+    expect(stripClaudeCodeRejectionPrefix(input)).toBe(expected)
+  })
+})
+
 describe('Groq service-tier serialization', () => {
   it('freshly classifies actual API and retry errors as permission', () => {
     const body =
@@ -422,5 +436,43 @@ describe('response processing diagnostics', () => {
     let serialized = serializeNestedProviderError(error) as SerializedError
     for (let depth = 0; depth < 4; depth++) serialized = serialized.lastError as SerializedError
     expect(serialized).toMatchObject({ message: generic, cause: null })
+  })
+})
+
+describe('interrupted response transport', () => {
+  it.each(['INCOMPLETE_CHUNKED_ENCODING', 'CONNECTION_CLOSED', 'CONNECTION_RESET', 'EMPTY_RESPONSE'])(
+    'preserves net::ERR_%s as a network failure without exposing provider payloads',
+    (code) => {
+      const error = new APICallError({
+        message: 'Failed to process successful response',
+        statusCode: 200,
+        url: 'https://provider.invalid/private',
+        requestBodyValues: { prompt: 'PRIVATE_PAYLOAD' },
+        cause: new Error(`net::ERR_${code}`)
+      })
+      const result = serializeNestedProviderError(error)
+      expect(result).toMatchObject({
+        providerErrorCategory: 'network',
+        message: 'Connection interrupted while receiving the response. Retry the turn.',
+        cause: null
+      })
+      expect(JSON.stringify(result)).not.toContain('PRIVATE_PAYLOAD')
+    }
+  )
+
+  it('recognizes an Undici socket closure inside a terminated body reader', () => {
+    const cause = new TypeError('terminated', {
+      cause: Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' })
+    })
+    const result = serializeNestedProviderError(
+      new APICallError({
+        message: 'Failed to process successful response',
+        statusCode: 200,
+        url: 'https://provider.invalid',
+        requestBodyValues: {},
+        cause
+      })
+    )
+    expect(result).toMatchObject({ providerErrorCategory: 'network' })
   })
 })

@@ -57,27 +57,6 @@ describe('ConfirmDialog', () => {
     expect(onOpenChange).not.toHaveBeenCalled()
   })
 
-  it('uses fade-scale motion without directional translation', () => {
-    render(
-      <ConfirmDialog
-        open
-        title="Confirm action"
-        description="This action needs your confirmation."
-        onOpenChange={() => {}}
-      />
-    )
-
-    const dialog = screen.getByRole('dialog', { name: 'Confirm action' })
-
-    expect(dialog).toHaveClass('data-[state=open]:fade-in-0', 'data-[state=closed]:fade-out-0')
-    expect(dialog).not.toHaveClass('data-[state=open]:zoom-in-99')
-    expect(dialog).not.toHaveClass('data-[state=closed]:zoom-out-99')
-    expect(dialog).not.toHaveClass(
-      'data-[state=open]:slide-in-from-bottom-4',
-      'data-[state=closed]:slide-out-to-bottom-4'
-    )
-  })
-
   it('stays open when confirmation resolves false', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()

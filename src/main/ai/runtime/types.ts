@@ -8,6 +8,7 @@ import type {
   SubmitResult,
   ThreadContextUsage
 } from '@cherrystudio/agent-runtime'
+import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
@@ -73,6 +74,10 @@ export interface AgentRuntimeConnectInput {
   resumeToken?: string
   /** Independent native identity for an edited first turn with no history to resume. */
   nativeSessionId?: string
+  /** True when this connection's turn is headless: headless turns resolve against the agent
+   *  default and ignore session model overrides, which decides which resolution a captured
+   *  connection model is compared against for stale-capture pinning. */
+  headless?: boolean
   /** Product position captured before asynchronous connection work. */
   branchHead?: string
   trace?: AgentRuntimeTraceContext
@@ -237,10 +242,10 @@ export interface AgentRuntimeConnection {
   redirect?(input: AgentRuntimeCommand): boolean
   /**
    * Re-derive the session's desired config and reconcile the running connection against it.
-   * Live-appliable tool-policy facts are patched in place before the rebuild verdict, except for
-   * permission-mode changes: those stay frozen for an active turn and apply at the next turn
-   * boundary. Serialized per connection, concurrent push/pull reconciles queue instead of
-   * interleaving SDK and snapshot writes.
+   * Live-appliable tool-policy facts, permission mode included, are patched in place before the
+   * rebuild verdict, even during an active turn: the change governs the turn's next tool call.
+   * Serialized per connection, concurrent push/pull reconciles queue instead of interleaving SDK
+   * and snapshot writes.
    *
    * The input is the config the connection should serve right now (a live turn's frozen model,
    * reasoning, and knowledge selection, or the agent's latest model with defaults) — the same
@@ -252,6 +257,7 @@ export interface AgentRuntimeConnection {
     serviceTier?: ServiceTierSelection
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
+    headless?: boolean
   }): Promise<AgentRuntimeReconcileResult>
   /**
    * Read passive, thread-scoped context usage from the harness. Unknown and unsupported
@@ -288,12 +294,16 @@ export interface AgentSessionRuntimeDriver {
   /** Restore persisted runtime history after generic fork, crash and delivery recovery. */
   recoverSessions?(): Promise<void>
   fork?(input: RuntimeForkInput): Promise<RuntimeForkResult>
+  /** Validate the opaque checkpoint and its claimed product binding when supplied. */
+  isForkCheckpoint?(value: unknown, binding?: Pick<AgentSessionContextRow, 'backendId' | 'nativeThreadId'>): boolean
   /**
    * Per-driver session prerequisite check: throws if the session can't be
    * served (e.g. workspace path missing, credentials absent). Hosts call
    * this before `connect()` instead of hard-coding driver-specific guards.
+   * Headless runs execute the agent default, so drivers must preflight that
+   * model when `opts.headless` is set instead of the session override.
    */
-  validateSession(session: AgentSessionEntity): void | Promise<void>
+  validateSession(session: AgentSessionEntity, opts?: { headless?: boolean }): void | Promise<void>
   connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection>
   /**
    * Notified when a session goes idle and its runtime is torn down. Lets a

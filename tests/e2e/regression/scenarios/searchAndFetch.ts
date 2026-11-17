@@ -182,18 +182,24 @@ export async function searchAndFetch(app: RegressionApp, page: Page, testInfo: T
     await toggle.click()
     await expect(toggle).toHaveAttribute('aria-pressed', 'false')
     const offline = await send(
-      `${question} Web search is now disabled. Do not reuse previous citations or claim a new search. If current information cannot be verified, say so.`
+      'Web search is now disabled. Without looking anything up, summarize the sources already in this conversation and explain that you have not verified newer information.'
     )
     expect.soft(offline.message.status).toBe('success')
     expect
       .soft((offline.message.data.parts ?? []).filter((part) => /tool-(web_search|web_fetch)/.test(part.type)))
       .toEqual([])
-    await expect.soft(offline.response.locator('sup[data-citation]')).toHaveCount(0)
+    for (const citation of await offline.response
+      .locator('a[href^="http"]')
+      .filter({ has: page.locator('sup[data-citation]') })
+      .all()) {
+      expect.soft(sources.map((result) => result.url)).toContain(await citation.getAttribute('href'))
+    }
     await attachScreenshot('MP-35 search disabled response')
 
     await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true')
     const fetched = await send(
-      'Use web_fetch to read https://example.com/ . Report the actual page title and summarize its body. Cite the fetched source. Do not answer from memory.'
+      'Web search has now been re-enabled for this turn. Discover web_fetch with tool_search if necessary and use it to read https://example.com/ . Report the actual page title and summarize its body. Cite the fetched source. Do not answer from memory.'
     )
     expect.soft(fetched.message.status).toBe('success')
     const pages = outputs(fetched.message, 'web_fetch')

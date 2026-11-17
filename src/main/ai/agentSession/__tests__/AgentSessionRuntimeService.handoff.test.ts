@@ -295,6 +295,156 @@ function failReplyWrites() {
 }
 
 it.each([false, true])(
+  'appends a command notification without resending input or losing earlier charges (persistence blocked: %s)',
+  async (blocked) => {
+    const f = await fixture()
+    const finish = f.openB()
+    await vi.waitFor(() => expect(f.sent).toEqual([f.user.id]))
+    await f.project('command-launch', 'Command started', ['shell-call'])
+    await f.emit({ type: 'response-start', responseId: 'command-launch-response' })
+    f.record('command-launch-response')
+    await f.emit({ type: 'background-work-state', active: true })
+    if (blocked) f.blockPersistence()
+    await f.emit({ type: 'turn-complete' })
+    if (blocked) await f.persistenceEntered
+    else {
+      await finish()
+      expect(f.service.isSessionBusy('root')).toBe(false)
+    }
+    await f.emit({
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: { kind: 'background-work' },
+      sourceToolCallIds: ['shell-call']
+    })
+    f.persistenceGate.resolve()
+    await finish()
+    await vi.waitFor(() => expect(f.starts).toHaveLength(1))
+    expect(f.starts[0].request.messageId).toBe(f.replyB.id)
+    expect(
+      messages
+        .getSessionMessage('root', f.replyB.id)
+        .data.parts?.some((part) => part.type === 'text' && part.text === 'Command started')
+    ).toBe(true)
+    const finishWake = f.open(f.starts[0])
+    await f.project('command-summary', 'Command finished')
+    await f.emit({ type: 'response-start', responseId: 'command-summary-response' })
+    f.record('command-summary-response')
+    f.record('command-summary-response')
+    await f.emit({ type: 'turn-complete' })
+    await f.emit({ type: 'autonomous-turn-state', state: 'finished' })
+    await finishWake()
+    const rows = dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .all()
+      .filter((row) => row.role === 'assistant')
+    expect(rows.map((row) => row.id)).toEqual([f.replyB.id])
+    expect(
+      messages
+        .getSessionMessage('root', f.replyB.id)
+        .data.parts?.filter((part) => part.type === 'text')
+        .map((part) => part.text)
+    ).toEqual(['Command started', 'Command finished'])
+    const charges = dbh.db.select().from(aiUsageRecordTable).all()
+    expect(charges.map((row) => row.requestId).sort()).toEqual(['command-launch-response', 'command-summary-response'])
+    expect(charges.every((row) => row.messageId === f.replyB.id)).toBe(true)
+    expect(messages.getSessionMessage('root', f.replyB.id).messageSnapshot).toEqual(snapshot)
+    expect(f.sent).toEqual([f.user.id])
+  }
+)
+
+it.each(['before-admission', 'after-admission'] as const)(
+  'keeps two user replies across a background notification %s without inserting a third reply',
+  async (boundary) => {
+    const f = await fixture()
+    const finishFirst = f.openB()
+    await vi.waitFor(() => expect(f.sent).toEqual([f.user.id]))
+    await f.project('first-answer', 'FIRST_STARTED', ['shell-call'])
+    await f.emit({ type: 'turn-complete' })
+    await finishFirst()
+    const user = messages.saveMessage({
+      sessionId: 'root',
+      message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Second input' }] } }
+    })
+    const reply = messages.saveMessage({
+      sessionId: 'root',
+      message: { role: 'assistant', status: 'pending', data: { parts: [] }, messageSnapshot: snapshot }
+    })
+    const handle = f.service.beginTurn({
+      sessionId: 'root',
+      topicId: 'agent-session:root',
+      agentId: 'agent',
+      agentType: 'pi',
+      modelId: 'test::model',
+      assistantMessageId: reply.id,
+      userMessage: user,
+      messageSnapshot: snapshot
+    })
+    if (boundary === 'after-admission') {
+      const finishSecond = f.open({
+        request: {
+          conversation: { id: 'root', topicId: 'agent-session:root' },
+          trigger: 'submit-message',
+          messageId: reply.id,
+          runtime: { kind: 'agent-session', sessionId: 'root', turnId: handle.turnId }
+        },
+        abortController: handle.abortController,
+        listeners: handle.listeners
+      })
+      await vi.waitFor(() => expect(f.sent).toEqual([f.user.id, user.id]))
+      await f.project('second-answer', 'SECOND_ANSWER')
+      await f.emit({ type: 'turn-complete' })
+      await finishSecond()
+    }
+    await f.emit({
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: { kind: 'background-work' },
+      sourceToolCallIds: ['shell-call']
+    })
+    f.suspended.resolve()
+    await vi.waitFor(() => expect(f.starts).toHaveLength(1))
+    expect(f.starts[0].request.messageId).toBe(boundary === 'before-admission' ? f.replyB.id : reply.id)
+    const finishWake = f.open(f.starts[0])
+    await f.project('completion', 'BACKGROUND_FINISHED')
+    await f.emit({ type: 'turn-complete' })
+    await f.emit({ type: 'autonomous-turn-state', state: 'finished' })
+    await finishWake()
+    if (boundary === 'before-admission') {
+      await vi.waitFor(() => expect(f.starts).toHaveLength(2))
+      expect(f.starts[1].request.messageId).toBe(reply.id)
+      const finishSecond = f.open(f.starts[1])
+      await vi.waitFor(() => expect(f.sent).toEqual([f.user.id, user.id]))
+      await f.project('second-answer', 'SECOND_ANSWER')
+      await f.emit({ type: 'turn-complete' })
+      await finishSecond()
+    }
+    const text = (id: string) =>
+      messages
+        .getSessionMessage('root', id)
+        .data.parts?.filter((part) => part.type === 'text')
+        .map((part) => part.text)
+    expect(text(f.replyB.id)).toEqual(
+      boundary === 'before-admission' ? ['FIRST_STARTED', 'BACKGROUND_FINISHED'] : ['FIRST_STARTED']
+    )
+    expect(text(reply.id)).toEqual(
+      boundary === 'after-admission' ? ['SECOND_ANSWER', 'BACKGROUND_FINISHED'] : ['SECOND_ANSWER']
+    )
+    expect(
+      dbh.db
+        .select()
+        .from(agentSessionMessageTable)
+        .all()
+        .filter((row) => row.role === 'assistant')
+    ).toHaveLength(2)
+    expect(dbh.db.select().from(agentSessionTable).get()?.activeNodeId).toBe(reply.id)
+    expect(f.sent).toEqual([f.user.id, user.id])
+    expect(f.service.isSessionBusy('root')).toBe(false)
+  }
+)
+
+it.each([false, true])(
   'persists launch, progress and final background summaries in one reply (resident command: %s)',
   async (commandRemains) => {
     const f = await fixture()
@@ -354,12 +504,12 @@ it.each([false, true])(
   }
 )
 
-// A foreign or partially attributed notification must not append to the currently waiting reply.
+// A background wake never creates a second product reply, even when native provenance is incomplete.
 it.each([undefined, ['previous-call'], ['current-call', 'previous-call']])(
-  'keeps a notification with sources %j separate from the waiting reply',
+  'keeps a notification with sources %j in the existing admitted reply',
   async (sourceToolCallIds) => {
     const f = await fixture()
-    f.openB()
+    const finish = f.openB()
     await vi.waitFor(() => expect(f.sent).toEqual([f.user.id]))
     await f.project('current-launch', 'CURRENT_LAUNCH', ['current-call'])
     await f.emit({ type: 'background-results', result: { status: 'confirmed', value: ['current-call'] } })
@@ -370,37 +520,26 @@ it.each([undefined, ['previous-call'], ['current-call', 'previous-call']])(
       origin: { kind: 'background-work' },
       sourceToolCallIds
     })
-    f.suspended.resolve()
-    await vi.waitFor(() => expect(f.starts).toHaveLength(1))
-    const foreignId = f.starts[0].request.messageId!
-    expect(foreignId).not.toBe(f.replyB.id)
-    const finishForeign = f.open(f.starts[0])
-    await f.project('foreign-summary', 'FOREIGN_SUMMARY')
-    await f.emit({ type: 'background-results', result: { status: 'confirmed', value: ['current-call'] } })
-    await f.emit({ type: 'turn-complete' })
-    await f.emit({ type: 'autonomous-turn-state', state: 'finished' })
-    await finishForeign()
-    await vi.waitFor(() => expect(f.starts).toHaveLength(2))
-    expect(f.starts[1].request.messageId).toBe(f.replyB.id)
-    const finishCurrent = f.open(f.starts[1])
-    await f.emit({
-      type: 'autonomous-turn-state',
-      state: 'started',
-      origin: { kind: 'background-work' },
-      sourceToolCallIds: ['current-call']
-    })
-    await f.project('current-summary', 'CURRENT_SUMMARY')
+    await f.project('notification-summary', 'NOTIFICATION_SUMMARY')
     await f.emit({ type: 'background-results', result: { status: 'confirmed', value: [] } })
     await f.emit({ type: 'turn-complete' })
     await f.emit({ type: 'autonomous-turn-state', state: 'finished' })
-    await finishCurrent()
-    const text = (id: string) =>
+    await finish()
+    expect(
       messages
-        .getSessionMessage('root', id)
+        .getSessionMessage('root', f.replyB.id)
         .data.parts?.filter((part) => part.type === 'text')
         .map((part) => part.text)
-    expect(text(foreignId)).toEqual(['FOREIGN_SUMMARY'])
-    expect(text(f.replyB.id)).toEqual(['CURRENT_LAUNCH', 'CURRENT_SUMMARY'])
+    ).toEqual(['CURRENT_LAUNCH', 'NOTIFICATION_SUMMARY'])
+    expect(
+      dbh.db
+        .select()
+        .from(agentSessionMessageTable)
+        .all()
+        .filter((row) => row.role === 'assistant')
+        .map((row) => row.id)
+    ).toEqual([f.replyB.id])
+    expect(f.starts).toEqual([])
     expect(f.sent).toEqual([f.user.id])
     expect(f.service.isSessionBusy('root')).toBe(false)
   }
@@ -420,7 +559,7 @@ it.each([
       f.openB()
       await vi.waitFor(() => expect(f.sent).toEqual([f.user.id]))
     }
-    await f.emit({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
+    await f.emit({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'goal-round', round: 1 } })
     const facts = async () => {
       await f.project('native-A', 'AUTONOMOUS_A_ONLY')
       f.record('response-A')
@@ -505,7 +644,7 @@ it.each([false, true])(
 
 it('waits for final observations before close persists a failed reply, and retries a failed close', async () => {
   const f = await fixture()
-  await f.emit({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
+  await f.emit({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'goal-round', round: 1 } })
   failReplyWrites()
   f.suspended.resolve()
   await vi.waitFor(() => expect(f.failures).toHaveLength(1))
@@ -663,7 +802,7 @@ it('terminalizes a queued placeholder when preparation fails before native submi
 it('suppresses an autonomous reply before writing its placeholder and drops the suppressed launch on close', async () => {
   const f = await fixture()
   const hold = f.service.pause('backup')
-  await f.emit({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
+  await f.emit({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'goal-round', round: 1 } })
   f.suspended.resolve()
   await expect(f.service.drainInFlight({ timeoutMs: 100 })).resolves.toEqual({ stragglerIds: [] })
   expect(f.starts).toHaveLength(0)
@@ -688,7 +827,7 @@ it('suppresses an autonomous reply before writing its placeholder and drops the 
 it('reports a blocked preparation as a straggler without aborting it, and fences its completion after close', async () => {
   const f = await fixture()
   f.blockTrace()
-  await f.emit({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
+  await f.emit({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'goal-round', round: 1 } })
   f.suspended.resolve()
   await f.traceEntered
   const hold = f.service.pause('backup')
@@ -781,7 +920,7 @@ it.each([false, true])(
     const result = fail ? expect(finishB()).rejects.toThrow('Terminal persistence failed') : finishB()
     await f.emit({ type: 'turn-complete' })
     await f.persistenceEntered
-    await f.emit({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
+    await f.emit({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'goal-round', round: 1 } })
     await f.project('native-A', 'AUTONOMOUS_BODY')
     expect(f.starts).toHaveLength(0)
     if (fail)

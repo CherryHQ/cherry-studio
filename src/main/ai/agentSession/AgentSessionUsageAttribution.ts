@@ -28,10 +28,10 @@ export class AgentSessionUsageAttribution {
   }
 
   flush(messageId: string): void {
-    for (const [responseId, owner] of this.owners) {
-      if (owner.messageId !== messageId || !owner.ready()) continue
-      for (const requestId of this.pending.get(responseId) ?? [])
-        aiUsageRecordService.associateInvocation(requestId, messageId)
+    for (const [responseId, requests] of this.pending) {
+      const owner = this.owners.get(responseId)
+      if (owner?.messageId !== messageId || !owner.ready()) continue
+      for (const requestId of requests) aiUsageRecordService.associateInvocation(requestId, messageId)
       this.pending.delete(responseId)
     }
   }

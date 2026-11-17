@@ -2,6 +2,8 @@ import type { JSONContent } from '@tiptap/core'
 import { Editor } from '@tiptap/core'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { codeHighlightService } from '@renderer/services/CodeHighlightService'
+
 import { createRichEditorExtensions } from '../createExtensions'
 
 /**
@@ -49,9 +51,11 @@ const parseMedian = (content: string): { ms: number; editor: Editor } => {
 }
 
 let editor: Editor | undefined
-afterEach(() => {
+afterEach(async () => {
   editor?.destroy()
   editor = undefined
+  await codeHighlightService.highlightCodeToHtml('', 'text', 'one-light')
+  codeHighlightService.dispose()
 })
 
 describe('markdown parse performance (#20358)', () => {

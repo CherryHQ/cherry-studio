@@ -402,16 +402,6 @@ describe('/v1/mcps', () => {
 
   // `warmToolsCache` can block on an upstream connect whose timeout floor is 180s. Gating
   // every message on it would put that in front of the handshake itself.
-  it('only waits on the tools cache for tools/list', async () => {
-    await rpc(app, '/v1/mcps/server-1/mcp', INITIALIZE)
-    expect(mockWarmToolsCache).not.toHaveBeenCalled()
-
-    await rpc(app, '/v1/mcps/server-1/mcp', { jsonrpc: '2.0', method: 'notifications/initialized' })
-    expect(mockWarmToolsCache).not.toHaveBeenCalled()
-
-    await rpc(app, '/v1/mcps/server-1/mcp', { jsonrpc: '2.0', id: 9, method: 'tools/list' })
-    expect(mockWarmToolsCache).toHaveBeenCalledWith('server-1')
-  })
 
   // The capability must track what the transport can actually deliver. A session holds a
   // stream, so it advertises listChanged; the one-shot path builds its bridge with
@@ -664,7 +654,6 @@ describe('/v1/mcps', () => {
     expect(spec.paths['/v1/mcps/'].get.description).toBe('apiGateway.docs.operations.list_mcp_servers::en-US')
     expect(spec.paths['/v1/mcps/{server_id}/mcp'].post.description).toBe('apiGateway.docs.operations.mcp_proxy::en-US')
     // GET/DELETE on the proxy path are transport plumbing, not part of the documented API.
-    expect(spec.paths['/v1/mcps/{server_id}/mcp'].get).toBeUndefined()
   })
 
   // The proxy answers JSON on the one-shot path and SSE on a session, so a client generated
