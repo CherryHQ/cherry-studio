@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-07-webview-find-shortcut-modifiers.md
+2026-11-07-webview-find-shortcut-modifiers.md: 7f3b050939016a1605ab6b5eed6720b793906583
+2026-11-07-webview-find-shortcut-modifiers.zh.md: 9280d81b9a04bbf5250416e1a76de4a646fd508f

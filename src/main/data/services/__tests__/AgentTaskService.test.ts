@@ -25,7 +25,7 @@ vi.mock('@data/services/JobScheduleService', () => ({
   jobScheduleService: { getById: vi.fn(), listAll: vi.fn(), listAllTx: vi.fn(), updateTx: vi.fn() }
 }))
 vi.mock('@data/services/JobService', () => ({
-  jobService: { getRunStatesByScheduleIds: vi.fn(), list: vi.fn() }
+  jobService: { getRunStatesByScheduleIds: vi.fn(), list: vi.fn(), count: vi.fn() }
 }))
 
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -127,6 +127,7 @@ describe('AgentTaskService (read side)', () => {
     vi.mocked(jobService.getRunStatesByScheduleIds).mockReset()
     vi.mocked(jobService.getRunStatesByScheduleIds).mockReturnValue(new Map())
     vi.mocked(jobService.list).mockReset()
+    vi.mocked(jobService.count).mockReturnValue(0)
   })
 
   afterEach(() => {
@@ -364,6 +365,7 @@ describe('AgentTaskService (read side)', () => {
 
   describe('getTaskLogs', () => {
     it('maps jobs to TaskRunLogEntity with the new field names', () => {
+      vi.mocked(jobService.count).mockReturnValueOnce(3)
       vi.mocked(jobService.list).mockReturnValueOnce([
         makeJobSnapshot({ id: 'j1', status: 'completed' }),
         makeJobSnapshot({ id: 'j2', status: 'pending', startedAt: null, finishedAt: null }),

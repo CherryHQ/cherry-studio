@@ -36,7 +36,7 @@ describe('file preview paths', () => {
     // Byte-faithful, like the rest of the path layer: an NFD-composed name is NOT
     // rewritten to NFC, so the preview path still reaches the file on
     // normalization-sensitive filesystems. See canonicalizeFilePath and
-    // docs/references/file/file-manager-architecture.md \u00a71.2.
+    // docs/dev/references/file/file-manager-architecture.md \u00a71.2.
     expect(normalizeFilePreviewPath('/tmp/Cafe\u0301.md')).toBe('/tmp/Cafe\u0301.md')
   })
 

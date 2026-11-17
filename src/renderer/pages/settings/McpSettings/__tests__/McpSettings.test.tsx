@@ -73,7 +73,7 @@ vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
 vi.mock('@renderer/hooks/useTheme', () => ({ useTheme: () => ({ theme: 'light' }) }))
 
 vi.mock('@renderer/components/CollapsibleSearchBar', () => ({ default: () => null }))
-vi.mock('@renderer/components/Scrollbar', () => ({ default: ({ children }: { children: ReactNode }) => children }))
+
 vi.mock('@renderer/components/SettingsPrimitives', () => ({
   SettingContainer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SettingDivider: () => <hr />,
@@ -234,6 +234,17 @@ describe('McpSettings', () => {
 
     await user.click(screen.getByRole('button', { name: 'Copy logs' }))
     expect(clipboardWriteText).toHaveBeenCalledWith(formatMcpLogs([...logs, liveLog]))
+  })
+
+  it('places server instructions immediately after resources', () => {
+    currentSearch = {}
+    currentServer = { ...currentServer, isActive: true }
+    render(<McpSettings />)
+
+    const tabs = screen.getAllByRole('radio')
+    const resources = screen.getByRole('radio', { name: 'settings.mcp.tabs.resources' })
+    const instructions = screen.getByRole('radio', { name: 'settings.mcp.instructions.title' })
+    expect(tabs.indexOf(instructions)).toBe(tabs.indexOf(resources) + 1)
   })
 
   it('defers tools/prompts/resources fetches until the matching tab is first opened', async () => {

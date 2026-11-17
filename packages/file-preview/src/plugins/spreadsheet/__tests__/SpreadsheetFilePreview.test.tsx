@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -133,8 +134,14 @@ vi.mock('@cherrystudio/ui', async () => {
         <span>{description}</span>
       </div>
     ),
-    Scrollbar: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'>>) => (
-      <div {...props}>{children}</div>
+    ScrollArea: ({
+      children,
+      viewportProps,
+      ...props
+    }: React.ComponentProps<'div'> & { viewportProps?: React.ComponentProps<'div'> }) => (
+      <div {...props} {...viewportProps}>
+        {children}
+      </div>
     ),
     Tooltip: ({ children }: PropsWithChildren<{ content?: string; delay?: number }>) => <>{children}</>,
     Tabs: ({
@@ -266,6 +273,35 @@ describe('SpreadsheetFilePreview', () => {
     expect(screen.queryByTestId('xlsx-preview-status-bar')).not.toBeInTheDocument()
   })
 
+  it('keeps the active sheet and zoom during refresh and falls back when that sheet disappears', async () => {
+    const user = userEvent.setup()
+    const model = modelWithoutCharts()
+    setWorkbookState({ status: 'ready', model })
+    const { rerender } = renderPanel()
+    await user.click(screen.getByRole('tab', { name: 'Notes' }))
+    await user.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
+    const view = () => (
+      <SpreadsheetFilePreview
+        sourceId="/tmp/workspace/book.xlsx"
+        fileName="book.xlsx"
+        document={previewTestDocument(1024, 2, unusedRead, 1)}
+      />
+    )
+    setWorkbookState({ status: 'loading', model })
+    rerender(view())
+    expect(screen.getByRole('tab', { name: 'Notes' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('125%')).toBeInTheDocument()
+    const nextModel = modelWithoutCharts()
+    setWorkbookState({ status: 'ready', model: nextModel })
+    rerender(view())
+    expect(screen.getByRole('tab', { name: 'Notes' })).toHaveAttribute('aria-selected', 'true')
+    nextModel.sheets = nextModel.sheets.filter((sheet) => sheet.name !== 'Notes')
+    setWorkbookState({ status: 'ready', model: { ...nextModel } })
+    rerender(view())
+    expect(screen.getByRole('tab', { name: 'Sales' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('125%')).toBeInTheDocument()
+  })
+
   it('falls back to the first sheet when every sheet is hidden', () => {
     const model = modelWithoutCharts()
     for (const sheet of model.sheets) sheet.hidden = true
@@ -303,7 +339,6 @@ describe('SpreadsheetFilePreview', () => {
 
     const statusBar = screen.getByTestId('xlsx-preview-status-bar')
     expect(statusBar).toHaveTextContent('B6 = SUM(B3:B5)')
-    expect(statusBar).toHaveClass('selectable', 'select-text', 'cursor-text')
     expect(screen.queryByText('xlsx_preview.formula_not_evaluated')).not.toBeInTheDocument()
   })
 
@@ -326,26 +361,6 @@ describe('SpreadsheetFilePreview', () => {
     fireEvent.click(screen.getByTestId('grid-select-a3'))
 
     expect(screen.getByTestId('xlsx-preview-status-bar')).toHaveTextContent('A3 Q1')
-  })
-
-  it('steps through the zoom levels without a reset control', () => {
-    setWorkbookState({ status: 'ready', model: modelWithoutCharts() })
-
-    renderPanel()
-
-    expect(screen.getByTestId('xlsx-preview-zoom-value')).toHaveTextContent('100%')
-
-    fireEvent.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
-    expect(screen.getByTestId('xlsx-preview-zoom-value')).toHaveTextContent('125%')
-    expect(screen.getByTestId('xlsx-grid')).toHaveAttribute('data-zoom', '1.25')
-
-    fireEvent.click(screen.getByRole('button', { name: 'preview.zoom_out' }))
-    fireEvent.click(screen.getByRole('button', { name: 'preview.zoom_out' }))
-    expect(screen.getByTestId('xlsx-preview-zoom-value')).toHaveTextContent('75%')
-    expect(screen.getByTestId('xlsx-grid')).toHaveAttribute('data-zoom', '0.75')
-
-    // Zoom reset lives nowhere anymore — refreshing the preview restores the default.
-    expect(screen.queryByRole('button', { name: 'preview.reset' })).not.toBeInTheDocument()
   })
 
   it('creates image object URLs when ready and revokes them on unmount', () => {
@@ -385,14 +400,6 @@ describe('SpreadsheetFilePreview', () => {
     const chart = { type: 'bar' } as ChartModel
     lastGridProps().renderChart?.(chart, container)
     expect(mocks.chartRendererRender).toHaveBeenCalledWith(chart, container)
-  })
-
-  it('does not wire renderChart for models without charts', () => {
-    setWorkbookState({ status: 'ready', model: modelWithoutCharts() })
-
-    renderPanel()
-
-    expect(screen.getByTestId('xlsx-grid')).toHaveAttribute('data-has-render-chart', 'false')
   })
 
   it('shows the range in the status bar when the selection spans more than one cell', () => {

@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { Model } from '@shared/data/types/model'
 
 import QuickAssistantSettings from '../QuickAssistantSettings'
@@ -29,7 +30,8 @@ const defaultModelFixture = {
   isHidden: false
 } satisfies Model
 
-vi.mock('@cherrystudio/ui', async () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryStudioUi>()
   const React = await import('react')
   type PopoverContextValue = { open: boolean; onOpenChange: (open: boolean) => void }
   const PopoverContext = React.createContext<PopoverContextValue>({ open: false, onOpenChange: () => {} })
@@ -39,6 +41,7 @@ vi.mock('@cherrystudio/ui', async () => {
       React.createElement(tag, props, children)
 
   return {
+    ...actual,
     Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
       React.createElement('button', { type: 'button', ...props }, children),
     Command: passthrough('div'),
@@ -157,51 +160,17 @@ describe('QuickAssistantSettings', () => {
     navigateMock.mockClear()
   })
 
-  it('separates default-model mode from its model configuration', async () => {
+  it('opens the default model setting', async () => {
     const user = userEvent.setup()
     MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.assistant_id', '')
     modelState.defaultModel = defaultModelFixture
 
     render(<QuickAssistantSettings />)
-
-    expect(screen.getByText('settings.models.quick_assistant_response_settings')).toBeInTheDocument()
-
-    const modeRow = screen.getByRole('group', { name: 'settings.models.quick_assistant_usage_method' })
     const modelRow = screen.getByRole('group', { name: 'settings.models.default_assistant_model' })
-
-    expect(within(modeRow).getByRole('radiogroup')).toBeInTheDocument()
-    expect(
-      within(modeRow).queryByRole('button', { name: 'selection.settings.user_modal.model.tooltip' })
-    ).not.toBeInTheDocument()
-    expect(modeRow).not.toHaveTextContent('GPT-4o')
-    expect(within(modelRow).getByText('GPT-4o')).toBeInTheDocument()
-    expect(
-      within(modelRow).queryByRole('button', { name: 'selection.settings.user_modal.model.tooltip' })
-    ).not.toBeInTheDocument()
 
     await user.click(within(modelRow).getByRole('button', { name: 'navigate.model_settings' }))
 
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/model', search: { focus: 'default' } })
-  })
-
-  it('separates assistant mode from the mode selector without global model navigation', () => {
-    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.assistant_id', 'assistant-1')
-    modelState.defaultModel = defaultModelFixture
-
-    render(<QuickAssistantSettings />)
-
-    const modeRow = screen.getByRole('group', { name: 'settings.models.quick_assistant_usage_method' })
-    const assistantRow = screen.getByRole('group', { name: 'settings.models.quick_assistant_selection' })
-
-    expect(within(modeRow).getByRole('radiogroup')).toBeInTheDocument()
-    expect(
-      within(modeRow).queryByRole('button', { name: 'selection.settings.user_modal.model.tooltip' })
-    ).not.toBeInTheDocument()
-    expect(
-      within(assistantRow).getByRole('button', { name: 'selection.settings.user_modal.model.tooltip' })
-    ).toBeInTheDocument()
-    expect(within(assistantRow).getByRole('button', { expanded: false })).toHaveTextContent('Assistant 1')
-    expect(screen.queryByRole('button', { name: 'navigate.model_settings' })).not.toBeInTheDocument()
   })
 
   it('clears the selected quick assistant after that assistant is deleted', async () => {

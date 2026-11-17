@@ -111,11 +111,6 @@ export function getWorkdirPathFromSessionGroupId(groupId: string): string | unde
   return decodeURIComponent(groupId.slice(SESSION_WORKDIR_GROUP_ID_PREFIX.length))
 }
 
-export function getWorkspaceIdFromSessionGroupId(groupId: string): string | undefined {
-  if (!groupId.startsWith(SESSION_WORKSPACE_GROUP_ID_PREFIX)) return undefined
-  return decodeURIComponent(groupId.slice(SESSION_WORKSPACE_GROUP_ID_PREFIX.length))
-}
-
 export function getWorkspaceSessionGroupId(workspaceId: string): string {
   return `${SESSION_WORKSPACE_GROUP_ID_PREFIX}${encodeURIComponent(workspaceId)}`
 }
@@ -259,13 +254,6 @@ export function createSessionWorkdirLabelMap(
   return createSessionWorkdirDisplayMaps(sessions, workspaces).labelByGroupId
 }
 
-export function createSessionWorkdirRankMap(
-  sessions: readonly SessionWorkdirSource[],
-  workspaces: readonly WorkspaceDisplaySource[] = []
-) {
-  return createSessionWorkdirDisplayMaps(sessions, workspaces).rankByGroupId
-}
-
 export function createSessionDisplayGroupResolver<T extends SessionListItem>({
   agentById,
   labels,
@@ -396,6 +384,45 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
   })
 }
 
+export type SessionListViewOptions = {
+  agentById: ReadonlyMap<string, SessionDisplayAgent>
+  agentRankById: ReadonlyMap<string, number>
+  labels: SessionDisplayGroupLabels
+  mode: AgentSessionDisplayMode
+  now: SessionDisplaySortOptions['now']
+  /** `undefined` lists every agent; `null` lists nothing until an agent is chosen. */
+  visibleAgentId: string | null | undefined
+  workspaces: readonly WorkspaceDisplaySource[]
+}
+
+/** Builds the list as displayed, so rendering and event handlers cannot disagree on order. */
+export function deriveSessionListView<T extends SessionListItem>(
+  items: readonly T[],
+  { agentById, agentRankById, labels, mode, now, visibleAgentId, workspaces }: SessionListViewOptions,
+  optimisticMove?: ResourceListItemReorderPayload | null
+) {
+  const workdirDisplay = createSessionWorkdirDisplayMaps(items, workspaces)
+  const sorted = sortSessionsForDisplayGroups(items, { agentRankById, mode, now, workdirDisplay })
+  const ordered = optimisticMove ? applyOptimisticSessionDisplayMove(sorted, optimisticMove) : sorted
+  const visibleItems =
+    visibleAgentId === undefined
+      ? ordered
+      : visibleAgentId
+        ? ordered.filter((session) => session.agentId === visibleAgentId)
+        : []
+  const hasAgentSection = mode === 'agent' && (agentById.size > 0 || visibleItems.some((session) => !session.pinned))
+  const groupBy = createSessionDisplayGroupResolver<T>({
+    agentById,
+    labels,
+    mode,
+    now,
+    pinnedAsSection: mode !== 'time' && (mode !== 'agent' || hasAgentSection),
+    workdirDisplay
+  })
+
+  return { groupBy, items: visibleItems, workdirDisplay }
+}
+
 export function normalizeSessionDropPayload(payload: ResourceListItemReorderPayload): ResourceListItemReorderPayload {
   return payload
 }
@@ -427,7 +454,9 @@ export function canDropSessionItemInDisplayGroup({
   sourceGroupId: string
   targetGroupId: string
 }) {
-  return mode !== 'time' && sourceGroupId === targetGroupId && targetGroupId !== SESSION_PINNED_GROUP_ID
+  // Same-group only, so allowing the pinned group cannot move a row out of it:
+  // both sides must already be pinned.
+  return mode !== 'time' && sourceGroupId === targetGroupId
 }
 
 export function applyOptimisticSessionDisplayMove<T extends SessionListItem>(

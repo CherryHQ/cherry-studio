@@ -15,7 +15,7 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
   }
 }))
 
-const { resolveLiveKnowledgeItem, resolveLiveKnowledgeSubtree } = await import('../liveItem')
+const { resolveLiveKnowledgeItem, resolveLiveKnowledgeRoots } = await import('../liveItem')
 
 function createItem(
   id: string,
@@ -69,21 +69,19 @@ describe('resolveLiveKnowledgeItem', () => {
   })
 })
 
-describe('resolveLiveKnowledgeSubtree', () => {
+describe('resolveLiveKnowledgeRoots', () => {
   beforeEach(() => {
     knowledgeItemGetSubtreeItemsMock.mockReset()
   })
 
-  it('returns the resolved items when none are deleting', () => {
-    const items = [createItem('dir-1'), createItem('note-1')]
-    knowledgeItemGetSubtreeItemsMock.mockReturnValue(items)
+  it('keeps each live root, dropping deleting or missing roots without judging descendants', () => {
+    const liveRoot = createItem('dir-1')
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([
+      liveRoot,
+      createItem('child-1', 'deleting'),
+      createItem('dir-2', 'deleting')
+    ])
 
-    expect(resolveLiveKnowledgeSubtree('kb-1', ['dir-1'])).toEqual({ items })
-  })
-
-  it('skips when any resolved item is deleting', () => {
-    knowledgeItemGetSubtreeItemsMock.mockReturnValue([createItem('dir-1'), createItem('note-1', 'deleting')])
-
-    expect(resolveLiveKnowledgeSubtree('kb-1', ['dir-1'])).toEqual({ skip: 'deleting' })
+    expect(resolveLiveKnowledgeRoots('kb-1', ['dir-1', 'dir-2', 'dir-3'])).toEqual([liveRoot])
   })
 })

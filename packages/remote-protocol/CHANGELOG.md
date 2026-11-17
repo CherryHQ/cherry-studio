@@ -1,5 +1,40 @@
 # @cherrystudio/remote-protocol
 
+## Unreleased
+
+### Patch Changes
+
+- Declare the MIT license and include a package-local license file.
+
+## 0.8.0
+
+### Minor Changes
+
+- [#24299](https://github.com/CherryHQ/cherry-studio/pull/24299) [`0648691`](https://github.com/CherryHQ/cherry-studio/commit/06486919592b74c5996dc3485051db9250a6073f) Thanks [@DeJeune](https://github.com/DeJeune)! - Add stable read-only Agent Task contracts for task discovery, configuration, execution history and revision-bound prompt content. Lists include schedule triggers and business update timestamps; runs include bounded display summaries. Tasks use the existing Agent authorization and expose persisted execution facts and readable result-session locations without adding capability flags or task storage.
+  
+  Add an optional taskId filter to agent.sessions.list so task conversations remain discoverable after execution history is collected, with existing visibility and pagination rules.
+
+### Patch Changes
+
+- [#24234](https://github.com/CherryHQ/cherry-studio/pull/24234) [`2e65759`](https://github.com/CherryHQ/cherry-studio/commit/2e6575901a59e6edb5748a2df18713f48635f658) Thanks [@DeJeune](https://github.com/DeJeune)! - Standardize public libraries on MIT and include package-local license files.
+
+## 0.7.0
+
+### Minor Changes
+
+- [#21387](https://github.com/CherryHQ/cherry-studio/pull/21387) [`bc570d2`](https://github.com/CherryHQ/cherry-studio/commit/bc570d2b98f81be7922fbc1f879b8db530c5b60d) Thanks [@DeJeune](https://github.com/DeJeune)! - Add versioned pairing QR schemas supporting complete direct endpoints, and validation for advertised remote destinations.
+
+## 0.6.0
+
+### Minor Changes
+
+- [#21992](https://github.com/CherryHQ/cherry-studio/pull/21992) [`8bf2fe2`](https://github.com/CherryHQ/cherry-studio/commit/8bf2fe28d50170eb7b04c99dd5f8bfcf1913f2ae) Thanks [@WhiteZeek](https://github.com/WhiteZeek)! - Add the opt-in `agentMessageSummariesVersion: 1` capability and `agent.messages.list`
+  `partsMode: 'paged'` request. Summaries omit `partIds` and retain message identity,
+  revision and outcome metadata; clients enumerate complete parts through
+  `agent.parts.list`. Requests without the mode retain the full-message contract.
+  The list result type now includes `AgentMessageSummary`; consumers must narrow
+  list items before treating them as full `AgentMessage` recovery snapshots.
+
 ## 0.5.0
 
 ### Minor Changes

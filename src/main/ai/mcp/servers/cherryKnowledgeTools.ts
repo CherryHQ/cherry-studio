@@ -13,6 +13,12 @@
  * changing it takes a rebuild. The destructive `kb_manage` tool relies on Claude Code's own
  * per-call permission prompt for approval (the AI-SDK path uses `needsApproval` instead).
  *
+ * One deliberate widening on top of that grant: a base the session itself created via
+ * `kb_manage` action="create" joins the effective scope for the rest of the connection
+ * (`sessionCreatedBaseIds` below) — the binding remains the ceiling for pre-existing bases,
+ * but refusing the agent access to the base it just created would leave every created base
+ * permanently empty.
+ *
  * Scope is modelled as an explicit {@link KnowledgeScope} rather than a bare id array so
  * the "empty scope" case can never be silently reinterpreted as "all bases": the shared
  * `knowledgeLookup` core treats an empty `allowedIds` as unrestricted, so only the explicit
@@ -87,6 +93,16 @@ function resolveKnowledgeScope({ allKnowledgeBases, baseIds: boundBaseIds }: Kno
 export function registerKnowledgeTools(server: McpServer, { getKnowledgeAccess }: KnowledgeToolsContext): void {
   if (resolveKnowledgeScope(getKnowledgeAccess()).kind === 'none') return
 
+  // Bases this connection created via kb_manage action="create". Each creation is individually
+  // user-approved (kb_manage is a `required` tool), so letting the creator fill in — and read
+  // back — its own base does not grant anything the user did not approve; without this the new
+  // base sits outside the static binding and every follow-up call on it is rejected, leaving
+  // each created base permanently empty. Connection-scoped on purpose: the set dies with the
+  // transport, is never persisted, and is shared with no other session. Elevation extends a
+  // live grant but never substitutes for one — the fail-closed branch below still rejects
+  // everything (created bases included) if the effective scope empties mid-session.
+  const sessionCreatedBaseIds = new Set<string>()
+
   // Fail-closed: an unscoped lookup must never reach the shared core with an empty `allowedIds`,
   // which that core would treat as "all bases".
   const allowedIds = (tool: string): readonly string[] => {
@@ -96,7 +112,9 @@ export function registerKnowledgeTools(server: McpServer, { getKnowledgeAccess }
       // "in scope", not "bound": naming only the binding would point the model at the wrong remedy.
       throw new Error(`Tool unavailable: ${tool} (no knowledge base in scope)`)
     }
-    return scope.kind === 'unrestricted' ? [] : scope.baseIds
+    if (scope.kind === 'unrestricted') return []
+    if (sessionCreatedBaseIds.size === 0) return scope.baseIds
+    return Array.from(new Set([...scope.baseIds, ...sessionCreatedBaseIds]))
   }
 
   // kb cores take no AbortSignal: KnowledgeService exposes no cancellation plumbing (see knowledgeLookup).
@@ -127,7 +145,11 @@ export function registerKnowledgeTools(server: McpServer, { getKnowledgeAccess }
   server.registerTool(
     KB_MANAGE_TOOL_NAME,
     { description: KNOWLEDGE_MANAGE_DESCRIPTION, inputSchema: kbManageInputSchema },
-    async (input) =>
-      modelOutputToMcpResult(knowledgeManageModelOutput(await manageKnowledge(input, allowedIds(KB_MANAGE_TOOL_NAME))))
+    async (input) => {
+      const result = await manageKnowledge(input, allowedIds(KB_MANAGE_TOOL_NAME))
+      // A successful create elevates the new base into this connection's scope (see the set above).
+      if ('created' in result && result.created) sessionCreatedBaseIds.add(result.created.baseId)
+      return modelOutputToMcpResult(knowledgeManageModelOutput(result))
+    }
   )
 }

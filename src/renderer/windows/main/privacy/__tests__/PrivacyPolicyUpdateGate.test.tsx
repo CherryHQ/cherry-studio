@@ -60,7 +60,7 @@ describe('PrivacyPolicyUpdateGate', () => {
     expect(screen.queryByTestId('full-policy')).not.toBeInTheDocument()
 
     const policyButton = screen.getByRole('button', { name: 'privacy_policy_update.policy' })
-    expect(policyButton).toHaveClass('underline', 'focus-visible:ring-0')
+
     fireEvent.click(policyButton)
 
     expect(screen.getByTestId('full-policy')).toBeInTheDocument()

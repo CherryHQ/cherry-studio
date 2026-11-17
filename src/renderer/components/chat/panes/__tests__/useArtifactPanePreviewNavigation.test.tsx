@@ -31,6 +31,11 @@ function acceptLastSelection(requestFileSelection: ReturnType<typeof vi.fn>) {
   act(() => accept?.())
 }
 
+/** The selection the host shows once the last request is accepted. */
+function lastRequested(requestFileSelection: ReturnType<typeof vi.fn>): ArtifactPaneFileSelection | null {
+  return (requestFileSelection.mock.calls.at(-1)?.[0] as ArtifactPaneFileSelection | null | undefined) ?? null
+}
+
 describe('useArtifactPanePreviewNavigation', () => {
   beforeEach(() => {
     panelActions.close.mockReset()
@@ -79,7 +84,6 @@ describe('useArtifactPanePreviewNavigation', () => {
     const requestFileSelection = vi.fn()
     vi.mocked(ipcApi.request).mockResolvedValue({ kind: 'file' })
     const first = fileSelection('/workspace', 'first.md')
-    const second = fileSelection('/workspace', 'second.md')
     const options = { paneId: 'files', requestFileSelection, workspacePath: '/workspace' }
     const { result, rerender } = renderHook(
       ({ previewFileSelection }) => useArtifactPanePreviewNavigation({ ...options, previewFileSelection }),
@@ -94,6 +98,7 @@ describe('useArtifactPanePreviewNavigation', () => {
     })
     await waitFor(() => expect(requestFileSelection).toHaveBeenCalledTimes(1))
     acceptLastSelection(requestFileSelection)
+    const second = lastRequested(requestFileSelection)
     rerender({ previewFileSelection: second })
     act(() => {
       result.current.previewInputFile({
@@ -103,13 +108,15 @@ describe('useArtifactPanePreviewNavigation', () => {
     })
     await waitFor(() => expect(requestFileSelection).toHaveBeenCalledTimes(2))
     acceptLastSelection(requestFileSelection)
+    rerender({ previewFileSelection: lastRequested(requestFileSelection) })
 
     act(() => result.current.closeFilePreview())
-    expect(requestFileSelection).toHaveBeenLastCalledWith(second, expect.any(Function))
+    expect(requestFileSelection).toHaveBeenLastCalledWith(second, expect.any(Function), true)
     acceptLastSelection(requestFileSelection)
+    rerender({ previewFileSelection: second })
 
     act(() => result.current.closeFilePreview())
-    expect(requestFileSelection).toHaveBeenLastCalledWith(first, expect.any(Function))
+    expect(requestFileSelection).toHaveBeenLastCalledWith(first, expect.any(Function), true)
     acceptLastSelection(requestFileSelection)
   })
 
@@ -134,11 +141,11 @@ describe('useArtifactPanePreviewNavigation', () => {
     act(() => result.current.captureInputPreviewReturnTarget())
     rerender({ selection: third })
     act(() => result.current.closeFilePreview())
-    expect(requestFileSelection).toHaveBeenLastCalledWith(second, expect.any(Function))
+    expect(requestFileSelection).toHaveBeenLastCalledWith(second, expect.any(Function), true)
     acceptLastSelection(requestFileSelection)
     rerender({ selection: second })
     act(() => result.current.closeFilePreview())
-    expect(requestFileSelection).toHaveBeenLastCalledWith(first, expect.any(Function))
+    expect(requestFileSelection).toHaveBeenLastCalledWith(first, expect.any(Function), true)
     acceptLastSelection(requestFileSelection)
   })
 
@@ -436,13 +443,15 @@ describe('useArtifactPanePreviewNavigation', () => {
   it('restores the original pane only after Back is accepted, including when that target has no file', async () => {
     const requestFileSelection = vi.fn()
     panelState.presentationOpen = false
-    const { result } = renderHook(() =>
-      useArtifactPanePreviewNavigation({
-        paneId: 'files',
-        previewFileSelection: null,
-        requestFileSelection,
-        workspacePath: '/workspace'
-      })
+    const { result, rerender } = renderHook(
+      ({ previewFileSelection }) =>
+        useArtifactPanePreviewNavigation({
+          paneId: 'files',
+          previewFileSelection,
+          requestFileSelection,
+          workspacePath: '/workspace'
+        }),
+      { initialProps: { previewFileSelection: null as ArtifactPaneFileSelection | null } }
     )
 
     act(() => {
@@ -453,13 +462,14 @@ describe('useArtifactPanePreviewNavigation', () => {
     })
     await waitFor(() => expect(requestFileSelection).toHaveBeenCalledTimes(1))
     acceptLastSelection(requestFileSelection)
+    rerender({ previewFileSelection: lastRequested(requestFileSelection) })
     act(() => result.current.closeFilePreview())
-    expect(requestFileSelection).toHaveBeenLastCalledWith(null, expect.any(Function))
+    expect(requestFileSelection).toHaveBeenLastCalledWith(null, expect.any(Function), true)
     expect(panelActions.close).not.toHaveBeenCalled()
 
     act(() => result.current.closeFilePreview())
     expect(panelActions.close).not.toHaveBeenCalled()
-    expect(requestFileSelection).toHaveBeenLastCalledWith(null, expect.any(Function))
+    expect(requestFileSelection).toHaveBeenLastCalledWith(null, expect.any(Function), true)
 
     acceptLastSelection(requestFileSelection)
     expect(panelActions.close).toHaveBeenCalledTimes(1)
@@ -527,7 +537,7 @@ describe('useArtifactPanePreviewNavigation', () => {
     })
 
     act(() => result.current.closeFilePreview())
-    expect(requestFileSelection).toHaveBeenLastCalledWith(notes, expect.any(Function))
+    expect(requestFileSelection).toHaveBeenLastCalledWith(notes, expect.any(Function), true)
 
     rerender({
       acceptedWorkspacePath: '/workspace-b',
@@ -535,7 +545,7 @@ describe('useArtifactPanePreviewNavigation', () => {
       workspacePath: '/workspace-b'
     })
     act(() => result.current.closeFilePreview())
-    expect(requestFileSelection).toHaveBeenLastCalledWith(null, expect.any(Function))
+    expect(requestFileSelection).toHaveBeenLastCalledWith(null, expect.any(Function), true)
   })
 
   it('drops in-flight attachment metadata when the incoming workspace changes', async () => {
@@ -577,13 +587,15 @@ describe('useArtifactPanePreviewNavigation', () => {
     const requestFileSelection = vi.fn()
     const artifact = fileSelection('/workspace', 'report.md')
     panelState.activePanelId = 'browser'
-    const { result } = renderHook(() =>
-      useArtifactPanePreviewNavigation({
-        paneId: 'files',
-        previewFileSelection: artifact,
-        requestFileSelection,
-        workspacePath: '/workspace'
-      })
+    const { result, rerender } = renderHook(
+      ({ previewFileSelection }) =>
+        useArtifactPanePreviewNavigation({
+          paneId: 'files',
+          previewFileSelection,
+          requestFileSelection,
+          workspacePath: '/workspace'
+        }),
+      { initialProps: { previewFileSelection: artifact as ArtifactPaneFileSelection | null } }
     )
 
     act(() => {
@@ -595,11 +607,12 @@ describe('useArtifactPanePreviewNavigation', () => {
     await waitFor(() => expect(requestFileSelection).toHaveBeenCalledTimes(1))
     expect(panelActions.requestOpen).not.toHaveBeenCalled()
     acceptLastSelection(requestFileSelection)
+    rerender({ previewFileSelection: lastRequested(requestFileSelection) })
     expect(panelActions.requestOpen).toHaveBeenCalledWith('files', { userInitiated: true })
     panelActions.requestOpen.mockClear()
 
     act(() => result.current.closeFilePreview())
-    expect(requestFileSelection).toHaveBeenLastCalledWith(artifact, expect.any(Function))
+    expect(requestFileSelection).toHaveBeenLastCalledWith(artifact, expect.any(Function), true)
     expect(panelActions.requestOpen).not.toHaveBeenCalled()
     expect(panelActions.close).not.toHaveBeenCalled()
 

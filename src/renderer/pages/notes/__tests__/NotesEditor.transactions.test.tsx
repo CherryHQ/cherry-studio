@@ -11,7 +11,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light', activeShikiTheme: 'one-light' }),
+  useCodeStyle: () => ({ activeCmTheme: 'light', activeCodeTheme: 'one-light' }),
   useCmTheme: () => 'light'
 }))
 

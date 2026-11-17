@@ -1,9 +1,40 @@
 import { describe, expect, it } from 'vitest'
 
-import { agentAuthorizationSchema, agentMethods, encodeAgentCommand } from '../src/agent'
+import { agentAuthorizationSchema, agentMethods, encodeAgentCommand, messageSchema } from '../src/agent'
+import { checkpointItemSchema } from '../src/agent/checkpoints'
 import { connectionMethods, jsonRpcNotificationSchema, jsonRpcRequestSchema, negotiateProtocol } from '../src/index'
 
 describe('remote contracts', () => {
+  it('accepts explicit paged message summaries without admitting partial messages into recovery', () => {
+    const method = agentMethods['agent.messages.list']
+    const params = { sessionId: 's', historyRevision: '1', partsMode: 'paged' }
+    expect(method.params.parse(params)).toEqual(params)
+    expect(method.params.safeParse({ ...params, partsMode: 'truncated' }).success).toBe(false)
+    const summary = { messageId: 'm', revision: '1', role: 'assistant', status: 'success', partsMode: 'paged' }
+    expect(method.result.parse({ items: [summary], nextCursor: null }).items).toEqual([summary])
+    expect(method.result.safeParse({ items: [{ ...summary, partIds: [] }], nextCursor: null }).success).toBe(false)
+    expect(method.result.safeParse({ items: [{ ...summary, status: 'error' }], nextCursor: null }).success).toBe(false)
+    expect(messageSchema.safeParse(summary).success).toBe(false)
+    expect(checkpointItemSchema.safeParse({ kind: 'message', value: summary }).success).toBe(false)
+    const legacy = { messageId: 'm', revision: '1', role: 'assistant', status: 'success', partIds: ['p'] }
+    expect(method.result.parse({ items: [legacy], nextCursor: null }).items).toEqual([legacy])
+    expect(method.params.parse({ sessionId: 's', historyRevision: '1' })).toEqual({
+      sessionId: 's',
+      historyRevision: '1'
+    })
+    const hello = connectionMethods(agentAuthorizationSchema)['connection.hello'].result
+    expect(
+      hello.parse({ protocolVersion: 1, limits: {}, heartbeatMs: 20000 }).agentMessageSummariesVersion
+    ).toBeUndefined()
+    expect(
+      hello.parse({ protocolVersion: 1, limits: {}, heartbeatMs: 20000, agentMessageSummariesVersion: 1 })
+        .agentMessageSummariesVersion
+    ).toBe(1)
+    expect(
+      hello.safeParse({ protocolVersion: 1, limits: {}, heartbeatMs: 20000, agentMessageSummariesVersion: 0 }).success
+    ).toBe(false)
+  })
+
   it('keeps old hello replies compatible and bounds address handoff to approved domains and valid endpoints', () => {
     const methods = connectionMethods(agentAuthorizationSchema)
     expect(

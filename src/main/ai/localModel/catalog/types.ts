@@ -133,7 +133,7 @@ export interface ModelBundle {
   requires: SharedArtifactId[]
   /** Metadata inference needs but acquisition does not. `dtype` is the transformers.js
    * quantization selector, which must match the weights file the bundle actually installs. */
-  runtime?: { dtype?: string; architecture?: 'funasr-nano' | 'qwen3-tts' | 'kokoro' }
+  runtime?: { dtype?: string; architecture?: 'funasr-nano' | 'qwen3-asr' | 'qwen3-tts' | 'kokoro' }
   provenance?: CatalogProvenance
 }
 

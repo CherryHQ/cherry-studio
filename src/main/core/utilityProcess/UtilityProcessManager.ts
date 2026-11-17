@@ -86,6 +86,13 @@ export class UtilityProcessManager extends BaseService {
         }
         return this.hostFor(definition).request(method, input, options)
       },
+      openStream: async (method, input, options) => {
+        if (!this.accepting)
+          throw new UtilityProcessError('PROCESS_BLOCKED', 'Utility process manager is not running', {
+            processId: definition.id
+          })
+        return this.hostFor(definition).openStream(method, input, options)
+      },
       stop: (options) => this.hosts.get(definition.id)?.stop(options) ?? Promise.resolve(),
       withStopped: async (operation, options) => this.hostFor(definition).withStopped(operation, options)
     }
@@ -109,6 +116,10 @@ export class UtilityProcessManager extends BaseService {
       request: async (method, input, options) => {
         if (disposed || !this.accepting) throw new Error('Utility process instance is closed')
         return host.request(method, input, options)
+      },
+      openStream: async (method, input, options) => {
+        if (disposed || !this.accepting) throw new Error('Utility process instance is closed')
+        return host.openStream(method, input, options)
       },
       stop: (options) => host.stop(options),
       withStopped: async (operation, options) => {

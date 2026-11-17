@@ -20,3 +20,22 @@ export function newCitePrefix(): string {
 export function citeId(prefix: string, index: number): string {
   return `${prefix}-${index + 1}`
 }
+
+const MARKDOWN_CODE_PATTERN = /```[\s\S]*?```|`[^`\n]*`/gm
+const CITATION_MARKER_PATTERN = /([ \t]?)\[cite:[\w-]+\]/g
+
+/** Strip internal citation markers from prose while preserving literal examples in code. */
+export function stripCitationMarkers(text: string): string {
+  MARKDOWN_CODE_PATTERN.lastIndex = 0
+  let cursor = 0
+  let result = ''
+  let match: RegExpExecArray | null
+
+  while ((match = MARKDOWN_CODE_PATTERN.exec(text)) !== null) {
+    result += text.slice(cursor, match.index).replace(CITATION_MARKER_PATTERN, '')
+    result += match[0]
+    cursor = match.index + match[0].length
+  }
+
+  return result + text.slice(cursor).replace(CITATION_MARKER_PATTERN, '')
+}

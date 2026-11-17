@@ -1,5 +1,4 @@
-import { sliceByTokens } from 'tokenx'
-
+import { sliceContent } from '@cherrystudio/web-search/tools/content'
 import type {
   WebSearchCompressionConfig,
   WebSearchExecutionConfig,
@@ -50,7 +49,7 @@ function applyCutoff(results: WebSearchResult[], config: WebSearchCompressionCon
   const perResultLimit = Math.max(1, Math.floor(config.cutoffLimit / results.length))
 
   return results.map((result) => {
-    const sliced = sliceByTokens(result.content, 0, perResultLimit)
+    const sliced = sliceContent(result.content, { maxTokens: perResultLimit }).content
     return {
       ...result,
       content: sliced.length < result.content.length ? `${sliced}...` : sliced

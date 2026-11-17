@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 import { createSelectionReferenceToken } from '@renderer/components/composer/selectionReferenceToken'
-import { type SelectionReference, SelectionReferenceSchema } from '@renderer/types/selectionReference'
+import {
+  type LineCommentReference,
+  type SelectionReference,
+  SelectionReferenceSchema
+} from '@renderer/types/selectionReference'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 const XLSX_REFERENCE: SelectionReference = {
@@ -77,5 +81,50 @@ describe('createSelectionReferenceToken', () => {
     ]
   ])('labels %#: file name plus the format-native locator', (reference, expected) => {
     expect(createSelectionReferenceToken(reference, t).label).toBe(expected)
+  })
+
+  it('attaches a document comment beside the anchor and shows it on the chip', () => {
+    const commented = { ...XLSX_REFERENCE, comment: 'Recalculate with the March numbers' }
+    const token = createSelectionReferenceToken(commented, t)
+    const parsed = SelectionReferenceSchema.parse(parseSelectionRefFence(token.promptText))
+
+    expect(parsed.anchor).toEqual(XLSX_REFERENCE.anchor)
+    expect(parsed.comment).toBe('Recalculate with the March numbers')
+    expect(token.description).toBe('Recalculate with the March numbers')
+    expect(token.icon).toBe('comment')
+    expect(createSelectionReferenceToken(XLSX_REFERENCE, t).icon).toBe('quote')
+  })
+})
+
+describe('createSelectionReferenceToken for a text-file line comment', () => {
+  const LINE_COMMENT: LineCommentReference = {
+    path: '/Users/dev/workspace/src/app.ts' as AbsoluteFilePath,
+    startLine: 19,
+    endLine: 21,
+    excerpt: 'const a = 1\nconst b = 2\nconst c = 3',
+    comment: 'Merge these into one object'
+  }
+
+  it('labels a range and a single line with the file name and line numbers', () => {
+    expect(createSelectionReferenceToken(LINE_COMMENT, t).label).toBe('app.ts · L19–21')
+    expect(createSelectionReferenceToken({ ...LINE_COMMENT, endLine: 19 }, t).label).toBe('app.ts · L19')
+  })
+
+  it('sends the path, range, verbatim lines and comment as Markdown, never as a selection-ref block', () => {
+    const token = createSelectionReferenceToken(LINE_COMMENT, t)
+
+    expect(token.promptText).toBe(
+      '`/Users/dev/workspace/src/app.ts:19-21`\n```\nconst a = 1\nconst b = 2\nconst c = 3\n```\nMerge these into one object'
+    )
+    expect(token.promptText).not.toContain('selection-ref')
+    expect(token.description).toBe(LINE_COMMENT.comment)
+    expect(token.icon).toBe('comment')
+  })
+
+  it('fences quoted lines that contain backtick fences so they cannot close the block early', () => {
+    const excerpt = 'Example:\n```ts\nrun()\n```'
+    const token = createSelectionReferenceToken({ ...LINE_COMMENT, excerpt }, t)
+
+    expect(token.promptText).toContain(`\n\`\`\`\`\n${excerpt}\n\`\`\`\`\n`)
   })
 })

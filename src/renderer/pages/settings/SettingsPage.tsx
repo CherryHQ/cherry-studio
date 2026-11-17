@@ -1,12 +1,11 @@
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
-import { Search } from 'lucide-react'
+import { Search, Wrench } from 'lucide-react'
 import type { CSSProperties, FC, MouseEvent } from 'react'
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
-import Scrollbar from '@renderer/components/Scrollbar'
-import { settingsMenu } from '@renderer/components/settingsMenu'
+import { MenuDivider, MenuItem, MenuList, PageHeader, ScrollArea } from '@cherrystudio/ui'
+import { BUILTIN_TOOLS_GROUP_KEY, settingsMenu } from '@renderer/components/settingsMenu'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import SettingsFocusScroll from '@renderer/pages/settings/settingsSearch/SettingsFocusScroll'
 import SettingsFocusUrl from '@renderer/pages/settings/settingsSearch/SettingsFocusUrl'
@@ -17,10 +16,13 @@ import {
   settingsSubmenuItemClassName,
   settingsSubmenuItemLabelClassName,
   settingsSubmenuListClassName,
+  settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
 import { openExternalWebsite } from '@renderer/services/website'
 import { cn } from '@renderer/utils/style'
+
+const builtinTools = settingsMenu.filter((item) => item.groupKey === BUILTIN_TOOLS_GROUP_KEY)
 
 const SettingsPage: FC = () => {
   const location = useLocation()
@@ -38,6 +40,7 @@ const SettingsPage: FC = () => {
   }, [pathname])
 
   const isActive = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
+  const activeBuiltinTool = builtinTools.some((item) => isActive(item.route))
   const go = (path: string) => navigate({ to: path })
 
   const openExternalLink = (event: MouseEvent<HTMLDivElement>) => {
@@ -86,9 +89,23 @@ const SettingsPage: FC = () => {
                 }
               />
             )}
-            <Scrollbar className="min-h-0 flex-1 select-none">
+            <ScrollArea className="min-h-0 flex-1 select-none">
               <MenuList className={settingsSubmenuListClassName}>
                 {settingsMenu.map((item, index) => {
+                  if (item.groupKey === BUILTIN_TOOLS_GROUP_KEY) {
+                    if (item !== builtinTools[0]) return null
+                    return (
+                      <MenuItem
+                        key={item.route}
+                        className={settingsSubmenuItemClassName}
+                        labelClassName={settingsSubmenuItemLabelClassName}
+                        icon={<Wrench />}
+                        label={t(BUILTIN_TOOLS_GROUP_KEY)}
+                        active={activeBuiltinTool}
+                        onClick={() => go(item.route)}
+                      />
+                    )
+                  }
                   const startsNewGroup = index > 0 && item.groupKey !== settingsMenu[index - 1].groupKey
                   return (
                     <Fragment key={item.route}>
@@ -112,9 +129,31 @@ const SettingsPage: FC = () => {
                   )
                 })}
               </MenuList>
-            </Scrollbar>
+            </ScrollArea>
           </div>
           <div className="flex h-full min-h-0 min-w-0 flex-1">
+            {activeBuiltinTool && (
+              <nav
+                aria-label={t(BUILTIN_TOOLS_GROUP_KEY)}
+                className={cn('flex flex-col', settingsSubmenuScrollClassName)}>
+                <PageHeader title={t(BUILTIN_TOOLS_GROUP_KEY)} />
+                <ScrollArea className="min-h-0 flex-1">
+                  <MenuList className={settingsSubmenuListClassName}>
+                    {builtinTools.map((tool) => (
+                      <MenuItem
+                        key={tool.route}
+                        className={settingsSubmenuItemClassName}
+                        labelClassName={settingsSubmenuItemLabelClassName}
+                        icon={tool.icon}
+                        label={t(tool.titleKey)}
+                        active={isActive(tool.route)}
+                        onClick={() => go(tool.route)}
+                      />
+                    ))}
+                  </MenuList>
+                </ScrollArea>
+              </nav>
+            )}
             <div
               ref={contentRef}
               data-ui="settings.content"

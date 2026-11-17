@@ -9,46 +9,17 @@
  * Phase 0 bundling spike). Every runtime use of pi values MUST go through here;
  * `import type` elsewhere is compile-only and safe.
  */
-import { pathToFileURL } from 'node:url'
+import type { ProviderConfig } from '@earendil-works/pi-coding-agent'
 
-import type { ExtensionFactory, ProviderConfig } from '@earendil-works/pi-coding-agent'
-
-import { application } from '@application'
 import type { PiApi } from '@shared/ai/piModelCompatibility'
 
 export function loadPiSdk() {
   return import('@earendil-works/pi-coding-agent')
 }
 
-export async function loadPiVccExtension(configPath: string): Promise<ExtensionFactory> {
-  // pi-vcc reads this process-wide override on every compaction; all sessions share Cherry's config.
-  process.env.PI_VCC_CONFIG_PATH = configPath
-  const url = pathToFileURL(application.getPath('feature.agents.pi.vcc_file')).href
-  return (await import(/* @vite-ignore */ url)).default
-}
-
-/**
- * The api-family layer under pi-coding-agent. pi drives providers through these
- * pure `stream`/`streamSimple` functions; a transport-adapter provider wraps the
- * openai-responses family here so it can inject per-call OAuth creds without pi
- * learning any provider specifics. Same ESM-only dynamic-import contract as
- * {@link loadPiSdk} — `@earendil-works/pi-ai` is pinned to pi-coding-agent's own
- * version so this is the identical implementation pi would use by default.
- */
+/** Load Pi's native model types and credentials with the same ESM boundary as the coding SDK. */
 export function loadPiAi() {
   return import('@earendil-works/pi-ai')
-}
-
-export function loadPiAiCompat() {
-  return import('@earendil-works/pi-ai/compat')
-}
-
-export function loadPiOpenAiResponsesApi() {
-  return import('@earendil-works/pi-ai/api/openai-responses')
-}
-
-export function loadPiAnthropicMessagesApi() {
-  return import('@earendil-works/pi-ai/api/anthropic-messages')
 }
 
 type PiStreamSimple = NonNullable<ProviderConfig['streamSimple']>
@@ -62,9 +33,6 @@ export async function loadPiApiStreamSimple(api: PiApi): Promise<PiStreamSimple>
       return (await import('@earendil-works/pi-ai/api/openai-completions')).streamSimple as unknown as PiStreamSimple
     case 'openai-responses':
       return (await import('@earendil-works/pi-ai/api/openai-responses')).streamSimple as unknown as PiStreamSimple
-    case 'azure-openai-responses':
-      return (await import('@earendil-works/pi-ai/api/azure-openai-responses'))
-        .streamSimple as unknown as PiStreamSimple
     case 'google-generative-ai':
       return (await import('@earendil-works/pi-ai/api/google-generative-ai')).streamSimple as unknown as PiStreamSimple
   }

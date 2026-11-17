@@ -1,8 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
-import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
-import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
+
+const FileEditor = lazy(() => import('@renderer/components/FileEditor'))
 
 interface OwnProps {
   text: string
@@ -13,9 +12,6 @@ interface OwnProps {
 type Props = OwnProps & PopupInjectedProps<void>
 
 const PopupContainer: React.FC<Props> = ({ text, title, extension, open, resolve }) => {
-  const [fontSize] = usePreference('chat.message.font_size')
-  const activeCmTheme = useCmTheme(open && extension !== undefined)
-
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && resolve()}>
       <DialogContent className="h-[80vh] max-h-[calc(100vh-2rem)] max-w-[700px] grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[20px] p-0 sm:max-w-[700px]">
@@ -24,19 +20,9 @@ const PopupContainer: React.FC<Props> = ({ text, title, extension, open, resolve
         </DialogHeader>
         <div className="min-h-0 overflow-hidden">
           {extension !== undefined ? (
-            <LazyCodeEditor
-              className="[&_.cm-line]:cursor-text"
-              theme={activeCmTheme}
-              fontSize={fontSize - 1}
-              readOnly={true}
-              expanded={false}
-              height="100%"
-              value={text}
-              language={extension}
-              options={{
-                keymap: true
-              }}
-            />
+            <Suspense fallback={null}>
+              <FileEditor className="h-full" readOnly value={text} fileName={`${title}.${extension}`} />
+            </Suspense>
           ) : (
             <div className="h-full cursor-text overflow-auto p-4 text-sm whitespace-pre text-foreground">{text}</div>
           )}
@@ -59,3 +45,4 @@ const TextFilePreviewPopup = {
 }
 
 export default TextFilePreviewPopup
+import { lazy, Suspense } from 'react'

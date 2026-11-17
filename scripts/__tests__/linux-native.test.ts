@@ -178,26 +178,23 @@ describe('Linux native release download', () => {
 })
 
 describe('Linux package replacement', () => {
-  it('replaces the packaged addon and verifies the copied bytes', () => {
+  it.each(['x64', 'arm64'] as const)('replaces the %s prebuild used by better-sqlite3', (arch) => {
     const root = makeTmpDir()
     const appOutDir = path.join(root, 'linux-unpacked')
-    const paths = writeArtifact(root, 'x64')
+    const paths = writeArtifact(root, arch)
     const destination = path.join(
       appOutDir,
       'resources',
       'app.asar.unpacked',
       'node_modules',
       'better-sqlite3',
-      'build',
-      'Release',
-      'better_sqlite3.node'
+      'prebuilds',
+      `linux-${arch}.node`
     )
     fs.mkdirSync(path.dirname(destination), { recursive: true })
-    fs.writeFileSync(destination, fakeAddon('x64', ['GLIBC_2.34']))
+    fs.writeFileSync(destination, fakeAddon(arch, ['GLIBC_2.34']))
 
-    expect(replacePackagedBetterSqlite3({ projectRoot: root, appOutDir, arch: 'x64', metadata }).destination).toBe(
-      destination
-    )
+    expect(replacePackagedBetterSqlite3({ projectRoot: root, appOutDir, arch, metadata }).destination).toBe(destination)
     expect(fs.readFileSync(destination)).toEqual(fs.readFileSync(paths.addonPath))
   })
 

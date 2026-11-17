@@ -12,11 +12,7 @@
  */
 
 import { endpointImpliedCapability, MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
-import {
-  CHERRYAI_PROVIDER_ID,
-  isManagedCherryAiDefaultModel,
-  isManagedCherryCloudModel
-} from '@shared/data/presets/cherryai'
+import { CHERRYAI_PROVIDER_ID, isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 
@@ -113,8 +109,7 @@ export const isGatewayRoutableModel = (model: Model): boolean => {
 }
 
 /** Models the public API gateway and Code Mate may expose. */
-export const isPublicGatewayRoutableModel = (model: Model): boolean =>
-  isGatewayRoutableModel(model) && !isManagedCherryCloudModel(model.providerId)
+export const isPublicGatewayRoutableModel = isGatewayRoutableModel
 
 // ---------------------------------------------------------------------------
 // Reasoning configuration
@@ -325,6 +320,14 @@ export const isClaude46SeriesModel = (model: Model): boolean => {
 export const isClaude47SeriesModel = (model: Model): boolean => {
   const id = getLowerBaseModelName(getRawModelId(model), '/')
   return /(?:anthropic\.)?claude-opus-4[.-]7(?:[@\-:][\w\-:]+)?$/i.test(id)
+}
+
+/** Check if model rejects temperature/top_p/top_k: Claude Opus 4.7+, Claude 5.x, Fable and Mythos. */
+export const isClaudeFixedSamplingModel = (model: Model): boolean => {
+  const id = getLowerBaseModelName(getRawModelId(model), '/')
+  return /(?:anthropic\.)?claude-(?:opus-4[.-](?:[7-9]|1\d)|(?:opus|sonnet|haiku|fable|mythos)-[5-9](?:[.-]\d+)?|(?:fable|mythos)-(?:latest|preview))(?:[@\-:][\w\-:]+)?$/i.test(
+    id
+  )
 }
 
 /** Check if model is Claude 4.5 reasoning */

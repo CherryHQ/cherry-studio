@@ -3,6 +3,7 @@ import { useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BarVisualizer, Button, NormalTooltip } from '@cherrystudio/ui'
+import { useDictationEnabled } from '@renderer/hooks/useDictationEnabled'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { dictationService, voiceTargetManager } from '@renderer/services/voice'
 import type { DictationErrorCategory, DictationPhase } from '@renderer/services/voice'
@@ -35,6 +36,7 @@ export function DictationControls({
   disabled: boolean
   focusInput: () => void
 }) {
+  const enabled = useDictationEnabled()
   const { t } = useTranslation()
   const snapshot = useSyncExternalStore(dictationService.subscribe, dictationService.getSnapshot)
   const target = useSyncExternalStore(voiceTargetManager.subscribe, voiceTargetManager.getSnapshot)
@@ -50,6 +52,8 @@ export function DictationControls({
     focusInput()
   }
 
+  if (!enabled) return null
+
   return (
     <div
       className={
@@ -57,6 +61,14 @@ export function DictationControls({
           ? 'flex max-w-full items-center gap-2 rounded-full border border-border bg-popover py-1 pr-1 pl-3'
           : 'flex flex-wrap items-center gap-1'
       }>
+      {snapshot.transcript && (
+        <span role="status" className="max-w-64 truncate text-sm" title={snapshot.transcript.text}>
+          {snapshot.transcript.text.slice(0, snapshot.transcript.provisionalStart)}
+          <span className="text-muted-foreground">
+            {snapshot.transcript.text.slice(snapshot.transcript.provisionalStart)}
+          </span>
+        </span>
+      )}
       {capturing && (
         <BarVisualizer
           aria-hidden
@@ -89,6 +101,7 @@ export function DictationControls({
             type="button"
             variant="ghost"
             size="icon-sm"
+            className="text-muted-foreground"
             aria-label={t('chat.input.dictation.title')}
             disabled={disabled}
             onClick={start}>

@@ -1,11 +1,11 @@
 import { Link } from '@tanstack/react-router'
-import { CircleCheck, CircleHelp, CircleX, Edit2, TriangleAlert } from 'lucide-react'
+import { CircleCheck, CircleX, Edit2, TriangleAlert } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, RadioGroup, RadioGroupItem, Slider, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, RadioGroup, RadioGroupItem, Slider, Switch, Tooltip, HelpTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import SelectionToolbarView from '@renderer/components/selection/SelectionToolbarView'
 import {
@@ -15,6 +15,7 @@ import {
   SettingRow,
   SettingRowTitle,
   SettingsContentColumn,
+  SettingsPageHeader,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -22,6 +23,7 @@ import { getSelectionDescriptionLabelKey } from '@renderer/i18n/label'
 import { ipcApi } from '@renderer/ipc'
 import { openExternalWebsite } from '@renderer/services/website'
 import { isLinux, isMac, isWin } from '@renderer/utils/platform'
+import { parseSelectionActions } from '@renderer/utils/selectionAction'
 import { cn } from '@renderer/utils/style'
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 
@@ -44,6 +46,7 @@ const SelectionAssistantSettings: FC = () => {
   const [filterMode, setFilterMode] = usePreference('feature.selection.filter_mode')
   const [filterList, setFilterList] = usePreference('feature.selection.filter_list')
   const [actionItems, setActionItems] = usePreference('feature.selection.action_items')
+  const actions = useMemo(() => parseSelectionActions(actionItems ?? []), [actionItems])
 
   const isSupportedOS = isWin || isMac || isLinux
 
@@ -104,91 +107,98 @@ const SelectionAssistantSettings: FC = () => {
   return (
     <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
-        <SettingTitle>
-          <span className="text-[15px] font-semibold">{t('selection.name')}</span>
-          <div className="flex items-center">
-            <button
-              type="button"
-              className="cursor-pointer border-0 bg-transparent p-0 text-xs font-normal text-link hover:underline"
-              onClick={() => openExternalWebsite('https://github.com/CherryHQ/cherry-studio/issues/6505')}>
-              {'FAQ & ' + t('settings.about.feedback.button')}
-            </button>
-          </div>
-        </SettingTitle>
-        <SettingDivider />
-        <SettingRow id="setting-selection-assistant-enable-selection-assistant" className="scroll-mt-6">
-          <SettingLabel>
-            <SettingRowTitle>{t('selection.settings.enable.title')}</SettingRowTitle>
-            {!isSupportedOS && <SettingDescription>{t('selection.settings.enable.description')}</SettingDescription>}
-          </SettingLabel>
-          <Switch
-            checked={isSupportedOS && selectionEnabled}
-            onCheckedChange={handleEnableCheckboxChange}
-            disabled={!isSupportedOS}
-          />
-        </SettingRow>
-
-        {!selectionEnabled && (
-          <DemoContainer>
-            <SelectionToolbarView
-              actionItems={actionItems?.filter((item) => item.enabled)}
-              isCompact={isCompact}
-              handleAction={() => {}}
-              copyIconStatus="normal"
-              copyIconAnimation="none"
-            />
-          </DemoContainer>
-        )}
-
-        {selectionEnabled && showWaylandHint && linuxEnvInfo && (
+        <SettingsPageHeader
+          className="mb-0"
+          title={
+            <>
+              <span className="text-[15px] font-semibold">{t('selection.name')}</span>
+              <button
+                type="button"
+                className="cursor-pointer border-0 bg-transparent p-0 text-xs font-normal text-link hover:underline"
+                onClick={() => openExternalWebsite('https://github.com/CherryHQ/cherry-studio/issues/6505')}>
+                {'FAQ & ' + t('settings.about.feedback.button')}
+              </button>
+            </>
+          }
+          action={
+            <div
+              id="setting-selection-assistant-enable-selection-assistant"
+              className="flex scroll-mt-6 items-center gap-2">
+              <span className="text-xs font-normal text-muted-foreground">{t('selection.settings.enable.title')}</span>
+              <Switch
+                aria-label={t('selection.settings.enable.title')}
+                checked={isSupportedOS && selectionEnabled}
+                onCheckedChange={handleEnableCheckboxChange}
+                disabled={!isSupportedOS}
+              />
+            </div>
+          }
+        />
+        {(!selectionEnabled || !isSupportedOS || (showWaylandHint && linuxEnvInfo)) && (
           <>
             <SettingDivider />
-            <SettingLabel>
-              <SettingRowTitle>
-                <TriangleAlert size={14} style={{ marginRight: 4, color: 'var(--error)' }} />
-                {t('selection.settings.linux.wayland_title')}
-              </SettingRowTitle>
-              {linuxEnvInfo.isLinuxCompositorCompatible ? (
-                <>
-                  <SettingDescription>{t('selection.settings.linux.wayland_description')}</SettingDescription>
-                  <SettingDescription style={{ marginTop: 6 }}>
-                    {t('selection.settings.linux.wayland_checklist_subtitle')}
-                  </SettingDescription>
-                  <ChecklistItem style={{ marginTop: 6 }}>
-                    {linuxEnvInfo.isLinuxXWaylandMode ? (
-                      <CircleCheck size={13} style={{ color: 'var(--success)', marginRight: 6, flexShrink: 0 }} />
-                    ) : (
-                      <CircleX size={13} style={{ color: 'var(--error)', marginRight: 6, flexShrink: 0 }} />
-                    )}
-                    <span>
-                      {t('selection.settings.linux.xwayland_label')}
-                      {linuxEnvInfo.isLinuxXWaylandMode
-                        ? t('selection.settings.linux.xwayland_pass')
-                        : t('selection.settings.linux.xwayland_fail')}
-                    </span>
-                  </ChecklistItem>
-                  <ChecklistItem>
-                    {linuxEnvInfo.hasLinuxInputDeviceAccess ? (
-                      <CircleCheck size={13} style={{ color: 'var(--success)', marginRight: 6, flexShrink: 0 }} />
-                    ) : (
-                      <CircleX size={13} style={{ color: 'var(--error)', marginRight: 6, flexShrink: 0 }} />
-                    )}
-                    <span>
-                      {t('selection.settings.linux.input_group_label')}
-                      {linuxEnvInfo.hasLinuxInputDeviceAccess
-                        ? t('selection.settings.linux.input_group_pass')
-                        : t('selection.settings.linux.input_group_fail')}
-                    </span>
-                  </ChecklistItem>
-                </>
-              ) : (
-                <SettingDescription>{t('selection.settings.linux.compositor_incompatible')}</SettingDescription>
-              )}
-            </SettingLabel>
+            {!isSupportedOS && <SettingDescription>{t('selection.settings.enable.description')}</SettingDescription>}
+            {!selectionEnabled && (
+              <DemoContainer>
+                <SelectionToolbarView
+                  actionItems={actions.filter((item) => item.enabled)}
+                  isCompact={isCompact}
+                  handleAction={() => {}}
+                  copyIconStatus="normal"
+                  copyIconAnimation="none"
+                />
+              </DemoContainer>
+            )}
+
+            {selectionEnabled && showWaylandHint && linuxEnvInfo && (
+              <>
+                <SettingLabel>
+                  <SettingRowTitle>
+                    <TriangleAlert size={14} style={{ marginRight: 4, color: 'var(--error)' }} />
+                    {t('selection.settings.linux.wayland_title')}
+                  </SettingRowTitle>
+                  {linuxEnvInfo.isLinuxCompositorCompatible ? (
+                    <>
+                      <SettingDescription>{t('selection.settings.linux.wayland_description')}</SettingDescription>
+                      <SettingDescription style={{ marginTop: 6 }}>
+                        {t('selection.settings.linux.wayland_checklist_subtitle')}
+                      </SettingDescription>
+                      <ChecklistItem style={{ marginTop: 6 }}>
+                        {linuxEnvInfo.isLinuxXWaylandMode ? (
+                          <CircleCheck size={13} style={{ color: 'var(--success)', marginRight: 6, flexShrink: 0 }} />
+                        ) : (
+                          <CircleX size={13} style={{ color: 'var(--error)', marginRight: 6, flexShrink: 0 }} />
+                        )}
+                        <span>
+                          {t('selection.settings.linux.xwayland_label')}
+                          {linuxEnvInfo.isLinuxXWaylandMode
+                            ? t('selection.settings.linux.xwayland_pass')
+                            : t('selection.settings.linux.xwayland_fail')}
+                        </span>
+                      </ChecklistItem>
+                      <ChecklistItem>
+                        {linuxEnvInfo.hasLinuxInputDeviceAccess ? (
+                          <CircleCheck size={13} style={{ color: 'var(--success)', marginRight: 6, flexShrink: 0 }} />
+                        ) : (
+                          <CircleX size={13} style={{ color: 'var(--error)', marginRight: 6, flexShrink: 0 }} />
+                        )}
+                        <span>
+                          {t('selection.settings.linux.input_group_label')}
+                          {linuxEnvInfo.hasLinuxInputDeviceAccess
+                            ? t('selection.settings.linux.input_group_pass')
+                            : t('selection.settings.linux.input_group_fail')}
+                        </span>
+                      </ChecklistItem>
+                    </>
+                  ) : (
+                    <SettingDescription>{t('selection.settings.linux.compositor_incompatible')}</SettingDescription>
+                  )}
+                </SettingLabel>
+              </>
+            )}
           </>
         )}
       </SettingGroup>
-
       {selectionEnabled && !isCompositorIncompatible && (
         <>
           <SettingGroup theme={theme}>
@@ -196,14 +206,17 @@ const SelectionAssistantSettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingLabel>
-                <SettingRowTitle>
+                <SettingRowTitle className="flex items-center gap-1.5">
                   <div style={{ marginRight: '4px' }}>{t('selection.settings.toolbar.trigger_mode.title')}</div>
-                  {/* FIXME: 没有考虑Linux？ */}
-                  <Tooltip content={t(getSelectionDescriptionLabelKey(isWin ? 'windows' : isLinux ? 'linux' : 'mac'))}>
-                    <QuestionIcon size={14} />
-                  </Tooltip>
+                  <HelpTooltip
+                    content={
+                      <div className="space-y-2">
+                        <p>{t('selection.settings.toolbar.trigger_mode.description')}</p>
+                        <p>{t(getSelectionDescriptionLabelKey(isWin ? 'windows' : isLinux ? 'linux' : 'mac'))}</p>
+                      </div>
+                    }
+                  />
                 </SettingRowTitle>
-                <SettingDescription>{t('selection.settings.toolbar.trigger_mode.description')}</SettingDescription>
               </SettingLabel>
               <RadioGroup
                 value={triggerMode}
@@ -243,52 +256,63 @@ const SelectionAssistantSettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingLabel>
-                <SettingRowTitle>{t('selection.settings.toolbar.compact_mode.title')}</SettingRowTitle>
-                <SettingDescription>{t('selection.settings.toolbar.compact_mode.description')}</SettingDescription>
+                <SettingRowTitle className="flex items-center gap-1.5">
+                  {t('selection.settings.toolbar.compact_mode.title')}{' '}
+                  <HelpTooltip content={t('selection.settings.toolbar.compact_mode.description')} />
+                </SettingRowTitle>
               </SettingLabel>
               <Switch checked={isCompact} onCheckedChange={setIsCompact} />
             </SettingRow>
           </SettingGroup>
-
           <SettingGroup theme={theme}>
             <SettingTitle>{t('selection.settings.window.title')}</SettingTitle>
             <SettingDivider />
             <SettingRow>
               <SettingLabel>
-                <SettingRowTitle>{t('selection.settings.window.follow_toolbar.title')}</SettingRowTitle>
-                <SettingDescription>{t('selection.settings.window.follow_toolbar.description')}</SettingDescription>
+                <SettingRowTitle className="flex items-center gap-1.5">
+                  {t('selection.settings.window.follow_toolbar.title')}{' '}
+                  <HelpTooltip content={t('selection.settings.window.follow_toolbar.description')} />
+                </SettingRowTitle>
               </SettingLabel>
               <Switch checked={isFollowToolbar} onCheckedChange={setIsFollowToolbar} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
               <SettingLabel>
-                <SettingRowTitle>{t('selection.settings.window.remember_size.title')}</SettingRowTitle>
-                <SettingDescription>{t('selection.settings.window.remember_size.description')}</SettingDescription>
+                <SettingRowTitle className="flex items-center gap-1.5">
+                  {t('selection.settings.window.remember_size.title')}{' '}
+                  <HelpTooltip content={t('selection.settings.window.remember_size.description')} />
+                </SettingRowTitle>
               </SettingLabel>
               <Switch checked={isRemeberWinSize} onCheckedChange={setIsRemeberWinSize} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
               <SettingLabel>
-                <SettingRowTitle>{t('selection.settings.window.auto_close.title')}</SettingRowTitle>
-                <SettingDescription>{t('selection.settings.window.auto_close.description')}</SettingDescription>
+                <SettingRowTitle className="flex items-center gap-1.5">
+                  {t('selection.settings.window.auto_close.title')}{' '}
+                  <HelpTooltip content={t('selection.settings.window.auto_close.description')} />
+                </SettingRowTitle>
               </SettingLabel>
               <Switch checked={isAutoClose} onCheckedChange={setIsAutoClose} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
               <SettingLabel>
-                <SettingRowTitle>{t('selection.settings.window.auto_pin.title')}</SettingRowTitle>
-                <SettingDescription>{t('selection.settings.window.auto_pin.description')}</SettingDescription>
+                <SettingRowTitle className="flex items-center gap-1.5">
+                  {t('selection.settings.window.auto_pin.title')}{' '}
+                  <HelpTooltip content={t('selection.settings.window.auto_pin.description')} />
+                </SettingRowTitle>
               </SettingLabel>
               <Switch checked={isAutoPin} onCheckedChange={setIsAutoPin} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
               <SettingLabel>
-                <SettingRowTitle>{t('selection.settings.window.opacity.title')}</SettingRowTitle>
-                <SettingDescription>{t('selection.settings.window.opacity.description')}</SettingDescription>
+                <SettingRowTitle className="flex items-center gap-1.5">
+                  {t('selection.settings.window.opacity.title')}{' '}
+                  <HelpTooltip content={t('selection.settings.window.opacity.description')} />
+                </SettingRowTitle>
               </SettingLabel>
               <div style={{ marginRight: '16px' }}>{opacityValue}%</div>
               <Slider
@@ -301,9 +325,7 @@ const SelectionAssistantSettings: FC = () => {
               />
             </SettingRow>
           </SettingGroup>
-
-          <SelectionActionsList actionItems={actionItems} setActionItems={setActionItems} />
-
+          <SelectionActionsList actionItems={actions} setActionItems={setActionItems} />
           {/* Wayland sessions report no program name, so filter mode never applies there. */}
           {!isLinuxWaylandDisplay && (
             <SettingGroup theme={theme}>
@@ -311,8 +333,10 @@ const SelectionAssistantSettings: FC = () => {
               <SettingDivider />
               <SettingRow>
                 <SettingLabel>
-                  <SettingRowTitle>{t('selection.settings.advanced.filter_mode.title')}</SettingRowTitle>
-                  <SettingDescription>{t('selection.settings.advanced.filter_mode.description')}</SettingDescription>
+                  <SettingRowTitle className="flex items-center gap-1.5">
+                    {t('selection.settings.advanced.filter_mode.title')}{' '}
+                    <HelpTooltip content={t('selection.settings.advanced.filter_mode.description')} />
+                  </SettingRowTitle>
                 </SettingLabel>
                 <RadioGroup
                   value={filterMode ?? 'default'}
@@ -332,16 +356,15 @@ const SelectionAssistantSettings: FC = () => {
                   </label>
                 </RadioGroup>
               </SettingRow>
-
               {filterMode && filterMode !== 'default' && (
                 <>
                   <SettingDivider />
                   <SettingRow>
                     <SettingLabel>
-                      <SettingRowTitle>{t('selection.settings.advanced.filter_list.title')}</SettingRowTitle>
-                      <SettingDescription>
-                        {t('selection.settings.advanced.filter_list.description')}
-                      </SettingDescription>
+                      <SettingRowTitle className="flex items-center gap-1.5">
+                        {t('selection.settings.advanced.filter_list.title')}{' '}
+                        <HelpTooltip content={t('selection.settings.advanced.filter_list.description')} />
+                      </SettingRowTitle>
                     </SettingLabel>
                     <Button onClick={() => setIsFilterListModalOpen(true)}>
                       <Edit2 size={14} />
@@ -371,10 +394,7 @@ const Spacer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) 
 )
 const SettingLabel = Spacer
 const DemoContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-3.75 mb-1.25 flex items-center justify-center', className)} {...props} />
-)
-const QuestionIcon = ({ className, ...props }: React.ComponentProps<typeof CircleHelp>) => (
-  <CircleHelp className={cn('cursor-pointer text-muted-foreground', className)} {...props} />
+  <div className={cn('mt-8 mb-4 flex items-center justify-center', className)} {...props} />
 )
 const ChecklistItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('mb-0.5 flex items-center text-xs text-foreground-tertiary', className)} {...props} />

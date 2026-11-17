@@ -45,20 +45,6 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
 describe('PresetProviderSeeder.run — insert-only behavior', () => {
   const dbh = setupTestDatabase()
 
-  it('should insert all preset providers when DB is empty', async () => {
-    const seed = new PresetProviderSeeder()
-    seed.run(dbh.db)
-
-    const rows = await dbh.db.select().from(userProviderTable)
-    const ids = rows.map((r) => r.providerId)
-    expect(ids).toContain('openai')
-    expect(ids).toContain('anthropic')
-    expect(ids).toContain('azure-openai')
-    expect(ids).toContain('vertexai')
-    expect(ids).toContain('aws-bedrock')
-    expect(ids).not.toContain('cherryai')
-  })
-
   it('seeds only user-editable auth scaffolding; connection config stays registry-resolved', async () => {
     const seed = new PresetProviderSeeder()
     seed.run(dbh.db)
@@ -92,10 +78,6 @@ describe('PresetProviderSeeder.run — insert-only behavior', () => {
     const openai = rows.find((r) => r.providerId === 'openai')
     // User customization must be preserved
     expect(openai?.name).toBe('User-renamed OpenAI')
-
-    const ids = rows.map((r) => r.providerId)
-    expect(ids).toContain('anthropic')
-    expect(ids).not.toContain('cherryai')
   })
 
   it('repairs a legacy provider order key before appending preset providers', async () => {

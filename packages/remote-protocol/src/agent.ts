@@ -6,6 +6,8 @@ export {
   agentCursorSchema,
   sessionSchema,
   messageSchema,
+  messageSummarySchema,
+  messageListItemSchema,
   messageUsageSchema,
   modelSummarySchema,
   partSchema,
@@ -21,6 +23,8 @@ export type {
   AgentCursor,
   AgentSession,
   AgentMessage,
+  AgentMessageSummary,
+  AgentMessageListItem,
   AgentMessageUsage,
   AgentPart,
   AgentExecution,
@@ -30,6 +34,24 @@ export type {
 } from './agent/resources'
 export { agentMethods } from './agent/methods'
 export type { AgentMethod, AgentMutation, AgentParams, AgentResult } from './agent/methods'
+export {
+  taskMethods,
+  taskStatusSchema,
+  taskTriggerSchema,
+  taskSummarySchema,
+  taskDetailSchema,
+  taskRunSchema,
+  taskResultLocationSchema
+} from './agent/tasks'
+export type {
+  TaskMethod,
+  TaskStatus,
+  TaskTrigger,
+  TaskSummary,
+  TaskDetail,
+  TaskRun,
+  TaskResultLocation
+} from './agent/tasks'
 export { agentEventSchema, agentEventBatchSchema, agentNotificationSchema, agentProjectionSchema } from './agent/events'
 export type { AgentEvent, AgentEventBatch, AgentProjection } from './agent/events'
 export {

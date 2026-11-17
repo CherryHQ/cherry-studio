@@ -1,6 +1,7 @@
 import type { FC } from 'react'
 
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
+import { DictationShortcutHost } from '@renderer/components/DictationShortcutHost'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
@@ -9,6 +10,7 @@ import { VoicePlaybackHost } from '@renderer/components/VoicePlaybackHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
+import { useWebSearchFallbackNotice } from '@renderer/hooks/useWebSearchFallbackNotice'
 
 import ActionWindow from './ActionWindow'
 
@@ -18,6 +20,7 @@ import ActionWindow from './ActionWindow'
 function SelectionActionRuntime(): null {
   useLanguageSync()
   useCustomCss()
+  useWebSearchFallbackNotice()
   return null
 }
 
@@ -41,6 +44,7 @@ const SelectionActionApp: FC = () => {
           </ErrorBoundary>
           <PopupHost />
           <ToastHost />
+          <DictationShortcutHost />
           <VoicePlaybackHost />
         </CodeStyleProvider>
       </ThemeProvider>

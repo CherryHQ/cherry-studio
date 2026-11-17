@@ -29,6 +29,11 @@ export const webviewRequestSchemas = {
     input: z.object({ webviewId: z.number(), isEnable: z.boolean() }),
     output: z.void()
   }),
+  /** Host-side visibility; main freezes a guest that stays hidden. */
+  'webview.set_visible': defineRoute({
+    input: z.object({ webviewId: z.number(), visible: z.boolean() }),
+    output: z.void()
+  }),
   'webview.export_annotations': defineRoute({
     input: z
       .object({

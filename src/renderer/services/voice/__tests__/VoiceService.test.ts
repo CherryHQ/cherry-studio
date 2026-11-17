@@ -43,6 +43,7 @@ beforeEach(async () => {
   nextId = 0
   ownerWindow = Object.assign(new EventTarget(), { closed: false }) as Window
   on.mockImplementation((_event: string, listener: (event: any) => void) => {
+    if (_event !== 'ai.voice.session_event') return () => undefined
     voiceEvents.push(listener)
     return unsubscribe
   })
@@ -53,6 +54,17 @@ function emitVoiceEvent(event: any): void {
 }
 
 describe('VoiceService state ownership', () => {
+  it.each(['off', ' off '])('decodes %s as disabled without resolving Automatic or sending IPC', async (modelId) => {
+    const readTranscriptionPreferences = vi.fn(async () => ({ modelId, language: 'en-US' }))
+    const service = new VoiceService({ ipc: { request, on }, ownerWindow, readTranscriptionPreferences })
+    await expect(service.readTranscriptionPreferenceInput()).resolves.toBeNull()
+    await expect(service.resolveTranscriptionPreferences()).resolves.toBeNull()
+    readTranscriptionPreferences.mockClear()
+    await expect(service.resolveTranscriptionPreferences(null)).resolves.toBeNull()
+    expect(readTranscriptionPreferences).not.toHaveBeenCalled()
+    expect(request).not.toHaveBeenCalled()
+  })
+
   it('delivers an unexecuted playback command after a newer state snapshot and deduplicates commands separately', async () => {
     request.mockImplementation(async (route, input) => {
       if (route === 'ai.voice.session.state') return { phase: 'idle', revision: 0 }
@@ -60,7 +72,7 @@ describe('VoiceService state ownership', () => {
         return {
           sessionId: input.sessionId,
           requestId: input.requestId,
-          output: { id: ids[2], url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
+          output: { kind: 'audio', id: ids[2], url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
         }
       return undefined
     })
@@ -731,7 +743,12 @@ describe('VoiceService route facade', () => {
         return Promise.resolve({
           sessionId: input.sessionId,
           requestId: input.requestId,
-          output: { id: `output-${input.chunkIndex}`, url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
+          output: {
+            kind: 'audio',
+            id: `output-${input.chunkIndex}`,
+            url: 'cherry-media://audio/output',
+            mimeType: 'audio/wav'
+          }
         })
       }
       if (route === 'ai.voice.output.release') return new Promise<void>((resolve) => (releaseOutput = resolve))
@@ -828,7 +845,7 @@ describe('VoiceService route facade', () => {
         return {
           sessionId: input.sessionId,
           requestId: input.requestId,
-          output: { id: 'output-1', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
+          output: { kind: 'audio', id: 'output-1', url: 'cherry-media://audio/output', mimeType: 'audio/wav' }
         }
       }
       if (route === 'ai.voice.playback.report' || route === 'ai.voice.playback.control') {

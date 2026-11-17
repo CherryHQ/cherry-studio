@@ -17,11 +17,15 @@ import {
 import type { FrameIdentity, LogFrame } from '../protocol/frames'
 import { isChildFrame, matchesIdentity } from '../protocol/guards'
 import { toRemoteError } from '../protocol/remoteError'
+import { isStreamLimits } from '../streamFrame'
 import type {
   UtilityProcessContract,
   UtilityProcessDefinition,
   UtilityProcessRequestOptions,
-  UtilityProcessResetOptions
+  UtilityProcessResetOptions,
+  UtilityProcessStream,
+  UtilityProcessStreamOptions,
+  UtilityProcessStreams
 } from '../types'
 import {
   UtilityProcessError,
@@ -30,6 +34,7 @@ import {
 } from '../UtilityProcessError'
 import { createUtilityProcessEnvironment } from './environment'
 import type { ProcessAdapter, ProcessHandle } from './processAdapter'
+import { StreamRequest } from './StreamRequest'
 
 /** Consecutive infrastructure failures that open the circuit. */
 export const CIRCUIT_FAILURE_THRESHOLD = 3
@@ -119,6 +124,7 @@ interface Generation {
   readyTimer: NodeJS.Timeout | null
   killTimer: NodeJS.Timeout | null
   pending: Map<number, Pending>
+  streams: Map<number, StreamRequest>
   /** Cancelled request ids whose late frames are a normal race, not a violation. */
   tombstones: Set<number>
   nextRequestId: number
@@ -163,17 +169,88 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     options: UtilityProcessRequestOptions<Contract['methods'][M]['event']> = {}
   ): Promise<Contract['methods'][M]['output']> {
     const { signal, onEvent, onHostCall } = options
+    return this.whenReady(signal, (generation) => this.dispatch(generation, method, input, signal, onEvent, onHostCall))
+  }
+
+  async openStream<M extends keyof UtilityProcessStreams<Contract> & string>(
+    method: M,
+    input: UtilityProcessStreams<Contract>[M]['request'],
+    options: UtilityProcessStreamOptions
+  ): Promise<
+    UtilityProcessStream<
+      UtilityProcessStreams<Contract>[M]['input'],
+      UtilityProcessStreams<Contract>[M]['output'],
+      UtilityProcessStreams<Contract>[M]['result']
+    >
+  > {
+    if (!isStreamLimits(options.input) || !isStreamLimits(options.output)) throw new RangeError('Invalid stream limits')
+    const snapshot = { ...options, input: { ...options.input }, output: { ...options.output } }
+    return this.whenReady(options.signal, (generation) => {
+      const requestId = generation.nextRequestId++
+      const stream = new StreamRequest(
+        snapshot,
+        (frame) => {
+          try {
+            generation.handle.send({ ...this.identity(generation), ...frame, requestId })
+          } catch (error) {
+            this.violation(generation, `stream send failed: ${describe(error)}`)
+            throw error
+          }
+        },
+        () => {
+          if (generation.phase !== 'ready' || generation.settled) return
+          if (this.definition.cancellation === 'terminate') {
+            generation.intentionalExit = true
+            generation.phase = 'stopping'
+            generation.handle.kill()
+          } else {
+            try {
+              generation.handle.send({ ...this.identity(generation), kind: 'cancel', requestId })
+            } catch (error) {
+              this.violation(generation, `stream cancel failed: ${describe(error)}`)
+            }
+          }
+        }
+      )
+      this.clearIdleTimer()
+      generation.streams.set(requestId, stream)
+      try {
+        generation.handle.send({
+          ...this.identity(generation),
+          kind: 'stream-open',
+          requestId,
+          method,
+          input,
+          inputLimits: snapshot.input,
+          outputLimits: snapshot.output
+        })
+      } catch (cause) {
+        generation.streams.delete(requestId)
+        stream.fail(cause)
+        stream.close()
+        this.maybeArmIdle(generation)
+        throw this.error('PROCESS_SERIALIZATION_FAILED', `input for '${method}' is not structured-cloneable`, {
+          cause,
+          generation: generation.id
+        })
+      }
+      return stream
+    })
+  }
+
+  private async whenReady<T>(
+    signal: AbortSignal | undefined,
+    dispatch: (generation: Generation) => T
+  ): Promise<Awaited<T>> {
     for (;;) {
       if (signal?.aborted) throw signal.reason
-      if (this.disposed || this.blockedDepth > 0) {
+      if (this.disposed || this.blockedDepth > 0)
         throw this.error('PROCESS_BLOCKED', 'stopped for maintenance; retry once the operation completes')
-      }
-      if (this.failureCount >= CIRCUIT_FAILURE_THRESHOLD) {
+      if (this.failureCount >= CIRCUIT_FAILURE_THRESHOLD)
         throw this.error(
           'PROCESS_CIRCUIT_OPEN',
           `circuit open after ${this.failureCount} consecutive failures; reset with stop({ resetFailures: true })`
         )
-      }
       this.clearIdleTimer()
       const generation = this.live ?? this.spawnGeneration()
       if (generation.phase === 'stopping') {
@@ -182,8 +259,10 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
       }
       if (generation.phase === 'starting') await abortable(generation.ready.promise, signal)
       if (generation.settled) throw generation.settleError
+      if (signal?.aborted) throw signal.reason
+      if (this.disposed || this.blockedDepth > 0) continue
       if (generation.phase !== 'ready') continue
-      return this.dispatch(generation, method, input, signal, onEvent, onHostCall)
+      return await dispatch(generation)
     }
   }
 
@@ -297,6 +376,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
       readyTimer: null,
       killTimer: null,
       pending: new Map(),
+      streams: new Map(),
       tombstones: new Set(),
       nextRequestId: 1
     }
@@ -366,7 +446,55 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
       this.violation(generation, 'malformed or foreign frame')
       return
     }
+    if ('requestId' in data && data.requestId !== undefined) {
+      const stream = generation.streams.get(data.requestId)
+      if (stream && data.kind !== 'log') {
+        try {
+          switch (data.kind) {
+            case 'stream-data':
+            case 'stream-credit':
+            case 'stream-end':
+            case 'stream-end-ack':
+              stream.channel.receive(data)
+              return
+            case 'result':
+            case 'error':
+              stream.receiveTerminal(
+                data.kind === 'result'
+                  ? { value: data.output }
+                  : {
+                      error: this.error('PROCESS_REMOTE_ERROR', data.error.message, {
+                        generation: generation.id,
+                        remote: data.error
+                      })
+                    }
+              )
+              this.failureCount = 0
+              return
+            case 'stream-closed':
+              stream.acknowledge()
+              generation.streams.delete(data.requestId)
+              this.maybeArmIdle(generation)
+              return
+            case 'protocol-error':
+              break
+            default:
+              throw new Error(`Unexpected ${data.kind} for stream`)
+          }
+        } catch (error) {
+          this.violation(generation, describe(error))
+          return
+        }
+      }
+    }
     switch (data.kind) {
+      case 'stream-data':
+      case 'stream-credit':
+      case 'stream-end':
+      case 'stream-end-ack':
+      case 'stream-closed':
+        this.violation(generation, `stream frame for inactive request ${data.requestId}`)
+        return
       case 'ready': {
         // A ready that lands during an intentional stop is a race, not a violation; the exit settles it.
         if (generation.phase === 'stopping') return
@@ -524,6 +652,8 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
       exitCode: code,
       intentional: generation.intentionalExit
     })
+    for (const stream of generation.streams.values()) stream.close()
+    generation.streams.clear()
     generation.exit.resolve(code)
     this.cleanupIfQuiescent()
   }
@@ -546,6 +676,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
         error: pending.settleWith !== null ? pending.settleWith.reason : error
       })
     }
+    for (const stream of generation.streams.values()) stream.fail(error)
     generation.tombstones.clear()
     if (spec.countFailure) this.deps.logger.error(`[${this.tag(generation)}] ${spec.message}`, error)
     else this.deps.logger.debug(`[${this.tag(generation)}] ${spec.message}`)
@@ -659,6 +790,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
       pending.dropTerminals = true
       pending.hostCalls.abort(new Error('Utility process is stopping'))
     }
+    for (const stream of generation.streams.values()) stream.fail(new Error('Utility process is stopping'))
     if (graceful) {
       try {
         generation.handle.send({ ...this.identity(generation), kind: 'shutdown' })
@@ -696,6 +828,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
       generation.phase === 'ready' &&
       !generation.settled &&
       generation.pending.size === 0 &&
+      generation.streams.size === 0 &&
       this.stopPromise === null &&
       this.blockedDepth === 0 &&
       !this.disposed

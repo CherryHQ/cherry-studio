@@ -363,9 +363,8 @@ export const ModelscopeExtension = ProviderExtension.create({
 /**
  * DashScope (Bailian) Extension - OpenAI-compatible chat + embedding,
  * native DashScope async submit/poll image generation against
- * `/api/v1/services/aigc/*`. Image baseURL is derived per-call from the
- * user's chat baseURL by `buildDashScopeConfig`, so cn/intl/proxy hosts
- * track the user's provider config without hardcoded region URLs.
+ * `/api/v1/services/aigc/*`. Image requests use the transport's default
+ * mainland origin unless `imageBaseURL` is supplied.
  */
 export const DashScopeExtension = ProviderExtension.create({
   name: 'dashscope',
@@ -373,6 +372,17 @@ export const DashScopeExtension = ProviderExtension.create({
   supportsImageGeneration: true,
   create: async (settings) => (await import('./custom/dashscope/dashscopeProvider')).createDashScopeProvider(settings)
 } as const satisfies ProviderExtensionConfig<DashScopeProviderSettings, ProviderV3, 'dashscope'>)
+
+/**
+ * QwenCloud (international) Extension — same wire family as DashScope (AIGC
+ * image endpoints under the chat host), so it reuses the DashScope provider
+ * factory; the intl origin travels via the config builder's `imageBaseURL`.
+ */
+export const QwencloudExtension = ProviderExtension.create({
+  name: 'qwencloud',
+  supportsImageGeneration: true,
+  create: async (settings) => (await import('./custom/dashscope/dashscopeProvider')).createDashScopeProvider(settings)
+} as const satisfies ProviderExtensionConfig<DashScopeProviderSettings, ProviderV3, 'qwencloud'>)
 
 /**
  * TokenHub (Tencent) Extension - OpenAI-compatible chat + embedding, image via the
@@ -435,6 +445,7 @@ export const extensions = [
   OvmsExtension,
   ModelscopeExtension,
   DashScopeExtension,
+  QwencloudExtension,
   TokenhubExtension,
   VoyageExtension,
   TogetherAIExtension,

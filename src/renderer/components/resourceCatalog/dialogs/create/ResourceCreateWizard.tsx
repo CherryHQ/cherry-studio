@@ -2,10 +2,11 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } fro
 import { useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Dialog, DialogContent, DialogTitle, Form, MenuItem, Scrollbar } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogTitle, Form, MenuItem, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { type ModelSelectorFilter, useIsModelSelectable } from '@renderer/components/ModelSelector'
+import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useIsCherryCloudModelSelectable } from '@renderer/hooks/cherryCloud/useIsCherryCloudModelSelectable'
 import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
 import { useProviderById } from '@renderer/hooks/useProvider'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
@@ -34,6 +35,7 @@ type ResourceCreateWizardProps = {
   isSubmitting?: boolean
   /** Seeds the name field when the caller already knows it (e.g. the picker's search query). */
   initialName?: string
+  initialValues?: Partial<Pick<ResourceCreateWizardFormValues, 'name' | 'description' | 'avatar' | 'prompt'>>
 }
 
 type StepId = 'basic' | 'system-prompt' | 'knowledge' | 'capability'
@@ -43,17 +45,23 @@ export function getResourceCreateDefaultAvatar(kind: ResourceCreateWizardKind) {
   return kind === 'assistant' ? '💬' : '🤖'
 }
 
-function getDefaultValues(kind: ResourceCreateWizardKind, initialName = ''): ResourceCreateWizardFormValues {
+function getDefaultValues(
+  kind: ResourceCreateWizardKind,
+  initialName = '',
+  initialValues: ResourceCreateWizardProps['initialValues'] = {}
+): ResourceCreateWizardFormValues {
+  const agentType = kind === 'agent' ? 'pi-durable' : 'claude-code'
   return {
     avatar: getResourceCreateDefaultAvatar(kind),
     name: initialName,
     description: '',
-    agentType: 'claude-code',
-    permissionMode: AGENT_RUNTIME_CAPABILITIES['claude-code'].createDefaults.permissionMode,
+    agentType,
+    permissionMode: AGENT_RUNTIME_CAPABILITIES[agentType].createDefaults.permissionMode,
     modelId: null,
     prompt: '',
     knowledgeBaseIds: [],
-    skillIds: []
+    skillIds: [],
+    ...initialValues
   }
 }
 
@@ -66,6 +74,7 @@ function WizardFooter({
   stepIndex,
   isLast,
   isSubmitting,
+  imagePending,
   onCancel,
   onBack,
   onNext,
@@ -75,6 +84,7 @@ function WizardFooter({
   stepIndex: number
   isLast: boolean
   isSubmitting: boolean
+  imagePending: boolean
   onCancel: () => void
   onBack: () => void
   onNext: () => void
@@ -94,16 +104,16 @@ function WizardFooter({
         {t('common.cancel')}
       </Button>
       {stepIndex > 0 ? (
-        <Button type="button" variant="outline" disabled={submitting} onClick={onBack}>
+        <Button type="button" variant="outline" disabled={submitting || imagePending} onClick={onBack}>
           {t('library.config.dialogs.create.back')}
         </Button>
       ) : null}
       {isLast ? (
-        <Button type="button" loading={submitting} disabled={!basicValid} onClick={onCreate}>
+        <Button type="button" loading={submitting} disabled={!basicValid || imagePending} onClick={onCreate}>
           {t('library.config.dialogs.create.submit')}
         </Button>
       ) : (
-        <Button type="button" disabled={!canProceed} onClick={onNext}>
+        <Button type="button" disabled={!canProceed || submitting || imagePending} onClick={onNext}>
           {t('library.config.dialogs.create.next')}
         </Button>
       )}
@@ -131,14 +141,17 @@ export function ResourceCreateWizard({
   onSubmit,
   modelFilter,
   isSubmitting = false,
-  initialName
+  initialName,
+  initialValues
 }: ResourceCreateWizardProps) {
   const { t } = useTranslation()
-  const form = useForm<ResourceCreateWizardFormValues>({ defaultValues: getDefaultValues(kind, initialName) })
+  const form = useForm<ResourceCreateWizardFormValues>({
+    defaultValues: getDefaultValues(kind, initialName, initialValues)
+  })
   const agentType = form.watch('agentType')
   const agentModelFilter = useAgentModelFilter(kind === 'agent' ? agentType : undefined)
   const activeModelFilter = kind === 'agent' ? agentModelFilter : modelFilter
-  const isModelSelectable = useIsModelSelectable({ includeAgentOnlyModels: kind === 'agent', enabled: open })
+  const isModelSelectable = useIsCherryCloudModelSelectable({ includeAgentOnlyModels: kind === 'agent', enabled: open })
   const { models: availableModels } = useModels({ enabled: true }, { fetchEnabled: open })
   const { defaultModel } = useDefaultModel({ enabled: open })
   const { provider: defaultModelProvider } = useProviderById(open ? defaultModel?.providerId : undefined)
@@ -153,6 +166,8 @@ export function ResourceCreateWizard({
       : null
   const autoSelectedDefaultModelIdRef = useRef<UniqueModelId | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
+  const [imagePending, setImagePending] = useState(false)
+  const submitPendingRef = useRef(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [dialogKey, setDialogKey] = useState(0)
   const pendingCloseActionRef = useRef<(() => void) | null>(null)
@@ -185,15 +200,25 @@ export function ResourceCreateWizard({
   // user is already filling in — the shared wizard has five callers and a comment would not hold them.
   const resetForOpen = useEffectEvent(() => {
     autoSelectedDefaultModelIdRef.current = null
-    form.reset(getDefaultValues(kind, initialName))
+    form.reset(getDefaultValues(kind, initialName, initialValues))
     form.clearErrors()
     setStepIndex(0)
   })
 
+  /** Last `(kind, open)` pair this wizard already initialised for. <Activity> destroys the
+   * effects of a hidden tab and re-creates them when the tab is shown again, so a re-show
+   * with an unchanged pair must not be treated as a fresh open — that would wipe the draft
+   * (name / description / prompt) and jump back to step 1. */
+  const lastHandledResetKeyRef = useRef<{ kind: ResourceCreateWizardKind; open: boolean } | null>(null)
+
   useEffect(() => {
+    const previous = lastHandledResetKeyRef.current
+    if (previous?.kind === kind && previous.open === open) return
+
+    lastHandledResetKeyRef.current = { kind, open }
     if (!open) return
+
     resetForOpen()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest initialName; this effect is keyed by the open transition.
   }, [kind, open])
 
   // Preference/model/provider hydration may finish after the dialog opens. Seed only an
@@ -270,12 +295,13 @@ export function ResourceCreateWizard({
     return () => window.cancelAnimationFrame(frameId)
   }, [open, runPendingCloseAction])
 
-  const handleCreate = form.handleSubmit(async (values) => {
+  const submitForm = form.handleSubmit(async (values) => {
     if (!values.modelId) return
     form.clearErrors('root')
     try {
       await onSubmit({
         avatar: values.avatar,
+        ...(kind === 'agent' && values.avatarImage ? { avatarImage: values.avatarImage } : {}),
         agentType: values.agentType,
         permissionMode: values.permissionMode,
         name: values.name.trim(),
@@ -291,6 +317,15 @@ export function ResourceCreateWizard({
       form.setError('root', { message })
     }
   })
+  const handleCreate = async () => {
+    if (submitPendingRef.current || submitting || imagePending) return
+    submitPendingRef.current = true
+    try {
+      await submitForm()
+    } finally {
+      submitPendingRef.current = false
+    }
+  }
 
   const title = t(
     kind === 'assistant' ? 'library.config.dialogs.create.assistant_title' : 'library.config.dialogs.create.agent_title'
@@ -298,7 +333,10 @@ export function ResourceCreateWizard({
   const currentStep = steps[Math.min(stepIndex, steps.length - 1)]
 
   return (
-    <Dialog key={dialogKey} open={open} onOpenChange={(nextOpen) => !submitting && onOpenChange(nextOpen)}>
+    <Dialog
+      key={dialogKey}
+      open={open}
+      onOpenChange={(nextOpen) => !submitPendingRef.current && !submitting && onOpenChange(nextOpen)}>
       <DialogContent
         ref={setDialogContentElement}
         closeOnOverlayClick={!submitting}
@@ -338,7 +376,7 @@ export function ResourceCreateWizard({
                         }
                         label={step.label}
                         active={active}
-                        disabled={!done}
+                        disabled={!done || submitting || imagePending}
                         onClick={() => done && setStepIndex(index)}
                         aria-current={active ? 'step' : undefined}
                         className={cn(resourceDialogRailItemClassName, 'disabled:opacity-100')}
@@ -349,14 +387,19 @@ export function ResourceCreateWizard({
               </ol>
 
               {/* Active step */}
-              <Scrollbar className="min-w-0 flex-1 px-6 py-5">
+              <ScrollArea
+                contentProps={{ className: cn('px-6 py-5', currentStep.id === 'system-prompt' && 'h-full') }}
+                className="min-w-0 flex-1">
                 {currentStep.id === 'basic' ? (
                   <BasicInfoStep
+                    active={open}
+                    disabled={submitting}
+                    onImagePendingChange={setImagePending}
                     form={form}
                     portalContainer={dialogContentElement}
                     fallbackAvatar={getResourceCreateDefaultAvatar(kind)}
                     modelFilter={activeModelFilter}
-                    runtimeSelectable={kind === 'agent'}
+                    showAgentFields={kind === 'agent'}
                     onSettingsNavigate={closeBeforeAction}
                   />
                 ) : null}
@@ -369,7 +412,7 @@ export function ResourceCreateWizard({
                 {currentStep.id === 'capability' ? (
                   <CapabilityStep form={form} portalContainer={dialogContentElement} />
                 ) : null}
-              </Scrollbar>
+              </ScrollArea>
             </div>
 
             <WizardFooter
@@ -377,7 +420,8 @@ export function ResourceCreateWizard({
               stepIndex={stepIndex}
               isLast={isLast}
               isSubmitting={isSubmitting}
-              onCancel={() => onOpenChange(false)}
+              imagePending={imagePending}
+              onCancel={() => !submitPendingRef.current && !submitting && onOpenChange(false)}
               onBack={goBack}
               onNext={goNext}
               onCreate={() => void handleCreate()}

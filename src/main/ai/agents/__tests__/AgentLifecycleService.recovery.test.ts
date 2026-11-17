@@ -17,7 +17,7 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     PowerService: { preventSleep: () => ({ dispose() {} }) }
-  } as Parameters<typeof mockApplicationFactory>[0])
+  })
 })
 
 vi.mock('../runAgentTask', () => ({ runAgentTask: async () => ({}) }))

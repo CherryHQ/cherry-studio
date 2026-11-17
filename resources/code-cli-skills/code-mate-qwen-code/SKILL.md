@@ -1,6 +1,6 @@
 ---
 name: code-mate-qwen-code
-description: Runs Qwen Code headlessly for repository analysis and coding tasks. Use when the user asks to delegate work to Qwen Code or obtain a Qwen-based coding-agent result.
+description: Run Qwen Code non-interactively for coding tasks. Use when the user asks to delegate work to Qwen Code.
 ---
 
 # Qwen Code

@@ -92,6 +92,32 @@ describe('api gateway model listing', () => {
     })
   })
 
+  it.each([
+    'openai:gpt-4o [1M]',
+    'openai:gpt-4o [1m]',
+    'openai:gpt-4o[1M]',
+    'openai:gpt-4o ' // Claude Code strips the bracket token from a spaced marker but keeps the space
+  ])('resolves %j to the bare model id (Coding Partner 1M marker)', async (address) => {
+    const resolvedModel = { id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', capabilities: [] }
+    mocks.listModels.mockReturnValue([resolvedModel])
+
+    await expect(resolveGatewayModelAddress(address)).resolves.toMatchObject({
+      apiModelId: 'gpt-4o',
+      uniqueModelId: 'openai::gpt-4o'
+    })
+  })
+
+  it('prefers a model whose id itself carries the [1m] suffix', async () => {
+    mocks.listModels.mockReturnValue([
+      { id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', capabilities: [] },
+      { id: 'openai::gpt-4o[1m]', providerId: 'openai', apiModelId: 'gpt-4o[1m]', capabilities: [] }
+    ])
+
+    await expect(resolveGatewayModelAddress('openai:gpt-4o[1m]')).resolves.toMatchObject({
+      uniqueModelId: 'openai::gpt-4o[1m]'
+    })
+  })
+
   // The listing shares isPublicGatewayRoutableModel with the renderer's gateway picker: it must never
   // advertise a model the proxy cannot route (non-chat classes, un-addressable provider ids).
   it('does not expose non-chat (audio/video/transcription) models', async () => {
@@ -245,13 +271,16 @@ describe('api gateway model listing', () => {
       mocks.getProvider.mockReturnValue({ id: CHERRY_CLOUD_PROVIDER_ID, name: 'CherryAI', isEnabled: true })
     })
 
-    it('keeps listed Cherry Cloud models out of the public gateway', async () => {
+    it('lists and resolves Cherry Cloud models through the public gateway', async () => {
       const response = await getModels()
-      expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
+      expect(response.data.map((model) => model.id)).toEqual([
+        `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`,
+        'openai:gpt-4o'
+      ])
 
-      await expect(resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`)).rejects.toThrow(
-        'not available through the API gateway'
-      )
+      await expect(resolveGatewayModelAddress(`${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`)).resolves.toMatchObject({
+        model: cloudModel
+      })
     })
 
     it('serves Cherry Cloud models to internal requests', async () => {

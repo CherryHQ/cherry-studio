@@ -140,6 +140,14 @@ const externalEntry = {
   updatedAt: 1_719_216_000_000
 } as unknown as FileEntry
 
+const externalImageEntry = {
+  ...externalEntry,
+  id: 'file-external-image',
+  name: 'external-photo',
+  ext: 'png',
+  externalPath: '/tmp/external-photo.png'
+} as unknown as FileEntry
+
 function bulkEntry(origin: 'internal' | 'external', index: number): FileEntry {
   const base = {
     id: `bulk-${origin}-${index}`,
@@ -218,7 +226,7 @@ function renderFilesPage(entries: FileEntry[] = [entry]) {
 }
 
 function selectFileAt(index: number) {
-  fireEvent.click(screen.getAllByRole('checkbox', { name: 'files.select_file' })[index])
+  fireEvent.click(screen.getAllByRole('checkbox', { name: /files\.select_file(?:_with_path)?/ })[index])
 }
 
 function deferred<T>() {
@@ -366,14 +374,6 @@ describe('FilesPage keyboard rename', () => {
     })
   })
 
-  it('hides the contextual selection toolbar when nothing is selected', () => {
-    mockFileStats({ activeTotal: 0, trashTotal: 0, extCounts: [] })
-    mockFiles([])
-    render(<FilesPage />)
-
-    expect(screen.queryByRole('button', { name: 'files.actions' })).not.toBeInTheDocument()
-  })
-
   it('shows the unified empty state once the file list loads empty', () => {
     mockFileStats({ activeTotal: 0, trashTotal: 0, extCounts: [] })
     mockFiles([])
@@ -381,16 +381,6 @@ describe('FilesPage keyboard rename', () => {
 
     expect(screen.getByText('files.empty.title')).toBeInTheDocument()
     expect(screen.queryByText('files.empty.no_match_title')).toBeNull()
-  })
-
-  it('shows a single message when the current file filter has no matches', () => {
-    mockFiles([entry])
-    render(<FilesPage />)
-
-    fireEvent.click(screen.getByText('files.image'))
-
-    expect(screen.getByText('files.empty.no_match_title')).toBeInTheDocument()
-    expect(screen.queryByText('files.empty.no_match_description')).not.toBeInTheDocument()
   })
 
   it('shows loading feedback instead of an empty state while the file list is loading', () => {
@@ -506,7 +496,7 @@ describe('FilesPage keyboard rename', () => {
     ipcMocks.request.mockResolvedValue({})
     const view = render(<FilesPage />)
 
-    await waitFor(() => expect(ipcMocks.request).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(ipcMocks.request).toHaveBeenCalledTimes(3))
     ipcMocks.request.mockClear()
 
     fireEvent.click(screen.getByText('files.image'))
@@ -1049,6 +1039,60 @@ describe('FilesPage file operations', () => {
     })
   })
 
+  it('exposes distinct source paths for same-name files from different directories', async () => {
+    const first = {
+      ...entry,
+      id: 'file-migrated-a',
+      origin: 'internal',
+      name: 'migrated-note',
+      ext: 'md'
+    } as unknown as FileEntry
+    const second = {
+      id: 'file-migrated-b',
+      origin: 'external',
+      name: 'migrated-note',
+      ext: 'md',
+      size: null,
+      externalPath: '/Users/b/Downloads/migrated-note.md',
+      createdAt: 1_719_216_000_000,
+      updatedAt: 1_719_216_000_000
+    } as unknown as FileEntry
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') {
+        return Promise.resolve({
+          'file-migrated-a': '/Users/a/Documents/migrated-note.md'
+        })
+      }
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      return Promise.resolve(input)
+    })
+    renderFilesPage([first, second])
+
+    await waitFor(() => {
+      const names = screen.getAllByText('migrated-note.md')
+      expect(names).toHaveLength(2)
+      expect(names[0]).toHaveAttribute('title', '/Users/a/Documents/migrated-note.md')
+      expect(names[1]).toHaveAttribute('title', '/Users/b/Downloads/migrated-note.md')
+    })
+    expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_get_physical_paths', { ids: ['file-migrated-a'] })
+  })
+
+  it('renders external image thumbnails without hydrating their physical paths', async () => {
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata' || route === 'file.batch_get_dangling_states') {
+        return Promise.resolve({})
+      }
+      return Promise.resolve(input)
+    })
+    renderFilesPage([externalImageEntry])
+
+    fireEvent.click(screen.getByText('files.image'))
+
+    expect(await screen.findByAltText('external-photo.png')).toHaveAttribute('src', 'file:///tmp/external-photo.png')
+    expect(ipcMocks.request).not.toHaveBeenCalledWith('file.batch_get_physical_paths', expect.anything())
+  })
+
   it('embeds the file preview across the Files page after resolving the physical path', async () => {
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
@@ -1474,17 +1518,6 @@ describe('FilesPage file operations', () => {
 
     expect(checkboxes[0]).toBeChecked()
     expect(checkboxes[1]).not.toBeChecked()
-  })
-
-  it('shows contextual actions for a single selected file', () => {
-    renderFilesPage()
-
-    selectFileAt(0)
-
-    const actionsButton = screen.getByRole('button', { name: 'files.actions' })
-
-    expect(actionsButton).toBeInTheDocument()
-    expect(screen.getByText(/files.delete.label/)).toBeInTheDocument()
   })
 
   it('starts rename from the visible row action button', () => {
@@ -1955,7 +1988,7 @@ describe('FilesPage file operations', () => {
     expect(screen.queryByText('files.empty.no_match_title')).toBeNull()
   })
 
-  it('shows image files in the image grid without view switch or selection controls', async () => {
+  it('renames an image through its context menu', async () => {
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
       if (route === 'file.batch_get_physical_paths') return Promise.resolve({ [imageEntry.id]: '/tmp/photo.png' })
@@ -1966,12 +1999,7 @@ describe('FilesPage file operations', () => {
 
     fireEvent.click(screen.getByText('files.image'))
 
-    expect(screen.queryByLabelText('files.view_list')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('files.view_grid')).not.toBeInTheDocument()
     expect(await screen.findByAltText('photo.png')).toBeInTheDocument()
-    expect(screen.queryByLabelText('files.select_all_short')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('files.select_file')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('files.actions')).not.toBeInTheDocument()
 
     fireEvent.contextMenu(screen.getByAltText('photo.png'))
     fireEvent.click(screen.getByText('files.rename'))

@@ -3,6 +3,7 @@ import { Activity, useMemo } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionOverlay'
+import { AutoReadService } from '@renderer/services/voice/AutoReadService'
 import type { Topic } from '@renderer/types/topic'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -17,9 +18,14 @@ const mocks = vi.hoisted(() => ({
   overlayExecutions: [] as ActiveExecution[],
   liveMessageIds: [] as string[],
   liveAssistants: [] as CherryUIMessage[],
+  overlayOnUpdate: null as
+    | ((executionId: string, event: Pick<ExecutionFinishEvent, 'attemptId' | 'message'>) => void)
+    | null,
+  autoReadUpdate: vi.fn(),
   overlayOnFinish: null as ((executionId: string, event: ExecutionFinishEvent) => void) | null,
   sendTurn: vi.fn(),
   autoReadConsume: vi.fn(async () => ({ status: 'started' })),
+  scrollToBottomOnSend: true,
   autoReadEnabled: true
 }))
 
@@ -37,11 +43,18 @@ vi.mock('@data/hooks/useDataApi', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
-  usePreference: () => [mocks.autoReadEnabled, vi.fn()]
+  usePreference: (key: string) => {
+    const values: Record<string, boolean> = {
+      'feature.voice.auto_read.enabled': mocks.autoReadEnabled,
+      'chat.message.scroll_to_bottom_on_send': mocks.scrollToBottomOnSend
+    }
+    return [values[key], vi.fn()]
+  }
 }))
 
 vi.mock('@renderer/services/voice', () => ({
   autoReadService: {
+    update: mocks.autoReadUpdate,
     consume: mocks.autoReadConsume
   }
 }))
@@ -102,10 +115,13 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: (
     _topicId: string,
     executions: ActiveExecution[],
-    _messages: CherryUIMessage[],
-    options?: { onFinish?: (executionId: string, event: ExecutionFinishEvent) => void }
+    options?: {
+      onUpdate?: (executionId: string, event: Pick<ExecutionFinishEvent, 'attemptId' | 'message'>) => void
+      onFinish?: (executionId: string, event: ExecutionFinishEvent) => void
+    }
   ) => {
     mocks.overlayExecutions = executions
+    mocks.overlayOnUpdate = options?.onUpdate ?? null
     mocks.overlayOnFinish = options?.onFinish ?? null
     return {
       overlay: {},
@@ -116,7 +132,7 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useToolApprovalBridge', () => ({
+vi.mock('../hooks/useToolApprovalBridge', () => ({
   useToolApprovalBridge: () => vi.fn()
 }))
 
@@ -208,24 +224,81 @@ describe('useChatRuntimeState', () => {
     mocks.overlayOnFinish = null
     mocks.sendTurn.mockReset()
     mocks.sendTurn.mockResolvedValue(true)
+    mocks.autoReadUpdate.mockReset()
     mocks.autoReadConsume.mockClear()
     mocks.autoReadEnabled = true
+    mocks.scrollToBottomOnSend = true
     latestRuntime = null
   })
 
-  it('reports a blocked stream open as not sent', async () => {
-    mocks.sendTurn.mockResolvedValueOnce(false)
-    render(<RuntimeHost topicId="topic-1" />)
-
-    let sent: boolean | undefined
-    await act(async () => {
-      sent = await latestRuntime?.sendMessage('keep this draft')
+  it('reads eligible live text before completion through the incremental coordinator', async () => {
+    mocks.autoReadEnabled = true
+    const spoken: string[] = []
+    const coordinator = new AutoReadService({
+      supportsStreaming: async () => true,
+      playback: {
+        start: async (input) => {
+          spoken.push(input.text)
+          return { status: 'started' }
+        },
+        stopAutoRead: async () => true
+      }
     })
-
-    expect(sent).toBe(false)
+    mocks.autoReadUpdate.mockImplementation((input) => coordinator.update(input))
+    render(<RuntimeHost topicId="topic-1" activeNodeId="active-assistant" />)
+    await act(async () => {
+      mocks.overlayOnUpdate?.('provider::model', {
+        attemptId: 7,
+        message: {
+          id: 'active-assistant',
+          role: 'assistant',
+          parts: [
+            { type: 'reasoning', text: 'Private.' },
+            { type: 'text', text: 'Live answer. ' }
+          ]
+        }
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(spoken).toEqual(['Live answer.'])
+    coordinator.cancelScope('topic-1')
   })
 
-  it('returns the viewport to bottom-follow after opening a conversation turn', async () => {
+  it.each([true, false])('gates scrolling after a successful send with preference %s', async (enabled) => {
+    mocks.scrollToBottomOnSend = enabled
+    mocks.autoReadEnabled = !enabled
+    const requestAnimationFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0)
+      return 1
+    })
+    let finishSend!: (sent: boolean) => void
+    mocks.sendTurn.mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        finishSend = resolve
+      })
+    )
+    const scrollToBottom = vi.fn()
+    render(<RuntimeHost topicId="topic-1" />)
+    latestRuntime?.bindMessageListRuntime({
+      copyTopicImage: vi.fn(),
+      exportTopicImage: vi.fn(),
+      locateMessage: vi.fn(),
+      scrollToBottom
+    })
+
+    const pending = latestRuntime!.sendMessage('follow this response')
+    expect(scrollToBottom).not.toHaveBeenCalled()
+    await act(async () => {
+      finishSend(true)
+      expect(await pending).toBe(true)
+    })
+    expect(scrollToBottom).toHaveBeenCalledTimes(enabled ? 1 : 0)
+    requestAnimationFrame.mockRestore()
+  })
+
+  it.each([true, false])('does not scroll for an unsuccessful or throwing send with preference %s', async (enabled) => {
+    mocks.scrollToBottomOnSend = enabled
     const requestAnimationFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0)
       return 1
@@ -238,22 +311,44 @@ describe('useChatRuntimeState', () => {
       locateMessage: vi.fn(),
       scrollToBottom
     })
-
+    mocks.sendTurn.mockResolvedValueOnce(false)
     await act(async () => {
-      await latestRuntime?.sendMessage('follow this response')
+      expect(await latestRuntime!.sendMessage('keep this draft')).toBe(false)
     })
-
-    expect(scrollToBottom).toHaveBeenCalledOnce()
+    const error = new Error('send failed')
+    mocks.sendTurn.mockRejectedValueOnce(error)
+    await act(async () => {
+      await expect(latestRuntime!.sendMessage('keep this draft')).rejects.toThrow(error)
+    })
+    expect(scrollToBottom).not.toHaveBeenCalled()
     requestAnimationFrame.mockRestore()
   })
 
-  it('keeps sendMessage stable across runtime rerenders', () => {
+  it('uses the updated scroll preference on the next send', async () => {
+    mocks.scrollToBottomOnSend = false
+    const requestAnimationFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0)
+      return 1
+    })
+    const scrollToBottom = vi.fn()
     const view = render(<RuntimeHost topicId="topic-1" />)
-    const sendMessage = latestRuntime?.sendMessage
-
+    latestRuntime?.bindMessageListRuntime({
+      copyTopicImage: vi.fn(),
+      exportTopicImage: vi.fn(),
+      locateMessage: vi.fn(),
+      scrollToBottom
+    })
+    await act(async () => {
+      expect(await latestRuntime!.sendMessage('first')).toBe(true)
+    })
+    expect(scrollToBottom).not.toHaveBeenCalled()
+    mocks.scrollToBottomOnSend = true
     view.rerender(<RuntimeHost topicId="topic-1" />)
-
-    expect(latestRuntime?.sendMessage).toBe(sendMessage)
+    await act(async () => {
+      expect(await latestRuntime!.sendMessage('second')).toBe(true)
+    })
+    expect(scrollToBottom).toHaveBeenCalledOnce()
+    requestAnimationFrame.mockRestore()
   })
 
   it('does not infer auto-read from hydrated or rerendered message history', () => {
@@ -304,7 +399,6 @@ describe('useChatRuntimeState', () => {
       })
     })
 
-    expect(mocks.seedMessagesCache).toHaveBeenCalledWith([reservedMessage], { preserveActiveNode: true })
     expect(mocks.onBranchLiveStateChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ activeNodeId: 'selected-branch' })
     )

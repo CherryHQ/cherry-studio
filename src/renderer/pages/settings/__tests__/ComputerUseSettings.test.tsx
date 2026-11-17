@@ -11,6 +11,12 @@ import { ComputerUseSettings } from '../ComputerUseSettings'
 
 vi.unmock('@cherrystudio/ui')
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
+const platform = vi.hoisted(() => ({ current: 'linux' }))
+vi.mock('@renderer/utils/platform', () => ({
+  get isLinux() {
+    return platform.current === 'linux'
+  }
+}))
 
 function showSettings() {
   return render(
@@ -22,21 +28,21 @@ function showSettings() {
 
 beforeEach(async () => {
   vi.clearAllMocks()
+  platform.current = 'linux'
   MockUsePreferenceUtils.resetMocks()
+  MockUsePreferenceUtils.setPreferenceValue('app.computer_use.approved_apps', [])
+  MockUsePreferenceUtils.setPreferenceValue('app.computer_use.agent_control.enabled', true)
   await i18n.changeLanguage('en-us')
 })
 afterEach(cleanup)
 
 describe('Computer Use permission settings', () => {
-  it('requires an explicit desktop-control grant independently of OS permission status', async () => {
+  it('defaults to enabled and lets the user explicitly disable desktop control', async () => {
     const user = userEvent.setup()
     vi.mocked(ipcApi.request).mockResolvedValue({ permissions: [] })
     showSettings()
     const toggle = screen.getByRole('switch', { name: 'Allow agents to control desktop applications' })
-    expect(toggle).not.toBeChecked()
-    await user.click(toggle)
     expect(toggle).toBeChecked()
-    expect(MockUsePreferenceUtils.getPreferenceValue('app.computer_use.agent_control.enabled')).toBe(true)
     expect(
       vi.mocked(ipcApi.request).mock.calls.every(([route]) => route === 'computer_use.get_permission_status')
     ).toBe(true)
@@ -45,6 +51,50 @@ describe('Computer Use permission settings', () => {
     expect(toggle).not.toBeChecked()
     expect(MockUsePreferenceUtils.getPreferenceValue('app.computer_use.agent_control.enabled')).toBe(false)
   })
+  it('shows global input only while desktop control is on and persists the user choice', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ipcApi.request).mockResolvedValue({ permissions: [] })
+    MockUsePreferenceUtils.setPreferenceValue('app.computer_use.agent_control.enabled', false)
+    showSettings()
+    expect(screen.queryByRole('switch', { name: 'Global input' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('switch', { name: 'Allow agents to control desktop applications' }))
+    const globalInput = await screen.findByRole('switch', { name: 'Global input' })
+    expect(globalInput).not.toBeChecked()
+    await user.click(globalInput)
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.computer_use.agent_control.global_input')).toBe(true)
+    )
+  })
+  it.each(['win32', 'darwin'])('hides the Linux global input setting on %s', (current) => {
+    platform.current = current
+    vi.mocked(ipcApi.request).mockResolvedValue({ permissions: [] })
+    showSettings()
+    expect(screen.getByRole('switch', { name: 'Allow agents to control desktop applications' })).toBeChecked()
+    expect(screen.queryByRole('switch', { name: 'Global input' })).not.toBeInTheDocument()
+  })
+  it('revokes only the selected saved app through the main-process authority', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.computer_use.approved_apps', [
+      'com.example.editor',
+      'com.example.mail'
+    ])
+    vi.mocked(ipcApi.request).mockImplementation(async (route, input) => {
+      if (route === 'computer_use.revoke_approval') {
+        const { identity } = input as { identity: string }
+        const current = MockUsePreferenceUtils.getPreferenceValue('app.computer_use.approved_apps') as string[]
+        MockUsePreferenceUtils.setPreferenceValue(
+          'app.computer_use.approved_apps',
+          current.filter((app) => app !== identity)
+        )
+        return undefined
+      }
+      return { permissions: [] }
+    })
+    showSettings()
+    await userEvent.click(screen.getAllByRole('button', { name: 'Delete' })[0])
+    await waitFor(() => expect(screen.queryByText('com.example.editor')).not.toBeInTheDocument())
+    expect(screen.getByText('com.example.mail')).toBeVisible()
+  })
+
   it('requests only on a click, keeps an unconfirmed result, and refreshes after returning from settings', async () => {
     const user = userEvent.setup()
     let granted = false
@@ -72,12 +122,12 @@ describe('Computer Use permission settings', () => {
     expect(screen.queryByRole('button', { name: 'Manage Accessibility permission' })).not.toBeInTheDocument()
   })
 
-  it('shows a query failure and allows an explicit refresh to recover', async () => {
+  it('shows a query failure and allows an explicit permission recheck to recover', async () => {
     const user = userEvent.setup()
     vi.mocked(ipcApi.request).mockRejectedValueOnce(new Error('runtime missing')).mockResolvedValue({ permissions: [] })
     showSettings()
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not check or request helper permissions')
-    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+    await user.click(screen.getByRole('button', { name: 'Recheck permissions' }))
     expect(await screen.findByText(/This runtime has no system permission request flow/)).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.queryByText('Granted')).not.toBeInTheDocument()
@@ -97,7 +147,7 @@ describe('Computer Use permission settings', () => {
     await user.click(await screen.findByRole('button', { name: 'Manage Screen Recording permission' }))
     expect(await screen.findByRole('alert')).toBeInTheDocument()
     fireEvent.focus(window)
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Refresh' })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Recheck permissions' })).toBeEnabled())
     expect(
       vi.mocked(ipcApi.request).mock.calls.filter(([route]) => route === 'computer_use.request_permissions')
     ).toHaveLength(1)

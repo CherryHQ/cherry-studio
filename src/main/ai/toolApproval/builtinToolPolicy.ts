@@ -1,3 +1,5 @@
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
+
 import {
   BUILTIN_TOOL_POLICY_ENTRIES,
   type BuiltinToolApproval,
@@ -5,6 +7,7 @@ import {
   type BuiltinToolPolicyEntry,
   MOUNTED_TOOL_POLICY_PROVIDERS
 } from './builtinToolPolicyRegistry'
+import type { ToolGuardInteractionState } from './toolGuards'
 
 export type {
   BuiltinToolApproval,
@@ -12,6 +15,15 @@ export type {
   BuiltinToolPolicyEntry
 } from './builtinToolPolicyRegistry'
 export { CHERRY_MCP_SERVER } from './builtinToolPolicyRegistry'
+
+/** Auto-approval never authorizes another unattended delegation hop. */
+export function resolveDelegationApproval(
+  mode: AgentPermissionMode | undefined,
+  interaction: ToolGuardInteractionState
+): 'allow' | 'ask' | 'deny' {
+  if (interaction.currentTurn === 'headless' || interaction.userResponse === 'unavailable') return 'deny'
+  return mode === 'auto' || mode === 'bypassPermissions' ? 'allow' : 'ask'
+}
 
 const BUILTIN_TOOL_POLICY_BY_RUNTIME_NAME = new Map(
   BUILTIN_TOOL_POLICY_ENTRIES.map((entry) => [toMcpRuntimeName(entry), entry])

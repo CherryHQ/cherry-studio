@@ -1,13 +1,31 @@
-import { SdkError, SdkErrorCode, SdkHttpError } from '@modelcontextprotocol/client'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+
+import { SdkError, SdkErrorCode, SdkHttpError, UnauthorizedError } from '@modelcontextprotocol/client'
 import { createMcpHandler, Server } from '@modelcontextprotocol/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { fetchMock } = vi.hoisted(() => ({ fetchMock: vi.fn() }))
-vi.mock('electron', () => ({ net: { fetch: fetchMock } }))
+vi.mock('electron', () => ({
+  app: {
+    getLocale: () => 'en-US',
+    getPreferredSystemLanguages: () => ['en-US']
+  },
+  net: { fetch: fetchMock },
+  safeStorage: {
+    isEncryptionAvailable: () => true,
+    encryptString: (value: string) => Buffer.from(value),
+    decryptString: (value: Buffer) => value.toString()
+  }
+}))
 
+import { application } from '@application'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 import { McpAuthorizationCompleted, McpOAuthCoordinator } from '../../oauth/McpOAuthCoordinator'
+import { McpOAuthClientProvider } from '../../oauth/provider'
+import { oauthServerUrlHash } from '../../oauth/storage'
 import { createExternalMcpConnection, externalMcpConnectionInternals } from '../ExternalMcpConnection'
 import { fetchMcpHandler } from './fetchMcpHandler'
 
@@ -98,6 +116,214 @@ describe('ExternalMcpConnection transport fallback policy', () => {
     ).toBe(false)
     expect(externalMcpConnectionInternals.isTransportFallbackError(new Error('network unavailable'))).toBe(false)
   })
+
+  it('keeps OAuth enabled only for the built-in QVeris server when an API-key Bearer header is configured', () => {
+    const qveris: McpServer = {
+      id: 'qveris-builtin',
+      name: '@cherry/qveris',
+      installSource: 'builtin',
+      headers: { Authorization: 'Bearer fixture' },
+      isActive: true
+    }
+    expect(externalMcpConnectionInternals.prefersOAuth(qveris)).toBe(true)
+    expect(externalMcpConnectionInternals.prefersOAuth({ ...qveris, headers: {} })).toBe(true)
+    expect(externalMcpConnectionInternals.prefersOAuth({ ...qveris, installSource: 'manual' })).toBe(false)
+    expect(externalMcpConnectionInternals.prefersOAuth({ ...qveris, name: 'manual-server' })).toBe(false)
+  })
+
+  it('prefers OAuth tokens over QVeris API key fallback and never leaks the API key to OAuth endpoints', async () => {
+    const oauthDir = await fs.mkdtemp(path.join(os.tmpdir(), 'qveris-oauth-test-'))
+    const getPathSpy = vi
+      .spyOn(application, 'getPath')
+      .mockImplementation((key: string, filename?: string) =>
+        key === 'feature.mcp.oauth'
+          ? path.resolve(oauthDir, filename ?? '')
+          : path.resolve('/mock', key, filename ?? '')
+      )
+    const qverisUrl = 'https://mcp.qveris.ai/mcp'
+    const authIssuer = 'https://auth.qveris.ai'
+    const qverisServer: McpServer = {
+      id: 'qveris-1',
+      name: '@cherry/qveris',
+      installSource: 'builtin',
+      type: 'streamableHttp',
+      baseUrl: qverisUrl,
+      headers: { APP: 'Cherry Studio', Authorization: 'Bearer fallback-api-key' },
+      isActive: true
+    }
+
+    const handler = createLegacyHandler()
+    try {
+      const mcpAuthHeaders: Array<string | null> = []
+      const oauthAuthHeaders: Array<{ url: string; authorization: string | null }> = []
+
+      // 1. No cached OAuth token + server rejects fallback API key with 401 -> OAuth discovery runs
+      //    without leaking `Authorization: Bearer fallback-api-key` to discovery/registration/token endpoints.
+      const seedProvider = new McpOAuthClientProvider({
+        serverUrlHash: oauthServerUrlHash(qverisUrl),
+        configDir: oauthDir
+      })
+      await seedProvider.saveClientInformation(
+        { client_id: 'public-client', issuer: authIssuer },
+        { issuer: authIssuer }
+      )
+      await seedProvider.saveTokens(
+        {
+          access_token: 'expired-oauth-token',
+          refresh_token: 'refresh-1',
+          token_type: 'Bearer',
+          issuer: authIssuer
+        },
+        { issuer: authIssuer }
+      )
+
+      fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init)
+        const url = request.url
+        const authHeader = request.headers.get('authorization')
+
+        if (url === qverisUrl) {
+          mcpAuthHeaders.push(authHeader)
+          if (authHeader !== 'Bearer fresh-oauth-token') {
+            return new Response(null, {
+              status: 401,
+              headers: {
+                'WWW-Authenticate':
+                  'Bearer resource_metadata="https://mcp.qveris.ai/.well-known/oauth-protected-resource/mcp"'
+              }
+            })
+          }
+          return fetchMcpHandler(handler, input, init)
+        }
+
+        oauthAuthHeaders.push({ url, authorization: authHeader })
+        if (url === 'https://mcp.qveris.ai/.well-known/oauth-protected-resource/mcp') {
+          return Response.json({ resource: qverisUrl, authorization_servers: [authIssuer] })
+        }
+        if (url === `${authIssuer}/.well-known/oauth-authorization-server`) {
+          return Response.json({
+            issuer: authIssuer,
+            authorization_endpoint: `${authIssuer}/oauth/authorize`,
+            token_endpoint: `${authIssuer}/oauth/token`,
+            registration_endpoint: `${authIssuer}/oauth/register`,
+            response_types_supported: ['code'],
+            grant_types_supported: ['authorization_code', 'refresh_token'],
+            token_endpoint_auth_methods_supported: ['none'],
+            code_challenge_methods_supported: ['S256']
+          })
+        }
+        if (url === `${authIssuer}/oauth/token`) {
+          // Real QVeris AS rejects `/oauth/token` with 401 invalid_client if any Bearer header is present.
+          if (authHeader) {
+            return Response.json(
+              { error: 'invalid_client', error_description: 'HTTP Basic client authentication is required' },
+              { status: 401 }
+            )
+          }
+          return Response.json({
+            access_token: 'fresh-oauth-token',
+            refresh_token: 'refresh-2',
+            token_type: 'Bearer'
+          })
+        }
+        throw new Error(`Unexpected request: ${url}`)
+      })
+
+      const refreshedConnection = await createExternalMcpConnection({
+        server: qverisServer,
+        appVersion: '0.0.0-test',
+        events,
+        log: createLog(),
+        allowInteractiveAuthorization: false,
+        connectTimeoutMs: 5_000
+      })
+      try {
+        expect((await refreshedConnection.listTools()).map((tool) => tool.name)).toContain('mx_quote')
+        // Cached OAuth token took priority over `fallback-api-key`, then refreshed cleanly to `fresh-oauth-token`.
+        expect(mcpAuthHeaders[0]).toBe('Bearer expired-oauth-token')
+        expect(mcpAuthHeaders).toContain('Bearer fresh-oauth-token')
+        expect(mcpAuthHeaders).not.toContain('Bearer fallback-api-key')
+        expect(oauthAuthHeaders.length).toBeGreaterThan(0)
+        expect(oauthAuthHeaders.every((entry) => entry.authorization === null)).toBe(true)
+      } finally {
+        await refreshedConnection.close()
+      }
+
+      // 2. When no OAuth session exists yet, QVeris falls back to `QVERIS_API_KEY` on the MCP endpoint;
+      //    if that key is rejected with 401 in background mode, OAuth discovery still stays clean and yields UnauthorizedError.
+      await seedProvider.invalidateCredentials('all')
+      mcpAuthHeaders.length = 0
+      oauthAuthHeaders.length = 0
+
+      fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init)
+        const url = request.url
+        const authHeader = request.headers.get('authorization')
+
+        if (url === qverisUrl) {
+          mcpAuthHeaders.push(authHeader)
+          if (authHeader === 'Bearer valid-fallback-key') {
+            return fetchMcpHandler(handler, input, init)
+          }
+          return new Response(null, {
+            status: 401,
+            headers: {
+              'WWW-Authenticate':
+                'Bearer resource_metadata="https://mcp.qveris.ai/.well-known/oauth-protected-resource/mcp"'
+            }
+          })
+        }
+
+        oauthAuthHeaders.push({ url, authorization: authHeader })
+        if (url === 'https://mcp.qveris.ai/.well-known/oauth-protected-resource/mcp') {
+          return Response.json({ resource: qverisUrl, authorization_servers: [authIssuer] })
+        }
+        if (url === `${authIssuer}/.well-known/oauth-authorization-server`) {
+          return Response.json({
+            issuer: authIssuer,
+            authorization_endpoint: `${authIssuer}/oauth/authorize`,
+            token_endpoint: `${authIssuer}/oauth/token`,
+            registration_endpoint: `${authIssuer}/oauth/register`,
+            response_types_supported: ['code'],
+            grant_types_supported: ['authorization_code', 'refresh_token'],
+            token_endpoint_auth_methods_supported: ['none'],
+            code_challenge_methods_supported: ['S256']
+          })
+        }
+        if (url === `${authIssuer}/oauth/register`) {
+          return Response.json({ ...seedProvider.clientMetadata, client_id: 'registered-client' })
+        }
+        throw new Error(`Unexpected request: ${url}`)
+      })
+
+      await expect(
+        createExternalMcpConnection({
+          server: qverisServer,
+          appVersion: '0.0.0-test',
+          events,
+          log: createLog(),
+          allowInteractiveAuthorization: false,
+          connectTimeoutMs: 5_000
+        })
+      ).rejects.toSatisfy((err) => UnauthorizedError.isInstance(err))
+      expect(mcpAuthHeaders[0]).toBe('Bearer fallback-api-key')
+      expect(oauthAuthHeaders.every((entry) => entry.authorization === null)).toBe(true)
+
+      const fallbackConnection = await createExternalMcpConnection({
+        server: { ...qverisServer, headers: { APP: 'Cherry Studio', Authorization: 'Bearer valid-fallback-key' } },
+        appVersion: '0.0.0-test',
+        events,
+        log: createLog(),
+        allowInteractiveAuthorization: false,
+        connectTimeoutMs: 5_000
+      })
+      await fallbackConnection.close()
+    } finally {
+      getPathSpy.mockRestore()
+      await handler.close()
+      await fs.rm(oauthDir, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('ExternalMcpConnection legacy probe rejection', () => {
@@ -134,8 +360,9 @@ describe('ExternalMcpConnection legacy probe rejection', () => {
     }
   })
 
-  it('preserves the original probe error for an HTML server failure', async () => {
+  it('connects as legacy when server/discover returns an HTML 5xx body', async () => {
     const handler = createLegacyHandler()
+    const log = createLog()
     fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(input, init)
       if (request.method === 'POST' && (await request.clone().json()).method === 'server/discover') {
@@ -144,18 +371,56 @@ describe('ExternalMcpConnection legacy probe rejection', () => {
       return fetchMcpHandler(handler, input, init)
     })
     try {
-      const error = await createExternalMcpConnection({
+      const connection = await createExternalMcpConnection({
         server,
         appVersion: '0.0.0-test',
         events,
-        log: createLog(),
+        log,
         connectTimeoutMs: 5_000
-      }).then(
-        () => null,
-        (rejection: unknown) => rejection
-      )
-      expect(SdkHttpError.isInstance(error)).toBe(true)
-      expect(error).toMatchObject({ code: SdkErrorCode.EraNegotiationFailed, status: 500 })
+      })
+      try {
+        expect(connection.era).toBe('legacy')
+        expect((await connection.listTools()).map((tool) => tool.name)).toContain('mx_quote')
+        expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('legacy'), expect.anything())
+      } finally {
+        await connection.close()
+      }
+    } finally {
+      await handler.close()
+    }
+  })
+
+  it('connects as legacy when server/discover returns a bare empty 5xx body', async () => {
+    const handler = createLegacyHandler()
+    const log = createLog()
+    let rejectedProbes = 0
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      if (request.method === 'POST' && (await request.clone().json()).method === 'server/discover') {
+        rejectedProbes++
+        return new Response(null, {
+          status: 500,
+          headers: { 'content-type': 'application/json;charset=utf-8' }
+        })
+      }
+      return fetchMcpHandler(handler, input, init)
+    })
+    try {
+      const connection = await createExternalMcpConnection({
+        server,
+        appVersion: '0.0.0-test',
+        events,
+        log,
+        connectTimeoutMs: 5_000
+      })
+      try {
+        expect(connection.era).toBe('legacy')
+        expect((await connection.listTools()).map((tool) => tool.name)).toContain('mx_quote')
+        expect(rejectedProbes).toBeGreaterThan(0)
+        expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('legacy'), expect.anything())
+      } finally {
+        await connection.close()
+      }
     } finally {
       await handler.close()
     }
@@ -273,6 +538,16 @@ describe('ExternalMcpConnection legacy probe rejection', () => {
     ['invalid JSON', SdkErrorCode.EraNegotiationFailed, 500, 'not JSON'],
     ['non-integer error code', SdkErrorCode.EraNegotiationFailed, 500, '{"error":{"code":-32603.5,"message":"bad"}}'],
     ['missing error message', SdkErrorCode.EraNegotiationFailed, 500, '{"error":{"code":-32603}}'],
+    ['undefined text', SdkErrorCode.EraNegotiationFailed, 500, undefined]
+  ])('recognizes a bare probe 5xx for %s', (_name, code, status, text) => {
+    expect(
+      externalMcpConnectionInternals.isLegacyProbeRejection(
+        new SdkHttpError(code, 'Probe failed', { status, statusText: '', text })
+      )
+    ).toBe(true)
+  })
+
+  it.each([
     ['HTTP 404', SdkErrorCode.EraNegotiationFailed, 404, probeRejectionBody],
     ['HTTP 401', SdkErrorCode.ClientHttpAuthentication, 401, probeRejectionBody],
     ['HTTP 403', SdkErrorCode.ClientHttpForbidden, 403, probeRejectionBody],

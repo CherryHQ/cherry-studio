@@ -21,10 +21,11 @@ protocols:
       - cherrystudio
 files:
   - "**/*"
-  - "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**"
+  - "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**" # ClaudeCodeBinaryService downloads the native runtime on demand
   - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
   - "!electron.vite.config.{js,ts,mjs,cjs}}"
   - "!electron-builder.cn.config.cjs"
+  - "!release-bundle.json"
   - "!electron.vite.entries.config.ts"
   - "!.*"
   - "!components.json"
@@ -39,7 +40,6 @@ files:
   - "!**/node_modules/**/*.cpp"
   - "!**/node_modules/node-addon-api/**"
   - "!**/node_modules/prebuild-install/**"
-  - "!**/node_modules/@cherrystudio/computer-use-{darwin,win32,linux}-*/**"
   - "!scripts"
   - "!local"
   - "!docs"
@@ -62,29 +62,22 @@ files:
   - "!**/amd/**"
   - "!**/{.DS_Store,Thumbs.db,thumbs.db,__pycache__}"
   - "!**/{LICENSE,license,LICENSE.*,*.LICENSE.txt,NOTICE.txt,README.md,readme.md,CHANGELOG.md}"
-  - "!node_modules/rollup-plugin-visualizer"
-  - "!node_modules/js-tiktoken"
-  - "!node_modules/@tavily/core/node_modules/js-tiktoken"
-  - "!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}"
   - "!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}"
-  - "!**/node_modules/better-sqlite3/{bin,deps,src}/**"
-  - "!**/node_modules/better-sqlite3/build/{Debug,Release/obj}/**"
+  - "!**/node_modules/better-sqlite3/{bin,build,deps,src}/**"
   - "!**/node_modules/{selection-hook,@earendil-works/pi-coding-agent}/docs/**"
   # node-gyp-build prefers build/Release over prebuilds/, so ship the prebuilds and drop the
   # host-arch rebuild — a cross-built arm64 package would otherwise load the x86-64 binary (#20530).
   - "!node_modules/selection-hook/build/**"
   - "!node_modules/selection-hook/node_modules" # we don't need what in the node_modules dir
   - "!node_modules/selection-hook/src" # we don't need source files
-  - "!**/node_modules/node-pty/build/**" # ship upstream prebuilds; the rebuilt binary needs GLIBC_2.34 and is never cross-compiled
   - "!node_modules/tesseract.js-core/{tesseract-core.js,tesseract-core.wasm,tesseract-core.wasm.js}" # we don't need source files
   - "!node_modules/tesseract.js-core/{tesseract-core-lstm.js,tesseract-core-lstm.wasm,tesseract-core-lstm.wasm.js}" # we don't need source files
-  - "!node_modules/tesseract.js-core/{tesseract-core-simd-lstm.js,tesseract-core-simd-lstm.wasm,tesseract-core-simd-lstm.wasm.js}" # we don't need source files
+  - "!node_modules/tesseract.js-core/{tesseract-core-simd.js,tesseract-core-simd.wasm,tesseract-core-simd.wasm.js}" # tesseract.js loads tesseract-core-simd-lstm (default LSTM_ONLY OEM on SIMD)
+  - "!**/node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm.js"
   - "!node_modules/onnxruntime-web/**" # transformers.js's browser/WASM backend; local inference always runs onnxruntime-node instead
   - "!node_modules/@huggingface/transformers/node_modules/onnxruntime-web/**" # same package, nested copy
   - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
   - "!node_modules/sherpa-onnx-{darwin,linux,win}-*/**" # binaries are downloaded on first use; only the JS wrapper ships
-  - "!node_modules/@cherrystudio/system-speech/{native,windows,src,tests,scripts}/**"
-  - "!node_modules/@cherrystudio/system-speech/dist/native/**" # target helper is copied once through platform packaging
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
   - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
   - "!resources/devtools/**" # dev-only extensions are loaded from source in development
@@ -97,9 +90,6 @@ asarUnpack:
   - "node_modules/@img/colour/**"
   - "node_modules/detect-libc/**"
   - "node_modules/semver/**"
-  - "node_modules/node-pty/**"
-  - "node_modules/koffi/**"
-  - "node_modules/@koromix/koffi-*/**"
   - "node_modules/yaml/**"
   - "node_modules/@silvia-odwyer/photon-node/**" # pi SDK WASM dep: photon_rs.js does fs.readFileSync(__dirname/photon_rs_bg.wasm)
   - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
@@ -114,6 +104,10 @@ extraResources:
     to: "migrations/sqlite-drizzle"
   - from: "packages/provider-registry/data"
     to: "provider-registry"
+  - from: "node_modules/pdfjs-dist/cmaps"
+    to: "pdfjs/cmaps"
+  - from: "node_modules/pdfjs-dist/standard_fonts"
+    to: "pdfjs/standard_fonts"
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
@@ -126,6 +120,7 @@ win:
     - target: portable
   signtoolOptions:
     sign: scripts/packaging/win-sign.js
+    signingHashAlgorithms: [sha256]
   signExts:
     - .node
   verifyUpdateCodeSignature: false
@@ -148,7 +143,7 @@ portable:
   unpackDirName: true
 mac:
   extraFiles:
-    - from: packages/system-speech/dist/native/darwin-${arch}/cherry-system-speech
+    - from: native/system-speech/dist/native/darwin-${arch}/cherry-system-speech
       to: Helpers/cherry-system-speech
   entitlementsInherit: build/entitlements.mac.plist
   sign: scripts/packaging/mac-sign.js
@@ -160,11 +155,32 @@ mac:
     NSSpeechRecognitionUsageDescription: Cherry Studio transcribes voice recordings on this device.
     NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+    NSCalendarsUsageDescription: Cherry Studio allows local MCP servers to read and manage your calendar events.
+    NSCalendarsFullAccessUsageDescription: Cherry Studio allows local MCP servers to read and manage your calendar events.
+    NSCalendarsWriteOnlyAccessUsageDescription: Cherry Studio allows local MCP servers to create calendar events.
+    NSRemindersUsageDescription: Cherry Studio allows local MCP servers to read and manage your reminders.
+    NSRemindersFullAccessUsageDescription: Cherry Studio allows local MCP servers to read and manage your reminders.
+    NSAppleEventsUsageDescription: Cherry Studio allows local MCP servers to control other applications using AppleScript.
   target:
     - target: dmg
     - target: zip
 dmg:
+  format: ULFO
   writeUpdateInfo: false
+  # PNGs are rendered from build/dmg-background.svg; Finder's title bar hides the bottom 32px.
+  background: build/dmg-background.png
+  window:
+    width: 600
+    height: 380
+  iconSize: 128
+  contents:
+    - x: 150
+      y: 154
+      type: file
+    - x: 450
+      y: 154
+      type: link
+      path: /Applications
 toolsets:
   appimage: "1.0.3"
 linux:
@@ -199,23 +215,70 @@ artifactBuildCompleted: scripts/packaging/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.1.6 - Bug Fixes and Provider Updates
+    Cherry Studio 2.2.2 - Agent Approvals, Provider Fixes, and Polish
+
+    ✨ New Features
+    - [Computer Use] Computer Use is now on by default and asks before accessing each app. Choose Always, Approve for session, or Reject, and manage saved approvals in Settings. Bypass mode skips these prompts without saving permissions. (action required: turn it off in Settings if you do not want it.)
+    - [Skills] Added an "Export skills to external agents" switch in Settings → Skills. It is off by default for new installations, so the shared skills directory is no longer created without an explicit opt-in; installations that already exported keep it on, and turning it off removes only the links Cherry Studio created.
+    - [Agent] Agents on DeepSeek models now show a short intent line above each tool call. Agent sessions keep tool steps expanded by default and fold repeated calls of the same kind.
+    - [App] Added Polish language support.
+
+    💄 Improvements
+    - [MCP] QVeris now supports OAuth browser sign-in as its primary credential, with QVERIS_API_KEY as an optional fallback, so it can be enabled without an API key.
+    - [Files] File sizes use one consistent format across the app.
+    - [Agent] Polished session details typography, icon alignment, spacing, and the no-workspace placeholder.
 
     🐛 Bug Fixes
-    - [Search] Fix searches for programming languages with hash symbols (e.g., C#, F#) not matching messages.
-    - [Backup] Fix restore failing on Windows when browser storage is locked by the current session. Restore progress now stays monotonic, failed attempts are reported with retry guidance, and orphaned restore files are cleaned up.
-    - [Errors] Stop misreporting client-refusal errors as "invalid API key" — now shows the correct permission guidance instead of sending users to regenerate working keys.
-    - [Chat] Context-usage token counts now follow the selected interface language and update when it changes.
+    - [Models] CherryIN Claude Sonnet 4.5 tool requests no longer fail with a Bedrock parameter validation error.
+    - [Models] Claude Opus 5.5 requests on AWS Bedrock now use adaptive reasoning.
+    - [Models] SiliconFlow uses manual API key entry; the obsolete OAuth login was removed (action required if you signed in with OAuth).
+    - [Chat] "Input exceeds the context limit" errors are now recognized as context-length rejections, so the existing recovery guidance appears.
+    - [Chat] Local Markdown file links now open from chat surfaces that do not provide an artifact preview.
+    - [Chat] Fixed the first composer toolbar activation being lost while loading, and internal tab navigation no longer blocks interaction.
+    - [Agent] Fixed the missing AskUserQuestion card when a streamed approval request arrives before its tool source.
+    - [Agent] Fixed the Skip button getting stuck on the final AskUserQuestion when all questions are skipped.
+    - [Agent] Expanding a Pi Durable read tool call no longer shows blank file details.
+    - [Agent] Pi Durable agents now automatically load workspace instruction files such as AGENTS.md.
+    - [Agent] Ordinary MCP tools are discoverable through tool search in the Pi Durable runtime instead of returning "No matching tools found."
+    - [Agent] Agent tool guidance now treats deferred tools as available through discovery and uses the exact tool names from the session, so agents stop reporting available tools as missing.
+    - [Agent] When reasoning exhausts the response budget, you now get accurate output-token-limit guidance, and DeepSeek V4.1 Flash capacity resolves correctly for versioned model IDs.
+    - [API Gateway] Claude Code MCP ToolSearch results are no longer dropped for third-party models.
+    - [Code] Code Mate's Unified Gateway model picker now lists Cherry Cloud models that are available only to agents.
+    - [Doctor] Doctor no longer reports a missing API key or an unavailable model list for CherryAI and Cherry Cloud; for Cherry Cloud it now tells you when you need to sign in.
+    - [UI] Website favicons stay visible in dark mode with a soft light-gray backplate while keeping their original colors.
+    - [Updater] Release notes in the update dialog now follow the app's resolved language, including when the app follows the system language.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.1.6 - 问题修复与供应商更新
+    Cherry Studio 2.2.2 - 智能体审批、服务商修复与波兰语支持
+
+    ✨ 新功能
+    - [电脑操作] 电脑操作现在默认开启，并在访问每个应用前请求批准。可选择「始终允许」「本次会话允许」或「拒绝」，并可在设置中管理已保存的批准。绕过模式会跳过这些提示且不保存权限。（需要操作：如不希望启用，请在设置中关闭。）
+    - [技能] 在「设置 → 技能」新增「导出技能给外部 Agent」开关。新安装默认关闭，不再未经同意就创建共享技能目录；此前已经导出的安装升级后保持开启，关闭后只会移除 Cherry Studio 创建的链接。
+    - [智能体] 使用 DeepSeek 模型的智能体现在会在每次工具调用上方显示一句简短意图。智能体会话默认展开工具步骤，并折叠同类的重复调用。
+    - [应用] 新增波兰语支持。
+
+    💄 改进
+    - [MCP] QVeris 现在支持通过浏览器 OAuth 登录作为主要凭证，QVERIS_API_KEY 为可选备用方式，因此无需配置 API Key 也能启用。
+    - [文件] 全应用统一文件大小的显示格式。
+    - [智能体] 优化会话详情的字体排版、图标对齐、间距以及无工作区占位状态的显示。
 
     🐛 问题修复
-    - [搜索] 修复搜索包含井号的编程语言（如 C#、F#）时无法匹配消息的问题。
-    - [备份] 修复 Windows 上浏览器存储被当前会话锁定导致恢复失败的问题。恢复进度现在保持单调，失败的恢复会显示重试指引，孤立的恢复文件会被清理。
-    - [错误] 修复客户端拒绝被错误报告为"API 密钥无效"的问题 — 现在显示正确的权限指引，而不是引导用户重新生成有效的密钥。
-    - [对话] 上下文使用量的 token 计数现在跟随所选界面语言，并在切换语言时更新。
-
-    💡 提示
-    - 腾讯 TI 和混元供应商已随腾讯平台下线而停用。请配置 TokenHub 或其他可用供应商以继续使用；现有本地数据已保留。
+    - [模型] CherryIN Claude Sonnet 4.5 的工具请求不再因 Bedrock 参数校验错误而失败。
+    - [模型] AWS Bedrock 上的 Claude Opus 5.5 请求现在使用自适应推理。
+    - [模型] SiliconFlow 改为手动填写 API Key，移除了已失效的 OAuth 登录（此前使用 OAuth 登录的用户需要操作）。
+    - [对话] 「输入超出上下文限制」错误现在会被识别为上下文长度问题，并显示原有的恢复建议。
+    - [对话] 在未提供工件预览的对话界面中，本地 Markdown 文件链接现在可以正常打开。
+    - [对话] 修复加载期间首次输入框工具栏操作丢失的问题；站内标签页切换后不再阻塞交互。
+    - [智能体] 修复流式批准请求先于工具来源到达时 AskUserQuestion 卡片缺失的问题。
+    - [智能体] 修复全部问题都跳过时，最后一个 AskUserQuestion 的「跳过」按钮卡住的问题。
+    - [智能体] Pi Durable 展开读取工具调用时不再显示空白文件详情。
+    - [智能体] Pi Durable 智能体现在会自动加载 AGENTS.md 等工作区指令文件。
+    - [智能体] Pi Durable 运行时中的普通 MCP 工具现在可通过工具搜索发现，而不再返回「未找到匹配的工具」。
+    - [智能体] 智能体工具指引现在会把延迟加载的工具视为可通过发现获取，并使用会话中真实的工具名称，避免把可用工具误报为缺失。
+    - [智能体] 当推理耗尽响应预算时会显示准确的最大输出 token 提示，并修正带版本号模型 ID 的 DeepSeek V4.1 Flash 容量查询。
+    - [API 网关] 使用第三方模型时，Claude Code 的 MCP ToolSearch 结果不再丢失。
+    - [代码] Code Mate 的统一网关模型选择器现在会列出仅对智能体开放的 Cherry Cloud 模型。
+    - [诊断] 诊断工具不再为 CherryAI 和 Cherry Cloud 误报缺少 API Key 或模型列表不可用；Cherry Cloud 未登录时会提示登录。
+    - [界面] 深色模式下网站图标通过柔和的浅灰底板保持清晰，同时保留原始颜色。
+    - [更新] 更新对话框中的版本说明现在会使用应用实际生效的语言，包括跟随系统语言的情况。
     <!--LANG:END-->

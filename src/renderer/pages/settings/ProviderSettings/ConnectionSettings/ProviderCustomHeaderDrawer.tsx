@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid'
 import {
   Badge,
   Button,
+  HelpTooltip,
   InputGroup,
   InputGroupInput,
   Label,
@@ -530,6 +531,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                 <Label className="text-[13px] text-foreground" htmlFor={inputId}>
                   {label}
                 </Label>
+                {isDefault && <HelpTooltip content={t('settings.provider.api_host_drawer_hint')} />}
                 {isDefault ? (
                   <Badge
                     variant="secondary"
@@ -607,11 +609,6 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                   </Select>
                 </div>
               )}
-              {isDefault && (
-                <p className="text-xs leading-relaxed wrap-break-word text-muted-foreground">
-                  {t('settings.provider.api_host_drawer_hint')}
-                </p>
-              )}
             </div>
           )
         })}
@@ -650,6 +647,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
         <div className="space-y-2.5">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
             <span className="text-xs text-muted-foreground">{t('settings.provider.copilot.custom_headers')}</span>
+            {headersUiMode === 'json' && <HelpTooltip content={t('settings.provider.copilot.headers_description')} />}
             <Tooltip content={toggleLabel}>
               <button
                 type="button"
@@ -739,9 +737,6 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                 placeholder={t('settings.provider.copilot.headers_json_placeholder')}
                 className={customHeaderDrawerClasses.headersJsonEditor}
               />
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                {t('settings.provider.copilot.headers_description')}
-              </p>
             </div>
           )}
         </div>

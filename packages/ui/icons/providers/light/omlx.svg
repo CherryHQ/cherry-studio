@@ -1,4 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="140" height="140" viewBox="10 10 140 140">
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="none">
+<rect width="120" height="120" fill="#2d2d2d"/>
+<g transform="translate(0 0) scale(0.85714286) translate(-10.0000 -10.0000)">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#2d2d2d"/>
@@ -28,4 +30,5 @@ l32 -7 -86 -54 c-110 -69 -170 -117 -267 -212 -93 -91 -143 -154 -191 -243
 111 -13 0 -41 -9 -63 -19z"/>
     </g>
   </g>
+</g>
 </svg>

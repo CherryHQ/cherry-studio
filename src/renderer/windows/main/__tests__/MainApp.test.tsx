@@ -41,6 +41,8 @@ vi.mock('../hooks/useTopicNamingErrorNotification', () => ({ useTopicNamingError
 vi.mock('../hooks/useAppUpdateHandler', () => ({ useAppUpdateHandler: () => {} }))
 vi.mock('@renderer/components/PopupHost', () => ({ PopupHost: () => null }))
 vi.mock('@renderer/components/ToastHost', () => ({ default: () => null }))
+// Recovery has its own integration tests; this shell harness intentionally omits its providers.
+vi.mock('@renderer/windows/WindowFileEditRecovery', () => ({ WindowFileEditRecovery: () => null }))
 vi.mock('@renderer/components/ThemeProvider', () => ({
   ThemeProvider: () => {
     throw new Error('theme provider boom')
@@ -105,16 +107,6 @@ describe('MainWindowContent', () => {
     render(<MainWindowContent />)
 
     expect(tabsProviderMock.lastInitialDefaultTab).toMatchObject({ url: '/app/agents' })
-  })
-
-  it('falls back to launchpad when no sidebar app is visible', () => {
-    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'completed')
-    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar_shortcut', [])
-    MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_provider', 'zhipu')
-
-    render(<MainWindowContent />)
-
-    expect(tabsProviderMock.lastInitialDefaultTab).toMatchObject({ url: '/app/launchpad' })
   })
 })
 

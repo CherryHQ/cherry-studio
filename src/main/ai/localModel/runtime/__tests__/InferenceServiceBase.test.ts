@@ -41,8 +41,10 @@ import {
   flushMicrotasks,
   waitUntil
 } from '@main/core/utilityProcess/__tests__/memoryProcessAdapter'
+import { defineUtilityProcess } from '@main/core/utilityProcess/defineUtilityProcess'
 import { SERVICE_NAME_PREFIX } from '@main/core/utilityProcess/protocol/constants'
 import type { UtilityProcessHandlers } from '@main/core/utilityProcess/runtime/serveUtilityProcess'
+import type { UtilityProcessStreamMethod, UtilityProcessStreamFrame } from '@main/core/utilityProcess/types'
 import { UtilityProcessManager } from '@main/core/utilityProcess/UtilityProcessManager'
 import type { LocalModelBundleId } from '@shared/data/presets/localModel'
 
@@ -135,6 +137,90 @@ afterEach(() => {
 describe('InferenceServiceBase lifecycle', () => {
   it('declares UtilityProcessManager as a dependency so onInit registers against an initialized manager', () => {
     expect(getDependencies(TestInferenceService)).toContain('UtilityProcessManager')
+  })
+})
+
+describe('InferenceServiceBase stream ownership', () => {
+  it('holds the queue through cancellation cleanup and never starts an aborted queued stream', async () => {
+    type StreamingContract = EchoContract & {
+      streams: { audio: UtilityProcessStreamMethod<void, never, UtilityProcessStreamFrame, void> }
+    }
+    const streamDefinition = defineUtilityProcess<StreamingContract>({
+      id: 'test.streaming',
+      entry: 'test-stream',
+      cancellation: 'cooperative'
+    })
+    const cleanup = Promise.withResolvers<void>()
+    const entered = Promise.withResolvers<void>()
+    let streams = 0
+    let ordinaryRequests = 0
+    const adapter = createMemoryProcessAdapter((child) => {
+      const { options } = echoServeOptions((error) => child.triggerFatal(error), { id: streamDefinition.id })
+      child.serve<StreamingContract>({
+        ...options,
+        handlers: {
+          ...options.handlers,
+          ping: () => {
+            ordinaryRequests++
+            return 'pong'
+          }
+        },
+        streams: {
+          audio: async (_, { signal }) => {
+            streams++
+            entered.resolve()
+            await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve(), { once: true }))
+            await cleanup.promise
+          }
+        }
+      })
+    })
+    const manager = new UtilityProcessManager({
+      adapter,
+      logger: createRecordingLogger(),
+      resolveEntry: () => '/out/test.js',
+      getTempDir: () => '/tmp/cherry-test'
+    })
+    await manager._doInit()
+    utilityProcessManager.current = manager
+    class StreamingService extends InferenceServiceBase<StreamingContract> {
+      constructor() {
+        super(streamDefinition, 'embedding')
+      }
+      stream(signal?: AbortSignal) {
+        const limits = { maxFrameBytes: 128, maxBufferedBytes: 256, maxBufferedFrames: 2, maxPendingWrites: 1 }
+        return this.openStream('qwen3-embedding-0.6b', 'audio', () => undefined, {
+          signal,
+          input: limits,
+          output: limits
+        })
+      }
+      ping() {
+        return this.run('qwen3-embedding-0.6b', 'ping', () => undefined)
+      }
+    }
+    const service = new StreamingService()
+    await service._doInit()
+    try {
+      const first = await service.stream()
+      await entered.promise
+      const controller = new AbortController()
+      const queued = service.stream(controller.signal)
+      const ordinary = service.ping()
+      controller.abort(new Error('cancel queued'))
+      await expect(queued).rejects.toThrow('cancel queued')
+      const cancelled = first.cancel()
+      await expect(first.completed).rejects.toThrow()
+      await flushMicrotasks()
+      expect(ordinaryRequests).toBe(0)
+      cleanup.resolve()
+      await cancelled
+      await expect(ordinary).resolves.toBe('pong')
+      expect(streams).toBe(1)
+    } finally {
+      cleanup.resolve()
+      await manager._doStop()
+    }
   })
 })
 

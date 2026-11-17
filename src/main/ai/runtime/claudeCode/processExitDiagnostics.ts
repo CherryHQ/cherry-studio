@@ -78,3 +78,16 @@ export function createClaudeCodeProcessExitError(
     ...(diagnostics.exitSignal ? { processExitSignal: diagnostics.exitSignal } : {})
   })
 }
+
+/** Preserve interrupted output only when native abortion or a truncated JSON frame proves the boundary. */
+export function canSalvageClaudeOutput(error: unknown, bufferedChars: number, aborted: boolean): boolean {
+  if (aborted) return true
+  const value = error as { name?: string; message?: string } | null
+  return (
+    bufferedChars >= 512 &&
+    value?.name?.toLowerCase() === 'syntaxerror' &&
+    /unexpected end of (?:json input|input|string)|unexpected eof|end of file|unterminated string/i.test(
+      value.message ?? ''
+    )
+  )
+}

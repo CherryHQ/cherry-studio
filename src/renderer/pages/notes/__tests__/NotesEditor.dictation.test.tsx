@@ -13,7 +13,7 @@ import type { CapturedVoiceTarget } from '@renderer/services/voice'
 
 vi.unmock('@cherrystudio/ui')
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light', activeShikiTheme: 'one-light' }),
+  useCodeStyle: () => ({ activeCmTheme: 'light', activeCodeTheme: 'one-light' }),
   useCmTheme: () => 'light'
 }))
 
@@ -57,6 +57,7 @@ describe('Notes dictation integration', () => {
     vi.restoreAllMocks()
     vi.spyOn(dictationService, 'startScoped').mockReturnValue({
       result: Promise.resolve(),
+      stop: async () => undefined,
       cancel: async () => undefined
     })
     MockUsePreferenceUtils.resetMocks()
@@ -73,11 +74,21 @@ describe('Notes dictation integration', () => {
     codeEditorRef.current = null
   })
 
+  it('hides dictation while Off and restores it on On without changing the draft', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', 'off')
+    const view = render(<Note />)
+    expect(screen.queryByRole('button', { name: 'Dictate locally' })).toBeNull()
+    expect(screen.getByLabelText('saved draft')).toHaveTextContent('alpha beta')
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', '')
+    view.rerender(<Note />)
+    expect(await screen.findByRole('button', { name: 'Dictate locally' })).toBeInTheDocument()
+  })
+
   it('starts from the microphone and replaces the live rich-text selection in the saved draft', async () => {
     let binding: CapturedVoiceTarget | null = null
     vi.spyOn(dictationService, 'startScoped').mockImplementation(() => {
       binding = voiceTargetManager.captureCurrent()
-      return { result: Promise.resolve(), cancel: async () => undefined }
+      return { result: Promise.resolve(), stop: async () => undefined, cancel: async () => undefined }
     })
     const user = userEvent.setup()
     render(<Note />)
@@ -105,7 +116,7 @@ describe('Notes dictation integration', () => {
     let binding: CapturedVoiceTarget | null = null
     vi.spyOn(dictationService, 'startScoped').mockImplementation(() => {
       binding = voiceTargetManager.captureCurrent()
-      return { result: Promise.resolve(), cancel: async () => undefined }
+      return { result: Promise.resolve(), stop: async () => undefined, cancel: async () => undefined }
     })
     const user = userEvent.setup()
     render(<Note initialContent="" />)

@@ -74,6 +74,94 @@ and Agent catalog entries. A message records its producing model; the catalog re
 configuration (`null` for unconfigured, omitted for older hosts). Neither carries provider secrets
 or requires the receiving device to have the model installed.
 
+### Pairing addresses
+
+`pairingQrSchema` accepts legacy v2 IP/port invitations and v3 invitations with complete
+`endpoints` (`host`, `port`, `security`). `fixtures/pairing-qr.json` is also exercised by
+Mobile's lightweight startup schema. Keep the fixture copy aligned when changing the wire contract.
+`parseDirectEndpoint` accepts HTTP(S) input as an alias for WS(S), preserving TLS and explicit ports.
+The fixed route remains `/v1/remote/connect`; advertised endpoints use `advertisedEndpointSchema`
+to reject loopback and wildcard destinations.
+
+## Task queries
+
+The Agent export defines five read-only methods under the existing Agent grant:
+`agent.tasks.list`, `agent.tasks.get`, `agent.tasks.runs.list`,
+`agent.tasks.runs.get`, and `agent.tasks.content.read`. Types derive from the
+public schemas; desktop task and Job services own their values. No additional
+hello capability or stored task state is introduced. A host without these methods
+returns method-not-found; clients must show unsupported access instead of an empty list.
+
+Task lists accept an optional Agent and a nonempty `statuses` filter (`active`,
+`paused`, `completed`, `missed`). Heartbeats and tasks with archived or missing
+Agents are excluded before paging. Omission selects all statuses. Unknown Agent
+filters return an empty page; hidden or missing task/run identities return `NOT_FOUND`.
+Task status describes scheduling; a completed one-shot task does not imply successful execution.
+Both list and detail include the configured `trigger` and the business task's
+`updatedAt` timestamp. The latter is not limited to user edits or a new revision counter.
+
+Run IDs identify Jobs across retries. Runs expose `queued`, `running`, `completed`,
+`failed`, or `cancelled`; a cancellation request remains a separate flag until the
+Job settles. Timestamps are persisted facts and remain null when absent, never
+substituted with queue or cancellation-request time. Completed runs distinguish
+structured `executed`, `skipped`, and legacy `unknown` outcomes. A result location
+is `none`, a readable `session` belonging to the task's Agent, or `unavailable`.
+Reused sessions do not promise an exact reply position. Existing session/message
+methods read the result; job retention can expire independently of conversation history.
+`summary` is a nullable excerpt of structured task output, capped at 200 UTF-16
+units without splitting surrogate pairs. Malformed legacy Unicode is replaced;
+absent or non-text results return null, never raw output serialized as JSON.
+The excerpt does not determine the outcome; read the linked session for the full reply.
+
+Pages default to 20 items, accept at most 100, and may be shortened for the wire
+byte budget. Follow `nextCursor` until null. Cursors bind offsets to the method and
+normalized filters; concurrent changes require a refresh and client deduplication.
+Task and run ordering is `createdAt DESC, id DESC`.
+
+Task detail retains the configured trigger, timeout, workspace selection and reuse
+mode. `timeoutMinutes` is a nonnegative number of minutes; `0` means no timeout.
+An omitted cron timezone means the host scheduler's timezone; clients use
+`nextRunAt` rather than calculating a schedule. Prompts over 4,096 UTF-16 units use
+`ContentRef`. Read at most 24,576 UTF-8 bytes per request, reassemble bytes before
+decoding text, and verify the complete SHA-256. Both revision and content identity
+must match the current prompt. On `REVISION_EXPIRED`, reload detail and restart.
+
+Remote `agent.sessions.list` includes ordinary and scheduled-task conversations,
+preserving existing mobile discovery without changing existing requests. Background
+and trashed conversations remain excluded. Desktop ordinary topic lists retain
+their own scope. Refresh from page one after a host upgrade to discover newly visible results.
+
+Pass optional `taskId` to `agent.sessions.list` to page through a task's associated
+conversations directly, including fresh and reused sessions after execution history
+has been collected. `agentId` and `workspaceId` intersect with this filter. Missing,
+hidden or non-Agent tasks and conflicting Agent filters return an empty page.
+Only readable conversations belonging to the task's Agent are returned, with the
+existing pinned-first ordering and byte budget. Restart pagination when changing
+filters. This collection is independent of each run's `resultLocation` and the
+task's current reuse target. Old hosts may reject `taskId`; do not silently drop
+the filter and present unrelated sessions.
+
+## Paged message summaries
+
+`connection.hello.agentMessageSummariesVersion: 1` advertises the optional
+`agent.messages.list` parameter `partsMode: 'paged'`. Only send this parameter
+after observing the capability. Without it, responses retain complete `partIds`.
+
+Paged responses contain `AgentMessageSummary` items: message identity, revision,
+role, status and optional usage/model/failure metadata, with `partsMode: 'paged'`
+and no `partIds`. Enumerate every part through `agent.parts.list` using the message
+ID and revision, following `nextCursor` until null. An omitted index is not an
+empty message. History and part revision checks remain unchanged.
+
+`AgentMessageListItem` is the full-message/summary union. Summaries are list-only;
+events, checkpoints and reducers still require complete `AgentMessage` snapshots.
+Peers without the capability keep the existing request and response shapes.
+
+An indivisible list item over the response budget returns `RESOURCE_EXHAUSTED`
+with `details: { kind: 'ITEM_TOO_LARGE', itemBytes, budgetBytes, retryable: false }`.
+The same request and data cannot recover by waiting. Other resource-exhaustion
+errors retain their semantics; legacy clients may ignore the additional details.
+
 ## Resumable Agent attachments
 
 `connection.hello.agentUploadsVersion: 1` advertises prepare/get/resume/complete/cancel and binary DATA/ACK records.

@@ -7,18 +7,16 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 
 import { loggerService } from '@logger'
-import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import type { SamplingSettings } from '@main/ai/types'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { AiSdkParam } from '@shared/types/aiSdk'
 import {
-  isClaude47SeriesModel,
+  isClaudeFixedSamplingModel,
   isClaudeReasoningModel,
   isGemini3Model,
   isGemini4Model,
   isMaxTemperatureOneModel,
   isQwenModel,
-  isSupportedFlexServiceTier,
   isSupportTemperatureModel,
   isSupportTopPModel,
   isTemperatureTopPMutuallyExclusiveModel
@@ -33,7 +31,7 @@ export type GatedSampling = Pick<SamplingSettings, 'temperature' | 'enableTemper
 
 /** Registry support plus the existing family policies for omitting explicit sampling. */
 function modelAcceptsSamplingParam(model: Model, key: 'temperature' | 'topP'): boolean {
-  if (isGemini3Model(model) || isClaude47SeriesModel(model)) return false
+  if (isGemini3Model(model) || isClaudeFixedSamplingModel(model)) return false
   return key === 'temperature' ? isSupportTemperatureModel(model) : isSupportTopPModel(model)
 }
 
@@ -58,9 +56,11 @@ export function stripUnsupportedModelParams(params: SamplingParams, model: Model
       delete cleaned.topP
       delete cleaned.top_p
     }
-    if (gemini4) {
+    if (gemini4 || isClaudeFixedSamplingModel(model)) {
       delete cleaned.topK
       delete cleaned.top_k
+    }
+    if (gemini4) {
       delete cleaned.cachedContent
       delete cleaned.cached_content
     }
@@ -97,7 +97,7 @@ export function getTemperature(
 
   if (!settings.enableTemperature) return undefined
 
-  if (isClaude47SeriesModel(model)) {
+  if (isClaudeFixedSamplingModel(model)) {
     logger.info(`Model ${model.id} rejects sampling parameters, disabling temperature`)
     return undefined
   }
@@ -139,7 +139,7 @@ export function getTopP(
 
   if (!settings.enableTopP) return undefined
 
-  if (isClaude47SeriesModel(model)) {
+  if (isClaudeFixedSamplingModel(model)) {
     logger.info(`Model ${model.id} rejects sampling parameters, disabling topP`)
     return undefined
   }
@@ -177,19 +177,13 @@ export function filterStandardParams(
     return rest
   }
 
-  if (isClaude47SeriesModel(model) && 'topK' in standardParams) {
+  if (isClaudeFixedSamplingModel(model) && 'topK' in standardParams) {
     const { topK, ...rest } = standardParams
     logger.info(`Model ${model.id} rejects sampling parameters, dropping topK=${topK} from custom params`)
     return rest
   }
 
   return standardParams
-}
-
-/** Provider timeout override (`flex` tier gets a longer timeout). */
-export function getTimeout(model: Model): number {
-  if (isSupportedFlexServiceTier(model)) return 15 * 1000 * 60
-  return DEFAULT_TIMEOUT
 }
 
 /**

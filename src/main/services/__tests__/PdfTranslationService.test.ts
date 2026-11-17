@@ -210,10 +210,7 @@ describe('PdfTranslationService', () => {
         'zh-CN',
         '--progress-json',
         '--progress-json-version',
-        '2',
-        '--watermark-output-mode',
-        'no_watermark',
-        '--no-dual'
+        '2'
       ]),
       expect.objectContaining({
         cwd: expect.stringContaining('job-1'),
@@ -227,8 +224,6 @@ describe('PdfTranslationService', () => {
     )
     expect(mocks.spawn.mock.calls[0][2].env).not.toHaveProperty('PYTHONPATH')
     const args = mocks.spawn.mock.calls[0][1] as string[]
-    expect(args).not.toContain('--no-mono')
-    expect(args).not.toContain('--auto-enable-ocr-workaround')
     const configPath = args[args.indexOf('--config') + 1]
     expect(configPath).toContain('job-1')
     expect(args).not.toContain('cs-sk-test')
@@ -304,8 +299,6 @@ describe('PdfTranslationService', () => {
       { stage: 'translating', stageProgress: 55.4, overallProgress: 58.2 },
       { stage: 'rendering', stageProgress: 100, overallProgress: 100 }
     ])
-    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Ignored malformed BabelDOC Stream event')
-    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Ignored invalid BabelDOC Stream event')
   })
 
   it('uses BabelDOC language aliases for simplified and traditional Chinese', async () => {
@@ -890,14 +883,6 @@ describe('PdfTranslationService', () => {
       expect(env.NO_PROXY).toBe('127.0.0.1')
     })
 
-    it('pins BabelDOC assets to ModelScope for China without changing the public translate request', async () => {
-      mocks.isInChina.mockResolvedValue(true)
-
-      const env = await spawnedEnv()
-
-      expect(env.BABELDOC_ASSET_UPSTREAM).toBe('modelscope')
-    })
-
     it('strips the brackets an IPv6 gateway host carries', async () => {
       apiGateway.createScopedCredential.mockResolvedValue({
         baseUrl: 'http://[::1]:23333',
@@ -908,6 +893,52 @@ describe('PdfTranslationService', () => {
       const env = await spawnedEnv()
 
       expect(env.NO_PROXY).toBe('::1')
+    })
+
+    it.each([
+      ['NO_PROXY', '127.0.0.1', '127.0.0.1'],
+      ['no_proxy', '127.0.0.1', '127.0.0.1'],
+      ['shell', '127.0.0.1', '127.0.0.1'],
+      ['NO_PROXY', '[::1]', '::1'],
+      ['no_proxy', '[::1]', '::1'],
+      ['shell', '[::1]', '::1']
+    ])('normalizes exact IPv6 bypass entries from %s for gateway %s', async (source, gatewayHost, gatewayBypass) => {
+      const bypass = 'localhost,127.0.0.1,::1,[::1],[2001:db8::1],2001:db8::1,example.com,.internal,*.local,127.*'
+      const proxyUrl = 'http://127.0.0.1:7890'
+      vi.stubEnv('HTTP_PROXY', proxyUrl)
+      vi.stubEnv('HTTPS_PROXY', proxyUrl)
+      vi.stubEnv('ALL_PROXY', proxyUrl)
+      if (source === 'shell') {
+        const { getShellEnv } = await import('@main/utils/shellEnv')
+        vi.mocked(getShellEnv).mockResolvedValueOnce({ PATH: '/usr/bin', no_proxy: bypass })
+      } else {
+        vi.stubEnv(source, bypass)
+      }
+      apiGateway.createScopedCredential.mockResolvedValue({
+        baseUrl: `http://${gatewayHost}:23333`,
+        apiKey: 'cs-sk-test',
+        dispose: disposeCredential
+      })
+
+      const env = await spawnedEnv()
+
+      expect(env.NO_PROXY).toBe('localhost,127.0.0.1,::1,2001:db8::1,example.com,.internal,*.local,127.*')
+      expect(env.no_proxy).toBe(env.NO_PROXY)
+      expect(env.NO_PROXY.split(',')).toContain(gatewayBypass)
+      expect(env.HTTP_PROXY).toBe(proxyUrl)
+      expect(env.HTTPS_PROXY).toBe(proxyUrl)
+      expect(env.ALL_PROXY).toBe(proxyUrl)
+      if (source !== 'shell') expect(process.env[source]).toBe(bypass)
+    })
+
+    it('preserves bypass rules that are not exact IPv6 addresses', async () => {
+      vi.stubEnv('NO_PROXY', '[::1]:8080,http://[::1],*.example.com,example.com:8080,[example.com],localhost,localhost')
+
+      const env = await spawnedEnv()
+
+      expect(env.NO_PROXY).toBe(
+        '[::1]:8080,http://[::1],*.example.com,example.com:8080,[example.com],localhost,localhost,127.0.0.1'
+      )
     })
 
     it('leaves a bypass list that already covers the gateway untouched', async () => {

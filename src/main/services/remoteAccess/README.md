@@ -6,10 +6,16 @@ service owns encrypted WebSocket connections, pairing invitations and delivery.
 Agent and configuration capabilities share identity and transport, and are approved
 together during pairing. Each capability has an independent authorization grant.
 
-The remote stream listener coalesces adjacent deltas for the same message and part for
+For chunk sources, the remote stream listener coalesces adjacent deltas for the same message and part for
 up to 50 ms or 2048 UTF-16 units. Part changes and structural/terminal events flush pending
 text first. Appends maintain UTF-8 offsets incrementally; completion still verifies the
 full content digest. Journal disposal cancels pending delivery.
+
+Projection sources use authoritative `onMessage` views and the existing wire
+part create/replace/remove events. Native retractions remove remote parts;
+reappearing positions receive new IDs so tombstoned parts cannot revive. Late
+listeners receive the current view. Content is never reconstructed from the
+projection source's host-control chunks, and no wire schema changes are needed.
 
 Append offsets come from the protocol's `textByteLength`, a memory-only cache keyed by
 immutable part objects; replacements and completion never inherit a prior object's cache. Events and checkpoints add no fields.
@@ -27,9 +33,18 @@ listener flushes pending text while the session still exists.
 | `RemoteConnection.ts` | Per-connection RPC: hello/authenticate/refresh/ping, pairing, configuration export |
 | `RemotePairing.ts` / `RemoteTokens.ts` / `deviceIdentity.ts` | Invitation + claim state, access tokens, Ed25519 identity file |
 | `agentHandlers.ts` | Every `agent.*` method, including durable command receipts |
+| `agentPagination.ts` | Page byte budget: projected DTO sizing, offset prefixes and keyset query retries |
 | `agentQueries.ts` | Persisted sessions/messages/parts/interactions projected onto wire DTOs |
+| `agentTaskQueries.ts` | Task and run owner queries projected onto stable Task DTOs, bounded pages and prompt reads |
 | `agentJournal.ts` | Shared per-session journal: stream listener → protocol events, checkpoints, epoch |
 | `agentSubscriptions.ts` | Connection-private subscriptions: prepare, activate, ack credit, reset |
+
+Historical message lists support the advertised `partsMode: 'paged'` extension:
+metadata-only summaries avoid an oversized `partIds` array while existing
+`agent.parts.list` pages retain complete content. The default list mode, live
+events and checkpoints keep full message snapshots. Single-item budget failures
+include terminal size details; consuming those details is a client responsibility.
+See [the protocol contract](../../../../packages/remote-protocol/README.md#paged-message-summaries).
 
 Deviations from the design doc, kept deliberately small:
 
@@ -38,7 +53,8 @@ Deviations from the design doc, kept deliberately small:
   reserved messages before runtime activation. A receipt still `accepted` at startup
   becomes `interrupted`, retaining those identities. No external action is automatically replayed.
 - Locally started executions are discovered by a one-second poll of `hasLiveStream`, then
-  attached through `addListener` replay. Remote sends pass the listener at run start.
+  attached through `addListener` replay. Remote sends pass the listener at run start. The poll
+  runs only while LAN ingress is up, or until connections, journals and presented selections drain after it closes.
 - Approval cards persisted after a turn ended are listed and answerable, but not streamed as
   `interaction.updated`; only stream-presented approvals enter the live projection.
 - Legacy files retain metadata-only `data` parts. Remote uploads expose revision-bound file content references.
@@ -49,6 +65,22 @@ key store disappears is an error, since replacing it would unpair every device.
 
 SQLite writes stay in their owning data services. Agent execution stays in the
 existing stream manager and runtime. No relay service is provided here.
+
+Task reads use `AgentTaskService` for visibility, status, execution facts and saved
+result ownership. The adapter owns only wire projection, cursors and content references;
+it persists no task state and starts no runtime. The complete Task handler map is
+derived from protocol method keys and registered through the existing per-call Agent
+authorization check. See [Task queries](../../../../packages/remote-protocol/README.md#task-queries).
+
+Session discovery explicitly requests `all-conversations`, including task results
+for existing mobile clients. Desktop DataApi uses `ordinary`. Both scopes preserve
+pin ordering and exclude background sessions; explicit IDs and trash queries retain
+their existing behavior.
+
+The optional remote session-list `taskId` filter goes through
+`AgentTaskService.listTaskSessions`, which checks task visibility and Agent ownership,
+then delegates relation filtering and both pagination sections to `AgentSessionService`.
+It reads `session.taskId` directly, so Job retention cannot hide surviving conversations.
 
 Discovery publishes only the eligible interface addresses passed to Bonjour, excluding scoped and link-local IPv6.
 The pinned Bonjour patch adds an optional address allowlist to record generation; the same list is used for publication and withdrawal.
@@ -142,7 +174,7 @@ Large-file verification: set `REMOTE_UPLOAD_TEST_BYTES=1073741824` when running 
 `RemoteUploads.test.ts` streaming test to exercise 1 GiB and a receiver restart midway.
 This filesystem/RPC validation does not replace device, VPN throughput or OS-background tests.
 
-[Upload Integrity](../../../../docs/references/file/upload-integrity.md) describes the optional
+[Upload Integrity](../../../../docs/dev/references/file/upload-integrity.md) describes the optional
 `agentUploadChecksum: sha256` capability. Prepare fixes checksum mode; complete binds the phone's
 expected SHA-256. Intake checkpoints retain verification failures and rehash bytes on restart.
 Legacy absent-mode clients keep their existing behavior. Shared release and native-device

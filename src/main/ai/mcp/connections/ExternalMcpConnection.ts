@@ -19,6 +19,7 @@ import { t } from '@main/i18n'
 import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 import { buildStdioEnvironment } from '../mcpLaunch'
 import { resolveStdioLaunch } from '../mcpStdioLaunch'
@@ -49,6 +50,16 @@ function transportCandidates(server: McpServer): McpServerType[] | null {
   return null
 }
 
+/**
+ * QVeris prefers OAuth sign-in; its static Bearer header (from QVERIS_API_KEY) is only a
+ * fallback credential, so the OAuth provider stays attached and a cached token overrides it.
+ */
+function prefersOAuth(server: Pick<McpServer, 'installSource' | 'name' | 'headers'>): boolean {
+  if (server.installSource === 'builtin' && server.name === BuiltinMcpServerNames.qveris) return true
+  // `headers` reaches here unnormalized, so match Authorization case-insensitively.
+  return !Object.keys(server.headers ?? {}).some((key) => key.toLowerCase() === 'authorization')
+}
+
 function isTransportFallbackError(error: unknown): boolean {
   if (error instanceof SseError) return error.code === 405
   if (error instanceof SdkHttpError) return error.status === 404 || error.status === 405
@@ -57,39 +68,18 @@ function isTransportFallbackError(error: unknown): boolean {
 
 /**
  * `@modelcontextprotocol/client` verdicts every 5xx from the `server/discover`
- * probe as `EraNegotiationFailed` without reading the body, so a server that
- * rejects the unknown method with a JSON-RPC error never reaches the legacy
- * fallback. Only a body carrying a JSON-RPC protocol error is evidence of that
- * rejection: an outage page (HTML, empty, non-protocol body) must keep failing.
+ * probe as `EraNegotiationFailed` without reading the body. Gateways that
+ * reject the unknown method with a bare 5xx (empty body, HTML, or a non-
+ * protocol JSON envelope) therefore never reached the legacy fallback when we
+ * required a JSON-RPC protocol error code in the body (#21709).
+ *
+ * Treat any probe `EraNegotiationFailed` with HTTP status >= 500 as grounds
+ * for one legacy retry on URL transports. Outage safety stays intact: a real
+ * outage also fails the legacy `initialize` handshake, and the caller rethrows
+ * the original probe error (#21938).
  */
 function isLegacyProbeRejection(error: unknown): error is SdkHttpError {
-  if (!SdkHttpError.isInstance(error) || error.code !== SdkErrorCode.EraNegotiationFailed || !(error.status >= 500)) {
-    return false
-  }
-  if (typeof error.data.text !== 'string') return false
-
-  let body: unknown
-  try {
-    body = JSON.parse(error.data.text)
-  } catch {
-    return false
-  }
-  if (!body || typeof body !== 'object' || Array.isArray(body)) return false
-
-  const candidates = [
-    body,
-    ...Object.values(body).filter((value) => value && typeof value === 'object' && !Array.isArray(value))
-  ]
-  return candidates.some((candidate) => {
-    const { code, message } = candidate as Record<string, unknown>
-    return (
-      typeof code === 'number' &&
-      Number.isInteger(code) &&
-      code >= -32768 &&
-      code <= -32000 &&
-      typeof message === 'string'
-    )
-  })
+  return SdkHttpError.isInstance(error) && error.code === SdkErrorCode.EraNegotiationFailed && error.status >= 500
 }
 
 function createClient(
@@ -139,7 +129,12 @@ export async function createExternalMcpConnection({
     serverUrlHash: oauthServerUrlHash(server.baseUrl || '')
   })
   const headers = mergeHeaders(defaultAppHeaders(), server.headers)
-  const useOAuth = !('authorization' in headers)
+  const useOAuth = prefersOAuth(server)
+  const fallbackAuthorization = useOAuth ? headers.authorization : undefined
+  // Keep fallback Bearer out of `requestInit.headers` so the SDK's OAuth `/token` requests stay public-client.
+  const requestHeaders = useOAuth
+    ? Object.fromEntries(Object.entries(headers).filter(([key]) => key !== 'authorization'))
+    : headers
   const args = [...(server.args || [])]
   const lifetime = new AbortController()
   type AuthOperation = { signal: AbortSignal; lease?: McpAuthorizationLease }
@@ -174,21 +169,33 @@ export async function createExternalMcpConnection({
 
   const createTransport = async (typeOverride?: McpServerType): Promise<Transport> => {
     if (server.baseUrl) {
+      const serverUrl = new URL(server.baseUrl)
+      const fetchUrl = (input: RequestInfo | URL, init?: RequestInit) => {
+        const target = input.toString()
+        if (fallbackAuthorization && target === serverUrl.href) {
+          const merged = new Headers(init?.headers)
+          if (!merged.has('authorization')) {
+            merged.set('authorization', fallbackAuthorization)
+            return net.fetch(target, { ...init, headers: merged })
+          }
+        }
+        return net.fetch(target, init)
+      }
       const type = typeOverride ?? server.type ?? 'sse'
       if (type === 'streamableHttp') {
         return wrapOAuthTransport(
-          new StreamableHTTPClientTransport(new URL(server.baseUrl), {
-            fetch: (input, init) => net.fetch(input.toString(), init),
-            requestInit: { headers },
+          new StreamableHTTPClientTransport(serverUrl, {
+            fetch: fetchUrl,
+            requestInit: { headers: requestHeaders },
             ...(useOAuth ? { authProvider } : {})
           })
         )
       }
       if (type === 'sse') {
         return wrapOAuthTransport(
-          new SSEClientTransport(new URL(server.baseUrl), {
-            fetch: (input, init) => net.fetch(input.toString(), init),
-            requestInit: { headers },
+          new SSEClientTransport(serverUrl, {
+            fetch: fetchUrl,
+            requestInit: { headers: requestHeaders },
             ...(useOAuth ? { authProvider } : {})
           })
         )
@@ -406,5 +413,6 @@ export async function createExternalMcpConnection({
 export const externalMcpConnectionInternals = {
   isLegacyProbeRejection,
   isTransportFallbackError,
-  transportCandidates
+  transportCandidates,
+  prefersOAuth
 }

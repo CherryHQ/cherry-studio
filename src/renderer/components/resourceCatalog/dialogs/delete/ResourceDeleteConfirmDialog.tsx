@@ -13,6 +13,7 @@ import {
   useSkillMutationsById
 } from '@renderer/hooks/resourceCatalog'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { ipcApi } from '@renderer/ipc'
 import { restoreRecycleBinUndoGroup, showRecycleBinUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
@@ -33,21 +34,34 @@ interface Props {
  * domain owner, while skills retain their IPC-backed uninstall behavior.
  */
 export const ResourceDeleteConfirmDialog: FC<Props> = ({ resource, onClose }) => {
-  if (!resource) return null
-  return <DeleteDialogBody resource={resource} onClose={onClose} />
+  const { value: retainedResource } = useExitPresence(resource)
+  if (!retainedResource) return null
+  return (
+    <DeleteDialogBody
+      key={`${retainedResource.type}:${retainedResource.id}`}
+      resource={retainedResource}
+      open={resource !== null}
+      onClose={onClose}
+    />
+  )
 }
 
-const DeleteDialogBody: FC<{ resource: ResourceItem; onClose: () => void }> = ({ resource, onClose }) => {
-  if (resource.type === 'assistant') return <AssistantDeleteDialog resource={resource} onClose={onClose} />
-  if (resource.type === 'agent') return <AgentDeleteDialog resource={resource} onClose={onClose} />
-  if (resource.type === 'skill') return <SkillDeleteDialog resource={resource} onClose={onClose} />
-  return <PromptDeleteDialog resource={resource} onClose={onClose} />
+const DeleteDialogBody: FC<{ resource: ResourceItem; open: boolean; onClose: () => void }> = ({
+  resource,
+  open,
+  onClose
+}) => {
+  if (resource.type === 'assistant') return <AssistantDeleteDialog resource={resource} open={open} onClose={onClose} />
+  if (resource.type === 'agent') return <AgentDeleteDialog resource={resource} open={open} onClose={onClose} />
+  if (resource.type === 'skill') return <SkillDeleteDialog resource={resource} open={open} onClose={onClose} />
+  return <PromptDeleteDialog resource={resource} open={open} onClose={onClose} />
 }
 
 const AssistantDeleteDialog: FC<{
   resource: Extract<ResourceItem, { type: 'assistant' }>
+  open: boolean
   onClose: () => void
-}> = ({ resource, onClose }) => {
+}> = ({ resource, open, onClose }) => {
   const { t } = useTranslation()
   const { deleteAssistant } = useAssistantMutationsById(resource.id)
   const invalidate = useInvalidateCache()
@@ -113,13 +127,14 @@ const AssistantDeleteDialog: FC<{
     ]
   )
 
-  return <ConversationOwnerDeleteDialogContent resource={resource} onClose={onClose} onDelete={onDelete} />
+  return <ConversationOwnerDeleteDialogContent resource={resource} open={open} onClose={onClose} onDelete={onDelete} />
 }
 
 const AgentDeleteDialog: FC<{
   resource: Extract<ResourceItem, { type: 'agent' }>
+  open: boolean
   onClose: () => void
-}> = ({ resource, onClose }) => {
+}> = ({ resource, open, onClose }) => {
   const { t } = useTranslation()
   const invalidate = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
@@ -175,30 +190,33 @@ const AgentDeleteDialog: FC<{
     [closeConversationTabs, refreshAffected, resource.id, resource.name, restoreAgent, restoreSession, t]
   )
 
-  return <ConversationOwnerDeleteDialogContent resource={resource} onClose={onClose} onDelete={onDelete} />
+  return <ConversationOwnerDeleteDialogContent resource={resource} open={open} onClose={onClose} onDelete={onDelete} />
 }
 
-const SkillDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'skill' }>; onClose: () => void }> = ({
-  resource,
-  onClose
-}) => {
+const SkillDeleteDialog: FC<{
+  resource: Extract<ResourceItem, { type: 'skill' }>
+  open: boolean
+  onClose: () => void
+}> = ({ resource, open, onClose }) => {
   const { uninstallSkill } = useSkillMutationsById(resource.id)
-  return <DeleteDialogContent resource={resource} onClose={onClose} onDelete={uninstallSkill} />
+  return <DeleteDialogContent resource={resource} open={open} onClose={onClose} onDelete={uninstallSkill} />
 }
 
-const PromptDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'prompt' }>; onClose: () => void }> = ({
-  resource,
-  onClose
-}) => {
+const PromptDeleteDialog: FC<{
+  resource: Extract<ResourceItem, { type: 'prompt' }>
+  open: boolean
+  onClose: () => void
+}> = ({ resource, open, onClose }) => {
   const { deletePrompt } = usePromptMutationsById(resource.id)
-  return <DeleteDialogContent resource={resource} onClose={onClose} onDelete={deletePrompt} />
+  return <DeleteDialogContent resource={resource} open={open} onClose={onClose} onDelete={deletePrompt} />
 }
 
 const DeleteDialogContent: FC<{
   resource: Extract<ResourceItem, { type: 'skill' | 'prompt' }>
   onClose: () => void
   onDelete: () => Promise<void>
-}> = ({ resource, onClose, onDelete }) => {
+  open: boolean
+}> = ({ resource, open, onClose, onDelete }) => {
   const { t } = useTranslation()
   const [pending, setPending] = useState(false)
 
@@ -220,7 +238,7 @@ const DeleteDialogContent: FC<{
 
   return (
     <ConfirmDialog
-      open
+      open={open}
       onOpenChange={(open) => {
         if (!open && !pending) onClose()
       }}
@@ -239,7 +257,8 @@ const ConversationOwnerDeleteDialogContent: FC<{
   resource: Extract<ResourceItem, { type: 'agent' | 'assistant' }>
   onClose: () => void
   onDelete: (deleteChildren: boolean) => Promise<void>
-}> = ({ resource, onClose, onDelete }) => {
+  open: boolean
+}> = ({ resource, open, onClose, onDelete }) => {
   const { t } = useTranslation()
   const [pending, setPending] = useState(false)
   const completedRef = useRef(false)
@@ -267,7 +286,7 @@ const ConversationOwnerDeleteDialogContent: FC<{
       key={`${resource.type}:${resource.id}`}
       type={resource.type}
 
-      open
+      open={open}
       pending={pending}
       onOpenChange={(open) => {
         if (!open && !pending && !completedRef.current) onClose()

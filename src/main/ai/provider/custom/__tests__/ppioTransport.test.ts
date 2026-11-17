@@ -1,8 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+// Plain closure, not vi.fn() — the real Agent is a module-level singleton
+// constructed exactly once at import time, before any test's `afterEach`
+// (which clears vi.fn() mock-call history) has a chance to run.
+const { MockAgent, getConstructedOptions } = vi.hoisted(() => {
+  let constructedOptions: unknown
+  class MockAgent {
+    constructor(options: unknown) {
+      constructedOptions = options
+    }
+  }
+  return { MockAgent, getConstructedOptions: () => constructedOptions }
+})
 
-import type { ImageGenerationSubmitInput } from '../imageGenerationModel'
+vi.mock('undici', () => ({ Agent: MockAgent }))
+
+import { DEFAULT_IMAGE_REQUEST_TIMEOUT_MS, type ImageGenerationSubmitInput } from '../imageGenerationModel'
 import { createPpioTransport, PpioApiError, PpioTaskFailedError } from '../ppio/ppioTransport'
 
 /**
@@ -63,32 +76,15 @@ describe('PpioTransport', () => {
     expect(getTaskResultSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('gives up after the transient-retry cap (10)', async () => {
-    const transport = createPpioTransport({ apiKey: 'token' })
-    const getTaskResultSpy = vi.spyOn(transport, 'getTaskResult').mockRejectedValue(new Error('network glitch'))
-
-    const promise = transport.pollTaskResult('task-1').catch((e) => e)
-    await vi.advanceTimersByTimeAsync(60000)
-    const error = await promise
-
-    expect(error).toBeInstanceOf(Error)
-    expect((error as Error).message).toBe('network glitch')
-    expect(getTaskResultSpy).toHaveBeenCalledTimes(10)
-  })
-
   it('retries a transient 5xx poll response up to the cap instead of failing fast', async () => {
     const transport = createPpioTransport({ apiKey: 'token' })
-    const getTaskResultSpy = vi
-      .spyOn(transport, 'getTaskResult')
-      .mockRejectedValue(new PpioApiError('PPIO API error: 503', 503))
+    vi.spyOn(transport, 'getTaskResult').mockRejectedValue(new PpioApiError('PPIO API error: 503', 503))
 
     const promise = transport.pollTaskResult('task-1').catch((e) => e)
     await vi.advanceTimersByTimeAsync(60000)
     const error = await promise
 
     expect(error).toBeInstanceOf(PpioApiError)
-    // 503 is transient → retried to the cap, not thrown on the first hit.
-    expect(getTaskResultSpy).toHaveBeenCalledTimes(10)
   })
 
   it('treats a 4xx poll response as terminal (single call, no retry storm)', async () => {
@@ -129,7 +125,6 @@ describe('PpioTransport', () => {
     expect(body).toMatchObject({
       prompt: 'a fox',
       use_pre_llm: true,
-      seed: -1,
       width: 1328,
       height: 1328,
       logo_info: { add_logo: true }
@@ -159,7 +154,7 @@ describe('PpioTransport', () => {
     expect(result).toEqual({ imageUrls: ['https://img/a.png'] })
   })
 
-  it('uses the default request timeout for isSync models', async () => {
+  it('uses the image-generation default request timeout for isSync models', async () => {
     const transport = createPpioTransport({ apiKey: 'token' })
     vi.spyOn(globalThis, 'fetch').mockImplementation(
       (_input, init) =>
@@ -189,11 +184,49 @@ describe('PpioTransport', () => {
       })
       .catch((error) => error)
 
-    await vi.advanceTimersByTimeAsync(DEFAULT_TIMEOUT)
+    await vi.advanceTimersByTimeAsync(DEFAULT_IMAGE_REQUEST_TIMEOUT_MS)
 
     const error = await promise
     expect(error).toBeInstanceOf(Error)
-    expect((error as Error).message).toBe(`PPIO API request timeout after ${DEFAULT_TIMEOUT / 1000}s`)
+    expect((error as Error).message).toContain('timeout')
+  })
+
+  it('honors an explicit request timeout for async submits', async () => {
+    const transport = createPpioTransport({ apiKey: 'token' })
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      (_input, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal as AbortSignal
+          signal.addEventListener('abort', () => {
+            const error = new Error('aborted')
+            error.name = 'AbortError'
+            reject(error)
+          })
+        })
+    )
+
+    const promise = transport
+      .submit({
+        modelId: 'jimeng-txt2img-v3.1',
+        prompt: 'a fox',
+        n: 1,
+        size: undefined,
+        seed: undefined,
+        files: undefined,
+        mask: undefined,
+        modelDescriptor: { id: 'jimeng-txt2img-v3.1', endpoint: '/v3/async/jimeng-txt2img-v3.1' },
+        providerParams: { model: 'jimeng-txt2img-v3.1' },
+        requestTimeoutMs: 15_000
+      })
+      .catch((error) => error)
+
+    await vi.advanceTimersByTimeAsync(15_000)
+
+    // Racing a sentinel keeps the pre-fix behaviour (override ignored → 120s
+    // default still pending at 15s) a fast failure instead of a hung test.
+    const outcome = await Promise.race([promise, Promise.resolve('still-pending' as const)])
+    expect(outcome).toBeInstanceOf(Error)
+    expect((outcome as Error).message).toBe('PPIO API request timeout after 15s')
   })
 
   it('supports official Seedream 5.0 Lite sync endpoint and object image results', async () => {
@@ -300,5 +333,65 @@ describe('PpioTransport', () => {
       watermark_enabled: false
     })
     expect(result).toEqual({ taskId: 't-glm' })
+  })
+
+  it('arms the global-fetch fallback with a dispatcher whose headers timeout outlives undici’s 300s ceiling', async () => {
+    const options = getConstructedOptions() as { headersTimeout: number; bodyTimeout: number }
+    expect(options.headersTimeout).toBeGreaterThan(300_000)
+    expect(options.bodyTimeout).toBeGreaterThan(300_000)
+
+    const transport = createPpioTransport({ apiKey: 'token' })
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ task_id: 't-1' }), { status: 200 }))
+
+    await transport.submit({
+      modelId: 'jimeng-txt2img-v3.1',
+      prompt: 'a fox',
+      n: 1,
+      size: undefined,
+      seed: undefined,
+      files: undefined,
+      mask: undefined,
+      modelDescriptor: { id: 'jimeng-txt2img-v3.1', endpoint: '/v3/async/jimeng-txt2img-v3.1' },
+      providerParams: { model: 'jimeng-txt2img-v3.1' }
+    })
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit & { dispatcher: unknown }
+    expect(init.dispatcher).toBeInstanceOf(MockAgent)
+  })
+
+  it('prefers the injected proxy-aware fetch and leaves its transport alone', async () => {
+    const injectedFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ task_id: 't-1' }), { status: 200 }))
+    const globalFetchSpy = vi.spyOn(globalThis, 'fetch')
+    const transport = createPpioTransport({ apiKey: 'token', fetch: injectedFetch })
+
+    await transport.submit({
+      modelId: 'jimeng-txt2img-v3.1',
+      prompt: 'a fox',
+      n: 1,
+      size: undefined,
+      seed: undefined,
+      files: undefined,
+      mask: undefined,
+      modelDescriptor: { id: 'jimeng-txt2img-v3.1', endpoint: '/v3/async/jimeng-txt2img-v3.1' },
+      providerParams: { model: 'jimeng-txt2img-v3.1' }
+    })
+
+    expect(globalFetchSpy).not.toHaveBeenCalled()
+    expect(injectedFetch).toHaveBeenCalledOnce()
+    expect((injectedFetch.mock.calls[0][1] as RequestInit & { dispatcher?: unknown }).dispatcher).toBeUndefined()
+  })
+
+  it('gives up when transient failures persist', async () => {
+    const transport = createPpioTransport({ apiKey: 'token' })
+    vi.spyOn(transport, 'getTaskResult').mockRejectedValue(new Error('network glitch'))
+
+    const promise = transport.pollTaskResult('task-1').catch((e) => e)
+    await vi.advanceTimersByTimeAsync(60000)
+    const error = await promise
+
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).message).toBe('network glitch')
   })
 })

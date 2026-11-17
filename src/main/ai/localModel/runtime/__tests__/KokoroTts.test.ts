@@ -7,9 +7,12 @@ import { afterEach, expect, it } from 'vitest'
 import { KokoroTts } from '../utilityEntries/KokoroTts'
 
 let directory: string
+const originalEspeakDataPath = process.env.ESPEAK_DATA_PATH
 
 afterEach(async () => {
   if (directory) await rm(directory, { recursive: true, force: true })
+  if (originalEspeakDataPath === undefined) delete process.env.ESPEAK_DATA_PATH
+  else process.env.ESPEAK_DATA_PATH = originalEspeakDataPath
 })
 
 it('generates a WAV through the sandbox-compatible Sherpa contract with both lexicons', async () => {
@@ -25,6 +28,8 @@ it('generates a WAV through the sandbox-compatible Sherpa contract with both lex
         const lexicon = config.model.kokoro.lexicon;
         if (!lexicon.includes('lexicon-zh.txt') || !lexicon.includes('lexicon-us-en.txt') || config.model.kokoro.lang)
           throw Error('Mixed language frontend unavailable');
+        if (process.env.ESPEAK_DATA_PATH !== config.model.kokoro.dataDir)
+          throw Error('eSpeak data path is not available to the native runtime');
         return { generate: request => {
           if (request.enableExternalBuffer !== false) throw Error('External buffers are not allowed');
           if (request.text !== '你好 Hello') throw Error('Mixed text was changed');
@@ -56,6 +61,7 @@ it('generates a WAV through the sandbox-compatible Sherpa contract with both lex
     },
     new AbortController().signal
   )
+  expect(process.env.ESPEAK_DATA_PATH).toBe(join(directory, 'espeak-ng-data'))
   const audio = await readFile(outputPath)
   expect(audio.toString('ascii', 0, 4)).toBe('RIFF')
   expect(audio.readUInt32LE(24)).toBe(24000)

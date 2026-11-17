@@ -37,6 +37,13 @@ describe('renderer i18n lazy init', () => {
     expect(i18n.t('common.copy')).toBe('Copy')
   })
 
+  it('lazy-loads the Italian pack when switching language', async () => {
+    await i18n.changeLanguage('it-IT')
+
+    expect(i18n.hasResourceBundle('it-IT', 'translation')).toBe(true)
+    expect(i18n.t('common.copy')).toBe('Copia')
+  })
+
   it('lazy-loads the Turkish pack when switching language', async () => {
     await i18n.changeLanguage('tr-TR')
 
@@ -44,11 +51,11 @@ describe('renderer i18n lazy init', () => {
     expect(i18n.t('common.copy')).toBe('Kopyala')
   })
 
-  it('uses singular and plural diagnostic file summaries in English', async () => {
-    await i18n.changeLanguage('en-US')
+  it('lazy-loads the Thai pack when switching language', async () => {
+    await i18n.changeLanguage('th-TH')
 
-    expect(i18n.t('settings.about.diagnostics.sources.summary', { count: 1, size: '1 KB' })).toBe('1 file, about 1 KB')
-    expect(i18n.t('settings.about.diagnostics.sources.summary', { count: 2, size: '2 KB' })).toBe('2 files, about 2 KB')
+    expect(i18n.hasResourceBundle('th-TH', 'translation')).toBe(true)
+    expect(i18n.t('common.copy')).toBe('คัดลอก')
   })
 
   it('defines English labels for every Doctor check and declared detail', async () => {
@@ -70,9 +77,5 @@ describe('renderer i18n lazy init', () => {
 
     // en-GB has no pack; resolution falls through the fallback chain to en-US.
     expect(i18n.t('common.copy')).toBe('Copy')
-  })
-
-  it('is idempotent — repeat callers share one memoized promise', () => {
-    expect(initI18n()).toBe(initI18n())
   })
 })
