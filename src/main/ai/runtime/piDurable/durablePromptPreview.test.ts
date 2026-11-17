@@ -104,6 +104,7 @@ describe('previewDurableSystemPrompt', () => {
     expect(preview.before).toMatch(/<agent_instructions>\n$/)
     expect(preview.after).toMatch(/^\n<\/agent_instructions>/)
     expect(preview.before).toContain('I am Cedar, concise and warm.')
+    expect(runtime.match(/^<agent_identity>$/gm)).toHaveLength(1)
     expect(fullText(preview, instructions)).not.toContain('## Bootstrap Mode')
   })
 
