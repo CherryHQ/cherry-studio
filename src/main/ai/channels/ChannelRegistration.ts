@@ -92,22 +92,19 @@ export class ChannelRegistration {
       let verificationUrl: string
       if (session.type === 'dingtalk') {
         const base = 'https://oapi.dingtalk.com/app/registration'
-        const init = dingtalkInit.parse(
-          await this.request(`${base}/init`, controller.signal, { source: 'DING_DWS_CLAW' })
-        )
-        const result = dingtalkBegin.parse(
-          await this.request(`${base}/begin`, controller.signal, { nonce: init.nonce })
-        )
+        const init = await this.request(`${base}/init`, controller.signal, dingtalkInit, { source: 'DING_DWS_CLAW' })
+        const result = await this.request(`${base}/begin`, controller.signal, dingtalkBegin, { nonce: init.nonce })
         session.code = result.device_code
         session.interval = Math.max(1000, result.interval * 1000)
         session.expiresAt = Math.min(session.expiresAt, Date.now() + result.expires_in * 1000)
         verificationUrl = result.verification_uri_complete
       } else {
         const plat = process.platform === 'darwin' ? 1 : process.platform === 'win32' ? 2 : 3
-        const result = wecomBegin.parse(
+        const result = (
           await this.request(
             `https://work.weixin.qq.com/ai/qc/generate?source=cherry-studio&plat=${plat}`,
-            controller.signal
+            controller.signal,
+            wecomBegin
           )
         ).data
         session.code = result.scode
@@ -157,9 +154,9 @@ export class ChannelRegistration {
       let status: 'pending' | 'success' | 'expired'
       let credentials: Record<string, string> | undefined
       if (session.type === 'dingtalk') {
-        const data = dingtalkPoll.parse(
-          await this.request('https://oapi.dingtalk.com/app/registration/poll', signal, { device_code: session.code! })
-        )
+        const data = await this.request('https://oapi.dingtalk.com/app/registration/poll', signal, dingtalkPoll, {
+          device_code: session.code!
+        })
         if (data.status === 'FAIL') throw new Error('Registration denied')
         status =
           data.status === 'WAITING' || data.status === 'CREATING'
@@ -177,10 +174,11 @@ export class ChannelRegistration {
           }
         }
       } else {
-        const data = wecomPoll.parse(
+        const data = (
           await this.request(
             `https://work.weixin.qq.com/ai/qc/query_result?scode=${encodeURIComponent(session.code!)}`,
-            signal
+            signal,
+            wecomPoll
           )
         ).data
         if (['init', 'pending', 'scanned'].includes(data.status)) status = 'pending'
@@ -218,7 +216,12 @@ export class ChannelRegistration {
     }
   }
 
-  private async request(url: string, signal: AbortSignal, body?: Record<string, string>): Promise<unknown> {
+  private async request<TResult>(
+    url: string,
+    signal: AbortSignal,
+    schema: z.ZodType<TResult>,
+    body?: Record<string, string>
+  ): Promise<TResult> {
     signal.throwIfAborted()
     const response = await net.fetch(url, {
       method: body ? 'POST' : 'GET',
@@ -247,6 +250,6 @@ export class ChannelRegistration {
       await reader.cancel()
     }
     signal.throwIfAborted()
-    return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+    return schema.parse(JSON.parse(Buffer.concat(chunks).toString('utf8')))
   }
 }

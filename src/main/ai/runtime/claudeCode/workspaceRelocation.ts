@@ -32,9 +32,11 @@ export const claudeWorkspaceRelocation: RuntimeWorkspaceRelocation = {
     const newConfig = application.getPath('feature.agents.claude.root')
     const { default: createWorker } = await import('./relocationWorker?nodeWorker')
     const workerData: RelocationWorkerInput = { oldCwd: oldPath, newCwd: newPath }
-    const result = z
-      .strictObject({ oldKey: z.string(), newKey: z.string() })
-      .parse(await runForkWorker(createWorker({ workerData, env: { ...process.env } }), new AbortController().signal))
+    const result = await runForkWorker(
+      createWorker({ workerData, env: { ...process.env } }),
+      new AbortController().signal,
+      (value) => z.strictObject({ oldKey: z.string(), newKey: z.string() }).parse(value)
+    )
     function projectPath(key: string) {
       if (!key || /[\\/]/.test(key) || key === '.' || key === '..') throw new Error('Invalid Claude project key')
       return path.join(newConfig, 'projects', key)

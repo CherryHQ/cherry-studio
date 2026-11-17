@@ -175,7 +175,7 @@ describe('AgentJobsService', () => {
         case 'AiStreamManager':
           return {
             isWriteQuiesced: false,
-            withDispatchLock: (_id: string, fn: () => unknown) => fn(),
+            withDispatchLock: <TResult>(_id: string, fn: () => TResult) => fn(),
             hasUnsettledTopicWork: () => false,
             pauseRuntimeTurn: () => {},
             abortAndDrain: async () => {}

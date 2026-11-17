@@ -23,9 +23,9 @@ export interface KnowledgeItemRowProps {
   selected: boolean
   onToggleSelect: (next: boolean) => void
   onClick: () => void
-  onDelete: () => void | Promise<unknown>
-  onPreviewSource: () => void | Promise<unknown>
-  onReindex: () => void | Promise<unknown>
+  onDelete: () => void | Promise<void>
+  onPreviewSource: () => void | Promise<void>
+  onReindex: () => void | Promise<void>
   onViewChunks: () => void
 }
 

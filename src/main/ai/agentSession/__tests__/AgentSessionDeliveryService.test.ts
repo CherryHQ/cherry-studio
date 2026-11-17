@@ -240,7 +240,7 @@ describe('AgentSessionDeliveryService', () => {
     mocks.listRuntimeResumeTokensBySession.mockReturnValue(new Map<string, Set<string>>())
     mocks.hasLiveStream.mockReturnValue(false)
     mocks.hasUnsettledTopicWork.mockReturnValue(false)
-    mocks.withDispatchLock.mockImplementation((_topicId: string, fn: () => Promise<unknown>) => fn())
+    mocks.withDispatchLock.mockImplementation(<TResult>(_topicId: string, fn: () => Promise<TResult>) => fn())
     mocks.hasTerminalPersistenceInFlight.mockReturnValue(false)
     mocks.whenTerminalDispatchSettled.mockResolvedValue(undefined)
     mocks.runtimeBusy.mockReturnValue(false)
@@ -788,7 +788,7 @@ describe('AgentSessionDeliveryService', () => {
     const runtimeClosed = new Promise<void>((resolve) => {
       releaseRuntime = resolve
     })
-    mocks.withDispatchLock.mockImplementation((topicId: string, fn: () => Promise<unknown>) =>
+    mocks.withDispatchLock.mockImplementation(<TResult>(topicId: string, fn: () => Promise<TResult>) =>
       dispatchLocks.runExclusive(topicId, fn)
     )
     mocks.deleteByIds.mockReturnValue({

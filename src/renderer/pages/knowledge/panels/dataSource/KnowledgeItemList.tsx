@@ -26,9 +26,9 @@ export interface KnowledgeItemListProps {
   onToggleAll: (next: boolean) => void
   /** Left-click / Enter on a row: open the source, drill into a directory, or view a note's chunks. */
   onActivate: (item: KnowledgeItem) => void
-  onDelete: (item: KnowledgeItem) => void | Promise<unknown>
-  onPreviewSource: (item: KnowledgeItem) => void | Promise<unknown>
-  onReindex: (item: KnowledgeItem) => void | Promise<unknown>
+  onDelete: (item: KnowledgeItem) => void | Promise<void>
+  onPreviewSource: (item: KnowledgeItem) => void | Promise<void>
+  onReindex: (item: KnowledgeItem) => void | Promise<void>
   onViewChunks: (itemId: string) => void
 }
 

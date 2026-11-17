@@ -11,7 +11,8 @@ import {
   normalizeClaudePlugins,
   normalizeSkillsSh,
   searchSkillMarketplaces,
-  SKILL_SEARCH_FAILED_ERROR as SHARED_SKILL_SEARCH_FAILED_ERROR
+  SKILL_SEARCH_FAILED_ERROR as SHARED_SKILL_SEARCH_FAILED_ERROR,
+  type SkillMarketplaceFetch
 } from '@shared/utils/skillMarketplace'
 
 const logger = loggerService.withContext('skillSearch')
@@ -23,13 +24,13 @@ export const SKILL_SEARCH_FAILED_ERROR = SHARED_SKILL_SEARCH_FAILED_ERROR
 // Fetch helpers
 // ===========================================================================
 
-async function fetchJson(url: string): Promise<unknown> {
+async function fetchJson<TResult>(url: string, parse: (raw: unknown) => TResult): Promise<TResult> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   try {
     const response = await fetch(url, { signal: controller.signal })
     if (!response.ok) throw new Error('HTTP ' + response.status)
-    return await response.json()
+    return parse(await response.json())
   } finally {
     clearTimeout(timer)
   }
@@ -63,7 +64,9 @@ const skillsShLeaderboardSchema = z.object({
 })
 
 export async function loadSkillsShLeaderboard(page: number) {
-  const data = skillsShLeaderboardSchema.parse(await fetchJson('https://skills.sh/api/skills/all-time/' + page))
+  const data = await fetchJson('https://skills.sh/api/skills/all-time/' + page, (raw) =>
+    skillsShLeaderboardSchema.parse(raw)
+  )
   if (data.page !== page || (data.hasMore && data.skills.length === 0)) throw new Error('Invalid skills.sh pagination')
   const items = normalizeSkillsSh({
     query: '',
@@ -90,7 +93,7 @@ export async function loadSkillRegistryPage(source: 'skills.sh' | 'claude-plugin
 /** Browse the independent skills catalog; pagination counts raw entries, including skipped ones. */
 export async function loadClaudePluginsSkills(
   offset: number,
-  fetchJson: (url: string) => Promise<unknown>,
+  fetchJson: SkillMarketplaceFetch,
   limit = 20
 ): Promise<{ items: SkillSearchResult[]; hasMore: boolean; nextOffset: number }> {
   if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 100) {
@@ -99,7 +102,7 @@ export async function loadClaudePluginsSkills(
   const url = new URL('https://api.claude-plugins.dev/api/skills/search')
   url.searchParams.set('limit', String(limit))
   url.searchParams.set('offset', String(offset))
-  const data = ClaudePluginsSearchResponseSchema.parse(await fetchJson(url.toString()))
+  const data = await fetchJson(url.toString(), (raw) => ClaudePluginsSearchResponseSchema.parse(raw))
   const total = data.total
   if (
     data.offset !== offset ||

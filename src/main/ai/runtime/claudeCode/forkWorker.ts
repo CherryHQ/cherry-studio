@@ -16,7 +16,7 @@ export interface ClaudeForkWorkerInput {
   targetCwd: string
 }
 
-async function run(input: ClaudeForkWorkerInput): Promise<unknown> {
+async function run(input: ClaudeForkWorkerInput) {
   const { checkpoint } = input
   const sourceIds = new Set<string>()
   const mainEntries = input.entries.filter((entry) => !entry.isSidechain)

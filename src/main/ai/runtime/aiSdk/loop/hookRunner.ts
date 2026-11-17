@@ -9,14 +9,14 @@ import type { AgentLoopHooks, ToolExecutionStartEvent } from './types'
 export const logger = loggerService.withContext('agentLoop')
 
 /** Swallows throws with a warn log. Returns `undefined` if missing or threw. */
-export async function safeCall<F extends (...args: never[]) => unknown>(
+export async function safeCall<TArgs extends unknown[], TResult>(
   name: string,
-  cb: F | undefined,
-  ...args: Parameters<F>
-): Promise<Awaited<ReturnType<F>> | undefined> {
+  cb: ((...args: TArgs) => TResult) | undefined,
+  ...args: TArgs
+): Promise<Awaited<TResult> | undefined> {
   if (!cb) return undefined
   try {
-    return (await cb(...args)) as Awaited<ReturnType<F>>
+    return await cb(...args)
   } catch (err) {
     logger.warn(`hook ${name} threw`, err as Error)
     return undefined
@@ -24,12 +24,12 @@ export async function safeCall<F extends (...args: never[]) => unknown>(
 }
 
 /** Isolates a hook forwarded to AI SDK. `undefined` if no source hook. */
-export function wrapForwardedHook<F extends (...args: never[]) => unknown>(
+export function wrapForwardedHook<TArgs extends unknown[], TResult>(
   name: string,
-  fn: F | undefined
-): F | undefined {
+  fn: ((...args: TArgs) => TResult) | undefined
+): ((...args: TArgs) => Promise<Awaited<TResult> | undefined>) | undefined {
   if (!fn) return undefined
-  return ((...args: Parameters<F>) => safeCall(name, fn, ...args)) as F
+  return (...args) => safeCall(name, fn, ...args)
 }
 
 /**

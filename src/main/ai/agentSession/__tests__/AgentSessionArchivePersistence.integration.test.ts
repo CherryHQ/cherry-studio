@@ -20,7 +20,7 @@ vi.mock('@application', async () => {
   return mockApplicationFactory({
     AiStreamManager: {
       isWriteQuiesced: false,
-      withDispatchLock: (_topicId: string, operation: () => Promise<unknown>) => operation(),
+      withDispatchLock: <TResult>(_topicId: string, operation: () => Promise<TResult>) => operation(),
       hasUnsettledTopicWork: mocks.hasUnsettledTopicWork
     },
     AgentSessionRuntimeService: {

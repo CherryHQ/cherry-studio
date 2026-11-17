@@ -70,7 +70,7 @@ async function prepareClaudeFork(input: RuntimeForkInput): Promise<RuntimeForkRe
     targetCwd: input.targetCwd
   }
   const worker = createWorker({ workerData, env: { ...process.env } })
-  const result = ClaudeForkResultSchema.safeParse(await runForkWorker(worker, input.signal))
+  const result = await runForkWorker(worker, input.signal, (value) => ClaudeForkResultSchema.safeParse(value))
   if (!result.success) throw new AgentSessionForkError('history_corrupt')
   return result.data
 }

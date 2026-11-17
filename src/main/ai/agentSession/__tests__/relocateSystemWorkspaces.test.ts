@@ -10,6 +10,7 @@ import { linkSessionMessageChain, setupTestDatabase, seedSessionRoot } from '@te
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as z from 'zod'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
@@ -303,10 +304,11 @@ describe('system workspace relocation', () => {
           pathToFileURL(createRequire(import.meta.url).resolve('@anthropic-ai/claude-agent-sdk')).href
         )
         const { default: createWorker } = await import('../../runtime/claudeCode/relocationWorker?nodeWorker')
-        const keys = (await runForkWorker(
+        const keys = await runForkWorker(
           createWorker({ workerData: { oldCwd: workspace.oldPath, newCwd: workspace.newPath } }),
-          new AbortController().signal
-        )) as { oldKey: string; newKey: string }
+          new AbortController().signal,
+          (value) => z.strictObject({ oldKey: z.string(), newKey: z.string() }).parse(value)
+        )
         nativeFile = await writeHistory(runtime, workspace.id, nativeId, keys.oldKey)
         destinationProject = path.join(root, '.claude', 'projects', keys.newKey)
       }
@@ -604,8 +606,9 @@ describe('system workspace relocation', () => {
       const keys = () =>
         runForkWorker(
           createWorker({ workerData: { oldCwd: workspace.oldPath, newCwd: workspace.newPath } }),
-          new AbortController().signal
-        ) as Promise<{ oldKey: string; newKey: string }>
+          new AbortController().signal,
+          (value) => z.strictObject({ oldKey: z.string(), newKey: z.string() }).parse(value)
+        )
       const literalKey = (await keys()).oldKey
       const literalId = randomUUID()
       const literalFile =

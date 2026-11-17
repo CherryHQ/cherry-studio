@@ -45,14 +45,16 @@ describe('copy-sources job handler', () => {
     const prepared = createPreparedCopy()
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
     let inLock = false
-    knowledgeLockManager.runExclusive.mockImplementation(async (_key: string, task: () => Promise<unknown>) => {
-      inLock = true
-      try {
-        return await task()
-      } finally {
-        inLock = false
+    knowledgeLockManager.runExclusive.mockImplementation(
+      async <TResult>(_key: string, task: () => Promise<TResult>) => {
+        inLock = true
+        try {
+          return await task()
+        } finally {
+          inLock = false
+        }
       }
-    })
+    )
     prepareFileCopyIntoKnowledgeBaseAtMock.mockImplementationOnce(async () => {
       expect(inLock).toBe(false)
       return prepared
@@ -81,14 +83,16 @@ describe('copy-sources job handler', () => {
     prepareFileCopyIntoKnowledgeBaseAtMock.mockResolvedValueOnce(prepared)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem(FILE_ITEM_ID, 'preparing'))
     let inLock = false
-    knowledgeLockManager.runExclusive.mockImplementation(async (_key: string, task: () => Promise<unknown>) => {
-      inLock = true
-      try {
-        return await task()
-      } finally {
-        inLock = false
+    knowledgeLockManager.runExclusive.mockImplementation(
+      async <TResult>(_key: string, task: () => Promise<TResult>) => {
+        inLock = true
+        try {
+          return await task()
+        } finally {
+          inLock = false
+        }
       }
-    })
+    )
     knowledgeItemUpdateStatusMock.mockImplementationOnce(() => {
       expect(inLock).toBe(true)
       return createFileItem(FILE_ITEM_ID, 'processing')
@@ -193,10 +197,12 @@ describe('copy-sources job handler', () => {
     prepareFileCopyIntoKnowledgeBaseAtMock.mockResolvedValueOnce(prepared)
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
     const controller = new AbortController()
-    knowledgeLockManager.runExclusive.mockImplementation(async (_key: string, task: () => Promise<unknown>) => {
-      controller.abort(new Error('Job cancelled: knowledge-delete-subtree'))
-      return await task()
-    })
+    knowledgeLockManager.runExclusive.mockImplementation(
+      async <TResult>(_key: string, task: () => Promise<TResult>) => {
+        controller.abort(new Error('Job cancelled: knowledge-delete-subtree'))
+        return await task()
+      }
+    )
     const handler = createCopySourcesJobHandler(knowledgeLockManager as never, ingestionService)
 
     await expect(handler.execute({ ...createCtx(payload, 'copy-job'), signal: controller.signal })).rejects.toThrow(

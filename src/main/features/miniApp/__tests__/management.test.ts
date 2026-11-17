@@ -55,7 +55,7 @@ vi.mock('@application', async () => {
   return mockMiniAppApplication({
     FileManager: { permanentDelete },
     MiniAppRuntimeService: {
-      withAppQuiesced: vi.fn(async (appId: string, mutate: () => Promise<unknown>) => {
+      withAppQuiesced: vi.fn(async <TResult>(appId: string, mutate: () => Promise<TResult>) => {
         // Records the WORLD, not the wrapper's own entry and exit: deleting first and
         // then quiescing produces the same order. Only the row count separates them.
         spy.rowsOnEntry = countRows(appId)

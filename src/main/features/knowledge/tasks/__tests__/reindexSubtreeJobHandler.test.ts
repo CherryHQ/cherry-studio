@@ -552,10 +552,12 @@ describe('reindex-subtree job handler', () => {
     }
     // Re-acquisition and the wait for the lock are the long stretches; a quit landing in either
     // must not still spend the reset on a root that is untouched and correctly indexed.
-    knowledgeLockManager.runExclusive.mockImplementationOnce(async (_key: string, task: () => Promise<unknown>) => {
-      controller.abort(new Error('JobManager shutdown'))
-      return await task()
-    })
+    knowledgeLockManager.runExclusive.mockImplementationOnce(
+      async <TResult>(_key: string, task: () => Promise<TResult>) => {
+        controller.abort(new Error('JobManager shutdown'))
+        return await task()
+      }
+    )
 
     await expect(handler.execute(ctx)).rejects.toThrow('JobManager shutdown')
 

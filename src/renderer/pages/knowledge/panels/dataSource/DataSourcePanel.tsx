@@ -49,10 +49,10 @@ export interface DataSourcePanelProps {
   currentDirectory?: KnowledgeItemOf<'directory'> | null
   /** Navigate one level up out of {@link currentDirectory}. */
   onNavigateUp?: () => void
-  onDelete: (item: KnowledgeItem) => void | Promise<unknown>
-  onDeleteItems: (itemIds: string[]) => void | Promise<unknown>
-  onReindex: (item: KnowledgeItem) => void | Promise<unknown>
-  onReindexItems: (itemIds: string[]) => void | Promise<unknown>
+  onDelete: (item: KnowledgeItem) => void | Promise<void>
+  onDeleteItems: (itemIds: string[]) => void | Promise<void>
+  onReindex: (item: KnowledgeItem) => void | Promise<void>
+  onReindexItems: (itemIds: string[]) => void | Promise<void>
 }
 
 type LocalEmbeddingStatus = Exclude<LocalModelStatus, 'ready'>

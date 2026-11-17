@@ -26,6 +26,26 @@ function fakeTracer() {
 }
 
 describe('createHttpTraceFetch', () => {
+  it.each([
+    [' { "stream": true } ', '{"stream":true}'],
+    ['"prompt"', 'prompt'],
+    ['true', 'true'],
+    ['null', 'null'],
+    [' [1, 2] ', '[1,2]'],
+    ['plain text', 'plain text']
+  ])('captures %s as a string attribute without changing the outgoing body', async (body, captured) => {
+    const { tracer, attributes } = fakeTracer()
+    const f = createHttpTraceFetch(
+      async (_input, init) => {
+        expect(init?.body).toBe(body)
+        return new Response(null, { status: 204 })
+      },
+      { tracer }
+    )
+    await f('https://api.example.com', { method: 'POST', body })
+    expect(attributes.inputs).toBe(captured)
+  })
+
   it('records url/method/status + redacted headers as dedicated attributes, body-only inputs/outputs', async () => {
     const { tracer, attributes, state } = fakeTracer()
     const innerFetch = vi.fn(
