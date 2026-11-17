@@ -4,13 +4,12 @@ import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
+import { Button, Input, RowFlex, Switch, WarnTooltip, HelpTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import {
   SettingDivider,
   SettingGroup,
-  SettingHelpText,
   SettingRow,
   SettingRowTitle,
   SettingTitle
@@ -19,6 +18,7 @@ import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
 import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { settingsControlClasses } from '@renderer/pages/settings/settingsStyles'
 
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
@@ -107,7 +107,7 @@ const WebDavSettings: FC = () => {
           placeholder={t('settings.data.webdav.host.placeholder')}
           value={webdavHost}
           onChange={(e) => setWebdavHost(e.target.value)}
-          style={{ width: 250 }}
+          className={settingsControlClasses.text}
           type="url"
           onBlur={() => setWebdavHost(webdavHost || '')}
         />
@@ -119,7 +119,7 @@ const WebDavSettings: FC = () => {
           placeholder={t('settings.data.webdav.user')}
           value={webdavUser}
           onChange={(e) => setWebdavUser(e.target.value)}
-          style={{ width: 250 }}
+          className={settingsControlClasses.text}
           onBlur={() => setWebdavUser(webdavUser || '')}
         />
       </SettingRow>
@@ -131,7 +131,7 @@ const WebDavSettings: FC = () => {
           placeholder={t('settings.data.webdav.password')}
           value={webdavPass}
           onChange={(e) => setWebdavPass(e.target.value)}
-          style={{ width: 250 }}
+          className={settingsControlClasses.text}
           onBlur={() => setWebdavPass(webdavPass || '')}
         />
       </SettingRow>
@@ -142,14 +142,14 @@ const WebDavSettings: FC = () => {
           placeholder={t('settings.data.webdav.path.placeholder')}
           value={webdavPath}
           onChange={(e) => setWebdavPath(e.target.value)}
-          style={{ width: 250 }}
+          className={settingsControlClasses.text}
           onBlur={() => setWebdavPath(webdavPath || '')}
         />
       </SettingRow>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-        <RowFlex className="justify-between gap-1.25">
+        <RowFlex className="flex-wrap items-center justify-end gap-2">
           <Button onClick={showBackupModal} disabled={backuping} variant="outline">
             <Save size={14} />
             {t('settings.data.webdav.backup.button')}
@@ -203,31 +203,31 @@ const WebDavSettings: FC = () => {
       </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
+        <SettingRowTitle className="flex items-center gap-1.5">
+          {t('settings.data.backup.skip_file_data_title')}{' '}
+          <HelpTooltip content={t('settings.data.backup.skip_file_data_help')} />
+        </SettingRowTitle>
         <Switch checked={webdavSkipBackupFile} onCheckedChange={(value) => void setWebdavSkipBackupFile(value)} />
       </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
-      </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.webdav.disableStream.title')}</SettingRowTitle>
+        <SettingRowTitle className="flex items-center gap-1.5">
+          {t('settings.data.webdav.disableStream.title')}{' '}
+          <HelpTooltip content={t('settings.data.webdav.disableStream.help')} />
+        </SettingRowTitle>
         <Switch checked={webdavDisableStream} onCheckedChange={onDisableStreamChange} />
       </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.webdav.disableStream.help')}</SettingHelpText>
-      </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.webdav.allowSelfSignedTls.title')}</SettingRowTitle>
+        <SettingRowTitle className="flex items-center gap-1.5">
+          {t('settings.data.webdav.allowSelfSignedTls.title')}{' '}
+          <HelpTooltip content={t('settings.data.webdav.allowSelfSignedTls.help')} />
+        </SettingRowTitle>
         <Switch
           aria-label={t('settings.data.webdav.allowSelfSignedTls.title')}
           checked={webdavAllowSelfSignedTls}
           onCheckedChange={(value) => void setWebdavAllowSelfSignedTls(value)}
         />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.webdav.allowSelfSignedTls.help')}</SettingHelpText>
       </SettingRow>
       {webdavSync && webdavSyncInterval > 0 && (
         <>
@@ -247,7 +247,6 @@ const WebDavSettings: FC = () => {
           customFileName={customFileName}
           setCustomFileName={setCustomFileName}
         />
-
         <WebdavBackupManager
           visible={backupManagerVisible}
           onClose={closeBackupManager}
