@@ -15,19 +15,52 @@ import path from 'node:path'
 
 const MAX_MANIFEST_BYTES = 256 * 1024
 const MAX_ICON_BYTES = 5 * 1024 * 1024
-const WINDOWS_RESERVED = new Set(['con', 'prn', 'aux', 'nul',
+const WINDOWS_RESERVED = new Set([
+  'con',
+  'prn',
+  'aux',
+  'nul',
   ...Array.from({ length: 10 }, (_, i) => `com${i}`),
-  ...Array.from({ length: 10 }, (_, i) => `lpt${i}`)])
-const PERMISSIONS = ['ai.chat', 'clipboard.read', 'clipboard.write', 'file.delete', 'file.export',
-  'file.list', 'file.load', 'file.save', 'network.fetch', 'notification.show',
-  'storage.delete', 'storage.get', 'storage.keys', 'storage.set']
+  ...Array.from({ length: 10 }, (_, i) => `lpt${i}`)
+])
+const PERMISSIONS = [
+  'ai.chat',
+  'clipboard.read',
+  'clipboard.write',
+  'file.delete',
+  'file.export',
+  'file.list',
+  'file.load',
+  'file.save',
+  'network.fetch',
+  'notification.show',
+  'storage.delete',
+  'storage.get',
+  'storage.keys',
+  'storage.set'
+]
 const NAMESPACES = [...new Set(PERMISSIONS.map((p) => p.split('.')[0]))]
 const ID_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/
 const HOST_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/
 const SHA256_RE = /^[a-f0-9]{64}$/
-const SEMVER_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-((0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\+([0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*))?$/
+const SEMVER_RE =
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-((0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\+([0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*))?$/
 const DEV_SERVER_RE = /(?:https?|ws):\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::\d+)?/i
-const TEXT_EXTENSIONS = new Set(['.html', '.htm', '.js', '.mjs', '.cjs', '.css', '.json', '.svg', '.ts', '.tsx', '.txt', '.md', '.xml'])
+const TEXT_EXTENSIONS = new Set([
+  '.html',
+  '.htm',
+  '.js',
+  '.mjs',
+  '.cjs',
+  '.css',
+  '.json',
+  '.svg',
+  '.ts',
+  '.tsx',
+  '.txt',
+  '.md',
+  '.xml'
+])
 
 function checkRelativePath(value) {
   if (typeof value !== 'string' || value.length < 1) return 'must be a non-empty string'
@@ -76,7 +109,9 @@ function checkPermissionList(value, field, issues) {
   for (const entry of value) {
     const wildcardOk = typeof entry === 'string' && entry.endsWith('.*') && NAMESPACES.includes(entry.slice(0, -2))
     if (!PERMISSIONS.includes(entry) && !wildcardOk) {
-      issues.push(`${field}: unknown permission "${entry}" (use a known method like "file.save" or a namespace wildcard like "file.*")`)
+      issues.push(
+        `${field}: unknown permission "${entry}" (use a known method like "file.save" or a namespace wildcard like "file.*")`
+      )
     }
   }
   return expandPermissions(value.filter((e) => typeof e === 'string'))
@@ -165,8 +200,10 @@ export async function validateApp(appDir) {
   }
   const networkHosts = Array.isArray(manifest.network) ? manifest.network : []
   const canReachNetwork = [...required, ...optional].some((p) => p.startsWith('network.'))
-  if (networkHosts.length > 0 && !canReachNetwork) issues.push('network: declares hosts but no `network.*` permission to reach them')
-  if (networkHosts.length === 0 && canReachNetwork) issues.push('permissions: declares a `network.*` permission but no hosts to use it on')
+  if (networkHosts.length > 0 && !canReachNetwork)
+    issues.push('network: declares hosts but no `network.*` permission to reach them')
+  if (networkHosts.length === 0 && canReachNetwork)
+    issues.push('permissions: declares a `network.*` permission but no hosts to use it on')
 
   if (manifest.update !== undefined) {
     for (const field of ['url', 'urlCn']) {

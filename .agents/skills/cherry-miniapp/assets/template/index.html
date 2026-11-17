@@ -5,9 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Cherry Mini App</title>
     <style>
-      body { font-family: system-ui, sans-serif; margin: 2rem; }
-      button { margin-right: 0.5rem; }
-      #out { white-space: pre-wrap; margin-top: 1rem; }
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 2rem;
+      }
+      button {
+        margin-right: 0.5rem;
+      }
+      #out {
+        white-space: pre-wrap;
+        margin-top: 1rem;
+      }
     </style>
   </head>
   <body>
@@ -17,20 +25,27 @@
     <button id="load">Load note</button>
     <div id="out"></div>
     <script>
-      const out = (text) => { document.getElementById('out').textContent = text }
+      const out = (text) => {
+        document.getElementById('out').textContent = text
+      }
       const showError = (error) => out(`${error.name}: ${error.message}`)
 
-      cherry.app.getInfo().then((info) => {
-        document.getElementById('info').textContent = `${info.name} v${info.version} (${info.id})`
-      }).catch(showError)
+      cherry.app
+        .getInfo()
+        .then((info) => {
+          document.getElementById('info').textContent = `${info.name} v${info.version} (${info.id})`
+        })
+        .catch(showError)
 
       document.getElementById('save').addEventListener('click', () => {
-        cherry.storage.set('note', `Saved at ${new Date().toISOString()}`)
+        cherry.storage
+          .set('note', `Saved at ${new Date().toISOString()}`)
           .then(() => out('Note saved.'))
           .catch(showError)
       })
       document.getElementById('load').addEventListener('click', () => {
-        cherry.storage.get('note')
+        cherry.storage
+          .get('note')
           .then((value) => out(value ?? 'No note yet.'))
           .catch(showError)
       })
