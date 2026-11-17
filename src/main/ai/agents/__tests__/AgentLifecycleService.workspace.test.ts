@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rename, rm, symlink, utimes, writeFile } from
 import os from 'node:os'
 import path from 'node:path'
 
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,7 +12,9 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { jobTable } from '@data/db/schemas/job'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { jobScheduleService } from '@data/services/JobScheduleService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { aiHandlers } from '@main/ipc/handlers/ai'
 import { aiRequestSchemas } from '@shared/ipc/schemas/ai'
@@ -51,7 +53,8 @@ vi.mock('@application', async () => {
       drainSessionQueues: async () => {},
       kick: () => {}
     },
-    ChannelManager: { reconcileAgent: () => {} }
+    ChannelManager: { reconcileAgent: () => {} },
+    JobManager: { syncJobScheduleTimerById: () => {} }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
@@ -110,11 +113,58 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     )
   }
 
+  it('archives every non-reusing task session after jobs have been collected', async () => {
+    const task = jobScheduleService.create({
+      type: 'agent.task',
+      name: 'retained-task',
+      trigger: { kind: 'interval', ms: 60_000 },
+      jobInputTemplate: { agentId: 'agent', prompt: 'run' },
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+    const sessions = ['first', 'second'].map((name) =>
+      agentSessionService.create(
+        {
+          agentId: 'agent',
+          name,
+          workspace: { type: 'user', workspaceId: 'user' }
+        },
+        'conversation',
+        task.id
+      )
+    )
+    for (const session of sessions)
+      dbh.db
+        .insert(jobTable)
+        .values({
+          type: 'agent.task',
+          status: 'completed',
+          queue: 'agent',
+          scheduleId: task.id,
+          scheduledAt: 0,
+          input: {},
+          metadata: { sessionId: session.id }
+        })
+        .run()
+    dbh.db.delete(jobTable).run()
+    await lifecycle.deleteTaskWithSessions(task.id)
+    expect(jobScheduleService.getById(task.id)).toBeNull()
+    expect(
+      agentSessionService
+        .listByCursor({ scope: 'ordinary', inTrash: true })
+        .items.map((s) => s.id)
+        .sort()
+    ).toEqual(sessions.map((s) => s.id).sort())
+    expect(agentSessionService.getById('user').deletedAt).toBeUndefined()
+    await lifecycle.restoreSession(sessions[0].id)
+    expect(agentSessionService.listByCursor({ scope: 'ordinary' }).items.map((s) => s.id)).toContain(sessions[0].id)
+  })
+
   const createChild = (ownerSessionId: string) => {
     const id = dbh.db.transaction((tx) => agentSessionService.createChildArchiveTx(tx, ownerSessionId, 'Child'))
     dbh.db
       .insert(agentSessionMessageTable)
       .values({
+        parentId: seedSessionRoot(dbh.db, id),
         id: `${id}-result`,
         sessionId: id,
         role: 'assistant',

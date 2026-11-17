@@ -12,6 +12,7 @@ import type {
   SkillCatalogEntry,
   SkillResult,
   SkillSearchResult,
+  SkillSearchSource,
   SystemSkillCandidate
 } from '@shared/types/skill'
 
@@ -328,39 +329,42 @@ export function useSystemSkills(enabled = true) {
 /**
  * Hook for searching skills across all 3 registries.
  */
-export function useSkillSearch() {
+export function useSkillSearch(source?: SkillSearchSource) {
   const [results, setResults] = useState<SkillSearchResult[]>([])
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const abortRef = useRef(0)
 
-  const search = useCallback(async (query: string) => {
-    const requestId = ++abortRef.current
+  const search = useCallback(
+    async (query: string) => {
+      const requestId = ++abortRef.current
 
-    if (!query.trim()) {
-      setResults([])
-      setSearching(false)
-      return
-    }
-
-    setSearching(true)
-    setError(null)
-
-    try {
-      const data = await searchSkills(query)
-      if (requestId === abortRef.current) {
-        setResults(data)
-      }
-    } catch (err) {
-      if (requestId === abortRef.current) {
-        setError(err instanceof Error ? err.message : 'Search failed')
-      }
-    } finally {
-      if (requestId === abortRef.current) {
+      if (!query.trim()) {
+        setResults([])
         setSearching(false)
+        return
       }
-    }
-  }, [])
+
+      setSearching(true)
+      setError(null)
+
+      try {
+        const data = await searchSkills(query, source)
+        if (requestId === abortRef.current) {
+          setResults(data)
+        }
+      } catch (err) {
+        if (requestId === abortRef.current) {
+          setError(err instanceof Error ? err.message : 'Search failed')
+        }
+      } finally {
+        if (requestId === abortRef.current) {
+          setSearching(false)
+        }
+      }
+    },
+    [source]
+  )
 
   const clear = useCallback(() => {
     abortRef.current++

@@ -120,7 +120,10 @@ export const defaultServiceInstances = {
   IpcApiService: mockIpcApiService,
   NotificationService: mockNotificationService,
   JobManager: mockJobManager,
-  PowerService: { preventSleep: vi.fn(() => ({ dispose: vi.fn() })) },
+  PowerService: {
+    preventSleep: vi.fn(() => ({ dispose: vi.fn() })),
+    onResume: vi.fn(() => ({ dispose: vi.fn() }))
+  },
   RuntimeActivityService: { begin: vi.fn(() => ({ dispose: vi.fn() })), hasActiveTasks: vi.fn(() => false) }
 } as const
 
@@ -187,6 +190,7 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
     forceExit: vi.fn(),
     // Graceful quit entry point (real Application.quit()). Tests can assert it was called.
     quit: vi.fn(),
+    markQuitting: vi.fn(),
     // Tests can mutate `application.isQuitting = true` to exercise quit-aware code paths.
     isQuitting: false
   }

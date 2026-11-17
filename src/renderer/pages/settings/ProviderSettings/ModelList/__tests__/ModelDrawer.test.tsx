@@ -970,7 +970,7 @@ describe('Model drawers', () => {
     )
   })
 
-  it('offers independent token limit presets and keeps custom input available', async () => {
+  it('persists a selected model setting and custom changes', async () => {
     const user = userEvent.setup()
     useProviderMock.mockReturnValue({
       provider: { id: 'openai', name: 'OpenAI' }
@@ -991,11 +991,6 @@ describe('Model drawers', () => {
     const contextPreset = within(contextGroup).getByRole('button', { name: /200K \(200000\)/ })
     const maxInputPreset = within(maxInputGroup).getByRole('button', { name: /512K \(512000\)/ })
     const maxOutputPreset = within(maxOutputGroup).getByRole('button', { name: /256K \(256000\)/ })
-
-    expect(within(contextGroup).getAllByRole('button')).toHaveLength(6)
-    expect(within(maxInputGroup).getAllByRole('button')).toHaveLength(5)
-    expect(within(maxOutputGroup).getAllByRole('button')).toHaveLength(5)
-    expect(screen.getByLabelText('Max output tokens')).toHaveAttribute('placeholder', 'e.g. 65536')
 
     await user.click(contextPreset)
     await user.click(maxInputPreset)

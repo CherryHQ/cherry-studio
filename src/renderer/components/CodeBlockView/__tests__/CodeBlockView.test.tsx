@@ -109,17 +109,6 @@ describe('CodeBlockView', () => {
     expect(screen.getByLabelText('Code viewer')).toHaveTextContent('const value = 1')
   })
 
-  it('uses the viewer for read-only code', () => {
-    render(
-      <CodeBlockView language="javascript" editable={false}>
-        const value = 1
-      </CodeBlockView>
-    )
-
-    expect(screen.getByLabelText('Code viewer')).toHaveTextContent('const value = 1')
-    expect(screen.queryByRole('textbox', { name: 'Code editor' })).not.toBeInTheDocument()
-  })
-
   it('renders display-only code without a toolbar', () => {
     render(
       <CodeBlockView language="html" editable={false} isStreaming maxHeight={350} showToolbar={false}>

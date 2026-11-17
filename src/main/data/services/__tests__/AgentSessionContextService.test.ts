@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { setupTestDatabase } from '@test-helpers/db'
 import { beforeEach, describe, expect, it } from 'vitest'
 
@@ -71,5 +73,35 @@ describe('native association transactions', () => {
         .values({ sessionId: 'session', backendId: backend.id, bindingState: 'bound' })
         .run()
     ).toThrow()
+  })
+  // Native numeric IDs are local to each store; publishing one edit cannot rebind an older context.
+  it('publishes only the selected context when another backend has the same native ID', () => {
+    const first = messages.saveMessage({ sessionId: 'session', message: { role: 'user', data: { parts: [] } } })
+    const original = contexts.reserveBranchTx(dbh.db, {
+      sessionId: 'session',
+      backendId: contexts.ensureBackendTx(dbh.db, { version: 1, kind: 'pi-durable', fileName: 'old.sqlite' }, 'bound')
+        .id,
+      anchorMessageId: first.id,
+      nativeThreadId: '2',
+      checkpointMapping: { fork: { old: 'retained' } }
+    })
+    contexts.bindContext(original.id, '2')
+    const edited = messages.saveMessage({ sessionId: 'session', message: { role: 'user', data: { parts: [] } } })
+    const target = contexts.reserveBranchTx(dbh.db, {
+      sessionId: 'session',
+      backendId: contexts.ensureBackendTx(dbh.db, { version: 1, kind: 'pi-durable', fileName: 'new.sqlite' }, 'bound')
+        .id,
+      anchorMessageId: edited.id,
+      nativeThreadId: '2'
+    })
+    expect(messages.hasRuntimeResumeToken('session', '2', target.id)).toBe(false)
+    expect(messages.hasRuntimeResumeToken('session', '2', randomUUID())).toBe(false)
+    contexts.publishBranchTx(dbh.db, 'session', '2', { edited: 'new checkpoint' })
+    expect(contexts.context(original.id).checkpointMapping).toEqual({ fork: { old: 'retained' } })
+    expect(contexts.context(target.id)).toMatchObject({
+      bindingState: 'bound',
+      checkpointMapping: { fork: { edited: 'new checkpoint' } }
+    })
+    expect(messages.hasRuntimeResumeToken('session', '2', target.id)).toBe(true)
   })
 })

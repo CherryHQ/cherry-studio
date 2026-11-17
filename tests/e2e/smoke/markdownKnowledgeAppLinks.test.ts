@@ -1,31 +1,8 @@
-import { rm } from 'node:fs/promises'
-
-import { _electron as electron } from '@playwright/test'
 import type { MessageBoxOptions } from 'electron'
 
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { selectSidebarApp } from '../regression/navigation'
-import { expect, test as base } from './fixtures/electron.fixture'
-
-const test = base.extend({
-  electronApp: async ({}, use, testInfo) => {
-    const profile = testInfo.outputPath('profile')
-    try {
-      const app = await electron.launch({
-        args: ['.'],
-        env: { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile },
-        timeout: 60000
-      })
-      try {
-        await use(app)
-      } finally {
-        await app.close().catch(() => {})
-      }
-    } finally {
-      await rm(profile, { recursive: true, force: true }).catch(() => {})
-    }
-  }
-})
+import { expect, test } from './fixtures/electron.fixture'
 
 type KnowledgeAppLinksRecorder = {
   dialogCalls: MessageBoxOptions[]

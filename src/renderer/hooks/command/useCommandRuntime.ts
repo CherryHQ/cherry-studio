@@ -1,16 +1,36 @@
-import { createContext, use, useEffect, useRef } from 'react'
+import { createContext, type RefObject, use, useCallback, useLayoutEffect, useRef } from 'react'
 
 import { loggerService } from '@logger'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { MenuPresentationMode } from '@shared/types/command'
 import type { CommandId } from '@shared/utils/command'
 
+import {
+  CommandFocusHostContext,
+  CommandFocusScopeContext,
+  CommandFocusScopeState,
+  findScopeHandler,
+  readRegisteredHandler
+} from './commandFocusScope'
+
 const logger = loggerService.withContext('useCommandRuntime')
 
 export type CommandHandler = (args?: unknown) => void | Promise<void>
+export type CommandHandlerSource = CommandHandler | Readonly<RefObject<CommandHandler>>
+
+export function runCommandHandler(command: CommandId, handler: CommandHandler, args?: unknown): void {
+  try {
+    void Promise.resolve(handler(args)).catch((error) =>
+      logger.error(`Renderer command handler failed: ${command}`, error as Error)
+    )
+  } catch (error) {
+    logger.error(`Renderer command handler failed: ${command}`, error as Error)
+  }
+}
 
 export interface CommandHandlerOptions {
-  enabled?: boolean
+  enabled?: boolean | (() => boolean)
+  allowInKeyboardLayer?: boolean
   /** Synchronous keyboard-routing predicate; only consulted for keyboard dispatch. */
   shouldHandleKeyEvent?: (event: KeyboardEvent) => boolean
 }
@@ -18,7 +38,7 @@ export interface CommandHandlerOptions {
 export interface CommandRuntime {
   execute: (command: CommandId, args?: unknown) => void
   hasHandler: (command: CommandId) => boolean
-  registerHandler: (command: CommandId, handler: CommandHandler, options?: CommandHandlerOptions) => () => void
+  registerHandler: (command: CommandId, handler: CommandHandlerSource, options?: CommandHandlerOptions) => () => void
 }
 
 export interface CommandSharedPreferences {
@@ -47,14 +67,22 @@ export function useCommandHandler(command: CommandId, handler: CommandHandler, o
   handlerRef.current = handler
   const predicateRef = useRef(options?.shouldHandleKeyEvent)
   predicateRef.current = options?.shouldHandleKeyEvent
-  const enabled = options?.enabled !== false
+  const allowedRef = useRef(options?.allowInKeyboardLayer)
+  allowedRef.current = options?.allowInKeyboardLayer
+  const enabledRef = useRef(options?.enabled)
+  enabledRef.current = options?.enabled
 
-  useEffect(() => {
-    return runtime.registerHandler(command, (args) => handlerRef.current(args), {
-      enabled,
+  useLayoutEffect(() => {
+    return runtime.registerHandler(command, handlerRef, {
+      get allowInKeyboardLayer() {
+        return allowedRef.current
+      },
+      get enabled() {
+        return enabledRef.current
+      },
       shouldHandleKeyEvent: (event) => predicateRef.current?.(event) ?? true
     })
-  }, [command, enabled, runtime])
+  }, [command, runtime])
 }
 
 /**
@@ -71,4 +99,74 @@ export function useCommandShortcutPreferences(): Partial<Record<CommandId, Prefe
 
 export function useCommandMenuPresentationMode(): MenuPresentationMode | undefined {
   return use(CommandSharedPreferencesContext)?.menuPresentationMode
+}
+
+export function useCommandOrigin() {
+  const scope = use(CommandFocusScopeContext)
+  const host = use(CommandFocusHostContext)
+  const runtime = useCommandRuntime()
+  return useCallback(
+    (target?: EventTarget | null) => {
+      let origin = scope
+      for (let node = target instanceof HTMLElement ? target : null; node; node = node.parentElement) {
+        const registered = host?.registry.roots.get(node)
+        if (registered) {
+          origin = registered
+          break
+        }
+      }
+      const element = target instanceof HTMLElement ? target : null
+      const isActive = () => (!element || element.isConnected) && (origin?.isActive() ?? true)
+      if (!origin) return { isActive, execute: runtime.execute }
+      const originScope = origin
+      const commands = new Set<CommandId>()
+      for (let current: CommandFocusScopeState | null = originScope; current; current = current.parent) {
+        for (const command of current.handlers.keys()) commands.add(command)
+      }
+      const captured = new Map(
+        [...commands].flatMap((command) => {
+          const entry = findScopeHandler(originScope, command)
+          return entry ? [[command, { entry, handler: readRegisteredHandler(entry) }] as const] : []
+        })
+      )
+      return {
+        isActive,
+        execute: (command: CommandId, args?: unknown) => {
+          const selected = captured.get(command)
+          if (!isActive() || !selected) return
+          const current = findScopeHandler(originScope, command)
+          if (current !== selected.entry || readRegisteredHandler(current) !== selected.handler) return
+          runCommandHandler(command, selected.handler, args)
+        }
+      }
+    },
+    [host, runtime, scope]
+  )
+}
+
+export function useCommandKeyboardBoundary() {
+  const host = use(CommandFocusHostContext)
+  const disposables = useRef(new Set<() => void>())
+  useLayoutEffect(
+    () => () => {
+      for (const dispose of disposables.current) dispose()
+    },
+    []
+  )
+  return useCallback(() => {
+    if (!host) return () => {}
+    const scope = new CommandFocusScopeState(host.rootScope, {
+      element: () => null,
+      active: () => true,
+      context: () => ({ 'resource.focused': false }),
+      boundary: true
+    })
+    const close = host.registry.openBoundary(scope)
+    const dispose = () => {
+      close()
+      disposables.current.delete(dispose)
+    }
+    disposables.current.add(dispose)
+    return dispose
+  }, [host])
 }

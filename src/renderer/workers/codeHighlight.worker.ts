@@ -78,6 +78,15 @@ async function handle(request: HighlightRequest): Promise<HighlightValue> {
 type Job = HighlightRequest & { id: number; generation: number }
 const jobs: Job[] = []
 let processing = false
+// The response channel can be gone by the time a queued job finishes (worker terminated
+// mid-drain, or the host environment torn down); dropping the reply is all that is left.
+function post(response: HighlightResponse): void {
+  try {
+    self.postMessage(response)
+  } catch {
+    // Nothing to deliver to.
+  }
+}
 async function drain() {
   if (processing) return
   processing = true
@@ -87,21 +96,21 @@ async function drain() {
     const data = jobs.splice(index < 0 ? 0 : index, 1)[0]
     try {
       const result = await handle(data)
-      self.postMessage({
+      post({
         id: data.id,
         generation: data.generation,
         result,
         ...('sessionId' in data ? { sessionId: data.sessionId } : {}),
         ...('revision' in data ? { revision: data.revision } : {}),
         ...('configurationRevision' in data ? { configurationRevision: data.configurationRevision } : {})
-      } satisfies HighlightResponse)
+      })
     } catch (error) {
-      self.postMessage({
+      post({
         id: data.id,
         generation: data.generation,
         error: error instanceof Error ? error.message : String(error),
         missing: error instanceof MissingSession
-      } satisfies HighlightResponse)
+      })
     }
     await new Promise((resolve) => setTimeout(resolve, 0))
   }

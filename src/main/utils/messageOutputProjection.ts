@@ -136,23 +136,23 @@ function toCitationSkeleton(output: unknown): unknown | undefined {
   }
 }
 
-/** Whether a serialized payload exceeds the renderer transport budget. */
-function exceedsToolOutputTransportLimit(output: unknown): boolean {
-  if (output === undefined || output === null) return false
+/** Serialize an oversized payload for reuse in transport checks and revision hashing. */
+function serializeOversizedToolOutput(output: unknown): string | undefined {
+  if (output === undefined || output === null) return undefined
   try {
     const serialized = JSON.stringify(output)
-    if (serialized === undefined) return false
+    if (serialized === undefined) return undefined
     // UTF-16 code units are a lower bound on UTF-8 bytes, so this short-circuits without encoding.
-    if (serialized.length > DEFER_TOOL_OUTPUT_BYTES) return true
-    return new TextEncoder().encode(serialized).length > DEFER_TOOL_OUTPUT_BYTES
+    if (serialized.length > DEFER_TOOL_OUTPUT_BYTES) return serialized
+    return new TextEncoder().encode(serialized).length > DEFER_TOOL_OUTPUT_BYTES ? serialized : undefined
   } catch {
-    return false
+    return undefined
   }
 }
 
 export function shouldDeferToolOutput(output: unknown): boolean {
   if (output === undefined || output === null || isDeferredToolOutput(output)) return false
-  return exceedsToolOutputTransportLimit(output)
+  return serializeOversizedToolOutput(output) !== undefined
 }
 
 function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): DeferredToolOutput {
@@ -160,7 +160,7 @@ function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): De
   if (skeleton === undefined) return deferred
 
   const projected = { ...deferred, skeleton } satisfies DeferredToolOutput
-  if (!exceedsToolOutputTransportLimit(projected)) return projected
+  if (serializeOversizedToolOutput(projected) === undefined) return projected
 
   const entities = Array.isArray(skeleton)
     ? skeleton
@@ -175,16 +175,19 @@ function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): De
       ? entities.slice(0, end)
       : { ...skeleton, content: entities.slice(0, end) }
     const trimmed = { ...deferred, skeleton: trimmedSkeleton } satisfies DeferredToolOutput
-    if (!exceedsToolOutputTransportLimit(trimmed)) return trimmed
+    if (serializeOversizedToolOutput(trimmed) === undefined) return trimmed
   }
 
   return deferred
 }
 
 function projectToolOutputForRenderer(output: unknown, ref: DeferredToolResultRef): unknown {
-  if (!isPersistedToolOutput(output) && !shouldDeferToolOutput(output)) return output
-  const versionedRef = { ...ref, revision: createHash('sha256').update(JSON.stringify(output)).digest('hex') }
-  if (isPersistedToolOutput(output)) {
+  const isPersisted = isPersistedToolOutput(output)
+  if (!isPersisted && isDeferredToolOutput(output)) return output
+  const serialized = isPersisted ? JSON.stringify(output) : serializeOversizedToolOutput(output)
+  if (serialized === undefined) return output
+  const versionedRef = { ...ref, revision: createHash('sha256').update(serialized).digest('hex') }
+  if (isPersisted) {
     const persisted = output.$persistedToolOutput
     const deferred = {
       $deferredToolResult: versionedRef,

@@ -14,6 +14,7 @@ import type {
   AgentSessionRuntimeDriver,
   OrphanSessionReclaimOptions
 } from '../types'
+import { PiForkCheckpointSchema } from './forkCheckpoint'
 import { forkPiSession } from './piFork'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
 import { ensureRetiredSessionHistory, migrateRetiredSessionHistories } from './retiredSessionHistory'
@@ -23,9 +24,12 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly workspaceRelocation = piWorkspaceRelocation
   readonly type = 'pi'
   readonly fork = forkPiSession
+  isForkCheckpoint(value: unknown): boolean {
+    return PiForkCheckpointSchema.safeParse(value).success
+  }
   readonly recoverSessions = migrateRetiredSessionHistories
 
-  async validateSession(session: AgentSessionEntity): Promise<void> {
+  async validateSession(session: AgentSessionEntity, opts?: { headless?: boolean }): Promise<void> {
     await ensureRetiredSessionHistory(session.id)
     const cwd = session.workspace?.path
     if (!cwd) {
@@ -35,7 +39,10 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
       throw new Error(`pi agent session ${session.id} has no agent`)
     }
     const agent = agentService.getAgent(session.agentId)
-    if (!agent?.model) {
+    // Headless runs execute the agent default, so a stale session override
+    // must not fail (or pass) preflight for them.
+    const effectiveModel = opts?.headless ? agent?.model : (session.model ?? agent?.model)
+    if (!effectiveModel) {
       throw new Error(`pi agent ${session.agentId} has no model configured`)
     }
     await prepareAgentSessionWorkspaceDirectory(session)

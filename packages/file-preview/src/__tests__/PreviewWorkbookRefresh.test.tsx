@@ -32,8 +32,9 @@ beforeEach(() => {
 
 afterEach(async () => {
   cleanup()
-  // TanStack Virtual's scroll-reset timeout outlives unmount; drain it before jsdom is destroyed.
-  await vi.runOnlyPendingTimersAsync()
+  // Drain the real virtualizer's scroll-end debounce before jsdom is destroyed.
+  await act(() => vi.runOnlyPendingTimersAsync())
+  expect(vi.getTimerCount()).toBe(0)
   vi.useRealTimers()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()

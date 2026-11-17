@@ -99,6 +99,50 @@ it('sends a queued follow-up when completion has already been marked read', asyn
   expect(result.current.items).toEqual([])
 })
 
+it('keeps an accepted input out of the draft queue and stops advancing after execution fails', async () => {
+  const delivered: string[] = []
+  const useQueue = () =>
+    useFollowupQueue({
+      scopeKey: 'topic',
+      ...useTopicStreamStatus('topic'),
+      onDrain: async ({ text }) => {
+        delivered.push(text)
+        return true
+      }
+    })
+  const first = renderHook(useQueue)
+  act(() => {
+    first.result.current.enqueue({ text: 'accepted', tokens: [] }, { text: 'accepted', userMessageParts: [] })
+    first.result.current.enqueue({ text: 'next', tokens: [] }, { text: 'next', userMessageParts: [] })
+  })
+  await act(async () => {
+    cacheService.setShared('topic.stream.statuses.topic', {
+      status: 'done',
+      activeExecutions: [],
+      awaitingApprovalAnchors: [],
+      lastCompletedAt: 100
+    })
+  })
+  expect(delivered).toEqual(['accepted'])
+  expect(first.result.current.items.map(({ payload }) => payload.text)).toEqual(['next'])
+  await act(async () => {
+    cacheService.setShared('topic.stream.statuses.topic', {
+      status: 'error',
+      activeExecutions: [],
+      awaitingApprovalAnchors: [],
+      lastCompletedAt: 100
+    })
+  })
+  first.unmount()
+  const next = renderHook(useQueue)
+  next.rerender()
+  expect(delivered).toEqual(['accepted'])
+  expect(next.result.current.items.map(({ payload }) => payload.text)).toEqual(['next'])
+  await act(async () => next.result.current.sendId(next.result.current.items[0].id))
+  expect(delivered).toEqual(['accepted', 'next'])
+  expect(next.result.current.items).toEqual([])
+})
+
 it('resumes a paused queue after the current conversation was marked read', async () => {
   const delivered: string[] = []
   const { result } = renderHook(() =>

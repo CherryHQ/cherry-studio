@@ -34,6 +34,9 @@ const objectInfo: ObjectInfo = {
         on_true: ['COMFY_MATCHTYPE_V3', { lazy: true }]
       }
     }
+  },
+  LoadImage: {
+    input: { required: { image: [['saved.png'], {}] } }
   }
 }
 
@@ -94,6 +97,14 @@ const switchWorkflow = {
     [4, 13, 0, 11, 2],
     [5, 12, 0, 14, 0]
   ]
+}
+
+const imageWorkflow = {
+  nodes: [
+    { id: 1, type: 'LoadImage', title: 'Source image', widgets_values: ['saved-first.png'] },
+    { id: 2, type: 'LoadImage', title: 'Style image', widgets_values: ['saved-second.png'] }
+  ],
+  links: []
 }
 
 const submitInput = {
@@ -234,6 +245,52 @@ describe('ComfyuiTransport', () => {
     const body = JSON.parse(init?.body as string)
     expect(body.prompt['1'].inputs.text).toBe('a cat')
     expect(body.prompt['2'].inputs.seed).toBe(42)
+  })
+
+  it('uploads attached files and assigns them to LoadImage nodes in workflow order', async () => {
+    const uploads: FormData[] = []
+    const filenames: string[] = []
+    let prompt: Record<string, any> | undefined
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/object_info')) return respond(objectInfo)
+      if (url.includes('/userdata/')) return respond(imageWorkflow)
+      if (url.endsWith('/upload/image')) {
+        uploads.push(init?.body as FormData)
+        return respond({
+          name: uploads.length === 1 ? 'uploaded-first.png' : 'uploaded-second.jpg',
+          subfolder: uploads.length === 1 ? 'edits' : ''
+        })
+      }
+      prompt = JSON.parse(String(init?.body)).prompt as Record<string, any>
+      return respond({ prompt_id: 'pid-1' })
+    })
+    const files = [
+      { type: 'file', mediaType: 'image/png', data: 'AQID' },
+      { type: 'file', mediaType: 'image/jpeg', data: new Uint8Array([4, 5]) }
+    ] as never[]
+    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
+
+    await transport.submit({ ...submitInput, files })
+
+    expect(uploads).toHaveLength(2)
+    for (const [index, formData] of uploads.entries()) {
+      expect(formData.get('type')).toBe('input')
+      expect(formData.get('overwrite')).toBe('true')
+      const image = formData.get('image')
+      expect(image).toBeInstanceOf(Blob)
+      expect((image as Blob).type).toBe(index === 0 ? 'image/png' : 'image/jpeg')
+      filenames.push((image as File).name)
+      expect(new Uint8Array(await (image as Blob).arrayBuffer())).toEqual(
+        index === 0 ? new Uint8Array([1, 2, 3]) : new Uint8Array([4, 5])
+      )
+    }
+    expect(new Set(filenames).size).toBe(uploads.length)
+
+    const images = Object.values(prompt ?? {})
+      .filter((node) => node.class_type === 'LoadImage')
+      .map((node) => node.inputs.image)
+    expect(images).toEqual(['edits/uploaded-first.png', 'uploaded-second.jpg'])
   })
 
   it('hands a Comfy API key to partner nodes in extra_data, and never as a header', async () => {

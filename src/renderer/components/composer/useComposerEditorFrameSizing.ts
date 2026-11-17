@@ -300,12 +300,14 @@ export function useComposerEditorFrameSizing({
   ])
 
   const fitContentHeight = useCallback(() => {
+    if (!isExpanded && requestedManualHeight !== null) return
+
     clearAnimationFrame()
     pendingExpandedRef.current = null
     setAnimatedHeight(null)
     setManualHeight(null)
     if (isExpanded) onExpandedChange(false)
-  }, [clearAnimationFrame, isExpanded, onExpandedChange])
+  }, [clearAnimationFrame, isExpanded, onExpandedChange, requestedManualHeight])
 
   const resolvedFrameHeight =
     animatedHeight ?? (isExpanded ? `${maxHeight}px` : manualHeight !== null ? `${manualHeight}px` : undefined)

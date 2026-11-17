@@ -176,6 +176,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     // settingsBuilder receives `lastAgentSessionId` and reflects it as `resume`;
     // mirror that so the builder's own precedence is what the test exercises.
     mocks.buildSessionSettings.mockImplementation(async (_session, _provider, options) => ({
+      ...options.thinkingOptions,
       env: {},
       ...(options?.lastAgentSessionId ? { resume: options.lastAgentSessionId } : {})
     }))
@@ -218,12 +219,6 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ['kb-selected']
     )
 
-    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      expect.objectContaining({ contextWindow: 128_000, knowledgeBaseIds: ['kb-selected'] }),
-      expect.anything()
-    )
     expect(request?.knowledgeBaseIds).toEqual(['kb-selected'])
   })
 
@@ -235,31 +230,41 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(warmRequest.connectionRebuildSignature).toBe(current.config.rebuildSignature)
   })
 
-  it('passes native image support from the captured connection model into settings', async () => {
-    mocks.getModelByKey.mockReturnValue({
-      id: 'model-1',
-      apiModelId: 'claude-sonnet',
-      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
+  it('prewarms the agent default model when the session carries an override', async () => {
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      model: 'provider-1::model-2',
+      workspace: { type: 'user', path: '/workspace/project' }
     })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'provider-1::model-plan',
+      smallModel: 'provider-1::model-small'
+    })
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: modelId,
+      contextWindow: 128_000
+    }))
 
-    await buildClaudeCodeQueryRequestForAgentSession('session-1')
-
-    expect(mocks.buildSessionSettings).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.anything(),
-      expect.objectContaining({ supportsImages: true }),
-      expect.anything()
+    const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
+    const agentDefaultRequest = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      'provider-1::model-1',
+      'default',
+      false,
+      [],
+      'standard',
+      true
     )
+    const overrideRequest = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
-    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'text-only', capabilities: [] })
-
-    await buildClaudeCodeQueryRequestForAgentSession('session-1')
-
-    expect(mocks.buildSessionSettings).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.anything(),
-      expect.objectContaining({ supportsImages: false }),
-      expect.anything()
+    expect(warmRequest?.connectionRebuildSignature).toBe(agentDefaultRequest?.connectionConfig.rebuildSignature)
+    expect(overrideRequest?.connectionConfig.rebuildSignature).not.toBe(
+      agentDefaultRequest?.connectionConfig.rebuildSignature
     )
   })
 
@@ -457,12 +462,6 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
 
-    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      expect.objectContaining({ notificationContext }),
-      expect.anything()
-    )
     expect(warmRequest?.notificationContext).toEqual(notificationContext)
   })
 
@@ -558,6 +557,142 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
   })
 
+  it('keeps configured plan/small aliases on an ordinary session model override (inv_f7cde0553102c364)', async () => {
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'provider-1::model-plan',
+      smallModel: 'provider-1::model-small'
+    })
+    // The session carries its own model override: current session state, NOT
+    // a stale captured turn - the configured Sonnet/Haiku aliases must survive
+    // the switch (cherry-pr-review inv_f7cde0553102c364).
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      model: 'provider-1::model-2',
+      workspace: { type: 'user', path: '/workspace/project' }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_MODEL: 'provider-1:model-2-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'provider-1:model-plan-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'provider-1:model-small-api'
+    })
+
+    // A live turn captured on the CURRENT override is fresh too: the aliases
+    // still apply rather than pinning to the primary.
+    const liveRequest = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, 'provider-1::model-2')
+    expect(liveRequest?.settings.env).toMatchObject({
+      ANTHROPIC_MODEL: 'provider-1:model-2-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'provider-1:model-plan-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'provider-1:model-small-api'
+    })
+
+    // The connection-signature derivation agrees with query construction: no
+    // spurious rebuild from the override alone.
+    const current = await deriveConnectionConfig('session-1')
+    expect(current.ok).toBe(true)
+    if (!request || !current.ok) throw new Error('expected request and current config')
+    expect(request.connectionConfig.rebuildSignature).toBe(current.config.rebuildSignature)
+  })
+
+  it('keeps configured aliases when a headless run supplies the agent default behind a session override (inv_2a46bb6139db6292)', async () => {
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'provider-1::model-plan',
+      smallModel: 'provider-1::model-small'
+    })
+    // The interactive session carries its own override; a scheduled run
+    // resolves against the agent default and supplies it as the connection
+    // model. That capture is current for headless resolution, NOT a stale
+    // interactive capture — the aliases must survive (cherry-pr-review
+    // inv_2a46bb6139db6292#f1).
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      model: 'provider-1::model-2',
+      workspace: { type: 'user', path: '/workspace/project' }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      'provider-1::model-1',
+      'default',
+      false,
+      [],
+      'standard',
+      true
+    )
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_MODEL: 'provider-1:model-1-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'provider-1:model-plan-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'provider-1:model-small-api'
+    })
+
+    const current = await deriveConnectionConfig(
+      'session-1',
+      'provider-1::model-1',
+      'default',
+      false,
+      [],
+      'standard',
+      true
+    )
+    expect(current.ok).toBe(true)
+    if (!request || !current.ok) throw new Error('expected request and current config')
+    expect(request.connectionConfig.rebuildSignature).toBe(current.config.rebuildSignature)
+  })
+
+  it('pins aliases to the captured default when an interactive turn captured it before a session switch (inv_d81d8d063f588b6a)', async () => {
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'provider-1::model-plan',
+      smallModel: 'provider-1::model-small'
+    })
+    // The turn captured the then-current resolution (the agent default); the
+    // session has SINCE switched to its own override and the Sonnet/Haiku
+    // aliases were edited in the same window. Matching the agent default by
+    // equality does NOT make the capture current for an interactive turn —
+    // the aliases must pin to the captured primary, not leak the newer edits
+    // (cherry-pr-review inv_d81d8d063f588b6a#f1).
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      model: 'provider-1::model-2',
+      workspace: { type: 'user', path: '/workspace/project' }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, 'provider-1::model-1')
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_MODEL: 'provider-1:model-1-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'provider-1:model-1-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'provider-1:model-1-api'
+    })
+
+    // The connection-signature derivation agrees with query construction.
+    const current = await deriveConnectionConfig('session-1', 'provider-1::model-1')
+    expect(current.ok).toBe(true)
+    if (!request || !current.ok) throw new Error('expected request and current config')
+    expect(request.connectionConfig.rebuildSignature).toBe(current.config.rebuildSignature)
+  })
+
   it('keeps upstream key rotation and key-set edits outside the warm query credentials', async () => {
     mocks.getApiKeys.mockReturnValue([
       { key: 'key-a', isEnabled: true },
@@ -611,7 +746,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
     expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
-      'X-Agent: agent-value\nx-cherry-agent-session-id: session-1\nX-Shared: agent-value'
+      'X-Agent: agent-value\nx-cherry-agent-session-id: session-1\nX-Cherry-Fast-Mode: false\nX-Cherry-Reasoning-Effort: default\nX-Cherry-Service-Tier: standard\nX-Shared: agent-value'
     )
   })
 
@@ -784,28 +919,31 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(computeLanguageCost({ inputTokens: 1_000_000, outputTokens: 1_000_000 }, snapshot!)?.cost).toBe(32)
   })
 
-  it('routes distinct same-provider model slots through the gateway', async () => {
-    mocks.getAgent.mockReturnValue({
-      id: 'agent-1',
-      model: 'provider-1::model-1',
-      planModel: 'provider-1::model-2',
-      smallModel: 'provider-1::model-3'
-    })
-    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
-      id: modelId,
-      apiModelId: `${modelId}-api`
-    }))
-    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+  it.each([false, true])(
+    'routes model slots independently when the small model is missing: %s',
+    async (smallModelMissing) => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'provider-1::model-1',
+        planModel: 'provider-1::model-2',
+        smallModel: 'provider-1::model-3'
+      })
+      mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => {
+        if (smallModelMissing && modelId === 'model-3') throw new Error('small model not in table')
+        return { id: modelId, apiModelId: `${modelId}-api` }
+      })
+      mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
-    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+      const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
-    expect(request?.settings.env).toMatchObject({
-      ANTHROPIC_MODEL: 'provider-1:model-1-api',
-      ANTHROPIC_DEFAULT_SONNET_MODEL: 'provider-1:model-2-api',
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'provider-1:model-3-api'
-    })
-    expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
-  })
+      expect(request?.options.env).toMatchObject({
+        ANTHROPIC_MODEL: 'provider-1:model-1-api',
+        ANTHROPIC_DEFAULT_SONNET_MODEL: 'provider-1:model-2-api',
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: smallModelMissing ? 'provider-1:model-3' : 'provider-1:model-3-api'
+      })
+      expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
+    }
+  )
 
   it('appends [1m] for a >=1M model on an Anthropic-preset provider repointed at a custom proxy', async () => {
     // Provider derived from the Anthropic preset (presetProviderId stays 'anthropic') but its Base URL
@@ -1004,7 +1142,9 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'openai:gpt-plan-api',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'other:small-api'
     })
-    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe('x-cherry-agent-session-id: session-1')
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
+      'x-cherry-agent-session-id: session-1\nX-Cherry-Fast-Mode: false\nX-Cherry-Reasoning-Effort: default\nX-Cherry-Service-Tier: standard'
+    )
     expect(request?.options.env?.API_TIMEOUT_MS).toBe('1800000')
     for (const env of [request?.settings.env, request?.options.env]) {
       expect(env).toMatchObject({
@@ -1110,6 +1250,59 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request.connectionConfig.rebuildSignature).toBe(current.config.rebuildSignature)
   })
 
+  it('freezes the selected gateway service tier in request headers and connection identity', async () => {
+    mocks.buildSessionSettings.mockResolvedValueOnce({
+      env: { ANTHROPIC_CUSTOM_HEADERS: 'x-cherry-service-tier: fast' }
+    })
+    const request = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      undefined,
+      'default',
+      false,
+      [],
+      'flex'
+    )
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toContain('X-Cherry-Service-Tier: flex')
+    const current = await deriveConnectionConfig('session-1', undefined, 'default', false, [], 'flex')
+    const changed = await deriveConnectionConfig('session-1')
+    if (!current.ok || !changed.ok) throw new Error('expected routable gateway configuration')
+    expect(request?.connectionConfig.rebuildSignature).toBe(current.config.rebuildSignature)
+    expect(current.config.rebuildSignature).not.toBe(changed.config.rebuildSignature)
+  })
+
+  it.each(['default', 'none', 'auto', 'ultra'] as const)(
+    'carries the original %s reasoning selection to gateway execution',
+    async (reasoningEffort) => {
+      const request = await buildClaudeCodeQueryRequestForAgentSession(
+        'session-1',
+        undefined,
+        undefined,
+        reasoningEffort
+      )
+      expect(request?.options.env?.ANTHROPIC_CUSTOM_HEADERS).toContain(`X-Cherry-Reasoning-Effort: ${reasoningEffort}`)
+      expect(request?.options.thinking).toBeUndefined()
+      expect(request?.options.effort).toBeUndefined()
+    }
+  )
+
+  it('preserves native thinking control for CLI subscriptions', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      authMethods: ['external-cli'],
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'claude-sonnet',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: { selectableEfforts: ['none', 'auto'] }
+    })
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'none')
+    expect(request?.options.thinking).toEqual({ type: 'disabled' })
+    expect(request?.options.env?.ANTHROPIC_CUSTOM_HEADERS).toBeUndefined()
+  })
+
   it('carries Codex Fast through the internal gateway header', async () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai-codex::gpt-5-4' })
     mocks.getProviderByProviderId.mockReturnValue({
@@ -1128,8 +1321,66 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     // `mergeAnthropicCustomHeaders` canonicalizes to a case-insensitively sorted, deduplicated list.
     expect(request?.settings.env).toMatchObject({
-      ANTHROPIC_CUSTOM_HEADERS: 'x-cherry-agent-session-id: session-1\nX-Cherry-Fast-Mode: true'
+      ANTHROPIC_CUSTOM_HEADERS:
+        'x-cherry-agent-session-id: session-1\nX-Cherry-Fast-Mode: true\nX-Cherry-Reasoning-Effort: default\nX-Cherry-Service-Tier: standard'
     })
+  })
+
+  it.each([false, true])(
+    'preserves captured Gateway Fast=%s over inherited headers and model capability',
+    async (fastMode) => {
+      mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'claude-sonnet', supportsFastMode: false })
+      mocks.buildSessionSettings.mockResolvedValue({
+        env: { ANTHROPIC_CUSTOM_HEADERS: `x-cherry-fast-mode: ${!fastMode}\nX-Custom: retained` }
+      })
+
+      const request = await buildClaudeCodeQueryRequestForAgentSession(
+        'session-1',
+        undefined,
+        undefined,
+        'default',
+        fastMode
+      )
+
+      expect(request?.options.env?.ANTHROPIC_CUSTOM_HEADERS).toContain(`X-Cherry-Fast-Mode: ${fastMode}`)
+      expect(request?.options.env?.ANTHROPIC_CUSTOM_HEADERS).toContain('X-Custom: retained')
+    }
+  )
+
+  it('keeps native Fast in the startup baseline when model support changes during materialization', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      authMethods: ['external-cli'],
+      fastMode: { transport: 'claude-code' }
+    })
+    const model = { id: 'model-1', apiModelId: 'claude-sonnet', supportsFastMode: true }
+    mocks.getModelByKey.mockReturnValue(model)
+    mocks.buildSessionSettings.mockImplementationOnce(async (_session, _provider, options) => {
+      mocks.getModelByKey.mockReturnValue({ ...model, supportsFastMode: false })
+      return { env: {}, settings: { fastMode: options.fastMode } }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'default', true)
+    const current = await deriveConnectionConfig('session-1', undefined, 'default', true)
+
+    expect(request?.options.settings).toMatchObject({ fastMode: true })
+    if (!request || !current.ok) throw new Error('expected request and current config')
+    expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
+  })
+
+  it('finishes the captured request when its model is removed during materialization', async () => {
+    mocks.buildSessionSettings.mockImplementationOnce(async () => {
+      mocks.getModelByKey.mockImplementation(() => {
+        throw new Error('model was removed')
+      })
+      return { env: {} }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    const current = await deriveConnectionConfig('session-1')
+
+    expect(request?.options.model).toBe('provider-1:claude-sonnet')
+    expect(current.ok).toBe(false)
   })
 
   it('preserves existing Anthropic custom headers when enabling Codex Fast', async () => {
@@ -1153,7 +1404,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     // Sorted canonical order — the retained custom header survives the merge.
     expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
-      'x-cherry-agent-session-id: session-1\nX-Cherry-Fast-Mode: true\nX-Custom-Header: retained'
+      'x-cherry-agent-session-id: session-1\nX-Cherry-Fast-Mode: true\nX-Cherry-Reasoning-Effort: default\nX-Cherry-Service-Tier: standard\nX-Custom-Header: retained'
     )
   })
 
@@ -1183,7 +1434,15 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     }))
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
-    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    const request = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      undefined,
+      'default',
+      false,
+      [],
+      'flex'
+    )
 
     // Stays on the subscription login: no gateway, no injected API key, and the
     // off-provider plan/small models collapse to the primary claude-code model.
@@ -1244,29 +1503,19 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     }
   })
 
-  it('passes Claude Code Fast to the SDK settings builder', async () => {
-    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'claude-code::claude-opus-4-8' })
-    mocks.getProviderByProviderId.mockReturnValue({
-      id: 'claude-code',
-      authMethods: ['external-cli'],
-      fastMode: { transport: 'claude-code' },
-      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
-    })
-    mocks.getModelByKey.mockReturnValue({
-      id: 'claude-opus-4-8',
-      apiModelId: 'claude-opus-4-8',
-      supportsFastMode: true
-    })
-    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
-
-    await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, undefined, 'default', true)
-
-    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      expect.objectContaining({ fastMode: true }),
-      expect.anything()
+  it('rebuilds for a changed Gateway Fast selection independently of model support', async () => {
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'claude-sonnet', supportsFastMode: false })
+    const request = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      undefined,
+      'default',
+      false
     )
+    const current = await deriveConnectionConfig('session-1', undefined, 'default', true)
+
+    if (!request || !current.ok) throw new Error('expected request and current config')
+    expect(request.connectionConfig.rebuildSignature).not.toBe(current.config.rebuildSignature)
   })
 
   it('routes Gemini provider models through the local API gateway', async () => {
@@ -1547,6 +1796,30 @@ describe('deriveConnectionConfig', () => {
         (name) => original.rebuildFactFingerprints[name] !== renamed.rebuildFactFingerprints[name]
       )
     ).toEqual(['promptModelName'])
+  })
+
+  it('fingerprints the session override model name instead of the parent agent default', async () => {
+    mocks.getSessionById.mockReturnValue({
+      ...sessionWithWorkspace,
+      model: 'provider-1::model-2'
+    })
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      name: modelId === 'model-2' ? 'Override Model' : 'Default Model',
+      apiModelId: `${modelId}-api`
+    }))
+
+    const withOverride = await deriveConnectionConfig('session-1')
+    mocks.getSessionById.mockReturnValue(sessionWithWorkspace)
+    const agentDefault = await deriveConnectionConfig('session-1')
+
+    if (!withOverride.ok || !agentDefault.ok) throw new Error('expected ok derive')
+    expect(withOverride.config.rebuildSignature).not.toBe(agentDefault.config.rebuildSignature)
+    const changedFacts = Object.keys(agentDefault.config.rebuildFactFingerprints).filter(
+      (name) => agentDefault.config.rebuildFactFingerprints[name] !== withOverride.config.rebuildFactFingerprints[name]
+    )
+    expect(changedFacts).toContain('modelId')
+    expect(changedFacts).toContain('promptModelName')
   })
 
   it('changes only the proxy-environment rebuild fact when the effective Cherry proxy changes', async () => {
@@ -1896,5 +2169,51 @@ describe('deriveConnectionConfig', () => {
       throw new Error('Provider not found')
     })
     expect(await deriveConnectionConfig('session-1')).toEqual({ ok: false, reason: 'unroutable' })
+  })
+
+  it('serves a session model override after the agent default is cleared', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: null, disabledTools: [], mcps: [], configuration: {} })
+    mocks.getSessionById.mockReturnValue({ ...sessionWithWorkspace, model: 'provider-1::model-1' })
+
+    const result = await deriveConnectionConfig('session-1')
+    expect(result.ok).toBe(true)
+  })
+
+  it('still reports unroutable when neither session override nor agent default provides a model', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: null, disabledTools: [], mcps: [], configuration: {} })
+    mocks.getSessionById.mockReturnValue(sessionWithWorkspace)
+
+    expect(await deriveConnectionConfig('session-1')).toEqual({ ok: false, reason: 'unroutable' })
+  })
+
+  it('builds a query request from the session override after the agent default is cleared', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: null, disabledTools: [], mcps: [], configuration: {} })
+    mocks.getSessionById.mockReturnValue({
+      ...sessionWithWorkspace,
+      model: 'provider-1::model-1'
+    })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+    mocks.resolveReasoningProfile.mockReturnValue({
+      format: 'anthropic',
+      wire: REASONING_FORMAT_PROFILES.anthropic.wire
+    })
+    mocks.resolveApiKey.mockReturnValue({
+      value: 'api-key',
+      apiKeySelection: { attribution: 'explicit', id: 'key-a', masked: 'api-****-key' }
+    })
+    mocks.apiGatewayGetAgentSessionUsageHeaders.mockReturnValue({
+      'x-cherry-agent-session-id': 'session-1',
+      'x-cherry-internal-usage-token': 'internal-token'
+    })
+    mocks.buildSessionSettings.mockResolvedValue({ env: {} })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    expect(request?.sdkModelId).toBe('provider-1:model-1-api')
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'provider-1::model-1' }),
+      expect.anything(),
+      expect.objectContaining({ effectiveModelId: 'provider-1::model-1' }),
+      expect.anything()
+    )
   })
 })

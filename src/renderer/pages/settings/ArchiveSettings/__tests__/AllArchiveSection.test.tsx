@@ -44,7 +44,7 @@ async function flush() {
     await vi.advanceTimersByTimeAsync(20)
   })
 }
-function mount() {
+function mount(onRequestDelete = vi.fn()) {
   const cache = new Map()
   const value = { provider: () => cache }
   function Harness({ visible = true, present = true }: { visible?: boolean; present?: boolean }) {
@@ -57,7 +57,7 @@ function mount() {
                 retentionDays={30}
                 isBatchMode={false}
                 isPermanentDeleting={false}
-                onRequestDelete={vi.fn()}
+                onRequestDelete={onRequestDelete}
               />
             )}
           </Activity>
@@ -273,5 +273,27 @@ describe('All Archive entry reads', () => {
     writeWhileAbsent()
     await flush()
     expect(reads()).toHaveLength(2)
+  })
+
+  it('tags a delete request with the domain of the chosen row so the confirmation can state its scope', async () => {
+    const onRequestDelete = vi.fn()
+    MockDataApiUtils.setCustomResponse(
+      '/archives',
+      'GET',
+      page([
+        entry('Archived topic'),
+        { ...entry('Report.pdf'), id: 'files:Report.pdf', entityId: 'file-1', domain: 'files' }
+      ])
+    )
+    mount(onRequestDelete)
+    await flush()
+
+    const user = userEvent.setup({ delay: null })
+    // Rows render in API order: the topic first, then the file.
+    await user.click(screen.getAllByRole('button', { name: 'Delete Permanently' })[1])
+
+    expect(onRequestDelete).toHaveBeenCalledWith(
+      expect.objectContaining({ domains: ['files'], fileEntryIds: ['file-1'] })
+    )
   })
 })
