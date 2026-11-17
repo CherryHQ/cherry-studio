@@ -206,19 +206,24 @@ export function SkillDetails({ skillId }: { skillId: string }) {
   }
 
   if (error && !isDataApiNotFoundError(error)) {
-    const summary = t('error.unexpected')
+    const summary = t('library.skill_detail.load_failed')
     return (
       <SettingsContentBody className="min-h-0 flex-1">
-        <EmptyState title={summary} actionLabel={t('common.back')} onAction={goBack} className="min-h-80" />
-        <div className="flex justify-center pb-6">
-          <ErrorDetailAction
-            error={error}
-            message={summary}
-            source="skills"
-            operation="skill.load"
-            recordId={skillId}
-          />
-        </div>
+        <EmptyState
+          title={summary}
+          actionLabel={t('common.back')}
+          onAction={goBack}
+          className="min-h-80"
+          detail={
+            <ErrorDetailAction
+              error={error}
+              message={summary}
+              source="skills"
+              operation="skill.load"
+              recordId={skillId}
+            />
+          }
+        />
       </SettingsContentBody>
     )
   }
@@ -343,16 +348,19 @@ export function SkillDetails({ skillId }: { skillId: string }) {
           />
         ) : folder.error ? (
           <div className="flex h-full min-h-80 flex-1 flex-col">
-            <EmptyState title={t('library.skill_detail.file_load_failed')} className="h-full min-h-80" />
-            <div className="flex justify-center pb-6">
-              <ErrorDetailAction
-                error={folder.error}
-                message={t('library.skill_detail.file_load_failed')}
-                source="skills"
-                operation="skill.folder.resolve"
-                recordId={skillId}
-              />
-            </div>
+            <EmptyState
+              title={t('library.skill_detail.file_load_failed')}
+              className="h-full min-h-80"
+              detail={
+                <ErrorDetailAction
+                  error={folder.error}
+                  message={t('library.skill_detail.file_load_failed')}
+                  source="skills"
+                  operation="skill.folder.resolve"
+                  recordId={skillId}
+                />
+              }
+            />
           </div>
         ) : (
           <EmptyState title={t('library.skill_detail.no_files')} className="h-full min-h-80" />

@@ -116,10 +116,11 @@ vi.mock('@cherrystudio/ui', () => ({
   },
   DialogHeader: ({ children }: { children?: ReactNode }) => <header>{children}</header>,
   DialogTitle: ({ children }: { children?: ReactNode }) => <h2>{children}</h2>,
-  EmptyState: ({ description, title }: { description?: string; title?: string }) => (
+  EmptyState: ({ description, detail, title }: { description?: string; detail?: ReactNode; title?: string }) => (
     <div data-testid="empty-state">
       {title ? <div>{title}</div> : null}
       {description ? <div>{description}</div> : null}
+      {detail}
     </div>
   ),
   Input: (props: ComponentProps<'input'>) => <input {...props} />,
@@ -408,7 +409,7 @@ describe('SkillMarketplaceDialog', () => {
 
     typeSearchQuery('react')
 
-    expect(screen.getByText('common.error')).toBeInTheDocument()
+    expect(screen.queryByText('common.error')).not.toBeInTheDocument()
     expect(screen.getByText('library.skill_marketplace.search_failed_description')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
     expect(screen.queryByText('Search failed')).not.toBeInTheDocument()

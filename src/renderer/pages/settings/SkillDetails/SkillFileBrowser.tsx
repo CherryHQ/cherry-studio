@@ -306,16 +306,19 @@ export const SkillFileBrowser = function SkillFileBrowser({
     const summary = t('library.skill_detail.file_load_failed')
     return (
       <div className="flex min-h-80 flex-1 flex-col">
-        <EmptyState title={summary} className="min-h-80" />
-        <div className="flex justify-center pb-6">
-          <ErrorDetailAction
-            error={error}
-            message={summary}
-            source="skills"
-            operation="skill.files.load"
-            recordId={skillId}
-          />
-        </div>
+        <EmptyState
+          title={summary}
+          className="min-h-80"
+          detail={
+            <ErrorDetailAction
+              error={error}
+              message={summary}
+              source="skills"
+              operation="skill.files.load"
+              recordId={skillId}
+            />
+          }
+        />
       </div>
     )
   }

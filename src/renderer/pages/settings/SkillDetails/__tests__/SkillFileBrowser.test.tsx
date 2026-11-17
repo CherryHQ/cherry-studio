@@ -101,10 +101,11 @@ vi.mock('@cherrystudio/ui', () => ({
   },
   ConfirmDialog: ({ open, title }: { open: boolean; title: ReactNode }) =>
     open ? <div role="dialog">{title}</div> : null,
-  EmptyState: ({ description, title }: { description?: ReactNode; title: ReactNode }) => (
+  EmptyState: ({ description, detail, title }: { description?: ReactNode; detail?: ReactNode; title: ReactNode }) => (
     <div>
       {title}
       {description}
+      {detail}
     </div>
   ),
   SegmentedControl: ({

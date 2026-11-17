@@ -140,11 +140,13 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   EmptyState: ({
     actionLabel,
     description,
+    detail,
     onAction,
     title
   }: {
     actionLabel?: ReactNode
     description?: ReactNode
+    detail?: ReactNode
     onAction?: () => void
     title: ReactNode
   }) => (
@@ -156,6 +158,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
           {actionLabel}
         </button>
       ) : null}
+      {detail}
     </div>
   ),
   Skeleton: () => <div data-testid="skeleton" />,
@@ -240,7 +243,7 @@ describe('SkillDetails', () => {
     mocks.query = { data: undefined, error: new Error('database locked'), isLoading: false }
     render(<SkillDetails skillId="skill-1" />)
 
-    expect(screen.getByText('error.unexpected')).toBeInTheDocument()
+    expect(screen.getByText('library.skill_detail.load_failed')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'common.back' })).toBeInTheDocument()
     expect(screen.queryByText('database locked')).not.toBeInTheDocument()
