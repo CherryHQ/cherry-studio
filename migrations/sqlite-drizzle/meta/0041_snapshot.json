@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e70bf40d-e533-4544-8127-d572011344d4",
+  "id": "0d9b5b57-e4df-4ee3-8c04-bcf3f26301d3",
   "prevId": "999b080c-958b-479b-b396-1d5b062ef612",
   "tables": {
     "agent": {
@@ -107,14 +107,6 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
-        },
-        "allowed_tools": {
-          "name": "allowed_tools",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'[]'"
         }
       },
       "indexes": {
@@ -1209,6 +1201,13 @@
         },
         "native_input_id": {
           "name": "native_input_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "reply_id": {
+          "name": "reply_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

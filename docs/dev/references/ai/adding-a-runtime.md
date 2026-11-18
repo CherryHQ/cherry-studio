@@ -59,6 +59,9 @@ bottom of this document — read them.
      orphan models (provider deleted / not yet loaded); decide fail-open vs
      fail-closed explicitly and say why in a comment. A runtime that needs
      provider endpoint config to drive the model must fail closed.
+   - `nativeFollowUp` — true only when the connection implements `followUp()`. The composer then
+     sends a message typed while the agent works at once, with the follow-up intent, instead of
+     holding it in its window-local follow-up dock.
    - `transport` — a unique tag stamped on every tool part by your stream
      adapter (`providerMetadata.cherry.transport`); the renderer uses it to
      route tool parts to the right card renderer.
@@ -103,10 +106,15 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      mapping: `message-projection` for authoritative Agent content, `chunk` for
      host controls and display metadata, `turn-complete` to settle the
      host turn (the host closes the UI turn on this event — a runtime that
-     never emits it strands the turn), `resume-token` whenever the runtime
-     learns a recovery handle, `error` on failure.
+     never emits it strands the turn; set `status: 'paused'` instead of
+     emitting `error` when native evidence shows the turn was aborted),
+     `resume-token` whenever the runtime learns a recovery handle, `error` on
+     failure.
    - `send(input)` — deliver a user message; `input.systemReminder` marks a
-     steer, wrap it with `wrapSteerReminder(...)`.
+     steer, wrap it with `wrapSteerReminder(...)`. Apply optional model-only
+     `input.context` through ordinary input/attachment conversion with
+     `withAgentContext` or `buildAgentUserContent`; keep native admission validation
+     tied to the original message parts. The Session host owns history selection.
    - `reconcile(input)` — re-derive the desired connection state. Serialize concurrent
      calls per connection; hot-apply safe policy facts before returning `rebuild` for
      spawn-frozen differences, apply permission-mode changes even during an active turn
@@ -118,8 +126,10 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
    - Optional `contextId` identifies the bound product context. Expose it before controls
      that may precede the first native message so Main can attach them to the reserved reply.
    - Optional, with host fallbacks when omitted:
-     - `interrupt()` — cancel foreground work for user Stop before the host closes the
-       connection. Keep this separate from durable shutdown and recovery.
+     - `interrupt()` — cancel foreground work for user Stop. The host then closes the
+       connection unless it declares `retainOnStop`; a retained connection stays open and emits
+       `stop-confirmed` after the stopped turn's terminal event. Keep this separate from durable
+       shutdown and recovery.
      - `redirect(input)` — native mid-turn steering; without it the host
        queues follow-ups as the next turn. If implemented, you must emit
        `steer-boundary` with input IDs when native placement is evidenced. Keep original product
@@ -131,6 +141,14 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        inputs as aborted when execution ends without placing them, without automatic resend.
        Claude uses native next-priority admission across the turn boundary and never
        returns an accepted input for host resend.
+     - `followUp(input)` — native admission for a message sent while native work runs. The
+       runtime persists the input in its own queue at once, so it survives a crash; the host
+       prefers `redirect` for an open turn, then `followUp`, then its own queue. Emit
+       `steer-boundary` with the input ID and `followUp: true` when the runtime places it, after
+       the content that answers the input before it, so each input gets its own reply. Report a
+       refused submission through `input-submission`, and emit `steer-undelivered` for one that
+       fails before it reaches the runtime. Return false when no native work runs or the text is a
+       host command such as `/compact`. Pi Durable implements it.
      - `retainWhileIdle` — keep an owned in-process runtime beyond the host idle TTL;
        explicit retirement and service shutdown still close it.
      - `background-work-state` — retain the connection while native background work exists.
@@ -139,6 +157,9 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        confirmed empty set proves drainage. Publish these facts after their observed content.
        `autonomous-turn-state: started` carries `sourceToolCallIds` for a background notification.
        Main resumes the reply owning those calls; an independent native turn keeps its own reply.
+       After reopen, `recoveredInputId` names a placed input that native recovery resumed; Main continues
+       that input's reply. A projection's `inputs` maps native user messages to product input IDs, so
+       committed answers rebuild a reply that never reached terminal persistence.
        Resident commands may retain the connection without holding a product reply open.
      - `childProjection(toolCallId)` — expose a child snapshot and subscription
        through the root owner. `messageChild(contextId, text)` dispatches child input
@@ -241,5 +262,5 @@ These are the choices nothing enforces:
 - `pnpm build:check` for this broad cross-process change.
 - Manual smoke: create an agent of the new type (selector shows the label),
   open a session, run a turn with a mutating tool (approval prompt
-  appears), send a mid-turn follow-up (steers or queues per your `redirect`
-  support), restart the app and resume the session.
+  appears), send a mid-turn follow-up (steers or queues per your `redirect` and
+  `followUp` support), restart the app and resume the session.

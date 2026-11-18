@@ -346,7 +346,6 @@
     "@types/turndown": "^5.0.5",
     "@types/unist": "3.0.3",
     "@types/use-sync-external-store": "^0.0.6",
-    "@types/uuid": "^10.0.0",
     "@types/which": "3.0.4",
     "@types/word-extractor": "^1",
     "@types/ws": "^8.18.1",

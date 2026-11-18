@@ -78,6 +78,16 @@ function withTerminalErrorFallback(
     const status = message.metadata?.status
     const parts = partsByMessageId[message.id] ?? message.parts ?? []
     const hasVisiblePart = parts.some((part) => !isHiddenPart(part))
+    if (message.metadata?.importedHistory) {
+      if (status === 'error' || !hasVisiblePart) {
+        if (next === partsByMessageId) next = { ...partsByMessageId }
+        next[message.id] = [
+          ...parts,
+          { type: 'data-imported-status', data: { status: message.metadata.importedHistory.status } }
+        ]
+      }
+      continue
+    }
     const needsFallback =
       (status === 'error' && !parts.some((part) => part.type === 'data-error')) ||
       (status === 'success' && !hasVisiblePart)
@@ -497,9 +507,22 @@ export function useAgentMessageListProviderValue({
     ]
   )
 
+  const restoreUnsentMessage = useCallback(
+    (message: MessageListItem, send: boolean) =>
+      void EventEmitter.emit(EVENT_NAMES.RESTORE_AGENT_COMPOSER_MESSAGE, {
+        topicId: topic.id,
+        messageId: message.id,
+        parts: partsByMessageId[message.id] ?? [],
+        send
+      }),
+    [partsByMessageId, topic.id]
+  )
+
   const actions = useMemo<MessageListActions>(
     () => ({
       setActiveBranch: normalInteractionsEnabled ? setActiveBranch : undefined,
+      resendUnsentMessage: normalInteractionsEnabled ? (message) => restoreUnsentMessage(message, true) : undefined,
+      editUnsentMessage: normalInteractionsEnabled ? (message) => restoreUnsentMessage(message, false) : undefined,
       editLabel: t('agent.edit_resend.label'),
       canEditMessage: (message) =>
         normalInteractionsEnabled &&
@@ -585,6 +608,7 @@ export function useAgentMessageListProviderValue({
       openPath,
       respondToolApproval,
       resolvePath,
+      restoreUnsentMessage,
       selectionController.actions,
       updateRenderConfig
     ]
