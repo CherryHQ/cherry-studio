@@ -1,3 +1,5 @@
+import type { Readable } from 'node:stream'
+
 import ExcelJS from 'exceljs'
 import JSZip from 'jszip'
 
@@ -92,13 +94,7 @@ function isHyperlinkValue(value: unknown): value is HyperlinkCellValue {
   return typeof value === 'object' && value !== null && 'hyperlink' in value && 'text' in value
 }
 
-interface FormulaCellValue {
-  formula?: string
-  sharedFormula?: string
-  result?: number | string | boolean | Date | { error: string }
-}
-
-function isFormulaValue(value: unknown): value is FormulaCellValue {
+function isFormulaValue(value: ExcelJS.CellValue): value is ExcelJS.CellFormulaValue | ExcelJS.CellSharedFormulaValue {
   return typeof value === 'object' && value !== null && ('formula' in value || 'sharedFormula' in value)
 }
 
@@ -178,9 +174,9 @@ function parseMergeRef(ref: string): MergeRange | null {
 }
 
 /** Extract an error result string; formula.result may be a CellErrorValue object. */
-function errorResultToString(result: unknown): string | undefined {
+function errorResultToString(result: ExcelJS.CellFormulaValue['result']): string | undefined {
   if (typeof result === 'object' && result !== null && 'error' in result) {
-    return (result as { error: string }).error
+    return result.error
   }
   return undefined
 }
@@ -371,8 +367,8 @@ export function axisCountForPxExtent(
 }
 
 /** Only emit browser-safe bitmap MIME types for embedded workbook images. */
-export function imageMimeForExtension(extension: unknown): string | undefined {
-  return IMAGE_MIME_BY_EXTENSION[String(extension).toLowerCase()]
+export function imageMimeForExtension(extension: string | undefined): string | undefined {
+  return extension === undefined ? undefined : IMAGE_MIME_BY_EXTENSION[extension.toLowerCase()]
 }
 
 /** Map ExcelJS style font/fill/border/alignment to CellStyle, resolving colors through the theme. */
@@ -550,7 +546,7 @@ function forEachExistingCell(row: ExcelJS.Row, iteratee: (cell: ExcelJS.Cell, co
 }
 
 interface XlsxWorkbookPartParser {
-  parseWorkbook(stream: unknown): Promise<{ definedNames?: unknown[] }>
+  parseWorkbook(stream: Readable): Promise<{ definedNames?: unknown[] }>
 }
 
 const MERGE_CELL_REF_PATTERN = /<mergeCell\b[^>]*?\sref\s*=\s*(["'])(.*?)\1/g

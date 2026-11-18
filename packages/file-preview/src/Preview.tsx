@@ -106,6 +106,7 @@ function PreviewSession({
   const hasFailedRef = useRef(false)
   const callbacks = useRef({ onSelection, onDiagnostic, onError, onRequestOpen })
   callbacks.current = { onSelection, onDiagnostic, onError, onRequestOpen }
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Document opening, parsing and React rendering can fail with arbitrary values; normalize the terminal failure to PreviewError here.
   const reportFailure = useCallback((error: unknown) => {
     if (hasFailedRef.current) return
     hasFailedRef.current = true
@@ -132,6 +133,7 @@ function PreviewSession({
   }, [source, refreshKey, plugin])
   const isCurrentSession = useCallback(() => session?.requestId === requestIdRef.current, [session])
   const failDocument = useCallback(
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Format plugins and React ErrorBoundary forward raw failures; only the current document may report them.
     (error: unknown) => {
       if (isCurrentSession()) reportFailure(error)
     },
@@ -175,6 +177,7 @@ function PreviewSession({
     const close = () => {
       if (!opened || closed) return
       closed = true
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Host-owned document close operations can reject arbitrary values; forward them as non-terminal diagnostics.
       void opened.close().catch((error: unknown) =>
         callbacks.current.onDiagnostic?.({
           level: 'warn',

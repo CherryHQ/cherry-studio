@@ -1,3 +1,4 @@
+import type { CellValue } from 'exceljs'
 import * as numfmt from 'numfmt'
 
 /**
@@ -33,7 +34,7 @@ export function dateToExcelSerial(date: Date): number {
 /** Fixed Date.prototype.toISOString() shape with milliseconds and Z; the only accepted string date path. */
 const ISO_DATE_STRING_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
 
-export function formatCellValue(raw: unknown, numFmt: string | undefined, date1904: boolean): string {
+export function formatCellValue(raw: CellValue, numFmt: string | undefined, date1904: boolean): string {
   const pattern = numFmt ?? 'General'
   void date1904
 
