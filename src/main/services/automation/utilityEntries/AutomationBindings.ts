@@ -85,9 +85,9 @@ export class AutomationBindings {
             readable: descriptor.value !== undefined,
             canAssign:
               descriptor.value !== undefined ? descriptor.writable === true : descriptor.set?.isUndefined === false,
-            canRedeclare: true,
-            ...(descriptor.value !== undefined ? { type: descriptor.value.typeof } : {})
+            canRedeclare: true
           }
+          if (descriptor.value !== undefined) binding.type = descriptor.value.typeof
         } finally {
           descriptor.value?.dispose()
           descriptor.get?.dispose()

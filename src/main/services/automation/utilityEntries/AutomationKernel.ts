@@ -109,19 +109,20 @@ export class AutomationKernel<
       this.current?.signal.throwIfAborted()
       if (Date.now() >= this.deadline) throw new Error('REPL execution timed out')
     }
-    return {
+    const result: Omit<AutomationKernelContract['methods']['execute']['output'], 'context'> = {
       text:
         this.output +
-        (this.outputTruncated ? '\nREPL output was OMITTED after 48,000 characters; request a smaller result.\n' : ''),
-      ...(isError ? { isError } : {}),
-      context: {
-        generation: this.generation,
-        state: this.vm ? 'retained' : 'cleared',
-        execution: this.execution,
-        hostCallsStarted: this.hostCallsStarted,
-        ...bindings
-      }
+        (this.outputTruncated ? '\nREPL output was OMITTED after 48,000 characters; request a smaller result.\n' : '')
     }
+    if (isError) result.isError = isError
+    const context: AutomationKernelContract['methods']['execute']['output']['context'] = {
+      generation: this.generation,
+      state: this.vm ? 'retained' : 'cleared',
+      execution: this.execution,
+      hostCallsStarted: this.hostCallsStarted,
+      ...bindings
+    }
+    return Object.assign(result, { context })
   }
 
   async execute(

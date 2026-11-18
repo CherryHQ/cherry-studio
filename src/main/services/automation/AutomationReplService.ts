@@ -82,23 +82,23 @@ function withContext(
   context: AutomationContext,
   execution?: AutomationExecution
 ): CallToolResult {
-  return {
-    ...result,
-    structuredContent: { replContext: context, ...(execution ? { execution } : {}) },
-    content: [
-      ...result.content,
-      ...(execution?.events.length
-        ? [
-            {
-              type: 'text' as const,
-              text: `EXECUTION ${JSON.stringify(execution)}`,
-              annotations: { audience: ['assistant' as const] }
-            }
-          ]
-        : []),
-      { type: 'text', text: `REPL_CONTEXT ${JSON.stringify(context)}`, annotations: { audience: ['assistant'] } }
-    ]
-  }
+  const contextual: CallToolResult = { ...result }
+  contextual.structuredContent = { replContext: context }
+  if (execution) contextual.structuredContent.execution = execution
+  contextual.content = [
+    ...result.content,
+    ...(execution?.events.length
+      ? [
+          {
+            type: 'text' as const,
+            text: `EXECUTION ${JSON.stringify(execution)}`,
+            annotations: { audience: ['assistant' as const] }
+          }
+        ]
+      : []),
+    { type: 'text', text: `REPL_CONTEXT ${JSON.stringify(context)}`, annotations: { audience: ['assistant'] } }
+  ]
+  return contextual
 }
 
 function clearedContext(cell: string, hostCallsStarted = 0): AutomationContext {
@@ -411,10 +411,10 @@ export class AutomationReplService extends BaseService {
                       : 'possible',
                 message: cause instanceof Error ? cause.message : String(cause),
                 domain,
-                operation,
-                ...(boundTarget ? { target: boundTarget } : {}),
-                ...(cause instanceof Error && 'dialog' in cause ? { dialog: cause.dialog } : {})
+                operation
               }
+              if (boundTarget) Object.assign(error, { target: boundTarget })
+              if (cause instanceof Error && 'dialog' in cause) Object.assign(error, { dialog: cause.dialog })
               record({ domain, operation, target: boundTarget, status: 'failed', error })
               observations.add({ error, domain })
               return { ok: false, error }
