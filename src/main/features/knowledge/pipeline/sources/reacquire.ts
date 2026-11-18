@@ -1,4 +1,5 @@
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 
 import type { IndexableKnowledgeItem } from '../../items'
 import { copyFileIntoKnowledgeBaseAt, writeFileIntoKnowledgeBaseAt } from '../../pathStorage'
@@ -38,7 +39,8 @@ export function resolveKnowledgeReacquireProducer(item: IndexableKnowledgeItem):
       // `relativePath`. After activation the item is `processing`, which rename refuses, so the
       // re-read path is stable; writing to the captured old path would orphan a raw/ twin.
       const currentPath =
-        (knowledgeItemService.getById(item.id).data as { relativePath?: string }).relativePath ?? relativePath
+        (knowledgeItemService.getById(item.id).data as { relativePath?: PosixRelativeFilePath }).relativePath ??
+        relativePath
       await copyFileIntoKnowledgeBaseAt(baseId, source, currentPath, { overwrite: true, signal })
     }
   }

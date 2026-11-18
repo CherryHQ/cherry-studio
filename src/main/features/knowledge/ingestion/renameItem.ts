@@ -130,9 +130,12 @@ export async function renameKnowledgeFileItem(
       }
       const code = (error as NodeJS.ErrnoException).code
       logger.warn('Knowledge file rename failed', { baseId, itemId, code })
+      // A coded fs failure reads as "(EBUSY)"; a code-less one must keep its own message or the
+      // wrapper erases the only clue to what actually failed.
+      const detail = code ? ` (${code})` : ` (${(error as Error).message})`
       throw DataApiErrorFactory.invalidOperation(
         'rename knowledge file',
-        `The file could not be renamed${code ? ` (${code})` : ''}. Close any program using it and try again.`
+        `The file could not be renamed${detail}. Close any program using it and try again.`
       )
     }
 
