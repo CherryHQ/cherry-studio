@@ -1,7 +1,3 @@
-import type { FC, RefObject } from 'react'
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
-
 /**
  * In-conversation search for one virtualized MessageList.
  *
@@ -9,6 +5,10 @@ import { useHotkeys } from 'react-hotkeys-hook'
  * and highlights come only from mounted DOM. Multi-model replies stay at group
  * granularity so search never takes ownership of their selected branch.
  */
+import type { FC, RefObject } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useHotkeys } from 'react-hotkeys-hook'
+
 import { FindBar, type FindBarRef, type FindBarState, INITIAL_FIND_BAR_STATE } from '@renderer/components/FindBar'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
