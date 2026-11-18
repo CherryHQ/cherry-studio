@@ -107,7 +107,9 @@ function jsonResult(value: unknown): CallToolResult {
 }
 
 function textResult(text: string, isError?: true): CallToolResult {
-  return { content: [{ type: 'text', text }], ...(isError ? { isError } : {}) }
+  const result: CallToolResult = { content: [{ type: 'text', text }] }
+  if (isError) result.isError = isError
+  return result
 }
 
 function errorMessage(error: unknown): string {
@@ -476,26 +478,26 @@ async function diagnoseHealth(providerId: string, signal: AbortSignal): Promise<
         { id: `provider:${providerId}`, url: apiHost },
         AbortSignal.any([signal, AbortSignal.timeout(HEALTH_TIMEOUT_MS)])
       )
-    const layer = (result: { status: string; kind?: string; code?: string; durationMs: number }) => ({
-      status: result.status,
-      ...(result.kind ? { kind: result.kind } : {}),
-      ...(result.code ? { code: result.code } : {}),
-      latencyMs: Math.round(result.durationMs)
-    })
+    const layer = (result: { status: string; kind?: string; code?: string; durationMs: number }) => {
+      const detail: Pick<typeof result, 'status' | 'kind' | 'code'> = { status: result.status }
+      if (result.kind) detail.kind = result.kind
+      if (result.code) detail.code = result.code
+      return { ...detail, latencyMs: Math.round(result.durationMs) }
+    }
+    const dns = layer(diagnosis.dns)
+    const tls = layer(diagnosis.tls)
+    const proxy = { mode: diagnosis.proxy.configuredMode }
+    if (diagnosis.proxy.mismatch) Object.assign(proxy, { mismatch: diagnosis.proxy.mismatch })
+    const http = layer(diagnosis.http)
+    if (diagnosis.http.status === 'ok') Object.assign(http, { httpStatus: diagnosis.http.data.status })
     const result = jsonResult({
       providerId,
       status: diagnosis.verdict,
       host,
-      dns: layer(diagnosis.dns),
-      tls: layer(diagnosis.tls),
-      proxy: {
-        mode: diagnosis.proxy.configuredMode,
-        ...(diagnosis.proxy.mismatch ? { mismatch: diagnosis.proxy.mismatch } : {})
-      },
-      http: {
-        ...layer(diagnosis.http),
-        ...(diagnosis.http.status === 'ok' ? { httpStatus: diagnosis.http.data.status } : {})
-      }
+      dns,
+      tls,
+      proxy,
+      http
     })
     cacheService.set(healthCacheKey(providerId), result, HEALTH_CACHE_TTL)
     return result
