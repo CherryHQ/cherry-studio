@@ -172,7 +172,7 @@ async function processObjectMessage<T>(
       try {
         const events = adapter.transformChunk(chunk)
         write(events)
-        if (isStartupCommitChunk(chunk)) commit()
+        if (isStartupCommitChunk(chunk) || (chunk.type === 'tool-input-error' && events.length > 0)) commit()
       } catch (error) {
         fail(error)
         manager.abort(streamId, 'object model adapter failed')

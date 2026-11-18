@@ -1298,4 +1298,70 @@ describe('native Pi through the production gateway', () => {
     expect(text).toBe('x'.repeat(count))
     expect(produced).toBe(count)
   })
+
+  it('delivers a textless Responses batch of tool errors without blocking native recovery', async () => {
+    const calls = Array.from({ length: 8 }, (_, index) => ({
+      id: `unknown-${index}`,
+      name: `unknown_tool_${index}`,
+      arguments: { index }
+    }))
+    let nextCall = 0
+    vi.spyOn(mocks.ai!, 'streamText').mockResolvedValue({
+      kind: 'chunks',
+      stream: new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          controller.enqueue({ type: 'start', messageId: 'tool-errors' })
+        },
+        async pull(controller) {
+          await new Promise<void>((resolve) => setImmediate(resolve))
+          const call = calls[nextCall++]
+          if (call) {
+            controller.enqueue({
+              type: 'tool-input-error',
+              toolCallId: call.id,
+              toolName: call.name,
+              input: call.arguments,
+              errorText: 'Unknown tool'
+            })
+          } else {
+            controller.enqueue({ type: 'finish', finishReason: 'tool-calls' })
+            controller.close()
+          }
+        }
+      })
+    })
+    dbh.db
+      .update(userProviderTable)
+      .set({
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+            baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`
+          }
+        },
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES
+      })
+      .where(eq(userProviderTable.providerId, 'port'))
+      .run()
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const answer = await binding.modelRuntime.completeSimple(
+      binding.model,
+      normalizeContext({ messages: [{ role: 'user', content: 'Run the tools', timestamp: 1 }] }),
+      { signal: AbortSignal.timeout(2_000) }
+    )
+    expect(answer.stopReason, answer.errorMessage).toBe('toolUse')
+    expect(answer.content.filter((part) => part.type === 'toolCall')).toMatchObject(
+      calls.map(({ name, arguments: input }) => ({ name, arguments: input }))
+    )
+    expect(
+      answer.content
+        .filter((part) => part.type === 'text')
+        .map((part) => part.text)
+        .join('')
+    ).toBe('')
+    expect(mocks.gatewayRequests).toBe(0)
+  })
 })

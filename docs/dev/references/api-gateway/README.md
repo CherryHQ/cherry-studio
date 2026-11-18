@@ -370,6 +370,10 @@ A streaming request has two error regimes:
   change. A later error or pause therefore emits the dialect's terminal SSE
   error frame and closes the stream.
 
+The in-process object transport also releases its iterator when an adapter accepts a
+deliverable tool-error call, before a textless batch can fill the bounded event queue
+and block further production. Non-object tool arguments still fail before this release.
+
 Client disconnect before commitment abandons the pending response, clears its
 startup buffer, aborts the manager execution, and does not surface a gateway
 error. The gateway never transparently retries after commitment because doing
