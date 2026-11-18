@@ -167,7 +167,7 @@ export function createMessageExportView(
   priorCitationParts?: readonly CherryMessagePart[]
 ): MessageExportView {
   const model = getMessageListItemModel(message)
-  return {
+  const view: MessageExportView = {
     id: message.id,
     role: message.role,
     assistantId: message.assistantId,
@@ -181,7 +181,8 @@ export function createMessageExportView(
     parentId: message.parentId,
     siblingsGroupId: message.siblingsGroupId,
     stats: message.stats,
-    parts,
-    ...(priorCitationParts?.length ? { priorCitationParts } : {})
+    parts
   }
+  if (priorCitationParts?.length) view.priorCitationParts = priorCitationParts
+  return view
 }

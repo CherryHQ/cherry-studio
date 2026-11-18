@@ -39,13 +39,14 @@ const taskCommandErrorMessage = (error: unknown, t: TFunction, fallbackPrefix: s
 
 /** All scheduled tasks across every agent, optionally filtered by status. */
 export const useAllTasks = (status?: ListTasksQuery['status']) => {
+  const swrOptions = { keepPreviousData: false }
+  if (status) Object.assign(swrOptions, { dedupingInterval: 0 })
   const { items, total, page, error, isLoading, hasNext, hasPrev, nextPage, prevPage, refresh, goToPage } =
     usePaginatedQuery('/agent-tasks', {
       limit: TASKS_PAGE_LIMIT,
       query: status ? { status } : {},
       swrOptions: {
-        keepPreviousData: false,
-        ...(status ? { dedupingInterval: 0 } : {}),
+        ...swrOptions,
         onSuccess: (response: ResponseForPath<'/agent-tasks', 'GET'>) => {
           const lastPage = Math.max(1, Math.ceil(response.total / TASKS_PAGE_LIMIT))
           if (status && response.page === page && page > lastPage) goToPage(lastPage)

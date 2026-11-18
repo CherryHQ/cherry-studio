@@ -49,14 +49,17 @@ export function normalizeContextUsage(
   const buffers = native.categories.filter((row) => row.kind === 'buffer')
   const reserved = buffers.length === 1 ? estimated(buffers[0].tokens) : undefined
   const resources: ContextResource[] = [
-    ...(native.mcpTools ?? []).map((tool) => ({
-      id: `mcp:${tool.serverName}:${tool.name}`,
-      category: 'mcp-tools' as const,
-      name: tool.name,
-      source: tool.serverName,
-      count: estimated(tool.tokens),
-      ...(tool.isLoaded === undefined ? {} : { state: tool.isLoaded ? ('loaded' as const) : ('deferred' as const) })
-    })),
+    ...(native.mcpTools ?? []).map((tool): ContextResource => {
+      const resource: ContextResource = {
+        id: `mcp:${tool.serverName}:${tool.name}`,
+        category: 'mcp-tools',
+        name: tool.name,
+        source: tool.serverName,
+        count: estimated(tool.tokens)
+      }
+      if (tool.isLoaded !== undefined) Object.assign(resource, { state: tool.isLoaded ? 'loaded' : 'deferred' })
+      return resource
+    }),
     ...(native.memoryFiles ?? []).map((file) => ({
       id: `memory:${file.path}`,
       category: 'memory-files' as const,

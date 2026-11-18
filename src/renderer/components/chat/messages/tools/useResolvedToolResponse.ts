@@ -22,11 +22,12 @@ export function useResolvedToolResponse(toolResponse: ToolResponseLike): ToolRes
     // Cold-loaded parts can carry a persisted envelope instead of a deferred reference.
     if (isPersistedToolOutput(response) && topicId && scopeMessageId && toolResponse.toolCallId) {
       const ref = response.$persistedToolOutput
-      return {
+      const deferred: DeferredToolOutput = {
         $deferredToolResult: { topicId, messageId: scopeMessageId, toolCallId: toolResponse.toolCallId },
-        excerpt: envelopeDisplayExcerpt(ref),
-        ...(ref.shape === 'entities' ? { skeleton: ref.skeleton } : {})
+        excerpt: envelopeDisplayExcerpt(ref)
       }
+      if (ref.shape === 'entities') deferred.skeleton = ref.skeleton
+      return deferred
     }
     return undefined
   }, [scopeMessageId, toolResponse, topicId])
