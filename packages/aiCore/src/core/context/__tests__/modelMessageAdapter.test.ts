@@ -8,6 +8,8 @@ describe('fromModelMessages', () => {
     const ir = fromModelMessages([{ role: 'user', content: 'hello' }])
     expect(ir[0].content).toBe('hello')
     expect(ir[0]._mmUserContent).toBe('hello')
+    expect(ir[0]).not.toHaveProperty('_mmProviderOptions')
+    expect(toModelMessages(ir)[0]).not.toHaveProperty('providerOptions')
   })
 
   it('extracts text and records image + file parts as attachments', () => {

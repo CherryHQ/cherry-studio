@@ -59,11 +59,9 @@ export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
 
   for (const msg of messages) {
     if (msg.role === 'system') {
-      ir.push({
-        role: 'system',
-        content: msg.content,
-        ...(msg.providerOptions ? { _mmProviderOptions: msg.providerOptions } : {})
-      })
+      const message: ModelMessageIR = { role: 'system', content: msg.content }
+      if (msg.providerOptions) message._mmProviderOptions = msg.providerOptions
+      ir.push(message)
       continue
     }
 
@@ -80,11 +78,12 @@ export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
       if (typeof msg.content !== 'string') {
         for (const part of msg.content) {
           if (part.type === 'file') {
-            attachments.push({
+            const attachment: Attachment = {
               mediaType: part.mediaType,
-              data: typeof part.data === 'string' ? part.data : '',
-              ...(part.filename ? { filename: part.filename } : {})
-            })
+              data: typeof part.data === 'string' ? part.data : ''
+            }
+            if (part.filename) attachment.filename = part.filename
+            attachments.push(attachment)
           } else if (part.type === 'image') {
             attachments.push({
               mediaType: part.mediaType ?? 'image/*',
@@ -98,9 +97,9 @@ export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
         role: 'user',
         content: text,
         _mmUserContent: msg.content,
-        _mmOriginalText: text,
-        ...(msg.providerOptions ? { _mmProviderOptions: msg.providerOptions } : {})
+        _mmOriginalText: text
       }
+      if (msg.providerOptions) m._mmProviderOptions = msg.providerOptions
       if (attachments.length) m.attachments = attachments
       ir.push(m)
       continue
@@ -149,11 +148,12 @@ export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
           } else if (part.type === 'reasoning') {
             thinking = { thinking: part.text }
           } else if (part.type === 'file') {
-            attachments.push({
+            const attachment: Attachment = {
               mediaType: part.mediaType,
-              data: typeof part.data === 'string' ? part.data : '',
-              ...(part.filename ? { filename: part.filename } : {})
-            })
+              data: typeof part.data === 'string' ? part.data : ''
+            }
+            if (part.filename) attachment.filename = part.filename
+            attachments.push(attachment)
           }
           // tool-approval-request parts ride through _mmAssistantContent verbatim (no IR projection).
         }
@@ -164,9 +164,9 @@ export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
         role: 'assistant',
         content: joined,
         _mmAssistantContent: assistantContent,
-        _mmOriginalText: joined,
-        ...(msg.providerOptions ? { _mmProviderOptions: msg.providerOptions } : {})
+        _mmOriginalText: joined
       }
+      if (msg.providerOptions) m._mmProviderOptions = msg.providerOptions
       if (toolCalls.length) m.tool_calls = toolCalls
       if (thinking) m.thinking = thinking
       if (attachments.length) m.attachments = attachments
@@ -195,9 +195,9 @@ export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
             tool_call_id: toolResult.toolCallId,
             _mmToolContent: [...pending, toolResult],
             _mmOriginalText: text,
-            _mmToolName: toolResult.toolName,
-            ...(firstOfMessage && msg.providerOptions ? { _mmProviderOptions: msg.providerOptions } : {})
+            _mmToolName: toolResult.toolName
           }
+          if (firstOfMessage && msg.providerOptions) anchor._mmProviderOptions = msg.providerOptions
           firstOfMessage = false
           pending.length = 0
           ir.push(anchor)
@@ -244,35 +244,38 @@ export function toModelMessages(messages: ContextMessage[]): ModelMessage[] {
     const modified = msg._mmOriginalText !== undefined && msg._mmOriginalText !== msg.content
 
     if (msg.role === 'system') {
-      out.push({
+      const message: Extract<ModelMessage, { role: 'system' }> = {
         role: 'system',
-        content: msg.content,
-        ...(msg._mmProviderOptions ? { providerOptions: msg._mmProviderOptions } : {})
-      })
+        content: msg.content
+      }
+      if (msg._mmProviderOptions) message.providerOptions = msg._mmProviderOptions
+      out.push(message)
       i++
       continue
     }
 
     if (msg.role === 'user') {
-      out.push({
+      const message: Extract<ModelMessage, { role: 'user' }> = {
         role: 'user',
         content:
-          !modified && msg._mmUserContent !== undefined ? msg._mmUserContent : [{ type: 'text', text: msg.content }],
-        ...(msg._mmProviderOptions ? { providerOptions: msg._mmProviderOptions } : {})
-      })
+          !modified && msg._mmUserContent !== undefined ? msg._mmUserContent : [{ type: 'text', text: msg.content }]
+      }
+      if (msg._mmProviderOptions) message.providerOptions = msg._mmProviderOptions
+      out.push(message)
       i++
       continue
     }
 
     if (msg.role === 'assistant') {
-      out.push({
+      const message: Extract<ModelMessage, { role: 'assistant' }> = {
         role: 'assistant',
         content:
           !modified && msg._mmAssistantContent !== undefined
             ? msg._mmAssistantContent
-            : [{ type: 'text', text: msg.content }],
-        ...(msg._mmProviderOptions ? { providerOptions: msg._mmProviderOptions } : {})
-      })
+            : [{ type: 'text', text: msg.content }]
+      }
+      if (msg._mmProviderOptions) message.providerOptions = msg._mmProviderOptions
+      out.push(message)
       i++
       continue
     }
@@ -301,7 +304,9 @@ export function toModelMessages(messages: ContextMessage[]): ModelMessage[] {
         }
         i++
       }
-      out.push({ role: 'tool', content, ...(providerOptions ? { providerOptions } : {}) })
+      const message: Extract<ModelMessage, { role: 'tool' }> = { role: 'tool', content }
+      if (providerOptions) message.providerOptions = providerOptions
+      out.push(message)
       continue
     }
 
