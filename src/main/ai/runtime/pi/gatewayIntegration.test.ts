@@ -78,8 +78,6 @@ vi.mock('@application', async () => {
     },
     AiService: { streamText: (input: Parameters<AiService['streamText']>[0]) => mocks.ai!.streamText(input) },
     ApiGatewayService: {
-      acquireModelPayloadBudget: (payload: unknown, signal?: AbortSignal) =>
-        mocks.gatewayService!.acquireModelPayloadBudget(payload, signal),
       captureAgentSessionUsage: (...args: Parameters<ApiGatewayService['captureAgentSessionUsage']>) =>
         mocks.gatewayService!.captureAgentSessionUsage(...args),
       createAgentObjectTransports: (...args: Parameters<ApiGatewayService['createAgentObjectTransports']>) =>

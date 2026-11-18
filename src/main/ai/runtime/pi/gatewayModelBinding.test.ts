@@ -7,8 +7,6 @@ import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 
 import { application } from '@application'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
-import { BaseService } from '@main/core/lifecycle'
-import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
 import { ENDPOINT_TYPE, ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
 
@@ -16,7 +14,6 @@ import { createPiGatewayModelBinding } from './gatewayModelBinding'
 
 const gateway = vi.hoisted(() => ({
   baseUrl: '',
-  budget: undefined as ApiGatewayService | undefined,
   requests: [] as { api: string; body: unknown }[]
 }))
 vi.mock('@application', async () => {
@@ -24,8 +21,6 @@ vi.mock('@application', async () => {
   const overrides = {
     ...defaultServiceInstances,
     ApiGatewayService: {
-      acquireModelPayloadBudget: (payload: unknown, signal?: AbortSignal) =>
-        gateway.budget!.acquireModelPayloadBudget(payload, signal),
       createAgentObjectTransports: (input: { headers?: Record<string, string | null>; reasoningEffort?: string }) =>
         Object.fromEntries(
           ['anthropic-messages', 'openai-completions', 'openai-responses', 'google-generative-ai'].map((api) => [
@@ -75,8 +70,6 @@ vi.mock('@application', async () => {
 })
 
 beforeEach(() => {
-  BaseService.resetInstances()
-  gateway.budget = new ApiGatewayService()
   gateway.requests.length = 0
   gateway.baseUrl = ''
   const getPath = vi.mocked(application.getPath).getMockImplementation()!
@@ -87,81 +80,6 @@ beforeEach(() => {
   )
   providerRegistryService.clearCache()
 })
-
-it.each([false, true])(
-  'bounds oversized native dispatch and releases capacity (cancel queued: %s)',
-  async (cancelQueued) => {
-    gateway.baseUrl = 'http://127.0.0.1:1'
-    const provider = ProviderSchema.parse({
-      isEnabled: true,
-      apiKeys: [],
-      authType: 'api-key',
-      settings: {},
-      id: 'budget-fixture',
-      name: 'Budget fixture',
-      reportsActualCost: false,
-      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-      endpointConfigs: {
-        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic', baseUrl: 'https://upstream.invalid' }
-      }
-    })
-    const model = ModelSchema.parse({
-      isEnabled: true,
-      isHidden: false,
-      supportsStreaming: true,
-      id: 'budget-fixture::model',
-      providerId: provider.id,
-      name: 'Budget fixture',
-      apiModelId: 'wire-model',
-      capabilities: []
-    })
-    const binding = await createPiGatewayModelBinding({ sessionId: 'budget-test' }, provider, model)
-    let releaseFirst!: () => void
-    const firstResponse = new Promise<void>((resolve) => {
-      releaseFirst = resolve
-    })
-    let prepared = 0
-    const lengths: number[] = []
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
-      const body = JSON.parse(init!.body as string)
-      lengths.push(body.messages[0].content[0].text.length)
-      if (lengths.length === 1) await firstResponse
-      return new Response(JSON.stringify({ error: { type: 'authentication_error', message: 'fixture' } }), {
-        status: 401
-      })
-    })
-    const context = normalizeContext({
-      messages: [{ role: 'user', content: 'A'.repeat(12 * 1024 * 1024), timestamp: 1 }]
-    })
-    const run = (signal?: AbortSignal) =>
-      binding.modelRuntime.completeSimple(binding.model, context, {
-        signal,
-        onPayload: () => {
-          prepared++
-        }
-      })
-    const controller = new AbortController()
-    const requests = [run(), run(controller.signal)]
-    try {
-      await vi.waitFor(() => expect(prepared).toBe(2))
-      await vi.waitFor(() => expect(lengths.length).toBeGreaterThan(0))
-      expect(lengths).toEqual([12 * 1024 * 1024])
-      if (cancelQueued) {
-        controller.abort()
-        await requests[1]
-        expect(lengths).toHaveLength(1)
-      }
-    } finally {
-      releaseFirst()
-      await Promise.all(requests)
-    }
-    if (cancelQueued) {
-      expect(lengths).toHaveLength(1)
-      await run()
-    }
-    expect(lengths).toEqual([12 * 1024 * 1024, 12 * 1024 * 1024])
-  }
-)
 
 afterEach(() => {
   vi.restoreAllMocks()

@@ -82,47 +82,27 @@ export async function createPiGatewayModelBinding(
     ],
     // Pi's session retry policy owns retries; neither gateway nor HTTP client retries a step.
     streamSimple: (model, context, options) => {
-      let releasePayload: (() => void) | undefined
-      try {
-        // Native reasoning can enlarge per-call output caps before the gateway receives them.
-        const stream = streamSimple(model, context, {
-          ...options,
-          onPayload: async (payload, payloadModel) => {
-            releasePayload?.()
-            releasePayload = undefined
-            const next = await options?.onPayload?.(payload, payloadModel)
-            releasePayload = await application
-              .get('ApiGatewayService')
-              .acquireModelPayloadBudget(next === undefined ? payload : next, options?.signal)
-            return next
-          },
-          objectTransports: gateway.createAgentObjectTransports({
-            ...input,
-            headers: options?.headers,
-            traceContext: getPiTraceContext(options?.telemetry)
-          }),
-          disableContinuation: true,
-          reasoning: undefined,
-          maxRetries: 0
+      // Native reasoning can enlarge per-call output caps before the gateway receives them.
+      const stream = streamSimple(model, context, {
+        ...options,
+        objectTransports: gateway.createAgentObjectTransports({
+          ...input,
+          headers: options?.headers,
+          traceContext: getPiTraceContext(options?.telemetry)
+        }),
+        disableContinuation: true,
+        reasoning: undefined,
+        maxRetries: 0
+      })
+      void stream
+        .result()
+        .then((message) => {
+          if (!options?.readOnlyFork) onUsage?.(message.usage, options?.sessionId, message.responseId)
         })
-        void stream
-          .result()
-          .then((message) => {
-            if (!options?.readOnlyFork) onUsage?.(message.usage, options?.sessionId, message.responseId)
-          })
-          .catch((error) => {
-            loggerService
-              .withContext('PiGatewayModelBinding')
-              .error('Failed to observe native model response', { error })
-          })
-          .finally(() => {
-            releasePayload?.()
-          })
-        return stream
-      } catch (error) {
-        releasePayload?.()
-        throw error
-      }
+        .catch((error) => {
+          loggerService.withContext('PiGatewayModelBinding').error('Failed to observe native model response', { error })
+        })
+      return stream
     }
   })
   await modelRuntime.setRuntimeApiKey(providerName, OBJECT_TRANSPORT_API_KEY)

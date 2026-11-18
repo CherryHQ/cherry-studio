@@ -65,7 +65,6 @@ vi.mock('@application', async () => {
   const overrides = {
     DbService: defaultServiceInstances.DbService,
     ApiGatewayService: {
-      acquireModelPayloadBudget: async () => () => {},
       captureAgentSessionUsage: () => ({ headers: {}, release: () => {} }),
       ensureInternalGateway: async () => {
         throw new Error('Pi must start without an internal HTTP listener')
