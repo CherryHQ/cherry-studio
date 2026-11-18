@@ -24,6 +24,13 @@ replacing omitted fields with `undefined` or changing callback order is not a sa
 mechanical cleanup. The [migration Spec](../../.agents/notes/proposed/process/2026-11-18-anti-slop-lint.md)
 defines the target and incremental acceptance criteria.
 
+For a remote repository inventory, dispatch the CI workflow on the migration branch
+with `anti_slop_rule` set to the rule name. The optional audit extends the repository
+config only on the runner, enables that rule as an error and uploads the
+`anti-slop-audit` JSON artifact even when findings fail the audit step. It preserves
+the existing lint scope and leaves the checked-in rule configuration unchanged.
+The default `none` skips this additional audit.
+
 Run `pnpm test:scripts scripts/lint/__tests__/anti-slop.test.ts` to verify every
 available rule using a focused configuration extending the repository config.
 Rule-specific layers also add probes of actual repository enforcement. Use
