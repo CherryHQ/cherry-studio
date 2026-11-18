@@ -246,12 +246,13 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
             })
       if (terminalError) throw terminalError
       await safeCall('onFinish', hooks.onFinish)
-      return {
+      const completion: Awaited<ReturnType<Agent<T>['generate']>> = {
         text: result.text,
         usage: result.usage,
-        finishReason: result.finishReason,
-        ...(result.rawFinishReason === undefined ? {} : { rawFinishReason: result.rawFinishReason })
+        finishReason: result.finishReason
       }
+      if (result.rawFinishReason !== undefined) completion.rawFinishReason = result.rawFinishReason
+      return completion
     } catch (err) {
       const isCancellation = signal?.aborted === true && (err === signal.reason || isAbortError(err))
       if (isCancellation) {

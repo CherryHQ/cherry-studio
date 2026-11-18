@@ -134,14 +134,13 @@ export function startTraceRootSpan(
     if (!('startTime' in span)) return
     try {
       const spanEntity = convertSpanToSpanEntity(span as unknown as ReadableSpan)
+      const attributes = { ...spanEntity.attributes }
+      if (meta.modelName) Object.assign(attributes, { modelName: meta.modelName })
       observabilitySinks.writeSpanEntity({
         ...spanEntity,
         topicId: meta.topicId,
         modelName: meta.modelName,
-        attributes: {
-          ...spanEntity.attributes,
-          ...(meta.modelName ? { modelName: meta.modelName } : {})
-        }
+        attributes
       })
     } catch (error) {
       logger.warn(`Failed to persist root span ${name}`, error as Error)
