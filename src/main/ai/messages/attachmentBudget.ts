@@ -1,6 +1,3 @@
-import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
-import type { ToolSet, UIMessage } from 'ai'
-
 /**
  * Request-level token budget for attachment text inlined into the prompt.
  *
@@ -17,6 +14,10 @@ import type { ToolSet, UIMessage } from 'ai'
  * Every number here is an estimate with a safety ratio on top, not a ledger:
  * erring small costs a `read_file` page, erring large fails the request.
  */
+
+import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import type { ToolSet, UIMessage } from 'ai'
+
 import { loggerService } from '@logger'
 import { ATTACHMENT_INPUT_SAFETY_RATIO } from '@main/ai/constants'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'

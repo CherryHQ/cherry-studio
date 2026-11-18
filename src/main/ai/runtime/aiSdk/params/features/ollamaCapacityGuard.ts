@@ -1,4 +1,3 @@
-import { definePlugin } from '@cherrystudio/ai-core'
 /**
  * Final-call capacity guard for Ollama requests whose `num_ctx` was capped below the
  * model's window to fit memory (#19864).
@@ -13,6 +12,8 @@ import { definePlugin } from '@cherrystudio/ai-core'
  * model is checked too. The error is an ordinary attempt error: retry and fallback
  * policy are unchanged.
  */
+
+import { definePlugin } from '@cherrystudio/ai-core'
 import { assertPrimaryOllamaCallWithinWindow } from '@main/ai/messages/attachmentBudget'
 import { readOllamaWireNumCtx, usesOllamaWirePath } from '@main/ai/utils/ollamaRequestNumCtx'
 
