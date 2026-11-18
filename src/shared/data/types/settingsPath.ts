@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 export type SettingsPath = '/settings' | `/settings?${string}` | '/settings/provider' | `/settings/${string}`
 
 export const DEFAULT_SETTINGS_PATH: SettingsPath = '/settings/provider'
@@ -9,6 +11,4 @@ export function isSettingsPath(value: unknown): value is SettingsPath {
   )
 }
 
-export function normalizeSettingsPath(value: unknown): SettingsPath {
-  return isSettingsPath(value) ? value : DEFAULT_SETTINGS_PATH
-}
+export const normalizeSettingsPath = z.custom<SettingsPath>(isSettingsPath).catch(DEFAULT_SETTINGS_PATH).parse
