@@ -59,7 +59,7 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
   const { input, approval, binding } = options
   const rootKey = options.rootModelKey ?? `${binding.model.provider}/${binding.model.id}`
   const models = new Map<string, Model>([[rootKey, options.model]])
-  const bindings = new Map<string, Binding>([[rootKey, binding]])
+  const bindings = new Map<string, ChildBinding>([[rootKey, binding]])
   const threads = new Map<ThreadId, string>([[options.root(), rootKey]])
   async function complete(thread: ThreadId, system: string, value: JsonValue, signal: AbortSignal) {
     const selected = bindings.get(threads.get(thread) ?? rootKey)!
