@@ -2058,11 +2058,11 @@ export class AgentSessionMessageService {
       }
 
       const delivery: AgentSessionDeliveryEnvelope = {
-        ...existing.delivery,
-        ...(options.outcome !== undefined ? { outcome: options.outcome } : {}),
-        ...(options.error !== undefined ? { error: options.error } : {}),
-        statusAt: new Date().toISOString()
+        ...existing.delivery
       }
+      if (options.outcome !== undefined) delivery.outcome = options.outcome
+      if (options.error !== undefined) delivery.error = options.error
+      delivery.statusAt = new Date().toISOString()
       const [row] = tx
         .update(sessionMessagesTable)
         .set({
@@ -2115,9 +2115,12 @@ export class AgentSessionMessageService {
     status: AgentSessionDeliveryStatus,
     error: AgentSessionDeliveryError | null = null
   ): AgentSessionMessageEntity | null {
-    return this.transitionSessionDelivery(sessionId, messageId, status, {
-      ...(status === 'failed' ? { error, outcome: 'failed' as const } : {})
-    })
+    const options: NonNullable<Parameters<AgentSessionMessageService['transitionSessionDelivery']>[3]> = {}
+    if (status === 'failed') {
+      options.error = error
+      options.outcome = 'failed'
+    }
+    return this.transitionSessionDelivery(sessionId, messageId, status, options)
   }
 
   finalizeSessionDelivery(input: {
