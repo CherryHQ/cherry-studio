@@ -42,6 +42,12 @@ export function listGrantsTx(tx: DbOrTx, appId: string): string[] {
 }
 
 export function listGrants(appId: string): string[] {
+  // A live preview has no grant rows BY DESIGN: its grants are the declared set,
+  // held in memory by the preview service for the preview's life. A closed
+  // preview's runtime id stops resolving here and falls through to the DB — which
+  // is also what an INSTALLED app that happens to be named `preview-foo` needs.
+  const preview = application.getExisting('MiniAppPreviewService')?.getPreviewByRuntimeId(appId)
+  if (preview) return preview.grants
   return listGrantsTx(application.get('DbService').getDb(), appId)
 }
 

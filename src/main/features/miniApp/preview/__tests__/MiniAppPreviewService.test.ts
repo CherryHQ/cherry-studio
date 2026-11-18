@@ -237,6 +237,93 @@ describe('MiniAppPreviewService', () => {
     expect(svc.listSessionPreviews('session-a')).toEqual([])
   })
 
+  it('leaves no staging snapshot behind when the digest re-check fails', async () => {
+    const svc = new MiniAppPreviewService()
+    const pkg = await writePackage()
+    const token = await validatePackage(pkg, 'session-a')
+    // A swap after validate: same path, different bytes.
+    fs.appendFileSync(pkg, 'tampered')
+
+    await expect(svc.openPreview({ sessionId: 'session-a', artifactToken: token.token })).rejects.toThrowError(
+      expect.objectContaining({ code: 'package-changed' })
+    )
+    // The private snapshot the digest was re-checked against is gone with the refusal.
+    expect(fs.readdirSync(previewsRoot)).toEqual([])
+  })
+
+  it('serializes a teardown behind a pending open, closing what the open registered', async () => {
+    const svc = new MiniAppPreviewService()
+    const pkg = await writePackage()
+    const token = await validatePackage(pkg, 'session-race')
+
+    // Same tick: the teardown MUST queue behind the open and close its result —
+    // an unsequenced teardown returns first and the late-registering preview leaks.
+    const openPromise = svc.openPreview({ sessionId: 'session-race', artifactToken: token.token })
+    const teardownPromise = svc.closeSessionPreviews('session-race')
+    const [summary, teardown] = await Promise.all([openPromise, teardownPromise])
+
+    expect(teardown.closed).toBe(1)
+    expect(svc.isPreviewActive(summary.previewId)).toBe(false)
+    expect(svc.resolvePreviewPath(summary.runtimeId)).toBeUndefined()
+    expect(fs.existsSync(path.join(previewsRoot, summary.previewId))).toBe(false)
+    expect(svc.listSessionPreviews('session-race')).toEqual([])
+  })
+
+  it('pins grants and network hosts from the validated manifest while the preview lives', async () => {
+    const svc = new MiniAppPreviewService()
+    const declared = {
+      ...MANIFEST,
+      permissions: ['storage.*', 'ai.chat', 'network.*'],
+      optionalPermissions: ['clipboard.read'],
+      network: ['api.example.com']
+    }
+    const pkg = await writePackage((zip) => {
+      zip.file('manifest.json', JSON.stringify(declared))
+    })
+    const token = await validatePackage(pkg, 'session-a')
+
+    const summary = await svc.openPreview({ sessionId: 'session-a', artifactToken: token.token })
+
+    // Only the preview's own directory survives the open — the staging snapshot is gone.
+    expect(fs.readdirSync(previewsRoot)).toEqual([summary.previewId])
+    const record = svc.getPreviewByRuntimeId(summary.runtimeId)
+    expect(record?.networkHosts).toEqual(['api.example.com'])
+    expect(record?.grants).toContain('ai.chat')
+    expect(record?.grants).toContain('clipboard.read')
+    expect(record?.grants).toContain('storage.set')
+
+    // The bridge's grant lookup resolves the live preview's declared set (in
+    // memory — a preview has no grant rows) instead of the DB.
+    vi.mocked(application.getExisting).mockImplementation((name: string) =>
+      name === 'MiniAppPreviewService' ? svc : undefined
+    )
+    const { listGrants } = await import('../../grants')
+    expect(listGrants(summary.runtimeId)).toEqual(record?.grants)
+
+    // Closing invalidates the identity: the runtime id stops resolving at once.
+    await svc.closePreview(summary.previewId)
+    expect(svc.getPreviewByRuntimeId(summary.runtimeId)).toBeUndefined()
+  })
+
+  it('drops the preview-owned storage and file state on close', async () => {
+    const svc = new MiniAppPreviewService()
+    const pkg = await writePackage()
+    const token = await validatePackage(pkg, 'session-a')
+    const summary = await svc.openPreview({ sessionId: 'session-a', artifactToken: token.token })
+
+    const { previewFileSave, previewFileUsage, previewStorageUsage, writePreviewStorage } =
+      await import('../../capabilities/previewStores')
+    writePreviewStorage(summary.runtimeId, { save: 'lvl-3' })
+    previewFileSave(summary.runtimeId, 'asset.bin', Buffer.from('x'))
+    expect(previewStorageUsage(summary.runtimeId).count).toBe(1)
+    expect(previewFileUsage(summary.runtimeId).count).toBe(1)
+
+    await svc.closePreview(summary.previewId)
+
+    expect(previewStorageUsage(summary.runtimeId).count).toBe(0)
+    expect(previewFileUsage(summary.runtimeId).count).toBe(0)
+  })
+
   it('sweeps on ready before any preview can open', async () => {
     fs.mkdirSync(path.join(previewsRoot, 'leftover'))
     const svc = new MiniAppPreviewService()

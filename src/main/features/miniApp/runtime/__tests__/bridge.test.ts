@@ -230,4 +230,22 @@ describe('handleBridgeRequest', () => {
     expect(info).toHaveProperty('hostVersion')
     expect(info).not.toHaveProperty('theme')
   })
+
+  it('reports the manifest identity, not the runtime id, for a live preview', async () => {
+    const { application } = await import('@application')
+    const runtimeId = 'preview-33333333-3333-3333-3333-333333333333'
+    vi.mocked(application.getExisting).mockImplementation((name: string) =>
+      name === 'MiniAppPreviewService'
+        ? {
+            getPreviewByRuntimeId: (id: string) =>
+              id === runtimeId ? { runtimeId, appId: 'com.example.manifest', version: '2.3.4' } : undefined
+          }
+        : undefined
+    )
+    resolveAppIdBySender.mockReturnValue(runtimeId)
+
+    const info = expectOk(await handleBridgeRequest(1, { method: 'app.getInfo' }, noopEmit))
+
+    expect(info).toMatchObject({ appId: 'com.example.manifest', version: '2.3.4' })
+  })
 })

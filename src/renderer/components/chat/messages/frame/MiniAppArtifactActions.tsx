@@ -45,10 +45,21 @@ export const MiniAppArtifactActions: FC<Props> = ({ handle, topicId }) => {
   const [dismissed] = usePreference('feature.mini_app.launchpad_prompt_dismissed')
 
   // Install completed: the third decision's turn, unless it was already answered.
+  // The read-back is main's `isLaunchpadAnswered` contract — pinned OR dismissed —
+  // because "Add to Launchpad" writes the STATUS, not the dismissed list: a
+  // reinstall or upgrade that checked only the list would re-ask an answered
+  // question. A failed read-back falls back to the list alone (the pre-route
+  // behavior) rather than swallowing a legitimate prompt.
   const onInstallDone = useCallback(() => {
     const appId = installedAppIdRef.current
     installedAppIdRef.current = null
-    if (appId && !dismissed.includes(appId)) setLaunchpadAppId(appId)
+    if (!appId) return
+    void ipcApi
+      .request('mini_app.authoring.launchpad_answered', { appId })
+      .catch(() => dismissed.includes(appId))
+      .then((answered) => {
+        if (!answered) setLaunchpadAppId(appId)
+      })
   }, [dismissed])
 
   const { preview, busy, error, settle, cancelPreview, confirm } = useMiniAppInstallPreview(onInstallDone)

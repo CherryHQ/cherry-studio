@@ -131,7 +131,7 @@ export const MiniAppPreviewPane: FC<{ topicId: string; open: boolean }> = ({ top
               ) : preparedId === selected.previewId ? (
                 <WebviewHost
                   id={selected.previewId}
-                  src={`${MINI_APP_SCHEME}://${selected.runtimeId}/index.html`}
+                  src={`${MINI_APP_SCHEME}://${selected.runtimeId}/${selected.entry}`}
                   partition={`persist:miniapp:${selected.runtimeId}`}
                   style={{ width: '100%', height: '100%' }}
                   ariaLabel={t('miniApp.preview.pane.title')}
