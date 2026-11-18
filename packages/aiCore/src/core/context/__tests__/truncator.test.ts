@@ -1,4 +1,4 @@
-import type { JSONValue, LanguageModelV3Prompt } from '@ai-sdk/provider'
+import { isJSONValue, type JSONObject, type JSONValue, type LanguageModelV3Prompt } from '@ai-sdk/provider'
 import { describe, expect, it, vi } from 'vitest'
 
 import { type VFSStorageAdapter } from '../offloader'
@@ -308,14 +308,14 @@ describe('truncateToolResults', () => {
 describe('truncateToolResults — entity codec', () => {
   const entitiesCodec: EntityToolOutputCodec = {
     deflate(value) {
-      if (!Array.isArray(value)) return null
+      if (!Array.isArray(value) || !isJSONValue(value)) return null
       return {
         skeleton: value,
         blobs: value.map((item, i) => ({ key: `/${i}/content`, text: (item as { content: string }).content }))
       }
     },
     assemble(skeleton, texts) {
-      return (skeleton as Array<Record<string, unknown>>).map((item, i) => {
+      return (skeleton as JSONObject[]).map((item, i) => {
         const key = `/${i}/content`
         return key in texts && texts[key] !== item.content ? { ...item, content: texts[key] } : item
       })

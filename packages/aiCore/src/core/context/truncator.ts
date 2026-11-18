@@ -4,6 +4,7 @@
  * Vendored from @context-chef/ai-sdk-middleware 1.6.0 (MIT, same author).
  */
 import type {
+  JSONValue,
   LanguageModelV3Prompt,
   LanguageModelV3ToolResultOutput,
   LanguageModelV3ToolResultPart
@@ -26,10 +27,12 @@ import type { ContextLogger } from './types'
  * aiCore stays provider/tool-agnostic and never imports tool code. `assemble`
  * must preserve key insertion order — the assembled value is stringified into
  * the prompt and must be byte-stable across lanes for prefix caching.
+ * Successful skeletons and assembled outputs use the AI SDK JSONValue contract.
+ * Only pass a skeleton returned by this codec's deflate back to assemble.
  */
 export interface EntityToolOutputCodec {
-  deflate(value: unknown): { skeleton: unknown; blobs: Array<{ key: string; text: string }> } | null
-  assemble(skeleton: unknown, texts: Record<string, string>): unknown
+  deflate(value: unknown): { skeleton: JSONValue; blobs: Array<{ key: string; text: string }> } | null
+  assemble(skeleton: JSONValue, texts: Record<string, string>): JSONValue
 }
 
 export interface TruncateOptions {
@@ -271,7 +274,7 @@ async function truncateEntities(
   if (!anyTrimmed) return part
   return {
     ...part,
-    output: { type: 'json', value: codec.assemble(deflated.skeleton, texts) } as LanguageModelV3ToolResultOutput
+    output: { type: 'json', value: codec.assemble(deflated.skeleton, texts) }
   } satisfies LanguageModelV3ToolResultPart
 }
 
