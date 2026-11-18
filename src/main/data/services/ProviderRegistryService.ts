@@ -64,7 +64,12 @@ import type {
   RuntimeReasoning,
   ServiceTierSelection
 } from '@shared/data/types/model'
-import { createUniqueModelId, CURRENCY, ReasoningSummarySchema } from '@shared/data/types/model'
+import {
+  createUniqueModelId,
+  CURRENCY,
+  ReasoningSummarySchema,
+  RuntimeModelPricingSchema
+} from '@shared/data/types/model'
 import type { EndpointConfig, Provider, ProviderWebsites } from '@shared/data/types/provider'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -154,11 +159,9 @@ export interface ReasoningProviderContext {
   endpointConfigs?: Provider['endpointConfigs']
 }
 
-function isEmptyPricingEcho(value: unknown): boolean {
-  if (!value || typeof value !== 'object') return false
-  const pricing = value as Partial<RuntimeModelPricing>
-  const isEmptyTier = (tier: RuntimeModelPricing['input'] | undefined) =>
-    tier != null && (tier.perMillionTokens === 0 || tier.perMillionTokens === null)
+function isEmptyPricingEcho(pricing: RuntimeModelPricing): boolean {
+  const isEmptyTier = (tier: RuntimeModelPricing['input']) =>
+    tier.perMillionTokens === 0 || tier.perMillionTokens === null
   return (
     isEmptyTier(pricing.input) &&
     isEmptyTier(pricing.output) &&
@@ -204,13 +207,13 @@ function normalizePricingForComparison(pricing: RuntimeModelPricing): RuntimeMod
  * materialized an absent price as 0/0, so that empty echo is baseline-equal
  * when the registry has no price.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- ModelService compares dynamically selected DTO/baseline fields; validate pricing shapes before reading tiers or normalizing currency.
 export function matchesModelPricingBaseline(value: unknown, baseline: unknown): boolean {
-  if (baseline === undefined && isEmptyPricingEcho(value)) return true
-  if (value && baseline) {
-    return isEqual(
-      normalizePricingForComparison(value as RuntimeModelPricing),
-      normalizePricingForComparison(baseline as RuntimeModelPricing)
-    )
+  const parsedValue = RuntimeModelPricingSchema.safeParse(value)
+  if (baseline === undefined && parsedValue.success && isEmptyPricingEcho(parsedValue.data)) return true
+  const parsedBaseline = RuntimeModelPricingSchema.safeParse(baseline)
+  if (parsedValue.success && parsedBaseline.success) {
+    return isEqual(normalizePricingForComparison(parsedValue.data), normalizePricingForComparison(parsedBaseline.data))
   }
   return isEqual(value, baseline)
 }

@@ -138,6 +138,7 @@ import {
 const {
   createCustomModel,
   mergePresetModel,
+  matchesModelPricingBaseline,
   projectRuntimeReasoning,
   providerRegistryService,
   resolveReasoningProfileFromRegistry
@@ -1259,5 +1260,48 @@ describe('projectRuntimeReasoning summary options', () => {
 
     expect(projectRuntimeReasoning(effortSupport, enabled.wire).summaryOptions).toEqual(['auto', 'concise', 'detailed'])
     expect(projectRuntimeReasoning(effortSupport, disabled.wire).summaryOptions).toBeUndefined()
+  })
+})
+
+describe('model pricing baseline comparison', () => {
+  const priced = { input: { perMillionTokens: 2 }, output: { perMillionTokens: 8 } }
+
+  it.each([{}, { input: { perMillionTokens: 2 } }, { output: { perMillionTokens: 8 } }, true, '2'])(
+    'preserves malformed pricing as an override instead of crashing: %j',
+    (malformed) => {
+      expect(matchesModelPricingBaseline(malformed, priced)).toBe(false)
+      expect(matchesModelPricingBaseline(priced, malformed)).toBe(false)
+    }
+  )
+
+  it('treats omitted currency as USD when comparing complete pricing', () => {
+    expect(
+      matchesModelPricingBaseline(priced, {
+        input: { perMillionTokens: 2, currency: 'USD' },
+        output: { perMillionTokens: 8, currency: 'USD' }
+      })
+    ).toBe(true)
+  })
+
+  it('keeps the legacy zero/null echo equal to absent catalog pricing', () => {
+    expect(
+      matchesModelPricingBaseline({ input: { perMillionTokens: 0 }, output: { perMillionTokens: null } }, undefined)
+    ).toBe(true)
+    expect(matchesModelPricingBaseline(priced, undefined)).toBe(false)
+  })
+
+  it('retains real price and currency differences as overrides', () => {
+    expect(
+      matchesModelPricingBaseline(priced, {
+        input: { perMillionTokens: 3 },
+        output: { perMillionTokens: 8 }
+      })
+    ).toBe(false)
+    expect(
+      matchesModelPricingBaseline(priced, {
+        input: { perMillionTokens: 2, currency: 'CNY' },
+        output: { perMillionTokens: 8, currency: 'CNY' }
+      })
+    ).toBe(false)
   })
 })
