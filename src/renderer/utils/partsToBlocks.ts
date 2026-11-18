@@ -125,16 +125,17 @@ function normalizeWebResults(results: unknown): Citation[] {
         // NOTE: metadata is actually an array (groundingSupports) despite Citation.metadata
         // being Record<string, any>. Downstream citation.ts calls metadata.forEach() directly.
         // TODO: fix Citation.metadata type to support this shape properly.
-        return {
+        const citation: Citation = {
           number: index + 1,
           url,
           title: typeof web?.title === 'string' ? web.title : toHostOrUrl(url),
           showFavicon: true,
-          type: 'websearch',
-          ...(groundingSupports ? { metadata: groundingSupports } : {})
+          type: 'websearch'
         }
+        if (groundingSupports) citation.metadata = groundingSupports
+        return citation
       })
-      .filter(Boolean) as Citation[]
+      .filter((citation) => citation !== null)
   }
 
   const list = Array.isArray(results)
