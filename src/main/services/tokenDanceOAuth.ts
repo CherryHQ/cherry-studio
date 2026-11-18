@@ -30,6 +30,7 @@ type TokenDanceCallback = {
 type TokenDanceCallbackServer = {
   callbackUrl: string
   waitForCode: Promise<TokenDanceCallback>
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Browser launch failures are forwarded unchanged to the authorization promise, whose rejection may be any value.
   fail: (error: unknown) => void
   close: () => Promise<void>
 }
@@ -95,12 +96,14 @@ function listen(server: Server): Promise<number> {
 async function startCallbackServer(state: string): Promise<TokenDanceCallbackServer> {
   let settled = false
   let resolveCode!: (callback: TokenDanceCallback) => void
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- This stores the promise reject callback and must preserve arbitrary shell.openExternal rejection values.
   let rejectCode!: (error: unknown) => void
 
   const waitForCode = new Promise<TokenDanceCallback>((resolve, reject) => {
     resolveCode = resolve
     rejectCode = reject
   })
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Settles callback errors, timeouts and arbitrary browser-launch rejections through the same promise without changing the reason.
   const settleReject = (error: unknown) => {
     if (settled) return
     settled = true
