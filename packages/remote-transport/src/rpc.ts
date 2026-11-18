@@ -12,7 +12,7 @@ interface Schema<T> {
   safeParse(
     input: NonNullable<JsonRpcRequest['params']>
   ): { success: true; data: T } | { success: false; error: unknown }
-  parse(input: T): T
+  parse(input: NoInfer<T>): T
 }
 
 export class RemoteRpcError extends JSONRPCErrorException {

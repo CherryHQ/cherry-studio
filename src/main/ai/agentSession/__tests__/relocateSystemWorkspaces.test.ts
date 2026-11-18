@@ -307,7 +307,7 @@ describe('system workspace relocation', () => {
         const keys = await runForkWorker(
           createWorker({ workerData: { oldCwd: workspace.oldPath, newCwd: workspace.newPath } }),
           new AbortController().signal,
-          (value) => z.strictObject({ oldKey: z.string(), newKey: z.string() }).parse(value)
+          z.strictObject({ oldKey: z.string(), newKey: z.string() })
         )
         nativeFile = await writeHistory(runtime, workspace.id, nativeId, keys.oldKey)
         destinationProject = path.join(root, '.claude', 'projects', keys.newKey)
@@ -607,7 +607,7 @@ describe('system workspace relocation', () => {
         runForkWorker(
           createWorker({ workerData: { oldCwd: workspace.oldPath, newCwd: workspace.newPath } }),
           new AbortController().signal,
-          (value) => z.strictObject({ oldKey: z.string(), newKey: z.string() }).parse(value)
+          z.strictObject({ oldKey: z.string(), newKey: z.string() })
         )
       const literalKey = (await keys()).oldKey
       const literalId = randomUUID()
