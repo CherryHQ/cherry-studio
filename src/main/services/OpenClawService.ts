@@ -537,9 +537,10 @@ export class OpenClawService extends BaseService {
       throw new Error('OpenClaw binary not found. Please install OpenClaw first.')
     }
 
+    const runtime: Omit<OpenClawRuntime, 'env'> = { path: AbsoluteFilePathSchema.parse(openclaw.path) }
+    if (openclaw.source !== 'system') runtime.version = openclaw.version
     return {
-      path: AbsoluteFilePathSchema.parse(openclaw.path),
-      ...(openclaw.source !== 'system' ? { version: openclaw.version } : {}),
+      ...runtime,
       env: openclaw.source === 'system' ? await getRawShellEnv() : managedShellEnv
     }
   }
@@ -672,9 +673,10 @@ export class OpenClawService extends BaseService {
     if (!valid && issues.length === 0) fail()
     if ((valid && result.exitCode !== 0) || (!valid && result.exitCode !== 1)) fail()
 
+    const validation: Omit<OpenClawValidationReport, 'issues' | 'warnings'> = { valid }
+    if (reportPath !== undefined) validation.path = reportPath
     return {
-      valid,
-      ...(reportPath !== undefined ? { path: reportPath } : {}),
+      ...validation,
       issues,
       warnings
     }
@@ -1387,18 +1389,19 @@ export class OpenClawService extends BaseService {
     const { modelId } = parseUniqueModelId(model.id)
     const input = model.inputModalities?.filter((modality) => modality === 'text' || modality === 'image')
     const cost = this.toOpenClawCost(model)
-    return {
+    const synced: OpenClawSyncModel = {
       id: model.apiModelId ?? modelId,
       provider: model.providerId,
       name: model.name,
       group: model.group ?? '',
-      endpoint_type: this.toOpenClawEndpointType(model.endpointTypes?.[0]),
-      ...(model.contextWindow ? { contextWindow: model.contextWindow } : {}),
-      ...(model.maxOutputTokens ? { maxTokens: model.maxOutputTokens } : {}),
-      ...(model.reasoning || model.capabilities.includes(MODEL_CAPABILITY.REASONING) ? { reasoning: true } : {}),
-      ...(input?.length ? { input } : {}),
-      ...(cost ? { cost } : {})
+      endpoint_type: this.toOpenClawEndpointType(model.endpointTypes?.[0])
     }
+    if (model.contextWindow) synced.contextWindow = model.contextWindow
+    if (model.maxOutputTokens) synced.maxTokens = model.maxOutputTokens
+    if (model.reasoning || model.capabilities.includes(MODEL_CAPABILITY.REASONING)) synced.reasoning = true
+    if (input?.length) synced.input = input
+    if (cost) synced.cost = cost
+    return synced
   }
 
   private toOpenClawCost(model: DataModel): OpenClawModelConfig['cost'] | undefined {
@@ -1568,16 +1571,14 @@ export class OpenClawService extends BaseService {
             cost = { ...cost }
             delete cost.tieredPricing
           }
+          const defaults: Pick<OpenClawModelConfig, 'maxTokens' | 'reasoning' | 'input' | 'cost' | 'contextWindow'> = {}
+          if (supportsModelField('maxTokens') && synced.maxTokens !== undefined) defaults.maxTokens = synced.maxTokens
+          if (supportsModelField('reasoning') && synced.reasoning !== undefined) defaults.reasoning = synced.reasoning
+          if (supportsModelField('input') && synced.input) defaults.input = synced.input
+          if (supportsModelField('cost') && cost) defaults.cost = cost
+          if (supportsModelField('contextWindow')) defaults.contextWindow = synced.contextWindow ?? 128000
           return {
-            ...(supportsModelField('maxTokens') && synced.maxTokens !== undefined
-              ? { maxTokens: synced.maxTokens }
-              : {}),
-            ...(supportsModelField('reasoning') && synced.reasoning !== undefined
-              ? { reasoning: synced.reasoning }
-              : {}),
-            ...(supportsModelField('input') && synced.input ? { input: synced.input } : {}),
-            ...(supportsModelField('cost') && cost ? { cost } : {}),
-            ...(supportsModelField('contextWindow') ? { contextWindow: synced.contextWindow ?? 128000 } : {}),
+            ...defaults,
             ...pickSchemaSupportedProperties(configSchema, modelSchemaPath, existing),
             id: m.id,
             name: m.name
