@@ -50,7 +50,7 @@ function queritUrl(apiHost: string, endpoint: 'search' | 'contents'): string {
   return url.toString()
 }
 
-function checkQueritError(context: ProtocolContext, value: unknown): void {
+function checkQueritError(context: ProtocolContext, value: Parameters<typeof checkProviderError>[1]): void {
   const parsed = QueritStatusSchema.safeParse(value)
   if (parsed.success && parsed.data.error_code === 200) return
   checkProviderError(context, value, 'error_code')
