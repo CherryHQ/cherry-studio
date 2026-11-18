@@ -77,12 +77,13 @@ async function estimateConvertedRequest(
   // could reject the mismatch, or count an oversize raw name generation never transmits.
   if (dialect === 'anthropic' && resolved) {
     const rename = converter.toProviderToolName?.bind(converter)
+    const request: Parameters<typeof tryRemoteAnthropicCount>[0] = {
+      messages: rename ? renameToolUses(body.messages, rename) : body.messages
+    }
+    if (body.system !== undefined) request.system = body.system
+    if (wireTools !== undefined) request.tools = wireTools as MessageCountTokensParams['tools']
     const remote = await tryRemoteAnthropicCount(
-      {
-        messages: rename ? renameToolUses(body.messages, rename) : body.messages,
-        ...(body.system !== undefined ? { system: body.system } : {}),
-        ...(wireTools !== undefined ? { tools: wireTools as MessageCountTokensParams['tools'] } : {})
-      },
+      request,
       resolved.provider,
       resolved.model,
       resolved.apiModelId,

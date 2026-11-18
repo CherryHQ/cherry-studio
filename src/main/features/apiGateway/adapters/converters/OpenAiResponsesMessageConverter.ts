@@ -76,7 +76,9 @@ function functionOutputToConversion(callId: string, output: FunctionCallOutput['
       const dataUrlType = item.file_data ? parseDataUrl(item.file_data)?.mediaType : undefined
       const mediaType = dataUrlType ?? mime.getType(item.filename ?? item.file_url ?? '') ?? 'application/octet-stream'
       const url = item.file_url ?? (dataUrlType ? item.file_data! : `data:${mediaType};base64,${item.file_data}`)
-      attach('file', { type: 'file', mediaType, url, ...(item.filename ? { filename: item.filename } : {}) })
+      const file: FileUIPart = { type: 'file', mediaType, url }
+      if (item.filename) file.filename = item.filename
+      attach('file', file)
     } else {
       // file_id-only items reference provider-hosted files we can't resolve.
       lines.push(`[unsupported ${item.type} tool output item omitted]`)
@@ -300,9 +302,9 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
 
       const aiTool = tool({
         description: funcTool.description || '',
-        inputSchema: jsonSchema(schema),
-        ...(typeof funcTool.strict === 'boolean' ? { strict: funcTool.strict } : {})
+        inputSchema: jsonSchema(schema)
       })
+      if (typeof funcTool.strict === 'boolean') aiTool.strict = funcTool.strict
 
       aiSdkTools[funcTool.name] = aiTool
     }
