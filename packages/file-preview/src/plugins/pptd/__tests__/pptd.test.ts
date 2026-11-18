@@ -233,3 +233,16 @@ describe('image crop and fit math', () => {
     expect(pptdImageRect(0, 100, 100, 50, undefined, undefined)).toBeNull()
   })
 })
+
+describe('icon name parsing', () => {
+  it('accepts the documented styles and CDN-safe names', async () => {
+    const { parsePptdIconName, pptdIconUrl } = await import('../pptdIcon')
+    expect(parsePptdIconName('fas:house')).toEqual({ style: 'fas', name: 'house' })
+    expect(parsePptdIconName('far:heart')).toEqual({ style: 'far', name: 'heart' })
+    expect(pptdIconUrl('fab', 'github')).toContain('/svgs/brands/github.svg')
+    expect(parsePptdIconName('fal:house')).toBeNull()
+    expect(parsePptdIconName('fas:../secret')).toBeNull()
+    expect(parsePptdIconName('fas:')).toBeNull()
+    expect(parsePptdIconName('house')).toBeNull()
+  })
+})

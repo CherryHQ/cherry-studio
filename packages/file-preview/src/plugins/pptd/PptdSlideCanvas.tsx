@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 import type { PptdPageElement, PptdPresentation } from './pptdFormat'
+import { PptdIconElement } from './PptdIconElement'
 import { PptdImageElement } from './PptdImageElement'
 import { PptdLineElement } from './PptdLineElement'
 import type { PptdProjectFileReader, PptdProjectPage } from './pptdProject'
@@ -38,6 +39,9 @@ function PptdElementBody({
   }
   if (element.elementType === 'image') {
     return <PptdImageElement element={element} context={context} readProjectFile={readProjectFile} />
+  }
+  if (element.elementType === 'icon') {
+    return <PptdIconElement element={element} context={context} />
   }
   if (element.elementType === 'invalid') {
     return (
