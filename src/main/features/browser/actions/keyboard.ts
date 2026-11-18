@@ -1,3 +1,5 @@
+import type { Protocol } from 'devtools-protocol'
+
 import { isMac } from '@main/core/platform'
 
 import type { BrowserActionOptions } from '../BrowserCursor'
@@ -33,11 +35,9 @@ export async function pressKey(session: GuestSession, chord: string, options: Br
           : undefined
   const params = { key, code, windowsVirtualKeyCode, modifiers }
   const selectAll = modifiers === (isMac ? KeyModifier.Meta : KeyModifier.Control) && key.toLowerCase() === 'a'
-  await session.send(
-    'Input.dispatchKeyEvent',
-    { ...params, type: 'rawKeyDown', ...(selectAll ? { commands: ['selectAll'] } : {}) },
-    options
-  )
+  const keyDown: Protocol.Input.DispatchKeyEventRequest = { ...params, type: 'rawKeyDown' }
+  if (selectAll) keyDown.commands = ['selectAll']
+  await session.send('Input.dispatchKeyEvent', keyDown, options)
   if (text)
     await session.send('Input.dispatchKeyEvent', { ...params, type: 'char', text, unmodifiedText: text }, options)
   await session.send('Input.dispatchKeyEvent', { ...params, type: 'keyUp' }, options)

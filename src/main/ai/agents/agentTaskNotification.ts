@@ -3,6 +3,7 @@ import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { t } from '@main/i18n'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
+import type { TaskResultNotificationInput } from '@shared/data/types/notification'
 
 import type { AgentTaskOutput } from './runAgentTask'
 
@@ -13,7 +14,7 @@ export async function publishScheduledTaskResult(jobId: string): Promise<boolean
   const schedule = jobScheduleService.getById(job.scheduleId)
   if (!schedule) return false
   const finishedAt = Date.parse(job.finishedAt)
-  return application.get('NotificationService').publishTaskResult({
+  const input: Omit<TaskResultNotificationInput, 'target'> = {
     resultId: job.id,
     source: 'scheduled-task',
     status:
@@ -27,11 +28,13 @@ export async function publishScheduledTaskResult(jobId: string): Promise<boolean
               ? 'cancelled'
               : 'interrupted',
     name: schedule.name || t('notification.result.failed'),
-    finishedAt,
-    ...(job.startedAt ? { durationMs: Math.max(0, finishedAt - Date.parse(job.startedAt)) } : {}),
-    ...(job.error
-      ? { errorSummary: toExecutionFailure({ name: null, stack: null, message: job.error.message }).message }
-      : {}),
+    finishedAt
+  }
+  if (job.startedAt) input.durationMs = Math.max(0, finishedAt - Date.parse(job.startedAt))
+  if (job.error)
+    input.errorSummary = toExecutionFailure({ name: null, stack: null, message: job.error.message }).message
+  return application.get('NotificationService').publishTaskResult({
+    ...input,
     target: { kind: 'scheduled-task', taskId: job.scheduleId }
   })
 }
