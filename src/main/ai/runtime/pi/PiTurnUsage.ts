@@ -20,14 +20,15 @@ export class PiTurnUsage {
     this.outputTokens += usage.output
     this.totalTokens += usage.totalTokens
     if (usage.reasoning !== undefined) this.reasoningTokens = (this.reasoningTokens ?? 0) + usage.reasoning
+    const stats: MessageStats = {
+      inputTokens: this.inputTokens,
+      outputTokens: this.outputTokens,
+      totalTokens: this.totalTokens
+    }
+    if (this.reasoningTokens !== undefined) stats.outputTokenDetails = { reasoningTokens: this.reasoningTokens }
     return {
       totalTokens: this.totalTokens,
-      stats: {
-        inputTokens: this.inputTokens,
-        outputTokens: this.outputTokens,
-        totalTokens: this.totalTokens,
-        ...(this.reasoningTokens === undefined ? {} : { outputTokenDetails: { reasoningTokens: this.reasoningTokens } })
-      }
+      stats
     }
   }
 }

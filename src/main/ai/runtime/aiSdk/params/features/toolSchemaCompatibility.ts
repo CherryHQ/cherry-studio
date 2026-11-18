@@ -297,11 +297,12 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
     if (inputSchema === tool.inputSchema && !optOutOfStrict) transformedTools.push(tool)
     else {
       changed = true
-      transformedTools.push({
+      const transformed = {
         ...tool,
-        inputSchema: inputSchema as JSONSchema7,
-        ...(optOutOfStrict ? { strict: false } : {})
-      })
+        inputSchema: inputSchema as JSONSchema7
+      }
+      if (optOutOfStrict) transformed.strict = false
+      transformedTools.push(transformed)
     }
   }
 

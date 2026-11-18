@@ -189,22 +189,20 @@ export async function createExternalMcpConnection({
       }
       const type = typeOverride ?? server.type ?? 'sse'
       if (type === 'streamableHttp') {
-        return wrapOAuthTransport(
-          new StreamableHTTPClientTransport(serverUrl, {
-            fetch: fetchUrl,
-            requestInit: { headers: requestHeaders },
-            ...(useOAuth ? { authProvider } : {})
-          })
-        )
+        const options: NonNullable<ConstructorParameters<typeof StreamableHTTPClientTransport>[1]> = {
+          fetch: fetchUrl,
+          requestInit: { headers: requestHeaders }
+        }
+        if (useOAuth) options.authProvider = authProvider
+        return wrapOAuthTransport(new StreamableHTTPClientTransport(serverUrl, options))
       }
       if (type === 'sse') {
-        return wrapOAuthTransport(
-          new SSEClientTransport(serverUrl, {
-            fetch: fetchUrl,
-            requestInit: { headers: requestHeaders },
-            ...(useOAuth ? { authProvider } : {})
-          })
-        )
+        const options: NonNullable<ConstructorParameters<typeof SSEClientTransport>[1]> = {
+          fetch: fetchUrl,
+          requestInit: { headers: requestHeaders }
+        }
+        if (useOAuth) options.authProvider = authProvider
+        return wrapOAuthTransport(new SSEClientTransport(serverUrl, options))
       }
       throw new Error(`Unsupported URL transport: ${type}`)
     }
