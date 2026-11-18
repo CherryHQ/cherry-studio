@@ -194,14 +194,14 @@ function rehydrate(error: SerializedError): Error {
 
 export const aiCapability = {
   // `async` on purpose: the first two statements throw SYNCHRONOUSLY, and such a throw
-  // out of a `Promise<unknown>` method escapes every `.catch()` the bridge puts on it.
+  // out of a promise-returning method escapes every `.catch()` the bridge puts on it.
   async chat(
     appId: string,
     params: unknown,
     emit: (chunk: string) => void,
     guestId: number,
     callId: string | undefined
-  ): Promise<unknown> {
+  ): Promise<{ ok: true }> {
     const parsed = ChatParams.parse(params)
     // Refused, never overwritten: overwriting leaves the FIRST call running with
     // nothing able to name it. Freed by `settle`, so reuse after it ends is fine.
@@ -223,7 +223,7 @@ export const aiCapability = {
     const streamId = `miniapp:${appId}:${++streamSeq}`
     const runtime = application.get('MiniAppRuntimeService')
 
-    return new Promise((resolve, reject) => {
+    return new Promise<{ ok: true }>((resolve, reject) => {
       const settle = (fn: () => void) => {
         release()
         runtime.forgetStream(guestId, streamId)
