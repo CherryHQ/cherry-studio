@@ -154,19 +154,19 @@ export class BackupActiveWritersError extends Error {
 
 class BackupInputError extends Error {}
 
-export function classifyBackupFailure(cause: unknown): FailureFacts {
+export function classifyBackupFailure(error: unknown): FailureFacts {
   if (
-    cause instanceof BackupOperationBusyError ||
-    cause instanceof BackupActiveWritersError ||
-    cause instanceof BackupInputError
+    error instanceof BackupOperationBusyError ||
+    error instanceof BackupActiveWritersError ||
+    error instanceof BackupInputError
   ) {
     return { source: 'application', kind: 'expected', reason: 'backup_precondition', outcome: 'failed' }
   }
-  const storage = classifyStorageFailure(cause)
+  const storage = classifyStorageFailure(error)
   if (storage.kind === 'expected') return storage
-  const database = classifyDatabaseFailure(cause)
+  const database = classifyDatabaseFailure(error)
   if (database.reason !== 'database_failed') return database
-  const file = classifyFileFailure(cause)
+  const file = classifyFileFailure(error)
   return file.kind === 'unknown' ? { ...file, kind: 'reliability', reason: 'backup_failed' } : file
 }
 
@@ -510,9 +510,9 @@ class BackupManager {
           cleanup()
           resolve()
         }
-        function fail(cause: unknown) {
+        function fail(error: unknown) {
           cleanup()
-          reject(cause)
+          reject(error)
         }
         function onAbort() {
           archive.abort()
@@ -1868,8 +1868,8 @@ class BackupManager {
     }
   }
 
-  private logSkippedSymlink(sourcePath: string, cause: unknown) {
-    logger.warn('[BackupManager] Skipping broken or unreadable symlink', { path: sourcePath, error: cause })
+  private logSkippedSymlink(sourcePath: string, error: unknown) {
+    logger.warn('[BackupManager] Skipping broken or unreadable symlink', { path: sourcePath, error })
   }
 
   /**

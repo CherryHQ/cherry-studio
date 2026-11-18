@@ -1276,11 +1276,11 @@ export class VoiceSessionService extends BaseService {
       )
     )
     return configuration
-      .catch((cause: unknown) => {
+      .catch((error: unknown) => {
         if (controller.signal.aborted || session.closed || powerEpoch !== this.powerEpoch) {
           throw new VoiceRuntimeError('aborted')
         }
-        throw cause
+        throw error
       })
       .finally(() => {
         if (session.preflightAbort === controller) session.preflightAbort = undefined

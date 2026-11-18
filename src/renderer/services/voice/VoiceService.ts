@@ -134,9 +134,9 @@ export class VoiceDomainError extends Error {
   }
 }
 
-function toVoiceDomainError(cause: unknown): VoiceDomainError {
-  if (cause instanceof VoiceDomainError) return cause
-  if (cause instanceof IpcError) return new VoiceDomainError(reasonByCode.get(cause.code) ?? 'operation_failed')
+function toVoiceDomainError(error: unknown): VoiceDomainError {
+  if (error instanceof VoiceDomainError) return error
+  if (error instanceof IpcError) return new VoiceDomainError(reasonByCode.get(error.code) ?? 'operation_failed')
   return new VoiceDomainError('operation_failed')
 }
 
@@ -291,10 +291,10 @@ export class VoiceService {
           this.applyState(state)
         }
       })
-      .catch((cause: unknown) => {
+      .catch((error: unknown) => {
         this.detach(generation)
         if (this.initialization?.generation === generation) this.initialization = undefined
-        throw cause
+        throw error
       })
     this.initialization = { generation, promise: initialization }
     return initialization
@@ -468,14 +468,14 @@ export class VoiceService {
         }
         return state
       },
-      async (cause: unknown) => {
+      async (error: unknown) => {
         if (admission.generation !== this.lifecycleGeneration) {
           this.releasePendingMaterialization(sessionId, admission.token)
           await this.discardTombstone(sessionId, admission.token)
           throw new VoiceDomainError('aborted')
         }
         this.releasePendingAdmission(sessionId, admission.token)
-        throw cause
+        throw error
       }
     )
     return { sessionId, requestId, result }
@@ -493,7 +493,7 @@ export class VoiceService {
   ): StreamingTranscription {
     const identity = { sessionId: input.sessionId, requestId: this.createId() }
     let resolveReady!: () => void
-    let rejectReady!: (cause: unknown) => void
+    let rejectReady!: (error: unknown) => void
     const ready = new Promise<void>((resolve, reject) => {
       resolveReady = resolve
       rejectReady = reject
@@ -504,9 +504,9 @@ export class VoiceService {
       else onRevision(event.update)
     })
     const result = this.invoke(() => this.ipc.request('ai.voice.transcription.start', { ...input, ...identity }))
-      .catch((cause: unknown) => {
-        rejectReady(cause)
-        throw cause
+      .catch((error: unknown) => {
+        rejectReady(error)
+        throw error
       })
       .finally(unsubscribe)
     void result.catch(() => undefined)
@@ -563,7 +563,7 @@ export class VoiceService {
           }
           return result
         },
-        async (cause: unknown) => {
+        async (error: unknown) => {
           if (sequence.activeSpeechToken === speechToken) sequence.activeSpeechToken = undefined
           if (reservation.generation !== this.lifecycleGeneration) {
             this.releasePendingMaterialization(sessionId, reservation.token)
@@ -571,7 +571,7 @@ export class VoiceService {
             throw new VoiceDomainError('aborted')
           }
           if (admission) this.releasePendingAdmission(sessionId, admission.token)
-          throw cause
+          throw error
         }
       )
     }
@@ -629,12 +629,12 @@ export class VoiceService {
           if (sequence.nextChunkIndex !== undefined) sequence.nextChunkIndex += 1
         }
       },
-      (cause: unknown) => {
+      (error: unknown) => {
         if (sequence.activeReleaseToken === releaseToken) sequence.activeReleaseToken = undefined
         if (reservation.generation !== this.lifecycleGeneration) {
           throw new VoiceDomainError('aborted')
         }
-        throw cause
+        throw error
       }
     )
   }
@@ -901,8 +901,8 @@ export class VoiceService {
   private invoke<T>(operation: () => Promise<T>): Promise<T> {
     return Promise.resolve()
       .then(operation)
-      .catch((cause: unknown) => {
-        throw toVoiceDomainError(cause)
+      .catch((error: unknown) => {
+        throw toVoiceDomainError(error)
       })
   }
 

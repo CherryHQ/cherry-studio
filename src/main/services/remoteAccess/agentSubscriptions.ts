@@ -223,13 +223,13 @@ export class AgentSubscriptions {
       jsonrpc: '2.0',
       method: 'agent.subscriptions.resetRequired',
       params: { subscriptionId: subscription.id, reason }
-    }).catch((cause: unknown) => logger.warn('Failed to deliver subscription reset', cause as Error))
+    }).catch((error: unknown) => logger.warn('Failed to deliver subscription reset', error as Error))
   }
 
   private schedule(subscription: Subscription): void {
     subscription.pump = subscription.pump
       .then(() => this.pump(subscription))
-      .catch((cause: unknown) => logger.warn('Subscription pump failed', cause as Error))
+      .catch((error: unknown) => logger.warn('Subscription pump failed', error as Error))
   }
 
   private async pump(subscription: Subscription): Promise<void> {

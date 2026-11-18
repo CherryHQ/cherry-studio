@@ -14,9 +14,9 @@ export class SingleFlight<T> {
     if (this.active) return this.active
     const { promise, resolve, reject } = Promise.withResolvers<T>()
     this.active = promise
-    const fail = (cause: unknown): void => {
+    const fail = (error: unknown): void => {
       this.active = undefined
-      reject(cause)
+      reject(error)
     }
     try {
       void Promise.resolve(task()).then((value) => {

@@ -100,7 +100,7 @@ export class ClaudeOwner {
     private readonly config: ClaudeSessionOptions,
     sessionId: string,
     private readonly fresh: boolean,
-    private readonly report: (cause: unknown) => void,
+    private readonly report: (error: unknown) => void,
     private readonly bind: (sessionId: string) => void
   ) {
     this.activeSession = sessionId

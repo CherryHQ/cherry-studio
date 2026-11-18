@@ -17,16 +17,16 @@ export function subscribeMicrophoneChanges(onChange: () => void): () => void {
   return () => navigator.mediaDevices.removeEventListener('devicechange', onChange)
 }
 
-export function microphoneErrorReason(cause: unknown): VoiceErrorReason {
-  if (cause instanceof DOMException) {
-    if (['NotAllowedError', 'PermissionDeniedError', 'SecurityError'].includes(cause.name))
+export function microphoneErrorReason(error: unknown): VoiceErrorReason {
+  if (error instanceof DOMException) {
+    if (['NotAllowedError', 'PermissionDeniedError', 'SecurityError'].includes(error.name))
       return 'microphone_permission'
     if (
-      cause.name === 'NotFoundError' ||
-      (cause.name === 'OverconstrainedError' && 'constraint' in cause && cause.constraint === 'deviceId')
+      error.name === 'NotFoundError' ||
+      (error.name === 'OverconstrainedError' && 'constraint' in error && error.constraint === 'deviceId')
     )
       return 'microphone_unavailable'
-    if (cause.name === 'NotReadableError') return 'microphone_unreadable'
+    if (error.name === 'NotReadableError') return 'microphone_unreadable'
   }
   return 'recording_failed'
 }

@@ -321,11 +321,11 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       }
     }
 
-    const invokeOnError = async (cause: unknown): Promise<'retry' | 'abort' | void> => {
+    const invokeOnError = async (err: unknown): Promise<'retry' | 'abort' | void> => {
       if (!hooks.onError) return undefined
       try {
         return await hooks.onError({
-          error: cause instanceof Error ? cause : new Error(serializeError(cause).message ?? 'Unknown AI error')
+          error: err instanceof Error ? err : new Error(serializeError(err).message ?? 'Unknown AI error')
         })
       } catch (hookErr) {
         logAiFailure(logger, 'hooks.onError threw; aborting run', hookErr, 'agent.ai_sdk.hook', {

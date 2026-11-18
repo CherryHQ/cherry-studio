@@ -35,8 +35,8 @@ export function issue(item: string, code: CacheCleanupIssueCode): CacheCleanupIs
   return { item, code }
 }
 
-export function isNodeError(cause: unknown, code: string): boolean {
-  return cause instanceof Error && 'code' in cause && (cause as NodeJS.ErrnoException).code === code
+export function isNodeError(error: unknown, code: string): boolean {
+  return error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === code
 }
 
 async function pathContainsActiveUserData(targetPath: string): Promise<boolean> {

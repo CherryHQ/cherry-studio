@@ -39,13 +39,13 @@ function supportsAppleAssetInstall(): boolean {
   return supportsApple() && (getVoiceEnvironment().majorVersion ?? 0) >= 26
 }
 
-function normalizeAppleFailure(cause: unknown, signal?: AbortSignal): VoiceRuntimeError {
-  const normalized = normalizeFailure(cause, signal)
-  if (signal?.aborted || cause instanceof VoiceRuntimeError) return normalized
-  if (cause instanceof SystemSpeechError) {
-    if (cause.code !== 'cancelled') logger.warn('Apple voice operation failed', { stage: 'native', code: cause.code })
-  } else if (cause instanceof UtilityProcessError && normalized.reason === 'invalid_audio') {
-    logger.warn('Apple voice operation failed', { stage: 'decode', code: cause.remote?.code })
+function normalizeAppleFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeError {
+  const normalized = normalizeFailure(error, signal)
+  if (signal?.aborted || error instanceof VoiceRuntimeError) return normalized
+  if (error instanceof SystemSpeechError) {
+    if (error.code !== 'cancelled') logger.warn('Apple voice operation failed', { stage: 'native', code: error.code })
+  } else if (error instanceof UtilityProcessError && normalized.reason === 'invalid_audio') {
+    logger.warn('Apple voice operation failed', { stage: 'decode', code: error.remote?.code })
   } else {
     logger.warn('Apple voice operation failed', { stage: 'adapter', code: 'operation_failed' })
   }

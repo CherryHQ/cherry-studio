@@ -40,7 +40,7 @@ export class Projection {
 
   constructor(
     readonly sessionId: string,
-    report: (cause: unknown) => void
+    report: (error: unknown) => void
   ) {
     this.feed = new ThreadFeed({ type: 'snapshot', messages: [], inputs: [], activity: { state: 'unknown' } }, report)
   }

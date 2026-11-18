@@ -2645,7 +2645,7 @@ export class BinaryManager extends BaseService {
     this.invalidateDerivedViews()
   }
 
-  private errorMessage(cause: unknown): string {
-    return sanitizedCommandError(cause)
+  private errorMessage(err: unknown): string {
+    return sanitizedCommandError(err)
   }
 }

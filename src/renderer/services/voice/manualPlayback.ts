@@ -41,8 +41,8 @@ function playbackErrorKey(reason: VoiceErrorReason) {
   }
 }
 
-function showPlaybackError(cause: unknown): void {
-  const reason = cause instanceof VoiceDomainError ? cause.reason : 'operation_failed'
+function showPlaybackError(error: unknown): void {
+  const reason = error instanceof VoiceDomainError ? error.reason : 'operation_failed'
   const title = i18n.t(playbackErrorKey(reason))
 
   if (!settingsRecoveryReasons.has(reason)) {

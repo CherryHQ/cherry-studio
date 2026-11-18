@@ -81,9 +81,9 @@ export function createClaudeCodeProcessExitError(
 }
 
 /** Preserve interrupted output only when native abortion or a truncated JSON frame proves the boundary. */
-export function canSalvageClaudeOutput(cause: unknown, bufferedChars: number, aborted: boolean): boolean {
+export function canSalvageClaudeOutput(error: unknown, bufferedChars: number, aborted: boolean): boolean {
   if (aborted) return true
-  const value = cause as { name?: string; message?: string } | null
+  const value = error as { name?: string; message?: string } | null
   return (
     bufferedChars >= 512 &&
     value?.name?.toLowerCase() === 'syntaxerror' &&

@@ -40,9 +40,9 @@ function responseShape(value: unknown): Serializable {
   return redactToShape(value, 'response')
 }
 
-function containsPayload(cause: unknown, depth = 0): boolean {
-  if (typeof cause !== 'object' || cause === null) return false
-  const source = cause as Record<string, unknown>
+function containsPayload(error: unknown, depth = 0): boolean {
+  if (typeof error !== 'object' || error === null) return false
+  const source = error as Record<string, unknown>
   if (['requestBodyValues', 'responseBody', 'data', 'text', 'value', 'issues'].some((key) => source[key] != null))
     return true
   return (
@@ -51,12 +51,12 @@ function containsPayload(cause: unknown, depth = 0): boolean {
   )
 }
 
-function collectErrorContext(cause: unknown, depth: number, hideMessage: boolean): Record<string, unknown> {
-  if (!(typeof cause === 'object' && cause !== null)) {
-    return { errorMessage: hideMessage ? redactToShape(cause) : safeText(String(cause), MAX_MESSAGE_CHARS) }
+function collectErrorContext(error: unknown, depth: number, hideMessage: boolean): Record<string, unknown> {
+  if (!(typeof error === 'object' && error !== null)) {
+    return { errorMessage: hideMessage ? redactToShape(error) : safeText(String(error), MAX_MESSAGE_CHARS) }
   }
 
-  const source = cause as Record<string, unknown>
+  const source = error as Record<string, unknown>
   const context: Record<string, unknown> = getSafeAiSdkErrorDiscriminants({
     statusCode: source.statusCode,
     statusText: source.statusText,
@@ -95,7 +95,7 @@ function collectErrorContext(cause: unknown, depth: number, hideMessage: boolean
 }
 
 /** Diagnostic-only payload shapes augment the shared error normalization without entering persisted errors. */
-export function chatErrorContext(cause: unknown): Record<string, unknown> {
+export function chatErrorContext(error: unknown): Record<string, unknown> {
   // Retry wrappers and parser causes can echo payloads from another level of the error chain.
-  return collectErrorContext(cause, 0, containsPayload(cause))
+  return collectErrorContext(error, 0, containsPayload(error))
 }

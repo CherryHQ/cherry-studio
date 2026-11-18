@@ -54,28 +54,26 @@ export const aiErrorCodes = {
   AI_AGENT_TASK_TRIGGER_INVALID: 'AI_AGENT_TASK_TRIGGER_INVALID'
 } as const
 
-export function agentSessionForkFailureReason(cause: unknown) {
-  if (!(cause instanceof IpcError) || cause.code !== aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED) return undefined
-  const reason = cause.data && typeof cause.data === 'object' && 'reason' in cause.data ? cause.data.reason : undefined
+export function agentSessionForkFailureReason(e: unknown) {
+  if (!(e instanceof IpcError) || e.code !== aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED) return undefined
+  const reason = e.data && typeof e.data === 'object' && 'reason' in e.data ? e.data.reason : undefined
   return isAgentSessionForkFailureReason(reason) ? reason : undefined
 }
 
 /**
  * Recover the serialized AI error an `ai.*` route attached to its `IpcError.data`,
- * or `undefined` when `cause` is not an `AI_REQUEST_FAILED` IpcError. Lets a renderer
+ * or `undefined` when `e` is not an `AI_REQUEST_FAILED` IpcError. Lets a renderer
  * consumer surface the rich provider error (status, body, AI SDK subtype) that a
  * plain invoke reject would have flattened to just `message`.
  */
-export function aiErrorDetail(cause: unknown): SerializedError | undefined {
-  return cause instanceof IpcError && cause.code === aiErrorCodes.AI_REQUEST_FAILED
-    ? (cause.data as SerializedError)
-    : undefined
+export function aiErrorDetail(e: unknown): SerializedError | undefined {
+  return e instanceof IpcError && e.code === aiErrorCodes.AI_REQUEST_FAILED ? (e.data as SerializedError) : undefined
 }
 
-export function aiStreamAdmissionReason(cause: unknown): AiStreamAdmissionReason | undefined {
-  if (!(cause instanceof IpcError) || cause.code !== aiErrorCodes.AI_STREAM_ADMISSION_REJECTED) return undefined
-  if (!cause.data || typeof cause.data !== 'object' || !('reason' in cause.data)) return undefined
-  return isAiStreamAdmissionReason(cause.data.reason) ? cause.data.reason : undefined
+export function aiStreamAdmissionReason(e: unknown): AiStreamAdmissionReason | undefined {
+  if (!(e instanceof IpcError) || e.code !== aiErrorCodes.AI_STREAM_ADMISSION_REJECTED) return undefined
+  if (!e.data || typeof e.data !== 'object' || !('reason' in e.data)) return undefined
+  return isAiStreamAdmissionReason(e.data.reason) ? e.data.reason : undefined
 }
 
 export function isAgentSessionNotFoundError(e: unknown): e is IpcError {

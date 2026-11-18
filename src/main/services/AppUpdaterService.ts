@@ -38,16 +38,16 @@ import {
 
 const logger = loggerService.withContext('AppUpdaterService')
 
-export function classifyUpdateFailure(cause: unknown): FailureFacts {
-  if (cause instanceof CancellationError || isCancellation(cause)) {
+export function classifyUpdateFailure(error: unknown): FailureFacts {
+  if (error instanceof CancellationError || isCancellation(error)) {
     return { source: 'environment', kind: 'expected', reason: 'cancelled', outcome: 'cancelled' }
   }
-  const code = cause && typeof cause === 'object' && 'code' in cause ? cause.code : undefined
-  if (cause instanceof HttpError && ![401, 403, 408, 429].includes(cause.statusCode) && !cause.isServerError()) {
+  const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
+  if (error instanceof HttpError && ![401, 403, 408, 429].includes(error.statusCode) && !error.isServerError()) {
     return { source: 'application', kind: 'reliability', reason: 'update_feed_invalid', outcome: 'failed' }
   }
   if (
-    cause instanceof HttpError ||
+    error instanceof HttpError ||
     (typeof code === 'string' &&
       [
         'ENOTFOUND',
@@ -70,7 +70,7 @@ export function classifyUpdateFailure(cause: unknown): FailureFacts {
   return {
     source: 'application',
     kind:
-      cause instanceof TypeError || cause instanceof ReferenceError || cause instanceof SyntaxError
+      error instanceof TypeError || error instanceof ReferenceError || error instanceof SyntaxError
         ? 'defect'
         : 'unknown',
     reason: 'update_failed',

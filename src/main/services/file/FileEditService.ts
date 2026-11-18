@@ -192,21 +192,21 @@ export class FileEditService extends BaseService {
     return new IpcError(fileErrorCodes.EDIT_LEASE_CLOSED, 'File edit lease is unavailable')
   }
 
-  private reportFailure(cause: unknown, operation: string, externalPath: boolean): IpcError {
-    const failure = this.normalize(cause)
+  private reportFailure(error: unknown, operation: string, externalPath: boolean): IpcError {
+    const failure = this.normalize(error)
     const classifiedError =
-      cause instanceof PathStaleVersionError || cause instanceof StaleVersionError ? failure : cause
-    logFailure(logger, 'File editing failed', cause, operation, classifyFileFailure(classifiedError, externalPath))
+      error instanceof PathStaleVersionError || error instanceof StaleVersionError ? failure : error
+    logFailure(logger, 'File editing failed', error, operation, classifyFileFailure(classifiedError, externalPath))
     markReportingHandled(failure)
     return failure
   }
 
-  private normalize(cause: unknown): IpcError {
-    if (cause instanceof IpcError) return cause
-    if (cause instanceof PathStaleVersionError || cause instanceof StaleVersionError) {
+  private normalize(error: unknown): IpcError {
+    if (error instanceof IpcError) return error
+    if (error instanceof PathStaleVersionError || error instanceof StaleVersionError) {
       return new IpcError(fileErrorCodes.STALE_VERSION, 'File changed since the editing baseline')
     }
-    const code = cause && typeof cause === 'object' && 'code' in cause ? cause.code : undefined
+    const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
     const mapped =
       code === 'ENOENT' || code === 'ENOTDIR' || code === 'NOT_FOUND'
         ? fileErrorCodes.EDIT_MISSING

@@ -868,23 +868,23 @@ export function isSerializedDataApiError(error: unknown): error is SerializedDat
  * If already a DataApiError, returns as-is.
  * Otherwise, wraps in an INTERNAL_SERVER_ERROR.
  *
- * @param cause - Any error
+ * @param error - Any error
  * @param context - Optional context description
  * @returns DataApiError instance
  */
-export function toDataApiError(cause: unknown, context?: string): DataApiError {
-  if (isDataApiError(cause)) {
-    return cause
+export function toDataApiError(error: unknown, context?: string): DataApiError {
+  if (isDataApiError(error)) {
+    return error
   }
 
-  if (isSerializedDataApiError(cause)) {
-    return DataApiError.fromJSON(cause)
+  if (isSerializedDataApiError(error)) {
+    return DataApiError.fromJSON(error)
   }
 
   // Convert ZodError to 422 VALIDATION_ERROR
-  if (isZodError(cause)) {
+  if (isZodError(error)) {
     const fieldErrors: Record<string, string[]> = {}
-    for (const issue of cause.issues) {
+    for (const issue of error.issues) {
       const path = issue.path.length > 0 ? issue.path.join('.') : '_root'
       if (!fieldErrors[path]) fieldErrors[path] = []
       fieldErrors[path].push(issue.message)
@@ -892,14 +892,14 @@ export function toDataApiError(cause: unknown, context?: string): DataApiError {
     return DataApiErrorFactory.validation(fieldErrors, `Validation failed${context ? ` in ${context}` : ''}`)
   }
 
-  if (cause instanceof Error) {
-    return DataApiErrorFactory.internal(cause, context)
+  if (error instanceof Error) {
+    return DataApiErrorFactory.internal(error, context)
   }
 
   return DataApiErrorFactory.create(
     ErrorCode.INTERNAL_SERVER_ERROR,
-    `Unknown error${context ? ` in ${context}` : ''}: ${String(cause)}`,
-    { originalError: String(cause), context }
+    `Unknown error${context ? ` in ${context}` : ''}: ${String(error)}`,
+    { originalError: String(error), context }
   )
 }
 

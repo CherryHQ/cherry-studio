@@ -159,10 +159,10 @@ export function getSafeAiSdkErrorDiscriminants(source: Record<string, unknown>):
   return discriminants
 }
 
-function sdkResponseDiagnostic(cause: unknown): string | undefined {
-  if (EmptyResponseBodyError.isInstance(cause)) return EMPTY_RESPONSE_MESSAGE
-  if (JSONParseError.isInstance(cause)) return INVALID_JSON_MESSAGE
-  if (TypeValidationError.isInstance(cause)) return INVALID_STRUCTURE_MESSAGE
+function sdkResponseDiagnostic(error: unknown): string | undefined {
+  if (EmptyResponseBodyError.isInstance(error)) return EMPTY_RESPONSE_MESSAGE
+  if (JSONParseError.isInstance(error)) return INVALID_JSON_MESSAGE
+  if (TypeValidationError.isInstance(error)) return INVALID_STRUCTURE_MESSAGE
   return undefined
 }
 
@@ -243,24 +243,24 @@ function serializeNestedAiSdkError(error: AISDKError, depth: number): Serialized
   return serialized
 }
 
-function serializeNestedProviderErrorAtDepth(cause: unknown, depth: number): Serializable {
+function serializeNestedProviderErrorAtDepth(value: unknown, depth: number): Serializable {
   if (depth >= MAX_NESTED_PROVIDER_ERROR_DEPTH) return null
-  if (APICallError.isInstance(cause)) {
-    const safeMessage = getSafeProviderErrorMessage(cause)
-    const diagnostic = apiResponseDiagnostic(cause, depth)
+  if (APICallError.isInstance(value)) {
+    const safeMessage = getSafeProviderErrorMessage(value)
+    const diagnostic = apiResponseDiagnostic(value, depth)
     const message = diagnostic ?? safeMessage
     const category = classifyErrorCategory({
       text: [
-        payloadText(cause.responseBody),
-        payloadText(cause.data),
-        providerPayloadText(cause.message),
-        providerErrorCodes(cause.responseBody),
-        providerErrorCodes(cause.data)
+        payloadText(value.responseBody),
+        payloadText(value.data),
+        providerPayloadText(value.message),
+        providerErrorCodes(value.responseBody),
+        providerErrorCodes(value.data)
       ].join('\n'),
-      status: cause.statusCode
+      status: value.statusCode
     })
     return {
-      name: cause.name,
+      name: value.name,
       message,
       providerErrorCategory:
         diagnostic === INTERRUPTED_RESPONSE_MESSAGE
@@ -272,18 +272,18 @@ function serializeNestedProviderErrorAtDepth(cause: unknown, depth: number): Ser
       cause: null,
       url: '',
       requestBodyValues: null,
-      statusCode: cause.statusCode ?? null,
+      statusCode: value.statusCode ?? null,
       responseHeaders: null,
       responseBody: null,
-      isRetryable: cause.isRetryable,
+      isRetryable: value.isRetryable,
       data: null
     }
   }
-  if (AISDKError.isInstance(cause)) return serializeNestedAiSdkError(cause, depth)
-  if (cause instanceof Error) {
+  if (AISDKError.isInstance(value)) return serializeNestedAiSdkError(value, depth)
+  if (value instanceof Error) {
     return {
-      name: getSafeProviderErrorMessage({ message: cause.name }),
-      message: getSafeProviderErrorMessage({ message: cause.message }),
+      name: getSafeProviderErrorMessage({ message: value.name }),
+      message: getSafeProviderErrorMessage({ message: value.message }),
       stack: null,
       cause: null
     }
@@ -291,6 +291,6 @@ function serializeNestedProviderErrorAtDepth(cause: unknown, depth: number): Ser
   return null
 }
 
-export function serializeNestedProviderError(cause: unknown): Serializable {
-  return serializeNestedProviderErrorAtDepth(cause, 0)
+export function serializeNestedProviderError(value: unknown): Serializable {
+  return serializeNestedProviderErrorAtDepth(value, 0)
 }

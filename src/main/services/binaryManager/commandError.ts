@@ -3,9 +3,9 @@
  * scrubbed of credentials so a mirror URL with an embedded token never reaches
  * logs, install state, or a user-facing error.
  */
-export function sanitizedCommandError(cause: unknown): string {
-  let message = cause instanceof Error ? cause.message : String(cause)
-  const stderr = (cause as { stderr?: unknown } | null)?.stderr
+export function sanitizedCommandError(err: unknown): string {
+  let message = err instanceof Error ? err.message : String(err)
+  const stderr = (err as { stderr?: unknown } | null)?.stderr
   if (typeof stderr === 'string' && stderr.trim() && !message.includes(stderr.trim())) {
     message = `${message}\n${stderr.trim()}`
   }

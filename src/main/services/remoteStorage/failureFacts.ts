@@ -1,15 +1,15 @@
 import type { FailureFacts } from '@shared/types/errorReporting'
 import { isCancellation } from '@shared/utils/errorReporting'
 
-export function classifyStorageFailure(cause: unknown): FailureFacts {
-  if (isCancellation(cause)) {
+export function classifyStorageFailure(error: unknown): FailureFacts {
+  if (isCancellation(error)) {
     return { source: 'environment', kind: 'expected', reason: 'cancelled', outcome: 'cancelled' }
   }
-  if (cause instanceof TypeError || cause instanceof ReferenceError || cause instanceof SyntaxError) {
+  if (error instanceof TypeError || error instanceof ReferenceError || error instanceof SyntaxError) {
     return { source: 'application', kind: 'defect', reason: 'storage_defect', outcome: 'failed' }
   }
-  if (cause && typeof cause === 'object') {
-    const value = cause as { status?: number; $metadata?: { httpStatusCode?: number }; code?: string }
+  if (error && typeof error === 'object') {
+    const value = error as { status?: number; $metadata?: { httpStatusCode?: number }; code?: string }
     const status = value.$metadata?.httpStatusCode ?? value.status
     if (
       typeof status === 'number' &&

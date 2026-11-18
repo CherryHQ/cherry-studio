@@ -47,10 +47,10 @@ export class StreamRequest implements UtilityProcessStream<
     return this.closed
   }
 
-  private cancelWith(cause: unknown): void {
+  private cancelWith(reason: unknown): void {
     if (this.cancelled || this.finished) return
     this.cancelled = true
-    this.fail(cause)
+    this.fail(reason)
     this.cancelRemote?.()
   }
 
@@ -70,10 +70,10 @@ export class StreamRequest implements UtilityProcessStream<
     this.close()
   }
 
-  fail(cause: unknown): void {
+  fail(reason: unknown): void {
     this.failed = true
-    this.result.reject(cause)
-    this.channel.abort(cause)
+    this.result.reject(reason)
+    this.channel.abort(reason)
   }
 
   close(): void {

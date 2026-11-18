@@ -187,7 +187,7 @@ interface StreamListener {
   onMessage?(message: CherryUIMessage, sourceModelId?: string, sourceKind?: 'chunks' | 'messages'): void
   onDone(result: StreamDoneResult): void | Promise<void>      // { finalMessage?, status: 'success', ... }
   onPaused(result: StreamPausedResult): void | Promise<void>  // { finalMessage?, status: 'paused',  ... }
-  onError(result: StreamErrorResult, cause?: unknown): void | Promise<void>
+  onError(result: StreamErrorResult, originalError?: unknown): void | Promise<void>
   isAlive(): boolean
 }
 ```
