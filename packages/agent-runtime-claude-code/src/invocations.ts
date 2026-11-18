@@ -258,7 +258,9 @@ export class ClaudeInvocations {
       (timing.thinkingStartedAt !== undefined
         ? Math.max(0, Math.round(completedAt - timing.thinkingStartedAt))
         : undefined)
-    const metrics: NonNullable<ClaudeInvocation['metrics']> = {}
+    const metrics: {
+      -readonly [Key in keyof NonNullable<ClaudeInvocation['metrics']>]: NonNullable<ClaudeInvocation['metrics']>[Key]
+    } = {}
     if (timeFirstTokenMs !== undefined) metrics.timeFirstTokenMs = timeFirstTokenMs
     if (timeCompletionMs !== undefined) metrics.timeCompletionMs = timeCompletionMs
     if (timeThinkingMs !== undefined) metrics.timeThinkingMs = timeThinkingMs
@@ -317,7 +319,9 @@ export class ClaudeInvocations {
       mergeInvocationUsage(pending.startUsage, pending.assistantUsage),
       pending.terminalUsage
     )
-    const invocation: ClaudeInvocation = { responseId: pending.id }
+    const invocation: { -readonly [Key in keyof ClaudeInvocation]: ClaudeInvocation[Key] } = {
+      responseId: pending.id
+    }
     if (pending.model) invocation.model = pending.model
     if (usage) invocation.usage = usage
     if (pending.metrics) invocation.metrics = pending.metrics
