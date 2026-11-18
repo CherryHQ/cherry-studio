@@ -768,7 +768,9 @@ feed omits. Subsequent content follows the observer; there is no transcript poll
 
 Each child uses its own `ChildThreadProjection`, context and archive, including
 nested children under their immediate parent. Parent completion and window detach
-do not stop child persistence. Claude no longer writes child bodies into the
+do not stop child persistence. Its committed projection persists across archive reads, so a read
+redecorates only changed messages, and it writes the checkpoint, input bindings and response owners only
+when they change. Claude no longer writes child bodies into the
 parent's background-flow parts; saved historical flows remain readable.
 After a failed cold attachment, Claude retries the saved session-scoped native binding
 when it belongs to the current backend. The root's native creation lookup need not retain
@@ -1080,8 +1082,9 @@ boundary append to that same reply. A continuation uses its current triggering c
 immutable creation call. Historical input snapshots update saved facts without reassigning old responses.
 `durable.observe` carries content, input outcomes, background-result facts and foreground completion
 from the same native commit revision. Within a run it sends message and input changes; snapshots arrive
-when observation starts, after a gap and when a run starts or ends, which is when Main detects an
-autonomous turn. Unresolved accepted/native-only input, admission, foreground work or compaction
+when observation starts, after a gap and when a run starts, which is when Main detects an autonomous
+turn. A run end arrives as `activity.changed` carrying the completion, and Main reports and binds an
+input only when its state changes. Unresolved accepted/native-only input, admission, foreground work or compaction
 keeps settlement pending. Main has no pending-input polling loop and never derives completion
 from idle activity or an empty product-input map.
 

@@ -223,16 +223,23 @@ export class DurableProjection {
     if (reset) this.feed.publish({ type: 'gap', reason: 'mapping-reset' })
     this.preview = preview
     const activity = { state: live?.run ? ('active' as const) : ('idle' as const) }
-    // Observers receive a snapshot when a run starts or ends and after a reset; other updates carry only changes.
+    // A run start sends a snapshot so observers see its inputs and activity in one frame; so do the first
+    // publication and a reset. Other updates carry only changes.
     const messages =
-      reset || previousState.activity.state !== activity.state
+      reset ||
+      (previousState.activity.state !== 'active' && activity.state === 'active') ||
+      previousState.activity.state === 'unknown'
         ? undefined
         : messageChanges(this.ref, this.feed.snapshot.messages, content.messages, this.aliases)
     const events: ObservationPayload[] = [
       ...(messages ?? [{ ...previousState, messages: content.messages, inputs, activity }]),
       ...changed.map((input) => ({ type: 'input.changed' as const, input }))
     ]
-    if (!events.length && (completion || !isDeepStrictEqual(previousResults, this.backgroundResults)))
+    if (
+      messages &&
+      (previousState.activity.state !== activity.state ||
+        (!events.length && (completion || !isDeepStrictEqual(previousResults, this.backgroundResults))))
+    )
       events.push({ type: 'activity.changed', activity })
     // Completion rides the first frame after which an observer holds the whole update.
     const carrier = messages ? events.length - 1 : 0

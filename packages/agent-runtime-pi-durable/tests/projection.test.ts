@@ -40,6 +40,15 @@ function setup(initial: ConversationView) {
   onTestFinished(() => projection.close())
   return { projection, events, errors, update: (next: ConversationView) => projection.update(next) }
 }
+/** Messages each batch delivers as live product content. */
+const liveMessages = (batches: readonly DurableObservation[]) =>
+  batches.flatMap((batch) =>
+    batch.events.flatMap((event) =>
+      (event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []).filter(
+        (message) => batch.live.includes(message.id)
+      )
+    )
+  )
 const live = (attempt = 1): LiveState => ({
   run: { taskId, inputs: [], turns: 0 },
   generation: { attempt, message: JSON.parse(JSON.stringify(fauxAssistantMessage('same text'))) }
@@ -270,16 +279,7 @@ it.each(['placed', 'completed', 'queued', 'ambiguous'] as const)(
         ])
       )
       await observation.drain()
-      const completed = batches.at(-1)!
-      expect(
-        completed.events.flatMap((event) =>
-          event.type === 'snapshot'
-            ? event.messages
-                .filter((message) => completed.live.includes(message.id))
-                .flatMap((message) => message.parts)
-            : []
-        )
-      ).toContainEqual(
+      expect(liveMessages(batches.slice(1)).flatMap((message) => message.parts)).toContainEqual(
         expect.objectContaining({
           toolCallId: 'read-page',
           state: 'output-available',
@@ -307,10 +307,7 @@ it('keeps an active preview live when attaching midway through a generation', as
   ).toContainEqual(expect.objectContaining({ type: 'text', text: 'same text' }))
   update(view([entry(5, 'older committed answer'), entry(11, 'recovered final answer')]))
   await observation.drain()
-  const final = batches.at(-1)!
-  const delivered = final.events.flatMap((event) =>
-    event.type === 'snapshot' ? event.messages.filter((message) => final.live.includes(message.id)) : []
-  )
+  const delivered = liveMessages(batches.slice(1))
   expect(delivered.flatMap((message) => message.parts)).toContainEqual(
     expect.objectContaining({ type: 'text', text: 'recovered final answer' })
   )
@@ -382,13 +379,18 @@ describe('Durable observation deltas', () => {
 
     update(view([older, assistant, result]))
     await expect.poll(() => events.length).toBe(6)
-    expect(events.at(-1)?.type).toBe('snapshot')
+    expect(events.at(-1)).toEqual({ type: 'activity.changed', activity: { state: 'idle' } })
     const rebuilt = new DurableProjection({ backendId: runtimeId('backend'), id: runtimeId('1') }, (error) => {
       throw error
     })
     onTestFinished(() => rebuilt.close())
     rebuilt.update(view([older, assistant, result]))
-    expect(replayed(events).messages).toEqual(rebuilt.feed.snapshot.messages)
+    expect(replayed(events)).toMatchObject({ messages: rebuilt.feed.snapshot.messages, activity: { state: 'idle' } })
+
+    // Main begins an autonomous turn from one frame holding the run's inputs, activity and content.
+    update(view([older, assistant, result], running))
+    await expect.poll(() => events.length).toBe(7)
+    expect(events.at(-1)).toMatchObject({ type: 'snapshot', activity: { state: 'active' } })
   })
 
   it('sends a snapshot right after a mapping reset', async () => {
