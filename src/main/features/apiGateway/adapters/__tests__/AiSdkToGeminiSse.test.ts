@@ -12,11 +12,11 @@ const toolCall = (toolName: string, input: unknown): UIMessageChunk => ({
   toolName,
   input
 })
-const finish = (finishReason: FinishReason = 'stop', usage?: Record<string, unknown>): UIMessageChunk => ({
-  type: 'finish',
-  finishReason,
-  ...(usage ? { messageMetadata: usage } : {})
-})
+const finish = (finishReason: FinishReason = 'stop', usage?: Record<string, unknown>): UIMessageChunk => {
+  const chunk: Extract<UIMessageChunk, { type: 'finish' }> = { type: 'finish', finishReason }
+  if (usage) chunk.messageMetadata = usage
+  return chunk
+}
 
 /** Drive the push API used by `proxyStream` and collect every emitted frame. */
 function run(chunks: readonly UIMessageChunk[]): GeminiGenerateContentResponse[] {

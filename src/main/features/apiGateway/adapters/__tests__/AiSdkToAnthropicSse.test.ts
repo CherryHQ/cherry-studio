@@ -2,6 +2,8 @@ import type { RawMessageStreamEvent } from '@anthropic-ai/sdk/resources/messages
 import type { FinishReason, UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
+import type { MessageStats } from '@shared/data/types/message'
+
 import { googleReasoningCache } from '../../reasoningCache'
 import { AnthropicMessageConverter } from '../converters/AnthropicMessageConverter'
 import { AnthropicSseFormatter } from '../formatters/AnthropicSseFormatter'
@@ -33,33 +35,26 @@ interface GatewayUsage {
 
 const createFinish = (finishReason: FinishReason | undefined = 'stop', usage?: GatewayUsage): UIMessageChunk => {
   const withCacheBreakdown = usage?.cachedInputTokens !== undefined || usage?.cacheWriteInputTokens !== undefined
-  const messageMetadata =
-    usage !== undefined
-      ? {
-          stats: {
-            totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-            inputTokens: usage.inputTokens ?? 0,
-            outputTokens: usage.outputTokens ?? 0,
-            // Mirror the runtime projection: top-level `inputTokens` is the
-            // cache-inclusive total, the split lives in `inputTokenDetails`.
-            ...(withCacheBreakdown
-              ? {
-                  inputTokenDetails: {
-                    ...(usage.cachedInputTokens !== undefined ? { cacheReadTokens: usage.cachedInputTokens } : {}),
-                    ...(usage.cacheWriteInputTokens !== undefined
-                      ? { cacheWriteTokens: usage.cacheWriteInputTokens }
-                      : {})
-                  }
-                }
-              : {})
-          }
-        }
-      : undefined
-  return {
-    type: 'finish',
-    finishReason: finishReason || 'stop',
-    ...(messageMetadata ? { messageMetadata } : {})
+  let stats: MessageStats | undefined
+  if (usage !== undefined) {
+    stats = {
+      totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
+      inputTokens: usage.inputTokens ?? 0,
+      outputTokens: usage.outputTokens ?? 0
+    }
+    if (withCacheBreakdown) {
+      const details: NonNullable<MessageStats['inputTokenDetails']> = {}
+      if (usage.cachedInputTokens !== undefined) details.cacheReadTokens = usage.cachedInputTokens
+      if (usage.cacheWriteInputTokens !== undefined) details.cacheWriteTokens = usage.cacheWriteInputTokens
+      stats.inputTokenDetails = details
+    }
   }
+  const chunk: Extract<UIMessageChunk, { type: 'finish' }> = {
+    type: 'finish',
+    finishReason: finishReason || 'stop'
+  }
+  if (stats) chunk.messageMetadata = { stats }
+  return chunk
 }
 
 // Helper to create stream
