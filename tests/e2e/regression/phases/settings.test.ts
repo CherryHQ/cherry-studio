@@ -943,11 +943,13 @@ test(...caseDefinition('MP-109'), async ({ app, mainWindow: page }, testInfo) =>
         const ids: string[] = []
         let cursor: string | undefined
         do {
+          const params = { limit: 200 }
+          if (cursor) Object.assign(params, { cursor })
           const response = await window.api.dataApi.request({
             id: 'mp109-topics',
             method: 'GET',
             path: '/topics',
-            params: { limit: 200, ...(cursor ? { cursor } : {}) }
+            params
           })
           if (response.status !== 200) throw new Error('Could not read persisted topics')
           const data = response.data as { items: { id: string; assistantId: string | null }[]; nextCursor?: string }

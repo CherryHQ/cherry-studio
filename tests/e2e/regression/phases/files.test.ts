@@ -582,16 +582,16 @@ test(...caseDefinition('MP-69'), async ({ app, mainWindow: page }, testInfo) => 
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   const readFiles = async (type?: string) => {
-    const response = await page.evaluate(
-      (type) =>
-        window.api.dataApi.request({
-          id: 'mp69-read-files',
-          method: 'GET',
-          path: '/files/entries',
-          params: { limit: 100, inTrash: false, ...(type ? { fileType: type } : {}) }
-        }),
-      type
-    )
+    const response = await page.evaluate((type) => {
+      const params = { limit: 100, inTrash: false }
+      if (type) Object.assign(params, { fileType: type })
+      return window.api.dataApi.request({
+        id: 'mp69-read-files',
+        method: 'GET',
+        path: '/files/entries',
+        params
+      })
+    }, type)
     expect(response.status).toBe(200)
     return response.data as {
       items: { id: string; name: string; ext: string | null }[]
