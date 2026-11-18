@@ -464,7 +464,7 @@ export class WindowManager extends BaseService {
    * open() on the same singleton/pooled instance. No Reused event is fired in
    * that case.
    */
-  private applyReusedInitData(managed: ManagedWindow, data: object | undefined): void {
+  private applyReusedInitData<InitData extends object>(managed: ManagedWindow, data: InitData | undefined): void {
     if (data === undefined) {
       this.initDataStore.delete(managed.id)
       return
@@ -691,7 +691,7 @@ export class WindowManager extends BaseService {
   // ─── Public API: Init data ────────────────────────────────────
 
   /** Store initialization data for a window (retrieved once by renderer via getInitData IPC) */
-  public setInitData(windowId: string, data: object): void {
+  public setInitData<InitData extends object>(windowId: string, data: InitData): void {
     this.initDataStore.set(windowId, data)
   }
 
