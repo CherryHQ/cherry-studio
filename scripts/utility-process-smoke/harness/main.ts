@@ -45,12 +45,15 @@ async function waitFor(predicate: () => boolean, label: string, timeoutMs = 5_00
   }
 }
 
-async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
+async function inspectRejection<Result>(
+  promise: Promise<unknown>,
+  inspect: (error: unknown) => Result
+): Promise<Result> {
   let value: unknown
   try {
     value = await promise
   } catch (error) {
-    return error
+    return inspect(error)
   }
   throw new Error(`expected a rejection, got ${JSON.stringify(value)}`)
 }
@@ -117,10 +120,12 @@ async function runChecks(): Promise<void> {
   await check('stop-stuck-kill', () =>
     withHost(smokeEchoProcess, async (host) => {
       assert((await host.request('ping', undefined)) === 'pong', 'ping before stall')
-      const stalled = rejectionOf(host.request('stall', undefined))
+      const stalled = inspectRejection(host.request('stall', undefined), (error) =>
+        assertIntentionalExit(error, 'stall')
+      )
       const errorsBefore = errorLogCount()
       await host.stop()
-      assertIntentionalExit(await stalled, 'stall')
+      await stalled
       assert(errorLogCount() === errorsBefore, 'stop logged an error')
       assert((await host.request('ping', undefined)) === 'pong', 'no respawn after a killed stop')
     })
@@ -129,10 +134,12 @@ async function runChecks(): Promise<void> {
   // Electron's kill() is a no-op before `spawn`: the host must re-kill at spawn instead of connecting.
   await check('stop-before-spawn', () =>
     withHost(smokeEchoProcess, async (host) => {
-      const waiting = rejectionOf(host.request('ping', undefined))
+      const waiting = inspectRejection(host.request('ping', undefined), (error) =>
+        assertIntentionalExit(error, 'cold-start stop')
+      )
       const errorsBefore = errorLogCount()
       await host.stop()
-      assertIntentionalExit(await waiting, 'cold-start stop')
+      await waiting
       assert(errorLogCount() === errorsBefore, 'cold-start stop logged an error')
       assert((await host.request('ping', undefined)) === 'pong', 'no respawn after a cold-start stop')
     })
@@ -140,9 +147,10 @@ async function runChecks(): Promise<void> {
 
   await check('crash-recovery', () =>
     withHost(smokeEchoProcess, async (host) => {
-      const crashed = await rejectionOf(host.request('crash', undefined))
-      assert(isUtilityProcessError(crashed, 'PROCESS_EXITED'), `crash gave ${String(crashed)}`)
-      assert(crashed.exitCode !== 0, 'process.abort() reported a clean exit')
+      await inspectRejection(host.request('crash', undefined), (error) => {
+        assert(isUtilityProcessError(error, 'PROCESS_EXITED'), `crash gave ${String(error)}`)
+        assert(error.exitCode !== 0, 'process.abort() reported a clean exit')
+      })
       assert((await host.request('ping', undefined)) === 'pong', 'no replacement after a crash')
     })
   )
