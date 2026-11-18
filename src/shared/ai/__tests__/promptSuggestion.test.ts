@@ -16,3 +16,10 @@ it.each([
 it('checks a normalized copy but preserves the original display text', () => {
   expect(promptSuggestionForDisplay('  cafe\u0301 tests  ')).toBe('  cafe\u0301 tests  ')
 })
+
+it.each([undefined, null, 0, false, {}, []].map((input) => ({ input })))(
+  'omits a non-string candidate: %j',
+  ({ input }) => {
+    expect(promptSuggestionForDisplay(input)).toBe('')
+  }
+)
