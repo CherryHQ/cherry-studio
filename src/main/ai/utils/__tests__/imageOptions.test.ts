@@ -42,4 +42,11 @@ describe('splitParamValues', () => {
     expect(splitParamValues({ aspectRatio: '1:1' }).structured).toEqual({ aspectRatio: '1:1' })
     expect(splitParamValues({ aspectRatio: 'weird' }).structured).toEqual({})
   })
+
+  it.each([{ aspectRatio: 0 }, { aspectRatio: false }, { aspectRatio: {} }, { aspectRatio: ['1:1'] }])(
+    'drops non-string aspect ratios without coercion: %j',
+    (paramValues) => {
+      expect(splitParamValues(paramValues).structured).toEqual({})
+    }
+  )
 })
