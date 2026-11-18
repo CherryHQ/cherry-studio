@@ -1,4 +1,3 @@
-import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 /**
  * MessagePartsRenderer — message parts renderer.
  *
@@ -14,6 +13,7 @@ import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
  * - Consecutive tool-* / dynamic-tool parts → nested ToolBlockGroup row
  * - data-video parts with same filePath → video block row
  */
+import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 import { Check, ChevronDown } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useCallback, useMemo } from 'react'
