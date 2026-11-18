@@ -1,5 +1,11 @@
 # @cherrystudio/provider-registry
 
+## 0.7.0
+
+### Minor Changes
+
+- [#23236](https://github.com/CherryHQ/cherry-studio/pull/23236) [`4dac4a0`](https://github.com/CherryHQ/cherry-studio/commit/4dac4a0fc63903a10082b57807c41bd682c65150) Thanks [@copilot-swe-agent](https://github.com/apps/copilot-swe-agent)! - Expose native Mistral Large 4 low/medium/high reasoning controls while keeping OpenRouter reasoning support provider-specific.
+
 ## 0.6.4
 
 ### Patch Changes
