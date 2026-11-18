@@ -4,13 +4,16 @@ import { readFile } from 'node:fs/promises'
 import { EvalFlags, JSException, QuickJS } from 'quickjs-wasi'
 
 import { type UtilityProcessHandlerContext } from '@main/core/utilityProcess/runtime/serveUtilityProcess'
+import type { UtilityProcessHostCall } from '@main/core/utilityProcess/types'
 
 import type { AutomationContext, AutomationKernelContract } from '../contracts'
 import { AutomationBindings } from './AutomationBindings'
 
-export class AutomationKernel {
+export class AutomationKernel<
+  HostCall extends UtilityProcessHostCall<unknown, unknown> = AutomationKernelContract['hostCall']
+> {
   private vm: QuickJS | undefined
-  private current: UtilityProcessHandlerContext<never> | undefined
+  private current: UtilityProcessHandlerContext<never, HostCall> | undefined
   private deadline = 0
   private output = ''
   private outputTruncated = false
@@ -123,7 +126,7 @@ export class AutomationKernel {
 
   async execute(
     { code, bootstrap }: AutomationKernelContract['methods']['execute']['input'],
-    context: UtilityProcessHandlerContext<never>
+    context: UtilityProcessHandlerContext<never, HostCall>
   ): Promise<AutomationKernelContract['methods']['execute']['output']> {
     if (this.current) throw new Error('REPL is already executing')
     this.current = context

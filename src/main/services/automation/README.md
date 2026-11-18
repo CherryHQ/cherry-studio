@@ -41,6 +41,8 @@ Acorn extracts top-level lexical declarations. An execution-entry callback regis
 
 ## Failure boundaries
 
+The kernel contract declares its reverse host-call result as a success/value or failure/error response with `approvalWaitMs`. The process client, host dispatcher and kernel context share that type. It does not replace per-call payload validation or capability checks.
+
 QuickJS provides the guest language boundary; the utility process provides crash isolation and killable execution, not an OS sandbox. Only validated, allow-listed Browser/Computer host calls cross the boundary. Each call rechecks the active run, owner and capability, intersected with the capabilities granted at run start. Native SDK ownership, snapshot validity, global control settings and sticky user-stop remain enforced by their host services.
 
 Cells have a 60-second execution deadline, excluding time spent waiting for application consent, a 32 MiB QuickJS allocation limit, 64,000-character source limit, 256,000-character bridge payload limit, and bounded text/image output. A timeout, cancel or process failure clears JS state and is reported explicitly. Side effects are never replayed. Unawaited host operations are drained before returning; cancellation closes admission and fences late RPC replies. Normal script errors preserve bindings; the model must observe state before deciding whether another action is appropriate.

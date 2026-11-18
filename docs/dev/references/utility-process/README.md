@@ -101,6 +101,19 @@ Consumers must expose an unavailable/error state and an explicit retry or remedi
 
 Maintenance operations are serialized per definition, including calls made while the manager is stopped and across a service restart. The gate remains closed until every queued operation settles, even after the child exits. A callback failure propagates unchanged and does not prevent later queued operations from running.
 
+## Request-scoped host calls
+
+A process contract can declare `hostCall: UtilityProcessHostCall<Input, Output>` alongside `methods`.
+The caller's `request(..., { onHostCall })` receives that input and returns `Promise<Output>`;
+the child's `context.callHost(method, input)` returns the same output type. Contracts without
+`hostCall` expose no typed host-call input or result. When annotating a request options object
+or handler context explicitly, pass the contract's `hostCall` as its second type parameter.
+
+The method string is a consumer-owned operation or capability name. Declaring types does not
+grant access: the caller must still validate payloads, enforce its capability allow-list and
+recheck authority on each call. Without an `onHostCall` callback, calls fail closed. Host calls
+remain scoped to their request, are aborted on cancellation or stop, and discard late replies.
+
 ## Bounded request streams
 
 Declare streaming methods in the contract's optional `streams` map using `UtilityProcessStreamMethod<Request, InputFrame, OutputFrame, Result>`, and implement them in the entry's `streams` map. Ordinary `methods`, `request`, and synchronous `emit` keep their existing behavior. An output-only method uses `never` for its input frame.

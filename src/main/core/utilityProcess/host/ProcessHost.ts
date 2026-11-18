@@ -21,6 +21,7 @@ import { isStreamLimits } from '../streamFrame'
 import type {
   UtilityProcessContract,
   UtilityProcessDefinition,
+  UtilityProcessHostCallFor,
   UtilityProcessRequestOptions,
   UtilityProcessResetOptions,
   UtilityProcessStream,
@@ -93,11 +94,11 @@ const describe = (error: unknown): string => toRemoteError(error).message
 
 type Outcome = { value: unknown } | { error: unknown }
 
-interface Pending {
+interface Pending<Contract extends UtilityProcessContract> {
   resolve: (value: unknown) => void
   reject: (error: unknown) => void
   onEvent?: (event: unknown) => void
-  onHostCall?: UtilityProcessRequestOptions<unknown>['onHostCall']
+  onHostCall?: UtilityProcessRequestOptions<unknown, UtilityProcessHostCallFor<Contract>>['onHostCall']
   hostCalls: AbortController
   lastCallId: number
   signal?: AbortSignal
@@ -110,7 +111,7 @@ interface Pending {
 
 type GenerationPhase = 'starting' | 'ready' | 'stopping'
 
-interface Generation {
+interface Generation<Contract extends UtilityProcessContract> {
   id: number
   handle: ProcessHandle
   phase: GenerationPhase
@@ -123,7 +124,7 @@ interface Generation {
   exit: Deferred<number>
   readyTimer: NodeJS.Timeout | null
   killTimer: NodeJS.Timeout | null
-  pending: Map<number, Pending>
+  pending: Map<number, Pending<Contract>>
   streams: Map<number, StreamRequest>
   /** Cancelled request ids whose late frames are a normal race, not a violation. */
   tombstones: Set<number>
@@ -143,7 +144,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
   readonly serviceName: string
   private generationCounter = 0
   /** Owned from spawn until the observed exit — never two at once. */
-  private live: Generation | null = null
+  private live: Generation<Contract> | null = null
   private failureCount = 0
   private idleTimer: NodeJS.Timeout | null = null
   private stopPromise: Promise<void> | null = null
@@ -166,7 +167,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
   async request<M extends keyof Contract['methods'] & string>(
     method: M,
     input: Contract['methods'][M]['input'],
-    options: UtilityProcessRequestOptions<Contract['methods'][M]['event']> = {}
+    options: UtilityProcessRequestOptions<Contract['methods'][M]['event'], UtilityProcessHostCallFor<Contract>> = {}
   ): Promise<Contract['methods'][M]['output']> {
     const { signal, onEvent, onHostCall } = options
     return this.whenReady(signal, (generation) => this.dispatch(generation, method, input, signal, onEvent, onHostCall))
@@ -240,7 +241,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
 
   private async whenReady<T>(
     signal: AbortSignal | undefined,
-    dispatch: (generation: Generation) => T
+    dispatch: (generation: Generation<Contract>) => T
   ): Promise<Awaited<T>> {
     for (;;) {
       if (signal?.aborted) throw signal.reason
@@ -338,7 +339,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
 
   // ─── Generation lifecycle ───
 
-  private spawnGeneration(): Generation {
+  private spawnGeneration(): Generation<Contract> {
     this.generationCounter += 1
     const id = this.generationCounter
     let handle: ProcessHandle
@@ -363,7 +364,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
       this.deps.logger.error(`[${this.definition.id}#${id}] spawn failed`, error)
       throw error
     }
-    const generation: Generation = {
+    const generation: Generation<Contract> = {
       id,
       handle,
       phase: 'starting',
@@ -415,7 +416,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
   }
 
   /** Awaits the init data outcome and hands the child its private port. */
-  private async connectGeneration(generation: Generation, pendingInitData: Promise<Outcome>): Promise<void> {
+  private async connectGeneration(generation: Generation<Contract>, pendingInitData: Promise<Outcome>): Promise<void> {
     const outcome = await pendingInitData
     // A stop that landed meanwhile owns the generation; its exit settles the waiters.
     if (generation.phase !== 'starting') return
@@ -440,7 +441,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     }
   }
 
-  private handleFrame(generation: Generation, data: unknown): void {
+  private handleFrame(generation: Generation<Contract>, data: unknown): void {
     if (generation.settled) return
     if (!isChildFrame(data) || !matchesIdentity(data, this.identity(generation))) {
       this.violation(generation, 'malformed or foreign frame')
@@ -608,7 +609,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
   }
 
   /** Classifies a child frame's requestId; unknown and duplicate ids are fatal violations. */
-  private classify(generation: Generation, requestId: number, kind: string): RequestState {
+  private classify(generation: Generation<Contract>, requestId: number, kind: string): RequestState {
     if (generation.pending.has(requestId)) return 'pending'
     if (generation.tombstones.has(requestId)) return 'tombstone'
     if (requestId >= generation.nextRequestId) {
@@ -619,7 +620,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     return 'duplicate'
   }
 
-  private handleExit(generation: Generation, code: number): void {
+  private handleExit(generation: Generation<Contract>, code: number): void {
     if (generation.exited) return
     generation.exited = true
     this.clearTimer(generation, 'killTimer')
@@ -662,7 +663,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
    * The single funnel that fails a generation's pending requests and cold-start waiters —
    * exactly once — and kills the process if it has not exited yet.
    */
-  private settleGeneration(generation: Generation, spec: SettleSpec): void {
+  private settleGeneration(generation: Generation<Contract>, spec: SettleSpec): void {
     if (generation.settled) return
     generation.settled = true
     this.clearTimer(generation, 'readyTimer')
@@ -683,7 +684,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     if (!generation.exited) generation.handle.kill()
   }
 
-  private violation(generation: Generation, message: string): void {
+  private violation(generation: Generation<Contract>, message: string): void {
     this.settleGeneration(generation, {
       code: 'PROCESS_PROTOCOL_ERROR',
       message: `protocol violation: ${message}`,
@@ -694,12 +695,12 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
   // ─── Requests ───
 
   private dispatch<M extends keyof Contract['methods'] & string>(
-    generation: Generation,
+    generation: Generation<Contract>,
     method: M,
     input: Contract['methods'][M]['input'],
     signal: AbortSignal | undefined,
     onEvent: ((event: unknown) => void) | undefined,
-    onHostCall: UtilityProcessRequestOptions<unknown>['onHostCall']
+    onHostCall: UtilityProcessRequestOptions<unknown, UtilityProcessHostCallFor<Contract>>['onHostCall']
   ): Promise<Contract['methods'][M]['output']> {
     return new Promise<Contract['methods'][M]['output']>((resolve, reject) => {
       if (signal?.aborted) {
@@ -709,7 +710,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
       this.clearIdleTimer()
       const requestId = generation.nextRequestId
       generation.nextRequestId += 1
-      const pending: Pending = {
+      const pending: Pending<Contract> = {
         resolve,
         reject,
         onEvent,
@@ -741,7 +742,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     })
   }
 
-  private cancelRequest(generation: Generation, requestId: number, reason: unknown): void {
+  private cancelRequest(generation: Generation<Contract>, requestId: number, reason: unknown): void {
     const pending = generation.pending.get(requestId)
     if (pending === undefined) return
     if (this.definition.cancellation === 'cooperative') {
@@ -767,7 +768,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
   }
 
   /** The only place a pending entry is removed and its promise settled. */
-  private settlePending(generation: Generation, requestId: number, outcome: Outcome): void {
+  private settlePending(generation: Generation<Contract>, requestId: number, outcome: Outcome): void {
     const pending = generation.pending.get(requestId)
     if (pending === undefined) return
     generation.pending.delete(requestId)
@@ -782,7 +783,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
 
   // ─── Stop barrier ───
 
-  private async runStopBarrier(generation: Generation): Promise<void> {
+  private async runStopBarrier(generation: Generation<Contract>): Promise<void> {
     generation.intentionalExit = true
     const graceful = generation.phase === 'ready' && !generation.settled
     generation.phase = 'stopping'
@@ -822,7 +823,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
 
   // ─── Idle TTL ───
 
-  private isIdle(generation: Generation): boolean {
+  private isIdle(generation: Generation<Contract>): boolean {
     return (
       this.live === generation &&
       generation.phase === 'ready' &&
@@ -835,7 +836,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     )
   }
 
-  private maybeArmIdle(generation: Generation): void {
+  private maybeArmIdle(generation: Generation<Contract>): void {
     const idleTimeoutMs = this.definition.idleTimeoutMs
     if (idleTimeoutMs === undefined || !this.isIdle(generation)) return
     this.clearIdleTimer()
@@ -856,7 +857,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
 
   // ─── Helpers ───
 
-  private relayLog(generation: Generation, frame: LogFrame): void {
+  private relayLog(generation: Generation<Contract>, frame: LogFrame): void {
     const fields: Record<string, unknown> = {
       ...frame.fields,
       processId: this.definition.id,
@@ -867,15 +868,15 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     this.deps.logger[frame.level](`[${this.tag(generation)}] ${frame.message}`, fields)
   }
 
-  private identity(generation: Generation): FrameIdentity {
+  private identity(generation: Generation<Contract>): FrameIdentity {
     return { protocol: PROTOCOL, version: PROTOCOL_VERSION, processId: this.definition.id, generation: generation.id }
   }
 
-  private tag(generation: Generation): string {
+  private tag(generation: Generation<Contract>): string {
     return `${this.definition.id}#${generation.id}`
   }
 
-  private clearTimer(generation: Generation, key: 'readyTimer' | 'killTimer'): void {
+  private clearTimer(generation: Generation<Contract>, key: 'readyTimer' | 'killTimer'): void {
     const timer = generation[key]
     if (timer === null) return
     clearTimeout(timer)

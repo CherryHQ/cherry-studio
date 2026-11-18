@@ -7,6 +7,7 @@ import type {
   UtilityProcessClient,
   UtilityProcessContract,
   UtilityProcessDefinition,
+  UtilityProcessHostCallFor,
   UtilityProcessRequestOptions,
   UtilityProcessStreamOptions,
   UtilityProcessStreams,
@@ -58,7 +59,7 @@ export abstract class InferenceServiceBase<Contract extends UtilityProcessContra
     modelId: LocalModelBundleId,
     method: M,
     prepareInput: () => Contract['methods'][M]['input'],
-    options: UtilityProcessRequestOptions<Contract['methods'][M]['event']> = {}
+    options: UtilityProcessRequestOptions<Contract['methods'][M]['event'], UtilityProcessHostCallFor<Contract>> = {}
   ): Promise<Contract['methods'][M]['output']> {
     return this.enqueue(modelId, options.signal, async () => this.request(method, prepareInput(), options))
   }
@@ -123,7 +124,7 @@ export abstract class InferenceServiceBase<Contract extends UtilityProcessContra
   private async request<M extends keyof Contract['methods'] & string>(
     method: M,
     input: Contract['methods'][M]['input'],
-    options: UtilityProcessRequestOptions<Contract['methods'][M]['event']>
+    options: UtilityProcessRequestOptions<Contract['methods'][M]['event'], UtilityProcessHostCallFor<Contract>>
   ): Promise<Contract['methods'][M]['output']> {
     try {
       return await this.client.request(method, input, options)
