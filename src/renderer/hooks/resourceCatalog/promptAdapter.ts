@@ -3,17 +3,22 @@ import { useCallback } from 'react'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import type { ConcreteApiPaths } from '@shared/data/api/paths'
-import type { CreatePromptDto, PromptBindingParams, UpdatePromptDto } from '@shared/data/api/schemas/prompts'
+import type {
+  CreatePromptDto,
+  ListPromptsQueryParams,
+  PromptBindingParams,
+  UpdatePromptDto
+} from '@shared/data/api/schemas/prompts'
 import type { Prompt, PromptBindingTarget } from '@shared/data/types/prompt'
 
 import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
 
 function usePromptList(query?: ResourceListQuery): ResourceListResult<Prompt> {
+  const params: ListPromptsQueryParams = {}
+  if (query?.search) params.search = query.search
   const { data, isLoading, isRefreshing, error, refetch } = useQuery('/prompts', {
     enabled: query?.enabled !== false,
-    query: {
-      ...(query?.search ? { search: query.search } : {})
-    }
+    query: params
   })
 
   const stableRefetch = useCallback(() => refetch(), [refetch])

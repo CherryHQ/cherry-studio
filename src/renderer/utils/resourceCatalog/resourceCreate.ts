@@ -21,19 +21,17 @@ export function buildCreateAgentCommand(values: ResourceCreateValues): CreateAge
   const permissionMode = caps.permissionModes.some((mode) => mode === values.permissionMode)
     ? values.permissionMode
     : caps.createDefaults.permissionMode
-  return {
-    type: values.agentType,
-    ...(values.avatarImage ? { avatarImage: values.avatarImage } : {}),
-    name: values.name,
-    model: values.modelId,
-    ...(caps.modelTiers ? { planModel: values.modelId, smallModel: values.modelId } : {}),
-    description: values.description,
-    instructions: values.prompt,
-    ...(caps.knowledgeBases ? { knowledgeBaseIds: values.knowledgeBaseIds } : {}),
-    ...(caps.skills ? { skillIds: values.skillIds } : {}),
-    configuration: {
-      avatar: values.avatar,
-      permission_mode: permissionMode
-    }
+  const identity: Omit<CreateAgentCommand, 'name' | 'model'> = { type: values.agentType }
+  if (values.avatarImage) identity.avatarImage = values.avatarImage
+  const command: CreateAgentCommand = Object.assign(identity, { name: values.name, model: values.modelId })
+  if (caps.modelTiers) {
+    command.planModel = values.modelId
+    command.smallModel = values.modelId
   }
+  command.description = values.description
+  command.instructions = values.prompt
+  if (caps.knowledgeBases) command.knowledgeBaseIds = values.knowledgeBaseIds
+  if (caps.skills) command.skillIds = values.skillIds
+  command.configuration = { avatar: values.avatar, permission_mode: permissionMode }
+  return command
 }
