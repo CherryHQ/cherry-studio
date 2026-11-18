@@ -107,10 +107,13 @@ export class DoctorAgentService extends BaseService {
     )
     const runId = randomUUID()
     const topicId = buildAgentSessionTopicId(session.id)
-    const run: DoctorAgentRun = {
+    const origin: Pick<DoctorAgentRun, 'runId' | 'scope' | 'incident'> = {
       runId,
-      scope,
-      ...(incident ? { incident } : {}),
+      scope
+    }
+    if (incident) Object.assign(origin, { incident })
+    const run: DoctorAgentRun = {
+      ...origin,
       reportRunId,
       sessionId: session.id,
       modelId: agent.model,
@@ -179,7 +182,9 @@ export class DoctorAgentService extends BaseService {
         const applied = await applyWrite(proposal.write)
         const change = this.recordChange(input.key, input.runId, proposal.write, proposal.summary, applied, proposal.id)
         this.patchProposal(input.key, input.runId, proposal.id, { status: 'applied' })
-        return { status: 'applied', change, ...(applied.fix ? { fix: applied.fix } : {}) }
+        const result: Extract<DoctorAgentApplyResult, { status: 'applied' }> = { status: 'applied', change }
+        if (applied.fix) Object.assign(result, { fix: applied.fix })
+        return result
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         this.patchProposal(input.key, input.runId, proposal.id, { status: 'failed', error: message })
@@ -373,9 +378,9 @@ export class DoctorAgentService extends BaseService {
       after: applied.after,
       undoable: applied.undoable,
       undone: false,
-      appliedAt: new Date().toISOString(),
-      ...(proposalId ? { proposalId } : {})
+      appliedAt: new Date().toISOString()
     }
+    if (proposalId) Object.assign(change, { proposalId })
     this.update(key, runId, (current) => ({ ...current, changes: [...current.changes, change] }))
     return change
   }

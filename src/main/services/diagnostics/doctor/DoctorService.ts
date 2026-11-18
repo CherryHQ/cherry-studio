@@ -311,7 +311,7 @@ export class DoctorService extends BaseService {
         return { status: 'canceled', runId }
       }
       const finishedAt = new Date()
-      const report: DoctorReport = {
+      const details: Omit<DoctorReport, 'summary'> = {
         schemaVersion: 1,
         runId,
         scope,
@@ -321,10 +321,10 @@ export class DoctorService extends BaseService {
         finishedAt: finishedAt.toISOString(),
         expiresAt: new Date(finishedAt.getTime() + DOCTOR_REPORT_TTL_MS).toISOString(),
         basics,
-        results,
-        ...(pendingChecks.length ? { pendingChecks } : {}),
-        summary: summarize(results)
+        results
       }
+      if (pendingChecks.length) Object.assign(details, { pendingChecks })
+      const report: DoctorReport = { ...details, summary: summarize(results) }
       record.expiresAt = Date.parse(report.expiresAt)
       record.onResults = (snapshot) => this.patchReport(scope, runId, snapshot.results, snapshot.pendingChecks)
       this.publish(scope, { status: 'completed', report })
@@ -400,7 +400,9 @@ export class DoctorService extends BaseService {
         const definition = doctorCheckRegistry[request.checkId] as unknown as DoctorEngineDefinition
         const handler = definition.fixes[request.fixId]
         if (!handler) throw new Error(`Missing fix ${request.fixId} for ${request.checkId}`)
-        outcome = await handler({ ...context, ...('target' in request ? { target: request.target } : {}) })
+        const input: Parameters<typeof handler>[0] = { ...context }
+        if ('target' in request) Object.assign(input, { target: request.target })
+        outcome = await handler(input)
       } catch (error) {
         outcome = { status: 'failed', message: error instanceof Error ? error.message : String(error) }
       }
@@ -438,12 +440,12 @@ export class DoctorService extends BaseService {
     if (state.status !== 'completed' || state.report.runId !== runId) return
     const merged = [...new Map([...state.report.results, ...results].map((result) => [result.id, result])).values()]
     this.subjects.get(scope)?.execution.updateResults(merged)
+    const report = { ...state.report, results: merged }
+    if (pendingChecks) report.pendingChecks = pendingChecks
     this.publish(scope, {
       status: 'completed',
       report: {
-        ...state.report,
-        results: merged,
-        ...(pendingChecks ? { pendingChecks } : {}),
+        ...report,
         summary: summarize(merged)
       }
     })
