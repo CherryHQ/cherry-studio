@@ -930,6 +930,38 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     ).toBeNull()
   })
 
+  it('cancels a queued archive task before purging a permanently deleted session', async () => {
+    // The purge needs the workspace's storage reservation; a queued pack would
+    // take it first and leave the deleted session's directory behind.
+    await lifecycle.archiveSessions(['system'])
+    seedArchiveJob('pending')
+    await lifecycle.purgeSessions(['system'])
+    expect(mocks.cancelJob).toHaveBeenCalledTimes(1)
+    expect(mocks.cancelJob.mock.calls[0][1]).toContain('permanently deleted')
+    expect(existsSync(workspacePath(root, 'system'))).toBe(false)
+  })
+
+  it('waits for an in-flight archive task before purging a permanently deleted session', async () => {
+    await lifecycle.archiveSessions(['system'])
+    seedArchiveJob('running')
+    const started = Date.now()
+    const timer = setTimeout(() => {
+      dbh.db
+        .update(jobTable)
+        .set({ status: 'completed' })
+        .where(eq(jobTable.idempotencyKey, 'archive-system-workspace:system'))
+        .run()
+    }, 200)
+    try {
+      await lifecycle.purgeSessions(['system'])
+    } finally {
+      clearTimeout(timer)
+    }
+    expect(Date.now() - started).toBeGreaterThanOrEqual(150)
+    expect(mocks.cancelJob).not.toHaveBeenCalled()
+    expect(existsSync(workspacePath(root, 'system'))).toBe(false)
+  })
+
   it('does not restore a workspace belonging to an independently archived session with its agent', async () => {
     await lifecycle.archiveSessions(['system'])
     await flushArchiveJobs()
