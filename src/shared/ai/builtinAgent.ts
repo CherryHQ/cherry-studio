@@ -13,6 +13,6 @@ export function isProtectedBuiltinAgentRole(role: unknown): role is BuiltinAgent
 }
 
 /** Agents whose runtime ignores user-installed skills and only loads the skills bundled with them. */
-export function isSealedBuiltinAgentRole(role: unknown): boolean {
+export function isSealedBuiltinAgentRole(role: unknown): role is (typeof BUILTIN_AGENT_ROLE)['SUPPORT' | 'DOCTOR'] {
   return role === BUILTIN_AGENT_ROLE.SUPPORT || role === BUILTIN_AGENT_ROLE.DOCTOR
 }

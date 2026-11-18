@@ -34,7 +34,7 @@ export interface LatestReconcilerOptions<T> {
    * Invoked when `getSnapshot` or `apply` throws. The owner supplies error reporting.
    * `snap` is `undefined` when `getSnapshot` itself threw.
    */
-  onError: (error: unknown, snap: T | undefined) => void
+  onError: (cause: unknown, snap: T | undefined) => void
 }
 
 export interface LatestReconciler {
