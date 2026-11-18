@@ -30,7 +30,7 @@ export function splitParamValues(paramValues: Record<string, unknown>): SplitIma
     if (value === undefined || value === '' || value === null) continue
     const binding = nativeBindingFor(key) // numImages → n; aspectRatio normalized once; rest identity
     if (binding) {
-      const mapped = binding.schema ? binding.schema.parse(value) : value
+      const mapped = binding.map ? binding.map(value) : value
       if (mapped !== undefined && mapped !== null && mapped !== '') structured[binding.option] = mapped
     } else {
       vendorBag[key] = value

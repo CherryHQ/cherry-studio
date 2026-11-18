@@ -4,24 +4,23 @@
  * sends one canonical `paramValues` bag; `splitParamValues` (in `imageOptions.ts`)
  * uses this table to partition it into the structured fields the AI SDK
  * `imageParams` consume vs the leftover vendor bag the WireProfile engine
- * forwards, applying each binding's normalization schema once.
+ * forwards, applying each binding's `map` once.
  *
- * `numImages → n` is the only rename; `aspectRatio` carries a normalization schema
+ * `numImages → n` is the only rename; `aspectRatio` carries a `map`
  * (`ASPECT_X_Y → X:Y`, the AI SDK `ImageModelV3CallOptions` shape) so the
  * normalization happens once here instead of scattered across `AiService` + the
  * emitters. The rest are identity. The first four are genuine AI SDK options;
  * the others are diffusion / OpenAI-image knobs that migrate into per-provider
  * WireProfiles in PR4+.
  */
-import * as z from 'zod'
-
 import type { CanonicalParamKey } from '@shared/data/types/model'
 
 interface NativeBinding {
   /** The structured field name (the `ParamValues` key, `numImages → n`). */
   readonly option: string
   /** Optional wire normalization applied once during the split. */
-  readonly schema?: z.ZodType<string | undefined>
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Image option bindings receive raw paramValues entries and validate the accepted input before normalization.
+  readonly map?: (value: unknown) => string | undefined
 }
 
 /**
@@ -49,7 +48,8 @@ export const AI_SDK_NATIVE_BINDINGS = {
   seed: { option: 'seed' },
   aspectRatio: {
     option: 'aspectRatio',
-    schema: z.string().optional().catch(undefined).transform(normalizeAspectRatio)
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Dynamic image parameters may contain non-strings; only strings can be normalized as aspect ratios.
+    map: (v: unknown) => normalizeAspectRatio(typeof v === 'string' ? v : undefined)
   }
 } as const satisfies Partial<Record<CanonicalParamKey, NativeBinding>>
 
