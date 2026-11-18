@@ -10,6 +10,7 @@ import { getAgentDraftCacheKey } from '@renderer/components/composer/variants/ag
 import { useCommandHandler } from '@renderer/hooks/command'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
+import type { AgentSessionDisplayMode } from '@shared/data/preference/preferenceTypes'
 
 const agentPageMocks = vi.hoisted(() => ({
   historyOnActiveRecordChange: undefined as ((sessionId: string | null) => void) | undefined,
@@ -77,7 +78,7 @@ const agentPageMocks = vi.hoisted(() => ({
   setClassicLayoutRightPaneOpenOverride: vi.fn(),
   setShowSidebar: vi.fn(),
   closeConversationTabs: vi.fn(),
-  sessionDisplayMode: 'time' as 'time' | 'workdir' | 'agent',
+  sessionDisplayMode: 'time' as AgentSessionDisplayMode,
   sessionPanePosition: 'right' as 'left' | 'right',
   isActiveTab: false,
   showSidebar: false,
@@ -175,7 +176,7 @@ vi.mock('@data/hooks/usePreference', async () => {
           agentPageMocks.showSidebar = Boolean(nextValue)
           agentPageMocks.setShowSidebar(nextValue)
         } else if (key === 'agent.session.display_mode') {
-          agentPageMocks.sessionDisplayMode = nextValue as 'time' | 'workdir' | 'agent'
+          agentPageMocks.sessionDisplayMode = nextValue as AgentSessionDisplayMode
         } else if (key === 'agent.session.position') {
           agentPageMocks.sessionPanePosition = nextValue as 'left' | 'right'
         }

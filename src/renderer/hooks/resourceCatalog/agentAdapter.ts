@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 
-import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { AGENTS_MAX_LIMIT, type UpdateAgentDto } from '@shared/data/api/schemas/agents'
@@ -16,13 +16,18 @@ import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './t
  * filter on top.
  */
 function useAgentList(query?: ResourceListQuery): ResourceListResult<AgentDetail> {
+  const enabled = query?.enabled !== false
   const { data, isLoading, isRefreshing, error, refetch } = useQuery('/agents', {
-    enabled: query?.enabled !== false,
+    enabled,
     query: {
       limit: query?.limit ?? AGENTS_MAX_LIMIT,
-      ...(query?.search ? { search: query.search } : {})
+      ...(query?.search ? { search: query.search } : {}),
+      ...(query?.groupId ? { groupId: query.groupId } : {})
     }
   })
+  // Agent membership changes broadcast from any window; without this
+  // subscription the library's own reads never refetch on them.
+  useDataChange(enabled ? '/agents' : [], () => void refetch())
 
   const items = data?.items ?? []
   const stableRefetch = useCallback(() => refetch(), [refetch])

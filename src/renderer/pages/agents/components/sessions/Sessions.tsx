@@ -42,6 +42,7 @@ import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useCurrentDayStart } from '@renderer/hooks/useCurrentDayStart'
+import { useGroups } from '@renderer/hooks/useGroups'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import { usePins } from '@renderer/hooks/usePins'
@@ -59,7 +60,7 @@ import {
 import { toast } from '@renderer/services/toast'
 import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { withSoleGroupLabelHidden } from '@renderer/utils/chat/resourceListBase'
+import { compareResourceOrderKey, withSoleGroupLabelHidden } from '@renderer/utils/chat/resourceListBase'
 import {
   type AgentSessionDisplayMode,
   buildSessionAgentGroupDropAnchor,
@@ -75,6 +76,7 @@ import {
   moveSessionWorkdirGroupAfterDrop,
   normalizeSessionDropPayload,
   SESSION_AGENT_SECTION_ID,
+  SESSION_GROUP_SECTION_ID,
   SESSION_NO_PROJECT_GROUP_ID,
   SESSION_NO_PROJECT_SECTION_ID,
   SESSION_NO_WORKDIR_GROUP_ID,
@@ -253,7 +255,7 @@ const Sessions = ({
 
   const displayMode: AgentSessionDisplayMode = isRightPanel
     ? 'time'
-    : sessionDisplayMode === 'workdir' || sessionDisplayMode === 'agent'
+    : sessionDisplayMode === 'workdir' || sessionDisplayMode === 'agent' || sessionDisplayMode === 'group'
       ? sessionDisplayMode
       : 'time'
   const defaultGroupVisibleCount =
@@ -268,7 +270,7 @@ const Sessions = ({
     isMutating: isAgentPinsMutating,
     pinnedIds: agentPinnedIds,
     togglePin: toggleAgentPin
-  } = usePins('agent', { enabled: dataEnabled && displayMode === 'agent' })
+  } = usePins('agent', { enabled: dataEnabled && (displayMode === 'agent' || displayMode === 'group') })
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
   const {
     isLoading: isWorkspacePinsLoading,
@@ -400,6 +402,36 @@ const Sessions = ({
     [agentsForDisplay]
   )
   const {
+    groups: agentGroups,
+    isLoading: isAgentGroupsLoading,
+    error: agentGroupsError,
+    refetch: refetchAgentGroups
+  } = useGroups('agent', { enabled: dataEnabled && displayMode === 'group' })
+  const agentGroupById = useMemo(() => new Map(agentGroups.map((group) => [group.id, group])), [agentGroups])
+  // Group display mode keeps the per-agent buckets but orders the agents by custom-group rank
+  // (group orderKey, flat agent order inside each bucket); agents outside every custom group
+  // follow all grouped agents. A stale groupId that no longer resolves also lands in that tail.
+  const agentsForDisplayGrouped = useMemo(() => {
+    if (displayMode !== 'group') return agentsForDisplay
+
+    const groupRankByGroupId = new Map(
+      [...agentGroups]
+        .sort((left, right) => compareResourceOrderKey(left.orderKey, right.orderKey))
+        .map((group, index) => [group.id, index] as const)
+    )
+    const ungroupedRank = groupRankByGroupId.size
+
+    return [...agentsForDisplay].sort((left, right) => {
+      const leftRank = left.groupId ? (groupRankByGroupId.get(left.groupId) ?? ungroupedRank) : ungroupedRank
+      const rightRank = right.groupId ? (groupRankByGroupId.get(right.groupId) ?? ungroupedRank) : ungroupedRank
+      return leftRank - rightRank
+    })
+  }, [agentGroups, agentsForDisplay, displayMode])
+  const groupedAgentRankById = useMemo(
+    () => new Map(agentsForDisplayGrouped.map((agent, index) => [agent.id, index])),
+    [agentsForDisplayGrouped]
+  )
+  const {
     data: workspaces,
     error: workspacesError,
     isLoading: isWorkspacesLoading,
@@ -412,7 +444,11 @@ const Sessions = ({
   const isWorkdirMetadataRefreshing = displayMode === 'workdir' && isWorkspacesRefreshing
   const workdirDragReady =
     displayMode === 'workdir' && dragReady && !isWorkdirMetadataLoading && !isWorkdirMetadataRefreshing
-  const agentDragReady = displayMode === 'agent' && dragReady && !isAgentsLoading
+  const agentDragReady =
+    (displayMode === 'agent' || displayMode === 'group') &&
+    dragReady &&
+    !isAgentsLoading &&
+    (displayMode !== 'group' || !isAgentGroupsLoading)
   const itemDragReady = displayMode === 'workdir' ? workdirDragReady : agentDragReady
   const workspaceRowsForDisplay = useMemo(
     () =>
@@ -431,7 +467,10 @@ const Sessions = ({
   const sessionListViewOptions = useMemo<SessionListViewOptions>(
     () => ({
       agentById,
-      agentRankById,
+      // Group display mode keeps the per-agent buckets but orders the agents by custom-group rank
+      // (group orderKey, flat agent order inside each bucket); agents outside every custom group
+      // follow all grouped agents.
+      agentRankById: displayMode === 'group' ? groupedAgentRankById : agentRankById,
       labels: {
         pinned: t('selector.common.pinned_title'),
         time: {
@@ -449,10 +488,24 @@ const Sessions = ({
       },
       mode: displayMode,
       now: groupNow,
+      // In group mode the unlinked-agent bucket trails the ungrouped-agent tail instead of
+      // interleaving with it (the plain fallback only knows "after every agent", not the buckets).
+      unknownAgentGroupRank: displayMode === 'group' ? agentsForDisplayGrouped.length : undefined,
       visibleAgentId: isRightPanel ? (agentIdFilter ?? null) : undefined,
       workspaces: workspaceRowsForDisplay
     }),
-    [agentById, agentIdFilter, agentRankById, displayMode, groupNow, isRightPanel, t, workspaceRowsForDisplay]
+    [
+      agentById,
+      agentIdFilter,
+      agentRankById,
+      agentsForDisplayGrouped.length,
+      displayMode,
+      groupNow,
+      groupedAgentRankById,
+      isRightPanel,
+      t,
+      workspaceRowsForDisplay
+    ]
   )
 
   const {
@@ -511,7 +564,7 @@ const Sessions = ({
   const { sessionGroupSeeds, sessionSectionBy } = useSessionGroupStructure({
     pinnedGroupIds,
     sessionGroupBy,
-    agentsForDisplay,
+    agentsForDisplay: displayMode === 'group' ? agentsForDisplayGrouped : agentsForDisplay,
     displayMode,
     filteredGroupedSessions,
     workdirDisplay,
@@ -525,6 +578,41 @@ const Sessions = ({
     sessionGroupBy,
     workdirDisplay
   })
+
+  // Group display mode: which custom group each label row names. A label rides above the FIRST
+  // agent header of its custom group, and only when that custom group owns at least one session —
+  // a group of session-less agents reads as its agent headers alone (they still render).
+  const firstAgentIdByCustomGroupId = useMemo(() => {
+    const firstByGroup = new Map<string, string>()
+    for (const agent of agentsForDisplayGrouped) {
+      if (agent.groupId && agentGroupById.has(agent.groupId) && !firstByGroup.has(agent.groupId)) {
+        firstByGroup.set(agent.groupId, agent.id)
+      }
+    }
+    return firstByGroup
+  }, [agentGroupById, agentsForDisplayGrouped])
+  const customGroupIdsWithSessions = useMemo(() => {
+    const groupIds = new Set<string>()
+    for (const session of filteredGroupedSessions) {
+      const groupId = session.agentId ? agentById.get(session.agentId)?.groupId : undefined
+      if (groupId && agentGroupById.has(groupId)) groupIds.add(groupId)
+    }
+    return groupIds
+  }, [agentById, agentGroupById, filteredGroupedSessions])
+  const getGroupLabelAbove = useCallback(
+    (group: ResourceListGroup) => {
+      if (displayMode !== 'group') return undefined
+
+      const agentId = getAgentIdFromSessionGroupId(group.id)
+      const groupId = agentId ? agentById.get(agentId)?.groupId : undefined
+      if (!groupId || !agentGroupById.has(groupId)) return undefined
+      if (firstAgentIdByCustomGroupId.get(groupId) !== agentId) return undefined
+      if (!customGroupIdsWithSessions.has(groupId)) return undefined
+
+      return agentGroupById.get(groupId)?.name
+    },
+    [agentById, agentGroupById, customGroupIdsWithSessions, displayMode, firstAgentIdByCustomGroupId]
+  )
 
   const planSessionRemoval = useCallback(
     (id: string) => {
@@ -1053,7 +1141,7 @@ const Sessions = ({
 
   const canDragSessionGroup = useCallback(
     (group: ResourceListGroup) => {
-      if (displayMode === 'agent') {
+      if (displayMode === 'agent' || displayMode === 'group') {
         const agentId = getAgentIdFromSessionGroupId(group.id)
         return agentDragReady && !!agentId && agentById.has(agentId)
       }
@@ -1066,7 +1154,7 @@ const Sessions = ({
   const canDropSessionGroup = useCallback(
     ({ activeGroupId, overGroupId }: { activeGroupId: string; overGroupId: string }) => {
       if (pinnedGroupIds.has(activeGroupId) !== pinnedGroupIds.has(overGroupId)) return false
-      if (displayMode === 'agent') {
+      if (displayMode === 'agent' || displayMode === 'group') {
         const activeAgentId = getAgentIdFromSessionGroupId(activeGroupId)
         const overAgentId = getAgentIdFromSessionGroupId(overGroupId)
 
@@ -1118,7 +1206,7 @@ const Sessions = ({
   const handleSessionReorder = useCallback(
     async (payload: ResourceListReorderPayload) => {
       if (payload.type === 'group') {
-        if (displayMode === 'agent') {
+        if (displayMode === 'agent' || displayMode === 'group') {
           if (!agentDragReady) return
 
           const activeAgentId = getAgentIdFromSessionGroupId(payload.activeGroupId)
@@ -1262,7 +1350,10 @@ const Sessions = ({
     if (displayMode === 'workdir') {
       await refetchWorkspaces()
     }
-  }, [displayMode, refetchWorkspaces, reload])
+    if (displayMode === 'group') {
+      await refetchAgentGroups()
+    }
+  }, [displayMode, refetchAgentGroups, refetchWorkspaces, reload])
 
   const openAgentEditor = useCallback((agentId: string) => {
     setEditDialogTarget({ kind: 'agent', id: agentId })
@@ -1288,7 +1379,9 @@ const Sessions = ({
   )
   const getGroupHeaderClickBehavior = useCallback(
     (group: ResourceListGroup) =>
-      displayMode === 'agent' && group.id !== SESSION_PINNED_GROUP_ID ? 'select-first-then-toggle' : 'toggle',
+      (displayMode === 'agent' || displayMode === 'group') && group.id !== SESSION_PINNED_GROUP_ID
+        ? 'select-first-then-toggle'
+        : 'toggle',
     [displayMode]
   )
   const [defaultModelId] = usePreference('chat.default_model_id')
@@ -1297,7 +1390,8 @@ const Sessions = ({
       if (group.id === SESSION_PINNED_GROUP_ID) return null
       if (displayMode === 'time') return null
 
-      const agentGroupId = displayMode === 'agent' ? getAgentIdFromSessionGroupId(group.id) : undefined
+      const agentGroupId =
+        displayMode === 'agent' || displayMode === 'group' ? getAgentIdFromSessionGroupId(group.id) : undefined
       const workspaceId = displayMode === 'workdir' ? workdirDisplay.workspaceIdByGroupId.get(group.id) : undefined
       const workdirPath =
         displayMode === 'workdir'
@@ -1457,7 +1551,7 @@ const Sessions = ({
         return context.collapsed ? <Folder size={13} /> : <FolderOpen size={13} />
       }
 
-      if (displayMode !== 'agent') return undefined
+      if (displayMode !== 'agent' && displayMode !== 'group') return undefined
       if (group.id === SESSION_UNKNOWN_AGENT_GROUP_ID) return null
 
       const agentId = getAgentIdFromSessionGroupId(group.id)
@@ -1489,7 +1583,11 @@ const Sessions = ({
         return group.id !== SESSION_NO_WORKDIR_GROUP_ID && group.id !== SESSION_NO_PROJECT_GROUP_ID
       }
 
-      return displayMode === 'agent' && group.id !== SESSION_UNKNOWN_AGENT_GROUP_ID && assistantIconType !== 'none'
+      return (
+        (displayMode === 'agent' || displayMode === 'group') &&
+        group.id !== SESSION_UNKNOWN_AGENT_GROUP_ID &&
+        assistantIconType !== 'none'
+      )
     },
     [assistantIconType, displayMode]
   )
@@ -1498,7 +1596,7 @@ const Sessions = ({
   // dragging fired on every hover, covering the row next to it to say something you find by trying.
   const getGroupHeaderTooltip = useCallback(
     (group: ResourceListGroup) => {
-      if (displayMode !== 'agent') return undefined
+      if (displayMode !== 'agent' && displayMode !== 'group') return undefined
       return group.id === SESSION_UNKNOWN_AGENT_GROUP_ID ? t('agent.session.group.unknown_agent_tip') : undefined
     },
     [displayMode, t]
@@ -1508,7 +1606,7 @@ const Sessions = ({
     (group: ResourceListGroup) => {
       if (group.id === SESSION_PINNED_GROUP_ID) return null
 
-      if (displayMode === 'agent') {
+      if (displayMode === 'agent' || displayMode === 'group') {
         const agentId = getAgentIdFromSessionGroupId(group.id)
         if (!agentId || !agentById.has(agentId)) return null
 
@@ -1595,10 +1693,18 @@ const Sessions = ({
   )
 
   const listError =
-    error ?? (displayMode === 'agent' ? agentsError : displayMode === 'workdir' ? workspacesError : undefined)
+    error ??
+    (displayMode === 'agent' || displayMode === 'group'
+      ? (agentsError ?? (displayMode === 'group' ? agentGroupsError : undefined))
+      : displayMode === 'workdir'
+        ? workspacesError
+        : undefined)
   const historyLoading = isLoadingAll || !isFullyLoaded
   const metadataLoading =
-    isSessionPinsLoading || isWorkdirMetadataLoading || (displayMode === 'agent' && isAgentsLoading)
+    isSessionPinsLoading ||
+    isWorkdirMetadataLoading ||
+    ((displayMode === 'agent' || displayMode === 'group') &&
+      (isAgentsLoading || (displayMode === 'group' && isAgentGroupsLoading)))
   const listLoading = historyLoading || metadataLoading
   const listValidating = isValidating || isWorkdirMetadataRefreshing
   const visibleGroupedSessions = useMemo(
@@ -1641,9 +1747,10 @@ const Sessions = ({
       isGroupHeaderIconVisible={isGroupHeaderIconVisible}
       getGroupHeaderTooltip={getGroupHeaderTooltip}
       getGroupHeaderKind={getGroupHeaderKind}
+      getGroupLabelAbove={getGroupLabelAbove}
       groupHeaderClickBehavior={getGroupHeaderClickBehavior}
       dragCapabilities={{
-        groups: displayMode === 'agent' ? agentDragReady : workdirDragReady,
+        groups: displayMode === 'agent' || displayMode === 'group' ? agentDragReady : workdirDragReady,
         items: itemDragReady,
         itemSameGroup: itemDragReady,
         itemCrossGroup: false
@@ -1698,9 +1805,11 @@ const Sessions = ({
                   sectionIds={
                     displayMode === 'agent'
                       ? [SESSION_AGENT_SECTION_ID]
-                      : displayMode === 'workdir'
-                        ? [SESSION_WORKDIR_SECTION_ID]
-                        : undefined
+                      : displayMode === 'group'
+                        ? [SESSION_GROUP_SECTION_ID]
+                        : displayMode === 'workdir'
+                          ? [SESSION_WORKDIR_SECTION_ID]
+                          : undefined
                   }
                 />
               }

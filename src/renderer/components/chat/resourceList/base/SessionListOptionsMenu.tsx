@@ -5,13 +5,13 @@ import type { AgentSessionDisplayMode } from '@shared/data/preference/preference
 
 import { ConversationListOptionsMenu } from './ConversationListOptionsMenu'
 
-const SESSION_DISPLAY_OPTIONS: AgentSessionDisplayMode[] = ['time', 'workdir', 'agent']
+const SESSION_DISPLAY_OPTIONS: AgentSessionDisplayMode[] = ['time', 'workdir', 'agent', 'group']
 export const SESSION_DISPLAY_LABEL_KEYS: Record<AgentSessionDisplayMode, string> = {
   agent: 'agent.session.display.agent',
+  group: 'agent.session.display.group',
   time: 'agent.session.display.time',
   workdir: 'agent.session.display.workdir'
 }
-
 type SessionListOptionsMenuProps = {
   historyRecordsActive?: boolean
   manageAgentsActive?: boolean
