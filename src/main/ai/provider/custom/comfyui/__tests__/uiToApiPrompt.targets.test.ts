@@ -72,7 +72,7 @@ describe('ComfyUI guider and noise paths', () => {
  * edited into the workflow. Both branches carry a prompt-like string, and only
  * one of them is evaluated.
  */
-const switchGraph = (on: unknown): Record<string, ApiPromptNode> => ({
+const switchGraph = (on: ApiPromptNode['inputs'][string]): Record<string, ApiPromptNode> => ({
   '1': {
     class_type: 'ComfySwitchNode',
     _meta: { title: 'If/Else Switch' },
@@ -124,7 +124,7 @@ describe('ComfyUI If/Else Switch targets', () => {
 })
 
 describe('ComfyUI text held outside the encode node', () => {
-  const graphWithTextSource = (source: Record<string, unknown>): Record<string, ApiPromptNode> => ({
+  const graphWithTextSource = (source: ApiPromptNode['inputs']): Record<string, ApiPromptNode> => ({
     '1': { class_type: 'PrimitiveStringMultiline', _meta: { title: 'text' }, inputs: source },
     '2': {
       class_type: 'CLIPTextEncode',
