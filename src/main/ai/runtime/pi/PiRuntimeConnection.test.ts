@@ -70,7 +70,28 @@ vi.mock('@application', async () => {
     DbService: defaultServiceInstances.DbService,
     ApiGatewayService: {
       captureAgentSessionUsage: () => ({ headers: {}, release: () => {} }),
-      ensureInternalGateway: async () => ({ baseUrl: mocks.gatewayUrl, apiKey: 'fixture' }),
+      ensureInternalGateway: async () => {
+        throw new Error('Pi must start without an internal HTTP listener')
+      },
+      // The binding speaks to the gateway in-process now; this stand-in keeps the
+      // fixture's real HTTP SSE server behind the object-transport seam.
+      createAgentObjectTransports: () => ({
+        'openai-completions': async () => {
+          const res = await fetch(`${mocks.gatewayUrl}/v1/chat/completions`, { method: 'POST' })
+          const body = await res.text()
+          const events = body
+            .split('\n')
+            .filter((line) => line.startsWith('data: ') && line.trim() !== 'data: [DONE]')
+            .map((line) => JSON.parse(line.slice(6)))
+          return {
+            status: res.status,
+            headers: res.headers,
+            events: (async function* () {
+              for (const event of events) yield event
+            })()
+          }
+        }
+      }),
       getAgentSessionUsageHeaders: () => ({})
     },
     McpCatalogService: { listTools: () => [] },

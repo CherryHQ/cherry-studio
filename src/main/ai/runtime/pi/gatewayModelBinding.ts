@@ -5,22 +5,21 @@ import type { ModelRuntime } from '@earendil-works/pi-coding-agent'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, CHERRY_SERVICE_TIER_HEADER } from '@main/ai/constants'
 import { getPiTraceContext } from '@main/ai/observability'
-import { isPiCompatibleModel, mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
+import { isPiCompatibleModel, mapEndpointToPiApi } from '@shared/ai/piModelCompatibility'
 import { ENDPOINT_TYPE, MODALITY, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId } from '@shared/utils/model'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
-import { resolveApiGatewayRuntime } from '../agentApiGateway'
 import { resolveAgentContextWindow } from '../agentContextWindow'
 import type { AgentRuntimeConnectInput } from '../types'
 import { formatPiOutputLimitDiagnostic } from './outputLimitDiagnostic'
 import { loadPiAi, loadPiApiStreamSimple, loadPiSdk } from './piSdk'
 import { reportedOutputUsageObserver, type ReportedOutputUsage } from './reportedOutputUsage'
+
+const OBJECT_TRANSPORT_API_KEY = 'cherry-object-transport'
 
 /** Native Pi protocols target Cherry's internal gateway; Cherry retains provider credentials and billing. */
 export async function createPiGatewayModelBinding(
@@ -41,7 +40,7 @@ export async function createPiGatewayModelBinding(
   const { endpointType } = resolveEffectiveEndpoint(provider, model, preferredEndpoint)
   const adapterFamily = endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined
   const api = mapEndpointToPiApi(endpointType, adapterFamily) ?? 'openai-completions'
-  const gateway = await resolveApiGatewayRuntime(input.sessionId)
+  const gateway = application.get('ApiGatewayService')
   const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
   const modalities: ('text' | 'image')[] = ['text']
   if (
@@ -67,9 +66,9 @@ export async function createPiGatewayModelBinding(
   modelRuntime.registerProvider(providerName, {
     name: provider.name,
     api,
-    baseUrl: formatPiBaseUrl(gateway.baseUrl, api),
-    // Pi interpolates configured keys; supply the gateway key through runtime credentials instead.
-    apiKey: 'cherry-managed-runtime-key',
+    baseUrl: 'http://cherry-runtime.invalid',
+    // Native clients require a key even though object calls use Cherry's trusted execution path.
+    apiKey: OBJECT_TRANSPORT_API_KEY,
     models: [
       {
         id: modelId,
@@ -83,67 +82,41 @@ export async function createPiGatewayModelBinding(
         ...(provider.id === 'cherryin' && api === 'anthropic-messages' ? { compat: { allowEmptySignature: true } } : {})
       }
     ],
-    headers: {
-      ...gateway.usageHeaders,
-      [CHERRY_REASONING_EFFORT_HEADER]: input.reasoningEffort ?? 'default',
-      ...(input.serviceTier ? { [CHERRY_SERVICE_TIER_HEADER]: input.serviceTier } : {}),
-      [CHERRY_FAST_MODE_HEADER]: String(input.fastMode === true)
-    },
     // Pi's session retry policy owns retries; neither gateway nor HTTP client retries a step.
     streamSimple: (model, context, options) => {
-      const parent = getPiTraceContext(options?.telemetry)
-      const capture = parent
-        ? application.get('ApiGatewayService').captureAgentSessionUsage(input.sessionId, undefined, parent)
-        : undefined
-      try {
-        // Native reasoning can enlarge per-call output caps before the gateway receives them.
-        const reported: ReportedOutputUsage = {}
-        const stream = streamSimple(model, context, {
-          ...options,
-          ...(capture && { headers: { ...options?.headers, ...capture.headers } }),
-          reasoning: undefined,
-          maxRetries: 0,
-          onProviderStreamEvent: reportedOutputUsageObserver(reported, options?.onProviderStreamEvent)
+      // Native reasoning can enlarge per-call output caps before the gateway receives them.
+      const reported: ReportedOutputUsage = {}
+      const stream = streamSimple(model, context, {
+        ...options,
+        objectTransports: gateway.createAgentObjectTransports({
+          ...input,
+          headers: options?.headers,
+          traceContext: getPiTraceContext(options?.telemetry)
+        }),
+        disableContinuation: true,
+        reasoning: undefined,
+        maxRetries: 0,
+        onProviderStreamEvent: reportedOutputUsageObserver(reported, options?.onProviderStreamEvent)
+      })
+      void stream
+        .result()
+        .then((message) => {
+          if (message.stopReason === 'length') {
+            message.errorMessage = formatPiOutputLimitDiagnostic({
+              configuredMaxTokens: model.maxTokens,
+              ...reported
+            })
+          }
+          if (!options?.readOnlyFork) onUsage?.(message.usage, options?.sessionId, message.responseId)
         })
-        void stream
-          .result()
-          .then((message) => {
-            if (message.stopReason === 'length') {
-              message.errorMessage = formatPiOutputLimitDiagnostic({
-                configuredMaxTokens: model.maxTokens,
-                ...reported
-              })
-            }
-            if (!options?.readOnlyFork) onUsage?.(message.usage, options?.sessionId, message.responseId)
-          })
-          .catch((error) => {
-            loggerService
-              .withContext('PiGatewayModelBinding')
-              .error('Failed to observe native model response', { error })
-          })
-          .finally(() => capture?.release())
-        return stream
-      } catch (error) {
-        capture?.release()
-        throw error
-      }
+        .catch((error) => {
+          loggerService.withContext('PiGatewayModelBinding').error('Failed to observe native model response', { error })
+        })
+      return stream
     }
   })
-  await modelRuntime.setRuntimeApiKey(providerName, gateway.apiKey)
+  await modelRuntime.setRuntimeApiKey(providerName, OBJECT_TRANSPORT_API_KEY)
   const registered = modelRuntime.getModel(providerName, modelId)
   if (!registered) throw new Error(`Pi gateway model ${modelId} was not registered`)
   return { modelRuntime, model: registered }
-}
-
-function formatPiBaseUrl(baseUrl: string, api: PiApi): string {
-  switch (api) {
-    case 'openai-completions':
-    case 'openai-responses':
-      return formatApiHost(baseUrl)
-    case 'google-generative-ai':
-      return formatApiHost(baseUrl, true, 'v1beta')
-    case 'anthropic-messages':
-      // Anthropic's SDK appends `/v1/messages` itself.
-      return withoutTrailingApiVersion(formatApiHost(baseUrl, false))
-  }
 }
