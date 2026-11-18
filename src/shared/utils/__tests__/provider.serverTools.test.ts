@@ -756,3 +756,32 @@ describe('DashScope hosted search endpoint contract', () => {
     }
   )
 })
+
+describe('AiHubMix vendor restriction', () => {
+  const aihubmix = () => bundledProviders.providers.find((p) => p.id === 'aihubmix')! as unknown as Provider
+
+  // The declaration gates native search to anthropic/gemini/openai vendors; a passthrough model
+  // (deepseek, grok, qwen) resolves to `aihubmix.chat`, which owns no search factory, so a
+  // user-enabled capability must not flip its route to 'server' and silently drop client search.
+  it('keeps a user-enabled web-search capability off the vendor-gated passthrough line', () => {
+    const deepseek = model('deepseek-chat', {
+      capabilities: [MODEL_CAPABILITY.WEB_SEARCH, MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+
+    expect(isBuiltinWebSearchAvailable(deepseek, aihubmix())).toBe(false)
+    expect(
+      resolveWebToolRoutes(deepseek, aihubmix(), {
+        webSearchEnabled: true,
+        clientSearchAvailable: true,
+        clientFetchAvailable: false,
+        modelToolsPreferred: true
+      })
+    ).toMatchObject({ webSearch: 'client' })
+  })
+
+  it('still honors the capability for a declared vendor model', () => {
+    const gemini = model('gemini-3-pro-preview', { capabilities: [MODEL_CAPABILITY.WEB_SEARCH] })
+
+    expect(isBuiltinWebSearchAvailable(gemini, aihubmix())).toBe(true)
+  })
+})

@@ -297,9 +297,15 @@ function isBuiltinServerToolAvailable(
   if (toolId === SERVER_TOOL.WEB_SEARCH && model.capabilities?.includes(MODEL_CAPABILITY.WEB_SEARCH)) {
     if (isNonChatModel(model)) return false
     const endpoint = resolveServerToolEndpoint(model, provider, endpointType)
+    // The override waives only the model-eligibility match; a declaration's vendor restriction is a
+    // delivery boundary (e.g. AiHubMix's passthrough line resolves to `aihubmix.chat`, which owns no
+    // search factory), so a vendor-gated declaration still withholds the 'server' route.
     return (
       provider.serverTools?.some(
-        (tool) => tool.id === SERVER_TOOL.WEB_SEARCH && serverToolServesEndpoint(tool, endpoint)
+        (tool) =>
+          tool.id === SERVER_TOOL.WEB_SEARCH &&
+          serverToolServesModelVendor(tool, model) &&
+          serverToolServesEndpoint(tool, endpoint)
       ) ?? false
     )
   }
