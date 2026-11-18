@@ -223,9 +223,9 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
 
       const aiTool = tool({
         description: toolDef.function.description || '',
-        inputSchema: jsonSchema(schema),
-        ...(typeof toolDef.function.strict === 'boolean' ? { strict: toolDef.function.strict } : {})
+        inputSchema: jsonSchema(schema)
       })
+      if (typeof toolDef.function.strict === 'boolean') aiTool.strict = toolDef.function.strict
 
       aiSdkTools[toolDef.function.name] = aiTool
     }
