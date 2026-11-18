@@ -1,6 +1,7 @@
 import { Bot, History } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import type { TopicDisplayMode } from '@shared/data/preference/preferenceTypes'
 
 import { ConversationListOptionsMenu } from './ConversationListOptionsMenu'
@@ -31,9 +32,14 @@ export function TopicListOptionsMenu({
   sectionIds
 }: TopicListOptionsMenuProps) {
   const { t } = useTranslation()
+  const [sort, setSort] = usePreference('chat.topics.sort')
 
   return (
     <ConversationListOptionsMenu
+      sort={sort}
+      onSortChange={(next) => {
+        void setSort(next)
+      }}
       title={t('chat.topics.display.title')}
       mode={mode}
       onChange={onChange}
