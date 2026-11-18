@@ -135,7 +135,13 @@ function authorizedRoots(ctx: MiniAppAuthoringContext): string[] {
     } catch {
       continue
     }
-    roots.push(fs.realpathSync.native(p, { throwIfNoEntry: false }) ?? p)
+    try {
+      roots.push(fs.realpathSync(p))
+    } catch {
+      // A nonexistent root authorizes nothing, but keep its literal path so a
+      // not-yet-created workspace still matches the session's own artifacts.
+      roots.push(p)
+    }
   }
   return roots
 }

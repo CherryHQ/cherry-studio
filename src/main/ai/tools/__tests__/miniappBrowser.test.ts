@@ -13,10 +13,10 @@ const { previewServiceStub, runtimeServiceStub } = vi.hoisted(() => ({
   runtimeServiceStub: { guestsOf: vi.fn(() => [] as number[]) }
 }))
 
-import { mockApplicationFactory } from '@test-mocks/main/application'
+import { mockMiniAppApplication } from '@main/features/miniApp/__tests__/applicationMock'
 
 vi.mock('@application', () =>
-  mockApplicationFactory({ MiniAppPreviewService: previewServiceStub, MiniAppRuntimeService: runtimeServiceStub })
+  mockMiniAppApplication({ MiniAppPreviewService: previewServiceStub, MiniAppRuntimeService: runtimeServiceStub })
 )
 
 const { runMiniappBrowser } = await import('../miniappBrowser')

@@ -18,9 +18,9 @@ const { previewServiceStub } = vi.hoisted(() => ({
   }
 }))
 
-import { mockApplicationFactory } from '@test-mocks/main/application'
+import { mockMiniAppApplication } from '@main/features/miniApp/__tests__/applicationMock'
 
-vi.mock('@application', () => mockApplicationFactory({ MiniAppPreviewService: previewServiceStub }))
+vi.mock('@application', () => mockMiniAppApplication({ MiniAppPreviewService: previewServiceStub }))
 
 const {
   closeMiniAppPreviews,

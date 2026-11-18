@@ -52,8 +52,7 @@ const { BaseService } = await import('@main/core/lifecycle')
 const { application } = await import('@application')
 const { sha256File } = await import('../../install/archive')
 const { ArtifactTokenError, expectArtifactToken, issueArtifactToken } = await import('../artifactTokens')
-const { MiniAppPreviewError, MiniAppPreviewService, previewRuntimeId, sweepAbandonedPreviews } =
-  await import('../MiniAppPreviewService')
+const { MiniAppPreviewService, previewRuntimeId, sweepAbandonedPreviews } = await import('../MiniAppPreviewService')
 
 const MANIFEST = {
   id: 'com.example.previewme',
