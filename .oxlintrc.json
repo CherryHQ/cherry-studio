@@ -120,6 +120,7 @@
     "anti-slop/no-reflect-get": "error",
     "anti-slop/no-object-parameters": "error",
     "anti-slop/no-array-filter-map": "error",
+    "anti-slop/no-conditional-empty-object-spread": "error",
     "oxc/no-accumulating-spread": "error",
     "anti-slop/no-reduce-accumulator-copy": "error",
     "anti-slop/no-unknown-type-aliases": "error",
