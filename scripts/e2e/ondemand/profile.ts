@@ -20,16 +20,17 @@ export async function prepareAuthenticatedProfile(
   embedding: EmbeddingProviderConfig
 ): Promise<void> {
   const providerId = `qa-chat-${randomUUID()}`
+  const endpointConfigs: NonNullable<CreateProviderDto['endpointConfigs']> = {
+    'openai-chat-completions': { baseUrl: config.baseUrl }
+  }
+  if (config.anthropicBaseUrl) endpointConfigs['anthropic-messages'] = { baseUrl: config.anthropicBaseUrl }
   const providers: Array<{ provider: CreateProviderDto; model: CreateModelDto }> = [
     {
       provider: {
         providerId,
         name: 'Cherry QA Provider',
         defaultChatEndpoint: 'openai-chat-completions',
-        endpointConfigs: {
-          'openai-chat-completions': { baseUrl: config.baseUrl },
-          ...(config.anthropicBaseUrl ? { 'anthropic-messages': { baseUrl: config.anthropicBaseUrl } } : {})
-        },
+        endpointConfigs,
         apiKeys: [{ id: randomUUID(), key: config.apiKey, isEnabled: true }]
       },
       model: { providerId, modelId: config.model, endpointTypes: ['openai-chat-completions'] }

@@ -198,19 +198,19 @@ function getLaunchSpec(
       '--disable-backgrounding-occluded-windows'
     ]
     if (locale) args.push(`--lang=${locale}`)
-    return {
+    const launchEnvironment = { ...environment }
+    if (executablePath) launchEnvironment.ELECTRON_EXEC_PATH = executablePath
+    launchEnvironment.CS_DEV_PROFILE_ROOT = join(paths.profiles, profile)
+    launchEnvironment.CS_DEV_USER_DATA_SUFFIX = `Regression-${runKey}-${profile}`
+    const spec: ReturnType<typeof getLaunchSpec> = {
       command: process.execPath,
       args,
       cwd: targetRoot,
-      environment: {
-        ...environment,
-        ...(executablePath ? { ELECTRON_EXEC_PATH: executablePath } : {}),
-        CS_DEV_PROFILE_ROOT: join(paths.profiles, profile),
-        CS_DEV_USER_DATA_SUFFIX: `Regression-${runKey}-${profile}`
-      },
-      logPath,
-      ...(executablePath ? { executablePath } : {})
+      environment: launchEnvironment,
+      logPath
     }
+    if (executablePath) spec.executablePath = executablePath
+    return spec
   }
 
   const installation = readJson<InstallationRecord>(paths.installation)
@@ -292,9 +292,9 @@ export async function launchApp(
     cdpPort: CDP_PORT,
     logPath: spec.logPath,
     startedAt: new Date().toISOString(),
-    restartCount: options.restartCount ?? 0,
-    ...(options.locale ? { locale: options.locale } : {})
+    restartCount: options.restartCount ?? 0
   }
+  if (options.locale) launchRecord.locale = options.locale
   try {
     writeJson(paths.appRecord, launchRecord)
     logLifecycleStage(launchRecord, 'waiting-for-cdp')
