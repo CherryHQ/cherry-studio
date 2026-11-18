@@ -464,7 +464,7 @@
   "agent.speed.service_tier.fast": "快速",
   "agent.speed.service_tier.fast.description": "更高的队列优先级带来更快的响应，通常成本也更高。",
   "agent.speed.service_tier.flex": "弹性",
-  "agent.speed.service_tier.flex.description": "在容量紧张时以较慢的响应换取更低的成本。",
+  "agent.speed.service_tier.flex.description": "在可用时使用提供商的弹性容量；计费与排队行为以提供商为准。",
   "agent.speed.service_tier.label": "服务档位",
   "agent.speed.service_tier.provider_value": "提供方取值：{{value}}",
   "agent.speed.service_tier.standard": "标准",

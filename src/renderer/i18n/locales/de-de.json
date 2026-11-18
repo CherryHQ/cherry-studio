@@ -464,7 +464,7 @@
   "agent.speed.service_tier.fast": "Schnell",
   "agent.speed.service_tier.fast.description": "Höhere Warteschlangenpriorität für schnellere Antworten, meist zu höheren Kosten.",
   "agent.speed.service_tier.flex": "Flexibel",
-  "agent.speed.service_tier.flex.description": "Geringere Kosten im Austausch für langsamere Antworten bei knapper Kapazität.",
+  "agent.speed.service_tier.flex.description": "Nutzt die flexible Kapazität des Anbieters, sofern verfügbar; Preise und Warteschlangenverhalten hängen vom Anbieter ab.",
   "agent.speed.service_tier.label": "Dienststufe",
   "agent.speed.service_tier.provider_value": "Anbieterwert: {{value}}",
   "agent.speed.service_tier.standard": "Standard",

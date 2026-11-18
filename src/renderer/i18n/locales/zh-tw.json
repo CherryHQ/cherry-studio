@@ -464,7 +464,7 @@
   "agent.speed.service_tier.fast": "快速",
   "agent.speed.service_tier.fast.description": "較高的佇列優先順序可加快回應速度，通常費用也較高。",
   "agent.speed.service_tier.flex": "彈性",
-  "agent.speed.service_tier.flex.description": "在容量吃緊時以較慢的回應換取較低的費用。",
+  "agent.speed.service_tier.flex.description": "在可用時使用供應商的彈性容量；計費與排隊行為以供應商為準。",
   "agent.speed.service_tier.label": "服務檔位",
   "agent.speed.service_tier.provider_value": "提供方數值：{{value}}",
   "agent.speed.service_tier.standard": "標準",

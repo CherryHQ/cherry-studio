@@ -464,7 +464,7 @@
   "agent.speed.service_tier.fast": "Быстрый",
   "agent.speed.service_tier.fast.description": "Более высокий приоритет в очереди для более быстрых ответов, обычно по более высокой цене.",
   "agent.speed.service_tier.flex": "Гибкий",
-  "agent.speed.service_tier.flex.description": "Меньшая стоимость в обмен на более медленные ответы при ограниченной ёмкости.",
+  "agent.speed.service_tier.flex.description": "Использует гибкие мощности провайдера, когда они доступны; цены и поведение очереди зависят от провайдера.",
   "agent.speed.service_tier.label": "Уровень сервиса",
   "agent.speed.service_tier.provider_value": "Значение провайдера: {{value}}",
   "agent.speed.service_tier.standard": "Стандартный",

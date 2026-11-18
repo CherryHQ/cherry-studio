@@ -478,7 +478,7 @@
   "agent.speed.service_tier.fast": "Szybki",
   "agent.speed.service_tier.fast.description": "Wyższy priorytet kolejki dla szybszych odpowiedzi, zwykle przy wyższym koszcie.",
   "agent.speed.service_tier.flex": "Flex",
-  "agent.speed.service_tier.flex.description": "Niższy koszt w zamian za wolniejsze odpowiedzi przy ograniczonej pojemności.",
+  "agent.speed.service_tier.flex.description": "Korzysta z elastycznej pojemności dostawcy, gdy jest dostępna; ceny i zachowanie kolejkowania zależą od dostawcy.",
   "agent.speed.service_tier.label": "Poziom usługi",
   "agent.speed.service_tier.provider_value": "Wartość dostawcy: {{value}}",
   "agent.speed.service_tier.standard": "Standardowy",

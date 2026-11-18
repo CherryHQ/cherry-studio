@@ -464,7 +464,7 @@
   "agent.speed.service_tier.fast": "Hızlı",
   "agent.speed.service_tier.fast.description": "Daha hızlı yanıtlar için daha yüksek kuyruk önceliği, genellikle daha yüksek maliyetle.",
   "agent.speed.service_tier.flex": "Esnek",
-  "agent.speed.service_tier.flex.description": "Kapasite sıkışık olduğunda daha yavaş yanıtlar karşılığında daha düşük maliyet.",
+  "agent.speed.service_tier.flex.description": "Kullanılabilir olduğunda sağlayıcının esnek kapasitesini kullanır; fiyatlandırma ve kuyruk davranışı sağlayıcıya bağlıdır.",
   "agent.speed.service_tier.label": "Hizmet katmanı",
   "agent.speed.service_tier.provider_value": "Sağlayıcı değeri: {{value}}",
   "agent.speed.service_tier.standard": "Standart",

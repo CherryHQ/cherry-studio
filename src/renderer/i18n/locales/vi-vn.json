@@ -464,7 +464,7 @@
   "agent.speed.service_tier.fast": "Nhanh",
   "agent.speed.service_tier.fast.description": "Ưu tiên hàng đợi cao hơn để phản hồi nhanh hơn, thường với chi phí cao hơn.",
   "agent.speed.service_tier.flex": "Linh hoạt",
-  "agent.speed.service_tier.flex.description": "Chi phí thấp hơn đổi lấy phản hồi chậm hơn khi dung lượng hạn chế.",
+  "agent.speed.service_tier.flex.description": "Sử dụng công suất linh hoạt của nhà cung cấp khi có sẵn; giá và hành vi xếp hàng tùy thuộc vào nhà cung cấp.",
   "agent.speed.service_tier.label": "Cấp dịch vụ",
   "agent.speed.service_tier.provider_value": "Giá trị của nhà cung cấp: {{value}}",
   "agent.speed.service_tier.standard": "Tiêu chuẩn",

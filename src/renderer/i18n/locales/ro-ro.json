@@ -464,7 +464,7 @@
   "agent.speed.service_tier.fast": "Rapid",
   "agent.speed.service_tier.fast.description": "Prioritate mai mare în coadă pentru răspunsuri mai rapide, de obicei la un cost mai mare.",
   "agent.speed.service_tier.flex": "Flexibil",
-  "agent.speed.service_tier.flex.description": "Cost mai mic în schimbul unor răspunsuri mai lente când capacitatea este limitată.",
+  "agent.speed.service_tier.flex.description": "Folosește capacitatea flexibilă a furnizorului atunci când este disponibilă; prețurile și comportamentul de așteptare depind de furnizor.",
   "agent.speed.service_tier.label": "Nivel de serviciu",
   "agent.speed.service_tier.provider_value": "Valoarea furnizorului: {{value}}",
   "agent.speed.service_tier.standard": "Standard",

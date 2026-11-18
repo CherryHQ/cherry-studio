@@ -464,7 +464,7 @@
   "agent.speed.service_tier.fast": "Fast",
   "agent.speed.service_tier.fast.description": "Higher queue priority for faster responses, usually at a higher cost.",
   "agent.speed.service_tier.flex": "Flex",
-  "agent.speed.service_tier.flex.description": "Lower cost in exchange for slower responses when capacity is tight.",
+  "agent.speed.service_tier.flex.description": "Uses the provider's flexible capacity when available; pricing and queuing behavior depend on the provider.",
   "agent.speed.service_tier.label": "Service tier",
   "agent.speed.service_tier.provider_value": "Provider value: {{value}}",
   "agent.speed.service_tier.standard": "Standard",

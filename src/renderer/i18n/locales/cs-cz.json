@@ -464,7 +464,7 @@
   "agent.speed.service_tier.fast": "Rychle",
   "agent.speed.service_tier.fast.description": "Vyšší priorita fronty pro rychlejší odpovědi, obvykle za vyšší cenu.",
   "agent.speed.service_tier.flex": "Flexibilní",
-  "agent.speed.service_tier.flex.description": "Nižší cena výměnou za pomalejší odpovědi při napjaté kapacitě.",
+  "agent.speed.service_tier.flex.description": "Využívá flexibilní kapacitu poskytovatele, pokud je k dispozici; ceny a chování fronty závisí na poskytovateli.",
   "agent.speed.service_tier.label": "Úroveň služby",
   "agent.speed.service_tier.provider_value": "Hodnota poskytovatele: {{value}}",
   "agent.speed.service_tier.standard": "Standardní",

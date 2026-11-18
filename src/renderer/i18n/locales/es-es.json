@@ -464,7 +464,7 @@
   "agent.speed.service_tier.fast": "Rápido",
   "agent.speed.service_tier.fast.description": "Mayor prioridad en la cola para respuestas más rápidas, normalmente con un coste mayor.",
   "agent.speed.service_tier.flex": "Flexible",
-  "agent.speed.service_tier.flex.description": "Menor coste a cambio de respuestas más lentas cuando la capacidad es limitada.",
+  "agent.speed.service_tier.flex.description": "Usa la capacidad flexible del proveedor cuando está disponible; los precios y el comportamiento de las colas dependen del proveedor.",
   "agent.speed.service_tier.label": "Nivel de servicio",
   "agent.speed.service_tier.provider_value": "Valor del proveedor: {{value}}",
   "agent.speed.service_tier.standard": "Estándar",

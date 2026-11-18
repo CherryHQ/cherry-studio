@@ -464,7 +464,7 @@
   "agent.speed.service_tier.fast": "เร็ว",
   "agent.speed.service_tier.fast.description": "ลำดับความสำคัญในคิวสูงขึ้นเพื่อการตอบสนองที่เร็วขึ้น โดยปกติจะมีค่าใช้จ่ายสูงกว่า",
   "agent.speed.service_tier.flex": "ยืดหยุ่น",
-  "agent.speed.service_tier.flex.description": "ค่าใช้จ่ายต่ำลงโดยแลกกับการตอบสนองที่ช้าลงเมื่อความจุตึงตัว",
+  "agent.speed.service_tier.flex.description": "ใช้ความจุแบบยืดหยุ่นของผู้ให้บริการเมื่อมี ราคาและพฤติกรรมการจัดคิวขึ้นอยู่กับผู้ให้บริการ",
   "agent.speed.service_tier.label": "ระดับบริการ",
   "agent.speed.service_tier.provider_value": "ค่าของผู้ให้บริการ: {{value}}",
   "agent.speed.service_tier.standard": "มาตรฐาน",

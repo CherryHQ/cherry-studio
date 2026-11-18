@@ -464,7 +464,7 @@
   "agent.speed.service_tier.fast": "高速",
   "agent.speed.service_tier.fast.description": "キューの優先度が高くなり応答が速くなりますが、通常コストも高くなります。",
   "agent.speed.service_tier.flex": "フレックス",
-  "agent.speed.service_tier.flex.description": "容量が逼迫している場合、応答が遅くなる代わりにコストが低くなります。",
+  "agent.speed.service_tier.flex.description": "利用可能な場合はプロバイダーのフレキシブル容量を使用します。料金とキュー動作はプロバイダーによって異なります。",
   "agent.speed.service_tier.label": "サービス階層",
   "agent.speed.service_tier.provider_value": "プロバイダー値: {{value}}",
   "agent.speed.service_tier.standard": "標準",

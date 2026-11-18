@@ -464,7 +464,7 @@
   "agent.speed.service_tier.fast": "Γρήγορο",
   "agent.speed.service_tier.fast.description": "Υψηλότερη προτεραιότητα ουράς για ταχύτερες απαντήσεις, συνήθως με υψηλότερο κόστος.",
   "agent.speed.service_tier.flex": "Ευέλικτο",
-  "agent.speed.service_tier.flex.description": "Χαμηλότερο κόστος με αντάλλαγμα βραδύτερες απαντήσεις όταν η χωρητικότητα είναι περιορισμένη.",
+  "agent.speed.service_tier.flex.description": "Χρησιμοποιεί ευέλικτη χωρητικότητα του παρόχου όταν είναι διαθέσιμη· η τιμολόγηση και η συμπεριφορά ουράς εξαρτώνται από τον πάροχο.",
   "agent.speed.service_tier.label": "Επίπεδο υπηρεσίας",
   "agent.speed.service_tier.provider_value": "Τιμή παρόχου: {{value}}",
   "agent.speed.service_tier.standard": "Τυπικό",
