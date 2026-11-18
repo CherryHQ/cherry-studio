@@ -7,6 +7,7 @@ import { PptdLineElement } from './PptdLineElement'
 import type { PptdProjectFileReader, PptdProjectPage } from './pptdProject'
 import { PptdShapeElement } from './PptdShapeElement'
 import { pptdFillToCss, type PptdStyleContext } from './pptdStyle'
+import { PptdTableElement } from './PptdTableElement'
 import { PptdTextElement } from './PptdTextElement'
 
 function elementTransform(element: PptdPageElement): string | undefined {
@@ -42,6 +43,9 @@ function PptdElementBody({
   }
   if (element.elementType === 'icon') {
     return <PptdIconElement element={element} context={context} />
+  }
+  if (element.elementType === 'table') {
+    return <PptdTableElement element={element} context={context} />
   }
   if (element.elementType === 'invalid') {
     return (

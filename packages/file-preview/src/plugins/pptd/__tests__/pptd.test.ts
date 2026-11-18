@@ -246,3 +246,71 @@ describe('icon name parsing', () => {
     expect(parsePptdIconName('house')).toBeNull()
   })
 })
+
+describe('table placement and styles', () => {
+  it('skips positions covered by merged regions', async () => {
+    const { placePptdTableCells } = await import('../pptdTable')
+    const rows = [
+      [{ text: 'Merged', rowSpan: 2, colSpan: 2 }, { text: 'C1' }],
+      [{ text: 'C2' }],
+      [{ text: 'A3' }, { text: 'B3' }, { text: 'C3' }]
+    ]
+    const placements = placePptdTableCells(rows)
+    expect(placements.map((p) => [p.row, p.col])).toEqual([
+      [0, 0],
+      [0, 2],
+      [1, 2],
+      [2, 0],
+      [2, 1],
+      [2, 2]
+    ])
+  })
+
+  it('applies the category chain with rowOverColumn and body cycling', async () => {
+    const { resolvePptdCellCategoryStyle } = await import('../pptdTable')
+    const config = {
+      cellStyle: { color: '#111111', bold: false },
+      firstRowStyle: { bold: true, color: '#222222' },
+      firstColumnStyle: { color: '#333333' },
+      bodyStyles: [{ color: '#444444' }, { color: '#555555' }]
+    }
+    // First row + first column: row wins by default
+    expect(resolvePptdCellCategoryStyle(config, 0, 0, 4, 3)).toMatchObject({ color: '#222222', bold: true })
+    // First row + first column, column wins when rowOverColumn is false
+    expect(resolvePptdCellCategoryStyle({ ...config, rowOverColumn: false }, 0, 0, 4, 3)).toMatchObject({
+      color: '#333333',
+      bold: true
+    })
+    // Body rows cycle bodyStyles by data-row index
+    expect(resolvePptdCellCategoryStyle(config, 1, 1, 4, 3)).toMatchObject({ color: '#444444' })
+    expect(resolvePptdCellCategoryStyle(config, 2, 1, 4, 3)).toMatchObject({ color: '#555555' })
+    // Last row has no body style
+    expect(resolvePptdCellCategoryStyle(config, 3, 1, 4, 3)).toMatchObject({ color: '#111111' })
+  })
+
+  it('layers defaults, categories, the textStyle ref and cell inline fields', async () => {
+    const { resolvePptdCellTextStyle } = await import('../pptdTable')
+    const context = { theme: { textStyles: { body: { fontSize: 20, color: '#666666' } } } }
+    const style = resolvePptdCellTextStyle(
+      { text: 'x', textStyle: '$body', color: '#FF0000' },
+      { fontSize: 14, bold: true },
+      context
+    )
+    expect(style).toMatchObject({ fontSize: 20, bold: true, color: '#FF0000', fontFamily: 'MiSans' })
+  })
+
+  it('expands border specs and clears on null', async () => {
+    const { pptdBorderSides } = await import('../pptdTable')
+    const border = { style: 'solid' as const, width: 2, color: '#000000' }
+    expect(pptdBorderSides(undefined)).toBeUndefined()
+    expect(pptdBorderSides(null)).toEqual({ top: null, right: null, bottom: null, left: null })
+    expect(pptdBorderSides(border)).toEqual({ top: border, right: border, bottom: border, left: border })
+    expect(pptdBorderSides([border, null])).toEqual({ top: border, bottom: border, left: null, right: null })
+    expect(pptdBorderSides([border, null, border, null])).toEqual({
+      top: border,
+      right: null,
+      bottom: border,
+      left: null
+    })
+  })
+})

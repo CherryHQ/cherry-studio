@@ -263,10 +263,12 @@ export const pptdTableSchema = z.object({
   ...elementBaseFields,
   elementType: z.literal('table'),
   ...transformFields,
-  style: z.string().optional(),
+  style: z.union([z.string(), pptdTableStyleConfigSchema]).optional(),
   columnWidths: z.array(z.number()).optional(),
   rowHeights: z.array(z.number()).optional(),
-  rows: z.array(z.array(pptdCellSchema)).min(1)
+  rows: z.array(z.array(pptdCellSchema)).min(1),
+  fill: pptdFillSchema.optional(),
+  shadow: pptdShadowSchema.optional()
 })
 
 // Chart is the largest part of the upstream reference. The preview keeps the
