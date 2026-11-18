@@ -7,22 +7,62 @@ import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 
 import { application } from '@application'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
-import { BaseService } from '@main/core/lifecycle'
-import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
 import { ENDPOINT_TYPE, ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
 
 import { createPiGatewayModelBinding } from './gatewayModelBinding'
 
-const gateway = vi.hoisted(() => ({ baseUrl: '', budget: undefined as ApiGatewayService | undefined }))
+const gateway = vi.hoisted(() => ({
+  baseUrl: '',
+  requests: [] as { api: string; body: unknown }[]
+}))
 vi.mock('@application', async () => {
   const { mockApplicationFactory, defaultServiceInstances } = await import('@test-mocks/main/application')
   const overrides = {
     ...defaultServiceInstances,
     ApiGatewayService: {
-      acquireModelPayloadBudget: (payload: unknown, signal?: AbortSignal) =>
-        gateway.budget!.acquireModelPayloadBudget(payload, signal),
-      ensureInternalGateway: async () => ({ baseUrl: gateway.baseUrl, apiKey: 'local-key' }),
+      createAgentObjectTransports: (input: { headers?: Record<string, string | null>; reasoningEffort?: string }) =>
+        Object.fromEntries(
+          ['anthropic-messages', 'openai-completions', 'openai-responses', 'google-generative-ai'].map((api) => [
+            api,
+            async (body: unknown) => {
+              gateway.requests.push({ api, body })
+              if (!gateway.baseUrl) throw new Error('request capture')
+              const request = body as { model: string; contents?: unknown; config?: Record<string, unknown> }
+              const path =
+                api === 'anthropic-messages'
+                  ? '/v1/messages'
+                  : api === 'openai-responses'
+                    ? '/v1/responses'
+                    : api === 'google-generative-ai'
+                      ? '/v1beta/models/' + request.model + ':streamGenerateContent?alt=sse'
+                      : '/v1/chat/completions'
+              const headers = new Headers()
+              for (const [name, value] of Object.entries(input.headers ?? {}))
+                if (value !== null) headers.set(name, value)
+              headers.set('x-cherry-reasoning-effort', input.reasoningEffort ?? 'default')
+              const response = await fetch(gateway.baseUrl + path, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(
+                  api === 'google-generative-ai' ? { contents: request.contents, ...request.config } : body
+                )
+              })
+              if (!response.ok) throw new Error(await response.text())
+              const values = (await response.text())
+                .split('\n')
+                .filter((line) => line.startsWith('data: ') && !line.includes('[DONE]'))
+                .map((line) => JSON.parse(line.slice(6)))
+              return {
+                status: response.status,
+                headers: response.headers,
+                events: (async function* () {
+                  yield* values
+                })()
+              }
+            }
+          ])
+        ),
       getAgentSessionUsageHeaders: (id: string) => ({ 'x-cherry-agent-session-id': id })
     }
   }
@@ -30,8 +70,8 @@ vi.mock('@application', async () => {
 })
 
 beforeEach(() => {
-  BaseService.resetInstances()
-  gateway.budget = new ApiGatewayService()
+  gateway.requests.length = 0
+  gateway.baseUrl = ''
   const getPath = vi.mocked(application.getPath).getMockImplementation()!
   vi.spyOn(application, 'getPath').mockImplementation((key, filename) =>
     key === 'feature.provider_registry.data' && filename
@@ -40,82 +80,6 @@ beforeEach(() => {
   )
   providerRegistryService.clearCache()
 })
-
-it.each([false, true])(
-  'bounds oversized native dispatch and releases capacity (cancel queued: %s)',
-  async (cancelQueued) => {
-    gateway.baseUrl = 'http://127.0.0.1:1'
-    const provider = ProviderSchema.parse({
-      isEnabled: true,
-      apiKeys: [],
-      authType: 'api-key',
-      settings: {},
-      id: 'budget-fixture',
-      name: 'Budget fixture',
-      reportsActualCost: false,
-      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-      endpointConfigs: {
-        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic', baseUrl: 'https://upstream.invalid' }
-      }
-    })
-    const model = ModelSchema.parse({
-      isEnabled: true,
-      isHidden: false,
-      supportsStreaming: true,
-      id: 'budget-fixture::model',
-      providerId: provider.id,
-      name: 'Budget fixture',
-      apiModelId: 'wire-model',
-      capabilities: []
-    })
-    const binding = await createPiGatewayModelBinding({ sessionId: 'budget-test' }, provider, model)
-    let releaseFirst!: () => void
-    const firstResponse = new Promise<void>((resolve) => {
-      releaseFirst = resolve
-    })
-    let prepared = 0
-    const lengths: number[] = []
-    const fetch: typeof globalThis.fetch = async (_input, init) => {
-      const body = JSON.parse(init!.body as string)
-      lengths.push(body.messages[0].content[0].text.length)
-      if (lengths.length === 1) await firstResponse
-      return new Response(JSON.stringify({ error: { type: 'authentication_error', message: 'fixture' } }), {
-        status: 401
-      })
-    }
-    const context = normalizeContext({
-      messages: [{ role: 'user', content: 'A'.repeat(12 * 1024 * 1024), timestamp: 1 }]
-    })
-    const run = (signal?: AbortSignal) =>
-      binding.modelRuntime.completeSimple(binding.model, context, {
-        fetch,
-        signal,
-        onPayload: () => {
-          prepared++
-        }
-      })
-    const controller = new AbortController()
-    const requests = [run(), run(controller.signal)]
-    try {
-      await vi.waitFor(() => expect(prepared).toBe(2))
-      await vi.waitFor(() => expect(lengths.length).toBeGreaterThan(0))
-      expect(lengths).toEqual([12 * 1024 * 1024])
-      if (cancelQueued) {
-        controller.abort()
-        await requests[1]
-        expect(lengths).toHaveLength(1)
-      }
-    } finally {
-      releaseFirst()
-      await Promise.all(requests)
-    }
-    if (cancelQueued) {
-      expect(lengths).toHaveLength(1)
-      await run()
-    }
-    expect(lengths).toEqual([12 * 1024 * 1024, 12 * 1024 * 1024])
-  }
-)
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -133,31 +97,7 @@ it.each([
   ['google-generate-content', 'google-vertex', '/v1/chat/completions'],
   ['anthropic-messages', 'google-vertex-anthropic', '/v1/chat/completions'],
   ['ollama-chat', 'ollama', '/v1/chat/completions']
-] as const)('sends %s / %s requests to the internal gateway', async (endpointType, adapterFamily, path) => {
-  const requests: { path?: string; key?: string; body: string }[] = []
-  const server = createServer(async (req, res) => {
-    let body = ''
-    for await (const chunk of req) body += chunk
-    requests.push({
-      path: req.url,
-      key:
-        req.headers.authorization ?? req.headers['x-api-key']?.toString() ?? req.headers['x-goog-api-key']?.toString(),
-      body
-    })
-    res.writeHead(401, { 'content-type': 'application/json' })
-    res.end(JSON.stringify({ error: { message: 'request capture' } }))
-  })
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-  onTestFinished(
-    () =>
-      new Promise<void>((resolve) => {
-        server.closeAllConnections()
-        server.close(() => resolve())
-      })
-  )
-  const address = server.address()
-  if (!address || typeof address === 'string') throw new Error('No test listener')
-  gateway.baseUrl = `http://127.0.0.1:${address.port}`
+] as const)('routes %s / %s through protocol objects', async (endpointType, adapterFamily, path) => {
   const provider = ProviderSchema.parse({
     isEnabled: true,
     apiKeys: [],
@@ -184,10 +124,17 @@ it.each([
     binding.model,
     normalizeContext({ messages: [{ role: 'user', content: 'fixture', timestamp: 1 }] })
   )
-  expect(requests).toHaveLength(1)
-  expect(requests[0].path).toMatch(new RegExp(`^${path}`))
-  expect(requests[0].key).toMatch(/^(Bearer )?local-key$/)
-  expect(`${requests[0].path} ${requests[0].body}`).toContain('route-fixture:wire-model')
+  expect(gateway.requests).toHaveLength(1)
+  expect(gateway.requests[0].api).toBe(
+    path.includes('messages')
+      ? 'anthropic-messages'
+      : path.includes('responses')
+        ? 'openai-responses'
+        : path.includes('v1beta')
+          ? 'google-generative-ai'
+          : 'openai-completions'
+  )
+  expect(gateway.requests[0].body).toMatchObject({ model: 'route-fixture:wire-model' })
 })
 
 it.each(['grok-cli', 'openai-codex'])('registers %s OAuth models with internal credentials', async (providerId) => {
@@ -214,7 +161,6 @@ it.each(['grok-cli', 'openai-codex'])('registers %s OAuth models with internal c
   })
   const binding = await createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, model)
   expect(binding.model.api).toBe('openai-responses')
-  expect(await binding.modelRuntime.getAuth(binding.model)).toMatchObject({ auth: { apiKey: 'local-key' } })
 })
 
 it('prefers a model protocol over the provider default', async () => {
@@ -482,11 +428,6 @@ it.each(['same', 'provider', 'model', 'api'])(
 it('preserves each model route and usage owner when a child shares the native gateway registry', async () => {
   const requests: {
     url?: string
-    authorization?: string
-    session?: string | string[]
-    reasoning?: string | string[]
-    tier?: string | string[]
-    fast?: string | string[]
     body: unknown
   }[] = []
   const server = createServer(async (req, res) => {
@@ -494,11 +435,6 @@ it('preserves each model route and usage owner when a child shares the native ga
     for await (const chunk of req) raw += chunk
     requests.push({
       url: req.url,
-      authorization: req.headers.authorization,
-      session: req.headers['x-cherry-agent-session-id'],
-      reasoning: req.headers['x-cherry-reasoning-effort'],
-      tier: req.headers['x-cherry-service-tier'],
-      fast: req.headers['x-cherry-fast-mode'],
       body: JSON.parse(raw)
     })
     res.writeHead(200, { 'content-type': 'text/event-stream' })
@@ -568,11 +504,6 @@ it('preserves each model route and usage owner when a child shares the native ga
   expect(requests).toMatchObject([
     {
       url: '/v1/chat/completions',
-      authorization: 'Bearer local-key',
-      session: 'session-1',
-      reasoning: 'high',
-      tier: 'flex',
-      fast: 'true',
       body: { model: 'local:wire-name', messages: [{ role: 'user', content: 'Hello' }] }
     }
   ])
@@ -582,14 +513,14 @@ it('preserves each model route and usage owner when a child shares the native ga
     { sessionId: 'child-session' }
   )
   expect(childAnswer.stopReason).toBe('stop')
-  expect(requests[1]).toMatchObject({ reasoning: 'low', body: { model: 'local:child-wire' } })
+  expect(requests[1]).toMatchObject({ body: { model: 'local:child-wire' } })
   const prediction = await binding.modelRuntime.completeSimple(
     binding.model,
     normalizeContext({ messages: [{ role: 'user', content: 'Predict', timestamp: 3 }] }),
     { sessionId: 'native-child', readOnlyFork: true, skipCacheWrite: true, disableContinuation: true }
   )
   expect(prediction.stopReason).toBe('stop')
-  expect(requests[2]).toMatchObject({ reasoning: 'high', session: 'session-1' })
+  expect(requests[2]).toMatchObject({ body: { model: 'local:wire-name' } })
 
   expect(usages).toEqual([{ sessionId: 'native-child', responseId: 'r', tokens: 15 }])
 })

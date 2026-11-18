@@ -423,3 +423,13 @@ describe('Durable observation deltas', () => {
     expect(batches.filter((batch) => batch.events.some((event) => event.type === 'snapshot'))).toHaveLength(1)
   })
 })
+
+it('does not project imported history twice when a continuation is appended', () => {
+  const imported = { ...entry(1, 'Imported answer'), kind: 'cherry.imported-history' }
+  const { projection, update } = setup(view([imported]))
+  expect(projection.feed.snapshot.messages).toEqual([])
+  update(view([imported, entry(2, 'New answer')]))
+  expect(projection.feed.snapshot.messages).toHaveLength(1)
+  expect(JSON.stringify(projection.feed.snapshot.messages)).toContain('New answer')
+  expect(JSON.stringify(projection.feed.snapshot.messages)).not.toContain('Imported answer')
+})

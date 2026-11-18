@@ -177,7 +177,7 @@ export class HistoryFold {
     if (entry.id <= (this.ends.at(-1)?.entry ?? -1)) return
     if (!this.newestTasks.has(entry.conversationId)) this.newestTasks.set(entry.conversationId, undefined)
     const id = runtimeId<'item'>(String(entry.id))
-    const model = entry.model ?? []
+    const model = entry.kind === 'cherry.reference-context' ? [] : (entry.model ?? [])
     const text = model
       .flatMap((message) =>
         typeof message.content === 'string'

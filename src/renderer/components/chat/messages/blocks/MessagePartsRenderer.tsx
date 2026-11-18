@@ -1,3 +1,4 @@
+import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 /**
  * MessagePartsRenderer — message parts renderer.
  *
@@ -13,8 +14,6 @@
  * - Consecutive tool-* / dynamic-tool parts → nested ToolBlockGroup row
  * - data-video parts with same filePath → video block row
  */
-
-import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 import { Check, ChevronDown } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useCallback, useMemo } from 'react'
@@ -82,6 +81,7 @@ import CompactBlock from './CompactBlock'
 import CompactionAnchorBlock from './CompactionAnchorBlock'
 import ConversationResetBlock from './ConversationResetBlock'
 import ErrorBlock from './ErrorBlock'
+import { ImportedStatusBlock } from './ImportedStatusBlock'
 import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
 import MessageCompactionStatus from './MessageCompactionStatus'
 import MessageImageBlock, { type MessageImageSource } from './MessageImageBlock'
@@ -730,6 +730,8 @@ function renderPart(
       : undefined
 
   switch (partType) {
+    case 'data-imported-status':
+      return <ImportedStatusBlock key={partId} status={part.data.status} />
     case 'reasoning': {
       const reasoningPart = part
       const isReasoningStreaming = !options?.settleStreamingReasoning && reasoningPart.state === 'streaming'
