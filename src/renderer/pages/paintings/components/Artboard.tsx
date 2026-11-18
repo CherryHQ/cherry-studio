@@ -84,8 +84,10 @@ const ArtboardPromptBar: FC<{
     ? (models.find((model) => model.providerId === outputModel.providerId && model.apiModelId === outputModel.model)
         ?.name ?? outputModel.model)
     : undefined
-  const metadataLabel = outputSize
-    ? `${modelName ? `${modelName} · ` : ''}${outputSize.width}×${outputSize.height}`
+  const returnedSize = outputSize ? `${outputSize.width}×${outputSize.height}` : undefined
+  const showsRequested = returnedSize !== undefined && sizeLabel !== undefined && sizeLabel !== returnedSize
+  const metadataLabel = returnedSize
+    ? `${modelName ? `${modelName} · ` : ''}${showsRequested ? `${sizeLabel} → ` : ''}${returnedSize}`
     : sizeLabel
   const [isPromptPopoverOpen, setPromptPopoverOpen] = useState(false)
   const promptPopoverCloseTimerRef = useRef<number | null>(null)

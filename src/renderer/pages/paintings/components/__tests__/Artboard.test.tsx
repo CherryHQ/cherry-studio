@@ -371,7 +371,7 @@ describe('Artboard', () => {
   })
 
   describe('prompt bar', () => {
-    it('shows the recorded model and returned pixels instead of the requested size', () => {
+    it('shows the recorded model with the requested size alongside returned pixels', () => {
       mockUsePaintingSizeInfo.mockReturnValue({ ratio: 1, sizeLabel: '1024×1024' })
       render(
         <Artboard
@@ -383,8 +383,39 @@ describe('Artboard', () => {
 
       loadDisplayedImage(4096, 2048)
 
+      expect(screen.getByText('Flux Schnell · 1024×1024 → 4096×2048')).toBeVisible()
+    })
+
+    it('shows matching requested and returned sizes only once without an arrow', () => {
+      mockUsePaintingSizeInfo.mockReturnValue({ ratio: 1, sizeLabel: '4096×2048' })
+      render(
+        <Artboard
+          painting={makePainting({ prompt: 'a landscape' })}
+          isLoading={false}
+          outputModel={{ providerId: 'silicon', model: 'flux-schnell' }}
+        />
+      )
+
+      loadDisplayedImage(4096, 2048)
+
       expect(screen.getByText('Flux Schnell · 4096×2048')).toBeVisible()
-      expect(screen.queryByText('1024×1024')).not.toBeInTheDocument()
+      expect(screen.queryByText(/→/)).toBeNull()
+    })
+
+    it('shows the recorded model and returned pixels without an arrow when the requested size is unavailable', () => {
+      mockUsePaintingSizeInfo.mockReturnValue({ ratio: null, sizeLabel: undefined })
+      render(
+        <Artboard
+          painting={makePainting({ prompt: 'a landscape' })}
+          isLoading={false}
+          outputModel={{ providerId: 'silicon', model: 'flux-schnell' }}
+        />
+      )
+
+      loadDisplayedImage(4096, 2048)
+
+      expect(screen.getByText('Flux Schnell · 4096×2048')).toBeVisible()
+      expect(screen.queryByText(/→/)).toBeNull()
     })
 
     it('shows only returned pixels when there is no recorded output model', () => {
