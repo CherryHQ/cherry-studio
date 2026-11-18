@@ -171,6 +171,23 @@ describe('renameKnowledgeFileItem', () => {
     expect(renameMaterialMock).not.toHaveBeenCalled()
   })
 
+  // Case-sensitive storage only: on macOS/Windows the orphan IS the source file (same inode),
+  // which is the allowed case-only rename covered above.
+  it.skipIf(process.platform !== 'linux')(
+    'rejects a case-only rename onto a disk-only orphan on case-sensitive storage',
+    async () => {
+      // An unregistered leftover from best-effort cleanup: same letters, different case, distinct file.
+      fs.writeFileSync(nodePath.join(rawDir, 'OTHER.txt'), 'orphan')
+
+      await expect(rename(OTHER_ID, 'OTHER.txt')).rejects.toThrow(/already exists/)
+
+      expect(fs.readFileSync(nodePath.join(rawDir, 'OTHER.txt'), 'utf8')).toBe('orphan')
+      expect(files()).toContain('other.txt')
+      expect(knowledgeItemService.getById(OTHER_ID).data).toMatchObject({ relativePath: 'other.txt' })
+      expect(renameMaterialMock).not.toHaveBeenCalled()
+    }
+  )
+
   it('rejects a name already used by another item, case-insensitively', async () => {
     fs.writeFileSync(nodePath.join(rawDir, 'dup.txt'), 'dup')
     await dbh.db.insert(knowledgeItemTable).values({

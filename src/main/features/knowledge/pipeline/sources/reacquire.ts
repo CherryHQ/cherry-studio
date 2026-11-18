@@ -1,3 +1,5 @@
+import { knowledgeItemService } from '@data/services/KnowledgeItemService'
+
 import type { IndexableKnowledgeItem } from '../../items'
 import { copyFileIntoKnowledgeBaseAt, writeFileIntoKnowledgeBaseAt } from '../../pathStorage'
 import { buildNoteSnapshotFile } from './noteSnapshot'
@@ -31,7 +33,13 @@ export function resolveKnowledgeReacquireProducer(item: IndexableKnowledgeItem):
   if (item.type === 'file') {
     const { source, relativePath } = item.data
     return async () => async (signal) => {
-      await copyFileIntoKnowledgeBaseAt(baseId, source, relativePath, { overwrite: true, signal })
+      // Bind the destination when the write runs, not when the producer was built: preparation
+      // happens before reindex takes the base lock, and a rename that wins that lock changes
+      // `relativePath`. After activation the item is `processing`, which rename refuses, so the
+      // re-read path is stable; writing to the captured old path would orphan a raw/ twin.
+      const currentPath =
+        (knowledgeItemService.getById(item.id).data as { relativePath?: string }).relativePath ?? relativePath
+      await copyFileIntoKnowledgeBaseAt(baseId, source, currentPath, { overwrite: true, signal })
     }
   }
 

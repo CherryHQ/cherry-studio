@@ -123,6 +123,11 @@ export async function renameKnowledgeFileItem(
       }
     } catch (error) {
       await restoreFiles()
+      // A same-name collision (registered or a disk-only orphan) reads as a name conflict, not
+      // a filesystem failure — give it the same message as the up-front reserved-path check.
+      if ((error as Error).message.startsWith('Knowledge file already exists:')) {
+        fail('name', 'A file with this name already exists in the knowledge base')
+      }
       const code = (error as NodeJS.ErrnoException).code
       logger.warn('Knowledge file rename failed', { baseId, itemId, code })
       throw DataApiErrorFactory.invalidOperation(
