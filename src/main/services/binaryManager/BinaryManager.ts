@@ -393,7 +393,7 @@ export class BinaryManager extends BaseService {
     const handle = setTimeout(() => {
       if (this.isShuttingDown) return
       this.normalizationPromise = this.normalizeCustomDefinitions().catch((err) => {
-        logger.warn('Failed to normalize binary custom registry', { error: this.errorMessage(err) })
+        logger.warn('Failed to normalize binary custom registry', { error: sanitizedCommandError(err) })
       })
     }, 0)
     this.registerDisposable(() => clearTimeout(handle))
@@ -522,7 +522,7 @@ export class BinaryManager extends BaseService {
       try {
         Object.assign(installed, await this.listMiseInstalls())
       } catch (err) {
-        queryFailureMessage = this.errorMessage(err)
+        queryFailureMessage = sanitizedCommandError(err)
         logger.warn('Failed to query installed versions via mise ls', {
           error: queryFailureMessage
         })
@@ -1030,7 +1030,7 @@ export class BinaryManager extends BaseService {
       try {
         return await findMiseExecutable()
       } catch (err) {
-        logger.warn('mise lookup failed', { error: this.errorMessage(err) })
+        logger.warn('mise lookup failed', { error: sanitizedCommandError(err) })
         return null
       }
     }
@@ -1386,7 +1386,7 @@ export class BinaryManager extends BaseService {
       logger.warn('Managed tool dependency tree is incomplete', {
         tool,
         ...required,
-        error: this.errorMessage(error)
+        error: sanitizedCommandError(error)
       })
       return false
     }
@@ -1479,7 +1479,7 @@ export class BinaryManager extends BaseService {
         await this.runMise(args, { ...opts, env: { ...pythonEnv, ...pipIndexEnv(index) } })
         return
       } catch (error) {
-        failures.push(`${new URL(index).host}: ${this.errorMessage(error)}`)
+        failures.push(`${new URL(index).host}: ${sanitizedCommandError(error)}`)
       }
     }
     throw new Error(`No PyPI index could install the tool\n${failures.join('\n')}`)
@@ -1506,7 +1506,7 @@ export class BinaryManager extends BaseService {
         await installToolDependencies({ installPath, dependencies, env: { ...snapshot.env, ...pipIndexEnv(index) } })
         return
       } catch (error) {
-        failures.push(`${new URL(index).host}: ${this.errorMessage(error)}`)
+        failures.push(`${new URL(index).host}: ${sanitizedCommandError(error)}`)
       }
     }
     throw new Error(`No PyPI index could install the pinned dependencies of ${definition.name}\n${failures.join('\n')}`)
@@ -1532,7 +1532,7 @@ export class BinaryManager extends BaseService {
       await this.runMise(['unuse', '-g', '--no-prune', runtimeName])
     } catch (error) {
       // The tool itself installed; a leftover selection is not worth failing over.
-      logger.warn('Failed to drop the legacy mise Python selection', { error: this.errorMessage(error) })
+      logger.warn('Failed to drop the legacy mise Python selection', { error: sanitizedCommandError(error) })
     }
   }
 
@@ -1571,7 +1571,7 @@ export class BinaryManager extends BaseService {
           if (index === registries.length - 1) throw error
           logger.warn('Claude npm source failed; trying fallback', {
             registry: source,
-            error: this.errorMessage(error)
+            error: sanitizedCommandError(error)
           })
         }
       }
@@ -1684,12 +1684,12 @@ export class BinaryManager extends BaseService {
     } catch (err) {
       // Cache is derived session state. A failed invalidation must not turn an
       // already-committed backend/Preference mutation into a false failure.
-      logger.warn('Failed to clear binary latest-version cache', { error: this.errorMessage(err) })
+      logger.warn('Failed to clear binary latest-version cache', { error: sanitizedCommandError(err) })
     }
     try {
       application.get('CacheService').delete(INSTALLED_SIZES_CACHE_KEY)
     } catch (err) {
-      logger.warn('Failed to clear binary installed-size cache', { error: this.errorMessage(err) })
+      logger.warn('Failed to clear binary installed-size cache', { error: sanitizedCommandError(err) })
     }
   }
 
@@ -1698,7 +1698,7 @@ export class BinaryManager extends BaseService {
       application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
     } catch (err) {
       // The next snapshot is authoritative; notification failure is recoverable.
-      logger.warn('Failed to broadcast binary availability change', { error: this.errorMessage(err) })
+      logger.warn('Failed to broadcast binary availability change', { error: sanitizedCommandError(err) })
     }
   }
 
@@ -1826,7 +1826,7 @@ export class BinaryManager extends BaseService {
       } catch (err) {
         logger.warn('Failed to prune obsolete mise tool versions', {
           name: definition.name,
-          error: this.errorMessage(err)
+          error: sanitizedCommandError(err)
         })
         return
       }
@@ -2247,7 +2247,7 @@ export class BinaryManager extends BaseService {
           logger.warn('Failed to query latest version', {
             name,
             tool,
-            error: this.errorMessage(err)
+            error: sanitizedCommandError(err)
           })
         }
       }
@@ -2383,7 +2383,7 @@ export class BinaryManager extends BaseService {
         snapshot = (await this.getToolSnapshots([name]))[name]
       } catch (err) {
         this.setOperation(name, null)
-        return { status: 'cleanup_blocked', reason: 'query_failed', message: this.errorMessage(err) }
+        return { status: 'cleanup_blocked', reason: 'query_failed', message: sanitizedCommandError(err) }
       }
       const application = snapshot.application
 
@@ -2423,7 +2423,7 @@ export class BinaryManager extends BaseService {
       } catch (err) {
         // Fail-closed: an unreadable dependent scan must never permit removal.
         this.setOperation(name, null)
-        return { status: 'cleanup_blocked', reason: 'query_failed', message: this.errorMessage(err) }
+        return { status: 'cleanup_blocked', reason: 'query_failed', message: sanitizedCommandError(err) }
       }
       if (dependents.length > 0) {
         this.setOperation(name, null)
@@ -2458,7 +2458,7 @@ export class BinaryManager extends BaseService {
           }
         }
       } catch (err) {
-        const message = this.errorMessage(err)
+        const message = sanitizedCommandError(err)
         logger.warn('Failed to clean up mise tool', { name, error: message })
         this.setOperation(name, null)
         return { status: 'cleanup_blocked', reason: 'cleanup_failed', message }
@@ -2482,7 +2482,7 @@ export class BinaryManager extends BaseService {
     try {
       await this.removeCustomDefinition(name)
     } catch (err) {
-      const message = this.errorMessage(err)
+      const message = sanitizedCommandError(err)
       logger.warn('Failed to remove tool definition', { name, error: message })
       this.setOperation(name, { status: 'failed', action: 'remove', error: message })
       throw err
@@ -2520,13 +2520,13 @@ export class BinaryManager extends BaseService {
       try {
         raw = application.get('PreferenceService').get('feature.binary.tools')
       } catch (err) {
-        logger.warn('Failed to read binary custom registry for normalization', { error: this.errorMessage(err) })
+        logger.warn('Failed to read binary custom registry for normalization', { error: sanitizedCommandError(err) })
         return
       }
       // Runtime input is untrusted: a non-array persisted value is unusable and is
       // reset to an empty registry.
       if (!Array.isArray(raw)) {
-        if (raw !== undefined) await this.writeNormalizedDefinitions([], raw)
+        if (raw !== undefined) await this.writeNormalizedDefinitions([])
         return
       }
 
@@ -2569,7 +2569,7 @@ export class BinaryManager extends BaseService {
       }
       // Write only when the normalized value differs from what is stored.
       if (!this.sameRegistry(raw, normalized)) {
-        await this.writeNormalizedDefinitions(normalized, raw)
+        await this.writeNormalizedDefinitions(normalized, raw.length)
       }
     })
   }
@@ -2632,20 +2632,16 @@ export class BinaryManager extends BaseService {
    * logged and swallowed — a normalization pass must never brick startup — and the
    * subsequent cache/broadcast invalidation is already failure-tolerant.
    */
-  private async writeNormalizedDefinitions(value: CustomToolDefinition[], previous: unknown): Promise<void> {
+  private async writeNormalizedDefinitions(value: CustomToolDefinition[], previousCount?: number): Promise<void> {
     try {
       await application.get('PreferenceService').set('feature.binary.tools', value)
     } catch (err) {
       logger.warn('Failed to persist normalized binary custom registry', {
-        error: this.errorMessage(err),
-        previousCount: Array.isArray(previous) ? previous.length : undefined
+        error: sanitizedCommandError(err),
+        previousCount
       })
       return
     }
     this.invalidateDerivedViews()
-  }
-
-  private errorMessage(err: unknown): string {
-    return sanitizedCommandError(err)
   }
 }
