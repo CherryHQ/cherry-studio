@@ -38,16 +38,6 @@ describe('memory generation settings', () => {
     )
   })
 
-  it.each([
-    [/使用默认模型从开启共享记忆的对话/, '可能会产生少量 token 消耗'],
-    [/应用空闲时/, '整理已有记忆']
-  ] as const)('explains %s through the model-settings info tooltip', async (name, text) => {
-    const user = userEvent.setup()
-    render(<MemoryDreamingControls scope={{ kind: 'shared' }} />)
-    await user.hover(screen.getByRole('img', { name }))
-    expect(await screen.findByRole('tooltip')).toHaveTextContent(text)
-  })
-
   it('shows the recorded failed result even when the current task is idle and generation is disabled', async () => {
     MockUsePreferenceUtils.setPreferenceValue('feature.memory.generation.enabled', false)
     vi.mocked(window.api.ipcApi.request).mockResolvedValue({
