@@ -74,12 +74,15 @@ function diskEvidence(profile: NotesProfile, small: boolean) {
       const baselinePath = join(profile.baselinePath, `${name}.md`)
       const baseline = readFileSync(baselinePath)
       const actual = readFileSync(path)
-      const describe = (bytes: Buffer) => ({
-        bytes: bytes.length,
-        characters: bytes.toString('utf8').length,
-        sha256: createHash('sha256').update(bytes).digest('hex'),
-        ...(small ? { hex: bytes.toString('hex') } : {})
-      })
+      const describe = (bytes: Buffer) => {
+        const evidence: { bytes: number; characters: number; sha256: string; hex?: string } = {
+          bytes: bytes.length,
+          characters: bytes.toString('utf8').length,
+          sha256: createHash('sha256').update(bytes).digest('hex')
+        }
+        if (small) evidence.hex = bytes.toString('hex')
+        return evidence
+      }
       return [
         name,
         { path, baselinePath, baseline: describe(baseline), actual: describe(actual), equals: actual.equals(baseline) }

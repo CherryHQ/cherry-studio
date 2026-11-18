@@ -305,11 +305,13 @@ test('provider content rejection diagnoses content while generic HTTP 400 retain
           { timeout: 10_000 }
         )
         .toBe(true)
-      expect.soft(observation.savedError).toMatchObject({
+      const expectedError = {
         providerErrorCategory: expectedCategory,
-        statusCode: 400,
-        ...(marker === contentMarker ? { executionFailure: { failure: { reasonCode: 'content_filter' } } } : {})
-      })
+        statusCode: 400
+      }
+      if (marker === contentMarker)
+        Object.assign(expectedError, { executionFailure: { failure: { reasonCode: 'content_filter' } } })
+      expect.soft(observation.savedError).toMatchObject(expectedError)
       await screenshot(artifact, block)
       await saveEvidence()
     }
