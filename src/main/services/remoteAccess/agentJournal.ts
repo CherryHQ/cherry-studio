@@ -603,34 +603,36 @@ export class SessionJournal {
     const usage = toMessageUsage(stats)
     const status = result.status === 'success' ? 'completed' : result.status === 'paused' ? 'cancelled' : 'failed'
     const message = this.projection.messages[messageId]
-    if (message)
+    if (message) {
+      const updated = { ...message, revision: this.next() }
+      if (usage) updated.usage = usage
+      if (model) updated.model = model
+      updated.status = result.status === 'error' ? 'error' : result.status === 'paused' ? 'paused' : 'success'
+      if (failure) updated.failure = failure
       this.append({
         kind: 'message.updated',
         payload: {
           baseRevision: message.revision,
-          message: {
-            ...message,
-            revision: this.next(),
-            ...(usage ? { usage } : {}),
-            ...(model ? { model } : {}),
-            status: result.status === 'error' ? 'error' : result.status === 'paused' ? 'paused' : 'success',
-            ...(failure ? { failure } : {})
-          }
+          message: updated
         }
       })
+    }
+    const executionUpdate: Extract<AgentEvent, { kind: 'execution.updated' }>['payload'] = {
+      executionId: execution.executionId,
+      status,
+      messageId,
+      durable: Boolean(saved)
+    }
+    if (saved)
+      executionUpdate.history = { messageRevision: saved.messageRevision, historyRevision: saved.historyRevision }
+    if (persistenceFailure) executionUpdate.persistenceFailure = persistenceFailure
+    if (failure) {
+      executionUpdate.failure = failure
+      executionUpdate.error = { reason: 'INTERNAL', message: safeSlice(failure.message, 512) }
+    }
     this.append({
       kind: 'execution.updated',
-      payload: {
-        executionId: execution.executionId,
-        status,
-        messageId,
-        durable: Boolean(saved),
-        ...(saved
-          ? { history: { messageRevision: saved.messageRevision, historyRevision: saved.historyRevision } }
-          : {}),
-        ...(persistenceFailure ? { persistenceFailure } : {}),
-        ...(failure ? { failure, error: { reason: 'INTERNAL', message: safeSlice(failure.message, 512) } } : {})
-      }
+      payload: executionUpdate
     })
     const committed = saved ? this.commitHistory() : new Set<string>()
     if (saved) committed.add(saved.messageId)

@@ -39,12 +39,13 @@ function isShortcutTarget(value: unknown): value is SidebarShortcutTarget {
 }
 
 function createShortcut(target: SidebarShortcutTarget, fallbackLabel?: string): SidebarShortcutItem {
-  return {
+  const shortcut: SidebarShortcutItem = {
     type: 'shortcut',
     id: createSidebarShortcutId(target),
-    target,
-    ...(fallbackLabel ? { fallbackLabel } : {})
+    target
   }
+  if (fallbackLabel) Object.assign(shortcut, { fallbackLabel })
+  return shortcut
 }
 
 export class SidebarShortcutMigrationSeeder implements ISeeder {
