@@ -15,7 +15,11 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 import { application } from '@application'
 import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
-import type { DurableObservation, PiDurableThreadHandle } from '@cherrystudio/agent-runtime-pi-durable'
+import type {
+  createPiDurableRuntime,
+  DurableObservation,
+  PiDurableThreadHandle
+} from '@cherrystudio/agent-runtime-pi-durable'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -72,7 +76,8 @@ const mocks = vi.hoisted(() => ({
   catalog: vi.fn(),
   interaction: vi.fn<() => ToolGuardInteractionState>(),
   delegated: vi.fn(),
-  prime: vi.fn()
+  prime: vi.fn(),
+  backendError: undefined as ((error: unknown) => void) | undefined
 }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory, defaultServiceInstances } = await import('@test-mocks/main/application')
@@ -105,6 +110,17 @@ vi.mock('../pi/piConnectionSignature', () => ({
   capturePiConnectionSnapshot: mocks.capture,
   PiInvalidConnectionSnapshotError: class extends Error {}
 }))
+// Exposes the backend's diagnostic hook so a test can report a fault from a real runtime.
+vi.mock('@cherrystudio/agent-runtime-pi-durable', async (importOriginal) => {
+  const actual = await importOriginal<{ createPiDurableRuntime: typeof createPiDurableRuntime }>()
+  return {
+    ...actual,
+    createPiDurableRuntime: (options: Parameters<typeof createPiDurableRuntime>[0]) => {
+      mocks.backendError = options.onError
+      return actual.createPiDurableRuntime(options)
+    }
+  }
+})
 vi.mock('../pi/gatewayModelBinding', () => ({ createPiGatewayModelBinding: mocks.binding }))
 vi.mock('@main/ai/runtime/agentPrompt', () => ({ buildAgentRuntimePrompt: mocks.prompt }))
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({
@@ -2131,6 +2147,69 @@ describe('desktop Pi Durable connection', () => {
 
     await connection.send({ message: message('again') })
     await expect.poll(() => text(events)).toContain('root still open')
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  it('resynchronizes the root projection after an observation overflow without ending the turn', async () => {
+    const held = gate()
+    script = respondingModel((call) => {
+      const last = JSON.stringify(call.messages.findLast((entry) => entry.role === 'user'))
+      const queued = /queued-(\d+)/.exec(last)
+      return queued ? assistantReply(`answer-${queued[1]} `) : held.wait(assistantReply('first '))
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('first') })
+    await held.reached
+    // A consumer that falls behind is what makes Durable replace its backlog with a gap.
+    const observe = connection['onObservation'].bind(connection)
+    const gaps: string[] = []
+    let release!: () => void
+    const released = new Promise<void>((resolve) => (release = resolve))
+    connection['onObservation'] = async (batch: DurableObservation) => {
+      for (const event of batch.events) if (event.type === 'gap') gaps.push(event.reason)
+      await released
+      return observe(batch)
+    }
+    const submit = connection['submit'].bind(connection)
+    const submitted: Promise<unknown>[] = []
+    connection['submit'] = (...args: Parameters<typeof submit>) => {
+      const result = submit(...args)
+      submitted.push(result)
+      return result
+    }
+    // Each queued input is one observation; the backlog limit is 100.
+    const queued = Array.from({ length: 120 }, (_, index) => message(`queued-${index}`))
+    for (const input of queued) expect(connection.followUp({ message: input })).toBe(true)
+    await Promise.all(submitted)
+    release()
+    await expect.poll(() => gaps).toContain('overflow')
+    held.open()
+
+    await expect.poll(() => text(events)).toContain('answer-1 ')
+    // Answering every queued input only adds runtime; Stop withdraws the rest.
+    await connection.interrupt()
+    await done(events)
+    expect(text(events)).toContain('first answer-0 answer-1 ')
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  it('keeps the turn and the access when the Durable backend reports a diagnostic', async () => {
+    const held = gate()
+    script = respondingModel((call) =>
+      JSON.stringify(call.messages.findLast((entry) => entry.role === 'user')).includes('again')
+        ? assistantReply('still open')
+        : held.wait(assistantReply('finished'))
+    )
+    const { connection, events } = await connect()
+    await connection.send({ message: message('work') })
+    await held.reached
+    mocks.backendError!(new Error('injected backend diagnostic'))
+    held.open()
+    await done(events)
+    expect(text(events)).toContain('finished')
+
+    await connection.send({ message: message('again') })
+    await expect.poll(() => text(events)).toContain('still open')
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
