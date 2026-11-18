@@ -2225,6 +2225,39 @@ describe('desktop Pi Durable connection', () => {
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
+  // A truncated answer belongs to its own input; the follow-up placed after it must not inherit the failure.
+  it('reports a truncated answer on its own input and completes the follow-up on its own outcome', async () => {
+    const held = gate()
+    script = respondingModel((call) => {
+      const last = JSON.stringify(call.messages.findLast((entry) => entry.role === 'user'))
+      if (last.includes('second')) return assistantReply('second answer')
+      return held.wait(assistantReply('first answer', 'length'))
+    })
+    const { connection, events, nativeInputs } = await connect()
+    const first = message('first')
+    await connection.send({ message: first })
+    await held.reached
+    expect(connection.followUp({ message: message('second'), systemReminder: true })).toBe(true)
+    await expect
+      .poll(() => nativeInputs.some((state) => state.nativeInput && state.facts.includes('queued')))
+      .toBe(true)
+    held.open()
+    await done(events)
+
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: 'input-state',
+        input: expect.objectContaining({
+          inputId: first.id,
+          outcome: 'unanswered',
+          error: expect.objectContaining({ code: 'output-truncated' })
+        })
+      })
+    )
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
+  })
+
   // AC4: a send that races running native work used to fail with "Durable already has an active submission".
   it('admits a send that arrives while native work runs', async () => {
     const held = answerByInput()

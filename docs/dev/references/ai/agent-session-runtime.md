@@ -293,7 +293,9 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    dock until the turn ends. Pi Durable submits
    it with its `follow-up` busy policy and persists it at once, so the queue survives a crash.
    When Durable places the input, the driver emits `steer-boundary` after the preceding answer;
-   the host gives the input its own reply. An autonomous reply settles at that boundary, and a
+   the host gives the input its own reply. The preceding reply settles as answered there; Durable
+   reports its input's outcome when the run ends, and the host then replaces a reply whose input
+   did not complete. An autonomous reply settles at that boundary, and a
    deferred user turn resumes there. A refused submission falls back to the host queue.
    An input queued before a restart has no entry-side context; the host reads its bound user
    message instead. If that input starts native work by itself, it also gets a new reply.

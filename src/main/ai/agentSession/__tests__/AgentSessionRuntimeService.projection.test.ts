@@ -709,6 +709,45 @@ it('gives a Durable placement its own reply when it arrives before the previous 
   )
 })
 
+// Durable reports an answer's outcome only when the run ends, after the follow-up placed behind it.
+it('saves a truncated answer as an output-limit error after its follow-up was placed', async () => {
+  MockApplicationUtils.setService('AiStreamManager', {
+    startRuntimeTurn: () => {},
+    drainRuntimeReply: async () => {}
+  })
+  const f = await fixture(undefined, false, 'pi-durable')
+  await vi.waitFor(() => expect(f.connections.sent).toHaveLength(1))
+  await f.project([text('first', 'First answer')])
+  const followup = savedUser(f.reply.id, 'Second question')
+  f.service.enqueueUserMessage('root', followup, { followUp: true })
+  await f.emit({ type: 'steer-boundary', inputIds: [followup.id], followUp: true })
+  const first = await f.done
+  const result: StreamDoneResult = { status: 'success', finalMessage: first.finalMessage, isTopicDone: false }
+  await f.handle.listeners[0].onDone(result)
+  await f.handle.listeners[1].onDone(result)
+
+  await f.emit({
+    type: 'input-state',
+    contextId: f.context.id,
+    input: {
+      inputId: runtimeId(f.user.id),
+      facts: ['accepted', 'placed'],
+      outcome: 'unanswered',
+      error: { operation: 'input', code: 'output-truncated', message: 'Output limit reached' }
+    }
+  })
+
+  await vi.waitFor(() => expect(messages.getSessionMessage('root', f.reply.id).status).toBe('error'))
+  const saved = messages.getSessionMessage('root', f.reply.id)
+  expect(saved.data.parts).toEqual([
+    ...text('', 'First answer').parts,
+    expect.objectContaining({
+      type: 'data-error',
+      data: expect.objectContaining({ finishReason: 'length', i18nKey: 'output_token_limit_reached' })
+    })
+  ])
+})
+
 // AC4 Stop: Durable withdraws input still queued; the transcript must not show it as sent.
 it('marks a queued Durable input that Stop withdrew as not sent', async () => {
   MockApplicationUtils.setService('AiStreamManager', {

@@ -66,7 +66,9 @@ persisted at once. The Work composer sends it immediately instead of holding it 
 dock, because the descriptor declares `nativeFollowUp`; the connection has no single-submission gate and Main keeps no queue for it. Durable places it at the next run
 boundary, in the same batch as the preceding answer. The connection announces the placement with
 `steer-boundary` after that batch's projection, so the preceding answer stays in its reply and Main
-opens a new one. `/compact` still waits in Main's queue, and input is refused while compacting.
+opens a new one. Durable reports the preceding input's outcome only when the run ends, so Main
+settles that reply as answered at the boundary and replaces it if the outcome is not `completed`;
+cycle completion reads only the input that owns the current reply. `/compact` still waits in Main's queue, and input is refused while compacting.
 Product snapshots and headless policy stay on the Main session entry under the input ID, including
 unknown admission across connection replacement. The successor reconciles the original binding
 without resending, while generation checks reject stale callbacks.
