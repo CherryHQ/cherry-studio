@@ -167,7 +167,7 @@ vi.mock('@main/core/platform', () => ({
 }))
 
 vi.mock('@main/utils/processRunner', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
     crossPlatformSpawn: crossPlatformSpawnMock,

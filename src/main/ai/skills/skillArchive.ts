@@ -1,7 +1,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { buffer } from 'node:stream/consumers'
 
-import AdmZip from 'adm-zip'
 import StreamZip from 'node-stream-zip'
 
 import { loggerService } from '@logger'
@@ -38,7 +38,7 @@ export const MAX_ARCHIVE_ENTRIES = 50_000
 export async function exportSkillArchive(skillDir: string): Promise<Uint8Array> {
   const root = await fs.promises.realpath(skillDir)
   if (!(await findSkillMdPath(root))) throw new Error('Missing SKILL.md')
-  const zip = new AdmZip()
+  const entries: { name: string; data: Buffer; mode: number }[] = []
   let size = 0
   let count = 0
   const walk = async (directory: string): Promise<void> => {
@@ -62,12 +62,11 @@ export async function exportSkillArchive(skillDir: string): Promise<Uint8Array> 
             if (size > MAX_SKILL_SIZE) throw new Error('Skill exceeds the export size limit')
             chunks.push(bytes)
           }
-          zip.addFile(
-            path.relative(root, filename).split(path.sep).join('/'),
-            Buffer.concat(chunks),
-            '',
-            (await fs.promises.stat(real)).mode
-          )
+          entries.push({
+            name: path.relative(root, filename).split(path.sep).join('/'),
+            data: Buffer.concat(chunks),
+            mode: (await fs.promises.stat(real)).mode
+          })
         } finally {
           await snapshot.close()
         }
@@ -77,7 +76,11 @@ export async function exportSkillArchive(skillDir: string): Promise<Uint8Array> 
     }
   }
   await walk(root)
-  return new Promise<Buffer>((resolve, reject) => zip.toBuffer(resolve, reject))
+  const { ZipArchive } = await import('archiver')
+  const archive = new ZipArchive()
+  for (const entry of entries) archive.append(entry.data, { name: entry.name, mode: entry.mode })
+  const [, archived] = await Promise.all([archive.finalize(), buffer(archive)])
+  return archived
 }
 
 export async function validateZipFile(zipFilePath: string): Promise<void> {
