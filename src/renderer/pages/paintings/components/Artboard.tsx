@@ -17,6 +17,7 @@ import { Button, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherr
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import ImageViewer from '@renderer/components/ImageViewer'
+import { useModels } from '@renderer/hooks/useModel'
 
 import { usePaintingSizeInfo } from '../hooks/usePaintingSizeInfo'
 import type { PaintingData } from '../model/types/paintingData'
@@ -63,6 +64,7 @@ export interface ArtboardProps {
   painting: PaintingData
   isLoading: boolean
   imageCover?: ReactNode
+  outputModel?: { providerId: string; model?: string }
 }
 
 /**
@@ -70,8 +72,21 @@ export interface ArtboardProps {
  * skeleton/image box (see call sites) so it stretches to match that box's
  * width rather than the full artboard.
  */
-const ArtboardPromptBar: FC<{ prompt: string; sizeLabel?: string }> = ({ prompt, sizeLabel }) => {
+const ArtboardPromptBar: FC<{
+  prompt: string
+  sizeLabel?: string
+  outputModel?: ArtboardProps['outputModel']
+  outputSize: { width: number; height: number } | null
+}> = ({ prompt, sizeLabel, outputModel, outputSize }) => {
   const { t } = useTranslation()
+  const { models } = useModels()
+  const modelName = outputModel?.model
+    ? (models.find((model) => model.providerId === outputModel.providerId && model.apiModelId === outputModel.model)
+        ?.name ?? outputModel.model)
+    : undefined
+  const metadataLabel = outputSize
+    ? `${modelName ? `${modelName} · ` : ''}${outputSize.width}×${outputSize.height}`
+    : sizeLabel
   const [isPromptPopoverOpen, setPromptPopoverOpen] = useState(false)
   const promptPopoverCloseTimerRef = useRef<number | null>(null)
   const promptPopoverTriggerRef = useRef<HTMLButtonElement | null>(null)
@@ -120,79 +135,81 @@ const ArtboardPromptBar: FC<{ prompt: string; sizeLabel?: string }> = ({ prompt,
   return (
     <div className="mb-2 flex w-full min-w-0 items-center justify-between gap-2 text-xs text-muted-foreground">
       <div className="max-w-xs min-w-0 flex-1 overflow-hidden">
-        <Popover
-          open={isPromptPopoverOpen}
-          onOpenChange={(open) => {
-            cancelPromptPopoverClose()
-            if (open && promptPopoverOpenReasonRef.current !== 'keyboard') {
-              promptPopoverOpenReasonRef.current = 'pointer'
-            }
-            setPromptPopoverOpen(open)
-          }}>
-          <PopoverTrigger asChild>
-            <button
-              ref={promptPopoverTriggerRef}
-              type="button"
+        {prompt && (
+          <Popover
+            open={isPromptPopoverOpen}
+            onOpenChange={(open) => {
+              cancelPromptPopoverClose()
+              if (open && promptPopoverOpenReasonRef.current !== 'keyboard') {
+                promptPopoverOpenReasonRef.current = 'pointer'
+              }
+              setPromptPopoverOpen(open)
+            }}>
+            <PopoverTrigger asChild>
+              <button
+                ref={promptPopoverTriggerRef}
+                type="button"
+                onPointerEnter={(event) => {
+                  if (event.pointerType !== 'touch') openPromptPopoverFromPointer()
+                }}
+                onPointerLeave={(event) => {
+                  if (event.pointerType !== 'touch') schedulePromptPopoverClose()
+                }}
+                onBlur={schedulePromptPopoverClose}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' && event.key !== ' ') return
+                  event.preventDefault()
+                  event.stopPropagation()
+                  openPromptPopover('keyboard')
+                }}
+                className="flex w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-sm text-left text-inherit outline-none focus-visible:bg-accent focus-visible:text-foreground">
+                <Palette className="size-3.5 shrink-0" aria-hidden />
+                {/* CSS `truncate` clips to the available width responsively — the full
+                  prompt stays in the DOM (and in the popover) instead of a fixed-length
+                  JS slice that shows the same ~10 chars on a wide artboard. */}
+                <span className="truncate">{prompt}</span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              ref={promptPopoverContentRef}
+              side="bottom"
+              sideOffset={2}
               onPointerEnter={(event) => {
                 if (event.pointerType !== 'touch') openPromptPopoverFromPointer()
               }}
               onPointerLeave={(event) => {
                 if (event.pointerType !== 'touch') schedulePromptPopoverClose()
               }}
-              onBlur={schedulePromptPopoverClose}
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter' && event.key !== ' ') return
-                event.preventDefault()
-                event.stopPropagation()
-                openPromptPopover('keyboard')
+              onFocusCapture={cancelPromptPopoverClose}
+              onBlurCapture={schedulePromptPopoverClose}
+              onOpenAutoFocus={(event) => {
+                if (promptPopoverOpenReasonRef.current !== 'keyboard') {
+                  event.preventDefault()
+                }
               }}
-              className="flex w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-sm text-left text-inherit outline-none focus-visible:bg-accent focus-visible:text-foreground">
-              <Palette className="size-3.5 shrink-0" aria-hidden />
-              {/* CSS `truncate` clips to the available width responsively — the full
-                  prompt stays in the DOM (and in the popover) instead of a fixed-length
-                  JS slice that shows the same ~10 chars on a wide artboard. */}
-              <span className="truncate">{prompt}</span>
-            </button>
-          </PopoverTrigger>
-          <PopoverContent
-            ref={promptPopoverContentRef}
-            side="bottom"
-            sideOffset={2}
-            onPointerEnter={(event) => {
-              if (event.pointerType !== 'touch') openPromptPopoverFromPointer()
-            }}
-            onPointerLeave={(event) => {
-              if (event.pointerType !== 'touch') schedulePromptPopoverClose()
-            }}
-            onFocusCapture={cancelPromptPopoverClose}
-            onBlurCapture={schedulePromptPopoverClose}
-            onOpenAutoFocus={(event) => {
-              if (promptPopoverOpenReasonRef.current !== 'keyboard') {
-                event.preventDefault()
-              }
-            }}
-            onCloseAutoFocus={(event) => {
-              if (promptPopoverOpenReasonRef.current !== 'keyboard') {
-                event.preventDefault()
-              }
-            }}
-            role="dialog"
-            aria-label={t('common.prompt')}
-            className="max-h-80 w-fit max-w-md overflow-y-auto rounded-md border-0 bg-neutral-900 p-2 text-xs leading-relaxed text-neutral-50 shadow-md">
-            <CopyButton
-              textToCopy={prompt}
-              aria-label={t('common.copy')}
-              successFeedback="icon"
-              size={14}
-              color="inherit"
-              hoverColor="inherit"
-              className="float-right ml-0.5 size-5 justify-center rounded-md text-neutral-50 hover:bg-neutral-50/10 hover:text-neutral-50 focus-visible:bg-neutral-50/10 focus-visible:text-neutral-50 focus-visible:outline-none [&_svg]:stroke-neutral-50! [&_svg]:text-neutral-50!"
-            />
-            <span className="break-words whitespace-pre-wrap select-text">{prompt}</span>
-          </PopoverContent>
-        </Popover>
+              onCloseAutoFocus={(event) => {
+                if (promptPopoverOpenReasonRef.current !== 'keyboard') {
+                  event.preventDefault()
+                }
+              }}
+              role="dialog"
+              aria-label={t('common.prompt')}
+              className="max-h-80 w-fit max-w-md overflow-y-auto rounded-md border-0 bg-neutral-900 p-2 text-xs leading-relaxed text-neutral-50 shadow-md">
+              <CopyButton
+                textToCopy={prompt}
+                aria-label={t('common.copy')}
+                successFeedback="icon"
+                size={14}
+                color="inherit"
+                hoverColor="inherit"
+                className="float-right ml-0.5 size-5 justify-center rounded-md text-neutral-50 hover:bg-neutral-50/10 hover:text-neutral-50 focus-visible:bg-neutral-50/10 focus-visible:text-neutral-50 focus-visible:outline-none [&_svg]:stroke-neutral-50! [&_svg]:text-neutral-50!"
+              />
+              <span className="break-words whitespace-pre-wrap select-text">{prompt}</span>
+            </PopoverContent>
+          </Popover>
+        )}
       </div>
-      {sizeLabel && <span className="shrink-0">{sizeLabel}</span>}
+      {metadataLabel && <span className="shrink-0">{metadataLabel}</span>}
     </div>
   )
 }
@@ -219,7 +236,7 @@ const ArtboardToolButton: FC<{
   )
 }
 
-const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
+const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover, outputModel }) => {
   const { t } = useTranslation()
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [imageScale, setImageScale] = useState(DEFAULT_IMAGE_SCALE)
@@ -520,7 +537,15 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
     setRevealState(null)
   }, [])
 
-  const promptBar = painting.prompt ? <ArtboardPromptBar prompt={painting.prompt} sizeLabel={sizeLabel} /> : undefined
+  const promptBar =
+    painting.prompt || outputModel?.model || displayedNaturalSize ? (
+      <ArtboardPromptBar
+        prompt={painting.prompt}
+        sizeLabel={sizeLabel}
+        outputModel={outputModel}
+        outputSize={displayedNaturalSize}
+      />
+    ) : undefined
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col p-2">
