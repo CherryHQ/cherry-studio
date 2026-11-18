@@ -45,8 +45,10 @@ export function getAgentNavigateResult(
   ) {
     return undefined
   }
+  const target: AgentNavigateResult['input'] = { path: input.path }
+  if ('query' in input) target.query = input.query as Record<string, string>
   return {
-    input: { path: input.path, ...('query' in input ? { query: input.query as Record<string, string> } : {}) },
+    input: target,
     output: response.response
   }
 }

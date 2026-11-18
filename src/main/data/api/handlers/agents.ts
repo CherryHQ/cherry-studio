@@ -39,11 +39,12 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       const parsed = ListTasksQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
       const { page, limit, offset } = paginationFromQuery(parsed.data)
-      const { tasks, total } = taskService.listAllTasks({
+      const input: NonNullable<Parameters<typeof taskService.listAllTasks>[0]> = {
         limit,
-        offset,
-        ...('status' in parsed.data ? { status: parsed.data.status } : {})
-      })
+        offset
+      }
+      if ('status' in parsed.data) input.status = parsed.data.status
+      const { tasks, total } = taskService.listAllTasks(input)
       return { items: tasks, total, page }
     }
   },

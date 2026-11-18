@@ -327,19 +327,22 @@ type FileEntryRow = typeof fileEntryTable.$inferSelect
  */
 function rowToFileEntry(row: FileEntryRow): FileEntry {
   if (row.origin === 'internal') {
-    return FileEntrySchema.parse({
+    const file = {
       id: row.id,
       origin: 'internal',
       name: row.name,
       ext: row.ext,
       cleanupPolicy: row.cleanupPolicy,
       size: row.size,
-      contentHash: row.contentHash,
-      // deletedAt is `optional` on the BO — present iff the DB column is
-      // non-null. Bypass `nullsToUndefined` so we don't pull in a helper
-      // whose project-wide meaning is "every null becomes undefined";
-      // here only this specific column flips.
-      ...(row.deletedAt !== null ? { deletedAt: row.deletedAt } : {}),
+      contentHash: row.contentHash
+    }
+    // deletedAt is `optional` on the BO — present iff the DB column is
+    // non-null. Bypass `nullsToUndefined` so we don't pull in a helper
+    // whose project-wide meaning is "every null becomes undefined";
+    // here only this specific column flips.
+    if (row.deletedAt !== null) Object.assign(file, { deletedAt: row.deletedAt })
+    return FileEntrySchema.parse({
+      ...file,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt
     })

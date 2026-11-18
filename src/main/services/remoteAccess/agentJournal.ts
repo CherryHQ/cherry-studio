@@ -26,7 +26,7 @@ import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { startAgentSessionRun } from '@main/ai/streamManager'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '@main/ai/streamManager'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, MessageStats } from '@shared/data/types/message'
 
 import {
   contentOf,
@@ -376,17 +376,13 @@ export class SessionJournal {
             }
           : projected
       const previous = this.projection.parts[part.partId]
-      if (
-        previous &&
-        textOf(previous) === text &&
-        isDeepStrictEqual(previous, {
-          ...part,
-          revision: previous.revision,
-          ...('content' in previous ? { content: previous.content } : {})
-        })
-      ) {
-        after = partId
-        continue
+      if (previous && textOf(previous) === text) {
+        const candidate = { ...part, revision: previous.revision }
+        if ('content' in previous) Object.assign(candidate, { content: previous.content })
+        if (isDeepStrictEqual(previous, candidate)) {
+          after = partId
+          continue
+        }
       }
       if (text.length > INLINE_TEXT_LIMIT) this.pins.set(`${part.partId}:${part.revision}`, utf8(text))
       if (previous)
@@ -592,12 +588,12 @@ export class SessionJournal {
               'host'
             )
     const stored = saved ? agentSessionMessageService.getSessionMessage(this.sessionId, messageId) : undefined
-    const stats = stored
-      ? stored.stats
-      : {
-          ...result.finalMessage?.metadata?.stats,
-          ...(result.runtimeTiming ? { runtimeTiming: result.runtimeTiming } : {})
-        }
+    let stats: MessageStats | null | undefined
+    if (stored) stats = stored.stats
+    else {
+      stats = { ...result.finalMessage?.metadata?.stats }
+      if (result.runtimeTiming) stats.runtimeTiming = result.runtimeTiming
+    }
     const model = toMessageModel(
       stored ?? {
         modelId: result.modelId ?? result.finalMessage?.metadata?.modelId,
