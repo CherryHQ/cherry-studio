@@ -43,15 +43,18 @@ beforeEach(() => {
     inputChannel: { kind: 'accessibility' },
     tree: {
       status: 'available',
-      elements: Array.from({ length: 1200 }, (_, i) => ({
-        id: String(i),
-        ...(i ? { parentId: '0' } : {}),
-        role: 'AXStaticText',
-        name: `第 ${i} 段 "标题" actions=press`,
-        value: '正文🚀\\\n'.repeat(60),
-        actions: ['click'],
-        secondaryActions: []
-      })),
+      elements: Array.from({ length: 1200 }, (_, i) => {
+        const element: Element = {
+          id: String(i),
+          role: 'AXStaticText',
+          name: `第 ${i} 段 "标题" actions=press`,
+          value: '正文🚀\\\n'.repeat(60),
+          actions: ['click'],
+          secondaryActions: []
+        }
+        if (i) element.parentId = '0'
+        return element
+      }),
       truncated: ['nodes']
     },
     screenshot: { status: 'unavailable', reason: { code: 'CAPTURE_FAILED', message: 'No capture' } }
