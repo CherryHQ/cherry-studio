@@ -21,24 +21,27 @@ export function buildCartesianChart(
   animation: boolean,
   theme: ChartTheme
 ): EChartsCoreOption {
-  const series = props.series.map((item) => ({
-    ...(item.id ? { id: item.id } : {}),
-    name: item.name,
-    data: item.values,
-    stack: props.stack,
-    emphasis: { focus: 'series' as const },
-    ...(props.type === 'bar'
-      ? {
-          type: 'bar' as const,
-          barMaxWidth: 32,
-          barWidth: props.barWidth
-        }
-      : {
-          type: 'line' as const,
-          showSymbol: props.categories.length <= 30,
-          symbolSize: 5
-        })
-  }))
+  const series = props.series.map((item) => {
+    const identity: Pick<CartesianChartProps['series'][number], 'id'> = {}
+    if (item.id) identity.id = item.id
+    return Object.assign(identity, {
+      name: item.name,
+      data: item.values,
+      stack: props.stack,
+      emphasis: { focus: 'series' as const },
+      ...(props.type === 'bar'
+        ? {
+            type: 'bar' as const,
+            barMaxWidth: 32,
+            barWidth: props.barWidth
+          }
+        : {
+            type: 'line' as const,
+            showSymbol: props.categories.length <= 30,
+            symbolSize: 5
+          })
+    })
+  })
 
   return buildCartesianOption({
     animation,
