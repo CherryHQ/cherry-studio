@@ -57,7 +57,7 @@ export async function buildDistributionManifest(appDir, packageFile, baseUrl) {
   const manifest = await readPackagedManifest(appDir)
   const bytes = await fs.readFile(path.resolve(packageFile))
   const base = baseUrl.replace(/\/+$/, '')
-  if (!/^https:\/\//.test(base)) throw new Error(`baseUrl must be an https:// origin: ${baseUrl}`)
+  if (!base.startsWith('https://')) throw new Error(`baseUrl must be an https:// origin: ${baseUrl}`)
   return {
     ...manifest,
     package: {

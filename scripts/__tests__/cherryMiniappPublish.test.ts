@@ -120,7 +120,7 @@ describe('publish.mjs manifest', () => {
 })
 
 describe('publish.mjs verify (read-back gate)', () => {
-  async function hostFor(appDir: string, packageFile: string, overrides: Partial<HostedFiles> = {}) {
+  async function hostFor(appDir: string, packageFile: string, overrides: HostedFiles = {}) {
     const manifest = await buildDistributionManifest(appDir, packageFile, 'https://user.github.io/miniapps')
     const packageBytes = await fs.readFile(packageFile)
     const iconBytes = await fs.readFile(path.join(appDir, 'icon.svg'))
