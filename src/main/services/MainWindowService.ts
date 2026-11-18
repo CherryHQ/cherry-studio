@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import path from 'path'
 
 import { optimizer } from '@electron-toolkit/utils'
-import type { BrowserWindow } from 'electron'
+import type { BrowserWindow, BrowserWindowConstructorOptions } from 'electron'
 import { app, dialog, nativeImage, nativeTheme, session, shell } from 'electron'
 
 import { application } from '@application'
@@ -263,22 +263,18 @@ export class MainWindowService extends BaseService {
 
     // onWindowCreatedByType fires synchronously during open() on fresh-create,
     // and does nothing on singleton reuse (where this.mainWindow is already set).
-    windowManager.open(WindowType.Main, {
-      initData,
-      options: {
-        darkTheme: nativeTheme.shouldUseDarkColors,
-        ...(isLinux && { icon: linuxIcon }),
-        ...(this.usesTitleBarOverlay() && {
-          titleBarStyle: 'hidden',
-          titleBarOverlay: getTitleBarOverlay(MAIN_TITLE_BAR_HEIGHT)
-        }),
-        ...(windowsBackgroundMaterial ? { backgroundMaterial: windowsBackgroundMaterial } : {}),
-        ...(mainWindowBackgroundColor ? { backgroundColor: mainWindowBackgroundColor } : {}),
-        webPreferences: {
-          zoomFactor: preferenceService.get('app.zoom_factor')
-        }
-      }
-    })
+    const options: BrowserWindowConstructorOptions = {
+      darkTheme: nativeTheme.shouldUseDarkColors,
+      ...(isLinux && { icon: linuxIcon }),
+      ...(this.usesTitleBarOverlay() && {
+        titleBarStyle: 'hidden',
+        titleBarOverlay: getTitleBarOverlay(MAIN_TITLE_BAR_HEIGHT)
+      })
+    }
+    if (windowsBackgroundMaterial) options.backgroundMaterial = windowsBackgroundMaterial
+    if (mainWindowBackgroundColor) options.backgroundColor = mainWindowBackgroundColor
+    options.webPreferences = { zoomFactor: preferenceService.get('app.zoom_factor') }
+    windowManager.open(WindowType.Main, { initData, options })
   }
 
   /** Windows uses WCO; Linux can opt into the system title bar instead. */
