@@ -1,3 +1,4 @@
+import { UnsupportedFunctionalityError } from '@ai-sdk/provider'
 import { JSONRPC_VERSION, ProtocolErrorCode } from '@modelcontextprotocol/server'
 import { APICallError } from 'ai'
 import { ElysiaCustomStatusResponse, type ErrorHandler, ValidationError } from 'elysia'
@@ -61,6 +62,7 @@ function detailsOf(error: unknown): ProviderDetails | undefined {
 
 /** Preserve the HTTP dialect's error semantics without encoding a response body. */
 export function objectGatewayError(error: unknown, fallback: SerializedError, format: OutputFormat): Error {
+  if (UnsupportedFunctionalityError.isInstance(error)) return error
   const status = extractError(error).status
   const retained = { ...internalGatewayError(error, fallback), ...(status !== undefined && { statusCode: status }) }
   const { statusCode, errorResponse } =

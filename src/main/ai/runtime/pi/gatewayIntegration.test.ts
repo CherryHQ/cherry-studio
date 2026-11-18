@@ -2,9 +2,18 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { resolve } from 'node:path'
 
+import { UnsupportedFunctionalityError } from '@ai-sdk/provider'
 import { normalizeContext } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
-import { GoogleGenAI } from '@google/genai'
+import {
+  FunctionCallingConfigMode,
+  GoogleGenAI,
+  HarmBlockThreshold,
+  HarmCategory,
+  MediaResolution,
+  Modality,
+  ServiceTier
+} from '@google/genai'
 import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -142,6 +151,7 @@ describe('native Pi through the production gateway', () => {
   let holdResponse = false
   let upstreamClosed = false
   let protocol: InputFormat = 'openai'
+  let geminiEvents: unknown[] | undefined
   const requests: Array<Record<string, unknown>> = []
   let call: (body: Record<string, unknown>) => { content?: string; tool_calls?: unknown[] }
   let rejectUpstream:
@@ -198,6 +208,7 @@ describe('native Pi through the production gateway', () => {
     holdResponse = false
     upstreamClosed = false
     protocol = 'openai'
+    geminiEvents = undefined
     mocks.messageId = 'original-answer'
     mocks.attribution = undefined
     call = () => ({ content: 'Model answer' })
@@ -255,6 +266,11 @@ describe('native Pi through the production gateway', () => {
         return
       }
       if (protocol === 'gemini') {
+        if (geminiEvents) {
+          res.writeHead(200, { 'content-type': 'text/event-stream' })
+          res.end(geminiEvents.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''))
+          return
+        }
         const parts = [
           { text: 'reasoning', thought: true, thoughtSignature: Buffer.from('thought-signature').toString('base64') },
           { text: 'answer' },
@@ -1430,6 +1446,265 @@ describe('native Pi through the production gateway', () => {
     expect(answer.content.some((part) => part.type === 'toolCall' && part.name === 'lookup')).toBe(true)
   })
 
+  it.each(['object', 'http'] as const)('preserves supported Gemini configuration on the %s path', async (path) => {
+    protocol = 'gemini'
+    dbh.db
+      .update(userProviderTable)
+      .set({
+        endpointConfigs: {
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+            baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1beta`
+          }
+        },
+        defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      })
+      .where(eq(userProviderTable.providerId, 'port'))
+      .run()
+    const config = {
+      temperature: 0.4,
+      topP: 0.8,
+      topK: 20,
+      maxOutputTokens: 128,
+      stopSequences: ['END'],
+      presencePenalty: 0.2,
+      frequencyPenalty: 0.3,
+      seed: 42,
+      responseMimeType: 'application/json',
+      responseJsonSchema: { type: 'object', properties: { answer: { type: 'string' } }, required: ['answer'] },
+      safetySettings: [
+        { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH }
+      ],
+      cachedContent: 'cachedContents/context',
+      labels: { task: 'gateway' },
+      serviceTier: ServiceTier.FLEX,
+      continuationToken: 'resume-here',
+      responseModalities: [Modality.TEXT, Modality.IMAGE],
+      imageConfig: { aspectRatio: '16:9', imageSize: '2K' },
+      mediaResolution: MediaResolution.MEDIA_RESOLUTION_HIGH,
+      audioTimestamp: true,
+      tools: [
+        {
+          functionDeclarations: [
+            { name: 'lookup', parametersJsonSchema: { type: 'object', properties: {} } },
+            { name: 'other', parametersJsonSchema: { type: 'object', properties: {} } }
+          ]
+        }
+      ],
+      toolConfig: {
+        functionCallingConfig: { mode: FunctionCallingConfigMode.ANY, allowedFunctionNames: ['lookup'] },
+        retrievalConfig: { latLng: { latitude: 10, longitude: 20 } }
+      }
+    }
+    const contents = [{ role: 'user', parts: [{ text: 'hello' }] }]
+    if (path === 'object') {
+      const response = await mocks
+        .gatewayService!.createAgentObjectTransports({ sessionId: 'session' })
+        ['google-generative-ai'](
+          { model: 'port:wire-model', contents, config: { ...config, automaticFunctionCalling: { disable: true } } },
+          {}
+        )
+      for await (const event of response.events) expect(event).toHaveProperty('candidates')
+    } else {
+      const {
+        tools,
+        toolConfig,
+        safetySettings,
+        cachedContent,
+        labels,
+        serviceTier,
+        continuationToken,
+        ...generationConfig
+      } = config
+      const response = await fetch(`${mocks.gatewayUrl}/v1beta/models/port:wire-model:streamGenerateContent`, {
+        method: 'POST',
+        body: JSON.stringify({
+          contents,
+          tools,
+          toolConfig,
+          safetySettings,
+          cachedContent,
+          labels,
+          serviceTier,
+          continuationToken,
+          generationConfig
+        })
+      })
+      expect(response.status).toBe(200)
+      await response.text()
+    }
+    expect(requests).toHaveLength(1)
+    expect(requests[0]).toMatchObject({
+      generationConfig: {
+        temperature: 0.4,
+        topP: 0.8,
+        topK: 20,
+        maxOutputTokens: 128,
+        stopSequences: ['END'],
+        presencePenalty: 0.2,
+        frequencyPenalty: 0.3,
+        seed: 42,
+        responseMimeType: 'application/json',
+        responseSchema: { type: 'object', properties: { answer: { type: 'string' } }, required: ['answer'] },
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { aspectRatio: '16:9', imageSize: '2K' },
+        mediaResolution: 'MEDIA_RESOLUTION_HIGH',
+        audioTimestamp: true
+      },
+      safetySettings: [{ category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' }],
+      cachedContent: 'cachedContents/context',
+      labels: { task: 'gateway' },
+      serviceTier: 'flex',
+      continuationToken: 'resume-here',
+      toolConfig: {
+        functionCallingConfig: { mode: 'ANY', allowedFunctionNames: ['lookup'] },
+        retrievalConfig: { latLng: { latitude: 10, longitude: 20 } }
+      }
+    })
+    expect(mocks.gatewayRequests).toBe(path === 'object' ? 0 : 1)
+  })
+
+  it.each(['object', 'http'] as const)(
+    'retains Gemini media and continuation metadata on the %s path',
+    async (path) => {
+      protocol = 'gemini'
+      dbh.db
+        .update(userProviderTable)
+        .set({
+          endpointConfigs: {
+            [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+              baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1beta`
+            }
+          },
+          defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+        })
+        .where(eq(userProviderTable.providerId, 'port'))
+        .run()
+      const safetyRatings = [{ category: 'HARM_CATEGORY_HARASSMENT', probability: 'LOW', blocked: false }]
+      geminiEvents = [
+        {
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [
+                  { inlineData: { mimeType: 'image/png', data: 'AQID' }, thoughtSignature: 'media-signature' },
+                  { text: 'caption' }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          candidates: [
+            {
+              content: { role: 'model', parts: [] },
+              finishReason: 'MAX_TOKENS',
+              finishMessage: 'Budget exhausted',
+              continuationToken: 'resume-token',
+              safetyRatings
+            }
+          ],
+          promptFeedback: { safetyRatings },
+          usageMetadata: { promptTokenCount: 100, candidatesTokenCount: 25, totalTokenCount: 125, serviceTier: 'flex' }
+        }
+      ]
+      const contents = [{ role: 'user', parts: [{ text: 'hello' }] }]
+      const frames: unknown[] = []
+      if (path === 'object') {
+        const response = await mocks
+          .gatewayService!.createAgentObjectTransports({ sessionId: 'session' })
+          ['google-generative-ai']({ model: 'port:wire-model', contents }, {})
+        for await (const event of response.events) frames.push(event)
+      } else {
+        const response = await fetch(`${mocks.gatewayUrl}/v1beta/models/port:wire-model:streamGenerateContent`, {
+          method: 'POST',
+          body: JSON.stringify({ contents })
+        })
+        expect(response.status).toBe(200)
+        for (const frame of (await response.text()).split('\n\n')) {
+          if (frame.startsWith('data: ')) frames.push(JSON.parse(frame.slice(6)))
+        }
+      }
+      expect(frames).toContainEqual(
+        expect.objectContaining({
+          candidates: [
+            expect.objectContaining({
+              content: {
+                role: 'model',
+                parts: [{ inlineData: { mimeType: 'image/png', data: 'AQID' }, thoughtSignature: 'media-signature' }]
+              }
+            })
+          ]
+        })
+      )
+      expect(frames.at(-1)).toMatchObject({
+        candidates: [
+          {
+            finishReason: 'MAX_TOKENS',
+            finishMessage: 'Budget exhausted',
+            continuationToken: 'resume-token',
+            safetyRatings
+          }
+        ],
+        promptFeedback: { safetyRatings },
+        usageMetadata: { serviceTier: 'flex' }
+      })
+    }
+  )
+
+  it.each([
+    { mode: FunctionCallingConfigMode.NONE, allowed: undefined },
+    { mode: FunctionCallingConfigMode.AUTO, allowed: undefined },
+    { mode: FunctionCallingConfigMode.ANY, allowed: ['lookup', 'second'] },
+    { mode: FunctionCallingConfigMode.VALIDATED, allowed: ['lookup'] }
+  ])('retains Gemini $mode function selection without gateway execution', async ({ mode, allowed }) => {
+    protocol = 'gemini'
+    dbh.db
+      .update(userProviderTable)
+      .set({
+        endpointConfigs: {
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+            baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1beta`
+          }
+        },
+        defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      })
+      .where(eq(userProviderTable.providerId, 'port'))
+      .run()
+    const response = await mocks
+      .gatewayService!.createAgentObjectTransports({ sessionId: 'session' })
+      ['google-generative-ai'](
+        {
+          model: 'port:wire-model',
+          contents: 'hello',
+          config: {
+            tools: [
+              {
+                functionDeclarations: ['lookup', 'second', 'other'].map((name) => ({
+                  name,
+                  parametersJsonSchema: { type: 'object', properties: {} }
+                }))
+              }
+            ],
+            toolConfig: { functionCallingConfig: { mode, allowedFunctionNames: allowed } }
+          }
+        },
+        {}
+      )
+    for await (const event of response.events) expect(event).toHaveProperty('candidates')
+    expect(requests).toHaveLength(1)
+    expect(requests[0]).toMatchObject({
+      tools: [
+        {
+          functionDeclarations: (allowed ?? ['lookup', 'second', 'other']).map((name) =>
+            expect.objectContaining({ name })
+          )
+        }
+      ],
+      toolConfig: { functionCallingConfig: { mode } }
+    })
+  })
+
   function directObjectCall(signal?: AbortSignal) {
     const transports = mocks.gatewayService!.createAgentObjectTransports({ sessionId: 'session' })
     return transports['openai-completions'](
@@ -1438,16 +1713,52 @@ describe('native Pi through the production gateway', () => {
     )
   }
 
-  it.each([{ labels: { task: 'test' } }, { automaticFunctionCalling: { disable: true } }])(
-    'rejects unsupported Gemini config instead of silently moving it into generationConfig: %j',
+  it.each([{ speechConfig: { languageCode: 'en-US' } }, { automaticFunctionCalling: { disable: false } }])(
+    'rejects unsupported Gemini config as a local capability failure without an HTTP envelope: %j',
     async (config) => {
       const transports = mocks.gatewayService!.createAgentObjectTransports({ sessionId: 'session' })
-      await expect(
-        transports['google-generative-ai']({ model: 'port:wire-model', contents: 'hello', config }, {})
-      ).rejects.toMatchObject({ status: 400, message: expect.stringContaining('Unsupported Gemini config') })
+      const error = await transports['google-generative-ai'](
+        { model: 'port:wire-model', contents: 'hello', config },
+        {}
+      ).catch((error: unknown) => error)
+      expect(UnsupportedFunctionalityError.isInstance(error)).toBe(true)
+      expect(error).toHaveProperty('message', expect.stringContaining('Unsupported Gemini config'))
+      expect(error).not.toHaveProperty('status')
+      expect(error).not.toHaveProperty('error')
       expect(requests).toHaveLength(0)
     }
   )
+
+  it('keeps local Gemini capability failures out of the native provider HTTP error display', async () => {
+    dbh.db
+      .update(userProviderTable)
+      .set({
+        endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'http://unused.invalid/v1beta' } },
+        defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      })
+      .where(eq(userProviderTable.providerId, 'port'))
+      .run()
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const answer = await binding.modelRuntime.completeSimple(
+      binding.model,
+      normalizeContext({ messages: [{ role: 'user', content: 'hello', timestamp: 1 }] }),
+      {
+        onPayload: () => ({
+          model: 'port:wire-model',
+          contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
+          config: { speechConfig: { languageCode: 'en-US' } }
+        })
+      }
+    )
+    expect(answer.stopReason).toBe('error')
+    expect(answer.errorMessage).toContain('Unsupported Gemini config: speechConfig')
+    expect(answer.errorMessage).not.toMatch(/\b400\b|INVALID_ARGUMENT/)
+    expect(requests).toHaveLength(0)
+  })
 
   it('returns protocol-shaped preparation failures from object calls', async () => {
     const transports = mocks.gatewayService!.createAgentObjectTransports({ sessionId: 'session' })

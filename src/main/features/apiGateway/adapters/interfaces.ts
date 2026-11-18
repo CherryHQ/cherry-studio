@@ -8,8 +8,9 @@
  */
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import type { ToolChoice, ToolSet, UIMessageChunk } from 'ai'
+import type { ProviderMetadata, ToolSet, UIMessageChunk } from 'ai'
 
+import type { CallOverrides } from '@main/ai/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -24,6 +25,8 @@ import type { Provider } from '@shared/data/types/provider'
  * only available through `inputTokenDetails`.
  */
 export interface GatewayUsageMetadata {
+  providerMetadata?: ProviderMetadata
+  rawFinishReason?: string
   stats?: {
     totalTokens?: number
     inputTokens?: number
@@ -53,14 +56,7 @@ export type InputFormat = 'anthropic' | 'openai' | 'openai-responses' | 'gemini'
  * Stream text options extracted from input params
  * These are the common parameters used by AI SDK's streamText/generateText
  */
-export interface StreamTextOptions {
-  maxOutputTokens?: number
-  temperature?: number
-  topP?: number
-  topK?: number
-  stopSequences?: string[]
-  toolChoice?: ToolChoice<ToolSet>
-}
+export type StreamTextOptions = Omit<CallOverrides, 'tools' | 'providerOptions'>
 
 /**
  * Stream Adapter Interface

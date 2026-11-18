@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
+import { UnsupportedFunctionalityError } from '@ai-sdk/provider'
 import type { ObjectTransportResponse, ObjectTransports } from '@earendil-works/pi-ai'
 import type { UIMessageChunk } from 'ai'
 
@@ -64,42 +65,81 @@ export function createGatewayObjectTransports(config: {
       ),
     'google-generative-ai': async (params, options) => {
       const nativeConfig = params.config ?? {}
-      const supported = new Set([
-        'systemInstruction',
-        'tools',
-        'toolConfig',
-        'temperature',
-        'topP',
-        'topK',
-        'maxOutputTokens',
-        'stopSequences',
-        'thinkingConfig',
-        'abortSignal',
-        'httpOptions'
-      ])
-      const unsupported = Object.entries(nativeConfig).filter(
-        ([key, value]) => value !== undefined && !supported.has(key)
-      )
-      if (unsupported.length > 0) {
-        const error = Object.assign(
-          new Error(`Unsupported Gemini config: ${unsupported.map(([key]) => key).join(', ')}`),
-          { status: 400 }
-        )
-        logger.warn('Gateway object request failed', { agentSessionId: config.agentContext.agentSessionId, error })
-        throw objectGatewayError(error, serializeError(error), 'gemini')
-      }
-      const { GenerateContentResponse } = await import('@google/genai')
       const {
         systemInstruction,
         tools,
         toolConfig,
+        safetySettings,
+        cachedContent,
+        labels,
         temperature,
         topP,
         topK,
         maxOutputTokens,
         stopSequences,
-        thinkingConfig
+        thinkingConfig,
+        presencePenalty,
+        frequencyPenalty,
+        seed,
+        responseMimeType,
+        responseSchema,
+        responseJsonSchema,
+        responseModalities,
+        imageConfig,
+        mediaResolution,
+        audioTimestamp,
+        automaticFunctionCalling
       } = nativeConfig
+      const paramsRecord = {
+        contents: params.contents,
+        systemInstruction,
+        tools,
+        toolConfig,
+        safetySettings,
+        cachedContent,
+        labels,
+        ...('serviceTier' in nativeConfig && { serviceTier: nativeConfig.serviceTier }),
+        ...('continuationToken' in nativeConfig && { continuationToken: nativeConfig.continuationToken }),
+        generationConfig: {
+          temperature,
+          topP,
+          topK,
+          maxOutputTokens,
+          stopSequences,
+          thinkingConfig,
+          presencePenalty,
+          frequencyPenalty,
+          seed,
+          responseMimeType,
+          responseSchema,
+          responseJsonSchema,
+          responseModalities,
+          imageConfig,
+          mediaResolution,
+          audioTimestamp
+        }
+      }
+      const supported = new Set([
+        ...Object.keys(paramsRecord),
+        ...Object.keys(paramsRecord.generationConfig),
+        'serviceTier',
+        'continuationToken',
+        'abortSignal',
+        'httpOptions',
+        ...(automaticFunctionCalling?.disable === true ? ['automaticFunctionCalling'] : [])
+      ])
+      const unsupported = Object.entries(nativeConfig).filter(
+        ([key, value]) => value !== undefined && !supported.has(key)
+      )
+      if (unsupported.length > 0) {
+        const error = new UnsupportedFunctionalityError({
+          functionality: 'Gemini object transport configuration',
+          message: `Unsupported Gemini config: ${unsupported.map(([key]) => key).join(', ')}`
+        })
+        logger.warn('Gateway object request failed', { agentSessionId: config.agentContext.agentSessionId, error })
+        throw error
+      }
+      const { GenerateContentResponse } = await import('@google/genai')
       const response = await processObjectMessage(
         {
           ...config,
@@ -107,13 +147,7 @@ export function createGatewayObjectTransports(config: {
           inputFormat: 'gemini',
           outputFormat: 'gemini',
           modelString: params.model,
-          params: {
-            contents: params.contents,
-            systemInstruction,
-            tools,
-            toolConfig,
-            generationConfig: { temperature, topP, topK, maxOutputTokens, stopSequences, thinkingConfig }
-          }
+          params: paramsRecord
         },
         (input) => StreamAdapterFactory.createAdapter('gemini', input)
       )
