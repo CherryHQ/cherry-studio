@@ -98,7 +98,6 @@ vi.mock('@application', async () => {
               .get('AgentSessionRuntimeService')
               .getActiveUsageContext(headers.get('x-cherry-agent-session-id')!, responseId)
           : mocks.gatewayService!.resolveAgentSessionUsage(headers, responseId)
-
     },
     AgentSessionRuntimeService: {
       getActiveUsageContext: (sessionId: string, responseId?: string) =>

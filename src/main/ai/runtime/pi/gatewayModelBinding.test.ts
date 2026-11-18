@@ -122,20 +122,19 @@ it.each([false, true])(
     })
     let prepared = 0
     const lengths: number[] = []
-    const fetch: typeof globalThis.fetch = async (_input, init) => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
       const body = JSON.parse(init!.body as string)
       lengths.push(body.messages[0].content[0].text.length)
       if (lengths.length === 1) await firstResponse
       return new Response(JSON.stringify({ error: { type: 'authentication_error', message: 'fixture' } }), {
         status: 401
       })
-    }
+    })
     const context = normalizeContext({
       messages: [{ role: 'user', content: 'A'.repeat(12 * 1024 * 1024), timestamp: 1 }]
     })
     const run = (signal?: AbortSignal) =>
       binding.modelRuntime.completeSimple(binding.model, context, {
-        fetch,
         signal,
         onPayload: () => {
           prepared++

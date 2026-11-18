@@ -123,7 +123,6 @@ export async function createPiGatewayModelBinding(
         releasePayload?.()
         throw error
       }
-
     }
   })
   await modelRuntime.setRuntimeApiKey(providerName, OBJECT_TRANSPORT_API_KEY)

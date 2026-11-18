@@ -12,7 +12,6 @@ import type { MessageConfig } from './gatewayRequest'
 import { gatewayPromptOptions, prepareGatewayMessage } from './prepareGatewayMessage'
 import { isStartupCommitChunk, streamInterruptedError } from './streamLifecycle'
 
-
 export type { MessageConfig } from './gatewayRequest'
 
 const logger = loggerService.withContext('ProxyStreamService')
