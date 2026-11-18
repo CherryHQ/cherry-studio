@@ -145,14 +145,9 @@ export const useUpdateAgent = () => {
 
   const updateModel = useCallback(
     async ({ agentId, modelId, reasoningEffort }: UpdateAgentModelInput, options?: UpdateAgentBaseOptions) => {
-      return updateAgent(
-        {
-          id: agentId,
-          model: modelId,
-          ...(reasoningEffort === undefined ? {} : { configuration: { reasoning_effort: reasoningEffort } })
-        },
-        options
-      )
+      const form: UpdateAgentForm = { id: agentId, model: modelId }
+      if (reasoningEffort !== undefined) form.configuration = { reasoning_effort: reasoningEffort }
+      return updateAgent(form, options)
     },
     [updateAgent]
   )

@@ -87,31 +87,33 @@ export function useStreamCommands(
         ...(message ? [{ type: 'text' as const, text: message.text }] : [])
       ]
       setMessages((messages) => [...messages, { id: crypto.randomUUID(), role: 'user', parts }])
-      await dispatch({
+      const request: AiStreamOpenRequest = {
         trigger: 'submit-message',
         topicId,
         userMessageParts: parts,
         parentAnchorId: body.parentAnchorId,
         mentionedModelIds: body.mentionedModels,
         reasoningEffort: body.reasoningEffort,
-        serviceTier: body.serviceTier,
-        ...(body.fastMode ? { fastMode: true } : {})
-      })
+        serviceTier: body.serviceTier
+      }
+      if (body.fastMode) request.fastMode = true
+      await dispatch(request)
     },
     [dispatch, setMessages, topicId]
   )
   const regenerate = useCallback(
     async (options?: ChatRequestOptions & { messageId?: string }) => {
       const body = (options?.body ?? {}) as Partial<AiChatRequestBody>
-      await dispatch({
+      const request: AiStreamOpenRequest = {
         trigger: 'regenerate-message',
         topicId,
         parentAnchorId: body.parentAnchorId ?? '',
         mentionedModelIds: body.mentionedModels,
         reasoningEffort: body.reasoningEffort,
-        serviceTier: body.serviceTier,
-        ...(body.fastMode ? { fastMode: true } : {})
-      })
+        serviceTier: body.serviceTier
+      }
+      if (body.fastMode) request.fastMode = true
+      await dispatch(request)
     },
     [dispatch, topicId]
   )

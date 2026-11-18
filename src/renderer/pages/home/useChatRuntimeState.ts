@@ -34,7 +34,7 @@ import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import { isRenderableConversationMessage } from '@renderer/utils/message/messageProjection'
-import type { ActiveExecution, ComposerChatTarget } from '@shared/ai/transport'
+import type { ActiveExecution, AiStreamOpenRequest, ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts'
@@ -319,21 +319,25 @@ export function useChatRuntimeState({
   )
   const buildStreamRequest = useCallback(
     ({ text, options }: ChatTurnInput, conversation: { topicId: string; parentAnchorId: string | null }) => {
-      const requestOptions = {
+      const requestOptions: Pick<
+        Extract<AiStreamOpenRequest, { trigger: 'submit-message' }>,
+        'topicId' | 'mentionedModelIds' | 'reasoningEffort' | 'serviceTier' | 'fastMode'
+      > = {
         topicId: conversation.topicId,
         mentionedModelIds: options?.mentionedModels,
         reasoningEffort: options?.reasoningEffort,
-        serviceTier: options?.serviceTier,
-        ...(options?.fastMode ? { fastMode: true as const } : {})
+        serviceTier: options?.serviceTier
       }
+      if (options?.fastMode) requestOptions.fastMode = true
 
-      return {
+      const request: Extract<AiStreamOpenRequest, { trigger: 'submit-message' }> = {
         ...requestOptions,
-        trigger: 'submit-message' as const,
+        trigger: 'submit-message',
         parentAnchorId: conversation.parentAnchorId ?? undefined,
-        userMessageParts: options?.userMessageParts ?? [{ type: 'text' as const, text }],
-        ...(options?.chatTarget ? { targetMode: options.chatTarget.mode } : {})
+        userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }]
       }
+      if (options?.chatTarget) request.targetMode = options.chatTarget.mode
+      return request
     },
     []
   )
