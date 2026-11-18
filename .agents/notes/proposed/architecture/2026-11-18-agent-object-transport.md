@@ -22,6 +22,8 @@ This partially supersedes only the internal HTTP requirement in the harness boun
 
 The protocol boundary also preserves structured reasoning signatures, cache-write and reasoning-token breakdowns, and explicit terminal truncation or filtering. Provider citations and tool-argument delta delivery remain outside this extension.
 
+Gemini request configuration supported by the pinned AI SDK maps through the shared per-call contract: sampling, JSON/schema output, function selection, safety settings, cached context, and native media, label and service options. Both HTTP and object calls use the same projection. Unsupported local client behavior fails as an SDK capability error without a fabricated HTTP status. Client function execution remains with the native runtime. File output and Google finish metadata retain the native event shape; Pi text sessions keep their existing output capabilities.
+
 ## Alternatives considered
 
 - In-memory fetch retains JSON/SSE codecs.
@@ -41,6 +43,9 @@ The protocol boundary also preserves structured reasoning signatures, cache-writ
 - AC7 — OpenAI dialects retain reported cache-write usage without double-counting uncached input, cache reads/writes or totals. (verification: unit — usage conversion and native consumer tests)
 - AC8 — Anthropic retains reported thinking_tokens without changing text or signature replay. (verification: unit — usage conversion and native consumer tests)
 - AC9 — Explicit final length/content-filter outcomes take precedence over tool presence; errors and cancellations remain failed or aborted. (verification: unit — four-protocol terminal outcome tests)
+
+- AC10 — Gemini HTTP and object requests preserve pinned-SDK-supported configuration through shared preparation, including safety/cache context, sampling, JSON/schema output, function selection and native provider options; unsupported local client behavior does not become an HTTP error envelope. (verification: unit — converter, standard parameter and production gateway/native consumer tests)
+- AC11 — Gemini responses preserve file parts and Google finish metadata needed by configured modalities and continuation, without adding tool execution to the gateway or changing Pi text-session output capabilities. (verification: unit — protocol adapters and production gateway tests; manual — Electron text/tool and HTTP structured-output acceptance)
 
 ## Risks
 
