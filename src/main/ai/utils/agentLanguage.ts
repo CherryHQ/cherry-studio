@@ -1,9 +1,9 @@
 import { application } from '@application'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
-import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
+import { type AgentLanguage, AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 
 /** Trimmed, non-empty, length-bounded label via the shared schema; null when invalid. */
-function normalizeAgentLanguage(value: unknown): string | null {
+function normalizeAgentLanguage(value: AgentLanguage | null | undefined): string | null {
   const parsed = AgentLanguageSchema.safeParse(value)
   return parsed.success ? parsed.data : null
 }
