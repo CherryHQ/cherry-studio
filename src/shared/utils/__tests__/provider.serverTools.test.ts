@@ -72,6 +72,41 @@ describe('Qwen Anthropic web tools', () => {
 })
 
 describe('server-tool model eligibility', () => {
+  it.each(['gemini-4-hydrogen', 'gemini-4-carbon'])(
+    'serves Vertex native search and URL context for %s on GenerateContent',
+    (apiModelId) => {
+      const vertex = bundledProviders.providers.find((p) => p.id === 'vertexai')! as unknown as Provider
+      const selected = model(apiModelId, { providerId: 'vertexai', capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+
+      expect(isBuiltinWebSearchAvailable(selected, vertex, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).toBe(true)
+      expect(isBuiltinWebFetchAvailable(selected, vertex, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).toBe(true)
+      expect(
+        resolveWebToolRoutes(selected, vertex, {
+          webSearchEnabled: true,
+          modelToolsPreferred: true,
+          clientSearchAvailable: false,
+          clientFetchAvailable: false,
+          endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+        })
+      ).toMatchObject({ webSearch: 'server', webFetch: 'server' })
+    }
+  )
+
+  it.each(['gemini-4-hydrogen', 'gemini-4-carbon'])(
+    'keeps Vertex eligibility gates for %s and unlisted siblings',
+    (apiModelId) => {
+      const vertex = bundledProviders.providers.find((p) => p.id === 'vertexai')! as unknown as Provider
+      const embedding = model(apiModelId, { providerId: 'vertexai', capabilities: [MODEL_CAPABILITY.EMBEDDING] })
+      const custom = { id: 'custom', serverTools: [] } as Provider
+
+      expect(isBuiltinWebSearchAvailable(embedding, vertex, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).toBe(false)
+      expect(isBuiltinWebSearchAvailable(model(apiModelId), custom, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).toBe(false)
+      expect(isBuiltinWebSearchAvailable(model('gemini-4-neon'), vertex, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).toBe(
+        false
+      )
+    }
+  )
+
   it.each([
     ['dashscope', 'qwen3-max-preview'],
     ['openai', 'gpt-5.2-chat-latest'],
