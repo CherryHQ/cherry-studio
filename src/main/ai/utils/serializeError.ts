@@ -35,19 +35,19 @@ function toSerializable(value: unknown): Serializable {
  *  Mirrors the field-extraction cascade in `src/renderer/utils/error.ts`
  *  so every `SerializedAiSdkErrorUnion` shape carries its discriminant
  *  fields and the renderer's type guards match. */
-export function serializeError(error: unknown): SerializedError {
-  const ownership: Record<string, Serializable> = hasReportingOwner(error) ? { reportingHandled: true } : {}
-  if (APICallError.isInstance(error) || JSONParseError.isInstance(error) || TypeValidationError.isInstance(error)) {
-    return { ...(serializeNestedProviderError(error) as SerializedError), ...ownership }
+export function serializeError(cause: unknown): SerializedError {
+  const ownership: Record<string, Serializable> = hasReportingOwner(cause) ? { reportingHandled: true } : {}
+  if (APICallError.isInstance(cause) || JSONParseError.isInstance(cause) || TypeValidationError.isInstance(cause)) {
+    return { ...(serializeNestedProviderError(cause) as SerializedError), ...ownership }
   }
-  if (error instanceof Error) {
-    const e = error as unknown as Record<string, unknown>
-    const isRetryError = RetryError.isInstance(error)
+  if (cause instanceof Error) {
+    const e = cause as unknown as Record<string, unknown>
+    const isRetryError = RetryError.isInstance(cause)
 
     const serialized: SerializedError = {
-      name: error.name ?? null,
-      message: isRetryError ? getSafeProviderErrorMessage({ message: error.message }) : error.message,
-      stack: isRetryError ? null : (error.stack ?? null),
+      name: cause.name ?? null,
+      message: isRetryError ? getSafeProviderErrorMessage({ message: cause.message }) : cause.message,
+      stack: isRetryError ? null : (cause.stack ?? null),
       cause: e.cause != null ? String(e.cause) : null
     }
     if (e.reportingHandled === true) serialized.reportingHandled = true
@@ -108,10 +108,10 @@ export function serializeError(error: unknown): SerializedError {
 
     return serialized
   }
-  const safeMessage = getSafeProviderErrorMessage({ data: error })
+  const safeMessage = getSafeProviderErrorMessage({ data: cause })
   return {
     name: null,
-    message: safeMessage || (typeof error === 'object' && error !== null ? null : String(error)),
+    message: safeMessage || (typeof cause === 'object' && cause !== null ? null : String(cause)),
     stack: null,
     ...ownership
   }
