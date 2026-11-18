@@ -3,8 +3,6 @@
   "agent.builtin.cherry_doctor.description": "Wbudowany analityk diagnostyki systemu. Odczytuje raport diagnostyczny i stan środowiska wykonawczego, wyjaśnia przyczynę źródłową oraz proponuje ukierunkowane poprawki",
   "agent.builtin.cherry_support.description": "Oficjalny agent pomocy Cherry Studio do wskazówek konfiguracyjnych, rozwiązywania problemów, często zadawanych pytań i opinii",
   "agent.import.missing_file": "Brak załącznika w eksporcie: {{name}}",
-  "agent.import.reasoning": "Historyczne rozumowanie",
-  "agent.import.search": "Historyczny zapis wyszukiwania",
   "agent.session.claude.runtime_unavailable": "Agent Claude nie jest gotowy. Poczekaj na zakończenie pobierania lub spróbuj ponownie.",
   "agent.session.fork.execution_not_inherited": "Wykonywanie nie zostało odziedziczone przez to odgałęzienie sesji.",
   "agent.session.new": "Nowe zadanie",
