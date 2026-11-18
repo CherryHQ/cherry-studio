@@ -334,14 +334,15 @@ describe('ModelService.update', () => {
     )
     resolveModelMock.mockImplementation((_providerContext, modelId) => {
       const isDatedVariant = modelId === apiModelId
+      const registryOverride = {
+        providerId: 'tokenhub',
+        modelId: 'deepseek-v4-flash',
+        apiModelId: isDatedVariant ? apiModelId : 'deepseek-v4-flash'
+      }
+      if (isDatedVariant) Object.assign(registryOverride, { name: 'DeepSeek-V4-Flash 原厂直供' })
       return {
         presetModel: { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' },
-        registryOverride: {
-          providerId: 'tokenhub',
-          modelId: 'deepseek-v4-flash',
-          apiModelId: isDatedVariant ? apiModelId : 'deepseek-v4-flash',
-          ...(isDatedVariant ? { name: 'DeepSeek-V4-Flash 原厂直供' } : {})
-        },
+        registryOverride,
         reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
       }
     })
@@ -1222,19 +1223,16 @@ describe('ModelService.list — registry enrichment', () => {
     )
     resolveModelMock.mockImplementation((_providerContext, modelId) => {
       const isDatedVariant = modelId === apiModelId
+      const registryOverride = {
+        providerId: 'tokenhub',
+        modelId: 'deepseek-v4-flash',
+        apiModelId: isDatedVariant ? apiModelId : 'deepseek-v4-flash'
+      }
+      if (isDatedVariant)
+        Object.assign(registryOverride, { name: 'DeepSeek-V4-Flash 原厂直供', limits: { contextWindow: 131_072 } })
       return {
         presetModel: { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash' },
-        registryOverride: {
-          providerId: 'tokenhub',
-          modelId: 'deepseek-v4-flash',
-          apiModelId: isDatedVariant ? apiModelId : 'deepseek-v4-flash',
-          ...(isDatedVariant
-            ? {
-                name: 'DeepSeek-V4-Flash 原厂直供',
-                limits: { contextWindow: 131_072 }
-              }
-            : {})
-        },
+        registryOverride,
         reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
       }
     })
