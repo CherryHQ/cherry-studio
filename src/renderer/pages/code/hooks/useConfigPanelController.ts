@@ -204,13 +204,12 @@ export function useConfigPanelController({
         if (providerConfigPersisted) {
           try {
             if (previousProviderConfig) {
-              await upsertProviderConfig(editingProvider.id, {
+              const rollback: Parameters<typeof upsertProviderConfig>[1] = {
                 modelId: previousProviderConfig.modelId,
-                config: previousProviderConfig.config,
-                ...(previousProviderConfig.sortIndex !== undefined
-                  ? { sortIndex: previousProviderConfig.sortIndex }
-                  : {})
-              })
+                config: previousProviderConfig.config
+              }
+              if (previousProviderConfig.sortIndex !== undefined) rollback.sortIndex = previousProviderConfig.sortIndex
+              await upsertProviderConfig(editingProvider.id, rollback)
             } else {
               await deleteProviderConfig(editingProvider.id)
             }

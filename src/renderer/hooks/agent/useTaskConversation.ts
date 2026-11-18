@@ -84,31 +84,23 @@ export function useTaskConversation(task: ScheduledTaskEntity | null | undefined
     try {
       const next = await readTaskConversationPage(task, result.nextPage, signal)
       if (signal?.aborted) return
-      setState((current) =>
-        current.key !== key || !current.result
-          ? current
-          : {
-              key,
-              taskId: task.id,
-              loading: false,
-              newerRunId: current.newerRunId,
-              result: {
-                ...next,
-                ...(current.result.session || runId
-                  ? {
-                      selectedRun: current.result.selectedRun,
-                      session: current.result.session,
-                      runId: current.result.runId,
-                      startedAt: current.result.startedAt
-                    }
-                  : {}),
-                logs: [
-                  ...current.result.logs,
-                  ...next.logs.filter((log) => !current.result!.logs.some((existing) => existing.id === log.id))
-                ]
-              }
-            }
-      )
+      setState((current) => {
+        if (current.key !== key || !current.result) return current
+        const result = { ...next }
+        if (current.result.session || runId) {
+          Object.assign(result, {
+            selectedRun: current.result.selectedRun,
+            session: current.result.session,
+            runId: current.result.runId,
+            startedAt: current.result.startedAt
+          })
+        }
+        result.logs = [
+          ...current.result.logs,
+          ...next.logs.filter((log) => !current.result!.logs.some((existing) => existing.id === log.id))
+        ]
+        return { key, taskId: task.id, loading: false, newerRunId: current.newerRunId, result }
+      })
     } catch (error) {
       if (!signal?.aborted) setState((current) => ({ ...current, loading: false, error }))
     } finally {

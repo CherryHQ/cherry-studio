@@ -973,27 +973,22 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       const cacheWriteTokens = usage?.cache_creation_input_tokens ?? 0
       const inputTokens = noCacheTokens + cacheReadTokens + cacheWriteTokens
       const outputTokens = usage?.output_tokens ?? 0
-      this.eventQueue.push({
-        type: 'usage',
-        invocation: {
-          ...invocation,
-          requestId: `claude-agent:${invocation.responseId}`,
-          model: invocation.model ?? this.sdkModelId ?? this.input.modelId,
-          ...(usage
-            ? {
-                usage: {
-                  inputTokens,
-                  outputTokens,
-                  totalTokens: inputTokens + outputTokens,
-                  noCacheTokens,
-                  cacheReadTokens,
-                  cacheWriteTokens
-                }
-              }
-            : {}),
-          messageAssociation
+      const event: Omit<Extract<AgentRuntimeEvent, { type: 'usage' }>['invocation'], 'messageAssociation'> = {
+        ...invocation,
+        requestId: `claude-agent:${invocation.responseId}`,
+        model: invocation.model ?? this.sdkModelId ?? this.input.modelId
+      }
+      if (usage) {
+        event.usage = {
+          inputTokens,
+          outputTokens,
+          totalTokens: inputTokens + outputTokens,
+          noCacheTokens,
+          cacheReadTokens,
+          cacheWriteTokens
         }
-      })
+      }
+      this.eventQueue.push({ type: 'usage', invocation: { ...event, messageAssociation } })
     }
   }
 }
