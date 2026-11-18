@@ -44,6 +44,15 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+it('reports acquisition failure instead of staying loading when the rejection cannot be printed', async () => {
+  ipc.request.mockRejectedValueOnce({ toString: null })
+  const { result } = renderHook(() => useFileEditSession(handle, 'notes'), { wrapper })
+
+  await waitFor(() => expect(result.current.status).toBe('error'))
+  expect(result.current.error).toBeInstanceOf(Error)
+  expect(result.current.readOnly).toBe(true)
+})
+
 it('preserves BOM, CRLF and raw Markdown on untouched load and after an actual edit', async () => {
   disk = new TextEncoder().encode('\ufeff__base__\r\n')
   const { result } = renderHook(() => useFileEditSession(handle, 'notes'), { wrapper })
