@@ -15,9 +15,11 @@ import {
 
 const logger = loggerService.withContext('useCommandRuntime')
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The internal registry erases command-specific payload types; each registered handler interprets its own optional arguments.
 export type CommandHandler = (args?: unknown) => void | Promise<void>
 export type CommandHandlerSource = CommandHandler | Readonly<RefObject<CommandHandler>>
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The selected command handler owns its payload contract; this dispatcher only forwards arguments and isolates handler failures.
 export function runCommandHandler(command: CommandId, handler: CommandHandler, args?: unknown): void {
   try {
     void Promise.resolve(handler(args)).catch((error) =>
@@ -36,6 +38,7 @@ export interface CommandHandlerOptions {
 }
 
 export interface CommandRuntime {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- One runtime dispatches heterogeneous command IDs without a payload map; registered handlers interpret the forwarded arguments.
   execute: (command: CommandId, args?: unknown) => void
   hasHandler: (command: CommandId) => boolean
   registerHandler: (command: CommandId, handler: CommandHandlerSource, options?: CommandHandlerOptions) => () => void
@@ -131,6 +134,7 @@ export function useCommandOrigin() {
       )
       return {
         isActive,
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Captured handlers retain command-specific payload ownership; this origin dispatcher only checks handler identity and forwards arguments.
         execute: (command: CommandId, args?: unknown) => {
           const selected = captured.get(command)
           if (!isActive() || !selected) return
