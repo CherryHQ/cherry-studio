@@ -1,6 +1,3 @@
-import { useCallback } from 'react'
-import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
-
 /**
  * Optimistic-cache helpers for the `/topics/:topicId/messages` infinite key.
  *
@@ -19,6 +16,9 @@ import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
  * (which targets the same infinite cache key). Syncing (2) stays with the
  * caller since it holds `setMessages` from `useChatWithHistory`.
  */
+import { useCallback } from 'react'
+import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
+
 import { useMutation } from '@data/hooks/useDataApi'
 import type {
   BranchMessage,

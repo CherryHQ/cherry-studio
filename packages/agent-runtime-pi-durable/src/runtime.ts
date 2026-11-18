@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
+import { canSuggestPrompt } from '@earendil-works/pi-ai/utils/query-fork'
 import {
   ConversationBusy,
   ProviderDoc,
@@ -16,6 +17,7 @@ import {
   type ConversationId,
   type ConversationRecord,
   type Cursor,
+  type EntryId,
   type HarnessOptions,
   type Storage,
   type SubmissionRecord,
@@ -28,7 +30,8 @@ import {
   type HostPorts,
   type Entries,
   type CallRef,
-  type ConversationFacts
+  type ConversationFacts,
+  type SubagentOrigin
 } from '@cherrystudio/agent-behavior'
 import {
   runtimeId,
@@ -49,7 +52,7 @@ import {
 } from '@cherrystudio/agent-runtime'
 
 import { createPiDurableBehavior, type PiDurableBehavior } from './behavior/harness'
-import { historyOf, pages, readFacts } from './behavior/history'
+import { DurableFolds, HistoryFold, historyOf, pages, readFacts } from './behavior/history'
 import { meteredModels } from './behavior/models'
 import { ContentProjection } from './content'
 import { readContextUsage } from './contextUsage'
@@ -86,6 +89,7 @@ export interface PiDurableThreadHandle extends ThreadHandle {
         readonly handle: PiDurableThreadHandle
       }>
     >
+    predictPrompt(prompt: string, signal: AbortSignal): Promise<string>
     facts(): Promise<ConversationFacts>
     providerSessionId(): Promise<string | undefined>
     behaviorToolCallId(call: CallRef): Promise<string | undefined>
@@ -120,6 +124,12 @@ interface Entry {
   contextEpoch: number
   contextRead?: Promise<void>
   contextDirty?: boolean
+  handles: number
+  /** Detaches the native view and drops this conversation's loaded history. */
+  unload(): void
+  unloaded?: boolean
+  /** Sealed committed archive; committed entries never change, so later reads fold only newer entries. */
+  archived?: { through: EntryId; content: ContentProjection }
 }
 const context = BACKGROUND_CONTEXT
 const error = (operation: string, code: string): RuntimeError => ({
@@ -147,9 +157,11 @@ export async function createPiDurableRuntime(
   let harnessOptions = options.harness
   const refFor = (id: number): Thread =>
     Object.freeze({ backendId: options.backendId, id: runtimeId<'thread'>(String(id)) })
+  const folds = new DurableFolds()
   if (options.behavior) {
     const config = options.behavior
     behavior = createPiDurableBehavior({
+      folds,
       install: (ports) => {
         behaviorEntries = install(ports, config.host).entries
       },
@@ -281,27 +293,35 @@ export async function createPiDurableRuntime(
     scanEntries: (query, limit, cursor) => storage.scanEntries(query, limit, cursor, context),
     task: (id) => storage.task(id, context)
   }
+  // A child's creation commit appends its only origin record, so the lookup stops there and is kept.
+  const origins = new Map<ConversationId, SubagentOrigin | undefined>()
+  async function originOf(tx: Pick<Tx, 'scanEntries'>, id: ConversationId): Promise<SubagentOrigin | undefined> {
+    if (origins.has(id)) return origins.get(id)
+    let origin: SubagentOrigin | undefined
+    let cursor: Cursor | undefined
+    do {
+      const page = await tx.scanEntries({ conversationId: id, order: 'ascending' }, 16, cursor)
+      const found = historyOf(page.items, [], id).find(
+        (entry) => entry.kind === 'record' && entry.record.type === 'subagent-origin'
+      )
+      if (found?.kind === 'record' && found.record.type === 'subagent-origin') origin = found.record.value
+      cursor = origin ? undefined : page.next
+    } while (cursor)
+    origins.set(id, origin)
+    return origin
+  }
   async function readRelation(
     tx: Pick<Tx, 'scanEntries' | 'task'>,
     record: ConversationRecord
   ): Promise<(Subagent & { child: Thread }) | undefined> {
     if (!record.owner) return
     const owner = record.owner
-    const history = behavior
-      ? historyOf(
-          await pages((cursor) => tx.scanEntries({ conversationId: record.id, order: 'ascending' }, 256, cursor)),
-          [],
-          record.id
-        )
-      : []
-    const origin = history.findLast((entry) => entry.kind === 'record' && entry.record.type === 'subagent-origin')
-    const lineage =
-      origin?.kind === 'record' && origin.record.type === 'subagent-origin' ? origin.record.value : undefined
-    const taskId = lineage ? nativeId(lineage.parentToolCallId) : owner.taskId
+    const origin = behavior ? await originOf(tx, record.id) : undefined
+    const taskId = origin ? nativeId(origin.parentToolCallId) : owner.taskId
     const task = taskId === undefined ? undefined : await tx.task(taskId as typeof owner.taskId)
     const input = task?.kind === ToolTask.definition.name ? (task.input as ToolTaskInput) : undefined
     const toolCallId = input?.kind === 'model' ? input.callId : input?.call.id
-    const description = lineage?.description
+    const description = origin?.description
     return {
       id: runtimeId<'subagent'>(String(record.id)),
       parent: refFor(owner.conversationId),
@@ -312,6 +332,20 @@ export async function createPiDurableRuntime(
   const readChildren = async (tx: Tx, parent: ConversationId) => {
     const children = await pages((cursor) => tx.scanConversations({ ownerConversationId: parent }, 256, cursor))
     return (await Promise.all(children.map((child) => readRelation(tx, child)))).filter((child) => child !== undefined)
+  }
+  /** A released child that receives input is announced to its nearest loaded ancestor so hosts observe it again. */
+  const announceResumed = async (id: number): Promise<void> => {
+    const record = (conversationId: number) =>
+      native.commit((tx) => tx.conversation(conversationId as ConversationId), context)
+    const child = await record(id)
+    for (let current = child; current?.owner; current = await record(current.owner.conversationId)) {
+      const entry = live.get(current.owner.conversationId)
+      if (!entry) continue
+      const subagent = await readRelation(relationRecords, child!)
+      if (subagent && live.get(current.owner.conversationId) === entry)
+        entry.projection.feed.publish({ type: 'subagent.upsert', subagent })
+      return
+    }
   }
   const unsubscribe = native.observeCommits({
     advance(publication) {
@@ -340,6 +374,8 @@ export async function createPiDurableRuntime(
             }
           }
           inputs.set(record.id, record)
+          if (record.status === 'placed' && !live.has(record.conversationId))
+            void track(announceResumed(record.conversationId)).catch(report)
         }
         if (change.type === 'conversation' && change.value.owner) {
           const parent = change.value.owner.conversationId
@@ -371,6 +407,7 @@ export async function createPiDurableRuntime(
     if (!shutdown) closeAccesses('source-lost')
   })
   void native.closed.then(() => {
+    folds.clear()
     unsubscribeClose()
     unsubscribe()
     closeAccesses(shutdown ? 'shutdown' : 'source-lost')
@@ -426,29 +463,25 @@ export async function createPiDurableRuntime(
           conversation.id,
           { active: true },
           async (view, _release, committed) => {
-            const retained = await pages((cursor) =>
-              committed.scanEntries({ conversationId: conversation.id, order: 'ascending' }, 256, cursor, context)
-            )
-            const historyEntries = new Map(retained.map((entry) => [entry.id, entry]))
-            const sourceConversations = new Set([conversation.id, ...retained.map((entry) => entry.conversationId)])
-            const tasks = (
-              await Promise.all(
-                [...sourceConversations].map((conversationId) =>
-                  pages((cursor) => committed.scanTasks({ conversationId }, 256, cursor, context))
-                )
-              )
-            )
-              .flat()
-              .filter((task) => task.kind === ToolTask.definition.name)
-            const toolTasks = new Map(tasks.map((task) => [task.id, task]))
-            const history = () =>
-              historyOf(
-                [...historyEntries.values()].sort((a, b) => a.id - b.id),
-                [...toolTasks.values()],
-                conversation.id
-              )
-            const states: InputState[] = []
+            // Published history is a fold of the lineage, so no entry body or image is retained for it.
+            const fold = new HistoryFold(conversation.id)
             let cursor: Cursor | undefined
+            do {
+              const page = await committed.scanEntries(
+                { conversationId: conversation.id, order: 'ascending' },
+                256,
+                cursor,
+                context
+              )
+              for (const entry of page.items) fold.addEntry(entry)
+              cursor = page.next
+            } while (cursor)
+            for (const conversationId of [...fold.newestTasks.keys()])
+              for (const task of await pages((next) =>
+                committed.scanTasks({ conversationId, kind: ToolTask.definition.name }, 256, next, context)
+              ))
+                fold.addTask(task)
+            const states: InputState[] = []
             do {
               const page = await committed.scanSubmissions({ conversationId: conversation.id }, 256, cursor, context)
               for (const record of page.items) {
@@ -464,7 +497,7 @@ export async function createPiDurableRuntime(
               }
               cursor = page.next
             } while (cursor)
-            projection.update(view, undefined, states, history())
+            projection.update(view, undefined, states, fold.history)
             let currentView = view
             let publishedView = view
             detachCommits = native.observeCommits({
@@ -474,13 +507,13 @@ export async function createPiDurableRuntime(
                 const records = publication.changes.flatMap((change) => (change.type === 'entry' ? [change.value] : []))
                 for (const change of publication.changes) {
                   if (change.type === 'entry' && change.value.conversationId === conversation.id)
-                    historyEntries.set(change.value.id, change.value)
+                    fold.addEntry(change.value)
                   if (
                     change.type === 'task' &&
                     change.value.conversationId === conversation.id &&
                     change.value.kind === ToolTask.definition.name
                   )
-                    toolTasks.set(change.value.id, change.value)
+                    fold.addTask(change.value)
                   if (
                     change.type !== 'submission' ||
                     change.value.type !== 'input' ||
@@ -501,7 +534,7 @@ export async function createPiDurableRuntime(
                   changed.push(submissionState(refFor(conversation.id), record, answer, logicalIds.get(record.id)))
                 }
                 publishedView = after
-                projection.update(after, publication.seq, changed, history())
+                projection.update(after, publication.seq, changed, fold.history)
               },
               end() {}
             }).detach
@@ -513,7 +546,7 @@ export async function createPiDurableRuntime(
                 queueMicrotask(() => {
                   if (!closing && currentView === call.value && publishedView !== call.value) {
                     publishedView = call.value
-                    projection.update(call.value, undefined, [], history())
+                    projection.update(call.value, undefined, [], fold.history)
                   }
                 })
               },
@@ -530,7 +563,16 @@ export async function createPiDurableRuntime(
           conversation,
           projection,
           admission: Promise.resolve(),
-          contextEpoch: 0
+          contextEpoch: 0,
+          handles: 0,
+          unload: () => {
+            entry.unloaded = true
+            if (live.get(conversation.id) === entry) live.delete(conversation.id)
+            if (entries.get(conversation.id) === loading) entries.delete(conversation.id)
+            detachCommits?.()
+            detach?.()
+            void projection.close().catch(report)
+          }
         }
         live.set(conversation.id, entry)
         refreshContext(entry)
@@ -552,7 +594,16 @@ export async function createPiDurableRuntime(
     })
     return loading
   }
+  /** Loads the conversation and grants one handle; the last release unloads it again. */
+  async function acquire(conversation: Conversation): Promise<OperationResult<PiDurableThreadHandle>> {
+    for (;;) {
+      const result = await load(conversation)
+      if (result.status !== 'confirmed') return result
+      if (!result.value.unloaded) return { status: 'confirmed', value: access(result.value) }
+    }
+  }
   function access(entry: Entry): PiDurableThreadHandle {
+    entry.handles++
     let released = false
     const observations = new Set<Observation>()
     const unavailable = () => released || closing
@@ -652,8 +703,16 @@ export async function createPiDurableRuntime(
           }
           return { status: 'confirmed', value: { relation: found.value, handle: opened.value } }
         },
+        async predictPrompt(prompt, signal) {
+          if (unavailable() || signal.aborted) return ''
+          const fork = await entry.conversation.createQueryFork(context)
+          if (!canSuggestPrompt(fork.messages) || unavailable() || signal.aborted) return ''
+          const { message, calledTool } = await fork.query(prompt, AbortSignal.any([signal, closingAccess.signal]))
+          if (calledTool || signal.aborted || unavailable() || message?.stopReason !== 'stop') return ''
+          return message.content.find((part) => part.type === 'text')?.text ?? ''
+        },
         providerSessionId: async () => (await native.snapshot(ProviderDoc, entry.conversation.id, context))?.sessionId,
-        facts: () => native.commit((tx) => readFacts(tx, entry.conversation.id), context),
+        facts: () => native.commit((tx) => readFacts(tx, folds, entry.conversation.id), context),
         async behaviorToolCallId(call) {
           if (unavailable() || call.thread !== entry.ref.id || nativeId(call.key) === undefined) return undefined
           const task = await native.getTask(Number(call.key) as never, context)
@@ -701,13 +760,18 @@ export async function createPiDurableRuntime(
         return track(
           (async (): Promise<OperationResult<PiDurableArchive>> => {
             try {
-              const content = new ContentProjection()
               const head = (await entry.conversation.entries({ order: 'descending' }, 1, undefined, context)).items[0]
               if (!head) return { status: 'confirmed', value: { messages: [], aliases: {} } }
+              const known = entry.archived
+              const content = known ? known.content.fork() : new ContentProjection()
               let cursor: Cursor | undefined
               do {
                 const page = await entry.conversation.entries(
-                  { maxEntryId: head.id, order: 'ascending' },
+                  {
+                    ...(known && { minEntryId: (known.through + 1) as EntryId }),
+                    maxEntryId: head.id,
+                    order: 'ascending'
+                  },
                   256,
                   cursor,
                   context
@@ -716,13 +780,20 @@ export async function createPiDurableRuntime(
                   if (record.conversationId === entry.conversation.id) content.entry(record)
                 cursor = page.next
               } while (cursor)
+              content.seal()
+              if (!entry.archived || entry.archived.through < head.id) entry.archived = { through: head.id, content }
               const included = new Set(content.messages.map((message) => message.id))
               const aliases = Object.fromEntries(
                 Object.entries(entry.projection.aliases).filter(([id]) => included.has(id))
               )
               return {
                 status: 'confirmed',
-                value: { messages: content.messages, responseIds: content.responseIds, legacy: content.legacy, aliases }
+                value: {
+                  messages: [...content.messages],
+                  responseIds: { ...content.responseIds },
+                  legacy: content.legacy,
+                  aliases
+                }
               }
             } catch (cause) {
               report(cause)
@@ -743,7 +814,7 @@ export async function createPiDurableRuntime(
             }
             try {
               if (behavior && behaviorEntries) {
-                const facts = await native.commit((tx) => readFacts(tx, entry.conversation.id), context)
+                const facts = await native.commit((tx) => readFacts(tx, folds, entry.conversation.id), context)
                 if (facts.lineage.kind === 'subagent') {
                   const receipt = await behavior.withCall(
                     entry.ref.id,
@@ -859,8 +930,10 @@ export async function createPiDurableRuntime(
         )
       },
       async release() {
+        if (released) return
         released = true
         await Promise.all([...observations].map((observation) => observation.stop()))
+        if (--entry.handles === 0 && !closing) entry.unload()
       }
     }
   }
@@ -876,11 +949,9 @@ export async function createPiDurableRuntime(
               context
             )
             await behavior?.open(refFor(conversation.id).id)
-            const result = await load(conversation)
-            if (result.status !== 'confirmed') return result
-            return closing
-              ? rejected('create', 'closed')
-              : { status: 'confirmed' as const, value: access(result.value) }
+            const result = await acquire(conversation)
+            if (closing && result.status === 'confirmed') await result.value.release()
+            return closing ? rejected('create', 'closed') : result
           } catch (cause) {
             report(cause)
             return { status: 'unknown' as const, error: error('create', 'native-error') }
@@ -897,9 +968,9 @@ export async function createPiDurableRuntime(
           try {
             const conversation = await native.conversation(id as ConversationId, context)
             if (!conversation) return rejected('open', 'not-found')
-            const result = await load(conversation)
-            if (result.status !== 'confirmed') return result
-            return closing ? rejected('open', 'closed') : { status: 'confirmed' as const, value: access(result.value) }
+            const result = await acquire(conversation)
+            if (closing && result.status === 'confirmed') await result.value.release()
+            return closing ? rejected('open', 'closed') : result
           } catch (cause) {
             report(cause)
             return { status: 'unknown' as const, error: error('open', 'native-error') }

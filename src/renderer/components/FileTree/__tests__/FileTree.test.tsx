@@ -1,3 +1,4 @@
+import { _api } from '@iconify/react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -5,11 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type * as CherryStudioUi from '@cherrystudio/ui'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
-vi.mock('@iconify/react', () => ({
-  Icon: ({ icon, className, width, height }: { icon: string; className?: string; width?: number; height?: number }) => (
-    <span data-icon={icon} className={className} data-width={width} data-height={height} />
-  )
-}))
+vi.unmock('@iconify/react')
 
 import { FileTree } from '../FileTree'
 import type { FileTreeNode, FileTreeProps } from '../types'
@@ -122,7 +119,7 @@ describe('FileTree - editable form (all callbacks)', () => {
         renderList={passthroughRenderList}
       />
     )
-    const input = screen.getByRole('textbox') as HTMLInputElement
+    const input = screen.getByRole<HTMLInputElement>('textbox')
     const renamedRow = input.closest('[data-node-id="a"]')!
     const rootRow = screen.getByText('Root').closest('[data-node-id="root"]')!
     expect(input.value).toBe('A.md')
@@ -215,7 +212,7 @@ describe('FileTree - search box', () => {
         renderList={passthroughRenderList}
       />
     )
-    const input = screen.getByTestId('file-tree-search-input') as HTMLInputElement
+    const input = screen.getByTestId<HTMLInputElement>('file-tree-search-input')
     expect(input.value).toBe('hello')
     fireEvent.change(input, { target: { value: 'updated' } })
     expect(onSearchKeywordChange).toHaveBeenCalledWith('updated')
@@ -254,4 +251,22 @@ describe('FileTree - search box', () => {
     await user.click(screen.getByLabelText('Clear search'))
     expect(onSearchKeywordChange).toHaveBeenCalledWith('')
   })
+})
+
+// Folder names must resolve to bundled assets in both disclosure states, without an API request.
+it('renders folder icons offline before and after expansion', async () => {
+  const originalFetch = _api.getFetch()
+  const offlineFetch = vi.fn<typeof fetch>().mockRejectedValue(new TypeError('Failed to fetch'))
+  _api.setFetch(offlineFetch)
+  const view = render(<FileTree nodes={nodes} renderList={passthroughRenderList} />)
+  try {
+    const rootRow = screen.getByRole('treeitem', { name: 'Root' })
+    expect(rootRow.querySelector('svg.iconify')).toBeVisible()
+    await userEvent.click(screen.getByText('Root'))
+    expect(rootRow.querySelector('svg.iconify')).toBeVisible()
+    expect(offlineFetch).not.toHaveBeenCalled()
+  } finally {
+    view.unmount()
+    if (originalFetch) _api.setFetch(originalFetch)
+  }
 })

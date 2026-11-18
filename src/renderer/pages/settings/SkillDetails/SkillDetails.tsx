@@ -42,7 +42,7 @@ export function SkillDetails({ skillId }: { skillId: string }) {
   const navigate = useNavigate()
   const launchSkill = useSkillLauncher()
   // Received from the list route; handed back on return so the list restores the active tab.
-  const { scope } = useSearch({ strict: false }) as { scope?: 'all' | 'system' | 'builtin' }
+  const { scope }: { scope?: 'all' | 'system' | 'builtin' } = useSearch({ strict: false })
   const { data: skill, isLoading, error, refetch } = useQuery('/skills/:skillId', { params: { skillId } })
   const { updateGlobalEnabled, setMirrorEnabled, uninstallSkill, isUpdating } = useSkillMutationsById(skillId)
   const [appExternalExportEnabled] = usePreference('agent.skills.external_export.enabled')
@@ -186,7 +186,6 @@ export function SkillDetails({ skillId }: { skillId: string }) {
     return (
       <SettingsContentBody className="min-h-0 flex-1">
         <EmptyState
-          preset="no-resource"
           title={t('settings.skills.notFound')}
           description={error?.message}
           actionLabel={t('common.back')}
@@ -304,7 +303,6 @@ export function SkillDetails({ skillId }: { skillId: string }) {
           />
         ) : (
           <EmptyState
-            preset="no-resource"
             title={t('library.skill_detail.no_files')}
             description={folder.error?.message}
             className="h-full min-h-80"

@@ -89,6 +89,7 @@ export async function createPiGatewayModelBinding(
     },
     // Pi's session retry policy owns retries; neither gateway nor HTTP client retries a step.
     streamSimple: (model, context, options) => {
+      let releasePayload: (() => void) | undefined
       const parent = getPiTraceContext(options?.telemetry)
       const capture = parent
         ? application.get('ApiGatewayService').captureAgentSessionUsage(input.sessionId, undefined, parent)
@@ -97,21 +98,36 @@ export async function createPiGatewayModelBinding(
         // Native reasoning can enlarge per-call output caps before the gateway receives them.
         const stream = streamSimple(model, context, {
           ...options,
+          onPayload: async (payload, payloadModel) => {
+            releasePayload?.()
+            releasePayload = undefined
+            const next = await options?.onPayload?.(payload, payloadModel)
+            releasePayload = await application
+              .get('ApiGatewayService')
+              .acquireModelPayloadBudget(next === undefined ? payload : next, options?.signal)
+            return next
+          },
           ...(capture && { headers: { ...options?.headers, ...capture.headers } }),
           reasoning: undefined,
           maxRetries: 0
         })
         void stream
           .result()
-          .then((message) => onUsage?.(message.usage, options?.sessionId, message.responseId))
+          .then((message) => {
+            if (!options?.readOnlyFork) onUsage?.(message.usage, options?.sessionId, message.responseId)
+          })
           .catch((error) => {
             loggerService
               .withContext('PiGatewayModelBinding')
               .error('Failed to observe native model response', { error })
           })
-          .finally(() => capture?.release())
+          .finally(() => {
+            releasePayload?.()
+            capture?.release()
+          })
         return stream
       } catch (error) {
+        releasePayload?.()
         capture?.release()
         throw error
       }

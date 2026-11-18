@@ -24,7 +24,7 @@ function getRecoveryTime(plans: CherryCloudAccountPlans | undefined, cloudModelI
     .flatMap((entitlement) => entitlement.quota_pools)
     .filter((pool) => pool.model_ids.includes(cloudModelId))
     .flatMap((pool) => {
-      const exhausted = pool.windows.filter((window) => window.remaining_units === 0)
+      const exhausted = pool.windows.filter((window) => window.used_units >= window.limit_units)
       const times = exhausted.map((window) => {
         const recoversAt = getQuotaRecoveryTime(window)
         return recoversAt ? Date.parse(recoversAt) : NaN

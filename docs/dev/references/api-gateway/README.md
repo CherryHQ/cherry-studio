@@ -580,7 +580,10 @@ provider message. A sanitized 400 classified as context overflow prefixes that m
 `context_length_exceeded` in HTTP and SSE errors so native clients can recognize it even
 when the original evidence was a structured code or lay beyond the message limit.
 OpenAI-format errors also carry `context_length_exceeded` as their error code.
-Without a status, `TimeoutError` or an exact message of
+Without a status, `AI_InvalidArgumentError` maps to 400 with a bounded, redacted message
+(or `Invalid request parameters` when no safe message remains). A standalone
+`AI_TypeValidationError` does not establish a request error: it can describe an invalid
+upstream response. Otherwise, `TimeoutError` or an exact message of
 `Upstream idle timeout exceeded`, `Stream idle timeout exceeded`, or
 `Idle timeout exceeded` maps to 504 with `Upstream request timed out`; otherwise
 `AbortError`, `ResponseAborted`, or string code `ABORT_ERR` maps to 504 with
@@ -591,10 +594,19 @@ and their SSE error frames: the AI SDK can create an `APICallError` with
 `statusCode: response.status` when an upstream 2xx body is unusable, and returning
 that 2xx would make clients parse the error as a successful response.
 An already committed SSE response remains HTTP 200 and can report the normalized
-server-error classification only in its terminal error frame.
+error classification only in its terminal error frame.
 Unmatched statusless errors remain 500 with
 internal messages shown only in development. JSON responses and terminal SSE error
 frames exclude AI-SDK stack, URL, and request/response diagnostic extras.
+Anthropic status-only 413 errors use `request_too_large` in both JSON responses and
+terminal SSE error frames.
+
+Native Pi bindings acquire a process-shared payload allowance before SDK request serialization.
+Conservative JSON costs above 8 MiB share 64 MiB of allowance; an oversized request uses
+the whole allowance without truncation. The allowance is held until the model stream settles.
+Small calls bypass it, while very large image-history calls may wait for another response.
+Queued cancellation and gateway shutdown release or cancel admission. Conversation history
+and model image content remain complete.
 
 For authenticated internal runtime requests, the prompt stream also passes its original
 provider exception to the gateway without putting it in persisted or renderer-facing error
@@ -602,8 +614,10 @@ state. The existing endpoint error handlers retain provider response details whi
 the error into the requested dialect and preserving its HTTP status. Request IDs and rate-limit
 headers are forwarded from an allowlist; request bodies and credential headers are not.
 For an internal Anthropic request, a classified context-overflow 400 also gains a
-`Prompt is too long:` prefix so Claude Code can recognize it; the provider message and
-structured error fields remain in the response.
+`Prompt is too long:` prefix so Claude Code can recognize it. When the provider message states
+a requested token count above its limit (OpenAI, vLLM, and llama.cpp wordings), the prefix becomes
+`Prompt is too long: N tokens > M maximum.` so Claude Code can size the overflow and its compaction.
+The provider message and structured error fields remain in the response.
 After HTTP 200 is committed, provider details go in the dialect error event instead of
 changing the response status or headers. Runtime SDKs may normalize that response further.
 Public gateway clients continue to receive the sanitized errors above.
