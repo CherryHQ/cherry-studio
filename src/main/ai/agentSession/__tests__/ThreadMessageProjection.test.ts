@@ -65,6 +65,28 @@ describe('ThreadMessageProjection', () => {
     expect(await value.accept({ type: 'activity.changed', activity: { state: 'active' } })).toEqual([])
   })
 
+  it('redecorates only changed sources across repeated snapshots unless explicitly invalidated', async () => {
+    let budget = Infinity
+    let label = 'v1'
+    const value = new ThreadMessageProjection(root, (message) => {
+      if (--budget < 0) throw new Error('A snapshot redecorated unchanged history')
+      return {
+        ...message,
+        parts: message.parts.map((part) => (part.type === 'text' ? { ...part, text: `${label}:${part.text}` } : part))
+      }
+    })
+    onTestFinished(() => value.close())
+    const history = Array.from({ length: 1000 }, (_, index) => message(root, 'saved', `old-${index}`, true))
+    await value.accept(snapshot(history))
+    budget = 1
+    await value.accept(snapshot([...history, message(root, 'streaming', 'live')]))
+    label = 'v2'
+    budget = 2
+    await value.accept([snapshot([...history, message(root, 'more', 'live')])], ['old-0'])
+    expect(text(value).slice(0, 2)).toEqual(['v2:saved', 'v1:saved'])
+    expect(text(value).at(-1)).toBe('v2:more')
+  })
+
   it('returns the final ordered changes of a batch and supports explicit display invalidation', async () => {
     let title = 'before'
     const value = new ThreadMessageProjection(root, (message) => ({

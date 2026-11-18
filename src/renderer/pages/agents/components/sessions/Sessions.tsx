@@ -59,6 +59,7 @@ import {
 import { toast } from '@renderer/services/toast'
 import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { getConversationListSortLocale } from '@renderer/utils/chat/conversationListSort'
 import { withSoleGroupLabelHidden } from '@renderer/utils/chat/resourceListBase'
 import {
   type AgentSessionDisplayMode,
@@ -104,11 +105,13 @@ import {
 } from '@shared/ipc/errors/ai'
 
 import { rejectPendingAgentSessionImageActions } from '../../messages/agentSessionImageActionBus'
+import type { CreateAgentSessionDefaults } from '../../types'
 import { useOptionalAgentFileNavigation } from '../AgentRightPane'
 import { type AgentGroupActionContext, executeAgentGroupAction, resolveAgentGroupActions } from './agentGroupActions'
 import { buildCreateSessionSeedIndex } from './createSessionSeed'
 import { AgentGroupMoreMenu, WorkdirGroupMoreMenu } from './groupMoreMenus'
 import { SessionListBody } from './SessionListBody'
+import { EMPTY_SESSION_LIST_ITEM_RECONCILIATION, reconcileSessionListItems } from './sessionListItemSharing'
 import { useSessionCreation } from './useSessionCreation'
 import { useSessionExpansion } from './useSessionExpansion'
 import { useSessionGroupStructure } from './useSessionGroupStructure'
@@ -120,9 +123,8 @@ import {
   resolveWorkdirGroupActions,
   type WorkdirGroupActionContext
 } from './workdirGroupActions'
+
 const AgentSessionImageCaptureHost = lazy(() => import('../../messages/AgentSessionImageCaptureHost'))
-import type { CreateAgentSessionDefaults } from '../../types'
-import { EMPTY_SESSION_LIST_ITEM_RECONCILIATION, reconcileSessionListItems } from './sessionListItemSharing'
 
 type SessionsBaseProps = {
   agentSessionsSource: AgentSessionsSource
@@ -201,6 +203,8 @@ const Sessions = ({
   const groupNow = useCurrentDayStart()
 
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
+  const sortLocale = getConversationListSortLocale()
+  const [sessionSort] = usePreference('agent.session.sort')
   const [storedPanePosition, setStoredPanePosition] = usePreference('agent.session.position')
   // Agent session icon style is stored under its own key so it no longer mutates the assistant's.
   const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
@@ -259,7 +263,7 @@ const Sessions = ({
     !isRightPanel && displayMode === 'time'
       ? LEFT_PANEL_TIME_SESSION_GROUP_VISIBLE_COUNT
       : DEFAULT_SESSION_GROUP_VISIBLE_COUNT
-  const isDraggableMode = displayMode !== 'time'
+  const isDraggableMode = displayMode !== 'time' || sessionSort.by === 'orderKey'
   const dragReady = isDraggableMode && isFullyLoaded && !isLoadingAll && !isLoadingMore && !isValidating && !isLoading
   const {
     isLoading: isAgentPinsLoading,
@@ -412,7 +416,9 @@ const Sessions = ({
   const workdirDragReady =
     displayMode === 'workdir' && dragReady && !isWorkdirMetadataLoading && !isWorkdirMetadataRefreshing
   const agentDragReady = displayMode === 'agent' && dragReady && !isAgentsLoading
-  const itemDragReady = displayMode === 'workdir' ? workdirDragReady : agentDragReady
+  const itemDragReady =
+    sessionSort.by === 'orderKey' &&
+    (displayMode === 'workdir' ? workdirDragReady : displayMode === 'agent' ? agentDragReady : dragReady)
   const workspaceRowsForDisplay = useMemo(
     () =>
       optimisticWorkspaceOrderIds ? applyOptimisticOrder(workspaceRows, optimisticWorkspaceOrderIds) : workspaceRows,
@@ -448,10 +454,23 @@ const Sessions = ({
       },
       mode: displayMode,
       now: groupNow,
+      sort: sessionSort,
+      sortLocale,
       visibleAgentId: isRightPanel ? (agentIdFilter ?? null) : undefined,
       workspaces: workspaceRowsForDisplay
     }),
-    [agentById, agentIdFilter, agentRankById, displayMode, groupNow, isRightPanel, t, workspaceRowsForDisplay]
+    [
+      agentById,
+      agentIdFilter,
+      agentRankById,
+      displayMode,
+      groupNow,
+      isRightPanel,
+      sessionSort,
+      sortLocale,
+      t,
+      workspaceRowsForDisplay
+    ]
   )
 
   const {
@@ -1046,7 +1065,7 @@ const Sessions = ({
       // A drop onto a group header has no `overItem`; the same-group check below
       // is what keeps that drop inside the item's own group.
       (overItem ? activeItem.pinned === overItem.pinned : true) &&
-      canDropSessionItemInDisplayGroup({ mode: displayMode, sourceGroupId, targetGroupId }),
+      canDropSessionItemInDisplayGroup({ mode: displayMode, manualOrder: true, sourceGroupId, targetGroupId }),
     [displayMode, itemDragReady]
   )
 
@@ -1208,6 +1227,7 @@ const Sessions = ({
       if (
         !canDropSessionItemInDisplayGroup({
           mode: displayMode,
+          manualOrder: true,
           sourceGroupId: payload.sourceGroupId,
           targetGroupId: payload.targetGroupId
         })
@@ -1714,7 +1734,7 @@ const Sessions = ({
           channelTypeMap={channelTypeMap}
           displayMode={displayMode}
           error={listError}
-          isDraggable={isDraggableMode && !isRightPanel}
+          isDraggable={isDraggableMode}
           isValidating={listValidating}
           listRef={listRef}
           onDeleteSession={handleDeleteSession}

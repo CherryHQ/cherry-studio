@@ -27,6 +27,7 @@ import { agentSessionContextService as contexts } from '@data/services/AgentSess
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { ChildThreadProjection, savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
+import { readSessionHistory } from '@main/ai/agentSession/sessionHistory'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { prepareClaudeBranch, reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode/claudeContext'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
@@ -278,7 +279,7 @@ it('cancels a cold native connection blocked by the live process cap', async () 
   expect(ports.spawn).not.toHaveBeenCalled()
 })
 
-it('keeps both real SDK background notifications in one persisted Main reply until the final summary', async () => {
+it('continues product history and keeps SDK background notifications in one Main reply', async () => {
   const test = await desktop()
   const agentId = randomUUID()
   const modelId = 'native-test::claude-sonnet-4-6'
@@ -327,6 +328,11 @@ it('keeps both real SDK background notifications in one persisted Main reply unt
     runtimeDriverRegistry.clearForTest()
     BaseService.resetInstances()
   })
+  test.input('Remember historical mango')
+  const historical = messages.saveMessage({
+    sessionId: test.sessionId,
+    message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Mango recorded' }] } }
+  })
   const user = test.input('Run two background reviews').message
   const reply = messages.saveMessage({
     sessionId: test.sessionId,
@@ -362,6 +368,11 @@ it('keeps both real SDK background notifications in one persisted Main reply unt
       throw new Error(JSON.stringify({ result, unexpected }))
     })
   ])
+  expect(JSON.stringify(request.body.messages)).toContain('Remember historical mango')
+  expect(JSON.stringify(request.body.messages)).toContain('Mango recorded')
+  expect(messages.getSessionMessage(test.sessionId, historical.id).data.parts).toEqual([
+    { type: 'text', text: 'Mango recorded' }
+  ])
   request.reply.block(spawnChild('toolu_review_a', true))
   request.reply.block(spawnChild('toolu_review_b', true))
   request.reply.finish('tool_use')
@@ -396,7 +407,7 @@ it('keeps both real SDK background notifications in one persisted Main reply unt
     .where(eq(sessionMessagesTable.sessionId, test.sessionId))
     .all()
     .filter((row) => row.role === 'assistant')
-  expect(rows.map((row) => row.id)).toEqual([reply.id])
+  expect(rows.map((row) => row.id)).toEqual([historical.id, reply.id])
   expect(
     messages
       .getSessionMessage(test.sessionId, reply.id)
@@ -765,11 +776,13 @@ it('binds repeated native resets after Main captures a prewarm branch head, reta
   expect(test.events.filter((event) => event.type === 'error')).toEqual([])
 }, 60000)
 
-it.each(['managed', 'external', 'failure'])(
+it.each(['managed', 'external', 'failure', 'history'])(
   'dispatches real %s image bytes through the native owner',
   async (kind) => {
     const test = await desktop()
-    const bytes = await sharp({ create: { width: 1000, height: 4, channels: 3, background: '#123456' } })
+    // Keep the injected encoder failure from reusing a previously cached success.
+    const background = kind === 'failure' ? '#654321' : '#123456'
+    const bytes = await sharp({ create: { width: 1000, height: 4, channels: 3, background } })
       .png()
       .toBuffer()
     MockApplicationUtils.setService('FileManager', {
@@ -805,6 +818,11 @@ it.each(['managed', 'external', 'failure'])(
         }
       })
     }
+    const current = kind === 'history' ? test.input('Describe the earlier image') : input
+    const command =
+      kind === 'history'
+        ? { ...current, context: await readSessionHistory(test.sessionId, current.message.id) }
+        : current
     const connection = await test.connect()
     const extend =
       kind === 'failure'
@@ -813,7 +831,7 @@ it.each(['managed', 'external', 'failure'])(
           })
         : undefined
     try {
-      await connection.send(input)
+      await connection.send(command)
     } finally {
       extend?.mockRestore()
     }

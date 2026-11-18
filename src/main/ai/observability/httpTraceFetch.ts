@@ -143,13 +143,14 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
       return new Response(sdkBranch)
     }
 
-    void accumulateBody(captureBranch, maxBodyBytes, init?.signal)
+    const signal = init?.signal
+    void accumulateBody(captureBranch, maxBodyBytes, signal)
       .then(({ body, error }) => {
         if (body) span.setAttribute('outputs', body)
         if (error) {
           span.recordException(error as Error)
           span.setStatus({ code: SpanStatusCode.ERROR, message: (error as Error)?.message })
-        } else if (init?.signal?.aborted) {
+        } else if (signal?.aborted) {
           span.setStatus({ code: SpanStatusCode.ERROR, message: 'request aborted before body completed' })
         }
         span.end()
@@ -217,7 +218,8 @@ function readRequestBody(body: BodyInit | null | undefined, maxBytes: number): u
   // LLM requests send a JSON string. Non-string bodies (streams, FormData,
   // Blob) aren't synchronously readable here — skip them.
   if (typeof body !== 'string') return undefined
-  return body.length <= maxBytes ? parseJsonMaybe(body) : truncate(body, maxBytes)
+  const preview = truncate(body, maxBytes)
+  return body.length <= maxBytes ? parseJsonMaybe(preview) : preview
 }
 
 /** Coerce a captured body to the string an OTel attribute requires. */
@@ -234,7 +236,9 @@ function parseJsonMaybe(value: string): unknown {
 }
 
 function truncate(str: string, max: number): string {
-  return str.length > max ? `${str.slice(0, max)}…[truncated ${str.length - max} chars]` : str
+  const preview = str.length > max ? `${str.slice(0, max)}…[truncated ${str.length - max} chars]` : str
+  // Copy UTF-16 code units so the bounded preview cannot retain the full request's backing string.
+  return Buffer.from(preview, 'utf16le').toString('utf16le')
 }
 
 function headersToRecord(headers: HeadersInit | undefined): Record<string, string> {

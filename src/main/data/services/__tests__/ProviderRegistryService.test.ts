@@ -554,7 +554,8 @@ describe('ProviderRegistryService', () => {
 
       expect(model.requestControls?.serviceTier).toEqual({
         default: 'standard',
-        options: ['standard', 'auto', 'fast', 'flex']
+        options: ['standard', 'auto', 'fast', 'flex'],
+        values: { standard: 'on_demand', auto: 'auto', fast: 'performance', flex: 'flex' }
       })
       expect(model.requestControls?.serviceTier).not.toHaveProperty('wire')
     })

@@ -1,0 +1,1 @@
+ALTER TABLE `agent_session_message` ADD `reply_id` text;

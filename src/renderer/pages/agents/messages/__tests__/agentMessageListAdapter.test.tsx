@@ -718,6 +718,15 @@ describe('useAgentMessageListProviderValue', () => {
       messages: []
     } as Topic
     const messages = [
+      ...(['TIMEOUT', 'INCOMPLETE', 'CONTENT_FILTER', 'FINISHED'] as const).map((status) => ({
+        id: `imported-${status}`,
+        role: 'assistant',
+        parts: status === 'TIMEOUT' ? [{ type: 'text', text: 'Preserved partial answer' }] : [],
+        metadata: {
+          status: status === 'FINISHED' ? 'success' : 'error',
+          importedHistory: { source: 'deepseek', messageId: '2', status }
+        }
+      })),
       {
         id: 'assistant-error',
         role: 'assistant',
@@ -761,6 +770,14 @@ describe('useAgentMessageListProviderValue', () => {
 
     render(<Probe />)
 
+    for (const status of ['TIMEOUT', 'INCOMPLETE', 'CONTENT_FILTER', 'FINISHED']) {
+      const expected = [
+        ...(status === 'TIMEOUT' ? [{ type: 'text', text: 'Preserved partial answer' }] : []),
+        { type: 'data-imported-status', data: { status } }
+      ]
+      expect(value?.state.partsByMessageId?.[`imported-${status}`]).toEqual(expected)
+      expect(value?.state.streamingLayers?.historyPartsByMessageId[`imported-${status}`]).toEqual(expected)
+    }
     expect(value?.state.partsByMessageId?.['assistant-error']).toEqual([
       expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
     ])
