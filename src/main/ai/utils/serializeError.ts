@@ -9,6 +9,7 @@ import { hasReportingOwner } from '@shared/utils/errorReporting'
 /** Lenient JSON serialization with circular-reference safety.
  *  Returns null for absent values so callers can preserve the `string | null`
  *  contract instead of emitting the literal string "null". */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Error extension fields are untrusted until this serializer converts them to IPC-safe values.
 function toSerializable(value: unknown): Serializable {
   if (value == null) return null
   const seen = new WeakSet<object>()
@@ -35,6 +36,7 @@ function toSerializable(value: unknown): Serializable {
  *  Mirrors the field-extraction cascade in `src/renderer/utils/error.ts`
  *  so every `SerializedAiSdkErrorUnion` shape carries its discriminant
  *  fields and the renderer's type guards match. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- AI operations may throw arbitrary values; this boundary normalizes them for IPC without trusting extension fields.
 export function serializeError(error: unknown): SerializedError {
   const ownership: Record<string, Serializable> = hasReportingOwner(error) ? { reportingHandled: true } : {}
   if (APICallError.isInstance(error) || JSONParseError.isInstance(error) || TypeValidationError.isInstance(error)) {
@@ -79,13 +81,13 @@ export function serializeError(error: unknown): SerializedError {
     if ('availableTools' in e) serialized.availableTools = (e.availableTools as string[]) ?? null
     if ('reason' in e) serialized.reason = e.reason as string
     if ('lastError' in e) serialized.lastError = serializeNestedProviderError(e.lastError)
-    if ('errors' in e) serialized.errors = (e.errors as unknown[]).map(serializeNestedProviderError)
+    if (Array.isArray(e.errors)) serialized.errors = e.errors.map(serializeNestedProviderError)
     if ('originalError' in e) serialized.originalError = serializeError(e.originalError)
     if ('functionality' in e) serialized.functionality = e.functionality as string
     if ('provider' in e) serialized.provider = e.provider as string
     if ('responses' in e) serialized.responses = e.responses as string[]
     if ('maxEmbeddingsPerCall' in e) serialized.maxEmbeddingsPerCall = (e.maxEmbeddingsPerCall as number) ?? null
-    if ('values' in e) serialized.values = (e.values as unknown[]).map((v) => toSerializable(v))
+    if (Array.isArray(e.values)) serialized.values = e.values.map((v) => toSerializable(v))
     if ('i18nKey' in e && typeof e.i18nKey === 'string') serialized.i18nKey = e.i18nKey
     // App-owned OCR diagnostic detail (attachmentRouting): the localized "why"
     // and its interpolation values must survive the IPC boundary, or the

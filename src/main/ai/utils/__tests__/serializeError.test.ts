@@ -4,6 +4,29 @@ import { describe, expect, it } from 'vitest'
 import { serializeError } from '../serializeError'
 
 describe('serializeError', () => {
+  it.each([null, undefined, 'not an array', 7, { map: 'not callable' }])(
+    'ignores malformed collection fields without losing the original failure: %j',
+    (collection) => {
+      const error = Object.assign(new Error('provider failed'), { errors: collection, values: collection })
+      const serialized = serializeError(error)
+
+      expect(serialized.message).toBe('provider failed')
+      expect(serialized).not.toHaveProperty('errors')
+      expect(serialized).not.toHaveProperty('values')
+    }
+  )
+
+  it('preserves valid extension collection values', () => {
+    const error = Object.assign(new Error('provider failed'), {
+      errors: [new Error('upstream failed')],
+      values: ['input', { count: 2 }]
+    })
+    const serialized = serializeError(error)
+
+    expect(serialized.errors).toEqual([{ name: 'Error', message: 'upstream failed', stack: null, cause: null }])
+    expect(serialized.values).toEqual(['input', { count: 2 }])
+  })
+
   it('preserves reporting ownership for API errors and structured stream events without leaking payloads', () => {
     for (const error of [
       new APICallError({

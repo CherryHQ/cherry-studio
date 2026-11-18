@@ -15,6 +15,7 @@ import {
   isAbortError,
   isTimeoutError,
   providerErrorText,
+  safeToString,
   serializeError,
   serializeHealthCheckError
 } from '../error'
@@ -23,6 +24,28 @@ import { classifyError } from '../errorClassifier'
 vi.mock('i18next', () => ({ t: (key: string) => key }))
 
 describe('error', () => {
+  describe('safe diagnostic text', () => {
+    it('returns text when a serialization hook omits the root value', () => {
+      expect(safeToString({ toJSON: () => undefined })).toBe('null')
+    })
+
+    it('returns a placeholder when object or function serialization throws', () => {
+      const unprintableFunction = Object.assign(() => undefined, {
+        toString() {
+          throw new Error('cannot print function')
+        }
+      })
+      const unprintableObject = {
+        toJSON() {
+          throw new Error('cannot print object')
+        }
+      }
+
+      expect(safeToString(unprintableFunction)).toBe('[Unserializable]')
+      expect(safeToString(unprintableObject)).toBe('[Unserializable]')
+    })
+  })
+
   it.each(['responseBody', 'data'] as const)('preserves quota diagnosis after sanitizing %s', (field) => {
     for (const signal of [{ type: 'insufficient_quota' }, { code: 'billing_hard_limit_reached' }]) {
       const payload = { error: signal, prompt: 'private prompt' }
@@ -181,7 +204,7 @@ describe('error', () => {
 
     it('recovers the serialized provider detail from an AI_REQUEST_FAILED IpcError', () => {
       const err = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, '401 Unauthorized', providerDetail)
-      expect(aiErrorDetail(err)).toBe(providerDetail)
+      expect(aiErrorDetail(err)).toEqual(providerDetail)
     })
 
     it('returns undefined for a plain Error', () => {

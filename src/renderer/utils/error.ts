@@ -239,7 +239,7 @@ export const formatZodError = (error: z.ZodError, title?: string) => {
  * - 字符串直接返回
  * - 原始类型(数字、布尔值、bigint等)使用 String() 转换
  * - 对象和数组会尝试使用 JSON.stringify 序列化，并处理循环引用
- * - 如果序列化失败，返回错误信息
+ * - 如果序列化失败，返回固定的不可序列化标记
  *
  * @example
  * ```ts
@@ -249,42 +249,27 @@ export const formatZodError = (error: z.ZodError, title?: string) => {
  * safeToString({a: 1})  // '{"a":1}'
  * ```
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Error diagnostics may contain arbitrary values and throwing serialization hooks; formatting must always return text.
 export function safeToString(value: unknown): string {
-  // 处理 null 和 undefined
   if (value == null) {
     return 'null'
   }
 
-  // 字符串直接返回
   if (typeof value === 'string') {
     return value
   }
 
-  // 数字、布尔值、bigint 等原始类型，安全用 String()
-  if (typeof value !== 'object' && typeof value !== 'function') {
-    return String(value)
+  try {
+    return typeof value === 'object' ? (JSON.stringify(value, getCircularReplacer()) ?? 'null') : String(value)
+  } catch {
+    return '[Unserializable]'
   }
-
-  // 处理对象（包括数组）
-  if (typeof value === 'object') {
-    // 处理函数
-    if (typeof value === 'function') {
-      return value.toString()
-    }
-    // 其他对象
-    try {
-      return JSON.stringify(value, getCircularReplacer())
-    } catch (err) {
-      return '[Unserializable: ' + err + ']'
-    }
-  }
-
-  return String(value)
 }
 
 // 防止循环引用导致的 JSON.stringify 崩溃
 function getCircularReplacer() {
   const seen = new WeakSet()
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- JSON.stringify passes arbitrary nested values to this cycle-detection replacer.
   return (_key: string, value: unknown) => {
     if (typeof value === 'object' && value !== null) {
       if (seen.has(value)) {
