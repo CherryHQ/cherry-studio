@@ -5,31 +5,6 @@ permissions:
 
 on:
   workflow_dispatch:
-    inputs:
-      anti_slop_rule:
-        description: Additional anti-slop rule to audit without changing repository configuration
-        type: choice
-        default: none
-        options:
-          - none
-          - no-array-filter-map
-          - no-reduce-accumulator-copy
-          - no-chained-type-assertions
-          - no-conditional-empty-object-spread
-          - no-known-value-widening
-          - no-module-mocking
-          - no-object-parameters
-          - no-reflect-apply
-          - no-reflect-get
-          - no-runtime-typeof
-          - no-unsafe-dictionary-type
-          - no-shape-in-symbol-names
-          - no-unknown-parameters
-          - no-unknown-returns
-          - no-unknown-type-aliases
-          - no-widen-then-assert
-          - require-readable-spacing
-          - require-safety-comment-for-type-assertion
   schedule:
     - cron: "17 3 * * *"
   push:
@@ -209,30 +184,6 @@ jobs:
         id: lint-checks
         if: "!cancelled() && steps.dependencies.outcome == 'success' && needs.changes.outputs.lint == 'true'"
         run: pnpm check --group lint
-
-      - name: Audit additional anti-slop rule
-        id: anti-slop-audit
-        if: "!cancelled() && steps.dependencies.outcome == 'success' && github.event_name == 'workflow_dispatch' && inputs.anti_slop_rule != 'none'"
-        env:
-          ANTI_SLOP_RULE: ${{ inputs.anti_slop_rule }}
-        run: |
-          mkdir -p .context
-          node --input-type=module <<'NODE'
-          import { writeFileSync } from 'node:fs'
-          import { resolve } from 'node:path'
-          writeFileSync('.anti-slop-audit.config.json', JSON.stringify({
-            extends: [resolve('.oxlintrc.json')],
-            rules: { [`anti-slop/${process.env.ANTI_SLOP_RULE}`]: 'error' }
-          }))
-          NODE
-          pnpm exec oxlint --config .anti-slop-audit.config.json --format json --deny-warnings > .context/anti-slop-audit.json
-      - name: Upload anti-slop audit
-        if: "!cancelled() && (steps.anti-slop-audit.outcome == 'success' || steps.anti-slop-audit.outcome == 'failure')"
-        uses: actions/upload-artifact@v7
-        with:
-          name: anti-slop-audit
-          path: .context/anti-slop-audit.json
-          if-no-files-found: error
 
       - name: Check locale synchronization
         id: i18n-sync
