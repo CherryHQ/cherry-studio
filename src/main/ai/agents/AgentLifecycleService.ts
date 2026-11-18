@@ -505,14 +505,17 @@ export class AgentLifecycleService extends BaseService {
    * the storage operation has ended, so a stale task can never archive a
    * restored workspace (the handler's business-state re-read is the backstop).
    */
-  private async settlePendingWorkspaceArchives(workspaces: Array<{ id: string; path: string }>): Promise<void> {
+  private async settlePendingWorkspaceArchives(
+    workspaces: Array<{ id: string; path: string }>,
+    cancelReason = 'Workspace restored before its archive ran'
+  ): Promise<void> {
     for (const workspace of workspaces) {
       const active = jobService.findActiveByIdempotencyKey(ARCHIVE_SYSTEM_WORKSPACE_JOB_KEY_PREFIX + workspace.id)
       if (!active) continue
       // Resolved lazily: a restore with no queued archive never touches the job runtime.
       const jobManager = application.get('JobManager')
       if (active.status !== 'running') {
-        await jobManager.cancel(active.id, 'Workspace restored before its archive ran')
+        await jobManager.cancel(active.id, cancelReason)
         continue
       }
       // An archive in flight is not aborted mid-pack: wait for the task (and
@@ -534,6 +537,21 @@ export class AgentLifecycleService extends BaseService {
   }
 
   private async removePurgedSystemWorkspaces(workspaces: Array<{ id: string; path: string }>): Promise<void> {
+    // A purge racing the background archive pack loses the workspace's storage
+    // reservation to it: purgeWorkspace then silently skips filesystem cleanup
+    // while the deleted session's archive publishes unclaimed. Settle first,
+    // the same way a restore does — cancel a queued pack, wait out a running
+    // one — so the purge below actually reclaims the directory. A settle that
+    // times out keeps the old fallback: purge skips and the orphan sweep
+    // reclaims the directory later.
+    try {
+      await this.settlePendingWorkspaceArchives(workspaces, 'Workspace permanently deleted before its archive ran')
+    } catch (error) {
+      logger.warn('Workspace archive still in progress during permanent delete; purge may defer to orphan sweep', {
+        workspacePaths: workspaces.map(({ path }) => path),
+        error
+      })
+    }
     for (const workspace of workspaces) {
       try {
         await agentWorkspaceStorageService.purgeWorkspace(workspace)
