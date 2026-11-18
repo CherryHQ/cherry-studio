@@ -374,15 +374,10 @@ describe('cherry-tools autonomy tools', () => {
               })
         })
         mockFindPersistedToolOutput.mockResolvedValue({ found: true, output: 'Complete tool evidence.' })
-        const result = await callTool(
-          createServer(),
-          {
-            session_id: 'source-1',
-            ...(exact ? { message_id: 'message-1' } : {}),
-            ...(mode === 'tool-result' ? { tool_call_id: 'call-1' } : {})
-          },
-          'session_read'
-        )
+        const args = { session_id: 'source-1' }
+        if (exact) Object.assign(args, { message_id: 'message-1' })
+        if (mode === 'tool-result') Object.assign(args, { tool_call_id: 'call-1' })
+        const result = await callTool(createServer(), args, 'session_read')
         expect(result.isError).not.toBe(true)
         const serialized = result.content[0].text
         for (const secret of [

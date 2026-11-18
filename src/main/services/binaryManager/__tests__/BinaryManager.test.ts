@@ -2548,12 +2548,9 @@ describe('BinaryManager', () => {
         expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({
           uv: { status: 'failed', action: 'install', error, targetVersion }
         })
-        await expect(service.getToolInventory()).resolves.toContainEqual({
-          name: 'uv',
-          recipe: 'uv',
-          status: 'failed',
-          ...(version ? { version } : {})
-        })
+        const inventory = { name: 'uv', recipe: 'uv', status: 'failed' }
+        if (version) Object.assign(inventory, { version })
+        await expect(service.getToolInventory()).resolves.toContainEqual(inventory)
         expect(miseArgs().every((args: string[]) => args[0] === 'ls')).toBe(true)
         expect(mockPreferenceService.set).not.toHaveBeenCalled()
       })
@@ -2656,7 +2653,8 @@ describe('BinaryManager', () => {
         mockExecFileAsync.mockResolvedValue({ stdout: '{}', stderr: '' })
         vi.mocked(findCommandInShellEnv).mockRejectedValueOnce(new Error('Command lookup exited with code 2'))
         const broadcast = vi.mocked(application.get('IpcApiService').broadcast)
-        const request = { name: 'fd', ...(targetVersion ? { targetVersion } : {}) }
+        const request: Parameters<typeof service.installByName>[0] = { name: 'fd' }
+        if (targetVersion) request.targetVersion = targetVersion
 
         const install = service.installByName(request)
         broadcast.mockClear()
@@ -2665,9 +2663,9 @@ describe('BinaryManager', () => {
         const failed = {
           status: 'failed',
           action: 'install',
-          error: 'Command lookup exited with code 2',
-          ...(targetVersion ? { targetVersion } : {})
+          error: 'Command lookup exited with code 2'
         }
+        if (targetVersion) Object.assign(failed, { targetVersion })
         expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({ fd: failed })
         expect((await service.getToolSnapshots(['fd'])).fd.operation).toEqual(failed)
         expect(broadcast).toHaveBeenCalledWith('binary.availability_changed', undefined)
@@ -2714,13 +2712,9 @@ describe('BinaryManager', () => {
       let installed = false
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
         if (args[0] === 'ls') {
-          return {
-            stdout: JSON.stringify({
-              node: [{ version: '18.20.0', active: true }],
-              ...(installed ? { 'npm:mytool': [{ version: '1.0.0', active: true }] } : {})
-            }),
-            stderr: ''
-          }
+          const inventory = { node: [{ version: '18.20.0', active: true }] }
+          if (installed) Object.assign(inventory, { 'npm:mytool': [{ version: '1.0.0', active: true }] })
+          return { stdout: JSON.stringify(inventory), stderr: '' }
         }
         if (args[0] === 'use') installed = true
         if (args[0] === 'which') return { stdout: '/mock/mise/shims/mytool\n', stderr: '' }

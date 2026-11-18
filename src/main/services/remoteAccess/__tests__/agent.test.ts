@@ -302,11 +302,9 @@ describe('remote agent access', () => {
   const installCheckpoint = async (subscriptionId: string, descriptor: { checkpointId: string; pageCount: number }) => {
     const pages: AgentCheckpointPage[] = []
     for (let cursor: string | undefined; pages.length < descriptor.pageCount;) {
-      const page: AgentCheckpointPage = await call('agent.checkpoints.read', {
-        subscriptionId,
-        checkpointId: descriptor.checkpointId,
-        ...(cursor ? { pageCursor: cursor } : {})
-      })
+      const params: AgentParams<'agent.checkpoints.read'> = { subscriptionId, checkpointId: descriptor.checkpointId }
+      if (cursor) params.pageCursor = cursor
+      const page: AgentCheckpointPage = await call('agent.checkpoints.read', params)
       pages.push(page)
       cursor = page.nextCursor ?? undefined
     }
@@ -755,10 +753,9 @@ describe('remote agent access', () => {
     expect(previous.activeExecutionId).toBeUndefined()
 
     await tick()
-    const renamed = agentSessionService.update(sessionId, {
-      name: 'Friendly greetings',
-      ...(manual ? {} : { isNameManuallyEdited: false })
-    })
+    const updates: Parameters<typeof agentSessionService.update>[1] = { name: 'Friendly greetings' }
+    if (!manual) updates.isNameManuallyEdited = false
+    const renamed = agentSessionService.update(sessionId, updates)
     expect(renamed.isNameManuallyEdited).toBe(manual)
     expect(hub.journal(sessionId).eventsAfter(Number(projection.cursor.seq), Infinity)).toContainEqual({
       kind: 'session.updated',
@@ -879,10 +876,12 @@ describe('remote agent access', () => {
           stack: 'private stack',
           message:
             '403: {"type":"server_error","message":"An active OpenCode Go subscription is required to use Go models."}'
-        },
-        ...(partial
-          ? { finalMessage: { id: anchor, role: 'assistant', parts: [{ type: 'text', text: 'Partial answer' }] } }
-          : {})
+        }
+      }
+      if (partial) {
+        Object.assign(result, {
+          finalMessage: { id: anchor, role: 'assistant', parts: [{ type: 'text', text: 'Partial answer' }] }
+        } satisfies Pick<StreamErrorResult, 'finalMessage'>)
       }
       const persistence = new PersistenceListener({
         topicId: `agent-session:${sessionId}`,
@@ -1218,7 +1217,9 @@ describe('remote agent access', () => {
     const found: string[] = []
     let cursor: string | undefined
     do {
-      const page = await call('agent.interactions.list', { sessionId, limit: 17, ...(cursor ? { cursor } : {}) })
+      const params: AgentParams<'agent.interactions.list'> = { sessionId, limit: 17 }
+      if (cursor) params.cursor = cursor
+      const page = await call('agent.interactions.list', params)
       found.push(...page.items.map((item: { interactionId: string }) => item.interactionId))
       cursor = page.nextCursor ?? undefined
       expect(found.length).toBeLessThanOrEqual(61)

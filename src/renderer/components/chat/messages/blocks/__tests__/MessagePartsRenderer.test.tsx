@@ -78,16 +78,15 @@ vi.mock('motion/react', () => {
     const opacity = target?.opacity
     const x = target?.x
     const duration = target?.transition?.duration
+    const resolvedStyle = { ...style }
+    if (opacity !== undefined) resolvedStyle.opacity = opacity
+    if (x !== undefined) resolvedStyle.transform = x === 0 ? 'none' : `translateX(${x}px)`
     return (
       <div
         ref={ref}
         data-motion-state={typeof animate === 'string' ? animate : undefined}
         data-motion-duration={duration}
-        style={{
-          ...style,
-          ...(opacity === undefined ? {} : { opacity }),
-          ...(x === undefined ? {} : { transform: x === 0 ? 'none' : `translateX(${x}px)` })
-        }}
+        style={resolvedStyle}
         {...props}>
         {children}
       </div>
