@@ -10,14 +10,21 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-export function createRedactor(secretValues: string[]): <T>(value: T) => T {
+interface Redactor {
+  (value: string): string
+  <T>(value: T): T | string | unknown[] | Record<string, unknown>
+}
+
+export function createRedactor(secretValues: string[]): Redactor {
   const secrets = secretValues.filter(Boolean).sort((left, right) => right.length - left.length)
   const patterns = secrets.map((secret) => new RegExp(escapeRegExp(secret), 'g'))
 
-  const redact = (value: unknown, key?: string): unknown => {
+  function redact(value: string, key?: string): string
+  function redact<T>(value: T, key?: string): T | string | unknown[] | Record<string, unknown>
+  function redact<T>(value: T, key?: string): T | string | unknown[] | Record<string, unknown> {
     if (key && SENSITIVE_KEYS.test(key)) return '[REDACTED]'
     if (typeof value === 'string') {
-      const configuredSecretsRemoved = patterns.reduce(
+      const configuredSecretsRemoved = patterns.reduce<string>(
         (output, pattern) => output.replace(pattern, '[REDACTED]'),
         value
       )
@@ -36,5 +43,5 @@ export function createRedactor(secretValues: string[]): <T>(value: T) => T {
     return value
   }
 
-  return <T>(value: T) => redact(value) as T
+  return redact
 }

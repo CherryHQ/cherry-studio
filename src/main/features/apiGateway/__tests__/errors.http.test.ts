@@ -45,10 +45,20 @@ const dialects: { format: OutputFormat; path: string }[] = [
   { format: 'gemini', path: '/v1beta/models/fixture:generateContent' }
 ]
 type Mode = 'non-streaming' | 'before-commit' | 'after-commit'
+type CaseInput =
+  | Error
+  | SerializedError
+  | Record<string, unknown>
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | (() => undefined)
 type Case = {
   id: string
   origin: string
-  input: () => unknown | Promise<unknown>
+  input: () => CaseInput | Promise<CaseInput>
   status: number
   message: string
   boundary?: boolean
@@ -56,9 +66,9 @@ type Case = {
   requestId?: string
   quota?: boolean
 }
-const realInputs = new Map<string, unknown>()
+const realInputs = new Map<string, Error | SerializedError>()
 const cases: Case[] = []
-function add(id: string, value: unknown, status = 500, message = genericMessage, boundary = false) {
+function add(id: string, value: CaseInput, status = 500, message = genericMessage, boundary = false) {
   cases.push({ id, origin: 'constructed boundary', input: () => value, status, message, boundary })
 }
 for (const [id, message] of [
@@ -503,8 +513,10 @@ beforeAll(async () => {
   } catch (error) {
     argumentError = error
   }
-  expect(InvalidArgumentError.isInstance(argumentError)).toBe(true)
-  expect(TypeValidationError.isInstance((argumentError as Error).cause)).toBe(true)
+  if (!InvalidArgumentError.isInstance(argumentError)) {
+    throw new Error('Google SDK fixture did not reject invalid provider options', { cause: argumentError })
+  }
+  expect(TypeValidationError.isInstance(argumentError.cause)).toBe(true)
   expect(providerFetch).not.toHaveBeenCalled()
   realInputs.set('google-options-raw', argumentError)
   realInputs.set('google-options-serialized', serializeError(argumentError))

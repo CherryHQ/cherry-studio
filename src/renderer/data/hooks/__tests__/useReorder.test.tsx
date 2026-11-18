@@ -655,9 +655,7 @@ describe('useReorder - custom accessors', () => {
     })
 
     expect(cache.get(COLLECTION_CACHE_KEY)?.data).toBe('c,a,b')
-    expect(patchMock.mock.calls).toEqual([
-      [`${COLLECTION}/c/order`, { body: { position: 'first' }, query: undefined }]
-    ])
+    expect(patchMock.mock.calls).toEqual([[`${COLLECTION}/c/order`, { body: { position: 'first' }, query: undefined }]])
   })
 
   it('throws at hook construction when only one of selectItems/updateItems is provided', () => {

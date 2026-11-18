@@ -20,6 +20,25 @@ describe('sensitive output redaction', () => {
     })
   })
 
+  it('replaces sensitive non-string fields while retaining ordinary scalar values', () => {
+    const redact = createRedactor([])
+    const input = {
+      password: 1234,
+      nested: { access_token: null, enabled: false },
+      count: 7,
+      missing: undefined
+    }
+
+    expect(redact(input)).toEqual({
+      password: '[REDACTED]',
+      nested: { access_token: '[REDACTED]', enabled: false },
+      count: 7,
+      missing: undefined
+    })
+    expect(input.password).toBe(1234)
+    expect(input.nested.access_token).toBeNull()
+  })
+
   it('removes OAuth material discovered only in application logs', () => {
     const redact = createRedactor([])
     const output = redact(
