@@ -49,6 +49,7 @@ describe('available generic anti-slop rules', () => {
     ['no-array-filter-map', 'export const result = [1, 2].filter(value => value > 0).map(value => value * 2)'],
     ['no-accumulating-spread', 'export const result = [1, 2].reduce((acc, item) => [...acc, item], [] as number[])'],
     ['no-unknown-type-aliases', 'export type Boundary = unknown'],
+    ['no-unknown-returns', 'export function read(): unknown { return "value" }'],
     [
       'no-widen-then-assert',
       'const known = "value"; const broad: unknown = known; export const result = broad as string'

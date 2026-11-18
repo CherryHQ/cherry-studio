@@ -123,6 +123,7 @@
     "oxc/no-accumulating-spread": "error",
     "anti-slop/no-reduce-accumulator-copy": "error",
     "anti-slop/no-unknown-type-aliases": "error",
+    "anti-slop/no-unknown-returns": "error",
     "anti-slop/no-widen-then-assert": "error",
     "no-array-constructor": "off",
     "no-caller": "error",
