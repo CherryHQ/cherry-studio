@@ -6,6 +6,12 @@
 
 - Include a package-local MIT license file and correct the README license link.
 
+## 2.5.1
+
+### Patch Changes
+
+- [#24830](https://github.com/CherryHQ/cherry-studio/pull/24830) [`01f35cb`](https://github.com/CherryHQ/cherry-studio/commit/01f35cb5716191a81402969c8b59c8c0c8b5d3a3) Thanks [@kovsu](https://github.com/kovsu)! - Recognize llama.cpp's "exceeds the available context size" error as a context overflow.
+
 ## 2.5.0
 
 ### Minor Changes

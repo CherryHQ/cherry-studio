@@ -4,20 +4,21 @@
  * Converts Google Generative Language (`generateContent`) request bodies to AI
  * SDK format. Handles `contents` (text / inline data / file data / function
  * calls + responses), `systemInstruction`, `tools.functionDeclarations`, and
- * `generationConfig` (sampling + thinking).
+ * `generationConfig`, native provider options and function selection.
  *
  * Wire types are declared locally (matching the camelCase Gemini REST shape)
  * rather than imported from `@google/genai`, mirroring the other converters:
  * the payload is loosely validated at the route and parsed defensively here.
  */
 
-import type { JSONSchema7 as JsonSchemaLike } from '@ai-sdk/provider'
+import type { GoogleLanguageModelOptions } from '@ai-sdk/google'
+import { UnsupportedFunctionalityError, type JSONSchema7 as JsonSchemaLike } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
-import { jsonSchema, tool } from 'ai'
+import { jsonSchema, Output, tool } from 'ai'
 
 import type { CherryUIMessage } from '@shared/data/types/message'
-import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
@@ -90,21 +91,37 @@ interface GeminiThinkingConfig {
   thinkingLevel?: string
 }
 
-interface GeminiGenerationConfig {
+interface GeminiGenerationConfig extends Pick<
+  GoogleLanguageModelOptions,
+  'responseModalities' | 'imageConfig' | 'mediaResolution' | 'audioTimestamp'
+> {
   temperature?: number
   topP?: number
   topK?: number
   maxOutputTokens?: number
   stopSequences?: string[]
   thinkingConfig?: GeminiThinkingConfig
+  presencePenalty?: number
+  frequencyPenalty?: number
+  seed?: number
+  responseMimeType?: string
+  responseSchema?: unknown
+  responseJsonSchema?: JsonSchemaLike
 }
 
 /** `POST /v1beta/models/{model}:generateContent` request body. */
-export interface GeminiGenerateContentRequest {
+export interface GeminiGenerateContentRequest extends Pick<
+  GoogleLanguageModelOptions,
+  'safetySettings' | 'cachedContent' | 'labels' | 'serviceTier' | 'continuationToken'
+> {
   contents?: GeminiContent[]
   systemInstruction?: GeminiContent | string
   tools?: GeminiTool[]
   generationConfig?: GeminiGenerationConfig
+  toolConfig?: {
+    functionCallingConfig?: { mode?: string; allowedFunctionNames?: string[]; streamFunctionCallArguments?: boolean }
+    retrievalConfig?: GoogleLanguageModelOptions['retrievalConfig']
+  }
 }
 
 let uiMessageSeq = 0
@@ -373,6 +390,7 @@ export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateC
             : geminiSchemaToJsonSchema(declaration.parameters)
         aiSdkTools[declaration.name] = tool({
           description: declaration.description || '',
+          ...(params.toolConfig?.functionCallingConfig?.mode === 'VALIDATED' && { strict: true }),
           inputSchema: jsonSchema(rawSchema)
         })
       }
@@ -380,24 +398,59 @@ export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateC
     return Object.keys(aiSdkTools).length > 0 ? aiSdkTools : undefined
   }
 
-  /** Extract sampling options from `generationConfig`. */
+  /** Extract standard AI SDK generation and function-selection options. */
   extractStreamOptions(params: GeminiGenerateContentRequest): StreamTextOptions {
     const config = params.generationConfig ?? {}
+    if (config.responseMimeType && !['text/plain', 'application/json'].includes(config.responseMimeType)) {
+      throw new UnsupportedFunctionalityError({ functionality: `Gemini responseMimeType: ${config.responseMimeType}` })
+    }
+    const schema =
+      config.responseJsonSchema ??
+      (config.responseSchema !== undefined ? geminiSchemaToJsonSchema(config.responseSchema) : undefined)
+    const selection = params.toolConfig?.functionCallingConfig
+    const allowed = selection?.allowedFunctionNames
+    const restricted = allowed?.length && ['ANY', 'VALIDATED'].includes(selection?.mode ?? '') ? allowed : undefined
+    const names = new Set(params.tools?.flatMap((tool) => tool.functionDeclarations?.map((fn) => fn.name) ?? []))
+    if (restricted?.some((name) => !names.has(name))) {
+      throw new UnsupportedFunctionalityError({ functionality: 'Gemini allowedFunctionNames must name declared tools' })
+    }
+    let toolChoice: StreamTextOptions['toolChoice']
+    switch (selection?.mode) {
+      case undefined:
+      case 'MODE_UNSPECIFIED':
+        break
+      case 'AUTO':
+      case 'VALIDATED':
+        toolChoice = 'auto'
+        break
+      case 'NONE':
+        toolChoice = 'none'
+        break
+      case 'ANY':
+        toolChoice = restricted?.length === 1 ? { type: 'tool', toolName: restricted[0] } : 'required'
+        break
+      default:
+        throw new UnsupportedFunctionalityError({ functionality: `Gemini function calling mode: ${selection?.mode}` })
+    }
     return {
       maxOutputTokens: config.maxOutputTokens,
       temperature: config.temperature,
       topP: config.topP,
       topK: config.topK,
-      stopSequences: config.stopSequences
+      stopSequences: config.stopSequences,
+      ...(config.presencePenalty !== undefined && { presencePenalty: config.presencePenalty }),
+      ...(config.frequencyPenalty !== undefined && { frequencyPenalty: config.frequencyPenalty }),
+      ...(config.seed !== undefined && { seed: config.seed }),
+      ...(toolChoice && { toolChoice }),
+      ...(restricted && (selection?.mode === 'VALIDATED' || restricted.length > 1) && { activeTools: restricted }),
+      ...(schema !== undefined
+        ? { output: Output.object({ schema: jsonSchema(schema) }) }
+        : config.responseMimeType === 'application/json'
+          ? { output: Output.json() }
+          : {})
     }
   }
 
-  /**
-   * Map `generationConfig.thinkingConfig` to provider-specific reasoning options.
-   * Delegated to the Gemini-native mapper so a Gemini/Google target keeps its sentinel
-   * semantics (`-1` dynamic / `0` disabled / `> 0` fixed) and `thinkingLevel` intact
-   * instead of being inverted by a round trip through the Anthropic thinking shape.
-   */
   extractProviderOptions(
     provider: Provider,
     model: Model,
@@ -405,10 +458,29 @@ export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateC
     maxOutputTokens?: number,
     overrideReasoning = false
   ): ProviderOptions | undefined {
-    if (overrideReasoning) return undefined
-    const thinkingConfig = params.generationConfig?.thinkingConfig
-    if (!thinkingConfig) return undefined
-    return mapGeminiThinkingToProviderOptions(provider, model, thinkingConfig, maxOutputTokens)
+    const config = params.generationConfig ?? {}
+    const reasoning =
+      !overrideReasoning && config.thinkingConfig
+        ? mapGeminiThinkingToProviderOptions(provider, model, config.thinkingConfig, maxOutputTokens)
+        : undefined
+    if (!model.endpointTypes?.includes(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)) return reasoning
+    const options = {
+      ...(params.safetySettings !== undefined && { safetySettings: params.safetySettings }),
+      ...(params.cachedContent !== undefined && { cachedContent: params.cachedContent }),
+      ...(params.labels !== undefined && { labels: params.labels }),
+      ...(params.serviceTier !== undefined && { serviceTier: params.serviceTier }),
+      ...(params.continuationToken !== undefined && { continuationToken: params.continuationToken }),
+      ...(config.responseModalities !== undefined && { responseModalities: config.responseModalities }),
+      ...(config.imageConfig !== undefined && { imageConfig: config.imageConfig }),
+      ...(config.mediaResolution !== undefined && { mediaResolution: config.mediaResolution }),
+      ...(config.audioTimestamp !== undefined && { audioTimestamp: config.audioTimestamp }),
+      ...(params.toolConfig?.retrievalConfig !== undefined && { retrievalConfig: params.toolConfig.retrievalConfig }),
+      ...(params.toolConfig?.functionCallingConfig?.streamFunctionCallArguments !== undefined && {
+        streamFunctionCallArguments: params.toolConfig.functionCallingConfig.streamFunctionCallArguments
+      }),
+      ...reasoning?.google
+    }
+    return Object.keys(options).length > 0 ? { ...reasoning, google: options } : reasoning
   }
 }
 
