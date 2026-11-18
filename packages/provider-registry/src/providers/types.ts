@@ -118,32 +118,31 @@ export function openaiCompatible(
     serverTools?: ProviderServerToolConfig[]
   } & GenFields
 ): Provider {
-  const endpointConfigs: ProviderConnection['endpointConfigs'] = {
-    'openai-chat-completions': {
-      adapterFamily: 'openai-compatible',
-      baseUrl: p.baseUrl,
-      ...(p.reasoningFormat ? { reasoningFormat: p.reasoningFormat } : {}),
-      ...(p.dialect ? { dialect: p.dialect } : {})
-    }
+  const chatConfig: NonNullable<ProviderConnection['endpointConfigs']['openai-chat-completions']> = {
+    adapterFamily: 'openai-compatible',
+    baseUrl: p.baseUrl
   }
+  if (p.reasoningFormat) chatConfig.reasoningFormat = p.reasoningFormat
+  if (p.dialect) chatConfig.dialect = p.dialect
+  const endpointConfigs: ProviderConnection['endpointConfigs'] = { 'openai-chat-completions': chatConfig }
   if (p.anthropic) endpointConfigs['anthropic-messages'] = { adapterFamily: 'anthropic', baseUrl: p.anthropic }
-  return defineProvider({
+  const provider: Provider = {
     id: p.id,
     name: p.name,
     defaultChatEndpoint: 'openai-chat-completions',
     endpointConfigs,
     metadata: { website: p.website },
-    availableInEditions: p.availableInEditions,
-    ...(p.authOptional ? { authOptional: p.authOptional } : {}),
-    ...(p.supplementModelsFromRegistry !== undefined
-      ? { supplementModelsFromRegistry: p.supplementModelsFromRegistry }
-      : {}),
-    ...(p.serverTools ? { serverTools: p.serverTools } : {}),
-    ...(p.presetProviderId ? { presetProviderId: p.presetProviderId } : {}),
-    ...(p.modelsDevProvider ? { modelsDevProvider: p.modelsDevProvider } : {}),
-    ...(p.fetchModels ? { fetchModels: p.fetchModels } : {}),
-    ...(p.standaloneModelIds ? { standaloneModelIds: p.standaloneModelIds } : {}),
-    ...(p.overrides ? { overrides: p.overrides } : {}),
-    ...(p.modelTemplates ? { modelTemplates: p.modelTemplates } : {})
-  })
+    availableInEditions: p.availableInEditions
+  }
+  if (p.authOptional) provider.authOptional = p.authOptional
+  if (p.supplementModelsFromRegistry !== undefined)
+    provider.supplementModelsFromRegistry = p.supplementModelsFromRegistry
+  if (p.serverTools) provider.serverTools = p.serverTools
+  if (p.presetProviderId) provider.presetProviderId = p.presetProviderId
+  if (p.modelsDevProvider) provider.modelsDevProvider = p.modelsDevProvider
+  if (p.fetchModels) provider.fetchModels = p.fetchModels
+  if (p.standaloneModelIds) provider.standaloneModelIds = p.standaloneModelIds
+  if (p.overrides) provider.overrides = p.overrides
+  if (p.modelTemplates) provider.modelTemplates = p.modelTemplates
+  return defineProvider(provider)
 }
