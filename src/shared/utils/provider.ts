@@ -455,7 +455,9 @@ export function resolveWebToolRoutes(
           : 'no-backend'
   }
 
-  return { webSearch, webFetch, ...(Object.keys(reasons).length > 0 ? { reasons } : {}) }
+  const routes: WebToolRoutes = { webSearch, webFetch }
+  if (Object.keys(reasons).length > 0) routes.reasons = reasons
+  return routes
 }
 
 /**
