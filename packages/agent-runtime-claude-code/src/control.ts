@@ -370,11 +370,12 @@ export class ClaudeControlState {
   private handleToolProgressMessage(message: SDKToolProgressMessage): void {
     const retry = message.subagent_retry
     if (!retry || !this.isTurnActive) return
-    this.emit({
+    const control: Extract<ClaudeControl, { type: 'api-retry' }> = {
       type: 'api-retry',
-      retry,
-      ...(message.subagent_type ? { subagentType: message.subagent_type } : {})
-    })
+      retry
+    }
+    if (message.subagent_type) control.subagentType = message.subagent_type
+    this.emit(control)
   }
 
   private handleStatusSystemMessage(message: SDKStatusMessage): void {
