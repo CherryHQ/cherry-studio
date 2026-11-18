@@ -1,3 +1,6 @@
+import { EventEmitter } from 'node:events'
+
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -23,13 +26,14 @@ vi.mock('../RemoteAdvertisement', () => ({
   }
 }))
 
-import { createDeviceIdentity, deviceIdentityId } from '@cherrystudio/remote-transport'
+import { createDeviceIdentity, deviceIdentityId, type RemoteSocket } from '@cherrystudio/remote-transport'
 
 import { RemoteAccessService } from '../RemoteAccessService'
 
 let service: RemoteAccessService
 beforeEach(() => {
   BaseService.resetInstances()
+  MockMainPreferenceServiceUtils.resetMocks()
   state.load.mockReset()
   state.published = []
   service = new RemoteAccessService()
@@ -105,3 +109,30 @@ it('keeps sweeping after ingress closes until presented selections can no longer
   await vi.advanceTimersByTimeAsync(1000)
   expect(vi.getTimerCount()).toBe(0)
 })
+
+it.each([null, undefined, 'Keychain unavailable', {}])(
+  'closes an accepted socket when identity loading rejects with a non-Error value (%j)',
+  async (failure) => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.api_gateway.enabled', true)
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.api_gateway.host', '0.0.0.0')
+    state.load.mockRejectedValueOnce(failure)
+    const events = new EventEmitter()
+    let closed: { code?: number; reason?: string } | undefined
+    const socket: RemoteSocket = {
+      binaryType: 'arraybuffer',
+      bufferedAmount: 0,
+      readyState: 1,
+      send: vi.fn(),
+      close(code, reason) {
+        closed = { code, reason }
+        events.emit('close')
+      },
+      addEventListener: events.on.bind(events),
+      removeEventListener: events.off.bind(events)
+    }
+
+    service.accept(socket, '127.0.0.1')
+
+    await vi.waitFor(() => expect(closed).toEqual({ code: 1011, reason: 'Remote session failed' }))
+  }
+)
