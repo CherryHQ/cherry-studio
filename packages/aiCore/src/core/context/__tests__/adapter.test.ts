@@ -9,6 +9,7 @@ describe('fromAISDK', () => {
     const prompt: LanguageModelV3Prompt = [{ role: 'system', content: 'You are helpful.' }]
     const result = fromAISDK(prompt)
     expect(result).toEqual([{ role: 'system', content: 'You are helpful.' }])
+    expect(result[0]).not.toHaveProperty('_providerOptions')
   })
 
   it('converts user messages with text parts', () => {
@@ -56,6 +57,7 @@ describe('fromAISDK', () => {
       { mediaType: 'image/png', data: 'img1' },
       { mediaType: 'application/pdf', data: 'doc1', filename: 'report.pdf' }
     ])
+    expect(result[0].attachments?.[0]).not.toHaveProperty('filename')
   })
 
   it('does not set attachments when no file parts exist', () => {
@@ -472,6 +474,8 @@ describe('round-trip', () => {
     const ir = fromAISDK(original)
     const roundTripped = toAISDK(ir)
     expect(roundTripped).toEqual(original)
+    for (const message of ir) expect(message).not.toHaveProperty('_providerOptions')
+    for (const message of roundTripped) expect(message).not.toHaveProperty('providerOptions')
   })
 
   it('preserves tool call + result through round-trip', () => {
