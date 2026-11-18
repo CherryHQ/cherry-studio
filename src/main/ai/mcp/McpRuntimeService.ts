@@ -803,7 +803,8 @@ export class McpRuntimeService extends BaseService {
           maxTotalTimeoutMs: policy.maxTotalTimeout,
           interactionContext: host,
           onProgress: (progress, total) => {
-            const update: Progress = { progress, ...(total === undefined ? {} : { total }) }
+            const update: Progress = { progress }
+            if (total !== undefined) update.total = total
             application.get('IpcApiService').broadcastToType(WindowType.Main, 'mcp.tool.call_progress', {
               callId: toolCallId,
               progress: progress / (total || 1)
@@ -1080,10 +1081,10 @@ export class McpRuntimeService extends BaseService {
       ...host,
       requestElicitation: async (request, signal) => {
         const response = await authorize('elicitation', request, signal)
-        return ElicitResultSchema.parse({
-          action: response.decision,
-          ...(response.decision === 'accept' && request.params.mode !== 'url' ? { content: response.value ?? {} } : {})
-        })
+        const result = { action: response.decision }
+        if (response.decision === 'accept' && request.params.mode !== 'url')
+          Object.assign(result, { content: response.value ?? {} })
+        return ElicitResultSchema.parse(result)
       },
       ...(host.model
         ? ({

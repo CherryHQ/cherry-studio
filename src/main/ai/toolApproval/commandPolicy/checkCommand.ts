@@ -49,11 +49,16 @@ function evaluate({ command, dialect, builtinRole }: CommandCheckInput): Promise
 /** The only entry point for shell command consent: parse, match the bundled policy, apply the mode. */
 export async function checkCommand(input: CommandCheckInput): Promise<CommandCheck> {
   const decision = await evaluate(input)
+  const verdict: Pick<CommandCheck, 'effect' | 'reason'> = {
+    effect: decision.effect === 'ask' && input.permissionMode !== 'auto' ? 'allow' : decision.effect
+  }
+  if (decision.reason) verdict.reason = decision.reason
+  const directory: Pick<CommandCheck['evidence'], 'cwd'> = {}
+  if (input.cwd) directory.cwd = input.cwd
   return {
-    effect: decision.effect === 'ask' && input.permissionMode !== 'auto' ? 'allow' : decision.effect,
-    ...(decision.reason ? { reason: decision.reason } : {}),
+    ...verdict,
     evidence: {
-      ...(input.cwd ? { cwd: input.cwd } : {}),
+      ...directory,
       revision: decision.revision,
       rules: decision.hits.map(({ ruleId, reasonCode, evidence }) => ({ ruleId, reasonCode, evidence }))
     },

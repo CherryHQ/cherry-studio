@@ -299,7 +299,7 @@ class TokenhubTransport implements ImageGenerationTransport {
 
     try {
       const doFetch = this.customFetch ?? globalThis.fetch
-      const response = await doFetch(`${this.baseURL}${path}`, {
+      const requestOptions: NonNullable<Parameters<typeof doFetch>[1]> = {
         method,
         headers: {
           Accept: 'application/json',
@@ -308,9 +308,10 @@ class TokenhubTransport implements ImageGenerationTransport {
           ...(method === 'POST' && { 'Content-Type': 'application/json' })
         },
         ...(method === 'POST' && body !== undefined && { body: JSON.stringify(body) }),
-        signal: controller.signal,
-        ...(this.customFetch ? {} : { dispatcher: longRunningDispatcher })
-      })
+        signal: controller.signal
+      }
+      if (!this.customFetch) Object.assign(requestOptions, { dispatcher: longRunningDispatcher })
+      const response = await doFetch(`${this.baseURL}${path}`, requestOptions)
       if (!response.ok) {
         if (response.status === 401) throw createPaintingGenerateError('REQ_ERROR_TOKEN')
         if (isTerminalHttpStatus(response.status)) {
