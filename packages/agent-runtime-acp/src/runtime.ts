@@ -72,6 +72,7 @@ export function createAcpRuntime(options: AcpRuntimeOptions): AcpRuntime {
   const owners = new Map<string, Owner>()
   const opening = new Map<string, Promise<OperationResult<Owner>>>()
   const callbacks = options.callbacks ?? {}
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Host permission callbacks and queued projection work can throw arbitrary values; forward their original identity to the host reporter.
   const report = (error: unknown) => {
     try {
       options.report(error)
@@ -81,6 +82,7 @@ export function createAcpRuntime(options: AcpRuntimeOptions): AcpRuntime {
   }
 
   function enqueue(owner: Owner, work: () => Promise<void> | void): Promise<void> {
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Notification projection and queued prompt/configuration work share this rejection boundary; report the raw failure before marking ownership lost.
     owner.work = owner.work.then(work).catch((error: unknown) => {
       report(error)
       lose(owner, 'projection-failed')
@@ -301,6 +303,7 @@ export function createAcpRuntime(options: AcpRuntimeOptions): AcpRuntime {
           owner.active = undefined
           prompt.settle({ status: 'confirmed', value: undefined })
         }),
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- SDK prompt requests can reject on remote failure or transport loss; RequestError and connection-state checks distinguish rejected from unknown outcomes.
       (error: unknown) =>
         enqueue(owner, async () => {
           if (connection?.signal.aborted || !(error instanceof RequestError)) {
