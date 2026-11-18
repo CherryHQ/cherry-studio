@@ -75,7 +75,9 @@ export class DeepSeekHarnessService extends BaseService {
   }
 
   getStatus(): ManagedToolStatusState {
-    return { status: this.status, ...(this.url ? { url: this.url } : {}) }
+    const snapshot: ManagedToolStatusState = { status: this.status }
+    if (this.url) Object.assign(snapshot, { url: this.url })
+    return snapshot
   }
 
   /** Single status-transition point for the main-owned shared snapshot. */
@@ -170,7 +172,11 @@ export class DeepSeekHarnessService extends BaseService {
           // runtime, so only its own startup verdict fails launch; record its version for reports.
           const aborted = startupAbortController.signal.aborted
           const dshVersion = !aborted && runtime ? await readDshVersion(runtime.path) : undefined
-          if (!aborted) logger.warn('DeepSeek Harness failed to start', { ...(dshVersion ? { dshVersion } : {}) })
+          if (!aborted) {
+            const diagnostics = {}
+            if (dshVersion) Object.assign(diagnostics, { dshVersion })
+            logger.warn('DeepSeek Harness failed to start', diagnostics)
+          }
           await this.stopOwnedProcessLocked().catch((stopError) => {
             logger.warn('Failed to stop DeepSeek Harness after launch failure', stopError as Error)
           })
