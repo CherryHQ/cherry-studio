@@ -163,7 +163,7 @@ function toFileItem(
   const danglingState = entry.origin === 'external' ? danglingStateById[entry.id] : undefined
   const isMissing = danglingState === 'missing'
 
-  const base = {
+  const base: Omit<FileItem, 'origin' | 'type'> = {
     id: entry.id,
     name: displayNameOf(entry),
     format,
@@ -173,9 +173,9 @@ function toFileItem(
     updatedAt: formatDateTime(updatedAt),
     trashed: entry.origin === 'internal' && entry.deletedAt !== undefined,
     danglingState,
-    isMissing,
-    ...(sourcePath ? { sourcePath } : {})
+    isMissing
   }
+  if (sourcePath) base.sourcePath = sourcePath
   const originFields = entry.origin === 'external' ? { origin: 'external' as const } : { origin: 'internal' as const }
 
   if (type === 'image') {
