@@ -408,6 +408,10 @@ not an object, or that declare `intent` themselves, are returned unchanged. One 
 and offer, so repeated loadouts keep the schema object a validator is cached by. `TOOL_INTENT_GUIDE` is the one
 system-prompt paragraph that asks the model to fill it in; an adapter adds it exactly when it offers `intent`.
 
+Name a tool with argument repair as `IntentTool<Prepared>`, where `Prepared` is the repair's result type.
+Repair functions receive unvalidated input. The transform returns the original tool or a wrapper whose arguments
+still pass through the native runtime's schema validation.
+
 The Pi adapter installs it through `AgentSession.setToolTransform` and the appended system prompt; the Durable adapter
 through the behavior extension's `wrapTools` and a `tool_intent` prompt section. Both hooks come from Cherry's patches
 of `pi-coding-agent` and `pi-durable`.

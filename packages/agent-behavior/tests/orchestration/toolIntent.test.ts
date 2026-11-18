@@ -4,13 +4,20 @@ import {
   createToolIntent,
   type IntentTool,
   offersToolIntent,
-  TOOL_INTENT_ARG
+  TOOL_INTENT_ARG,
+  withoutToolIntent
 } from '../../src/orchestration/toolIntent'
 
 const transform = createToolIntent()
-const withToolIntent = <T extends IntentTool>(tool: T) => transform(tool, true)
+const withToolIntent = <T extends IntentTool<Prepared>, Prepared = never>(tool: T & IntentTool<Prepared>) =>
+  transform(tool, true)
 
-const prepareOf = (tool: IntentTool) => withToolIntent(tool).prepareArguments as (args: unknown) => unknown
+type BashArguments = { command: string; intent?: string | null }
+const prepareOf = (tool: IntentTool<BashArguments>) => {
+  const prepare = withToolIntent(tool).prepareArguments
+  if (!prepare) throw new Error('Missing argument preparation')
+  return prepare
+}
 
 const bash = {
   name: 'bash',
@@ -48,7 +55,7 @@ describe('createToolIntent', () => {
   it('leaves a tool that declares intent itself, and passes its intent through', () => {
     const own = {
       parameters: { type: 'object', properties: { intent: { type: 'number' } } },
-      prepareArguments: (args: unknown) => args
+      prepareArguments: <Args>(args: Args): Args => args
     }
     expect(withToolIntent(own)).toBe(own)
   })
@@ -57,7 +64,10 @@ describe('createToolIntent', () => {
     const seen: unknown[] = []
     const edit = {
       parameters: { type: 'object', properties: { path: { type: 'string' } } },
-      prepareArguments: (args: { path: string }) => {
+      prepareArguments: (args: unknown) => {
+        if (typeof args !== 'object' || args === null || !('path' in args) || typeof args.path !== 'string') {
+          throw new Error('Missing path')
+        }
         seen.push(args)
         return { ...args, path: args.path.trim() }
       }
@@ -80,14 +90,34 @@ describe('createToolIntent', () => {
     expect(prepareOf(bash)(args)).toBe(args)
   })
 
+  it.each(
+    ['invalid object arguments', 0, false, null, undefined, ['invalid object arguments']].map((args) => ({ args }))
+  )('preserves non-object arguments for downstream validation: %j', ({ args }) => {
+    expect(withoutToolIntent(args)).toBe(args)
+  })
+
+  it('keeps unvalidated arguments typed when a tool has no repair', () => {
+    const tool = transform(bash, true)
+    if (!('prepareArguments' in tool) || !tool.prepareArguments) throw new Error('Missing argument preparation')
+    const prepared: number | Record<string, unknown> = tool.prepareArguments(42)
+    expect(prepared).toBe(42)
+  })
+
+  it('preserves a null repair result for downstream validation', () => {
+    const tool = withToolIntent({ ...bash, prepareArguments: () => null })
+    expect(tool.prepareArguments({ command: 'ls', intent: 'inspect the directory' })).toBeNull()
+  })
+
   it('returns the same wrapper for the same tool', () => {
     expect(withToolIntent(bash)).toBe(withToolIntent(bash))
   })
 
   it('keeps the schema of a tool not offered intent, yet still runs a call that carries one', () => {
-    const tool: IntentTool = transform(bash, false)
+    const original: IntentTool<BashArguments> = bash
+    const tool = transform(original, false)
     expect(tool.parameters).toBe(bash.parameters)
-    const prepare = tool.prepareArguments as (args: unknown) => unknown
+    const prepare = tool.prepareArguments
+    if (!prepare) throw new Error('Missing argument preparation')
     expect(prepare({ command: 'ls', intent: 'left over from another model' })).toEqual({ command: 'ls' })
   })
 })
