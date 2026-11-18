@@ -317,11 +317,12 @@ export class SpeechPlaybackService {
         }
         this.assertCurrent(run)
         await this.voice.finishSpeechText({ sessionId: run.sessionId, requestId: operation.requestId, sequence })
+      })()
         // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Streaming text iteration and IPC writes can fail independently; this handler classifies their arbitrary rejection after cancelling input.
-      })().catch((error: unknown) => {
-        textInput.cancel()
-        if (!run.stopped) void this.failPlayback(run, errorReason(error)).catch(() => undefined)
-      })
+        .catch((error: unknown) => {
+          textInput.cancel()
+          if (!run.stopped) void this.failPlayback(run, errorReason(error)).catch(() => undefined)
+        })
     }
     return { status: 'started' }
   }
