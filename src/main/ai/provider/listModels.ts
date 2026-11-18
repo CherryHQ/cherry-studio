@@ -296,11 +296,9 @@ const ollamaFetcher: ModelFetcher = {
         if (m.capabilities?.includes('thinking')) capabilities.push(MODEL_CAPABILITY.REASONING)
         if (m.capabilities?.includes('tools')) capabilities.push(MODEL_CAPABILITY.FUNCTION_CALL)
         if (m.capabilities?.includes('embedding')) capabilities.push(MODEL_CAPABILITY.EMBEDDING)
-        return toModel(m.name, provider, {
-          ownedBy: 'ollama',
-          capabilities,
-          ...(contextWindows[index] ? { contextWindow: contextWindows[index] } : {})
-        })
+        const extra: Partial<Model> = { ownedBy: 'ollama', capabilities }
+        if (contextWindows[index]) extra.contextWindow = contextWindows[index]
+        return toModel(m.name, provider, extra)
       })
     )
   }
@@ -648,11 +646,9 @@ const newApiFetcher: ModelFetcher = {
         const endpointTypes = normalizeEndpointTypes(m.supported_endpoint_types)
         const impliedCapability = endpointImpliedCapability(endpointTypes?.[0])
 
-        return toModel(m.id, provider, {
-          ownedBy: m.owned_by,
-          endpointTypes,
-          ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
-        })
+        const extra: Partial<Model> = { ownedBy: m.owned_by, endpointTypes }
+        if (impliedCapability) extra.capabilities = [impliedCapability]
+        return toModel(m.id, provider, extra)
       })
     )
   }
@@ -679,13 +675,14 @@ const tokenDanceFetcher: ModelFetcher = {
 
           const impliedCapability = endpointImpliedCapability(endpointTypes[0])
 
-          return toModel(m.id, provider, {
+          const extra: Partial<Model> = {
             name: m.name || m.id,
             description: m.description,
             contextWindow: m.context_length,
-            endpointTypes,
-            ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
-          })
+            endpointTypes
+          }
+          if (impliedCapability) extra.capabilities = [impliedCapability]
+          return toModel(m.id, provider, extra)
         })
         .filter((model): model is Partial<Model> => Boolean(model))
     )
@@ -756,16 +753,12 @@ const openRouterFetcher: ModelFetcher = {
     return listing(
       dedup(all, (m) => m.id).map((m) => {
         const imageModel = imageModelsById.get(m.id)
-        const model = toModel(m.id, provider, {
-          name: imageModel?.name ?? m.name,
-          ownedBy: m.owned_by,
-          ...(imageModel
-            ? {
-                capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
-                endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
-              }
-            : {})
-        })
+        const extra: Partial<Model> = { name: imageModel?.name ?? m.name, ownedBy: m.owned_by }
+        if (imageModel) {
+          extra.capabilities = [MODEL_CAPABILITY.IMAGE_GENERATION]
+          extra.endpointTypes = [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+        }
+        const model = toModel(m.id, provider, extra)
         if (rerankModelIds.has(m.id.trim())) {
           model.capabilities = Array.from(new Set([...(model.capabilities ?? []), MODEL_CAPABILITY.RERANK]))
         }
@@ -1114,28 +1107,18 @@ const omlxFetcher: ModelFetcher = {
                   ])
                 ]
 
-          return toModel(m.id, provider, {
-            ownedBy: 'omlx',
-            // An alias renames the model in the UI only: the server still keys
-            // the request on the physical id, so `id`/`apiModelId` stay `m.id`.
-            // Spread conditionally — `toModel` applies `extra` last, so a
-            // present-but-undefined `name` would overwrite the id fallback.
-            ...(m.model_alias ? { name: m.model_alias } : {}),
-            endpointTypes,
-            // The server reports the window it serves and its output cap; a
-            // discovered model would otherwise carry no limits at all.
-            ...(m.max_context_window ? { contextWindow: m.max_context_window } : {}),
-            ...(m.max_tokens ? { maxOutputTokens: m.max_tokens } : {}),
-            // A VLM takes text and images; the image modality has to be stated
-            // explicitly, or exported configurations read it as text-only even
-            // though the capability says otherwise.
-            ...(m.model_type === 'vlm'
-              ? {
-                  capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
-                  inputModalities: [MODALITY.TEXT, MODALITY.IMAGE]
-                }
-              : {})
-          })
+          const extra: Partial<Model> = { ownedBy: 'omlx' }
+          // An alias changes only the display name; omitting it preserves toModel's ID fallback.
+          if (m.model_alias) extra.name = m.model_alias
+          extra.endpointTypes = endpointTypes
+          if (m.max_context_window) extra.contextWindow = m.max_context_window
+          if (m.max_tokens) extra.maxOutputTokens = m.max_tokens
+          // Exported VLM configurations need explicit image inputs as well as the capability.
+          if (m.model_type === 'vlm') {
+            extra.capabilities = [MODEL_CAPABILITY.IMAGE_RECOGNITION]
+            extra.inputModalities = [MODALITY.TEXT, MODALITY.IMAGE]
+          }
+          return toModel(m.id, provider, extra)
         })
     )
   }
@@ -1177,13 +1160,11 @@ const lmStudioFetcher: ModelFetcher = {
           if (m.capabilities?.vision) capabilities.push(MODEL_CAPABILITY.IMAGE_RECOGNITION)
         }
 
-        return toModel(m.key, provider, {
-          name: m.display_name || m.key,
-          ownedBy: m.publisher,
-          ...(endpointTypes ? { endpointTypes } : {}),
-          capabilities,
-          ...(m.max_context_length ? { contextWindow: m.max_context_length } : {})
-        })
+        const extra: Partial<Model> = { name: m.display_name || m.key, ownedBy: m.publisher }
+        if (endpointTypes) extra.endpointTypes = endpointTypes
+        extra.capabilities = capabilities
+        if (m.max_context_length) extra.contextWindow = m.max_context_length
+        return toModel(m.key, provider, extra)
       })
     )
   }
@@ -1201,10 +1182,14 @@ export async function probeOllamaModel(
   const start = performance.now()
   const baseUrl = formatOllamaApiHost(getBaseUrl(provider))
   const resolved = providerService.resolveApiKey(provider.id, apiKeyOverride)
-  const headers = mergeHeaders(getProviderAppHeaders(provider), getExtraHeaders(provider), {
-    'Content-Type': 'application/json',
-    ...(resolved.value ? { Authorization: `Bearer ${resolved.value}`, 'X-Api-Key': resolved.value } : {})
-  })
+  const appHeaders = getProviderAppHeaders(provider)
+  const extraHeaders = getExtraHeaders(provider)
+  const credentialHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (resolved.value) {
+    credentialHeaders.Authorization = `Bearer ${resolved.value}`
+    credentialHeaders['X-Api-Key'] = resolved.value
+  }
+  const headers = mergeHeaders(appHeaders, extraHeaders, credentialHeaders)
   const response = await fetch(`${baseUrl}/show`, {
     method: 'POST',
     headers,
