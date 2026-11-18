@@ -324,8 +324,7 @@ export class DurableBackend {
     return {
       approvals: {
         facts: (call, tool) => host(call.thread).approvals.facts(call, tool),
-        ask: (request, signal) => host(request.call.thread).approvals.ask(request, signal),
-        outcomes: (thread, calls) => host(thread).approvals.outcomes(thread, calls)
+        ask: (request, signal) => host(request.call.thread).approvals.ask(request, signal)
       },
       questions: { ask: (request, signal) => host(request.call.thread).questions.ask(request, signal) },
       models: {
