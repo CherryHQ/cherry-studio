@@ -349,18 +349,16 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       if (!rawSchema) continue
       const schema = rawSchema as JsonSchemaLike
 
-      const aiTool = tool({
+      const definition = {
         description: sanitizeDescription(toolDef.description || ''),
         inputSchema: jsonSchema(schema),
-        providerOptions: cacheProviderOptions(toolDef),
-        // Only Responses needs an explicit opt-out; omit elsewhere because CherryIN/Bedrock rejects unknown tool fields (#23378).
-        ...(typeof toolDef.strict === 'boolean'
-          ? { strict: toolDef.strict }
-          : targetEndpointType === ENDPOINT_TYPE.OPENAI_RESPONSES
-            ? { strict: false }
-            : {})
-      })
+        providerOptions: cacheProviderOptions(toolDef)
+      }
+      // Only Responses needs an explicit opt-out; omit elsewhere because CherryIN/Bedrock rejects unknown tool fields (#23378).
+      if (typeof toolDef.strict === 'boolean') Object.assign(definition, { strict: toolDef.strict })
+      else if (targetEndpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) Object.assign(definition, { strict: false })
 
+      const aiTool = tool(definition)
       aiSdkTools[this.toProviderToolName(toolDef.name)] = aiTool
     }
     return Object.keys(aiSdkTools).length > 0 ? aiSdkTools : undefined

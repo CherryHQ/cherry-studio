@@ -209,17 +209,18 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk, O
   }
 
   private buildUsage(): NonNullable<ChatCompletion['usage']> {
-    return {
+    const usage: NonNullable<ChatCompletion['usage']> = {
       prompt_tokens: this.state.inputTokens,
       completion_tokens: this.state.outputTokens,
-      total_tokens: this.state.inputTokens + this.state.outputTokens,
-      ...(this.state.cacheReadTokens !== undefined
-        ? { prompt_tokens_details: { cached_tokens: this.state.cacheReadTokens } }
-        : {}),
-      ...(this.state.reasoningTokens !== undefined
-        ? { completion_tokens_details: { reasoning_tokens: this.state.reasoningTokens } }
-        : {})
+      total_tokens: this.state.inputTokens + this.state.outputTokens
     }
+    if (this.state.cacheReadTokens !== undefined) {
+      usage.prompt_tokens_details = { cached_tokens: this.state.cacheReadTokens }
+    }
+    if (this.state.reasoningTokens !== undefined) {
+      usage.completion_tokens_details = { reasoning_tokens: this.state.reasoningTokens }
+    }
+    return usage
   }
 
   private emitContentDelta(content: string): void {

@@ -160,17 +160,18 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
    * them — an absent breakdown stays absent rather than serializing as an explicit 0.
    */
   private buildUsage(): StreamingUsage {
-    return {
+    const usage: StreamingUsage = {
       input_tokens: this.state.inputTokens,
       output_tokens: this.state.outputTokens,
-      total_tokens: this.state.inputTokens + this.state.outputTokens,
-      ...(this.state.cacheReadTokens !== undefined
-        ? { input_tokens_details: { cached_tokens: this.state.cacheReadTokens } }
-        : {}),
-      ...(this.state.reasoningTokens !== undefined
-        ? { output_tokens_details: { reasoning_tokens: this.state.reasoningTokens } }
-        : {})
+      total_tokens: this.state.inputTokens + this.state.outputTokens
     }
+    if (this.state.cacheReadTokens !== undefined) {
+      usage.input_tokens_details = { cached_tokens: this.state.cacheReadTokens }
+    }
+    if (this.state.reasoningTokens !== undefined) {
+      usage.output_tokens_details = { reasoning_tokens: this.state.reasoningTokens }
+    }
+    return usage
   }
 
   private buildIncompleteDetails(): Response['incomplete_details'] {

@@ -56,11 +56,8 @@ export function replaceReasoningPartText(
 
   return parts.map((part, index) => {
     if (index !== partIndex) return part
-    return {
-      ...rest,
-      text,
-      state: 'done',
-      ...(Object.keys(nextCherry).length > 0 ? { providerMetadata: { cherry: nextCherry } } : {})
-    } as CherryMessagePart
+    const edited = { ...rest, text, state: 'done' }
+    if (Object.keys(nextCherry).length > 0) Object.assign(edited, { providerMetadata: { cherry: nextCherry } })
+    return edited as CherryMessagePart
   })
 }

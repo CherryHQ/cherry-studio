@@ -107,24 +107,22 @@ export async function triggerExportTask(
 ): Promise<Doc2xExportStatusResponse> {
   const endpoint = `${context.apiHost}/api/v2/convert/parse`
   const isV3Model = options.modelVersion === 'v3-2026'
+  const headers = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${context.apiKey}`,
+    Accept: 'application/json'
+  }
+  const body = { uid: providerTaskId, to: 'md', formula_mode: 'normal' }
+  if (isV3Model) {
+    Object.assign(body, {
+      formula_level: options.formulaLevel ?? 0,
+      merge_cross_page_forms: options.mergeCrossPageForms ?? false
+    })
+  }
   const response = await net.fetch(endpoint, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${context.apiKey}`,
-      Accept: 'application/json'
-    },
-    body: JSON.stringify({
-      uid: providerTaskId,
-      to: 'md',
-      formula_mode: 'normal',
-      ...(isV3Model
-        ? {
-            formula_level: options.formulaLevel ?? 0,
-            merge_cross_page_forms: options.mergeCrossPageForms ?? false
-          }
-        : {})
-    }),
+    headers,
+    body: JSON.stringify(body),
     signal: context.signal
   })
 
