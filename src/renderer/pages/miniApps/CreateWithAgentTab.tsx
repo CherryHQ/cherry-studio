@@ -6,10 +6,10 @@ import { useTranslation } from 'react-i18next'
 
 import { Alert, Button, DialogFooter, Field, FieldLabel, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { writeChatDraftCache } from '@renderer/components/composer/variants/chat/chatDraftCache'
-import { useRawAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { ipcApi } from '@renderer/ipc'
+import { handOffAgentDraft } from '@renderer/services/agentDraftHandoff'
 import { toast } from '@renderer/services/toast'
+import type { SkillCatalogEntry } from '@shared/types/skill'
 
 const logger = loggerService.withContext('CreateWithAgentTab')
 
@@ -27,8 +27,7 @@ const CHERRY_MINIAPP_SKILL_NAME = 'cherry-miniapp'
 export const CreateWithAgentTab: FC<{ onClose: () => void }> = ({ onClose }) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { reuseOrCreateTopic } = useRawAssistantTopicsSource()
-  const [skillState, setSkillState] = useState<'loading' | 'installed' | 'missing'>('loading')
+  const [skill, setSkill] = useState<SkillCatalogEntry | null | 'loading'>('loading')
   const [draft, setDraft] = useState('')
   const [starting, setStarting] = useState(false)
 
@@ -37,14 +36,14 @@ export const CreateWithAgentTab: FC<{ onClose: () => void }> = ({ onClose }) => 
     ipcApi.request('skill.list_catalog', {}).then(
       (entries) => {
         if (cancelled) return
-        const installed = entries.some(
+        const installed = entries.find(
           (entry) => entry.name === CHERRY_MINIAPP_SKILL_NAME || entry.folderName === CHERRY_MINIAPP_SKILL_NAME
         )
-        setSkillState(installed ? 'installed' : 'missing')
+        setSkill(installed ?? null)
       },
       (error) => {
         logger.warn('Failed to list installed skills', { error })
-        if (!cancelled) setSkillState('missing')
+        if (!cancelled) setSkill(null)
       }
     )
     return () => {
@@ -53,21 +52,20 @@ export const CreateWithAgentTab: FC<{ onClose: () => void }> = ({ onClose }) => 
   }, [])
 
   const handleStart = async () => {
+    if (skill === 'loading' || skill === null) return
     setStarting(true)
     try {
-      // Reuse the placeholder topic when one is empty: "Create using Agent"
-      // twice must not pile up empty sessions.
-      const result = await reuseOrCreateTopic(null)
-      writeChatDraftCache(result.topic.id, {
-        text: draft.trim(),
-        tokens: [],
-        files: [],
-        knowledgeBaseIds: [],
-        mentionedModelIds: [],
-        modelMultiSelectMode: false
-      })
+      // AC7's direct binding: the installed Skill opens through the Skill-session
+      // flow (its identity reaches session creation), never as an ordinary chat
+      // topic. The requirement draft rides the agent-draft handoff so the prepared
+      // composer's skill token carries it.
+      const { sessionId } = await ipcApi.request('ai.agent.skill_session.create', { skillId: skill.id })
+      const requirement = draft.trim()
+      if (requirement) {
+        handOffAgentDraft(sessionId, { text: requirement, tokens: [], files: [], knowledgeBaseIds: [] })
+      }
       onClose()
-      void navigate({ to: '/app/chat', search: { topicId: result.topic.id } })
+      void navigate({ to: '/app/agents', search: { intent: 'skill', sessionId, skillId: skill.id } })
     } catch (error) {
       logger.error('Failed to start a mini app authoring session', error as Error)
       toast.error(t('miniApp.add.agent_start_error'))
@@ -80,7 +78,7 @@ export const CreateWithAgentTab: FC<{ onClose: () => void }> = ({ onClose }) => 
     void navigate({ to: '/settings/skills' })
   }
 
-  if (skillState === 'missing') {
+  if (skill === null) {
     // AC12: without the authoring tools the host gets generation and packaging
     // only — the prompt says so plainly and never claims preview, real-runtime
     // testing or installation.
@@ -117,7 +115,7 @@ export const CreateWithAgentTab: FC<{ onClose: () => void }> = ({ onClose }) => 
             onChange={(e) => setDraft(e.target.value)}
             placeholder={t('miniApp.add.agent_draft_placeholder')}
             rows={4}
-            disabled={skillState === 'loading'}
+            disabled={skill === 'loading'}
           />
         </Field>
       </div>
@@ -127,7 +125,7 @@ export const CreateWithAgentTab: FC<{ onClose: () => void }> = ({ onClose }) => 
         </Button>
         <Button
           onClick={() => void handleStart()}
-          disabled={skillState !== 'installed' || !draft.trim() || starting}
+          disabled={skill === 'loading' || skill === null || !draft.trim() || starting}
           loading={starting}
           className="gap-1.5">
           <Bot size={12} />

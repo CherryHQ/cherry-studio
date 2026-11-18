@@ -8,13 +8,14 @@ Confirm with the user, in one message: the repository owner, the license, the ap
 
 ## Package identity
 
-Each version publishes at a new immutable package path (for example `apps/<id>/<version>/<id>-<version>.miniapp`) — never overwrite a released path. The packaged `manifest.json` contains no `package` block. The hosted distribution manifest is the packaged manifest plus:
+Each version publishes at a new immutable package path (for example `apps/<id>/<version>/<id>-<version>.miniapp`) — never overwrite a released path. The packaged `manifest.json` contains no `package` block. The hosted distribution manifest is the packaged manifest plus a required `update` block and a `package` block:
 
 ```json
-"package": { "url": "https://…/<id>-<version>.miniapp", "sha256": "…", "size": 12345 }
+"update": { "url": "https://…/apps/<id>/manifest.json" },
+"package": { "url": "https://…/<id>-<version>.miniapp", "iconUrl": "https://…/apps/<id>/<version>/icon.png", "sha256": "…", "size": 12345 }
 ```
 
-`sha256` is the lowercase hex digest of the exact `.miniapp` bytes; `size` is the byte count. Both come from `scripts/package.mjs` output for the final tested package — not a re-package after the fact.
+`update.url` is the one mutable path in the layout — it always serves the LATEST distribution manifest, and the host refuses any served manifest without it. `iconUrl` is served next to the package at its immutable versioned path so the consent card can show the icon before downloading (present only when the package declares an icon). `sha256` is the lowercase hex digest of the exact `.miniapp` bytes; `size` is the byte count. Both come from `scripts/package.mjs` output for the final tested package — not a re-package after the fact. Identity (id, version, icon) is read from the manifest INSIDE the tested archive; if the source `manifest.json` has drifted from it, rebuild the package — generation and verification both refuse the divergence.
 
 Build the hosted manifest with `node scripts/publish.mjs manifest <appDir> <out.miniapp> <baseUrl> [--out manifest.json]`. It refuses a packaged manifest that already carries a `package` block and emits the immutable path `apps/<id>/<version>/<id>-<version>.miniapp` under `<baseUrl>`. The script never uploads anything: publishing still happens only on the user's explicit request, through the confirmed repository and hosting address.
 
@@ -22,7 +23,7 @@ Build the hosted manifest with `node scripts/publish.mjs manifest <appDir> <out.
 
 After publishing, read the hosted manifest, package and icon back over HTTPS from the same origin, following no redirects. Digest, size and version must match the final tested package. Then install the app from its public URL and verify it launches. A mismatch means the publish is broken: say so and stop.
 
-`node scripts/publish.mjs verify <hostedManifestUrl> <appDir> <out.miniapp>` runs this gate: it fetches with redirects disabled, requires one origin for manifest, package and icon, and fails on any digest, size or version mismatch.
+`node scripts/publish.mjs verify <hostedManifestUrl> <appDir> <out.miniapp>` runs this gate: it fetches with redirects disabled, requires one origin for manifest, update endpoint, package and icon, requires the hosted `update.url` the installer contract mandates, checks the hosted icon block against the archived one, fetches the DECLARED hosted icon URL, and fails on any digest, size or version mismatch.
 
 ## Official directory submission
 

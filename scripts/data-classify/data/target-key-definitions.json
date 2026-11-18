@@ -1227,6 +1227,13 @@
       "description": "Check installed mini apps for updates when they are opened (v2 new feature, no v1 source)"
     },
     {
+      "targetKey": "feature.mini_app.launchpad_prompt_dismissed",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "App ids whose \"Add to Launchpad?\" prompt the user answered with \"Not now\" (issue #21646 stage 3, AC8): the choice persists and reads back, so the prompt never nags twice for the same app. Pinning itself is the app's status column, not a preference."
+    },
+    {
       "targetKey": "data.backup.webdav.allow_self_signed_tls",
       "type": "boolean",
       "defaultValue": false,

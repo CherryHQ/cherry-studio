@@ -7,6 +7,6 @@
   },
   "version": "1.0.0",
   "entry": "index.html",
-  "icon": { "path": "icon.svg", "sha256": "c262c17273f0747b3edfe2361271817697d5eae9ae1799645491d2efe39d2536" },
+  "icon": { "path": "icon.png", "sha256": "c1c85bd959bfcc032e9a74e8c08b570356a626f618dd00724d3fbb991d6a6858" },
   "permissions": ["storage.*"]
 }

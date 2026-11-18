@@ -66,7 +66,11 @@ export async function checkDuplicateEntry(appId, readmePaths) {
       issues.push(`${readmePath}: unreadable`)
       continue
     }
-    if (content.includes(appId)) {
+    // Complete-ID match: com.example.timer must not be "found" inside the distinct
+    // com.example.timer2. Ids are dot/underscore/hyphen separated, so any of those
+    // (or a word char) on either side means the match is part of a LONGER id.
+    const pattern = new RegExp(`(?<![A-Za-z0-9._-])${appId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9._-])`)
+    if (pattern.test(content)) {
       issues.push(`${path.basename(readmePath)}: an existing entry already lists ${appId}`)
     }
   }
@@ -98,17 +102,12 @@ if (isCliEntry) {
         console.error('Usage: node scripts/check-directory-submission.mjs --files <changed-file>... | --base <git-ref>')
         process.exit(2)
       }
-      changedFiles = args.slice(filesIndex + 1).filter((a) => !a.startsWith('--'))
-      // --app-id and --readmes values follow their flags; strip them from the file list.
-      const appIdIndex = args.indexOf('--app-id')
-      const readmesIndex = args.indexOf('--readmes')
-      const excluded = new Set()
-      if (appIdIndex >= 0) excluded.add(args[appIdIndex + 1])
-      if (readmesIndex >= 0) {
-        excluded.add(args[readmesIndex + 1])
-        excluded.add(args[readmesIndex + 2])
-      }
-      changedFiles = changedFiles.filter((f) => !excluded.has(f))
+      // Positional: the file list is the values between --files and the NEXT flag.
+      // Filtering by value would silently drop a changed file that happens to equal
+      // another flag's value (e.g. README.md repeated under --readmes).
+      const rest = args.slice(filesIndex + 1)
+      const end = rest.findIndex((a) => a.startsWith('--'))
+      changedFiles = end < 0 ? rest : rest.slice(0, end)
     }
 
     const filesResult = checkSubmissionFiles(changedFiles)

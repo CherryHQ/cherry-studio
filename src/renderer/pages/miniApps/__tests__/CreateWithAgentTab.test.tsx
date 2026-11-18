@@ -6,18 +6,14 @@ import i18n from '@renderer/i18n/resolver'
 
 import CreateWithAgentTab from '../CreateWithAgentTab'
 
-const { request, reuseOrCreateTopic, writeChatDraftCache, navigate } = vi.hoisted(() => ({
+const { request, handOffAgentDraft, navigate } = vi.hoisted(() => ({
   request: vi.fn(),
-  reuseOrCreateTopic: vi.fn(),
-  writeChatDraftCache: vi.fn(),
+  handOffAgentDraft: vi.fn(),
   navigate: vi.fn()
 }))
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request } }))
-vi.mock('@renderer/hooks/resourceViewSources', () => ({
-  useRawAssistantTopicsSource: () => ({ reuseOrCreateTopic })
-}))
-vi.mock('@renderer/components/composer/variants/chat/chatDraftCache', () => ({ writeChatDraftCache }))
+vi.mock('@renderer/services/agentDraftHandoff', () => ({ handOffAgentDraft }))
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigate }))
 
 let previousLanguage: string
@@ -31,8 +27,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   request.mockReset()
-  reuseOrCreateTopic.mockReset()
-  writeChatDraftCache.mockReset()
+  handOffAgentDraft.mockReset()
   navigate.mockReset()
 })
 
@@ -73,12 +68,20 @@ describe('CreateWithAgentTab (AC7)', () => {
     await userEvent.click(screen.getByRole('button', { name: /open skills settings/i }))
     expect(navigate).toHaveBeenCalledWith({ to: '/settings/skills' })
     expect(onClose).toHaveBeenCalled()
-    expect(reuseOrCreateTopic).not.toHaveBeenCalled()
+    // No topic, no skill session: the guidance path starts nothing.
+    expect(request).toHaveBeenCalledTimes(1)
   })
 
   it('binds the installed skill and opens a session with the requirement draft', async () => {
-    request.mockResolvedValueOnce([skillEntry])
-    reuseOrCreateTopic.mockResolvedValueOnce({ topic: { id: 'topic-42' }, created: true })
+    request.mockImplementation((route: string) =>
+      Promise.resolve(
+        route === 'skill.list_catalog'
+          ? [skillEntry]
+          : route === 'ai.agent.skill_session.create'
+            ? { sessionId: 'session-42' }
+            : undefined
+      )
+    )
     const onClose = vi.fn()
     render(<CreateWithAgentTab onClose={onClose} />)
 
@@ -89,10 +92,17 @@ describe('CreateWithAgentTab (AC7)', () => {
     await userEvent.type(screen.getByLabelText(/what should the app do/i), 'a pomodoro timer')
     await userEvent.click(start)
 
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: '/app/chat', search: { topicId: 'topic-42' } }))
-    expect(reuseOrCreateTopic).toHaveBeenCalledWith(null)
-    expect(writeChatDraftCache).toHaveBeenCalledWith(
-      'topic-42',
+    // AC7's direct binding: the installed Skill's own session flow, its identity
+    // at creation, the requirement handed to the prepared composer.
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith({
+        to: '/app/agents',
+        search: { intent: 'skill', sessionId: 'session-42', skillId: 'skill-1' }
+      })
+    )
+    expect(request).toHaveBeenCalledWith('ai.agent.skill_session.create', { skillId: 'skill-1' })
+    expect(handOffAgentDraft).toHaveBeenCalledWith(
+      'session-42',
       expect.objectContaining({ text: 'a pomodoro timer', files: [], tokens: [] })
     )
     expect(onClose).toHaveBeenCalled()

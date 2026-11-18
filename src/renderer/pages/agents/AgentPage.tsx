@@ -35,6 +35,7 @@ import { useComposerFocusRequest } from '@renderer/hooks/useComposerFocusRequest
 import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
 import { useConversationLocateRequest } from '@renderer/hooks/useConversationLocateRequest'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
+import { takeAgentDraftHandoffs } from '@renderer/services/agentDraftHandoff'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
@@ -822,8 +823,19 @@ const AgentPage = () => {
           })
         })
       ])
+      // A requirement handed off by the surface that prepared this session (e.g.
+      // the mini apps "Create using Agent" tab) becomes the launch draft; the
+      // default template only fills in when nobody wrote anything.
+      const handedOff = takeAgentDraftHandoffs(routeSessionId)
+        .map((handed) => handed.text.trim())
+        .filter(Boolean)
+        .join('\n\n')
       setSkillComposerLaunch(
-        createSkillComposerLaunch(routeSessionId, skill, t('settings.skills.launchDraft', { name: skill.name }))
+        createSkillComposerLaunch(
+          routeSessionId,
+          skill,
+          handedOff || t('settings.skills.launchDraft', { name: skill.name })
+        )
       )
     } catch (err) {
       setSkillComposerLaunch(null)
