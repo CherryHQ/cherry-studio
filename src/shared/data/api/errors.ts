@@ -884,9 +884,9 @@ export function toDataApiError(error: unknown, context?: string): DataApiError {
     return DataApiError.fromJSON(error)
   }
 
-  // Convert ZodError to 422 VALIDATION_ERROR
+  // Zod's public error constructor need not extend Error; validate the issue fields consumed below for both forms.
   const validationIssues =
-    error instanceof Error && error.name === 'ZodError' && 'issues' in error
+    (error instanceof z.ZodError || (error instanceof Error && error.name === 'ZodError')) && 'issues' in error
       ? validationIssuesSchema.safeParse(error.issues)
       : undefined
   if (validationIssues?.success) {
