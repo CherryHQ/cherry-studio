@@ -111,6 +111,43 @@ function current(events: ObservationPayload[]) {
 }
 
 describe('Pi Durable runtime contract', () => {
+  it('initializes hidden reference context once across SQLite reopen without starting a model run', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'durable-reference-'))
+    onTestFinished(() => rm(dir, { recursive: true, force: true }))
+    const { runtime, faux, options } = await setup(() => openNodeSqliteStorage(join(dir, 'session.sqlite')))
+    const handle = confirmed(await runtime.create(sessionOptions))
+    await handle.durable.initializeContext('Remember reference mango')
+    await handle.durable.initializeContext('Remember reference mango')
+    expect(faux.state.callCount).toBe(0)
+    expect(confirmed(await handle.archive()).messages).toEqual([])
+    expect((await handle.durable.facts()).history.filter((entry) => entry.kind === 'user')).toEqual([])
+    await runtime.shutdown()
+    const recovered = confirmed(await createPiDurableRuntime(options))
+    onTestFinished(async () => {
+      await recovered.shutdown()
+    })
+    const reopened = confirmed(await recovered.open(handle.thread))
+    await reopened.durable.initializeContext('Remember reference mango')
+    const events = await observe(reopened)
+    expect(current(events)?.messages).toEqual([])
+    expect(faux.state.callCount).toBe(0)
+    faux.setResponses([
+      (context) => {
+        expect(JSON.stringify(context.messages).match(/Remember reference mango/g)).toHaveLength(1)
+        return fauxAssistantMessage('The reference word is mango')
+      }
+    ])
+    await reopened.input.submit(draft('Recall the reference'))
+    await expect
+      .poll(() => current(events)?.inputs.find((input) => input.inputId === 'Recall the reference')?.outcome)
+      .toBe('completed')
+    const archive = confirmed(await reopened.archive())
+    expect(archive.messages.flatMap((message) => message.parts)).toContainEqual(
+      expect.objectContaining({ type: 'text', text: 'The reference word is mango' })
+    )
+    expect(JSON.stringify(archive.messages)).not.toContain('Remember reference mango')
+  })
+
   it('pairs final content, input failure and foreground completion at one native revision for a delayed observer', async () => {
     const { runtime, faux } = await setup()
     const provider = gate()

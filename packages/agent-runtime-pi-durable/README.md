@@ -38,7 +38,12 @@ background subtrees are not. These effects are not application-wide cancellation
 
 ## Input and output
 
-Every Durable access provides `input.submit(input)`. Busy rejection comes from native
+Every Durable access provides `input.submit(input)`. Before command routing or input submission,
+the desktop may call `durable.initializeContext(text)` to admit initial model-only reference
+history as a passive native write. The native request ID makes repeated initialization
+idempotent across reopening. It starts no model run and is excluded from product projections
+and behavior-authorizing user history, while ordinary and autonomous model requests see it.
+Busy rejection comes from native
 `ConversationBusy`; uncertain failures return `unknown`. Once native admission returns, a failed
 status read cannot erase the acknowledged receipt. Inputs retain their logical InputId in native
 entry metadata, so observations recover their placement and outcome after reopening. External

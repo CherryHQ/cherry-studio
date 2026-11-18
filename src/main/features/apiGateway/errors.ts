@@ -1,3 +1,4 @@
+import { UnsupportedFunctionalityError } from '@ai-sdk/provider'
 import { JSONRPC_VERSION, ProtocolErrorCode } from '@modelcontextprotocol/server'
 import { APICallError } from 'ai'
 import { ElysiaCustomStatusResponse, type ErrorHandler, ValidationError } from 'elysia'
@@ -57,6 +58,24 @@ export function internalGatewayError(error: unknown, fallback: SerializedError):
 
 function detailsOf(error: unknown): ProviderDetails | undefined {
   return error !== null && typeof error === 'object' ? (error as InternalError)[providerDetails] : undefined
+}
+
+/** Preserve the HTTP dialect's error semantics without encoding a response body. */
+export function objectGatewayError(error: unknown, fallback: SerializedError, format: OutputFormat): Error {
+  if (UnsupportedFunctionalityError.isInstance(error)) return error
+  const status = extractError(error).status
+  const retained = { ...internalGatewayError(error, fallback), ...(status !== undefined && { statusCode: status }) }
+  const { statusCode, errorResponse } =
+    format === 'anthropic'
+      ? transformAnthropicError(retained)
+      : format === 'gemini'
+        ? transformGoogleError(retained)
+        : transformOpenAiError(retained)
+  return Object.assign(new Error(errorResponse.error.message), {
+    status: statusCode,
+    error: errorResponse,
+    headers: new Headers(detailsOf(retained)?.headers)
+  })
 }
 
 type GatewayErrorContext = Parameters<ErrorHandler<{ DATA_API: DataApiError }>>[0]
