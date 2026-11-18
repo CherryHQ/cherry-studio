@@ -41,10 +41,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Assistant import file, clipboard and URL JSON fields are untyped; copy only strings and retain the legacy optional-field defaults.
 function readString(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Imported group metadata may contain mixed JSON values; retain only actual string group names before choosing the first group.
 function readStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return []
 
@@ -60,6 +62,7 @@ function truncateTitle(value: string): string {
   return result
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Imported phrase entries are untyped JSON; validate the record and parse title/content with ImportAssistantPhraseSchema before creating a draft.
 function normalizePhrase(value: unknown): ImportAssistantPhraseDto {
   if (!isRecord(value)) throw new AssistantTransferError('invalid_format')
 
@@ -69,12 +72,14 @@ function normalizePhrase(value: unknown): ImportAssistantPhraseDto {
   return parsed.data
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Imported regularPhrases may be absent or malformed; require an array and validate every phrase before any assistant is imported.
 function readRegularPhrases(value: unknown): ImportAssistantPhraseDto[] {
   if (value === undefined) return []
   if (!Array.isArray(value)) throw new AssistantTransferError('invalid_format')
   return value.map(normalizePhrase)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- File, clipboard and URL imports reach this record decoder before mutation; validate required name/prompt and normalize optional legacy fields.
 function normalizeRecord(record: unknown): ImportedAssistantDraft {
   if (!isRecord(record)) {
     throw new AssistantTransferError('invalid_format')
@@ -156,7 +161,7 @@ export function parseAssistantImportContent(content: string): ImportedAssistantD
     throw new AssistantTransferError('invalid_format')
   }
 
-  const records = Array.isArray(parsed) ? parsed : [parsed]
+  const records: unknown[] = Array.isArray(parsed) ? parsed : [parsed]
   if (records.length === 0) {
     throw new AssistantTransferError('invalid_format')
   }
