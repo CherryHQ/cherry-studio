@@ -28,6 +28,42 @@ function run(chunks: readonly UIMessageChunk[]): GeminiGenerateContentResponse[]
 }
 
 describe('AiSdkToGeminiSse (streaming)', () => {
+  it('retains generated media separately from following text in the complete response', () => {
+    const adapter = new AiSdkToGeminiSse({ model: 'gemini' })
+    adapter.transformChunk({
+      type: 'file',
+      mediaType: 'image/png',
+      url: 'data:image/png;base64,AQID',
+      providerMetadata: { google: { thoughtSignature: 'signature' } }
+    })
+    adapter.transformChunk(textDelta('caption'))
+    expect(adapter.buildNonStreamingResponse().candidates[0].content.parts).toEqual([
+      { inlineData: { mimeType: 'image/png', data: 'AQID' }, thoughtSignature: 'signature' },
+      { text: 'caption' }
+    ])
+  })
+
+  it.each(['BLOCKLIST', 'MALFORMED_FUNCTION_CALL', 'CONTINUATION'])(
+    'retains native %s instead of reconstructing it from a unified finish reason',
+    (rawFinishReason) => {
+      const adapter = new AiSdkToGeminiSse({ model: 'gemini' })
+      adapter.transformChunk({
+        type: 'message-metadata',
+        messageMetadata: {
+          rawFinishReason,
+          providerMetadata: { vertex: { finishMessage: 'Native outcome', continuationToken: 'resume' } }
+        }
+      })
+      adapter.transformChunk(finish('other'))
+      expect(adapter.finalizeEvents().at(-1)?.candidates[0]).toMatchObject({
+        finishReason: rawFinishReason,
+        finishMessage: 'Native outcome',
+        continuationToken: 'resume'
+      })
+      expect(adapter.buildNonStreamingResponse().candidates[0].finishReason).toBe(rawFinishReason)
+    }
+  )
+
   it.each([{ chunks: [] }, { chunks: [textDelta('Answer')] }])(
     'retains the billing response identity in both final responses: %j',
     ({ chunks }) => {

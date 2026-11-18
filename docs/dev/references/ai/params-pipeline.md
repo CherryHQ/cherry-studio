@@ -56,6 +56,10 @@ routing. It does not move system messages into Responses `instructions` or set
 run, as does `Agent.stream()`'s `messageRules` normalization. Caller requests
 omit loop stop conditions and AI tool repair; their execution uses single-step
 `streamText` / `generateText` instead of `ToolLoopAgent`.
+Per-call overrides carry sampling, penalties and seed through the standard parameter filter,
+and forward tool choice, active tools and structured `Output` settings to caller-owned execution.
+Provider-scoped options merge after capability defaults, so explicit Gemini safety settings and
+cached context reach the same provider for HTTP and object callers.
 
 On `openai-chat-completions`, tool-schema middleware removes only `propertyNames`
 for recognizable Gemini raw model IDs. Recognition is a compatibility heuristic,

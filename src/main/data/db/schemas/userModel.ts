@@ -1,6 +1,3 @@
-import { sql } from 'drizzle-orm'
-import { check, index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
-
 /**
  * User Model table schema
  *
@@ -14,6 +11,9 @@ import { check, index, integer, sqliteTable, text, unique } from 'drizzle-orm/sq
  *
  * Type definitions are sourced from @shared/data/types/model
  */
+import { sql } from 'drizzle-orm'
+import { check, index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
+
 import type {
   EndpointType,
   Modality,

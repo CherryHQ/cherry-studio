@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "0ea65463-99b4-4049-8b44-8cadbfdd641d",
+  "id": "0d9b5b57-e4df-4ee3-8c04-bcf3f26301d3",
   "prevId": "999b080c-958b-479b-b396-1d5b062ef612",
   "tables": {
     "agent": {
@@ -1201,6 +1201,13 @@
         },
         "native_input_id": {
           "name": "native_input_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "reply_id": {
+          "name": "reply_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -6687,13 +6694,6 @@
         },
         "reasoning": {
           "name": "reasoning",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "reported_reasoning": {
-          "name": "reported_reasoning",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
