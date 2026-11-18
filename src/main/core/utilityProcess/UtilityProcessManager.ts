@@ -160,9 +160,12 @@ export class UtilityProcessManager extends BaseService {
     await this.disposeHosts()
   }
 
-  private hostFor(definition: UtilityProcessDefinition<any, any>): ProcessHost<any, any> {
+  private hostFor<Contract extends UtilityProcessContract, InitData>(
+    definition: UtilityProcessDefinition<Contract, InitData>
+  ): ProcessHost<Contract, InitData> {
     const existing = this.hosts.get(definition.id)
-    if (existing !== undefined) return existing
+    // SAFETY: registration permits only one definition object per id; this host was created from it.
+    if (existing !== undefined) return existing as ProcessHost<Contract, InitData>
     const host = new ProcessHost(definition, this.deps)
     this.hosts.set(definition.id, host)
     return host
