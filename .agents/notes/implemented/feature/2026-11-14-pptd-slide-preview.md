@@ -1,6 +1,6 @@
 # Agent Note: PPTD slide preview
 
-Status: proposed
+Status: implemented
 
 English | [中文](2026-11-14-pptd-slide-preview.zh.md)
 

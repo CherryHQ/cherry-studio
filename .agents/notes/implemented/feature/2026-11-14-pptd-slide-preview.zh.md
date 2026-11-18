@@ -1,6 +1,6 @@
 # Agent Note: PPTD 幻灯片预览
 
-Status: proposed
+Status: implemented
 
 [English](2026-11-14-pptd-slide-preview.md) | 中文
 
