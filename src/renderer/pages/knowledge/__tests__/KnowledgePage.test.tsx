@@ -429,10 +429,9 @@ vi.mock('../components/CreateKnowledgeBaseDialog', () => {
           <button
             type="button"
             onClick={async () => {
-              const createdBase = await createBase({
-                name: 'Base 2',
-                ...(initialGroupId ? { groupId: initialGroupId } : {})
-              })
+              const input: Parameters<typeof createBase>[0] = { name: 'Base 2' }
+              if (initialGroupId) input.groupId = initialGroupId
+              const createdBase = await createBase(input)
               onCreated(createdBase)
               onOpenChange(false)
             }}>

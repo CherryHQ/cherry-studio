@@ -389,10 +389,9 @@ vi.mock('@renderer/hooks/useConversationNavigation', () => ({
           appId === 'agents'
             ? `/app/agents?sessionId=${encodeURIComponent(key)}`
             : `/app/chat?topicId=${encodeURIComponent(key)}`
-        return mocks.openTab(url, {
-          forceNew: true,
-          ...(title ? { title } : {})
-        })
+        const options = { forceNew: true }
+        if (title) Object.assign(options, { title })
+        return mocks.openTab(url, options)
       }
     }
   }
