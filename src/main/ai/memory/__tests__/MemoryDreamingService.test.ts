@@ -108,7 +108,8 @@ describe('memory organization lifecycle and commit fences', () => {
   }
 
   it.each([false, true])('preserves correction history when organization removes metadata: %s', async (remove) => {
-    await save('- "Old address"\n')
+    const duplicate = '- "Reply to me in Chinese."\n'
+    await save('- "Old address"\n- "Reply in Chinese."\n' + duplicate)
     const extraction = memory.open({ scope, assertAuthorized: () => undefined }, 'extraction')
     const read = await extraction.read('MEMORY.md')
     const proposal = await extraction.prepareRevisions(read.receipt, [
@@ -127,7 +128,7 @@ describe('memory organization lifecycle and commit fences', () => {
       const file = JSON.parse(input.prompt).files[0]
       return {
         text: JSON.stringify({
-          writes: [{ path: file.path, content: remove ? '- "Old address"\n' : `# Current memory\n${file.content}` }],
+          writes: [{ path: file.path, content: remove ? '- "Old address"\n' : file.content.replace(duplicate, '') }],
           deletes: []
         }),
         finishReason: 'stop'
@@ -135,7 +136,9 @@ describe('memory organization lifecycle and commit fences', () => {
     })
     if (remove) await expect(dreaming.execute(job())).rejects.toMatchObject({ reason: 'conflict' })
     else await expect(dreaming.execute(job())).resolves.toMatchObject({ changed: 1 })
-    expect((await session.read('MEMORY.md')).content).toContain('New address')
+    const active = (await session.read('MEMORY.md')).content
+    expect(active).toContain('New address')
+    expect(active?.match(/Chinese/g)).toHaveLength(remove ? 2 : 1)
     expect((await session.read('MEMORY.md')).content).not.toContain('Old address')
     expect(await session.revisions()).toHaveLength(1)
   })
