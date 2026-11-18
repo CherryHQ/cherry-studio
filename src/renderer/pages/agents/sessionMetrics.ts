@@ -33,15 +33,22 @@ export function buildAgentSessionMetrics(
   // stats: forking a session preserves successful messages and tool parts but clears stats,
   // and a stats-only gate would report zero turns/steps for the forked history.
   const turns: Array<{ id: string; stats?: MessageStats }> = []
+  // Usage aggregates come from every recorded stats payload, whatever the turn outcome:
+  // a paused or errored turn still spent the tokens the provider reported, and terminal
+  // persistence keeps those stats on the message. Completion eligibility (above) only
+  // gates the turn/tool-step counts, never the recorded usage.
+  const statsList: MessageStats[] = []
   for (const message of messages) {
-    if (message.role === 'assistant' && message.metadata?.status === 'success') {
-      turns.push({ id: message.id, stats: message.metadata?.stats })
+    if (message.role !== 'assistant') continue
+    const stats = message.metadata?.stats
+    if (stats) statsList.push(stats)
+    if (message.metadata?.status === 'success') {
+      turns.push({ id: message.id, stats })
     }
   }
 
-  // Usage aggregates still come from stats alone; missing stats leave the field undefined
-  // rather than undercounting a partial sum as if it were complete.
-  const statsList = turns.map((turn) => turn.stats).filter((stats): stats is MessageStats => stats !== undefined)
+  // Missing stats leave a field undefined rather than undercounting a partial sum as if
+  // it were complete.
   const inputTokens = sumDefined(statsList.map((stats) => stats.inputTokens))
   const cacheReadTokens = sumDefined(statsList.map((stats) => stats.inputTokenDetails?.cacheReadTokens))
   const samples = statsList.map(getMessageGenerationSample).filter((sample) => sample !== undefined)

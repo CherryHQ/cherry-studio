@@ -42,6 +42,20 @@ describe('buildAgentSessionMetrics', () => {
     })
   })
 
+  it('keeps recorded usage from paused and errored turns in token aggregates', () => {
+    const messages = [
+      assistant('a', { inputTokens: 5000, outputTokens: 500 }, 'paused'),
+      assistant('b', { inputTokens: 800, outputTokens: 80 }, 'error'),
+      assistant('c', { inputTokens: 1000, outputTokens: 100 }, 'success')
+    ]
+
+    const metrics = buildAgentSessionMetrics(messages, {})
+
+    expect(metrics.turns).toBe(1)
+    expect(metrics.inputTokens).toBe(6800)
+    expect(metrics.outputTokens).toBe(680)
+  })
+
   it('counts tool-call parts across turns as tool steps', () => {
     const messages = [assistant('a', { inputTokens: 1 }), assistant('b', { inputTokens: 1 })]
     const parts = {
