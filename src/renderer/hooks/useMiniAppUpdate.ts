@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import type { OutputFor } from '@shared/ipc/types'
+import type { InputFor, OutputFor } from '@shared/ipc/types'
 
 const logger = loggerService.withContext('useMiniAppUpdate')
 
@@ -64,12 +64,13 @@ export function useMiniAppUpdate(
     // with the dialog already gone and nothing on screen saying so.
     setBusy(true)
     try {
-      await ipcApi.request('mini_app.update.apply', {
+      const input: InputFor<'mini_app.update.apply'> = {
         appId,
-        updateToken,
-        ...(decision.consented ? { consented: true } : {}),
-        ...(addedOptional.length > 0 ? { grantedOptional: decision.grantedOptional } : {})
-      })
+        updateToken
+      }
+      if (decision.consented) input.consented = true
+      if (addedOptional.length > 0) input.grantedOptional = decision.grantedOptional
+      await ipcApi.request('mini_app.update.apply', input)
       toast.success(t('miniApp.install.upgrade_success', { name: options.name, version }))
       options.onApplied?.()
     } catch (e) {

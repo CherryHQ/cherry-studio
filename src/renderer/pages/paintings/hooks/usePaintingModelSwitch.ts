@@ -52,11 +52,12 @@ export function usePaintingModelSwitch({
         // clear must be explicit.
         const nextModel = models.find((model) => model.apiModelId === modelId)
         const keepInputFiles = nextModel ? isEditImageModel(nextModel) : false
-        onPaintingChange({
+        const updates: Parameters<typeof onPaintingChange>[0] = {
           params: { ...painting.params, ...resetPatch },
-          model: modelId,
-          ...(keepInputFiles ? {} : { inputFiles: [] })
-        })
+          model: modelId
+        }
+        if (!keepInputFiles) updates.inputFiles = []
+        onPaintingChange(updates)
         return
       }
 

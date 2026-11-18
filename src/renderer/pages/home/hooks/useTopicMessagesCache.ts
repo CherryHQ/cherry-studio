@@ -158,11 +158,12 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
                 replaced = true
               }
               if (!replacement && !siblingsChanged) return item
-              return {
+              const updated = {
                 ...item,
-                message: replacement ?? item.message,
-                ...(siblingsGroup ? { siblingsGroup } : {})
+                message: replacement ?? item.message
               }
+              if (siblingsGroup) updated.siblingsGroup = siblingsGroup
+              return updated
             })
           }))
           const newItems = reservedItems.filter((item) => !consumedIds.has(item.message.id))

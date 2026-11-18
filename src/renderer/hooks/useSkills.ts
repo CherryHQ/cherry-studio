@@ -129,10 +129,9 @@ export function useReconcileSkillsOnOpen(enabled: boolean): void {
  */
 export function useInstalledSkills(agentId?: string, options: { enabled?: boolean } = {}) {
   const enabled = options.enabled !== false
-  const { data, isLoading, isRefreshing, error, refetch } = useQuery('/skills', {
-    enabled,
-    ...(agentId ? { query: { agentId } } : {})
-  })
+  const queryOptions = { enabled }
+  if (agentId) Object.assign(queryOptions, { query: { agentId } })
+  const { data, isLoading, isRefreshing, error, refetch } = useQuery('/skills', queryOptions)
   useDataChange(enabled ? '/skills' : [], () => refetch())
   const refresh = useCallback(async () => {
     await ipcApi.request('skill.reconcile', {})
