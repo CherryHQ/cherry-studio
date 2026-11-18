@@ -1,9 +1,24 @@
+import { setImmediate } from 'node:timers/promises'
+import { setFlagsFromString } from 'node:v8'
+import { runInNewContext } from 'node:vm'
+
 import type { Span, Tracer } from '@opentelemetry/api'
 import { SpanStatusCode } from '@opentelemetry/api'
 import { describe, expect, it, vi } from 'vitest'
 
 import { HTTP_TRACE_FINAL_BODY_SLOT, type HttpTraceFinalBodySlot } from '../../utils/customFetch'
 import { createHttpTraceFetch } from '../httpTraceFetch'
+
+setFlagsFromString('--expose_gc')
+const collectGarbage = runInNewContext('gc') as () => void
+
+async function retainedHeap(): Promise<number> {
+  await setImmediate()
+  collectGarbage()
+  await setImmediate()
+  collectGarbage()
+  return process.memoryUsage().heapUsed
+}
 
 /** A fake tracer that records the single span's attributes, status, and end. */
 function fakeTracer() {
@@ -26,6 +41,61 @@ function fakeTracer() {
 }
 
 describe('createHttpTraceFetch', () => {
+  it('releases sent request bodies while diagnostic response streams remain open', async () => {
+    const controllers: ReadableStreamDefaultController<Uint8Array>[] = []
+    const responses: Response[] = []
+    const before = await retainedHeap()
+    try {
+      for (let index = 0; index < 20; index++) {
+        const { tracer } = fakeTracer()
+        const fetch = createHttpTraceFetch(
+          async () =>
+            new Response(
+              new ReadableStream<Uint8Array>({
+                start(controller) {
+                  controllers.push(controller)
+                }
+              })
+            ),
+          { tracer, maxBodyBytes: 32 * 1024 }
+        )
+        responses.push(
+          await fetch('https://api.example.com', {
+            method: 'POST',
+            body: JSON.stringify({ index, content: '漢'.repeat(2 * 1024 * 1024) })
+          })
+        )
+      }
+      expect((await retainedHeap()) - before).toBeLessThan(16 * 1024 * 1024)
+    } finally {
+      controllers.forEach((controller) => controller.close())
+      await Promise.all(responses.map((response) => response.text()))
+    }
+  })
+
+  it.each([false, true])('releases backing request strings (already bounded: %s)', async (alreadyBounded) => {
+    const previews: unknown[] = []
+    const before = await retainedHeap()
+    for (let index = 0; index < 20; index++) {
+      const { tracer, attributes } = fakeTracer()
+      const fetch = createHttpTraceFetch(async () => new Response(null, { status: 204 }), {
+        tracer,
+        maxBodyBytes: 32 * 1024
+      })
+      const body = JSON.stringify({ index, content: '漢'.repeat(2 * 1024 * 1024) })
+      await fetch('https://api.example.com', {
+        method: 'POST',
+        body: alreadyBounded ? body.slice(0, 16 * 1024) : body
+      })
+      previews.push(attributes.inputs)
+    }
+
+    const retained = (await retainedHeap()) - before
+    expect(previews).toHaveLength(20)
+    expect(previews.every((preview) => typeof preview === 'string' && preview.length < 33 * 1024)).toBe(true)
+    expect(retained).toBeLessThan(16 * 1024 * 1024)
+  })
+
   it('records url/method/status + redacted headers as dedicated attributes, body-only inputs/outputs', async () => {
     const { tracer, attributes, state } = fakeTracer()
     const innerFetch = vi.fn(
@@ -125,6 +195,17 @@ describe('createHttpTraceFetch', () => {
     await vi.waitFor(() => expect(state.ended).toBe(true))
 
     expect(attributes.inputs).toBe('xxxxxxxxxx…[truncated 90 chars]')
+  })
+
+  it('preserves UTF-16 code units when the capture limit splits a surrogate pair', async () => {
+    const { tracer, attributes } = fakeTracer()
+    const fetch = createHttpTraceFetch(async () => new Response(null, { status: 204 }), {
+      tracer,
+      maxBodyBytes: 10
+    })
+    await fetch('https://api.example.com', { method: 'POST', body: '123456789😀tail' })
+
+    expect(attributes.inputs).toBe('123456789\ud83d…[truncated 5 chars]')
   })
 
   it('truncates a response body larger than maxBodyBytes while keeping the SDK copy whole', async () => {

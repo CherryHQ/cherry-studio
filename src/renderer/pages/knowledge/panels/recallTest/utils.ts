@@ -14,6 +14,7 @@ export const formatRecallPercent = (score: number) => `${Math.round(Math.max(0, 
 export const mapRecallResult = (result: KnowledgeSearchResult): RecallResultItem => {
   return {
     id: result.chunkId,
+    sourceType: result.metadata.itemType,
     sourceName: result.metadata.source,
     chunkIndex: result.metadata.chunkIndex,
     tokenCount: result.metadata.tokenCount,
