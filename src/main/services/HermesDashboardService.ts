@@ -65,7 +65,9 @@ export class HermesDashboardService extends BaseService {
   }
 
   getStatus(): { status: HermesDashboardStatus; url?: string } {
-    return { status: this.status, ...(this.url ? { url: this.url } : {}) }
+    const snapshot = { status: this.status }
+    if (this.url) Object.assign(snapshot, { url: this.url })
+    return snapshot
   }
 
   /** Serializes native Hermes config mutations with the Dashboard lifecycle. */

@@ -137,17 +137,13 @@ export class OAuthRuntimeService extends BaseService {
   ): Promise<void> {
     const current = await this.tokenStore.get(definition.providerId)
     const accountId = definition.extractAccountId?.(tokenData.access_token) ?? current?.accountId
-    await this.tokenStore.set(
-      definition.providerId,
-      {
-        accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token ?? current?.refreshToken,
-        expiresAt: tokenData.expires_in ? Date.now() + tokenData.expires_in * 1000 : undefined,
-        ...(accountId ? { accountId } : {})
-      },
-      definition.clientId,
-      options
-    )
+    const credentials: Parameters<typeof this.tokenStore.set>[1] = {
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token ?? current?.refreshToken,
+      expiresAt: tokenData.expires_in ? Date.now() + tokenData.expires_in * 1000 : undefined
+    }
+    if (accountId) credentials.accountId = accountId
+    await this.tokenStore.set(definition.providerId, credentials, definition.clientId, options)
   }
 
   private runSignIn = async (
@@ -445,10 +441,11 @@ export class OAuthRuntimeService extends BaseService {
   }
 
   private clearSession(definition: OAuthRuntimeProviderDefinition, expectedRefreshToken?: string): Promise<void> {
-    return this.tokenStore.clear(definition.providerId, {
-      disableProvider: definition.clearDisablesProvider,
-      ...(expectedRefreshToken !== undefined ? { expectedRefreshToken } : {})
-    })
+    const options: NonNullable<Parameters<typeof this.tokenStore.clear>[1]> = {
+      disableProvider: definition.clearDisablesProvider
+    }
+    if (expectedRefreshToken !== undefined) options.expectedRefreshToken = expectedRefreshToken
+    return this.tokenStore.clear(definition.providerId, options)
   }
 
   private refreshAccessToken(
