@@ -3,7 +3,7 @@ import { createAzure } from '@ai-sdk/azure'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
-import type { JSONSchema7, LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import type { JSONSchema7, LanguageModelV3CallOptions, LanguageModelV3FunctionTool } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { asSchema, generateText, jsonSchema, streamText, tool, wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
@@ -324,51 +324,43 @@ describe('toolSchemaCompatibilityFeature', () => {
   it.each([undefined, false, true])(
     'preserves strict=%s and generic keyword policy on Gemini chat completions',
     async (strict) => {
-      const result = await transform(
-        {
-          prompt: [],
-          tools: [
-            {
-              type: 'function',
-              name: 'map_tool',
-              ...(strict === undefined ? {} : { strict }),
-              inputSchema: {
-                $schema: 'http://json-schema.org/draft-07/schema#',
-                type: 'object',
-                properties: {
-                  options: {
-                    type: 'object',
-                    propertyNames: { pattern: '^[a-z]+$' },
-                    additionalProperties: { type: 'string', minLength: 1 }
-                  }
-                },
-                required: ['options'],
-                additionalProperties: false
-              }
+      const inputTool: LanguageModelV3FunctionTool = {
+        type: 'function',
+        name: 'map_tool',
+        inputSchema: {
+          $schema: 'http://json-schema.org/draft-07/schema#',
+          type: 'object',
+          properties: {
+            options: {
+              type: 'object',
+              propertyNames: { pattern: '^[a-z]+$' },
+              additionalProperties: { type: 'string', minLength: 1 }
             }
-          ]
-        },
+          },
+          required: ['options'],
+          additionalProperties: false
+        }
+      }
+      if (strict !== undefined) inputTool.strict = strict
+      const result = await transform(
+        { prompt: [], tools: [inputTool] },
         { endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, model: GEMINI_MODEL }
       )
 
-      expect(result.tools).toEqual([
-        {
-          type: 'function',
-          name: 'map_tool',
-          ...(strict === undefined ? {} : { strict }),
-          inputSchema: {
-            type: 'object',
-            properties: {
-              options: {
-                type: 'object',
-                additionalProperties: { type: 'string', ...(strict === true ? {} : { minLength: 1 }) }
-              }
-            },
-            required: ['options'],
-            additionalProperties: false
-          }
+      const additionalProperties: JSONSchema7 = { type: 'string' }
+      if (strict !== true) additionalProperties.minLength = 1
+      const expectedTool: LanguageModelV3FunctionTool = {
+        type: 'function',
+        name: 'map_tool',
+        inputSchema: {
+          type: 'object',
+          properties: { options: { type: 'object', additionalProperties } },
+          required: ['options'],
+          additionalProperties: false
         }
-      ])
+      }
+      if (strict !== undefined) expectedTool.strict = strict
+      expect(result.tools).toEqual([expectedTool])
     }
   )
 
@@ -428,14 +420,9 @@ describe('toolSchemaCompatibilityFeature', () => {
         { endpointType, model: GEMINI_MODEL }
       )
 
-      expect(result.tools).toEqual([
-        {
-          type: 'function',
-          name: 'map_tool',
-          inputSchema,
-          ...(endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES ? { strict: false } : {})
-        }
-      ])
+      const expectedTool: LanguageModelV3FunctionTool = { type: 'function', name: 'map_tool', inputSchema }
+      if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) expectedTool.strict = false
+      expect(result.tools).toEqual([expectedTool])
     }
   )
 
