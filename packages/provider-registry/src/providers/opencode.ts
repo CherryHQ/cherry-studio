@@ -97,14 +97,14 @@ const endpointOverrides: ProviderModelTemplate[] = [
       'openai-chat-completions': { support: fixedSupport }
     }
   })),
-  ...chatEffortModels.map(({ modelId, values, defaultEffort, pricing }) => ({
-    modelId,
-    endpointTypes: ['openai-chat-completions' as const],
-    ...(pricing ? { pricing } : {}),
-    reasoningContracts: {
+  ...chatEffortModels.map(({ modelId, values, defaultEffort, pricing }) => {
+    const template: ProviderModelTemplate = { modelId, endpointTypes: ['openai-chat-completions'] }
+    if (pricing) template.pricing = pricing
+    template.reasoningContracts = {
       'openai-chat-completions': { support: effortSupport(values, defaultEffort) }
     }
-  })),
+    return template
+  }),
   { modelId: 'longcat-2-0', endpointTypes: ['openai-chat-completions'] },
   // models.dev routes Zen Go's Grok 4.5 through `@ai-sdk/openai` (Responses); the Go endpoint table
   // still prints chat/completions, so Chat stays selectable behind the Responses default (#17860).

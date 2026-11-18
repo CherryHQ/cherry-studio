@@ -695,11 +695,12 @@ export class SessionJournal {
     const messages = agentSessionMessageService
       .listSessionMessages(this.sessionId, { limit: 50 })
       .items.filter((message) => Date.parse(message.updatedAt) > previous)
+    const history: Omit<Extract<AgentEvent, { kind: 'history.committed' }>['payload'], 'messages'> = { historyRevision }
+    if (this.execution) history.executionId = this.execution.executionId
     this.append({
       kind: 'history.committed',
       payload: {
-        historyRevision,
-        ...(this.execution ? { executionId: this.execution.executionId } : {}),
+        ...history,
         messages: messages.map((message) => ({ messageId: message.id, revision: revisionOf(message.updatedAt) }))
       }
     })
@@ -725,14 +726,15 @@ export class SessionJournal {
 
   private setStatus(execution: LiveExecution, status: AgentExecution['status']): void {
     execution.status = status
+    const update: Extract<AgentEvent, { kind: 'execution.updated' }>['payload'] = {
+      executionId: execution.executionId,
+      status,
+      durable: false
+    }
+    if (execution.messageId) update.messageId = execution.messageId
     this.append({
       kind: 'execution.updated',
-      payload: {
-        executionId: execution.executionId,
-        status,
-        durable: false,
-        ...(execution.messageId ? { messageId: execution.messageId } : {})
-      }
+      payload: update
     })
   }
 
