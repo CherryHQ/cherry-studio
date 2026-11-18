@@ -120,6 +120,7 @@ export type LanguageVarious =
   | 'fr-FR'
   | 'it-IT'
   | 'ja-JP'
+  | 'ko-KR'
   | 'pl-PL'
   | 'pt-PT'
   | 'ro-RO'
