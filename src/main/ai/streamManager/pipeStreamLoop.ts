@@ -36,8 +36,8 @@ export async function pipeStreamLoop(
   let streamErrorText: string | undefined
   let threw: { error: unknown } | undefined
   let accumulationError: { error: unknown } | undefined
-  const onAccumulationError = (error: unknown) => {
-    accumulationError ??= { error }
+  const onAccumulationError = (cause: unknown) => {
+    accumulationError ??= { error: cause }
   }
   const boundary = new TransformStream<UIMessageChunk, UIMessageChunk>()
   const [forBroadcast, forAccum] = boundary.readable.tee()
@@ -60,8 +60,8 @@ export async function pipeStreamLoop(
       preventClose: true,
       signal: forwardingSignal
     })
-    .catch((error: unknown) => {
-      if (!forwardingSignal.aborted) threw ??= { error }
+    .catch((cause: unknown) => {
+      if (!forwardingSignal.aborted) threw ??= { error: cause }
     })
     .finally(async () => {
       // Both consumers may already have cancelled; that close failure must not replace the original error.
@@ -103,7 +103,7 @@ async function runAccumulator(
   source: ReadableStream<UIMessageChunk>,
   seed: CherryUIMessage | undefined,
   onSnapshot: (message: CherryUIMessage) => void,
-  onError: (error: unknown) => void
+  onError: (cause: unknown) => void
 ): Promise<void> {
   // Provider error chunks are handled by broadcast; the SDK also calls onError for them.
   const input = source.pipeThrough(

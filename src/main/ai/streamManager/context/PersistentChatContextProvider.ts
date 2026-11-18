@@ -169,8 +169,8 @@ function startTurnRootSpans(
  * (which take over ending them). Each `end()` is isolated so one failure
  * can't strand the rest.
  */
-function endTurnRootSpansWithError(spans: Array<{ span: Span }>, error: unknown): void {
-  const message = error instanceof Error ? error.message : 'prepareDispatch failed before stream launch'
+function endTurnRootSpansWithError(spans: Array<{ span: Span }>, cause: unknown): void {
+  const message = cause instanceof Error ? cause.message : 'prepareDispatch failed before stream launch'
   for (const { span } of spans) {
     try {
       span.setStatus({ code: SpanStatusCode.ERROR, message })
