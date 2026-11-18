@@ -270,14 +270,9 @@ function createInfiniteQueryKeyGetter(
   return (_pageIndex, previousPageData) => {
     if (!enabled || (previousPageData && !previousPageData.nextCursor)) return null
 
-    return [
-      resolvedPath,
-      {
-        ...(query as Record<string, unknown> | undefined),
-        limit,
-        ...(previousPageData?.nextCursor ? { cursor: previousPageData.nextCursor } : {})
-      }
-    ]
+    const params: InfiniteQueryKey[1] = { ...(query as Record<string, unknown> | undefined), limit }
+    if (previousPageData?.nextCursor) params.cursor = previousPageData.nextCursor
+    return [resolvedPath, params]
   }
 }
 

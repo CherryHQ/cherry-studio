@@ -485,7 +485,9 @@ describe('invalidatePathPatterns with live useSWRInfinite', () => {
     )
     const pagedGetKey = (_pageIndex: number, previousPageData: { nextCursor?: string | null } | null) => {
       if (previousPageData && !previousPageData.nextCursor) return null
-      return ['/topics', { limit: 1, ...(previousPageData?.nextCursor ? { cursor: previousPageData.nextCursor } : {}) }]
+      const query = { limit: 1 }
+      if (previousPageData?.nextCursor) Object.assign(query, { cursor: previousPageData.nextCursor })
+      return ['/topics', query]
     }
     const callsForCursor = (cursor?: string) =>
       fetcher.mock.calls.filter(([key]) => (key as [string, { cursor?: string }])[1].cursor === cursor).length
