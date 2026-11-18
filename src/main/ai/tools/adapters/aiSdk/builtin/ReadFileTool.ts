@@ -72,11 +72,12 @@ function paginate(text: string, offset = 0, limit = READ_FILE_PAGE_SIZE): ReadFi
   // page to empty (start on a high surrogate with limit too small to clear the
   // pair), take the whole pair so `nextOffset` always advances past `start`.
   if (end <= start && start < text.length) end = Math.min(start + 2, text.length)
-  return {
+  const page: ReadFileOutput = {
     text: text.slice(start, end),
-    totalChars: text.length,
-    ...(end < text.length ? { nextOffset: end } : {})
+    totalChars: text.length
   }
+  if (end < text.length) page.nextOffset = end
+  return page
 }
 
 export async function readFile(

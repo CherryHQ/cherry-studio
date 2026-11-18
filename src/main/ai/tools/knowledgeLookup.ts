@@ -649,11 +649,14 @@ async function listKnowledgeBases(
 ): Promise<KnowledgeListResultOrError> {
   try {
     const knowledgeService = application.get('KnowledgeService')
+    const query: Omit<Parameters<typeof knowledgeService.listBasesForDiscovery>[0], 'scope'> = {
+      limit: input.limit ?? KB_LIST_DEFAULT_LIMIT
+    }
+    if (input.cursor) query.cursor = input.cursor
+    if (input.query) query.query = input.query
+    if (input.groupId) query.groupId = input.groupId
     const page = knowledgeService.listBasesForDiscovery({
-      limit: input.limit ?? KB_LIST_DEFAULT_LIMIT,
-      ...(input.cursor ? { cursor: input.cursor } : {}),
-      ...(input.query ? { query: input.query } : {}),
-      ...(input.groupId ? { groupId: input.groupId } : {}),
+      ...query,
       scope: toKnowledgeBaseDiscoveryScope(allowedIds)
     })
 
@@ -665,11 +668,12 @@ async function listKnowledgeBases(
       page.items.map((base) => queue.add(() => buildOutputItem(base, knowledgeService), { throwOnTimeout: true }))
     )
 
-    return {
+    const result: KbListOutput = {
       items,
-      total: page.total,
-      ...(page.nextCursor ? { nextCursor: page.nextCursor } : {})
+      total: page.total
     }
+    if (page.nextCursor) result.nextCursor = page.nextCursor
+    return result
   } catch (error) {
     // `listBasesForDiscovery()` (or the service lookup) threw — surface a fixed note instead of leaking the raw
     // error string through the MCP catch-all, mirroring kb_search's all-bases-failed path.
