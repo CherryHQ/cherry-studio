@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
+import { useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { resolveChatEntryTopicIdForAssistant } from '@renderer/utils/conversationEntry'
@@ -30,6 +31,18 @@ async function conversationRoute(
 export function ResourceIdentityCard({ result }: { result: ResourceIdentityResult }) {
   const { t } = useTranslation()
   const [showChanges, setShowChanges] = useState(false)
+  // The result only records the emoji; an uploaded avatar is read live, as its file is replaced on every change.
+  const { data: agent } = useQuery('/agents/:agentId', {
+    params: { agentId: result.id },
+    enabled: result.kind === 'agent',
+    swrOptions: { shouldRetryOnError: false }
+  })
+  const { data: assistant } = useQuery('/assistants/:id', {
+    params: { id: result.id },
+    enabled: result.kind === 'assistant',
+    swrOptions: { shouldRetryOnError: false }
+  })
+  const avatarSrc = (result.kind === 'agent' ? agent : assistant)?.avatarSrc
   const actions = useOptionalMessageListActions()
   const navigateToRoute = actions?.navigateToRoute
   const openConversation =
@@ -74,6 +87,7 @@ export function ResourceIdentityCard({ result }: { result: ResourceIdentityResul
         kind={result.kind}
         name={result.name}
         emoji={result.emoji}
+        avatarSrc={avatarSrc}
         meta={
           changeCount ? (
             <button

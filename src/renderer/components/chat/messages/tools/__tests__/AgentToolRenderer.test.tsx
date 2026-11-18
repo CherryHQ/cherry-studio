@@ -1,7 +1,8 @@
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
+import { mockUseQuery, MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import type * as CherryUi from '@cherrystudio/ui'
 import { PartsProvider } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
@@ -827,6 +828,24 @@ describe('AgentToolRenderer', () => {
       const card = screen.getByTestId('resource-identity-card')
       expect(within(card).getByText('Older')).toBeInTheDocument()
       expect(within(card).getByText('Agent')).toBeInTheDocument()
+    })
+
+    // An Agent with an uploaded avatar still records an emoji, which the card must not show in its place.
+    it("shows an updated Agent's uploaded avatar instead of its recorded emoji", () => {
+      const defaultUseQuery = mockUseQuery.getMockImplementation()
+      onTestFinished(() => {
+        if (defaultUseQuery) mockUseQuery.mockImplementation(defaultUseQuery)
+      })
+      MockUseDataApiUtils.mockQueryData('/agents/:agentId', {
+        id: 'agent-created',
+        avatarSrc: 'file:///avatars/reviewer.webp'
+      } as never)
+      const updated = { ...createdAgent, emoji: '✨', summary: ['Reply language: English → Chinese'] }
+      render(<MessageTools toolResponse={configToolResponse('cherry-tools', 'config_update', structured(updated))} />)
+
+      const card = screen.getByTestId('resource-identity-card')
+      expect(card.querySelector('img')).toHaveAttribute('src', 'file:///avatars/reviewer.webp')
+      expect(within(card).queryByText('✨')).not.toBeInTheDocument()
     })
 
     // The card keeps one size however many fields changed; the current → new lines open on demand.

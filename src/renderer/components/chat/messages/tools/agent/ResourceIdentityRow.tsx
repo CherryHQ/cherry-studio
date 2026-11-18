@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmojiAvatar } from '@cherrystudio/ui'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import { DEFAULT_AGENT_CREATE_AVATAR } from '@shared/ai/agentCreateCommand'
 import { DEFAULT_ASSISTANT_CREATE_AVATAR } from '@shared/ai/assistantCreateDto'
 
@@ -10,6 +11,7 @@ export function ResourceIdentityRow({
   kind,
   name,
   emoji,
+  avatarSrc,
   meta,
   badge,
   children
@@ -18,6 +20,8 @@ export function ResourceIdentityRow({
   name: string
   /** Empty falls back to the kind's default avatar. */
   emoji: string
+  /** An uploaded avatar, shown instead of the emoji. */
+  avatarSrc?: string
   meta: ReactNode
   badge?: ReactNode
   /** Trailing actions. */
@@ -28,12 +32,20 @@ export function ResourceIdentityRow({
 
   return (
     <div className="flex items-center gap-2.5">
-      <EmojiAvatar
+      <AssistantAvatarImage
+        src={avatarSrc}
+        alt=""
         size={32}
-        fontSize={17}
-        className="shrink-0 cursor-default rounded-lg border border-border-subtle bg-background hover:opacity-100">
-        {emoji || fallbackEmoji}
-      </EmojiAvatar>
+        className="shrink-0 rounded-lg border border-border-subtle object-cover"
+        fallback={
+          <EmojiAvatar
+            size={32}
+            fontSize={17}
+            className="shrink-0 cursor-default rounded-lg border border-border-subtle bg-background hover:opacity-100">
+            {emoji || fallbackEmoji}
+          </EmojiAvatar>
+        }
+      />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-1.5">
           <span className="truncate font-medium text-[13px] text-foreground leading-5" title={name}>
