@@ -14,6 +14,7 @@ import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { translateHistoryFileRefTable } from '@data/db/schemas/fileRelations'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
+import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { TranslateLanguageSeeder } from '@data/db/seeding/seeders/translateLanguageSeeder'
@@ -335,6 +336,13 @@ describe('PdfTranslationService', () => {
   })
 
   it('uses BabelDOC language aliases for simplified and traditional Chinese', async () => {
+    dbh.db
+      .insert(translateLanguageTable)
+      .values([
+        { langCode: 'zh-hans', value: 'Chinese (Simplified)', emoji: '🇨🇳' },
+        { langCode: 'zh-hant', value: 'Chinese (Traditional)', emoji: '🇭🇰' }
+      ])
+      .run()
     const result = await service.translate({
       jobId: 'job-language-aliases',
       modelId: 'openai::gpt-4.1',
@@ -346,6 +354,9 @@ describe('PdfTranslationService', () => {
     const args = mocks.spawn.mock.calls[0][1] as string[]
     expect(args).toEqual(expect.arrayContaining(['--lang-in', 'zh-CN', '--lang-out', 'zh-TW']))
     expect(result.fileName).toBe('research paper.zh-TW.pdf')
+    expect(dbh.db.select().from(translateHistoryTable).all()).toMatchObject([
+      { sourceLanguage: 'zh-hans', targetLanguage: 'zh-hant' }
+    ])
   })
 
   it('records the translation in history and hands both PDFs to FileManager', async () => {
