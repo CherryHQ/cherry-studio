@@ -13511,6 +13511,81 @@
     },
     {
       "capabilities": [
+        "reasoning",
+        "function-call",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "gemini-4",
+      "id": "gemini-4-neon",
+      "inputModalities": [
+        "text",
+        "image",
+        "audio",
+        "video"
+      ],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Gemini 4 Neon",
+      "outputModalities": [
+        "text"
+      ],
+      "ownedBy": "google",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 15
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "high",
+            "kind": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          }
+        ],
+        "defaultEffort": "high",
+        "supportedEfforts": [
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "wireDialect": "effort"
+      }
+    },
+    {
+      "capabilities": [
         "embedding"
       ],
       "contextWindow": 8192,
@@ -19185,6 +19260,53 @@
           "currency": "USD",
           "perMillionTokens": 0
         }
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output"
+      ],
+      "contextWindow": 1048576,
+      "id": "mistral-large-4-0",
+      "inputModalities": [
+        "text",
+        "image"
+      ],
+      "metadata": {},
+      "name": "Mistral: Mistral Large 4",
+      "outputModalities": [
+        "text"
+      ],
+      "ownedBy": "mistral",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.7
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.0999999999999996
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ],
+        "supportedEfforts": [
+          "low",
+          "medium",
+          "high"
+        ]
       }
     },
     {
@@ -33248,54 +33370,7 @@
       "metadata": {},
       "name": "GLM-Z1-Flash",
       "ownedBy": "zhipu"
-    },
-    {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output"
-      ],
-      "contextWindow": 1048576,
-      "id": "mistral-large-4-0",
-      "inputModalities": [
-        "text",
-        "image"
-      ],
-      "metadata": {},
-      "name": "Mistral: Mistral Large 4",
-      "outputModalities": [
-        "text"
-      ],
-      "ownedBy": "mistral",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.7
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 2.0999999999999996
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": [
-              "low",
-              "medium",
-              "high"
-            ]
-          }
-        ],
-        "supportedEfforts": [
-          "low",
-          "medium",
-          "high"
-        ]
-      }
     }
   ],
-  "version": "62ea9f33873d674e"
+  "version": "fb97c9c5f55e43ff"
 }
