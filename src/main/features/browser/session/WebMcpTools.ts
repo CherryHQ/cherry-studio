@@ -126,9 +126,10 @@ export class WebMcpTools {
       if (size > MAX_METADATA) break
       tools.push(tool)
     }
+    const metadata: { capability: typeof this.capability; reason?: string } = { capability: this.capability }
+    if (this.capability === 'unsupported') metadata.reason = 'Native WebMCP is unavailable in this document.'
     return {
-      capability: this.capability,
-      ...(this.capability === 'unsupported' ? { reason: 'Native WebMCP is unavailable in this document.' } : {}),
+      ...metadata,
       tools: this.capability === 'cdp' ? tools : [],
       truncated: this.truncated || tools.length < this.tools.size
     }
