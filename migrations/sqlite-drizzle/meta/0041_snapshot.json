@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "96868313-d433-4cdb-a721-9ae4012bb0bb",
+  "id": "0d9b5b57-e4df-4ee3-8c04-bcf3f26301d3",
   "prevId": "999b080c-958b-479b-b396-1d5b062ef612",
   "tables": {
     "agent": {
@@ -1201,6 +1201,13 @@
         },
         "native_input_id": {
           "name": "native_input_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "reply_id": {
+          "name": "reply_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -3027,7 +3034,7 @@
       "checkConstraints": {
         "asmfr_role_check": {
           "name": "asmfr_role_check",
-          "value": "\"agent_session_message_file_ref\".\"role\" IN ('attachment', 'author_avatar', 'generated')"
+          "value": "\"agent_session_message_file_ref\".\"role\" IN ('attachment', 'author_avatar')"
         }
       }
     },
@@ -3222,7 +3229,7 @@
       "checkConstraints": {
         "cmfr_role_check": {
           "name": "cmfr_role_check",
-          "value": "\"chat_message_file_ref\".\"role\" IN ('attachment', 'tool_output', 'author_avatar', 'generated')"
+          "value": "\"chat_message_file_ref\".\"role\" IN ('attachment', 'tool_output', 'author_avatar')"
         }
       }
     },

@@ -51,6 +51,7 @@ import type {
   RuntimeReasoning
 } from '@shared/data/types/model'
 import { createUniqueModelId, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
+import { projectModelParameterSupport } from '@shared/utils/model'
 
 const logger = loggerService.withContext('DataApi:ModelService')
 const SQLITE_INARRAY_CHUNK = 500
@@ -422,7 +423,7 @@ function applyStoredPresetDeltas(baseline: Model, row: UserModelRow): Model {
     maxInputTokens: row.maxInputTokens,
     maxOutputTokens: row.maxOutputTokens,
     supportsStreaming: row.supportsStreaming,
-    parameterSupport: row.parameters as RuntimeParameterSupport | null,
+    parameterSupport: projectModelParameterSupport(row.parameters),
     pricing: row.pricing
   })
 }
@@ -465,7 +466,7 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
     // selection list until registry enrichment projects the active profile.
     reasoning: reasoning ? { ...reasoning, selectableEfforts: reasoning.selectableEfforts ?? [] } : undefined,
     userDefaultReasoningEffort: row.reasoning?.defaultEffort,
-    parameterSupport: (row.parameters ?? undefined) as RuntimeParameterSupport | undefined,
+    parameterSupport: projectModelParameterSupport(row.parameters),
     pricing: row.pricing ?? undefined,
     hasCustomPricing: row.pricing != null,
     isEnabled: row.isEnabled,
@@ -834,7 +835,11 @@ class ModelService {
         if (registryOverride?.supportsFastMode) updates.supportsFastMode = true
         if (serviceTierControl) {
           updates.requestControls = {
-            serviceTier: { default: serviceTierControl.default, options: serviceTierControl.options }
+            serviceTier: {
+              default: serviceTierControl.default,
+              options: serviceTierControl.options,
+              values: serviceTierControl.wire.values
+            }
           }
         }
         const ownedBy = registryOverride?.ownedBy ?? presetModel?.ownedBy ?? inferReasoningOwnedBy(modelId)

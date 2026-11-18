@@ -291,8 +291,15 @@
     {
       "idx": 41,
       "version": "6",
-      "when": 1794662254215,
-      "tag": "0041_fancy_kabuki",
+      "when": 1795002061126,
+      "tag": "0041_agent_session_reply_link",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "6",
+      "when": 1795002061127,
+      "tag": "0042_fancy_kabuki",
       "breakpoints": true
     }
   ],
