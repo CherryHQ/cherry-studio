@@ -23,10 +23,17 @@ export function offersToolIntent(modelId: string | undefined): boolean {
 
 const INTENT_PROPERTY = { type: 'string', description: 'Purpose of this call.' }
 
-/** The tool fields the transform reads and replaces; Pi and Pi Durable tools both carry them. */
-export interface IntentTool {
+/**
+ * Tool fields shared by Pi and Pi Durable.
+ * @typeParam Prepared - The tool's own repair result; never when no repair is declared.
+ */
+export interface IntentTool<Prepared = never> {
   readonly parameters: unknown
-  readonly prepareArguments?: (args: never) => unknown
+  readonly prepareArguments?: (args: unknown) => Prepared
+}
+
+type PreparedTool<T, Prepared> = Omit<T, 'prepareArguments'> & {
+  readonly prepareArguments: <Args>(args: Args) => Prepared | Args | Record<string, unknown>
 }
 
 type Schema = Record<string, unknown>
@@ -44,7 +51,7 @@ function intentFreeProperties(parameters: unknown): Schema | undefined {
 }
 
 /** `args` without `intent`; the same object when it has none, and never a mutation of the caller's object. */
-export function withoutToolIntent(args: unknown): unknown {
+export function withoutToolIntent<Args>(args: Args): Args | Record<string, unknown> {
   if (!isRecord(args) || !(TOOL_INTENT_ARG in args)) return args
   const rest = { ...args }
   delete rest[TOOL_INTENT_ARG]
@@ -60,16 +67,23 @@ export function withoutToolIntent(args: unknown): unknown {
  * transform returns one wrapper per tool and `offer`, so repeated loadouts keep the schema object validators are
  * cached by.
  */
-export function createToolIntent(): <T extends IntentTool>(tool: T, offer: boolean) => T {
+export function createToolIntent(): <T extends IntentTool<Prepared>, Prepared = never>(
+  tool: T & IntentTool<Prepared>,
+  offer: boolean
+) => T | PreparedTool<T, Prepared> {
   const offered = new WeakMap<object, object>()
   const stripped = new WeakMap<object, object>()
-  return <T extends IntentTool>(tool: T, offer: boolean): T => {
+  return <T extends IntentTool<Prepared>, Prepared = never>(
+    tool: T & IntentTool<Prepared>,
+    offer: boolean
+  ): T | PreparedTool<T, Prepared> => {
     const wrapped = offer ? offered : stripped
     const known = wrapped.get(tool)
-    if (known) return known as T
+    // SAFETY: Entries hold the wrapper constructed for this exact tool identity.
+    if (known) return known as PreparedTool<T, Prepared>
     const properties = intentFreeProperties(tool.parameters)
     if (!properties) return tool
-    const prepare = tool.prepareArguments as ((args: unknown) => unknown) | undefined
+    const prepare = tool.prepareArguments
     const result = {
       ...tool,
       ...(offer && {
@@ -78,7 +92,10 @@ export function createToolIntent(): <T extends IntentTool>(tool: T, offer: boole
           properties: { ...properties, [TOOL_INTENT_ARG]: INTENT_PROPERTY }
         }
       }),
-      prepareArguments: (args: unknown) => (prepare ? prepare(withoutToolIntent(args)) : withoutToolIntent(args))
+      prepareArguments: <Args>(args: Args): Prepared | Args | Record<string, unknown> => {
+        const stripped = withoutToolIntent(args)
+        return prepare ? prepare(stripped) : stripped
+      }
     }
     wrapped.set(tool, result)
     return result
