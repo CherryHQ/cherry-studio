@@ -77,6 +77,32 @@ describe('HeartbeatEditorDialog', () => {
     expect(ipcApi.request).not.toHaveBeenCalledWith('ai.agent.heartbeat.run', expect.anything())
   })
 
+  // The run stores an English marker; a Chinese UI showed "Skipped (no file)" verbatim.
+  it("explains a skipped run in the user's language", async () => {
+    MockUseDataApiUtils.mockQueryData('/agents/:agentId/heartbeat', {
+      scheduleEnabled: true,
+      latestRun: {
+        status: 'completed',
+        createdAt: 1,
+        output: { kind: 'skipped', reason: 'no_file', result: 'Skipped (no file)' }
+      }
+    } as never)
+    render(<HeartbeatEditorDialog agentId="a1" enabled onOpenChange={vi.fn()} />)
+
+    expect(await screen.findByText(en['agent.heartbeat.skip_reason.no_file'])).toBeInTheDocument()
+    expect(screen.queryByText('Skipped (no file)')).not.toBeInTheDocument()
+  })
+
+  it('still shows the recorded text of a run saved before skip reasons were stored', async () => {
+    MockUseDataApiUtils.mockQueryData('/agents/:agentId/heartbeat', {
+      scheduleEnabled: true,
+      latestRun: { status: 'completed', createdAt: 1, output: { kind: 'skipped', result: 'Skipped (no file)' } }
+    } as never)
+    render(<HeartbeatEditorDialog agentId="a1" enabled onOpenChange={vi.fn()} />)
+
+    expect(await screen.findByText('Skipped (no file)')).toBeInTheDocument()
+  })
+
   it('allows editing a disabled heartbeat but prevents execution', async () => {
     const user = userEvent.setup()
     render(<HeartbeatEditorDialog agentId="a1" enabled={false} onOpenChange={vi.fn()} />)

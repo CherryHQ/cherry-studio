@@ -18,6 +18,7 @@ import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { hasHeartbeatTasks } from '@shared/ai/agentHeartbeat'
+import type { AgentTaskSkipReason } from '@shared/ai/agentTaskSkipReason'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { HeartbeatDocument, HeartbeatRunResult } from '@shared/ipc/schemas/ai'
@@ -30,6 +31,14 @@ const runResultKeys: Record<HeartbeatRunResult, string> = {
   disabled: 'agent.heartbeat.enable_first',
   busy: 'agent.tasks.logs.running',
   paused: 'agent.heartbeat.paused'
+}
+
+const skipReasonKeys: Record<AgentTaskSkipReason, string> = {
+  disabled: 'agent.heartbeat.skip_reason.disabled',
+  capability: 'agent.heartbeat.skip_reason.capability',
+  untrusted_path: 'agent.heartbeat.skip_reason.untrusted_path',
+  no_file: 'agent.heartbeat.skip_reason.no_file',
+  session_busy: 'agent.heartbeat.skip_reason.session_busy'
 }
 
 export function HeartbeatEditorDialog({
@@ -88,7 +97,12 @@ export function HeartbeatEditorDialog({
   const running = latest && ['pending', 'delayed', 'running'].includes(latest.status)
   const baseline = document && (hasHeartbeatTasks(document.content) ? document.content : '')
   const dirty = document !== null && content !== baseline
-  const result = latest?.output as { result?: string } | undefined
+  const output = latest?.output as { result?: string; reason?: string } | undefined
+  // Runs recorded before the reason was stored keep their English marker.
+  const resultText =
+    output?.reason && Object.hasOwn(skipReasonKeys, output.reason)
+      ? t(skipReasonKeys[output.reason as AgentTaskSkipReason])
+      : output?.result
 
   async function save(run: boolean) {
     if (!document || busy) return
@@ -189,9 +203,9 @@ export function HeartbeatEditorDialog({
                   {new Date(latest.createdAt).toLocaleString()}
                 </p>
                 {latest.error ? <p className="text-destructive">{latest.error.message}</p> : null}
-                {result?.result ? (
+                {resultText ? (
                   <p className="max-h-28 overflow-auto whitespace-pre-wrap break-words text-muted-foreground">
-                    {result.result}
+                    {resultText}
                   </p>
                 ) : null}
               </>
