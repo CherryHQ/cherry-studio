@@ -141,22 +141,18 @@ export function findNextPendingPermissionRequest(
           )
         : []
 
+      const origin: Pick<PermissionRequestComposerRequest, 'source'> = {}
+      if (parentToolCallId) {
+        origin.source = {
+          toolCallId: parentToolCallId,
+          title:
+            taskEvents.findLast((event) => event.title)?.title ??
+            getStringField(parent && 'input' in parent ? parent.input : undefined, ['description', 'title', 'prompt']),
+          isBackgrounded: taskEvents.findLast((event) => event.isBackgrounded !== undefined)?.isBackgrounded
+        }
+      }
       return {
-        ...(parentToolCallId
-          ? {
-              source: {
-                toolCallId: parentToolCallId,
-                title:
-                  taskEvents.findLast((event) => event.title)?.title ??
-                  getStringField(parent && 'input' in parent ? parent.input : undefined, [
-                    'description',
-                    'title',
-                    'prompt'
-                  ]),
-                isBackgrounded: taskEvents.findLast((event) => event.isBackgrounded !== undefined)?.isBackgrounded
-              }
-            }
-          : {}),
+        ...origin,
         commandPolicy: getCommandPolicy(toolPart),
         messageId,
         toolCallId: toolPart.toolCallId,

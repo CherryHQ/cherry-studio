@@ -147,8 +147,8 @@ export async function captureScreenshot(
     bytes += data.length
     images.push({ data, mimeType: input.format === 'jpeg' ? 'image/jpeg' : 'image/png', region: tile, scale, index })
   }
-  const result: BrowserScreenshot = { documentId, region, images, totalTiles }
+  const screenshot: BrowserScreenshot = { documentId, region, images, totalTiles }
   if (index < totalTiles)
-    result.nextCursor = Buffer.from(JSON.stringify({ documentId, region, index })).toString('base64url')
-  return result
+    screenshot.nextCursor = Buffer.from(JSON.stringify({ documentId, region, index })).toString('base64url')
+  return screenshot
 }

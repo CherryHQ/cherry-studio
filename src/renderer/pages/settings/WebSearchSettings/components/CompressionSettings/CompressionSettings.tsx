@@ -18,16 +18,11 @@ const CompressionSettings = () => {
   const persist = useWebSearchPersist()
 
   const handleCompressionMethodChange = (value: CompressionMethod) => {
-    void persist(
-      () =>
-        updateCompressionConfig({
-          method: value,
-          ...(value === 'cutoff'
-            ? { cutoffLimit: compressionConfig?.cutoffLimit || DEFAULT_WEB_SEARCH_CUTOFF_LIMIT }
-            : {})
-        }),
-      'Failed to save web search compression method'
-    )
+    void persist(() => {
+      const config: Parameters<typeof updateCompressionConfig>[0] = { method: value }
+      if (value === 'cutoff') config.cutoffLimit = compressionConfig?.cutoffLimit || DEFAULT_WEB_SEARCH_CUTOFF_LIMIT
+      return updateCompressionConfig(config)
+    }, 'Failed to save web search compression method')
   }
 
   const compressionMethodOptions: Array<{ value: CompressionMethod; label: string }> = [

@@ -211,10 +211,9 @@ contextBridge.exposeInMainWorld('cherry', {
     usage: async () => call('file.usage'),
     export: async (name: string, opts?: { suggestedName?: string } | null) => {
       const { suggestedName } = opts ?? {}
-      return call('file.export', {
-        name: gateName(name),
-        ...(suggestedName === undefined ? {} : { suggestedName: gateName(suggestedName) })
-      })
+      const params = { name: gateName(name) }
+      if (suggestedName !== undefined) Object.assign(params, { suggestedName: gateName(suggestedName) })
+      return call('file.export', params)
     }
   },
   app: {
