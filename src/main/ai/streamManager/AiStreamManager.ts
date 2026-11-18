@@ -1418,7 +1418,7 @@ export class AiStreamManager extends BaseService {
       if (isAgentSessionTopic(topicId)) {
         const runtimeClosing = application
           .get('AgentSessionRuntimeService')
-          .closeSession(extractAgentSessionId(topicId), true)
+          .stopSession(extractAgentSessionId(topicId), reason)
         const drainReplacementLoops = async (): Promise<void> => {
           for (;;) {
             const replacement = this.activeStreams.get(topicId)
@@ -2284,9 +2284,34 @@ export class AiStreamManager extends BaseService {
         }
       )
     } else {
+      const capacityListeners = [...(this.activeStreams.get(topicId)?.listeners.values() ?? [])].filter(
+        (listener) => listener.ready
+      )
       const { stream: idleStream, idle } = withIdleTimeout(source.stream, exec.abortController, timeoutMs)
+      const inputStream =
+        capacityListeners.length === 0
+          ? idleStream
+          : idleStream.pipeThrough(
+              new TransformStream<UIMessageChunk, UIMessageChunk>({
+                async transform(chunk, controller) {
+                  for (const listener of capacityListeners) {
+                    const ready = listener.ready?.()
+                    if (ready) {
+                      idle.pause()
+                      try {
+                        await ready
+                      } finally {
+                        idle.resume()
+                      }
+                    }
+                    signal.throwIfAborted()
+                  }
+                  controller.enqueue(chunk)
+                }
+              })
+            )
       const lastIncoming = request.messages?.at(-1)
-      result = await pipeStreamLoop(withReasoningTimingMetadata(idleStream), signal, {
+      result = await pipeStreamLoop(withReasoningTimingMetadata(inputStream), signal, {
         onChunk: (chunk) => {
           this.onChunk(topicId, modelId, chunk, exec)
           if (exec.pendingApprovalToolCallIds?.size) idle.reset(this.config.approvalIdleTimeoutMs)

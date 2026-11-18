@@ -960,6 +960,7 @@ describe('Topics', () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'assistant.icon_type': 'emoji',
       'assistant.tab.sort_type': 'list',
+      'chat.topics.sort': { by: 'orderKey' },
       'topic.tab.display_mode': 'assistant',
       'topic.tab.position': 'left',
       'data.export.menus.docx': true,

@@ -28,7 +28,11 @@ import { logAiFailure } from '@main/ai/errorReporting'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
-import { appendAgentAttachmentPaths, wrapAgentSessionDeliveryContent } from '@main/ai/runtime/agentUserContent'
+import {
+  appendAgentAttachmentPaths,
+  withAgentContext,
+  wrapAgentSessionDeliveryContent
+} from '@main/ai/runtime/agentUserContent'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
@@ -307,10 +311,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
 
-    const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
-      supportsAttachmentReads: this.assistantFileToolsEnabled,
-      supportsImages: resolveModelNativeImageSupport(this.input.modelId)
-    })
+    const sdkMessage = await toSdkUserMessage(
+      withAgentContext(input.message, input.context),
+      this.resumeToken,
+      input.systemReminder,
+      {
+        supportsAttachmentReads: this.assistantFileToolsEnabled,
+        supportsImages: resolveModelNativeImageSupport(this.input.modelId)
+      }
+    )
     const contextId = this.context!.id
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'follow-up', {
       text: JSON.stringify(sdkMessage.message.content),
@@ -338,10 +347,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private async submitSteer(input: AgentRuntimeCommand): Promise<void> {
-    const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
-      supportsAttachmentReads: this.assistantFileToolsEnabled,
-      supportsImages: resolveModelImageSupport(this.input.modelId)
-    })
+    const sdkMessage = await toSdkUserMessage(
+      withAgentContext(input.message, input.context),
+      this.resumeToken,
+      input.systemReminder,
+      {
+        supportsAttachmentReads: this.assistantFileToolsEnabled,
+        supportsImages: resolveModelImageSupport(this.input.modelId)
+      }
+    )
     const contextId = this.context!.id
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'steer', {
       text: JSON.stringify(sdkMessage.message.content),
