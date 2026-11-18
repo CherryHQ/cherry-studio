@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "87d6badc-9cef-4872-84f7-7d76efd61959",
+  "id": "0d9b5b57-e4df-4ee3-8c04-bcf3f26301d3",
   "prevId": "999b080c-958b-479b-b396-1d5b062ef612",
   "tables": {
     "agent": {
@@ -1201,6 +1201,13 @@
         },
         "native_input_id": {
           "name": "native_input_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "reply_id": {
+          "name": "reply_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -6936,154 +6943,6 @@
           "isUnique": false
         }
       },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "followup_queue": {
-      "name": "followup_queue",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "scope_key": {
-          "name": "scope_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "draft": {
-          "name": "draft",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "payload": {
-          "name": "payload",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'pending'"
-        },
-        "sent_at": {
-          "name": "sent_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "claim_token": {
-          "name": "claim_token",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "order_key": {
-          "name": "order_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "followup_queue_scope_key_idx": {
-          "name": "followup_queue_scope_key_idx",
-          "columns": [
-            "scope_key"
-          ],
-          "isUnique": false
-        },
-        "followup_queue_status_idx": {
-          "name": "followup_queue_status_idx",
-          "columns": [
-            "status"
-          ],
-          "isUnique": false
-        },
-        "followup_queue_scope_key_order_key_idx": {
-          "name": "followup_queue_scope_key_order_key_idx",
-          "columns": [
-            "scope_key",
-            "order_key"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "followup_queue_status_check": {
-          "name": "followup_queue_status_check",
-          "value": "\"followup_queue\".\"status\" IN ('pending', 'sending', 'failed')"
-        }
-      }
-    },
-    "followup_queue_state": {
-      "name": "followup_queue_state",
-      "columns": {
-        "scope_key": {
-          "name": "scope_key",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "paused": {
-          "name": "paused",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},

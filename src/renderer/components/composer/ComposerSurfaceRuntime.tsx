@@ -1667,7 +1667,14 @@ export default function ComposerSurfaceRuntime({
             event.stopPropagation()
             return true
           }
-          if (event.key === 'Tab' && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+          if (
+            (event.key === 'Tab' ||
+              event.key === (getComputedStyle(view.dom).direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight')) &&
+            !event.shiftKey &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            !event.altKey
+          ) {
             event.preventDefault()
             event.stopPropagation()
             if (!event.repeat) editorRef.current?.commands.insertContent({ type: 'text', text: suggestion.text })

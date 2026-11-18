@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f231eb73-94ab-45bc-8493-b06775aeadb6",
-  "prevId": "87d6badc-9cef-4872-84f7-7d76efd61959",
+  "id": "6c1afa38-8250-4c27-b3cb-377fe168922e",
+  "prevId": "0d9b5b57-e4df-4ee3-8c04-bcf3f26301d3",
   "tables": {
     "agent": {
       "name": "agent",
@@ -1201,6 +1201,13 @@
         },
         "native_input_id": {
           "name": "native_input_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "reply_id": {
+          "name": "reply_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -7046,7 +7053,7 @@
       "checkConstraints": {
         "followup_queue_status_check": {
           "name": "followup_queue_status_check",
-          "value": "\"followup_queue\".\"status\" IN ('pending', 'sending', 'failed', 'closed')"
+          "value": "\"followup_queue\".\"status\" IN ('pending', 'sending', 'failed')"
         }
       }
     },
