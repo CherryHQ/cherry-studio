@@ -1,3 +1,4 @@
+import type { Message } from '@earendil-works/pi-ai'
 import {
   AssistantEntry,
   defineDoc,
@@ -57,10 +58,43 @@ export async function pages<T>(read: (cursor?: Cursor) => Promise<Page<T, Cursor
   return items
 }
 
-export async function lineageEntries(tx: Tx, id: ConversationId, at?: EntryId): Promise<EntryRecord[]> {
-  return pages((cursor) =>
-    tx.scanEntries({ conversationId: id, order: 'ascending', ...(at && { maxEntryId: at }) }, 256, cursor)
+/**
+ * Image-free lineage entries by conversation, owned by one runtime. Reads see only published commits and the single
+ * mutation line mints IDs in commit order, so a conversation's visible entries only grow, by newer IDs.
+ */
+export type LineageCache = Map<ConversationId, readonly EntryRecord[]>
+
+// Facts read text, tool calls, usage and data; media stays in storage.
+function withoutMedia(entry: EntryRecord): EntryRecord {
+  if (!entry.model) return entry
+  return {
+    ...entry,
+    model: entry.model.map((message) =>
+      typeof message.content === 'string'
+        ? message
+        : ({
+            ...message,
+            content: message.content.filter((part) => part.type === 'text' || part.type === 'toolCall')
+          } as Message)
+    )
+  }
+}
+
+/** Reads only entries newer than the cached lineage. */
+export async function lineageEntries(tx: Tx, id: ConversationId, cache: LineageCache): Promise<readonly EntryRecord[]> {
+  const known = cache.get(id) ?? []
+  const after = known.at(-1)?.id
+  const fresh = await pages((cursor) =>
+    tx.scanEntries(
+      { conversationId: id, order: 'ascending', ...(after !== undefined && { minEntryId: (after + 1) as EntryId }) },
+      256,
+      cursor
+    )
   )
+  if (!fresh.length) return known
+  const entries = [...known, ...fresh.map(withoutMedia)]
+  cache.set(id, entries)
+  return entries
 }
 
 function summaryUsage(entry: EntryRecord) {
@@ -151,10 +185,12 @@ export function historyOf(
 export async function readFacts(
   tx: Tx,
   id: ConversationId,
+  lineage: LineageCache,
   abandoned: ReadonlySet<TaskId> = new Set(),
   at?: EntryId
 ): Promise<ConversationFacts> {
-  const entries = await lineageEntries(tx, id, at)
+  const visible = await lineageEntries(tx, id, lineage)
+  const entries = at === undefined ? visible : visible.filter((entry) => entry.id <= at)
   const tasks = (
     await Promise.all(
       [...new Set([id, ...entries.map((entry) => entry.conversationId)])].map((conversationId) =>
@@ -186,10 +222,10 @@ export async function readFacts(
   )
   for (const child of childIds) {
     const childId = conversationId(child)
-    const childEntries = await lineageEntries(tx, childId)
+    const childEntries = await lineageEntries(tx, childId, lineage)
     const childLive = await tx.doc(LiveDoc, childId)
     const childTasks = await pages((cursor) => tx.scanTasks({ conversationId: childId }, 256, cursor))
-    const ids = await runIds(tx, childId, childTasks, childEntries)
+    const ids = await runIds(tx, childId, lineage, childTasks, childEntries)
     const runUsage = Array.from(ids, () => ({ ...ZERO_USAGE }))
     const childSummaries = await tx.doc(nativeSummaryUsage, childId)
     for (const value of Object.values(childSummaries.records)) {
@@ -292,11 +328,12 @@ export function taskRun(task: TaskRecord<JsonValue, JsonValue, JsonValue>): Task
 export async function runIds(
   tx: Tx,
   id: ConversationId,
+  lineage: LineageCache,
   tasks?: readonly TaskRecord<JsonValue, JsonValue, JsonValue>[],
   entries?: readonly EntryRecord[]
 ): Promise<(TaskId | undefined)[]> {
   tasks ??= await pages((cursor) => tx.scanTasks({ conversationId: id }, 256, cursor))
-  entries ??= await lineageEntries(tx, id)
+  entries ??= await lineageEntries(tx, id, lineage)
   const reservations = new Map<TaskId, number>()
   for (const entry of entries) {
     if (entry.conversationId !== id) continue

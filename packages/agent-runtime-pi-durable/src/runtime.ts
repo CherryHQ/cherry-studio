@@ -17,6 +17,7 @@ import {
   type ConversationId,
   type ConversationRecord,
   type Cursor,
+  type EntryId,
   type HarnessOptions,
   type Storage,
   type SubmissionRecord,
@@ -29,7 +30,8 @@ import {
   type HostPorts,
   type Entries,
   type CallRef,
-  type ConversationFacts
+  type ConversationFacts,
+  type SubagentOrigin
 } from '@cherrystudio/agent-behavior'
 import {
   runtimeId,
@@ -50,7 +52,7 @@ import {
 } from '@cherrystudio/agent-runtime'
 
 import { createPiDurableBehavior, type PiDurableBehavior } from './behavior/harness'
-import { historyOf, pages, readFacts } from './behavior/history'
+import { historyOf, pages, readFacts, type LineageCache } from './behavior/history'
 import { meteredModels } from './behavior/models'
 import { ContentProjection } from './content'
 import { readContextUsage } from './contextUsage'
@@ -126,6 +128,8 @@ interface Entry {
   /** Detaches the native view and drops this conversation's loaded history. */
   unload(): void
   unloaded?: boolean
+  /** Sealed committed archive; committed entries never change, so later reads fold only newer entries. */
+  archived?: { through: EntryId; content: ContentProjection }
 }
 const context = BACKGROUND_CONTEXT
 const error = (operation: string, code: string): RuntimeError => ({
@@ -153,9 +157,11 @@ export async function createPiDurableRuntime(
   let harnessOptions = options.harness
   const refFor = (id: number): Thread =>
     Object.freeze({ backendId: options.backendId, id: runtimeId<'thread'>(String(id)) })
+  const lineage: LineageCache = new Map()
   if (options.behavior) {
     const config = options.behavior
     behavior = createPiDurableBehavior({
+      lineage,
       install: (ports) => {
         behaviorEntries = install(ports, config.host).entries
       },
@@ -287,27 +293,35 @@ export async function createPiDurableRuntime(
     scanEntries: (query, limit, cursor) => storage.scanEntries(query, limit, cursor, context),
     task: (id) => storage.task(id, context)
   }
+  // A child's creation commit appends its only origin record, so the lookup stops there and is kept.
+  const origins = new Map<ConversationId, SubagentOrigin | undefined>()
+  async function originOf(tx: Pick<Tx, 'scanEntries'>, id: ConversationId): Promise<SubagentOrigin | undefined> {
+    if (origins.has(id)) return origins.get(id)
+    let origin: SubagentOrigin | undefined
+    let cursor: Cursor | undefined
+    do {
+      const page = await tx.scanEntries({ conversationId: id, order: 'ascending' }, 16, cursor)
+      const found = historyOf(page.items, [], id).find(
+        (entry) => entry.kind === 'record' && entry.record.type === 'subagent-origin'
+      )
+      if (found?.kind === 'record' && found.record.type === 'subagent-origin') origin = found.record.value
+      cursor = origin ? undefined : page.next
+    } while (cursor)
+    origins.set(id, origin)
+    return origin
+  }
   async function readRelation(
     tx: Pick<Tx, 'scanEntries' | 'task'>,
     record: ConversationRecord
   ): Promise<(Subagent & { child: Thread }) | undefined> {
     if (!record.owner) return
     const owner = record.owner
-    const history = behavior
-      ? historyOf(
-          await pages((cursor) => tx.scanEntries({ conversationId: record.id, order: 'ascending' }, 256, cursor)),
-          [],
-          record.id
-        )
-      : []
-    const origin = history.findLast((entry) => entry.kind === 'record' && entry.record.type === 'subagent-origin')
-    const lineage =
-      origin?.kind === 'record' && origin.record.type === 'subagent-origin' ? origin.record.value : undefined
-    const taskId = lineage ? nativeId(lineage.parentToolCallId) : owner.taskId
+    const origin = behavior ? await originOf(tx, record.id) : undefined
+    const taskId = origin ? nativeId(origin.parentToolCallId) : owner.taskId
     const task = taskId === undefined ? undefined : await tx.task(taskId as typeof owner.taskId)
     const input = task?.kind === ToolTask.definition.name ? (task.input as ToolTaskInput) : undefined
     const toolCallId = input?.kind === 'model' ? input.callId : input?.call.id
-    const description = lineage?.description
+    const description = origin?.description
     return {
       id: runtimeId<'subagent'>(String(record.id)),
       parent: refFor(owner.conversationId),
@@ -701,7 +715,7 @@ export async function createPiDurableRuntime(
           return message.content.find((part) => part.type === 'text')?.text ?? ''
         },
         providerSessionId: async () => (await native.snapshot(ProviderDoc, entry.conversation.id, context))?.sessionId,
-        facts: () => native.commit((tx) => readFacts(tx, entry.conversation.id), context),
+        facts: () => native.commit((tx) => readFacts(tx, entry.conversation.id, lineage), context),
         async behaviorToolCallId(call) {
           if (unavailable() || call.thread !== entry.ref.id || nativeId(call.key) === undefined) return undefined
           const task = await native.getTask(Number(call.key) as never, context)
@@ -749,13 +763,18 @@ export async function createPiDurableRuntime(
         return track(
           (async (): Promise<OperationResult<PiDurableArchive>> => {
             try {
-              const content = new ContentProjection()
               const head = (await entry.conversation.entries({ order: 'descending' }, 1, undefined, context)).items[0]
               if (!head) return { status: 'confirmed', value: { messages: [], aliases: {} } }
+              const known = entry.archived
+              const content = known ? known.content.fork() : new ContentProjection()
               let cursor: Cursor | undefined
               do {
                 const page = await entry.conversation.entries(
-                  { maxEntryId: head.id, order: 'ascending' },
+                  {
+                    ...(known && { minEntryId: (known.through + 1) as EntryId }),
+                    maxEntryId: head.id,
+                    order: 'ascending'
+                  },
                   256,
                   cursor,
                   context
@@ -764,13 +783,20 @@ export async function createPiDurableRuntime(
                   if (record.conversationId === entry.conversation.id) content.entry(record)
                 cursor = page.next
               } while (cursor)
+              content.seal()
+              if (!entry.archived || entry.archived.through < head.id) entry.archived = { through: head.id, content }
               const included = new Set(content.messages.map((message) => message.id))
               const aliases = Object.fromEntries(
                 Object.entries(entry.projection.aliases).filter(([id]) => included.has(id))
               )
               return {
                 status: 'confirmed',
-                value: { messages: content.messages, responseIds: content.responseIds, legacy: content.legacy, aliases }
+                value: {
+                  messages: [...content.messages],
+                  responseIds: { ...content.responseIds },
+                  legacy: content.legacy,
+                  aliases
+                }
               }
             } catch (cause) {
               report(cause)
@@ -791,7 +817,7 @@ export async function createPiDurableRuntime(
             }
             try {
               if (behavior && behaviorEntries) {
-                const facts = await native.commit((tx) => readFacts(tx, entry.conversation.id), context)
+                const facts = await native.commit((tx) => readFacts(tx, entry.conversation.id, lineage), context)
                 if (facts.lineage.kind === 'subagent') {
                   const receipt = await behavior.withCall(
                     entry.ref.id,

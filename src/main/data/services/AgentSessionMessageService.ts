@@ -952,7 +952,16 @@ export class AgentSessionMessageService {
   }
 
   hasSessionMessage(sessionId: string, messageId: string): boolean {
-    return this.findExistingMessageRow(application.get('DbService').getDb(), sessionId, messageId) !== null
+    return (
+      application
+        .get('DbService')
+        .getDb()
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, messageId)))
+        .limit(1)
+        .all().length > 0
+    )
   }
 
   listLiveCreatedInRangeMetadataPage({

@@ -48,9 +48,20 @@ import {
 } from '@cherrystudio/agent-behavior'
 import { type JsonValue, type InputId, type ThreadId } from '@cherrystudio/agent-runtime'
 
-import { conversationId, nativeSummaryUsage, pages, readFacts, threadId, runIds, taskRun } from './history'
+import {
+  conversationId,
+  nativeSummaryUsage,
+  pages,
+  readFacts,
+  threadId,
+  runIds,
+  taskRun,
+  type LineageCache
+} from './history'
 
 export interface PiDurableBehaviorOptions {
+  /** Shared with the runtime that owns the storage. */
+  readonly lineage: LineageCache
   readonly onError?: (error: unknown) => void
   readonly install: (ports: HarnessPorts) => void
   readonly owns?: (thread: ThreadId) => boolean
@@ -64,6 +75,7 @@ export interface PiDurableBehaviorOptions {
 
 /** Native ports are installed before opening the Harness; recovery runs before enabling its scheduler. */
 export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
+  const { lineage } = options
   const abandoned = new Set<TaskId>()
   const admissions = new Map<ThreadId, Promise<unknown>>()
   const messages = new Map<TaskId, Set<Promise<unknown>>>()
@@ -143,7 +155,8 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
     if (!conversation) throw new Error(`Unknown Durable conversation ${thread}`)
     return conversation
   }
-  const read = (thread: ThreadId) => harness.commit((tx) => readFacts(tx, conversationId(thread), abandoned), context)
+  const read = (thread: ThreadId) =>
+    harness.commit((tx) => readFacts(tx, conversationId(thread), lineage, abandoned), context)
   const submission = (thread: ThreadId, key: Key) =>
     harness.commit((tx) => tx.submissionByRequest(conversationId(thread), key), context)
   const latestRun = async (thread: ThreadId) => {
@@ -320,16 +333,17 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
   function bound(scope: Scope): BoundPorts {
     return {
       ledger: {
-        read: (thread) => enter(scope, () => scope.commit((tx) => readFacts(tx, conversationId(thread), abandoned))),
+        read: (thread) =>
+          enter(scope, () => scope.commit((tx) => readFacts(tx, conversationId(thread), lineage, abandoned))),
         transact: (thread, decide) =>
           enter(scope, () =>
             scope.commit(async (tx) => {
               const id = conversationId(thread)
-              const facts = await readFacts(tx, id, abandoned)
+              const facts = await readFacts(tx, id, lineage, abandoned)
               const step = decide(facts)
               for (const op of step.ops) {
                 if (op.type === 'append-record' || op.type === 'append-quiet') {
-                  const target = await readFacts(tx, conversationId(op.thread))
+                  const target = await readFacts(tx, conversationId(op.thread), lineage)
                   if (op.type === 'append-quiet' && !target.live.idle)
                     throw new Error('Cannot append a quiet input while busy')
                   if (op.type === 'append-record' && op.record.type === 'subagent-run' && op.record.value.run > 1) {
@@ -496,7 +510,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
                     const live = await tx.doc(LiveDoc, id)
                     const tasks = await pages((cursor) => tx.scanTasks({ conversationId: id }, 256, cursor))
                     const owner = child?.owner && (await tx.task(child.owner.taskId))
-                    if (owner && !owner.background && !live.run && (await runIds(tx, id, tasks)).length)
+                    if (owner && !owner.background && !live.run && (await runIds(tx, id, lineage, tasks)).length)
                       throw new Error('Durable cannot detach a foreground child continuation')
                     return tx.submissionByRequest(id, key)
                   })
@@ -566,16 +580,16 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
                   if (!scope.context.abortSignal?.aborted) throw error
                   const withdrawn = await harness.abortSubmission(receipt.id, context, id)
                   if (withdrawn === 'aborted') {
-                    const count = await harness.commit(async (tx) => (await runIds(tx, id)).length, context)
+                    const count = await harness.commit(async (tx) => (await runIds(tx, id, lineage)).length, context)
                     return { run: count, status: 'withdrawn' as const }
                   }
                   consumed = await receipt.status(context)
                 }
                 if (consumed.type !== 'input' || consumed.runId === undefined) {
-                  const count = await harness.commit(async (tx) => (await runIds(tx, id)).length, context)
+                  const count = await harness.commit(async (tx) => (await runIds(tx, id, lineage)).length, context)
                   return { status: 'withdrawn' as const, run: count }
                 }
-                const ids = await harness.commit((tx) => runIds(tx, id), context)
+                const ids = await harness.commit((tx) => runIds(tx, id, lineage), context)
                 return {
                   run: ids.indexOf(consumed.runId) + 1,
                   status: consumed.runId > consumed.id ? ('started' as const) : ('queued' as const)
@@ -583,7 +597,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
               })().catch(async (error) => {
                 if (!scope.context.abortSignal?.aborted) throw error
                 const count = await harness.commit(
-                  async (tx) => (await runIds(tx, conversationId(child))).length,
+                  async (tx) => (await runIds(tx, conversationId(child), lineage)).length,
                   context
                 )
                 return { run: count, status: 'withdrawn' as const }
@@ -597,7 +611,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
                 scope.commit(async (tx) => {
                   const id = conversationId(child)
                   const tasks = await pages((cursor) => tx.scanTasks({ conversationId: id }, 256, cursor))
-                  const runId = (await runIds(tx, id, tasks))[run - 1]
+                  const runId = (await runIds(tx, id, lineage, tasks))[run - 1]
                   if (runId === undefined) throw new Error(`Unknown child run ${run}`)
                   const live = await tx.doc(LiveDoc, id)
                   if ((live.run?.id ?? live.run?.taskId) === runId) return undefined
@@ -640,7 +654,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
               const id = conversationId(child)
               for (;;) {
                 const task = await scope.commit(async (tx) => {
-                  const ids = await runIds(tx, id)
+                  const ids = await runIds(tx, id, lineage)
                   const live = await tx.doc(LiveDoc, id)
                   const inbox = await tx.doc(InboxDoc, id)
                   return live.run && (live.run.id ?? live.run.taskId) === ids[run - 1]
@@ -840,7 +854,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
         async beforeCompact(request, api, callContext) {
           if (request.ownerAt === undefined) return { decline: true }
           const facts = await harness.commit(
-            (tx) => readFacts(tx, api.conversationId, abandoned, request.ownerAt),
+            (tx) => readFacts(tx, api.conversationId, lineage, abandoned, request.ownerAt),
             callContext
           )
           await api.memo('cherry.native-summary-owner', nativeValue(goalForRequest(facts.history)), callContext)
