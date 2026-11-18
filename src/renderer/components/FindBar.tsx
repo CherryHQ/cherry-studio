@@ -80,11 +80,11 @@ export function FindBar({
   }, [])
 
   const enable = useCallback((initialText?: string) => {
-    setState((current) => ({
-      ...current,
-      enabled: true,
-      ...(initialText?.trim() ? { query: initialText } : {})
-    }))
+    setState((current) => {
+      const next = { ...current, enabled: true }
+      if (initialText?.trim()) next.query = initialText
+      return next
+    })
     setFocusSequence((sequence) => sequence + 1)
   }, [])
 
