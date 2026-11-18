@@ -1274,6 +1274,26 @@ describe('desktop Pi Durable connection', () => {
   )
 
   // A no-op command must explain its result instead of persisting an empty successful reply.
+  it('compacts a reused root before the next prompt when its task threshold is crossed', async () => {
+    snapshot.model.contextWindow = 100_000
+    snapshot.compactionPercent = 20
+    mocks.binding.mockImplementation(async () =>
+      createTestBinding({ model: { ...MODEL, contextWindow: 100_000 }, stream: script.model })
+    )
+    script = respondingModel(() => {
+      const answer = assistantReply('summary or answer')
+      return { ...answer, usage: { ...answer.usage, input: 25000, totalTokens: 25007 } }
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('Previous findings '.repeat(9000)) })
+    await done(events)
+    events.length = 0
+    await connection.send({ message: message('Continue research') })
+    await done(events)
+    expect(events).toContainEqual({ type: 'compaction-start', trigger: 'auto' })
+    expect(events.some((event) => event.type === 'compaction-complete')).toBe(true)
+  })
+
   it('shows an unchanged-history reply when manual compaction has no summary to commit', async () => {
     const { connection, events } = await connect()
     await connection.send({ message: message('/compact') })
