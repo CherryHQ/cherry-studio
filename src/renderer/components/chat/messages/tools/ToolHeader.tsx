@@ -100,16 +100,19 @@ const getAgentToolLabel = (toolName: string, t: Translate): string => {
   return labelKey ? t(labelKey) : toolName
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Streamed and extension-defined tool arguments need container and string-field checks before display.
 function getStringArg(args: unknown, key: string): string | undefined {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return undefined
   const value = (args as Record<string, unknown>)[key]
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool inputs may be structured payloads or raw strings; this reader accepts only nonblank strings.
 function getStringInput(args: unknown): string | undefined {
   return typeof args === 'string' && args.trim() ? args.trim() : undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Task tools use different ID fields in partial arguments; getStringArg validates each field before interpolation.
 function getTaskIdTarget(args: unknown, t: Translate): string | undefined {
   const taskId = getStringArg(args, 'taskId') ?? getStringArg(args, 'task_id') ?? getStringArg(args, 'shell_id')
   return taskId ? t('message.tools.activity.taskId', { id: taskId }) : undefined
@@ -178,6 +181,7 @@ function truncateCommandPreview(command: string): string {
   return `${prefix}…`
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Streamed shell arguments may lack a valid command; getStringArg checks it before preview formatting.
 function getCommandPreview(toolName: string, args: unknown): { text: string; fullText: string } | undefined {
   if (toolName !== AgentToolsType.Bash && toolName !== AgentToolsType.BashOutput) return undefined
 
@@ -277,6 +281,7 @@ function getActivityLabels(active: boolean, t: Translate) {
       }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Shell descriptions and commands come from partial tool arguments; checked string readers feed activity classification.
 function getCommandActivity(args: unknown, active: boolean, t: Translate): ToolActivity {
   const description = getStringArg(args, 'description')
   const command = getStringArg(args, 'command')
@@ -377,6 +382,7 @@ function getCommandActivity(args: unknown, active: boolean, t: Translate): ToolA
 
 export function getReadableToolActivity(
   toolName: string,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Streamed and extension-defined inputs reach this dispatcher; field readers validate strings or use generic labels.
   args: unknown,
   active: boolean,
   t: Translate
@@ -490,6 +496,7 @@ export function getReadableToolActivity(
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw tool arguments are forwarded to the activity reader, which validates display fields and tolerates partial inputs.
 export function getReadableToolDescription(toolName: string, args: unknown, t: Translate): string | undefined {
   return getReadableToolActivity(toolName, args, false, t)?.description
 }
@@ -498,22 +505,21 @@ function isActiveStatus(status: ToolStatus | undefined): boolean {
   return status === 'pending' || status === 'invoking' || status === 'streaming' || status === 'waiting'
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Extension tool arguments are unvalidated; selected display fields are checked as strings.
 const getToolDescription = (toolName: string, args: unknown, t: Translate): string | undefined => {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return undefined
 
   const readableDescription = getReadableToolDescription(toolName, args, t)
   if (readableDescription) return readableDescription
 
-  // Common description fields
-  const argsRecord = args as Record<string, unknown>
   return (
-    argsRecord.description ||
-    argsRecord.file_path ||
-    argsRecord.pattern ||
-    argsRecord.query ||
-    argsRecord.command ||
-    argsRecord.url
-  )?.toString()
+    getStringArg(args, 'description') ??
+    getStringArg(args, 'file_path') ??
+    getStringArg(args, 'pattern') ??
+    getStringArg(args, 'query') ??
+    getStringArg(args, 'command') ??
+    getStringArg(args, 'url')
+  )
 }
 
 const HeaderContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
