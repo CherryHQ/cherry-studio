@@ -299,14 +299,17 @@ export function useAgentChatRuntimeState({
   )
   const ensureConversation = useCallback(() => ({ topicId: sessionTopicId }), [sessionTopicId])
   const buildStreamRequest = useCallback(
-    (input: AgentTurnInput, conversation: { topicId: string }): AiStreamOpenRequest => ({
-      trigger: 'submit-message',
-      topicId: conversation.topicId,
-      userMessageParts: getAgentTurnParts(input),
-      reasoningEffort: input.options?.body?.reasoningEffort,
-      serviceTier: input.options?.body?.serviceTier,
-      ...(input.options?.body?.fastMode === true ? { fastMode: true } : {})
-    }),
+    (input: AgentTurnInput, conversation: { topicId: string }): AiStreamOpenRequest => {
+      const request: AiStreamOpenRequest = {
+        trigger: 'submit-message',
+        topicId: conversation.topicId,
+        userMessageParts: getAgentTurnParts(input),
+        reasoningEffort: input.options?.body?.reasoningEffort,
+        serviceTier: input.options?.body?.serviceTier
+      }
+      if (input.options?.body?.fastMode === true) request.fastMode = true
+      return request
+    },
     []
   )
   const { send } = useConversationTurnController<AgentTurnInput, { topicId: string }>({

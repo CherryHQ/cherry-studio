@@ -207,11 +207,14 @@ export function useLaunchDialogController({
         if (!gatewayModelsById.has(modelId)) {
           throw new Error(`Gateway model is no longer available: ${modelId}`)
         }
-        await writeCliConfigDraft({
+        const input: Pick<Parameters<typeof writeCliConfigDraft>[0], 'cliTool' | 'modelId' | 'configBlob' | 'files'> = {
           cliTool: selectedCliTool,
           modelId,
-          configBlob,
-          ...(mergeFiles ? { files: mergeFiles } : {}),
+          configBlob
+        }
+        if (mergeFiles) input.files = mergeFiles
+        await writeCliConfigDraft({
+          ...input,
           writePrimaryModel: cliConfigContext.writePrimaryModel,
           gateway: { provider: apiGatewayProvider.provider, apiKey }
         })
