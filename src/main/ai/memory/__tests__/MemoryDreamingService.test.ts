@@ -1414,6 +1414,49 @@ describe('memory organization lifecycle and commit fences', () => {
     }
   )
 
+  it.each(['duplicate', 'independent'] as const)('compares overlapping recipe evidence: %s', async (relation) => {
+    const quote = '平时两人份，聚餐六人份。'
+    const messages = ['context', quote, 'more context'].map((text, id) => ({
+      id: String(id),
+      role: 'user',
+      version: 'v1',
+      createdAt: id,
+      text: text + 'x'.repeat(7000)
+    }))
+    const texts = ['平时按两人份。', relation === 'duplicate' ? '日常默认两人份。' : '聚餐按六人份。']
+    let batch = 0
+    generate.mockImplementation(async (input) => {
+      const prompt = JSON.parse(input.prompt!)
+      if (prompt.messages) {
+        const candidate = {
+          ...candidateReply(input).candidates[0],
+          subject: '用户',
+          scope: 'personal',
+          kind: 'preference',
+          conditions: texts[batch],
+          text: texts[batch++],
+          evidence: [{ messageId: '1', quote }]
+        }
+        return {
+          text: JSON.stringify({ outcome: 'candidates', reason: 'Recipe quantities', candidates: [candidate] }),
+          finishReason: 'stop'
+        }
+      }
+      expect(prompt.duplicateGroups).toContainEqual([0, 1])
+      return {
+        text: JSON.stringify({ groups: [{ ids: [0, 1], relation, reason: 'Compared conditions' }] }),
+        finishReason: 'stop'
+      }
+    })
+    const result = await extractContextCandidates(
+      { messages, hash: 'recipes' },
+      [],
+      new AbortController().signal,
+      () => undefined
+    )
+    expect(result.candidates.map(({ text }) => text)).toEqual(relation === 'duplicate' ? texts.slice(0, 1) : texts)
+  })
+
   it.each(['subject', 'scope', 'kind', 'action', 'conditions', 'time', 'references', 'singleton'])(
     'retains original candidates and unrelated facts when a duplicate merge fails: %s',
     async (mismatch) => {

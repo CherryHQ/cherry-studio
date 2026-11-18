@@ -300,7 +300,7 @@ Return JSON only: {"groups":[{"ids":[0,1],"relation":"independent|duplicate|conf
 Cover every id exactly once. Independent candidates have no duplicate or conflict anywhere in the set and are retained separately.
 Merge duplicates only within a supplied duplicateGroups group. Compatibility is not equivalence: meaning, conditions and exceptions must fully match. Partial overlap or containment stays independent; wording differences alone do not. The FIRST id is the complete representative retained unchanged, with all evidence and existing references preserved.
 Check conflicts and uncertain relationships across ALL candidates, including across duplicateGroups. Use quoted evidence and temporal/conditional context to decide whether facts can coexist. Group contradictions, including corrections, as conflict; never keep both as independent additions or silently choose the latest. Different conditional preferences may coexist.
-createdAt is the message time, not necessarily the event time; recency alone does not establish correction. Explain the relationship and what a correction changes. Group all affected ids as insufficient when relationships or context are unclear. Do not invent, rewrite or drop facts. These are previews, not saved memories.`
+createdAt is the message time, not necessarily the event time; recency alone does not establish correction. Explain the relationship and what a correction changes. Use insufficient for missing factual support or unresolved context, not uncertainty about duplication alone. Keep separately supported, compatible facts independent if equivalence is unclear. Do not invent, rewrite or drop facts. These are previews, not saved memories.`
 
 export async function extractContextCandidates(
   source: Pick<ExtractionRange, 'messages' | 'hash'> & {
@@ -442,17 +442,19 @@ export async function extractContextCandidates(
   if (batches.length > 1 && candidates.length > 1) {
     const compatible = new Map<string, number[]>()
     candidates.forEach((candidate, id) => {
-      const key = JSON.stringify([
-        candidate.subject,
-        candidate.scope,
-        candidate.kind,
-        candidate.action,
-        candidate.conditions,
-        candidate.time
-      ])
-      const ids = compatible.get(key) ?? []
-      ids.push(id)
-      compatible.set(key, ids)
+      const fields = [candidate.subject, candidate.scope, candidate.kind, candidate.action, candidate.time]
+      const keys = [JSON.stringify([...fields, candidate.conditions])]
+      // Overlapping batches can paraphrase the conditions of the very same user quote.
+      // A shared key only permits comparison; it does not establish equivalence.
+      if (candidate.action === 'add' && candidate.evidence.length) {
+        const evidence = candidate.evidence.map(({ messageId, quote }) => JSON.stringify([messageId, quote])).sort()
+        keys.push(JSON.stringify([...fields, evidence]))
+      }
+      for (const key of keys) {
+        const ids = compatible.get(key) ?? []
+        ids.push(id)
+        compatible.set(key, ids)
+      }
     })
     const duplicateGroups = [...compatible.values()].filter((ids) => ids.length > 1)
     const result = await generate(
