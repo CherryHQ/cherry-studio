@@ -27,7 +27,7 @@ const reasons: Partial<Record<ErrorCategory, AiFailureReason>> = {
   unknown: 'unknown'
 }
 
-function safeText(value: unknown, limit: number): string | undefined {
+function safeText(value: SerializedError[string] | undefined, limit: number): string | undefined {
   const text = getSafeProviderErrorMessage({ message: value }).replace(
     /(?:\/(?:Users|home|private|tmp|var|Volumes)\/|[A-Za-z]:\\)[^\s"']+/g,
     '<path>'
