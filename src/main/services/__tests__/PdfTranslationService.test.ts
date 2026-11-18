@@ -135,7 +135,7 @@ describe('PdfTranslationService', () => {
       if (key === 'feature.binary.data.isolated.cargo') base = path.join(TEST_ROOT, 'binary', 'cargo')
       return filename ? path.join(base, filename) : base
     })
-    dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI' }).run()
+    dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI', orderKey: 'a0' }).run()
     dbh.db
       .insert(userModelTable)
       .values({
@@ -145,7 +145,8 @@ describe('PdfTranslationService', () => {
         name: 'GPT-4.1',
         capabilities: [],
         supportsStreaming: true,
-        isEnabled: true
+        isEnabled: true,
+        orderKey: 'a0'
       })
       .run()
     fs.rmSync(TEST_ROOT, { force: true, recursive: true })
