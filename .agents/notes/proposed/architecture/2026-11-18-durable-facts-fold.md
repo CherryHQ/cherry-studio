@@ -55,12 +55,13 @@ Each derived state becomes a fold of the log with a cursor: a reducer applied to
 ### P2 — Runtime observation
 
 - The runtime's published history reuses the conversation's fold instead of recomputing `historyOf` per publication and preview.
-- Between a baseline snapshot and the next gap, the adapter publishes `message.upsert`, `message.remove` and `input.changed` for what a commit changed. It publishes a `snapshot` when observation starts and after a `gap`.
+- Within a run, the adapter publishes `message.upsert`, `message.remove` and `input.changed` for what an update changed. It publishes a `snapshot` when observation starts, after a `gap`, and when a run starts or ends, because Main detects autonomous turns from those snapshots.
 
 ### P3 — Main projections
 
 - Main handles the inputs an update changed, not every input of a snapshot.
 - `ChildThreadProjection` rereads the child archive only on `snapshot`, `gap` or `mapping-reset`, and otherwise applies upserts and removals. Recompute and compare remains the recovery path for those three events.
+- Main detects autonomous turns from `activity.changed`, so a run's start and end no longer need snapshots.
 
 ### Out of scope
 
@@ -84,8 +85,8 @@ Each derived state becomes a fold of the log with a cursor: a reducer applied to
 - AC3 — The tool gate reads only its own conversation's fold, a step's append validation reads no entries or tasks, and the subagent message, answer and stop paths read only child entries their fold has not seen; their results are unchanged. (verification: unit — counting transaction and the contract suite)
 - AC4 — A fold unused for 10 minutes is dropped and rebuilt with equal facts on its next read. (verification: unit)
 - AC5 — The `agent-behavior` contract suite on Pi Durable and the Durable package suites pass. (verification: unit)
-- AC6 — Between a baseline and a gap, a Durable observation publishes only the messages and inputs a commit changed, its published history equals the fold's, and a gap or a new observation starts with a snapshot. (verification: unit — Durable projection and runtime tests)
-- AC7 — Main processes only the inputs an update changed, and an active child's archive is reread only on snapshot, gap or mapping reset, with unchanged product rows and checkpoints in the existing child scenarios. (verification: unit — Main agent-session suites)
+- AC6 — Within a run, a Durable observation publishes only the messages and inputs an update changed, replaying them gives the same view as a rebuild, and its published history equals the fold's; observation start, a gap, and a run's start and end send a snapshot. (verification: unit — Durable projection and runtime tests)
+- AC7 — Main processes only the inputs an update changed, detects autonomous turns from `activity.changed` so Durable sends no snapshot at a run's start or end, and rereads an active child's archive only on snapshot, gap or mapping reset, with unchanged product rows and checkpoints in the existing child scenarios. (verification: unit — Main agent-session suites)
 - AC8 — The #24500 workload shape runs in a development Electron build, and the report records main-process heap and allocation by call site against the stack base. (verification: Electron)
 - AC9 — The Durable README, `agent-session-runtime.md` and this note's triplet describe the shipped fold semantics. (verification: docs gate)
 

@@ -55,12 +55,13 @@ Pi Durable 的各个使用方都从已提交日志重新计算出当前状态，
 ### P2 — 运行时观测
 
 - 运行时发布的历史复用对话的折叠，不再每次发布和预览都重跑 `historyOf`。
-- 在基线快照和下一个缺口之间，适配器只为提交改动的部分发布 `message.upsert`、`message.remove` 和 `input.changed`。开始观测时，以及每次 `gap` 之后，才发布 `snapshot`。
+- 在一次运行之内，适配器只为一次更新改动的部分发布 `message.upsert`、`message.remove` 和 `input.changed`。开始观测时、每次 `gap` 之后，以及运行开始和结束时，才发布 `snapshot`，因为 Main 靠这些快照识别自主回合。
 
 ### P3 — 主进程投影
 
 - Main 只处理一次更新里改动的输入，不再处理快照里的每一条输入。
 - `ChildThreadProjection` 只在 `snapshot`、`gap` 或 `mapping-reset` 时重读子对话 archive，其余时候直接应用 upsert 和删除。这三种事件仍然走"重算再比较"来恢复。
+- Main 从 `activity.changed` 识别自主回合，运行开始和结束时就不再需要快照。
 
 ### 不在范围内
 
@@ -84,8 +85,8 @@ Pi Durable 的各个使用方都从已提交日志重新计算出当前状态，
 - AC3 — 工具审批钩子只读本对话的折叠，步骤的追加校验不读条目和任务，给子智能体发消息、等待回答和停止只读子对话折叠还没见过的条目；结果都不变。（verification: unit — 计数事务和合约套件）
 - AC4 — 10 分钟没被用过的折叠会被丢弃，下次读取时重建出相同的事实。（verification: unit）
 - AC5 — Pi Durable 上的 `agent-behavior` 合约套件和 Durable 包的测试套件都通过。（verification: unit）
-- AC6 — 在基线和缺口之间，Durable 观测只发布一次提交改动的消息和输入，发布的历史等于折叠的历史；缺口之后或新的观测都从快照开始。（verification: unit — Durable 投影和运行时测试）
-- AC7 — Main 每次更新只处理改动的输入；活跃子对话的 archive 只在快照、缺口或映射重置时重读；在现有子对话场景里，产品消息行和 checkpoint 不变。（verification: unit — Main agent-session 套件）
+- AC6 — 在一次运行之内，Durable 观测只发布一次更新改动的消息和输入，重放这些事件得到的视图等于重建的视图，发布的历史等于折叠的历史；开始观测、出现缺口，以及运行开始和结束时发送快照。（verification: unit — Durable 投影和运行时测试）
+- AC7 — Main 每次更新只处理改动的输入，从 `activity.changed` 识别自主回合，使 Durable 在运行开始和结束时不再发送快照；活跃子对话的 archive 只在快照、缺口或映射重置时重读；在现有子对话场景里，产品消息行和 checkpoint 不变。（verification: unit — Main agent-session 套件）
 - AC8 — #24500 的负载形态在开发版 Electron 里运行，报告记录主进程堆内存和按调用点的分配，并与栈的基线对比。（verification: Electron）
 - AC9 — Durable README、`agent-session-runtime.md` 和本 note 的三个文件描述上线后的折叠语义。（verification: docs gate）
 
