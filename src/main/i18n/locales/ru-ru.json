@@ -3,8 +3,6 @@
   "agent.builtin.cherry_doctor.description": "Встроенный аналитик системной диагностики. Читает отчёт диагностики и состояние во время выполнения, объясняет первопричину и предлагает ограниченные исправления",
   "agent.builtin.cherry_support.description": "Официальный агент поддержки Cherry Studio для настройки, диагностики, частых вопросов и обратной связи",
   "agent.import.missing_file": "Вложение отсутствует в экспорте: {{name}}",
-  "agent.import.reasoning": "Исторические рассуждения",
-  "agent.import.search": "Историческая запись поиска",
   "agent.model_unavailable.gateway_unroutable": "Модель агента \"{{modelAddress}}\" недоступна через API-шлюз.",
   "agent.model_unavailable.model_disabled": "Модель агента \"{{modelAddress}}\" недоступна: модель отключена.",
   "agent.model_unavailable.provider_disabled": "Модель агента \"{{modelAddress}}\" недоступна: провайдер \"{{providerId}}\" отключён.",

@@ -17,6 +17,7 @@ import { createPiTelemetry } from '@main/ai/observability'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId } from '@shared/utils/model'
 
+import { isAgentModelUnavailableError } from '../agentModelUnavailableError'
 import { createPiGatewayModelBinding } from '../pi/gatewayModelBinding'
 import { createPiBehaviorHost } from '../pi/piBehaviorHost'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
@@ -77,7 +78,24 @@ export class DurableBackend {
           : undefined
         const modelId = saved?.modelId ?? session.model ?? agent?.model
         if (!agent || !modelId) continue
-        await owner.prepare({ sessionId: binding.sessionId, agentId: agent.id, modelId, ...saved }, binding)
+        try {
+          await owner.prepare({ sessionId: binding.sessionId, agentId: agent.id, modelId, ...saved }, binding)
+        } catch (error) {
+          // Peer restore stays availability-aware: a peer whose provider/model went
+          // disabled or unroutable rejects in createPiGatewayModelBinding, but it must
+          // not abort opening the backend for the requested context. Availability
+          // validation still applies when that peer requests generation again.
+          if (isAgentModelUnavailableError(error)) {
+            logger.warn('Skipping Durable peer with unavailable model during cold restore', {
+              contextId: binding.id,
+              sessionId: binding.sessionId,
+              modelId,
+              error: String(error)
+            })
+            continue
+          }
+          throw error
+        }
       }
       const records = new Map<number, Awaited<ReturnType<typeof root.storage.scanConversations>>['items'][number]>()
       let cursor: Parameters<typeof root.storage.scanConversations>[2]

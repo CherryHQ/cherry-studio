@@ -3,8 +3,6 @@
   "agent.builtin.cherry_doctor.description": "Analista integrato di diagnostica di sistema. Legge il rapporto diagnostico e lo stato di esecuzione, spiega la causa del problema e propone correzioni circoscritte",
   "agent.builtin.cherry_support.description": "Agente di supporto ufficiale di Cherry Studio per la configurazione, la risoluzione dei problemi, le FAQ e i commenti",
   "agent.import.missing_file": "Allegato non disponibile nell’esportazione: {{name}}",
-  "agent.import.reasoning": "Ragionamento storico",
-  "agent.import.search": "Registro di ricerca storico",
   "agent.model_unavailable.gateway_unroutable": "Il modello dell'agente \"{{modelAddress}}\" non è disponibile tramite il gateway API.",
   "agent.model_unavailable.model_disabled": "Il modello dell'agente \"{{modelAddress}}\" non è disponibile: il modello è disabilitato.",
   "agent.model_unavailable.provider_disabled": "Il modello dell'agente \"{{modelAddress}}\" non è disponibile: il provider \"{{providerId}}\" è disabilitato.",
