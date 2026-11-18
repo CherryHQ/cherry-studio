@@ -662,7 +662,9 @@ it.each(['managed', 'external', 'failure', 'truncated'])(
   'dispatches real %s image bytes through the native owner',
   async (kind) => {
     const test = await desktop()
-    let bytes = await sharp({ create: { width: 1000, height: 4, channels: 3, background: '#123456' } })
+    // Keep the injected encoder failure from reusing a previously cached success.
+    const background = kind === 'failure' ? '#654321' : '#123456'
+    let bytes = await sharp({ create: { width: 1000, height: 4, channels: 3, background } })
       .png()
       .toBuffer()
     if (kind === 'truncated') bytes = bytes.subarray(0, Math.floor(bytes.length / 2))

@@ -1,7 +1,7 @@
 import type { Message } from '@earendil-works/pi-ai'
 import type { EntryRecord } from '@earendil-works/pi-durable'
 
-import { projectNestedTool, runtimeId, type RuntimeMessage } from '@cherrystudio/agent-runtime'
+import { immutable, projectNestedTool, runtimeId, type RuntimeMessage } from '@cherrystudio/agent-runtime'
 
 /** Stable committed identities; consumers never decode native entry IDs from these keys. */
 export const entryMessageId = (entry: EntryRecord, index: number): string => `entry:${entry.id}:${index}`
@@ -22,14 +22,34 @@ export class ContentProjection {
     }
     return legacy
   }
-  private readonly calls = new Map<string, { message: RuntimeMessage; index: number }>()
+  private readonly calls = new Map<string, { message: number; index: number }>()
+  /** Messages created or copied since the last seal; all others are shared and must be copied before a write. */
+  private readonly writable = new Set<RuntimeMessage>()
+
+  /** Continue from this projection without changing the messages it already shares. */
+  fork(): ContentProjection {
+    const next = new ContentProjection()
+    next.messages.push(...this.messages)
+    Object.assign(next.responseIds, this.responseIds)
+    for (const [id, call] of this.calls) next.calls.set(id, call)
+    return next
+  }
+
+  /** Freeze written messages so later forks and publications share them by reference. */
+  seal(): void {
+    if (!this.writable.size) return
+    this.messages.forEach((message, index) => {
+      if (this.writable.has(message)) this.messages[index] = immutable(message)
+    })
+    this.writable.clear()
+  }
 
   entry(entry: EntryRecord): void {
     for (const [index, message] of (entry.model ?? []).entries()) {
       this.message(message, entryMessageId(entry, index), 'complete')
       const inputId = (entry.data as { cherryInputId?: string })?.cherryInputId
       if (message.role === 'user' && inputId) {
-        const value = this.messages.at(-1)!
+        const value = this.write(this.messages.length - 1)
         value.metadata = { ...value.metadata!, inputId: runtimeId(inputId) }
       }
     }
@@ -74,7 +94,7 @@ export class ContentProjection {
         if (part.type === 'image')
           value.parts.push({ type: 'file', mediaType: part.mimeType, url: `data:${part.mimeType};base64,${part.data}` })
         if (part.type === 'toolCall') {
-          this.calls.set(part.id, { message: value, index: value.parts.length })
+          this.calls.set(part.id, { message: this.messages.length, index: value.parts.length })
           value.parts.push({
             type: 'dynamic-tool',
             toolCallId: part.id,
@@ -85,6 +105,7 @@ export class ContentProjection {
         }
       }
     this.messages.push(value)
+    this.writable.add(value)
   }
 
   nested(parentCallId: string, part: RuntimeMessage['parts'][number]): void {
@@ -92,15 +113,25 @@ export class ContentProjection {
     const parent = this.calls.get(parentCallId)
     if (!parent) return
     const existing = this.calls.get(part.toolCallId)
-    const index = existing?.index ?? parent.message.parts.length
-    parent.message.parts[index] = part
+    const message = this.write(parent.message)
+    const index = existing?.index ?? message.parts.length
+    message.parts[index] = part
     this.calls.set(part.toolCallId, { message: parent.message, index })
+  }
+
+  private write(index: number): RuntimeMessage {
+    const message = this.messages[index]
+    if (this.writable.has(message)) return message
+    const copy = { ...message, parts: [...message.parts] }
+    this.messages[index] = copy
+    this.writable.add(copy)
+    return copy
   }
 
   private result(callId: string, output: unknown, error: boolean, preliminary = false): void {
     const owner = this.calls.get(callId)
     if (!owner) return
-    const part = owner.message.parts[owner.index]
+    const part = this.messages[owner.message].parts[owner.index]
     if (part.type !== 'dynamic-tool') return
     const base = {
       type: 'dynamic-tool' as const,
@@ -109,7 +140,7 @@ export class ContentProjection {
       input: part.input,
       callProviderMetadata: part.callProviderMetadata
     }
-    owner.message.parts[owner.index] = error
+    this.write(owner.message).parts[owner.index] = error
       ? {
           ...base,
           state: 'output-error',
