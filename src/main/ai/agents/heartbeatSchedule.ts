@@ -26,7 +26,13 @@ import {
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE, AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
-import { JOB_ERROR_CODES, type JobScheduleSnapshot, type Trigger, triggersEqual } from '@shared/data/api/schemas/jobs'
+import {
+  JOB_ERROR_CODES,
+  type JobScheduleSnapshot,
+  type Trigger,
+  triggersEqual,
+  type UpdateJobScheduleDto
+} from '@shared/data/api/schemas/jobs'
 
 import { agentDataDirectoryPath, assertAgentStoragePath } from './agentDataDirectory'
 import { ensureHeartbeatFile, HeartbeatFileNotRegularError } from './heartbeat'
@@ -155,10 +161,10 @@ function pauseHeartbeatRows(
     const clearMarker = options.clearBreakerMarker && isCircuitBreakerPaused(row.metadata)
     if (!row.enabled && !clearMarker) continue
     application.get('DbService').withWriteTx((tx) => {
-      application.get('JobManager').updateJobScheduleTx(tx, row.id, {
-        ...(row.enabled ? { enabled: false } : {}),
-        ...(clearMarker ? { metadata: writeCircuitBreakerPaused(row.metadata, false) } : {})
-      })
+      const patch: UpdateJobScheduleDto = {}
+      if (row.enabled) patch.enabled = false
+      if (clearMarker) patch.metadata = writeCircuitBreakerPaused(row.metadata, false)
+      application.get('JobManager').updateJobScheduleTx(tx, row.id, patch)
     })
     if (row.enabled) {
       application.get('JobManager').syncJobScheduleTimerById(row.id)

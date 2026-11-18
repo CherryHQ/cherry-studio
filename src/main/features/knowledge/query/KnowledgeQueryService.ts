@@ -40,13 +40,12 @@ const KNOWLEDGE_SEARCH_CANDIDATE_CAP = 200
 /** Read side of the knowledge feature: base discovery, index search, and chunk/item listing. */
 export class KnowledgeQueryService {
   listBasesForDiscovery(options: KnowledgeBaseDiscoveryOptions): KnowledgeBaseDiscoveryPage {
-    return knowledgeBaseService.listForDiscovery({
-      limit: options.limit,
-      ...(options.cursor ? { cursor: options.cursor } : {}),
-      ...(options.query ? { query: options.query } : {}),
-      ...(options.groupId ? { groupId: options.groupId } : {}),
-      ...(options.scope.kind === 'restricted' ? { restrictedIds: options.scope.baseIds } : {})
-    })
+    const query: Parameters<typeof knowledgeBaseService.listForDiscovery>[0] = { limit: options.limit }
+    if (options.cursor) query.cursor = options.cursor
+    if (options.query) query.query = options.query
+    if (options.groupId) query.groupId = options.groupId
+    if (options.scope.kind === 'restricted') query.restrictedIds = options.scope.baseIds
+    return knowledgeBaseService.listForDiscovery(query)
   }
 
   @TraceMethod({ spanName: 'Knowledge.search', tag: 'Knowledge' })
