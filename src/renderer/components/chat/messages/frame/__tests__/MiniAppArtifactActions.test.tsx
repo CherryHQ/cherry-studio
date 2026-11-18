@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import MiniAppArtifactActions from '../MiniAppArtifactActions'
 
@@ -48,7 +49,7 @@ beforeEach(() => {
   dismissedApps.current = []
 })
 
-const HANDLE = { kind: 'path' as const, path: '/workspace/app.miniapp' }
+const HANDLE = { kind: 'path' as const, path: AbsoluteFilePathSchema.parse('/workspace/app.miniapp') }
 
 const installPreview = {
   kind: 'install' as const,

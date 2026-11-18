@@ -5,8 +5,9 @@ import path from 'node:path'
 import JSZip from 'jszip'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+
 const {
-  AuthoringRequestError,
   expectSessionArtifact,
   isLaunchpadAnswered,
   isMiniAppPackageName,
@@ -45,14 +46,16 @@ async function writePackage(name: string): Promise<string> {
 describe('resolveArtifactHandle', () => {
   it('resolves a path handle to the real package path', async () => {
     const pkg = await writePackage('real.miniapp')
-    const resolved = await resolveArtifactHandle({ kind: 'path', path: pkg })
+    const resolved = await resolveArtifactHandle({ kind: 'path', path: AbsoluteFilePathSchema.parse(pkg) })
     expect(resolved).toBe(fs.realpathSync(pkg))
   })
 
   it('refuses a non-package file', async () => {
     const txt = path.join(work, 'notes.txt')
     fs.writeFileSync(txt, 'hello')
-    await expect(resolveArtifactHandle({ kind: 'path', path: txt })).rejects.toMatchObject({
+    await expect(
+      resolveArtifactHandle({ kind: 'path', path: AbsoluteFilePathSchema.parse(txt) })
+    ).rejects.toMatchObject({
       code: 'not-a-package'
     })
   })
