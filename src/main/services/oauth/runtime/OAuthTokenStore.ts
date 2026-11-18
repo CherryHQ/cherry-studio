@@ -39,12 +39,12 @@ export class ProviderAuthConfigOAuthTokenStore implements OAuthTokenStore {
     }
     const authConfig: OAuthAuthConfig = {
       type: 'oauth',
-      clientId: clientId || currentOAuth?.clientId || '',
-      ...(data.accessToken ? { accessToken: data.accessToken } : {}),
-      ...(data.refreshToken ? { refreshToken: data.refreshToken } : {}),
-      ...(data.expiresAt ? { expiresAt: data.expiresAt } : {}),
-      ...(data.accountId ? { accountId: data.accountId } : {})
+      clientId: clientId || currentOAuth?.clientId || ''
     }
+    if (data.accessToken) authConfig.accessToken = data.accessToken
+    if (data.refreshToken) authConfig.refreshToken = data.refreshToken
+    if (data.expiresAt) authConfig.expiresAt = data.expiresAt
+    if (data.accountId) authConfig.accountId = data.accountId
 
     providerService.update(providerId, { authConfig })
   }
@@ -64,9 +64,8 @@ export class ProviderAuthConfigOAuthTokenStore implements OAuthTokenStore {
     // `isEnabled` when the caller owns the provider's enablement — see the
     // interface doc: disabling a provider that also holds a manual API key would
     // silently kill that key too.
-    providerService.update(providerId, {
-      authConfig: { type: 'api-key' },
-      ...(options?.disableProvider ? { isEnabled: false } : {})
-    })
+    const updates: Parameters<typeof providerService.update>[1] = { authConfig: { type: 'api-key' } }
+    if (options?.disableProvider) updates.isEnabled = false
+    providerService.update(providerId, updates)
   }
 }

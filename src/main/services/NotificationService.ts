@@ -126,11 +126,12 @@ export class NotificationService extends BaseService {
             ? (`app.notification.${options.source}.enabled` as const)
             : undefined
       if (!osKey || !preferences.get(osKey)) return true
-      const notification = new ElectronNotification({
+      const notificationOptions: NonNullable<ConstructorParameters<typeof ElectronNotification>[0]> = {
         title: record.title,
-        body: record.message,
-        ...(sound ? { silent: true } : {})
-      })
+        body: record.message
+      }
+      if (sound) notificationOptions.silent = true
+      const notification = new ElectronNotification(notificationOptions)
       notification.on('click', () => {
         void activateNotification(record.id).catch((error) =>
           logger.warn('Failed to open notification target', { error })
@@ -178,11 +179,12 @@ export class NotificationService extends BaseService {
   }
 
   public async sendNotification(notification: Notification): Promise<void> {
-    const electronNotification = new ElectronNotification({
+    const options: NonNullable<ConstructorParameters<typeof ElectronNotification>[0]> = {
       title: notification.title,
-      body: notification.message,
-      ...(notification.silent === undefined ? {} : { silent: notification.silent })
-    })
+      body: notification.message
+    }
+    if (notification.silent !== undefined) options.silent = notification.silent
+    const electronNotification = new ElectronNotification(options)
 
     electronNotification.on('click', () => {
       if (notification.actionKey === CONVERSATION_NOTIFICATION_ACTION_KEY && isConversationTarget(notification.meta)) {

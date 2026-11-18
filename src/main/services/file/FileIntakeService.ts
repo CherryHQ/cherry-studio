@@ -155,16 +155,17 @@ export class FileIntakeService extends BaseService {
   }
   private snapshot(upload: Upload): FileIntakeSnapshot {
     if (upload.state === 'cancelled') throw new FileIntakeError('NOT_FOUND', 'Upload cancelled')
-    return {
+    const snapshot: FileIntakeSnapshot = {
       uploadId: upload.uploadId,
       state: upload.state,
       committedOffset: String(upload.offset),
       writerEpoch: String(upload.epoch),
       expiresAt: new Date(upload.expiresAt).toISOString(),
-      checksumAlgorithm: upload.checksumAlgorithm,
-      ...(upload.state === 'ready' ? { sha256: upload.sha256 } : {}),
-      ...(upload.state === 'failed' ? { failureCode: upload.failureCode } : {})
+      checksumAlgorithm: upload.checksumAlgorithm
     }
+    if (upload.state === 'ready') snapshot.sha256 = upload.sha256
+    if (upload.state === 'failed') snapshot.failureCode = upload.failureCode
+    return snapshot
   }
   private touch(upload: Upload): number {
     return Math.min(Date.now() + fileIntakeLimits.retentionMs, upload.createdAt + fileIntakeLimits.lifetimeMs)

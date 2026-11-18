@@ -78,11 +78,10 @@ export async function prepareAntigravityLaunch(input: NormalRunInput): Promise<A
   // the isolated settings file untouched.
   if (!isShellSafeModelId(model)) throw new Error(`Unsupported model id for antigravity-cli: ${model}`)
 
+  const env: AntigravityLaunchConfig['env'] = { GEMINI_API_KEY: apiKey }
+  if (baseUrl) env.GOOGLE_GEMINI_BASE_URL = baseUrl
   return {
-    env: {
-      GEMINI_API_KEY: apiKey,
-      ...(baseUrl ? { GOOGLE_GEMINI_BASE_URL: baseUrl } : {})
-    },
+    env,
     geminiDir: await ensureGeminiModeSettings(),
     model
   }

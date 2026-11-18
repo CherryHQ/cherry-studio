@@ -223,9 +223,13 @@ const withGoogleImageOptions = (model: ImageModelV3, providerKey: string, isGemi
       googleOptions.imageConfig = imageConfig
     }
 
+    const generatedOptions = { ...options }
+    if (aspectRatio) {
+      generatedOptions.aspectRatio = aspectRatio
+      generatedOptions.size = undefined
+    }
     return model.doGenerate({
-      ...options,
-      ...(aspectRatio ? { aspectRatio, size: undefined } : {}),
+      ...generatedOptions,
       providerOptions: {
         ...providerOptions,
         google: googleOptions
