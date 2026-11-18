@@ -57,7 +57,5 @@ export function anchorMemoryTime(
     for (const [pattern, value] of replacements) text = text.replace(pattern, value)
   }
   const anchor = dates.join(', ')
-  return /\p{Script=Han}/u.test(text)
-    ? `${text}（表述日期：${anchor}；解析时区：${timeZone}）`
-    : `${text} (stated: ${anchor}; interpretation timezone: ${timeZone})`
+  return /\p{Script=Han}/u.test(text) ? `${text}（表述日期：${anchor}）` : `${text} (stated: ${anchor})`
 }

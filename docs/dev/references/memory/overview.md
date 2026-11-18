@@ -100,7 +100,7 @@ Selection is based on concrete future value. Supported personal experiences, pla
 
 `exists`, `conflict`, `insufficient`, `omit` and `out_of_scope` are separate outcomes. Compatible fields narrow duplicate checks, and the model judges semantic equivalence. Ambiguous conflicting additions are withheld. An explicit correction must cite a uniquely matched complete old item and user evidence. Retirement distinguishes a formerly true fact from an originally mistaken claim; current reads omit the retired claim.
 
-Saved additions are ordinary Markdown list content. Evidence and source versions are used during validation. Correction records retain their reason, replacement and correction sources. They coexist with ordinary Markdown and remain immutable during native editing and organization. Explicit goals retain unresolved conditions; category uncertainty alone does not discard supported personal evidence. Saved temporal facts include source-message dates and the application timezone used for interpretation, retaining imprecise dates rather than inventing a day. A full entry stops saving and preserves existing content.
+Saved additions are ordinary Markdown list content. Evidence and source versions are used during validation. Correction records retain their reason, replacement and correction sources. They coexist with ordinary Markdown and remain immutable during native editing and organization. Explicit goals retain unresolved conditions; category uncertainty alone does not discard supported personal evidence. Saved temporal facts include source-message dates without interpretation-timezone labels, retaining imprecise dates rather than inventing a day. A full entry stops saving and preserves existing content.
 
 ### Scheduling, cancellation and limits
 

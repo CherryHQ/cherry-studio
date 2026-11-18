@@ -557,7 +557,8 @@ describe('memory organization lifecycle and commit fences', () => {
   })
 
   it('keeps an explicit goal with uncertain details and binds next year to its source date', async () => {
-    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-11-17T12:00:00Z'))
+    const sourceDate = new Date(Date.now() + 1000)
+    vi.spyOn(Date, 'now').mockReturnValue(sourceDate.getTime())
     batchConversation(8, 'I hope to reach the quarterfinals next year; the tournament is undecided.')
     generate.mockImplementationOnce(async () => {
       const reply = JSON.parse(
@@ -570,8 +571,9 @@ describe('memory organization lifecycle and commit fences', () => {
     })
     expect(await dreaming.execute(job())).toMatchObject({ saved: 1 })
     const content = (await session.read('MEMORY.md')).content
-    expect(content).toContain('2027')
-    expect(content).toContain('2026-11-17')
+    expect(content).toContain(String(sourceDate.getUTCFullYear() + 1))
+    expect(content).toContain(sourceDate.toISOString().slice(0, 10))
+    expect(content).not.toMatch(/timezone|时区/)
     expect(content).toContain('undecided')
   })
 

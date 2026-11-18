@@ -21,7 +21,7 @@ describe('memory source-time anchors', () => {
     const candidate = { text, time, evidence: [{ messageId: 'u' }] } as MemoryCandidate
     const result = anchorMemoryTime(candidate, [{ id: 'u', createdAt: Date.parse(at) }], 'Asia/Shanghai')
     expect(result).toContain(expected)
-    expect(result).toContain('Asia/Shanghai')
+    expect(result).not.toMatch(/Asia\/Shanghai|timezone|时区/)
     expect(result).toContain(at.slice(0, 10))
   })
 

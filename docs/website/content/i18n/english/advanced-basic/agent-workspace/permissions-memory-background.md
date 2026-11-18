@@ -114,4 +114,4 @@ First open the **Status** panel on the right to check if it is waiting for permi
 
 </details>
 
-Explicit goals are saved with unresolved conditions, such as intending to compete without selecting a tournament. Temporal facts retain the source-message date and interpretation timezone; delayed extraction does not reinterpret “next year” against its execution date. Known corrections refresh the current conversation entry and accompany historical recall so old conclusions are not reused.
+Explicit goals are saved with unresolved conditions, such as intending to compete without selecting a tournament. Temporal facts retain the source-message date without interpretation-timezone labels; delayed extraction does not reinterpret “next year” against its execution date. Known corrections refresh the current conversation entry and accompany historical recall so old conclusions are not reused.
