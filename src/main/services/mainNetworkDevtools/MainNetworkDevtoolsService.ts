@@ -557,7 +557,12 @@ export class MainNetworkDevtoolsService extends BaseService {
     this.broadcast({ type: 'cleared' })
   }
 
-  private broadcast(message: unknown): void {
+  private broadcast(
+    message:
+      | { type: 'snapshot'; events: MainNetworkDevtoolsEvent[] }
+      | { type: 'event'; event: MainNetworkDevtoolsEvent }
+      | { type: 'cleared' }
+  ): void {
     if (this.clients.size === 0) return
 
     const payload = JSON.stringify(message)
@@ -622,11 +627,13 @@ function isRequestOptions(value: unknown): value is RequestOptions {
   return Boolean(value) && typeof value === 'object' && !(value instanceof URL)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Captured Node options are only structurally recognized; normalize raw protocol, host, port and path fields before native validation.
 function normalizeOptionValue(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined
   return String(value)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Header dictionaries can contain arbitrary runtime values; normalize each non-redacted value for the diagnostic view.
 function normalizeHeaderValue(value: unknown): string {
   if (Array.isArray(value)) return value.map((item) => String(item)).join(', ')
   return String(value)
@@ -641,6 +648,7 @@ function getHeaderValue(headers: Record<string, string> | undefined, name: strin
   return undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Fetch instrumentation captures the raw body before native validation and must recognize unsupported values without consuming streams.
 export function captureRequestBody(body: unknown, contentType?: string): MainNetworkDevtoolsBody | undefined {
   if (body === undefined || body === null) return undefined
 
@@ -725,6 +733,7 @@ function createBodyAccumulator(contentType?: string) {
   }
 
   return {
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Node write/end overloads expose raw chunk, encoding or callback arguments before the native method validates them.
     append(chunk: unknown, encoding?: unknown) {
       if (chunk === undefined || chunk === null || typeof chunk === 'function') return
       if (!isTextLikeContentType(contentType)) {
@@ -738,7 +747,8 @@ function createBodyAccumulator(contentType?: string) {
         return
       }
       if (Buffer.isBuffer(chunk)) {
-        appendText(chunk.toString(typeof encoding === 'string' ? (encoding as BufferEncoding) : 'utf8'))
+        const textEncoding = typeof encoding === 'string' && Buffer.isEncoding(encoding) ? encoding : 'utf8'
+        appendText(chunk.toString(textEncoding))
         return
       }
       if (chunk instanceof ArrayBuffer) {
@@ -855,6 +865,7 @@ function looksJson(text: string): boolean {
   return trimmed.startsWith('{') || trimmed.startsWith('[')
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The request hook observes raw write/end arguments; size binary buffers and views before falling back to diagnostic text.
 function getChunkSize(chunk: unknown): number {
   if (typeof chunk === 'string') return chunk.length
   if (Buffer.isBuffer(chunk)) return chunk.byteLength
@@ -885,6 +896,7 @@ function isSensitiveName(name: string, extraNames: readonly string[] | undefined
   return isSensitiveKey(normalized) || (extraNames?.includes(normalized) ?? false)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Fetch, response cloning and stream reads can reject with non-Error values; normalize their message for the captured request.
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
