@@ -39,6 +39,7 @@ import { bestEffortCleanup } from '../install/cleanup'
 import { miniAppPreviewPath, miniAppPreviewsRoot } from '../paths'
 import { clearMiniAppPartition } from '../runtime/partition'
 import { expectArtifactToken, revokeSessionArtifactTokens } from './artifactTokens'
+import { resetSessionRepairRounds } from './repairRounds'
 
 const logger = loggerService.withContext('MiniAppPreviewService')
 
@@ -240,6 +241,9 @@ export class MiniAppPreviewService extends BaseService {
       await this.closePreview(preview.previewId)
     }
     const tokensRevoked = revokeSessionArtifactTokens(sessionId)
+    // Repair rounds are session state too (AC9): a closed session's capped
+    // artifacts must not haunt a future session that reuses the same paths.
+    resetSessionRepairRounds(sessionId)
     if (owned.length > 0 || tokensRevoked > 0) {
       logger.info('Closed session previews', { sessionId, closed: owned.length, tokensRevoked })
     }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  findLatestArtifactToken,
   ArtifactTokenError,
   expectArtifactToken,
   getArtifactTokenRecord,
@@ -99,5 +100,28 @@ describe('artifactTokens', () => {
     expect(getArtifactTokenRecord(mine.token)).toBeUndefined()
     expect(getArtifactTokenRecord(mineToo.token)).toBeUndefined()
     expect(expectArtifactToken(theirs.token, 'session-neighbor')).toEqual(theirs)
+  })
+
+  it("findLatestArtifactToken finds the session's newest token for one path only", () => {
+    const older = issueArtifactToken({
+      sessionId: 'session-find',
+      packagePath: '/pkg/g.miniapp',
+      sha256: 'sha256:g1',
+      size: 1
+    })
+    const newer = issueArtifactToken({
+      sessionId: 'session-find',
+      packagePath: '/pkg/g.miniapp',
+      sha256: 'sha256:g2',
+      size: 2
+    })
+    issueArtifactToken({ sessionId: 'session-find', packagePath: '/pkg/h.miniapp', sha256: 'sha256:h1', size: 3 })
+    issueArtifactToken({ sessionId: 'session-other', packagePath: '/pkg/g.miniapp', sha256: 'sha256:g3', size: 4 })
+
+    expect(findLatestArtifactToken('session-find', '/pkg/g.miniapp')?.token).toBe(newer.token)
+    expect(newer.createdAt).toBeGreaterThanOrEqual(older.createdAt)
+    expect(findLatestArtifactToken('session-find', '/pkg/never.miniapp')).toBeUndefined()
+    // Another session's token for the same path is not visible.
+    expect(findLatestArtifactToken('session-stranger', '/pkg/g.miniapp')).toBeUndefined()
   })
 })

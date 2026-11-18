@@ -31,6 +31,7 @@ const {
 } = await import('../miniAppAuthoring')
 const { issueArtifactToken, expectArtifactToken, ArtifactTokenError } =
   await import('@main/features/miniApp/preview/artifactTokens')
+const { resetAllRepairRounds, isRepairBlocked } = await import('@main/features/miniApp/preview/repairRounds')
 
 const MANIFEST = {
   id: 'com.example.toolfixture',
@@ -48,6 +49,7 @@ beforeEach(() => {
   workspace = path.join(work, 'workspace')
   fs.mkdirSync(workspace, { recursive: true })
   vi.clearAllMocks()
+  resetAllRepairRounds()
   previewServiceStub.listSessionPreviews.mockReturnValue([])
   previewServiceStub.closeSessionPreviews.mockResolvedValue({ closed: 0, tokensRevoked: 0 })
 })
@@ -65,6 +67,13 @@ async function writePackage(dir: string): Promise<string> {
 
 function ctxFor(dir: string, sessionId = 'topic-1') {
   return { sessionId, roots: [{ uri: `file://${dir}` }] }
+}
+
+/** A package-shaped file that never passes archive validation. */
+function writeBrokenPackage(dir: string, name: string): string {
+  const p = path.join(dir, name)
+  fs.writeFileSync(p, 'this is not a zip archive')
+  return p
 }
 
 describe('mini_app tool core', () => {
@@ -174,6 +183,86 @@ describe('mini_app tool core', () => {
 
     expect(out).toEqual({ closed: 2, tokensRevoked: 3 })
     expect(previewServiceStub.closeSessionPreviews).toHaveBeenCalledWith('topic-1')
+  })
+
+  describe('repair-round cap (AC9)', () => {
+    it('blocks the artifact on the third consecutive failed validation, with evidence and recovery steps', async () => {
+      const pkg = writeBrokenPackage(workspace, 'broken.miniapp')
+
+      const first = await validateMiniAppPackage(pkg, ctxFor(workspace))
+      const second = await validateMiniAppPackage(pkg, ctxFor(workspace))
+      expect(first).toMatchObject({ code: 'invalid-package' })
+      expect(second).toMatchObject({ code: 'invalid-package' })
+
+      const third = await validateMiniAppPackage(pkg, ctxFor(workspace))
+      expect(third).toMatchObject({ status: 'repair-blocked', rounds: 3 })
+      const blocked = third as { evidence: string[]; recovery: string[] }
+      // Newest first, all three rounds kept.
+      expect(blocked.evidence).toHaveLength(3)
+      expect(blocked.evidence[0]).toContain('Package validation failed')
+      expect(blocked.recovery.length).toBeGreaterThan(0)
+    })
+
+    it('does not re-read a blocked package: a fourth validate answers from the cap alone', async () => {
+      const pkg = writeBrokenPackage(workspace, 'blocked.miniapp')
+      for (let i = 0; i < 3; i++) await validateMiniAppPackage(pkg, ctxFor(workspace))
+
+      // Remove the bytes entirely: any real re-read would fail differently.
+      fs.rmSync(pkg)
+      const fourth = await validateMiniAppPackage(pkg, ctxFor(workspace))
+      expect(fourth).toMatchObject({ status: 'repair-blocked', rounds: 3 })
+    })
+
+    it('a successful validation of the same package resets its consecutive count', async () => {
+      const pkg = writeBrokenPackage(workspace, 'flaky.miniapp')
+
+      await validateMiniAppPackage(pkg, ctxFor(workspace))
+
+      // The agent repairs IN PLACE: same path, now-valid bytes.
+      const zip = new JSZip()
+      zip.file('manifest.json', JSON.stringify(MANIFEST))
+      zip.file('index.html', '<h1>fixed</h1>')
+      fs.writeFileSync(pkg, await zip.generateAsync({ type: 'nodebuffer', platform: 'UNIX' }))
+      const ok = await validateMiniAppPackage(pkg, ctxFor(workspace))
+      expect(ok).toMatchObject({ appId: 'com.example.toolfixture' })
+
+      // Broken again: the count restarts at one, so two failures are not a cap.
+      fs.writeFileSync(pkg, 'broken again')
+      await validateMiniAppPackage(pkg, ctxFor(workspace))
+      const second = await validateMiniAppPackage(pkg, ctxFor(workspace))
+      expect(second).toMatchObject({ code: 'invalid-package' })
+      const third = await validateMiniAppPackage(pkg, ctxFor(workspace))
+      expect(third).toMatchObject({ status: 'repair-blocked', rounds: 3 })
+    })
+
+    it('counts rounds per package, not per session', async () => {
+      const a = writeBrokenPackage(workspace, 'a.miniapp')
+      const b = writeBrokenPackage(workspace, 'b.miniapp')
+
+      await validateMiniAppPackage(a, ctxFor(workspace))
+      await validateMiniAppPackage(a, ctxFor(workspace))
+      await validateMiniAppPackage(b, ctxFor(workspace))
+      const bSecond = await validateMiniAppPackage(b, ctxFor(workspace))
+      expect(bSecond).toMatchObject({ code: 'invalid-package' })
+      expect(isRepairBlocked('topic-1', fs.realpathSync(b))).toBe(false)
+
+      const aThird = await validateMiniAppPackage(a, ctxFor(workspace))
+      expect(aThird).toMatchObject({ status: 'repair-blocked' })
+    })
+
+    it('session teardown clears the cap with the tokens', async () => {
+      const pkg = writeBrokenPackage(workspace, 'torn-down.miniapp')
+      for (let i = 0; i < 3; i++) await validateMiniAppPackage(pkg, ctxFor(workspace, 'topic-teardown'))
+      expect(isRepairBlocked('topic-teardown', fs.realpathSync(pkg))).toBe(true)
+
+      // The REAL service teardown resets repair state; the stub does not, so call
+      // the same reset the service now performs (covered in its own suite).
+      const { resetSessionRepairRounds } = await import('@main/features/miniApp/preview/repairRounds')
+      resetSessionRepairRounds('topic-teardown')
+
+      const retry = await validateMiniAppPackage(pkg, ctxFor(workspace, 'topic-teardown'))
+      expect(retry).toMatchObject({ code: 'invalid-package' })
+    })
   })
 
   it('tokens issued through validate are revocable through the token store', async () => {

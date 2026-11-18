@@ -21,6 +21,11 @@
  * flow, and an action that does not exist is the strongest form of "automation
  * cannot approve installation consent" (AC6).
  *
+ * Stage 3 adds the repair cap (AC9): three consecutive failed validations of the
+ * SAME package block it — validate answers with the failure evidence and recovery
+ * steps, and the consent surfaces refuse install for it until one validation
+ * succeeds. Session teardown clears the count with the tokens.
+ *
  * Every failure returns `{ error, code? }` — never throws — so the model can tell
  * "refused" apart from "broke", mirroring the knowledge lookup core.
  */
@@ -38,6 +43,13 @@ import { MiniAppPreviewError } from '@main/features/miniApp/preview/MiniAppPrevi
 
 import { previewMiniAppArchive } from '../../features/miniApp/install/archive'
 import { issueArtifactToken } from '../../features/miniApp/preview/artifactTokens'
+import {
+  getRepairBlocked,
+  isRepairBlocked,
+  noteValidationFailure,
+  noteValidationSuccess,
+  type RepairBlocked
+} from '../../features/miniApp/preview/repairRounds'
 
 const logger = loggerService.withContext('MiniAppAuthoring')
 
@@ -93,6 +105,18 @@ const validateOutputSchema = z.object({
 })
 
 const statusOutputSchema = z.object({ previews: z.array(miniAppPreviewSummarySchema) })
+
+/**
+ * AC9: the third consecutive failed validation of one package. Not an error — a
+ * verdict carrying the evidence and the recovery steps, so the session can stop
+ * and hand both back instead of burning a fourth round.
+ */
+const repairBlockedOutputSchema = z.object({
+  status: z.literal('repair-blocked'),
+  rounds: z.number(),
+  evidence: z.array(z.string()),
+  recovery: z.array(z.string())
+})
 const closeOutputSchema = z.object({ closed: z.number(), tokensRevoked: z.number() })
 
 export const miniAppAuthoringErrorSchema = z.object({
@@ -106,6 +130,7 @@ export const miniAppAuthoringOutputSchema = z.union([
   miniAppPreviewSummarySchema,
   statusOutputSchema,
   closeOutputSchema,
+  repairBlockedOutputSchema,
   miniAppAuthoringErrorSchema
 ])
 export type MiniAppAuthoringOutput = z.infer<typeof miniAppAuthoringOutputSchema>
@@ -164,12 +189,40 @@ async function resolveAuthorizedPackagePath(packagePath: string, ctx: MiniAppAut
   return real
 }
 
+/**
+ * The repair-cap key for a path that may no longer exist: the realpath when it
+ * resolves, else the real directory + literal name (a deleted package still keys
+ * to its old identity, so a capped artifact stays capped when probed again).
+ */
+async function artifactKeyFor(packagePath: string): Promise<string> {
+  try {
+    return await fs.promises.realpath(packagePath)
+  } catch {
+    try {
+      return path.join(await fs.promises.realpath(path.dirname(packagePath)), path.basename(packagePath))
+    } catch {
+      return path.resolve(packagePath)
+    }
+  }
+}
+
+function repairBlockedOutput(view: RepairBlocked): MiniAppAuthoringOutput {
+  return { status: 'repair-blocked', rounds: view.rounds, evidence: [...view.evidence], recovery: [...view.recovery] }
+}
+
 export async function validateMiniAppPackage(
   packagePath: string,
   ctx: MiniAppAuthoringContext
 ): Promise<MiniAppAuthoringOutput> {
   const sessionId = requireSession(ctx)
   if (typeof sessionId !== 'string') return sessionId
+
+  // The cap (AC9) is checked BEFORE the file is touched: re-reading a capped
+  // artifact IS the fourth repair round the rule forbids, and a package deleted
+  // after capping must still answer with the cap, not a path error.
+  const artifactKey = await artifactKeyFor(packagePath)
+  const alreadyBlocked = getRepairBlocked(sessionId, artifactKey)
+  if (alreadyBlocked) return repairBlockedOutput(alreadyBlocked)
 
   let real: string
   try {
@@ -183,6 +236,7 @@ export async function validateMiniAppPackage(
     // a package that fails here would fail install later, so validate fails NOW.
     const preview = await previewMiniAppArchive(real)
     const { size } = await fs.promises.stat(real)
+    noteValidationSuccess(sessionId, real)
     const record = issueArtifactToken({ sessionId, packagePath: real, sha256: preview.sha256, size })
     logger.info('Validated mini app package', {
       sessionId,
@@ -198,10 +252,10 @@ export async function validateMiniAppPackage(
       size
     }
   } catch (error) {
-    return failure(
-      `Package validation failed: ${error instanceof Error ? error.message : String(error)}`,
-      'invalid-package'
-    )
+    const reason = `Package validation failed: ${error instanceof Error ? error.message : String(error)}`
+    const blocked = noteValidationFailure(sessionId, real, reason)
+    if (blocked) return repairBlockedOutput(blocked)
+    return failure(reason, 'invalid-package')
   }
 }
 
@@ -259,6 +313,11 @@ export async function closeMiniAppPreviews(
     if (error instanceof MiniAppPreviewError) return failure(error.message, error.code)
     throw error
   }
+}
+
+/** The stage-3 consent surfaces refuse install for a capped artifact (AC9). */
+export function isArtifactRepairBlocked(sessionId: string, packagePath: string): boolean {
+  return isRepairBlocked(sessionId, packagePath)
 }
 
 export async function runMiniAppAuthoring(

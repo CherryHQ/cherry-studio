@@ -83,6 +83,22 @@ export function revokeArtifactToken(token: string): boolean {
 }
 
 /**
+ * The session's NEWEST token for one package path, for the consent surfaces that
+ * never see tokens (the artifact card's actions): they name the file, main finds
+ * the token. Undefined when the session never validated that path — the caller's
+ * "validate first" answer.
+ */
+export function findLatestArtifactToken(sessionId: string, packagePath: string): ArtifactTokenRecord | undefined {
+  let latest: ArtifactTokenRecord | undefined
+  for (const record of records.values()) {
+    if (record.sessionId === sessionId && record.packagePath === packagePath) {
+      if (!latest || record.createdAt >= latest.createdAt) latest = record
+    }
+  }
+  return latest
+}
+
+/**
  * Session teardown: closing, replacing or exiting a session invalidates everything
  * it validated. Returns how many tokens went away, for the caller's log line.
  */
