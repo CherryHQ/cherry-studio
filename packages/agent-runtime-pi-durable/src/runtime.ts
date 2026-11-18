@@ -94,6 +94,8 @@ export interface PiDurableThreadHandle extends ThreadHandle {
     providerSessionId(): Promise<string | undefined>
     behaviorToolCallId(call: CallRef): Promise<string | undefined>
     configure(change: AgentChange): Promise<void>
+    /** Admit reference text once without starting a run or displaying a product message. */
+    initializeContext(text: string): Promise<void>
     compact(instructions?: string): Promise<OperationResult<{ compacted: boolean }>>
     permissionModeChanged(): Promise<OperationResult<void>>
   }
@@ -723,6 +725,20 @@ export async function createPiDurableRuntime(
         async configure(change) {
           if (unavailable()) throw new Error('Durable access is closed')
           await native.commit((tx) => configure(tx, entry.conversation.id, withBehavior(change)), context)
+        },
+        async initializeContext(text) {
+          if (unavailable()) throw new Error('Durable access is closed')
+          await entry.conversation.submit(
+            {
+              type: 'write',
+              requestId: 'cherry.reference-context',
+              entry: {
+                kind: 'cherry.reference-context',
+                model: [{ role: 'user', content: text, timestamp: Date.now() }]
+              }
+            },
+            context
+          )
         },
         async compact(instructions) {
           if (unavailable()) return rejected('compact', 'closed')
