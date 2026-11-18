@@ -305,6 +305,25 @@ describe('MiniAppPreviewService', () => {
     expect(svc.getPreviewByRuntimeId(summary.runtimeId)).toBeUndefined()
   })
 
+  it('drops the preview-owned storage and file state on close', async () => {
+    const svc = new MiniAppPreviewService()
+    const pkg = await writePackage()
+    const token = await validatePackage(pkg, 'session-a')
+    const summary = await svc.openPreview({ sessionId: 'session-a', artifactToken: token.token })
+
+    const { previewFileSave, previewFileUsage, previewStorageUsage, writePreviewStorage } =
+      await import('../../capabilities/previewStores')
+    writePreviewStorage(summary.runtimeId, { save: 'lvl-3' })
+    previewFileSave(summary.runtimeId, 'asset.bin', Buffer.from('x'))
+    expect(previewStorageUsage(summary.runtimeId).count).toBe(1)
+    expect(previewFileUsage(summary.runtimeId).count).toBe(1)
+
+    await svc.closePreview(summary.previewId)
+
+    expect(previewStorageUsage(summary.runtimeId).count).toBe(0)
+    expect(previewFileUsage(summary.runtimeId).count).toBe(0)
+  })
+
   it('sweeps on ready before any preview can open', async () => {
     fs.mkdirSync(path.join(previewsRoot, 'leftover'))
     const svc = new MiniAppPreviewService()

@@ -34,6 +34,7 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { declaredGrantKeys, type MiniAppManifest } from '@shared/types/miniAppManifest'
 
+import { clearPreviewStores } from '../capabilities/previewStores'
 import { extractMiniAppArchive, sha256File } from '../install/archive'
 import { bestEffortCleanup } from '../install/cleanup'
 import { miniAppPreviewPath, miniAppPreviewsRoot } from '../paths'
@@ -259,6 +260,9 @@ export class MiniAppPreviewService extends BaseService {
       throw new MiniAppPreviewError('session-mismatch', 'Preview belongs to a different session')
     }
     this.previews.delete(previewId)
+    // The preview's storage and file state dies with it — in memory, so one delete
+    // is the whole cleanup; a restarted process has no state to sweep at all.
+    clearPreviewStores(preview.runtimeId)
 
     const runtime = application.get('MiniAppRuntimeService')
     if (runtime.isPartitionReady(preview.runtimeId)) {

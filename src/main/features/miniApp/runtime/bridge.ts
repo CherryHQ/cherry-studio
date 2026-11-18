@@ -76,7 +76,10 @@ type Handler = (
  */
 const ROUTES: Record<MiniAppMethod, Handler> = {
   'app.getInfo': (appId) => ({
-    appId,
+    // The MANIFEST's id, not the runtime id: a preview runs as `preview-<uuid>`, and
+    // handing that back as the app's identity breaks anything the app builds on its
+    // own id (deep links, logs, self-checks) and leaks host internals to the guest.
+    appId: application.getExisting('MiniAppPreviewService')?.getPreviewByRuntimeId(appId)?.appId ?? appId,
     /** The mini app's own version, from its installation record. */
     version: installedVersionOf(appId),
     /** Cherry's version. `application` has NO getVersion(); it comes from electron. */
