@@ -128,7 +128,9 @@ export class AttachmentPresenceService extends BaseService {
             }
           })
         )
-        return { ...row.input, items, ...(messageId ? { messageId } : {}) }
+        const selection: AgentAttachmentSelection = { ...row.input, items }
+        if (messageId) Object.assign(selection, { messageId })
+        return selection
       })
     )
   }

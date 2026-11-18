@@ -589,14 +589,15 @@ function makeProgress(
   bytesTotal: number,
   error?: string
 ): RelocationProgress {
-  return {
+  const progress: RelocationProgress = {
     stage,
     from: relocation.from,
     to: relocation.to,
     bytesCopied,
-    bytesTotal,
-    ...(error ? { error } : {})
+    bytesTotal
   }
+  if (error) Object.assign(progress, { error })
+  return progress
 }
 
 async function writeRelocationOwner(directory: string, taskId: string): Promise<void> {

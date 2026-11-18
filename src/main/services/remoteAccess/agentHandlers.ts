@@ -326,14 +326,11 @@ export function registerAgentMethods(
       } else if (response.kind === 'approve' && interaction.kind === 'question') {
         return { status: 'rejected', error: { reason: 'CONFLICT', message: 'Question requires answers' } }
       }
-      const decision = {
-        approved,
-        ...(updatedInput ? { updatedInput } : {}),
-        ...('reason' in response ? { reason: response.reason } : {})
-      }
-      if (
-        !application.get('AgentSessionRuntimeService').respondToolApproval(params.interactionId, decision, anchorId)
-      ) {
+      const runtime = application.get('AgentSessionRuntimeService')
+      const decision: Parameters<typeof runtime.respondToolApproval>[1] = { approved }
+      if (updatedInput) decision.updatedInput = updatedInput
+      if ('reason' in response) decision.reason = response.reason
+      if (!runtime.respondToolApproval(params.interactionId, decision, anchorId)) {
         return { status: 'rejected', error: { reason: 'NOT_FOUND', message: 'Interaction is no longer pending' } }
       }
       journal.markInteraction(params.interactionId, approved ? 'approved' : 'denied')
