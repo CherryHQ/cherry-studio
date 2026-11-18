@@ -5,6 +5,7 @@ import { useReorder } from '@data/hooks/useReorder'
 import { loggerService } from '@logger'
 import { reorderLocally } from '@renderer/data/utils/reorder'
 import { ipcApi } from '@renderer/ipc'
+import { getErrorMessage } from '@renderer/utils/error'
 import type { KnowledgeBaseListItem, UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import type { CreateKnowledgeBaseDto, RestoreKnowledgeBaseDto } from '@shared/data/types/knowledge'
@@ -13,12 +14,17 @@ const logger = loggerService.withContext('useKnowledgeBases')
 const EMPTY_KNOWLEDGE_BASES: KnowledgeBaseListItem[] = []
 const KNOWLEDGE_BASES_QUERY = { sortBy: 'orderKey', sortOrder: 'asc' } as const
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Knowledge mutations and cache invalidation can reject arbitrary values; preserve Error instances and normalize other failures for hook state and rethrow.
 const normalizeError = (error: unknown): Error => {
   if (error instanceof Error) {
     return error
   }
 
-  return new Error(String(error))
+  try {
+    return new Error(String(error))
+  } catch {
+    return new Error(getErrorMessage(error))
+  }
 }
 
 export type CreateKnowledgeBaseInput = Pick<

@@ -279,6 +279,18 @@ describe('useCreateKnowledgeBase', () => {
     })
   })
 
+  it('exposes a create failure and clears loading when the rejection cannot be printed', async () => {
+    mockIpcRequest.mockRejectedValueOnce({ toString: null })
+    const { result } = renderHook(() => useCreateKnowledgeBase())
+
+    await act(async () => {
+      await expect(result.current.createBase({ name: 'Base' })).rejects.toBeInstanceOf(Error)
+    })
+
+    expect(result.current.createError).toBeInstanceOf(Error)
+    expect(result.current.isCreating).toBe(false)
+  })
+
   it('keeps create rejected when runtime IPC fails without refreshing the list', async () => {
     const createError = new Error('create failed')
     mockIpcRequest.mockRejectedValueOnce(createError)
