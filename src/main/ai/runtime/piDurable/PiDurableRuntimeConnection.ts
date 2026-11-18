@@ -559,9 +559,9 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     })
   }
 
-  private fail(error: unknown) {
-    this.failure = error
-    this.events.push({ type: 'error', error })
+  private fail(cause: unknown) {
+    this.failure = cause
+    this.events.push({ type: 'error', error: cause })
     void this.close().catch((cause) => logger.error('Durable shutdown failed', { error: cause }))
   }
 
