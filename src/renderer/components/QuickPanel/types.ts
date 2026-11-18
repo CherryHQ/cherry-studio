@@ -1,5 +1,7 @@
 import React from 'react'
 
+import type { ComposerDraftToken } from '@renderer/components/composer/tokens'
+
 export type QuickPanelCloseAction = 'enter' | 'click' | 'esc' | 'outsideclick' | 'enter_empty' | string | undefined
 export type QuickPanelTriggerInfo = {
   type: 'input' | 'button'
@@ -38,7 +40,7 @@ export interface QuickPanelInputAdapter {
    * `${HOME}` — so it stays literal.
    */
   insertText: (text: string, options?: QuickPanelInsertTextOptions) => void
-  insertToken?: (token: unknown, options?: QuickPanelInsertTokenOptions) => void
+  insertToken?: (token: ComposerDraftToken, options?: QuickPanelInsertTokenOptions) => void
   deleteTriggerRange: (range: { from: number; to: number }) => void
   focus: () => void
   subscribeInput?: (listener: (event?: QuickPanelInputEvent) => void) => () => void

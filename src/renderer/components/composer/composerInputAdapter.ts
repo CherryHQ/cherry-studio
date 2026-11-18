@@ -134,7 +134,7 @@ export function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapt
       else chain.insertComposerLines(content).run()
     },
     insertToken: (token, options) => {
-      insertComposerTokenAtCursor(editor, token as ComposerDraftToken, options)
+      insertComposerTokenAtCursor(editor, token, options)
     },
     deleteTriggerRange: (range) => {
       deleteComposerTextRange(editor, range)
