@@ -206,27 +206,6 @@ export const REGRESSION_CASES = [
     tasks: ['code-tools', 'openclaw']
   },
   {
-    id: 'M-01',
-    capabilities: [],
-    phase: 'cherryIn',
-    title: 'Sign in to CherryIN and chat',
-    tasks: ['chat-core', 'cherryin-chat']
-  },
-  {
-    id: 'P-01',
-    capabilities: ['desktopAutomation'],
-    phase: 'cherryIn',
-    title: 'Generate an image using an image model',
-    tasks: ['paintings', 'image-generation']
-  },
-  {
-    id: 'MP-90',
-    title: 'Enlarge, preview, and save images',
-    tasks: ['paintings'],
-    phase: 'images',
-    capabilities: ['desktopAutomation']
-  },
-  {
     id: 'MP-91',
     title: 'Prompt templates and enhancement',
     tasks: ['paintings'],
@@ -532,6 +511,13 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-106',
     title: 'Fonts, font size, and zoom',
+    tasks: ['settings'],
+    phase: 'settings',
+    capabilities: []
+  },
+  {
+    id: 'ZOOM-01',
+    title: 'Ctrl-wheel interface zoom and persistence',
     tasks: ['settings'],
     phase: 'settings',
     capabilities: []

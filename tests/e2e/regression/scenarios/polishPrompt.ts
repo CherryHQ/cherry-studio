@@ -35,7 +35,7 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
   let assistantId: string | undefined
 
   try {
-    // Success uses a real provider; only malformed-variable and error responses use the HTTP fixture.
+    // Both model services are local; the controllable server also exercises malformed and error responses.
     const modelIds: string[] = []
     for (const [index, config] of [
       real,

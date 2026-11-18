@@ -377,7 +377,6 @@ const McpServersList: FC = () => {
                 ) : (
                   <EmptyState
                     compact
-                    preset="no-resource"
                     description={mcpServers.length === 0 ? t('settings.mcp.noServers') : t('common.no_results')}
                     className="py-12"
                   />

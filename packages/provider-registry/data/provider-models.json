@@ -22767,6 +22767,56 @@
       "supportsFastMode": true
     },
     {
+      "apiModelId": "gpt-6.2-astra",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 272000,
+        "maxInputTokens": 144000
+      },
+      "modelId": "gpt-6-2-astra",
+      "providerId": "openai-codex",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "low",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "low"
+          }
+        }
+      },
+      "supportsFastMode": true
+    },
+    {
+      "apiModelId": "gpt-6.2-sol",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 500000,
+        "maxInputTokens": 372000
+      },
+      "modelId": "gpt-6-2-sol",
+      "providerId": "openai-codex",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "low",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "low"
+          }
+        }
+      },
+      "supportsFastMode": true
+    },
+    {
       "apiModelId": "gpt-6-astra",
       "endpointTypes": ["openai-responses"],
       "limits": {
@@ -29538,6 +29588,64 @@
             ],
             "defaultEffort": "medium",
             "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "openai/gpt-6.2-astra",
+      "modelId": "gpt-6-2-astra",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.4
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 8
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 40
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["max", "xhigh", "high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "openai/gpt-6.2-sol",
+      "modelId": "gpt-6-2-sol",
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["max", "xhigh", "high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
           }
         }
       }
@@ -37536,6 +37644,44 @@
       "providerId": "ppio"
     },
     {
+      "apiModelId": "mistralai/mistral-large-4-0",
+      "modelId": "mistral-large-4-0",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.07
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.7
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.1
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["high", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ],
+            "defaultEffort": "high",
+            "supportedEfforts": ["high", "none"]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "hunyuan-image-3",
       "imageGeneration": {
         "modes": {
@@ -43793,6 +43939,11 @@
       "providerId": "tokenhub"
     },
     {
+      "apiModelId": "hy4-flash",
+      "modelId": "hy4-flash",
+      "providerId": "tokenhub"
+    },
+    {
       "apiModelId": "hy4-preview",
       "modelId": "hy4-preview",
       "providerId": "tokenhub"
@@ -44967,6 +45118,131 @@
       "providerId": "voyageai"
     },
     {
+      "modelId": "glm-5",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
+      "providerId": "zai"
+    },
+    {
+      "apiModelId": "glm-5.1",
+      "modelId": "glm-5-1",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
+      "providerId": "zai"
+    },
+    {
+      "apiModelId": "glm-5.2",
+      "modelId": "glm-5-2",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
+      "providerId": "zai"
+    },
+    {
+      "apiModelId": "glm-5.2-fast",
+      "modelId": "glm-5-2-fast",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
+      "providerId": "zai"
+    },
+    {
+      "apiModelId": "glm-5.3",
+      "modelId": "glm-5-3",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
+      "providerId": "zai"
+    },
+    {
+      "apiModelId": "glm-5.3-flash",
+      "modelId": "glm-5-3-flash",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
+      "providerId": "zai"
+    },
+    {
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -45004,8 +45280,65 @@
       "providerId": "zhipu"
     },
     {
+      "modelId": "glm-5",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
+      "providerId": "zhipu"
+    },
+    {
+      "apiModelId": "glm-5.1",
+      "modelId": "glm-5-1",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
+      "providerId": "zhipu"
+    },
+    {
       "apiModelId": "glm-5.2",
       "modelId": "glm-5-2",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
       "providerId": "zhipu",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -45056,6 +45389,22 @@
     {
       "apiModelId": "glm-5.2-fast",
       "modelId": "glm-5-2-fast",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
       "providerId": "zhipu",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -45106,6 +45455,22 @@
     {
       "apiModelId": "glm-5.3",
       "modelId": "glm-5-3",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
       "providerId": "zhipu",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -45137,6 +45502,22 @@
     {
       "apiModelId": "glm-5.3-flash",
       "modelId": "glm-5-3-flash",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
       "providerId": "zhipu",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -45203,5 +45584,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "3e03510ac860a08d"
+  "version": "b16d7761d4de6de8"
 }

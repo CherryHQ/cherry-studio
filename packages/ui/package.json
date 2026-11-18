@@ -122,7 +122,7 @@
     "test:watch": "vitest",
     "theme:build": "tsx scripts/build-theme-css.ts",
     "theme:check": "tsx scripts/check-theme-contract.ts",
-    "type:check": "pnpm --workspace-root exec tsc --noEmit -p packages/ui/tsconfig.json --composite false"
+    "type:check": "pnpm --workspace-root exec tsrs --noEmit -p packages/ui/tsconfig.json --composite false"
   },
   "dependencies": {
     "@codemirror/commands": "6.10.2",

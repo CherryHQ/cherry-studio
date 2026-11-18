@@ -57,6 +57,7 @@ export function HeartbeatEditorDialog({
     refetch
   } = useQuery('/agents/:agentId/heartbeat', {
     params: { agentId },
+    enabled: open,
     swrOptions: { refreshInterval: 2000, keepPreviousData: false }
   })
   useEffect(() => {

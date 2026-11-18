@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import type { DeleteMessageOptions, MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
 import type { SerializedError } from '@renderer/types/error'
 import type { FileMetadata } from '@renderer/types/file'
+import type { FileLocation } from '@renderer/types/fileLocation'
 import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import type { Citation, MessageUiState } from '@renderer/types/message'
 import type { MessageExportTarget, MessageExportView } from '@renderer/types/messageExport'
@@ -399,7 +400,7 @@ export interface MessageListActions {
   exportToObsidian?: (message: MessageExportView) => void | Promise<void>
   exportToJoplin?: (message: MessageExportView) => void | Promise<void>
   exportToSiyuan?: (message: MessageExportView) => void | Promise<void>
-  openArtifactFile?: (path: string) => void | Promise<void>
+  openArtifactFile?: (path: string, location?: FileLocation) => void | Promise<void>
   openDiagnosticReport?: (description?: string) => void
   resolvePath?: (path: string) => string
   previewInputFile?: (input: MessageInputFilePreview) => void | Promise<void>
@@ -482,6 +483,8 @@ export interface MessageListMeta {
   selectionLayer: boolean
   userProfile?: MessageUserProfile
   assistantProfile?: MessageUserProfile
+  /** Current avatars keyed by author id; absent authors retain their message snapshot. */
+  authorAvatars?: ReadonlyMap<string, string>
   assistantAvatarSources?: ReadonlyMap<string, string>
   imageExportFileName?: string
   /** Usage-record partition this surface's messages belong to. Defaults to 'chat'. */
