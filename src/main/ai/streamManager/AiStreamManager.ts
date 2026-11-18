@@ -1694,7 +1694,7 @@ export class AiStreamManager extends BaseService {
     modelId: UniqueModelId,
     error: SerializedError,
     expectedExecution?: StreamExecution,
-    originalError?: unknown
+    cause?: unknown
   ): Promise<void> {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
@@ -1740,7 +1740,7 @@ export class AiStreamManager extends BaseService {
 
     const settleTerminalDispatch = this.beginTerminalDispatch(topicId)
     try {
-      await this.dispatchToListeners(stream, exec, result, originalError)
+      await this.dispatchToListeners(stream, exec, result, cause)
       this.emitUnsuccessfulExecution(stream, exec, result)
 
       // See onExecutionDone: awaited terminal dispatch may outlive this stream's registry slot.
@@ -2473,7 +2473,7 @@ export class AiStreamManager extends BaseService {
     stream: ActiveStream,
     exec: StreamExecution,
     result: StreamDoneResult | StreamPausedResult | StreamErrorResult,
-    originalError?: unknown
+    cause?: unknown
   ): Promise<void> {
     const dead: string[] = []
     const listeners = [...stream.listeners]
@@ -2503,7 +2503,7 @@ export class AiStreamManager extends BaseService {
             ? listener.onDone(result)
             : result.status === 'paused'
               ? listener.onPaused(result)
-              : listener.onError(result, stream.lifecycle === promptStreamLifecycle ? originalError : undefined)
+              : listener.onError(result, stream.lifecycle === promptStreamLifecycle ? cause : undefined)
         exec.finalMessage = result.finalMessage
         await dispatch
       } catch (err) {
