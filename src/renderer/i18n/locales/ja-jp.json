@@ -161,6 +161,8 @@
   "agent.home.welcome_title": "今日は何について話しましょうか？",
   "agent.icon.type": "エージェントアイコン",
   "agent.import.description": "DeepSeek の ZIP を新しい DeepSeek エージェントにインポートします。このダイアログを閉じてもインポートは停止しません。",
+  "agent.import.guide": "DeepSeek のチャット履歴をダウンロードする方法",
+  "agent.import.guide_description": "DeepSeek のウェブサイトで、プロフィール → 設定 → データ管理 → すべてのチャットをエクスポートを開きます。生成が完了したら ZIP をダウンロードし、解凍せずにここで選択してください。クリックすると DeepSeek が開きます。",
   "agent.import.missing": "エクスポートに次の添付ファイルがありません：",
   "agent.import.paused": "インポートが停止しました。再試行すると、インポート済みセッションを重複させずに続行できます。",
   "agent.import.progress": "インポート済み: {{imported}} · 既存: {{skipped}} · 失敗: {{failed}} · 残り: {{remaining}}",

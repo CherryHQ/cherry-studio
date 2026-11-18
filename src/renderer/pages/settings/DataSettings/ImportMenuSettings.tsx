@@ -1,7 +1,7 @@
 import { type FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, RowFlex } from '@cherrystudio/ui'
+import { Button, InfoTooltip, RowFlex } from '@cherrystudio/ui'
 import {
   SettingDivider,
   SettingGroup,
@@ -10,6 +10,7 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { openExternalWebsite } from '@renderer/services/website'
 
 import { AgentImportPopup } from './AgentImportPopup'
 import ImportPopup from './ImportPopup'
@@ -24,7 +25,15 @@ const ImportMenuOptions: FC = () => {
       </SettingRow>
       <SettingDivider />
       <SettingRow id="setting-data-import-deepseek" className="scroll-mt-6">
-        <SettingRowTitle>{t('agent.import.title')}</SettingRowTitle>
+        <SettingRowTitle className="gap-1.5">
+          {t('agent.import.title')}
+          <InfoTooltip
+            ariaLabel={t('agent.import.guide')}
+            content={t('agent.import.guide_description')}
+            placement="right"
+            onClick={() => void openExternalWebsite('https://chat.deepseek.com/')}
+          />
+        </SettingRowTitle>
         <RowFlex className="gap-2">
           <Button variant="outline" onClick={() => AgentImportPopup.show({})}>
             {t('settings.data.import_settings.button')}

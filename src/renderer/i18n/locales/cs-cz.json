@@ -161,6 +161,8 @@
   "agent.home.welcome_title": "Na čem dnes budeme pracovat?",
   "agent.icon.type": "Ikona agenta",
   "agent.import.description": "Importujte ZIP DeepSeek do nového agenta DeepSeek. Zavření tohoto dialogu import nezastaví.",
+  "agent.import.guide": "Jak stáhnout historii chatů DeepSeek",
+  "agent.import.guide_description": "Na webu DeepSeek otevřete svůj profil → Nastavení → Správa dat → Exportovat všechny chaty. Počkejte na dokončení exportu, stáhněte ZIP a vyberte jej zde bez rozbalování. Kliknutím otevřete DeepSeek.",
   "agent.import.missing": "V exportu chybí tyto přílohy:",
   "agent.import.paused": "Import zastaven. Opakováním pokračujete bez duplikování importovaných relací.",
   "agent.import.progress": "Importováno: {{imported}} · Již importováno: {{skipped}} · Chyby: {{failed}} · Zbývá: {{remaining}}",

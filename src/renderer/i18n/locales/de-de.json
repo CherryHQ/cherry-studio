@@ -161,6 +161,8 @@
   "agent.home.welcome_title": "Wovon sollen wir heute sprechen?",
   "agent.icon.type": "Agent-Symbol",
   "agent.import.description": "Importieren Sie eine DeepSeek-ZIP-Datei in einen neuen DeepSeek-Agenten. Das Schließen dieses Dialogs stoppt den Import nicht.",
+  "agent.import.guide": "So laden Sie den DeepSeek-Chatverlauf herunter",
+  "agent.import.guide_description": "Öffnen Sie auf der DeepSeek-Website Ihr Profil → Einstellungen → Datenverwaltung → Alle Chats exportieren. Warten Sie auf den Export, laden Sie die ZIP-Datei herunter und wählen Sie sie hier aus, ohne sie zu entpacken. Klicken Sie, um DeepSeek zu öffnen.",
   "agent.import.missing": "Diese Anhänge fehlen im Export:",
   "agent.import.paused": "Import gestoppt. Erneut versuchen, um ohne doppelte Sitzungen fortzufahren.",
   "agent.import.progress": "Importiert: {{imported}} · Bereits importiert: {{skipped}} · Fehlgeschlagen: {{failed}} · Verbleibend: {{remaining}}",

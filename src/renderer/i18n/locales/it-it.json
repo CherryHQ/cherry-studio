@@ -161,6 +161,8 @@
   "agent.home.welcome_title": "A cosa lavoriamo oggi?",
   "agent.icon.type": "Icona dell'agente",
   "agent.import.description": "Importa un file ZIP DeepSeek in un nuovo agente DeepSeek. La chiusura di questa finestra non interrompe l’importazione.",
+  "agent.import.guide": "Come scaricare la cronologia delle chat di DeepSeek",
+  "agent.import.guide_description": "Sul sito di DeepSeek, apri il tuo profilo → Impostazioni → Gestione dati → Esporta tutte le chat. Attendi il completamento dell’esportazione, scarica lo ZIP e selezionalo qui senza estrarlo. Fai clic per aprire DeepSeek.",
   "agent.import.missing": "Questi allegati mancano nell’esportazione:",
   "agent.import.paused": "Importazione interrotta. Riprova per continuare senza duplicare le sessioni importate.",
   "agent.import.progress": "Importate: {{imported}} · Già importate: {{skipped}} · Non riuscite: {{failed}} · Rimanenti: {{remaining}}",

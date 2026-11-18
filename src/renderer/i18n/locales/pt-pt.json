@@ -161,6 +161,8 @@
   "agent.home.welcome_title": "Sobre o que vamos falar hoje?",
   "agent.icon.type": "Ícone de Agente",
   "agent.import.description": "Importe um ZIP do DeepSeek para um novo agente DeepSeek. Fechar esta janela não interrompe a importação.",
+  "agent.import.guide": "Como descarregar o histórico de conversas do DeepSeek",
+  "agent.import.guide_description": "No site do DeepSeek, abra o seu perfil → Definições → Gestão de dados → Exportar todas as conversas. Aguarde a conclusão da exportação, descarregue o ZIP e selecione-o aqui sem o descomprimir. Clique para abrir o DeepSeek.",
   "agent.import.missing": "Estes anexos estão em falta na exportação:",
   "agent.import.paused": "Importação interrompida. Tente novamente para continuar sem duplicar as sessões importadas.",
   "agent.import.progress": "Importadas: {{imported}} · Já importadas: {{skipped}} · Falhadas: {{failed}} · Restantes: {{remaining}}",
