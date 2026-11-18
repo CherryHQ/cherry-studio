@@ -57,6 +57,8 @@ associated with its product input once; later snapshots and autonomous child-res
 turns do not repeat a prior input's response association.
 The adapter delivers content, input outcomes and foreground settlement from one native revision.
 The connection consumes that batch; it does not poll pending inputs or infer completion from idle.
+It reports an input only when its state changes and reconsiders a child's status and release on
+snapshots, activity changes and input changes.
 Product snapshots and headless policy stay on the Main session entry under the input ID, including
 unknown admission across connection replacement. The successor reconciles the original binding
 without resending, while generation checks reject stale callbacks.

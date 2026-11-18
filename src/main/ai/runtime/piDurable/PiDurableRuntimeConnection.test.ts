@@ -1605,8 +1605,12 @@ describe('desktop Pi Durable connection', () => {
       expect(events.filter((event) => event.type === 'error')).toEqual([])
       if (scenario === 'retry archive flush') {
         const shutdown = vi.spyOn(connection['runtime']!, 'shutdown')
-        vi.spyOn(contexts, 'saveProjectionTx').mockImplementationOnce(() => {
-          throw new Error('archive temporarily unavailable')
+        const resource = (await connection['childResources']()).find(
+          (known) => known.projection.context.id === contextId
+        )!
+        vi.spyOn(resource.handle, 'archive').mockResolvedValueOnce({
+          status: 'unknown',
+          error: { operation: 'archive', code: 'native-error', message: 'archive temporarily unavailable' }
         })
         await expect(connection.close()).rejects.toThrow('archive temporarily unavailable')
         await connection.close()
@@ -1684,7 +1688,9 @@ describe('desktop Pi Durable connection', () => {
       })
       let steering: Promise<string> | undefined
       await child.handle.observe(async (event) => {
-        if (!steering && event.type === 'snapshot' && JSON.stringify(event.messages).includes('child first answer'))
+        const delivered =
+          event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []
+        if (!steering && JSON.stringify(delivered).includes('child first answer'))
           steering = connection.messageChild(contextId, 'steer now').then(
             () => 'sent',
             (error: Error) => error.message
@@ -2137,4 +2143,50 @@ describe('desktop Pi Durable connection', () => {
       expect(script.calls).toHaveLength(0)
     }
   )
+
+  // Catches a finished child kept loaded because its run end arrives as an activity change, not a snapshot.
+  it('releases a background child after its run ends and keeps its final answer', async () => {
+    let root = ''
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) return assistantReply('child final answer')
+      if (!call.messages.some((entry) => entry.role === 'toolResult'))
+        return assistantReply(
+          [toolCallPart('spawn', 'subagent', { description: 'research', prompt: 'child work', background: true })],
+          'toolUse'
+        )
+      return assistantReply('parent done')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate') })
+    await done(events)
+    await expect.poll(() => connection['releasedChildren'].size, { timeout: 10_000 }).toBe(1)
+    expect(await connection['childResources']()).toEqual([])
+    const [released] = connection['releasedChildren'].values()
+    expect(JSON.stringify(savedChildView(contexts.context(released.contextId)).messages)).toContain(
+      'child final answer'
+    )
+  })
+
+  // Catches each run start reporting and rebinding every earlier input again.
+  it('reports each input state once across runs', async () => {
+    setScript([assistantReply('first answer'), assistantReply('second answer')])
+    const { connection, events } = await connect()
+    for (const [index, text] of ['first', 'second'].entries()) {
+      await connection.send({ message: message(text) })
+      await expect.poll(() => events.filter((event) => event.type === 'turn-complete').length).toBe(index + 1)
+    }
+    const states = events.flatMap((event) => (event.type === 'input-state' ? [JSON.stringify(event.input)] : []))
+    expect(states.length).toBeGreaterThan(0)
+    expect(states).toEqual([...new Set(states)])
+  })
+
+  // Catches a root that still steers into a run that has already ended.
+  it('stops accepting steers once its run ends', async () => {
+    setScript([assistantReply('answer')])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('question') })
+    await done(events)
+    expect(connection.redirect({ message: message('too late') })).toBe(false)
+  })
 })

@@ -155,12 +155,10 @@ describe('Pi Durable runtime contract', () => {
     expect(final.completion).toMatchObject({
       inputs: [{ inputId: 'atomic', outcome: 'unanswered', error: { code: 'output-truncated' } }]
     })
-    expect(final.events).toMatchObject([
-      { type: 'snapshot', inputs: expect.arrayContaining([{ ...final.completion!.inputs[0] }]) }
-    ])
-    const body = final.events.flatMap((event) => (event.type === 'snapshot' ? event.messages : []))
-    expect(body.some((message) => message.id.startsWith(`entry:${final.completion!.entryId}:`))).toBe(true)
-    expect(body.flatMap((message) => message.parts)).toContainEqual(
+    const held = current(fast.slice(0, fast.indexOf(final) + 1).flatMap((batch) => batch.events))!
+    expect(held.inputs).toContainEqual(final.completion!.inputs[0])
+    expect(held.messages.some((message) => message.id.startsWith(`entry:${final.completion!.entryId}:`))).toBe(true)
+    expect(held.messages.flatMap((message) => message.parts)).toContainEqual(
       expect.objectContaining({ type: 'text', text: 'truncated body' })
     )
     consumer.resolve()

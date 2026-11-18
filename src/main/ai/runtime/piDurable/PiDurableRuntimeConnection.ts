@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { isDeepStrictEqual } from 'node:util'
 
 import type { Usage } from '@earendil-works/pi-ai'
 
@@ -46,6 +47,18 @@ import { saveDurableRequest } from './durableRequest'
 
 const logger = loggerService.withContext('PiDurableRuntimeConnection')
 
+/** Applies one input change the way `ThreadFeed` does: it replaces the same input and moves to the end. */
+function withInput(inputs: readonly InputState[], input: InputState): InputState[] {
+  return [
+    ...inputs.filter(
+      (known) =>
+        !(input.inputId !== undefined && known.inputId === input.inputId) &&
+        !(input.nativeInput !== undefined && known.nativeInput?.id === input.nativeInput.id)
+    ),
+    input
+  ]
+}
+
 /** Root access and its observed child projections borrow the backend owner. */
 type DurableChildResource = {
   relation: Subagent
@@ -83,6 +96,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private readonly turnUsage = new PiTurnUsage()
   private reconcileChain: Promise<unknown> = Promise.resolve()
   private readonly steers = new Set<string>()
+  /** The last state reported per input; snapshots repeat unchanged ones. */
+  private readonly captured = new Map<string, InputState>()
   private readonly children = new Map<
     string,
     | { state: 'opening'; pending: Promise<DurableChildResource | undefined> }
@@ -259,7 +274,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           for (const relation of event.subagents ?? [])
             if (relation.child && !this.releasedChildren.has(this.childKey(relation.child.id)))
               void this.observeChild(relation.child.id).catch((error) => this.fail(error))
-        } else if (event.type === 'input.changed') this.captureInput(event.input)
+        } else if (event.type === 'activity.changed') this.active = event.activity.state === 'active'
+        else if (event.type === 'input.changed') this.captureInput(event.input)
         else if (event.type === 'subagent.upsert' && event.subagent.child)
           void this.observeChild(event.subagent.child.id).catch((error) => this.fail(error))
         else if (
@@ -320,6 +336,10 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private captureInput(input: InputState) {
+    // Snapshots repeat every input; only a changed one is reported and bound again.
+    const key = input.nativeInput?.id ?? input.inputId
+    if (key !== undefined && isDeepStrictEqual(this.captured.get(key), input)) return
+    if (key !== undefined) this.captured.set(key, input)
     this.events.push({ type: 'input-state', contextId: this.context!.id, input })
     const messageId = bindNativeInput(this.input.sessionId, this.context!.id, input)
     if (messageId && input.facts.includes('placed')) {
@@ -479,15 +499,20 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           context,
           {
             ...access,
-            observe: (sink) =>
-              access.observe(async (event) => {
+            observe: (sink) => {
+              let inputs: readonly InputState[] = []
+              return access.observe(async (event) => {
                 await sink(event)
                 if (event.type === 'subagent.upsert' && event.subagent.child)
                   void this.observeChild(event.subagent.child.id)
                 if (event.type === 'snapshot') {
+                  inputs = event.inputs
                   for (const child of event.subagents ?? [])
                     if (child.child && !this.releasedChildren.has(this.childKey(child.child.id)))
                       void this.observeChild(child.child.id)
+                } else if (event.type === 'input.changed') inputs = withInput(inputs, event.input)
+                // Run state and input outcomes change only with these events; streamed content does not.
+                if (event.type === 'snapshot' || event.type === 'activity.changed' || event.type === 'input.changed') {
                   if (this.closing) return
                   const facts = await access.durable.facts()
                   this.childTasks.publish(
@@ -503,13 +528,12 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
                   if (resource) {
                     // An input without an outcome means more work is coming even while the run is idle.
                     resource.finished =
-                      facts.live.idle &&
-                      facts.live.runEnd !== undefined &&
-                      (event.inputs ?? []).every((input) => input.outcome)
+                      facts.live.idle && facts.live.runEnd !== undefined && inputs.every((input) => input.outcome)
                     this.releaseFinishedChild(key)
                   }
                 }
               })
+            }
           },
           async () => {
             const archive = await access.archive()
@@ -602,7 +626,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     try {
       await this.submitChild(projection, handle, contextId, text)
     } finally {
-      // The next snapshot decides again; a status read before this input must not release the child.
+      // The next run or input change decides again; a status read before this input must not release the child.
       child.finished = false
       unpin()
     }
