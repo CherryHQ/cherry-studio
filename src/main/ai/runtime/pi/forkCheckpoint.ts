@@ -10,8 +10,6 @@ export const PiForkCheckpointSchema = z.strictObject({
 
 export type PiForkCheckpoint = z.infer<typeof PiForkCheckpointSchema>
 
-export function parsePiForkCheckpoint(value: unknown): PiForkCheckpoint {
-  const parsed = PiForkCheckpointSchema.safeParse(value)
-  if (!parsed.success) throw new AgentSessionForkError('unsupported_checkpoint')
-  return parsed.data
-}
+export const parsePiForkCheckpoint = PiForkCheckpointSchema.catch(() => {
+  throw new AgentSessionForkError('unsupported_checkpoint')
+}).parse

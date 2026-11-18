@@ -46,12 +46,14 @@ async function prepareClaudeFork(input: RuntimeForkInput): Promise<RuntimeForkRe
   if (end < 0) throw new AgentSessionForkError('history_missing')
   if (!bytes.subarray(0, start).equals(await readForkPrefix(file, start)))
     throw new AgentSessionForkError('history_changed')
-  const checkpoints = input.checkpoints.map(parseClaudeForkCheckpoint).map((value) => {
-    if (value.runtimeSessionId !== checkpoint.runtimeSessionId) {
-      throw new AgentSessionForkError('history_changed')
-    }
-    return value
-  })
+  const checkpoints = input.checkpoints
+    .map((value) => parseClaudeForkCheckpoint(value))
+    .map((value) => {
+      if (value.runtimeSessionId !== checkpoint.runtimeSessionId) {
+        throw new AgentSessionForkError('history_changed')
+      }
+      return value
+    })
   const checkpointEntryCounts = checkpoints.map((value) => {
     const index = entries.findIndex(
       (entry) => entry.uuid === value.messageUuid && entry.type === 'assistant' && !entry.isSidechain
@@ -70,7 +72,11 @@ async function prepareClaudeFork(input: RuntimeForkInput): Promise<RuntimeForkRe
     targetCwd: input.targetCwd
   }
   const worker = createWorker({ workerData, env: { ...process.env } })
-  const result = await runForkWorker(worker, input.signal, (value) => ClaudeForkResultSchema.safeParse(value))
-  if (!result.success) throw new AgentSessionForkError('history_corrupt')
-  return result.data
+  return runForkWorker(
+    worker,
+    input.signal,
+    ClaudeForkResultSchema.catch(() => {
+      throw new AgentSessionForkError('history_corrupt')
+    })
+  )
 }

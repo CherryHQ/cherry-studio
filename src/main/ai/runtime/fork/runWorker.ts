@@ -1,11 +1,13 @@
 import type { Worker } from 'node:worker_threads'
 
+import type * as z from 'zod'
+
 import { AgentSessionForkError } from './checkpoint'
 
 export async function runForkWorker<TResult>(
   worker: Worker,
   signal: AbortSignal,
-  parse: (result: unknown) => TResult
+  schema: z.ZodType<TResult>
 ): Promise<TResult> {
   try {
     signal.throwIfAborted()
@@ -32,7 +34,7 @@ export async function runForkWorker<TResult>(
       })
       if (signal.aborted) onAbort()
     })
-    return parse(result)
+    return schema.parse(result)
   } finally {
     // Await termination before the operation owner removes any staged files.
     await worker.terminate()

@@ -37,10 +37,12 @@ async function preparePiFork(input: RuntimeForkInput): Promise<RuntimeForkResult
   const file = manager.createBranchedSession(checkpoint.leafId)
   if (!file) throw new AgentSessionForkError('history_corrupt')
   const resumeToken = manager.getSessionId()
-  const checkpoints = input.checkpoints.map(parsePiForkCheckpoint).map((value) => {
-    if (value.runtimeSessionId !== checkpoint.runtimeSessionId || !manager.getEntry(value.leafId))
-      throw new AgentSessionForkError('history_corrupt')
-    return parsePiForkCheckpoint({ ...value, runtimeSessionId: resumeToken })
-  })
+  const checkpoints = input.checkpoints
+    .map((value) => parsePiForkCheckpoint(value))
+    .map((value) => {
+      if (value.runtimeSessionId !== checkpoint.runtimeSessionId || !manager.getEntry(value.leafId))
+        throw new AgentSessionForkError('history_corrupt')
+      return parsePiForkCheckpoint({ ...value, runtimeSessionId: resumeToken })
+    })
   return { resumeToken, checkpoints, publish: [{ source: file, target: path.join(sessions, path.basename(file)) }] }
 }

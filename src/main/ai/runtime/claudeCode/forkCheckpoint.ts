@@ -11,11 +11,9 @@ export const ClaudeForkCheckpointSchema = z.strictObject({
 
 export type ClaudeForkCheckpoint = z.infer<typeof ClaudeForkCheckpointSchema>
 
-export function parseClaudeForkCheckpoint(value: unknown): ClaudeForkCheckpoint {
-  const parsed = ClaudeForkCheckpointSchema.safeParse(value)
-  if (!parsed.success) throw new AgentSessionForkError('unsupported_checkpoint')
-  return parsed.data
-}
+export const parseClaudeForkCheckpoint = ClaudeForkCheckpointSchema.catch(() => {
+  throw new AgentSessionForkError('unsupported_checkpoint')
+}).parse
 
 export const ClaudeForkResultSchema = z.strictObject({
   resumeToken: z.string().min(1),
