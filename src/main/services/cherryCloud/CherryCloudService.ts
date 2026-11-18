@@ -38,6 +38,7 @@ import {
   type CherryCloudStatus
 } from '@shared/ipc/schemas/cherryCloud'
 import type { InputFor, WindowId } from '@shared/ipc/types'
+import type { Serializable } from '@shared/types/serializable'
 import { Sequencer } from '@shared/utils/async'
 
 import { cherryAccountCredentialStore } from './CherryAccountCredentialStore'
@@ -713,6 +714,7 @@ export class CherryCloudService extends BaseService {
     this.receiptReason = 'initial'
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Endpoint fetch/schema failures and Promise.allSettled rejection reasons must become receipt errors while retaining the last successful value.
   private failedFact<T>(fact: CherryCloudEndpointFact<T>, error: unknown): CherryCloudEndpointFact<T> {
     const message = error instanceof Error ? error.message : String(error)
     return fact.freshness === 'unknown'
@@ -1599,7 +1601,7 @@ export class CherryCloudService extends BaseService {
     })
   }
 
-  private async postJson<T>(path: string, body: unknown, schema: ZodType<T>, signal?: AbortSignal): Promise<T> {
+  private async postJson<T>(path: string, body: Serializable, schema: ZodType<T>, signal?: AbortSignal): Promise<T> {
     const clientSecret = import.meta.env.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET
     if (!clientSecret) {
       logger.warn('Cherry Cloud client secret is not configured')
