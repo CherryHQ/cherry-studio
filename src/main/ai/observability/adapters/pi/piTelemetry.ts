@@ -66,9 +66,9 @@ export function createPiTelemetry(
       const carrier: Record<string, string> = {
         'cherry.topic_id': parent.topicId,
         'cherry.session_id': parent.sessionId,
-        'cherry.turn_id': parent.turnId,
-        ...(parent.modelName ? { 'cherry.model_name': parent.modelName } : {})
+        'cherry.turn_id': parent.turnId
       }
+      if (parent.modelName) carrier['cherry.model_name'] = parent.modelName
       propagator.inject(otelParent(parent), carrier, { set: (target, key, value) => (target[key] = value) })
       return carrier
     },
