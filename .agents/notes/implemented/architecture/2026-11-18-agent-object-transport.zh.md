@@ -22,6 +22,8 @@ HTTP 与对象交付共享网关准备和协议适配器。HTTP 路由保留鉴�
 
 协议适配器同时保留结构化推理签名和原生用量拆分。Chat Completions 将 OpenRouter 重复提供的 reasoning_details 累计快照仅交付一次，并从原生历史恢复为 provider metadata，包括没有可读文本的加密状态。OpenAI 协议保留缓存写入，Anthropic 保留 thinking_tokens；缺失的细分保持缺失。明确的最终截断或过滤原因优先于工具存在性。模型原生引用和工具参数增量不在此次补齐范围内。
 
+固定版本 AI SDK 已支持的 Gemini 请求配置通过共享单次调用合同映射：采样、JSON/schema 输出、函数选择、安全设置、缓存上下文，以及原生媒体、标签和服务选项。HTTP 与对象调用使用同一投影。未支持的本地客户端行为以 SDK 能力错误失败，不伪造 HTTP 状态。客户端函数执行仍归原生 runtime。文件输出与 Google 结束元数据保留原生事件形状；Pi 文字会话维持既有输出能力。
+
 ## Alternatives considered
 
 - 内存 fetch 仍保留 JSON/SSE 编解码。
@@ -31,7 +33,7 @@ HTTP 与对象交付共享网关准备和协议适配器。HTTP 路由保留鉴�
 
 ## Consequences
 
-Provider SDK 隐式处理整形、校验和错误分类。对象路径提供原生事件形状，包括 Anthropic SDK 默认字段和按需加载的 Gemini 响应对象。超出共享转换器支持范围的 Gemini config 字段会明确失败。因此需要随已有依赖补丁维护固定版本的原生 transport hook。默认原生 HTTP 仍然可用；桌面绑定不会在对象调用失败后回退到 HTTP。
+Provider SDK 隐式处理整形、校验和错误分类。对象路径提供原生事件形状，包括 Anthropic SDK 默认字段和按需加载的 Gemini 响应对象。Gemini 配置遵循固定 Google language provider 支持的子集。未支持的本地客户端行为返回 SDK 能力错误，不伪造 HTTP 状态。接受禁用客户端自动函数调用；执行权仍归原生 runtime。因此需要随已有依赖补丁维护固定版本的原生 transport hook。默认原生 HTTP 仍然可用；桌面绑定不会在对象调用失败后回退到 HTTP。
 
 网关继续唯一拥有 provider 配置、上游凭据、AI SDK 执行及计费。HTTP 监听器重启不再使 Pi 连接失效。现有 UIMessage 转换、工具参数 JSON 片段、持久化和上游网络编解码继续保留。尚未测量 CPU 或延迟改善。
 
@@ -46,3 +48,5 @@ Provider SDK 隐式处理整形、校验和错误分类。对象路径提供原�
 - AC7 — 同一组测试验证 OpenAI Chat/Responses 的输入总量 100 拆为普通输入 50、缓存读 20、缓存写 30；输出 10 和总量 110 保持不变。
 - AC8 — 同一组测试验证 Anthropic 的 output_tokens=10 与 thinking_tokens=7 穿过对象包装并进入原生 usage，流式和非流式响应均保留细分。
 - AC9 — 同一组测试验证完整工具调用后的 length/content-filter 不被工具原因覆盖；原生四协议均返回截断或过滤终态，现有取消和流中错误用例仍通过。
+- AC10 — 生产网关测试检查两种交付路径实际发往上游的 HTTP 请求体，覆盖 JSON schema、安全/缓存上下文、seed 与 penalties、媒体选项、标签及服务档位。工具选择覆盖 NONE、AUTO、ANY 与 VALIDATED。转换器测试覆盖纯 JSON 和两种 schema，并验证可信 reasoning 覆盖不会丢掉其他选项。本地能力回归证明原生消费者不会收到伪造的 400。六个定向 Main 文件共 1,429 项测试通过，八个受影响消费者共 378 项通过。
+- AC11 — 生产网关回归验证 HTTP 与对象交付均保留图片 `inlineData`、签名和原生结束/安全/档位/续接元数据；响应修复前这些用例失败。协议适配器测试验证完整输出中媒体不会与后续文字合并，并保留原生结束原因。隔离 Electron 使用 Gemini 4 Argon，在 Pi（21.4 秒）和 Pi Durable（36.1 秒）中完成文件工具往返，未出现 renderer 错误。流式与非流式 HTTP schema 请求均返回 200、有效 JSON 和 STOP。未对付费 provider 验收实际图片生成；Pi 文字会话的输出能力不变。

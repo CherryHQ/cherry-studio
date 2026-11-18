@@ -51,6 +51,22 @@ text deltas carrying provider metadata so those updates reach both native replay
 
 OpenAI usage retains reported cache-read and cache-write breakdowns without changing cache-inclusive input totals. Anthropic reports uncached input separately from cache reads/writes and retains reported `thinking_tokens`. Unreported breakdowns remain absent. A final token-limit or filtering outcome takes precedence over earlier tool calls; successful tool calls cannot turn a truncated or filtered response into normal completion.
 
+Gemini HTTP and object requests share the same configuration mapping. It includes sampling,
+penalties and seed, JSON/schema output, function selection, safety settings, cached content,
+labels, media options, service tier and continuation tokens supported by the pinned Google
+language provider. Explicit safety settings override Cherry defaults. Trusted reasoning
+selection replaces only thinking configuration. `ANY` and `VALIDATED` restrictions use the
+SDK's tool choice and active-tool subset; client tools still have no gateway executor.
+
+Generated files retain `inlineData` and thought signatures. Terminal responses retain native
+finish reasons, safety feedback, finish messages, reported service tier and continuation tokens.
+Pi text sessions retain their native output capabilities; forwarding image parts does not add
+an image display feature to those sessions. The pinned provider supports `TEXT` and `IMAGE`
+output, not speech generation. Object calls accept disabled client automatic function calling;
+enabling client-side execution or requesting unsupported local functionality raises an SDK
+capability error without fabricating an HTTP 400. Actual upstream HTTP errors retain their
+provider status.
+
 > **Naming.** React components and the lifecycle service use `apiGateway`;
 > IpcApi routes use `api_gateway.*`; Preference and Shared Cache keys use
 > `feature.api_gateway.*`. The retired `csaas` alias is not part of the current
