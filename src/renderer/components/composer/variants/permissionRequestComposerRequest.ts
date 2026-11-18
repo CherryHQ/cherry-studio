@@ -82,8 +82,9 @@ function getCommandPolicy(part: PermissionToolPart): CommandApprovalDetails | un
       !Array.isArray(policy.rules)
     )
       continue
-    return {
-      ...(typeof policy.cwd === 'string' ? { cwd: policy.cwd } : {}),
+    const details: Pick<CommandApprovalDetails, 'cwd'> = {}
+    if (typeof policy.cwd === 'string') details.cwd = policy.cwd
+    return Object.assign(details, {
       reason: policy.reason,
       revision: policy.revision,
       rules: policy.rules.flatMap((rule) =>
@@ -96,7 +97,7 @@ function getCommandPolicy(part: PermissionToolPart): CommandApprovalDetails | un
           ? [{ ruleId: rule.ruleId, reasonCode: rule.reasonCode, evidence: rule.evidence }]
           : []
       )
-    }
+    })
   }
   return undefined
 }

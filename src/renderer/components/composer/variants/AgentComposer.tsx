@@ -1266,11 +1266,14 @@ const AgentComposerInner = ({
       const payload = buildComposerQueuedPayload(draft, {
         files,
         fileTokenId: agentComposerTokenId.file,
-        extra: () => ({
-          reasoningEffort: model ? resolveSupportedReasoningEffort(model, reasoningEffort) : reasoningEffort,
-          serviceTier: model ? resolveSupportedServiceTier(model, serviceTier) : serviceTier,
-          ...(fastMode && model?.supportsFastMode === true ? { fastMode: true } : {})
-        })
+        extra: () => {
+          const extra: Pick<ComposerQueuedMessagePayload, 'reasoningEffort' | 'serviceTier' | 'fastMode'> = {
+            reasoningEffort: model ? resolveSupportedReasoningEffort(model, reasoningEffort) : reasoningEffort,
+            serviceTier: model ? resolveSupportedServiceTier(model, serviceTier) : serviceTier
+          }
+          if (fastMode && model?.supportsFastMode === true) extra.fastMode = true
+          return extra
+        }
       })
       if (!payload) return null
 
@@ -1302,19 +1305,15 @@ const AgentComposerInner = ({
         )
         let addedIndex = 0
         const fileParts = retainedParts.map((part) => part ?? addedParts[addedIndex++])
-        const sent = await chatSendMessage(
-          { text: payload.text },
-          {
-            body: {
-              agentId,
-              sessionId,
-              userMessageParts: [...payload.userMessageParts, ...fileParts],
-              reasoningEffort: payload.reasoningEffort,
-              serviceTier: payload.serviceTier,
-              ...(payload.fastMode ? { fastMode: true } : {})
-            }
-          }
-        )
+        const body: AgentComposerSendBody = {
+          agentId,
+          sessionId,
+          userMessageParts: [...payload.userMessageParts, ...fileParts],
+          reasoningEffort: payload.reasoningEffort,
+          serviceTier: payload.serviceTier
+        }
+        if (payload.fastMode) body.fastMode = true
+        const sent = await chatSendMessage({ text: payload.text }, { body })
         if (sent === false) return false
         void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
         saveHistory(getComposerHistoryText(payload.userMessageParts))
