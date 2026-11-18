@@ -2,7 +2,7 @@ import { application } from '@application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { type WindowInfo, WindowType } from '@main/core/window/types'
 import { getFullChromeWindowInfos } from '@main/utils/fullChromeWindows'
-import type { WindowId } from '@shared/ipc/types'
+import type { EventPayload, WindowId } from '@shared/ipc/types'
 import type { ConversationDraft, ConversationNavigationTarget } from '@shared/types/navigation'
 import { conversationRouteUrl } from '@shared/utils/conversationRoute'
 
@@ -230,13 +230,14 @@ export class ConversationNavigationService extends BaseService {
       timer.unref()
       this.pendingCommands.set(requestId, { destinationWindowId: destination.id, resolve, timer })
 
-      application.get('IpcApiService').send(destination.id, 'navigation.conversation_focus_or_open_requested', {
+      const payload: EventPayload<'navigation.conversation_focus_or_open_requested'> = {
         requestId,
         target,
         title,
-        ...(draft && { draft }),
-        ...(messageId !== undefined ? { messageId } : {})
-      })
+        ...(draft && { draft })
+      }
+      if (messageId !== undefined) payload.messageId = messageId
+      application.get('IpcApiService').send(destination.id, 'navigation.conversation_focus_or_open_requested', payload)
       this.focusWindow(destination)
     })
   }
@@ -278,11 +279,12 @@ export class ConversationNavigationService extends BaseService {
       })
 
       for (const window of windows) {
-        application.get('IpcApiService').send(window.id, 'navigation.conversation_ownership_requested', {
+        const payload: EventPayload<'navigation.conversation_ownership_requested'> = {
           requestId,
-          target,
-          ...(activeOnly ? { activeOnly: true } : {})
-        })
+          target
+        }
+        if (activeOnly) payload.activeOnly = true
+        application.get('IpcApiService').send(window.id, 'navigation.conversation_ownership_requested', payload)
       }
     })
   }
