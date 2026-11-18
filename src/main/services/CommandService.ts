@@ -27,6 +27,7 @@ export class CommandService extends BaseService {
   protected async onInit() {
     this.registerBuiltInHandlers()
 
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Renderer IPC supplies raw menu and anchor payloads; showNativePopupMenu validates both before using native APIs.
     this.ipcHandle(IpcChannel.NativeCommandPopupMenu_Show, (event, model: unknown, anchor: unknown) =>
       showNativePopupMenu(event, model, anchor, (command, window) => {
         if (!this.canExecute(command)) {
