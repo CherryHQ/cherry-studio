@@ -770,7 +770,8 @@ Each child uses its own `ChildThreadProjection`, context and archive, including
 nested children under their immediate parent. Parent completion and window detach
 do not stop child persistence. Its committed projection persists across archive reads, so a read
 redecorates only changed messages, and it writes the checkpoint, input bindings and response owners only
-when they change. Claude no longer writes child bodies into the
+when they change. It saves a message only when it differs from its stored row as that row reads back from
+JSON, where undefined fields are absent, so reopening a child rewrites nothing. Claude no longer writes child bodies into the
 parent's background-flow parts; saved historical flows remain readable.
 After a failed cold attachment, Claude retries the saved session-scoped native binding
 when it belongs to the current backend. The root's native creation lookup need not retain

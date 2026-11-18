@@ -60,7 +60,7 @@ Status: implemented
 ### P3 — 主进程投影（#24818）
 
 - Main 只处理一次更新里改动的输入，不再处理快照里的每一条输入。
-- `ChildThreadProjection` 保留原有的 archive 读取时机，因为 Claude Code 和 Pi 的子对话也共用它，而只有 Durable 的实时 ID 等于 archive ID。它的已提交投影在多次读取之间保留，所以一次读取只重新装饰源有变化的消息，checkpoint 和响应归属也只在变化时才写入。
+- `ChildThreadProjection` 保留原有的 archive 读取时机，因为 Claude Code 和 Pi 的子对话也共用它，而只有 Durable 的实时 ID 等于 archive ID。它的已提交投影在多次读取之间保留，所以一次读取只重新装饰源有变化的消息，checkpoint 和响应归属也只在变化时才写入。一条消息只有在和已存行从 JSON 读回的样子（其中值为 undefined 的字段不存在）不同时才保存，所以重新打开子对话不会重写任何消息；打开时只读一次 archive。
 - 运行结束以 `activity.changed` 送达 Main，由它携带完成信号。运行开始时仍然发送快照：Durable 把每个观测事件单独作为一批投递，如果运行开始也用增量，Main 会在开始自主回合之前就投影这次运行的内容、放置 steer。
 
 ### 不在范围内
@@ -96,6 +96,6 @@ Status: implemented
 - AC4 — 10 分钟内用过的折叠保持预热（读 0 条条目），更久没用的会重建（读 3 条条目）且事实相同；`runtime.ts` 里 Session 关闭时的清理没有运行时层面的测试（#24814）。
 - AC5 — 每一层的 `pnpm exec vitest run --project agent-runtime-pi-durable` 都通过：17 个文件，#24814 上 172 个通过，#24817 和 #24818 上 175 个通过，6 个跳过（两次合约运行里各有三个 Durable 不支持的用例）。
 - AC6 — `tests/projection.test.ts` 检查预览、工具调用预览、它的已提交条目和一个工具结果在基线快照之后以 `message.upsert` 帧送达，并重放成重建的视图；`gap` 之后的帧是快照；完成信号随该次更新的最后一帧送达；`tests/runtime.test.ts` 检查流式文本以部分 upsert 送达，`tests/history.test.ts` 检查折叠的历史等于 `historyOf`（#24817）。
-- AC7 — `ChildThreadProjection.test.ts` 检查无变化的读取不装饰也不保存，追加的消息是唯一被装饰的那条，`refreshDecoration` 只重新装饰指定的消息，重新打开的投影渲染出相同的消息；Main 套件检查输入在多次刷新中只绑定一次、每次运行的输入状态只报告一次，以及运行结束会释放后台子对话、保留它的回答并停止接受 steer；13 个 Main 文件，280 个通过，2 个跳过（#24818）。
+- AC7 — `ChildThreadProjection.test.ts` 检查无变化的读取不装饰也不保存，追加的消息是唯一被装饰的那条，`refreshDecoration` 只重新装饰指定的消息，重新打开的投影渲染出相同的消息，工具输出里带 undefined 字段的 archive 重新打开后不保存任何消息；Main 套件检查输入在多次刷新中只绑定一次、每次运行的输入状态只报告一次，以及运行结束会释放后台子对话、保留它的回答并停止接受 steer；13 个 Main 文件，281 个通过，2 个跳过；在跑过 6 轮的 #24500 配置副本上重新启动，子对话消息重写从 923 条降到 0 条，恢复阶段的采样分配从 9,952 MB 降到 6,781 MB（#24818）。
 - AC8 — 在开发版 Electron 里运行 #24500 的负载形态（6 轮，每轮 4 个子智能体各读 5 张约 1 MB 的图片，模型由本地 mock 提供），与栈的基线 `791fbb6` 对比：主进程采样分配 39,912 → 26,858 MB，峰值堆内存 3,023 → 1,957 MB，读取的任务 668,204 → 19,823，条目读取 19,722 → 11,250；按调用点，Durable 存储读取从 9.5 GB 降到 3.9 GB，Drizzle 行读取从 13.5 GB 降到 8.9 GB，Durable 投影包从 1,014 MB 降到 91 MB（#24818）。
 - AC9 — Durable 包 README、`src/main/ai/runtime/piDurable/README.md` 和 `docs/dev/references/ai/agent-session-runtime.md` 描述了折叠、快照与增量的规则以及运行结束时的 `activity.changed`；本 note 的三个文件已移到 implemented，`pnpm docs:check` 和 `pnpm agent-notes:check-transition` 都通过。

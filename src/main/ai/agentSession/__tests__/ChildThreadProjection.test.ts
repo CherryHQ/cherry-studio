@@ -786,6 +786,37 @@ it('decorates and saves only changed committed history and matches a reopened pr
   expect(saves).not.toHaveBeenCalled()
 })
 
+// Catches every reopen rewriting saved tool messages whose parts hold undefined fields, which JSON storage drops.
+it('does not rewrite saved messages when a reopened archive has undefined part fields', async () => {
+  const f = fixture()
+  await f.projection.attach()
+  f.archive.messages = [
+    {
+      id: 'entry-tool',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'call-read',
+          toolName: 'read',
+          state: 'output-available',
+          input: { path: 'image.png' },
+          output: { content: [{ type: 'text', text: 'read' }], nestedCalls: undefined, isError: false }
+        }
+      ],
+      metadata: { completeness: 'complete' }
+    }
+  ]
+  await f.projection.drain()
+  const writes = vi.spyOn(messages, 'saveMessagesTx')
+  const reopened = new ChildThreadProjection(contexts.context(f.context.id), f.handle, async () => f.archive)
+  projections.push(reopened)
+  await reopened.attach()
+  await reopened.drain()
+  expect(reopened.snapshot().messages).toMatchObject([{ parts: [{ type: 'dynamic-tool', toolCallId: 'call-read' }] }])
+  expect(writes).not.toHaveBeenCalled()
+})
+
 // Catches flushes that re-read the context checkpoint for every input instead of binding inputs as they change.
 it('binds a changed input once instead of on every flush', async () => {
   const f = fixture()

@@ -28,7 +28,19 @@ type CommittedHistory = {
 }
 type Composition = NonNullable<NonNullable<AgentSessionCheckpoints['child']>['composition']>
 
-export function savedChildView(context: AgentSessionContextRow): AgentChildView {
+function savedMessages(sessionId: string): CherryUIMessage[] {
+  return readAgentSessionPath(application.get('DbService').getDb(), sessionId).map((row) => ({
+    id: row.id,
+    role: row.role as CherryUIMessage['role'],
+    metadata: { status: row.status as MessageStatus },
+    parts: row.data.parts ?? []
+  }))
+}
+
+export function savedChildView(
+  context: AgentSessionContextRow,
+  saved: readonly CherryUIMessage[] = savedMessages(context.sessionId)
+): AgentChildView {
   return {
     kind: 'child',
     contextId: context.id,
@@ -38,15 +50,7 @@ export function savedChildView(context: AgentSessionContextRow): AgentChildView 
     available: false,
     canSubmit: false,
     diagnostic: context.checkpointMapping?.child?.gap,
-    messages: compose(
-      readAgentSessionPath(application.get('DbService').getDb(), context.sessionId).map((row) => ({
-        id: row.id,
-        role: row.role as CherryUIMessage['role'],
-        metadata: { status: row.status as MessageStatus },
-        parts: row.data.parts ?? []
-      })),
-      context.checkpointMapping?.child?.composition ?? {}
-    )
+    messages: compose(saved, context.checkpointMapping?.child?.composition ?? {})
   }
 }
 
@@ -94,16 +98,11 @@ export class ChildThreadProjection {
     this.nativeIds = { ...context.checkpointMapping?.child?.sources }
     this.composition = { ...context.checkpointMapping?.child?.composition }
     this.savedCheckpoint = checkpointOf(context.checkpointMapping?.child ?? {})
-    this.view = savedChildView(context)
+    const saved = savedMessages(context.sessionId)
+    this.view = savedChildView(context, saved)
     this.delivery = new MessageProjection<ChildProjectionState>(this.view)
     this.archiveGap = this.view.diagnostic
-    for (const row of readAgentSessionPath(application.get('DbService').getDb(), context.sessionId))
-      this.saved.set(row.id, {
-        id: row.id,
-        role: row.role as CherryUIMessage['role'],
-        parts: row.data.parts ?? [],
-        metadata: { status: row.status as MessageStatus }
-      })
+    for (const message of saved) this.saved.set(message.id, message)
   }
 
   snapshot(): AgentChildView {
@@ -244,13 +243,7 @@ export class ChildThreadProjection {
   private async reduce(): Promise<void> {
     await this.projection.drain()
     if (this.reloadSaved) {
-      for (const row of readAgentSessionPath(application.get('DbService').getDb(), this.context.sessionId))
-        this.saved.set(row.id, {
-          id: row.id,
-          role: row.role as CherryUIMessage['role'],
-          parts: row.data.parts ?? [],
-          metadata: { status: row.status as MessageStatus }
-        })
+      for (const message of savedMessages(this.context.sessionId)) this.saved.set(message.id, message)
       this.reloadSaved = false
     }
     const current = this.projection.snapshot()
@@ -363,7 +356,7 @@ export class ChildThreadProjection {
     const order = [...next.keys()].map((id) => (sourceOrder.has(id) ? ordered.next().value! : id))
     next = new Map(order.map((id) => [id, next.get(id)!]))
     this.composeSources(current.messages)
-    const changed = [...next.values()].filter((message) => !isDeepStrictEqual(message, this.saved.get(message.id)))
+    const changed = [...next.values()].filter((message) => !storedEqual(message, this.saved.get(message.id)))
     const reordered = !isDeepStrictEqual(order, [...this.saved.keys()])
     const durable = new Set(Object.values(this.nativeIds))
     const uncommitted = [...this.productIds.values()].some((id) => !durable.has(id))
@@ -516,6 +509,26 @@ function checkpointOf(child: Partial<NonNullable<AgentSessionCheckpoints['child'
     removed: [...(child.removed ?? [])],
     composition: { ...child.composition }
   }
+}
+
+/** Saved rows are JSON, which drops undefined fields, so compare the way a reopened row reads back. */
+function storedEqual(left: unknown, right: unknown): boolean {
+  if (left === right) return true
+  if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false
+  if (Array.isArray(left) || Array.isArray(right))
+    return (
+      Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((item, index) => storedEqual(item, right[index]))
+    )
+  let fields = 0
+  for (const [key, item] of Object.entries(left)) {
+    if (item === undefined) continue
+    fields++
+    if (!storedEqual(item, (right as Record<string, unknown>)[key])) return false
+  }
+  return fields === Object.values(right).filter((item) => item !== undefined).length
 }
 
 function compose(messages: readonly CherryUIMessage[], composition: Composition): CherryUIMessage[] {
