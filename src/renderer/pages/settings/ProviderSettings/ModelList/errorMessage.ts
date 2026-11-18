@@ -10,6 +10,7 @@ interface ModelOperationErrorMessages {
   modelInUseAsDefault: string
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- DataApi INVALID_OPERATION details vary by operation; require a string reason before matching model-deletion guidance.
 function getInvalidOperationReason(details: unknown): string | undefined {
   if (typeof details !== 'object' || details === null || !('reason' in details)) {
     return undefined
@@ -19,6 +20,7 @@ function getInvalidOperationReason(details: unknown): string | undefined {
   return typeof reason === 'string' ? reason : undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- DataApi details are not code-discriminated at this boundary; require a string operation before extracting a blocked model identifier.
 function getInvalidOperationOperation(details: unknown): string | undefined {
   if (typeof details !== 'object' || details === null || !('operation' in details)) {
     return undefined
@@ -28,6 +30,7 @@ function getInvalidOperationOperation(details: unknown): string | undefined {
   return typeof operation === 'string' ? operation : undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Model-pull reconciliation catches arbitrary mutation failures; DataApi guards, code, reason and operation checks establish the blocked default-model identity.
 export function getModelInUseAsDefaultUniqueModelId(error: unknown): UniqueModelId | undefined {
   if (!isDataApiError(error) && !isSerializedDataApiError(error)) {
     return undefined
@@ -51,6 +54,7 @@ export function getModelInUseAsDefaultUniqueModelId(error: unknown): UniqueModel
   return createUniqueModelId(modelPath.slice(0, separatorIndex), modelPath.slice(separatorIndex + 1))
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Model-list item and group mutations can reject any value; classify DataApi codes and checked reasons before choosing guidance or the caller fallback.
 export function getModelOperationErrorMessage(error: unknown, messages: ModelOperationErrorMessages): string {
   if (isDataApiError(error) || isSerializedDataApiError(error)) {
     const dataError = toDataApiError(error)
