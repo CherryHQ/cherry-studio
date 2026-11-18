@@ -10,10 +10,7 @@ const failureFactsSchema = z.object({
   runtime: z.enum(['claude-code', 'pi', 'ai-sdk']).optional()
 })
 
-export function parseFailureFacts(value: unknown): FailureFacts | undefined {
-  const parsed = failureFactsSchema.safeParse(value)
-  return parsed.success ? parsed.data : undefined
-}
+export const parseFailureFacts = failureFactsSchema.optional().catch(undefined).parse
 
 export function isCancellation(cause: unknown): boolean {
   if (!cause || typeof cause !== 'object') return false
