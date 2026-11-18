@@ -13,14 +13,14 @@ export class PcmCapture {
   private closed = false
   private stopping?: Promise<number>
   private resolveTail?: (frames: number) => void
-  private rejectTail?: (error: unknown) => void
+  private rejectTail?: (cause: unknown) => void
   private closing?: Promise<void>
   private failure?: unknown
   private limitFrames?: number
 
   constructor(
     private readonly write: (chunk: SpeechPcmChunk) => Promise<void>,
-    private readonly onError: (error: unknown) => void,
+    private readonly onError: (cause: unknown) => void,
     private readonly onLimit: () => void
   ) {
     this.analyser.fftSize = 1024
@@ -77,7 +77,7 @@ export class PcmCapture {
         await this.write({ startFrame: data.startFrame, samples: data.samples })
         this.node?.port.postMessage({ type: 'ack', frames: data.startFrame + data.samples.length })
       })
-      void this.sending.catch((error: unknown) => this.fail(error))
+      void this.sending.catch((cause: unknown) => this.fail(cause))
     }
     this.source = this.context.createMediaStreamSource(stream)
     this.source.connect(this.analyser)
@@ -134,11 +134,11 @@ export class PcmCapture {
     this.stream = undefined
   }
 
-  private fail(error: unknown): void {
+  private fail(cause: unknown): void {
     if (this.closed || this.failure) return
-    this.failure = error
-    this.rejectTail?.(error)
+    this.failure = cause
+    this.rejectTail?.(cause)
     void this.cancel().catch(() => undefined)
-    this.onError(error)
+    this.onError(cause)
   }
 }

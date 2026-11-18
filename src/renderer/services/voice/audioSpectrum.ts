@@ -23,7 +23,7 @@ export function createAudioSpectrum(input: MediaStream | HTMLAudioElement): Audi
     if (!microphone) source.connect(context.destination)
     source.connect(analyser)
     if (microphone)
-      void context.resume().catch((error: unknown) => logger.warn('Could not resume audio spectrum', { error }))
+      void context.resume().catch((cause: unknown) => logger.warn('Could not resume audio spectrum', { error: cause }))
     return {
       analyser,
       resume: () => context.resume(),

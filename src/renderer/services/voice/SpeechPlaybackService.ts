@@ -131,8 +131,8 @@ const IDLE_SNAPSHOT: SpeechPlaybackSnapshot = Object.freeze({
   progress: Object.freeze({ completed: 0, total: 0 })
 })
 
-function errorReason(error: unknown): VoiceErrorReason {
-  return error instanceof VoiceDomainError ? error.reason : 'operation_failed'
+function errorReason(cause: unknown): VoiceErrorReason {
+  return cause instanceof VoiceDomainError ? cause.reason : 'operation_failed'
 }
 
 function planningResult(plan: Exclude<ReadableTextPlan, { status: 'ready' }>): SpeechPlaybackStartResult {
@@ -205,12 +205,12 @@ export class SpeechPlaybackService {
       })
     })
     this.ownerWindow.addEventListener('beforeunload', this.handleBeforeUnload)
-    const initialization = this.voice.initialize().catch((error: unknown) => {
+    const initialization = this.voice.initialize().catch((cause: unknown) => {
       if (generation === this.lifecycleGeneration && this.initialization === initialization) {
         this.detach()
         this.initialization = undefined
       }
-      throw error
+      throw cause
     })
     this.initialization = initialization
     return initialization
@@ -315,9 +315,9 @@ export class SpeechPlaybackService {
         }
         this.assertCurrent(run)
         await this.voice.finishSpeechText({ sessionId: run.sessionId, requestId: operation.requestId, sequence })
-      })().catch((error: unknown) => {
+      })().catch((cause: unknown) => {
         textInput.cancel()
-        if (!run.stopped) void this.failPlayback(run, errorReason(error)).catch(() => undefined)
+        if (!run.stopped) void this.failPlayback(run, errorReason(cause)).catch(() => undefined)
       })
     }
     return { status: 'started' }
@@ -747,9 +747,9 @@ export class SpeechPlaybackService {
     if (!event.playback) return
     this.acceptTarget(run, event.playback)
     const attemptId = run.target?.attemptId
-    void this.executeTarget(run).catch((error: unknown) => {
+    void this.executeTarget(run).catch((cause: unknown) => {
       if (run.stopped || run.target?.attemptId !== attemptId) return
-      return this.failPlayback(run, errorReason(error))
+      return this.failPlayback(run, errorReason(cause))
     })
   }
 
@@ -776,8 +776,8 @@ export class SpeechPlaybackService {
       run.operation = undefined
       this.releaseRun(run, publishIdle)
     })()
-      .catch((error: unknown) => {
-        const reason = errorReason(error)
+      .catch((cause: unknown) => {
+        const reason = errorReason(cause)
         run.cleanupError = new VoiceDomainError(reason)
         this.publish(run)
         throw run.cleanupError

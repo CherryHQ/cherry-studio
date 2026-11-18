@@ -209,13 +209,13 @@ export class AutoReadService {
         return
       }
     })()
-      .catch((error: unknown) => {
+      .catch((cause: unknown) => {
         this.#cancel(record)
         const reason =
-          error instanceof RangeError
+          cause instanceof RangeError
             ? 'text_limit'
-            : error instanceof VoiceDomainError
-              ? error.reason
+            : cause instanceof VoiceDomainError
+              ? cause.reason
               : 'operation_failed'
         record.outcome =
           reason === 'text_limit' || reason === 'aborted' || reason === 'busy'

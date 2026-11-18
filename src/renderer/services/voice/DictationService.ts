@@ -107,7 +107,7 @@ interface DictationServiceOptions {
   mediaDevices?: DictationMediaDevices
   createPcmCapture?: (
     write: (chunk: SpeechPcmChunk) => Promise<void>,
-    onError: (error: unknown) => void,
+    onError: (cause: unknown) => void,
     onLimit: () => void
   ) => Pick<PcmCapture, 'start' | 'stop' | 'cancel'> & { readonly analyser?: AnalyserNode }
   createMediaRecorder?: (stream: MediaStream, options: MediaRecorderOptions) => DictationMediaRecorder
@@ -148,9 +148,9 @@ interface DictationRecovery {
 
 const voiceReasons = new Set<string>(Object.keys(voiceErrorCodes))
 
-function errorCategory(error: unknown, fallback: DictationErrorCategory): DictationErrorCategory {
-  if (typeof error !== 'object' || error === null || !('reason' in error)) return fallback
-  const reason = (error as { reason?: unknown }).reason
+function errorCategory(cause: unknown, fallback: DictationErrorCategory): DictationErrorCategory {
+  if (typeof cause !== 'object' || cause === null || !('reason' in cause)) return fallback
+  const reason = (cause as { reason?: unknown }).reason
   return typeof reason === 'string' && voiceReasons.has(reason) ? (reason as VoiceErrorReason) : fallback
 }
 
@@ -213,12 +213,12 @@ export class DictationService {
     } catch (error) {
       return Promise.reject(error)
     }
-    const promise = this.voice.initialize().catch((error: unknown) => {
+    const promise = this.voice.initialize().catch((cause: unknown) => {
       if (this.initialization?.generation === generation) {
         this.initialization = undefined
         if (!this.pendingStart && !this.active) this.detachCommands()
       }
-      throw error
+      throw cause
     })
     this.initialization = { generation, promise }
     return promise
@@ -475,8 +475,8 @@ export class DictationService {
       )
       active.streaming = operation
       active.transcription = operation
-      void operation.result.catch((error: unknown) => {
-        if (this.isCurrent(active)) void this.failStreaming(active, error)
+      void operation.result.catch((cause: unknown) => {
+        if (this.isCurrent(active)) void this.failStreaming(active, cause)
       })
       await operation.ready
       if (!this.isCurrent(active)) return
@@ -521,9 +521,9 @@ export class DictationService {
     }
   }
 
-  private async failStreaming(active: ActiveDictation, error: unknown): Promise<void> {
+  private async failStreaming(active: ActiveDictation, cause: unknown): Promise<void> {
     if (!this.isCurrent(active)) return
-    const reason = errorCategory(error, microphoneErrorReason(error))
+    const reason = errorCategory(cause, microphoneErrorReason(cause))
     ++this.generation
     const cleanupError = await this.cleanupSession(active)
     if (this.currentRunToken === active.runToken) this.publish('failed', 0, false, cleanupError ?? reason)
@@ -629,11 +629,11 @@ export class DictationService {
     }
   }
 
-  private async failUnready(active: ActiveDictation, error: unknown): Promise<void> {
+  private async failUnready(active: ActiveDictation, cause: unknown): Promise<void> {
     if (this.active !== active) return
     const cleanupError = await this.cleanupSession(active)
     if (cleanupError || !this.isRunCurrent(active.runToken, active.generation)) return
-    this.publish('failed', 0, false, errorCategory(error, 'operation_failed'))
+    this.publish('failed', 0, false, errorCategory(cause, 'operation_failed'))
   }
 
   private finishRecovery(recovery: DictationRecovery): void {
@@ -706,9 +706,9 @@ export class DictationService {
 
   private discardSession(active: ActiveDictation): Promise<void> {
     if (!active.discardTask) {
-      active.discardTask = this.voice.discardSession(active.sessionId).catch((error: unknown) => {
+      active.discardTask = this.voice.discardSession(active.sessionId).catch((cause: unknown) => {
         active.discardTask = undefined
-        throw error
+        throw cause
       })
     }
     return active.discardTask
