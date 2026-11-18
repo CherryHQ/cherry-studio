@@ -67,6 +67,15 @@ export const WINDOWS_TERMINALS: TerminalConfig[] = [
   }
 ]
 
+/**
+ * Escape a value for a PowerShell single-quoted string. PowerShell also accepts the typographic
+ * quotes U+2018/U+2019/U+201A/U+201B as single-quote delimiters, so a path like `O’Brien` would
+ * otherwise terminate the literal; every recognized quote is escaped by doubling.
+ */
+export function escapePowerShellSingleQuoted(value: string): string {
+  return value.replace(/[‘’‚‛']/g, (quote) => quote + quote)
+}
+
 export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
   {
     id: TerminalApp.CMD,
@@ -83,7 +92,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
       command: 'powershell',
       // The spawn goes through cmd.exe (shell: true), which treats a bare `&` as a command
       // separator and would cut the PowerShell command off; wrap it in double quotes.
-      args: ['-NoExit', '-Command', `"& '${fullCommand.replace(/'/g, "''")}'"`]
+      args: ['-NoExit', '-Command', `"& '${escapePowerShellSingleQuoted(fullCommand)}'"`]
     })
   },
   {

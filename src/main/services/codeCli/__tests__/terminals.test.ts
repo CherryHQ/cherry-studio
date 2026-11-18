@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest'
 
 import { TerminalApp } from '@shared/types/codeCli'
 
-import { escapeForAppleScript, MACOS_TERMINALS_WITH_COMMANDS } from '../terminals'
+import {
+  escapeForAppleScript,
+  escapePowerShellSingleQuoted,
+  MACOS_TERMINALS_WITH_COMMANDS,
+  WINDOWS_TERMINALS_WITH_COMMANDS
+} from '../terminals'
 
 function commandFor(id: TerminalApp) {
   const cfg = MACOS_TERMINALS_WITH_COMMANDS.find((t) => t.id === id)
@@ -57,4 +62,23 @@ describe('macOS inner-double-quote terminal builders neutralize directory and fu
       expect(args.join('\n')).toContain("'/tmp/o'\\''brien'")
     }
   )
+})
+
+// PowerShell accepts typographic quotes as single-quote delimiters, so a temp path like
+// `C:\Users\O’Brien\…` would close the literal mid-command; every recognized quote doubles.
+describe('escapePowerShellSingleQuoted', () => {
+  it('doubles straight and typographic single quotes', () => {
+    expect(escapePowerShellSingleQuoted("it's")).toBe("it''s")
+    expect(escapePowerShellSingleQuoted('O’Brien')).toBe('O’’Brien')
+    expect(escapePowerShellSingleQuoted('‘a’ ‚b‛')).toBe('‘‘a’’ ‚‚b‛‛')
+  })
+
+  it('leaves the PowerShell builder’s command parseable for an apostrophe temp path', () => {
+    const cfg = WINDOWS_TERMINALS_WITH_COMMANDS.find((t) => t.id === TerminalApp.POWERSHELL)
+    if (!cfg) throw new Error('no PowerShell builder')
+    const temp = 'C:\\Users\\O’Brien\\AppData\\Local\\Temp\\cherry.cmd'
+    const { args } = cfg.command('', temp)
+    // The literal embeds the escaped form, so no recognized quote can terminate it.
+    expect(args[2]).toBe(`"& '${escapePowerShellSingleQuoted(temp)}'"`)
+  })
 })
