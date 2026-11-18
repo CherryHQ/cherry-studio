@@ -14,6 +14,7 @@
   "file_preview.pdf.too_large.title": "Không thể xem trước tệp PDF này",
   "file_preview.powerpoint.zip_limit.description": "Tệp PowerPoint này vượt quá giới hạn xem trước an toàn của ứng dụng.",
   "file_preview.powerpoint.zip_limit.title": "Không thể xem trước tệp PowerPoint này",
+  "file_preview.pptd.image_unavailable": "Hình ảnh {{id}} không khả dụng ({{src}})",
   "file_preview.pptd.next_page": "Trang sau",
   "file_preview.pptd.no_project_access": "Máy chủ này không thể đọc các tệp dự án PPTD.",
   "file_preview.pptd.page_unavailable": "Không thể tải trang {{path}}: {{reason}}",

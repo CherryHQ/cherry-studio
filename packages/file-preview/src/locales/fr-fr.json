@@ -14,6 +14,7 @@
   "file_preview.pdf.too_large.title": "Impossible de prévisualiser ce PDF",
   "file_preview.powerpoint.zip_limit.description": "Ce fichier PowerPoint dépasse les limites de prévisualisation sécurisée de l'application.",
   "file_preview.powerpoint.zip_limit.title": "Impossible de prévisualiser ce fichier PowerPoint",
+  "file_preview.pptd.image_unavailable": "Image {{id}} indisponible ({{src}})",
   "file_preview.pptd.next_page": "Page suivante",
   "file_preview.pptd.no_project_access": "Cet hôte ne peut pas lire les fichiers du projet PPTD.",
   "file_preview.pptd.page_unavailable": "La page {{path}} n'a pas pu être chargée : {{reason}}",

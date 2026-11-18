@@ -14,6 +14,7 @@
   "file_preview.pdf.too_large.title": "Can't preview this PDF",
   "file_preview.powerpoint.zip_limit.description": "This PowerPoint file exceeds the app's safe preview limits.",
   "file_preview.powerpoint.zip_limit.title": "Can't preview this PowerPoint file",
+  "file_preview.pptd.image_unavailable": "Image {{id}} unavailable ({{src}})",
   "file_preview.pptd.next_page": "Next page",
   "file_preview.pptd.no_project_access": "This host cannot read the PPTD project files.",
   "file_preview.pptd.page_unavailable": "Page {{path}} could not be loaded: {{reason}}",

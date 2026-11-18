@@ -14,6 +14,7 @@
   "file_preview.pdf.too_large.title": "Bu PDF önizlenemiyor",
   "file_preview.powerpoint.zip_limit.description": "Bu PowerPoint dosyası uygulamanın güvenli önizleme sınırlarını aşıyor.",
   "file_preview.powerpoint.zip_limit.title": "Bu PowerPoint dosyası önizlenemiyor",
+  "file_preview.pptd.image_unavailable": "Görsel {{id}} kullanılamıyor ({{src}})",
   "file_preview.pptd.next_page": "Sonraki sayfa",
   "file_preview.pptd.no_project_access": "Bu ana bilgisayar PPTD proje dosyalarını okuyamaz.",
   "file_preview.pptd.page_unavailable": "{{path}} sayfası yüklenemedi: {{reason}}",

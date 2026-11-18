@@ -14,6 +14,7 @@
   "file_preview.pdf.too_large.title": "この PDF をプレビューできません",
   "file_preview.powerpoint.zip_limit.description": "この PowerPoint ファイルは、アプリの安全なプレビュー制限を超えています。",
   "file_preview.powerpoint.zip_limit.title": "このPowerPointファイルをプレビューできません",
+  "file_preview.pptd.image_unavailable": "画像 {{id}} を表示できません({{src}})",
   "file_preview.pptd.next_page": "次のページ",
   "file_preview.pptd.no_project_access": "このホストは PPTD プロジェクトファイルを読み取れません。",
   "file_preview.pptd.page_unavailable": "ページ {{path}} を読み込めませんでした：{{reason}}",

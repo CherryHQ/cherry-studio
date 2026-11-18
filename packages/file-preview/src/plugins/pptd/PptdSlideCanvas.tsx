@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 import type { PptdPageElement, PptdPresentation } from './pptdFormat'
+import { PptdImageElement } from './PptdImageElement'
 import { PptdLineElement } from './PptdLineElement'
 import type { PptdProjectFileReader, PptdProjectPage } from './pptdProject'
 import { PptdShapeElement } from './PptdShapeElement'
@@ -16,7 +17,15 @@ function elementTransform(element: PptdPageElement): string | undefined {
   return parts.length > 0 ? parts.join(' ') : undefined
 }
 
-function PptdElementBody({ element, context }: { element: PptdPageElement; context: PptdStyleContext }) {
+function PptdElementBody({
+  element,
+  context,
+  readProjectFile
+}: {
+  element: PptdPageElement
+  context: PptdStyleContext
+  readProjectFile?: PptdProjectFileReader
+}) {
   const { t } = useTranslation()
   if (element.elementType === 'text') {
     return <PptdTextElement element={element} context={context} />
@@ -26,6 +35,9 @@ function PptdElementBody({ element, context }: { element: PptdPageElement; conte
   }
   if (element.elementType === 'line') {
     return <PptdLineElement element={element} context={context} />
+  }
+  if (element.elementType === 'image') {
+    return <PptdImageElement element={element} context={context} readProjectFile={readProjectFile} />
   }
   if (element.elementType === 'invalid') {
     return (
@@ -72,7 +84,7 @@ interface PptdSlideCanvasProps {
  * element type has a renderer it shows a visible placeholder naming the
  * element, per the spec's "nothing is silently dropped" rule.
  */
-export function PptdSlideCanvas({ presentation, page, zoom }: PptdSlideCanvasProps) {
+export function PptdSlideCanvas({ presentation, page, zoom, readProjectFile }: PptdSlideCanvasProps) {
   const { t } = useTranslation()
   const [width, height] = presentation.size
   const scale = zoom / 100
@@ -130,7 +142,7 @@ export function PptdSlideCanvas({ presentation, page, zoom }: PptdSlideCanvasPro
                 transform: elementTransform(element),
                 opacity: element.elementType !== 'invalid' ? element.opacity : undefined
               }}>
-              <PptdElementBody element={element} context={context} />
+              <PptdElementBody element={element} context={context} readProjectFile={readProjectFile} />
             </div>
           ))}
       </div>

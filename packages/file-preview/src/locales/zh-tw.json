@@ -14,6 +14,7 @@
   "file_preview.pdf.too_large.title": "無法預覽此 PDF",
   "file_preview.powerpoint.zip_limit.description": "此 PowerPoint 檔案超出應用程式的安全預覽限制。",
   "file_preview.powerpoint.zip_limit.title": "無法預覽此 PowerPoint 檔案",
+  "file_preview.pptd.image_unavailable": "圖片 {{id}} 無法使用({{src}})",
   "file_preview.pptd.next_page": "下一頁",
   "file_preview.pptd.no_project_access": "目前環境無法讀取 PPTD 專案檔案。",
   "file_preview.pptd.page_unavailable": "頁面 {{path}} 載入失敗：{{reason}}",

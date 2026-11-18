@@ -14,6 +14,7 @@
   "file_preview.pdf.too_large.title": "Impossibile visualizzare l'anteprima di questo PDF",
   "file_preview.powerpoint.zip_limit.description": "Questo file PowerPoint supera i limiti di sicurezza dell'app per l'anteprima.",
   "file_preview.powerpoint.zip_limit.title": "Impossibile visualizzare l'anteprima di questo file PowerPoint",
+  "file_preview.pptd.image_unavailable": "Immagine {{id}} non disponibile ({{src}})",
   "file_preview.pptd.next_page": "Pagina successiva",
   "file_preview.pptd.no_project_access": "Questo host non può leggere i file del progetto PPTD.",
   "file_preview.pptd.page_unavailable": "Impossibile caricare la pagina {{path}}: {{reason}}",

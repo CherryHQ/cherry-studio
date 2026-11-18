@@ -14,6 +14,7 @@
   "file_preview.pdf.too_large.title": "Tento PDF soubor nelze zobrazit",
   "file_preview.powerpoint.zip_limit.description": "Tento soubor PowerPoint překračuje bezpečné limity náhledu aplikace.",
   "file_preview.powerpoint.zip_limit.title": "Tento soubor PowerPoint nelze zobrazit",
+  "file_preview.pptd.image_unavailable": "Obrázek {{id}} není k dispozici ({{src}})",
   "file_preview.pptd.next_page": "Další stránka",
   "file_preview.pptd.no_project_access": "Tento hostitel nemůže číst soubory projektu PPTD.",
   "file_preview.pptd.page_unavailable": "Stránku {{path}} se nepodařilo načíst: {{reason}}",

@@ -209,3 +209,27 @@ describe('line paths', () => {
     ])
   })
 })
+
+describe('image crop and fit math', () => {
+  it('covers the box with the cropped sub-image', async () => {
+    const { pptdImageRect } = await import('../pptdImage')
+    // 400x200 source cropped 25% left+right -> 200x200 sub-image in a 100x100 box: cover scales x1
+    const rect = pptdImageRect(400, 200, 100, 100, { left: 0.25, right: 0.25 }, { mode: 'cover' })
+    expect(rect).toEqual({ x: -100, y: 0, width: 200, height: 100 })
+  })
+
+  it('contain letterboxes and fill stretches the cropped region', async () => {
+    const { pptdImageRect } = await import('../pptdImage')
+    const contain = pptdImageRect(200, 100, 100, 100, undefined, { mode: 'contain' })
+    expect(contain).toEqual({ x: 0, y: 25, width: 100, height: 50 })
+    const fill = pptdImageRect(400, 200, 100, 100, { top: 0.5 }, { mode: 'fill' })
+    expect(fill).toEqual({ x: 0, y: -100, width: 100, height: 200 })
+  })
+
+  it('defaults to cover and rejects degenerate inputs', async () => {
+    const { pptdImageRect } = await import('../pptdImage')
+    expect(pptdImageRect(100, 100, 100, 50, undefined, undefined)).toEqual({ x: 0, y: -25, width: 100, height: 100 })
+    expect(pptdImageRect(100, 100, 100, 50, { left: 0.6, right: 0.6 }, undefined)).toBeNull()
+    expect(pptdImageRect(0, 100, 100, 50, undefined, undefined)).toBeNull()
+  })
+})
