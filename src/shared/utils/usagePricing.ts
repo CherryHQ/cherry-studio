@@ -32,42 +32,27 @@ export function createAiUsagePricingSnapshot(
   const currency = pricingCurrency(pricing)
   if (!currency) return null
 
-  const snapshot = {
-    currency,
-    ...(pricing.input?.perMillionTokens != null ? { inputPerMillionTokens: pricing.input.perMillionTokens } : {}),
-    ...(pricing.output?.perMillionTokens != null ? { outputPerMillionTokens: pricing.output.perMillionTokens } : {}),
-    ...(pricing.cacheRead?.perMillionTokens != null
-      ? { cacheReadPerMillionTokens: pricing.cacheRead.perMillionTokens }
-      : {}),
-    ...(pricing.cacheWrite?.perMillionTokens != null
-      ? { cacheWritePerMillionTokens: pricing.cacheWrite.perMillionTokens }
-      : {}),
-    ...(pricing.inputTokenTiers?.length
-      ? {
-          inputTokenTiers: pricing.inputTokenTiers.map((tier) => ({
-            minInputTokens: tier.minInputTokens,
-            ...(tier.input.perMillionTokens != null ? { inputPerMillionTokens: tier.input.perMillionTokens } : {}),
-            ...(tier.output.perMillionTokens != null ? { outputPerMillionTokens: tier.output.perMillionTokens } : {}),
-            ...(tier.cacheRead?.perMillionTokens != null
-              ? { cacheReadPerMillionTokens: tier.cacheRead.perMillionTokens }
-              : {}),
-            ...(tier.cacheWrite?.perMillionTokens != null
-              ? { cacheWritePerMillionTokens: tier.cacheWrite.perMillionTokens }
-              : {})
-          }))
-        }
-      : {}),
-    ...(pricing.perImage
-      ? {
-          perImage: {
-            price: pricing.perImage.price,
-            unit: pricing.perImage.unit ?? 'image'
-          }
-        }
-      : {}),
-    capturedAt
+  const snapshot: Omit<AiUsagePricingSnapshot, 'capturedAt'> = { currency }
+  if (pricing.input?.perMillionTokens != null) snapshot.inputPerMillionTokens = pricing.input.perMillionTokens
+  if (pricing.output?.perMillionTokens != null) snapshot.outputPerMillionTokens = pricing.output.perMillionTokens
+  if (pricing.cacheRead?.perMillionTokens != null)
+    snapshot.cacheReadPerMillionTokens = pricing.cacheRead.perMillionTokens
+  if (pricing.cacheWrite?.perMillionTokens != null)
+    snapshot.cacheWritePerMillionTokens = pricing.cacheWrite.perMillionTokens
+  if (pricing.inputTokenTiers?.length) {
+    snapshot.inputTokenTiers = pricing.inputTokenTiers.map((tier) => {
+      const rates: NonNullable<AiUsagePricingSnapshot['inputTokenTiers']>[number] = {
+        minInputTokens: tier.minInputTokens
+      }
+      if (tier.input.perMillionTokens != null) rates.inputPerMillionTokens = tier.input.perMillionTokens
+      if (tier.output.perMillionTokens != null) rates.outputPerMillionTokens = tier.output.perMillionTokens
+      if (tier.cacheRead?.perMillionTokens != null) rates.cacheReadPerMillionTokens = tier.cacheRead.perMillionTokens
+      if (tier.cacheWrite?.perMillionTokens != null) rates.cacheWritePerMillionTokens = tier.cacheWrite.perMillionTokens
+      return rates
+    })
   }
-  const parsed = AiUsagePricingSnapshotSchema.safeParse(snapshot)
+  if (pricing.perImage) snapshot.perImage = { price: pricing.perImage.price, unit: pricing.perImage.unit ?? 'image' }
+  const parsed = AiUsagePricingSnapshotSchema.safeParse({ ...snapshot, capturedAt })
   return parsed.success ? parsed.data : null
 }
 

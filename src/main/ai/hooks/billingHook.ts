@@ -27,15 +27,15 @@ function usageToRecord(usage: LanguageModelV3Usage): NonNullable<RecordAiInvocat
   const inputTokens = normalized.inputTokens.total
   const outputTokens = normalized.outputTokens.total
   const totalTokens = recordTotalTokens(usage, inputTokens, outputTokens)
-  return {
-    ...(inputTokens !== undefined ? { inputTokens } : {}),
-    ...(outputTokens !== undefined ? { outputTokens } : {}),
-    ...(totalTokens !== undefined ? { totalTokens } : {}),
-    ...(normalized.outputTokens.reasoning !== undefined ? { reasoningTokens: normalized.outputTokens.reasoning } : {}),
-    ...(normalized.inputTokens.noCache !== undefined ? { noCacheTokens: normalized.inputTokens.noCache } : {}),
-    ...(normalized.inputTokens.cacheRead !== undefined ? { cacheReadTokens: normalized.inputTokens.cacheRead } : {}),
-    ...(normalized.inputTokens.cacheWrite !== undefined ? { cacheWriteTokens: normalized.inputTokens.cacheWrite } : {})
-  }
+  const record: NonNullable<RecordAiInvocationInput['usage']> = {}
+  if (inputTokens !== undefined) record.inputTokens = inputTokens
+  if (outputTokens !== undefined) record.outputTokens = outputTokens
+  if (totalTokens !== undefined) record.totalTokens = totalTokens
+  if (normalized.outputTokens.reasoning !== undefined) record.reasoningTokens = normalized.outputTokens.reasoning
+  if (normalized.inputTokens.noCache !== undefined) record.noCacheTokens = normalized.inputTokens.noCache
+  if (normalized.inputTokens.cacheRead !== undefined) record.cacheReadTokens = normalized.inputTokens.cacheRead
+  if (normalized.inputTokens.cacheWrite !== undefined) record.cacheWriteTokens = normalized.inputTokens.cacheWrite
+  return record
 }
 
 function semanticOutput(part: LanguageModelV3StreamPart): boolean {
@@ -62,15 +62,14 @@ function recordLanguageInvocation(
   record: (input: RecordAiInvocationInput) => void
 ): void {
   const providerCost = extractProviderCostWithCurrency(usage.raw, context.reportedCostCurrency)
-  record({
+  const input: Omit<RecordAiInvocationInput, 'metrics' | 'completedAt'> = {
     requestId,
     context,
     modality: 'language',
-    usage: usageToRecord(usage),
-    ...(providerCost ? { providerCost } : {}),
-    metrics,
-    completedAt
-  })
+    usage: usageToRecord(usage)
+  }
+  if (providerCost) input.providerCost = providerCost
+  record({ ...input, metrics, completedAt })
 }
 
 export type AiUsageCaptureSource = AiUsageCaptureContext | (() => AiUsageCaptureContext)
@@ -128,20 +127,13 @@ export function createLanguageUsageMiddleware(
             // Each provider call emits one V3 `finish` with usage; tool loops are separate calls.
             if (part.type === 'finish' && !finished) {
               finished = true
-              recordLanguageInvocation(
-                context,
-                requestId,
-                part.usage,
-                {
-                  ...(firstTokenAt !== undefined
-                    ? { timeFirstTokenMs: Math.max(0, Math.round(firstTokenAt - startedAt)) }
-                    : {}),
-                  timeCompletionMs: Math.max(0, Math.round(now - startedAt)),
-                  ...(thinkingDurationMs !== undefined ? { timeThinkingMs: thinkingDurationMs } : {})
-                },
-                Date.now(),
-                record
-              )
+              const usage = part.usage
+              const metrics: NonNullable<RecordAiInvocationInput['metrics']> = {}
+              if (firstTokenAt !== undefined)
+                metrics.timeFirstTokenMs = Math.max(0, Math.round(firstTokenAt - startedAt))
+              metrics.timeCompletionMs = Math.max(0, Math.round(now - startedAt))
+              if (thinkingDurationMs !== undefined) metrics.timeThinkingMs = thinkingDurationMs
+              recordLanguageInvocation(context, requestId, usage, metrics, Date.now(), record)
             }
 
             controller.enqueue(part)
