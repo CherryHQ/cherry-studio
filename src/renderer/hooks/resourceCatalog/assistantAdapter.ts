@@ -6,6 +6,7 @@ import { useAssistantMutations } from '@renderer/hooks/useAssistant'
 import {
   ASSISTANTS_MAX_LIMIT,
   type ImportAssistantDto,
+  type ListAssistantsQueryParams,
   type UpdateAssistantDto
 } from '@shared/data/api/schemas/assistants'
 import type { Assistant } from '@shared/data/types/assistant'
@@ -18,13 +19,12 @@ import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './t
  * `AssistantService.list`) so no client-side chain-filtering is needed.
  */
 function useAssistantList(query?: ResourceListQuery): ResourceListResult<Assistant> {
+  const params: ListAssistantsQueryParams = { limit: query?.limit ?? ASSISTANTS_MAX_LIMIT }
+  if (query?.search) params.search = query.search
+  if (query?.groupId) params.groupId = query.groupId
   const { data, isLoading, isRefreshing, error, refetch } = useQuery('/assistants', {
     enabled: query?.enabled !== false,
-    query: {
-      limit: query?.limit ?? ASSISTANTS_MAX_LIMIT,
-      ...(query?.search ? { search: query.search } : {}),
-      ...(query?.groupId ? { groupId: query.groupId } : {})
-    }
+    query: params
   })
 
   const items = data?.items ?? []

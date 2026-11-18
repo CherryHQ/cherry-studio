@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react'
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
-import { AGENTS_MAX_LIMIT, type UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import { AGENTS_MAX_LIMIT, type ListAgentsQueryParams, type UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 
 import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
@@ -16,12 +16,11 @@ import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './t
  * filter on top.
  */
 function useAgentList(query?: ResourceListQuery): ResourceListResult<AgentDetail> {
+  const params: ListAgentsQueryParams = { limit: query?.limit ?? AGENTS_MAX_LIMIT }
+  if (query?.search) params.search = query.search
   const { data, isLoading, isRefreshing, error, refetch } = useQuery('/agents', {
     enabled: query?.enabled !== false,
-    query: {
-      limit: query?.limit ?? AGENTS_MAX_LIMIT,
-      ...(query?.search ? { search: query.search } : {})
-    }
+    query: params
   })
 
   const items = data?.items ?? []
