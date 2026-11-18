@@ -2,7 +2,6 @@ import type { ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { SubagentView } from '../decisions'
 import type { ConversationFacts, DeliveredRun, HistoryEntry, SubagentRunRecord } from '../facts'
-import type { ApprovalOutcome } from '../hostFacts'
 import { keys } from '../keys'
 import { startsTurn } from '../turns'
 
@@ -62,9 +61,6 @@ export const runningBackground = (facts: Facts): ChildLedger[] =>
   readSubagents(facts.history)
     .filter(({ latest }) => latest.background && isLive(facts, latest))
     .reverse()
-
-export const awaitingApproval = (approvals: readonly ApprovalOutcome[], child: ThreadId): boolean =>
-  approvals.some(({ call, state }) => call.thread === child && state === 'pending')
 
 /** A tool call records provenance, never an alias for another child. */
 export function resolveChild(ledgers: readonly ChildLedger[], id: string): ChildLedger | undefined {
@@ -192,8 +188,8 @@ export type DelegationStatus = 'active' | 'completed' | 'unknown'
 export const delegationStatus = (record: SubagentRunRecord): DelegationStatus =>
   record.status === 'running' ? 'active' : 'completed'
 
-/** The background children as the host shows them (Y7): running, waiting for an approval, or finished. */
-export function subagentViews(facts: Facts, approvals: readonly ApprovalOutcome[]): SubagentView[] {
+/** The background children as the host shows them (Y7): running or finished. */
+export function subagentViews(facts: Facts): SubagentView[] {
   return readSubagents(facts.history)
     .filter(({ latest }) => latest.background)
     .map(({ child, latest }) => {
@@ -202,7 +198,7 @@ export function subagentViews(facts: Facts, approvals: readonly ApprovalOutcome[
         sessionId: child,
         parentToolCallId: latest.parentToolCallId,
         description: latest.description,
-        status: !live ? 'finished' : awaitingApproval(approvals, child) ? 'awaiting_approval' : 'running',
+        status: live ? 'running' : 'finished',
         ...(!live && latest.outcome !== undefined ? { outcome: latest.outcome } : {})
       }
     })
