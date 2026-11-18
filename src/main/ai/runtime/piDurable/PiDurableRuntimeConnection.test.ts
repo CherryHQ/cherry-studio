@@ -2303,48 +2303,53 @@ describe('desktop Pi Durable connection', () => {
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
-  it('resynchronizes the root projection after an observation overflow without ending the turn', async () => {
-    const held = gate()
-    script = respondingModel((call) => {
-      const last = JSON.stringify(call.messages.findLast((entry) => entry.role === 'user'))
-      const queued = /queued-(\d+)/.exec(last)
-      return queued ? assistantReply(`answer-${queued[1]} `) : held.wait(assistantReply('first '))
-    })
-    const { connection, events } = await connect()
-    await connection.send({ message: message('first') })
-    await held.reached
-    // A consumer that falls behind is what makes Durable replace its backlog with a gap.
-    const observe = connection['onObservation'].bind(connection)
-    const gaps: string[] = []
-    let release!: () => void
-    const released = new Promise<void>((resolve) => (release = resolve))
-    connection['onObservation'] = async (batch: DurableObservation) => {
-      for (const event of batch.events) if (event.type === 'gap') gaps.push(event.reason)
-      await released
-      return observe(batch)
-    }
-    const submit = connection['submit'].bind(connection)
-    const submitted: Promise<unknown>[] = []
-    connection['submit'] = (...args: Parameters<typeof submit>) => {
-      const result = submit(...args)
-      submitted.push(result)
-      return result
-    }
-    // Each queued input is one observation; the backlog limit is 100.
-    const queued = Array.from({ length: 120 }, (_, index) => message(`queued-${index}`))
-    for (const input of queued) expect(connection.followUp({ message: input })).toBe(true)
-    await Promise.all(submitted)
-    release()
-    await expect.poll(() => gaps).toContain('overflow')
-    held.open()
+  // Overflow requires over 100 persisted inputs, which exceeds the default budget on Windows CI.
+  it(
+    'resynchronizes the root projection after an observation overflow without ending the turn',
+    { timeout: 60_000 },
+    async () => {
+      const held = gate()
+      script = respondingModel((call) => {
+        const last = JSON.stringify(call.messages.findLast((entry) => entry.role === 'user'))
+        const queued = /queued-(\d+)/.exec(last)
+        return queued ? assistantReply(`answer-${queued[1]} `) : held.wait(assistantReply('first '))
+      })
+      const { connection, events } = await connect()
+      await connection.send({ message: message('first') })
+      await held.reached
+      // A consumer that falls behind is what makes Durable replace its backlog with a gap.
+      const observe = connection['onObservation'].bind(connection)
+      const gaps: string[] = []
+      let release!: () => void
+      const released = new Promise<void>((resolve) => (release = resolve))
+      connection['onObservation'] = async (batch: DurableObservation) => {
+        for (const event of batch.events) if (event.type === 'gap') gaps.push(event.reason)
+        await released
+        return observe(batch)
+      }
+      const submit = connection['submit'].bind(connection)
+      const submitted: Promise<unknown>[] = []
+      connection['submit'] = (...args: Parameters<typeof submit>) => {
+        const result = submit(...args)
+        submitted.push(result)
+        return result
+      }
+      // Each queued input is one observation; the backlog limit is 100.
+      const queued = Array.from({ length: 120 }, (_, index) => message(`queued-${index}`))
+      for (const input of queued) expect(connection.followUp({ message: input })).toBe(true)
+      await Promise.all(submitted)
+      release()
+      await expect.poll(() => gaps).toContain('overflow')
+      held.open()
 
-    await expect.poll(() => text(events)).toContain('answer-1 ')
-    // Answering every queued input only adds runtime; Stop withdraws the rest.
-    await connection.interrupt()
-    await done(events)
-    expect(text(events)).toContain('first answer-0 answer-1 ')
-    expect(events.filter((event) => event.type === 'error')).toEqual([])
-  })
+      await expect.poll(() => text(events)).toContain('answer-1 ')
+      // Answering every queued input only adds runtime; Stop withdraws the rest.
+      await connection.interrupt()
+      await done(events)
+      expect(text(events)).toContain('first answer-0 answer-1 ')
+      expect(events.filter((event) => event.type === 'error')).toEqual([])
+    }
+  )
 
   it('keeps the turn and the access when the Durable backend reports a diagnostic', async () => {
     const held = gate()
