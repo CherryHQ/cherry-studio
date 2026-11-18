@@ -41,6 +41,7 @@ export class DurableProjection {
   private readonly cycle = new Set<string>()
   private completion?: DurableObservation['completion']
   private history: readonly HistoryEntry[] = []
+  private committed?: { readonly entries: readonly EntryRecord[]; readonly content: ContentProjection }
   private backgroundResults: DurableObservation['backgroundResults'] = {
     status: 'confirmed',
     value: { active: false, pending: [], notification: [] }
@@ -146,8 +147,7 @@ export class DurableProjection {
         this.cycle.add(input.nativeInput?.id ?? input.inputId!)
     const unfinished = inputs.some((input) => !input.outcome && !input.facts.includes('locally-handled'))
     const live = view.docs['pi.live'] as LiveState | undefined
-    const content = new ContentProjection()
-    for (const entry of view.entries) content.entry(entry)
+    const content = this.committedContent(view.entries).fork()
     const after = view.entries.reduce((latest, entry) => Math.max(latest, entry.id), 0)
     const generation = live?.generation
     const previous = this.preview
@@ -228,6 +228,20 @@ export class DurableProjection {
     })
     this.completion = undefined
     for (const input of changed) this.feed.publish({ type: 'input.changed', input })
+  }
+
+  /** Native views append the same entry records; project only appended entries and share the rest. */
+  private committedContent(entries: readonly EntryRecord[]): ContentProjection {
+    const previous = this.committed
+    const extended =
+      previous !== undefined &&
+      previous.entries.length <= entries.length &&
+      previous.entries.every((entry, index) => entries[index] === entry)
+    const content = extended ? previous.content : new ContentProjection()
+    for (const entry of entries.slice(extended ? previous.entries.length : 0)) content.entry(entry)
+    content.seal()
+    this.committed = { entries, content }
+    return content
   }
 }
 

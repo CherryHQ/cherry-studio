@@ -746,6 +746,9 @@ CLI subscription login retains native authentication. See the gateway's
 [internal endpoint policy](../api-gateway/README.md#internal-listener-for-cherry-consumers).
 
 Root content passes through `ThreadMessageProjection` and `RootMessageProjection`.
+Observation values are frozen and shared, so a repeated snapshot reuses the previous view of every
+message whose source object is unchanged without decorating it again; an explicit refresh still
+re-decorates its messages.
 Native replacements retain product ownership across steer boundaries; explicit
 retractions persist with the context checkpoint. The runtime adapter preserves ordered
 AI SDK message parts, including tool output, reasoning signatures, files and citations.
