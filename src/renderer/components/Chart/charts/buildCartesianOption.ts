@@ -18,10 +18,9 @@ function mergeAxis(base: OptionObject, extension: OptionObject, data?: Array<num
   const baseAxisPointer = toOptionObject(base.axisPointer)
   const extensionAxisPointer = toOptionObject(extension.axisPointer)
 
-  return {
-    ...base,
-    ...extension,
-    ...(data ? { data } : {}),
+  const axis = { ...base, ...extension }
+  if (data) axis.data = data
+  return Object.assign(axis, {
     axisLine: {
       ...baseAxisLine,
       ...extensionAxisLine,
@@ -43,7 +42,7 @@ function mergeAxis(base: OptionObject, extension: OptionObject, data?: Array<num
         ...toOptionObject(extensionAxisPointer.shadowStyle)
       }
     }
-  }
+  })
 }
 
 export function buildCartesianOption({
