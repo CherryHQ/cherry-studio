@@ -259,12 +259,13 @@ function isPersistedReplyGroupAnchor(
 }
 
 function toActiveExecution(exec: StreamExecution): ActiveExecution {
-  return {
+  const active: ActiveExecution = {
     executionId: exec.modelId,
     attemptId: exec.attemptId,
-    anchorMessageId: exec.anchorMessageId,
-    ...(exec.seedFromEmpty ? { seedFromEmpty: true } : {})
+    anchorMessageId: exec.anchorMessageId
   }
+  if (exec.seedFromEmpty) active.seedFromEmpty = true
+  return active
 }
 
 function errorFromStreamChunk(errorText: string): SerializedError {
@@ -1036,32 +1037,33 @@ export class AiStreamManager extends BaseService {
         ? input.messages
         : [{ id: 'prompt-user', role: 'user', parts: [{ type: 'text', text: input.prompt ?? '' }] }]
 
-    const request: ManagedAiStreamRequest = {
+    const identity: Omit<ManagedAiStreamRequest, 'messages'> = {
       // A trusted Agent SDK call belongs to its agent session; anything else is its own conversation.
       conversation: {
         id: input.usageContext ? input.usageContext.agentSessionId : input.streamId,
         topicId: input.streamId
       },
       trigger: 'submit-message',
-      uniqueModelId: input.uniqueModelId,
-      ...(input.resolvedModel ? { resolvedModel: input.resolvedModel } : {}),
+      uniqueModelId: input.uniqueModelId
+    }
+    if (input.resolvedModel) identity.resolvedModel = input.resolvedModel
+    const request: ManagedAiStreamRequest = {
+      ...identity,
       messages,
       callOverrides: input.callOverrides,
       contextOwner: input.contextOwner,
       reasoningEffort: input.reasoningEffort,
       serviceTier: input.serviceTier,
-      fastMode: input.fastMode,
-      ...(input.usageContext ? { usageContext: input.usageContext } : {}),
-      ...(input.tokenUsageSource ? { tokenUsageSource: input.tokenUsageSource } : {}),
-      source: input.source,
-      ...(input.idleTimeoutMs !== undefined || input.maxRetries !== undefined
-        ? {
-            requestOptions: {
-              ...(input.idleTimeoutMs !== undefined ? { timeout: input.idleTimeoutMs } : {}),
-              ...(input.maxRetries !== undefined ? { maxRetries: input.maxRetries } : {})
-            }
-          }
-        : {})
+      fastMode: input.fastMode
+    }
+    if (input.usageContext) request.usageContext = input.usageContext
+    if (input.tokenUsageSource) request.tokenUsageSource = input.tokenUsageSource
+    request.source = input.source
+    if (input.idleTimeoutMs !== undefined || input.maxRetries !== undefined) {
+      const requestOptions: NonNullable<ManagedAiStreamRequest['requestOptions']> = {}
+      if (input.idleTimeoutMs !== undefined) requestOptions.timeout = input.idleTimeoutMs
+      if (input.maxRetries !== undefined) requestOptions.maxRetries = input.maxRetries
+      request.requestOptions = requestOptions
     }
     return this.send({
       topicId: input.streamId,
@@ -1719,14 +1721,17 @@ export class AiStreamManager extends BaseService {
     if (hadPendingApprovals && !isTopicDone) stream.lifecycle.onApprovalPendingChanged(stream)
     const finalMessage = ensureTerminalFinalMessage(exec)
 
-    const result: StreamErrorResult = {
+    const prefix: Omit<StreamErrorResult, 'anchorMessageId' | 'isTopicDone' | 'timings' | 'runtimeTiming'> = {
       error,
       finalMessage,
       userMessageId: exec.userMessageId,
       status: 'error',
       modelId: exec.modelId,
-      attemptId: exec.attemptId,
-      ...(isTopicDone ? { topicAttemptWatermark: this.getTopicAttemptWatermark(stream) } : {}),
+      attemptId: exec.attemptId
+    }
+    if (isTopicDone) prefix.topicAttemptWatermark = this.getTopicAttemptWatermark(stream)
+    const result: StreamErrorResult = {
+      ...prefix,
       anchorMessageId: exec.anchorMessageId,
       isTopicDone,
       timings: { ...exec.timings },
@@ -1779,14 +1784,17 @@ export class AiStreamManager extends BaseService {
     if (!stream) return
     const exec = modelId ? stream.executions.get(modelId) : undefined
     const isTopicDone = !isLiveStatus(stream.status)
-    const result: StreamErrorResult = {
+    const prefix: Omit<StreamErrorResult, 'anchorMessageId' | 'isTopicDone'> = {
       error,
       persistence: { status: 'failed', failure: toExecutionFailure(error, modelId, 'host') },
       status: 'error',
       modelId,
       attemptId: exec?.attemptId,
-      userMessageId: exec?.userMessageId,
-      ...(isTopicDone ? { topicAttemptWatermark: this.getTopicAttemptWatermark(stream) } : {}),
+      userMessageId: exec?.userMessageId
+    }
+    if (isTopicDone) prefix.topicAttemptWatermark = this.getTopicAttemptWatermark(stream)
+    const result: StreamErrorResult = {
+      ...prefix,
       anchorMessageId: exec?.anchorMessageId,
       isTopicDone
     }
@@ -2315,24 +2323,18 @@ export class AiStreamManager extends BaseService {
       if (abortShaped) {
         logger.debug('Execution aborted', { topicId, modelId, reason: signal.reason })
       } else {
-        logAiFailure(
-          logger,
-          'AI stream error',
-          result.threw.error,
-          'chat.stream.consume',
-          classifyAiSdkFailure(result.threw.error),
-          {
-            topicId,
-            modelId,
-            attemptId: exec.attemptId,
-            stage: 'response-stream',
-            origin: 'throw',
-            cause: chatErrorContext(result.threw.error),
-            ...(result.streamErrorText !== undefined
-              ? { chunk: chatErrorContext({ message: result.streamErrorText }) }
-              : {})
-          }
-        )
+        const failure = classifyAiSdkFailure(result.threw.error)
+        const context = {
+          topicId,
+          modelId,
+          attemptId: exec.attemptId,
+          stage: 'response-stream',
+          origin: 'throw',
+          cause: chatErrorContext(result.threw.error)
+        }
+        if (result.streamErrorText !== undefined)
+          Object.assign(context, { chunk: chatErrorContext({ message: result.streamErrorText }) })
+        logAiFailure(logger, 'AI stream error', result.threw.error, 'chat.stream.consume', failure, context)
       }
       const fromThrow = serializeError(result.threw.error)
       const serialized =
@@ -2373,13 +2375,16 @@ export class AiStreamManager extends BaseService {
 
   /** Broadcast done for a single execution to all topic listeners. */
   private async broadcastExecutionDone(stream: ActiveStream, exec: StreamExecution, isTopicDone = true): Promise<void> {
-    const result: StreamDoneResult = {
+    const prefix: Omit<StreamDoneResult, 'anchorMessageId' | 'isTopicDone' | 'timings' | 'runtimeTiming'> = {
       finalMessage: exec.finalMessage,
       userMessageId: exec.userMessageId,
       status: 'success',
       modelId: exec.modelId,
-      attemptId: exec.attemptId,
-      ...(isTopicDone ? { topicAttemptWatermark: this.getTopicAttemptWatermark(stream) } : {}),
+      attemptId: exec.attemptId
+    }
+    if (isTopicDone) prefix.topicAttemptWatermark = this.getTopicAttemptWatermark(stream)
+    const result: StreamDoneResult = {
+      ...prefix,
       anchorMessageId: exec.anchorMessageId,
       isTopicDone,
       // Snapshot timings so listeners see a stable copy even if the
@@ -2396,14 +2401,17 @@ export class AiStreamManager extends BaseService {
     exec: StreamExecution,
     isTopicDone = true
   ): Promise<void> {
-    const result: StreamPausedResult = {
+    const prefix: Omit<StreamPausedResult, 'anchorMessageId' | 'isTopicDone' | 'timings' | 'runtimeTiming'> = {
       finalMessage: exec.finalMessage,
       status: 'paused',
       reason: typeof exec.abortController.signal.reason === 'string' ? exec.abortController.signal.reason : undefined,
       userMessageId: exec.userMessageId,
       modelId: exec.modelId,
-      attemptId: exec.attemptId,
-      ...(isTopicDone ? { topicAttemptWatermark: this.getTopicAttemptWatermark(stream) } : {}),
+      attemptId: exec.attemptId
+    }
+    if (isTopicDone) prefix.topicAttemptWatermark = this.getTopicAttemptWatermark(stream)
+    const result: StreamPausedResult = {
+      ...prefix,
       anchorMessageId: exec.anchorMessageId,
       isTopicDone,
       timings: { ...exec.timings },
