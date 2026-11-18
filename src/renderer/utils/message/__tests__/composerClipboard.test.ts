@@ -149,6 +149,29 @@ describe('composer clipboard', () => {
     }
   })
 
+  it('copies safe file display metadata without a restore handle when its source path is invalid', () => {
+    const token = {
+      id: 'file:source-report',
+      kind: 'file',
+      label: 'report.pdf',
+      payload: {
+        fileTokenSourceId: 'source-report',
+        name: 'report.pdf',
+        path: 'private-relative/report.pdf'
+      }
+    }
+
+    const serialized = createComposerClipboardFragment([{ type: 'token', token, fallbackText: token.label }])
+    const segment = readComposerClipboardFragment(serialized)?.segments[0]
+
+    expect(serialized).not.toContain('private-relative')
+    expect(segment?.type).toBe('token')
+    if (segment?.type !== 'token') throw new Error('Missing file display token')
+    expect(segment.token.label).toBe('report.pdf')
+    expect(segment.token.payload?.handle).toBeUndefined()
+    expect(createComposerAttachmentFromComposerClipboardToken(segment.token)).toBeNull()
+  })
+
   it('stops resolving file restoration handles after the handle TTL expires', () => {
     vi.useFakeTimers()
     try {
