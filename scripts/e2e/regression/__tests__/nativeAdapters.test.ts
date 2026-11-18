@@ -14,6 +14,8 @@ import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import type { SaveDialogOptions } from 'electron'
+
 import { macNativeFixtureExecutable } from '../macRuntime'
 import { ensureRunDirectories, getRunPaths, type RunPaths } from '../paths'
 import { CDP_PORT, isAlive, processCommand, waitForExit } from '../process'
@@ -295,13 +297,16 @@ it.skipIf(!['darwin', 'win32'].includes(process.platform)).each(dialogModes)(
       mkdirSync(folder)
       const saved = join(paths.private, 'requested output 输入.txt')
       const isSave = mode === 'save' || mode === 'save-suggested' || mode === 'save-hidden'
+      const saveOptions: SaveDialogOptions = {}
+      if (isSave) saveOptions.defaultPath = join(paths.profiles, 'suggested.txt')
+      if (mode === 'save' || mode === 'save-hidden') saveOptions.filters = [{ name: 'Text', extensions: ['txt'] }]
       const dialogCall =
         mode === 'message-box'
           ? `{ response: dialog.showMessageBoxSync({ type: 'info', title: 'Manual Restart Required', message: 'Owned restart fixture', buttons: ['OK'] }) }`
           : mode === 'print'
             ? 'await new Promise(resolve => window.webContents.print({}, (success, failureReason) => resolve({ success, failureReason })))'
             : isSave
-              ? `await dialog.showSaveDialog(${nativePlatform === 'windows' ? 'window, ' : ''}${JSON.stringify({ defaultPath: join(paths.profiles, 'suggested.txt'), ...(mode === 'save' || mode === 'save-hidden' ? { filters: [{ name: 'Text', extensions: ['txt'] }] } : {}) })})`
+              ? `await dialog.showSaveDialog(${nativePlatform === 'windows' ? 'window, ' : ''}${JSON.stringify(saveOptions)})`
               : `await dialog.showOpenDialog(${nativePlatform === 'windows' ? 'window, ' : ''}{ properties: ${JSON.stringify(mode === 'directory' ? ['openDirectory'] : mode === 'multiple' ? ['openFile', 'multiSelections'] : ['openFile'])} })`
       const resultPath = join(paths.private, 'result.json')
       const readyPath = join(paths.private, 'ready')
