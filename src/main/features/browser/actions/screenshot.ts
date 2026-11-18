@@ -128,16 +128,17 @@ export async function captureScreenshot(
       MAX_SIDE / tile.height,
       Math.sqrt(MAX_PIXELS / (tile.width * tile.height))
     )
-    const { data } = await session.send(
-      'Page.captureScreenshot',
-      {
-        format: input.format ?? 'png',
-        ...(input.format === 'jpeg' && input.quality !== undefined ? { quality: input.quality } : {}),
-        captureBeyondViewport: true,
-        clip: { x: x * zoom, y: y * zoom, width: tile.width * zoom, height: tile.height * zoom, scale: scale / dpr }
-      },
-      commands
-    )
+    const capture: Protocol.Page.CaptureScreenshotRequest = { format: input.format ?? 'png' }
+    if (input.format === 'jpeg' && input.quality !== undefined) capture.quality = input.quality
+    capture.captureBeyondViewport = true
+    capture.clip = {
+      x: x * zoom,
+      y: y * zoom,
+      width: tile.width * zoom,
+      height: tile.height * zoom,
+      scale: scale / dpr
+    }
+    const { data } = await session.send('Page.captureScreenshot', capture, commands)
     check()
     if (bytes + data.length > MAX_BASE64_BYTES) {
       if (images.length === 0) throw new Error('Screenshot exceeds the image budget. Use a smaller target ref.')

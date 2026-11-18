@@ -345,16 +345,14 @@ class AgentWorkspaceStorageService {
         sessionId: workspace.id,
         operation: 'restore',
         phase: 'preparing',
-        source,
-        ...(state.archive ? { archiveHash: await storage.workspaceArchiveHash(`${workspace.path}.tar.gz`) } : {}),
-        ...(source !== 'archive'
-          ? {
-              directory: await storage.workspaceDirectoryIdentity(
-                root,
-                source === 'pending' ? `${workspace.path}.archiving` : workspace.path
-              )
-            }
-          : {})
+        source
+      }
+      if (state.archive) record.archiveHash = await storage.workspaceArchiveHash(`${workspace.path}.tar.gz`)
+      if (source !== 'archive') {
+        record.directory = await storage.workspaceDirectoryIdentity(
+          root,
+          source === 'pending' ? `${workspace.path}.archiving` : workspace.path
+        )
       }
       await storage.writeWorkspaceStorageRecord(workspace.path, record)
     }

@@ -359,11 +359,11 @@ export async function syncHeartbeatSchedule(
       const reenable = !current.enabled && !breakerPaused
       const triggerChanged = !triggersEqual(current.trigger, trigger)
       if (!reenable && !triggerChanged && !templateDrifted(current.jobInputTemplate, jobInputTemplate)) return null
-      jobManager.updateJobScheduleTx(tx, current.id, {
-        ...(reenable ? { enabled: true } : {}),
-        ...(triggerChanged ? { trigger } : {}),
-        jobInputTemplate
-      })
+      const patch: UpdateJobScheduleDto = {}
+      if (reenable) patch.enabled = true
+      if (triggerChanged) patch.trigger = trigger
+      patch.jobInputTemplate = jobInputTemplate
+      jobManager.updateJobScheduleTx(tx, current.id, patch)
       return { breakerPaused, rearm: (reenable || triggerChanged) && !breakerPaused }
     })
     if (!repair) return touchedScheduleIds.includes(row.id) ? 'updated' : 'noop'

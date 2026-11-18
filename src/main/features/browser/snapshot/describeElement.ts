@@ -1,3 +1,5 @@
+import type { Protocol } from 'devtools-protocol'
+
 import {
   WEBVIEW_ANNOTATION_LIMITS,
   WEBVIEW_SHADOW_SELECTOR_SEPARATOR,
@@ -183,14 +185,9 @@ export async function describeElement(
       if ((atDepthLimit || mayExposeFormValue) && hasChildren) {
         walkState.truncated = true
       } else if (mayDescend) {
-        const childResult = await debuggerSession.send(
-          'Accessibility.getChildAXNodes',
-          {
-            id: node.nodeId,
-            ...(node.frameId ? { frameId: node.frameId } : {})
-          },
-          { deadline, signal }
-        )
+        const request: Protocol.Accessibility.GetChildAXNodesRequest = { id: node.nodeId }
+        if (node.frameId) request.frameId = node.frameId
+        const childResult = await debuggerSession.send('Accessibility.getChildAXNodes', request, { deadline, signal })
         for (const child of childResult.nodes ?? []) {
           if (selectedFrameId && child.frameId && child.frameId !== selectedFrameId) continue
           children.push(...(await walk(child, depth + 1, false)))

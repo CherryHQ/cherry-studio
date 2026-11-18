@@ -221,11 +221,12 @@ export function createReindexSubtreeJobHandler(
         throw error
       }
 
-      reportKnowledgeProgress(ctx, 100, {
+      const detail: Parameters<typeof reportKnowledgeProgress>[2] = {
         stage: 'done',
-        totalFiles: resetResult.roots.length,
-        ...(resetResult.skippedMissingSource > 0 ? { skippedMissingSource: resetResult.skippedMissingSource } : {})
-      })
+        totalFiles: resetResult.roots.length
+      }
+      if (resetResult.skippedMissingSource > 0) detail.skippedMissingSource = resetResult.skippedMissingSource
+      reportKnowledgeProgress(ctx, 100, detail)
     },
 
     async onSettled(event) {
