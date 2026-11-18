@@ -340,30 +340,31 @@ export async function buildClaudeCodeSessionSettings(
   // every other value (including an unreadable preference), so nothing changes unless asked.
   const hideCommitAttribution = application.get('PreferenceService').get('agent.commit_attribution.enabled') === false
 
-  const settings: ClaudeCodeSettings = {
+  const launchSettings: ClaudeCodeSettings = {
     cwd,
     additionalDirectories: [agentDataPath],
     env,
     pathToClaudeCodeExecutable: resolveClaudeExecutablePath(),
     systemPrompt,
     // Sealed agents exclude filesystem settings and native workspace instructions.
-    settingSources: capabilities.environment === 'sealed' ? [] : getSettingSources(provider),
-    settings: {
-      autoCompactEnabled: true,
-      cleanupPeriodDays: CLAUDE_SESSION_RETENTION_DAYS,
-      pluginConfigs: {
-        'agents-md@builtin': { options: { instructionFiles: 'claude-md-and-agents-md' } }
-      },
-      // Cherry owns persistent Agent memory through SOUL/USER/FACT/JOURNAL and agent-memory.
-      // Disable Claude Code's separate auto-memory store so the preset does not introduce a
-      // second, conflicting memory contract.
-      autoMemoryEnabled: false,
-      ...(autoCompactWindow === undefined ? {} : { autoCompactWindow }),
-      fastMode: options?.fastMode === true,
-      // Left unset while attribution is on: the runtime then signs with its own default text,
-      // and an explicit `attribution` in the user's own Claude Code settings file still wins.
-      ...(hideCommitAttribution ? { attribution: { commit: '', pr: '' } } : {})
+    settingSources: capabilities.environment === 'sealed' ? [] : getSettingSources(provider)
+  }
+  const runtimeSettings: Exclude<NonNullable<ClaudeCodeSettings['settings']>, string> = {
+    autoCompactEnabled: true,
+    cleanupPeriodDays: CLAUDE_SESSION_RETENTION_DAYS,
+    pluginConfigs: {
+      'agents-md@builtin': { options: { instructionFiles: 'claude-md-and-agents-md' } }
     },
+    // Cherry's persistent Agent memory replaces Claude Code's separate auto-memory store.
+    autoMemoryEnabled: false
+  }
+  if (autoCompactWindow !== undefined) runtimeSettings.autoCompactWindow = autoCompactWindow
+  runtimeSettings.fastMode = options?.fastMode === true
+  // Omission keeps native defaults and the user's settings-file attribution authoritative.
+  if (hideCommitAttribution) runtimeSettings.attribution = { commit: '', pr: '' }
+  const settings: ClaudeCodeSettings = {
+    ...launchSettings,
+    settings: runtimeSettings,
     includePartialMessages: true,
     agentProgressSummaries: true,
     forwardSubagentText: true,
@@ -376,13 +377,16 @@ export async function buildClaudeCodeSessionSettings(
     hooks,
     approvalEmitter,
     toolPolicySnapshot,
-    warmQueryKey: session.id,
-    ...(mcpToolMetadata ? { mcpToolMetadata } : {}),
-    ...(mcpServers ? { mcpServers, strictMcpConfig: true } : {}),
-    ...(options?.thinkingOptions?.effort ? { effort: options.thinkingOptions.effort } : {}),
-    ...(options?.thinkingOptions?.thinking ? { thinking: options.thinkingOptions.thinking } : {}),
-    ...(options?.lastAgentSessionId ? { resume: options.lastAgentSessionId } : {})
+    warmQueryKey: session.id
   }
+  if (mcpToolMetadata) settings.mcpToolMetadata = mcpToolMetadata
+  if (mcpServers) {
+    settings.mcpServers = mcpServers
+    settings.strictMcpConfig = true
+  }
+  if (options?.thinkingOptions?.effort) settings.effort = options.thinkingOptions.effort
+  if (options?.thinkingOptions?.thinking) settings.thinking = options.thinkingOptions.thinking
+  if (options?.lastAgentSessionId) settings.resume = options.lastAgentSessionId
 
   return settings
 }

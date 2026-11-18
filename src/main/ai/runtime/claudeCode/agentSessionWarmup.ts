@@ -900,26 +900,23 @@ function mergeRuntimeSettings(
     route.customHeaders,
     requestHeaders
   )
-  const env = mergeAgentLoopbackProxyBypass(
-    {
-      ...settings.env,
-      ...(route.branch === 'gateway'
-        ? {
-            API_TIMEOUT_MS: settings.env?.API_TIMEOUT_MS ?? String(DEFAULT_TIMEOUT),
-            API_FORCE_IDLE_TIMEOUT: settings.env?.API_FORCE_IDLE_TIMEOUT ?? '0',
-            CLAUDE_STREAM_IDLE_TIMEOUT_MS: settings.env?.CLAUDE_STREAM_IDLE_TIMEOUT_MS ?? String(DEFAULT_TIMEOUT)
-          }
-        : {}),
-      ANTHROPIC_MODEL: route.modelIds.primary,
-      ANTHROPIC_DEFAULT_OPUS_MODEL: route.modelIds.opus,
-      ANTHROPIC_DEFAULT_SONNET_MODEL: route.modelIds.sonnet,
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: route.modelIds.haiku,
-      ...(route.apiKey ? { ANTHROPIC_API_KEY: route.apiKey, ANTHROPIC_AUTH_TOKEN: route.apiKey } : {}),
-      ...(route.baseUrl ? { ANTHROPIC_BASE_URL: route.baseUrl } : {}),
-      ...(customHeaders ? { ANTHROPIC_CUSTOM_HEADERS: customHeaders } : {})
-    },
-    { additionalBypassRule: gatewayBypassRule(route) }
-  )
+  const runtimeEnv: NonNullable<ClaudeCodeSettings['env']> = { ...settings.env }
+  if (route.branch === 'gateway') {
+    runtimeEnv.API_TIMEOUT_MS = settings.env?.API_TIMEOUT_MS ?? String(DEFAULT_TIMEOUT)
+    runtimeEnv.API_FORCE_IDLE_TIMEOUT = settings.env?.API_FORCE_IDLE_TIMEOUT ?? '0'
+    runtimeEnv.CLAUDE_STREAM_IDLE_TIMEOUT_MS = settings.env?.CLAUDE_STREAM_IDLE_TIMEOUT_MS ?? String(DEFAULT_TIMEOUT)
+  }
+  runtimeEnv.ANTHROPIC_MODEL = route.modelIds.primary
+  runtimeEnv.ANTHROPIC_DEFAULT_OPUS_MODEL = route.modelIds.opus
+  runtimeEnv.ANTHROPIC_DEFAULT_SONNET_MODEL = route.modelIds.sonnet
+  runtimeEnv.ANTHROPIC_DEFAULT_HAIKU_MODEL = route.modelIds.haiku
+  if (route.apiKey) {
+    runtimeEnv.ANTHROPIC_API_KEY = route.apiKey
+    runtimeEnv.ANTHROPIC_AUTH_TOKEN = route.apiKey
+  }
+  if (route.baseUrl) runtimeEnv.ANTHROPIC_BASE_URL = route.baseUrl
+  if (customHeaders) runtimeEnv.ANTHROPIC_CUSTOM_HEADERS = customHeaders
+  const env = mergeAgentLoopbackProxyBypass(runtimeEnv, { additionalBypassRule: gatewayBypassRule(route) })
   if (route.branch === 'gateway' && !env.CLAUDE_CODE_SUBAGENT_MODEL?.trim()) {
     env.CLAUDE_CODE_SUBAGENT_MODEL = route.modelIds.primary
   }
