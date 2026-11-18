@@ -25,7 +25,7 @@ const entrySchema = z
     supersededBy: identifier.optional(),
     retirement: z
       .strictObject({
-        reason: z.enum(['changed', 'corrected']),
+        reason: z.enum(['changed', 'corrected', 'qualified']),
         replacement: z.string().min(1).max(2000),
         recordedAt: z.iso.datetime(),
         sources: z.array(sourceSchema).min(1).max(12)
