@@ -38,6 +38,11 @@ interface PendingDelta {
   text: string
 }
 
+type StreamResultIdentity = Pick<
+  EventPayload<'ai.stream.done'>,
+  'topicId' | 'userMessageId' | 'executionId' | 'attemptId' | 'topicAttemptWatermark'
+>
+
 type CoalescableChunk =
   | { type: 'text-delta'; id: string; delta: string; providerMetadata?: undefined }
   | { type: 'reasoning-delta'; id: string; delta: string; providerMetadata?: undefined }
@@ -113,11 +118,7 @@ export class WebContentsListener implements StreamListener {
     }
     this.flushPending()
     this.emit('ai.stream.done', {
-      topicId: this.topicId,
-      ...(result.userMessageId ? { userMessageId: result.userMessageId } : {}),
-      executionId: result.modelId,
-      ...(result.attemptId !== undefined ? { attemptId: result.attemptId } : {}),
-      ...(result.topicAttemptWatermark !== undefined ? { topicAttemptWatermark: result.topicAttemptWatermark } : {}),
+      ...this.resultIdentity(result),
       anchorMessageId: result.anchorMessageId,
       status: result.status,
       isTopicDone: result.isTopicDone
@@ -131,11 +132,7 @@ export class WebContentsListener implements StreamListener {
     }
     this.flushPending()
     this.emit('ai.stream.done', {
-      topicId: this.topicId,
-      ...(result.userMessageId ? { userMessageId: result.userMessageId } : {}),
-      executionId: result.modelId,
-      ...(result.attemptId !== undefined ? { attemptId: result.attemptId } : {}),
-      ...(result.topicAttemptWatermark !== undefined ? { topicAttemptWatermark: result.topicAttemptWatermark } : {}),
+      ...this.resultIdentity(result),
       anchorMessageId: result.anchorMessageId,
       status: result.status,
       isTopicDone: result.isTopicDone
@@ -150,15 +147,22 @@ export class WebContentsListener implements StreamListener {
     this.flushPending()
     // `result.finalMessage` is not forwarded — the renderer keeps its own accumulated state.
     this.emit('ai.stream.error', {
-      topicId: this.topicId,
-      ...(result.userMessageId ? { userMessageId: result.userMessageId } : {}),
-      executionId: result.modelId,
-      ...(result.attemptId !== undefined ? { attemptId: result.attemptId } : {}),
-      ...(result.topicAttemptWatermark !== undefined ? { topicAttemptWatermark: result.topicAttemptWatermark } : {}),
+      ...this.resultIdentity(result),
       anchorMessageId: result.anchorMessageId,
       isTopicDone: result.isTopicDone,
       error: result.error
     })
+  }
+
+  private resultIdentity(
+    result: Pick<StreamDoneResult, 'userMessageId' | 'modelId' | 'attemptId' | 'topicAttemptWatermark'>
+  ): StreamResultIdentity {
+    const identity: StreamResultIdentity = { topicId: this.topicId }
+    if (result.userMessageId) identity.userMessageId = result.userMessageId
+    identity.executionId = result.modelId
+    if (result.attemptId !== undefined) identity.attemptId = result.attemptId
+    if (result.topicAttemptWatermark !== undefined) identity.topicAttemptWatermark = result.topicAttemptWatermark
+    return identity
   }
 
   isAlive(): boolean {
@@ -195,12 +199,15 @@ export class WebContentsListener implements StreamListener {
     firstSequence?: number
   ): void {
     if (this.wc.isDestroyed()) return
+    const identity: Pick<
+      EventPayload<'ai.stream.chunk'>,
+      'topicId' | 'executionId' | 'attemptId' | 'sequence' | 'firstSequence'
+    > = { topicId: this.topicId, executionId: sourceModelId }
+    if (attemptId !== undefined) identity.attemptId = attemptId
+    if (sequence !== undefined) identity.sequence = sequence
+    if (firstSequence !== undefined) identity.firstSequence = firstSequence
     this.emit('ai.stream.chunk', {
-      topicId: this.topicId,
-      executionId: sourceModelId,
-      ...(attemptId !== undefined ? { attemptId } : {}),
-      ...(sequence !== undefined ? { sequence } : {}),
-      ...(firstSequence !== undefined ? { firstSequence } : {}),
+      ...identity,
       anchorMessageId,
       chunk: projectStreamChunkForRenderer(chunk, this.topicId, anchorMessageId)
     })
