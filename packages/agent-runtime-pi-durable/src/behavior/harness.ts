@@ -51,7 +51,7 @@ import { type JsonValue, type InputId, type ThreadId } from '@cherrystudio/agent
 import { conversationId, nativeSummaryUsage, pages, readFacts, threadId, runIds, taskRun } from './history'
 
 export interface PiDurableBehaviorOptions {
-  readonly onError?: (error: unknown) => void
+  readonly onError?: (cause: unknown) => void
   readonly install: (ports: HarnessPorts) => void
   readonly owns?: (thread: ThreadId) => boolean
   readonly configureRoot?: (thread: ThreadId) => AgentChange | Promise<AgentChange>

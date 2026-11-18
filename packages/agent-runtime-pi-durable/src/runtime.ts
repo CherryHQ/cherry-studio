@@ -65,7 +65,7 @@ export interface PiDurableRuntimeOptions {
   readonly behavior?: PiDurableRuntimeBehavior
   /** Synchronous placement notification before the scheduler can issue the next model request. */
   readonly onInputPlaced?: (inputId: InputId | undefined, thread: ThreadId) => void
-  readonly onError?: (error: unknown) => void
+  readonly onError?: (cause: unknown) => void
 }
 export interface PiDurableRuntimeBehavior {
   readonly host: HostPorts

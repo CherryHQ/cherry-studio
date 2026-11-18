@@ -75,9 +75,9 @@ export function startRun(adapter: Adapter, conv: Conversation, key: string, numb
           }
         })
       : native.session.sendCustomMessage(markerMessage(input, key), { triggerTurn: true, inputId })
-  started.catch((error: unknown) => {
-    adapter.report(error)
-    failRun(adapter, conv, run, error)
+  started.catch((cause: unknown) => {
+    adapter.report(cause)
+    failRun(adapter, conv, run, cause)
   })
 }
 
@@ -113,9 +113,9 @@ function beginRun(adapter: Adapter, conv: Conversation, key: string, number = co
   return run
 }
 
-function failRun(adapter: Adapter, conv: Conversation, run: RunState, error: unknown): void {
+function failRun(adapter: Adapter, conv: Conversation, run: RunState, cause: unknown): void {
   if (conv.active !== run) return
-  const message = error instanceof Error ? error.message : String(error)
+  const message = cause instanceof Error ? cause.message : String(cause)
   finishRun(adapter, conv, { live: 'error', answer: { outcome: 'failed', text: '', error: message } })
 }
 

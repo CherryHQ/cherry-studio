@@ -72,17 +72,17 @@ export function createAcpRuntime(options: AcpRuntimeOptions): AcpRuntime {
   const owners = new Map<string, Owner>()
   const opening = new Map<string, Promise<OperationResult<Owner>>>()
   const callbacks = options.callbacks ?? {}
-  const report = (error: unknown) => {
+  const report = (cause: unknown) => {
     try {
-      options.report(error)
+      options.report(cause)
     } catch {
       /* Diagnostics cannot change execution. */
     }
   }
 
   function enqueue(owner: Owner, work: () => Promise<void> | void): Promise<void> {
-    owner.work = owner.work.then(work).catch((error: unknown) => {
-      report(error)
+    owner.work = owner.work.then(work).catch((cause: unknown) => {
+      report(cause)
       lose(owner, 'projection-failed')
     })
     return owner.work
@@ -301,21 +301,21 @@ export function createAcpRuntime(options: AcpRuntimeOptions): AcpRuntime {
           owner.active = undefined
           prompt.settle({ status: 'confirmed', value: undefined })
         }),
-      (error: unknown) =>
+      (cause: unknown) =>
         enqueue(owner, async () => {
-          if (connection?.signal.aborted || !(error instanceof RequestError)) {
+          if (connection?.signal.aborted || !(cause instanceof RequestError)) {
             lose(owner, 'source-lost')
             return
           }
           await owner.projection.finish('unknown')
           owner.projection.publish({
             type: 'input.changed',
-            input: { ...prompt.input, outcome: 'failed', error: failure('prompt', 'remote-error', error) }
+            input: { ...prompt.input, outcome: 'failed', error: failure('prompt', 'remote-error', cause) }
           })
           owner.projection.publish({ type: 'activity.changed', activity: { state: 'unknown' } })
           prompt.permissions.abort()
           owner.active = undefined
-          prompt.settle({ status: 'rejected', error: failure('prompt', 'remote-error', error) })
+          prompt.settle({ status: 'rejected', error: failure('prompt', 'remote-error', cause) })
         })
     )
     return { status: 'acknowledged', inputId: input.inputId, facts: ['dispatch-started'] }

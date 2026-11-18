@@ -66,7 +66,7 @@ export interface PiBehaviorOptions {
   /**
    * Errors no caller awaits: a job, run, lifecycle handler, native callback, or quiet input that fails.
    */
-  readonly onError?: (error: unknown) => void
+  readonly onError?: (cause: unknown) => void
   readonly onResults?: (thread: ThreadId, result: OperationResult<SubagentResults>) => void
 }
 
@@ -134,7 +134,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     work.then(forget, forget)
     return work
   }
-  const report = (error: unknown) => options.onError?.(error)
+  const report = (cause: unknown) => options.onError?.(cause)
 
   /** One port call: rejects once its call ended or the harness closed; `body` runs synchronously up to its first await. */
   async function enter<T>(scope: Scope, body: () => T | Promise<T>): Promise<T> {
@@ -175,18 +175,18 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
             if (scope.opening) scope.opening.push(...applied.jobs)
             const launched = await Promise.allSettled(
               applied.children.map((child) =>
-                launch(openNative(child)).catch(async (error: unknown) => {
+                launch(openNative(child)).catch(async (cause: unknown) => {
                   conversations.delete(child.thread)
                   await lifecycle(
                     (handlers, ports) =>
                       handlers.onChildOpenFailed?.(
                         thread,
                         child.thread,
-                        error instanceof Error ? error.message : String(error),
+                        cause instanceof Error ? cause.message : String(cause),
                         ports
                       ) ?? Promise.resolve()
                   )
-                  throw error
+                  throw cause
                 })
               )
             )
@@ -573,8 +573,8 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       )
       // A session that fails to abort or dispose does not keep the others open.
       for (const conv of all)
-        await conv.native?.dispose().catch((error: unknown) => {
-          failures.push(error)
+        await conv.native?.dispose().catch((cause: unknown) => {
+          failures.push(cause)
         })
       closed = true
       if (failures.length > 0) throw failures.length === 1 ? failures[0] : new AggregateError(failures)
