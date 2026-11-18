@@ -2,6 +2,8 @@ import { hasRenderableContent, isSteerHandoffEmptySuccess } from '@shared/ai/mes
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { hasDismissedNoResponsePart } from '@shared/data/types/uiParts'
 
+import { isHiddenPart } from '../blocks/messagePartLayouts'
+
 /**
  * Appends a localized "no response" error part to assistant messages that ended
  * without any visible content. The error branch covers an `error` status with
@@ -22,8 +24,21 @@ export function withTerminalErrorFallback(
 
   for (const message of messages) {
     if (message.role !== 'assistant') continue
-    if (message.metadata?.status !== 'error') continue
     const parts = partsByMessageId[message.id] ?? message.parts ?? []
+    // Imported-history rows surface their original terminal status instead of a
+    // synthesized error; an imported row never gets the no-response fallback.
+    if (message.metadata?.importedHistory) {
+      const hasVisiblePart = parts.some((part) => !isHiddenPart(part))
+      if (message.metadata?.status === 'error' || !hasVisiblePart) {
+        if (next === partsByMessageId) next = { ...partsByMessageId }
+        next[message.id] = [
+          ...parts,
+          { type: 'data-imported-status', data: { status: message.metadata.importedHistory.status } }
+        ]
+      }
+      continue
+    }
+    if (message.metadata?.status !== 'error') continue
     if (hasDismissedNoResponsePart(parts)) continue
     if (hasRenderableContent(parts)) continue
     if (parts.some((part) => part.type === 'data-error')) continue

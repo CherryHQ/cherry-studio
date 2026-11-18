@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // only a real-Radix render can guard the fix. Import via the package-internal path so Radix
 // resolves from within `packages/ui` (it is not hoisted to the repo-root node_modules).
 vi.mock('@cherrystudio/ui', async () => {
-  const avatar = (await vi.importActual('@cherrystudio/ui/components/primitives/avatar')) as Record<string, unknown>
+  const avatar = await vi.importActual<Record<string, unknown>>('@cherrystudio/ui/components/primitives/avatar')
   return {
     Avatar: avatar.Avatar,
     AvatarImage: avatar.AvatarImage,

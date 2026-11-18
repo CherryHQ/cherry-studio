@@ -395,3 +395,8 @@ describe('SkillFileBrowser', () => {
     expect(mocks.ipcRequest).not.toHaveBeenCalledWith('file.edit.read', expect.anything())
   })
 })
+
+vi.mock('@renderer/services/fileObservation', async () => {
+  const { mockFileObservationService } = await import('@test-mocks/renderer/FileObservationService')
+  return { fileObservationService: mockFileObservationService }
+})
