@@ -437,8 +437,10 @@ export function buildAgentToolFlowProjection(
             (value) => typeof value === 'string' && value.trim()
           )
         : undefined
+      const heading: Pick<AgentToolFlowNode, 'title'> = {}
+      if (typeof title === 'string') heading.title = title.trim()
       const node: AgentToolFlowNode = {
-        ...(typeof title === 'string' ? { title: title.trim() } : {}),
+        ...heading,
         toolCallId,
         toolName: getToolNameFromPart(part) ?? toolCallId,
         parentToolCallId,

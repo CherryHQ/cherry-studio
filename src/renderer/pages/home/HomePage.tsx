@@ -415,12 +415,12 @@ const HomePage: FC = () => {
     async (payload?: AddNewTopicPayload, options?: NewTopicAssistantTargetOptions): Promise<Topic> => {
       const selection = resolveNewTopicAssistantTarget(payload?.assistantId, options)
       const reuseTargetAssistantId = selection.assistantId ?? (payload?.assistantId === null ? null : undefined)
+      const input: NonNullable<Parameters<typeof createTopic>[0]> = {}
+      if (selection.assistantId) input.assistantId = selection.assistantId
       const result =
         reuseTargetAssistantId === undefined
           ? {
-              topic: await createTopic({
-                ...(selection.assistantId ? { assistantId: selection.assistantId } : {})
-              }),
+              topic: await createTopic(input),
               created: true
             }
           : await reuseOrCreateTopic(reuseTargetAssistantId)

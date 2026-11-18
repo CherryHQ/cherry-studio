@@ -354,8 +354,10 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
     if (shouldCheckModel) {
       setBusyState('checking')
       try {
+        const options: Pick<NonNullable<Parameters<typeof checkApi>[1]>, 'apiKey'> = {}
+        if (verificationApiKey) options.apiKey = verificationApiKey
         await checkApi(probeModel.id, {
-          ...(verificationApiKey ? { apiKey: verificationApiKey } : {}),
+          ...options,
           timeout: 15000
         })
         probeSucceededModelIdRef.current = probeModel.id

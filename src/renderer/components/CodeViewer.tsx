@@ -760,19 +760,20 @@ const CodeViewer = ({
   const renderedLines = capture?.lines ?? rawLines
   const renderedTokens = capture ? capture.tokens : (tokens ?? editorTokens)
   const renderedItems = capture ? capture.lines.map((_, index) => ({ key: index, index })) : virtualItems
+  const blockStyle: React.CSSProperties = {
+    ...codeBlockStyle,
+    color: 'var(--code-foreground, var(--foreground))',
+    backgroundColor: 'var(--code-background, transparent)',
+    fontFamily: 'var(--code-font-family)'
+  }
+  if (!expanded && !capture) blockStyle.height = height
 
   return (
     <div
       ref={shikiThemeRef}
       data-image-capture-content=""
       className={cn('code-viewer shiki highlights', isCodeThemeDark ? 'shiki-dark' : 'shiki-light', className)}
-      style={{
-        ...codeBlockStyle,
-        color: 'var(--code-foreground, var(--foreground))',
-        backgroundColor: 'var(--code-background, transparent)',
-        fontFamily: 'var(--code-font-family)',
-        ...(expanded || capture ? {} : { height })
-      }}>
+      style={blockStyle}>
       <div ref={widthProbeRef} aria-hidden="true" data-width-probe className="h-0" />
       <div
         ref={scrollerRef}

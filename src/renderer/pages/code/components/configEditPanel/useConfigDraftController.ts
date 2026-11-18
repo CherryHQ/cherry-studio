@@ -369,8 +369,10 @@ export function useConfigDraftController({
     try {
       setSubmitting(true)
       if (current.mode === 'foreign') {
+        const model: Pick<Parameters<typeof onSubmit>[0], 'modelId'> = {}
+        if (current.modelId) model.modelId = current.modelId
         await onSubmit({
-          ...(current.modelId ? { modelId: current.modelId } : {}),
+          ...model,
           cliConfigFiles: current.files,
           cliConfigOnly: true
         })
@@ -394,11 +396,17 @@ export function useConfigDraftController({
           commitDraft(submitDraft)
           return
         }
-        await onSubmit({
+        const input: Pick<
+          Parameters<typeof onSubmit>[0],
+          'modelId' | 'cliConfigModelId' | 'config' | 'cliConfigFiles'
+        > = {
           modelId: isClaudeDetailedSubmit ? undefined : current.modelId,
           cliConfigModelId,
-          config: nextConfig,
-          ...(submitDraft ? { cliConfigFiles: submitDraft.files } : {}),
+          config: nextConfig
+        }
+        if (submitDraft) input.cliConfigFiles = submitDraft.files
+        await onSubmit({
+          ...input,
           writePrimaryModel: !isClaudeDetailedSubmit
         })
       }
