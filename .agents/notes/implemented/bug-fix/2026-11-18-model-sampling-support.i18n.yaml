@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-18-model-sampling-support.md
+2026-11-18-model-sampling-support.md: 9be66b29c13e7c0b2101dfb559abbda8b8288684
+2026-11-18-model-sampling-support.zh.md: 0aa3125951a16b2d48ee161a27b1ebc2d668c66e

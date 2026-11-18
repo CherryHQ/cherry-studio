@@ -1,5 +1,3 @@
-import { describe, expect, it, vi } from 'vitest'
-
 /**
  * Mock-fidelity parity test for the data change fan-out.
  *
@@ -10,6 +8,8 @@ import { describe, expect, it, vi } from 'vitest'
  * same scenario scripts against the real service and the mock and asserts
  * identical delivery logs: any semantic divergence fails loudly here.
  */
+import { describe, expect, it, vi } from 'vitest'
+
 import type { DataApiDataChangeEffect, GetMethodApiPaths } from '@shared/data/api/types'
 
 // The global renderer setup replaces this module with a mock for consuming
