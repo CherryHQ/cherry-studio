@@ -195,28 +195,25 @@ function withAihubmixGoogleImageOptions(model: ImageModelV3, isGeminiImage: bool
           aihubmixOptions.resolution
       )
 
-      const googleOptions: JSONObject = {
-        ...(aspectRatio ? { aspectRatio } : {}),
-        ...(personGeneration ? { personGeneration } : {}),
-        ...existingGoogle
-      }
+      const googleDefaults: JSONObject = {}
+      if (aspectRatio) googleDefaults.aspectRatio = aspectRatio
+      if (personGeneration) googleDefaults.personGeneration = personGeneration
+      const googleOptions: JSONObject = { ...googleDefaults, ...existingGoogle }
 
       if (isGeminiImage && (aspectRatio || imageSize || Object.keys(existingImageConfig).length > 0)) {
-        googleOptions.imageConfig = {
-          ...existingImageConfig,
-          ...(aspectRatio ? { aspectRatio } : {}),
-          ...(imageSize ? { imageSize } : {})
-        }
+        const imageConfig: JSONObject = { ...existingImageConfig }
+        if (aspectRatio) imageConfig.aspectRatio = aspectRatio
+        if (imageSize) imageConfig.imageSize = imageSize
+        googleOptions.imageConfig = imageConfig
       }
 
-      return model.doGenerate({
-        ...options,
-        ...(aspectRatio ? { aspectRatio, size: undefined } : {}),
-        providerOptions: {
-          ...providerOptions,
-          google: googleOptions
-        }
-      })
+      const request = { ...options }
+      if (aspectRatio) {
+        request.aspectRatio = aspectRatio
+        request.size = undefined
+      }
+      request.providerOptions = { ...providerOptions, google: googleOptions }
+      return model.doGenerate(request)
     }
   }
 }

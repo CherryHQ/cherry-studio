@@ -96,28 +96,26 @@ export function createGatewayGeminiImageModel(languageModel: LanguageModelV3, mo
       const { imageResolution, ...gateway } = (rawGateway ?? {}) as Record<string, JSONValue>
       const existingGoogle = (providerOptions?.google ?? {}) as Record<string, JSONValue>
       const existingImageConfig = (existingGoogle.imageConfig ?? {}) as Record<string, JSONValue>
-      const imageConfig: Record<string, JSONValue> = {
-        ...(typeof imageResolution === 'string' && imageResolution !== 'auto' ? { imageSize: imageResolution } : {}),
-        ...existingImageConfig,
-        ...(aspectRatio ? { aspectRatio } : {})
-      }
+      const imageDefaults: Record<string, JSONValue> = {}
+      if (typeof imageResolution === 'string' && imageResolution !== 'auto') imageDefaults.imageSize = imageResolution
+      const imageConfig: Record<string, JSONValue> = { ...imageDefaults, ...existingImageConfig }
+      if (aspectRatio) imageConfig.aspectRatio = aspectRatio
       const google: Record<string, JSONValue> = {
         ...existingGoogle,
-        responseModalities: ['IMAGE'],
-        ...(Object.keys(imageConfig).length > 0 ? { imageConfig } : {})
+        responseModalities: ['IMAGE']
       }
+      if (Object.keys(imageConfig).length > 0) google.imageConfig = imageConfig
 
-      const result = await languageModel.doGenerate({
-        prompt: [{ role: 'user', content: userContent }],
-        ...(seed != null ? { seed } : {}),
-        ...(headers ? { headers } : {}),
-        ...(abortSignal ? { abortSignal } : {}),
-        providerOptions: {
-          ...otherProviderOptions,
-          ...(Object.keys(gateway).length > 0 ? { gateway } : {}),
-          google
-        }
-      })
+      const request: Parameters<LanguageModelV3['doGenerate']>[0] = {
+        prompt: [{ role: 'user', content: userContent }]
+      }
+      if (seed != null) request.seed = seed
+      if (headers) request.headers = headers
+      if (abortSignal) request.abortSignal = abortSignal
+      const requestProviderOptions = { ...otherProviderOptions }
+      if (Object.keys(gateway).length > 0) requestProviderOptions.gateway = gateway
+      request.providerOptions = { ...requestProviderOptions, google }
+      const result = await languageModel.doGenerate(request)
 
       const images: string[] = []
       for (const part of result.content) {
