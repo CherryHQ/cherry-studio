@@ -91,7 +91,7 @@ export class UsageBudgetNotificationService extends BaseService {
       .get()?.value as T | undefined
   }
 
-  private writeState(key: string, value: unknown): void {
+  private writeState(key: string, value: string): void {
     application
       .get('DbService')
       .getDb()
