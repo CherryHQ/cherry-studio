@@ -10,16 +10,19 @@ type Metadata = NonNullable<Extract<Part, { type: 'text' }>['providerMetadata']>
 export type ToolResult = { toolUseId: string; output: unknown; errorText?: string }
 export type ProjectedBlock = { type: NativeBlock['type']; part: Part } | { result: ToolResult }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native tool outputs and archived citation payloads have extension-defined shapes; serialize their JSON representation for provider metadata.
 export function json(value: unknown): Metadata[string][string] {
   return JSON.parse(JSON.stringify(value)) as Metadata[string][string]
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Archived blocks are raw JSON; this only checks the container, leaving consumed field validation to each decoder.
 function object(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Live SDK and raw archive citations share this projection; preserve their payload as JSON without claiming a complete SDK citation type.
 function textPart(text: string, partial: boolean, citations?: unknown): Part {
   return {
     type: 'text',
@@ -37,6 +40,7 @@ function toolPart(
   type: Extract<NativeBlock, { id: string }>['type'],
   id: string,
   name: string,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool schemas own their input shape; live and archived tool calls retain the original payload here.
   input: unknown,
   partial: boolean,
   serverName?: string
@@ -51,19 +55,23 @@ function toolPart(
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native and archived tool results have tool-specific bodies; only checked text fields become error text.
 function toolResult(toolUseId: string, output: unknown, isError = false): ToolResult {
   const errorType = object(output)?.type
   const failed = isError || (typeof errorType === 'string' && errorType.endsWith('_error'))
-  const errorText = !failed
-    ? undefined
-    : typeof output === 'string'
-      ? output
-      : Array.isArray(output)
-        ? output
-            .filter((part: unknown) => object(part)?.type === 'text')
-            .map((part: unknown) => object(part)?.text)
-            .join('\n')
-        : JSON.stringify(output)
+  let errorText: string | undefined
+  if (failed) {
+    if (typeof output === 'string') errorText = output
+    else if (Array.isArray(output)) {
+      const parts: readonly unknown[] = output
+      const texts: string[] = []
+      for (const part of parts) {
+        const block = object(part)
+        if (block?.type === 'text' && typeof block.text === 'string') texts.push(block.text)
+      }
+      errorText = texts.join('\n')
+    } else errorText = JSON.stringify(output)
+  }
   return { toolUseId, output, errorText }
 }
 
@@ -146,6 +154,7 @@ export function projectBlock(block: NativeBlock, partial: boolean): ProjectedBlo
 
 /** Decode only fields the projection consumes; do not assert an archive payload is a complete SDK message. */
 export function decodeArchiveContent(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native archive message bodies are unvalidated; decode only supported block fields and skip malformed entries.
   value: unknown,
   partial: boolean
 ):
@@ -160,6 +169,7 @@ export function decodeArchiveContent(
   if (!Array.isArray(content)) return undefined
   return {
     id: typeof body.id === 'string' ? body.id : undefined,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- An archive content array may mix malformed and supported blocks; validate each consumed field below.
     blocks: content.map((value: unknown): ProjectedBlock | undefined => {
       const block = object(value)
       if (!block) return undefined
