@@ -35,7 +35,7 @@ export const claudeWorkspaceRelocation: RuntimeWorkspaceRelocation = {
     const result = await runForkWorker(
       createWorker({ workerData, env: { ...process.env } }),
       new AbortController().signal,
-      (value) => z.strictObject({ oldKey: z.string(), newKey: z.string() }).parse(value)
+      z.strictObject({ oldKey: z.string(), newKey: z.string() })
     )
     function projectPath(key: string) {
       if (!key || /[\\/]/.test(key) || key === '.' || key === '..') throw new Error('Invalid Claude project key')
