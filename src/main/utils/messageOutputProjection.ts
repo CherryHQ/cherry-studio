@@ -131,15 +131,11 @@ function toCitationSkeleton(output: unknown) {
   const content = toCitationPayloadSkeleton(output.content)
   if (content === undefined) return undefined
 
-  return {
-    content,
-    metadata: {
-      type: 'mcp',
-      ...(toolName ? { name: toolName } : {}),
-      ...(typeof metadata.serverId === 'string' ? { serverId: metadata.serverId } : {}),
-      ...(typeof metadata.serverName === 'string' ? { serverName: metadata.serverName } : {})
-    }
-  }
+  const projectedMetadata: { type: 'mcp'; name?: string; serverId?: string; serverName?: string } = { type: 'mcp' }
+  if (toolName) projectedMetadata.name = toolName
+  if (typeof metadata.serverId === 'string') projectedMetadata.serverId = metadata.serverId
+  if (typeof metadata.serverName === 'string') projectedMetadata.serverName = metadata.serverName
+  return { content, metadata: projectedMetadata }
 }
 
 /** Serialize an oversized payload for reuse in transport checks and revision hashing. */
