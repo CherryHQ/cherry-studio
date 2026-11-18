@@ -240,6 +240,21 @@ describe('web install and update', () => {
         orderKey: 'a0'
       })
       .run()
+    const installedManifest = {
+      id: APP_ID,
+      name: 'My Game',
+      description: 'A tiny sample game.',
+      version: '1.0.0',
+      entry: 'index.html',
+      permissions: over.permissions ?? ['storage.get', 'storage.set'],
+      optionalPermissions: [],
+      network: []
+    }
+    if (over.icon) Object.assign(installedManifest, { icon: over.icon })
+    if (over.manifestUpdateUrl)
+      Object.assign(installedManifest, {
+        update: { url: over.manifestUpdateUrl, urlCn: over.manifestUpdateUrlCn ?? over.manifestUpdateUrl }
+      })
     dbh.db
       .insert(miniAppInstallationTable)
       .values({
@@ -249,20 +264,7 @@ describe('web install and update', () => {
         ...(over.source === 'file'
           ? { source: 'file' as const, sourceUrl: null, sourceOrigin: null }
           : { source: 'url' as const, sourceUrl: MANIFEST_URL, sourceOrigin: ORIGIN, sourceOriginCn: ORIGIN_CN }),
-        manifestJson: {
-          id: APP_ID,
-          name: 'My Game',
-          description: 'A tiny sample game.',
-          version: '1.0.0',
-          entry: 'index.html',
-          permissions: over.permissions ?? ['storage.get', 'storage.set'],
-          optionalPermissions: [],
-          network: [],
-          ...(over.icon ? { icon: over.icon } : {}),
-          ...(over.manifestUpdateUrl
-            ? { update: { url: over.manifestUpdateUrl, urlCn: over.manifestUpdateUrlCn ?? over.manifestUpdateUrl } }
-            : {})
-        },
+        manifestJson: installedManifest,
         consentedDeclaredJson: over.consentedDeclaredJson ?? ['storage.get', 'storage.set']
       })
       .run()

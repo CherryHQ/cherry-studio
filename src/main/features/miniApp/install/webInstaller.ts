@@ -631,41 +631,32 @@ async function publishUpdate(
     await fs.promises.rename(staging, installPath)
 
     application.get('DbService').withWriteTx((tx) => {
-      tx.update(miniAppInstallationTable)
-        .set({
-          version: manifest.version,
-          contentHash,
-          manifestJson: manifest,
-          // Captured here, consumed by rollbackUpdate — without these the rollback
-          // path reads columns nothing ever wrote.
-          previousManifestJson: MiniAppManifestSchema.parse(row.manifestJson),
-          previousContentHash: row.contentHash,
-          previousGrantsJson: previousGrants,
-          previousConsentedDeclaredJson: previousConsented,
-          // The OLD baseline plus exactly what the user SAW — agreed-to plus merely offered —
-          // never the new manifest's expansion. Only a human extends a record of what a human saw.
-          consentedDeclaredJson: [...new Set([...previousConsented, ...added, ...addedOptional])].sort(),
-          // Provenance follows the user's choice and is NOT snapshotted: a rollback
-          // restores code and declarations, never where the app came from.
-          ...(review.repin
-            ? {
-                source: review.repin.source,
-                sourceUrl: review.repin.sourceUrl ?? null,
-                sourceOrigin: review.repin.sourceOrigin ?? null,
-                sourceOriginCn: review.repin.sourceOriginCn ?? null
-              }
-            : {})
-        })
-        .where(eq(miniAppInstallationTable.appId, appId))
-        .run()
-      tx.update(miniAppTable)
-        .set({
-          name: resolveLocalizedText(manifest.name, 'en'),
-          url: `${MINI_APP_SCHEME}://${appId}/${manifest.entry}`,
-          ...(review.repin ? { presetMiniAppId: review.repin.source === 'builtin' ? appId : null } : {})
-        })
-        .where(eq(miniAppTable.appId, appId))
-        .run()
+      const installationPatch: Partial<typeof miniAppInstallationTable.$inferInsert> = {
+        version: manifest.version,
+        contentHash,
+        manifestJson: manifest,
+        // Rollback reads the captured old manifest, code and grant baselines.
+        previousManifestJson: MiniAppManifestSchema.parse(row.manifestJson),
+        previousContentHash: row.contentHash,
+        previousGrantsJson: previousGrants,
+        previousConsentedDeclaredJson: previousConsented,
+        // Only the human's newly reviewed leaves extend the consent baseline.
+        consentedDeclaredJson: [...new Set([...previousConsented, ...added, ...addedOptional])].sort()
+      }
+      // Repinning changes provenance; a code rollback does not restore it.
+      if (review.repin) {
+        installationPatch.source = review.repin.source
+        installationPatch.sourceUrl = review.repin.sourceUrl ?? null
+        installationPatch.sourceOrigin = review.repin.sourceOrigin ?? null
+        installationPatch.sourceOriginCn = review.repin.sourceOriginCn ?? null
+      }
+      tx.update(miniAppInstallationTable).set(installationPatch).where(eq(miniAppInstallationTable.appId, appId)).run()
+      const appPatch: Partial<typeof miniAppTable.$inferInsert> = {
+        name: resolveLocalizedText(manifest.name, 'en'),
+        url: `${MINI_APP_SCHEME}://${appId}/${manifest.entry}`
+      }
+      if (review.repin) appPatch.presetMiniAppId = review.repin.source === 'builtin' ? appId : null
+      tx.update(miniAppTable).set(appPatch).where(eq(miniAppTable.appId, appId)).run()
       // ONLY what the user just consented to — the new required leaves plus the newly offered
       // optional ones they left ticked. Re-granting the full declared set would restore every
       // permission they had revoked.

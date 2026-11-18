@@ -151,10 +151,9 @@ function summarize(
   }
   const installed =
     placement.relation === 'fresh' ? undefined : { ...placement.installed, relation: placement.relation }
-  const installToken = registerPending(
-    { ownerId, manifest, payload, ...(installed ? { installed: { version: installed.version } } : {}) },
-    claim
-  )
+  const pending: Parameters<typeof registerPending>[0] = { ownerId, manifest, payload }
+  if (installed) pending.installed = { version: installed.version }
+  const installToken = registerPending(pending, claim)
   const { required, optional } = declaredGrants(manifest)
   return Promise.resolve({
     kind: 'install',
