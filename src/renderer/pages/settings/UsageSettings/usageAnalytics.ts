@@ -297,9 +297,10 @@ export function buildChartSeries(
     const key = getBucketKey(bucket)
     let series = groups.get(key)
     if (!series) {
+      const identity: Pick<UsageChartSeries, 'key' | 'identity'> = { key }
+      if (!bucket.isOther) identity.identity = { ...bucket }
       series = {
-        key,
-        ...(bucket.isOther ? {} : { identity: { ...bucket } }),
+        ...identity,
         values: periodKeys.map(() => 0),
         total: 0
       }
