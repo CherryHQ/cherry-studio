@@ -1,7 +1,7 @@
 import type { Element, Root } from 'hast'
 import { visit } from 'unist-util-visit'
 
-const isNumeric = (value: unknown): boolean => {
+const isNumeric = (value: string | undefined): boolean => {
   if (typeof value === 'string' && value.trim() !== '') {
     return /^(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(value.trim())
   }

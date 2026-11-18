@@ -17,7 +17,7 @@ export class ThreadFeed {
 
   constructor(
     private value: ThreadSnapshot,
-    private readonly report: (error: unknown) => void,
+    private readonly report: (cause: unknown) => void,
     // oxlint-disable-next-line no-restricted-globals -- Isolate caller-owned snapshots by default.
     private readonly copy: <T extends ObservationPayload>(value: T) => T = (value) => structuredClone(value)
   ) {
@@ -129,9 +129,9 @@ export class ThreadFeed {
         else barrier.reject(new Error('Observation stopped before delivery drained'))
       }
     }
-    const report = (error: unknown) => {
+    const report = (cause: unknown) => {
       try {
-        this.report(error)
+        this.report(cause)
       } catch {
         /* Reporting cannot affect execution. */
       }
