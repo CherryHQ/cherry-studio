@@ -569,7 +569,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     try {
       await child.projection.attach()
     } finally {
-      unpin()
+      // Callers subscribe in their continuation; keep a finished child loaded until then.
+      setImmediate(unpin)
     }
     const key = this.childKey(child.relation.child!.id)
     let view = this.childViews.get(key)?.deref()
@@ -705,11 +706,11 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     await this.access.release(async () => {
       toolApprovalRegistry.abort(this.input.sessionId, 'durable-access-closed')
       await this.observation?.drain()
-      for (const [key, child] of this.children) {
-        if (child.state === 'releasing') {
-          await child.pending
-          continue
-        }
+      for (const [key, entry] of this.children) {
+        if (entry.state === 'releasing') await entry.pending
+        // A release whose flush failed leaves the child closing for this loop to retry.
+        const child = this.children.get(key)
+        if (!child || child.state === 'releasing') continue
         const resource = child.state === 'opening' ? await child.pending : child.resource
         if (!resource) continue
         this.children.set(key, { state: 'closing', resource })
