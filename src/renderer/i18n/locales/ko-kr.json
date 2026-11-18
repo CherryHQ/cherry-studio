@@ -2478,6 +2478,8 @@
   "marketplace.view_all": "모두 보기",
   "marketplace.view_repository": "저장소 보기",
   "marketplace.view_source": "소스 보기",
+  "mcp.skills.unavailable": "MCP 스킬을 사용할 수 없습니다",
+  "mcp.skills.use": "{{server}}({{origin}})의 MCP 스킬 “{{name}}”을 사용하세요.",
   "message.agents.import.error": "가져오기 실패",
   "message.agents.imported": "어시스턴트 {{count}}개를 가져왔습니다",
   "message.api.check.model.title": "감지에 사용할 모델을 선택하세요",

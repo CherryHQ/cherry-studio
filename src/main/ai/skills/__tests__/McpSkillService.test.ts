@@ -427,7 +427,7 @@ describe('session MCP skills through real protocol and persistence', () => {
           offloadThreshold: 20000
         }
       })
-      const interactions = await createPiInteractionPorts({
+      const interactions = createPiInteractionPorts({
         input: { sessionId, agentId, modelId: 'test::model' },
         approval,
         toolCallIdentity: async () => ({ toolCallId: event.toolCallId }),
