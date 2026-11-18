@@ -408,11 +408,9 @@ describe('CherryIN Anthropic strict tools', () => {
     delete tool.inputExamples
     tool.strict = strict
     const modelId = route === 'explicit' ? 'claude-fable-5' : 'anthropic/claude-fable-5'
-    const model = createCherryIn({
-      apiKey: 'test-key',
-      fetch,
-      ...(route === 'explicit' ? { endpointType: 'anthropic' } : {})
-    })(modelId)
+    const settings: NonNullable<Parameters<typeof createCherryIn>[0]> = { apiKey: 'test-key', fetch }
+    if (route === 'explicit') settings.endpointType = 'anthropic'
+    const model = createCherryIn(settings)(modelId)
 
     await expect(model[method](callOptions(tool))).rejects.toMatchObject({ statusCode: 400 })
 

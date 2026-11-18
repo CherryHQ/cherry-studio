@@ -115,17 +115,11 @@ export const createUrlItem = ({
   source?: string
   relativePath?: PosixRelativeFilePath
   status?: KnowledgeItemOf<'url'>['status']
-}): KnowledgeItemOf<'url'> => ({
-  ...baseFields,
-  ...createLeafLifecycle(status),
-  id,
-  type: 'url',
-  data: {
-    source,
-    url: source,
-    ...(relativePath ? { relativePath } : {})
-  }
-})
+}): KnowledgeItemOf<'url'> => {
+  const data: KnowledgeItemOf<'url'>['data'] = { source, url: source }
+  if (relativePath) data.relativePath = relativePath
+  return { ...baseFields, ...createLeafLifecycle(status), id, type: 'url', data }
+}
 
 export const createDirectoryItem = ({
   id,

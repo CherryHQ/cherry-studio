@@ -905,13 +905,11 @@ describe('OpenClawService gateway status state machine', () => {
     ])('rejects a successful validation report with a $name config path', async ({ reportPath }) => {
       validateConfigSpy.mockRestore()
       const candidatePath = resolvePath('/mock/openclaw/openclaw.json.cherry-candidate-id')
+      const report = { valid: true }
+      if (reportPath !== undefined) Object.assign(report, { path: reportPath })
       runOpenClawCommandSpy.mockResolvedValueOnce({
         exitCode: 0,
-        stdout: JSON.stringify({
-          valid: true,
-          ...(reportPath === undefined ? {} : { path: reportPath }),
-          warnings: []
-        }),
+        stdout: JSON.stringify({ ...report, warnings: [] }),
         stderr: '',
         outputTruncated: false
       })

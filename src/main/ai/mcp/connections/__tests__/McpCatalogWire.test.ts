@@ -251,14 +251,17 @@ describe('MCP catalog over modern handler.fetch', () => {
             }
           )
           const server = mcp.server
-          server.setRequestHandler('resources/templates/list', async ({ params }) => ({
-            resourceTemplates: [
-              params?.cursor
-                ? { name: 'search', uriTemplate: 'docs://search{?query}' }
-                : { name: 'document', uriTemplate: 'docs://documents/{id}' }
-            ],
-            ...(params?.cursor ? {} : { nextCursor: 'second' })
-          }))
+          server.setRequestHandler('resources/templates/list', async ({ params }) => {
+            const page = {
+              resourceTemplates: [
+                params?.cursor
+                  ? { name: 'search', uriTemplate: 'docs://search{?query}' }
+                  : { name: 'document', uriTemplate: 'docs://documents/{id}' }
+              ]
+            }
+            if (!params?.cursor) Object.assign(page, { nextCursor: 'second' })
+            return page
+          })
           server.setRequestHandler('resources/read', async ({ params }) => ({
             contents: [{ uri: params.uri, text: 'dynamic document' }]
           }))

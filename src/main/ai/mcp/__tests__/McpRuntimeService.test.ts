@@ -155,15 +155,9 @@ describe('McpRuntimeService embedded interaction authorization', () => {
 
   it.each([undefined, 'legacy-id'])('authorizes URL elicitation with protocol ID %s', async (elicitationId) => {
     const service = new McpRuntimeService()
-    const payload = {
-      method: 'elicitation/create',
-      params: {
-        mode: 'url',
-        message: 'Authorize access',
-        url: 'https://example.com/authorize',
-        ...(elicitationId ? { elicitationId } : {})
-      }
-    }
+    const params = { mode: 'url', message: 'Authorize access', url: 'https://example.com/authorize' }
+    if (elicitationId) Object.assign(params, { elicitationId })
+    const payload = { method: 'elicitation/create', params }
     const pending = service.requestInteraction({
       serverId: 'server-1',
       windowId: 'window-1',

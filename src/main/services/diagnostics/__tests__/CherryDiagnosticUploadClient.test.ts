@@ -103,12 +103,12 @@ function uploadedResult(
   processingStatus: 'pending' | null = 'pending',
   submittedAt: number | null = Date.parse(CREATED_AT)
 ): CherryDiagnosticUploadResult {
-  return {
+  const result: Omit<Extract<CherryDiagnosticUploadResult, { status: 'uploaded' }>, 'status'> = {
     reportId,
-    processingStatus,
-    ...(submittedAt === null ? {} : { submittedAt }),
-    status: 'uploaded'
+    processingStatus
   }
+  if (submittedAt !== null) result.submittedAt = submittedAt
+  return { ...result, status: 'uploaded' }
 }
 
 describe('CherryDiagnosticUploadClient', () => {

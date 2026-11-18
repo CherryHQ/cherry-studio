@@ -265,9 +265,10 @@ describe('listModels — malformed OpenAI-compatible rows', () => {
 
 describe('listModels — TokenDance protocol routing', () => {
   function makeTokenDanceProvider(id = 'tokendance') {
+    const identity = { id }
+    if (id !== 'tokendance') Object.assign(identity, { presetProviderId: 'tokendance' })
     return makeProvider({
-      id,
-      ...(id === 'tokendance' ? {} : { presetProviderId: 'tokendance' }),
+      ...identity,
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {

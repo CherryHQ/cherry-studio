@@ -108,6 +108,10 @@ describe('Qwen Anthropic web tools', () => {
           })
         }
       })
+      const tools = {
+        webSearch: anthropic.tools.webSearch_20260209({ maxUses: 3, blockedDomains: ['blocked.example'] })
+      }
+      if (fetchEnabled) Object.assign(tools, { urlContext: anthropic.tools.webFetch_20260209({ maxUses: 2 }) })
       const result = await generateText({
         model: wrapLanguageModel({
           model: anthropic('qwen3.8-max'),
@@ -121,10 +125,7 @@ describe('Qwen Anthropic web tools', () => {
           },
           { role: 'user', content: 'Read https://example.com and search for related information.' }
         ],
-        tools: {
-          webSearch: anthropic.tools.webSearch_20260209({ maxUses: 3, blockedDomains: ['blocked.example'] }),
-          ...(fetchEnabled ? { urlContext: anthropic.tools.webFetch_20260209({ maxUses: 2 }) } : {})
-        }
+        tools
       })
       expect(result.text).toBe('Grounded answer')
       expect(request.system).toEqual([

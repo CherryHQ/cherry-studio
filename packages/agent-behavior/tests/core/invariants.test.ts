@@ -153,7 +153,9 @@ describe('replay invariants', () => {
       if (entry.kind !== 'record' && entry.kind !== 'marker') return wire(entry)
       const { kind, data } = encodeEntry(entry.kind === 'record' ? entry.record : entry.marker, entry.key)
       const text = entry.kind === 'marker' ? entry.text : undefined
-      const decoded = decodeEntry({ id: entry.id, kind, data: wire(data), ...(text === undefined ? {} : { text }) })
+      const encoded = { id: entry.id, kind, data: wire(data) }
+      if (text !== undefined) Object.assign(encoded, { text })
+      const decoded = decodeEntry(encoded)
       if (!decoded) throw new Error(`${kind} did not decode`)
       return decoded
     }

@@ -677,11 +677,11 @@ describe('DataSourcePanel', () => {
         const items =
           payload === 'files only'
             ? undefined
-            : files.map((file) => ({
-                kind: 'file',
-                getAsFile: () => file,
-                ...(payload === 'null entry' ? { webkitGetAsEntry: () => null } : {})
-              }))
+            : files.map((file) => {
+                const item = { kind: 'file', getAsFile: () => file }
+                if (payload === 'null entry') Object.assign(item, { webkitGetAsEntry: () => null })
+                return item
+              })
         const onAdd = renderDropPanel()
 
         fireEvent.drop(screen.getByText('上传第一个数据源'), { dataTransfer: { files, items } })

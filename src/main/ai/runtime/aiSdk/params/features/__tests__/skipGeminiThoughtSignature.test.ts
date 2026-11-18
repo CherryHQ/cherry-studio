@@ -17,6 +17,8 @@ describe('Gemini thought signatures', () => {
       const context = { middlewares: [] } as unknown as AiRequestContext
       const plugin = skipGeminiThoughtSignatureFeature.contributeModelAdapters!(scope)[0]
       await plugin.configureContext!(context)
+      const google = { marker: 'kept' }
+      if (signature) Object.assign(google, { thought_signature: signature })
       const params: LanguageModelV3CallOptions = {
         prompt: [
           {
@@ -32,10 +34,7 @@ describe('Gemini thought signatures', () => {
                   openaiCompatible: {
                     extra_content: {
                       sibling: 'kept',
-                      google: {
-                        marker: 'kept',
-                        ...(signature ? { thought_signature: signature } : {})
-                      }
+                      google
                     }
                   }
                 }

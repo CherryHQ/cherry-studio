@@ -143,10 +143,12 @@ describe('AgentTaskService active-Agent read contract', () => {
     const ids: string[] = []
     for (let i = 0; i < 55; i++) {
       const id = seedTask(`stopped-${i}`, 'owner')
-      jobScheduleService.update(id, {
-        enabled: false,
-        ...(i % 2 ? { trigger: { kind: 'once', at: 1 }, metadata: { missed: { reason: 'agent_archived' } } } : {})
-      })
+      const patch: Parameters<typeof jobScheduleService.update>[1] = { enabled: false }
+      if (i % 2) {
+        patch.trigger = { kind: 'once', at: 1 }
+        patch.metadata = { missed: { reason: 'agent_archived' } }
+      }
+      jobScheduleService.update(id, patch)
       dbh.db
         .update(jobScheduleTable)
         .set({ createdAt: 1000 + i })

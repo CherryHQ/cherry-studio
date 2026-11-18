@@ -10,10 +10,12 @@ import {
 } from '../sessionToolResult'
 
 function toolResponse(name: string, serverId?: string) {
+  const tool = { id: name, name, type: serverId ? 'mcp' : 'provider' }
+  if (serverId) Object.assign(tool, { serverId })
   return {
     id: `response-${name}`,
     toolCallId: `call-${name}`,
-    tool: { id: name, name, type: serverId ? 'mcp' : 'provider', ...(serverId ? { serverId } : {}) },
+    tool,
     arguments: { title: 'Research session' },
     status: 'done',
     response: JSON.stringify({ ok: true, sessionId: 'session-research' })

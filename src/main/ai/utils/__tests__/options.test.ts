@@ -285,10 +285,13 @@ describe('OpenAI-compatible reasoning normalization', () => {
   })
 
   it.each(['none', 'high'] as const)('serializes custom Responses reasoning effort %s on the wire', async (effort) => {
-    const reasoning: ResolvedReasoningInvocation = {
+    const selected: Omit<ResolvedReasoningInvocation, 'emissions'> = {
       kind: effort === 'none' ? 'off' : 'effort',
-      selection: effort,
-      ...(effort === 'high' ? { effort } : {}),
+      selection: effort
+    }
+    if (effort === 'high') Object.assign(selected, { effort })
+    const reasoning: ResolvedReasoningInvocation = {
+      ...selected,
       emissions: [{ target: 'reasoningEffort', value: effort }]
     }
     const providerOptions = buildResolvedReasoningProviderOptions({

@@ -35,18 +35,20 @@ describe('patched @ai-sdk/openai responses message ids', () => {
       }
     }).responses(modelId)
 
+    const content: Extract<
+      Parameters<typeof model.doGenerate>[0]['prompt'][number],
+      { role: 'assistant' }
+    >['content'][number] = {
+      type: 'text',
+      text: 'hello'
+    }
+    if (itemId != null) Object.assign(content, { providerOptions: { openai: { itemId } } })
     await model.doGenerate({
       prompt: [
         { role: 'user', content: [{ type: 'text', text: 'hi' }] },
         {
           role: 'assistant',
-          content: [
-            {
-              type: 'text',
-              text: 'hello',
-              ...(itemId != null ? { providerOptions: { openai: { itemId } } } : {})
-            }
-          ]
+          content: [content]
         },
         { role: 'user', content: [{ type: 'text', text: 'again' }] }
       ],

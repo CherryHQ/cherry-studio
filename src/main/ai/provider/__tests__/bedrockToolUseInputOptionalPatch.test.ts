@@ -97,10 +97,9 @@ describe('patched @ai-sdk/amazon-bedrock tool-use input', () => {
     ['CJS', createCjsBedrock]
   ] as const)('%s bundle', (_bundle, factory) => {
     it.each([false, true])('assembles tool arguments with start input present: %s', async (includeInput) => {
-      const parts = await streamEvents(
-        factory,
-        events({ name: 'read_file', toolUseId, ...(includeInput ? { input: {} } : {}) })
-      )
+      const toolUse = { name: 'read_file', toolUseId }
+      if (includeInput) Object.assign(toolUse, { input: {} })
+      const parts = await streamEvents(factory, events(toolUse))
 
       expect(parts.filter((part) => part.type === 'error')).toEqual([])
       const calls = parts.filter((part) => part.type === 'tool-call')
