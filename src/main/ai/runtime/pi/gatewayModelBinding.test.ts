@@ -210,9 +210,9 @@ it.each(['custom:anthropic', 'claude-code'])('rejects an unroutable provider %s'
     settings: {},
     id: providerId,
     name: 'Fixture',
-    reportsActualCost: false,
-    ...(providerId === 'claude-code' ? { authMethods: ['external-cli'] } : {})
+    reportsActualCost: false
   })
+  if (providerId === 'claude-code') provider.authMethods = ['external-cli']
   const model = ModelSchema.parse({
     isEnabled: true,
     isHidden: false,
@@ -297,10 +297,11 @@ it.each(['same', 'provider', 'model', 'api'])(
     const signature = Buffer.from('fixture-tool-signature').toString('base64')
     const nextSignature = Buffer.from('fixture-next-tool-signature').toString('base64')
     const textSignature = Buffer.from('fixture-text-signature').toString('base64')
-    const call = (id: string, thoughtSignature?: string): Part => ({
-      functionCall: { name: 'read', args: { path: `${id}.txt` } },
-      ...(thoughtSignature ? { thoughtSignature } : {})
-    })
+    const call = (id: string, thoughtSignature?: string): Part => {
+      const part: Part = { functionCall: { name: 'read', args: { path: `${id}.txt` } } }
+      if (thoughtSignature) part.thoughtSignature = thoughtSignature
+      return part
+    }
     const responses: Part[][] = [
       [call('a', signature), call('b')],
       [call('c', nextSignature)],
