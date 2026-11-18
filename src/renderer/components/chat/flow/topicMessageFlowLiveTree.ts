@@ -94,19 +94,18 @@ export function buildTopicMessageFlowLiveState({
     const isStreamingMessage = streamingMessageIds?.has(message.id) ?? false
     const fallbackStatus = message.role === 'assistant' && parts.length === 0 ? 'pending' : 'success'
 
-    return [
-      {
-        id: message.id,
-        parentId,
-        role: message.role === 'system' ? 'assistant' : message.role,
-        isContextBoundary: hasClearContextPart(parts) || undefined,
-        preview: extractTopicMessageFlowLivePreview(parts),
-        modelId: metadata.modelId ?? null,
-        status: isStreamingMessage ? 'pending' : (metadata.status ?? fallbackStatus),
-        createdAt,
-        ...(metadata.siblingsGroupId ? { siblingsGroupId: metadata.siblingsGroupId } : {})
-      }
-    ]
+    const node: TopicMessageFlowLiveNode = {
+      id: message.id,
+      parentId,
+      role: message.role === 'system' ? 'assistant' : message.role,
+      isContextBoundary: hasClearContextPart(parts) || undefined,
+      preview: extractTopicMessageFlowLivePreview(parts),
+      modelId: metadata.modelId ?? null,
+      status: isStreamingMessage ? 'pending' : (metadata.status ?? fallbackStatus),
+      createdAt
+    }
+    if (metadata.siblingsGroupId) node.siblingsGroupId = metadata.siblingsGroupId
+    return [node]
   })
 
   if (nodes.length === 0) return null

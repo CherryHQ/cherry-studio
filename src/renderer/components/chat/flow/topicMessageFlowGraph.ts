@@ -69,12 +69,11 @@ function flattenTreeNodes(tree: TreeResponse): GraphInputNode[] {
       const shouldKeepSiblingsGroupId =
         group.parentId !== null && group.nodes.length > 1 && group.nodes.every((node) => node.role === 'assistant')
 
-      return group.nodes.map((node) => ({
-        ...node,
-        parentId: group.parentId,
-        ...(shouldKeepSiblingsGroupId ? { siblingsGroupId: group.siblingsGroupId } : {}),
-        isSiblingBranch: false
-      }))
+      return group.nodes.map((node) => {
+        const entry: Omit<GraphInputNode, 'isSiblingBranch'> = { ...node, parentId: group.parentId }
+        if (shouldKeepSiblingsGroupId) entry.siblingsGroupId = group.siblingsGroupId
+        return Object.assign(entry, { isSiblingBranch: false })
+      })
     })
   ]
 
@@ -167,9 +166,9 @@ function toNodeData(
     createdAt: node.createdAt,
     isActive: node.id === activeNodeId,
     isOnActivePath: activePath.has(node.id),
-    isInactiveBranch: hasActivePath && !activePath.has(node.id),
-    ...(node.isAwaitingInput ? { isAwaitingInput: true } : {})
+    isInactiveBranch: hasActivePath && !activePath.has(node.id)
   }
+  if (node.isAwaitingInput) data.isAwaitingInput = true
 
   if (node.siblingsGroupId !== undefined) {
     data.siblingsGroupId = node.siblingsGroupId

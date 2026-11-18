@@ -29,11 +29,12 @@ function normalizeAvailability(input: ActionAvailabilityInput): ActionAvailabili
 
 function combineAvailability(first: ActionAvailability, second: ActionAvailability): ActionAvailability {
   const visible = first.visible && second.visible
-  return {
+  const availability: ActionAvailability = {
     visible,
-    enabled: visible && first.enabled && second.enabled,
-    ...(first.reason || second.reason ? { reason: first.reason ?? second.reason } : {})
+    enabled: visible && first.enabled && second.enabled
   }
+  if (first.reason || second.reason) availability.reason = first.reason ?? second.reason
+  return availability
 }
 
 function matchesSurface<TContext>(action: ActionDescriptor<TContext>, surface?: ActionSurface): boolean {
