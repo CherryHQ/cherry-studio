@@ -53,6 +53,7 @@ export const authorizeApiRequest = (
 /** A scoped internal credential may only call its own path with its own model. */
 export const authorizeCredentialScope = (
   request: Request,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Authorization runs before dialect conversion on heterogeneous HTTP bodies; inspect only model and deny malformed values.
   body: unknown,
   surface: GatewaySurface
 ): AuthFailure | undefined => {

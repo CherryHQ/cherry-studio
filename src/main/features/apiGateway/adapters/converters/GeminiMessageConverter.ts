@@ -202,6 +202,7 @@ function takeToolOutput(call: GeminiFunctionCall, responses: CollectedToolRespon
  * `OBJECT`, …) into the JSON Schema vocabulary the SDK expects. Modern
  * clients send `parametersJsonSchema` (already JSON Schema) and skip this.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Client Gemini schema definitions and recursive nodes are unvalidated; this converter must inspect them while preserving extension keywords.
 function geminiSchemaToJsonSchema(schema: unknown): JsonSchemaLike {
   if (!schema || typeof schema !== 'object') return {}
   const source = schema as Record<string, unknown>

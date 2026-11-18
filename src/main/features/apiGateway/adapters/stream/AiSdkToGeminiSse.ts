@@ -153,6 +153,7 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
     this.emitParts([part])
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- AI SDK tool-input-error carries unvalidated input; the adapter forwards tool data without claiming schema validation.
   private appendFunctionCall(name: string, args: unknown, thoughtSignature?: string): void {
     const part: GeminiResponsePart = { functionCall: { name, args: args ?? {} } }
     if (thoughtSignature) part.thoughtSignature = thoughtSignature

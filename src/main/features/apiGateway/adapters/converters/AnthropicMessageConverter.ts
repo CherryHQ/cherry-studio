@@ -71,7 +71,7 @@ function nextUIMessageId(): string {
 /**
  * Sanitize value for JSON serialization
  */
-function sanitizeJson(value: unknown): JSONValue {
+function sanitizeJson(value: ReasoningDetailUnion[]): JSONValue {
   return JSON.parse(JSON.stringify(value))
 }
 

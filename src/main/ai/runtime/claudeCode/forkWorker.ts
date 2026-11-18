@@ -146,6 +146,7 @@ async function run(input: ClaudeForkWorkerInput) {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Fork safety scans arbitrary nested native-history replacement data for stale source identifiers; no single checkpoint/domain shape describes these values.
 function containsSourceUuid(value: unknown, sourceIds: ReadonlySet<string>): boolean {
   if (typeof value === 'string') return sourceIds.has(value)
   if (Array.isArray(value)) return value.some((item) => containsSourceUuid(item, sourceIds))

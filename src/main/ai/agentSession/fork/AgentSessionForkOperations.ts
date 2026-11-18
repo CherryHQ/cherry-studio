@@ -32,6 +32,7 @@ import { workspaceHasReferences } from './workspaceCleanup'
 
 const logger = loggerService.withContext('AgentSessionForkOperations')
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Filesystem operation failures reach this catch classifier as arbitrary thrown values; only a verified ENOENT may be ignored.
 function isMissing(error: unknown): boolean {
   return (error as NodeJS.ErrnoException)?.code === 'ENOENT'
 }

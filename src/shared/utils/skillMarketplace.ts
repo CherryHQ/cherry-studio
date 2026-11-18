@@ -1,5 +1,3 @@
-import type * as z from 'zod'
-
 import {
   ClaudePluginsSearchResponseSchema,
   ClawhubSearchResponseSchema,
@@ -11,12 +9,14 @@ import {
 export const SKILL_SEARCH_FAILED_ERROR = 'skill_search_failed'
 export const SKILL_DIRECTORY_CONTENT_HASH_PREFIX = 'directory-sha256:'
 
-export type SkillMarketplaceFetch = <TResult>(url: string, schema: z.ZodType<TResult>) => Promise<TResult>
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Fetched JSON is untyped until the supplied marketplace parser validates it.
+export type SkillMarketplaceFetch = <TResult>(url: string, parse: (raw: unknown) => TResult) => Promise<TResult>
 
 type MarketplaceSource = {
   name: SkillSearchSource
   buildUrl: (query: string) => string
-  schema: z.ZodType<SkillSearchResult[]>
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Each marketplace normalizer validates its own HTTP response schema.
+  normalize: (raw: unknown) => SkillSearchResult[]
 }
 
 /**
@@ -70,10 +70,12 @@ function getDirectoryPathFromGithubTreeUrl(
   }
 }
 
-const claudePluginsResultsSchema = ClaudePluginsSearchResponseSchema.catch(() => {
-  throw new Error('Invalid claude-plugins.dev search response')
-}).transform((data): SkillSearchResult[] => {
-  return data.skills.flatMap((s) => {
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- claude-plugins.dev JSON must pass its response schema before skill mapping.
+export function normalizeClaudePlugins(raw: unknown): SkillSearchResult[] {
+  const parsed = ClaudePluginsSearchResponseSchema.safeParse(raw)
+  if (!parsed.success) throw new Error('Invalid claude-plugins.dev search response')
+
+  return parsed.data.skills.flatMap((s) => {
     const repoOwner = s.metadata?.repoOwner ?? ''
     const repoName = s.metadata?.repoName ?? ''
     const directoryPath =
@@ -95,9 +97,7 @@ const claudePluginsResultsSchema = ClaudePluginsSearchResponseSchema.catch(() =>
       installSource: `claude-plugins:${repoOwner}/${repoName}/${directoryPath}`
     }
   })
-})
-
-export const normalizeClaudePlugins = claudePluginsResultsSchema.parse
+}
 
 export type GithubSkillLocation = {
   owner: string
@@ -309,10 +309,12 @@ export function hasSkillRemoteUpdateProvenance(skill: {
   )
 }
 
-const skillsShResultsSchema = SkillsShSearchResponseSchema.catch(() => {
-  throw new Error('Invalid skills.sh search response')
-}).transform((data): SkillSearchResult[] => {
-  return data.skills.map((skill) => ({
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- skills.sh JSON must pass its response schema before skill mapping.
+export function normalizeSkillsSh(raw: unknown): SkillSearchResult[] {
+  const parsed = SkillsShSearchResponseSchema.safeParse(raw)
+  if (!parsed.success) throw new Error('Invalid skills.sh search response')
+
+  return parsed.data.skills.map((skill) => ({
     slug: skill.id,
     name: skill.name,
     description: null,
@@ -323,14 +325,14 @@ const skillsShResultsSchema = SkillsShSearchResponseSchema.catch(() => {
     sourceUrl: `https://skills.sh/${skill.id}`,
     installSource: `skills.sh:${skill.id}`
   }))
-})
+}
 
-export const normalizeSkillsSh = skillsShResultsSchema.parse
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Clawhub JSON must pass its response schema before skill mapping.
+export function normalizeClawhub(raw: unknown): SkillSearchResult[] {
+  const parsed = ClawhubSearchResponseSchema.safeParse(raw)
+  if (!parsed.success) throw new Error('Invalid clawhub.ai search response')
 
-const clawhubResultsSchema = ClawhubSearchResponseSchema.catch(() => {
-  throw new Error('Invalid clawhub.ai search response')
-}).transform((data): SkillSearchResult[] => {
-  return data.results.flatMap((skill) => {
+  return parsed.data.results.flatMap((skill) => {
     if (!skill.ownerHandle) return []
 
     return {
@@ -345,9 +347,7 @@ const clawhubResultsSchema = ClawhubSearchResponseSchema.catch(() => {
       installSource: `clawhub:${skill.ownerHandle}/${skill.slug}`
     }
   })
-})
-
-export const normalizeClawhub = clawhubResultsSchema.parse
+}
 
 const MARKETPLACE_SOURCES: readonly MarketplaceSource[] = [
   {
@@ -357,7 +357,7 @@ const MARKETPLACE_SOURCES: readonly MarketplaceSource[] = [
       url.searchParams.set('q', query)
       return url.toString()
     },
-    schema: skillsShResultsSchema
+    normalize: normalizeSkillsSh
   },
   {
     name: 'claude-plugins.dev',
@@ -367,7 +367,7 @@ const MARKETPLACE_SOURCES: readonly MarketplaceSource[] = [
       url.searchParams.set('limit', '20')
       return url.toString()
     },
-    schema: claudePluginsResultsSchema
+    normalize: normalizeClaudePlugins
   },
   {
     name: 'clawhub.ai',
@@ -376,7 +376,7 @@ const MARKETPLACE_SOURCES: readonly MarketplaceSource[] = [
       url.searchParams.set('q', query)
       return url.toString()
     },
-    schema: clawhubResultsSchema
+    normalize: normalizeClawhub
   }
 ]
 
@@ -387,6 +387,7 @@ const MARKETPLACE_SOURCES: readonly MarketplaceSource[] = [
 export async function searchSkillMarketplaces(
   query: string,
   fetchJson: SkillMarketplaceFetch,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Marketplace fetch and parser failures may reject with any JavaScript value.
   onSourceFailure?: (source: SkillSearchSource, error: unknown) => void,
   selectedSource?: SkillSearchSource
 ): Promise<SkillSearchResult[]> {
@@ -395,7 +396,7 @@ export async function searchSkillMarketplaces(
 
   const sources = MARKETPLACE_SOURCES.filter((source) => !selectedSource || source.name === selectedSource)
   const settled = await Promise.allSettled(
-    sources.map(async (source) => fetchJson(source.buildUrl(trimmed), source.schema))
+    sources.map(async (source) => fetchJson(source.buildUrl(trimmed), source.normalize))
   )
   const combined: SkillSearchResult[] = []
   let failedSourceCount = 0

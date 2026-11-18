@@ -63,6 +63,7 @@ export class McpSessionStore {
   /** Set by `closeAll()`. A session opened after the server started closing would never be reachable. */
   private closed = false
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Elysia parses JSON but does not validate MCP; the SDK transport owns JSON-RPC validation and malformed-request responses.
   async handleModern(server: McpServer, request: Request, parsedBody?: unknown): Promise<Response> {
     if (this.closed) throw new StoreClosedError()
     let proxy = this.modern.get(server.id)
@@ -84,6 +85,7 @@ export class McpSessionStore {
    * Throws {@link SessionLimitReachedError} when the cap is reached, or {@link StoreClosedError}
    * once the owning server is shutting down.
    */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Elysia parses JSON but does not validate MCP; the SDK transport owns JSON-RPC validation and malformed-request responses.
   async createAndHandle(server: McpServer, request: Request, parsedBody: unknown): Promise<Response> {
     if (this.closed) throw new StoreClosedError()
     // Reserve synchronously — nothing may await between the check and the increment.

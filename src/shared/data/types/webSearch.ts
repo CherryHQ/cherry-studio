@@ -1,5 +1,3 @@
-import * as z from 'zod'
-
 import type { WebSearchResult as SharedWebSearchResult } from '@cherrystudio/web-search'
 import type {
   WebSearchCapability,
@@ -11,7 +9,10 @@ import type {
 
 export const DEFAULT_WEB_SEARCH_CUTOFF_LIMIT = 2000
 
-export const normalizeWebSearchCutoffLimit = z.number().finite().positive().catch(DEFAULT_WEB_SEARCH_CUTOFF_LIMIT).parse
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored search limits must be checked for finite positive numbers without coercion.
+export function normalizeWebSearchCutoffLimit(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : DEFAULT_WEB_SEARCH_CUTOFF_LIMIT
+}
 
 export type WebSearchResult = { -readonly [Key in keyof SharedWebSearchResult]: SharedWebSearchResult[Key] }
 

@@ -6,19 +6,8 @@ type CreatePaintingData = PaintingData & {
   providerId: string
 }
 
-function getTopLevelFileIds(files: unknown): string[] {
-  if (!Array.isArray(files)) return []
-
-  return files.flatMap((file) => {
-    if (file && typeof file === 'object' && 'id' in file && typeof file.id === 'string') {
-      return [file.id]
-    }
-    return []
-  })
-}
-
-export function paintingFileIdsForPersistence(files: unknown): string[] {
-  return getTopLevelFileIds(files)
+export function paintingFileIdsForPersistence(files: PaintingData['files'] | PaintingData['inputFiles']): string[] {
+  return (files ?? []).map((file) => file.id)
 }
 
 export function paintingDataToCreateDto(painting: CreatePaintingData): CreatePaintingDto {
@@ -28,8 +17,8 @@ export function paintingDataToCreateDto(painting: CreatePaintingData): CreatePai
     modelId: typeof painting.model === 'string' && painting.model.trim() ? painting.model : undefined,
     prompt: painting.prompt,
     files: {
-      output: getTopLevelFileIds(painting.files),
-      input: getTopLevelFileIds(painting.inputFiles)
+      output: paintingFileIdsForPersistence(painting.files),
+      input: paintingFileIdsForPersistence(painting.inputFiles)
     }
   }
 }

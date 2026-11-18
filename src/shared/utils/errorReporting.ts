@@ -10,7 +10,11 @@ const failureFactsSchema = z.object({
   runtime: z.enum(['claude-code', 'pi', 'ai-sdk']).optional()
 })
 
-export const parseFailureFacts = failureFactsSchema.optional().catch(undefined).parse
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Error-reporting metadata is untrusted until failureFactsSchema validates its discriminants.
+export function parseFailureFacts(value: unknown): FailureFacts | undefined {
+  const parsed = failureFactsSchema.safeParse(value)
+  return parsed.success ? parsed.data : undefined
+}
 
 export function isCancellation(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false

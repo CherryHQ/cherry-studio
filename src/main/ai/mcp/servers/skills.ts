@@ -10,7 +10,8 @@ const logger = loggerService.withContext('McpServer:Skills')
 
 const REQUEST_TIMEOUT_MS = 15_000
 
-async function fetchMarketplaceJson<TResult>(url: string, schema: z.ZodType<TResult>): Promise<TResult> {
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- HTTP JSON is untyped; the supplied parser validates it immediately after decoding.
+async function fetchMarketplaceJson<TResult>(url: string, parse: (raw: unknown) => TResult): Promise<TResult> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   try {
@@ -18,7 +19,7 @@ async function fetchMarketplaceJson<TResult>(url: string, schema: z.ZodType<TRes
     if (!response.ok) {
       throw new Error(`Marketplace API returned ${response.status}: ${response.statusText}`)
     }
-    return schema.parse(await response.json())
+    return parse(await response.json())
   } finally {
     clearTimeout(timer)
   }

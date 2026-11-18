@@ -371,8 +371,11 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
   }
 
   /** Store the upstream thinking signature so clients get a replayable block. */
-  private captureThinkingSignature(reasoningId: string | undefined, providerMetadata: unknown): void {
-    const signature = (providerMetadata as { anthropic?: { signature?: unknown } } | undefined)?.anthropic?.signature
+  private captureThinkingSignature(
+    reasoningId: string | undefined,
+    providerMetadata: Extract<UIMessageChunk, { type: 'reasoning-start' | 'reasoning-delta' }>['providerMetadata']
+  ): void {
+    const signature = providerMetadata?.anthropic?.signature
     if (typeof signature !== 'string' || !signature) return
 
     const targetId = reasoningId || this.state.currentThinkingId

@@ -108,6 +108,7 @@ export class ModernMcpProxy {
     return server
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Elysia parses JSON but does not validate MCP; the SDK transport owns JSON-RPC validation and malformed-request responses.
   async fetch(request: Request, parsedBody?: unknown): Promise<Response> {
     this.lastActivityAt = Date.now()
     const response = await this.handler.fetch(request, { parsedBody })

@@ -120,6 +120,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       const { port } = this.getCurrentConfig()
       const endpoint = { host: this.listeningHost(), port }
       this.apiGateway = new ApiGateway(endpoint)
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Promise rejection may contain any JavaScript value; the bind-error classifier owns narrowing and other values must propagate unchanged.
       await this.apiGateway.start().catch((error: unknown) => {
         const mapped = mapGatewayBindError(error, endpoint, 'public')
         if (mapped !== error) logger.error('Public API gateway listen failed', error as Error)
@@ -376,6 +377,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   private async ensureInternalListener(): Promise<string> {
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Promise rejection may contain any JavaScript value; the bind-error classifier owns narrowing and other values must propagate unchanged.
     this.internalGateway ??= this.startInternalGateway().catch((error: unknown) => {
       this.internalGateway = null
       throw error
@@ -399,6 +401,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
         return candidate
       },
       { retries: 2, shouldRetry: isGatewayBindPermissionError }
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Promise rejection may contain any JavaScript value; the bind-error classifier owns narrowing and other values must propagate unchanged.
     ).catch((error: unknown) => {
       const mapped = mapGatewayBindError(error, endpoint, 'internal')
       if (mapped !== error) logger.error('Internal API gateway listen failed', error as Error)
