@@ -1,5 +1,4 @@
 import i18next from 'i18next'
-import { nanoid } from 'nanoid'
 
 import { loggerService } from '@logger'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -120,7 +119,7 @@ export const syncBailianServers = async (token: string): Promise<BailianSyncResu
 
         const mcpServer: McpServer = {
           id: `@bailian/${server.id}`,
-          name: server.name || `Bailian Server ${nanoid()}`,
+          name: server.name || `Bailian Server ${crypto.randomUUID()}`,
           description: server.description || '',
           type: server.type,
           baseUrl: server.operationalUrl,
