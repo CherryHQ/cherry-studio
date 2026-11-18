@@ -9,17 +9,17 @@ export function nativeClient(timeoutMs?: number): SystemSpeechNativeClient {
   return new SystemSpeechNativeClient({ helperPath: application.getPath('feature.voice.helper_file'), timeoutMs })
 }
 
-export function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeError {
+export function normalizeFailure(cause: unknown, signal?: AbortSignal): VoiceRuntimeError {
   if (signal?.aborted) return new VoiceRuntimeError('aborted')
-  if (error instanceof VoiceRuntimeError) return error
+  if (cause instanceof VoiceRuntimeError) return cause
   if (
-    error instanceof UtilityProcessError &&
-    typeof error.remote?.code === 'string' &&
-    ['VOICE_AUDIO_INVALID', 'VOICE_AUDIO_UNSUPPORTED', 'VOICE_AUDIO_LIMIT'].includes(error.remote?.code ?? '')
+    cause instanceof UtilityProcessError &&
+    typeof cause.remote?.code === 'string' &&
+    ['VOICE_AUDIO_INVALID', 'VOICE_AUDIO_UNSUPPORTED', 'VOICE_AUDIO_LIMIT'].includes(cause.remote?.code ?? '')
   )
     return new VoiceRuntimeError('invalid_audio')
-  if (error instanceof SystemSpeechError) {
-    switch (error.code) {
+  if (cause instanceof SystemSpeechError) {
+    switch (cause.code) {
       case 'cancelled':
         return new VoiceRuntimeError('aborted')
       case 'unsupported_locale':

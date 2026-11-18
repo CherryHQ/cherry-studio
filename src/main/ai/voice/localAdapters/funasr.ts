@@ -29,23 +29,23 @@ const ASR_INFERENCE_TIMEOUT_MS = 120_000
 const ASR_INFERENCE_REALTIME_FACTOR = 2
 const logger = loggerService.withContext('FunAsrAdapter')
 
-function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeError {
+function normalizeFailure(cause: unknown, signal?: AbortSignal): VoiceRuntimeError {
   if (signal?.aborted) return new VoiceRuntimeError('aborted')
-  if (error instanceof VoiceRuntimeError) return error
-  if (error instanceof UtilityProcessError && error.code === 'PROCESS_BLOCKED') return new VoiceRuntimeError('busy')
-  if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ASR_MODEL_LOAD_FAILED')
+  if (cause instanceof VoiceRuntimeError) return cause
+  if (cause instanceof UtilityProcessError && cause.code === 'PROCESS_BLOCKED') return new VoiceRuntimeError('busy')
+  if (typeof cause === 'object' && cause !== null && 'code' in cause && cause.code === 'ASR_MODEL_LOAD_FAILED')
     return new VoiceRuntimeError('model_load_failed')
   if (
-    error instanceof UtilityProcessError &&
-    typeof error.remote?.code === 'string' &&
-    ['VOICE_AUDIO_INVALID', 'VOICE_AUDIO_UNSUPPORTED', 'VOICE_AUDIO_LIMIT'].includes(error.remote.code)
+    cause instanceof UtilityProcessError &&
+    typeof cause.remote?.code === 'string' &&
+    ['VOICE_AUDIO_INVALID', 'VOICE_AUDIO_UNSUPPORTED', 'VOICE_AUDIO_LIMIT'].includes(cause.remote.code)
   )
     return new VoiceRuntimeError('invalid_audio')
-  if (error instanceof UtilityProcessError && error.remote?.code === 'ASR_MODEL_LOAD_FAILED')
+  if (cause instanceof UtilityProcessError && cause.remote?.code === 'ASR_MODEL_LOAD_FAILED')
     return new VoiceRuntimeError('model_load_failed')
   if (
-    error instanceof UtilityProcessError &&
-    ['PROCESS_START_FAILED', 'PROCESS_EXITED', 'PROCESS_PROTOCOL_ERROR', 'PROCESS_CIRCUIT_OPEN'].includes(error.code)
+    cause instanceof UtilityProcessError &&
+    ['PROCESS_START_FAILED', 'PROCESS_EXITED', 'PROCESS_PROTOCOL_ERROR', 'PROCESS_CIRCUIT_OPEN'].includes(cause.code)
   )
     return new VoiceRuntimeError('worker_crashed')
   return new VoiceRuntimeError('operation_failed')
@@ -119,9 +119,9 @@ export function createFunAsrTranscriptionModel(options: TranscriptionOptions): T
           const transcript = await application
             .get('AsrInferenceService')
             .transcribe(FUNASR_BUNDLE_ID, { kind: 'wav', filePath: inputPath }, inferenceSignal)
-            .catch((error: unknown) => {
+            .catch((cause: unknown) => {
               if (inferenceTimeout.aborted && !input.abortSignal?.aborted) throw new VoiceRuntimeError('timeout')
-              throw error
+              throw cause
             })
           checkAbort(input.abortSignal)
           logger.debug('Local transcription completed', {

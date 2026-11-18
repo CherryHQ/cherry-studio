@@ -23,8 +23,8 @@ function completeExecution<T>(work: (signal: AbortSignal) => Promise<T>, signal?
     })
   const closed = completed.then(
     () => undefined,
-    (error: unknown) => {
-      if (error instanceof VoiceCleanupError) throw error
+    (cause: unknown) => {
+      if (cause instanceof VoiceCleanupError) throw cause
     }
   )
   // Observe failures even when callers cancel before consuming any output.
