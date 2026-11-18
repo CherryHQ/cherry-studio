@@ -39,6 +39,7 @@ export function NotesEditorLoading({ label }: { label: string }) {
 }
 
 interface NotesEditorProps {
+  hasNotes: boolean
   activeNodeId?: string
   voiceNoteId?: string
   currentContent: string
@@ -53,6 +54,7 @@ interface NotesEditorProps {
 
 const NotesEditor: FC<NotesEditorProps> = memo(
   ({
+    hasNotes,
     activeNodeId,
     voiceNoteId,
     currentContent,
@@ -205,7 +207,11 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     if (!activeNodeId) {
       return (
         <div data-ui="notes.editor" className="flex h-full w-full flex-1 items-center justify-center">
-          <EmptyState title={t('notes.empty')} actionLabel={t('notes.new_note')} onAction={onCreateNote} />
+          <EmptyState
+            title={t(hasNotes ? 'notes.no_note_selected' : 'notes.empty')}
+            actionLabel={t('notes.new_note')}
+            onAction={onCreateNote}
+          />
         </div>
       )
     }

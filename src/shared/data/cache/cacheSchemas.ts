@@ -446,6 +446,8 @@ export type RendererPersistCacheSchema = {
   // restart. Main window only — written from TabsContext, gated on includePinnedTabs.
   'ui.tab.normal_tabs': CacheValueTypes.Tab[]
   'ui.tab.active_tab_id': string
+  // Restore the last opened note only on mount; never synchronize the current selection across windows.
+  'notes.last_open_file_path': AbsoluteFilePath | null
   'ui.global_search.recent_items': CacheValueTypes.GlobalSearchRecentEntry[]
   'ui.sidebar.docked_tabs': CacheValueTypes.Tab[]
   'ui.sidebar.width': number
@@ -527,6 +529,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': [],
   'ui.tab.normal_tabs': [],
   'ui.tab.active_tab_id': '',
+  'notes.last_open_file_path': null,
   'ui.global_search.recent_items': [],
   'ui.sidebar.docked_tabs': [],
   'ui.sidebar.width': 50, // keep in sync with SIDEBAR_ICON_WIDTH (renderer Sidebar/constants.ts)

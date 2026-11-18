@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-18-notes-selection-restore.md
+2026-11-18-notes-selection-restore.md: 5092b7ab8a24185405ba07cf3baebf1f043f602d
+2026-11-18-notes-selection-restore.zh.md: 81ae319641b712c1a0ad82c583faff9534bd3eee
