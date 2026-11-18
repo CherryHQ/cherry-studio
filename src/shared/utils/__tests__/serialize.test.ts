@@ -20,4 +20,19 @@ describe('safeSerialize', () => {
     expect(safeSerialize(value, { onError: 'omit' })).toBeNull()
     expect(() => safeSerialize(value, { onError: 'error' })).toThrow(TypeError)
   })
+
+  it('does not replace an original error with a BigInt serialization failure', () => {
+    expect(safeSerialize({ cause: 1n })).toBeNull()
+    expect(() => safeSerialize({ cause: 1n }, { onError: 'error' })).toThrow(TypeError)
+  })
+
+  it('returns null when an error detail throws from toJSON', () => {
+    const value = {
+      toJSON() {
+        throw new Error('Cannot serialize provider detail')
+      }
+    }
+
+    expect(safeSerialize(value)).toBeNull()
+  })
 })
