@@ -203,41 +203,31 @@ export class KnowledgeBaseAdminService {
   private toRestoreRuntimeInput(sourceBaseId: string, item: KnowledgeItem): KnowledgeAddItemInput {
     try {
       if (item.type === 'file') {
-        return KnowledgeAddItemInputSchema.parse({
-          type: 'file',
-          data: {
-            source: item.data.source,
-            // A `preparing` file has not been copied into the source base yet, so copy its original.
-            path:
-              item.status === 'preparing'
-                ? item.data.source
-                : getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath),
-            // Carry the processed artifact across so the new base indexes from it
-            // instead of re-running the (slow, paid) file processor.
-            ...(item.data.indexedRelativePath
-              ? { indexedPath: getKnowledgeBaseFilePath(sourceBaseId, item.data.indexedRelativePath) }
-              : {})
-          }
-        })
+        const data = {
+          source: item.data.source,
+          // A `preparing` file has not been copied into the source base yet, so copy its original.
+          path:
+            item.status === 'preparing'
+              ? item.data.source
+              : getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath)
+        }
+        // Reuse the processed artifact instead of re-running the paid file processor.
+        if (item.data.indexedRelativePath) {
+          Object.assign(data, { indexedPath: getKnowledgeBaseFilePath(sourceBaseId, item.data.indexedRelativePath) })
+        }
+        return KnowledgeAddItemInputSchema.parse({ type: 'file', data })
       }
 
       if (item.type === 'url') {
         // Restore carries previously saved records verbatim: the persisted URL
         // schema allows any non-empty string, so the strict add-time URL rule must
         // not reject them here (one malformed record would abort the whole base).
-        return KnowledgeRestoreUrlItemInputSchema.parse({
-          type: 'url',
-          data: {
-            source: item.data.source,
-            url: item.data.url,
-            // Carry the captured snapshot across so the restored URL indexes offline
-            // instead of re-fetching the live page (which may have changed or died).
-            // If the source never captured one, omit it and let the first index capture.
-            ...(item.data.relativePath
-              ? { snapshotPath: getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath) }
-              : {})
-          }
-        })
+        const data = { source: item.data.source, url: item.data.url }
+        // Reuse captured pages for offline indexing; uncaptured URLs fetch their first snapshot.
+        if (item.data.relativePath) {
+          Object.assign(data, { snapshotPath: getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath) })
+        }
+        return KnowledgeRestoreUrlItemInputSchema.parse({ type: 'url', data })
       }
 
       if (item.type === 'note') {

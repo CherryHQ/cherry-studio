@@ -253,11 +253,9 @@ export class AgentChannelService {
         isActive
       )
       this.validateStreamBot(tx, existing.type, config, isActive, id)
-      const normalizedUpdates = {
-        ...fields,
-        ...(configPatch !== undefined || updates.config !== undefined || updates.isActive !== undefined
-          ? { config }
-          : {})
+      const normalizedUpdates = { ...fields }
+      if (configPatch !== undefined || updates.config !== undefined || updates.isActive !== undefined) {
+        normalizedUpdates.config = config
       }
       const updated = tx
         .update(channelsTable)
