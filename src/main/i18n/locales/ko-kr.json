@@ -230,6 +230,7 @@
   "notification.subscription.renewed_message": "갱신이 확인되었습니다. 설정 › 계정 › 구독 관리에서 자세한 내용을 확인하세요.",
   "notification.subscription.updated_message": "구독과 혜택이 최신 상태입니다. 열어서 사용량을 확인하세요.",
   "notification.subscription.updated_title": "Cherry Cloud 구독 업데이트됨",
+  "notification.taskbar_badge.description": "{{count}}개의 대화에 확인이 필요합니다",
   "openclaw.errors.binary_incompatible": "Cherry Studio에서 사용하는 OpenClaw 바이너리가 생성된 설정과 호환되지 않습니다. OpenClaw를 업그레이드하세요.{{details}}",
   "openclaw.errors.external_config_invalid": "OpenClaw가 Cherry Studio에서 관리하는 제공자 영역 밖의 설정을 거부했습니다. 해당 설정을 수정하거나 OpenClaw를 업그레이드하세요.{{details}}",
   "openclaw.errors.more_issues": "외 {{count}}개 문제",

@@ -5410,6 +5410,7 @@
   "settings.notification.mini_app": "미니 앱 알림(모든 앱)",
   "settings.notification.popups": "시스템 팝업",
   "settings.notification.system_popups": "시스템 팝업",
+  "settings.notification.taskbar_badge": "작업 표시줄 읽지 않음 배지 (Windows)",
   "settings.notification.title": "알림",
   "settings.notification.update": "앱 업데이트",
   "settings.notification.usage_popups": "사용량 팝업",
