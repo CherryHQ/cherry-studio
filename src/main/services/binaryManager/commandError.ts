@@ -3,6 +3,7 @@
  * scrubbed of credentials so a mirror URL with an embedded token never reaches
  * logs, install state, or a user-facing error.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Subprocess failures may be non-Error rejections; append captured stderr only after checking it is text.
 export function sanitizedCommandError(err: unknown): string {
   let message = err instanceof Error ? err.message : String(err)
   const stderr = (err as { stderr?: unknown } | null)?.stderr
