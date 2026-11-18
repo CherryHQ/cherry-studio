@@ -9,6 +9,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { miniAppFileRefTable } from '@data/db/schemas/fileRelations'
 import { miniAppTable } from '@data/db/schemas/miniApp'
 
+import type { MiniAppPreviewService } from '../../preview/MiniAppPreviewService'
 import { type CallLease, MiniAppQuiescingError } from '../../runtime/MiniAppRuntimeService'
 import { base64CharCap, MINI_APP_QUOTAS } from '../quota'
 
@@ -512,7 +513,9 @@ describe('cherry.file under a live preview', () => {
     createInternalEntry.mockClear()
     vi.mocked(application.getExisting).mockImplementation((name: string) =>
       name === 'MiniAppPreviewService'
-        ? { getPreviewByRuntimeId: (id: string) => (id === RUNTIME ? { runtimeId: RUNTIME } : undefined) }
+        ? ({
+            getPreviewByRuntimeId: (id: string) => (id === RUNTIME ? { runtimeId: RUNTIME } : undefined)
+          } as unknown as MiniAppPreviewService)
         : undefined
     )
   })
