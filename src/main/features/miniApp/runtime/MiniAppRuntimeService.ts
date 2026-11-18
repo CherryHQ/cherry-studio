@@ -29,6 +29,7 @@ import { pendingDeclaredAdditions } from '../grants'
 import { sweepAbandonedStaging } from '../install/installer'
 import { recoverInterruptedPublishes } from '../install/publishJournal'
 import { miniAppInstallPath } from '../paths'
+import { MINI_APP_PREVIEW_RUNTIME_PREFIX } from '../preview/MiniAppPreviewService'
 import { handleBridgeRequest } from './bridge'
 import { emitToApp, emitToGuest } from './events'
 import { installNetworkPolicy } from './network'
@@ -687,8 +688,15 @@ export class MiniAppRuntimeService extends BaseService {
    * Derived, never read from the DB: userData relocation copies the whole tree
    * (database included), so a persisted absolute path goes stale for every app at once.
    * Returns undefined when the app has no installation row.
+   *
+   * `preview-` ids resolve from the preview registry instead (stage 2, issue #21646):
+   * a preview has no installation row BY DESIGN, and a closed one stops resolving the
+   * moment it leaves the registry — which is what turns late requests into 404s.
    */
   private resolveInstallPath(appId: string): string | undefined {
+    if (appId.startsWith(MINI_APP_PREVIEW_RUNTIME_PREFIX)) {
+      return application.get('MiniAppPreviewService').resolvePreviewPath(appId)
+    }
     const installed =
       application
         .get('DbService')

@@ -37,6 +37,7 @@ import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
 import { BrowserSessionService } from '@main/features/browser'
 import { FileProcessingService, TesseractRuntimeService } from '@main/features/fileProcessing'
 import { KnowledgeService, KnowledgeVectorStoreService } from '@main/features/knowledge'
+import { MiniAppPreviewService } from '@main/features/miniApp/preview/MiniAppPreviewService'
 import { MiniAppRuntimeService } from '@main/features/miniApp/runtime/MiniAppRuntimeService'
 import { IpcApiService } from '@main/ipc/IpcApiService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
@@ -214,6 +215,7 @@ export const services = {
   KnowledgeService,
   KnowledgeVectorStoreService,
   MiniAppRuntimeService,
+  MiniAppPreviewService,
   ApiGatewayService,
   AppUpdaterService,
   AutoBackupService,

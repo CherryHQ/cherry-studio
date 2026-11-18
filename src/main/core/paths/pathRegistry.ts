@@ -284,6 +284,9 @@ export function buildPathRegistry() {
     'feature.mini_app.snapshots': path.join(appUserDataData, 'MiniApps', 'snapshots'),
     // Per-app data (saves), OUTSIDE the package tree — updates rename packages/<id> wholesale
     'feature.mini_app.data': path.join(appUserDataData, 'MiniApps', 'data'),
+    // Agent-authored preview trees, one directory per previewId — temporary by
+    // contract: the registry is in memory and the root is swept at startup
+    'feature.mini_app.previews': path.join(appUserDataData, 'MiniApps', 'previews'),
     // Publish journals, one `<appId>.json` per app
     'feature.mini_app.publish_journal': path.join(appUserDataData, 'MiniApps', '.publish-journal'),
     // Builtin packages ship INSIDE the app bundle, so this one is not under userData

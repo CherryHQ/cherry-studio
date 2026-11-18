@@ -61,3 +61,14 @@ export function miniAppBackupPath(appId: string): string {
 export function miniAppRollingPath(appId: string): string {
   return miniAppSnapshotPath(appId, 'rolling')
 }
+
+/** Where one live preview's unpacked tree sits. Under its own root: the startup sweep
+ * empties `previews/` wholesale, which would be a data-loss bug against any other tree. */
+export function miniAppPreviewPath(previewId: string): string {
+  return path.join(application.getPath('feature.mini_app.previews'), previewId)
+}
+
+/** The previews root itself — the startup sweep enumerates it. */
+export function miniAppPreviewsRoot(): string {
+  return application.getPath('feature.mini_app.previews')
+}
