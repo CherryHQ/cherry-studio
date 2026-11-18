@@ -19,12 +19,11 @@ const ELIGIBLE_DECLARATIONS = new Map(
     new Map(
       Object.entries(tools).map(([tool, declarations]) => [
         tool as ServerTool,
-        declarations.map(
-          (declaration): EligibilityDeclaration => ({
-            ids: new Set(declaration.ids),
-            ...(declaration.endpointTypes ? { endpointTypes: new Set(declaration.endpointTypes) } : {})
-          })
-        )
+        declarations.map((declaration): EligibilityDeclaration => {
+          const eligibility: EligibilityDeclaration = { ids: new Set(declaration.ids) }
+          if (declaration.endpointTypes) eligibility.endpointTypes = new Set(declaration.endpointTypes)
+          return eligibility
+        })
       ])
     )
   ])
