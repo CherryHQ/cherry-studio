@@ -53,6 +53,10 @@ The current code is:
 - AC5 — Choosing a session shows the context-growth warning at selection time (verification: renderer)
 - AC6 — Turning reuse off clears the binding and the next fire creates a fresh session (verification: unit)
 
+- AC7 — A reused task reads General Settings’ compression threshold on its next fire, including on a warm connection. Changing 80% to 60% triggers native compaction in the same session on a model that supports that threshold. Earlier native safety limits still apply. (verification: runtime integration, Electron)
+- AC8 — With unknown capacity, use the runtime’s native fallback. Missing or stale usage alone never rotates the session. (verification: runtime integration)
+- AC9 — After terminal history overflow that native recovery cannot resolve, the next fire may replace the same automatically bound target once. Old runs still open their original sessions. Completed tools are not replayed. An explicitly chosen target retains its binding and reports the failure. (verification: scheduler integration, restart)
+
 ## Risks
 
 - Changing deleted-binding behavior from "rebind fresh" to "fail" alters an existing, tested path (`runAgentTask.test.ts` "rebinds when the constrained relation no longer has a session"). Existing tests must be updated deliberately, not left green by accident.
