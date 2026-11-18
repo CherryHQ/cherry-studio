@@ -223,13 +223,15 @@ export class ChannelRegistration {
     body?: Record<string, string>
   ): Promise<TResult> {
     signal.throwIfAborted()
-    const response = await net.fetch(url, {
-      method: body ? 'POST' : 'GET',
-      ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}),
-      signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
-      redirect: 'error',
-      credentials: 'omit'
-    })
+    const request: NonNullable<Parameters<typeof net.fetch>[1]> = { method: body ? 'POST' : 'GET' }
+    if (body) {
+      request.headers = { 'Content-Type': 'application/json' }
+      request.body = JSON.stringify(body)
+    }
+    request.signal = AbortSignal.any([signal, AbortSignal.timeout(15_000)])
+    request.redirect = 'error'
+    request.credentials = 'omit'
+    const response = await net.fetch(url, request)
     if (!response.ok) {
       await response.body?.cancel()
       throw new Error('Registration HTTP failure')

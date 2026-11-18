@@ -358,17 +358,19 @@ export class ChannelMessageHandler {
     // closest match to "what the user just finished saying".
     const messageId = messages[messages.length - 1].messageId
 
-    return {
-      chatId: first.chatId,
-      ...(first.conversationId ? { conversationId: first.conversationId } : {}),
+    const identity: Pick<ChannelMessageEvent, 'chatId' | 'conversationId'> = { chatId: first.chatId }
+    if (first.conversationId) identity.conversationId = first.conversationId
+    const merged: ChannelMessageEvent = {
+      ...identity,
       userId: first.userId,
       userName: first.userName,
-      text: mergedText,
-      ...(messageId ? { messageId } : {}),
-      ...(first.replyInThread ? { replyInThread: true } : {}),
-      ...(mergedImages.length > 0 ? { images: mergedImages } : {}),
-      ...(mergedFiles.length > 0 ? { files: mergedFiles } : {})
+      text: mergedText
     }
+    if (messageId) merged.messageId = messageId
+    if (first.replyInThread) merged.replyInThread = true
+    if (mergedImages.length > 0) merged.images = mergedImages
+    if (mergedFiles.length > 0) merged.files = mergedFiles
+    return merged
   }
 
   private async processIncoming(

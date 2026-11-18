@@ -9,7 +9,12 @@ import {
   MAX_FILE_SIZE_BYTES
 } from '@main/utils/downloadAsBase64'
 
-import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
+import {
+  ChannelAdapter,
+  type ChannelAdapterConfig,
+  type ChannelMessageEvent,
+  type SendMessageOptions
+} from '../../ChannelAdapter'
 
 const TELEGRAM_MAX_LENGTH = 4096
 const TELEGRAM_LONG_POLL_TIMEOUT_SECONDS = 30
@@ -169,13 +174,14 @@ class TelegramAdapter extends ChannelAdapter {
 
       if (!text && images.length === 0) return
 
-      this.emit('message', {
+      const message: ChannelMessageEvent = {
         chatId: ctx.chat.id.toString(),
         userId: ctx.from?.id?.toString() ?? '',
         userName: ctx.from?.first_name ?? '',
-        text,
-        ...(images.length > 0 ? { images } : {})
-      })
+        text
+      }
+      if (images.length > 0) message.images = images
+      this.emit('message', message)
     })
 
     // Document/file handler — download and emit as file attachment
@@ -194,13 +200,14 @@ class TelegramAdapter extends ChannelAdapter {
 
       if (!text && files.length === 0) return
 
-      this.emit('message', {
+      const message: ChannelMessageEvent = {
         chatId: ctx.chat.id.toString(),
         userId: ctx.from?.id?.toString() ?? '',
         userName: ctx.from?.first_name ?? '',
-        text,
-        ...(files.length > 0 ? { files } : {})
-      })
+        text
+      }
+      if (files.length > 0) message.files = files
+      this.emit('message', message)
     })
 
     // Register bot commands with Telegram
