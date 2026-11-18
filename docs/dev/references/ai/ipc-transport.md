@@ -45,7 +45,10 @@ The low-level `ai.stream.attach/detach` and chunk events remain available for ex
 ## One-shot text generation
 
 `ai.text.generate` accepts `disableTools: true` for text-only background work,
-including Agent next-prompt predictions. The flag suppresses tool registration
+including the fallback for runtimes without native next-prompt prediction.
+Claude Code, Pi and Pi Durable use `ai.agent.session.predict_prompt` and
+`ai.agent.session.abort_prediction`; see [Agent Session Runtime](./agent-session-runtime.md#next-prompt-suggestions).
+The flag suppresses tool registration
 without creating or changing an Agent execution. An optional `requestId` pairs
 the request with `ai.text.abort`; callers must still ignore stale results.
 
