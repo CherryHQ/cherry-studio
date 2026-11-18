@@ -270,6 +270,20 @@ describe('useSkillInstall', () => {
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
 
+  it('returns an install failure and clears pending state when the rejection cannot be printed', async () => {
+    installSkillMock.mockRejectedValueOnce({ toString: null })
+    const { result } = renderHook(() => useSkillInstall())
+
+    await act(async () => {
+      await expect(result.current.install('skills.sh:owner/repo/my-skill')).resolves.toEqual({
+        skill: null,
+        error: 'Unknown error'
+      })
+    })
+
+    expect(result.current.isInstalling()).toBe(false)
+  })
+
   it('tracks multiple remote skill installs independently', async () => {
     const pendingInstalls = new Map<string, (value: { success: true; data: InstalledSkill }) => void>()
     installSkillMock.mockImplementation(

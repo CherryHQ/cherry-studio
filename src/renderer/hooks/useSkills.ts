@@ -23,8 +23,17 @@ const logger = loggerService.withContext('useSkills')
 // launcher whenever the array changes — an infinite render loop during load.
 const EMPTY_SKILLS: readonly InstalledSkill[] = Object.freeze([])
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- SkillResult.error and IPC rejections are unrestricted; this boundary reads Error messages or safely coerces other failures to text.
 function skillErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error ?? 'Unknown error')
+  try {
+    if (error instanceof Error) {
+      const message = error.message
+      return typeof message === 'string' ? message : 'Unknown error'
+    }
+    return String(error ?? 'Unknown error')
+  } catch {
+    return 'Unknown error'
+  }
 }
 
 function unwrapSkillResult<T>(result: SkillResult<T>): T {
@@ -32,6 +41,7 @@ function unwrapSkillResult<T>(result: SkillResult<T>): T {
   throw new Error(skillErrorMessage(result.error))
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- System skill import catches arbitrary IPC rejections; skillErrorMessage normalizes them before logging and showing a toast.
 function reportSkillMutationError(action: string, error: unknown): string {
   const message = skillErrorMessage(error)
   logger.error(`Failed to ${action}`, { error: message })
@@ -39,6 +49,7 @@ function reportSkillMutationError(action: string, error: unknown): string {
   return message
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- ZIP and directory install catch paths receive arbitrary rejections; normalize their message while preserving original Error instances.
 function logAndRethrowSkillMutationError(action: string, error: unknown): never {
   const message = skillErrorMessage(error)
   logger.error(`Failed to ${action}`, { error: message })
