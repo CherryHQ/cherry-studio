@@ -239,7 +239,7 @@ off()
 | `app.visibilityChange` | `{ visible: boolean }` | The user switches to or away from the app. Page Visibility does not fire inside the host's keep-alive pool — use this |
 | `app.localeChange` | `{ locale: string }` | The user changes the UI language. `navigator.language` does not update — use this |
 
-Both are fire-and-forget: the host does not wait for your handler, and a handler that throws or rejects affects nothing. There is no destroy event, no permission-change event and no theme event — see [Lifecycle](./lifecycle.md).
+Handlers return `void` or `Promise<void>`; await data-bearing operations inside an async handler without returning their data. Both events are fire-and-forget: the host does not wait for your handler, and a handler that throws or rejects affects nothing. There is no destroy event, no permission-change event and no theme event — see [Lifecycle](./lifecycle.md).
 
 ## Guest-side length caps
 

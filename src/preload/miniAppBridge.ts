@@ -16,7 +16,7 @@ import {
 
 let seq = 0
 const streams = new Map<string, (chunk: string) => void>()
-const listeners = new Map<string, Set<(payload: unknown) => unknown>>()
+const listeners = new Map<string, Set<(payload: unknown) => void | Promise<void>>>()
 
 ipcRenderer.on(MINI_APP_STREAM_CHANNEL, (_e, { requestId, chunk }) => streams.get(requestId)?.(chunk))
 
@@ -248,7 +248,7 @@ contextBridge.exposeInMainWorld('cherry', {
   },
   // NOT async: it returns the unsubscribe function itself, and `cherry.d.ts` types it
   // that way. An author writes `const off = cherry.on(...)`, not `await`.
-  on: (event: string, handler: (payload: unknown) => unknown) => {
+  on: (event: string, handler: (payload: unknown) => void | Promise<void>) => {
     const set = listeners.get(event) ?? new Set()
     set.add(handler)
     listeners.set(event, set)

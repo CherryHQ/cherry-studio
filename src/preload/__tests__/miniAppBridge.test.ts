@@ -29,7 +29,7 @@ await import('../miniAppBridge')
 // rejects the very calls the file exists to make.
 type GuestFn = (...args: unknown[]) => Promise<MiniAppReply>
 const cherry = exposeInMainWorld.mock.calls[0][1] as Record<string, Record<string, GuestFn>> & {
-  on: (event: string, handler: (payload: unknown) => unknown) => () => void
+  on: (event: string, handler: (payload: unknown) => void | Promise<void>) => () => void
 }
 const push = (channel: string, payload: unknown) => channels.get(channel)!(undefined, payload)
 /** The `requestId` the bridge minted for the n-th streaming call it made. */
@@ -131,7 +131,9 @@ describe('the guest bridge', () => {
 
   it('fans an event out to every handler, survives a throwing one, and honours unsubscribe', () => {
     const seen: unknown[] = []
-    const off = cherry.on('app.localeChange', (p) => seen.push(p))
+    const off = cherry.on('app.localeChange', (payload) => {
+      seen.push(payload)
+    })
     cherry.on('app.localeChange', () => {
       throw new Error('guest bug')
     })
