@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 export enum CodeCli {
   CLAUDE_CODE = 'claude-code',
   OPENAI_CODEX = 'openai-codex',
@@ -41,17 +43,12 @@ export function isDeepSeekHarnessPermissionMode(value: unknown): value is DeepSe
   return DEEPSEEK_HARNESS_PERMISSION_MODES.includes(value as DeepSeekHarnessPermissionMode)
 }
 
-export function normalizeDeepSeekHarnessSettings(value: unknown): DeepSeekHarnessSettings {
-  const settings = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
-  return {
-    agentPreset: isDeepSeekHarnessAgentPreset(settings.agentPreset)
-      ? settings.agentPreset
-      : DEFAULT_DEEPSEEK_HARNESS_SETTINGS.agentPreset,
-    permissionMode: isDeepSeekHarnessPermissionMode(settings.permissionMode)
-      ? settings.permissionMode
-      : DEFAULT_DEEPSEEK_HARNESS_SETTINGS.permissionMode
-  }
-}
+export const normalizeDeepSeekHarnessSettings = z
+  .object({
+    agentPreset: z.enum(DEEPSEEK_HARNESS_AGENT_PRESETS).catch(DEFAULT_DEEPSEEK_HARNESS_SETTINGS.agentPreset),
+    permissionMode: z.enum(DEEPSEEK_HARNESS_PERMISSION_MODES).catch(DEFAULT_DEEPSEEK_HARNESS_SETTINGS.permissionMode)
+  })
+  .catch(() => ({ ...DEFAULT_DEEPSEEK_HARNESS_SETTINGS })).parse
 
 /**
  * Reserved virtual provider id for the code-CLI "use your own login" option.
