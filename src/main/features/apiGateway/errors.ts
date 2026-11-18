@@ -25,17 +25,17 @@ function record(value: unknown): Record<string, unknown> | undefined {
 }
 
 /** Retain provider response details only for authenticated in-process runtime requests. */
-export function internalGatewayError(error: unknown, fallback: SerializedError): SerializedError {
-  if (!(error instanceof Error) && !APICallError.isInstance(error)) return fallback
-  const api = APICallError.isInstance(error) ? error : undefined
+export function internalGatewayError(cause: unknown, fallback: SerializedError): SerializedError {
+  if (!(cause instanceof Error) && !APICallError.isInstance(cause)) return fallback
+  const api = APICallError.isInstance(cause) ? cause : undefined
   let body: Record<string, unknown> = {}
   try {
     body = record(JSON.parse(api?.responseBody ?? '')) ?? {}
   } catch {
     body = record(api?.data) ?? (api?.responseBody ? { message: api.responseBody } : {})
   }
-  const cause = error.cause instanceof Error ? error.cause : undefined
-  const causeCode = record(cause)?.code
+  const transportCause = cause.cause instanceof Error ? cause.cause : undefined
+  const causeCode = record(transportCause)?.code
   const headers = Object.fromEntries(
     Object.entries(api?.responseHeaders ?? {}).filter(([name]) =>
       /^(retry-after|request-id|x-request-id|(?:x-|anthropic-)?ratelimit-[a-z0-9-]+)$/i.test(name)
@@ -44,25 +44,29 @@ export function internalGatewayError(error: unknown, fallback: SerializedError):
   const detail = {
     ...(causeCode !== undefined && { code: causeCode }),
     ...(record(body.error) ?? body),
-    ...(cause && {
-      cause: { name: cause.name, message: cause.message, ...(typeof causeCode === 'string' && { code: causeCode }) }
+    ...(transportCause && {
+      cause: {
+        name: transportCause.name,
+        message: transportCause.message,
+        ...(typeof causeCode === 'string' && { code: causeCode })
+      }
     })
   }
   return {
     ...fallback,
-    message: error.message,
+    message: cause.message,
     [providerDetails]: { body, error: detail, headers }
   }
 }
 
-function detailsOf(error: unknown): ProviderDetails | undefined {
-  return error !== null && typeof error === 'object' ? (error as InternalError)[providerDetails] : undefined
+function detailsOf(cause: unknown): ProviderDetails | undefined {
+  return cause !== null && typeof cause === 'object' ? (cause as InternalError)[providerDetails] : undefined
 }
 
 type GatewayErrorContext = Parameters<ErrorHandler<{ DATA_API: DataApiError }>>[0]
 
-const messageOf = (error: unknown, fallback: string): string =>
-  error instanceof Error && error.message ? error.message : fallback
+const messageOf = (cause: unknown, fallback: string): string =>
+  cause instanceof Error && cause.message ? cause.message : fallback
 
 /** Map an HTTP status to the provider-dialect error `type`. */
 const typeForStatus = (status: number): string => {
@@ -137,7 +141,7 @@ function googleStatusName(status: number): string {
  * extras (`stack`, `url`, `requestBodyValues`, `responseBody`, `responseHeaders`)
  * are intentionally ignored so they never reach the client.
  */
-function extractError(error: unknown): {
+function extractError(cause: unknown): {
   status?: number
   message?: string
   type?: string
@@ -145,8 +149,8 @@ function extractError(error: unknown): {
   code?: string
   category?: string
 } {
-  if (error === null || typeof error !== 'object') return {}
-  const e = error as {
+  if (cause === null || typeof cause !== 'object') return {}
+  const e = cause as {
     name?: unknown
     code?: unknown
     status?: unknown
@@ -180,14 +184,14 @@ function safeMessage(status: number | undefined, message: string | undefined): s
   return isDev && message && message.length > 0 ? message : fallback
 }
 
-function normalizeProviderError(error: unknown): {
+function normalizeProviderError(cause: unknown): {
   statusCode: number
   message: string
   type?: string
   category?: string
 } {
-  const extracted = extractError(error)
-  const details = detailsOf(error)
+  const extracted = extractError(cause)
+  const details = detailsOf(cause)
   const { status, name, code, category } = extracted
   const message = typeof details?.error.message === 'string' ? details.error.message : extracted.message
   const type = typeof details?.error.type === 'string' ? details.error.type : extracted.type
@@ -233,12 +237,12 @@ const anthropicTypeForStatus = (status: number): string => {
  * `SerializedError` plain objects `processMessage` now throws (which carry
  * `statusCode`, not `status`) instead of flattening every provider error to 500.
  */
-function transformAnthropicError(error: unknown): {
+function transformAnthropicError(cause: unknown): {
   statusCode: number
   errorResponse: { type: 'error'; error: { type: string; message: string; requestId?: string } }
 } {
-  const { statusCode, message, type, category } = normalizeProviderError(error)
-  const details = detailsOf(error)
+  const { statusCode, message, type, category } = normalizeProviderError(cause)
+  const details = detailsOf(cause)
   const errorType = type ?? anthropicTypeForStatus(statusCode)
   const clientMessage =
     details &&
@@ -248,8 +252,8 @@ function transformAnthropicError(error: unknown): {
       ? `Prompt is too long: ${message}`
       : message
   const requestId =
-    error !== null && typeof error === 'object' && typeof (error as { request_id?: unknown }).request_id === 'string'
-      ? (error as { request_id: string }).request_id
+    cause !== null && typeof cause === 'object' && typeof (cause as { request_id?: unknown }).request_id === 'string'
+      ? (cause as { request_id: string }).request_id
       : undefined
   return {
     statusCode,
@@ -277,12 +281,12 @@ const openaiTypeAndCodeForStatus = (status: number): { type: string; code: strin
  * status-driven rather than `instanceof OpenAI.APIError` + message regex, so it
  * correctly maps the `SerializedError` plain objects `processMessage` now throws.
  */
-function transformOpenAiError(error: unknown): {
+function transformOpenAiError(cause: unknown): {
   statusCode: number
   errorResponse: { error: { message: string; type: string; code: string | null } }
 } {
-  const { statusCode, message, category } = normalizeProviderError(error)
-  const details = detailsOf(error)
+  const { statusCode, message, category } = normalizeProviderError(cause)
+  const details = detailsOf(cause)
   // OpenAI's own quota code: clients such as Pi treat it as final instead of retrying a rate limit.
   const { type, code } =
     category === 'quota'
@@ -310,12 +314,12 @@ function transformOpenAiError(error: unknown): {
  * the `SerializedError` plain objects `processMessage` throws (which carry
  * `statusCode`, not `status`) correctly instead of flattening everything to 500.
  */
-function transformGoogleError(error: unknown): {
+function transformGoogleError(cause: unknown): {
   statusCode: number
   errorResponse: { error: { code: number; message: string; status: string } }
 } {
-  const { statusCode, message } = normalizeProviderError(error)
-  const details = detailsOf(error)
+  const { statusCode, message } = normalizeProviderError(cause)
+  const details = detailsOf(cause)
   return {
     statusCode,
     errorResponse: {
@@ -335,23 +339,23 @@ function transformGoogleError(error: unknown): {
  * AI-SDK error extras), so the streaming and non-streaming error shapes match and
  * neither leaks `stack` / `url` / request/response bodies to the client.
  */
-export function buildStreamErrorFrame(outputFormat: OutputFormat, error: unknown): string {
+export function buildStreamErrorFrame(outputFormat: OutputFormat, cause: unknown): string {
   if (outputFormat === 'anthropic') {
-    const { errorResponse } = transformAnthropicError(error)
+    const { errorResponse } = transformAnthropicError(cause)
     return `event: error\ndata: ${JSON.stringify(errorResponse)}\n\n`
   }
   if (outputFormat === 'gemini') {
     // Gemini SSE delivers a mid-stream error as a plain `data:` frame carrying the
     // standard error envelope (no named event).
-    const { errorResponse } = transformGoogleError(error)
+    const { errorResponse } = transformGoogleError(cause)
     return `data: ${JSON.stringify(errorResponse)}\n\n`
   }
-  const { errorResponse } = transformOpenAiError(error)
+  const { errorResponse } = transformOpenAiError(cause)
   if (outputFormat === 'openai-responses') {
     // Responses streams use named events; `type: 'error'` is the event discriminator,
     // distinct from the OpenAI error `type` (carried as part of the message envelope).
     const { message, code } = errorResponse.error
-    const details = detailsOf(error)
+    const details = detailsOf(cause)
     return `event: error\ndata: ${JSON.stringify({ ...details?.body, type: 'error', code, message, ...(details && { error: errorResponse.error }) })}\n\n`
   }
   return `data: ${JSON.stringify(errorResponse)}\n\n`
