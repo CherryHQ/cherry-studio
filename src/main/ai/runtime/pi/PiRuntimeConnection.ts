@@ -56,7 +56,6 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import { AsyncEventQueue } from '@shared/utils/async'
 import { markReportingHandled } from '@shared/utils/errorReporting'
 
-import { resolveApiGatewayRuntime } from '../agentApiGateway'
 import { PROMPT_SUGGESTION_INSTRUCTION } from '../promptSuggestion'
 import type {
   AgentRuntimeConnectInput,
@@ -148,7 +147,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input.modelId,
       this.input.knowledgeBaseIds
     )
-    await resolveApiGatewayRuntime(this.input.sessionId)
     await warmAgentMcpToolCatalogs(discovery.agent.mcps ?? [])
     const initialSnapshot = await capturePiConnectionSnapshot(
       this.input.sessionId,
@@ -428,7 +426,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       return
     }
     try {
-      await this.submit(input, input.systemReminder ? wrapSteerReminder(content) : content, 'reject')
+      const prompt = input.context ? buildAgentUserContent(input.message, input.context) : content
+      await this.submit(input, input.systemReminder ? wrapSteerReminder(prompt) : prompt, 'reject')
     } catch (error) {
       this.sending = false
       this.failure = error
@@ -444,12 +443,14 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   redirect(input: AgentRuntimeCommand): boolean {
     if (!this.active || this.closing) return false
     this.pendingSteers.add(input.message.id)
-    void this.submit(input, wrapSteerReminder(buildAgentUserContent(input.message)), 'steer').catch((error) => {
-      this.pendingSteers.delete(input.message.id)
-      this.failure = error
-      logAiFailure(logger, 'Pi steer failed', error, 'agent.pi.steer', classifyPiFailure(error))
-      this.eventQueue.push({ type: 'error', error })
-    })
+    void this.submit(input, wrapSteerReminder(buildAgentUserContent(input.message, input.context)), 'steer').catch(
+      (error) => {
+        this.pendingSteers.delete(input.message.id)
+        this.failure = error
+        logAiFailure(logger, 'Pi steer failed', error, 'agent.pi.steer', classifyPiFailure(error))
+        this.eventQueue.push({ type: 'error', error })
+      }
+    )
     return true
   }
 

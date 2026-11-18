@@ -5,6 +5,7 @@
  * Handles messages, tools, and extended features like reasoning_content.
  */
 
+import type { JSONValue } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
 import { jsonSchema, tool } from 'ai'
@@ -48,6 +49,7 @@ export interface ExtendedChatCompletionCreateParams extends ChatCompletionCreate
  */
 interface ExtendedAssistantMessage extends ChatCompletionAssistantMessageParam {
   reasoning_content?: string | null
+  reasoning_details?: JSONValue[]
 }
 
 /**
@@ -161,8 +163,12 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
     const parts: CherryUIMessage['parts'] = []
 
     // reasoning_content (DeepSeek-style thinking)
-    if (msg.reasoning_content) {
-      const p: ReasoningUIPart = { type: 'reasoning', text: msg.reasoning_content }
+    if (msg.reasoning_content || msg.reasoning_details?.length) {
+      const p: ReasoningUIPart = {
+        type: 'reasoning',
+        text: msg.reasoning_content ?? '',
+        ...(msg.reasoning_details && { providerMetadata: { openrouter: { reasoning_details: msg.reasoning_details } } })
+      }
       parts.push(p)
     }
 
