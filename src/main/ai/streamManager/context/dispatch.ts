@@ -115,16 +115,16 @@ export async function dispatchStreamRequest(
       topicId: req.topicId
     })
   }
-  const prepared = await provider.prepareDispatch(subscriber, req, { hasLiveStream }).catch((error: unknown) => {
-    if (isAgentSessionWorkspaceError(error)) {
+  const prepared = await provider.prepareDispatch(subscriber, req, { hasLiveStream }).catch((cause: unknown) => {
+    if (isAgentSessionWorkspaceError(cause)) {
       return {
         blocked: {
           reason: 'agent-session-workspace' as const,
-          message: error.message
+          message: cause.message
         }
       }
     }
-    throw error
+    throw cause
   })
   if ('blocked' in prepared) {
     return { mode: 'blocked', ...prepared.blocked }
