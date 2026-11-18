@@ -1192,9 +1192,12 @@ existing migration below.
 `AgentRuntimeCommand.context` when a branch has no previous native input. The generic
 `readSessionHistory` reader follows message parents, excludes the current input and
 unfinished deliveries, and retains role labels, reasoning, tool names, inputs, completion
-states and managed file parts. Tool output bodies are omitted; failed calls retain at most
-256 characters of error text. Persisted tool outputs are not hydrated for this reference
-context. Complete outputs remain in product history for display. Drivers use their
+states and managed file parts. Short tool results are preserved unchanged up to 1,500
+characters (JSON length for structured values). Longer results use line-aligned head/tail
+excerpts with 500/1,000 character budgets and an explicit omission marker. Failed calls
+retain at most 256 characters of error text. Persisted results reuse stored excerpts and
+structured identities without loading full blobs. Complete outputs remain in product
+history for display. Drivers use their
 ordinary input and attachment conversion.
 Native admission still checks the original product message parts; reference context does
 not rewrite user messages or dispatch historical tools.

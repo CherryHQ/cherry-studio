@@ -1,8 +1,29 @@
 import { getToolName, isToolUIPart } from 'ai'
 
 import { application } from '@application'
+import { computeHeadTailExcerpt } from '@cherrystudio/ai-core'
 import { readAgentSessionPath } from '@data/services/agentSessionMessageTree'
+import { spliceTextAtKey } from '@main/ai/contextBuild/toolOutputStore'
+import { isPersistedToolOutput, PERSIST_HEAD_CHARS, PERSIST_TAIL_CHARS } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
+
+function formatToolExcerpt({ head, tail }: Pick<ReturnType<typeof computeHeadTailExcerpt>, 'head' | 'tail'>) {
+  return `${head}\n[Historical tool output truncated; middle omitted]\n${tail}`
+}
+
+function historyToolOutput(output: unknown): unknown {
+  if (isPersistedToolOutput(output)) {
+    const ref = output.$persistedToolOutput
+    if (ref.shape !== 'entities') return formatToolExcerpt(ref)
+    output = ref.blobRefs.reduce(
+      (skeleton, blob) => spliceTextAtKey(skeleton, blob.key, formatToolExcerpt(blob)),
+      ref.skeleton
+    )
+  }
+  const text = typeof output === 'string' ? output : JSON.stringify(output)
+  if (text === undefined || text.length <= PERSIST_HEAD_CHARS + PERSIST_TAIL_CHARS) return output
+  return formatToolExcerpt(computeHeadTailExcerpt(text, PERSIST_HEAD_CHARS, PERSIST_TAIL_CHARS))
+}
 
 /** Reuse product history only before this branch has submitted native input. */
 export async function readSessionHistory(
@@ -33,7 +54,7 @@ export async function readSessionHistory(
         toolName: getToolName(part),
         state: part.state,
         input: part.input,
-        output: part.state === 'output-available' ? '[Historical tool output omitted]' : undefined,
+        output: part.state === 'output-available' ? historyToolOutput(part.output) : undefined,
         errorText: part.state === 'output-error' ? part.errorText.slice(0, 256) : undefined
       }
     })

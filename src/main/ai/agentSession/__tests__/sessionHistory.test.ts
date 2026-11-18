@@ -76,14 +76,32 @@ it('rebuilds the selected prefix without import metadata, preserving consecutive
   expect(content).toContain('"role":"user"')
   expect(content).toContain('"role":"assistant"')
   expect(content).toContain('"queries":["mango"]')
-  expect(content).toContain('Historical tool output omitted')
+  expect(content).toContain('"output":{"results":[],"status":"FINISHED"}')
   expect(content).toContain('Historical reasoning step')
   expect(content).not.toContain('Sibling banana')
   expect(content.endsWith('Continue')).toBe(true)
   expect(messages.getSessionMessage('session', current.id).data.parts).toEqual([{ type: 'text', text: 'Continue' }])
 })
 
-it('omits inline and persisted tool output bodies from model context while preserving stored history', async () => {
+it.each([
+  {
+    output: { exitCode: 0, path: '/tmp/report.md', resourceId: 'report-42' },
+    expected: '"output":{"exitCode":0,"path":"/tmp/report.md","resourceId":"report-42"}'
+  },
+  { output: 'Created report-42', expected: '"output":"Created report-42"' },
+  { output: 0, expected: '"output":0' },
+  { output: false, expected: '"output":false' },
+  { output: null, expected: '"output":null' }
+])('preserves a short historical result unchanged: $expected', async ({ output, expected }) => {
+  save('assistant', [
+    { type: 'dynamic-tool', toolCallId: 'short-result', toolName: 'run', state: 'output-available', input: {}, output }
+  ])
+  const current = save('user', [{ type: 'text', text: 'Continue' }])
+  const content = buildAgentUserContent(current, await readSessionHistory('session', current.id))
+  expect(content).toContain(expected)
+})
+
+it('keeps bounded inline and persisted tool excerpts while preserving stored history', async () => {
   const parts: CherryMessagePart[] = [
     {
       type: 'dynamic-tool',
@@ -91,7 +109,11 @@ it('omits inline and persisted tool output bodies from model context while prese
       toolName: 'search',
       state: 'output-available',
       input: { queries: ['historical query'] },
-      output: { results: [{ snippet: 'LARGE_SEARCH_BODY'.repeat(10_000) }] }
+      output: {
+        title: 'SEARCH_HEAD_FINDING',
+        snippet: 'x'.repeat(10_000) + 'INLINE_MIDDLE_ONLY' + 'y'.repeat(10_000),
+        url: 'https://example.test/search-tail'
+      }
     },
     {
       type: 'tool-read_file',
@@ -109,6 +131,19 @@ it('omits inline and persisted tool output bodies from model context while prese
           shape: 'text'
         }
       }
+    },
+    {
+      type: 'dynamic-tool',
+      toolCallId: 'shell-output',
+      toolName: 'shell',
+      state: 'output-available',
+      input: { command: 'generate report' },
+      output:
+        'SHELL_HEAD created report-42\n' +
+        'x'.repeat(10_000) +
+        'SHELL_MIDDLE_ONLY' +
+        'y'.repeat(10_000) +
+        '\nSHELL_TAIL exit code 0'
     },
     {
       type: 'dynamic-tool',
@@ -130,12 +165,88 @@ it('omits inline and persisted tool output bodies from model context while prese
   expect(content).toContain('"state":"output-error"')
   expect(content).toContain('File not found.')
   expect(content).toContain('The answer already summarizes the useful findings.')
-  expect(content).not.toContain('LARGE_SEARCH_BODY')
-  expect(content).not.toContain('STORED_OUTPUT_HEAD')
-  expect(content).not.toContain('STORED_OUTPUT_TAIL')
+  expect(content).toContain('SEARCH_HEAD_FINDING')
+  expect(content).toContain('https://example.test/search-tail')
+  expect(content).not.toContain('INLINE_MIDDLE_ONLY')
+  expect(content).toContain('STORED_OUTPUT_HEAD')
+  expect(content).toContain('STORED_OUTPUT_TAIL')
+  expect(content).toContain('SHELL_HEAD created report-42')
+  expect(content).toContain('SHELL_TAIL exit code 0')
+  expect(content).not.toContain('SHELL_MIDDLE_ONLY')
+  expect(content).toContain('Historical tool output truncated')
   expect(content).not.toContain('stored-output.txt')
-  expect(content.length).toBeLessThan(4000)
+  expect(content.length).toBeLessThan(5000)
   expect(messages.getSessionMessage('session', original.id).data.parts).toEqual(parts)
+})
+
+it('preserves persisted structured-result identities and excerpts without loading their blobs', async () => {
+  const part: CherryMessagePart = {
+    type: 'dynamic-tool',
+    toolCallId: 'entities-call',
+    toolName: 'read_resources',
+    state: 'output-available',
+    input: {},
+    output: {
+      $persistedToolOutput: {
+        shape: 'entities',
+        skeleton: [{ id: 'resource-42', path: '/tmp/resource.txt', content: 'PREVIEW_ONLY' }],
+        blobRefs: [
+          {
+            key: '/0/content',
+            fileEntryId: randomUUID(),
+            vfsFilename: 'unavailable-blob.txt',
+            head: 'ENTITY_HEAD',
+            tail: 'ENTITY_TAIL',
+            totalChars: 100_000,
+            totalLines: 1000
+          }
+        ]
+      }
+    }
+  }
+  const historical = save('assistant', [part])
+  const current = save('user', [{ type: 'text', text: 'Continue' }])
+  const content = buildAgentUserContent(current, await readSessionHistory('session', current.id))
+  expect(content).toContain('resource-42')
+  expect(content).toContain('/tmp/resource.txt')
+  expect(content).toContain('ENTITY_HEAD')
+  expect(content).toContain('ENTITY_TAIL')
+  expect(content).toContain('Historical tool output truncated')
+  expect(content).not.toContain('unavailable-blob.txt')
+  expect(content).not.toContain('PREVIEW_ONLY')
+  expect(messages.getSessionMessage('session', historical.id).data.parts).toEqual([part])
+})
+
+it('reuses persisted text excerpts without cutting their line boundaries a second time', async () => {
+  const head = 'h'.repeat(500)
+  const tail = 'TAIL_FIRST_LINE\n' + 't'.repeat(970) + '\nTAIL_LAST_LINE'
+  save('assistant', [
+    {
+      type: 'dynamic-tool',
+      toolCallId: 'stored-lines',
+      toolName: 'read',
+      state: 'output-available',
+      input: {},
+      output: {
+        $persistedToolOutput: {
+          shape: 'text',
+          fileEntryId: randomUUID(),
+          vfsFilename: 'unavailable.txt',
+          head,
+          tail,
+          totalChars: 100_000,
+          totalLines: 1000
+        }
+      }
+    }
+  ])
+  const current = save('user', [{ type: 'text', text: 'Continue' }])
+  const content = buildAgentUserContent(current, await readSessionHistory('session', current.id))
+  expect(content).toContain(head)
+  expect(content).toContain('TAIL_FIRST_LINE')
+  expect(content).toContain('TAIL_LAST_LINE')
+  expect(content).toContain('Historical tool output truncated')
+  expect(content).not.toContain('unavailable.txt')
 })
 
 it('keeps history available after warming a fresh native identity and stops rebuilding after native input', async () => {
