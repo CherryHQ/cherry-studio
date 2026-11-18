@@ -4148,6 +4148,8 @@
   "settings.data.app_logs.label": "Logy aplikace",
   "settings.data.backup.skip_file_data_help": "Při zálohování přeskočí soubory dat, jako jsou obrázky a znalostní báze; zálohuje pouze historii chatů a nastavení. Snižuje zabrané místo a zrychluje zálohování.",
   "settings.data.backup.skip_file_data_title": "Úsporná záloha",
+  "settings.data.backup.syncStart.help": "První záloha začne v tento čas dne; další pak následují podle intervalu zálohování. Ponechte prázdné, chcete-li použít pouze interval.",
+  "settings.data.backup.syncStart.label": "Čas první zálohy",
   "settings.data.clear_cache.approximately": "Přibl. {{size}}",
   "settings.data.clear_cache.button": "Vymazat mezipaměť",
   "settings.data.clear_cache.calculating": "Počítá se…",
