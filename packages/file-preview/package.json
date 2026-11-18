@@ -38,6 +38,8 @@
     "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/file-preview/tsconfig.json"
   },
   "dependencies": {
+    "katex": "0.16.22",
+    "yaml": "^2.8.1",
     "zod": "^4.1.5"
   },
   "devDependencies": {
