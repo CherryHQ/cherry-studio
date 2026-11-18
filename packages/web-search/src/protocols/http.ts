@@ -33,7 +33,7 @@ export function invalidResponse(context: ProtocolContext, code: string, message:
   return new WebSearchError({ ...context.call, kind: 'invalid_response', code, message })
 }
 
-function safeText(context: ProtocolContext, value: unknown, limit: number): string {
+function safeText(context: ProtocolContext, value: string | number | undefined, limit: number): string {
   let text = typeof value === 'string' || typeof value === 'number' ? String(value) : ''
   for (const secret of [context.call.credentials?.apiKey, context.call.credentials?.basicAuth?.password]) {
     if (secret) text = text.split(secret).join('[redacted]')
@@ -92,7 +92,7 @@ export async function requestJson<T>(
   context: ProtocolContext,
   request: { url: string; method: 'GET' | 'POST'; headers?: Record<string, string>; body?: unknown },
   schema: z.ZodType<T>,
-  checkError?: (payload: unknown) => void
+  checkError?: (payload: z.infer<typeof errorSchema>) => void
 ): Promise<T> {
   const defaults: Record<string, string> = {}
   if (request.body !== undefined) defaults['Content-Type'] = 'application/json'
@@ -107,7 +107,10 @@ export async function requestJson<T>(
   } catch {
     throw invalidResponse(context, 'invalid_json', `${context.call.providerId} returned invalid JSON`)
   }
-  checkError?.(payload)
+  if (checkError) {
+    const error = errorSchema.safeParse(payload)
+    if (error.success) checkError(error.data)
+  }
   const parsed = schema.safeParse(payload)
   if (!parsed.success)
     throw invalidResponse(context, 'schema_mismatch', `${context.call.providerId} response validation failed`)
@@ -116,7 +119,7 @@ export async function requestJson<T>(
 
 export function checkProviderError(
   context: ProtocolContext,
-  payload: unknown,
+  payload: z.infer<typeof errorSchema>,
   field: 'code' | 'error_code' | 'success'
 ): void {
   const parsed = errorSchema.extend({ success: z.boolean().optional() }).safeParse(payload)
