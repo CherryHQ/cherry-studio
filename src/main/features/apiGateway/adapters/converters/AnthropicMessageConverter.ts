@@ -420,23 +420,22 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
    */
   extractStreamOptions(params: MessageCreateParams): StreamTextOptions {
     const choice = params.tool_choice
-    return {
+    const options: StreamTextOptions = {
       maxOutputTokens: params.max_tokens,
       temperature: params.temperature,
       topP: params.top_p,
       topK: params.top_k,
-      stopSequences: params.stop_sequences,
-      ...(choice
-        ? {
-            toolChoice:
-              choice.type === 'tool'
-                ? { type: 'tool', toolName: this.toProviderToolName(choice.name) }
-                : choice.type === 'any'
-                  ? 'required'
-                  : choice.type
-          }
-        : {})
+      stopSequences: params.stop_sequences
     }
+    if (choice) {
+      options.toolChoice =
+        choice.type === 'tool'
+          ? { type: 'tool', toolName: this.toProviderToolName(choice.name) }
+          : choice.type === 'any'
+            ? 'required'
+            : choice.type
+    }
+    return options
   }
 
   /**

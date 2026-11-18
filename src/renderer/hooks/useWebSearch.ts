@@ -100,12 +100,11 @@ export const useWebSearchProviders = () => {
         capabilities: preset.capabilities.map((capability) => {
           const capabilityOverride = override?.capabilities?.[capability.feature]
 
-          return {
-            ...capability,
-            ...('apiHost' in capability && capabilityOverride?.apiHost !== undefined
-              ? { apiHost: trimString(capabilityOverride.apiHost) }
-              : {})
+          const result = { ...capability }
+          if ('apiHost' in capability && capabilityOverride?.apiHost !== undefined) {
+            Object.assign(result, { apiHost: trimString(capabilityOverride.apiHost) })
           }
+          return result
         }),
         engines: trimStringList(override?.engines ?? []),
         basicAuthUsername: trimString(override?.basicAuthUsername ?? ''),
