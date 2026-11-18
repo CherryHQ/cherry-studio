@@ -46,7 +46,13 @@ its final path. An initialization failure before publication leaves the same res
 retryable. Reopening checks identity and never creates or replaces a SQLite file.
 
 Pi Durable owns its transcript, task graph, submissions and behavior records. Product
-messages remain display projections. Root SDK message views pass through `ThreadMessageProjection`;
+messages retain display history. For a branch without previous native input, the Session host
+supplies that branch's history as model-only reference context before its first input. The driver
+initializes a passive native reference entry separately from command text, using native request-ID
+deduplication across reopening. Initialization starts no model run and stays out of product
+projections and behavior-authorizing user history. Both ordinary submissions and autonomous goal
+rounds receive it. This creates no source-message entries or historical checkpoints; fresh bindings
+capture the selected product position, and subsequent input uses native history. Root SDK message views pass through `ThreadMessageProjection`;
 Main's `RootMessageProjection` groups them into product replies for the stream manager. Every child has an independent `ChildThreadProjection`,
 archive and shared `ai.projection.*` subscription. Parent parts contain task metadata
 and navigation, not the child's streamed body. Accepted child text remains the user's

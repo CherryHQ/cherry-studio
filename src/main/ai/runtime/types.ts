@@ -101,7 +101,10 @@ export interface AgentRuntimeUserInput {
   messageSnapshot?: MessageSnapshot
 }
 
-export type AgentRuntimeCommand = Pick<AgentRuntimeUserInput, 'message' | 'systemReminder'>
+export type AgentRuntimeCommand = Pick<AgentRuntimeUserInput, 'message' | 'systemReminder'> & {
+  /** Model-only context; the original product message remains unchanged. */
+  context?: CherryUIMessage['parts']
+}
 
 /**
  * Runtime-neutral approval request. Drivers emit this instead of writing directly to a live

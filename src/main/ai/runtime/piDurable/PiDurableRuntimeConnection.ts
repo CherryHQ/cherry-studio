@@ -273,17 +273,23 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private async submit(input: AgentRuntimeCommand, text: string, whenBusy: 'follow-up' | 'steer') {
-    const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, whenBusy, {
-      text,
-      parts: input.message.data.parts
-    })
-    this.input.onInputPrepared?.(input.message.id, this.context!.id)
-    const submitted = this.handle!.input.submit(draft)
+    const submitted = (async () => {
+      if (input.context?.length)
+        await this.handle!.durable.initializeContext(
+          buildAgentUserContent({ ...input.message, data: { parts: input.context } })
+        )
+      const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, whenBusy, {
+        text,
+        parts: input.message.data.parts
+      })
+      this.input.onInputPrepared?.(input.message.id, this.context!.id)
+      return this.handle!.input.submit(draft)
+    })()
     this.admission = submitted.catch(() => undefined)
     const result = await submitted
     this.events.push({ type: 'input-submission', contextId: this.context!.id, result })
+    applyNativeSubmissionResult(this.input.sessionId, this.context!.id, result)
     if (result.status !== 'acknowledged') {
-      applyNativeSubmissionResult(this.input.sessionId, this.context!.id, result)
       throw new SubmissionRefused(result.error.message)
     }
     this.captureInput(result)

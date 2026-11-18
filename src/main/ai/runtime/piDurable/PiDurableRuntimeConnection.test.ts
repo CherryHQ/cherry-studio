@@ -34,6 +34,7 @@ import { openDurableStorage } from '@main/ai/agentSession/durableNativeContext'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
 import { readForkResources } from '@main/ai/agentSession/fork/resources'
 import { bindNativeInput, prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
+import { readSessionHistory } from '@main/ai/agentSession/sessionHistory'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { getPiTraceContext, observabilitySinks } from '@main/ai/observability'
 import { checkCommand } from '@main/ai/toolApproval/commandPolicy'
@@ -224,6 +225,87 @@ describe('desktop Pi Durable connection', () => {
     runtimeDriverRegistry.clearForTest()
     for (const connection of connections.splice(0)) await connection.close()
     vi.restoreAllMocks()
+  })
+  it('stops the admitted input when reference initialization is still pending', async () => {
+    holdResponse('continuation in progress')
+    const { connection, events, handle, nativeInputs } = await connect()
+    const initializing = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
+    const initialize = handle.durable.initializeContext.bind(handle.durable)
+    vi.spyOn(handle.durable, 'initializeContext').mockImplementationOnce(async (context) => {
+      initializing.resolve()
+      await release.promise
+      await initialize(context)
+    })
+    const user = message('Continue the earlier conversation')
+    const sending = connection.send({
+      message: user,
+      context: [{ type: 'text', text: 'Earlier conversation: remember mango' }]
+    })
+    await initializing.promise
+    const stopping = connection.interrupt()
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    release.resolve()
+    await Promise.all([sending, stopping])
+    await expect
+      .poll(() => nativeInputs.some((state) => state.inputId === user.id && state.outcome === 'aborted'))
+      .toBe(true)
+    await expect.poll(() => events.some((event) => event.type === 'stop-confirmed')).toBe(true)
+  })
+
+  it('continues unbound history on separate native branches and retains it after reopening', async () => {
+    const user = message('Remember mango')
+    const selected = messages.saveMessage({
+      sessionId: input.sessionId,
+      message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Mango recorded' }] } }
+    })
+    const sibling = messages.saveMessage({
+      sessionId: input.sessionId,
+      parentId: user.id,
+      message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Sibling banana' }] } }
+    })
+    messages.selectBranch(input.sessionId, selected.id)
+    input.branchHead = selected.id
+    const first = await connect()
+    expect(script.calls).toHaveLength(0)
+    const prompt = message('Continue mango')
+    await first.connection.send({ message: prompt, context: await readSessionHistory(input.sessionId, prompt.id) })
+    const answer = await savedAnswer(first)
+    const firstRequest = JSON.stringify(script.calls[0].messages)
+    expect(firstRequest).toContain('Remember mango')
+    expect(firstRequest).toContain('Mango recorded')
+    expect(firstRequest).not.toContain('Sibling banana')
+    await first.connection.close()
+
+    messages.selectBranch(input.sessionId, sibling.id)
+    input.branchHead = sibling.id
+    setScript([assistantReply('Sibling continued')])
+    const other = await connect()
+    expect(other.connection.contextId).not.toBe(first.connection.contextId)
+    const siblingPrompt = message('Continue banana')
+    await other.connection.send({
+      message: siblingPrompt,
+      context: await readSessionHistory(input.sessionId, siblingPrompt.id)
+    })
+    await savedAnswer(other)
+    const siblingRequest = JSON.stringify(script.calls[0].messages)
+    expect(siblingRequest).toContain('Remember mango')
+    expect(siblingRequest).toContain('Sibling banana')
+    expect(siblingRequest).not.toContain('Mango recorded')
+    await other.connection.close()
+
+    messages.selectBranch(input.sessionId, answer.id)
+    input.branchHead = answer.id
+    setScript([assistantReply('Resumed')])
+    const reopened = await connect()
+    const followup = message('What did I say?')
+    expect(await readSessionHistory(input.sessionId, followup.id)).toBeUndefined()
+    await reopened.connection.send({ message: followup })
+    await savedAnswer(reopened)
+    const resumedRequest = JSON.stringify(script.calls[0].messages)
+    expect(resumedRequest).toContain('Mango recorded')
+    expect(resumedRequest).not.toContain('Sibling banana')
+    expect(resumedRequest.match(/Previous conversation history/g)).toHaveLength(1)
   })
   it.each([false, true])('materializes the captured model name for headless=%s', async (headless) => {
     const { buildAgentRuntimePrompt } = await vi.importActual<typeof AgentPrompt>('../agentPrompt')
@@ -1202,7 +1284,15 @@ describe('desktop Pi Durable connection', () => {
   })
 
   // A freshly allocated Durable root must not resolve the verifier's initialization ID as a child.
-  it('verifies and completes a goal in a newly created native root', async () => {
+  it.each([false, true])('verifies and completes a goal with imported history: %s', async (withHistory) => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'auto' }
+    if (withHistory) {
+      message('Remember mango from the imported conversation')
+      input.branchHead = messages.saveMessage({
+        sessionId: input.sessionId,
+        message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Mango recorded' }] } }
+      }).id
+    }
     script = respondingModel((call) => {
       if (call.systemPrompt.startsWith('Evaluate whether the objective'))
         return assistantReply('{"verdict":"met","reason":"Output is present"}')
@@ -1227,7 +1317,11 @@ describe('desktop Pi Durable connection', () => {
       )
     })
     const { connection, events } = await connect()
-    await connection.send({ message: message('/goal Produce the requested output') })
+    const command = message('/goal Produce the requested output')
+    await connection.send({
+      message: command,
+      context: await readSessionHistory(input.sessionId, command.id, connection.contextId)
+    })
     await expect.poll(() => text(events)).toContain('GOAL_VERIFIED')
     expect(script.calls.filter((call) => call.systemPrompt.startsWith('Evaluate whether the objective'))).toHaveLength(
       1
@@ -1236,6 +1330,17 @@ describe('desktop Pi Durable connection', () => {
       .flatMap((message) => message.parts)
       .find((part) => part.type === 'dynamic-tool' && part.toolName === 'update_goal')
     expect(completion).toMatchObject({ state: 'output-available' })
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: 'input-submission',
+        result: expect.objectContaining({ status: 'acknowledged', facts: ['locally-handled'] })
+      })
+    )
+    if (withHistory) {
+      const firstRound = script.calls.find((call) => !call.systemPrompt.startsWith('Evaluate whether the objective'))!
+      expect(JSON.stringify(firstRound.messages)).toContain('Remember mango from the imported conversation')
+      expect(JSON.stringify(firstRound.messages)).toContain('Mango recorded')
+    }
   })
 
   // Locally handled commands must keep their answer when the desktop consumes message projections.
@@ -1247,6 +1352,53 @@ describe('desktop Pi Durable connection', () => {
     expect(script.calls).toHaveLength(0)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
+
+  it.each(['/goal', '/goal Recall the imported conversation'])(
+    'routes %s locally and retains imported history for the next model input after reopening',
+    async (command) => {
+      snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'plan' }
+      message('Remember mango from the imported conversation')
+      const selected = messages.saveMessage({
+        sessionId: input.sessionId,
+        message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Mango recorded' }] } }
+      })
+      input.branchHead = selected.id
+      const first = await connect()
+      const local = message(command)
+      await first.connection.send({
+        message: local,
+        context: await readSessionHistory(input.sessionId, local.id, first.connection.contextId)
+      })
+      await done(first.events)
+      expect(script.calls).toHaveLength(0)
+      expect(first.events).toContainEqual(
+        expect.objectContaining({
+          type: 'input-submission',
+          result: expect.objectContaining({ status: 'acknowledged', facts: ['locally-handled'] })
+        })
+      )
+      expect(text(first.events)).not.toBe('')
+      expect(messages.hasContextInput(input.sessionId, first.connection.contextId!)).toBe(true)
+      expect(messages.hasContextModelInput(input.sessionId, first.connection.contextId!)).toBe(false)
+      const notice = messages.saveMessage({
+        sessionId: input.sessionId,
+        runtimeResumeToken: first.handle.thread.id,
+        message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: text(first.events) }] } }
+      })
+      await first.connection.close()
+      input.branchHead = notice.id
+      const reopened = await connect()
+      const followup = message('What did I tell you to remember?')
+      await reopened.connection.send({
+        message: followup,
+        context: await readSessionHistory(input.sessionId, followup.id, reopened.connection.contextId)
+      })
+      await savedAnswer(reopened)
+      expect(JSON.stringify(script.calls[0].messages)).toContain('Mango recorded')
+      expect(JSON.stringify(script.calls[0].messages)).toContain('What did I tell you to remember?')
+      expect(JSON.stringify(script.calls[0].messages).match(/Previous conversation history/g)).toHaveLength(1)
+    }
+  )
 
   // Catches approval edits being shown in the UI but the original write still executing.
   it('executes only approved arguments and returns a question answer to the native loop', async () => {

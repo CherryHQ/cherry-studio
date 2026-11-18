@@ -2,6 +2,8 @@
 description: Host/driver split for agent sessions — turn lifecycle, follow-up queue, resume tokens, and shared prompt materializer
 sources:
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/main/ai/agentSession/sessionHistory.ts
+  - src/main/ai/agentSession/import
   - src/main/ai/agentSession/relocateSystemWorkspaces.ts
   - src/main/ai/runtime/workspaceRelocation.ts
   - src/main/ai/agents/AgentWorkspaceStorageService.ts
@@ -1183,6 +1185,74 @@ user-selected workspaces are not rebased. `AgentWorkspaceStorageService` owns fa
 relocation admission blocks. Workspace guards consult that owner, and verified recovery
 removes the block. Pending retired-runtime sessions defer native-history work to the
 existing migration below.
+
+## First submission without native history
+
+`AgentSessionRuntimeService` supplies a selected product-history prefix as model-only
+`AgentRuntimeCommand.context` when a branch has no previous native input. The generic
+`readSessionHistory` reader follows message parents, excludes the current input and
+unfinished deliveries, and retains role labels, reasoning, tool names, inputs, completion
+states and managed file parts. Short tool results are preserved unchanged up to 1,500
+characters (JSON length for structured values). Longer results use line-aligned head/tail
+excerpts with 500/1,000 character budgets and an explicit omission marker. Failed calls
+retain at most 256 characters of error text. Persisted results reuse stored excerpts and
+structured identities without loading full blobs. Complete outputs remain in product
+history for display. Drivers use their ordinary input and attachment conversion.
+Pi Durable initializes reference text through a passive native write before dispatching the
+original input, so local commands and autonomous goal rounds retain the same model context.
+The native request ID deduplicates initialization across reopening. The reference entry starts
+no model run and is excluded from product projections and behavior-authorizing user history.
+Native admission still checks the original product message parts; reference context does
+not rewrite user messages or dispatch historical tools.
+
+Fresh native bindings use the selected product position as their anchor, keeping sibling
+paths independent. Local commands route against the original input without reference-context
+prefixes. A Main-only `locallyHandled` acknowledgement retains native ownership while
+excluding the local input and reply from model history. The product prefix remains available
+for the next model submission after a local command or reopening. Once native model input
+has been submitted, subsequent inputs and reopening reuse the ordinary native conversation.
+Known native identities follow their existing recovery rules; a missing native store is
+never silently replaced with product history. This path creates no native-history files,
+rebuild state or historical checkpoints and does not inspect import provenance.
+
+## DeepSeek Agent history import
+
+`AgentImportService` publishes normalized `ConversationImporter` results into new sessions
+for a new Agent named after the importer. `DeepSeekImporter` handles the supported DeepSeek v3 ZIP format,
+including validation, source-field normalization, content and managed attachments. The
+service handles progress, retry and database publication without reading source fields.
+Settings → Data → Import external application data opens the import dialog directly.
+Preview reserves IDs without creating an Agent. Confirming import creates a DeepSeek Agent
+with ordinary Pi Durable defaults and an enabled, compatible default model when available.
+Otherwise its model remains unset for later selection. Main owns bounded archive reads, validation, progress, cancellation and retry;
+closing the dialog does not cancel work. The importer writes the complete product parent
+graph, selected head and managed attachments without creating native history or tokens.
+The generic first-submission mechanism above supplies continuation context.
+
+Operation snapshots, latest-operation pointers and per-source publication receipts use
+`agent-import:operation:`, `agent-import:latest:` and `agent-import:conversation:` in
+`app_state`. Operations retain their importer ID, with the default importer used for older
+records. The importer ID and archive digest identify retries, which reuse the original Agent.
+Agent creation and the pending-creation marker commit atomically; preview, cancellation
+before creation and source validation failure create no Agent. Different archives get
+separate Agents, and a deleted destination is not silently recreated. A synchronous product
+transaction publishes each session, its messages, file references and receipt. Cancellation
+preserves completed sessions. Agent lifecycle pause/drain includes preparation and import.
+The original ZIP is read directly without copying, modifying or deleting it. Operations
+retain its path and digest and verify the digest before import. Hashing and parsing share
+one opened file descriptor, retaining the original bytes when the path is replaced. Entry
+reads reject size or modification-time changes to that file. A moved or unavailable
+source must be reselected. Completed sessions use managed attachments independently of ZIP.
+
+Search/open/image-search records use completed standard tool parts with observed input
+and complete output, interleaved with reasoning in source order. Queries, snippets, links,
+source status and zero-result searches remain visible without synthetic answer citations.
+Validated HTTP(S) URLs in structured result objects use the existing link controls while
+the complete records remain visible.
+Source failures and empty messages show export status rather than a runtime error.
+Conflicting attachment IDs fail validation. Files and images use ordinary Harness
+attachment conversion; missing files remain explicit text. No credentials, billing,
+pending tasks, approvals or historical native Fork/Edit checkpoints are imported.
 
 ## Retired Agent runtime migration
 

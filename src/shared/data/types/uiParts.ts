@@ -138,6 +138,7 @@ export type RetryPartData =
  * Used with `useChat({ dataPartSchemas })` to enable type-safe custom parts.
  */
 export type CherryDataPartTypes = {
+  'imported-status': { status: string }
   error: ErrorPartData
   translation: TranslationPartData
   video: VideoPartData

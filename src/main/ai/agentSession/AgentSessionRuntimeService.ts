@@ -135,6 +135,7 @@ import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBac
 import { recoverSessionDeliveries } from './recoverSessionDeliveries'
 import { relocateSystemWorkspaces } from './relocateSystemWorkspaces'
 import { RootMessageProjection } from './RootMessageProjection'
+import { readSessionHistory } from './sessionHistory'
 import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
@@ -3328,9 +3329,18 @@ export class AgentSessionRuntimeService extends BaseService {
     if (entry.stopping || !this.isTurnLive(entry, turn)) return
     const connection = this.currentConnection(entry)
     if (!connection) throw new Error('Agent runtime connection unavailable')
+    const context = await readSessionHistory(entry.sessionId, turn.userMessage.id, connection.contextId)
+    if (
+      !this.isCurrentEntry(entry) ||
+      this.currentTurn(entry) !== turn ||
+      !this.isTurnLive(entry, turn) ||
+      this.currentConnection(entry) !== connection
+    )
+      return
     await connection.send({
       message: turn.userMessage,
-      systemReminder: turn.systemReminder === true
+      systemReminder: turn.systemReminder === true,
+      ...(context && { context })
     })
   }
 

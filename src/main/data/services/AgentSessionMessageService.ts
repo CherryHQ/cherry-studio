@@ -149,7 +149,7 @@ function agentSessionMessageEntityJsonBytes(): SQL<number> {
     'id', ${sessionMessagesTable.id},
     'sessionId', ${sessionMessagesTable.sessionId},
     'role', ${sessionMessagesTable.role},
-    'data', json_remove(json(${sessionMessagesTable.data}), '$.runtimeAnchor', '$.nativeSessionId', '$.deliveryReplyAnchor'),
+    'data', json_remove(json(${sessionMessagesTable.data}), '$.runtimeAnchor', '$.nativeSessionId', '$.deliveryReplyAnchor', '$.locallyHandled'),
     'searchableText', ${sessionMessagesTable.searchableText},
     'status', ${sessionMessagesTable.status},
     'modelId', ${sessionMessagesTable.modelId},
@@ -361,6 +361,7 @@ function publicMessageData(data: SessionMessageRow['data']): AgentSessionMessage
   delete result.runtimeAnchor
   delete result.nativeSessionId
   delete result.deliveryReplyAnchor
+  delete result.locallyHandled
   return result
 }
 
@@ -484,6 +485,39 @@ export class AgentSessionMessageService {
       )
       .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
       .get()
+  }
+
+  hasContextModelInput(sessionId: string, contextId: string): boolean {
+    return Boolean(
+      application
+        .get('DbService')
+        .getDb()
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            eq(sessionMessagesTable.inputContextId, contextId),
+            sql`coalesce(json_extract(${sessionMessagesTable.data}, '$.locallyHandled'), 0) = 0`
+          )
+        )
+        .limit(1)
+        .get()
+    )
+  }
+
+  markInputLocallyHandledTx(tx: DbOrTx, sessionId: string, messageId: string, contextId: string): void {
+    tx.update(sessionMessagesTable)
+      .set({ data: sql`json_set(${sessionMessagesTable.data}, '$.locallyHandled', json('true'))` })
+      .where(
+        and(
+          eq(sessionMessagesTable.id, messageId),
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.inputContextId, contextId),
+          isNull(sessionMessagesTable.nativeInputId)
+        )
+      )
+      .run()
   }
 
   inputBinding(sessionId: string, messageId: string) {
@@ -767,7 +801,15 @@ export class AgentSessionMessageService {
     const mapping = context?.checkpointMapping?.fork
     return rows.map((row) => {
       const anchor = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
-      const checkpoint = mapping?.[row.id]
+      const importedCheckpoint = anchor.data?.checkpoint
+      const checkpoint =
+        row.data.importedHistory &&
+        importedCheckpoint?.runtime === 'pi-durable' &&
+        context &&
+        importedCheckpoint.backendId === context.backendId &&
+        context.nativeThreadId
+          ? { ...importedCheckpoint, conversationId: context.nativeThreadId }
+          : mapping?.[row.id]
       return checkpoint && anchor.success && context
         ? {
             ...row,
@@ -776,6 +818,36 @@ export class AgentSessionMessageService {
           }
         : row
     })
+  }
+
+  insertImportedMessagesTx(
+    tx: DbOrTx,
+    sessionId: string,
+    rows: readonly Pick<
+      SessionMessageRow,
+      | 'id'
+      | 'parentId'
+      | 'role'
+      | 'data'
+      | 'status'
+      | 'messageSnapshot'
+      | 'runtimeResumeToken'
+      | 'createdAt'
+      | 'updatedAt'
+    >[],
+    activeNodeId: string | null
+  ): void {
+    const root = ensureAgentSessionRootTx(tx, sessionId)
+    for (const row of rows) {
+      tx.insert(sessionMessagesTable)
+        .values({ ...row, sessionId, parentId: row.parentId ?? root })
+        .run()
+      replaceAgentSessionMessageFileRefsTx(tx, row.id, row.data)
+    }
+    tx.update(sessionTable)
+      .set({ activeNodeId: activeNodeId ?? root })
+      .where(eq(sessionTable.id, sessionId))
+      .run()
   }
 
   /** Inserts historical facts only, never delivery, billing, queue or approval ownership. */
@@ -1599,6 +1671,7 @@ export class AgentSessionMessageService {
       }
       if (existingRow.data.deliveryReplyAnchor) data.deliveryReplyAnchor = existingRow.data.deliveryReplyAnchor
       if (existingRow.data.nativeSessionId) data.nativeSessionId = existingRow.data.nativeSessionId
+      if (existingRow.data.locallyHandled) data.locallyHandled = true
       const runtimeResumeTokenToPersist = runtimeResumeToken ?? existingRow.runtimeResumeToken ?? null
       const updatedAtMs = timestampMs
       const modelId = message.modelId === undefined ? existingRow.modelId : message.modelId
