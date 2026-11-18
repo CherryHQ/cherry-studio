@@ -588,16 +588,16 @@ export class PiProjection {
       this.recordInput({ inputId, facts: ['placed'] })
     }
     if (event.type === 'input_handled') {
-      this.recordInput({
+      const input: InputState & { readonly inputId: InputId } = {
         inputId: runtimeId(event.inputId),
-        facts: ['locally-handled'],
-        ...(event.errorMessage === undefined
-          ? {}
-          : {
-              outcome: 'failed',
-              error: { operation: 'input', code: 'command-failed', message: event.errorMessage }
-            })
-      })
+        facts: ['locally-handled']
+      }
+      if (event.errorMessage !== undefined)
+        Object.assign(input, {
+          outcome: 'failed',
+          error: { operation: 'input', code: 'command-failed', message: event.errorMessage }
+        } satisfies Pick<InputState, 'outcome' | 'error'>)
+      this.recordInput(input)
     }
     if (
       (event.type === 'compaction_end' && event.result) ||
