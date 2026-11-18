@@ -180,6 +180,9 @@ const dbService = {
 vi.mock('@application', () => ({
   application: {
     getPath: mocks.getPath,
+    // No MiniAppPreviewService in these tests: unstarted, exactly what a real
+    // container answers for a service that never ran.
+    getExisting: () => undefined,
     get: (name: string) => {
       if (name === 'AgentSessionRuntimeService') return runtime
       if (name === 'AiStreamManager') return manager
