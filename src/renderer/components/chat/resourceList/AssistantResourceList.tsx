@@ -604,6 +604,8 @@ export function AssistantResourceList({
 
       const pinned = assistantPinnedIdSet.has(item.id)
       const sidebarPinned = sidebarAssistantFavoriteIdSet.has(item.id)
+      const deleteOptions: Pick<Parameters<typeof buildResolvedResourceEntityMenuAction>[0], 'shortcut'> = {}
+      if (permanentDeleteShortcut) deleteOptions.shortcut = permanentDeleteShortcut
 
       return [
         buildResolvedResourceEntityMenuAction({
@@ -661,7 +663,7 @@ export function AssistantResourceList({
           danger: true,
           group: 'danger',
           order: 32,
-          ...(permanentDeleteShortcut ? { shortcut: permanentDeleteShortcut } : {}),
+          ...deleteOptions,
           availability: { visible: true, enabled: deletingAssistantId === null }
         })
       ]

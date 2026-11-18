@@ -5,6 +5,7 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
+import type { InputFor } from '@shared/ipc/types'
 import type { CodeCli } from '@shared/types/codeCli'
 
 const logger = loggerService.withContext('useBinaryActions')
@@ -33,10 +34,9 @@ export function useBinaryActions() {
     ) => {
       try {
         setBusy((prev) => new Set(prev).add(toolId))
-        await ipcApi.request('binary.install_tool', {
-          name: CODE_CLI_TOOL_PRESET_MAP[toolId].executable,
-          ...(targetVersion ? { targetVersion } : {})
-        })
+        const input: InputFor<'binary.install_tool'> = { name: CODE_CLI_TOOL_PRESET_MAP[toolId].executable }
+        if (targetVersion) input.targetVersion = targetVersion
+        await ipcApi.request('binary.install_tool', input)
         toast.success(t(messages.successKey))
       } catch (error) {
         logger.error(messages.logLabel, error as Error)

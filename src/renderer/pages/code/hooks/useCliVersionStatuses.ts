@@ -14,18 +14,19 @@ const logger = loggerService.withContext('useCliVersionStatus')
 const buildStatus = (snapshot: BinaryToolSnapshot | undefined, latest?: string): VersionStatus => {
   const view = interpretBinarySnapshot(snapshot, { latest })
   const operation = snapshot?.operation
-  return {
+  const status: Omit<VersionStatus, 'canUpgrade' | 'operation'> = {
     installed: view.installed,
-    source: view.source,
-    // Backend-application fact drives update/uninstall/repair authority; a fixed
-    // CLI's identity comes from the preset, so it carries no custom definition.
-    ...(view.applicationStatus ? { applicationStatus: view.applicationStatus } : {}),
-    ...(view.installedVersion !== undefined ? { current: view.installedVersion } : {}),
-    ...(view.source === 'mise' ? { latest } : {}),
-    ...(view.systemPath !== undefined ? { systemPath: view.systemPath } : {}),
-    canUpgrade: view.hasUpdate,
-    ...(operation ? { operation } : {})
+    source: view.source
   }
+  // Backend-application fact drives update/uninstall/repair authority; a fixed
+  // CLI's identity comes from the preset, so it carries no custom definition.
+  if (view.applicationStatus) status.applicationStatus = view.applicationStatus
+  if (view.installedVersion !== undefined) status.current = view.installedVersion
+  if (view.source === 'mise') status.latest = latest
+  if (view.systemPath !== undefined) status.systemPath = view.systemPath
+  const result: VersionStatus = { ...status, canUpgrade: view.hasUpdate }
+  if (operation) result.operation = operation
+  return result
 }
 
 const SNAPSHOT_RETRY_MS = 2000
