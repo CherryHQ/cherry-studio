@@ -20,6 +20,7 @@ import { readDefaultModel, readQuickModel } from '@renderer/utils/model'
 import { normalizeGeneratedNoteName, removeSpecialCharactersForTopicName } from '@renderer/utils/naming'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
 import type { Model } from '@shared/data/types/model'
+import type { InputFor } from '@shared/ipc/types'
 
 const logger = loggerService.withContext('aiGeneration')
 
@@ -137,13 +138,13 @@ export async function fetchGenerate({
       stopAbortRelay = () => signal.removeEventListener('abort', relayAbort)
     }
 
-    const { text } = await ipcApi.request('ai.text.generate', {
-      ...(requestId ? { requestId } : {}),
-      uniqueModelId: resolvedModel.id,
-      reasoningEffort: 'none',
-      system: prompt,
-      prompt: content
-    })
+    const input: Pick<InputFor<'ai.text.generate'>, 'requestId'> = {}
+    if (requestId) input.requestId = requestId
+    const request: InputFor<'ai.text.generate'> = Object.assign(input, { uniqueModelId: resolvedModel.id })
+    request.reasoningEffort = 'none'
+    request.system = prompt
+    request.prompt = content
+    const { text } = await ipcApi.request('ai.text.generate', request)
     return text || ''
   } catch (error: any) {
     if (!signal?.aborted) {

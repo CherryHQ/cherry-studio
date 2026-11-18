@@ -7,7 +7,7 @@ import {
 import { isBlankUserTurn } from '@shared/data/types/uiParts'
 
 export function sharedMessageToUIMessage(shared: SharedMessage): CherryUIMessage {
-  return {
+  const message: CherryUIMessage & { metadata: NonNullable<CherryUIMessage['metadata']> } = {
     id: shared.id,
     role: toContentRole(shared.role),
     parts: shared.data?.parts ?? [],
@@ -20,10 +20,11 @@ export function sharedMessageToUIMessage(shared: SharedMessage): CherryUIMessage
       status: shared.status,
       turnOptions: shared.data.turnOptions,
       createdAt: shared.createdAt,
-      stats: shared.stats ?? undefined,
-      ...(shared.stats?.totalTokens ? { totalTokens: shared.stats.totalTokens } : {})
+      stats: shared.stats ?? undefined
     }
   }
+  if (shared.stats?.totalTokens) message.metadata.totalTokens = shared.stats.totalTokens
+  return message
 }
 
 export function isRenderableConversationMessage(message: CherryUIMessage): boolean {
