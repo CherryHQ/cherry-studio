@@ -16,6 +16,7 @@ import {
   embedMany as aiCoreEmbedMany,
   generateImage as aiCoreGenerateImage,
   rerank as aiCoreRerank,
+  type RerankParams,
   type RuntimeProviderCallEvent,
   type RuntimeProviderCallHandler
 } from '@cherrystudio/ai-core'
@@ -25,6 +26,7 @@ import {
   type AiUsageCaptureContext,
   aiUsageRecordService,
   type MessageRef,
+  type RecordAiInvocationInput,
   type SourceSnapshot
 } from '@data/services/AiUsageRecordService'
 import { assistantDataService } from '@data/services/AssistantService'
@@ -232,25 +234,22 @@ function createCaptureContext(input: {
 
 function createProviderCallHandler(context: AiUsageCaptureContext): RuntimeProviderCallHandler {
   return (event: RuntimeProviderCallEvent) => {
-    aiUsageRecordService.recordInvocation({
+    const input: Omit<RecordAiInvocationInput, 'metrics' | 'completedAt'> = {
       requestId: event.requestId,
       context,
-      modality: event.modality,
-      ...(event.modality === 'embedding' && event.usage
-        ? { usage: { inputTokens: event.usage.tokens, totalTokens: event.usage.tokens } }
-        : event.modality === 'image' && event.usage
-          ? {
-              usage: {
-                ...(event.usage.inputTokens !== undefined ? { inputTokens: event.usage.inputTokens } : {}),
-                ...(event.usage.outputTokens !== undefined ? { outputTokens: event.usage.outputTokens } : {}),
-                ...(event.usage.totalTokens !== undefined ? { totalTokens: event.usage.totalTokens } : {})
-              }
-            }
-          : {}),
-      ...(event.modality === 'image' ? { imageCount: event.imageCount } : {}),
-      metrics: event.metrics,
-      completedAt: event.completedAt
-    })
+      modality: event.modality
+    }
+    if (event.modality === 'embedding' && event.usage) {
+      input.usage = { inputTokens: event.usage.tokens, totalTokens: event.usage.tokens }
+    } else if (event.modality === 'image' && event.usage) {
+      const usage: NonNullable<RecordAiInvocationInput['usage']> = {}
+      if (event.usage.inputTokens !== undefined) usage.inputTokens = event.usage.inputTokens
+      if (event.usage.outputTokens !== undefined) usage.outputTokens = event.usage.outputTokens
+      if (event.usage.totalTokens !== undefined) usage.totalTokens = event.usage.totalTokens
+      input.usage = usage
+    }
+    if (event.modality === 'image') input.imageCount = event.imageCount
+    aiUsageRecordService.recordInvocation({ ...input, metrics: event.metrics, completedAt: event.completedAt })
   }
 }
 
@@ -1006,17 +1005,16 @@ export class AiService extends BaseService {
       }
       return { role: message.role, content }
     })
+    const callOverrides: NonNullable<AiChatRequest['callOverrides']> = { maxOutputTokens: request.maxTokens }
+    if (typeof request.temperature === 'number') callOverrides.temperature = request.temperature
+    if (Array.isArray(request.stopSequences)) callOverrides.stopSequences = request.stopSequences
     const result = await this.generateText({
       uniqueModelId: model,
       conversation: { id: `mcp-sampling:${randomUUID()}` },
       system: request.systemPrompt,
       messages,
       disableTools: true,
-      callOverrides: {
-        maxOutputTokens: request.maxTokens,
-        ...(typeof request.temperature === 'number' ? { temperature: request.temperature } : {}),
-        ...(Array.isArray(request.stopSequences) ? { stopSequences: request.stopSequences } : {})
-      },
+      callOverrides,
       requestOptions: { signal }
     })
     return {
@@ -1102,16 +1100,22 @@ export class AiService extends BaseService {
     // are NOT typed SDK options — they reach the wire via `providerOptions[id]`
     // (the WireProfile engine), which the image models read; passing them here is
     // dropped by `generateImage`, so they're omitted.
-    const imageParams = {
+    const imageOptions: Omit<
+      Parameters<typeof aiCoreGenerateImage<AppProviderSettingsMap>>[2],
+      'experimental_download'
+    > = {
       model: sdkConfig.modelId,
       prompt: promptParam,
       n: structured.n ?? 1,
       maxRetries: request.requestOptions?.maxRetries ?? 0,
-      ...(requestSize !== undefined && { size: requestSize as `${number}x${number}` }),
-      ...(structured.seed !== undefined ? { seed: structured.seed } : {}),
-      ...(structured.aspectRatio ? { aspectRatio: structured.aspectRatio as `${number}:${number}` } : {}),
-      ...(Object.keys(imageProviderOptions).length > 0 ? { providerOptions: imageProviderOptions } : {}),
-      ...(signal ? { abortSignal: signal } : {}),
+      ...(requestSize !== undefined && { size: requestSize as `${number}x${number}` })
+    }
+    if (structured.seed !== undefined) imageOptions.seed = structured.seed
+    if (structured.aspectRatio) imageOptions.aspectRatio = structured.aspectRatio as `${number}:${number}`
+    if (Object.keys(imageProviderOptions).length > 0) imageOptions.providerOptions = imageProviderOptions
+    if (signal) imageOptions.abortSignal = signal
+    const imageParams: Parameters<typeof aiCoreGenerateImage<AppProviderSettingsMap>>[2] = {
+      ...imageOptions,
       experimental_download: async (downloads) => {
         return Promise.all(
           downloads.map(async ({ url }) => {
@@ -1350,19 +1354,17 @@ export class AiService extends BaseService {
         >)
       : undefined
 
-    const rerankParams = {
+    const rerankParams: RerankParams = {
       model: sdkConfig.modelId,
       query: request.query,
-      documents: request.documents,
-      ...(request.topN !== undefined ? { topN: request.topN } : {}),
-      ...(headers && Object.keys(headers).length > 0 ? { headers } : {}),
-      // ai-retry doesn't support RerankingModelV3 — use the AI SDK's built-in
-      // exponential-backoff retry, defaulted from the retry preference. Rerank
-      // already defaulted to 0 retries pre-feature, so keep that when disabled.
-      maxRetries: request.requestOptions?.maxRetries ?? (retryPolicy.enabled ? retryPolicy.maxAttempts : 0),
-      onProviderCallStart: () => createProviderCallHandler(usageContext()),
-      ...(signal ? { abortSignal: signal } : {})
+      documents: request.documents
     }
+    if (request.topN !== undefined) rerankParams.topN = request.topN
+    if (headers && Object.keys(headers).length > 0) rerankParams.headers = headers
+    // ai-retry does not support reranking; retain the SDK retry policy and caller override.
+    rerankParams.maxRetries = request.requestOptions?.maxRetries ?? (retryPolicy.enabled ? retryPolicy.maxAttempts : 0)
+    rerankParams.onProviderCallStart = () => createProviderCallHandler(usageContext())
+    if (signal) rerankParams.abortSignal = signal
 
     const result = await this.withRuntimeActivity('ai:rerank', () =>
       aiCoreRerank<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, rerankParams)
@@ -1414,10 +1416,9 @@ export class AiService extends BaseService {
       presetProviderId: provider.presetProviderId ?? null
     })
     // Catalog supplementation must not hide the provider's skipped-model notice.
-    return {
-      models: mergeProviderModelsWithRegistry(remote.models, registryModels),
-      ...(remote.skippedModels ? { skippedModels: remote.skippedModels } : {})
-    }
+    const listed: ListedModels = { models: mergeProviderModelsWithRegistry(remote.models, registryModels) }
+    if (remote.skippedModels) listed.skippedModels = remote.skippedModels
+    return listed
   }
 
   /** Captures one model configuration for related probes without re-reading changing settings. */
