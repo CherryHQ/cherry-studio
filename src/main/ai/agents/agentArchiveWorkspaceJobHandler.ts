@@ -11,7 +11,7 @@
  * the task was queued is skipped instead of re-archived.
  */
 
-import { ARCHIVE_SYSTEM_WORKSPACE_JOB_KEY_PREFIX, agentSessionService } from '@data/services/AgentSessionService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
 
