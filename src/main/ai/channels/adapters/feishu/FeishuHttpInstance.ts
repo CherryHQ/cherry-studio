@@ -60,11 +60,12 @@ export function createFeishuHttpInstance(): Lark.HttpInstance {
     // Use Node.js native fetch instead of Electron's net.fetch here because:
     // 1. net.fetch rejects GET requests with a body (Lark SDK sends payload on GET)
     // 2. net.fetch rejects header values with non-ASCII chars (Lark SDK sends Chinese filenames)
-    const res = await fetch(fetchUrl.toString(), {
+    const request: NonNullable<Parameters<typeof fetch>[1]> = {
       method: upperMethod,
-      headers,
-      ...(upperMethod !== 'GET' && upperMethod !== 'HEAD' && body ? { body } : {})
-    })
+      headers
+    }
+    if (upperMethod !== 'GET' && upperMethod !== 'HEAD' && body) request.body = body
+    const res = await fetch(fetchUrl.toString(), request)
 
     const isStream = opts?.responseType === 'stream'
     const responseData = isStream

@@ -33,16 +33,17 @@ export class DingTalkApi {
   private async request(url: string, body: unknown, token?: string, method = 'POST'): Promise<Record<string, unknown>> {
     this.signal.throwIfAborted()
     try {
-      const response = await net.fetch(url, {
+      const request: NonNullable<Parameters<typeof net.fetch>[1]> = {
         method,
         redirect: 'error',
-        signal: AbortSignal.any([this.signal, AbortSignal.timeout(30_000)]),
-        headers: {
-          ...(body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
-          ...(token ? { 'x-acs-dingtalk-access-token': token } : {})
-        },
-        body: body instanceof FormData ? body : JSON.stringify(body)
-      })
+        signal: AbortSignal.any([this.signal, AbortSignal.timeout(30_000)])
+      }
+      const headers: Record<string, string> = {}
+      if (!(body instanceof FormData)) headers['Content-Type'] = 'application/json'
+      if (token) headers['x-acs-dingtalk-access-token'] = token
+      request.headers = headers
+      request.body = body instanceof FormData ? body : JSON.stringify(body)
+      const response = await net.fetch(url, request)
       if (!response.ok) {
         await response.body?.cancel()
         throw new Error('HTTP failure')

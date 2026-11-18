@@ -6,7 +6,12 @@ import type * as z from 'zod'
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 
-import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
+import {
+  ChannelAdapter,
+  type ChannelAdapterConfig,
+  type ChannelMessageEvent,
+  type SendMessageOptions
+} from '../../ChannelAdapter'
 import { isSlashCommand } from '../../constants'
 import { splitMessage } from '../../utils'
 
@@ -194,16 +199,17 @@ class QqAdapter extends ChannelAdapter {
     signal?: AbortSignal
   ): Promise<Response> {
     const token = await this.getAccessToken(signal)
-    const response = await net.fetch(endpoint, {
+    const request: NonNullable<Parameters<typeof net.fetch>[1]> = {
       method: options?.method ?? 'GET',
       headers: {
         Authorization: `QQBot ${token}`,
         'Content-Type': 'application/json',
         'X-Union-Appid': this.appId
-      },
-      ...(options?.body ? { body: JSON.stringify(options.body) } : {}),
-      signal
-    })
+      }
+    }
+    if (options?.body) request.body = JSON.stringify(options.body)
+    request.signal = signal
+    const response = await net.fetch(endpoint, request)
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '')
@@ -581,10 +587,10 @@ class QqAdapter extends ChannelAdapter {
       })
     )
 
-    return {
-      ...(images.length > 0 ? { images } : {}),
-      ...(files.length > 0 ? { files } : {})
-    }
+    const attachments: Pick<ChannelMessageEvent, 'images' | 'files'> = {}
+    if (images.length > 0) attachments.images = images
+    if (files.length > 0) attachments.files = files
+    return attachments
   }
 
   private async pushAttachment(

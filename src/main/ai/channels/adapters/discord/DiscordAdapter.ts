@@ -676,12 +676,14 @@ class DiscordAdapter extends ChannelAdapter {
     content: string,
     ephemeral = false
   ): Promise<void> {
+    const data = { content }
+    if (ephemeral) Object.assign(data, { flags: DISCORD_FLAG_EPHEMERAL })
     await net.fetch(`${DISCORD_API_BASE}/interactions/${interaction.id}/${interaction.token}/callback`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: INTERACTION_CALLBACK_CHANNEL_MESSAGE,
-        data: { content, ...(ephemeral ? { flags: DISCORD_FLAG_EPHEMERAL } : {}) }
+        data
       })
     })
   }
@@ -769,15 +771,16 @@ class DiscordAdapter extends ChannelAdapter {
     url: string,
     options?: { method?: string; body?: Record<string, unknown> | Record<string, unknown>[] }
   ): Promise<Response> {
-    const response = await net.fetch(url, {
+    const request: NonNullable<Parameters<typeof net.fetch>[1]> = {
       method: options?.method ?? 'GET',
       headers: {
         Authorization: `Bot ${this.botToken}`,
         'Content-Type': 'application/json',
         'User-Agent': USER_AGENT
-      },
-      ...(options?.body ? { body: JSON.stringify(options.body) } : {})
-    })
+      }
+    }
+    if (options?.body) request.body = JSON.stringify(options.body)
+    const response = await net.fetch(url, request)
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '')

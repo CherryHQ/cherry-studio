@@ -11,6 +11,7 @@ import { clampSurrogateBoundary } from '@shared/utils/text'
 import {
   ChannelAdapter,
   type ChannelAdapterConfig,
+  type ChannelMessageEvent,
   type ChannelStreamErrorOptions,
   type SendMessageOptions
 } from '../../ChannelAdapter'
@@ -569,16 +570,17 @@ class FeishuAdapter extends ChannelAdapter {
       this.log.warn('Dropping message with no text and no resources', { chatId: message.chatId })
       return
     }
-    this.emit('message', {
+    const incoming: ChannelMessageEvent = {
       chatId: message.chatId,
       ...conversation,
       userId: message.senderId,
       userName: message.senderName ?? '',
       messageId: message.messageId,
-      text,
-      ...(images.length > 0 ? { images } : {}),
-      ...(files.length > 0 ? { files } : {})
-    })
+      text
+    }
+    if (images.length > 0) incoming.images = images
+    if (files.length > 0) incoming.files = files
+    this.emit('message', incoming)
   }
 
   private async downloadResources(
