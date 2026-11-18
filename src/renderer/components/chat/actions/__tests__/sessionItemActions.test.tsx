@@ -171,32 +171,37 @@ describe('session item actions', () => {
     expect(onDelete).not.toHaveBeenCalled()
   })
 
-  it('refuses permanent delete while the session is pinned, busy, or already deleting', async () => {
+  it('offers permanent deletion for a pinned session', async () => {
+    // Pinning must not hide or block permanent deletion.
     const onDelete = vi.fn()
     const onDeletePermanently = vi.fn()
-    const ready = createSessionActionFixture({
-      onDelete,
-      onDeletePermanently,
-      permanentDeleteShortcut: 'Ctrl+Backspace'
-    })
-    const action = resolveSessionMenuActions(ready).find((candidate) => candidate.id === 'session.delete-permanently')
+    const context = createSessionActionFixture({ onDelete, onDeletePermanently, pinned: true })
+    const action = resolveSessionMenuActions(context).find((candidate) => candidate.id === 'session.delete-permanently')
 
+    expect(action).toBeDefined()
+    expect(action?.availability.enabled).toBe(true)
+    await executeSessionMenuAction(action!, context)
+    expect(onDeletePermanently).toHaveBeenCalledOnce()
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
+  it('refuses permanent deletion while busy or already deleting', async () => {
+    // Busy and in-progress sessions must remain protected from permanent deletion.
+    const onDelete = vi.fn()
+    const onDeletePermanently = vi.fn()
+    const ready = createSessionActionFixture({ onDelete, onDeletePermanently })
+    const action = resolveSessionMenuActions(ready).find((candidate) => candidate.id === 'session.delete-permanently')
     for (const blocked of [
-      createSessionActionFixture({ ...ready, pinned: true }),
       createSessionActionFixture({ ...ready, isBusy: true }),
       createSessionActionFixture({ ...ready, isDeleting: true })
     ]) {
       const visible = resolveSessionMenuActions(blocked).find(
         (candidate) => candidate.id === 'session.delete-permanently'
       )
-      if (blocked.pinned) {
-        expect(visible).toBeUndefined()
-      } else {
-        expect(visible?.availability.enabled).toBe(false)
-      }
+      expect(visible).toBeDefined()
+      expect(visible?.availability.enabled).toBe(false)
       expect(await executeSessionMenuAction(action!, blocked)).toBe(false)
     }
-
     expect(onDeletePermanently).not.toHaveBeenCalled()
     expect(onDelete).not.toHaveBeenCalled()
   })

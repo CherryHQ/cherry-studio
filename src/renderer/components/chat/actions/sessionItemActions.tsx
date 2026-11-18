@@ -292,8 +292,8 @@ sessionActionRegistry.registerCommand({
 
 sessionActionRegistry.registerCommand({
   id: 'session.delete-permanently',
-  run: ({ isBusy, isDeleting, onDeletePermanently, pinned }) => {
-    if (!onDeletePermanently || pinned || isBusy || isDeleting) return
+  run: ({ isBusy, isDeleting, onDeletePermanently }) => {
+    if (!onDeletePermanently || isBusy || isDeleting) return
     return onDeletePermanently()
   }
 })
@@ -529,8 +529,8 @@ sessionActionRegistry.registerAction({
   surface: 'menu',
   danger: true,
   shortcut: ({ permanentDeleteShortcut }) => permanentDeleteShortcut ?? '',
-  availability: ({ isBusy, isDeleting, onDeletePermanently, pinned }) => ({
-    visible: Boolean(onDeletePermanently) && !pinned,
+  availability: ({ isBusy, isDeleting, onDeletePermanently }) => ({
+    visible: Boolean(onDeletePermanently),
     enabled: !isBusy && !isDeleting
   })
 })
