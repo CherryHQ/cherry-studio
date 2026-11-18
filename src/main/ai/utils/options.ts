@@ -388,15 +388,10 @@ function buildOllamaProviderOptions(
   model: Model,
   reasoningOptions: Record<string, unknown>
 ): Record<string, Record<string, unknown>> {
-  return {
-    ollama: {
-      ...reasoningOptions,
-      // Forward the model's context window so large-context models are not silently
-      // truncated. Omitting it is deliberate when unknown: Ollama then sizes by available
-      // VRAM (4k / 32k / 256k), which beats any fixed guess we could substitute.
-      ...(model.contextWindow ? { options: { num_ctx: model.contextWindow } } : {})
-    }
-  }
+  const ollama = { ...reasoningOptions }
+  // Without a declared context window, Ollama sizes it from available VRAM.
+  if (model.contextWindow) ollama.options = { num_ctx: model.contextWindow }
+  return { ollama }
 }
 
 function buildGenericProviderOptions(
