@@ -2038,6 +2038,102 @@ describe('desktop Pi Durable connection', () => {
     ])
   })
 
+  it('keeps the access open after Stop, ends running background children and answers the next message', async () => {
+    const child = gate()
+    const parent = gate()
+    let root = ''
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) return child.wait(assistantReply('child output'))
+      if (JSON.stringify(call.messages.findLast((entry) => entry.role === 'user')).includes('next'))
+        return assistantReply('next answer')
+      if (!call.messages.some((entry) => entry.role === 'toolResult'))
+        return assistantReply(
+          [toolCallPart('spawn', 'subagent', { description: 'stop me', prompt: 'work', background: true })],
+          'toolUse'
+        )
+      return parent.wait(assistantReply('unfinished'))
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate') })
+    await Promise.all([child.reached, parent.reached])
+    await expect
+      .poll(() =>
+        events.some(
+          (event) =>
+            event.type === 'background-task-event' && event.data.isBackgrounded && event.data.status === 'in_progress'
+        )
+      )
+      .toBe(true)
+
+    await connection.interrupt()
+    await expect.poll(() => events.some((event) => event.type === 'stop-confirmed')).toBe(true)
+    expect(events.filter((event) => event.type === 'turn-complete')).toEqual([
+      { type: 'turn-complete', status: 'paused' }
+    ])
+    expect(script.calls.find((call) => call.sessionId !== root)?.signal?.aborted).toBe(true)
+
+    await connection.send({ message: message('next') })
+    await expect.poll(() => events.filter((event) => event.type === 'turn-complete').length).toBe(2)
+    expect(text(events)).toContain('next answer')
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  it('resynchronizes a failed child projection without closing the root access', async () => {
+    const answering = gate()
+    let root = ''
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) return answering.wait(assistantReply('Final child output'))
+      if (JSON.stringify(call.messages.findLast((entry) => entry.role === 'user')).includes('again'))
+        return assistantReply('root still open')
+      if (!call.messages.some((entry) => entry.role === 'toolResult'))
+        return assistantReply(
+          [toolCallPart('spawn', 'subagent', { description: 'fault', prompt: 'work', background: true })],
+          'toolUse'
+        )
+      return assistantReply('Parent finished')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate') })
+    await answering.reached
+    await done(events)
+    const view = (await connection.childProjection('spawn'))!
+    const [child] = (
+      connection as unknown as {
+        children: Map<string, { resource: { projection: { projection: ThreadMessageProjection } } }>
+      }
+    ).children.values()
+    const childMessages = child.resource.projection.projection
+    const accept = ThreadMessageProjection.prototype.accept
+    let failed = false
+    const fault = vi.spyOn(ThreadMessageProjection.prototype, 'accept').mockImplementation(async function (
+      this: ThreadMessageProjection,
+      ...args
+    ) {
+      if (!failed && this === childMessages && JSON.stringify(args).includes('Final child output')) {
+        failed = true
+        throw new Error('injected child projection fault')
+      }
+      return accept.apply(this, args)
+    })
+    try {
+      answering.open()
+      await expect.poll(() => failed).toBe(true)
+      await connection.drainChildWrites()
+      expect(JSON.stringify(savedChildView(contexts.context(view.snapshot().contextId)).messages)).toContain(
+        'Final child output'
+      )
+    } finally {
+      answering.open()
+      fault.mockRestore()
+    }
+
+    await connection.send({ message: message('again') })
+    await expect.poll(() => text(events)).toContain('root still open')
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
   it('persists cancellation during a native tool and does not continue after reopen', async () => {
     const tool = process.platform === 'win32' ? 'powershell' : 'bash'
     const command =
