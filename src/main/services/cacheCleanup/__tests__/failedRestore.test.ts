@@ -56,12 +56,10 @@ describe('failed restore cleanup', () => {
     'preserves candidates when a %s journal exists, including after planning',
     async (state) => {
       const plan = await collectFailedRestoreTargets()
+      const phase = { version: 1, restoreId: 'pending', createdAt: '2026-10-11T00:00:00.000Z', state }
+      if (state !== 'staged') Object.assign(phase, { step: 'live-aside' })
       const journal = {
-        version: 1,
-        restoreId: 'pending',
-        createdAt: '2026-10-11T00:00:00.000Z',
-        state,
-        ...(state === 'staged' ? {} : { step: 'live-aside' }),
+        ...phase,
         db: {
           promote: 'restore-staging/pending/work.sqlite',
           aside: 'restore-staging/pending/aside.sqlite',

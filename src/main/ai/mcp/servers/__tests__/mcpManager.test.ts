@@ -218,10 +218,9 @@ describe('mcp-manager MCP server', () => {
           { isActive: false, isTrusted: false }
         ]) {
           findMock.mockReturnValue({ ...existing, ...state })
-          const result = await callTool(client, 'install_mcp_server', {
-            ...input,
-            ...(activate === undefined ? {} : { activate })
-          })
+          const params = { ...input }
+          if (activate !== undefined) Object.assign(params, { activate })
+          const result = await callTool(client, 'install_mcp_server', params)
           expect(result.content[0].text).toContain(`Active: ${state.isActive}\n  Trusted: ${state.isTrusted ?? false}`)
           expect(result.content[0].text.includes('NOT yet active')).toBe(!state.isActive)
         }

@@ -23,13 +23,14 @@ interface OllamaMessageDelta {
 }
 
 function ollamaChunk(message: OllamaMessageDelta, done = false): string {
-  return JSON.stringify({
+  const chunk = {
     model: 'qwen3.6:27b-mtp-q8_0',
     created_at: '2026-08-19T00:00:00Z',
     done,
-    message: { role: 'assistant', ...message },
-    ...(done ? { done_reason: 'stop', prompt_eval_count: 1, eval_count: 2 } : {})
-  })
+    message: { role: 'assistant', ...message }
+  }
+  if (done) Object.assign(chunk, { done_reason: 'stop', prompt_eval_count: 1, eval_count: 2 })
+  return JSON.stringify(chunk)
 }
 
 async function getOllamaReasoningMiddleware(): Promise<LanguageModelMiddleware[]> {

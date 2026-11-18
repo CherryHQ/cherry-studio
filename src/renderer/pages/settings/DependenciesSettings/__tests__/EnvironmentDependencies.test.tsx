@@ -45,13 +45,17 @@ const miseSnapshot = (
   version = '1.0.0',
   custom = true,
   operation?: BinaryToolSnapshot['operation']
-): BinaryToolSnapshot => ({
-  name,
-  ...(custom ? { definition: { name, tool } } : {}),
-  availability: { source: 'mise', path: `/mise/${name}`, version },
-  application: { status: 'applied', version },
-  ...(operation ? { operation } : {})
-})
+): BinaryToolSnapshot => {
+  const identity: Pick<BinaryToolSnapshot, 'name' | 'definition'> = { name }
+  if (custom) identity.definition = { name, tool }
+  const snapshot: BinaryToolSnapshot = {
+    ...identity,
+    availability: { source: 'mise', path: `/mise/${name}`, version },
+    application: { status: 'applied', version }
+  }
+  if (operation) snapshot.operation = operation
+  return snapshot
+}
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {

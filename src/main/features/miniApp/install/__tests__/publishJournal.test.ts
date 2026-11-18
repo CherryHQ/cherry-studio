@@ -96,24 +96,20 @@ describe('publish journal', () => {
         orderKey: 'a0'
       })
       .run()
-    dbh.db
-      .insert(miniAppInstallationTable)
-      .values({
-        appId,
-        version: '1.0.0',
-        contentHash,
-        source: 'file',
-        manifestJson: manifestOf(appId),
-        ...(previousContentHash
-          ? {
-              previousContentHash,
-              previousManifestJson: manifestOf(appId),
-              previousGrantsJson: [],
-              previousConsentedDeclaredJson: []
-            }
-          : {})
-      })
-      .run()
+    const installation: typeof miniAppInstallationTable.$inferInsert = {
+      appId,
+      version: '1.0.0',
+      contentHash,
+      source: 'file',
+      manifestJson: manifestOf(appId)
+    }
+    if (previousContentHash) {
+      installation.previousContentHash = previousContentHash
+      installation.previousManifestJson = manifestOf(appId)
+      installation.previousGrantsJson = []
+      installation.previousConsentedDeclaredJson = []
+    }
+    dbh.db.insert(miniAppInstallationTable).values(installation).run()
   }
 
   /** Writes a journal file byte-for-byte, for the cases that need a BAD one. */

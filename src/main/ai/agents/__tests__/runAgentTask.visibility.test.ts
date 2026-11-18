@@ -55,13 +55,9 @@ describe('scheduled session visibility', () => {
   })
 
   async function run(prompt: string, workspace?: AgentSessionWorkspaceSource, existingScheduleId?: string) {
-    const input: AgentTaskInput = {
-      agentId: 'agent',
-      prompt,
-      timeoutMinutes: 0,
-      ...(workspace ? { workspace } : {}),
-      reuseRevision: 0
-    }
+    const context: Omit<AgentTaskInput, 'reuseRevision'> = { agentId: 'agent', prompt, timeoutMinutes: 0 }
+    if (workspace) context.workspace = workspace
+    const input: AgentTaskInput = { ...context, reuseRevision: 0 }
     const schedule = existingScheduleId
       ? jobScheduleService.getById(existingScheduleId)!
       : jobScheduleService.create({

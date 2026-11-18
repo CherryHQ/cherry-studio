@@ -1048,6 +1048,12 @@ describe('system workspace relocation', () => {
       const workspace = await createWorkspace('dsh')
       const oldToken = randomUUID()
       const messageId = randomUUID()
+      const data: typeof agentSessionMessageTable.$inferInsert.data = {
+        parts: [{ type: 'text', text: 'Preserved DSH answer' }]
+      }
+      if (evidence === 'checkpoint') {
+        data.runtimeAnchor = { checkpoint: { runtime: 'dsh', runtimeSessionId: oldToken, boundary: 1 } }
+      }
       dbh.db
         .insert(agentSessionMessageTable)
         .values({
@@ -1057,12 +1063,7 @@ describe('system workspace relocation', () => {
           role: 'assistant',
           status: 'success',
           runtimeResumeToken: oldToken,
-          data: {
-            parts: [{ type: 'text', text: 'Preserved DSH answer' }],
-            ...(evidence === 'checkpoint'
-              ? { runtimeAnchor: { checkpoint: { runtime: 'dsh', runtimeSessionId: oldToken, boundary: 1 } } }
-              : {})
-          }
+          data
         })
         .run()
       linkSessionMessageChain(dbh.db, workspace.sessionId, [messageId])
@@ -1164,12 +1165,15 @@ describe('system workspace relocation', () => {
         }
       })
       if (evidence === 'edited') agentSessionMessageService.setEditRuntimeTx(dbh.db, workspace.sessionId, userId, token)
-      agentSessionMessageService.saveMessage({
+      const resume: Omit<Parameters<typeof agentSessionMessageService.saveMessage>[0], 'message'> = {
         sessionId: workspace.sessionId,
-        runtimeResumeToken: token,
-        ...(evidence === 'checkpoint'
-          ? { runtimeAnchor: { checkpoint: { runtime: 'pi', runtimeSessionId: token, leafId: 'saved-leaf' } } }
-          : {}),
+        runtimeResumeToken: token
+      }
+      if (evidence === 'checkpoint') {
+        resume.runtimeAnchor = { checkpoint: { runtime: 'pi', runtimeSessionId: token, leafId: 'saved-leaf' } }
+      }
+      agentSessionMessageService.saveMessage({
+        ...resume,
         message: {
           id: randomUUID(),
           role: 'assistant',
@@ -1192,6 +1196,8 @@ describe('system workspace relocation', () => {
   ] as const)('blocks missing %s history required by a %s', async (runtime, evidence) => {
     const workspace = await createWorkspace(runtime)
     const id = randomUUID()
+    const data: typeof agentSessionMessageTable.$inferInsert.data = { parts: [] }
+    if (evidence === 'checkpoint') data.runtimeAnchor = { checkpoint: { runtime, runtimeSessionId: id } }
     dbh.db
       .insert(agentSessionMessageTable)
       .values({
@@ -1200,10 +1206,7 @@ describe('system workspace relocation', () => {
         role: 'assistant',
         status: 'success',
         runtimeResumeToken: evidence === 'token' ? id : null,
-        data: {
-          parts: [],
-          ...(evidence === 'checkpoint' ? { runtimeAnchor: { checkpoint: { runtime, runtimeSessionId: id } } } : {})
-        }
+        data
       })
       .run()
 

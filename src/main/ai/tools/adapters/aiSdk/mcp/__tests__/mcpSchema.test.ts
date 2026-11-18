@@ -4,8 +4,10 @@ import { createMcpInputSchema } from '../../mcpSchema'
 
 describe('createMcpInputSchema', () => {
   it.each([undefined, 'object'] as const)('preserves root references without adding siblings (type=%s)', (type) => {
+    const identity: { type?: typeof type } = {}
+    if (type) identity.type = type
     const input = {
-      ...(type ? { type } : {}),
+      ...identity,
       $ref: '#/$defs/Input',
       $defs: {
         Input: { type: 'object' as const, properties: { query: { type: 'string' as const } }, required: ['query'] }

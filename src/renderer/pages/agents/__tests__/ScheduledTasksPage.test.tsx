@@ -111,10 +111,11 @@ it.each([
       } as never
     })
     const query = mockUseQuery.getMockImplementation()!
-    mockUseQuery.mockImplementation((path, options) => ({
-      ...query(path, options),
-      ...(path === '/agents' ? { data: undefined } : {})
-    }))
+    mockUseQuery.mockImplementation((path, options) => {
+      const result = { ...query(path, options) }
+      if (path === '/agents') result.data = undefined
+      return result
+    })
     render(
       <TabIdContext value="task-tab">
         <ScheduledTasksPage />

@@ -152,6 +152,12 @@ describe('NotificationCenter reading', () => {
           : hasReply
             ? 'Conversation name to hide\nBrief reply excerpt'
             : 'Conversation name to hide'
+      const target: Extract<NonNullable<NotificationRecord['target']>, { kind: 'conversation' }> = {
+        kind: 'conversation',
+        conversationType: source,
+        conversationId: 'topic'
+      }
+      if (!shape.startsWith('legacy-')) target.replyPreview = hasReply ? 'Brief reply excerpt' : ''
       const records: NotificationRecord[] = [
         {
           id: 'c4519cf1-0405-4eb1-a18c-17b263872413',
@@ -187,12 +193,7 @@ describe('NotificationCenter reading', () => {
           createdAt: Date.now() - 1000,
           readAt: null,
           dismissedAt: null,
-          target: {
-            kind: 'conversation',
-            conversationType: source,
-            conversationId: 'topic',
-            ...(shape.startsWith('legacy-') ? {} : { replyPreview: hasReply ? 'Brief reply excerpt' : '' })
-          }
+          target
         },
         {
           id: 'c4519cf1-0405-4eb1-a18c-17b263872415',

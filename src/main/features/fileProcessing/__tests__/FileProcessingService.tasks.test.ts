@@ -250,18 +250,23 @@ describe('FileProcessingService tasks', () => {
     await jobManager._doStop()
     await scheduler._doStop()
     const now = Date.now()
-    const leftover = (type: string, status: 'pending' | 'running', processorId: string) => ({
-      type,
-      status,
-      queue: `file-processing.${processorId}`,
-      scheduledAt: now - 1000,
-      ...(status === 'running' ? { startedAt: now - 500 } : {}),
-      attempt: 0,
-      maxAttempts: 1,
-      input: { feature: 'image_to_text', file: { kind: 'path', path: imagePath }, processorId },
-      cancelRequested: false,
-      metadata: {}
-    })
+    const leftover = (type: string, status: 'pending' | 'running', processorId: string) => {
+      const timing: Pick<typeof jobTable.$inferInsert, 'type' | 'status' | 'queue' | 'scheduledAt' | 'startedAt'> = {
+        type,
+        status,
+        queue: `file-processing.${processorId}`,
+        scheduledAt: now - 1000
+      }
+      if (status === 'running') timing.startedAt = now - 500
+      return {
+        ...timing,
+        attempt: 0,
+        maxAttempts: 1,
+        input: { feature: 'image_to_text', file: { kind: 'path', path: imagePath }, processorId },
+        cancelRequested: false,
+        metadata: {}
+      }
+    }
     await (MockMainDbServiceExport.dbService.getDb() as DbType)
       .insert(jobTable)
       .values([

@@ -168,6 +168,10 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
       return result.value
     }
     const runtime = confirmed(await createPiRuntime({ backendId: runtimeId('native-tools') }))
+    const bindings: Parameters<typeof createPiMcpExtension>[1] = {
+      fixture: { id: binding === 'cherry-tools' ? undefined : serverId, name: binding, connect: server }
+    }
+    if (binding !== 'cherry-tools') bindings.shadow = { id: shadowId, name: shadowName, connect: shadow }
     const handle = confirmed(
       await runtime.create({
         cwd,
@@ -180,14 +184,7 @@ it.each(['cherry-tools', 'my-server', 'my_server'])(
         extensionFactories: [
           createCodemodeExtension({ models: false }),
           createToolSearchExtension(),
-          createPiMcpExtension(
-            pi,
-            {
-              fixture: { id: binding === 'cherry-tools' ? undefined : serverId, name: binding, connect: server },
-              ...(binding === 'cherry-tools' ? {} : { shadow: { id: shadowId, name: shadowName, connect: shadow } })
-            },
-            join(cwd, 'mcp.log')
-          )
+          createPiMcpExtension(pi, bindings, join(cwd, 'mcp.log'))
         ]
       })
     )

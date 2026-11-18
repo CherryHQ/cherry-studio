@@ -165,7 +165,9 @@ type ListArgs = {
 }
 
 function listPage(items: KnowledgeBase[], nextCursor?: string) {
-  return { items, total: items.length, ...(nextCursor ? { nextCursor } : {}) }
+  const page = { items, total: items.length }
+  if (nextCursor) Object.assign(page, { nextCursor })
+  return page
 }
 
 async function callExecute(args: ListArgs, ctx: { knowledgeBaseIds?: string[] } = {}) {

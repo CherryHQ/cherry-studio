@@ -37,22 +37,17 @@ async function capture(
     }
   }).responses(modelId)
 
+  const requestOptions = { reasoningEffort: options.reasoningEffort ?? 'low', forceReasoning: true, store: false }
+  if (!options.withoutLogprobs) {
+    if (options.includeOnly)
+      Object.assign(requestOptions, { include: ['message.output_text.logprobs', 'file_search_call.results'] })
+    else Object.assign(requestOptions, { logprobs: 5 })
+  }
   const result = await model.doGenerate({
     prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
     temperature: 0.7,
     topP: 0.9,
-    providerOptions: {
-      openai: {
-        reasoningEffort: options.reasoningEffort ?? 'low',
-        forceReasoning: true,
-        store: false,
-        ...(options.withoutLogprobs
-          ? {}
-          : options.includeOnly
-            ? { include: ['message.output_text.logprobs', 'file_search_call.results'] }
-            : { logprobs: 5 })
-      }
-    }
+    providerOptions: { openai: requestOptions }
   })
 
   return { body, warnings: result.warnings }

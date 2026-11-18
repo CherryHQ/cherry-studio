@@ -460,13 +460,11 @@ export class ClaudeProjection {
       events,
       selected.map((message): ClaudeNativeMessage => {
         const entry = metadata.get(message.uuid)
-        return {
-          source: 'archive',
-          message,
-          ...(message.type === 'assistant' && entry?.type === 'assistant' && entry.isApiErrorMessage === true
-            ? { isApiErrorMessage: true as const }
-            : {})
+        const native: ClaudeNativeMessage = { source: 'archive', message }
+        if (message.type === 'assistant' && entry?.type === 'assistant' && entry.isApiErrorMessage === true) {
+          Object.assign(native, { isApiErrorMessage: true } satisfies Pick<ClaudeNativeMessage, 'isApiErrorMessage'>)
         }
+        return native
       }),
       this.legacy
     )

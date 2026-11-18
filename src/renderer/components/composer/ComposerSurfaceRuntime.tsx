@@ -4,6 +4,7 @@ import type { Editor } from '@tiptap/react'
 import { EditorContent, type NodeViewProps } from '@tiptap/react'
 import { Check, ChevronRight, CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
 import React, {
+  type CSSProperties,
   startTransition,
   use,
   useCallback,
@@ -2575,6 +2576,12 @@ export default function ComposerSurfaceRuntime({
     </div>
   )
 
+  const surfaceStyle: CSSProperties = { width: '100%' }
+  if (railGutterPx != null) {
+    surfaceStyle.paddingLeft = sidePaddingPx + railGutterPx
+    surfaceStyle.paddingRight = sidePaddingPx + railGutterPx
+  }
+
   return (
     // pointer-events-auto: the composer dock stack above is click-through so the
     // pane behind the flanks stays interactive; this width-capped box is where
@@ -2586,15 +2593,7 @@ export default function ComposerSurfaceRuntime({
       // Chat wires railGutterPx (0 when the rail is away): the tight base plus the
       // gutter mirrored on both sides keeps the composer centred and aligned with
       // the message column. Other callers keep NarrowLayout's default padding.
-      style={{
-        width: '100%',
-        ...(railGutterPx != null
-          ? {
-              paddingLeft: sidePaddingPx + railGutterPx,
-              paddingRight: sidePaddingPx + railGutterPx
-            }
-          : {})
-      }}>
+      style={surfaceStyle}>
       <div className="pointer-events-auto w-full">
         <ComposerToolFooterActionsSync />
         <div

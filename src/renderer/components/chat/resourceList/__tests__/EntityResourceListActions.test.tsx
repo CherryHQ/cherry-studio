@@ -531,12 +531,9 @@ vi.mock('@renderer/utils/error', () => ({
 describe('classic layout entity resource list actions', () => {
   const sidebarShortcut = (providerId: string, resourceId: string, fallbackLabel?: string) => {
     const target: SidebarShortcutTarget = { kind: 'resource', locator: { providerId, resourceId } }
-    return {
-      type: 'shortcut' as const,
-      id: createSidebarShortcutId(target),
-      target,
-      ...(fallbackLabel ? { fallbackLabel } : {})
-    }
+    const shortcut = { type: 'shortcut' as const, id: createSidebarShortcutId(target), target }
+    if (fallbackLabel) Object.assign(shortcut, { fallbackLabel })
+    return shortcut
   }
 
   beforeEach(() => {

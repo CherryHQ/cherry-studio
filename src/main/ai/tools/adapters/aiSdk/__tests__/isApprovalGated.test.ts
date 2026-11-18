@@ -4,12 +4,9 @@ import { describe, expect, it } from 'vitest'
 import { isApprovalGated } from '../isApprovalGated'
 
 function toolWith(needsApproval?: Tool['needsApproval']): Tool {
-  return {
-    type: 'function',
-    description: 't',
-    inputSchema: {},
-    ...(needsApproval !== undefined ? { needsApproval } : {})
-  } as unknown as Tool
+  const tool = { type: 'function', description: 't', inputSchema: {} }
+  if (needsApproval !== undefined) Object.assign(tool, { needsApproval })
+  return tool as unknown as Tool
 }
 
 describe('isApprovalGated', () => {

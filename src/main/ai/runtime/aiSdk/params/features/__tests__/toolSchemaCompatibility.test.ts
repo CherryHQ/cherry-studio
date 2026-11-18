@@ -392,18 +392,10 @@ describe('toolSchemaCompatibilityFeature', () => {
       { endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, model }
     )
 
-    expect(result.tools).toEqual([
-      {
-        type: 'function',
-        name: 'map_tool',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-          ...(recognized ? {} : { propertyNames: { pattern: '^[a-z]+$' } }),
-          additionalProperties: { type: 'string' }
-        }
-      }
-    ])
+    const expectedSchema: JSONSchema7 = { type: 'object', properties: {} }
+    if (!recognized) expectedSchema.propertyNames = { pattern: '^[a-z]+$' }
+    expectedSchema.additionalProperties = { type: 'string' }
+    expect(result.tools).toEqual([{ type: 'function', name: 'map_tool', inputSchema: expectedSchema }])
   })
 
   it.each([ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OLLAMA_CHAT, ENDPOINT_TYPE.ANTHROPIC_MESSAGES, undefined])(

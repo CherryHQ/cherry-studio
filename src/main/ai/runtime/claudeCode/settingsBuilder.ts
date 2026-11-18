@@ -690,30 +690,29 @@ async function buildToolPermissions(
         }
       })
       if (!pending) return
+      const cherry = {
+        transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport,
+        toolName
+      } satisfies CherryToolMeta
+      if (commandPolicy) {
+        Object.assign(cherry, {
+          commandPolicy: {
+            ...commandPolicy.evidence,
+            reason:
+              shellGuard?.reason ??
+              commandPolicy.reason ??
+              opts.decisionReason ??
+              t('command_approval.permission_required')
+          }
+        } satisfies Pick<CherryToolMeta, 'commandPolicy'>)
+      }
       emit({
         approvalId,
         toolCallId: opts.toolUseID,
         toolName,
         input,
         presentation,
-        providerMetadata: {
-          cherry: {
-            transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport,
-            toolName,
-            ...(commandPolicy
-              ? {
-                  commandPolicy: {
-                    ...commandPolicy.evidence,
-                    reason:
-                      shellGuard?.reason ??
-                      commandPolicy.reason ??
-                      opts.decisionReason ??
-                      t('command_approval.permission_required')
-                  }
-                }
-              : {})
-          } satisfies CherryToolMeta
-        }
+        providerMetadata: { cherry }
       })
     })
   }

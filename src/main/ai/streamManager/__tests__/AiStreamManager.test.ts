@@ -384,10 +384,9 @@ describe('AiStreamManager', () => {
     feed.enqueue({ type: 'finish' })
     feed.close()
     await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
-    const expected = {
-      state: approved ? 'output-error' : 'output-denied',
-      approval: { id: 'approval-write', ...(approved ? {} : { approved: false }) }
-    }
+    const approval = { id: 'approval-write' }
+    if (!approved) Object.assign(approval, { approved: false })
+    const expected = { state: approved ? 'output-error' : 'output-denied', approval }
     expect(listener.doneResults[0].finalMessage?.parts[0]).toMatchObject(expected)
     expect(view?.messages[0]?.parts[0]).toMatchObject(expected)
     mgr.detachProjection(sender, 'subscription')

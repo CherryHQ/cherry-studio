@@ -182,15 +182,11 @@ describe('mcp-launch-commands', () => {
       const missing = server('missing', { command: 'missing-tool' })
       const error = new Error('Access denied')
       mcpServers.list.mockReturnValue({ items: order === 'denied-first' ? [denied, missing] : [missing, denied] })
-      launch.resolveStdioLaunch.mockImplementation(async ({ server: candidate }: { server: McpServer }) => ({
-        launch: {
-          command: candidate.command,
-          args: [],
-          env: {},
-          resolution: 'unresolved',
-          ...(candidate.id === 'denied' ? { lookupError: error } : {})
-        }
-      }))
+      launch.resolveStdioLaunch.mockImplementation(async ({ server: candidate }: { server: McpServer }) => {
+        const resolved = { command: candidate.command, args: [], env: {}, resolution: 'unresolved' }
+        if (candidate.id === 'denied') Object.assign(resolved, { lookupError: error })
+        return { launch: resolved }
+      })
 
       const result = await mcpLaunchCommands.run(ctx)
 
