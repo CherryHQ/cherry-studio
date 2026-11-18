@@ -7,10 +7,9 @@ describe('web-search cutoff input', () => {
     expect(normalizeWebSearchCutoffLimit(limit)).toBe(limit)
   })
 
-  it.each([undefined, null, false, true, '123', {}, [], 0, -1, Number.NaN, Infinity, -Infinity])(
-    'uses the default without coercing invalid input: %j',
-    (input) => {
-      expect(normalizeWebSearchCutoffLimit(input)).toBe(DEFAULT_WEB_SEARCH_CUTOFF_LIMIT)
-    }
-  )
+  it.each(
+    [undefined, null, false, true, '123', {}, [], 0, -1, Number.NaN, Infinity, -Infinity].map((input) => ({ input }))
+  )('uses the default without coercing invalid input: %j', ({ input }) => {
+    expect(normalizeWebSearchCutoffLimit(input)).toBe(DEFAULT_WEB_SEARCH_CUTOFF_LIMIT)
+  })
 })

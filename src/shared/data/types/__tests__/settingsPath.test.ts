@@ -10,10 +10,11 @@ describe('settings navigation input', () => {
     }
   )
 
-  it.each([undefined, null, false, 0, {}, [], '/setting', '/settings-unsafe', 'https://example.com/settings'])(
-    'falls back for an invalid route: %j',
-    (input) => {
-      expect(normalizeSettingsPath(input)).toBe(DEFAULT_SETTINGS_PATH)
-    }
-  )
+  it.each(
+    [undefined, null, false, 0, {}, [], '/setting', '/settings-unsafe', 'https://example.com/settings'].map(
+      (input) => ({ input })
+    )
+  )('falls back for an invalid route: %j', ({ input }) => {
+    expect(normalizeSettingsPath(input)).toBe(DEFAULT_SETTINGS_PATH)
+  })
 })
