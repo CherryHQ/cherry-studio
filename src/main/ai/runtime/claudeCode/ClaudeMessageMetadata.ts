@@ -222,6 +222,7 @@ export class ClaudeMessageMetadata {
   private buildToolOutput(
     result: NonNullable<JSONValue>,
     state: ToolMetadata,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Runtime tool output includes native and archived tool-specific bodies; inspect raw non-text content before adding MCP display metadata.
     rawContent?: unknown
   ): NonNullable<JSONValue> {
     if (state.toolType !== 'mcp') return result
@@ -241,6 +242,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Unrecognized tool-result values and content blocks need a text fallback; JSON serialization may fail for non-JSON native values.
 function stringifyJsonValue(value: unknown): string {
   if (typeof value === 'string') return value
   try {
@@ -250,12 +252,14 @@ function stringifyJsonValue(value: unknown): string {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native and archived results may be a block array, a content envelope or a scalar; verify the array container before traversing blocks.
 function getContentArray(value: unknown): unknown[] | undefined {
   if (Array.isArray(value)) return value
   if (isRecord(value) && Array.isArray(value.content)) return value.content
   return undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Mixed native/archive blocks must pass MCP recognition or checked legacy base64-image fields; unrecognized blocks become text.
 function normalizeMcpContentBlock(block: unknown): JSONObject {
   if (isMcpContentBlock(block)) return block as JSONObject
 
@@ -277,6 +281,7 @@ function normalizeMcpContentBlock(block: unknown): JSONObject {
   return { type: 'text', text: stringifyJsonValue(block) }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw MCP results can use array or content-envelope forms; recognize the container and normalize each block before display.
 function normalizeMcpToolContent(value: unknown): JSONValue[] {
   const content = getContentArray(value)
   if (content) return content.map(normalizeMcpContentBlock)
@@ -284,6 +289,7 @@ function normalizeMcpToolContent(value: unknown): JSONValue[] {
   return [{ type: 'text', text: stringifyJsonValue(value) }]
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Archived result bodies are not a guaranteed block union; check containers, block tags and resource.blob before selecting rich MCP rendering.
 function hasMcpNonTextContent(value: unknown): boolean {
   const content = getContentArray(value)
   if (!content) return false
@@ -295,6 +301,7 @@ function hasMcpNonTextContent(value: unknown): boolean {
   })
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Runtime ToolResult.output preserves SDK and archive tool-specific bodies; distinguish JSON/text strings, block arrays and object results here.
 export function normalizeClaudeToolResult(result: unknown): NonNullable<JSONValue> {
   if (typeof result === 'string') {
     try {
