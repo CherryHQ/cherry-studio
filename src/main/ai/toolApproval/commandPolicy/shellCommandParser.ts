@@ -56,18 +56,15 @@ export function parseShellCommand(command: string, powershell = false): ParsedSh
     pipelines: [...pipelines.values()].map((commands) => ({ commands })),
     heredocs: parsed.heredocs.map((heredoc) => {
       const resolved = findHeredocConsumer(parsed, heredoc)
-      return {
-        ...heredoc,
-        ...(resolved
-          ? {
-              consumer: {
-                command: resolved.executable,
-                args: resolved.args.map(({ value, raw }) => value ?? raw),
-                substitutions: []
-              }
-            }
-          : {})
+      const result: ShellHeredoc = { ...heredoc }
+      if (resolved) {
+        result.consumer = {
+          command: resolved.executable,
+          args: resolved.args.map(({ value, raw }) => value ?? raw),
+          substitutions: []
+        }
       }
+      return result
     })
   }
 }
