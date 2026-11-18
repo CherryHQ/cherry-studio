@@ -888,20 +888,23 @@ describe('AddKnowledgeItemDialog', () => {
       })
     })
 
-    it('rejects an invalid url without submitting or closing the panel', async () => {
-      setPendingAddSource('url')
-      const onOpenChange = vi.fn()
-      const user = userEvent.setup()
-      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+    it.each(['not a valid URL', 'localhost:3000/docs', 'file:///etc/passwd'])(
+      'rejects %s without submitting or closing the panel',
+      async (input) => {
+        setPendingAddSource('url')
+        const onOpenChange = vi.fn()
+        const user = userEvent.setup()
+        render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
 
-      await user.type(screen.getByPlaceholderText('https://example.com'), 'not a valid URL')
-      await user.click(screen.getByRole('button', { name: '添加' }))
+        await user.type(screen.getByPlaceholderText('https://example.com'), input)
+        await user.click(screen.getByRole('button', { name: '添加' }))
 
-      expect(await screen.findByRole('alert')).toHaveTextContent('无效的 URL')
-      expect(screen.getByRole('dialog')).toBeInTheDocument()
-      expect(onOpenChange).not.toHaveBeenCalledWith(false)
-      expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
-    })
+        expect(await screen.findByRole('alert')).toHaveTextContent('无效的 URL')
+        expect(screen.getByRole('dialog')).toBeInTheDocument()
+        expect(onOpenChange).not.toHaveBeenCalledWith(false)
+        expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
+      }
+    )
 
     it('shows an inline error and keeps the panel open when the url submit fails', async () => {
       setPendingAddSource('url')
