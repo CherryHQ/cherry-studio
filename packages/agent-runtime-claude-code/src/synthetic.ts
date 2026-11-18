@@ -1,4 +1,4 @@
-export function isSyntheticClaudeModel(model: unknown): boolean {
+export function isSyntheticClaudeModel(model: unknown): model is '<synthetic>' {
   return model === '<synthetic>'
 }
 
