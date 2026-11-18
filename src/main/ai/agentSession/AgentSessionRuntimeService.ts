@@ -2560,7 +2560,14 @@ export class AgentSessionRuntimeService extends BaseService {
           turn.forkAnchor = event.forkAnchor
             ? { ...event.forkAnchor, excludedMessageIds: entry.runtimeState.queue.map((item) => item.message.id) }
             : undefined
-          this.applyRuntimeStateEvent(entry, { type: 'runtime-terminal', turn, outcome: { status: 'success' } })
+          // A native abort that Cherry did not start must still end the renderer stream as paused.
+          if (event.status === 'paused' && !entry.closing)
+            application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'agent-runtime-aborted')
+          this.applyRuntimeStateEvent(entry, {
+            type: 'runtime-terminal',
+            turn,
+            outcome: { status: event.status ?? 'success' }
+          })
         }
         if (entry.runtimeState.execution.kind === 'turn')
           this.applyRuntimeStateEvent(entry, { type: 'clear-steer-reservation' })

@@ -162,7 +162,8 @@ export type AgentRuntimeEvent =
       }
     }
   | { type: 'resume-token'; token: string }
-  | { type: 'turn-complete'; forkAnchor?: RuntimeForkAnchor }
+  /** `paused`: native evidence that the turn was aborted, such as a recorded user stop. */
+  | { type: 'turn-complete'; forkAnchor?: RuntimeForkAnchor; status?: 'paused' }
   /** Steers stashed via `redirect()` that the turn ended before injecting — the host queues them
    *  as the next turn (the `steer_undelivered` fallback). */
   | { type: 'steer-undelivered'; inputIds: readonly string[] }

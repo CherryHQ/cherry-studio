@@ -2021,6 +2021,23 @@ describe('desktop Pi Durable connection', () => {
     }
   })
 
+  it('reports a stop that Durable records before close as a paused turn, not a failure', async () => {
+    const held = gate()
+    script = respondingModel(() => held.wait(assistantReply('unfinished')))
+    const { connection, events, nativeInputs } = await connect()
+    const user = message('work')
+    await connection.send({ message: user })
+    await held.reached
+    await connection.interrupt()
+    await done(events)
+
+    expect(nativeInputs.some((state) => state.inputId === user.id && state.outcome === 'aborted')).toBe(true)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(events.filter((event) => event.type === 'turn-complete')).toEqual([
+      { type: 'turn-complete', status: 'paused' }
+    ])
+  })
+
   it('persists cancellation during a native tool and does not continue after reopen', async () => {
     const tool = process.platform === 'win32' ? 'powershell' : 'bash'
     const command =

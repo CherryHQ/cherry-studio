@@ -15,7 +15,7 @@ import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { AgentRuntimeEvent, RuntimeMessageProjection } from '@main/ai/runtime/types'
 import type { StartRuntimeTurnInput } from '@main/ai/streamManager/AiStreamManager'
 import { pipeMessageStream } from '@main/ai/streamManager/pipeMessageStream'
-import type { StreamDoneResult } from '@main/ai/streamManager/types'
+import type { StreamDoneResult, StreamPausedResult } from '@main/ai/streamManager/types'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { topicNamingService } from '@main/services/TopicNamingService'
@@ -31,7 +31,7 @@ beforeEach(() => {
   runtimeDriverRegistry.clearForTest()
 })
 
-async function fixture() {
+async function fixture(interrupt?: (emit: (event: AgentRuntimeEvent) => Promise<void>) => Promise<void>) {
   dbh.db.insert(userProviderTable).values({ providerId: 'test', name: 'Test', orderKey: 'a0' }).run()
   dbh.db
     .insert(userModelTable)
@@ -93,7 +93,8 @@ async function fixture() {
           closed.resolve()
         },
         reconcile: async () => 'current',
-        retainWhileIdle: true
+        retainWhileIdle: true,
+        ...(interrupt && { interrupt: () => interrupt(emit) })
       }
     }
   })
@@ -210,6 +211,32 @@ it('continues a session after deleting a completed projected reply and reconnect
   })
   expect(messages.hasSessionMessage('root', f.reply.id)).toBe(false)
   expect(f.service.inspect('root')?.status).toBe('idle')
+})
+
+// #24732: Durable records the user's stop before the connection closes; closing must not rewrite it as an error.
+it('keeps a stopped reply paused when the runtime reports the abort before closing', async () => {
+  const stopped = Promise.withResolvers<void>()
+  MockApplicationUtils.setService('AiStreamManager', {
+    drainRuntimeReply: async () => {},
+    pauseRuntimeTurn: () => false
+  })
+  const f = await fixture(async (emit) => {
+    await stopped.promise
+    await emit({ type: 'turn-complete', status: 'paused' })
+  })
+  await f.project([text('partial', 'Partial answer')])
+  await vi.waitFor(() => expect(f.views.at(-1)?.parts).toEqual(text('', 'Partial answer').parts))
+  f.handle.abortController.abort('agent-runtime-interrupt')
+  const paused: StreamPausedResult = { status: 'paused', isTopicDone: true, finalMessage: (await f.done).finalMessage }
+  await f.handle.listeners[0].onPaused(paused)
+  await f.handle.listeners[1].onPaused(paused)
+  stopped.resolve()
+  await f.service.closeSession('root')
+
+  expect(messages.getSessionMessage('root', f.reply.id)).toMatchObject({
+    status: 'paused',
+    data: { parts: text('', 'Partial answer').parts }
+  })
 })
 
 // The native successor can publish before the preceding reply has committed and created its row.

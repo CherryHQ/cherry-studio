@@ -100,8 +100,10 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      mapping: `message-projection` for authoritative Agent content, `chunk` for
      host controls and display metadata, `turn-complete` to settle the
      host turn (the host closes the UI turn on this event — a runtime that
-     never emits it strands the turn), `resume-token` whenever the runtime
-     learns a recovery handle, `error` on failure.
+     never emits it strands the turn; set `status: 'paused'` instead of
+     emitting `error` when native evidence shows the turn was aborted),
+     `resume-token` whenever the runtime learns a recovery handle, `error` on
+     failure.
    - `send(input)` — deliver a user message; `input.systemReminder` marks a
      steer, wrap it with `wrapSteerReminder(...)`.
    - `reconcile(input)` — re-derive the desired connection state. Serialize concurrent
