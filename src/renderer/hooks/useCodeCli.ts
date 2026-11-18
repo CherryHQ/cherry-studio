@@ -86,13 +86,10 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
       const toolId = selectedCliTool as CodeCliId
       const existing = getToolState(toolId, configsRef.current).providers[providerId]
       const nextConfig = 'config' in partial ? partial.config : existing?.config
-      const next: CliProviderConfig = {
-        modelId: partial.modelId,
-        ...(nextConfig !== undefined ? { config: nextConfig } : {}),
-        ...(partial.sortIndex !== undefined || existing?.sortIndex !== undefined
-          ? { sortIndex: partial.sortIndex ?? existing?.sortIndex }
-          : {})
-      }
+      const next: CliProviderConfig = { modelId: partial.modelId }
+      if (nextConfig !== undefined) next.config = nextConfig
+      if (partial.sortIndex !== undefined || existing?.sortIndex !== undefined)
+        next.sortIndex = partial.sortIndex ?? existing?.sortIndex
       await patchToolState(toolId, (prev) => ({
         ...prev,
         providers: { ...prev.providers, [providerId]: next }
