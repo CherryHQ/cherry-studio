@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { Slot } from '@radix-ui/react-slot'
 import { cleanup, fireEvent, render } from '@testing-library/react'
-import { type ComponentType, createElement as h, type Ref } from 'react'
+import { type ComponentProps, type ComponentType, createElement as h, type Ref } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { UiDataSlot } from '../uiDataSlot'
@@ -11,13 +11,16 @@ import { UiDataSlot } from '../uiDataSlot'
 
 afterEach(cleanup)
 
-type AnyProps = Record<string, unknown>
+type SlotInputProps = ComponentProps<typeof UiDataSlot>
 
 /** Render the same slot/child props through real Radix Slot and UiDataSlot. */
-function renderBoth(slotProps: AnyProps, childProps: AnyProps) {
-  const make = (component: ComponentType<AnyProps>, testId: string) =>
+function renderBoth(slotProps: SlotInputProps, childProps: SlotInputProps) {
+  const make = (component: ComponentType<SlotInputProps>, testId: string) =>
     render(h(component, slotProps, h('button', { ...childProps, 'data-testid': testId }))).getByTestId(testId)
-  return { fromSlot: make(Slot as ComponentType<AnyProps>, 'slot'), fromUiDataSlot: make(UiDataSlot, 'ui-data-slot') }
+  return {
+    fromSlot: make(Slot as ComponentType<SlotInputProps>, 'slot'),
+    fromUiDataSlot: make(UiDataSlot, 'ui-data-slot')
+  }
 }
 
 describe('UiDataSlot prop merging (parity with Radix Slot)', () => {
@@ -47,6 +50,60 @@ describe('UiDataSlot prop merging (parity with Radix Slot)', () => {
     expect(order).toEqual(['child', 'slot'])
   })
 
+  it('forwards arguments and the exact child result while ignoring the slot result', () => {
+    const childResult = { source: 'child' }
+    const order: string[] = []
+    let received: typeof childResult | undefined
+    function Receiver({ onAction }: { onAction: (value: string) => typeof childResult }) {
+      return h('button', {
+        onClick: () => {
+          received = onAction('payload')
+        },
+        'data-testid': 'receiver'
+      })
+    }
+    const view = render(
+      h(
+        UiDataSlot,
+        {
+          onAction: (value: string) => {
+            order.push(`slot:${value}`)
+            return { source: 'slot' }
+          }
+        },
+        h(Receiver, {
+          onAction: (value: string) => {
+            order.push(`child:${value}`)
+            return childResult
+          }
+        })
+      )
+    )
+
+    fireEvent.click(view.getByTestId('receiver'))
+    expect(order).toEqual(['child:payload', 'slot:payload'])
+    expect(received).toBe(childResult)
+  })
+
+  it('returns the child promise without replacing or awaiting it', () => {
+    const childResult = Promise.resolve('ready')
+    let received: Promise<string> | undefined
+    function Receiver({ onAction }: { onAction: () => Promise<string> }) {
+      return h('button', {
+        onClick: () => {
+          received = onAction()
+        },
+        'data-testid': 'receiver'
+      })
+    }
+    const view = render(
+      h(UiDataSlot, { onAction: () => Promise.resolve('slot') }, h(Receiver, { onAction: () => childResult }))
+    )
+
+    fireEvent.click(view.getByTestId('receiver'))
+    expect(received).toBe(childResult)
+  })
+
   it('returns children untouched without slot props and ref', () => {
     const { getByTestId } = render(h(UiDataSlot, null, h('button', { 'data-testid': 'leaf', id: 'plain' })))
     const leaf = getByTestId('leaf')
@@ -58,7 +115,7 @@ describe('UiDataSlot prop merging (parity with Radix Slot)', () => {
     expect(() => render(h(UiDataSlot, { 'data-ui': 'chat.view' }, h('span'), h('span')))).toThrowError(
       'UiDataSlot failed to slot onto its children. Expected a single React element child.'
     )
-    expect(() => render(h(Slot as ComponentType<AnyProps>, null, h('span'), h('span')))).toThrowError(
+    expect(() => render(h(Slot as ComponentType<SlotInputProps>, null, h('span'), h('span')))).toThrowError(
       /failed to slot onto its children/
     )
   })
