@@ -82,13 +82,9 @@ describe('core sidebar shortcut providers', () => {
         } as never
       })
       await provider(providerId).activate(createSidebarShortcutTarget(providerId, 'owner-1'), gateway)
-      expect(openWorkspace).toHaveBeenCalledWith(
-        expect.objectContaining({
-          url,
-          conversation: { conversationType, conversationId: 'conversation-1' },
-          ...(providerId === 'core.agent' ? { metadata: { agentPinPending: true } } : {})
-        })
-      )
+      const expected = { url, conversation: { conversationType, conversationId: 'conversation-1' } }
+      if (providerId === 'core.agent') Object.assign(expected, { metadata: { agentPinPending: true } })
+      expect(openWorkspace).toHaveBeenCalledWith(expect.objectContaining(expected))
     }
   )
 
