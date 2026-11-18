@@ -1,6 +1,6 @@
 import { latestPlan, planActive } from '../approval/approval'
 import { type Step, turnInput, type TxOp } from '../decisions'
-import type { ConversationFacts, GoalSnapshot, GoalStopCode, HistoryEntry, RoundDetails } from '../facts'
+import type { ConversationFacts, DeliveredRun, GoalSnapshot, GoalStopCode, HistoryEntry, RoundDetails } from '../facts'
 import {
   armedSinceLastRun,
   currentGoal,
@@ -61,7 +61,9 @@ function runEndStop(facts: Facts, inputs: CallInputs, goal: GoalSnapshot): StopR
   if (end.outcome === 'aborted') return userStoppedLastRun(facts.history) ? { code: 'aborted' } : undefined
   if (end.outcome === 'error') {
     const message = lastError(facts.history)
-    return { code: 'provider_error', ...(message === undefined ? {} : { message }) }
+    const request: StopRequest = { code: 'provider_error' }
+    if (message !== undefined) Object.assign(request, { message })
+    return request
   }
   const round = lastRound(facts.history, goal)
   if (!round) return undefined
@@ -82,12 +84,11 @@ export const goalStop = (facts: Facts, inputs: CallInputs, goal: GoalSnapshot, r
  * by the stops so far, since `Turns` answers a withdrawn key with its first admission and never takes the input again.
  */
 function delivery(facts: Facts, items: readonly PendingResult[], quiet: boolean) {
-  const runs = items.map(({ sessionId, run, outcome, stoppedBy }) => ({
-    sessionId,
-    run,
-    outcome: outcome ?? 'interrupted',
-    ...(stoppedBy === undefined ? {} : { stoppedBy })
-  }))
+  const runs = items.map(({ sessionId, run, outcome, stoppedBy }) => {
+    const result: DeliveredRun = { sessionId, run, outcome: outcome ?? 'interrupted' }
+    if (stoppedBy !== undefined) Object.assign(result, { stoppedBy })
+    return result
+  })
   const input = turnInput(
     { type: 'subagent-notification', runs, quiet },
     notificationText(items, runningBackground(facts).length)

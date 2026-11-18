@@ -120,12 +120,13 @@ export function decideApproval(
             : UNATTENDED
     }
   }
-  return {
+  const decision: Extract<ApprovalDecision, { kind: 'ask' }> = {
     kind: 'ask',
     presentation: attendance === 'stream' ? 'stream' : 'message',
-    ...rewritten,
-    ...(host.commandPolicy === undefined ? {} : { details: host.commandPolicy.details })
+    ...rewritten
   }
+  if (host.commandPolicy !== undefined) Object.assign(decision, { details: host.commandPolicy.details })
+  return decision
 }
 
 /** D35: what the person's answer does to the call; memoized under `cherry.approval:<callKey>`. */

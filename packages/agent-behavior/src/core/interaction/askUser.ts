@@ -20,7 +20,9 @@ const options = (value: JsonValue | undefined): QuestionOption[] | undefined => 
     const description = stringField(fields, 'description')
     const preview = stringField(fields, 'preview')
     if (label === undefined || description === undefined) return undefined
-    parsed.push({ label, description, ...(preview === undefined ? {} : { preview }) })
+    const option: QuestionOption = { label, description }
+    if (preview !== undefined) Object.assign(option, { preview })
+    parsed.push(option)
   }
   return parsed
 }
@@ -94,16 +96,14 @@ export function askUserResult(questions: readonly QuestionItem[], answer: Questi
         'declined'
       )
     }
-    case 'answered':
+    case 'answered': {
+      const details = { questions, answers: answer.answers, outcome: 'answered' }
+      if (answer.annotations !== undefined) Object.assign(details, { annotations: answer.annotations })
       return {
         text: answeredText(questions, answer),
         isError: false,
-        details: {
-          questions,
-          answers: answer.answers,
-          outcome: 'answered',
-          ...(answer.annotations === undefined ? {} : { annotations: answer.annotations })
-        }
+        details
       }
+    }
   }
 }
