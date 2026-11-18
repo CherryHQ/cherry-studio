@@ -1056,10 +1056,10 @@ describe('useAgentChatRuntimeState', () => {
           })
           return
         }
+        const event = { topicId: 'agent-session:session-1', ...execution }
+        if (queued) Object.assign(event, { userMessageId: 'compact-user' })
         emit(outcome === 'error' ? 'ai.stream.error' : 'ai.stream.done', {
-          topicId: 'agent-session:session-1',
-          ...execution,
-          ...(queued ? { userMessageId: 'compact-user' } : {}),
+          ...event,
           ...(outcome === 'error' ? { error } : { status: outcome })
         })
       }

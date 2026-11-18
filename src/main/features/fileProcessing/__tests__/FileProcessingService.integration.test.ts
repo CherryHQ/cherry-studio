@@ -155,12 +155,11 @@ const entryPayload = (
   entryId: string,
   processorId: string,
   output?: typeof MARKDOWN_OUTPUT
-) => ({
-  feature,
-  file: { kind: 'entry' as const, entryId },
-  processorId,
-  ...(output ? { output } : {})
-})
+) => {
+  const input = { feature, file: { kind: 'entry' as const, entryId }, processorId }
+  if (output) Object.assign(input, { output })
+  return input
+}
 
 function setupFileInfo() {
   fileManagerGetMetadataMock.mockResolvedValue({

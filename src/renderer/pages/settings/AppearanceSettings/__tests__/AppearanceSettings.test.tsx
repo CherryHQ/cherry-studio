@@ -109,15 +109,11 @@ vi.mock('@cherrystudio/ui', async () => {
         onChange: (event: React.ChangeEvent<HTMLInputElement>) => onCheckedChange?.(event.target.checked),
         type: 'checkbox'
       }),
-    Tooltip: ({ children, className, classNames, content, title }: any) =>
-      React.createElement(
-        'div',
-        {
-          className: [className, classNames?.placeholder].filter(Boolean).join(' ') || undefined,
-          ...(content || title ? { 'data-title': content || title } : {})
-        },
-        children
-      )
+    Tooltip: ({ children, className, classNames, content, title }: any) => {
+      const props = { className: [className, classNames?.placeholder].filter(Boolean).join(' ') || undefined }
+      if (content || title) Object.assign(props, { 'data-title': content || title })
+      return React.createElement('div', props, children)
+    }
   }
 })
 

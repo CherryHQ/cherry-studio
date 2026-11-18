@@ -43,9 +43,9 @@ describe('normal chat corrupt image handling', () => {
         type: 'file' as const,
         filename: 'broken.png',
         mediaType: 'image/png',
-        url: kind === 'data' ? `data:image/png;base64,${corrupt.toString('base64')}` : 'file:///broken.png',
-        ...(kind === 'entry' ? { providerMetadata: { cherry: { fileEntryId: 'broken-entry' } } } : {})
+        url: kind === 'data' ? `data:image/png;base64,${corrupt.toString('base64')}` : 'file:///broken.png'
       }
+      if (kind === 'entry') Object.assign(part, { providerMetadata: { cherry: { fileEntryId: 'broken-entry' } } })
       const messages = [
         { id: 'old', role: 'user' as const, parts: [part] },
         { id: 'new', role: 'user' as const, parts: [{ type: 'text' as const, text: 'Next question without an image' }] }

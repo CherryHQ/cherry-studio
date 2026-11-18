@@ -2736,12 +2736,9 @@ describe('MessageService', () => {
         awaitingInputOnly
           ? messageService.delete(id, false, 'parent', true)
           : messageService.deleteBranch(id, expectedTopicId)
-      expect(run).toThrowError(
-        expect.objectContaining({
-          code: reason ? ErrorCode.INVALID_OPERATION : ErrorCode.NOT_FOUND,
-          ...(reason ? { message: expect.stringContaining(reason) } : {})
-        })
-      )
+      const error = { code: reason ? ErrorCode.INVALID_OPERATION : ErrorCode.NOT_FOUND }
+      if (reason) Object.assign(error, { message: expect.stringContaining(reason) })
+      expect(run).toThrowError(expect.objectContaining(error))
       expect(dbh.sqlite.serialize().equals(before)).toBe(true)
       expect(notifyDataApiDataChangeMock.mock.calls).toEqual([])
     }

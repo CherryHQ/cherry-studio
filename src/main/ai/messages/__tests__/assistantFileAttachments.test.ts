@@ -5,12 +5,14 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import { collectAssistantFileAttachments, createAssistantFileAttachmentHandle } from '../assistantFileAttachments'
 
 function filePart(fileEntryId: string, filename?: string, fileTokenSourceId?: string): CherryMessagePart {
+  const cherry = { fileEntryId }
+  if (fileTokenSourceId) Object.assign(cherry, { fileTokenSourceId })
   return {
     type: 'file',
     url: 'file:///attachment',
     mediaType: 'application/octet-stream',
     filename,
-    providerMetadata: { cherry: { fileEntryId, ...(fileTokenSourceId ? { fileTokenSourceId } : {}) } }
+    providerMetadata: { cherry }
   }
 }
 

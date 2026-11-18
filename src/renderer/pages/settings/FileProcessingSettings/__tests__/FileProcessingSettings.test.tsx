@@ -373,11 +373,9 @@ describe('processing settings pages', () => {
     { status: 'not_downloaded', action: 'settings.dependencies.localModels.download' },
     { status: 'error', action: 'common.retry' }
   ] as const)('offers the download inline when the local model is $status', async ({ status, action }) => {
-    publishLocalModelStatus(OCR, {
-      status,
-      percent: 0,
-      ...(status === 'error' ? { errorCode: 'download_failed' as const } : {})
-    })
+    const snapshot: LocalModelStatusSnapshot = { status, percent: 0 }
+    if (status === 'error') snapshot.errorCode = 'download_failed'
+    publishLocalModelStatus(OCR, snapshot)
     ipcRequestMock.mockResolvedValue({
       processorIds: ['system', 'tesseract', 'paddleocr', 'local-paddleocr', 'mineru', 'doc2x', 'mistral']
     })

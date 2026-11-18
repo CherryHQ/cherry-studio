@@ -55,14 +55,15 @@ describe('TranslateHistoryService', () => {
   }
 
   function createFileHistory(includeSource = true) {
-    return translateHistoryService.createFileTx(dbh.db, {
+    const input: Parameters<typeof translateHistoryService.createFileTx>[1] = {
       sourceText: 'paper.pdf',
       targetText: 'paper.zh-CN.pdf',
       sourceLanguage: null,
       targetLanguage: null,
-      targetFileEntryId: TRANSLATED_ENTRY_ID,
-      ...(includeSource ? { sourceFileEntryId: SOURCE_ENTRY_ID } : {})
-    })
+      targetFileEntryId: TRANSLATED_ENTRY_ID
+    }
+    if (includeSource) input.sourceFileEntryId = SOURCE_ENTRY_ID
+    return translateHistoryService.createFileTx(dbh.db, input)
   }
 
   describe('list', () => {

@@ -219,14 +219,15 @@ it.each(corpus)(
         const pending = new Promise<void>((resolve) => {
           accepted = resolve
         })
-        test.send({
+        const message = {
           type: record.type,
           uuid: record.uuid,
           message: record.message,
           session_id: test.sessionId,
-          parent_tool_use_id: null,
-          ...(record.isAbortedMidStream ? { aborted: true } : {})
-        } as SDKMessage)
+          parent_tool_use_id: null
+        }
+        if (record.isAbortedMidStream) Object.assign(message, { aborted: true })
+        test.send(message as SDKMessage)
         await pending
       }
       // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.

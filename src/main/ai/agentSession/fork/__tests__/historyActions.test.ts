@@ -63,9 +63,10 @@ function user(text: string) {
 }
 
 function answer(checkpoint?: unknown) {
+  const resume: Omit<Parameters<typeof messages.saveMessage>[0], 'message'> = { sessionId }
+  if (checkpoint !== undefined) resume.runtimeAnchor = { checkpoint }
   return messages.saveMessage({
-    sessionId,
-    ...(checkpoint === undefined ? {} : { runtimeAnchor: { checkpoint } }),
+    ...resume,
     message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Answer' }] } }
   })
 }

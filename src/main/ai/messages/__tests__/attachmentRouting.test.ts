@@ -50,13 +50,11 @@ const fileWithEntry = (
   filename: string,
   mediaType: string,
   fileTokenSourceId?: string
-): CherryMessagePart => ({
-  type: 'file',
-  url: `file:///x/${filename}`,
-  mediaType,
-  filename,
-  providerMetadata: { cherry: { fileEntryId: id, ...(fileTokenSourceId ? { fileTokenSourceId } : {}) } }
-})
+): CherryMessagePart => {
+  const cherry = { fileEntryId: id }
+  if (fileTokenSourceId) Object.assign(cherry, { fileTokenSourceId })
+  return { type: 'file', url: `file:///x/${filename}`, mediaType, filename, providerMetadata: { cherry } }
+}
 
 const composerText = (text: string, ...fileTokenSourceIds: string[]): CherryMessagePart => ({
   type: 'text',

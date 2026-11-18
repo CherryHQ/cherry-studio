@@ -313,12 +313,13 @@ describe('readConversation', () => {
     const messageIds: string[] = []
     let parentId: string | undefined
     for (let index = 1; index <= 400; index += 1) {
-      const message = messageService.create(topic.id, {
+      const input: Parameters<typeof messageService.create>[1] = {
         role: index % 2 === 0 ? 'assistant' : 'user',
         data: { parts: [{ type: 'text', text: `message ${index}` }] },
-        status: 'success',
-        ...(parentId ? { parentId } : {})
-      })
+        status: 'success'
+      }
+      if (parentId) input.parentId = parentId
+      const message = messageService.create(topic.id, input)
       messageIds.push(message.id)
       parentId = message.id
     }

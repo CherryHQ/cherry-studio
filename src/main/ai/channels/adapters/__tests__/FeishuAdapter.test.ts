@@ -111,7 +111,7 @@ describe('FeishuAdapter', () => {
   afterEach(() => vi.useRealTimers())
 
   function createAdapter(overrides: Record<string, unknown> = {}): any {
-    return createFeishuAdapter({
+    const options: Parameters<typeof createFeishuAdapter>[0] = {
       channelId: (overrides.channelId as string) ?? 'ch-1',
       channelType: 'feishu',
       agentId: (overrides.agentId as string) ?? 'agent-1',
@@ -121,10 +121,12 @@ describe('FeishuAdapter', () => {
         encrypt_key: (overrides.encrypt_key as string) ?? '',
         verification_token: (overrides.verification_token as string) ?? '',
         allowed_chat_ids: (overrides.allowed_chat_ids as string[]) ?? ['oc_123'],
-        domain: (overrides.domain as 'feishu' | 'lark') ?? 'feishu',
-        ...(Object.hasOwn(overrides, 'mention_only') ? { mention_only: overrides.mention_only as boolean } : {})
+        domain: (overrides.domain as 'feishu' | 'lark') ?? 'feishu'
       }
-    })
+    }
+    if (Object.hasOwn(overrides, 'mention_only'))
+      Object.assign(options.channelConfig, { mention_only: overrides.mention_only as boolean })
+    return createFeishuAdapter(options)
   }
 
   it('reports connected only after the official channel handshake completes', async () => {

@@ -2230,13 +2230,9 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
           expect(body.has('negativePrompt')).toBe(false)
           expect(body.has('numInferenceSteps')).toBe(false)
         } else {
-          expect(JSON.parse(String(request?.body))).toEqual({
-            model: modelId,
-            prompt: 'a red circle',
-            n: 1,
-            ...(modelId === 'qwen-image' ? { response_format: 'b64_json' } : {}),
-            ...expectedParameters
-          })
+          const expected = { model: modelId, prompt: 'a red circle', n: 1 }
+          if (modelId === 'qwen-image') Object.assign(expected, { response_format: 'b64_json' })
+          expect(JSON.parse(String(request?.body))).toEqual({ ...expected, ...expectedParameters })
         }
         expect(result.images).toEqual(['QUJD'])
       }
