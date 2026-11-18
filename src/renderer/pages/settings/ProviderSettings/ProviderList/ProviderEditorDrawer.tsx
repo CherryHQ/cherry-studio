@@ -397,14 +397,16 @@ export default function ProviderEditorDrawer({
     if (mode.kind === 'duplicate') {
       const { source } = mode
       const defaultChatEndpoint = source.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      const copiedBilling: Pick<Extract<ProviderEditorSubmit, { mode: 'create' }>, 'billing'> = {}
+      // oxlint-disable-next-line no-restricted-globals -- Duplicate nested billing settings once without sharing the source provider config.
+      if (source.settings?.billing) copiedBilling.billing = structuredClone(source.settings.billing)
       const submit: Extract<ProviderEditorSubmit, { mode: 'create' }> = {
         mode: 'create',
         name: trimmedName,
         defaultChatEndpoint,
         presetProviderId: source.presetProviderId,
         authConfig: emptyAuthConfigFor(source.authType),
-        // oxlint-disable-next-line no-restricted-globals -- Duplicate nested billing settings once without sharing the source provider config.
-        ...(source.settings?.billing ? { billing: structuredClone(source.settings.billing) } : {}),
+        ...copiedBilling,
         ...logoField
       }
       if (duplicateNeedsBaseUrl(source.authType)) {

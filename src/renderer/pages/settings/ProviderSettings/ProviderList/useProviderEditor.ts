@@ -141,19 +141,23 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
       const creationMode = modeRef.current?.kind
       const providerId = uuid()
       const submitToken = ++submitTokenRef.current
-      const provider = await createProvider({
+      const identity: Pick<Parameters<typeof createProvider>[0], 'providerId' | 'name' | 'presetProviderId'> = {
         providerId,
-        name: trimmedName,
-        ...(params.presetProviderId ? { presetProviderId: params.presetProviderId } : {}),
-        defaultChatEndpoint: params.defaultChatEndpoint,
-        ...(params.endpointConfigs ? { endpointConfigs: params.endpointConfigs } : {}),
-        ...(params.authConfig ? { authConfig: params.authConfig } : {}),
-        ...(params.apiKeys && params.apiKeys.length > 0 ? { apiKeys: params.apiKeys } : {}),
-        ...(params.billing ? { providerSettings: { billing: params.billing } } : {}),
-        // Preset-key logo persists atomically with the row; an upload is applied
-        // via the command below. A `clear` on create is a no-op (default icon).
-        ...(params.logo?.kind === 'key' ? { logo: { kind: 'key', key: params.logo.key } } : {})
-      })
+        name: trimmedName
+      }
+      if (params.presetProviderId) identity.presetProviderId = params.presetProviderId
+      const input: Parameters<typeof createProvider>[0] = {
+        ...identity,
+        defaultChatEndpoint: params.defaultChatEndpoint
+      }
+      if (params.endpointConfigs) input.endpointConfigs = params.endpointConfigs
+      if (params.authConfig) input.authConfig = params.authConfig
+      if (params.apiKeys && params.apiKeys.length > 0) input.apiKeys = params.apiKeys
+      if (params.billing) input.providerSettings = { billing: params.billing }
+      // Preset-key logo persists atomically with the row; an upload is applied
+      // via the command below. A `clear` on create is a no-op (default icon).
+      if (params.logo?.kind === 'key') input.logo = { kind: 'key', key: params.logo.key }
+      const provider = await createProvider(input)
 
       if (params.logo?.kind === 'image') {
         await applyLogo(provider.id, params.logo)
