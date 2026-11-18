@@ -30,12 +30,15 @@ export function deriveLegacyReasoningFields(controls: readonly ReasoningControl[
   if (effort && toggle && supportedEfforts && !supportedEfforts.includes('none')) {
     supportedEfforts = [...supportedEfforts, 'none']
   }
+  let thinkingTokenLimits: DerivedReasoningFields['thinkingTokenLimits']
+  if (budget) {
+    thinkingTokenLimits = { min: budget.min, max: budget.max }
+    if (budget.default != null) thinkingTokenLimits.default = budget.default
+  }
 
   return {
     supportedEfforts,
-    thinkingTokenLimits: budget
-      ? { min: budget.min, max: budget.max, ...(budget.default != null ? { default: budget.default } : {}) }
-      : undefined,
+    thinkingTokenLimits,
     defaultEffort: effort?.default
   }
 }
