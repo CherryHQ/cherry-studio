@@ -34,8 +34,8 @@ export function readArchive(configDir: string, cwd: string, sessionId: string): 
     })
     const archive: NativeArchive = { messages: [], children: [], entries: [] }
     let received = false
-    const fail = (cause: unknown) => {
-      reject(cause)
+    const fail = (error: unknown) => {
+      reject(error)
       void worker.terminate()
     }
     worker.on('message', (frame: ArchiveFrame) => {

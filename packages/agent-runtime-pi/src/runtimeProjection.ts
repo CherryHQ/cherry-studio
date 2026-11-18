@@ -69,7 +69,7 @@ export class PiProjection {
   constructor(
     readonly ref: Thread,
     private session: AgentSession,
-    private readonly report: (cause: unknown) => void,
+    private readonly report: (error: unknown) => void,
     children: boolean
   ) {
     const snapshot: Omit<Extract<ObservationPayload, { type: 'snapshot' }>, 'activity'> = {

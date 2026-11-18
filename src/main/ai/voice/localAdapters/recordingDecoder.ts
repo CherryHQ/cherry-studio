@@ -10,8 +10,8 @@ export async function decodeVoiceRecording(audio: Uint8Array, callerSignal?: Abo
     .get('UtilityProcessManager')
     .client(voiceAudioProcess)
     .request('decode', { audio, mimeType: 'audio/webm;codecs=opus' }, { signal })
-    .catch((cause: unknown) => {
+    .catch((error: unknown) => {
       if (timeout.aborted && !callerSignal?.aborted) throw new VoiceRuntimeError('timeout')
-      throw cause
+      throw error
     })
 }

@@ -166,8 +166,8 @@ export class ApiGateway {
     const http = server.raw.node.server
     if (!http.listening) http.closeAllConnections?.()
     // `stop()` must never reject: `onDeactivate` rethrows, which would strand the service activated.
-    const closed = Promise.resolve(server.stop()).catch((cause: unknown) =>
-      logger.warn('API server close failed', cause as Error)
+    const closed = Promise.resolve(server.stop()).catch((error: unknown) =>
+      logger.warn('API server close failed', error as Error)
     )
     if (await settledWithin(closed, SHUTDOWN_GRACE_MS)) return
 

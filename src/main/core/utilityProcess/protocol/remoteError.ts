@@ -5,16 +5,16 @@
 import type { RemoteErrorShape } from './frames'
 
 /** Flattens any thrown value into the clone-safe subset the wire carries. */
-export function toRemoteError(cause: unknown): RemoteErrorShape {
+export function toRemoteError(error: unknown): RemoteErrorShape {
   try {
-    if (cause instanceof Error) {
-      const code = (cause as { code?: unknown }).code
-      const shape: RemoteErrorShape = { name: String(cause.name || 'Error'), message: String(cause.message) }
-      if (typeof cause.stack === 'string') shape.stack = cause.stack
+    if (error instanceof Error) {
+      const code = (error as { code?: unknown }).code
+      const shape: RemoteErrorShape = { name: String(error.name || 'Error'), message: String(error.message) }
+      if (typeof error.stack === 'string') shape.stack = error.stack
       if (typeof code === 'string' || typeof code === 'number') shape.code = code
       return shape
     }
-    return { name: 'Error', message: typeof cause === 'string' ? cause : safeStringify(cause) }
+    return { name: 'Error', message: typeof error === 'string' ? error : safeStringify(error) }
   } catch {
     // Throwing getters and null prototypes are rare, but this also runs inside the child's
     // uncaughtException handler, where a throw would skip the abort-and-exit sequence entirely.
@@ -22,11 +22,11 @@ export function toRemoteError(cause: unknown): RemoteErrorShape {
   }
 }
 
-function safeStringify(cause: unknown): string {
+function safeStringify(value: unknown): string {
   try {
-    return JSON.stringify(cause) ?? String(cause)
+    return JSON.stringify(value) ?? String(value)
   } catch {
-    return String(cause)
+    return String(value)
   }
 }
 

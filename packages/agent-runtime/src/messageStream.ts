@@ -9,7 +9,7 @@ export class RuntimeMessageStream {
   private controller!: ReadableStreamDefaultController<UIMessageChunk>
   private readonly reading: Promise<void>
   private pending = Promise.resolve<RuntimeMessage | undefined>(undefined)
-  private receipt?: { revision: number; resolve(message: RuntimeMessage): void; reject(cause: unknown): void }
+  private receipt?: { revision: number; resolve(message: RuntimeMessage): void; reject(error: unknown): void }
   private revision = 0
   private failure?: unknown
   private closed = false

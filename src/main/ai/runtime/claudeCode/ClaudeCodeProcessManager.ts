@@ -63,15 +63,15 @@ function logClaudeCodeProcessFailure(diagnostics: ClaudeCodeProcessDiagnostics):
   })
 }
 
-function recordSynchronousSpawnFailure(diagnostics: ClaudeCodeProcessDiagnostics, cause: unknown): void {
-  if (!(cause instanceof Error)) return
-  recordClaudeCodeSpawnError(diagnostics, cause)
+function recordSynchronousSpawnFailure(diagnostics: ClaudeCodeProcessDiagnostics, error: unknown): void {
+  if (!(error instanceof Error)) return
+  recordClaudeCodeSpawnError(diagnostics, error)
   logClaudeCodeProcessFailure(diagnostics)
 }
 
-function macOsForkFallbackUid(cause: unknown): number | undefined {
+function macOsForkFallbackUid(error: unknown): number | undefined {
   if (process.platform !== 'darwin' || typeof process.getuid !== 'function') return undefined
-  if (!(cause instanceof Error) || (cause as NodeJS.ErrnoException).code !== 'EBADF') return undefined
+  if (!(error instanceof Error) || (error as NodeJS.ErrnoException).code !== 'EBADF') return undefined
 
   // Apple posix_spawn rejects pipe fds above 10239 (libuv#5204); same uid selects libuv's fork/exec path.
   return process.getuid()

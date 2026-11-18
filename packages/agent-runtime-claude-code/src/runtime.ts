@@ -22,9 +22,9 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
   let closed = false
   const closingAccess = new AbortController()
   let shutdown: Promise<OperationResult<void>> | undefined
-  const report = (cause: unknown) => {
+  const report = (error: unknown) => {
     try {
-      options.onError?.(cause)
+      options.onError?.(error)
     } catch {
       /* Diagnostics cannot affect execution. */
     }

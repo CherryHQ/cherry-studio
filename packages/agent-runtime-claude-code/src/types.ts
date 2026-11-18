@@ -46,7 +46,7 @@ export interface ClaudeCodeRuntimeOptions {
   readonly contextWindow?: { readonly model: string; readonly tokens: number }
   /** Resolve the configuration of this exact saved root, without starting execution. */
   readonly load?: (root: Thread) => Promise<ClaudeSessionOptions | undefined>
-  readonly onError?: (cause: unknown) => void
+  readonly onError?: (error: unknown) => void
 }
 
 /** Native SDK stream event omitted from the pinned SDKMessage declaration. */

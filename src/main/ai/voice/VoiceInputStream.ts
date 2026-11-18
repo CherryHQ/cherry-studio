@@ -4,7 +4,7 @@ import { VoiceRuntimeError } from './VoiceRuntimeError'
 
 /** A single bounded handoff; a write acknowledges consumption, not inference completion. */
 export class VoiceInputStream implements AsyncIterable<SpeechPcmChunk> {
-  private pending?: { chunk: SpeechPcmChunk; resolve: () => void; reject: (cause: unknown) => void }
+  private pending?: { chunk: SpeechPcmChunk; resolve: () => void; reject: (error: unknown) => void }
   private wake?: () => void
   private frames = 0
   private ended = false
@@ -35,9 +35,9 @@ export class VoiceInputStream implements AsyncIterable<SpeechPcmChunk> {
     this.wake?.()
   }
 
-  close(cause: unknown = new VoiceRuntimeError('aborted')): void {
-    this.failure = cause
-    this.pending?.reject(cause)
+  close(error: unknown = new VoiceRuntimeError('aborted')): void {
+    this.failure = error
+    this.pending?.reject(error)
     this.pending = undefined
     this.wake?.()
   }

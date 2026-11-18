@@ -310,8 +310,8 @@ function sanitizeDiagnostic(value: string): string {
   return redactSecretText(value).slice(0, DIAGNOSTIC_LIMIT)
 }
 
-function getStartFailureReason(cause: unknown, message: string): HermesDashboardStartFailureReason {
-  if (cause instanceof HermesDashboardStartError) return cause.reason
+function getStartFailureReason(error: unknown, message: string): HermesDashboardStartFailureReason {
+  if (error instanceof HermesDashboardStartError) return error.reason
   if (/dashboard startup was cancelled/i.test(message)) return 'cancelled'
   return 'startup_failed'
 }

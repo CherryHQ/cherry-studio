@@ -37,8 +37,8 @@ export class OAuthTransientError extends OAuthServiceError {
  * payloads, and the logger serializes errors to disk verbatim. Pass the result
  * to `logger.error(msg, describeOAuthError(err))` instead of the raw error.
  */
-export function describeOAuthError(cause: unknown): { name: string; message: string; status?: number } {
-  let current: unknown = cause
+export function describeOAuthError(error: unknown): { name: string; message: string; status?: number } {
+  let current: unknown = error
   // Walk down to the most specific cause so an HTTP status is not hidden behind
   // an OAuthServiceError wrapper.
   for (let depth = 0; depth < 5 && current instanceof Error; depth++) {
@@ -46,12 +46,12 @@ export function describeOAuthError(cause: unknown): { name: string; message: str
     if (typeof status === 'number') {
       return { name: current.name, message: current.message, status }
     }
-    const nestedCause = (current as { cause?: unknown }).cause
-    if (!(nestedCause instanceof Error)) break
-    current = nestedCause
+    const cause = (current as { cause?: unknown }).cause
+    if (!(cause instanceof Error)) break
+    current = cause
   }
-  if (cause instanceof Error) {
-    return { name: cause.name, message: cause.message }
+  if (error instanceof Error) {
+    return { name: error.name, message: error.message }
   }
-  return { name: 'UnknownError', message: String(cause) }
+  return { name: 'UnknownError', message: String(error) }
 }

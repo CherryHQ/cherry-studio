@@ -387,7 +387,7 @@ const MARKETPLACE_SOURCES: readonly MarketplaceSource[] = [
 export async function searchSkillMarketplaces(
   query: string,
   fetchJson: SkillMarketplaceFetch,
-  onSourceFailure?: (source: SkillSearchSource, cause: unknown) => void,
+  onSourceFailure?: (source: SkillSearchSource, error: unknown) => void,
   selectedSource?: SkillSearchSource
 ): Promise<SkillSearchResult[]> {
   const trimmed = query.trim()

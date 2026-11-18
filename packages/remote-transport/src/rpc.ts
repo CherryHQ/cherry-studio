@@ -29,11 +29,11 @@ export class RemoteRpcServer<Context> {
   private readonly server: JSONRPCServer<Context>
   private readonly active = new Set<string>()
 
-  constructor(onError: (message: string, cause: unknown) => void) {
+  constructor(onError: (message: string, error: unknown) => void) {
     this.server = new JSONRPCServer({ errorListener: onError })
-    this.server.mapErrorToJSONRPCErrorResponse = (id, cause: unknown) =>
-      cause instanceof JSONRPCErrorException
-        ? createJSONRPCErrorResponse(id, cause.code, cause.message, cause.data)
+    this.server.mapErrorToJSONRPCErrorResponse = (id, error: unknown) =>
+      error instanceof JSONRPCErrorException
+        ? createJSONRPCErrorResponse(id, error.code, error.message, error.data)
         : createJSONRPCErrorResponse(id, -32603, 'Internal error')
   }
 

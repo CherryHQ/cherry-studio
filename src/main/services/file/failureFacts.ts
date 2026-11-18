@@ -2,11 +2,11 @@ import { fileErrorCodes } from '@shared/ipc/errors/file'
 import type { FailureFacts } from '@shared/types/errorReporting'
 import { isCancellation } from '@shared/utils/errorReporting'
 
-export function classifyFileFailure(cause: unknown, externalPath = false): FailureFacts {
-  if (isCancellation(cause)) {
+export function classifyFileFailure(error: unknown, externalPath = false): FailureFacts {
+  if (isCancellation(error)) {
     return { source: 'application', kind: 'expected', reason: 'cancelled', outcome: 'cancelled' }
   }
-  const code = cause && typeof cause === 'object' && 'code' in cause ? cause.code : undefined
+  const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
   if (code === fileErrorCodes.COMMITTED_METADATA_PENDING) {
     return { source: 'application', kind: 'reliability', reason: 'file_metadata_pending', outcome: 'failed' }
   }
@@ -57,7 +57,7 @@ export function classifyFileFailure(cause: unknown, externalPath = false): Failu
   return {
     source: 'application',
     kind:
-      cause instanceof TypeError || cause instanceof ReferenceError || cause instanceof SyntaxError
+      error instanceof TypeError || error instanceof ReferenceError || error instanceof SyntaxError
         ? 'defect'
         : 'unknown',
     reason: 'file_operation_failed',

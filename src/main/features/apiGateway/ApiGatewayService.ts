@@ -120,9 +120,9 @@ export class ApiGatewayService extends BaseService implements Activatable {
       const { port } = this.getCurrentConfig()
       const endpoint = { host: this.listeningHost(), port }
       this.apiGateway = new ApiGateway(endpoint)
-      await this.apiGateway.start().catch((cause: unknown) => {
-        const mapped = mapGatewayBindError(cause, endpoint, 'public')
-        if (mapped !== cause) logger.error('Public API gateway listen failed', cause as Error)
+      await this.apiGateway.start().catch((error: unknown) => {
+        const mapped = mapGatewayBindError(error, endpoint, 'public')
+        if (mapped !== error) logger.error('Public API gateway listen failed', error as Error)
         throw mapped
       })
       this.publishRunningState(true)
@@ -376,9 +376,9 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   private async ensureInternalListener(): Promise<string> {
-    this.internalGateway ??= this.startInternalGateway().catch((cause: unknown) => {
+    this.internalGateway ??= this.startInternalGateway().catch((error: unknown) => {
       this.internalGateway = null
-      throw cause
+      throw error
     })
     await this.internalGateway
     return this.internalOrigin!
@@ -399,9 +399,9 @@ export class ApiGatewayService extends BaseService implements Activatable {
         return candidate
       },
       { retries: 2, shouldRetry: isGatewayBindPermissionError }
-    ).catch((cause: unknown) => {
-      const mapped = mapGatewayBindError(cause, endpoint, 'internal')
-      if (mapped !== cause) logger.error('Internal API gateway listen failed', cause as Error)
+    ).catch((error: unknown) => {
+      const mapped = mapGatewayBindError(error, endpoint, 'internal')
+      if (mapped !== error) logger.error('Internal API gateway listen failed', error as Error)
       throw mapped
     })
     this.internalOrigin = gatewayClientOrigin(INTERNAL_GATEWAY_HOST, gateway.getPort())

@@ -48,7 +48,7 @@ export class DurableProjection {
 
   constructor(
     readonly ref: Thread,
-    report: (cause: unknown) => void
+    report: (error: unknown) => void
   ) {
     this.feed = new ThreadFeed(
       {

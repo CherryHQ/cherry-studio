@@ -96,8 +96,8 @@ type DataResetMarker = z.infer<typeof dataResetMarkerSchema>
 
 /** The marker rename landed, but directory durability is unknown. */
 class MarkerCommitError extends Error {
-  constructor(cause: unknown) {
-    super(`Data reset marker may have committed: ${String(cause)}`)
+  constructor(error: unknown) {
+    super(`Data reset marker may have committed: ${String(error)}`)
   }
 }
 

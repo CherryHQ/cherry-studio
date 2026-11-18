@@ -80,9 +80,9 @@ export class IpcError extends Error {
   }
 
   /** Normalize any thrown value into an IpcError (INTERNAL for unknown causes). */
-  static from(cause: unknown): IpcError {
-    if (cause instanceof IpcError) return cause
-    if (cause instanceof Error) return new IpcError(IpcErrorCode.INTERNAL, cause.message)
-    return new IpcError(IpcErrorCode.INTERNAL, String(cause))
+  static from(value: unknown): IpcError {
+    if (value instanceof IpcError) return value
+    if (value instanceof Error) return new IpcError(IpcErrorCode.INTERNAL, value.message)
+    return new IpcError(IpcErrorCode.INTERNAL, String(value))
   }
 }

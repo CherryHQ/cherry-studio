@@ -12,9 +12,9 @@ const failureFactsSchema = z.object({
 
 export const parseFailureFacts = failureFactsSchema.optional().catch(undefined).parse
 
-export function isCancellation(cause: unknown): boolean {
-  if (!cause || typeof cause !== 'object') return false
-  const value = cause as Record<string, unknown>
+export function isCancellation(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const value = error as Record<string, unknown>
   return (
     value.name === 'AbortError' ||
     value.name === 'CanceledError' ||
@@ -28,12 +28,12 @@ export function shouldReportFailure(facts: FailureFacts): boolean {
   return facts.outcome !== 'retrying' || facts.kind === 'defect'
 }
 
-export function hasReportingOwner(cause: unknown): boolean {
-  return !!cause && typeof cause === 'object' && 'reportingHandled' in cause && cause.reportingHandled === true
+export function hasReportingOwner(error: unknown): boolean {
+  return !!error && typeof error === 'object' && 'reportingHandled' in error && error.reportingHandled === true
 }
 
-export function markReportingHandled(cause: unknown): void {
-  if (cause && typeof cause === 'object' && Object.isExtensible(cause) && !hasReportingOwner(cause)) {
-    Object.defineProperty(cause, 'reportingHandled', { value: true, configurable: true, writable: true })
+export function markReportingHandled(error: unknown): void {
+  if (error && typeof error === 'object' && Object.isExtensible(error) && !hasReportingOwner(error)) {
+    Object.defineProperty(error, 'reportingHandled', { value: true, configurable: true, writable: true })
   }
 }

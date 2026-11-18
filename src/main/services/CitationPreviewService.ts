@@ -33,10 +33,10 @@ type PreviewJob = {
   readonly promise: Promise<string>
 }
 
-function createErrorLogContext(safeUrl: string, cause: unknown): { origin: string; errorName: string } {
+function createErrorLogContext(safeUrl: string, error: unknown): { origin: string; errorName: string } {
   return {
     origin: new URL(safeUrl).origin,
-    errorName: cause instanceof Error ? cause.name || 'Error' : 'UnknownError'
+    errorName: error instanceof Error ? error.name || 'Error' : 'UnknownError'
   }
 }
 

@@ -25,8 +25,8 @@ export type ProxyConnectionTestResult = {
   error?: 'invalid_config' | 'authentication_required' | 'timeout' | 'unreachable' | 'http_error' | 'connection_failed'
 }
 
-function classifyProxyTestError(cause: unknown): NonNullable<ProxyConnectionTestResult['error']> {
-  const message = cause instanceof Error ? `${cause.name} ${cause.message}`.toLowerCase() : ''
+function classifyProxyTestError(error: unknown): NonNullable<ProxyConnectionTestResult['error']> {
+  const message = error instanceof Error ? `${error.name} ${error.message}`.toLowerCase() : ''
   if (message.includes('proxy_auth') || message.includes('proxy authentication') || message.includes('407')) {
     return 'authentication_required'
   }
