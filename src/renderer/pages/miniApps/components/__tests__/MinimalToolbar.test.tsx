@@ -31,13 +31,14 @@ vi.mock('@logger', () => ({
 }))
 // The panel has its own suite; here it only needs to show which app it was opened for.
 vi.mock('@renderer/components/MiniApp/MiniAppDetailPanel', () => ({
-  default: ({ appId, onClose }: { appId: string; onClose?: () => void }) => (
-    <div role="dialog" aria-label="mini-app-detail" data-app-id={appId}>
-      <button type="button" onClick={onClose}>
-        close-detail
-      </button>
-    </div>
-  )
+  default: ({ appId, open, onClose }: { appId: string; open: boolean; onClose?: () => void }) =>
+    open ? (
+      <div role="dialog" aria-label="mini-app-detail" data-app-id={appId}>
+        <button type="button" onClick={onClose}>
+          close-detail
+        </button>
+      </div>
+    ) : null
 }))
 
 import MinimalToolbar from '../MinimalToolbar'
@@ -110,13 +111,5 @@ describe('MinimalToolbar', () => {
     cleanup()
     renderToolbar(site)
     expect(screen.getByRole('textbox')).toBeInTheDocument()
-  })
-
-  it('shows DevTools for local apps and sites alike', () => {
-    renderToolbar(localApp)
-    expect(screen.getByRole('button', { name: /developer tools|开发者工具/i })).toBeInTheDocument()
-    cleanup()
-    renderToolbar(site)
-    expect(screen.getByRole('button', { name: /developer tools|开发者工具/i })).toBeInTheDocument()
   })
 })

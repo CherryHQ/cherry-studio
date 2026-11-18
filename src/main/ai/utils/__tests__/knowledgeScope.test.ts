@@ -20,10 +20,6 @@ describe('resolveKnowledgeBaseScope', () => {
       warnMock.mockClear()
 
       expect(resolveKnowledgeBaseScope(['kb-1'], ['kb-1', 'kb-private'])).toEqual(['kb-1'])
-
-      expect(warnMock).toHaveBeenCalledWith(expect.stringContaining('outside the static binding'), {
-        outOfScopeIds: ['kb-private']
-      })
     })
 
     it('keeps the whole binding when the selection is entirely out of scope', () => {

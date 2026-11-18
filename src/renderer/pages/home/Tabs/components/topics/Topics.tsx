@@ -68,6 +68,7 @@ import {
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
+import { getConversationListSortLocale } from '@renderer/utils/chat/conversationListSort'
 import { buildResourceListGroupDropAnchor, withSoleGroupLabelHidden } from '@renderer/utils/chat/resourceListBase'
 import {
   applyOptimisticTopicDisplayMove,
@@ -229,6 +230,8 @@ export function Topics({
   const [storedPanePosition, setStoredPanePosition] = usePreference('topic.tab.position')
   const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
   const [assistantSortType, setAssistantSortType] = usePreference('assistant.tab.sort_type')
+  const sortLocale = getConversationListSortLocale()
+  const [topicSort] = usePreference('chat.topics.sort')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const resolvedPanePosition = panePosition ?? storedPanePosition
   const setResolvedPanePosition =
@@ -416,6 +419,7 @@ export function Topics({
         assistantIconType,
         {
           emoji: assistant.emoji,
+          avatarSrc: assistant.avatarSrc,
           modelId: assistant.modelId,
           modelName: assistant.modelName
         },
@@ -837,11 +841,12 @@ export function Topics({
     () =>
       sortTopicsForDisplayGroups(topics, {
         assistantRankById,
-        manualOrder: isRightPanel,
+        sort: topicSort,
+        sortLocale,
         mode: displayMode,
         now: groupNow
       }),
-    [assistantRankById, displayMode, groupNow, isRightPanel, topics]
+    [assistantRankById, displayMode, groupNow, sortLocale, topicSort, topics]
   )
 
   const groupedTopics = useMemo(
@@ -924,7 +929,7 @@ export function Topics({
       : visibleFilteredTopics.length === 0
         ? 'empty'
         : 'idle'
-  const dragReady = (isAssistantDisplayMode || isRightPanel) && isFullyLoaded && !isLoadingAll && !isRefreshing
+  const dragReady = isFullyLoaded && !isLoadingAll && !isRefreshing
   const hasActiveCenterSurface = manageAssistantsActive || historyRecordsActive
   const openAssistantEditor = useCallback((assistantId: string) => {
     setEditDialogTarget({ kind: 'assistant', id: assistantId })
@@ -1349,6 +1354,7 @@ export function Topics({
 
       return renderAssistantEntityIcon(assistantIconType, {
         emoji: assistant.emoji,
+        avatarSrc: assistant.avatarSrc,
         modelId: assistant.modelId ?? defaultModelId,
         modelName: assistant.modelName
       })
@@ -1430,8 +1436,8 @@ export function Topics({
     [activeTopic, filteredTopics, setTopicDisplayMode, setTopicExpansionAssistant]
   )
   const canDragTopicItem = useCallback(
-    ({ item }: { item: Topic }) => (isAssistantDisplayMode || isRightPanel) && !item.pinned,
-    [isAssistantDisplayMode, isRightPanel]
+    ({ item }: { item: Topic }) => topicSort.by === 'orderKey' && !item.pinned,
+    [topicSort.by]
   )
 
   const canDropTopicItem = useCallback(
@@ -1444,16 +1450,16 @@ export function Topics({
       sourceGroupId: string
       targetGroupId: string
     }) => {
-      if (overItem?.pinned || targetGroupId === TOPIC_PINNED_GROUP_ID) return false
+      if (topicSort.by !== 'orderKey' || overItem?.pinned || targetGroupId === TOPIC_PINNED_GROUP_ID) return false
       // The right panel only reorders inside one time group; groups themselves are derived from activity.
-      if (isRightPanel) return sourceGroupId === targetGroupId
+      if (!isAssistantDisplayMode) return sourceGroupId === targetGroupId
       return (
         isAssistantDisplayMode &&
         targetGroupId !== TOPIC_UNLINKED_ASSISTANT_GROUP_ID &&
         resolveAssistantIdForTopicGroup(targetGroupId, assistantById) !== undefined
       )
     },
-    [assistantById, isAssistantDisplayMode, isRightPanel]
+    [assistantById, isAssistantDisplayMode, topicSort.by]
   )
 
   const canDragTopicGroup = useCallback(
@@ -1512,7 +1518,8 @@ export function Topics({
 
   const handleTopicReorder = useCallback(
     async (payload: ResourceListReorderPayload) => {
-      if (!isAssistantDisplayMode && !(isRightPanel && payload.type === 'item')) return
+      if (payload.type === 'item' && topicSort.by !== 'orderKey') return
+      if (!isAssistantDisplayMode && payload.type === 'group') return
 
       if (payload.type === 'group') {
         const activeGroupId = getAssistantGroupIdFromTopicSectionId(payload.activeGroupId)
@@ -1589,7 +1596,7 @@ export function Topics({
         payload.overType === 'item' ? topics.find((candidate) => candidate.id === payload.overId) : undefined
       if (overTopic?.pinned) return
 
-      const targetAssistantId = isRightPanel
+      const targetAssistantId = !isAssistantDisplayMode
         ? (topic.assistantId ?? null)
         : resolveAssistantIdForTopicGroup(payload.targetGroupId, assistantById)
       if (targetAssistantId === undefined) return
@@ -1618,11 +1625,11 @@ export function Topics({
       assistantGroupById,
       isAssistantDisplayMode,
       isGroupGrouping,
-      isRightPanel,
       moveTopic,
       orderedAssistants,
       refreshAssistants,
       reorderAssistantGroup,
+      topicSort.by,
       t,
       topics
     ]
@@ -1660,9 +1667,9 @@ export function Topics({
         groupHeaderClickBehavior={getGroupHeaderClickBehavior}
         dragCapabilities={{
           groups: dragReady && isAssistantDisplayMode,
-          items: dragReady,
-          itemSameGroup: dragReady,
-          itemCrossGroup: dragReady && isAssistantDisplayMode
+          items: dragReady && topicSort.by === 'orderKey',
+          itemSameGroup: dragReady && topicSort.by === 'orderKey',
+          itemCrossGroup: dragReady && topicSort.by === 'orderKey' && isAssistantDisplayMode
         }}
         canDragGroup={canDragTopicGroup}
         canDropGroup={canDropTopicGroup}
@@ -1788,7 +1795,7 @@ export function Topics({
             panePosition={canSetPanePosition ? resolvedPanePosition : undefined}
             sidebarTopicFavoriteIdSet={sidebarTopicFavoriteIdSet}
             topicsLength={topics.length}
-            variant={isAssistantDisplayMode || isRightPanel ? 'draggable' : 'plain'}
+            variant={isAssistantDisplayMode || isRightPanel || topicSort.by === 'orderKey' ? 'draggable' : 'plain'}
           />
         </SessionHoverPreviewGroup>
 

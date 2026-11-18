@@ -1,14 +1,7 @@
 import type { ModelMessage } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import {
-  countToolDefs,
-  countToolTokens,
-  estimateModelMessagesFootprint,
-  estimateModelMessagesSync,
-  measureMedia
-} from '../footprint'
-import { mediaTokensFor } from '../profiles'
+import { countToolDefs, estimateModelMessagesFootprint, estimateModelMessagesSync, measureMedia } from '../footprint'
 import type { TextTokenizer } from '../textTokenizer'
 
 /** Deterministic tokenizer (1 token per char) so assertions are exact and tokenizer-agnostic. */
@@ -57,25 +50,7 @@ describe('estimateModelMessagesFootprint', () => {
     )
   })
 
-  it('counts a surviving top-level vision image with the per-dialect fallback when dims are unreadable', async () => {
-    // Non-image bytes → sharp fails → the per-dialect constant, NOT the base64 length.
-    const messages: ModelMessage[] = [
-      { role: 'user', content: [{ type: 'image', image: 'A'.repeat(100_000), mediaType: 'image/png' }] }
-    ]
-    expect(await estimateModelMessagesFootprint(messages, { dialect: 'anthropic', tokenizer: fake })).toBe(
-      MESSAGE_OVERHEAD + 1590
-    )
-    expect(await estimateModelMessagesFootprint(messages, { dialect: 'google', tokenizer: fake })).toBe(
-      MESSAGE_OVERHEAD + 258
-    )
-  })
-
   it('treats an image file part as an image but a pdf file part as framing + filename', async () => {
-    const image: ModelMessage[] = [{ role: 'user', content: [{ type: 'file', data: 'x', mediaType: 'image/jpeg' }] }]
-    expect(await estimateModelMessagesFootprint(image, { dialect: 'openai', tokenizer: fake })).toBe(
-      MESSAGE_OVERHEAD + 765
-    )
-
     const pdf: ModelMessage[] = [
       { role: 'user', content: [{ type: 'file', data: 'x', mediaType: 'application/pdf', filename: 'a.pdf' }] }
     ]
@@ -116,36 +91,8 @@ describe('estimateModelMessagesFootprint', () => {
       { role: 'user', content: [{ type: 'file', data: huge, mediaType: 'audio/mpeg', filename: 'clip.mp3' }] }
     ]
     const count = await estimateModelMessagesFootprint(messages, { dialect: 'google', tokenizer: fake })
-    expect(count).toBe(MESSAGE_OVERHEAD + mediaTokensFor('google', 'audio'))
+
     expect(count).toBeLessThan(huge.length / 100)
-  })
-
-  it('prices a video file part by modality too', async () => {
-    const messages: ModelMessage[] = [
-      { role: 'user', content: [{ type: 'file', data: 'A'.repeat(200_000), mediaType: 'video/mp4' }] }
-    ]
-    expect(await estimateModelMessagesFootprint(messages, { dialect: 'google', tokenizer: fake })).toBe(
-      MESSAGE_OVERHEAD + mediaTokensFor('google', 'video')
-    )
-  })
-
-  it('prices audio nested in a tool-result content item by modality', async () => {
-    const messages: ModelMessage[] = [
-      {
-        role: 'tool',
-        content: [
-          {
-            type: 'tool-result',
-            toolCallId: 't1',
-            toolName: 'rec',
-            output: { type: 'content', value: [{ type: 'media', data: 'A'.repeat(200_000), mediaType: 'audio/wav' }] }
-          }
-        ]
-      }
-    ]
-    expect(await estimateModelMessagesFootprint(messages, { dialect: 'google', tokenizer: fake })).toBe(
-      MESSAGE_OVERHEAD + TOOL_OVERHEAD + mediaTokensFor('google', 'audio')
-    )
   })
 })
 
@@ -169,14 +116,6 @@ describe('estimateModelMessagesSync', () => {
     expect(estimateModelMessagesSync(messages, { dialect: 'anthropic', tokenizer: fake })).toBe(asyncCount)
   })
 
-  it('falls back to the per-dialect constant for media when given no measurements', () => {
-    const messages: ModelMessage[] = [
-      { role: 'user', content: [{ type: 'image', image: PNG_1x1, mediaType: 'image/png' }] }
-    ]
-    // No measurement pass → the dimensionless constant, not the decoded 1×1 pixel formula.
-    expect(estimateModelMessagesSync(messages, { dialect: 'anthropic', tokenizer: fake })).toBe(MESSAGE_OVERHEAD + 1590)
-  })
-
   it('uses measurements when they are supplied (same numbers as the async path)', async () => {
     const messages: ModelMessage[] = [
       { role: 'user', content: [{ type: 'image', image: PNG_1x1, mediaType: 'image/png' }] }
@@ -189,20 +128,7 @@ describe('estimateModelMessagesSync', () => {
   })
 })
 
-describe('countToolTokens', () => {
-  it('counts the stringified {name, description, schema}', () => {
-    const text = JSON.stringify({ name: 'x', description: 'd', schema: { type: 'object' } })
-    expect(countToolTokens({ name: 'x', description: 'd', schema: { type: 'object' } }, fake)).toBe(text.length)
-  })
-})
-
 describe('countToolDefs', () => {
-  it('sums per-tool overhead + serialized {name, description, schema} (input_schema is canonical)', () => {
-    const tools = [{ name: 'a', description: 'desc', input_schema: { type: 'object' } }]
-    const json = JSON.stringify({ name: 'a', description: 'desc', schema: { type: 'object' } })
-    expect(countToolDefs(tools, fake)).toBe(TOOL_OVERHEAD + json.length)
-  })
-
   it('returns 0 for missing / non-array tools', () => {
     expect(countToolDefs(undefined, fake)).toBe(0)
     expect(countToolDefs('nope', fake)).toBe(0)

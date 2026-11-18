@@ -71,6 +71,7 @@ export function HighlightPlugin({
       }
     },
     view: (view) => {
+      reconcile(view.state.doc)
       let destroyed = false
       const highlight = () => {
         for (const block of blocks) {

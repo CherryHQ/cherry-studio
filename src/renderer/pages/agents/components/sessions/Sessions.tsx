@@ -60,6 +60,7 @@ import {
 import { toast } from '@renderer/services/toast'
 import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { getConversationListSortLocale } from '@renderer/utils/chat/conversationListSort'
 import { withSoleGroupLabelHidden } from '@renderer/utils/chat/resourceListBase'
 import {
   type AgentSessionDisplayMode,
@@ -69,7 +70,9 @@ import {
   canDropSessionItemInDisplayGroup,
   deriveSessionListView,
   getAgentIdFromSessionGroupId,
+  getSessionAgentGroupId,
   getWorkdirPathFromSessionGroupId,
+  getWorkspaceSessionGroupId,
   moveSessionAgentGroupAfterDrop,
   moveSessionWorkdirGroupAfterDrop,
   normalizeSessionDropPayload,
@@ -103,11 +106,13 @@ import {
 } from '@shared/ipc/errors/ai'
 
 import { rejectPendingAgentSessionImageActions } from '../../messages/agentSessionImageActionBus'
+import type { CreateAgentSessionDefaults } from '../../types'
 import { useOptionalAgentFileNavigation } from '../AgentRightPane'
 import { type AgentGroupActionContext, executeAgentGroupAction, resolveAgentGroupActions } from './agentGroupActions'
 import { buildCreateSessionSeedIndex } from './createSessionSeed'
 import { AgentGroupMoreMenu, WorkdirGroupMoreMenu } from './groupMoreMenus'
 import { SessionListBody } from './SessionListBody'
+import { EMPTY_SESSION_LIST_ITEM_RECONCILIATION, reconcileSessionListItems } from './sessionListItemSharing'
 import { useSessionCreation } from './useSessionCreation'
 import { useSessionExpansion } from './useSessionExpansion'
 import { useSessionGroupStructure } from './useSessionGroupStructure'
@@ -119,9 +124,8 @@ import {
   resolveWorkdirGroupActions,
   type WorkdirGroupActionContext
 } from './workdirGroupActions'
+
 const AgentSessionImageCaptureHost = lazy(() => import('../../messages/AgentSessionImageCaptureHost'))
-import type { CreateAgentSessionDefaults } from '../../types'
-import { EMPTY_SESSION_LIST_ITEM_RECONCILIATION, reconcileSessionListItems } from './sessionListItemSharing'
 
 type SessionsBaseProps = {
   agentSessionsSource: AgentSessionsSource
@@ -200,6 +204,8 @@ const Sessions = ({
   const groupNow = useCurrentDayStart()
 
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
+  const sortLocale = getConversationListSortLocale()
+  const [sessionSort] = usePreference('agent.session.sort')
   const [storedPanePosition, setStoredPanePosition] = usePreference('agent.session.position')
   // Agent session icon style is stored under its own key so it no longer mutates the assistant's.
   const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
@@ -263,7 +269,7 @@ const Sessions = ({
     !isRightPanel && displayMode === 'time'
       ? LEFT_PANEL_TIME_SESSION_GROUP_VISIBLE_COUNT
       : DEFAULT_SESSION_GROUP_VISIBLE_COUNT
-  const isDraggableMode = displayMode !== 'time'
+  const isDraggableMode = displayMode !== 'time' || sessionSort.by === 'orderKey'
   const dragReady = isDraggableMode && isFullyLoaded && !isLoadingAll && !isLoadingMore && !isValidating && !isLoading
   const {
     isLoading: isAgentPinsLoading,
@@ -273,6 +279,25 @@ const Sessions = ({
     togglePin: toggleAgentPin
   } = usePins('agent', { enabled: dataEnabled && displayMode === 'agent' })
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
+  const {
+    isLoading: isWorkspacePinsLoading,
+    isRefreshing: isWorkspacePinsRefreshing,
+    isMutating: isWorkspacePinsMutating,
+    pinnedIds: workspacePinnedIds,
+    togglePin: toggleWorkspacePin
+  } = usePins('workspace', { enabled: dataEnabled && displayMode === 'workdir' })
+  const isWorkspacePinActionDisabled = isWorkspacePinsLoading || isWorkspacePinsRefreshing || isWorkspacePinsMutating
+  const pinnedGroupIds = useMemo(
+    () =>
+      new Set(
+        displayMode === 'agent'
+          ? agentPinnedIds.map(getSessionAgentGroupId)
+          : displayMode === 'workdir'
+            ? workspacePinnedIds.map(getWorkspaceSessionGroupId)
+            : []
+      ),
+    [agentPinnedIds, displayMode, workspacePinnedIds]
+  )
 
   const sessionItemsReconciliationRef = useRef(EMPTY_SESSION_LIST_ITEM_RECONCILIATION)
   const apiBackedSessionItems = useMemo(() => {
@@ -397,7 +422,9 @@ const Sessions = ({
   const workdirDragReady =
     displayMode === 'workdir' && dragReady && !isWorkdirMetadataLoading && !isWorkdirMetadataRefreshing
   const agentDragReady = displayMode === 'agent' && dragReady && !isAgentsLoading
-  const itemDragReady = displayMode === 'workdir' ? workdirDragReady : agentDragReady
+  const itemDragReady =
+    sessionSort.by === 'orderKey' &&
+    (displayMode === 'workdir' ? workdirDragReady : displayMode === 'agent' ? agentDragReady : dragReady)
   const workspaceRowsForDisplay = useMemo(
     () =>
       optimisticWorkspaceOrderIds ? applyOptimisticOrder(workspaceRows, optimisticWorkspaceOrderIds) : workspaceRows,
@@ -433,10 +460,23 @@ const Sessions = ({
       },
       mode: displayMode,
       now: groupNow,
+      sort: sessionSort,
+      sortLocale,
       visibleAgentId: isRightPanel ? (agentIdFilter ?? null) : undefined,
       workspaces: workspaceRowsForDisplay
     }),
-    [agentById, agentIdFilter, agentRankById, displayMode, groupNow, isRightPanel, t, workspaceRowsForDisplay]
+    [
+      agentById,
+      agentIdFilter,
+      agentRankById,
+      displayMode,
+      groupNow,
+      isRightPanel,
+      sessionSort,
+      sortLocale,
+      t,
+      workspaceRowsForDisplay
+    ]
   )
 
   const {
@@ -493,6 +533,8 @@ const Sessions = ({
   )
 
   const { sessionGroupSeeds, sessionSectionBy } = useSessionGroupStructure({
+    pinnedGroupIds,
+    sessionGroupBy,
     agentsForDisplay,
     displayMode,
     filteredGroupedSessions,
@@ -1088,6 +1130,20 @@ const Sessions = ({
     [agentById, deletingAgentId]
   )
 
+  const handleToggleWorkspacePin = useCallback(
+    async (group: ResourceListGroup) => {
+      const workspaceId = workdirDisplay.workspaceIdByGroupId.get(group.id)
+      if (!workspaceId || isWorkspacePinActionDisabled) return
+      try {
+        await toggleWorkspacePin(workspaceId)
+      } catch (err) {
+        logger.error('Failed to toggle workspace pin', { workspaceId, err })
+        toast.error(t('common.error'))
+      }
+    },
+    [isWorkspacePinActionDisabled, t, toggleWorkspacePin, workdirDisplay]
+  )
+
   const handleToggleAgentPin = useCallback(
     async (agentId: string) => {
       if (isAgentPinActionDisabled) return
@@ -1138,7 +1194,7 @@ const Sessions = ({
       // A drop onto a group header has no `overItem`; the same-group check below
       // is what keeps that drop inside the item's own group.
       (overItem ? activeItem.pinned === overItem.pinned : true) &&
-      canDropSessionItemInDisplayGroup({ mode: displayMode, sourceGroupId, targetGroupId }),
+      canDropSessionItemInDisplayGroup({ mode: displayMode, manualOrder: true, sourceGroupId, targetGroupId }),
     [displayMode, itemDragReady]
   )
 
@@ -1156,6 +1212,7 @@ const Sessions = ({
 
   const canDropSessionGroup = useCallback(
     ({ activeGroupId, overGroupId }: { activeGroupId: string; overGroupId: string }) => {
+      if (pinnedGroupIds.has(activeGroupId) !== pinnedGroupIds.has(overGroupId)) return false
       if (displayMode === 'agent') {
         const activeAgentId = getAgentIdFromSessionGroupId(activeGroupId)
         const overAgentId = getAgentIdFromSessionGroupId(overGroupId)
@@ -1175,7 +1232,7 @@ const Sessions = ({
 
       return workdirDragReady && !!activeWorkspaceId && !!overWorkspaceId && activeWorkspaceId !== overWorkspaceId
     },
-    [agentById, agentDragReady, displayMode, workdirDragReady, workdirDisplay]
+    [agentById, agentDragReady, displayMode, pinnedGroupIds, workdirDragReady, workdirDisplay]
   )
 
   // Pinned order is stored on the pin row, and `applyScopedMoves` resolves both
@@ -1299,6 +1356,7 @@ const Sessions = ({
       if (
         !canDropSessionItemInDisplayGroup({
           mode: displayMode,
+          manualOrder: true,
           sourceGroupId: payload.sourceGroupId,
           targetGroupId: payload.targetGroupId
         })
@@ -1441,6 +1499,10 @@ const Sessions = ({
           {workdirPath && (
             <Tooltip title={t('common.more')} delay={500}>
               <WorkdirGroupMoreMenu
+                canPin={!!workspaceId}
+                pinned={pinnedGroupIds.has(group.id)}
+                pinDisabled={isWorkspacePinActionDisabled}
+                onTogglePin={handleToggleWorkspacePin}
                 canDelete={!!workspaceId}
                 canRename={!!workspaceId}
                 deleteDisabled={!!deletingWorkspaceGroupId}
@@ -1489,6 +1551,9 @@ const Sessions = ({
       handleDeleteWorkdirGroup,
       handleOpenWorkdirGroup,
       handleStartRenameWorkdirGroup,
+      handleToggleWorkspacePin,
+      isWorkspacePinActionDisabled,
+      pinnedGroupIds,
       isAgentPinActionDisabled,
       isUpdatingWorkspace,
       openAgentEditor,
@@ -1626,6 +1691,10 @@ const Sessions = ({
       const workdirPath = workdirDisplay.pathByGroupId.get(group.id) ?? getWorkdirPathFromSessionGroupId(group.id)
       if (!workdirPath) return null
       const actionContext: WorkdirGroupActionContext = {
+        canPin: !!workspaceId,
+        pinned: pinnedGroupIds.has(group.id),
+        pinDisabled: isWorkspacePinActionDisabled,
+        onTogglePin: handleToggleWorkspacePin,
         canDelete: !!workspaceId,
         canRename: !!workspaceId,
         deleteDisabled: !!deletingWorkspaceGroupId,
@@ -1658,6 +1727,9 @@ const Sessions = ({
       handleDeleteWorkdirGroup,
       handleOpenWorkdirGroup,
       handleStartRenameWorkdirGroup,
+      handleToggleWorkspacePin,
+      isWorkspacePinActionDisabled,
+      pinnedGroupIds,
       handleToggleAgentPin,
       handleToggleAgentSidebar,
       isAgentPinActionDisabled,
@@ -1802,7 +1874,7 @@ const Sessions = ({
           displayMode={displayMode}
           error={listError}
           isBulkArchiving={isBulkArchivingSessions}
-          isDraggable={isDraggableMode && !isRightPanel}
+          isDraggable={isDraggableMode}
           isValidating={listValidating}
           isSelectionMode={isSessionSelectionMode}
           listRef={listRef}
