@@ -57,6 +57,7 @@ const MiniAppPreviewSummarySchema = z.object({
   sessionId: z.string(),
   appId: z.string(),
   version: z.string(),
+  entry: z.string(),
   packageSha256: z.string(),
   openedAt: z.number()
 })

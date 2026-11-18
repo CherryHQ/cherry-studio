@@ -695,7 +695,12 @@ export class MiniAppRuntimeService extends BaseService {
    */
   private resolveInstallPath(appId: string): string | undefined {
     if (appId.startsWith(MINI_APP_PREVIEW_RUNTIME_PREFIX)) {
-      return application.get('MiniAppPreviewService').resolvePreviewPath(appId)
+      const previewPath = application.get('MiniAppPreviewService').resolvePreviewPath(appId)
+      if (previewPath) return previewPath
+      // `preview-foo` is a LEGAL installed-app id: with no live preview of that
+      // identity, fall through to installation resolution rather than 404ing.
+      // Closed-preview invalidation still holds — a closed preview with no
+      // installed namesake stops resolving here.
     }
     const installed =
       application
