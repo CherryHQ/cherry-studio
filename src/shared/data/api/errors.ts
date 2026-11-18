@@ -22,6 +22,8 @@
  * ```
  */
 
+import * as z from 'zod'
+
 import { hasReportingOwner } from '../../utils/errorReporting'
 import type { HttpMethod } from './types'
 
@@ -872,6 +874,7 @@ export function isSerializedDataApiError(error: unknown): error is SerializedDat
  * @param context - Optional context description
  * @returns DataApiError instance
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- DataApi handlers and IPC clients can reject arbitrary values; normalize them without assuming an Error or a valid serialized envelope.
 export function toDataApiError(error: unknown, context?: string): DataApiError {
   if (isDataApiError(error)) {
     return error
@@ -882,35 +885,41 @@ export function toDataApiError(error: unknown, context?: string): DataApiError {
   }
 
   // Convert ZodError to 422 VALIDATION_ERROR
-  if (isZodError(error)) {
-    const fieldErrors: Record<string, string[]> = {}
-    for (const issue of error.issues) {
+  const validationIssues =
+    error instanceof Error && error.name === 'ZodError' && 'issues' in error
+      ? validationIssuesSchema.safeParse(error.issues)
+      : undefined
+  if (validationIssues?.success) {
+    const fieldErrors = new Map<string, string[]>()
+    for (const issue of validationIssues.data) {
       const path = issue.path.length > 0 ? issue.path.join('.') : '_root'
-      if (!fieldErrors[path]) fieldErrors[path] = []
-      fieldErrors[path].push(issue.message)
+      const messages = fieldErrors.get(path)
+      if (messages) messages.push(issue.message)
+      else fieldErrors.set(path, [issue.message])
     }
-    return DataApiErrorFactory.validation(fieldErrors, `Validation failed${context ? ` in ${context}` : ''}`)
+    return DataApiErrorFactory.validation(
+      Object.fromEntries(fieldErrors),
+      `Validation failed${context ? ` in ${context}` : ''}`
+    )
   }
 
   if (error instanceof Error) {
     return DataApiErrorFactory.internal(error, context)
   }
 
+  let description: string
+  try {
+    description = String(error)
+  } catch {
+    description = '[Unserializable]'
+  }
   return DataApiErrorFactory.create(
     ErrorCode.INTERNAL_SERVER_ERROR,
-    `Unknown error${context ? ` in ${context}` : ''}: ${String(error)}`,
-    { originalError: String(error), context }
+    `Unknown error${context ? ` in ${context}` : ''}: ${description}`,
+    { originalError: description, context }
   )
 }
 
-/**
- * Duck-type check for ZodError without importing zod as a dependency.
- * ZodError has a `.issues` array and `.name === 'ZodError'`.
- */
-function isZodError(error: unknown): error is { issues: Array<{ path: (string | number)[]; message: string }> } {
-  return (
-    error instanceof Error &&
-    error.name === 'ZodError' &&
-    Array.isArray((error as unknown as Record<string, unknown>).issues)
-  )
-}
+const validationIssuesSchema = z.array(
+  z.object({ path: z.array(z.union([z.string(), z.number()])), message: z.string() })
+)
