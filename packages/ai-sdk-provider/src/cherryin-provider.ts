@@ -16,6 +16,7 @@ import {
   type ImageModelV3,
   isJSONObject,
   type JSONObject,
+  type JSONValue,
   type LanguageModelV3,
   type LanguageModelV3CallOptions,
   type ProviderV3,
@@ -162,7 +163,7 @@ const resolveConfiguredHeaders = (headers?: HeadersInput): Record<string, Header
 
 const toBearerToken = (authorization?: string) => (authorization ? authorization.replace(/^Bearer\s+/i, '') : undefined)
 
-const normalizePersonGeneration = (value: unknown) => {
+const normalizePersonGeneration = (value: JSONValue | undefined) => {
   if (typeof value !== 'string') return undefined
   switch (value.toUpperCase()) {
     case 'ALLOW_ALL':
@@ -176,13 +177,13 @@ const normalizePersonGeneration = (value: unknown) => {
   }
 }
 
-const normalizeAspectRatio = (value: unknown): `${number}:${number}` | undefined => {
+const normalizeAspectRatio = (value: JSONValue | undefined): `${number}:${number}` | undefined => {
   if (typeof value !== 'string') return undefined
   const normalized = value.replace(/^ASPECT_/i, '').replace('_', ':')
   return /^\d+:\d+$/.test(normalized) ? (normalized as `${number}:${number}`) : undefined
 }
 
-const normalizeImageSize = (value: unknown) => {
+const normalizeImageSize = (value: JSONValue | undefined) => {
   if (typeof value !== 'string') return undefined
   const normalized = value.toUpperCase()
   return ['512', '1K', '2K', '4K'].includes(normalized) ? normalized : undefined
