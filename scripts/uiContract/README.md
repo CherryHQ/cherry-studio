@@ -31,3 +31,7 @@ as authored `data-ui` `part:*` tokens. Caller semantics passed through component
 node's structural parts, including through JSX spreads and Radix `asChild` slots.
 
 Use `pnpm ui:contract:query chat.message` to discover matching semantic roles and their current source locations.
+
+`UiDataSlot` carries its event callback result through the slot and child props. Composed handlers
+call the child first, call the slot second, and return the exact child result, including the original
+Promise. Its pinned ref callback handles React 19 cleanup without detaching the leaf on every render.

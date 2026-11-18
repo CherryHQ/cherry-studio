@@ -5,6 +5,7 @@ import {
   isValidElement,
   type ReactElement,
   type ReactNode,
+  type ReactPortal,
   type Ref,
   useMemo,
   useRef
@@ -14,6 +15,16 @@ import { mergeDataUi } from './runtime'
 
 type AnyProps = Record<string, unknown>
 type RefTarget = Ref<unknown> | null | undefined
+
+// Match React event callback variance while retaining the callback's result.
+type SlotHandler<Result> = { invoke(...args: unknown[]): Result }['invoke']
+type SlotProps<Result> = AnyProps & {
+  [Name in `on${Capitalize<string>}`]?: SlotHandler<Result>
+}
+type UiDataSlotProps<Result> = SlotProps<Result> & {
+  children?: ReactElement<SlotProps<Result>> | ReactPortal | Exclude<ReactNode, ReactElement>
+  ref?: RefTarget
+}
 
 function setForwardedRef(ref: RefTarget, node: unknown): void | (() => void) {
   if (typeof ref === 'function') return ref(node)
@@ -25,16 +36,18 @@ function setForwardedRef(ref: RefTarget, node: unknown): void | (() => void) {
  * Verbatim Radix Slot semantics (@radix-ui/react-slot mergeProps), inlined so
  * UiDataSlot can merge slot props itself — see the UiDataSlot comment.
  */
-function mergeSlotProps(slotProps: AnyProps, childProps: AnyProps): AnyProps {
-  const overrideProps: AnyProps = { ...childProps }
+function mergeSlotProps<Result>(slotProps: SlotProps<Result>, childProps: SlotProps<Result>): SlotProps<Result> {
+  const overrideProps: SlotProps<Result> = { ...childProps }
   for (const propName in childProps) {
     const slotPropValue = slotProps[propName]
     const childPropValue = childProps[propName]
     if (/^on[A-Z]/.test(propName)) {
       if (slotPropValue && childPropValue) {
         overrideProps[propName] = (...args: unknown[]) => {
-          const result = (childPropValue as (...args: unknown[]) => unknown)(...args)
-          ;(slotPropValue as (...args: unknown[]) => unknown)(...args)
+          // SAFETY: matching event keys carry the child callback declared by the input props.
+          const result = (childPropValue as SlotHandler<Result>)(...args)
+          // SAFETY: the slot callback follows the same declared event-result contract.
+          ;(slotPropValue as SlotHandler<Result>)(...args)
           return result
         }
       } else if (slotPropValue) {
@@ -75,11 +88,7 @@ function getElementRef(element: ReactElement): RefTarget {
  * merges slot props itself and hands the leaf ONE pinned ref identity that
  * reads the latest targets at attach time.
  */
-export function UiDataSlot({
-  ref,
-  children,
-  ...slotProps
-}: AnyProps & { children?: ReactNode; ref?: RefTarget }): ReactNode {
+export function UiDataSlot<Result>({ ref, children, ...slotProps }: UiDataSlotProps<Result>): ReactNode {
   const latest = useRef<{ forwarded: RefTarget; child: RefTarget }>({ forwarded: undefined, child: undefined })
   latest.current.forwarded = ref
   const stableRef = useMemo(() => {
@@ -118,7 +127,8 @@ export function UiDataSlot({
   }
   const child = children
 
-  const childProps = child.props as AnyProps
+  // SAFETY: the validated element is the child accepted by this component's typed props.
+  const childProps = child.props as SlotProps<Result>
   const childDataUi = typeof childProps['data-ui'] === 'string' ? childProps['data-ui'] : ''
   const dataUi = mergeDataUi(childDataUi, slotDataUi)
   latest.current.child = getElementRef(child)
