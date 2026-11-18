@@ -135,12 +135,12 @@ function uploadedResult(body: Buffer, fileSha256: string): CherryDiagnosticUploa
     }
     const parsedStatus = DiagnosticProcessingStatusSchema.safeParse(value.status)
     const parsedCreatedAt = typeof value.created_at === 'string' ? Date.parse(value.created_at) : Number.NaN
-    return {
+    const uploaded: Omit<Extract<CherryDiagnosticUploadResult, { status: 'uploaded' }>, 'status'> = {
       reportId: value.id,
-      processingStatus: parsedStatus.success ? parsedStatus.data : null,
-      ...(Number.isFinite(parsedCreatedAt) ? { submittedAt: parsedCreatedAt } : {}),
-      status: 'uploaded'
+      processingStatus: parsedStatus.success ? parsedStatus.data : null
     }
+    if (Number.isFinite(parsedCreatedAt)) uploaded.submittedAt = parsedCreatedAt
+    return { ...uploaded, status: 'uploaded' }
   } catch {
     return { fileSha256, status: 'submission_unknown' }
   }

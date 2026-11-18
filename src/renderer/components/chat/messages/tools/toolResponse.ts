@@ -261,7 +261,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
     (status === 'streaming' || status === 'invoking') && typeof toolPart.input === 'string' ? toolPart.input : undefined
   const approvalFields: Pick<ToolResponseLike, 'approval'> = {}
   if (approval) approvalFields.approval = approval
-  const callFields: Pick<ToolResponseLike, 'toolCallId' | 'parentToolUseId' | 'partialArguments'> = { toolCallId }
+  const callFields: Pick<NormalToolResponse, 'toolCallId' | 'parentToolUseId' | 'partialArguments'> = { toolCallId }
   if (parentToolUseId) callFields.parentToolUseId = parentToolUseId
   if (partialArguments) callFields.partialArguments = partialArguments
 

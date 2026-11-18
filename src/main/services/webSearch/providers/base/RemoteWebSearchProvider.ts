@@ -2,6 +2,7 @@ import {
   createWebSearchClient,
   isWebSearchError,
   type WebSearchClient,
+  type WebSearchCall,
   type WebSearchCredentials,
   type WebSearchProviderModule,
   type WebSearchResultSet
@@ -73,25 +74,21 @@ export class RemoteWebSearchProvider extends BaseWebSearchProvider {
     }
     let response: WebSearchResultSet
     try {
-      response = await this.client.execute(
-        capability === 'searchKeywords'
-          ? {
-              ...common,
-              capability,
-              config: {
-                apiHost,
-                maxResults: config.maxResults,
-                ...(overrides.useDefaultResultCount === undefined
-                  ? {}
-                  : { useDefaultResultCount: overrides.useDefaultResultCount }),
-                ...(this.provider.id === 'searxng' ? { engines: overrides.engines ?? this.provider.engines } : {}),
-                ...(['bocha', 'querit', 'yuanbao'].includes(this.provider.id)
-                  ? { excludeDomains: config.excludeDomains }
-                  : {})
-              }
-            }
-          : { ...common, capability, config: { apiHost } }
-      )
+      if (capability === 'searchKeywords') {
+        const keywordConfig: Extract<WebSearchCall, { capability: 'searchKeywords' }>['config'] = {
+          apiHost,
+          maxResults: config.maxResults
+        }
+        if (overrides.useDefaultResultCount !== undefined)
+          Object.assign(keywordConfig, { useDefaultResultCount: overrides.useDefaultResultCount })
+        if (this.provider.id === 'searxng')
+          Object.assign(keywordConfig, { engines: overrides.engines ?? this.provider.engines })
+        if (['bocha', 'querit', 'yuanbao'].includes(this.provider.id))
+          Object.assign(keywordConfig, { excludeDomains: config.excludeDomains })
+        response = await this.client.execute({ ...common, capability, config: keywordConfig })
+      } else {
+        response = await this.client.execute({ ...common, capability, config: { apiHost } })
+      }
     } catch (error) {
       if (isWebSearchError(error) && error.kind === 'configuration') {
         const code: WebSearchConfigErrorCode = ['api_key_missing', 'api_host_missing', 'api_host_invalid'].includes(

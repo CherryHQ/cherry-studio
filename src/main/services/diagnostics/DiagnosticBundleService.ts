@@ -635,12 +635,13 @@ export class DiagnosticBundleService {
         location: 'temporary',
         tempRoot
       }
-      this.retainedUploads.set(bundle.bundleId, {
+      const retained: RetainedUpload = {
         bundle: retainedBundle,
         description,
-        uploadFileName: bundle.fileName,
-        ...(uploadResult.fileSha256 ? { fileSha256: uploadResult.fileSha256 } : {})
-      })
+        uploadFileName: bundle.fileName
+      }
+      if (uploadResult.fileSha256) Object.assign(retained, { fileSha256: uploadResult.fileSha256 })
+      this.retainedUploads.set(bundle.bundleId, retained)
       retainTempRoot = true
       if (uploadResult.status === 'submission_unknown') {
         logger.warn('Diagnostic bundle submission result is unknown')
@@ -677,9 +678,13 @@ export class DiagnosticBundleService {
       )
     }
 
+    const retry: Pick<Parameters<typeof cherryDiagnosticUploadClient.upload>[0], 'description' | 'expectedFileSha256'> =
+      {
+        description: retained.description
+      }
+    if (retained.fileSha256) retry.expectedFileSha256 = retained.fileSha256
     const uploadResult = await cherryDiagnosticUploadClient.upload({
-      description: retained.description,
-      ...(retained.fileSha256 ? { expectedFileSha256: retained.fileSha256 } : {}),
+      ...retry,
       fileName: retained.uploadFileName,
       filePath: retained.bundle.filePath
     })
