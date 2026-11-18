@@ -198,17 +198,17 @@ export function parseOpenRouterReasoning(raw: unknown): ReasoningSupport | null 
     : undefined
 
   if (selectableEfforts.length > 0) {
-    controls.push({
+    const control: Extract<NonNullable<ReasoningSupport['controls']>[number], { kind: 'effort' }> = {
       kind: 'effort',
-      values: selectableEfforts,
-      ...(defaultEffort && selectableEfforts.includes(defaultEffort) ? { default: defaultEffort } : {})
-    })
+      values: selectableEfforts
+    }
+    if (defaultEffort && selectableEfforts.includes(defaultEffort)) control.default = defaultEffort
+    controls.push(control)
   }
   if (!descriptor.mandatory) {
-    controls.push({
-      kind: 'toggle',
-      ...(descriptor.default_enabled !== undefined ? { default: descriptor.default_enabled } : {})
-    })
+    const control: Extract<NonNullable<ReasoningSupport['controls']>[number], { kind: 'toggle' }> = { kind: 'toggle' }
+    if (descriptor.default_enabled !== undefined) control.default = descriptor.default_enabled
+    controls.push(control)
   }
 
   return dropUndef({ controls, ...deriveLegacyReasoningFields(controls) })
@@ -329,12 +329,9 @@ export function parseOrImageGeneration(raw: unknown): ImageGenerationSupport | n
       ? inputReferences.data.max
       : undefined
 
-  return {
-    modes: {
-      generate: { supports },
-      ...(maxInputImages !== undefined ? { edit: { supports, maxInputImages } } : {})
-    }
-  }
+  const modes: NonNullable<ImageGenerationSupport['modes']> = { generate: { supports } }
+  if (maxInputImages !== undefined) modes.edit = { supports, maxInputImages }
+  return { modes }
 }
 
 // ── merge across sources (the fix for the minimax-m3 video gap) ───────────────

@@ -174,10 +174,8 @@ function collectProviderServerToolModels(
         ids.push(model.id)
       }
       if (ids.length > 0) {
-        const entry = {
-          ids: ids.sort(),
-          ...(config.endpointTypes?.length ? { endpointTypes: [...config.endpointTypes] } : {})
-        }
+        const entry = { ids: ids.sort() }
+        if (config.endpointTypes?.length) Object.assign(entry, { endpointTypes: [...config.endpointTypes] })
         ;(tools[config.id] ??= []).push(entry)
       }
     }
@@ -480,7 +478,9 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
     const controls = m.reasoning?.controls
     if (!controls?.length) continue
     const wireDialect = matchWireDialect(m.id, familyRules)
-    m.reasoning = { controls, ...deriveLegacyReasoningFields(controls), ...(wireDialect ? { wireDialect } : {}) }
+    const reasoning = { controls, ...deriveLegacyReasoningFields(controls) }
+    if (wireDialect) Object.assign(reasoning, { wireDialect })
+    m.reasoning = reasoning
   }
   // Tag embedding/rerank — models.dev mislabels these as text. `rerank` in the id wins; else `embed` in
   // the id, or the owning creator's declared `kind` (bge/voyage/jina/… whose ids don't say so). Embedders output `vector`.
@@ -516,11 +516,9 @@ function buildProviders(): ProviderEntry[] {
       delete config.imageModelIds
       return config
     })
-    return {
-      ...conn,
-      ...(serverTools ? { serverTools } : {}),
-      description: `${conn.name} - AI model provider`
-    }
+    const connection = { ...conn }
+    if (serverTools) connection.serverTools = serverTools
+    return { ...connection, description: `${conn.name} - AI model provider` }
   })
 }
 
@@ -603,13 +601,9 @@ function buildProviderModels(
 
     const meta = parseOrEntry(entry)
     if (!baseIds.has(modelId) && !meta?.name) continue
-    addOverride({
-      providerId: 'openrouter',
-      modelId,
-      apiModelId: entry.id,
-      ...(!baseIds.has(modelId) ? { name: meta?.name } : {}),
-      reasoningContracts: mergeOpenRouterReasoningContracts(support, undefined)
-    })
+    const identity = { providerId: 'openrouter', modelId, apiModelId: entry.id }
+    if (!baseIds.has(modelId)) Object.assign(identity, { name: meta?.name })
+    addOverride({ ...identity, reasoningContracts: mergeOpenRouterReasoningContracts(support, undefined) })
   }
   // OpenRouter's dedicated image catalog publishes typed, per-model parameter descriptors. Keep
   // these as provider overrides: the same canonical model can expose different controls through
@@ -628,22 +622,21 @@ function buildProviderModels(
           row.modelId === modelId &&
           row.apiModelId === undefined
       )
-    const imageRow = {
-      providerId: 'openrouter',
-      modelId,
-      apiModelId: model.id,
-      ...(!baseIds.has(modelId)
-        ? {
-            name: existing?.name ?? model.name ?? model.id,
-            ownedBy: openRouterStandaloneIds.has(modelId) ? 'openrouter' : (existing?.ownedBy ?? model.id.split('/')[0])
-          }
-        : {}),
-      capabilities: { add: ['image-generation'] },
-      endpointTypes: ['openai-image-generation'],
-      ...(meta?.inputModalities ? { inputModalities: meta.inputModalities } : {}),
-      ...(meta?.outputModalities ? { outputModalities: meta.outputModalities } : {}),
-      imageGeneration
+    const identity = { providerId: 'openrouter', modelId, apiModelId: model.id }
+    if (!baseIds.has(modelId)) {
+      Object.assign(identity, {
+        name: existing?.name ?? model.name ?? model.id,
+        ownedBy: openRouterStandaloneIds.has(modelId) ? 'openrouter' : (existing?.ownedBy ?? model.id.split('/')[0])
+      })
     }
+    const imageRow = {
+      ...identity,
+      capabilities: { add: ['image-generation'] },
+      endpointTypes: ['openai-image-generation']
+    }
+    if (meta?.inputModalities) Object.assign(imageRow, { inputModalities: meta.inputModalities })
+    if (meta?.outputModalities) Object.assign(imageRow, { outputModalities: meta.outputModalities })
+    Object.assign(imageRow, { imageGeneration })
     // `/models` may already have contributed pricing for this exact OpenRouter model. Enrich that
     // row in place so its pricing and the image catalog's controls coexist instead of first-wins
     // deduplication silently dropping one side.
@@ -732,7 +725,8 @@ void (async () => {
       const metadata = m.metadata
       const rest = { ...m }
       delete rest.metadata
-      return { ...rest, ...(metadata ? { metadata } : {}) }
+      if (metadata) rest.metadata = metadata
+      return rest
     })
   const providers = buildProviders()
   const serviceTierErrors = getServiceTierCatalogErrors(providers, pm.overrides)
