@@ -26,6 +26,7 @@ export interface ProcessHandle {
   send(frame: MainFrame): void
   kill(): void
   onSpawn(listener: () => void): void
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Adapters relay raw port messages; ProcessHost validates frame shape and generation before use.
   onMessage(listener: (data: unknown) => void): void
   /** The only lifecycle truth: fires exactly once when the process is gone. */
   onExit(listener: (code: number) => void): void

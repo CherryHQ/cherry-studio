@@ -21,6 +21,7 @@ export const electronProcessAdapter: ProcessAdapter = {
     })
     const { port1, port2 } = new MessageChannelMain()
     let spawnListener: (() => void) | null = null
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Electron port data is untyped; forward it unchanged to ProcessHost's frame validation boundary.
     let messageListener: ((data: unknown) => void) | null = null
     let exitListener: ((code: number) => void) | null = null
     let stdoutListener: ((line: string, truncated: boolean) => void) | null = null
