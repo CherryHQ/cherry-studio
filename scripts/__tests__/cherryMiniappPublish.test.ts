@@ -78,6 +78,7 @@ describe('publish.mjs manifest', () => {
     const manifest = await buildDistributionManifest(appDir, packageFile, 'https://user.github.io/miniapps/')
     expect(manifest.package).toEqual({
       url: 'https://user.github.io/miniapps/apps/com.example.miniapp/1.0.0/com.example.miniapp-1.0.0.miniapp',
+      iconUrl: 'https://user.github.io/miniapps/apps/com.example.miniapp/1.0.0/icon.png',
       sha256: sha256Hex(bytes),
       size: bytes.length
     })
@@ -123,12 +124,12 @@ describe('publish.mjs verify (read-back gate)', () => {
   async function hostFor(appDir: string, packageFile: string, overrides: HostedFiles = {}) {
     const manifest = await buildDistributionManifest(appDir, packageFile, 'https://user.github.io/miniapps')
     const packageBytes = await fs.readFile(packageFile)
-    const iconBytes = await fs.readFile(path.join(appDir, 'icon.svg'))
+    const iconBytes = await fs.readFile(path.join(appDir, 'icon.png'))
     const packagePath = new URL(manifest.package.url).pathname
     const files: HostedFiles = {
       '/manifest.json': Buffer.from(JSON.stringify(manifest)),
       [packagePath]: packageBytes,
-      '/icon.svg': iconBytes,
+      '/icon.png': iconBytes,
       ...overrides
     }
     return { manifest, files }
@@ -139,14 +140,22 @@ describe('publish.mjs verify (read-back gate)', () => {
     const { manifest } = await hostFor(appDir, packageFile)
     const packagePath = new URL(manifest.package.url).pathname
     const packageBytes = await fs.readFile(packageFile)
-    const iconBytes = await fs.readFile(path.join(appDir, 'icon.svg'))
+    const iconBytes = await fs.readFile(path.join(appDir, 'icon.png'))
     // The server's file map is captured per request, so mutate one shared map.
     const files: HostedFiles = {}
     const base = await serveHostedFiles(files)
-    const hosted = { ...manifest, package: { ...manifest.package, url: `${base}${packagePath}` } }
+    const hosted = {
+      ...manifest,
+      update: { url: `${base}/apps/com.example.miniapp/manifest.json` },
+      package: {
+        ...manifest.package,
+        url: `${base}${packagePath}`,
+        iconUrl: `${base}/apps/com.example.miniapp/1.0.0/icon.png`
+      }
+    }
     files['/apps/com.example.miniapp/1.0.0/manifest.json'] = Buffer.from(JSON.stringify(hosted))
     files[packagePath] = packageBytes
-    files['/apps/com.example.miniapp/1.0.0/icon.svg'] = iconBytes
+    files['/apps/com.example.miniapp/1.0.0/icon.png'] = iconBytes
     const result = await verifyPublished(`${base}/apps/com.example.miniapp/1.0.0/manifest.json`, appDir, packageFile, {
       allowInsecureLocalhost: true
     })
@@ -159,7 +168,11 @@ describe('publish.mjs verify (read-back gate)', () => {
     const { manifest } = await hostFor(appDir, packageFile)
     const files: HostedFiles = { '/m/pkg.miniapp': Buffer.from('tampered bytes') }
     const base = await serveHostedFiles(files)
-    const hosted = { ...manifest, package: { ...manifest.package, url: `${base}/m/pkg.miniapp` } }
+    const hosted = {
+      ...manifest,
+      update: { url: `${base}/m/manifest.json` },
+      package: { ...manifest.package, url: `${base}/m/pkg.miniapp` }
+    }
     files['/m/manifest.json'] = Buffer.from(JSON.stringify(hosted))
     await expect(
       verifyPublished(`${base}/m/manifest.json`, appDir, packageFile, { allowInsecureLocalhost: true })
@@ -179,8 +192,16 @@ describe('publish.mjs verify (read-back gate)', () => {
   it('fails when package.url points at a different origin', async () => {
     const { appDir, packageFile } = await packageTemplate()
     const { manifest } = await hostFor(appDir, packageFile)
-    const hosted = { ...manifest, package: { ...manifest.package, url: 'https://evil.example/x.miniapp' } }
-    const base = await serveHostedFiles({ '/manifest.json': Buffer.from(JSON.stringify(hosted)) })
+    // The server needs the manifest and the manifest needs the origin: reserve the
+    // base first with a placeholder, then replace the file map entry in place.
+    const files: HostedFiles = {}
+    const base = await serveHostedFiles(files)
+    const hosted = {
+      ...manifest,
+      update: { url: `${base}/manifest.json` },
+      package: { ...manifest.package, url: 'https://evil.example/x.miniapp' }
+    }
+    files['/manifest.json'] = Buffer.from(JSON.stringify(hosted))
     await expect(
       verifyPublished(`${base}/manifest.json`, appDir, packageFile, { allowInsecureLocalhost: true })
     ).rejects.toThrow(/origin/)
