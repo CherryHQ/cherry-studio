@@ -60,8 +60,8 @@ Each derived state becomes a fold of the log with a cursor: a reducer applied to
 ### P3 — Main projections
 
 - Main handles the inputs an update changed, not every input of a snapshot.
-- `ChildThreadProjection` rereads the child archive only on `snapshot`, `gap` or `mapping-reset`, and otherwise applies upserts and removals. Recompute and compare remains the recovery path for those three events.
-- Main detects autonomous turns from `activity.changed`, so a run's start and end no longer need snapshots.
+- `ChildThreadProjection` keeps its archive read triggers, because Claude Code and Pi children share it and only Durable live IDs equal archive IDs. Its committed projection persists across reads, so a read redecorates only messages whose source changed, and the checkpoint and response owners are written only when they change.
+- A run end sends `activity.changed`, which carries the completion. A run start keeps its snapshot: Durable delivers each observation event as its own batch, so a delta run start would let Main project the run's content and place a steer before it begins the autonomous turn.
 
 ### Out of scope
 
@@ -85,8 +85,8 @@ Each derived state becomes a fold of the log with a cursor: a reducer applied to
 - AC3 — The tool gate reads only its own conversation's fold, a step's append validation reads no entries or tasks, and the subagent message, answer and stop paths read only child entries their fold has not seen; their results are unchanged. (verification: unit — counting transaction and the contract suite)
 - AC4 — A fold unused for 10 minutes is dropped and rebuilt with equal facts on its next read. (verification: unit)
 - AC5 — The `agent-behavior` contract suite on Pi Durable and the Durable package suites pass. (verification: unit)
-- AC6 — Within a run, a Durable observation publishes only the messages and inputs an update changed, replaying them gives the same view as a rebuild, and its published history equals the fold's; observation start, a gap, and a run's start and end send a snapshot. (verification: unit — Durable projection and runtime tests)
-- AC7 — Main processes only the inputs an update changed, detects autonomous turns from `activity.changed` so Durable sends no snapshot at a run's start or end, and rereads an active child's archive only on snapshot, gap or mapping reset, with unchanged product rows and checkpoints in the existing child scenarios. (verification: unit — Main agent-session suites)
+- AC6 — Within a run, a Durable observation publishes only the messages and inputs an update changed, replaying them gives the same view as a rebuild, and its published history equals the fold's; observation start, a gap and a run start send a snapshot, and until P3 a run end does too. (verification: unit — Durable projection and runtime tests)
+- AC7 — Main processes only the inputs an update changed and receives a run end as `activity.changed`, and a child archive read redecorates only changed messages and writes the checkpoint only when it changed, with unchanged product rows and checkpoints in the existing child scenarios and a reopened child projection matching the live one. (verification: unit — Main agent-session suites)
 - AC8 — The #24500 workload shape runs in a development Electron build, and the report records main-process heap and allocation by call site against the stack base. (verification: Electron)
 - AC9 — The Durable README, `agent-session-runtime.md` and this note's triplet describe the shipped fold semantics. (verification: docs gate)
 
@@ -95,4 +95,4 @@ Each derived state becomes a fold of the log with a cursor: a reducer applied to
 - A fold defect gives wrong facts rather than slow ones. AC1 compares every commit with a rebuild, and because folds are not persisted, dropping them repairs any state found wrong later.
 - The newest-first task scan relies on Durable minting task IDs in commit order, as entry reads already do. A Durable version that admits commits out of order would need a commit cursor for tasks.
 - A child run's usage now adds its entry usage as one sum after the summary usage, so `costUsd` can differ from the previous order in the last floating-point digit when that run has native compaction summaries.
-- P3 depends on P2's delta stream; until P2 ships, Main keeps receiving snapshots and P3 does not change its cost.
+- P3's input and run-end changes depend on P2's delta stream; its archive read savings do not.

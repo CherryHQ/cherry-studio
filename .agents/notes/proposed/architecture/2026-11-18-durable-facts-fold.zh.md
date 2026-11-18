@@ -60,8 +60,8 @@ Pi Durable 的各个使用方都从已提交日志重新计算出当前状态，
 ### P3 — 主进程投影
 
 - Main 只处理一次更新里改动的输入，不再处理快照里的每一条输入。
-- `ChildThreadProjection` 只在 `snapshot`、`gap` 或 `mapping-reset` 时重读子对话 archive，其余时候直接应用 upsert 和删除。这三种事件仍然走"重算再比较"来恢复。
-- Main 从 `activity.changed` 识别自主回合，运行开始和结束时就不再需要快照。
+- `ChildThreadProjection` 保留原有的 archive 读取时机，因为 Claude Code 和 Pi 的子对话也共用它，而只有 Durable 的实时 ID 等于 archive ID。它的已提交投影在多次读取之间保留，所以一次读取只重新装饰源有变化的消息，checkpoint 和响应归属也只在变化时才写入。
+- 运行结束时发送 `activity.changed`，由它携带完成信号。运行开始时仍然发送快照：Durable 把每个观测事件单独作为一批投递，如果运行开始也用增量，Main 会在开始自主回合之前就投影这次运行的内容、放置 steer。
 
 ### 不在范围内
 
@@ -85,8 +85,8 @@ Pi Durable 的各个使用方都从已提交日志重新计算出当前状态，
 - AC3 — 工具审批钩子只读本对话的折叠，步骤的追加校验不读条目和任务，给子智能体发消息、等待回答和停止只读子对话折叠还没见过的条目；结果都不变。（verification: unit — 计数事务和合约套件）
 - AC4 — 10 分钟没被用过的折叠会被丢弃，下次读取时重建出相同的事实。（verification: unit）
 - AC5 — Pi Durable 上的 `agent-behavior` 合约套件和 Durable 包的测试套件都通过。（verification: unit）
-- AC6 — 在一次运行之内，Durable 观测只发布一次更新改动的消息和输入，重放这些事件得到的视图等于重建的视图，发布的历史等于折叠的历史；开始观测、出现缺口，以及运行开始和结束时发送快照。（verification: unit — Durable 投影和运行时测试）
-- AC7 — Main 每次更新只处理改动的输入，从 `activity.changed` 识别自主回合，使 Durable 在运行开始和结束时不再发送快照；活跃子对话的 archive 只在快照、缺口或映射重置时重读；在现有子对话场景里，产品消息行和 checkpoint 不变。（verification: unit — Main agent-session 套件）
+- AC6 — 在一次运行之内，Durable 观测只发布一次更新改动的消息和输入，重放这些事件得到的视图等于重建的视图，发布的历史等于折叠的历史；开始观测、出现缺口和运行开始时发送快照，P3 之前运行结束时也发送。（verification: unit — Durable 投影和运行时测试）
+- AC7 — Main 每次更新只处理改动的输入，运行结束以 `activity.changed` 送达；读取子对话 archive 时只重新装饰有变化的消息，checkpoint 只在变化时写入；在现有子对话场景里，产品消息行和 checkpoint 不变，重新打开的子对话投影与在线的一致。（verification: unit — Main agent-session 套件）
 - AC8 — #24500 的负载形态在开发版 Electron 里运行，报告记录主进程堆内存和按调用点的分配，并与栈的基线对比。（verification: Electron）
 - AC9 — Durable README、`agent-session-runtime.md` 和本 note 的三个文件描述上线后的折叠语义。（verification: docs gate）
 
@@ -95,4 +95,4 @@ Pi Durable 的各个使用方都从已提交日志重新计算出当前状态，
 - 折叠有缺陷时，得到的是错误的事实，而不只是慢。AC1 在每次提交后都和重建结果对比；折叠不持久化，所以之后发现状态有误，丢弃折叠就能修复。
 - 从新到旧扫描任务，依赖 Durable 按提交顺序分配任务 id，条目读取已经依赖同样的前提。如果将来某个 Durable 版本不按顺序接纳提交，任务就需要一个提交游标。
 - 子对话运行的用量现在先加汇总用量，再把条目用量作为一个总和加上。当这次运行有原生压缩汇总时，`costUsd` 可能和以前的加法顺序在最后一位浮点数字上不同。
-- P3 依赖 P2 的增量流；P2 上线之前，Main 仍然收到快照，P3 不会降低开销。
+- P3 中输入和运行结束的改动依赖 P2 的增量流，archive 读取的节省则不依赖。
