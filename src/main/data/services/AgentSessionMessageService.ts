@@ -1,7 +1,23 @@
 import { createHash } from 'node:crypto'
 
 import { isDataUIPart, isToolUIPart } from 'ai'
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  ne,
+  notInArray,
+  or,
+  type SQL,
+  sql
+} from 'drizzle-orm'
 import { chunk } from 'es-toolkit'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
@@ -415,23 +431,59 @@ export class AgentSessionMessageService {
     )
   }
 
-  recoveredInputReply(sessionId: string, contextId: string, inputId: string): string | undefined {
-    if (this.inputBinding(sessionId, inputId)?.contextId !== contextId) return undefined
-    const replies = application
+  /** Records the reply Main opened for each input; a regenerated reply replaces the previous one. */
+  linkReply(sessionId: string, inputIds: readonly string[], replyId: string): void {
+    if (!inputIds.length) return
+    application
       .get('DbService')
       .getDb()
-      .select({ id: sessionMessagesTable.id })
+      .update(sessionMessagesTable)
+      .set({ replyId })
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          inArray(sessionMessagesTable.id, [...inputIds]),
+          eq(sessionMessagesTable.role, 'user')
+        )
+      )
+      .run()
+  }
+
+  /**
+   * The reply Main opened for an input. An input saved before replies were linked falls back to its
+   * latest direct reply that no other input claims.
+   */
+  replyTo(sessionId: string, inputId: string): { id: string; status: string } | undefined {
+    const db = application.get('DbService').getDb()
+    const reply = { id: sessionMessagesTable.id, status: sessionMessagesTable.status }
+    const input = db
+      .select({ replyId: sessionMessagesTable.replyId })
+      .from(sessionMessagesTable)
+      .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, inputId)))
+      .get()
+    if (input?.replyId)
+      return db
+        .select(reply)
+        .from(sessionMessagesTable)
+        .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, input.replyId)))
+        .get()
+    const claimed = db
+      .select({ id: sessionMessagesTable.replyId })
+      .from(sessionMessagesTable)
+      .where(and(eq(sessionMessagesTable.sessionId, sessionId), isNotNull(sessionMessagesTable.replyId)))
+    return db
+      .select(reply)
       .from(sessionMessagesTable)
       .where(
         and(
           eq(sessionMessagesTable.sessionId, sessionId),
           eq(sessionMessagesTable.parentId, inputId),
-          eq(sessionMessagesTable.role, 'assistant')
+          eq(sessionMessagesTable.role, 'assistant'),
+          notInArray(sessionMessagesTable.id, claimed)
         )
       )
-      .limit(2)
-      .all()
-    return replies.length === 1 ? replies[0].id : undefined
+      .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+      .get()
   }
 
   inputBinding(sessionId: string, messageId: string) {

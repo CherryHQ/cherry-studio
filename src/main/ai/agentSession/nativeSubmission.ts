@@ -63,6 +63,35 @@ export function bindNativeInput(sessionId: string, contextId: string, input: Inp
   return messageId
 }
 
+/**
+ * The product terminal for a Durable input outcome; the live turn and every host settle path share it.
+ * @returns `undefined` while the input has no outcome.
+ */
+export function nativeOutcomeTerminal(
+  input: Pick<InputState, 'outcome' | 'error'>
+): { status: 'success' | 'paused' } | { status: 'error'; error: Error } | undefined {
+  switch (input.outcome) {
+    case 'completed':
+      return { status: 'success' }
+    case 'aborted':
+      return { status: 'paused' }
+    case 'failed':
+    case 'unanswered':
+      return {
+        status: 'error',
+        error: Object.assign(new Error(input.error?.message ?? input.outcome), {
+          reason: input.error?.code,
+          ...(input.error?.code === 'output-truncated' && {
+            finishReason: 'length',
+            i18nKey: 'output_token_limit_reached'
+          })
+        })
+      }
+    default:
+      return undefined
+  }
+}
+
 export function applyNativeSubmissionResult(sessionId: string, contextId: string, result: SubmitResult): void {
   if (result.status === 'acknowledged') bindNativeInput(sessionId, contextId, result)
   else if (result.status === 'rejected' || result.status === 'unsupported')

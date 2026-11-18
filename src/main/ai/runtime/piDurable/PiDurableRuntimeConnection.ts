@@ -18,7 +18,8 @@ import {
   prepareNativeSubmission,
   lookupNativeInput,
   bindNativeInput,
-  applyNativeSubmissionResult
+  applyNativeSubmissionResult,
+  nativeOutcomeTerminal
 } from '@main/ai/agentSession/nativeSubmission'
 import { ThreadProjection } from '@main/ai/agentSession/ThreadProjection'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
@@ -306,16 +307,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       })
       if (batch.completion && !this.compacting && !this.closing && this.sending) {
         const { inputs } = batch.completion
-        const failed = inputs.find((input) => input.outcome === 'failed' || input.outcome === 'unanswered')
-        if (failed) {
-          this.failure ??= Object.assign(new Error(failed.error?.message ?? failed.outcome), {
-            reason: failed.error?.code,
-            ...(failed.error?.code === 'output-truncated' && {
-              finishReason: 'length',
-              i18nKey: 'output_token_limit_reached'
-            })
-          })
-        }
+        const failed = inputs.map(nativeOutcomeTerminal).find((terminal) => terminal?.status === 'error')
+        if (failed?.status === 'error') this.failure ??= failed.error
         const aborted = inputs.some((input) => input.outcome === 'aborted')
         this.finishTurn(aborted ? undefined : batch.completion.entryId, aborted)
       }

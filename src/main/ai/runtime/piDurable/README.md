@@ -75,7 +75,8 @@ cancellation and ownership semantics.
 - User Stop calls `interrupt()` and keeps the access open. It records the shared stop policy,
   cancels the native foreground scope and stops running background children. Unconsumed input is
   withdrawn. The connection emits `stop-confirmed` after the stopped turn's terminal event; the
-  next message reuses the same access.
+  next message reuses the same access. If Durable completed or failed the input before the stop
+  landed, Main replaces the paused reply with that outcome.
 - A gap is followed by a recovery snapshot. A failed child projection write is logged and
   reattaches that child from a fresh native snapshot instead of reaching the backend error hook,
   which closes every root.
@@ -87,6 +88,12 @@ cancellation and ownership semantics.
 - Reopening restores the same backend and conversation, rebinds child models, applies
   shared `onOpen`, then resumes the scheduler. Shared policy disarms goals and stops
   interrupted background children; shutdown is not a promise to resume every child.
+- After an unclean exit, a placed input without an outcome resumes on reopen. The connection
+  names it in `recoveredInputId`, and its output continues the reply Main linked to that input
+  when it opened it (`reply_id`); queued inputs are saved before their replies, so row ancestry
+  cannot identify that reply. A pending reply whose input already has a Durable outcome is
+  rebuilt from committed entries with that outcome. Boot recovery leaves admitted delivery turns pending and opens their
+  Sessions so Durable finishes them.
 - Closing a child panel only detaches its projection subscription.
 
 Background continuation keeps one child identity. Independent continuation of an ended
@@ -101,7 +108,10 @@ Native fork creation and its new product-context identity commit together. The o
 provider. It covers approved argument edits, question answers, incremental output,
 native identity on reopen, independent background output and continuation, late steer
 attribution, repeated snapshots, the difference between stop and shutdown, Stop without
-closing, and resynchronization after a child projection fault.
+closing, resynchronization after a child projection fault, and naming the input that reopening
+resumes. `AgentSessionRuntimeService.projection.test.ts` covers continuing a resumed input, outcome
+rebuilds and the Stop/completion race in Main; `recoverSessionDeliveries.test.ts` covers boot delivery
+recovery.
 `durableMcp.test.ts` runs an actual linked MCP server through the native tool loop.
 The storage and child-projection suites cover strict reopen, interrupted binding
 recovery and asynchronous archive reconciliation. These tests do not replace Electron

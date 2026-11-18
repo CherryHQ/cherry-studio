@@ -2183,6 +2183,25 @@ describe('desktop Pi Durable connection', () => {
       .toBe(true)
   })
 
+  // Catches a resumed input surfacing as unattributed background work, which detaches it from its reply.
+  it('names the placed input that reopening resumes', async () => {
+    holdResponse('interrupted by exit')
+    const first = await connect()
+    const user = message('work')
+    await first.connection.send({ message: user })
+    await expect.poll(() => text(first.events)).toBe('interrupted by exit')
+    await first.connection.close()
+
+    setScript([assistantReply('resumed answer')])
+    const reopened = await connect()
+    await done(reopened.events)
+    expect(reopened.events).toContainEqual(
+      expect.objectContaining({ type: 'autonomous-turn-state', state: 'started', recoveredInputId: user.id })
+    )
+    expect(text(reopened.events)).toContain('resumed answer')
+    expect(reopened.nativeInputs.some((state) => state.inputId === user.id && state.outcome === 'completed')).toBe(true)
+  })
+
   it.each([true, false])('waits for native-only pending work with a retained message: %s', async (retained) => {
     const { connection, events, handle } = await connect()
     const context = prepareDurableBranch(input.sessionId)
