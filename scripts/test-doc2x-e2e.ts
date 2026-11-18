@@ -117,9 +117,9 @@ async function triggerExport(uid: string, model: Model): Promise<string> {
   const body = {
     uid,
     to: 'md',
-    formula_mode: 'normal',
-    ...(isV3Model ? { formula_level: 1, merge_cross_page_forms: true } : {})
+    formula_mode: 'normal'
   }
+  if (isV3Model) Object.assign(body, { formula_level: 1, merge_cross_page_forms: true })
   console.log(`export body=${JSON.stringify(body)}`)
   const data = await request(exportDataSchema, `${API_HOST}/api/v2/convert/parse`, {
     method: 'POST',
