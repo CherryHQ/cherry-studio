@@ -58,6 +58,25 @@ describe('assistant catalog presets', () => {
     expect(result.current.isLoading).toBe(false)
   })
 
+  it('rejects malformed optional preset fields before search or assistant creation can use them', async () => {
+    const validPreset = { id: 'valid', name: 'Valid assistant', prompt: 'Help me', group: ['Career'] }
+    assistantCatalogMocks.read.mockResolvedValue(
+      JSON.stringify([
+        validPreset,
+        { id: 'bad-prompt', name: 'Bad prompt', prompt: 42 },
+        { id: 'bad-description', name: 'Bad description', description: {} },
+        { id: 'bad-emoji', name: 'Bad emoji', emoji: false },
+        { id: 'bad-group', name: 'Bad group', group: ['Career', 42] },
+        { id: 'bad-model', name: 'Bad model', defaultModel: { provider: 'openai', id: 42 } }
+      ])
+    )
+
+    const { result } = renderHook(() => useAssistantCatalogPresets())
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(result.current.presets).toEqual([validPreset])
+  })
+
   it('does not load assistant presets while disabled', () => {
     const { result } = renderHook(() => useAssistantCatalogPresets({ enabled: false }))
 
