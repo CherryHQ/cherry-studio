@@ -362,29 +362,24 @@ function toGroupIdentity(row: GroupIdentityRow, groupBy: GroupDimension): AiUsag
     return {}
   }
 
-  return {
-    ...(groupBy === 'source'
+  const identity: AiUsageRecordGroupIdentity =
+    groupBy === 'source'
       ? {
           sourceType: row.sourceType as AiUsageRecordSourceType | null,
           sourceId: row.sourceId,
           sourceName: row.sourceName,
           sourceIcon: row.sourceIcon
         }
-      : {
-          providerId: row.providerId,
-          providerName: row.providerName
-        }),
-    ...(groupBy === 'apiKey'
-      ? {
-          apiKeyId: row.apiKeyId,
-          apiKeyLabel: row.apiKeyLabel,
-          apiKeyMasked: row.apiKeyMasked,
-          apiKeyAttribution: row.apiKeyAttribution as AiUsageRecordAttribution,
-          authMethod: row.authMethod as AiUsageRecordEntry['authMethod']
-        }
-      : {}),
-    ...(groupBy === 'model' ? { modelId: row.modelId } : {})
+      : { providerId: row.providerId, providerName: row.providerName }
+  if (groupBy === 'apiKey') {
+    identity.apiKeyId = row.apiKeyId
+    identity.apiKeyLabel = row.apiKeyLabel
+    identity.apiKeyMasked = row.apiKeyMasked
+    identity.apiKeyAttribution = row.apiKeyAttribution as AiUsageRecordAttribution
+    identity.authMethod = row.authMethod as AiUsageRecordEntry['authMethod']
   }
+  if (groupBy === 'model') identity.modelId = row.modelId
+  return identity
 }
 
 function toStatsGroupIdentity(row: GroupIdentityRow, groupBy: AiUsageRecordGroupBy): AiUsageRecordStatsGroupIdentity {
@@ -882,12 +877,13 @@ function mergeRuntimeSpan(existing: MessageRuntimeSpan, incoming: MessageRuntime
       ? Math.max(existing.completedAt, incoming.completedAt)
       : (incoming.completedAt ?? existing.completedAt)
 
-  return {
+  const merged: MessageRuntimeSpan = {
     ...existing,
     ...incoming,
-    startedAt: Math.min(existing.startedAt, incoming.startedAt),
-    ...(completedAt !== undefined ? { completedAt } : {})
+    startedAt: Math.min(existing.startedAt, incoming.startedAt)
   }
+  if (completedAt !== undefined) merged.completedAt = completedAt
+  return merged
 }
 
 function mergeMessageRuntimeTiming(
@@ -908,9 +904,12 @@ function mergeMessageRuntimeTiming(
       ? Math.max(existing.completedAt, incoming.completedAt)
       : (incoming.completedAt ?? existing.completedAt)
 
+  const timing: Omit<MessageRuntimeTiming, 'spans'> = {
+    startedAt: Math.min(existing.startedAt, incoming.startedAt)
+  }
+  if (completedAt !== undefined) timing.completedAt = completedAt
   return {
-    startedAt: Math.min(existing.startedAt, incoming.startedAt),
-    ...(completedAt !== undefined ? { completedAt } : {}),
+    ...timing,
     spans: [...spans.values()].sort(
       (left, right) => left.startedAt - right.startedAt || left.id.localeCompare(right.id)
     )
@@ -948,12 +947,11 @@ export function mergeMessageUsageProjection(
   for (const key of MESSAGE_USAGE_PROJECTION_KEYS) delete messageOwned[key]
   for (const key of LEGACY_RECORD_OWNED_KEYS) delete messageOwned[key]
 
-  const normalizedMessageOwned: MessageOwnedStats = messageOwned.runtimeTiming
-    ? {
-        runtimeTiming: messageOwned.runtimeTiming,
-        ...(messageOwned.contextTokens !== undefined ? { contextTokens: messageOwned.contextTokens } : {})
-      }
-    : messageOwned
+  let normalizedMessageOwned: MessageOwnedStats = messageOwned
+  if (messageOwned.runtimeTiming) {
+    normalizedMessageOwned = { runtimeTiming: messageOwned.runtimeTiming }
+    if (messageOwned.contextTokens !== undefined) normalizedMessageOwned.contextTokens = messageOwned.contextTokens
+  }
   return { ...normalizedMessageOwned, ...projection }
 }
 
@@ -1033,43 +1031,32 @@ function getMessageUsageProjectionTx(db: DbOrTx, ref: MessageRef): MessageUsageP
     costs.set(row.costCurrency, bucket)
   }
 
-  return {
-    ...(inputTokens !== undefined ? { inputTokens } : {}),
-    ...(outputTokens !== undefined ? { outputTokens } : {}),
-    ...(totalTokens !== undefined ? { totalTokens } : {}),
-    ...(noCacheTokens !== undefined || cacheReadTokens !== undefined || cacheWriteTokens !== undefined
-      ? {
-          inputTokenDetails: {
-            ...(noCacheTokens !== undefined ? { noCacheTokens } : {}),
-            ...(cacheReadTokens !== undefined ? { cacheReadTokens } : {}),
-            ...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {})
-          }
-        }
-      : {}),
-    ...(textTokens !== undefined || reasoningTokens !== undefined
-      ? {
-          outputTokenDetails: {
-            ...(textTokens !== undefined ? { textTokens } : {}),
-            ...(reasoningTokens !== undefined ? { reasoningTokens } : {})
-          }
-        }
-      : {}),
-    requestCount: rows.reduce((sum, row) => sum + row.requestCount, 0),
-    estimatedRequestCount: rows.reduce(
-      (sum, row) => sum + (row.recordKind === 'legacy-aggregate' ? row.requestCount : 0),
-      0
-    ),
-    unpricedRequestCount: rows.reduce((sum, row) => sum + (row.cost === null ? row.requestCount : 0), 0),
-    costs: [...costs.values()].sort((left, right) => left.currency.localeCompare(right.currency)),
-    ...(measuredInvocationCount > 0
-      ? {
-          providerPerformance: {
-            measuredOutputTokens,
-            generationDurationMs
-          }
-        }
-      : {})
+  const projection: MessageUsageProjection = {}
+  if (inputTokens !== undefined) projection.inputTokens = inputTokens
+  if (outputTokens !== undefined) projection.outputTokens = outputTokens
+  if (totalTokens !== undefined) projection.totalTokens = totalTokens
+  if (noCacheTokens !== undefined || cacheReadTokens !== undefined || cacheWriteTokens !== undefined) {
+    const details: NonNullable<MessageUsageProjection['inputTokenDetails']> = {}
+    if (noCacheTokens !== undefined) details.noCacheTokens = noCacheTokens
+    if (cacheReadTokens !== undefined) details.cacheReadTokens = cacheReadTokens
+    if (cacheWriteTokens !== undefined) details.cacheWriteTokens = cacheWriteTokens
+    projection.inputTokenDetails = details
   }
+  if (textTokens !== undefined || reasoningTokens !== undefined) {
+    const details: NonNullable<MessageUsageProjection['outputTokenDetails']> = {}
+    if (textTokens !== undefined) details.textTokens = textTokens
+    if (reasoningTokens !== undefined) details.reasoningTokens = reasoningTokens
+    projection.outputTokenDetails = details
+  }
+  projection.requestCount = rows.reduce((sum, row) => sum + row.requestCount, 0)
+  projection.estimatedRequestCount = rows.reduce(
+    (sum, row) => sum + (row.recordKind === 'legacy-aggregate' ? row.requestCount : 0),
+    0
+  )
+  projection.unpricedRequestCount = rows.reduce((sum, row) => sum + (row.cost === null ? row.requestCount : 0), 0)
+  projection.costs = [...costs.values()].sort((left, right) => left.currency.localeCompare(right.currency))
+  if (measuredInvocationCount > 0) projection.providerPerformance = { measuredOutputTokens, generationDurationMs }
+  return projection
 }
 
 function rebuildMessageUsageProjectionTx(
