@@ -28,6 +28,7 @@ const transportLog: ChannelOptions['logger'] = {
     Object.assign(() => {}, {
       enabled: false,
       trace() {},
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- libp2p log formatters accept arbitrary diagnostic values; normalize them only at this logger adapter.
       error: (formatter: unknown, ...args: unknown[]) =>
         logger.warn('Encrypted remote transport error', { detail: String(formatter), args: args.map(String) }),
       newScope: () => transportLog.forComponent('remote')
@@ -107,10 +108,11 @@ export class RemoteAccessService extends BaseService {
         this.endpoint = { ...advertised, identity: deviceIdentityId(identity) }
         this.advertisement.update(this.endpoint.identity!, advertised.port, advertised.ipv6)
       })
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Identity loading can reject with any value; a failed current discovery attempt publishes unavailable status.
       .catch((error: unknown) => {
         if (revision !== this.endpointRevision) return
         application.get('CacheService').setShared('feature.remote_access.discovery_status', 'unavailable')
-        logger.warn('Remote identity unavailable for discovery', error as Error)
+        logger.warn('Remote identity unavailable for discovery', error instanceof Error ? error : { error })
       })
   }
 
@@ -163,9 +165,14 @@ export class RemoteAccessService extends BaseService {
       entry.remote?.dispose()
       this.connections.delete(socket)
     })
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Identity and secure-channel setup can reject with arbitrary values; normalize logging before closing the socket.
     void this.run(socket, entry).catch((error: unknown) => {
       if (entry.abort.signal.aborted && error === entry.abort.signal.reason) return
-      logger.warn('Remote session ended with an error', { address, error: (error as Error).message })
+      logger.warn('Remote session ended with an error', {
+        address,
+        error:
+          error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unknown remote session failure'
+      })
       socket.close(1011, 'Remote session failed')
     })
   }
@@ -205,6 +212,7 @@ export class RemoteAccessService extends BaseService {
   }
 
   private getIdentity(): Promise<Uint8Array> {
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Key-store and identity-file operations can reject with any value; clear the memoized attempt and preserve its rejection.
     this.identity ??= loadDesktopIdentity().catch((error: unknown) => {
       this.identity = undefined
       throw error
