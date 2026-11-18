@@ -2,17 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   type BridgeResult,
+  type MiniAppReply,
   MINI_APP_EVENT_CHANNEL,
   MINI_APP_GUEST_LIMITS,
   MINI_APP_STREAM_CHANNEL
 } from '@shared/ipc/schemas/miniAppBridge'
 
 const exposeInMainWorld = vi.fn()
-// Typed to the wire contract: inferred from the default implementation, the mock's
-// return type is `{ ok: true; value: null }` and every failure envelope below is refused.
 const invoke = vi.fn<(channel: string, payload: unknown) => Promise<BridgeResult>>(async () => ({
   ok: true,
-  value: null
+  value: { ok: true }
 }))
 // Main → guest traffic: what `ipcRenderer.on` registered, so a case can push a chunk or an
 // event at the bridge exactly as main would.
@@ -28,7 +27,7 @@ vi.mock('electron', () => ({
 await import('../miniAppBridge')
 // `unknown[]`, not `never[]` — nothing is assignable to `never`, so a `never[]` cast
 // rejects the very calls the file exists to make.
-type GuestFn = (...args: unknown[]) => Promise<unknown>
+type GuestFn = (...args: unknown[]) => Promise<MiniAppReply>
 const cherry = exposeInMainWorld.mock.calls[0][1] as Record<string, Record<string, GuestFn>> & {
   on: (event: string, handler: (payload: unknown) => unknown) => () => void
 }
@@ -56,7 +55,7 @@ describe('the guest bridge', () => {
     // `length === undefined` and `undefined > cap` is `false`, so measuring `.length` alone
     // passes the buffer through to be structured-cloned into the main process: exactly the
     // allocation this gate exists to avoid. Coercing first bounds it whatever came in.
-    invoke.mockResolvedValueOnce({ ok: true, value: undefined })
+    invoke.mockResolvedValueOnce({ ok: true, value: { ok: true } })
     const buffer = new ArrayBuffer(64 << 20)
 
     await cherry.storage.set('k', buffer)
@@ -67,7 +66,7 @@ describe('the guest bridge', () => {
   })
 
   it('forwards the string it measured, not the object it was handed', async () => {
-    invoke.mockResolvedValueOnce({ ok: true, value: undefined })
+    invoke.mockResolvedValueOnce({ ok: true, value: { ok: true } })
 
     await cherry.storage.set('k', { toString: () => 'coerced' })
 
@@ -99,16 +98,16 @@ describe('the guest bridge', () => {
   it('resolves a successful call', async () => {
     // Positive control: the two rejections above are the gate and the envelope, not a
     // bridge that rejects everything it is handed.
-    invoke.mockResolvedValueOnce({ ok: true, value: ['a'] })
+    invoke.mockResolvedValueOnce({ ok: true, value: { keys: ['a'] } })
 
-    await expect(cherry.storage.keys()).resolves.toEqual(['a'])
+    await expect(cherry.storage.keys()).resolves.toEqual({ keys: ['a'] })
   })
 
   it('routes each stream chunk to the call that owns it', async () => {
     // Two `ai.chat` in flight at once — the concurrency cap allows it — must not read
     // each other's output. `requestId` is the ONLY thing separating them.
     const settle: Array<() => void> = []
-    const pending = () => new Promise<BridgeResult>((r) => settle.push(() => r({ ok: true, value: null })))
+    const pending = () => new Promise<BridgeResult>((r) => settle.push(() => r({ ok: true, value: { ok: true } })))
     invoke.mockImplementationOnce(pending).mockImplementationOnce(pending)
     const first: string[] = []
     const second: string[] = []
@@ -146,7 +145,7 @@ describe('the guest bridge', () => {
     expect(seen).toEqual([{ locale: 'de' }])
   })
 
-  it.each<[string, () => Promise<unknown>]>([
+  it.each<[string, () => Promise<MiniAppReply>]>([
     [
       'too many chat messages',
       () => cherry.ai.chat({ messages: Array.from({ length: MINI_APP_GUEST_LIMITS.chatMessages + 1 }, () => ({})) })
