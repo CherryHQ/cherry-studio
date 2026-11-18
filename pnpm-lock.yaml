@@ -1464,6 +1464,9 @@ importers:
       undici:
         specifier: 6.27.0
         version: 6.27.0
+      unicode-case-folding:
+        specifier: 1.1.2
+        version: 1.1.2
       unified:
         specifier: ^11.0.5
         version: 11.0.5
@@ -15707,6 +15710,9 @@ packages:
   undici@8.12.3:
     resolution: {integrity: sha512-+fdndUTwBP86cVjihTp21hZHo7d6oj1c/47XPA3lL8mM0XHs+C4EkcjmgRsFnFk2f/UONGDy9ItBItmXsLOQHw==}
     engines: {node: '>=22.19.0'}
+
+  unicode-case-folding@1.1.2:
+    resolution: {integrity: sha512-03vMM1kVkJbiSIPDW1D0hu42prq3Pe000yC5PaNMjhBJQxDuhAfh+R1V4TXXL21adjBqj7fUtBjZuWCRmiOQQQ==}
 
   unicorn-magic@0.3.0:
     resolution: {integrity: sha512-+QBBXBCvifc56fsbuxZQ6Sic3wqqc3WWaqxs58gvJrcOuN83HGTCwz3oS5phzU9LthRNE9VrJCFCLUgHeeFnfA==}
@@ -31699,6 +31705,8 @@ snapshots:
   undici@7.28.0: {}
 
   undici@8.12.3: {}
+
+  unicode-case-folding@1.1.2: {}
 
   unicorn-magic@0.3.0: {}
 
