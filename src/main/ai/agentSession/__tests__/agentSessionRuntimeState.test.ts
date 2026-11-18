@@ -205,6 +205,77 @@ describe('reply ownership and delivery', () => {
     expect(m.state.launch).toEqual({ kind: 'scheduled', target: { kind: 'reply', turn: first } })
   })
 
+  it.each(['success', 'error', 'paused'] as const)('does not continue for a settled deferred %s reply', (status) => {
+    for (const releaseFirst of [true, false]) {
+      const m = machine()
+      m.open(first)
+      m.send({ type: 'turn-admitted', turn: first })
+      m.finish(first)
+      m.send({ type: 'autonomous-turn-started', turn: second, deferCurrentTurn: true })
+      expect(willAgentSessionRuntimeContinue(m.state)).toBe(true)
+      m.send({ type: 'turn-terminal', turn: first, status })
+      m.send({ type: 'turn-prepared', turn: second })
+      m.open(second)
+      m.completeLaunch()
+      m.finish(second)
+      if (releaseFirst) m.send({ type: 'autonomous-turn-finished' })
+      expect(m.state.queue).toEqual([])
+      expect(m.state.launch.kind).toBe('idle')
+      expect(getAgentSessionRuntimeOccupancy(m.state)?.compaction).toBeUndefined()
+      expect(getAgentSessionRuntimeReply(m.state, first)?.delivery).toEqual({ kind: 'settled', status })
+      expect(isAgentSessionRuntimeBusy(m.state)).toBe(true)
+      expect(willAgentSessionRuntimeContinue(m.state)).toBe(false)
+      m.persist(second)
+      if (!releaseFirst) m.send({ type: 'autonomous-turn-finished' })
+      expect(m.state.execution.kind).toBe('idle')
+      expect(isAgentSessionRuntimeBusy(m.state)).toBe(false)
+      expect(m.state.launch.kind).toBe('idle')
+    }
+  })
+
+  it('retains continuation for every unsettled deferred delivery and other continuation owners', () => {
+    const m = machine()
+    m.open(first)
+    m.send({ type: 'turn-admitted', turn: first })
+    m.finish(first)
+    m.send({ type: 'autonomous-turn-started', turn: second, deferCurrentTurn: true })
+    const execution = m.state.execution
+    if (execution.kind !== 'autonomous-turn' || !execution.deferred) throw new Error('Expected deferred reply')
+    for (const kind of [
+      'reserved',
+      'unopened',
+      'attaching',
+      'open',
+      'suspending',
+      'awaiting-persistence',
+      'failed'
+    ] as const) {
+      expect(
+        willAgentSessionRuntimeContinue({
+          ...m.state,
+          execution: { ...execution, deferred: { ...execution.deferred, delivery: { kind } } }
+        })
+      ).toBe(true)
+    }
+    const noDeferred = { ...m.state, execution: { ...execution, deferred: undefined } }
+    expect(willAgentSessionRuntimeContinue(noDeferred)).toBe(false)
+    expect(willAgentSessionRuntimeContinue({ ...noDeferred, queue: [first] })).toBe(true)
+    for (const kind of ['scheduled', 'running', 'suppressed'] as const) {
+      expect(
+        willAgentSessionRuntimeContinue({ ...noDeferred, launch: { kind, target: { kind: 'reply', turn: first } } })
+      ).toBe(true)
+    }
+    expect(
+      willAgentSessionRuntimeContinue({
+        ...noDeferred,
+        execution: { kind: 'steer-transition', source: execution.deferred, reply: execution.reply }
+      })
+    ).toBe(true)
+    m.connect()
+    m.send({ type: 'connection-occupancy', occupancy: 'compaction', active: true })
+    expect(willAgentSessionRuntimeContinue({ ...noDeferred, connection: m.state.connection })).toBe(true)
+  })
+
   it('keeps a failed autonomous reply as fact owner until release and retries its own preparation', () => {
     const m = machine()
     m.send({ type: 'autonomous-turn-started', turn: second, deferCurrentTurn: true })
