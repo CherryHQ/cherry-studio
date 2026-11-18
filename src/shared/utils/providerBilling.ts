@@ -13,10 +13,13 @@ export function resolveProviderBilling(
     mode: 'multiplier',
     multiplier: billing.defaultMultiplier,
     timeZone: billing.timeZone,
-    reason: 'default',
-    ...(billing.source ? { source: billing.source, ruleVersion: '2026-11-14-weekdays' } : {}),
-    ...(startedAt ? { pricedAt: startedAt.toISOString() } : {})
+    reason: 'default'
   }
+  if (billing.source) {
+    resolution.source = billing.source
+    resolution.ruleVersion = '2026-11-14-weekdays'
+  }
+  if (startedAt) resolution.pricedAt = startedAt.toISOString()
   if (billing.scheduleEnabled && billing.periods.length > 0) {
     if (!startedAt) {
       const coveredMinutes = billing.periods.reduce((total, { start, end }) => {
