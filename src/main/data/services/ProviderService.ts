@@ -196,12 +196,9 @@ function normalizeApiKeyEntry(entry: ApiKeyEntry): ApiKeyEntry {
     throw DataApiErrorFactory.validation({ key: ['API key cannot be empty'] })
   }
 
-  return {
-    id: entry.id,
-    key,
-    ...(entry.label ? { label: entry.label } : {}),
-    isEnabled: entry.isEnabled
-  }
+  const identity: Omit<ApiKeyEntry, 'isEnabled'> = { id: entry.id, key }
+  if (entry.label) identity.label = entry.label
+  return { ...identity, isEnabled: entry.isEnabled }
 }
 
 function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
@@ -226,14 +223,14 @@ function toResolvedProviderApiKey(
   attribution: 'explicit' | 'matched',
   entry: ApiKeyEntry
 ): ResolvedProviderApiKey {
+  const identity: Omit<Extract<ProviderApiKeySelection, { attribution: 'explicit' | 'matched' }>, 'masked'> = {
+    attribution,
+    id: entry.id
+  }
+  if (entry.label) identity.label = entry.label
   return {
     value,
-    apiKeySelection: {
-      attribution,
-      id: entry.id,
-      ...(entry.label ? { label: entry.label } : {}),
-      masked: maskApiKeyForSnapshot(entry.key)
-    }
+    apiKeySelection: { ...identity, masked: maskApiKeyForSnapshot(entry.key) }
   }
 }
 
@@ -326,31 +323,35 @@ function rowToRuntimeProvider(row: UserProviderRow, metadata?: ProviderDisplayMe
   // surfaces a real invariant break instead of swallowing it.
   const logoFileId = getSingleFileRefId(providerLogoFileRefTable, row.providerId)
 
+  const metadata: Omit<Provider, 'reportsActualCost' | 'fastMode' | 'apiKeys' | 'authType' | 'settings' | 'isEnabled'> =
+    {
+      id: row.providerId,
+      presetProviderId: row.presetProviderId ?? undefined,
+      name: row.name,
+      // Preset icon key stays on `logo`, an uploaded one on `logoSrc` — mutually exclusive.
+      logo: row.logoKey ?? undefined,
+      logoSrc: logoFileId ? application.get('FileManager').getUrl(logoFileId) : undefined,
+      description: presetMetadata.description,
+      websites: presetMetadata.websites,
+      availableInEditions: presetMetadata.availableInEditions,
+      // Registry-owned connection facts (adapterFamily, modelsApiUrls, the
+      // endpoint-type key set) resolve from the CURRENT registry at read time
+      // (#17096 — the seeder is insert-only, so the row alone goes stale);
+      // the row contributes user-owned baseUrl and dialect overrides. Legacy
+      // registry-only fields such as `reasoningFormatType` are stripped first.
+      endpointConfigs:
+        providerRegistryService.mergeEndpointConfigs(row.endpointConfigs, row.providerId, row.presetProviderId) ??
+        undefined,
+      defaultChatEndpoint: row.defaultChatEndpoint ?? presetMetadata.defaultChatEndpoint,
+      modelListSource: presetMetadata.modelListSource,
+      supplementModelsFromRegistry: presetMetadata.supplementModelsFromRegistry,
+      authMethods: presetMetadata.authMethods,
+      authOptional: presetMetadata.authOptional,
+      serverTools: presetMetadata.serverTools ?? []
+    }
+  if (presetMetadata.reportedCostCurrency) metadata.reportedCostCurrency = presetMetadata.reportedCostCurrency
   return {
-    id: row.providerId,
-    presetProviderId: row.presetProviderId ?? undefined,
-    name: row.name,
-    // Preset icon key stays on `logo`, an uploaded one on `logoSrc` — mutually exclusive.
-    logo: row.logoKey ?? undefined,
-    logoSrc: logoFileId ? application.get('FileManager').getUrl(logoFileId) : undefined,
-    description: presetMetadata.description,
-    websites: presetMetadata.websites,
-    availableInEditions: presetMetadata.availableInEditions,
-    // Registry-owned connection facts (adapterFamily, modelsApiUrls, the
-    // endpoint-type key set) resolve from the CURRENT registry at read time
-    // (#17096 — the seeder is insert-only, so the row alone goes stale);
-    // the row contributes user-owned baseUrl and dialect overrides. Legacy
-    // registry-only fields such as `reasoningFormatType` are stripped first.
-    endpointConfigs:
-      providerRegistryService.mergeEndpointConfigs(row.endpointConfigs, row.providerId, row.presetProviderId) ??
-      undefined,
-    defaultChatEndpoint: row.defaultChatEndpoint ?? presetMetadata.defaultChatEndpoint,
-    modelListSource: presetMetadata.modelListSource,
-    supplementModelsFromRegistry: presetMetadata.supplementModelsFromRegistry,
-    authMethods: presetMetadata.authMethods,
-    authOptional: presetMetadata.authOptional,
-    serverTools: presetMetadata.serverTools ?? [],
-    ...(presetMetadata.reportedCostCurrency ? { reportedCostCurrency: presetMetadata.reportedCostCurrency } : {}),
+    ...metadata,
     reportsActualCost: presetMetadata.reportsActualCost ?? false,
     fastMode: presetMetadata.fastMode,
     apiKeys,
@@ -784,12 +785,9 @@ class ProviderService {
         return { provider: rowToRuntimeProvider(row), added: false }
       }
 
-      const newEntry = {
-        id: uuidv4(),
-        key,
-        ...(label ? { label } : {}),
-        isEnabled: true
-      }
+      const identity: Omit<ApiKeyEntry, 'isEnabled'> = { id: uuidv4(), key }
+      if (label) identity.label = label
+      const newEntry: ApiKeyEntry = { ...identity, isEnabled: true }
 
       const updatedKeys = [...existingKeys, newEntry]
 
@@ -898,11 +896,9 @@ class ProviderService {
           return entry
         }
 
-        const updatedEntry = {
-          ...entry,
-          ...(updates.isEnabled !== undefined ? { isEnabled: updates.isEnabled } : {}),
-          ...(nextKeyValue ? { key: nextKeyValue } : {})
-        }
+        const updatedEntry = { ...entry }
+        if (updates.isEnabled !== undefined) updatedEntry.isEnabled = updates.isEnabled
+        if (nextKeyValue) updatedEntry.key = nextKeyValue
 
         if (updates.label !== undefined) {
           if (updates.label) {
