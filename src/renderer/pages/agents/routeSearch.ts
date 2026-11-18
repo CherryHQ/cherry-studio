@@ -14,11 +14,12 @@ export function parseAgentRouteSearch(search: Record<string, unknown>): AgentRou
   const forkReturnSessionId = typeof search.forkReturnSessionId === 'string' ? search.forkReturnSessionId : undefined
   const skillId = intent === 'skill' && typeof search.skillId === 'string' ? search.skillId : undefined
 
-  return {
+  const parsed: AgentRouteSearch = {
     agentId,
     intent,
-    sessionId,
-    ...(forkReturnSessionId ? { forkReturnSessionId } : {}),
-    ...(skillId ? { skillId } : {})
+    sessionId
   }
+  if (forkReturnSessionId) parsed.forkReturnSessionId = forkReturnSessionId
+  if (skillId) parsed.skillId = skillId
+  return parsed
 }

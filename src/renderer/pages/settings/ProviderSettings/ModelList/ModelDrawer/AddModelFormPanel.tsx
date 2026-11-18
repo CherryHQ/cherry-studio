@@ -173,7 +173,10 @@ export default function AddModelFormPanel({
         prefill?.model?.inputModalities !== undefined ||
         (submittedInputModalities?.length ?? 0) > 0
 
-      await createModel({
+      const input: Pick<
+        Parameters<typeof createModel>[0],
+        'providerId' | 'modelId' | 'name' | 'group' | 'endpointTypes' | 'capabilities' | 'inputModalities'
+      > = {
         providerId,
         modelId,
         name: values.name ? values.name : modelId.toUpperCase(),
@@ -184,13 +187,14 @@ export default function AddModelFormPanel({
             : mode === 'endpoint-types' && values.endpointTypes?.length
               ? [...values.endpointTypes]
               : undefined,
-        capabilities: submittedPurposeFields?.capabilities ?? classifiedCapabilities,
-        ...(shouldSubmitInputModalities ? { inputModalities: submittedInputModalities } : {}),
-        outputModalities: submittedPurposeFields?.outputModalities,
-        ...(values.contextWindow !== null ? { contextWindow: values.contextWindow } : {}),
-        ...(values.maxInputTokens !== null ? { maxInputTokens: values.maxInputTokens } : {}),
-        ...(values.maxOutputTokens !== null ? { maxOutputTokens: values.maxOutputTokens } : {})
-      })
+        capabilities: submittedPurposeFields?.capabilities ?? classifiedCapabilities
+      }
+      if (shouldSubmitInputModalities) input.inputModalities = submittedInputModalities
+      const limits: Pick<Parameters<typeof createModel>[0], 'contextWindow' | 'maxInputTokens' | 'maxOutputTokens'> = {}
+      if (values.contextWindow !== null) limits.contextWindow = values.contextWindow
+      if (values.maxInputTokens !== null) limits.maxInputTokens = values.maxInputTokens
+      if (values.maxOutputTokens !== null) limits.maxOutputTokens = values.maxOutputTokens
+      await createModel({ ...input, outputModalities: submittedPurposeFields?.outputModalities, ...limits })
 
       return createUniqueModelId(providerId, modelId)
     },

@@ -216,13 +216,14 @@ function parseModelPricingDraft(draft: ModelPricingDraft): {
     if (cacheReadPrice.error) tierErrors.cacheReadPrice = cacheReadPrice.error
     if (cacheWritePrice.error) tierErrors.cacheWritePrice = cacheWritePrice.error
 
-    parsedTiers.push({
+    const parsed: ParsedModelPricingTier = {
       minInputTokens,
       inputPrice: inputPrice.value ?? 0,
-      outputPrice: outputPrice.value ?? 0,
-      ...(cacheReadPrice.value !== undefined ? { cacheReadPrice: cacheReadPrice.value } : {}),
-      ...(cacheWritePrice.value !== undefined ? { cacheWritePrice: cacheWritePrice.value } : {})
-    })
+      outputPrice: outputPrice.value ?? 0
+    }
+    if (cacheReadPrice.value !== undefined) parsed.cacheReadPrice = cacheReadPrice.value
+    if (cacheWritePrice.value !== undefined) parsed.cacheWritePrice = cacheWritePrice.value
+    parsedTiers.push(parsed)
   }
 
   if (errors.some((tierErrors) => Object.keys(tierErrors).length > 0)) {
