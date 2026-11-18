@@ -350,14 +350,15 @@ export function createWebviewElementLocator(element: Element): WebviewElementLoc
   const role = element.getAttribute('role')?.replace(/\s+/g, ' ').trim() || null
   const styles = summarizeComputedStyles(element)
 
-  return {
+  const locator: WebviewElementLocator = {
     selector,
     tagName: element.tagName.toLowerCase().slice(0, WEBVIEW_ANNOTATION_LIMITS.tagName),
     text: summarizeText(element),
     ariaLabel: ariaLabel?.slice(0, WEBVIEW_ANNOTATION_LIMITS.ariaLabel) ?? null,
-    role: role?.slice(0, WEBVIEW_ANNOTATION_LIMITS.role) ?? null,
-    ...(styles ? { styles } : {})
+    role: role?.slice(0, WEBVIEW_ANNOTATION_LIMITS.role) ?? null
   }
+  if (styles) locator.styles = styles
+  return locator
 }
 
 interface ViewportRect {
@@ -1108,9 +1109,9 @@ export class WebviewAnnotationController {
       const annotation: WebviewAnnotation = {
         id: createGuestUuid(),
         comment,
-        element: locator,
-        ...(this.pendingRegion ? { region: this.pendingRegion } : {})
+        element: locator
       }
+      if (this.pendingRegion) annotation.region = this.pendingRegion
       saved = annotation
       this.annotations.push(annotation)
       this.annotationElements.set(annotation.id, editorElement)
