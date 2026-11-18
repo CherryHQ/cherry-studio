@@ -587,10 +587,10 @@ class QqAdapter extends ChannelAdapter {
       })
     )
 
-    const attachments: Pick<ChannelMessageEvent, 'images' | 'files'> = {}
-    if (images.length > 0) attachments.images = images
-    if (files.length > 0) attachments.files = files
-    return attachments
+    const downloaded: Pick<ChannelMessageEvent, 'images' | 'files'> = {}
+    if (images.length > 0) downloaded.images = images
+    if (files.length > 0) downloaded.files = files
+    return downloaded
   }
 
   private async pushAttachment(
