@@ -29,7 +29,7 @@ export function normalizeFlatV3Usage(flat: FlatV3Usage): LanguageModelV3Usage {
       ? Math.max(0, flat.inputTokens - cachedInput)
       : undefined
 
-  return {
+  const usage: LanguageModelV3Usage = {
     inputTokens: {
       total: flat.inputTokens,
       noCache,
@@ -40,9 +40,10 @@ export function normalizeFlatV3Usage(flat: FlatV3Usage): LanguageModelV3Usage {
       total: flat.outputTokens,
       text: undefined,
       reasoning: flat.reasoningTokens
-    },
-    ...(flat.raw !== undefined ? { raw: flat.raw } : {})
+    }
   }
+  if (flat.raw !== undefined) Object.assign(usage, { raw: flat.raw })
+  return usage
 }
 
 /** Coerce flat provider usage into the nested AI SDK v3 shape expected by persistence. */

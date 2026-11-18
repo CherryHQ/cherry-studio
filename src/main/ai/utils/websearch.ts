@@ -58,13 +58,9 @@ export function getWebSearchParams(model: Model, provider: Provider | undefined)
       : /qwen3-max|omni|qwen3-vl/.test(apiModelId)
         ? 'agent'
         : undefined
-    return {
-      enable_search: true,
-      search_options: {
-        forced_search: true,
-        ...(searchStrategy ? { search_strategy: searchStrategy } : {})
-      }
-    }
+    const searchOptions = { forced_search: true }
+    if (searchStrategy) Object.assign(searchOptions, { search_strategy: searchStrategy })
+    return { enable_search: true, search_options: searchOptions }
   }
 
   if (provider && matchesPreset(provider, 'qwencloud')) {
@@ -87,13 +83,9 @@ export function getWebSearchParams(model: Model, provider: Provider | undefined)
       )
         ? 'agent'
         : undefined
-    return {
-      enable_search: true,
-      search_options: {
-        forced_search: true,
-        ...(searchStrategy ? { search_strategy: searchStrategy } : {})
-      }
-    }
+    const searchOptions = { forced_search: true }
+    if (searchStrategy) Object.assign(searchOptions, { search_strategy: searchStrategy })
+    return { enable_search: true, search_options: searchOptions }
   }
 
   // https://creator.poe.com/docs/external-applications/openai-compatible-api#using-custom-parameters-with-extra_body
