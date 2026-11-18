@@ -828,7 +828,7 @@ export function isDataApiError(error: unknown): error is DataApiError {
  * @param error - Any thrown value
  * @returns true if the error is a NOT_FOUND DataApiError
  */
-export function isDataApiNotFoundError(error: unknown): boolean {
+export function isDataApiNotFoundError(error: unknown): error is DataApiError<ErrorCode.NOT_FOUND> {
   return isDataApiError(error) && error.code === ErrorCode.NOT_FOUND
 }
 
@@ -842,7 +842,7 @@ export function isDataApiResourceNotFoundError(
   error: unknown,
   resource: string
 ): error is DataApiError<ErrorCode.NOT_FOUND> {
-  return isDataApiNotFoundError(error) && (error as DataApiError<ErrorCode.NOT_FOUND>).details?.resource === resource
+  return isDataApiNotFoundError(error) && error.details?.resource === resource
 }
 
 /**
@@ -868,23 +868,23 @@ export function isSerializedDataApiError(error: unknown): error is SerializedDat
  * If already a DataApiError, returns as-is.
  * Otherwise, wraps in an INTERNAL_SERVER_ERROR.
  *
- * @param error - Any error
+ * @param cause - Any error
  * @param context - Optional context description
  * @returns DataApiError instance
  */
-export function toDataApiError(error: unknown, context?: string): DataApiError {
-  if (isDataApiError(error)) {
-    return error
+export function toDataApiError(cause: unknown, context?: string): DataApiError {
+  if (isDataApiError(cause)) {
+    return cause
   }
 
-  if (isSerializedDataApiError(error)) {
-    return DataApiError.fromJSON(error)
+  if (isSerializedDataApiError(cause)) {
+    return DataApiError.fromJSON(cause)
   }
 
   // Convert ZodError to 422 VALIDATION_ERROR
-  if (isZodError(error)) {
+  if (isZodError(cause)) {
     const fieldErrors: Record<string, string[]> = {}
-    for (const issue of error.issues) {
+    for (const issue of cause.issues) {
       const path = issue.path.length > 0 ? issue.path.join('.') : '_root'
       if (!fieldErrors[path]) fieldErrors[path] = []
       fieldErrors[path].push(issue.message)
@@ -892,14 +892,14 @@ export function toDataApiError(error: unknown, context?: string): DataApiError {
     return DataApiErrorFactory.validation(fieldErrors, `Validation failed${context ? ` in ${context}` : ''}`)
   }
 
-  if (error instanceof Error) {
-    return DataApiErrorFactory.internal(error, context)
+  if (cause instanceof Error) {
+    return DataApiErrorFactory.internal(cause, context)
   }
 
   return DataApiErrorFactory.create(
     ErrorCode.INTERNAL_SERVER_ERROR,
-    `Unknown error${context ? ` in ${context}` : ''}: ${String(error)}`,
-    { originalError: String(error), context }
+    `Unknown error${context ? ` in ${context}` : ''}: ${String(cause)}`,
+    { originalError: String(cause), context }
   )
 }
 
