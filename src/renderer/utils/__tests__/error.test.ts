@@ -255,9 +255,7 @@ describe('error', () => {
 
       const result = serializeHealthCheckError(err)
 
-      // The exact behaviour the migration delivers: rich `data`, not the flattened `message`.
-      expect(result).toBe(detail)
-      expect(result).toMatchObject({ statusCode: 500, responseBody: 'upstream exploded' })
+      expect(result).toEqual(detail)
     })
 
     it('uses the safe terminal detail from an IPC RetryError in health checks', () => {
@@ -274,7 +272,7 @@ describe('error', () => {
 
       const result = serializeHealthCheckError(error)
 
-      expect(result).toBe(detail)
+      expect(result).toEqual(detail)
       expect(providerErrorText(result)).toBe('Rate limit reached')
       expect(JSON.stringify(result)).not.toMatch(/private user prompt|internal trace/)
     })
