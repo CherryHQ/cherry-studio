@@ -89,6 +89,7 @@ class CacheNotifier {
    * exact-key set first (O(1) lookup), then any template subscriptions whose
    * pattern matches the concrete key.
    */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Internal set<T>, shared IPC updates and deletions dispatch heterogeneous key values; undefined marks missing/deleted entries.
   notify(concreteKey: string, newValue: unknown, oldValue: unknown): void {
     // Exact match path: O(1) hash lookup
     const exact = this.subscriptions.get(concreteKey)
@@ -138,7 +139,9 @@ class CacheNotifier {
   private invokeAll(
     set: Set<CacheSubscriptionCallback>,
     concreteKey: string,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Matching cache keys carry different value types; this dispatcher forwards each new value without interpreting it.
     newValue: unknown,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Previous values come from the same heterogeneous cache entries and may be absent on insertion.
     oldValue: unknown
   ): void {
     // Snapshot to allow callbacks to (un)subscribe without breaking iteration
