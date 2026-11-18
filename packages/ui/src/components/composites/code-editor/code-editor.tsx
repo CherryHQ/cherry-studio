@@ -1,6 +1,6 @@
 import { historyField } from '@codemirror/commands'
 import { foldState, syntaxHighlighting } from '@codemirror/language'
-import type { ChangeSpec } from '@codemirror/state'
+import type { ChangeSpec, TransactionSpec } from '@codemirror/state'
 import { EditorState, Text } from '@codemirror/state'
 import type { ViewUpdate } from '@codemirror/view'
 import { gutters } from '@codemirror/view'
@@ -201,18 +201,11 @@ const CodeEditor = ({
 
     if (changes && changes.length > 0) {
       const shouldScrollToBottom = autoScrollToBottom && !expanded && shouldStickToBottomRef.current
-      editorViewRef.current.dispatch({
-        changes,
-        annotations: [ExternalChange.of(true)],
-        ...(shouldScrollToBottom
-          ? {
-              effects: EditorView.scrollIntoView(nextDoc.length, {
-                y: 'end',
-                x: 'nearest'
-              })
-            }
-          : {})
-      })
+      const transaction: TransactionSpec = { changes, annotations: [ExternalChange.of(true)] }
+      if (shouldScrollToBottom) {
+        transaction.effects = EditorView.scrollIntoView(nextDoc.length, { y: 'end', x: 'nearest' })
+      }
+      editorViewRef.current.dispatch(transaction)
     }
   }, [autoScrollToBottom, expanded, options?.stream, value, syntaxHighlightStyle])
 

@@ -123,18 +123,10 @@ export class ClaudeMessageMetadata {
       }
       if (part.type === 'reasoning') {
         const timing = this.thinking.get(message.id)?.get(index)
-        return timing
-          ? {
-              ...part,
-              providerMetadata: {
-                ...part.providerMetadata,
-                cherry: {
-                  startedAt: timing.startedAt,
-                  ...(timing.thinkingMs === undefined ? {} : { thinkingMs: timing.thinkingMs })
-                }
-              }
-            }
-          : part
+        if (!timing) return part
+        const cherry = { startedAt: timing.startedAt }
+        if (timing.thinkingMs !== undefined) Object.assign(cherry, { thinkingMs: timing.thinkingMs })
+        return { ...part, providerMetadata: { ...part.providerMetadata, cherry } }
       }
       if (part.type !== 'text') return part
       const filter = new SystemReminderTextFilter(this.reminders)

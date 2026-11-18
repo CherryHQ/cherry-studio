@@ -1,6 +1,7 @@
 import { CirclePause } from 'lucide-react'
 import {
   type ComponentType,
+  type CSSProperties,
   type DragEvent as ReactDragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   useCallback,
@@ -504,20 +505,18 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
       }
     : undefined
 
+  const surfaceStyle: CSSProperties = { width: '100%' }
+  if (props.railGutterPx != null) {
+    surfaceStyle.paddingLeft = (props.sidePaddingPx ?? COMPOSER_SIDE_PADDING_PX) + props.railGutterPx
+    surfaceStyle.paddingRight = (props.sidePaddingPx ?? COMPOSER_SIDE_PADDING_PX) + props.railGutterPx
+  }
+
   return (
     <NarrowLayout
       narrowMode={props.narrowMode}
       withSidePadding={!props.embedded}
       className="pointer-events-none"
-      style={{
-        width: '100%',
-        ...(props.railGutterPx != null
-          ? {
-              paddingLeft: (props.sidePaddingPx ?? COMPOSER_SIDE_PADDING_PX) + props.railGutterPx,
-              paddingRight: (props.sidePaddingPx ?? COMPOSER_SIDE_PADDING_PX) + props.railGutterPx
-            }
-          : {})
-      }}>
+      style={surfaceStyle}>
       <div className="pointer-events-auto w-full">
         <div className="inputbar relative z-2 flex flex-col pt-0" onDragOver={handleDragOver} onDrop={handleDrop}>
           {belowControls ? (

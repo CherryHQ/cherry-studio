@@ -14,7 +14,7 @@ export function mcpLegacyResult(result: CallToolResult) {
   const { structuredContent, ...rest } = result
   const legacy: CallToolResult = { ...rest, content: mcpModelContent(result) }
   if (structuredContent !== null && typeof structuredContent === 'object' && !Array.isArray(structuredContent)) {
-    legacy.structuredContent = structuredContent as Record<string, unknown>
+    legacy.structuredContent = structuredContent
   }
   return legacy
 }

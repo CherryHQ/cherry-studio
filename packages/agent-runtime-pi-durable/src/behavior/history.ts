@@ -255,6 +255,19 @@ export async function readFacts(
   const outcome = tasks
     .filter((task) => task.conversationId === id && task.kind === GenerationTask.definition.name)
     .at(-1)?.state.outcome
+  const liveFacts: ConversationFacts['live'] = {
+    idle: !live.run && inbox.items.length === 0,
+    leftoverInputs: live.run ? 0 : inbox.items.filter((item) => item.mode !== 'write').length,
+    queuedUserInput: inbox.items.some((item) => item.mode !== 'write' && !item.entry),
+    hostCallInFlight: false
+  }
+  if (!live.run && outcome) {
+    Object.assign(liveFacts, {
+      runEnd: {
+        outcome: outcome.status === 'aborted' ? 'aborted' : outcome.status === 'completed' ? 'completed' : 'error'
+      }
+    } satisfies Pick<ConversationFacts['live'], 'runEnd'>)
+  }
   return {
     thread: threadId(id),
     lineage:
@@ -264,24 +277,7 @@ export async function readFacts(
     history,
     children,
     keysSeen,
-    live: {
-      idle: !live.run && inbox.items.length === 0,
-      leftoverInputs: live.run ? 0 : inbox.items.filter((item) => item.mode !== 'write').length,
-      queuedUserInput: inbox.items.some((item) => item.mode !== 'write' && !item.entry),
-      hostCallInFlight: false,
-      ...(!live.run && outcome
-        ? {
-            runEnd: {
-              outcome:
-                outcome.status === 'aborted'
-                  ? ('aborted' as const)
-                  : outcome.status === 'completed'
-                    ? ('completed' as const)
-                    : ('error' as const)
-            }
-          }
-        : {})
-    }
+    live: liveFacts
   }
 }
 

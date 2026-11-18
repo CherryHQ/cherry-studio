@@ -61,19 +61,19 @@ export const querit: WebSearchProviderModule = {
   async execute(context) {
     const { call } = context
     if (call.capability === 'searchKeywords') {
+      const url = queritUrl(context.apiHost, 'search')
+      const headers = bearer(context)
+      const body = { query: call.input, count: call.config.maxResults }
+      if (call.config.excludeDomains?.length) {
+        Object.assign(body, { filters: { sites: { exclude: call.config.excludeDomains } } })
+      }
       const payload = await requestJson(
         context,
         {
-          url: queritUrl(context.apiHost, 'search'),
+          url,
           method: 'POST',
-          headers: bearer(context),
-          body: {
-            query: call.input,
-            count: call.config.maxResults,
-            ...(call.config.excludeDomains?.length
-              ? { filters: { sites: { exclude: call.config.excludeDomains } } }
-              : {})
-          }
+          headers,
+          body
         },
         QueritSearchResponseSchema,
         (value) => checkQueritError(context, value)
