@@ -83,8 +83,9 @@ function withContext(
   execution?: AutomationExecution
 ): CallToolResult {
   const contextual: CallToolResult = { ...result }
-  contextual.structuredContent = { replContext: context }
-  if (execution) contextual.structuredContent.execution = execution
+  const structuredContent = { replContext: context }
+  if (execution) Object.assign(structuredContent, { execution })
+  contextual.structuredContent = structuredContent
   contextual.content = [
     ...result.content,
     ...(execution?.events.length
