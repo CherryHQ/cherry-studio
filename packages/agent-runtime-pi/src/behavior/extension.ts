@@ -138,11 +138,11 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
           }
           const span: ToolResultEvent['content'] = []
           while (i < event.content.length && event.content[i].type === 'text') span.push(event.content[i++])
-          const result: ToolResultFact = {
+          const result: { -readonly [K in keyof ToolResultFact]: ToolResultFact[K] } = {
             text: textOf(span),
-            isError,
-            ...(details === undefined ? {} : { details: details as JsonValue })
+            isError
           }
+          if (details !== undefined) result.details = details as JsonValue
           const replaced = await gate.after(gated, result, adapter.gatePorts)
           if (!replaced) content.push(...span)
           else {
@@ -245,11 +245,12 @@ export function meterRequests(adapter: Adapter, conv: Conversation, session: Age
           const encoded = encodeEntry({ type: 'summary-usage', value: { ...summary.owner, usage } }, key)
           if (!encoded.data || typeof encoded.data !== 'object' || Array.isArray(encoded.data))
             throw new Error('Invalid native summary accounting')
-          conv.manager.appendCustomEntry(encoded.kind, {
+          const data = {
             ...encoded.data,
-            nativeThread: conv.thread,
-            ...(summary.run === undefined ? {} : { nativeRun: summary.run })
-          })
+            nativeThread: conv.thread
+          }
+          if (summary.run !== undefined) Object.assign(data, { nativeRun: summary.run })
+          conv.manager.appendCustomEntry(encoded.kind, data)
           if (summary.run)
             conv.runUsage[summary.run - 1] = addUsage(conv.runUsage[summary.run - 1] ?? ZERO_USAGE, usage)
           return message
