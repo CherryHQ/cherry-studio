@@ -36,6 +36,7 @@ let chartRendererPromise: Promise<ChartRenderer> | null = null
 const loadChartRenderer = () => {
   chartRendererPromise ??= import('./charts/EchartsChartRenderer')
     .then((module) => module.echartsChartRenderer)
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Dynamic import can reject with any thrown value; reset the shared renderer promise and preserve that rejection for its callers.
     .catch((error: unknown) => {
       chartRendererPromise = null
       throw error
@@ -194,6 +195,7 @@ export default function SpreadsheetFilePreview({
       .then((renderer) => {
         if (!cancelled) setChartRenderer(renderer)
       })
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- loadChartRenderer forwards the module import's raw rejection; normalize it for diagnostics only while this effect is active.
       .catch((error: unknown) => {
         if (cancelled) return
         const normalized = error instanceof Error ? error : new Error(String(error))

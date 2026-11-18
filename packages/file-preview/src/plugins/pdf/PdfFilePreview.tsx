@@ -246,6 +246,7 @@ export default function PdfFilePreview({
           if (!reference) setPickedPage(null)
           onSelection(reference)
         })
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- pdf.js page/text extraction can reject with any value; report only the current pick's failure and clear its host selection.
         .catch((error: unknown) => {
           if (token !== pickTokenRef.current) return
           setPickedPage(null)
@@ -336,6 +337,7 @@ export default function PdfFilePreview({
         setIsOutlineOpen(false)
       }
 
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- pdf.js destination navigation has an untyped rejection channel; normalize it for a non-terminal navigation diagnostic.
       void linkService.goToDestination(destination).catch((error: unknown) => {
         const normalized = error instanceof Error ? error : new Error(String(error))
         logger.error(`Failed to navigate PDF outline: ${sourceId}`, normalized, 'navigation_error')
@@ -412,6 +414,7 @@ export default function PdfFilePreview({
       })()
     }
 
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Worker/resource setup and pdf.js loading catches join range-reader failures here; normalize only after checking the current document.
     const failLoad = (error: unknown) => {
       if (cancelled || failed) return
       if (!isCurrent()) {
@@ -502,6 +505,7 @@ export default function PdfFilePreview({
         setOutlineItems(items ?? [])
         setOutlineStatus('ready')
       })
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- pdf.js getOutline rejections are unconstrained; normalize a current-document diagnostic while leaving page rendering usable.
       .catch((error: unknown) => {
         if (cancelled || isCurrentDocument?.() === false) return
         const normalized = error instanceof Error ? error : new Error(String(error))
@@ -759,6 +763,7 @@ export default function PdfFilePreview({
           restoredViewerRef.current = pdfViewer
           setStatus('ready')
         })
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- firstPagePromise and asynchronous page-geometry restoration can reject arbitrarily; normalize before failing the current preview.
         .catch((error: unknown) => {
           if (!isCurrent()) return
           const normalized = error instanceof Error ? error : new Error(String(error))

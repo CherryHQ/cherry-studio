@@ -163,6 +163,7 @@ export default function PowerPointFilePreview({
           if (viewerRef.current !== viewer) return
           setCurrentPage(viewer.currentSlideIndex + 1)
         })
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- PptxViewer.goToSlide has an untyped Promise rejection; inspect Error before deriving a non-terminal navigation diagnostic.
         .catch((navigationError: unknown) => {
           logger.warn('Failed to navigate PPTX preview slide', {
             sourceId,
@@ -191,6 +192,7 @@ export default function PowerPointFilePreview({
           if (viewerRef.current !== viewer) return
           setZoom(viewer.zoomPercent)
         })
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- PptxViewer.setZoom can reject during native slide rendering; inspect Error before deriving a non-terminal zoom diagnostic.
         .catch((zoomError: unknown) => {
           logger.warn('Failed to update PPTX preview zoom', {
             sourceId,
