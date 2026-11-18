@@ -3,7 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useInfiniteFlatItems, useInfiniteQuery, useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import type { KnowledgeItemListResponse, KnowledgeItemSort } from '@shared/data/api/schemas/knowledges'
+import type {
+  KnowledgeItemListResponse,
+  KnowledgeItemSort,
+  ListKnowledgeItemsQueryParams
+} from '@shared/data/api/schemas/knowledges'
 import {
   KNOWLEDGE_RUNTIME_ITEMS_MAX,
   type KnowledgeAddConflictStrategy,
@@ -75,10 +79,14 @@ export const useKnowledgeItems = (
   // direct children (drill-down). Memoized so a stable object re-keys the query only on change.
   const sortBy = sort?.sortBy
   const sortOrder = sort?.sortOrder
-  const query = useMemo(
-    () => ({ groupId, ...(sortBy && sortOrder ? { sortBy, sortOrder } : {}) }),
-    [groupId, sortBy, sortOrder]
-  )
+  const query = useMemo(() => {
+    const params: ListKnowledgeItemsQueryParams = { groupId }
+    if (sortBy && sortOrder) {
+      params.sortBy = sortBy
+      params.sortOrder = sortOrder
+    }
+    return params
+  }, [groupId, sortBy, sortOrder])
 
   const { pages, isLoading, error, hasNext, loadNext, refresh } = useInfiniteQuery('/knowledge-bases/:id/items', {
     params: { id: baseId },
