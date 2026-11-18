@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-18-durable-facts-fold.md
+2026-11-18-durable-facts-fold.md: 632b96b6859055f1a41fc325116245802ab94d69
+2026-11-18-durable-facts-fold.zh.md: ad0421b61610c1035cdbbde13b3089b676f01f86
