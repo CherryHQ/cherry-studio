@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-import { app, BrowserWindow, screen } from 'electron'
+import { app, BrowserWindow, screen, type WebPreferences } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
@@ -1373,13 +1373,15 @@ export class WindowManager extends BaseService {
     // string → no preload (for nodeIntegration:true cases).
     const preloadName = metadata.preload ?? 'preload.js'
     const preloadPath = preloadName ? join(__dirname, '../preload/', preloadName) : undefined
+    const preloadPreferences: WebPreferences = {}
+    if (preloadPath) preloadPreferences.preload = preloadPath
 
     // 1. Create BrowserWindow
     const window = new BrowserWindow({
       ...config,
       show: showMode === 'immediate',
       webPreferences: {
-        ...(preloadPath ? { preload: preloadPath } : {}),
+        ...preloadPreferences,
         ...config.webPreferences
       }
     })
