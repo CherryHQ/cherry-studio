@@ -123,7 +123,7 @@ describe('Pi behavior host model lookup', () => {
         delegationTools: new Set()
       },
       usageSessionId: overrides?.usageSessionId ?? (async () => 'usage'),
-      toolCallId: async () => 'call',
+      toolCallIdentity: async () => ({ toolCallId: 'call' }),
       emit: () => {},
       observe: () => {}
     })
