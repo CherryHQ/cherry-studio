@@ -199,7 +199,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     const encoder = new TextEncoder()
     let startupState: StartupState = 'pending'
     let resolveStartup!: () => void
-    let rejectStartup!: (error: unknown) => void
+    let rejectStartup!: (cause: unknown) => void
     const startup = new Promise<void>((resolve, reject) => {
       resolveStartup = resolve
       rejectStartup = reject
@@ -218,11 +218,11 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
           bufferedFrames.length = 0
           resolveStartup()
         }
-        const fail = (error: unknown) => {
+        const fail = (cause: unknown) => {
           if (startupState !== 'pending') return
           startupState = 'failed'
           bufferedFrames.length = 0
-          rejectStartup(error)
+          rejectStartup(cause)
         }
         const abandon = () => {
           if (startupState !== 'pending') return
@@ -384,7 +384,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   // Non-streaming: drive the adapter to accumulate state; respond with JSON at the end.
   // Terminal barrier: resolved on done/paused, rejected on error.
   let resolveDone!: () => void
-  let rejectDone!: (error: unknown) => void
+  let rejectDone!: (cause: unknown) => void
   const done = new Promise<void>((resolve, reject) => {
     resolveDone = resolve
     rejectDone = reject

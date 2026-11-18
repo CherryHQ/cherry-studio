@@ -49,7 +49,7 @@ export interface MessageConfig {
   signal?: AbortSignal
   /** Raw request headers used only to validate Cherry-internal usage correlation. */
   requestHeaders?: Headers
-  onError?: (error: unknown) => void
+  onError?: (cause: unknown) => void
   onComplete?: () => void
 }
 
@@ -64,8 +64,8 @@ export async function resolveGatewayRequest(config: MessageConfig) {
   // model names that can never carry the gateway's providerId prefix — those requests
   // fail here by design (gemini-cli swallows them silently) and must not read as
   // gateway server errors in the logs.
-  const asClientError = (error: unknown): Error & { status: number } => {
-    const err = (error instanceof Error ? error : new Error(String(error))) as Error & { status: number }
+  const asClientError = (cause: unknown): Error & { status: number } => {
+    const err = (cause instanceof Error ? cause : new Error(String(cause))) as Error & { status: number }
     err.status = 400
     return err
   }
