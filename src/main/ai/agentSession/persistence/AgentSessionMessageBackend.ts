@@ -66,13 +66,16 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
         runtimeResumeToken && runtimeAnchor?.checkpoint.runtime === 'pi'
           ? preparePiBranch(this.opts.sessionId, finalMessage?.id ?? this.opts.assistantMessageId, runtimeResumeToken)
           : undefined
+      const saveContext: Omit<Parameters<typeof agentSessionMessageService.saveMessage>[0], 'message'> = {
+        sessionId: this.opts.sessionId,
+        runtimeAnchor
+      }
+      if (runtimeAnchor && nativeContext) saveContext.nativeContextId = nativeContext.id
+      if (runtimeResumeToken) saveContext.runtimeResumeToken = runtimeResumeToken
+      if (runtimeStats) saveContext.runtimeStats = runtimeStats
       return agentSessionMessageService.saveMessage(
         {
-          sessionId: this.opts.sessionId,
-          runtimeAnchor,
-          ...(runtimeAnchor && nativeContext ? { nativeContextId: nativeContext.id } : {}),
-          ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
-          ...(runtimeStats ? { runtimeStats } : {}),
+          ...saveContext,
           message: {
             id: finalMessage?.id ?? this.opts.assistantMessageId,
             role: 'assistant',
