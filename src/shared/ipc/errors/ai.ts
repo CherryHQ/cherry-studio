@@ -1,6 +1,9 @@
+import * as z from 'zod'
+
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import { type AiStreamAdmissionReason, isAiStreamAdmissionReason } from '@shared/ai/transport'
 import type { SerializedError } from '@shared/types/error'
+import { SerializableSchema } from '@shared/utils/serializable'
 
 import { IpcError } from './IpcError'
 
@@ -54,6 +57,11 @@ export const aiErrorCodes = {
   AI_AGENT_TASK_TRIGGER_INVALID: 'AI_AGENT_TASK_TRIGGER_INVALID'
 } as const
 
+const serializedErrorSchema: z.ZodType<SerializedError> = z
+  .object({ name: z.string().nullable(), message: z.string().nullable(), stack: z.string().nullable() })
+  .catchall(SerializableSchema)
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- IPC calls reject arbitrary values; verify the fork error code and reason before exposing a failure category.
 export function agentSessionForkFailureReason(e: unknown) {
   if (!(e instanceof IpcError) || e.code !== aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED) return undefined
   const reason = e.data && typeof e.data === 'object' && 'reason' in e.data ? e.data.reason : undefined
@@ -62,14 +70,18 @@ export function agentSessionForkFailureReason(e: unknown) {
 
 /**
  * Recover the serialized AI error an `ai.*` route attached to its `IpcError.data`,
- * or `undefined` when `e` is not an `AI_REQUEST_FAILED` IpcError. Lets a renderer
+ * or `undefined` when `e` is not an `AI_REQUEST_FAILED` IpcError with valid detail. Lets a renderer
  * consumer surface the rich provider error (status, body, AI SDK subtype) that a
  * plain invoke reject would have flattened to just `message`.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The IPC error code does not validate its opaque data; decode the serialized provider detail before returning it.
 export function aiErrorDetail(e: unknown): SerializedError | undefined {
-  return e instanceof IpcError && e.code === aiErrorCodes.AI_REQUEST_FAILED ? (e.data as SerializedError) : undefined
+  if (!(e instanceof IpcError) || e.code !== aiErrorCodes.AI_REQUEST_FAILED) return undefined
+  const detail = serializedErrorSchema.safeParse(e.data)
+  return detail.success ? detail.data : undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- IPC calls reject arbitrary values; verify the admission error code and reason vocabulary before returning a category.
 export function aiStreamAdmissionReason(e: unknown): AiStreamAdmissionReason | undefined {
   if (!(e instanceof IpcError) || e.code !== aiErrorCodes.AI_STREAM_ADMISSION_REJECTED) return undefined
   if (!e.data || typeof e.data !== 'object' || !('reason' in e.data)) return undefined

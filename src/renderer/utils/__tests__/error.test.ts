@@ -215,6 +215,20 @@ describe('error', () => {
       const err = new IpcError('VALIDATION_FAILED', 'bad input', { issues: [] })
       expect(aiErrorDetail(err)).toBeUndefined()
     })
+
+    it.each(
+      [
+        null,
+        'invalid detail',
+        {},
+        { name: 'Error', message: 'failed' },
+        { name: 'Error', message: 7, stack: null },
+        { name: 'Error', message: 'failed', stack: null, nested: { callback: () => undefined } }
+      ].map((detail) => ({ detail }))
+    )('rejects malformed provider detail despite the correct IPC code: %j', ({ detail }) => {
+      const error = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, 'provider failed', detail)
+      expect(aiErrorDetail(error)).toBeUndefined()
+    })
   })
 
   describe('serializeHealthCheckError', () => {
