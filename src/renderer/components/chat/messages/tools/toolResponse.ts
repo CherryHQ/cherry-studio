@@ -225,11 +225,12 @@ function normalizePiFileInput(name: string, input: Record<string, unknown>): Rec
       )
     }
   }
-  return {
+  const normalized = {
     ...input,
-    file_path: input.path,
-    ...(name === 'edit' ? { old_string: input.oldText, new_string: input.newText } : {})
+    file_path: input.path
   }
+  if (name === 'edit') Object.assign(normalized, { old_string: input.oldText, new_string: input.newText })
+  return normalized
 }
 
 export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: string): ToolResponseLike | null {
@@ -239,13 +240,11 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
   const toolCallId = toolPart.toolCallId || fallbackId
   if (!toolCallId) return null
   const toolName = normalizeToolName(toolPart)
-  const approval =
-    typeof toolPart.approval?.approved === 'boolean'
-      ? {
-          approved: toolPart.approval.approved,
-          ...(typeof toolPart.approval.reason === 'string' ? { reason: toolPart.approval.reason } : {})
-        }
-      : undefined
+  let approval: ToolResponseLike['approval']
+  if (typeof toolPart.approval?.approved === 'boolean') {
+    approval = { approved: toolPart.approval.approved }
+    if (typeof toolPart.approval.reason === 'string') approval.reason = toolPart.approval.reason
+  }
   const status =
     toolPart.state === 'output-available' && toolPart.preliminary
       ? 'invoking'

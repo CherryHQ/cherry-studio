@@ -105,12 +105,13 @@ export const convertEmojiRecords = (records: EmojiRecord[]): EmojiData => {
     if (!category) continue
 
     const variations = record.skins?.map((skin) => nativeEmojiToUnified(skin.emoji))
-    emojis[category].push({
+    const emoji: EmojiData['emojis'][typeof category][number] = {
       n: getEmojiNames(record),
       u: nativeEmojiToUnified(record.emoji),
-      a: String(record.version),
-      ...(variations?.length ? { v: variations } : {})
-    })
+      a: String(record.version)
+    }
+    if (variations?.length) emoji.v = variations
+    emojis[category].push(emoji)
   }
 
   return { categories: {}, emojis }

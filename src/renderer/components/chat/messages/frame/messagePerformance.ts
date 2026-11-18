@@ -140,11 +140,17 @@ function buildRuntimeViewModel(
       : undefined
   const measuredIntervals = [...modelIntervals, ...runtimeIntervals]
 
-  return {
+  const timing: Pick<
+    MessagePerformanceViewModel,
+    'startedAt' | 'completedAt' | 'totalDurationMs' | 'timeFirstTokenMs'
+  > = {
     startedAt: runtime.startedAt,
     completedAt: rangeEnd,
-    totalDurationMs,
-    ...(timeFirstTokenMs !== undefined ? { timeFirstTokenMs } : {}),
+    totalDurationMs
+  }
+  if (timeFirstTokenMs !== undefined) timing.timeFirstTokenMs = timeFirstTokenMs
+  return {
+    ...timing,
     modelTokensPerSecond,
     endToEndTokensPerSecond,
     intervals: [...measuredIntervals, ...complementIntervals(runtime.startedAt, rangeEnd, measuredIntervals)]
@@ -196,11 +202,17 @@ function buildLegacyViewModel(stats: MessageStats): MessagePerformanceViewModel 
     })
   }
 
-  return {
+  const timing: Pick<
+    MessagePerformanceViewModel,
+    'startedAt' | 'completedAt' | 'totalDurationMs' | 'timeFirstTokenMs'
+  > = {
     startedAt: 0,
     completedAt: completion,
-    totalDurationMs: completion,
-    ...(stats.timeFirstTokenMs !== undefined ? { timeFirstTokenMs: firstToken } : {}),
+    totalDurationMs: completion
+  }
+  if (stats.timeFirstTokenMs !== undefined) timing.timeFirstTokenMs = firstToken
+  return {
+    ...timing,
     modelTokensPerSecond,
     endToEndTokensPerSecond,
     intervals
