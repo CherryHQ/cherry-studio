@@ -2762,6 +2762,7 @@
   "miniApp.add.agent_draft_placeholder": "Describe the mini app you want, for example: a pomodoro timer with a daily log",
   "miniApp.add.agent_open_skills": "Open skills settings",
   "miniApp.add.agent_skill_missing": "The cherry-miniapp skill is not installed. Import it from a ZIP file or GitHub in the skills settings, then return here.",
+  "miniApp.add.agent_skill_missing_scope": "Beceri olmadan bu ana bilgisayar yalnızca oluşturma ve paketleme sunar. Önizleme, gerçek çalışma zamanı testi, kurulum ve yayınlama beceri gerektirir.",
   "miniApp.add.agent_start": "Start",
   "miniApp.add.agent_start_error": "Could not start the authoring session",
   "miniApp.add.app_description": "Yüklenip yetkilendirildikten sonra yerel özellikleri kullanabilir",

@@ -81,10 +81,17 @@ export const CreateWithAgentTab: FC<{ onClose: () => void }> = ({ onClose }) => 
   }
 
   if (skillState === 'missing') {
+    // AC12: without the authoring tools the host gets generation and packaging
+    // only — the prompt says so plainly and never claims preview, real-runtime
+    // testing or installation.
     return (
       <>
         <div className="flex flex-col gap-3 py-4">
-          <Alert type="warning" message={t('miniApp.add.agent_skill_missing')} />
+          <Alert
+            type="warning"
+            message={t('miniApp.add.agent_skill_missing')}
+            description={t('miniApp.add.agent_skill_missing_scope')}
+          />
           <Button type="button" variant="outline" size="sm" className="gap-1.5 self-start" onClick={openSkillsSettings}>
             <FolderOpen size={12} />
             {t('miniApp.add.agent_open_skills')}

@@ -62,7 +62,11 @@ describe('CreateWithAgentTab (AC7)', () => {
     const onClose = vi.fn()
     render(<CreateWithAgentTab onClose={onClose} />)
 
-    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    const alert = await screen.findByRole('alert')
+    expect(alert).toBeInTheDocument()
+    // AC12: the prompt limits the host to generation and packaging; it must
+    // not claim preview, real-runtime testing or installation.
+    expect(alert).toHaveTextContent(/generation and packaging only/i)
     expect(screen.queryByRole('button', { name: /^start$/i })).toBeNull()
 
     // The guidance routes to the skills settings; it never installs by itself.
