@@ -321,24 +321,23 @@ it.each([
     const directory = mkdtempSync(join(tmpdir(), 'cherry-pending-restart-'))
     const paths = getRunPaths(directory)
     ensureRunDirectories(paths)
-    writeFileSync(
-      paths.appRecord,
-      JSON.stringify({
-        schemaVersion: 1,
-        ownership: 'regression-driver',
-        policy: 'ephemeral',
-        mode: 'branch',
-        platform,
-        profile: 'authenticated',
-        runKey: 'promotion',
-        targetRoot: directory,
-        runnerPid: 42000,
-        cdpPort: 9222,
-        logPath: join(paths.logs, 'electron.log'),
-        restartCount: 1,
-        ...(wasReady ? { electronPid: 42002, targetUrl: 'http://localhost:5173/windows/main/index.html' } : {})
-      })
-    )
+    const record = {
+      schemaVersion: 1,
+      ownership: 'regression-driver',
+      policy: 'ephemeral',
+      mode: 'branch',
+      platform,
+      profile: 'authenticated',
+      runKey: 'promotion',
+      targetRoot: directory,
+      runnerPid: 42000,
+      cdpPort: 9222,
+      logPath: join(paths.logs, 'electron.log'),
+      restartCount: 1
+    }
+    if (wasReady)
+      Object.assign(record, { electronPid: 42002, targetUrl: 'http://localhost:5173/windows/main/index.html' })
+    writeFileSync(paths.appRecord, JSON.stringify(record))
     let launched = false
     execFileSync.mockImplementation(() => (launched ? '42001' : ''))
     spawn.mockImplementation(() => {
