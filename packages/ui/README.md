@@ -432,3 +432,20 @@ keep the group full width, pad its heading and content separately, and reserve a
 for the outer scrollbar when both tracks can be visible. Preserve native scroll chaining.
 The `cherry-scroll-area/no-container-padding` Oxlint rule checks explicit consumer padding;
 it cannot decide whether an ancestor's inset is intentional or verify rendered geometry.
+
+## Numeric input commits
+
+`InputNumber` and `InputGroupInputNumber` accept `onBlur(value): void | Promise<void>`.
+Return the completion promise to keep the settled number visible and the field busy until persistence finishes.
+If a save operation returns data, await it inside the handler instead of returning that data promise:
+
+```tsx
+<InputNumber
+  value={amount}
+  onBlur={async (value) => {
+    await saveAmount(value)
+  }}
+/>
+```
+
+Synchronous handlers can return nothing. Async rejection releases the busy state and displays the saved value.

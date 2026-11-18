@@ -80,6 +80,7 @@ interface InputNumberProps extends Omit<
    * that, a caller whose `value` only catches up after a round trip renders the *old*
    * value in between — the field drops its own copy on blur, before the caller has a
    * new one. Returning nothing keeps the synchronous behaviour.
+   * Async handlers resolve without a value; await persistence inside the handler.
    *
    * Any caller that persists the value wants this one — it is the only callback
    * that hands over a settled value. It both normalizes (so without it
@@ -93,7 +94,7 @@ interface InputNumberProps extends Omit<
    * a slider tracking the field, with no state of its own to settle — can do
    * without it.
    */
-  onBlur?: (value: number | null) => void | Promise<unknown>
+  onBlur?: (value: number | null) => void | Promise<void>
   /** The floor a committed or stepped value is clamped up to, negatives included. Also published as `aria-valuemin`. */
   min?: number
   /** The ceiling a committed or stepped value is clamped down to. Also published as `aria-valuemax`. */
@@ -166,9 +167,6 @@ function toNumber(raw: string): number | null {
   const parsed = Number(raw)
   return raw === '' || !Number.isFinite(parsed) ? null : parsed
 }
-
-const isPromise = (value: unknown): value is Promise<unknown> =>
-  typeof (value as Promise<unknown> | undefined)?.then === 'function'
 
 const inRange = (value: number, min?: number, max?: number) =>
   (min === undefined || value >= min) && (max === undefined || value <= max)
@@ -259,7 +257,7 @@ function InputNumber({
     const settled = discarding.current || isIncomplete ? preEdit.current : parse(text, min, max, step)
     discarding.current = false
     const commit = onBlur?.(settled)
-    if (!isPromise(commit)) {
+    if (!commit || typeof commit.then !== 'function') {
       setDraft(null)
       return
     }
