@@ -170,6 +170,18 @@ describe('input', () => {
       expect(resolveSendShortcut(undefined)).toEqual(['Enter'])
     })
 
+    it.each(['constructor', 'toString', '__proto__'])(
+      'ignores the inherited property %s when decoding a stored legacy shortcut',
+      (stored) => {
+        const send = resolveSendShortcut(stored)
+        const newline = resolveNewlineShortcut(stored, send)
+
+        expect(send).toEqual(['Enter'])
+        expect(newline).toEqual(['Shift', 'Enter'])
+        expect(resolveSteerShortcut(stored, send, newline)).toEqual(['CommandOrControl', 'Enter'])
+      }
+    )
+
     it('keeps send, newline, and steer on distinct keys', () => {
       const send = resolveSendShortcut(['Shift', 'Enter'])
       const newline = resolveNewlineShortcut(null, send)
