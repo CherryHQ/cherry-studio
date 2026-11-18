@@ -174,11 +174,12 @@ export function createSidebarShortcutTarget(
   resourceId: string,
   activationId?: string
 ): SidebarShortcutTarget {
-  return {
+  const target: SidebarShortcutTarget = {
     kind: 'resource',
-    locator: { providerId, resourceId },
-    ...(activationId === undefined ? {} : { activationId })
+    locator: { providerId, resourceId }
   }
+  if (activationId !== undefined) target.activationId = activationId
+  return target
 }
 
 const LEGACY_PROVIDER_BY_TYPE = {
@@ -322,16 +323,9 @@ export function addSidebarShortcut(
         )
       : -1
   const insertIndex = chatIndex === -1 ? items.length : chatIndex + 1
-  return [
-    ...items.slice(0, insertIndex),
-    {
-      type: 'shortcut',
-      id,
-      target,
-      ...(fallbackLabel ? { fallbackLabel } : {})
-    },
-    ...items.slice(insertIndex)
-  ]
+  const item: SidebarShortcutItem = { type: 'shortcut', id, target }
+  if (fallbackLabel) item.fallbackLabel = fallbackLabel
+  return [...items.slice(0, insertIndex), item, ...items.slice(insertIndex)]
 }
 
 export function removeSidebarShortcut(
