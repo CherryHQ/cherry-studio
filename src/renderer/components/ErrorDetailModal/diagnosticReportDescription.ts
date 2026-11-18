@@ -46,22 +46,28 @@ interface DiagnosticReportFieldsInput {
 
 type DiagnosticReportField = {
   id: keyof DiagnosticReportDescriptionLabels
-  value: string | number
+  value: string
 }
 
-function nonEmptyText(value: unknown): string | undefined {
+function nonEmptyText(value: string | null | undefined): string | undefined {
   if (typeof value !== 'string') return undefined
   const normalized = value.trim()
   return normalized.length > 0 ? normalized : undefined
 }
 
-function diagnosticReportField(id: DiagnosticReportField['id'], value: unknown): DiagnosticReportField | undefined {
-  if (typeof value === 'number') return { id, value }
+function diagnosticReportField(
+  id: DiagnosticReportField['id'],
+  value: string | undefined
+): DiagnosticReportField | undefined {
   const text = nonEmptyText(value)
   return text ? { id, value: text } : undefined
 }
 
-function combineErrorParts(localized: unknown, name: unknown, message: unknown): string | undefined {
+function combineErrorParts(
+  localized: DiagnosticReportFieldsInput['localizedErrorMessage'],
+  name: SerializedError['name'] | undefined,
+  message: SerializedError['message'] | undefined
+): string | undefined {
   const errorName = nonEmptyText(name)
   const errorMessage = nonEmptyText(message)
   const raw = errorName && errorMessage ? `${errorName}: ${errorMessage}` : (errorName ?? errorMessage)
@@ -72,7 +78,10 @@ function combineErrorParts(localized: unknown, name: unknown, message: unknown):
   return localizedMessage ?? raw
 }
 
-function combineModelParts(provider: unknown, model: unknown): string | undefined {
+function combineModelParts(
+  provider: DiagnosisContext['providerId'],
+  model: DiagnosisContext['modelId']
+): string | undefined {
   const providerName = nonEmptyText(provider)
   const modelId = nonEmptyText(model)
   if (providerName && modelId) return `${providerName}:${modelId}`
