@@ -704,6 +704,7 @@ export class AiService extends BaseService {
       attachments: fileAttachments,
       nativeSupport: nativeFileSupport,
       isToolCapable: isFunctionCallingModel(model),
+      chatModelId: model.id,
       // A caller that owns its context (the gateway) manages its own window;
       // reshaping its attachments against ours would be guesswork.
       budget:

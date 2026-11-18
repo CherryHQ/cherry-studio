@@ -13,7 +13,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { resolveNativeFileSupport, type NativeFileSupport } from '@main/ai/runtime/aiSdk/params/nativeFileSupport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
@@ -25,7 +25,14 @@ vi.mock('@logger', () => ({
 
 const { getByIdMock, mediaAnalysisMock, probeMock, ocrMock } = vi.hoisted(() => ({
   getByIdMock: vi.fn<(id: string) => Promise<{ ext: string | null }>>(),
-  mediaAnalysisMock: vi.fn<(file: { kind: 'entry'; entryId: string }, signal?: AbortSignal) => Promise<string>>(),
+  mediaAnalysisMock:
+    vi.fn<
+      (
+        file: { kind: 'entry'; entryId: string },
+        signal?: AbortSignal,
+        options?: { fallbackVisionModelId?: string }
+      ) => Promise<string>
+    >(),
   probeMock: vi.fn<
     (
       file: { kind: 'entry'; entryId: string },
@@ -116,13 +123,14 @@ const composerText = (text: string, ...fileTokenSourceIds: string[]): CherryMess
 const run = (
   parts: CherryMessagePart[],
   ns: NativeFileSupport,
-  opts: { isToolCapable?: boolean; cap?: number } = {}
+  opts: { isToolCapable?: boolean; cap?: number; chatModelId?: UniqueModelId } = {}
 ) => {
   const messages = [userMessage(parts)] as UIMessage[]
   return prepareChatMessages(messages, {
     attachments: collectFileAttachments(messages),
     nativeSupport: ns,
     isToolCapable: opts.isToolCapable ?? true,
+    chatModelId: opts.chatModelId,
     budget: opts.cap === undefined ? undefined : { tokens: opts.cap }
   })
 }
@@ -301,9 +309,22 @@ describe('prepareChatMessages — routing', () => {
     const [out] = await run([fileWithEntry('e1', `media.${ext}`, mediaType)], NONE)
 
     expect(textOf(out.parts)[0]).toBe(`Attached file "media.${ext}":\n# Media analysis\n[0:00] compact result`)
-    expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
+    expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined, {
+      fallbackVisionModelId: undefined
+    })
     expect(probeMock).not.toHaveBeenCalled()
     expect(resolveMock).not.toHaveBeenCalled()
+  })
+
+  it('offers the chat model to media analysis for frame descriptions', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'mp4' })
+    mediaAnalysisMock.mockResolvedValueOnce('[0:00] a red screen')
+
+    await run([fileWithEntry('e1', 'silent.mp4', 'video/mp4')], NONE, { chatModelId: 'openai::gpt-4.1-mini' })
+
+    expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined, {
+      fallbackVisionModelId: 'openai::gpt-4.1-mini'
+    })
   })
 
   it.each(['probe failed', 'unusable_media_analysis'])(
@@ -436,7 +457,9 @@ describe('prepareChatMessages — routing', () => {
 
       const [out] = await run([fileWithEntry('e1', 'clip.webm', 'video/webm')], openAiChatAudio)
 
-      expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
+      expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined, {
+        fallbackVisionModelId: undefined
+      })
       expect(out.parts.some((part) => part.type === 'file')).toBe(false)
       expect(textOf(out.parts)[0]).toBe('Attached file "clip.webm":\ntranscript')
     })
@@ -462,7 +485,9 @@ describe('prepareChatMessages — routing', () => {
 
       const [out] = await run([fileWithEntry('e1', 'clip.webm', 'video/webm')], support)
 
-      expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
+      expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined, {
+        fallbackVisionModelId: undefined
+      })
       expect(out.parts.some((part) => part.type === 'file')).toBe(false)
       expect(textOf(out.parts)[0]).toBe('Attached file "clip.webm":\ntranscript')
     })
@@ -506,7 +531,9 @@ describe('prepareChatMessages — routing', () => {
       const [out] = await run([fileWithEntry('e1', 'clip.ogg', 'audio/ogg')], openAiChatAudio)
 
       expect(probeMock).not.toHaveBeenCalled()
-      expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
+      expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined, {
+        fallbackVisionModelId: undefined
+      })
       expect(resolveMock).not.toHaveBeenCalled()
       expect(out.parts.some((part) => part.type === 'file')).toBe(false)
       expect(textOf(out.parts)[0]).toBe('Attached file "clip.ogg":\nogg transcript')
@@ -544,7 +571,9 @@ describe('prepareChatMessages — routing', () => {
       expect(probeMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
       expect(resolveMock).not.toHaveBeenCalled()
       expect(readMock).not.toHaveBeenCalled()
-      expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
+      expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined, {
+        fallbackVisionModelId: undefined
+      })
       expect(textOf(out.parts)[0]).toBe('Attached file "clip.webm":\ntranscript')
     })
 
@@ -575,7 +604,9 @@ describe('prepareChatMessages — routing', () => {
       const [out] = await run([fileWithEntry('e1', 'clip.webm', 'video/webm')], audioNative)
 
       expect(resolveMock).not.toHaveBeenCalled()
-      expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
+      expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined, {
+        fallbackVisionModelId: undefined
+      })
       expect(textOf(out.parts)[0]).toBe('Attached file "clip.webm":\nframes')
     })
 

@@ -29,6 +29,7 @@ import { formatMediaAnalysisCompact, formatMediaAnalysisFull, isMediaAnalysis } 
 import {
   hashMediaExecutionConfig,
   resolveMediaExecutionConfig,
+  type MediaAnalysisOptions,
   type MediaExecutionConfig,
   type MediaVisionExecutionConfig
 } from './mediaExecutionConfig'
@@ -70,9 +71,9 @@ export class MediaAnalysisService extends BaseService {
     return this.mediaFfmpeg().probe({ filePath: fileInfo.path, fallbackExt: fileInfo.ext ?? undefined }, signal)
   }
 
-  async analyze(file: FileHandle, signal?: AbortSignal): Promise<MediaAnalysis> {
+  async analyze(file: FileHandle, signal?: AbortSignal, options?: MediaAnalysisOptions): Promise<MediaAnalysis> {
     signal?.throwIfAborted()
-    const execution = await resolveMediaExecutionConfig()
+    const execution = await resolveMediaExecutionConfig(options)
     const fileInfo = await resolveFileProcessingFileInfo(file)
     const fileIdentity =
       file.kind === 'entry'
@@ -116,12 +117,12 @@ export class MediaAnalysisService extends BaseService {
     }
   }
 
-  async analyzeToCompactText(file: FileHandle, signal?: AbortSignal): Promise<string> {
-    return formatMediaAnalysisCompact(await this.analyze(file, signal))
+  async analyzeToCompactText(file: FileHandle, signal?: AbortSignal, options?: MediaAnalysisOptions): Promise<string> {
+    return formatMediaAnalysisCompact(await this.analyze(file, signal, options))
   }
 
-  async analyzeToFullText(file: FileHandle, signal?: AbortSignal): Promise<string> {
-    return formatMediaAnalysisFull(await this.analyze(file, signal))
+  async analyzeToFullText(file: FileHandle, signal?: AbortSignal, options?: MediaAnalysisOptions): Promise<string> {
+    return formatMediaAnalysisFull(await this.analyze(file, signal, options))
   }
 
   private async runAnalysis(
