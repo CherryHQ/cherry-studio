@@ -68,20 +68,23 @@ export function readContextUsage(session: AgentSession): OperationResult<ThreadC
       .filter((message) => message.role !== 'system')
       .reduce((sum, message) => sum + estimateTokens(message), 0)
   })
-  return {
-    status: 'confirmed',
-    value: {
-      model: model.id,
-      revision: createHash('sha256')
-        .update(JSON.stringify([model, session.sessionManager.getLeafId(), system, deferred]))
-        .digest('hex'),
-      contextWindow: usage.contextWindow,
-      ...(usage.tokens === null ? {} : { used: { tokens: usage.tokens, precision: 'estimated' as const } }),
-      basis: 'current-context',
-      breakdown: { coverage: 'partial', categories },
-      resources
-    }
+  const value: Pick<ThreadContextUsage, 'model' | 'revision' | 'contextWindow' | 'used'> = {
+    model: model.id,
+    revision: createHash('sha256')
+      .update(JSON.stringify([model, session.sessionManager.getLeafId(), system, deferred]))
+      .digest('hex'),
+    contextWindow: usage.contextWindow
   }
+  if (usage.tokens !== null) {
+    const used: ThreadContextUsage['used'] = { tokens: usage.tokens, precision: 'estimated' }
+    Object.assign(value, { used })
+  }
+  const context: Pick<ThreadContextUsage, 'basis' | 'breakdown' | 'resources'> = {
+    basis: 'current-context',
+    breakdown: { coverage: 'partial', categories },
+    resources
+  }
+  return { status: 'confirmed', value: Object.assign(value, context) }
 }
 
 const categoryKeys: Record<string, ContextCategoryKey> = {
