@@ -453,22 +453,23 @@ export default function PdfFilePreview({
             : new Worker(new URL('./pdf.worker.ts', import.meta.url), { type: 'module' })
         worker = PDFWorker.create({ port: workerPort })
         rangeTransport = new PdfFileRangeTransport(previewDocument, failLoad)
-        loadingTask = getDocument({
+        const loadingOptions = {
           worker,
           range: rangeTransport,
           rangeChunkSize: PDF_RANGE_CHUNK_SIZE_BYTES,
           disableAutoFetch: true,
           disableStream: true,
-          cMapPacked: true,
-          ...(resourceBase
-            ? {
-                cMapUrl: new URL('cmaps/', resourceBase).href,
-                standardFontDataUrl: new URL('standard_fonts/', resourceBase).href
-              }
-            : {}),
-          useWorkerFetch: !resources?.readPdfResource,
-          ...(resources?.readPdfResource ? createPdfResourceFactories(resources.readPdfResource) : {})
-        })
+          cMapPacked: true
+        }
+        if (resourceBase)
+          Object.assign(loadingOptions, {
+            cMapUrl: new URL('cmaps/', resourceBase).href,
+            standardFontDataUrl: new URL('standard_fonts/', resourceBase).href
+          })
+        Object.assign(loadingOptions, { useWorkerFetch: !resources?.readPdfResource })
+        if (resources?.readPdfResource)
+          Object.assign(loadingOptions, createPdfResourceFactories(resources.readPdfResource))
+        loadingTask = getDocument(loadingOptions)
         const nextDocument = await loadingTask.promise
         if (!isCurrent() || failed) {
           dispose()
@@ -531,10 +532,10 @@ export default function PdfFilePreview({
         eventBus,
         linkService,
         abortSignal: viewerAbortController.signal,
-        annotationMode: AnnotationMode.ENABLE,
-        ...(backgroundRef.current ? { pageColors: { background: backgroundRef.current } } : {}),
-        supportsPinchToZoom: true
+        annotationMode: AnnotationMode.ENABLE
       }
+      if (backgroundRef.current) viewerOptions.pageColors = { background: backgroundRef.current }
+      viewerOptions.supportsPinchToZoom = true
       pdfViewer = new PDFViewer(viewerOptions)
     } catch (error) {
       viewerAbortController.abort()
