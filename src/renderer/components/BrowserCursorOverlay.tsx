@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import { loggerService } from '@logger'
 import cursorImage from '@renderer/assets/images/browser-cursor.svg?inline'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
+import type { InputFor } from '@shared/ipc/types'
 import type { BrowserCursorArrival, BrowserCursorState } from '@shared/types/browserCursor'
 
 import { BrowserCursorAnimation } from './BrowserCursorAnimation'
@@ -90,11 +91,11 @@ export function BrowserCursorOverlay({
     }
     updateMotion()
     media.addEventListener('change', updateMotion)
-    void ipcApi
-      .request('browser.cursor.present', { sessionId, tabId, presented: active, ...(scope ? { scope } : {}) })
-      .catch((error) => {
-        logger.debug('Cursor presentation target is unavailable', { error })
-      })
+    const presentation: InputFor<'browser.cursor.present'> = { sessionId, tabId, presented: active }
+    if (scope) presentation.scope = scope
+    void ipcApi.request('browser.cursor.present', presentation).catch((error) => {
+      logger.debug('Cursor presentation target is unavailable', { error })
+    })
     const observer = new ResizeObserver(hide)
     observer.observe(guest)
     guest.addEventListener('did-start-navigation', hide)
@@ -109,9 +110,9 @@ export function BrowserCursorOverlay({
       guest.removeEventListener('did-start-navigation', hide)
       window.removeEventListener('blur', hide)
       document.removeEventListener('visibilitychange', hide)
-      void ipcApi
-        .request('browser.cursor.present', { sessionId, tabId, presented: false, ...(scope ? { scope } : {}) })
-        .catch(() => undefined)
+      const hiddenPresentation: InputFor<'browser.cursor.present'> = { sessionId, tabId, presented: false }
+      if (scope) hiddenPresentation.scope = scope
+      void ipcApi.request('browser.cursor.present', hiddenPresentation).catch(() => undefined)
     }
     // The animation belongs to this guest binding, not to individual IPC events.
   }, [sessionId, tabId, guest, active, scope])
