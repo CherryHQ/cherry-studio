@@ -68,8 +68,21 @@ export class DurableProjection {
 
   observe(sink: (batch: DurableObservation) => void | Promise<void>): Observation {
     const active = this.preview?.id
+    const snapshot = this.feed.snapshot
+    const pending = snapshot.inputs.findLast((input) => !input.outcome && input.facts.includes('placed'))
+    const anchors = pending?.inputId
+      ? snapshot.messages.flatMap((message, index) =>
+          message.role === 'user' && message.metadata?.inputId === pending.inputId ? [index] : []
+        )
+      : []
+    const boundary = anchors.length === 1 ? anchors[0] : Infinity
+    const baseline = new Set(
+      snapshot.messages
+        .filter((message, index) => message.id === active || (index > boundary && message.role === 'assistant'))
+        .map((message) => message.id)
+    )
     const historical = new Set(
-      this.feed.snapshot.messages.filter((message) => message.id !== active).map((message) => message.id)
+      snapshot.messages.filter((message) => !baseline.has(message.id)).map((message) => message.id)
     )
     return this.feed.observeCaptured(sink, (event, delivery) => {
       for (const [committed, preview] of Object.entries(this.aliases))
@@ -82,7 +95,7 @@ export class DurableProjection {
           events: [event],
           aliases: this.aliases,
           live: messages
-            .filter((message) => (delivery === 'baseline' ? message.id === active : !historical.has(message.id)))
+            .filter((message) => (delivery === 'baseline' ? baseline.has(message.id) : !historical.has(message.id)))
             .map((message) => message.id),
           completion,
           backgroundResults: this.backgroundResults

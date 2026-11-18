@@ -44,8 +44,14 @@ bounded pending frames, explicit overflow gaps, and observer error isolation. It
 queue or execution lifecycle. `state` copies non-message state, `message(id)` copies one
 selected message, and `messageIds` / `messageInputId(id)` read scalar identities. Adapters
 use these selectors instead of copying the entire history for a narrow read; public snapshots
-and observer deliveries remain isolated copies. Adapters maintain source identity before publishing events. `observeCaptured`
+and observer deliveries remain isolated copies of mutable containers. Immutable text and image strings
+are reused without serialization. Adapters maintain source identity before publishing events. `observeCaptured`
 captures concrete metadata with each native revision and retains critical frames through overflow recovery.
+Pending delivery uses a conservative 16 MiB size budget as well as event-count limits. Overflow
+replaces superseded ordinary delivery with a gap and a current recovery snapshot while retaining
+critical frames. One oversized complete frame is allowed so history is never truncated to fit;
+multiple oversized critical frames fail closed with `source-lost` rather than growing without bound.
+The first baseline remains first even when overflow closes an observation before its callback starts.
 An unrecoverable control backlog closes the observation with a gap instead of inventing completion.
 `Observation.drain()` joins delivery and callbacks through the facts already published when it is called.
 Seal native production before the final drain and archive flush. `stop()` discards queued delivery; it is not

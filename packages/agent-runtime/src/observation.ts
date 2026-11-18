@@ -1,3 +1,4 @@
+import { cloneHistoryData } from './cloneHistoryData'
 import type {
   InputId,
   Observation,
@@ -6,6 +7,20 @@ import type {
   RuntimeMessage,
   ThreadSnapshot
 } from './contracts'
+
+const MAX_PENDING_BYTES = 16 * 1024 * 1024
+
+function retainedBytes(value: unknown, seen = new Set<object>()): number {
+  if (typeof value === 'string') return value.length * 2 + 16
+  if (value === null || typeof value !== 'object') return 8
+  if (seen.has(value)) return 0
+  seen.add(value)
+  if (ArrayBuffer.isView(value)) return value.byteLength + 32
+  if (value instanceof ArrayBuffer) return value.byteLength + 32
+  let bytes = 32
+  for (const [key, child] of Object.entries(value)) bytes += key.length * 2 + 16 + retainedBytes(child, seen)
+  return bytes
+}
 
 /** Bounded delivery for normalized facts; never schedules native execution. */
 export class ThreadFeed {
@@ -18,8 +33,7 @@ export class ThreadFeed {
   constructor(
     private value: ThreadSnapshot,
     private readonly report: (error: unknown) => void,
-    // oxlint-disable-next-line no-restricted-globals -- Isolate caller-owned snapshots by default.
-    private readonly copy: <T extends ObservationPayload>(value: T) => T = (value) => structuredClone(value)
+    private readonly copy: <T extends ObservationPayload>(value: T) => T = cloneHistoryData
   ) {
     this.value = this.copy(value)
   }
@@ -30,8 +44,7 @@ export class ThreadFeed {
 
   get state(): Omit<ThreadSnapshot, 'messages'> {
     const { type, inputs, activity, contextUsage, subagents } = this.value
-    // oxlint-disable-next-line no-restricted-globals -- Copy only non-message state for internal reads; never traverse history here.
-    return structuredClone({ type, inputs, activity, contextUsage, subagents })
+    return cloneHistoryData({ type, inputs, activity, contextUsage, subagents })
   }
 
   get messageIds(): string[] {
@@ -40,8 +53,7 @@ export class ThreadFeed {
 
   message(id: string | undefined): RuntimeMessage | undefined {
     const message = this.value.messages.find((message) => message.id === id)
-    // oxlint-disable-next-line no-restricted-globals -- Copy one selected message instead of the complete history for adapter lookups.
-    return message && structuredClone(message)
+    return message && cloneHistoryData(message)
   }
 
   messageInputId(id: string): InputId | undefined {
@@ -116,9 +128,24 @@ export class ThreadFeed {
     let delivered = 0
     let lost = false
     type Delivery = { value: T; through: number; shouldClose: boolean; recovery?: T }
+    const sizes = new WeakMap<Delivery, number>()
+    const exceedsBytes = (items: Delivery[]) => {
+      let total = 0
+      let largest = 0
+      for (const item of items) {
+        let size = sizes.get(item)
+        if (size === undefined) {
+          size = retainedBytes(item)
+          sizes.set(item, size)
+        }
+        total += size
+        largest = Math.max(largest, size)
+      }
+      // A single complete baseline may exceed the budget; multiple large copies may not.
+      return total > Math.max(MAX_PENDING_BYTES, largest)
+    }
     const captureFrame = (event: ObservationPayload, delivery: Parameters<typeof capture>[1]) =>
-      // oxlint-disable-next-line no-restricted-globals -- Isolate each asynchronous observer once; baseline/recovery intentionally include the full snapshot.
-      structuredClone(capture(event, delivery))
+      cloneHistoryData(capture(event, delivery))
     let pending: Delivery[] = [{ value: captureFrame(this.value, 'baseline').value, through: sent, shouldClose: false }]
     const barriers = new Set<{ through: number; resolve(): void; reject(error: Error): void }>()
     const settle = () => {
@@ -174,16 +201,17 @@ export class ThreadFeed {
           ...(captured.retain && { recovery: captureFrame(this.value, 'recovery').value })
         }
         pending.push(next)
-        if (pending.length > 100) {
+        if (pending.length > 100 || exceedsBytes(pending)) {
           const retained = pending
             .filter((item) => item.recovery !== undefined)
             .map((item) => ({ ...item, value: item.recovery! }))
           const gap: ObservationPayload = { type: 'gap', reason: 'overflow' }
           const snapshot = this.value
-          if (retained.length > 1000) {
+          if (retained.length > 1000 || exceedsBytes(retained)) {
             lost = true
             const closed: ObservationPayload = { type: 'closed', reason: 'source-lost' }
             pending = [
+              ...(started ? [] : [pending[0]]),
               { value: captureFrame(gap, 'update').value, through: delivered, shouldClose: false },
               { value: captureFrame(closed, 'update').value, through: sent, shouldClose: true }
             ]

@@ -72,8 +72,9 @@ confirm foreground completion. Native progress may remain unpersisted for up to 
 facts, including placed native-only inputs. Completion stays pending during admission, unresolved input,
 foreground work or compaction, and carries terminal inputs after their content. Revision and pending state stay private to the projection.
 A confirmed rejection releases only its temporary admission hold; unknown admission remains unresolved.
-Initial observation never replays earlier completion. A generation preview already active at attachment remains live for its product consumer; only the committed prefix is historical. A returning preview receives a fresh local identity even when a resumed native task repeats its attempt number. Slow observers retain terminal batches through
-recovery; final persistence must await `Observation.drain()` after native production stops.
+Initial observation never replays earlier completion. A generation preview already active at attachment remains live for its product consumer; committed output after the unique logical user-input boundary of an unfinished placed input also remains live. Earlier answers, queued inputs and ambiguous boundaries remain historical. A returning preview receives a fresh local identity even when a resumed native task repeats its attempt number. State-only reads and updates use `ThreadFeed.state`, avoiding full transcript clones merely to
+read inputs or preserve context metadata. Slow observers retain terminal batches through
+size-bounded recovery; final persistence must await `Observation.drain()` after native production stops.
 `runtime.settled()` joins admitted submissions, all native tasks including background work,
 and tracked relation delivery without closing storage. Shutdown completes admitted relation reads
 before closing storage and delivers their facts before closing feeds. The desktop backup barrier

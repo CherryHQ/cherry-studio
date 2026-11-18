@@ -598,6 +598,15 @@ error classification only in its terminal error frame.
 Unmatched statusless errors remain 500 with
 internal messages shown only in development. JSON responses and terminal SSE error
 frames exclude AI-SDK stack, URL, and request/response diagnostic extras.
+Anthropic status-only 413 errors use `request_too_large` in both JSON responses and
+terminal SSE error frames.
+
+Native Pi bindings acquire a process-shared payload allowance before SDK request serialization.
+Conservative JSON costs above 8 MiB share 64 MiB of allowance; an oversized request uses
+the whole allowance without truncation. The allowance is held until the model stream settles.
+Small calls bypass it, while very large image-history calls may wait for another response.
+Queued cancellation and gateway shutdown release or cancel admission. Conversation history
+and model image content remain complete.
 
 For authenticated internal runtime requests, the prompt stream also passes its original
 provider exception to the gateway without putting it in persisted or renderer-facing error

@@ -79,6 +79,7 @@ vi.mock('@application', async () => {
   const overrides = {
     DbService: defaultServiceInstances.DbService,
     ApiGatewayService: {
+      acquireModelPayloadBudget: async () => () => {},
       captureAgentSessionUsage: () => ({ headers: {}, release: () => {} }),
       ensureInternalGateway: async () => ({ baseUrl: 'http://gateway.invalid', apiKey: 'fixture' }),
       getAgentSessionUsageHeaders: () => ({})
@@ -1970,6 +1971,33 @@ describe('desktop Pi Durable connection', () => {
     const reopened = await connect()
     await reopened.connection.close()
     expect(script.calls).toHaveLength(0)
+  })
+
+  it('identifies an active recovered input before publishing its first content', async () => {
+    const { connection, events, handle } = await connect()
+    const context = prepareDurableBranch(input.sessionId)
+    const user = message('interrupted before first output')
+    prepareNativeSubmission(input.sessionId, user.id, context.id, 'reject')
+    const pending: InputState = {
+      inputId: runtimeId(user.id),
+      nativeInput: { session: handle.thread, id: runtimeId<'native-input'>('interrupted-input') },
+      facts: ['accepted', 'placed']
+    }
+    const observer = connection as unknown as { onObservation(batch: DurableObservation): Promise<void> }
+    await observer.onObservation({
+      backgroundResults: { status: 'confirmed', value: { active: false, pending: [], notification: [] } },
+      events: [{ type: 'snapshot', messages: [], inputs: [pending], activity: { state: 'active' } }],
+      aliases: {},
+      live: []
+    })
+    await expect
+      .poll(() =>
+        events.some(
+          (event) =>
+            event.type === 'autonomous-turn-state' && event.state === 'started' && event.recoveredInputId === user.id
+        )
+      )
+      .toBe(true)
   })
 
   it.each([true, false])('waits for native-only pending work with a retained message: %s', async (retained) => {

@@ -1,6 +1,11 @@
-import { ThreadFeed, type Observation, type ObservationPayload, type ThreadSnapshot } from '@cherrystudio/agent-runtime'
+import {
+  cloneHistoryData,
+  ThreadFeed,
+  type Observation,
+  type ObservationPayload,
+  type ThreadSnapshot
+} from '@cherrystudio/agent-runtime'
 
-import { cloneHistoryData } from './cloneHistoryData'
 import type { ClaudeControl, ClaudeControlState } from './control'
 import type { ClaudeInvocation, ClaudeNativeMessage, ClaudeObservation, ClaudeObservationSink } from './types'
 
