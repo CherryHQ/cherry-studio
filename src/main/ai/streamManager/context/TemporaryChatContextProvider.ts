@@ -12,7 +12,7 @@ import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { resolveContextSettings } from '@main/ai/contextBuild/resolveContextSettings'
 import { resolveGlobalContextSettings } from '@main/ai/contextBuild/resolveRequestContextSettings'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
-import { toContentRole } from '@shared/data/types/message'
+import { toContentRole, type MessageSnapshot } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 
@@ -85,15 +85,16 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     const modelSnap = { id: model.apiModelId ?? rawModelId, name: model.name, provider: providerId }
     // The assistant owns the model — snapshot it (model nested) onto the assistant reply.
     const assistant = assistantId ? assistantDataService.getById(assistantId) : undefined
-    const messageSnapshot = assistant
-      ? {
-          id: assistant.id,
-          name: assistant.name,
-          emoji: assistant.emoji,
-          ...(assistant.avatarFileId ? { avatarFileId: assistant.avatarFileId } : {}),
-          model: modelSnap
-        }
-      : undefined
+    let messageSnapshot: MessageSnapshot | undefined
+    if (assistant) {
+      const identity: Omit<MessageSnapshot, 'model'> = {
+        id: assistant.id,
+        name: assistant.name,
+        emoji: assistant.emoji
+      }
+      if (assistant.avatarFileId) identity.avatarFileId = assistant.avatarFileId
+      messageSnapshot = { ...identity, model: modelSnap }
+    }
 
     // Append user first so `history` (listMessages) includes it. User rows carry only `modelId`.
     temporaryChatService.appendMessage(req.topicId, {
@@ -138,9 +139,9 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       messages: history,
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(req.userMessageParts),
       reasoningEffort: req.trigger === 'submit-message' ? req.reasoningEffort : undefined,
-      serviceTier: req.trigger === 'submit-message' ? req.serviceTier : undefined,
-      ...(req.trigger === 'submit-message' && req.fastMode ? { fastMode: true } : {})
+      serviceTier: req.trigger === 'submit-message' ? req.serviceTier : undefined
     }
+    if (req.trigger === 'submit-message' && req.fastMode) streamRequest.fastMode = true
 
     temporaryChatService.retainAvatar(req.topicId, messageSnapshot?.avatarFileId)
     return {

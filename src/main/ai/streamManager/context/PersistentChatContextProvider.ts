@@ -93,7 +93,13 @@ function resolveRowDialect(model: Model | undefined): TokenDialect {
 function resolveAssistantIdentity(assistantId: string | undefined) {
   if (!assistantId) return undefined
   const a = assistantDataService.getById(assistantId)
-  return { id: a.id, name: a.name, emoji: a.emoji, ...(a.avatarFileId ? { avatarFileId: a.avatarFileId } : {}) }
+  const identity: Pick<MessageSnapshot, 'id' | 'name' | 'emoji' | 'avatarFileId'> = {
+    id: a.id,
+    name: a.name,
+    emoji: a.emoji
+  }
+  if (a.avatarFileId) identity.avatarFileId = a.avatarFileId
+  return identity
 }
 
 /**
@@ -194,7 +200,7 @@ function withSteerReminder(history: CherryUIMessage[]): CherryUIMessage[] {
 }
 
 function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
-  return {
+  const reserved: CherryUIMessage & { metadata: NonNullable<CherryUIMessage['metadata']> } = {
     id: message.id,
     role: toContentRole(message.role),
     parts: message.data.parts ?? [],
@@ -208,10 +214,11 @@ function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
       turnOptions: message.data.turnOptions,
       createdAt: message.createdAt,
       stats: message.stats ?? undefined,
-      isActiveBranch: true,
-      ...(message.stats?.totalTokens ? { totalTokens: message.stats.totalTokens } : {})
+      isActiveBranch: true
     }
-  } satisfies CherryUIMessage
+  }
+  if (message.stats?.totalTokens) reserved.metadata.totalTokens = message.stats.totalTokens
+  return reserved
 }
 
 function assertUniqueMentionedModelIds(modelIds: readonly UniqueModelId[] | undefined): void {
@@ -1096,7 +1103,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     fastMode: boolean,
     retainedContext?: RetainedContext
   ): AiStreamRequest {
-    return {
+    const request: AiStreamRequest = {
       conversation: { id: topicId, topicId },
       trigger: 'submit-message',
       assistantId,
@@ -1106,9 +1113,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       knowledgeBaseIds,
       reasoningEffort,
       serviceTier,
-      fastMode,
-      ...(retainedContext ? { retainedContext } : {})
+      fastMode
     }
+    if (retainedContext) request.retainedContext = retainedContext
+    return request
   }
 }
 
