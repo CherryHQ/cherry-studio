@@ -21,16 +21,17 @@ export type RemoteCommandOutcome =
   | { status: 'interrupted'; error: RemoteFailure }
 
 function toReceipt(row: RemoteCommandRow): CommandReceipt {
-  return {
+  const receipt: CommandReceipt = {
     commandId: row.commandId,
     method: row.method,
     status: row.status,
-    admittedAt: new Date(row.admittedAt).toISOString(),
-    ...(row.sessionId ? { sessionId: row.sessionId } : {}),
-    ...(row.executionId ? { executionId: row.executionId } : {}),
-    ...(row.result !== null && row.result !== undefined ? { result: row.result as CommandReceipt['result'] } : {}),
-    ...(row.error ? { error: row.error } : {})
+    admittedAt: new Date(row.admittedAt).toISOString()
   }
+  if (row.sessionId) receipt.sessionId = row.sessionId
+  if (row.executionId) receipt.executionId = row.executionId
+  if (row.result !== null && row.result !== undefined) receipt.result = row.result as CommandReceipt['result']
+  if (row.error) receipt.error = row.error
+  return receipt
 }
 
 export class RemoteCommandService {
@@ -122,15 +123,14 @@ export class RemoteCommandService {
 
   /** Moves an `accepted` receipt to its terminal state; a settled receipt is never overwritten. */
   settle(key: RemoteCommandKey, outcome: RemoteCommandOutcome): CommandReceipt {
-    const values =
-      outcome.status === 'applied'
-        ? {
-            status: outcome.status,
-            ...(outcome.sessionId ? { sessionId: outcome.sessionId } : {}),
-            executionId: outcome.executionId ?? null,
-            ...(outcome.result !== undefined ? { result: outcome.result } : {})
-          }
-        : { status: outcome.status, error: outcome.error }
+    const values: Partial<typeof remoteCommandTable.$inferInsert> = { status: outcome.status }
+    if (outcome.status === 'applied') {
+      if (outcome.sessionId) values.sessionId = outcome.sessionId
+      values.executionId = outcome.executionId ?? null
+      if (outcome.result !== undefined) values.result = outcome.result
+    } else {
+      values.error = outcome.error
+    }
     const row = this.db
       .update(remoteCommandTable)
       .set(values)
