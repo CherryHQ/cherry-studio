@@ -116,15 +116,15 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.session.predict_prompt': (input) => application.get('AgentSessionRuntimeService').predictPrompt(input),
   'ai.agent.session.abort_prediction': async ({ sessionId, requestId }) =>
     application.get('AgentSessionRuntimeService').abortPromptPrediction(sessionId, requestId),
-  'ai.agent.import.prepare': async ({ agentId }) => {
+  'ai.agent.import.prepare': async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [{ name: 'DeepSeek', extensions: ['zip'] }]
     })
     if (result.canceled || !result.filePaths[0]) return null
-    return application.get('AgentImportService').prepare(agentId, result.filePaths[0])
+    return application.get('AgentImportService').prepare(result.filePaths[0])
   },
-  'ai.agent.import.status': async ({ agentId }) => application.get('AgentImportService').status(agentId),
+  'ai.agent.import.status': async () => application.get('AgentImportService').status(),
   'ai.agent.import.start': async ({ id }) => application.get('AgentImportService').start(id),
   'ai.agent.import.cancel': async ({ id }) => application.get('AgentImportService').cancel(id),
 

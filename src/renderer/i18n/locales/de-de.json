@@ -160,7 +160,7 @@
   "agent.heartbeat.tasks": "Heartbeat-Aufgaben",
   "agent.home.welcome_title": "Wovon sollen wir heute sprechen?",
   "agent.icon.type": "Agent-Symbol",
-  "agent.import.description": "Eine DeepSeek-ZIP-Datei als neue Agent-Sitzungen importieren. Das Schließen dieses Dialogs stoppt den Import nicht.",
+  "agent.import.description": "Importieren Sie eine DeepSeek-ZIP-Datei in einen neuen DeepSeek-Agenten. Das Schließen dieses Dialogs stoppt den Import nicht.",
   "agent.import.missing": "Diese Anhänge fehlen im Export:",
   "agent.import.paused": "Import gestoppt. Erneut versuchen, um ohne doppelte Sitzungen fortzufahren.",
   "agent.import.progress": "Importiert: {{imported}} · Bereits importiert: {{skipped}} · Fehlgeschlagen: {{failed}} · Verbleibend: {{remaining}}",

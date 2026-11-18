@@ -225,11 +225,11 @@ export const aiRequestSchemas = {
     output: z.void()
   }),
   'ai.agent.import.prepare': defineRoute({
-    input: z.strictObject({ agentId: z.string() }),
+    input: z.strictObject({}),
     output: agentImportSnapshotSchema.nullable()
   }),
   'ai.agent.import.status': defineRoute({
-    input: z.strictObject({ agentId: z.string() }),
+    input: z.strictObject({}),
     output: agentImportSnapshotSchema.nullable()
   }),
   'ai.agent.import.start': defineRoute({ input: z.strictObject({ id: z.uuid() }), output: agentImportSnapshotSchema }),

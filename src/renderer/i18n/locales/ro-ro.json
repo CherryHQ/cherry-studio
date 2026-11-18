@@ -160,7 +160,7 @@
   "agent.heartbeat.tasks": "Sarcini heartbeat",
   "agent.home.welcome_title": "Despre ce să vorbim astăzi?",
   "agent.icon.type": "Pictogramă Agent",
-  "agent.import.description": "Importă un ZIP DeepSeek ca sesiuni noi de agent. Închiderea acestui dialog nu oprește importul.",
+  "agent.import.description": "Importați un ZIP DeepSeek într-un agent DeepSeek nou. Închiderea acestui dialog nu oprește importul.",
   "agent.import.missing": "Aceste atașamente lipsesc din export:",
   "agent.import.paused": "Import oprit. Reîncearcă pentru a continua fără duplicarea sesiunilor importate.",
   "agent.import.progress": "Importate: {{imported}} · Deja importate: {{skipped}} · Eșuate: {{failed}} · Rămase: {{remaining}}",

@@ -160,7 +160,7 @@
   "agent.heartbeat.tasks": "Attività periodiche",
   "agent.home.welcome_title": "A cosa lavoriamo oggi?",
   "agent.icon.type": "Icona dell'agente",
-  "agent.import.description": "Importa uno ZIP DeepSeek come nuove sessioni agente. Chiudere questa finestra non interrompe l’importazione.",
+  "agent.import.description": "Importa un file ZIP DeepSeek in un nuovo agente DeepSeek. La chiusura di questa finestra non interrompe l’importazione.",
   "agent.import.missing": "Questi allegati mancano nell’esportazione:",
   "agent.import.paused": "Importazione interrotta. Riprova per continuare senza duplicare le sessioni importate.",
   "agent.import.progress": "Importate: {{imported}} · Già importate: {{skipped}} · Non riuscite: {{failed}} · Rimanenti: {{remaining}}",

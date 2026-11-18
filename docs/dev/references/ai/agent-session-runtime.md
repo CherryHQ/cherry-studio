@@ -1204,11 +1204,13 @@ rebuild state or historical checkpoints and does not inspect import provenance.
 ## DeepSeek Agent history import
 
 `AgentImportService` publishes normalized `ConversationImporter` results into new sessions
-for existing Agents. `DeepSeekImporter` handles the supported DeepSeek v3 ZIP format,
+for a new Agent named after the importer. `DeepSeekImporter` handles the supported DeepSeek v3 ZIP format,
 including validation, source-field normalization, content and managed attachments. The
 service handles progress, retry and database publication without reading source fields.
-Settings → Data → Import external application data opens a preview after selecting the
-Agent. Main owns bounded archive reads, validation, progress, cancellation and retry;
+Settings → Data → Import external application data opens the import dialog directly.
+Preview reserves IDs without creating an Agent. Confirming import creates a DeepSeek Agent
+with ordinary Pi Durable defaults and an enabled, compatible default model when available.
+Otherwise its model remains unset for later selection. Main owns bounded archive reads, validation, progress, cancellation and retry;
 closing the dialog does not cancel work. The importer writes the complete product parent
 graph, selected head and managed attachments without creating native history or tokens.
 The generic first-submission mechanism above supplies continuation context.
@@ -1216,7 +1218,10 @@ The generic first-submission mechanism above supplies continuation context.
 Operation snapshots, latest-operation pointers and per-source publication receipts use
 `agent-import:operation:`, `agent-import:latest:` and `agent-import:conversation:` in
 `app_state`. Operations retain their importer ID, with the default importer used for older
-records. The archive digest and Agent identify retries. A synchronous product
+records. The importer ID and archive digest identify retries, which reuse the original Agent.
+Agent creation and the pending-creation marker commit atomically; preview, cancellation
+before creation and source validation failure create no Agent. Different archives get
+separate Agents, and a deleted destination is not silently recreated. A synchronous product
 transaction publishes each session, its messages, file references and receipt. Cancellation
 preserves completed sessions. Agent lifecycle pause/drain includes preparation and import.
 The original ZIP is read directly without copying, modifying or deleting it. Operations

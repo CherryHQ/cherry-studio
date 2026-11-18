@@ -160,7 +160,7 @@
   "agent.heartbeat.tasks": "Задачи heartbeat",
   "agent.home.welcome_title": "О чём мы поговорим сегодня?",
   "agent.icon.type": "Иконка агента",
-  "agent.import.description": "Импорт ZIP DeepSeek в новые сеансы агента. Закрытие этого окна не останавливает импорт.",
+  "agent.import.description": "Импортируйте ZIP DeepSeek в нового агента DeepSeek. Закрытие этого диалога не останавливает импорт.",
   "agent.import.missing": "В экспорте отсутствуют вложения:",
   "agent.import.paused": "Импорт остановлен. Повторите попытку, чтобы продолжить без дублирования сеансов.",
   "agent.import.progress": "Импортировано: {{imported}} · Уже импортировано: {{skipped}} · Ошибок: {{failed}} · Осталось: {{remaining}}",

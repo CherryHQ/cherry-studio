@@ -10,9 +10,13 @@ import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { agentImportSnapshotSchema, type AgentImportSnapshot } from '@shared/ai/agentImport'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 
 import { getConversationImporter } from './importers'
 import type { ConversationImporter, ImportArchive } from './types'
@@ -20,6 +24,7 @@ import type { ConversationImporter, ImportArchive } from './types'
 const operationSchema = agentImportSnapshotSchema.extend({
   digest: z.string().regex(/^[a-f0-9]{64}$/),
   importerId: z.string().optional(),
+  createAgent: z.boolean().default(false),
   sourceFile: z.string().optional()
 })
 const receiptSchema = z.object({
@@ -73,7 +78,7 @@ export class AgentImportService extends BaseService {
     operation.revision++
     application.get('DbService').withWriteTx((tx) => {
       writeState(tx, `agent-import:operation:${operation.id}`, operation)
-      writeState(tx, `agent-import:latest:${operation.agentId}`, operation.id)
+      writeState(tx, `agent-import:latest:${getConversationImporter(operation.importerId).id}`, operation.id)
     })
     try {
       application.get('IpcApiService').broadcast('ai.agent.import.progress', agentImportSnapshotSchema.parse(operation))
@@ -81,8 +86,8 @@ export class AgentImportService extends BaseService {
       logger.warn('Import progress notification failed', { error })
     }
   }
-  status(agentId: string): AgentImportSnapshot | null {
-    const id = readState(`agent-import:latest:${agentId}`)
+  status(importerId?: string): AgentImportSnapshot | null {
+    const id = readState(`agent-import:latest:${getConversationImporter(importerId).id}`)
     if (typeof id !== 'string') return null
     const operation = this.operation(id)
     if (operation.status === 'running' && !this.runs.has(id)) operation.status = 'interrupted'
@@ -118,23 +123,22 @@ export class AgentImportService extends BaseService {
     return { stragglerIds: this.listActiveWork().map(({ id }) => id) }
   }
 
-  prepare(agentId: string, file: string, importerId?: string): Promise<AgentImportSnapshot> {
+  prepare(file: string, importerId?: string): Promise<AgentImportSnapshot> {
     if (this.stopping || this.pauseHolds.size) return Promise.reject(new Error('Agent imports are paused'))
-    if ([...this.preparations.values()].includes(agentId))
+    const importer = getConversationImporter(importerId)
+    if ([...this.preparations.values()].includes(importer.id))
       return Promise.reject(new Error('An import preview is already running'))
-    const work = this.prepareArchive(agentId, file, getConversationImporter(importerId))
-    this.preparations.set(work, agentId)
+    const work = this.prepareArchive(file, importer)
+    this.preparations.set(work, importer.id)
     void work.finally(() => this.preparations.delete(work)).catch(() => {})
     return work
   }
 
-  private async prepareArchive(
-    agentId: string,
-    file: string,
-    importer: ConversationImporter
-  ): Promise<AgentImportSnapshot> {
-    this.assertAgent(agentId)
-    if (this.stopping || [...this.runs.keys()].some((id) => this.operation(id).agentId === agentId))
+  private async prepareArchive(file: string, importer: ConversationImporter): Promise<AgentImportSnapshot> {
+    if (
+      this.stopping ||
+      [...this.runs.keys()].some((id) => getConversationImporter(this.operation(id).importerId).id === importer.id)
+    )
       throw new Error('An import is already running')
     const digest = await importer.digest(file)
     const archive = await importer.open(file)
@@ -144,14 +148,15 @@ export class AgentImportService extends BaseService {
     } finally {
       await archive.close()
     }
-    const id = uuid(`${agentId}:${digest}`, namespace)
+    const id = uuid(`${importer.id}:${digest}`, namespace)
     const previous = readState(`agent-import:operation:${id}`)
     const operation: Operation = previous
       ? { ...operationSchema.parse(previous), importerId: importer.id, sourceFile: file }
       : {
           id,
           revision: 0,
-          agentId,
+          agentId: randomUUID(),
+          createAgent: true,
           digest,
           importerId: importer.id,
           sourceFile: file,
@@ -167,19 +172,21 @@ export class AgentImportService extends BaseService {
         }
     application.get('DbService').withWriteTx((tx) => {
       writeState(tx, `agent-import:operation:${id}`, operation)
-      writeState(tx, `agent-import:latest:${agentId}`, id)
+      writeState(tx, `agent-import:latest:${importer.id}`, id)
     })
-    return this.status(agentId)!
+    return this.status(importer.id)!
   }
 
   start(id: string): AgentImportSnapshot {
     const operation = this.operation(id)
-    this.assertAgent(operation.agentId)
+    if (!operation.createAgent) this.assertAgent(operation.agentId)
     if (this.stopping || this.pauseHolds.size) throw new Error('Agent imports are paused')
     if (this.runs.has(id)) return agentImportSnapshotSchema.parse(operation)
-    if ([...this.preparations.values()].includes(operation.agentId))
-      throw new Error('An import preview is already running')
-    if ([...this.runs.keys()].some((other) => this.operation(other).agentId === operation.agentId))
+    const importerId = getConversationImporter(operation.importerId).id
+    if ([...this.preparations.values()].includes(importerId)) throw new Error('An import preview is already running')
+    if (
+      [...this.runs.keys()].some((other) => getConversationImporter(this.operation(other).importerId).id === importerId)
+    )
       throw new Error('An import is already running')
     const controller = new AbortController()
     Object.assign(operation, {
@@ -211,6 +218,8 @@ export class AgentImportService extends BaseService {
       if ((await importer.digest(file)) !== operation.digest) throw new Error('Import file changed')
       const archive = await importer.open(file)
       try {
+        signal.throwIfAborted()
+        if (operation.createAgent) await this.createImportAgent(operation, importer, signal)
         for (const sourceId of archive.sourceIds) {
           signal.throwIfAborted()
           this.assertAgent(operation.agentId)
@@ -233,6 +242,41 @@ export class AgentImportService extends BaseService {
       }
     }
     this.save(operation)
+  }
+
+  private async createImportAgent(operation: Operation, importer: ConversationImporter, signal: AbortSignal) {
+    await ensureAgentDataDirectory(application.getPath('feature.agents.data'), operation.agentId)
+    signal.throwIfAborted()
+    application.get('DbService').withWriteTx((tx) => {
+      const defaultModelId = application.get('PreferenceService').get('chat.default_model_id')
+      const model = defaultModelId ? modelService.findByIdTx(tx, defaultModelId) : null
+      const provider = model ? providerService.getByProviderId(model.providerId) : null
+      const defaults = AGENT_RUNTIME_CAPABILITIES['pi-durable']
+      agentService.createAgentTx(
+        tx,
+        operation.agentId,
+        {
+          id: operation.agentId,
+          type: 'pi-durable',
+          name: importer.name,
+          instructions: '',
+          model:
+            model?.isEnabled && provider?.isEnabled && defaults.isModelCompatible(provider, model) ? model.id : null,
+          configuration: {
+            avatar: importer.emoji,
+            permission_mode: defaults.createDefaults.permissionMode
+          }
+        },
+        'first'
+      )
+      writeState(tx, `agent-import:operation:${operation.id}`, { ...operation, createAgent: false })
+    })
+    operation.createAgent = false
+    try {
+      agentService.emitAgentCreated(this.assertAgent(operation.agentId))
+    } catch (error) {
+      logger.warn('Imported Agent notification failed', { error })
+    }
   }
 
   private async importConversation({

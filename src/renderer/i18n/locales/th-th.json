@@ -160,7 +160,7 @@
   "agent.heartbeat.tasks": "งาน heartbeat",
   "agent.home.welcome_title": "วันนี้เราจะทำงานอะไรดี?",
   "agent.icon.type": "ไอคอนเอเจนต์",
-  "agent.import.description": "นำเข้า ZIP ของ DeepSeek เป็นเซสชันเอเจนต์ใหม่ การปิดกล่องโต้ตอบนี้จะไม่หยุดการนำเข้า",
+  "agent.import.description": "นำเข้า ZIP ของ DeepSeek ไปยังเอเจนต์ DeepSeek ใหม่ การปิดกล่องโต้ตอบนี้จะไม่หยุดการนำเข้า",
   "agent.import.missing": "ไฟล์ส่งออกไม่มีไฟล์แนบต่อไปนี้:",
   "agent.import.paused": "หยุดการนำเข้าแล้ว ลองอีกครั้งเพื่อดำเนินการต่อโดยไม่สร้างเซสชันซ้ำ",
   "agent.import.progress": "นำเข้าแล้ว: {{imported}} · มีอยู่แล้ว: {{skipped}} · ล้มเหลว: {{failed}} · เหลือ: {{remaining}}",

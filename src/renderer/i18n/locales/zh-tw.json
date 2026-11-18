@@ -160,7 +160,7 @@
   "agent.heartbeat.tasks": "心跳任務",
   "agent.home.welcome_title": "今天要做些什麼？",
   "agent.icon.type": "智能體圖示",
-  "agent.import.description": "將 DeepSeek ZIP 匯入為新的智慧體工作階段。關閉此對話框不會停止匯入。",
+  "agent.import.description": "將 DeepSeek ZIP 匯入新建的 DeepSeek 智能體。關閉此對話框不會停止匯入。",
   "agent.import.missing": "匯出檔中缺少下列附件：",
   "agent.import.paused": "匯入已停止。重試可繼續，不會重複建立已匯入的工作階段。",
   "agent.import.progress": "已匯入：{{imported}} · 已存在：{{skipped}} · 失敗：{{failed}} · 剩餘：{{remaining}}",

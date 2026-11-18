@@ -17,30 +17,31 @@ import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { AgentImportSnapshot } from '@shared/ai/agentImport'
 
-type Props = { agentId: string } & PopupInjectedProps<void>
+type Props = PopupInjectedProps<void>
 
-export function AgentImportDialog({ agentId, open, resolve }: Props) {
+export function AgentImportDialog({ open, resolve }: Props) {
   const { t } = useTranslation()
   const invalidate = useInvalidateCache()
   const navigation = useConversationNavigation('agents')
   const [snapshot, setSnapshot] = useState<AgentImportSnapshot | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const accept = useCallback(
-    (value: AgentImportSnapshot | null) => {
-      if (!value || value.agentId !== agentId) return
-      setSnapshot((previous) => (previous?.id === value.id && previous.revision > value.revision ? previous : value))
-    },
-    [agentId]
-  )
+  const accept = useCallback((value: AgentImportSnapshot | null) => {
+    if (!value) return
+    setSnapshot((previous) => (previous?.id === value.id && previous.revision > value.revision ? previous : value))
+  }, [])
   useIpcOn('ai.agent.import.progress', (value) => {
+    if (value.id !== snapshot?.id) return
     accept(value)
-    if (value.agentId === agentId && value.status !== 'running') void invalidate('/agent-sessions')
+    if (value.status !== 'running') {
+      void invalidate('/agents')
+      void invalidate('/agent-sessions')
+    }
   })
   useEffect(() => {
     let alive = true
     ipcApi
-      .request('ai.agent.import.status', { agentId })
+      .request('ai.agent.import.status', {})
       .then((value) => {
         if (!alive) return
         accept(value)
@@ -51,7 +52,7 @@ export function AgentImportDialog({ agentId, open, resolve }: Props) {
     return () => {
       alive = false
     }
-  }, [agentId, accept])
+  }, [accept])
   const act = async (action: () => Promise<AgentImportSnapshot | null | void>) => {
     setBusy(true)
     setError('')
@@ -121,7 +122,7 @@ export function AgentImportDialog({ agentId, open, resolve }: Props) {
           <Button
             variant="outline"
             disabled={busy || running}
-            onClick={() => void act(() => ipcApi.request('ai.agent.import.prepare', { agentId }))}>
+            onClick={() => void act(() => ipcApi.request('ai.agent.import.prepare', {}))}>
             {t('common.select')}
           </Button>
           {running && snapshot ? (
@@ -147,4 +148,4 @@ export function AgentImportDialog({ agentId, open, resolve }: Props) {
   )
 }
 
-export const AgentImportPopup = createPopup<{ agentId: string }, void>(AgentImportDialog)
+export const AgentImportPopup = createPopup<Record<string, never>, void>(AgentImportDialog)

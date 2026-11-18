@@ -160,7 +160,7 @@
   "agent.heartbeat.tasks": "Tâches de heartbeat",
   "agent.home.welcome_title": "De quoi allons-nous parler aujourd'hui ?",
   "agent.icon.type": "Icône de l'agent",
-  "agent.import.description": "Importer un ZIP DeepSeek dans de nouvelles sessions Agent. Fermer cette boîte de dialogue ne stoppe pas l’importation.",
+  "agent.import.description": "Importez un ZIP DeepSeek dans un nouvel agent DeepSeek. Fermer cette boîte de dialogue ne coupe pas l’importation.",
   "agent.import.missing": "Ces pièces jointes sont absentes de l’export :",
   "agent.import.paused": "Importation arrêtée. Réessayez pour continuer sans dupliquer les sessions importées.",
   "agent.import.progress": "Importées : {{imported}} · Déjà importées : {{skipped}} · Échecs : {{failed}} · Restantes : {{remaining}}",

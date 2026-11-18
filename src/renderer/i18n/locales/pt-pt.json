@@ -160,7 +160,7 @@
   "agent.heartbeat.tasks": "Tarefas de heartbeat",
   "agent.home.welcome_title": "Sobre o que vamos falar hoje?",
   "agent.icon.type": "Ícone de Agente",
-  "agent.import.description": "Importar um ZIP do DeepSeek como novas sessões do agente. Fechar esta janela não interrompe a importação.",
+  "agent.import.description": "Importe um ZIP do DeepSeek para um novo agente DeepSeek. Fechar esta janela não interrompe a importação.",
   "agent.import.missing": "Estes anexos estão em falta na exportação:",
   "agent.import.paused": "Importação interrompida. Tente novamente para continuar sem duplicar as sessões importadas.",
   "agent.import.progress": "Importadas: {{imported}} · Já importadas: {{skipped}} · Falhadas: {{failed}} · Restantes: {{remaining}}",

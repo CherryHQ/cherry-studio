@@ -160,7 +160,7 @@
   "agent.heartbeat.tasks": "Εργασίες heartbeat",
   "agent.home.welcome_title": "Τι θα συζητήσουμε σήμερα;",
   "agent.icon.type": "Εικονίδιο Πράκτορα",
-  "agent.import.description": "Εισαγωγή ZIP DeepSeek ως νέες συνεδρίες πράκτορα. Το κλείσιμο αυτού του διαλόγου δεν σταματά την εισαγωγή.",
+  "agent.import.description": "Εισαγάγετε ένα ZIP DeepSeek σε έναν νέο πράκτορα DeepSeek. Το κλείσιμο αυτού του διαλόγου δεν σταματά την εισαγωγή.",
   "agent.import.missing": "Αυτά τα συνημμένα λείπουν από την εξαγωγή:",
   "agent.import.paused": "Η εισαγωγή σταμάτησε. Δοκιμάστε ξανά για συνέχεια χωρίς διπλές συνεδρίες.",
   "agent.import.progress": "Εισήχθησαν: {{imported}} · Ήδη εισαγμένα: {{skipped}} · Αποτυχίες: {{failed}} · Απομένουν: {{remaining}}",

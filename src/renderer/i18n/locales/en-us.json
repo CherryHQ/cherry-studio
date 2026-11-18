@@ -160,7 +160,7 @@
   "agent.heartbeat.tasks": "Heartbeat tasks",
   "agent.home.welcome_title": "What should we work on today?",
   "agent.icon.type": "Agent Icon",
-  "agent.import.description": "Import a DeepSeek ZIP as new Agent sessions. Closing this dialog does not stop an import.",
+  "agent.import.description": "Import a DeepSeek ZIP into a new DeepSeek Agent. Closing this dialog does not stop an import.",
   "agent.import.missing": "These attachments are missing from the export:",
   "agent.import.paused": "Import stopped. Retry to continue without duplicating imported sessions.",
   "agent.import.progress": "Imported: {{imported}} · Already imported: {{skipped}} · Failed: {{failed}} · Remaining: {{remaining}}",

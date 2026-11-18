@@ -160,7 +160,7 @@
   "agent.heartbeat.tasks": "Úlohy srdečního tepu",
   "agent.home.welcome_title": "Na čem dnes budeme pracovat?",
   "agent.icon.type": "Ikona agenta",
-  "agent.import.description": "Importovat ZIP DeepSeek jako nové relace agenta. Zavření tohoto dialogu import nezastaví.",
+  "agent.import.description": "Importujte ZIP DeepSeek do nového agenta DeepSeek. Zavření tohoto dialogu import nezastaví.",
   "agent.import.missing": "V exportu chybí tyto přílohy:",
   "agent.import.paused": "Import zastaven. Opakováním pokračujete bez duplikování importovaných relací.",
   "agent.import.progress": "Importováno: {{imported}} · Již importováno: {{skipped}} · Chyby: {{failed}} · Zbývá: {{remaining}}",

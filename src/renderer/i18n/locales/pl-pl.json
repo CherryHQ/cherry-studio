@@ -162,7 +162,7 @@
   "agent.heartbeat.tasks": "Zadania pulsu",
   "agent.home.welcome_title": "Nad czym dzisiaj popracujemy?",
   "agent.icon.type": "Ikona agenta",
-  "agent.import.description": "Importuj ZIP DeepSeek jako nowe sesje agenta. Zamknięcie tego okna nie zatrzymuje importu.",
+  "agent.import.description": "Zaimportuj plik ZIP DeepSeek do nowego agenta DeepSeek. Zamknięcie tego okna nie zatrzymuje importu.",
   "agent.import.missing": "W eksporcie brakuje tych załączników:",
   "agent.import.paused": "Import zatrzymany. Ponów próbę, aby kontynuować bez powielania sesji.",
   "agent.import.progress": "Zaimportowane: {{imported}} · Już istniejące: {{skipped}} · Błędy: {{failed}} · Pozostałe: {{remaining}}",
