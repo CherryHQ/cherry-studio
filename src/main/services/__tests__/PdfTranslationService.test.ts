@@ -16,6 +16,7 @@ import { translateHistoryFileRefTable } from '@data/db/schemas/fileRelations'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { TranslateLanguageSeeder } from '@data/db/seeding/seeders/translateLanguageSeeder'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { BaseService } from '@main/core/lifecycle'
 import { getShellEnv } from '@main/utils/shellEnv'
@@ -135,6 +136,7 @@ describe('PdfTranslationService', () => {
       if (key === 'feature.binary.data.isolated.cargo') base = path.join(TEST_ROOT, 'binary', 'cargo')
       return filename ? path.join(base, filename) : base
     })
+    new TranslateLanguageSeeder().run(dbh.db)
     dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI', orderKey: 'a0' }).run()
     dbh.db
       .insert(userModelTable)
