@@ -26,6 +26,9 @@ export interface ResolvedPptdTextStyle {
 }
 
 const TEXT_STYLE_DEFAULTS: ResolvedPptdTextStyle = {
+  // The slide surface defaults to white, so text must default to the format's
+  // black: inheriting the host app's foreground turns pale in dark mode.
+  color: '#000000',
   fontSize: 18,
   fontFamily: 'MiSans',
   bold: false,

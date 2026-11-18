@@ -14,7 +14,7 @@ type LoadState = { kind: 'loading' } | { kind: 'error'; reason: string } | { kin
 
 function PptdFilePreview({ document }: FilePreviewPluginProps) {
   const { t } = useTranslation()
-  const { resources } = usePreviewHost()
+  const { resources, onRequestReload } = usePreviewHost()
   const logger = usePreviewLogger('pptd')
   const [state, setState] = useState<LoadState>({ kind: 'loading' })
   const [pageIndex, setPageIndex] = useState(0)
@@ -46,6 +46,34 @@ function PptdFilePreview({ document }: FilePreviewPluginProps) {
     }
   }, [resources])
 
+  // Declared custom fonts load through the FontFace API for the lifetime of
+  // the ready project and are removed on cleanup. A failed load falls back to
+  // installed fonts (a warning, never a broken deck).
+  useEffect(() => {
+    if (state.kind !== 'ready' || typeof FontFace === 'undefined') return
+    const declared = state.project.presentation.customFonts ?? []
+    if (declared.length === 0) return
+    const added: FontFace[] = []
+    let cancelled = false
+    for (const { family, src } of declared) {
+      const face = new FontFace(family, `url("${src}")`)
+      face.load().then(
+        (loaded) => {
+          if (cancelled) return
+          // `document` here is the PreviewDocument prop, so reach the DOM
+          // font set through globalThis.
+          globalThis.document.fonts.add(loaded)
+          added.push(loaded)
+        },
+        (error: unknown) => logger.warn('PPTD custom font failed to load', { family, src, error })
+      )
+    }
+    return () => {
+      cancelled = true
+      for (const face of added) globalThis.document.fonts.delete(face)
+    }
+  }, [state, logger])
+
   useEffect(() => {
     if (!readProjectFile) {
       setState({ kind: 'error', reason: t('file_preview.pptd.no_project_access') })
@@ -55,6 +83,9 @@ function PptdFilePreview({ document }: FilePreviewPluginProps) {
     setState({ kind: 'loading' })
     loadPptdProject(document, readProjectFile, controller.signal)
       .then((project) => {
+        // A stale load (document replaced or reload re-requested while this
+        // read was in flight) must not overwrite newer state.
+        if (controller.signal.aborted) return
         setState({ kind: 'ready', project })
         setPageIndex(0)
       })
@@ -134,7 +165,10 @@ function PptdFilePreview({ document }: FilePreviewPluginProps) {
               </pre>
             ) : (
               <div className="flex flex-1 items-center justify-center overflow-auto p-4">
+                // Keyed by page path: two pages may reuse element ids and array // positions, and without a page-bound
+                key per-element state (image // failure, natural size) leaks into the next page.
                 <PptdSlideCanvas
+                  key={page.path}
                   presentation={project.presentation}
                   page={page}
                   zoom={zoom}
@@ -163,7 +197,12 @@ function PptdFilePreview({ document }: FilePreviewPluginProps) {
             <button type="button" onClick={() => setZoom((value) => Math.min(400, value + 10))}>
               +
             </button>
-            <button type="button" onClick={() => setReloadNonce((nonce) => nonce + 1)}>
+            {/* AC6: refresh asks the host for a fresh document (new revision)
+                when it can; the local nonce re-read is the fallback for hosts
+                without document replacement. */}
+            <button
+              type="button"
+              onClick={() => (onRequestReload ? onRequestReload() : setReloadNonce((nonce) => nonce + 1))}>
               {t('file_preview.pptd.refresh')}
             </button>
             <button type="button" onClick={() => setView((value) => (value === 'preview' ? 'source' : 'preview'))}>

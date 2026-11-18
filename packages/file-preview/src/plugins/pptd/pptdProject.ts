@@ -111,6 +111,9 @@ export async function loadPptdProject(
     try {
       bytes = await readProjectFile(path, signal)
     } catch (error) {
+      // Cancellation is not a missing page: rethrow so an aborted load cannot
+      // resolve with a partial project and publish obsolete state.
+      if (signal?.aborted) throw error
       pages.push({ path, status: 'missing', reason: yamlErrorReason(error) })
       continue
     }

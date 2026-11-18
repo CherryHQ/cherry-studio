@@ -67,6 +67,21 @@ describe('loadPptdProject', () => {
     expect(project.pages[0].status).toBe('ok')
     expect(project.pages[1]).toMatchObject({ status: 'missing', path: 'pages/gone.page' })
   })
+
+  it('rethrows cancellation instead of converting it into a missing page', async () => {
+    const controller = new AbortController()
+    const aborted = new DOMException('Aborted', 'AbortError')
+    controller.abort(aborted)
+    await expect(
+      loadPptdProject(
+        document,
+        async () => {
+          throw aborted
+        },
+        controller.signal
+      )
+    ).rejects.toBe(aborted)
+  })
 })
 
 describe('theme color resolution', () => {
@@ -105,6 +120,11 @@ describe('text style priority', () => {
   it('ignores unknown theme style references', () => {
     const style = resolvePptdTextStyle({ text: 'Hi', style: '$nope' }, {})
     expect(style.fontSize).toBe(18)
+  })
+
+  it('defaults text color to black on the white slide surface', () => {
+    const style = resolvePptdTextStyle({ text: 'Hi' }, {})
+    expect(style.color).toBe('#000000')
   })
 })
 
@@ -207,9 +227,10 @@ describe('line paths', () => {
 describe('image crop and fit math', () => {
   it('covers the box with the cropped sub-image', async () => {
     const { pptdImageRect } = await import('../pptdImage')
-    // 400x200 source cropped 25% left+right -> 200x200 sub-image in a 100x100 box: cover scales x1
+    // 400x200 source cropped 25% left+right -> 200x200 sub-image in a 100x100 box: cover scales x1,
+    // and the box centers the SUB-image (source x 100-300), so x = -(0.25 * 400 * 0.5) = -50.
     const rect = pptdImageRect(400, 200, 100, 100, { left: 0.25, right: 0.25 }, { mode: 'cover' })
-    expect(rect).toEqual({ x: -100, y: 0, width: 200, height: 100 })
+    expect(rect).toEqual({ x: -50, y: 0, width: 200, height: 100 })
   })
 
   it('contain letterboxes and fill stretches the cropped region', async () => {
@@ -341,6 +362,41 @@ describe('chart option building', () => {
     expect(option.series[0]).toMatchObject({ type: 'bar', barWidth: '50%', itemStyle: { color: '#2563EB' } })
     expect(option.title).toMatchObject({ text: 'Revenue' })
     expect(option.legend).toEqual({ show: false })
+  })
+
+  it('infers a category x-axis from string rows and preserves an explicit type', async () => {
+    const { buildPptdChartOption } = await import('../pptdChart')
+    const categorical = buildPptdChartOption(
+      {
+        ...elementBase,
+        elementType: 'chart',
+        data: {
+          cols: ['quarter', 'sales'],
+          rows: [
+            ['Q1', 120],
+            ['Q2', 140]
+          ]
+        },
+        series: [{ type: 'bar', encode: { x: 'quarter', y: 'sales' } }]
+      },
+      {}
+    )
+    // ECharts would default an untyped axis to 'value' and strand the categories.
+    expect(categorical?.xAxis).toMatchObject({ type: 'category' })
+    const explicit = buildPptdChartOption(
+      {
+        ...elementBase,
+        elementType: 'chart',
+        data: {
+          cols: ['quarter', 'sales'],
+          rows: [['Q1', 120]]
+        },
+        series: [{ type: 'bar', encode: { x: 'quarter', y: 'sales' } }],
+        xAxis: { type: 'time' }
+      },
+      {}
+    )
+    expect(explicit?.xAxis).toMatchObject({ type: 'time' })
   })
 
   it('shows the legend for multiple series and hides it when disabled', async () => {

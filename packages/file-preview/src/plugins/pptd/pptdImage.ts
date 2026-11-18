@@ -46,9 +46,14 @@ export function pptdImageRect(
     mode === 'contain' ? Math.min(boxWidth / subW, boxHeight / subH) : Math.max(boxWidth / subW, boxHeight / subH)
   const width = naturalWidth * scale
   const height = naturalHeight * scale
+  // Center the CROPPED sub-rectangle (subW/subH at this scale), not the full
+  // scaled image: the crop offset shift below assumes the sub-rect is what the
+  // box centers, otherwise the visible window slides toward the bottom-right
+  // crop (e.g. 25%/25% horizontal crop of a 400-wide image at scale 0.5 shows
+  // source x 200-400 instead of 100-300).
   return {
-    x: (boxWidth - width) / 2 - left * naturalWidth * scale + 0,
-    y: (boxHeight - height) / 2 - top * naturalHeight * scale + 0,
+    x: (boxWidth - subW * scale) / 2 - left * naturalWidth * scale + 0,
+    y: (boxHeight - subH * scale) / 2 - top * naturalHeight * scale + 0,
     width,
     height
   }

@@ -142,12 +142,20 @@ export function buildPptdChartOption(element: PptdChart, context: PptdStyleConte
 
   const needsCartesian = seriesList.some((s) => s.type !== 'pie')
   if (needsCartesian) {
-    const mapAxis = (axis: unknown): Option => {
-      if (Array.isArray(axis)) return axis[0] ?? {}
-      if (!axis || typeof axis !== 'object') return {}
-      const config = axis as { type?: string; label?: { fontSize?: number; color?: string } }
+    // ECharts defaults an axis without a type to 'value', which gives string
+    // categories no valid coordinate. Infer 'category' from the encoded column
+    // when the config does not set a type; an explicit type always wins.
+    const xColumn = seriesList.find((s) => s.type !== 'pie')?.encode?.x ?? data.cols[0]
+    const xIndex = data.cols.indexOf(xColumn ?? '')
+    const xIsCategorical = xIndex >= 0 && data.rows.some((row) => typeof row[xIndex] === 'string')
+    const mapAxis = (axis: unknown, inferredType?: 'category'): Option => {
+      if (Array.isArray(axis)) axis = axis[0]
+      const config = (!axis || typeof axis !== 'object' ? {} : axis) as {
+        type?: string
+        label?: { fontSize?: number; color?: string }
+      }
       return {
-        type: config.type,
+        type: config.type ?? inferredType,
         axisLabel: config.label
           ? {
               fontSize: config.label.fontSize,
@@ -156,8 +164,9 @@ export function buildPptdChartOption(element: PptdChart, context: PptdStyleConte
           : undefined
       }
     }
-    option.xAxis = Array.isArray(raw.xAxis) ? raw.xAxis.map(mapAxis) : mapAxis(raw.xAxis)
-    option.yAxis = Array.isArray(raw.yAxis) ? raw.yAxis.map(mapAxis) : mapAxis(raw.yAxis)
+    const mapX = (axis: unknown): Option => mapAxis(axis, xIsCategorical ? 'category' : undefined)
+    option.xAxis = Array.isArray(raw.xAxis) ? raw.xAxis.map(mapX) : mapX(raw.xAxis)
+    option.yAxis = Array.isArray(raw.yAxis) ? raw.yAxis.map((a) => mapAxis(a)) : mapAxis(raw.yAxis)
     option.grid = { containLabel: true, left: 8, right: 8, top: 24, bottom: 8 }
   }
 
