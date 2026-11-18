@@ -178,3 +178,34 @@ describe('built-in shape paths', () => {
     expect(pptdShapePath('flermp')).toBeNull()
   })
 })
+
+describe('line paths', () => {
+  it('parses points and builds sharp polylines', async () => {
+    const { parsePptdLinePoints, pptdLinePath } = await import('../pptdLine')
+    const points = parsePptdLinePoints('0,0 50,100 100,0')
+    expect(points).toEqual([
+      [0, 0],
+      [50, 100],
+      [100, 0]
+    ])
+    expect(pptdLinePath(points, 'sharp')).toBe('M0,0L50,100L100,0')
+    expect(pptdLinePath(points.slice(0, 1), 'smooth')).toBeNull()
+  })
+
+  it('builds quadratic and cubic smooth curves and samples higher degrees', async () => {
+    const { parsePptdLinePoints, pptdLinePath } = await import('../pptdLine')
+    expect(pptdLinePath(parsePptdLinePoints('0,0 50,100 100,0'), 'smooth')).toBe('M0,0Q50,100 100,0')
+    expect(pptdLinePath(parsePptdLinePoints('0,80 120,0 240,100 360,20'), 'smooth')).toBe('M0,80C120,0 240,100 360,20')
+    const high = pptdLinePath(parsePptdLinePoints('0,0 20,50 40,0 60,50 80,0'), 'smooth')
+    expect(high).toMatch(/^M0,0/)
+    expect(high).toMatch(/80,0$/)
+  })
+
+  it('drops malformed pairs', async () => {
+    const { parsePptdLinePoints } = await import('../pptdLine')
+    expect(parsePptdLinePoints('0,0 junk 10,10')).toEqual([
+      [0, 0],
+      [10, 10]
+    ])
+  })
+})

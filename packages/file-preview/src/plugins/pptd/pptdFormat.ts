@@ -292,6 +292,7 @@ export const pptdElementSchema = z.discriminatedUnion('elementType', [
 export type PptdText = z.infer<typeof pptdTextSchema>
 export type PptdShape = z.infer<typeof pptdShapeSchema>
 export type PptdLine = z.infer<typeof pptdLineSchema>
+export type PptdArrowType = z.infer<typeof pptdArrowTypeSchema>
 export type PptdImage = z.infer<typeof pptdImageSchema>
 export type PptdIcon = z.infer<typeof pptdIconSchema>
 export type PptdTable = z.infer<typeof pptdTableSchema>
