@@ -264,10 +264,11 @@ export class ComputerUseService extends BaseService {
     const client = await this.getClient(task)
     this.assertAvailable(task, control.app.id)
     const { includeScreenshot, ...observation } = input
+    const observationOptions: ObserveInput & { includeScreenshot?: boolean } = observation
+    if ('perform' in client && includeScreenshot !== undefined) observationOptions.includeScreenshot = includeScreenshot
     return client.getAppState(
       {
-        ...observation,
-        ...('perform' in client && includeScreenshot !== undefined ? { includeScreenshot } : {}),
+        ...observationOptions,
         activation: 'never'
       },
       { signal: this.signal(task, signal) }
