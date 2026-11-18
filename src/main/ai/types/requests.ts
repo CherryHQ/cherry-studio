@@ -1,5 +1,5 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
+import type { ChatTransport, streamText, ToolChoice, ToolSet, UIMessage } from 'ai'
 
 import type { RecordAiInvocationInput, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RetainedContext } from '@main/ai/messages/retainedContext'
@@ -53,6 +53,11 @@ export interface CallOverrides {
   topP?: number
   topK?: number
   stopSequences?: string[]
+  presencePenalty?: number
+  frequencyPenalty?: number
+  seed?: number
+  output?: Parameters<typeof streamText>[0]['output']
+  activeTools?: string[]
   /** Client tool definitions WITHOUT `execute` — the model emits the call and the gateway forwards it. */
   tools?: ToolSet
   toolChoice?: ToolChoice<ToolSet>

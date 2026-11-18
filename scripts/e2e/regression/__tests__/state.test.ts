@@ -4,7 +4,16 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import * as regressionCases from '../cases'
-import { completeE2eCase, createRun, finalizeRun, getRunVerdict, readRun, updatePhase, writeRun } from '../state'
+import {
+  completeE2eCase,
+  createRun,
+  finalizeRun,
+  getRunVerdict,
+  readRun,
+  recordSelection,
+  updatePhase,
+  writeRun
+} from '../state'
 import type { RegressionRun } from '../types'
 
 vi.mock('node:fs', async (importOriginal) => {
@@ -171,6 +180,29 @@ describe('Playwright run state', () => {
       status: 'not_applicable',
       summary: 'Not selected by task startup-smoke'
     })
+  })
+
+  it('records the executed selection per phase and rejects empty or duplicated sets', () => {
+    const run = createRun({
+      appVersion: 'development',
+      mockVersion: '1.46.0',
+      commitSha: 'sha',
+      mode: 'branch',
+      platform: 'macos',
+      ref: 'main',
+      runner: 'macos-latest',
+      task: 'startup-smoke'
+    })
+
+    const recorded = recordSelection(run, 'startup', ['S-01'], '2026-11-17T00:00:00.000Z')
+    expect(recorded.selections).toEqual({ startup: { ids: ['S-01'], recordedAt: '2026-11-17T00:00:00.000Z' } })
+    // The original run is untouched: other phases and the cases map stay as they were.
+    expect(run.selections).toBeUndefined()
+    expect(recorded.cases['S-01'].status).toBe('pending')
+
+    expect(() => recordSelection(run, 'startup', [])).toThrow('collected no cases')
+    expect(() => recordSelection(run, 'startup', ['S-01', 'S-01'])).toThrow('collected duplicate cases')
+    expect(() => recordSelection(run, 'notes', ['S-01'])).toThrow('Unknown or unselected regression phase')
   })
 })
 

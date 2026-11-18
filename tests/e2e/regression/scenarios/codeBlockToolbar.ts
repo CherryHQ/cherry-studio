@@ -146,7 +146,8 @@ export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo:
         const request = await server.nextRequest()
         expect(request.body.model).toBe(server.modelId)
         expect(request.body.messages).toContainEqual(expect.objectContaining({ role: 'user', content: prompt }))
-        request.complete(`MP40 Python fixture.\n\n\`\`\`python\n${code}\n\`\`\``)
+        const paragraphs = Array.from({ length: 6 }, (_, index) => `MP40 scroll context ${index + 1}.`).join('\n\n')
+        request.complete(`MP40 Python fixture.\n\n${paragraphs}\n\n\`\`\`python\n${code}\n\`\`\`\n\n${paragraphs}`)
       })()
     ])
     const block = page.locator(`[data-message-id="${messageId}"] [data-ui~="part:code-block"]`)
@@ -205,6 +206,70 @@ export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo:
     await page.mouse.wheel(0, 600)
     await expect.poll(() => viewer.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
     await attachScreenshot('MP-40 scrollable Python preview')
+
+    // #24842: the preview must stay hittable while the outer list scrolls.
+    const recorder = await viewer.evaluateHandle((preview) => {
+      const list = preview.closest<HTMLElement>('[data-message-virtual-list-scroller]')!
+      preview.scrollTop = 0
+      const rect = preview.getBoundingClientRect()
+      const viewport = list.getBoundingClientRect()
+      const point = [rect.height / 2, rect.height * 0.35, 24]
+        .map((offset) => ({ x: rect.left + rect.width / 2, y: rect.top + offset }))
+        .find(({ x, y }) => document.elementFromPoint(x, y)?.closest('.shiki-scroller') === preview)
+      if (!point) throw new Error(`MP-40 preview point unavailable: ${JSON.stringify({ rect, viewport })}`)
+      const outerPoint = { x: viewport.left + viewport.width / 2, y: viewport.bottom - 24 }
+      const target = document.elementFromPoint(outerPoint.x, outerPoint.y)
+      if (target?.closest('[data-message-virtual-list-scroller]') !== list || target.closest('.shiki-scroller'))
+        throw new Error(`MP-40 outer point unavailable: ${JSON.stringify({ outerPoint, rect, viewport })}`)
+      const frames: { t: number; listTop: number; hitPreview: boolean }[] = []
+      let frame: number
+      const sample = () => {
+        frames.push({
+          t: performance.now(),
+          listTop: list.scrollTop,
+          hitPreview: document.elementFromPoint(point.x, point.y)?.closest('.shiki-scroller') === preview
+        })
+        frame = requestAnimationFrame(sample)
+      }
+      sample()
+      return { point, outerPoint, startListTop: list.scrollTop, frames, stop: () => cancelAnimationFrame(frame) }
+    })
+    const list = page.locator('[data-message-virtual-list-scroller]:visible')
+    const { point, outerPoint, startListTop, frames } = await recorder.evaluate((r) => ({ ...r, stop: undefined }))
+    let scrollingFrames = frames
+    const deltas = { outer: 0, preview: 0, list: 0 }
+    try {
+      await page.mouse.move(outerPoint.x, outerPoint.y)
+      await page.mouse.wheel(0, 40)
+      await page.waitForTimeout(15)
+      await page.mouse.wheel(0, 40)
+      await page.waitForTimeout(250)
+      const samples = await recorder.evaluate(({ frames }) => frames)
+      scrollingFrames = samples.filter((f, i) => i > 0 && f.listTop !== samples[i - 1].listTop)
+      deltas.outer = (await list.evaluate((element) => element.scrollTop)) - startListTop
+      expect(scrollingFrames.length, JSON.stringify(samples)).toBeGreaterThanOrEqual(3)
+      expect(
+        scrollingFrames.some((f) => f.hitPreview),
+        '#24842 preview hit test'
+      ).toBe(true)
+      expect(await viewer.evaluate((element) => element.scrollTop)).toBe(0)
+      expect(deltas.outer).toBeGreaterThan(0)
+      await page.mouse.move(point.x, point.y)
+      await page.mouse.wheel(0, 300)
+      await page.waitForTimeout(250)
+      deltas.preview = await viewer.evaluate((element) => element.scrollTop)
+      deltas.list = (await list.evaluate((element) => element.scrollTop)) - startListTop - deltas.outer
+      expect(deltas.preview).toBeGreaterThan(0)
+      expect(Math.abs(deltas.list)).toBeLessThanOrEqual(2)
+    } finally {
+      await recorder.evaluate(({ stop }) => stop())
+      const samples = scrollingFrames.length < 3 ? await recorder.evaluate(({ frames }) => frames) : undefined
+      await testInfo.attach('MP-40 active-scroll hit-test evidence', {
+        body: JSON.stringify({ point, startListTop, scrollingFrames, samples, deltas }),
+        contentType: 'application/json'
+      })
+      await recorder.dispose()
+    }
 
     await block.hover()
     const run = block.getByRole('button', { name: 'Run', exact: true })

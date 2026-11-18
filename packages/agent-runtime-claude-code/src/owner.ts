@@ -12,6 +12,7 @@ import {
 } from '@anthropic-ai/claude-agent-sdk'
 
 import {
+  cloneHistoryData,
   runtimeId,
   type BusyPolicy,
   type InputFact,
@@ -26,7 +27,6 @@ import {
 } from '@cherrystudio/agent-runtime'
 
 import { readArchive, type NativeArchiveEntry } from './archive'
-import { cloneHistoryData } from './cloneHistoryData'
 import { normalizeContextUsage } from './contextUsage'
 import { claudeThread, isCommandLifecycle, isUuid, rejected, runtimeError } from './identity'
 import { ClaudeProjection } from './projection'

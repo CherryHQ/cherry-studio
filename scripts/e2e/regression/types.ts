@@ -35,6 +35,13 @@ export interface CapabilityResult {
   detail: string
 }
 
+export interface RunSelection {
+  /** Case ids this Playwright execution registered in its own suite, in suite order. */
+  ids: string[]
+  /** When the executing run recorded this set (ISO 8601). */
+  recordedAt: string
+}
+
 export interface RegressionRun {
   schemaVersion: 2
   metadata: RunMetadata
@@ -43,6 +50,12 @@ export interface RegressionRun {
   capabilities: Record<string, CapabilityResult>
   cases: Record<string, CaseResult>
   phases: Record<string, PhaseResult>
+  /**
+   * Per-phase case ids the executing Playwright run actually collected. A single `--grep` rerun is
+   * judged against this record instead of a separate `--list` taken before/after it, so the set that
+   * ran and the set that is checked come from the same execution.
+   */
+  selections?: Record<string, RunSelection>
 }
 
 export type RunVerdict = 'mock_pass' | 'mock_failed' | 'mock_blocked' | 'mock_not_applicable'

@@ -91,7 +91,7 @@ vi.mock('electron', () => ({
 vi.mock('@main/core/security/validateSender', () => ({ validateSender: () => true }))
 
 vi.mock('@main/core/lifecycle', async () => {
-  const actual = (await vi.importActual('@main/core/lifecycle')) as Record<string, unknown>
+  const actual = await vi.importActual<Record<string, unknown>>('@main/core/lifecycle')
   class StubBase {
     ipcHandle = vi.fn()
     ipcOn = vi.fn()
