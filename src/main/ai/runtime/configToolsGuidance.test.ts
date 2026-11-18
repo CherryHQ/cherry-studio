@@ -16,6 +16,35 @@ describe('buildConfigToolsGuidance', () => {
     expect(prompt).toContain('RUNTIME_HINT.')
   })
 
+  // With the settings named only in prose, Kimi K2.6 guessed reply_language, permission_mode and system_prompt.
+  it.each([
+    [
+      'a user-created Agent',
+      {},
+      'cherry-tools/agent_create',
+      'cherry-tools/assistant_create',
+      'cherry-tools/config_update'
+    ],
+    [
+      'Cherry Assistant',
+      { builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT },
+      'assistant/create_agent',
+      'assistant/create_assistant',
+      'assistant/update_agent'
+    ]
+  ])('spells out the real argument names for %s', (_name, configuration, createAgent, createAssistant, update) => {
+    const prompt = buildConfigToolsGuidance({ type: 'pi', configuration }, { channelLinked: false, callForm }) ?? ''
+    const argsOf = (tool: string) =>
+      prompt.match(new RegExp(`<${tool}>[^\`]*\`\\{ ([^}]*) \\}\``))?.[1].split(', ') ?? []
+
+    expect(argsOf(createAgent)).toEqual(
+      expect.arrayContaining(['name', 'instructions', 'permissionMode?', 'language?'])
+    )
+    expect(argsOf(createAssistant)).toEqual(expect.arrayContaining(['name', 'prompt', 'emoji?']))
+    expect(argsOf(createAssistant)).not.toContain('instructions')
+    expect(argsOf(update)).toEqual(expect.arrayContaining(['permissionMode?', 'language?', 'instructions?']))
+  })
+
   // "创建一个定时任务" is the Agent's own scheduled work, not a request for a new Agent.
   it.each([
     ['a user-created Agent', {}],
