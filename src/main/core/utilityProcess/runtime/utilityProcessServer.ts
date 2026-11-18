@@ -90,7 +90,7 @@ export type ServeUtilityProcessOptions<Contract extends UtilityProcessContract, 
 export interface PortLike {
   on(event: 'message', listener: (event: { data: unknown }) => void): void
   on(event: 'close', listener: () => void): void
-  postMessage(message: unknown): void
+  postMessage(message: ChildFrame): void
   start(): void
   close(): void
 }
@@ -104,6 +104,7 @@ export interface UtilityProcessServerIo {
   parentPort: ParentPortLike
   exit(code: number): void
   /** Registers the handler for uncaught exceptions and unhandled rejections. */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Uncaught exceptions and unhandled Promise rejections can be arbitrary values; the fatal path serializes them before aborting and exiting.
   onFatal(handler: (error: unknown) => void): void
 }
 
@@ -188,6 +189,7 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
   }
   const logger = createLogger()
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- postMessage can throw arbitrary clone failures; convert them to a clone-safe transport error before replying.
   const serializationFailure = (error: unknown) => ({ ...toRemoteError(error), code: 'PROCESS_SERIALIZATION_FAILED' })
 
   const sendTerminal = (
@@ -207,10 +209,12 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
     }
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Core validates the request envelope; same-build method contracts own heterogeneous payloads without a universal runtime schema.
   const dispatch = (requestId: number, method: string, input: unknown): void => {
     const controller = new AbortController()
     const request: ActiveRequest = { controller, settled: false, done: Promise.resolve(), hostReplies: new Map() }
     active.set(requestId, request)
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Selected handlers emit method-specific payloads; core checks request lifetime and structured-clone delivery.
     const emit = (event: unknown): void => {
       if (request.settled || tombstones.has(requestId)) return
       try {
@@ -420,6 +424,7 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
     }
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Bootstrap envelopes contain definition-specific initialization data; the same-build definition supplies its contract.
   const start = async (initData: unknown): Promise<void> => {
     try {
       await options.initialize?.(initData as InitData, { logger })

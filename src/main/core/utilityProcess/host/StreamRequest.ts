@@ -47,6 +47,7 @@ export class StreamRequest implements UtilityProcessStream<
     return this.closed
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- AbortSignal.reason may be any value; cancellation preserves it as the stream's rejection reason.
   private cancelWith(reason: unknown): void {
     if (this.cancelled || this.finished) return
     this.cancelled = true
@@ -70,6 +71,7 @@ export class StreamRequest implements UtilityProcessStream<
     this.close()
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stream transport failures and caller cancellation reasons are forwarded unchanged to result and channel waiters.
   fail(reason: unknown): void {
     this.failed = true
     this.result.reject(reason)

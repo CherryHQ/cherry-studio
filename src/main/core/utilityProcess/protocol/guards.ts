@@ -17,6 +17,7 @@ export function isRequestId(value: unknown): value is number {
   return Number.isInteger(value) && (value as number) >= 1
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Optional request IDs come from raw log/protocol-error frames; validate them before correlating a request.
 const isOptionalRequestId = (value: unknown): boolean => value === undefined || isRequestId(value)
 
 export function isFrameIdentity(value: unknown): value is FrameIdentity & { kind: string } {

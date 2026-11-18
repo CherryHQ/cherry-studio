@@ -5,6 +5,7 @@
 import type { RemoteErrorShape } from './frames'
 
 /** Flattens any thrown value into the clone-safe subset the wire carries. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Handler rejections and uncaught child failures can be any value; extract only clone-safe error fields under a serialization guard.
 export function toRemoteError(error: unknown): RemoteErrorShape {
   try {
     if (error instanceof Error) {
@@ -22,6 +23,7 @@ export function toRemoteError(error: unknown): RemoteErrorShape {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Non-Error rejection values need diagnostic text; toRemoteError also catches failures from the final String fallback.
 function safeStringify(value: unknown): string {
   try {
     return JSON.stringify(value) ?? String(value)

@@ -65,11 +65,13 @@ export interface ChildProcessGoneDetails {
 interface Deferred<T> {
   promise: Promise<T>
   resolve: (value: T) => void
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Deferred promises preserve startup, shutdown and abort rejection values without imposing an Error-only contract.
   reject: (reason: unknown) => void
 }
 
 function createDeferred<T>(): Deferred<T> {
   let resolve!: (value: T) => void
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Store the native Promise reject callback without narrowing the failure values forwarded by lifecycle operations.
   let reject!: (reason: unknown) => void
   const promise = new Promise<T>((res, rej) => {
     resolve = res
@@ -90,13 +92,17 @@ function abortable<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
   })
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Process sends, handlers and abort signals can fail with arbitrary values; toRemoteError safely extracts diagnostic text.
 const describe = (error: unknown): string => toRemoteError(error).message
 
 type Outcome = { value: unknown } | { error: unknown }
 
 interface Pending<Contract extends UtilityProcessContract> {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- One pending map spans heterogeneous methods; request correlation selects the caller's typed result resolver.
   resolve: (value: unknown) => void
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Pending requests preserve caller abort reasons as well as transport and remote handler failures.
   reject: (error: unknown) => void
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Event payload types vary by method; the correlated request owns their contract, while core checks frame identity.
   onEvent?: (event: unknown) => void
   onHostCall?: UtilityProcessRequestOptions<unknown, UtilityProcessHostCallFor<Contract>>['onHostCall']
   hostCalls: AbortController
@@ -441,6 +447,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     }
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- MessagePort delivers untyped data; validate the child frame and process generation before dispatching it.
   private handleFrame(generation: Generation<Contract>, data: unknown): void {
     if (generation.settled) return
     if (!isChildFrame(data) || !matchesIdentity(data, this.identity(generation))) {
@@ -701,6 +708,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     method: M,
     input: Contract['methods'][M]['input'],
     signal: AbortSignal | undefined,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The pending registry erases per-method event types; retain the selected request callback for correlated delivery.
     onEvent: ((event: unknown) => void) | undefined,
     onHostCall: UtilityProcessRequestOptions<unknown, UtilityProcessHostCallFor<Contract>>['onHostCall']
   ): Promise<Contract['methods'][M]['output']> {
@@ -744,6 +752,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     })
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- AbortSignal reasons and caller callback failures must reject the request with their original value.
   private cancelRequest(generation: Generation<Contract>, requestId: number, reason: unknown): void {
     const pending = generation.pending.get(requestId)
     if (pending === undefined) return
