@@ -36,6 +36,7 @@ import type { NativeFileSupport } from '@main/ai/runtime/aiSdk'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
 import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
 import type { FileUIPart } from '@shared/data/types/message'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { FILE_TYPE, type FileType } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
@@ -128,6 +129,8 @@ export interface PrepareChatContext {
   nativeSupport: NativeFileSupport
   /** Whether the model can call `read_file` (controls the overflow pointer wording). */
   isToolCapable: boolean
+  /** The chat model; analyzes video frames when no Video Vision model is selected and it accepts images. */
+  chatModelId?: UniqueModelId
   /** Shared token pool for inlined text. Absent → every file gets the flat page size. */
   budget?: AttachmentBudget
   /**
@@ -212,12 +215,15 @@ async function extractNonNativeText(
   entryId: string,
   fileType: FileType,
   handle: string,
+  chatModelId: UniqueModelId | undefined,
   signal?: AbortSignal
 ): Promise<{ text: string; continuation: 'full' | 'prefix' }> {
   if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
     try {
       return {
-        text: await application.get('MediaAnalysisService').analyzeToCompactText({ kind: 'entry', entryId }, signal),
+        text: await application
+          .get('MediaAnalysisService')
+          .analyzeToCompactText({ kind: 'entry', entryId }, signal, { fallbackVisionModelId: chatModelId }),
         continuation: 'full'
       }
     } catch (error) {
@@ -391,7 +397,7 @@ async function prepareChatMessage<T extends UIMessage>(
       }
 
       // Non-native first-party attachment → inline its (capped) text.
-      const extracted = await extractNonNativeText(fileEntryId, fileType, handle, ctx.signal)
+      const extracted = await extractNonNativeText(fileEntryId, fileType, handle, ctx.chatModelId, ctx.signal)
       defer(kept, pending, handle, extracted.text, extracted.continuation)
     } catch (error) {
       if (ctx.signal?.aborted || isAbortError(error)) throw error
