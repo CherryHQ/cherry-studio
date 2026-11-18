@@ -168,7 +168,9 @@ export function RegistrySkillsCatalog({
         loading={keyword ? searching || debouncing : isLoading}
         error={keyword ? searchError : error}
         empty={!items.length}
-        retry={() => (keyword ? search(keyword) : mutate())}
+        retry={async () => {
+          await (keyword ? search(keyword) : mutate())
+        }}
       />
       <MarketplaceGrid
         items={items.map((item) => ({ ...item, id: item.installSource }))}

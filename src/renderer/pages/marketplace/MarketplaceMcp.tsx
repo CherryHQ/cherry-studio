@@ -267,7 +267,9 @@ export function MarketplaceMcp({
       <MarketplaceLoadState
         error={catalog.error}
         empty={!visible.length}
-        retry={() => catalog.retry().catch(() => {})}
+        retry={async () => {
+          await catalog.retry().catch(() => {})
+        }}
       />
       <MarketplaceGrid
         items={visible}

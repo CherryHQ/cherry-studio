@@ -21,7 +21,7 @@ vi.mock('@renderer/utils/platform', async (importOriginal) => {
 })
 
 import { useInfiniteQuery, useQuery } from '../useDataApi'
-import { useReorder } from '../useReorder'
+import { type UseReorderOptions, useReorder } from '../useReorder'
 
 // --- dataApiService mock ---
 // We mock at the `dataApiService.*` boundary (not `useMutation`) so the
@@ -76,10 +76,10 @@ function readCollection(cache: Map<string, { data?: unknown }>): CollectionValue
  * collection, because `useMutation`'s `refresh` option uses a matcher-based
  * `globalMutate` which only revalidates keys with a live subscriber.
  */
-function renderReorder(
+function renderReorder<Cache = CollectionValue>(
   collectionUrl: typeof COLLECTION,
   wrapper: React.ComponentType<{ children: React.ReactNode }>,
-  opts?: Parameters<typeof useReorder>[1]
+  opts?: UseReorderOptions<Cache>
 ) {
   return renderHook(
     () => {
@@ -622,14 +622,11 @@ describe('useReorder - custom accessors', () => {
 
     const { result } = renderReorder(COLLECTION, Wrapper, {
       revalidateOnSuccess: false,
-      selectItems: (c) => (c as GroupedView).groups[0].items as unknown as Array<Record<string, unknown>>,
-      updateItems: (c, items) => {
-        const v = c as GroupedView
-        return {
-          ...v,
-          groups: [{ ...v.groups[0], items: items as unknown as Item[] }, ...v.groups.slice(1)]
-        }
-      }
+      selectItems: (cache: GroupedView) => cache.groups[0].items as unknown as Array<Record<string, unknown>>,
+      updateItems: (cache, items) => ({
+        ...cache,
+        groups: [{ ...cache.groups[0], items: items as unknown as Item[] }, ...cache.groups.slice(1)]
+      })
     })
 
     await act(async () => {
@@ -642,6 +639,25 @@ describe('useReorder - custom accessors', () => {
     expect(overlay.groups[1]).toEqual({ id: 'g2', items: [{ id: 'x' }, { id: 'y' }] })
     // Non-items metadata preserved.
     expect(overlay.version).toBe(7)
+  })
+
+  it('preserves a primitive cache representation when custom accessors rebuild it', async () => {
+    const { Wrapper, cache } = makeWrapper('a,b,c')
+    patchMock.mockResolvedValue({})
+    const { result } = renderReorder(COLLECTION, Wrapper, {
+      revalidateOnSuccess: false,
+      selectItems: (value: string) => value.split(',').map((id) => ({ id })),
+      updateItems: (_value, items) => items.map((item) => item.id).join(',')
+    })
+
+    await act(async () => {
+      await result.current.applyReorderedList([{ id: 'c' }, { id: 'a' }, { id: 'b' }])
+    })
+
+    expect(cache.get(COLLECTION_CACHE_KEY)?.data).toBe('c,a,b')
+    expect(patchMock.mock.calls).toEqual([
+      [`${COLLECTION}/c/order`, { body: { position: 'first' }, query: undefined }]
+    ])
   })
 
   it('throws at hook construction when only one of selectItems/updateItems is provided', () => {
