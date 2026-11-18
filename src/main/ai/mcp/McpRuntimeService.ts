@@ -301,12 +301,13 @@ export class McpRuntimeService extends BaseService {
     if (current && current.state === state && current.lastError === lastError && current.authorizing === authorizing)
       return
 
-    cacheService.setShared(key, {
+    const snapshot: McpRuntimeStatus = {
       state,
-      lastCheckedAt: Date.now(),
-      ...(lastError !== undefined ? { lastError } : {}),
-      ...(authorizing ? { authorizing } : {})
-    } satisfies McpRuntimeStatus)
+      lastCheckedAt: Date.now()
+    }
+    if (lastError !== undefined) Object.assign(snapshot, { lastError })
+    if (authorizing) Object.assign(snapshot, { authorizing })
+    cacheService.setShared(key, snapshot)
   }
 
   public getServerKey(server: McpServer): string {

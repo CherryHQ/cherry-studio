@@ -67,21 +67,20 @@ export function registerCliTools(server: McpServer): void {
       const existing = (await binaryManager.getToolInventory(signal)).find((entry) => entry.name === definition.name)
 
       if (existing?.recipe === definition.tool) {
-        const request = {
-          name: definition.name,
-          ...(definition.requestedVersion ? { targetVersion: definition.requestedVersion } : {})
-        }
+        const request: Parameters<typeof binaryManager.installByName>[0] = { name: definition.name }
+        if (definition.requestedVersion) request.targetVersion = definition.requestedVersion
         if (CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[definition.name]) {
           await application.get('CodeCliService').installCli(request)
         } else {
           await binaryManager.installByName(request)
         }
       } else {
-        await binaryManager.addCustomTool({
+        const request: Parameters<typeof binaryManager.addCustomTool>[0] = {
           name: definition.name,
-          tool: definition.tool,
-          ...(definition.requestedVersion ? { requestedVersion: definition.requestedVersion } : {})
-        })
+          tool: definition.tool
+        }
+        if (definition.requestedVersion) request.requestedVersion = definition.requestedVersion
+        await binaryManager.addCustomTool(request)
       }
 
       const installed = (await binaryManager.getToolInventory(signal)).find((entry) => entry.name === definition.name)

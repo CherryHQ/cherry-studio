@@ -1,5 +1,5 @@
 import type { ReasoningEffort } from '../schemas/enums'
-import type { ReasoningSupport } from '../schemas/model'
+import type { ReasoningControl, ReasoningSupport } from '../schemas/model'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { defineProvider, type ProviderModelTemplate } from './types'
@@ -7,10 +7,13 @@ import { modeWire, openaiResponsesSummaryWire } from './wires'
 
 const fixedSupport: ReasoningSupport = { controls: [] }
 
-const effortSupport = (values: ReasoningEffort[], defaultEffort?: ReasoningEffort): ReasoningSupport => ({
-  controls: [{ kind: 'effort', values, ...(defaultEffort ? { default: defaultEffort } : {}) }],
-  ...(defaultEffort ? { defaultEffort } : {})
-})
+const effortSupport = (values: ReasoningEffort[], defaultEffort?: ReasoningEffort): ReasoningSupport => {
+  const control: Extract<ReasoningControl, { kind: 'effort' }> = { kind: 'effort', values }
+  if (defaultEffort) control.default = defaultEffort
+  const support: ReasoningSupport = { controls: [control] }
+  if (defaultEffort) support.defaultEffort = defaultEffort
+  return support
+}
 
 const minimaxM3Wire: ReasoningWireProfile = modeWire('thinking.type', { off: 'disabled', auto: 'adaptive' })
 
