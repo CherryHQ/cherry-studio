@@ -12,7 +12,14 @@ import {
   type FauxProviderHandle,
   type AssistantMessage
 } from '@earendil-works/pi-ai'
-import { configure, createRegistry, Harness, type Extension, type HarnessOptions } from '@earendil-works/pi-durable'
+import {
+  configure,
+  createRegistry,
+  Harness,
+  type Extension,
+  type HarnessOptions,
+  type Tx
+} from '@earendil-works/pi-durable'
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
 import { onTestFinished } from 'vitest'
 
@@ -20,7 +27,7 @@ import type { ContractHarness, HarnessPorts, ScriptedReply } from '@cherrystudio
 import type { ThreadId } from '@cherrystudio/agent-runtime'
 
 import { createPiDurableBehavior, type PiDurableBehavior, type PiDurableBehaviorOptions } from '../src/behavior/harness'
-import { conversationId, pages, threadId } from '../src/behavior/history'
+import { conversationId, DurableFolds, pages, threadId } from '../src/behavior/history'
 import { meteredModels } from '../src/behavior/models'
 
 export async function openDurableHarness(
@@ -30,6 +37,7 @@ export async function openDurableHarness(
     settings?: HarnessOptions['settings']
     configureChild?: PiDurableBehaviorOptions['configureChild']
     modelId?: string
+    folds?: () => DurableFolds
   } = {}
 ): Promise<{ harness: ContractHarness; errors: unknown[]; native(): Harness; behavior(): PiDurableBehavior }> {
   const directory = await mkdtemp(join(tmpdir(), 'durable-behavior-'))
@@ -100,7 +108,7 @@ export async function openDurableHarness(
     const registry = createRegistry()
     for (const extension of extensions) registry.install(extension)
     behavior = createPiDurableBehavior({
-      lineage: new Map(),
+      folds: options.folds?.() ?? new DurableFolds(),
       install,
       configureChild: options.configureChild ?? ((child) => ({ model: modelOf(child) })),
       onError: (error) => errors.push(error)
@@ -171,4 +179,26 @@ export async function openDurableHarness(
   }
   onTestFinished(() => harness.close())
   return { harness, errors, native: () => native, behavior: () => behavior }
+}
+
+export type ReadCounts = { entries: number; tasks: number; taskReads: number; submissions: number }
+
+/** Counts the rows a transaction reads: scanned entries and tasks, and point reads of tasks and submissions. */
+export function countingTx(tx: Tx, counts: ReadCounts): Tx {
+  return new Proxy(tx, {
+    get(target, key) {
+      const value = Reflect.get(target, key)
+      if (typeof value !== 'function') return value
+      if (key !== 'scanEntries' && key !== 'scanTasks' && key !== 'task' && key !== 'submissionByRequest')
+        return value.bind(target)
+      return async (...args: unknown[]) => {
+        const result = await value.apply(target, args)
+        if (key === 'scanEntries') counts.entries += result.items.length
+        if (key === 'scanTasks') counts.tasks += result.items.length
+        if (key === 'task') counts.taskReads++
+        if (key === 'submissionByRequest') counts.submissions++
+        return result
+      }
+    }
+  })
 }

@@ -150,11 +150,16 @@ cancelling; child interruption follows its current shared ownership. Opening ins
 model bindings and runs `onOpen` before scheduler resume. Desktop hosts can select owned conversations and rebind root configuration before this recovery. Inherited model context remains visible, while behavior authority and summary charges come only from conversation-owned records. That policy stops interrupted
 background children and disarms goals; ordinary unfinished root tasks can resume.
 
-Behavior facts keep an image-free copy of each conversation's lineage for the runtime's
-lifetime and read only newer entries. Session reads see only published commits and the mutation
-line mints IDs in commit order, so a conversation's visible lineage only grows. Tool tasks are
-still read per fact read: a sequential tool round creates later calls' tasks after their
-assistant entry.
+Behavior facts are folds: each conversation's history, children, runs, reservations, run usage and
+last replies are reduced one entry and task at a time, without entry bodies or images. A read advances
+the fold inside its own transaction before any write. Session reads see only published commits, the
+mutation line mints IDs in commit order and tasks are never deleted, so the fold reads only entries and
+tasks newer than it has seen, plus point reads of unfinished jobs, the newest generation task and
+reservations whose submission has no run yet. A sequential tool round creates later calls' tasks after
+their assistant entry; folding such a task rewrites that call's key and the keys of results resolved
+through it. The tool gate, append validation and child message, answer and stop paths read folds or
+point state, never a child's history. A fold unused for 10 minutes is dropped on the next read and
+rebuilt from empty; closing the Session drops every fold.
 
 Native Durable compaction generates its own summary. Its task captures the history boundary and initiating run;
 each summary request checks that run's request limit. Reported usage is persisted in the same native transaction
@@ -214,8 +219,8 @@ It also checks that fatal storage failure reaches observers while tool cleanup i
 `shutdown.test.ts` closes a running shared-behavior child with a queued steer and reopens
 SQLite to verify that the original input remains queued exactly once.
 Archive tests cover pagination, reset, fork ownership, stable identities after
-SQLite reopen and reads limited to newer entries. History tests compare warm lineage reads with
-cold ones; a relation test checks that creation evidence is read without later child history. Projection tests cover repeated text, ambiguous coalesced frames,
+SQLite reopen and reads limited to newer entries. History tests check fold order independence and eviction; the fold suite compares every warm fold with a
+rebuild across the behavior contract and counts the rows repeated reads and child paths touch; a relation test checks that creation evidence is read without later child history. Projection tests cover repeated text, ambiguous coalesced frames,
 retries and tool progress. Shared behavior cases exercise native transactions, goal and
 child ownership, stop, delivery, approval and reopen; run-metadata tests distinguish
 same-run steering from late continuation. SQLite tests close and reopen an orderly
