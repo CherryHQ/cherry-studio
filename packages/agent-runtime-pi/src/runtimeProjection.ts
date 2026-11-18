@@ -69,6 +69,7 @@ export class PiProjection {
   constructor(
     readonly ref: Thread,
     private session: AgentSession,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Queued projection work and ThreadFeed observer callbacks forward original rejection values to the runtime host.
     private readonly report: (error: unknown) => void,
     children: boolean
   ) {
@@ -381,6 +382,7 @@ export class PiProjection {
     this.publish({ ...message, parts })
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native tool_execution_update.partialResult is unconstrained; preserve it as preliminary output alongside completed native result envelopes.
   private result(callId: string, output: unknown, isError: boolean, preliminary = false): void {
     const id = this.calls.get(callId)
     const message = this.snapshotMessages

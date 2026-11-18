@@ -66,6 +66,7 @@ export interface PiBehaviorOptions {
   /**
    * Errors no caller awaits: a job, run, lifecycle handler, native callback, or quiet input that fails.
    */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Unawaited jobs, lifecycle callbacks and native session operations forward their original rejection values to the host.
   readonly onError?: (error: unknown) => void
   readonly onResults?: (thread: ThreadId, result: OperationResult<SubagentResults>) => void
 }
@@ -134,6 +135,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     work.then(forget, forget)
     return work
   }
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Job, lifecycle and observer catches share this forwarding path; retain the rejection value for the host's error handler.
   const report = (error: unknown) => options.onError?.(error)
 
   /** One port call: rejects once its call ended or the harness closed; `body` runs synchronously up to its first await. */
@@ -175,6 +177,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
             if (scope.opening) scope.opening.push(...applied.jobs)
             const launched = await Promise.allSettled(
               applied.children.map((child) =>
+                // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native child-session construction can reject with any value; record the failed child before rethrowing that same rejection.
                 launch(openNative(child)).catch(async (error: unknown) => {
                   conversations.delete(child.thread)
                   await lifecycle(
@@ -573,6 +576,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       )
       // A session that fails to abort or dispose does not keep the others open.
       for (const conv of all)
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native dispose failures are collected with other shutdown rejections without preventing remaining sessions from closing.
         await conv.native?.dispose().catch((error: unknown) => {
           failures.push(error)
         })

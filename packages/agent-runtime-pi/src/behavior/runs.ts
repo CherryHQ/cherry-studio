@@ -75,6 +75,7 @@ export function startRun(adapter: Adapter, conv: Conversation, key: string, numb
           }
         })
       : native.session.sendCustomMessage(markerMessage(input, key), { triggerTurn: true, inputId })
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native prompt/sendCustomMessage rejections must reach the host unchanged and settle the run as failed.
   started.catch((error: unknown) => {
     adapter.report(error)
     failRun(adapter, conv, run, error)
@@ -113,6 +114,7 @@ function beginRun(adapter: Adapter, conv: Conversation, key: string, number = co
   return run
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native prompt and custom-message catches supply arbitrary rejection values; derive display text only after checking Error.
 function failRun(adapter: Adapter, conv: Conversation, run: RunState, error: unknown): void {
   if (conv.active !== run) return
   const message = error instanceof Error ? error.message : String(error)
