@@ -158,13 +158,19 @@ export class RuntimeExecutor<
                       const handler = startProviderCall(onProviderCallStart, onProviderCall)
                       const startedAt = performance.now()
                       const result = await doGenerate()
-                      emitProviderCall(handler, {
+                      const event: Omit<
+                        Extract<RuntimeProviderCallEvent, { modality: 'image' }>,
+                        'metrics' | 'completedAt'
+                      > = {
                         modality: 'image',
                         requestId: `ai-core:image:${crypto.randomUUID()}`,
                         providerId: this.config.providerId,
                         modelId: activeModel.modelId,
-                        imageCount: result.images.length,
-                        ...(result.usage ? { usage: result.usage } : {}),
+                        imageCount: result.images.length
+                      }
+                      if (result.usage) event.usage = result.usage
+                      emitProviderCall(handler, {
+                        ...event,
                         metrics: { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
                         completedAt: Date.now()
                       })
@@ -214,12 +220,18 @@ export class RuntimeExecutor<
                 const handler = startProviderCall(onProviderCallStart, onProviderCall)
                 const startedAt = performance.now()
                 const result = await doEmbed()
-                emitProviderCall(handler, {
+                const event: Omit<
+                  Extract<RuntimeProviderCallEvent, { modality: 'embedding' }>,
+                  'metrics' | 'completedAt'
+                > = {
                   modality: 'embedding',
                   requestId: `ai-core:embedding:${crypto.randomUUID()}`,
                   providerId: this.config.providerId,
-                  modelId: model.modelId,
-                  ...(result.usage ? { usage: result.usage } : {}),
+                  modelId: model.modelId
+                }
+                if (result.usage) event.usage = result.usage
+                emitProviderCall(handler, {
+                  ...event,
                   metrics: { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
                   completedAt: Date.now()
                 })

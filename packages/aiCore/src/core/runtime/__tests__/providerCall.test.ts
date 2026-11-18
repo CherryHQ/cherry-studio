@@ -78,6 +78,7 @@ describe('RuntimeExecutor provider-call observation', () => {
     expect(doGenerate).toHaveBeenCalledTimes(3)
     expect(events).toHaveLength(3)
     expect(events.map((event) => (event.modality === 'image' ? event.imageCount : undefined))).toEqual([2, 2, 1])
+    for (const event of events) expect(event).not.toHaveProperty('usage')
     expect(new Set(events.map((event) => event.requestId)).size).toBe(3)
   })
 

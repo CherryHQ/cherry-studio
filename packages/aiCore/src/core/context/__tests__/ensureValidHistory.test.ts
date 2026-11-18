@@ -69,6 +69,7 @@ describe('ensureValidHistory', () => {
     const toolMsg = result.find((m) => m.role === 'tool' && m.tool_call_id === 'c1')
     expect(toolMsg).toBeDefined()
     expect(toolMsg?.content).toBe('[No tool result available]')
+    expect(toolMsg?.name).toBe('run')
   })
 
   it('does not inject when tool result already exists', () => {

@@ -122,12 +122,13 @@ function fixMissingToolResults(messages: ContextMessage[]): ContextMessage[] {
     // Inject synthetic tool results for any missing ids
     for (const missingId of expectedIds) {
       const name = idToName.get(missingId)
-      result.push({
+      const placeholder: ContextMessage = {
         role: 'tool',
         tool_call_id: missingId,
-        content: PLACEHOLDER_TOOL_RESULT,
-        ...(name ? { name } : {})
-      })
+        content: PLACEHOLDER_TOOL_RESULT
+      }
+      if (name) placeholder.name = name
+      result.push(placeholder)
     }
   }
 
