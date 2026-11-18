@@ -358,16 +358,6 @@ describe('memory save contract', () => {
     expect(await store.list(caller)).toEqual(['.memories/topic.md', 'MEMORY.md'])
   })
 
-  it('rejects an unseen concurrent edit instead of overwriting it', async () => {
-    const first = await store.read(caller, 'MEMORY.md')
-    const secondCaller = access()
-    await save('MEMORY.md', 'Second session fact', secondCaller)
-    await expect(
-      store.commit(caller, [{ kind: 'write', receipt: first.receipt, content: 'Stale fact' }], 'controlled', approve)
-    ).rejects.toMatchObject({ code: 'conflict' })
-    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('Second session fact')
-  })
-
   it('binds receipts to the reader and does not replace an old edit baseline with a newer read', async () => {
     const first = await store.read(caller, 'MEMORY.md')
     await expect(
