@@ -419,6 +419,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
                 selectedNotes={selectedNotes}
                 noteDraft={noteDraft}
                 urlValue={urlValue}
+                urlValid={parsedUrls.valid}
                 urlErrors={parsedUrls.invalid}
                 disabled={isSubmitting || pendingConflict !== null}
                 onNoteModeChange={handleNoteModeChange}

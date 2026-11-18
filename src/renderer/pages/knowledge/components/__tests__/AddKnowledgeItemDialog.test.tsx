@@ -297,6 +297,8 @@ vi.mock('react-i18next', () => {
       'knowledge.data_source.add_dialog.footer.selected_urls': `${options?.count} 个合法链接待添加`,
       'knowledge.data_source.add_dialog.url.invalid_entry': `第 ${options?.line} 行，第 ${options?.index} 项：${options?.value} — 请输入完整 HTTP(S) URL。`,
       'knowledge.data_source.add_dialog.url.partial_success': `已接受 ${options?.accepted} 项 / 待修正 ${options?.invalid} 项`,
+      'knowledge.data_source.add_dialog.url.valid_preview': 'Parsed URLs to add:',
+      'knowledge.data_source.add_dialog.url.more_entries': `+${options?.count} more`,
       'knowledge.data_source.add_dialog.url.more_errors': `+${options?.count} more`,
       'knowledge.data_source.add_dialog.url.help':
         '使用换行、英文逗号或空白字符分隔链接。英文逗号会分隔链接；链接本身包含逗号时请用 %2C。仅接受完整的 HTTP 或 HTTPS URL。非法项会跳过，合法项将进入处理队列。',
@@ -882,6 +884,57 @@ describe('AddKnowledgeItemDialog', () => {
     const urlInput = () => screen.getByRole('textbox', { name: '输入网页链接：' })
     const urlItems = (urls: string[]) => urls.map((url) => ({ type: 'url', data: { source: url, url } }))
     const urls = Array.from({ length: 10 }, (_, i) => `https://example.com/${i}`)
+
+    it('shows the parsed target and rejected comma-separated token', async () => {
+      setPendingAddSource('url')
+      const user = userEvent.setup()
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      await user.click(urlInput())
+      await user.paste('https://example.com/a,b')
+      const preview = document.getElementById('knowledge-source-url-valid')!
+      const errors = document.getElementById('knowledge-source-url-errors')!
+      expect(within(preview).getByText('https://example.com/a')).toBeInTheDocument()
+      expect(within(errors).getByText('第 1 行，第 2 项：b — 请输入完整 HTTP(S) URL。')).toBeInTheDocument()
+      expect(urlInput()).toHaveAttribute(
+        'aria-describedby',
+        'knowledge-source-url-help knowledge-source-url-valid knowledge-source-url-errors'
+      )
+    })
+
+    it('does not show a preview for a single valid URL', async () => {
+      setPendingAddSource('url')
+      const user = userEvent.setup()
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      await user.click(urlInput())
+      await user.paste('https://example.com')
+      expect(document.getElementById('knowledge-source-url-valid')).not.toBeInTheDocument()
+    })
+
+    it('shows the heading and all ten parsed URLs', async () => {
+      setPendingAddSource('url')
+      const user = userEvent.setup()
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      await user.click(urlInput())
+      await user.paste(urls.join('\n'))
+      const preview = document.getElementById('knowledge-source-url-valid')!
+      expect(within(preview).getByText('Parsed URLs to add:')).toBeInTheDocument()
+      expect(within(preview).getAllByRole('listitem')).toHaveLength(11)
+      for (const url of urls) expect(within(preview).getByText(url)).toBeInTheDocument()
+    })
+
+    it('limits the preview to 100 URLs and reports the remainder', async () => {
+      setPendingAddSource('url')
+      const user = userEvent.setup()
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      const entries = Array.from({ length: 101 }, (_, i) => `https://example.com/${i}`)
+      await user.click(urlInput())
+      await user.paste(entries.join('\n'))
+      const preview = document.getElementById('knowledge-source-url-valid')!
+      expect(within(preview).getAllByRole('listitem')).toHaveLength(102)
+      for (const url of entries.slice(0, 100)) expect(within(preview).getByText(url)).toBeInTheDocument()
+      expect(within(preview).getByText('+1 more')).toBeInTheDocument()
+      expect(within(preview).queryByText(entries[100])).not.toBeInTheDocument()
+    })
 
     it.each(['', ' ,\r\n \t,, '])('disables submit for empty or separator-only input: %j', async (value) => {
       setPendingAddSource('url')
