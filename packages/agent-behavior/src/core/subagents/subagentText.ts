@@ -54,7 +54,10 @@ export type RunReport = { readonly report?: string; readonly reason?: string; re
 export function runReport(answer: RunEndFacts): RunReport {
   if (answer.outcome === 'completed') return { report: answer.text.trim() }
   const partial = answer.text.trim()
-  return { ...(answer.error ? { reason: answer.error } : {}), ...(partial ? { partial } : {}) }
+  const report: { -readonly [K in keyof RunReport]: RunReport[K] } = {}
+  if (answer.error) report.reason = answer.error
+  if (partial) report.partial = partial
+  return report
 }
 export function runText(outcome: RunEndFacts['outcome'], report: RunReport): string {
   if (outcome === 'completed') return report.report || NO_FINAL_MESSAGE

@@ -96,22 +96,24 @@ export function createGoal(
   now: number
 ): GoalSnapshot {
   const budget = checkBudget(overrides.budget) ?? checkBudget(defaults.budget)
-  return {
+  const goal: Omit<GoalSnapshot, 'tokensUsed' | 'costUsed' | 'wrapUpDone' | 'armed' | 'createdAt' | 'updatedAt'> = {
     id,
     revision: 1,
     objective: checkObjective(objective),
     phase: 'active',
     roundsStarted: 0,
     progressRounds: 0,
-    maxGoalRounds: checkCap(overrides.maxGoalRounds ?? defaults.maxGoalRounds, defaults.maxGoalRoundsCeiling),
-    ...(budget ? { budget } : {}),
+    maxGoalRounds: checkCap(overrides.maxGoalRounds ?? defaults.maxGoalRounds, defaults.maxGoalRoundsCeiling)
+  }
+  if (budget) Object.assign(goal, { budget })
+  return Object.assign(goal, {
     tokensUsed: 0,
     costUsed: 0,
     wrapUpDone: false,
     armed: true,
     createdAt: now,
     updatedAt: now
-  }
+  })
 }
 
 export function budgetExceeded(goal: GoalSnapshot, usage: GoalUsage): boolean {
@@ -152,12 +154,15 @@ export const stopGoal = (
   goal: GoalSnapshot,
   stop: { readonly code: GoalStopCode; readonly message?: string },
   now: number
-): GoalSnapshot =>
-  bump(goal, now, {
+): GoalSnapshot => {
+  const lastStop: Pick<NonNullable<GoalSnapshot['lastStop']>, 'code' | 'message'> = { code: stop.code }
+  if (stop.message !== undefined) Object.assign(lastStop, { message: stop.message })
+  return bump(goal, now, {
     phase: phaseForStop(stop.code),
-    lastStop: { code: stop.code, ...(stop.message === undefined ? {} : { message: stop.message }), at: now },
+    lastStop: Object.assign(lastStop, { at: now }),
     armed: false
   })
+}
 
 /** The same goal armed; unchanged when it already is. Throws when it is complete or has no capacity. */
 export function resumeGoal(goal: GoalSnapshot, now: number, usage: GoalUsage): GoalSnapshot {
@@ -167,12 +172,14 @@ export function resumeGoal(goal: GoalSnapshot, now: number, usage: GoalUsage): G
   return goal.armed ? goal : { ...goal, armed: true }
 }
 
-export const admitRound = (goal: GoalSnapshot, round: Pick<RoundDetails, 'id' | 'kind'>, now: number): GoalSnapshot =>
-  bump(goal, now, {
+export const admitRound = (goal: GoalSnapshot, round: Pick<RoundDetails, 'id' | 'kind'>, now: number): GoalSnapshot => {
+  const patch: Partial<GoalSnapshot> = {
     roundsStarted: goal.roundsStarted + 1,
-    admittedRound: round.id,
-    ...(round.kind === 'wrap-up' ? { wrapUpDone: true } : {})
-  })
+    admittedRound: round.id
+  }
+  if (round.kind === 'wrap-up') Object.assign(patch, { wrapUpDone: true })
+  return bump(goal, now, patch)
+}
 
 /** `goal` with the counts the history shows (no revision bump); records keep them for display only. */
 export const withCounts = (goal: GoalSnapshot, { usage, progress }: GoalCounts): GoalSnapshot => ({

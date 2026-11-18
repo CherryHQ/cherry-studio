@@ -1,7 +1,7 @@
 import type { ItemId, JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
 import { booleanField, fieldsOf, stringField } from '../args'
-import { type Effect, type Step, type TurnInput, turnInput, type TxOp } from '../decisions'
+import { type ChildSpec, type Effect, type Step, type TurnInput, turnInput, type TxOp } from '../decisions'
 import { sha256Hex } from '../digest'
 import { ensureDriver, ensureReport, type ReportInput } from '../driver/jobs'
 import type {
@@ -126,15 +126,19 @@ export function decideSpawn(facts: Facts, inputs: CallInputs, call: CallKey): St
   // S9: the named model; a fork keeps the parent's model, which shares its prompt cache; otherwise the host's default.
   const modelKey = model?.key ?? (fork ? models.parentModelKey : models.defaultChildModelKey)
   const origin: SubagentOrigin = { parentToolCallId: call, fork, description, modelKey }
+  const spec: Pick<ChildSpec, 'boundary' | 'fork'> = { boundary: background ? 'background' : 'foreground' }
+  if (fork && at) Object.assign(spec, { fork: { from: facts.thread, at } })
+  const record: ChildSpec['record'] = {
+    ...origin,
+    ...goalForCall(facts.history, call),
+    background,
+    run: 1,
+    status: 'running'
+  }
   const ops: TxOp[] = [
     {
       type: 'spawn-child',
-      spec: {
-        boundary: background ? 'background' : 'foreground',
-        ...(fork && at ? { fork: { from: facts.thread, at } } : {}),
-        origin,
-        record: { ...origin, ...goalForCall(facts.history, call), background, run: 1, status: 'running' }
-      },
+      spec: Object.assign(spec, { origin, record }),
       key
     }
   ]
@@ -372,9 +376,9 @@ function stopRun(
   const { sessionId: child, run } = record
   const value: SubagentRunRecord = {
     ...record,
-    stoppedBy: record.stoppedBy === 'user' ? 'user' : by,
-    ...(by === 'model' ? { modelStopped: true } : {})
+    stoppedBy: record.stoppedBy === 'user' ? 'user' : by
   }
+  if (by === 'model') Object.assign(value, { modelStopped: true })
   if (runStarted(facts, child, run) || facts.children.get(child)?.running === true)
     return {
       ops: [
@@ -517,7 +521,8 @@ export function decideRunEnd(
   if (!record) return refuse({ text: `No run ${run} of subagent ${child} is recorded.`, isError: true })
   const outcome = record.stoppedBy ? 'stopped' : answer.outcome
   const usage = facts.children.get(child)?.runUsage[run - 1]
-  const ended: SubagentRunRecord = { ...record, status: 'finished', outcome, ...report, ...(usage ? { usage } : {}) }
+  const ended: SubagentRunRecord = { ...record, status: 'finished', outcome, ...report }
+  if (usage) Object.assign(ended, { usage })
   const key = keys.subagentEnd(child, run)
   const ops: TxOp[] = facts.keysSeen.has(key)
     ? []

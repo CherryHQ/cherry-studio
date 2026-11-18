@@ -198,12 +198,13 @@ export function subagentViews(facts: Facts, approvals: readonly ApprovalOutcome[
     .filter(({ latest }) => latest.background)
     .map(({ child, latest }) => {
       const live = isLive(facts, latest)
-      return {
+      const view: SubagentView = {
         sessionId: child,
         parentToolCallId: latest.parentToolCallId,
         description: latest.description,
-        status: !live ? 'finished' : awaitingApproval(approvals, child) ? 'awaiting_approval' : 'running',
-        ...(!live && latest.outcome !== undefined ? { outcome: latest.outcome } : {})
+        status: !live ? 'finished' : awaitingApproval(approvals, child) ? 'awaiting_approval' : 'running'
       }
+      if (!live && latest.outcome !== undefined) Object.assign(view, { outcome: latest.outcome })
+      return view
     })
 }
