@@ -215,14 +215,14 @@ function normalizeKnownSidebarShortcut(value: StoredSidebarItem): SidebarShortcu
   if (value.type === 'shortcut') {
     if (!isSidebarShortcutTarget(value.target)) return undefined
     if (RETIRED_SIDEBAR_SHORTCUT_PROVIDER_IDS.has(value.target.locator.providerId)) return undefined
-    return {
+    const item: SidebarShortcutItem = {
       type: 'shortcut',
       id: createSidebarShortcutId(value.target),
-      target: value.target,
-      ...(typeof value.fallbackLabel === 'string' && value.fallbackLabel.length > 0
-        ? { fallbackLabel: value.fallbackLabel }
-        : {})
+      target: value.target
     }
+    if (typeof value.fallbackLabel === 'string' && value.fallbackLabel.length > 0)
+      item.fallbackLabel = value.fallbackLabel
+    return item
   }
 
   if (typeof value.type !== 'string' || !Object.hasOwn(LEGACY_PROVIDER_BY_TYPE, value.type)) return undefined
@@ -231,14 +231,14 @@ function normalizeKnownSidebarShortcut(value: StoredSidebarItem): SidebarShortcu
 
   const providerId = LEGACY_PROVIDER_BY_TYPE[value.type as keyof typeof LEGACY_PROVIDER_BY_TYPE]
   const target = createSidebarShortcutTarget(providerId, value.id)
-  return {
+  const item: SidebarShortcutItem = {
     type: 'shortcut',
     id: createSidebarShortcutId(target),
-    target,
-    ...(typeof value.fallbackLabel === 'string' && value.fallbackLabel.length > 0
-      ? { fallbackLabel: value.fallbackLabel }
-      : {})
+    target
   }
+  if (typeof value.fallbackLabel === 'string' && value.fallbackLabel.length > 0)
+    item.fallbackLabel = value.fallbackLabel
+  return item
 }
 
 function isForwardCompatibleSidebarItem(value: StoredSidebarItem): boolean {
