@@ -67,7 +67,9 @@ const mockWindowManager = {
   onWindowCreated: vi.fn(() => ({ dispose: vi.fn() })),
   onWindowDestroyed: vi.fn(() => ({ dispose: vi.fn() })),
   onWindowCreatedByType: vi.fn(() => ({ dispose: vi.fn() })),
-  onWindowDestroyedByType: vi.fn(() => ({ dispose: vi.fn() }))
+  onWindowDestroyedByType: vi.fn(() => ({ dispose: vi.fn() })),
+  onWindowReleasedToPool: vi.fn(() => ({ dispose: vi.fn() })),
+  onWindowReleasedToPoolByType: vi.fn(() => ({ dispose: vi.fn() }))
 }
 
 /**
@@ -121,6 +123,11 @@ export const defaultServiceInstances = {
   IpcApiService: mockIpcApiService,
   NotificationService: mockNotificationService,
   JobManager: mockJobManager,
+  AgentImportService: {
+    pause: vi.fn(() => ({ dispose: vi.fn() })),
+    drainInFlight: vi.fn(async () => ({ stragglerIds: [] })),
+    listActiveWork: vi.fn(() => [])
+  },
   PowerService: {
     preventSleep: vi.fn(() => ({ dispose: vi.fn() })),
     onResume: vi.fn(() => ({ dispose: vi.fn() }))

@@ -66,7 +66,9 @@ vi.mock('@application', async () => {
     DbService: defaultServiceInstances.DbService,
     ApiGatewayService: {
       captureAgentSessionUsage: () => ({ headers: {}, release: () => {} }),
-      ensureInternalGateway: async () => ({ baseUrl: 'http://gateway.invalid', apiKey: 'fixture' }),
+      ensureInternalGateway: async () => {
+        throw new Error('Pi must start without an internal HTTP listener')
+      },
       getAgentSessionUsageHeaders: () => ({})
     },
     McpCatalogService: { listTools: () => [] },

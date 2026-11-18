@@ -130,7 +130,7 @@ Use [`useWindowInitData`](./window-manager-usage.md#renderer-usewindowinitdata-h
 
 ## Events
 
-Pooled windows traverse a four-stage conceptual lifecycle, but only the endpoints have dedicated events:
+Pooled windows traverse a four-stage conceptual lifecycle. The endpoints and the Released stage have dedicated events; Recycled does not:
 
 ```
 Created ──▶ [Released ──▶ Recycled ──▶ Released ──▶ ...] ──▶ Destroyed
@@ -144,8 +144,10 @@ For non-pooled windows, the same two endpoints apply without any intermediate st
 | `onWindowDestroyed` | `Event<ManagedWindow>` | Fires when a window is truly destroyed (not on pool release). |
 | `onWindowCreatedByType(type, listener)` | `(type, listener) => Disposable` | Convenience variant of `onWindowCreated` that filters to a single `WindowType`. Equivalent to `onWindowCreated` + an inline `if (managed.type === type)` guard, but avoids the boilerplate at every call site. Prefer this for single-type subscriptions (the typical consumer case). |
 | `onWindowDestroyedByType(type, listener)` | `(type, listener) => Disposable` | Type-filtered counterpart to `onWindowDestroyed`. Same filtering semantics as `onWindowCreatedByType`. |
+| `onWindowReleasedToPool` | `Event<ManagedWindow>` | Fires when a pooled window is closed (`close()` or an intercepted native close) and goes back to the idle pool alive. A release that destroys the window (recycling disabled, over capacity, fullscreen) fires `onWindowDestroyed` instead, so the two never fire for the same close. |
+| `onWindowReleasedToPoolByType(type, listener)` | `(type, listener) => Disposable` | Type-filtered counterpart to `onWindowReleasedToPool`. |
 
-The intermediate Released and Recycled stages have no dedicated lifecycle events — side effects on `hide` / `close` / `show` should be expressed as declarative [OS Quirks](./window-manager-platform.md#os-quirks), and per-session data on recycle is delivered via the `window.reused` IpcApi payload (see [Init Data](#init-data)).
+A service that keeps per-window session state for a recycling pool clears it on both `onWindowReleasedToPool` and `onWindowDestroyed`: a released window keeps its renderer and its id, and nothing else tells the service that the session ended. The Recycled stage has no event — per-session data on recycle is delivered via the `window.reused` IpcApi payload (see [Init Data](#init-data)), and native side effects on `hide` / `close` / `show` should be expressed as declarative [OS Quirks](./window-manager-platform.md#os-quirks).
 
 **Usage notes for pooled windows:**
 

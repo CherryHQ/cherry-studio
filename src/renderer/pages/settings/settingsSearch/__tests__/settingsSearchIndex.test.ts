@@ -25,10 +25,7 @@ function lookup(locale: unknown, key: string): unknown {
 }
 
 /** Every *.search.ts the aggregator would glob — drift must fail here, not silently */
-const globbedSearchModules = import.meta.glob('../../**/*.search.ts', { eager: true }) as Record<
-  string,
-  { route?: unknown }
->
+const globbedSearchModules = import.meta.glob<{ route?: unknown }>('../../**/*.search.ts', { eager: true })
 
 const SCAN_ROOTS = [resolve('src/renderer/pages/settings'), resolve('src/renderer/components/chat/settings')]
 

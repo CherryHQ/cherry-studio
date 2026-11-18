@@ -107,3 +107,16 @@ describe('ListTopicsQuerySchema', () => {
     expect(() => ListTopicsQuerySchema.parse({ inTrash: 'true' })).toThrow()
   })
 })
+
+// Malformed locale tags must fail at the API boundary, before Intl.Collator runs.
+describe('localized name query', () => {
+  it.each(['zh-CN', 'zh-TW', 'tr-TR', 'ar', 'ko', 'de-u-co-phonebk'])('accepts locale %s', (sortLocale) => {
+    expect(ListTopicsQuerySchema.parse({ sortBy: 'name', sortLocale })).toEqual({ sortBy: 'name', sortLocale })
+  })
+  it.each(['', 'en_US', 'not a locale', 'en-u-ca-gregory-u-ca-buddhist'])(
+    'rejects malformed locale %s',
+    (sortLocale) => {
+      expect(ListTopicsQuerySchema.safeParse({ sortBy: 'name', sortLocale }).success).toBe(false)
+    }
+  )
+})
