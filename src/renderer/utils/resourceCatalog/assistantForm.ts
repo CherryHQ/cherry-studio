@@ -160,41 +160,37 @@ export function diffAssistantUpdate(
         baseline.contextCompressThresholdPercent !== form.contextCompressThresholdPercent ||
         baseline.contextCompressModelId !== form.contextCompressModelId))
 
-  const settings: NonNullable<UpdateAssistantDto['settings']> = {
-    ...(baseline.temperature !== form.temperature ? { temperature: form.temperature } : {}),
-    ...(baseline.enableTemperature !== form.enableTemperature ? { enableTemperature: form.enableTemperature } : {}),
-    ...(baseline.topP !== form.topP ? { topP: form.topP } : {}),
-    ...(baseline.enableTopP !== form.enableTopP ? { enableTopP: form.enableTopP } : {}),
-    ...(maxTokensChanged || (enableMaxTokensChanged && form.enableMaxTokens) ? { maxTokens: form.maxTokens } : {}),
-    ...(enableMaxTokensChanged ? { enableMaxTokens: form.enableMaxTokens } : {}),
-    ...(baseline.streamOutput !== form.streamOutput ? { streamOutput: form.streamOutput } : {}),
-    ...(baseline.maxToolCalls !== form.maxToolCalls ? { maxToolCalls: form.maxToolCalls } : {}),
-    ...(baseline.enableMaxToolCalls !== form.enableMaxToolCalls ? { enableMaxToolCalls: form.enableMaxToolCalls } : {}),
-    ...(baseline.enableBrowser !== form.enableBrowser ? { enableBrowser: form.enableBrowser } : {}),
-    ...(baseline.mcpMode !== form.mcpMode ? { mcpMode: form.mcpMode } : {}),
-    ...(customParametersChanged ? { customParameters: form.customParameters } : {}),
-    ...(contextSettingsChanged
-      ? {
-          // null clears the override; the `enabled` kill-switch stays global.
-          // An empty limit is ABSENT, matching the "follow global" placeholder.
-          contextSettings: form.contextOverrideEnabled
-            ? {
-                truncateThreshold: form.contextTruncateThreshold,
-                ...(form.contextMaxMessages !== null ? { maxMessages: form.contextMaxMessages } : {}),
-                compress: {
-                  enabled: form.contextCompressEnabled,
-                  modelId: form.contextCompressModelId,
-                  // Absent = inherit the global trigger; the UI's empty field.
-                  ...(form.contextCompressThresholdPercent !== null
-                    ? { thresholdPercent: form.contextCompressThresholdPercent }
-                    : {})
-                }
-              }
-            : form.contextMaxMessages !== null
-              ? { maxMessages: form.contextMaxMessages }
-              : null
-        }
-      : {})
+  const settings: NonNullable<UpdateAssistantDto['settings']> = {}
+  if (baseline.temperature !== form.temperature) settings.temperature = form.temperature
+  if (baseline.enableTemperature !== form.enableTemperature) settings.enableTemperature = form.enableTemperature
+  if (baseline.topP !== form.topP) settings.topP = form.topP
+  if (baseline.enableTopP !== form.enableTopP) settings.enableTopP = form.enableTopP
+  if (maxTokensChanged || (enableMaxTokensChanged && form.enableMaxTokens)) settings.maxTokens = form.maxTokens
+  if (enableMaxTokensChanged) settings.enableMaxTokens = form.enableMaxTokens
+  if (baseline.streamOutput !== form.streamOutput) settings.streamOutput = form.streamOutput
+  if (baseline.maxToolCalls !== form.maxToolCalls) settings.maxToolCalls = form.maxToolCalls
+  if (baseline.enableMaxToolCalls !== form.enableMaxToolCalls) settings.enableMaxToolCalls = form.enableMaxToolCalls
+  if (baseline.enableBrowser !== form.enableBrowser) settings.enableBrowser = form.enableBrowser
+  if (baseline.mcpMode !== form.mcpMode) settings.mcpMode = form.mcpMode
+  if (customParametersChanged) settings.customParameters = form.customParameters
+  if (contextSettingsChanged) {
+    if (form.contextOverrideEnabled) {
+      const contextSettings: NonNullable<typeof settings.contextSettings> = {
+        truncateThreshold: form.contextTruncateThreshold
+      }
+      if (form.contextMaxMessages !== null) contextSettings.maxMessages = form.contextMaxMessages
+      const compress: NonNullable<typeof contextSettings.compress> = {
+        enabled: form.contextCompressEnabled,
+        modelId: form.contextCompressModelId
+      }
+      if (form.contextCompressThresholdPercent !== null)
+        compress.thresholdPercent = form.contextCompressThresholdPercent
+      contextSettings.compress = compress
+      settings.contextSettings = contextSettings
+    } else {
+      // null clears the override; an absent limit continues to follow the global value.
+      settings.contextSettings = form.contextMaxMessages !== null ? { maxMessages: form.contextMaxMessages } : null
+    }
   }
 
   const nameChanged = baseline.name !== form.name
@@ -222,17 +218,16 @@ export function diffAssistantUpdate(
     return null
   }
 
-  const dto: UpdateAssistantDto = {
-    ...(nameChanged ? { name: form.name.trim() || assistant.name } : {}),
-    ...(emojiChanged ? { emoji: form.emoji } : {}),
-    ...(descriptionChanged ? { description: form.description } : {}),
-    ...(modelIdChanged ? { modelId: form.modelId } : {}),
-    ...(promptChanged ? { prompt: form.prompt } : {}),
-    ...(settingsChanged ? { settings } : {}),
-    ...(knowledgeBaseIdsChanged ? { knowledgeBaseIds: form.knowledgeBaseIds } : {}),
-    ...(mcpServerIdsChanged ? { mcpServerIds: form.mcpServerIds } : {}),
-    ...(groupChanged ? { groupId: form.groupId } : {})
-  }
+  const dto: UpdateAssistantDto = {}
+  if (nameChanged) dto.name = form.name.trim() || assistant.name
+  if (emojiChanged) dto.emoji = form.emoji
+  if (descriptionChanged) dto.description = form.description
+  if (modelIdChanged) dto.modelId = form.modelId
+  if (promptChanged) dto.prompt = form.prompt
+  if (settingsChanged) dto.settings = settings
+  if (knowledgeBaseIdsChanged) dto.knowledgeBaseIds = form.knowledgeBaseIds
+  if (mcpServerIdsChanged) dto.mcpServerIds = form.mcpServerIds
+  if (groupChanged) dto.groupId = form.groupId
 
   return { dto }
 }
