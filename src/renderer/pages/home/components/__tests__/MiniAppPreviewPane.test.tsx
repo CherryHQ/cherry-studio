@@ -43,6 +43,7 @@ const PREVIEW = {
   sessionId: 'topic-1',
   appId: 'com.example.previewme',
   version: '1.0.0',
+  entry: 'index.html',
   packageSha256: 'sha256:x',
   openedAt: 1
 }

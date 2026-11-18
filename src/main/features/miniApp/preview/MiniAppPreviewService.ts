@@ -32,7 +32,7 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { MiniAppManifest } from '@shared/types/miniAppManifest'
+import { declaredGrantKeys, type MiniAppManifest } from '@shared/types/miniAppManifest'
 
 import { extractMiniAppArchive, sha256File } from '../install/archive'
 import { bestEffortCleanup } from '../install/cleanup'
@@ -59,6 +59,17 @@ export interface MiniAppPreview {
   /** Absolute path of the unpacked tree, under the previews root. */
   readonly dir: string
   /** Digest of the package bytes at open time — install (stage 3) re-checks it. */
+  /** Manifest `entry` (package-relative); the pane navigates here, not to a fixed index.html. */
+  readonly entry: string
+  /**
+   * The preview's grants: the manifest's full DECLARED set, held in memory for the
+   * preview's life. A preview exists so its author can exercise the capabilities the
+   * app declares (AC3) — there is no consent UI behind it and no DB row to grant
+   * from, so the declared set IS the grant set, and it dies with the preview.
+   */
+  readonly grants: string[]
+  /** The manifest's `network` allowlist — the bridge's host gate has no DB row to read. */
+  readonly networkHosts: string[]
   readonly packageSha256: string
   readonly packagePath: string
   readonly openedAt: number
@@ -71,6 +82,8 @@ export interface MiniAppPreviewSummary {
   sessionId: string
   appId: string
   version: string
+  /** Package-relative entry page from the manifest — NOT always `index.html`. */
+  entry: string
   packageSha256: string
   openedAt: number
 }
@@ -94,6 +107,7 @@ function summaryOf(preview: MiniAppPreview): MiniAppPreviewSummary {
     sessionId: preview.sessionId,
     appId: preview.appId,
     version: preview.version,
+    entry: preview.entry,
     packageSha256: preview.packageSha256,
     openedAt: preview.openedAt
   }
@@ -129,6 +143,8 @@ export async function sweepAbandonedPreviews(): Promise<number> {
 @ServicePhase(Phase.WhenReady)
 export class MiniAppPreviewService extends BaseService {
   private readonly previews = new Map<string, MiniAppPreview>()
+  /** One mutation at a time per session: opens and session teardowns queue here. */
+  private readonly sessionMutations = new Map<string, Promise<unknown>>()
 
   protected async onReady(): Promise<void> {
     // Before anything agent-driven can run: previews are opened only through this
@@ -147,56 +163,84 @@ export class MiniAppPreviewService extends BaseService {
    * the new ones exist.
    */
   async openPreview(input: { sessionId: string; artifactToken: string }): Promise<MiniAppPreviewSummary> {
+    // Serialized with every other mutation of this session: two opens racing
+    // would double-register, and a teardown racing an open must not return
+    // before the pending open registers — it queues BEHIND it and closes the
+    // result, so no preview outlives its session's teardown.
+    return this.enqueueSessionMutation(input.sessionId, () => this.openPreviewSerialized(input))
+  }
+
+  private async openPreviewSerialized(input: {
+    sessionId: string
+    artifactToken: string
+  }): Promise<MiniAppPreviewSummary> {
     const record = expectArtifactToken(input.artifactToken, input.sessionId)
-    // Digest re-check at the point of use (AC5): the token pins the bytes, the
-    // filesystem is the truth, and only an exact match opens.
-    const sha256 = await sha256File(record.packagePath)
-    if (sha256 !== record.sha256) {
-      throw new MiniAppPreviewError(
-        'package-changed',
-        'The package changed since it was validated; run validate again to preview it'
-      )
-    }
-
-    const replaced = [...this.previews.values()].filter((p) => p.sessionId === input.sessionId)
-    for (const preview of replaced) {
-      await this.closePreview(preview.previewId)
-    }
-
     const previewId = randomUUID()
-    const dir = miniAppPreviewPath(previewId)
-    await fs.promises.mkdir(miniAppPreviewsRoot(), { recursive: true })
-    let manifest: MiniAppManifest
-    try {
-      manifest = await extractMiniAppArchive(record.packagePath, dir)
-    } catch (error) {
-      // extractMiniAppArchive resets the tree it half-wrote; what remains is the
-      // empty directory it leaves behind, which must not wait for the next sweep.
-      await bestEffortCleanup(`failed preview ${previewId}`, () =>
-        fs.promises.rm(dir, { recursive: true, force: true })
-      )
-      throw error
-    }
 
-    const preview: MiniAppPreview = {
-      previewId,
-      runtimeId: previewRuntimeId(previewId),
-      sessionId: input.sessionId,
-      appId: manifest.id,
-      version: manifest.version,
-      dir,
-      packageSha256: record.sha256,
-      packagePath: record.packagePath,
-      openedAt: Date.now()
+    // Digest re-check at the point of use (AC5), TOCTOU-safe: the package is
+    // copied to a private snapshot FIRST and only the snapshot is hashed and
+    // extracted. Re-hashing the live path and then reopening it for extraction
+    // would let a rebuild between the two reads slide different bytes under a
+    // validated digest; the snapshot is immutable from copyFile onward, so the
+    // extracted bytes are exactly the hashed bytes, and only an exact match opens.
+    await fs.promises.mkdir(miniAppPreviewsRoot(), { recursive: true })
+    const snapshotPath = path.join(miniAppPreviewsRoot(), `staging-${previewId}`)
+    let manifest: MiniAppManifest
+    let replaced: MiniAppPreview[] = []
+    try {
+      await fs.promises.copyFile(record.packagePath, snapshotPath)
+      const sha256 = await sha256File(snapshotPath)
+      if (sha256 !== record.sha256) {
+        throw new MiniAppPreviewError(
+          'package-changed',
+          'The package changed since it was validated; run validate again to preview it'
+        )
+      }
+
+      replaced = [...this.previews.values()].filter((p) => p.sessionId === input.sessionId)
+      for (const preview of replaced) {
+        await this.closePreview(preview.previewId)
+      }
+
+      const dir = miniAppPreviewPath(previewId)
+      try {
+        manifest = await extractMiniAppArchive(snapshotPath, dir)
+      } catch (error) {
+        // extractMiniAppArchive resets the tree it half-wrote; what remains is the
+        // empty directory it leaves behind, which must not wait for the next sweep.
+        await bestEffortCleanup(`failed preview ${previewId}`, () =>
+          fs.promises.rm(dir, { recursive: true, force: true })
+        )
+        throw error
+      }
+
+      const preview: MiniAppPreview = {
+        previewId,
+        runtimeId: previewRuntimeId(previewId),
+        sessionId: input.sessionId,
+        appId: manifest.id,
+        version: manifest.version,
+        entry: manifest.entry,
+        grants: declaredGrantKeys(manifest),
+        networkHosts: [...manifest.network],
+        dir,
+        packageSha256: record.sha256,
+        packagePath: record.packagePath,
+        openedAt: Date.now()
+      }
+      this.previews.set(previewId, preview)
+      logger.info('Opened mini app preview', {
+        previewId,
+        sessionId: input.sessionId,
+        appId: manifest.id,
+        replaced: replaced.length
+      })
+      return summaryOf(preview)
+    } finally {
+      // The snapshot's only job was to pin the extracted bytes; once the open
+      // settled (either way), it is a leftover the sweep should never meet.
+      await bestEffortCleanup(`preview staging ${previewId}`, () => fs.promises.rm(snapshotPath, { force: true }))
     }
-    this.previews.set(previewId, preview)
-    logger.info('Opened mini app preview', {
-      previewId,
-      sessionId: input.sessionId,
-      appId: manifest.id,
-      replaced: replaced.length
-    })
-    return summaryOf(preview)
   }
 
   /**
@@ -235,6 +279,13 @@ export class MiniAppPreviewService extends BaseService {
    * a token outliving its session's previews would preview into nothing.
    */
   async closeSessionPreviews(sessionId: string): Promise<{ closed: number; tokensRevoked: number }> {
+    // Same queue as openPreview: a teardown that lands while an open is still
+    // extracting waits for it, then closes what it registered — a pending open
+    // can never slip a live preview past a completed teardown.
+    return this.enqueueSessionMutation(sessionId, () => this.closeSessionPreviewsSerialized(sessionId))
+  }
+
+  private async closeSessionPreviewsSerialized(sessionId: string): Promise<{ closed: number; tokensRevoked: number }> {
     const owned = [...this.previews.values()].filter((p) => p.sessionId === sessionId)
     for (const preview of owned) {
       await this.closePreview(preview.previewId)
@@ -244,6 +295,36 @@ export class MiniAppPreviewService extends BaseService {
       logger.info('Closed session previews', { sessionId, closed: owned.length, tokensRevoked })
     }
     return { closed: owned.length, tokensRevoked }
+  }
+
+  /**
+   * Promise-chain mutex keyed by session. The chain entry is removed only when
+   * it is still the tail, so a later mutation is never orphaned from the map.
+   */
+  private enqueueSessionMutation<T>(sessionId: string, work: () => Promise<T>): Promise<T> {
+    const prior = this.sessionMutations.get(sessionId) ?? Promise.resolve()
+    const run = prior.catch(() => {}).then(work)
+    this.sessionMutations.set(sessionId, run)
+    // `finally` RE-THROWS into its own promise — swallow that copy or a rejected
+    // mutation is an unhandled rejection; the caller still gets the real one.
+    void run
+      .finally(() => {
+        if (this.sessionMutations.get(sessionId) === run) {
+          this.sessionMutations.delete(sessionId)
+        }
+      })
+      .catch(() => {})
+    return run
+  }
+
+  /**
+   * Look up a live preview by the runtime id its guests present. The bridge's grant,
+   * manifest and version lookups resolve through this (a preview has no installation
+   * row BY DESIGN); `undefined` for a closed or never-preview id, which is the
+   * invalidation — callers fall through to the installed-app backends.
+   */
+  getPreviewByRuntimeId(runtimeId: string): MiniAppPreview | undefined {
+    return [...this.previews.values()].find((p) => p.runtimeId === runtimeId)
   }
 
   getPreview(previewId: string): MiniAppPreviewSummary | undefined {
