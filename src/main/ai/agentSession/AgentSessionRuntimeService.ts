@@ -42,6 +42,7 @@ import {
 import {
   AGENT_SESSION_COMPACTION_CACHE_KEY,
   type AgentSessionCompactionAnchorData,
+  type AgentSessionCompactionState,
   type AgentSessionCompactionTrigger
 } from '@shared/ai/agentSessionCompaction'
 import {
@@ -97,7 +98,7 @@ import {
   TraceFlushListener
 } from '../streamManager'
 import { type AbortedApproval, type DispatchDecision, toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
-import type { ApprovalRequestedEvent, InProcessUsageContext } from '../types'
+import type { AiStreamRequest, ApprovalRequestedEvent, InProcessUsageContext } from '../types'
 import {
   type AgentSessionRuntimeConnectionTarget,
   type AgentSessionRuntimeLaunchTarget,
@@ -888,15 +889,19 @@ export class AgentSessionRuntimeService extends BaseService {
     const attribution = (entry.usageAttribution ??= new AgentSessionUsageAttribution())
     const correlation = responseId ?? turn?.turnId
     if (turn && correlation && !responseId) this.bindUsage(entry, correlation, turn)
-    return {
+    const identity: Omit<InProcessUsageContext, 'source'> = {
       agentSessionId: sessionId,
-      traceContext: this.sessionTraceContext(entry, turn?.modelId),
-      ...(turn ? { assistantMessageId: turn.assistantMessageId } : {}),
+      traceContext: this.sessionTraceContext(entry, turn?.modelId)
+    }
+    if (turn) identity.assistantMessageId = turn.assistantMessageId
+    const context: InProcessUsageContext = {
+      ...identity,
       source:
         sourceSnapshotFromMessageSnapshot(turn?.messageSnapshot ?? entry.messageSnapshot) ??
-        (entry.messageSnapshot ? null : this.captureUsageSource(entry.agentId)),
-      ...(correlation ? { recordInvocation: attribution.capture(correlation) } : {})
+        (entry.messageSnapshot ? null : this.captureUsageSource(entry.agentId))
     }
+    if (correlation) context.recordInvocation = attribution.capture(correlation)
+    return context
   }
 
   private bindUsage(entry: AgentSessionRuntimeEntry, responseId: string, turn: AgentSessionTurn): void {
@@ -1269,9 +1274,9 @@ export class AgentSessionRuntimeService extends BaseService {
         // oxlint-disable-next-line no-restricted-globals -- Isolate one submitted user message while native redirect and persistence can mutate it.
         message: structuredClone(message),
         systemReminder: true,
-        headless,
-        ...(messageSnapshot ? { messageSnapshot } : {})
+        headless
       }
+      if (messageSnapshot) input.messageSnapshot = messageSnapshot
       const pending = (entry.pendingInputs ??= new Map())
       if (pending.has(message.id)) return
       pending.set(message.id, { input, generation: entry.connectionGeneration })
@@ -1281,20 +1286,18 @@ export class AgentSessionRuntimeService extends BaseService {
 
     // No redirect-eligible open normal turn (or backend can't steer) → queue as the next turn,
     // wrapped in a steer system-reminder.
-    this.applyRuntimeStateEvent(entry, {
-      type: 'queue-turn',
-      turn: {
-        message,
-        reasoningEffort,
-        serviceTier,
-        knowledgeBaseIds,
-        fastMode,
-        steer: true,
-        ...(headless ? { headless } : {}),
-        ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {}),
-        ...(messageSnapshot ? { messageSnapshot } : {})
-      }
-    })
+    const queuedTurn: PendingAgentSessionTurn = {
+      message,
+      reasoningEffort,
+      serviceTier,
+      knowledgeBaseIds,
+      fastMode,
+      steer: true
+    }
+    if (headless) queuedTurn.headless = headless
+    if (trustedNotifyChannels !== undefined) queuedTurn.trustedNotifyChannels = trustedNotifyChannels
+    if (messageSnapshot) queuedTurn.messageSnapshot = messageSnapshot
+    this.applyRuntimeStateEvent(entry, { type: 'queue-turn', turn: queuedTurn })
   }
 
   markTurnTerminal(sessionId: string, status: AgentSessionRuntimeTerminalStatus, expectedTurnId?: string): void {
@@ -2418,19 +2421,17 @@ export class AgentSessionRuntimeService extends BaseService {
         // next turn (with a steer system-reminder). The following `turn-complete` → markTurnTerminal
         // drains the state-machine queue through the queued-turn launch.
         for (const input of this.pendingInputValues(entry, event.inputIds, true)) {
-          this.applyRuntimeStateEvent(entry, {
-            type: 'queue-turn',
-            turn: {
-              message: input.message,
-              reasoningEffort: this.currentTurn(entry)?.reasoningEffort ?? 'default',
-              serviceTier: this.currentTurn(entry)?.serviceTier ?? 'standard',
-              knowledgeBaseIds: getKnowledgeBaseIdsFromParts(input.message.data.parts ?? []) ?? [],
-              fastMode: this.currentTurn(entry)?.fastMode ?? false,
-              steer: true,
-              ...(input.headless ? { headless: true } : {}),
-              ...(input.messageSnapshot ? { messageSnapshot: input.messageSnapshot } : {})
-            }
-          })
+          const queuedTurn: PendingAgentSessionTurn = {
+            message: input.message,
+            reasoningEffort: this.currentTurn(entry)?.reasoningEffort ?? 'default',
+            serviceTier: this.currentTurn(entry)?.serviceTier ?? 'standard',
+            knowledgeBaseIds: getKnowledgeBaseIdsFromParts(input.message.data.parts ?? []) ?? [],
+            fastMode: this.currentTurn(entry)?.fastMode ?? false,
+            steer: true
+          }
+          if (input.headless) queuedTurn.headless = true
+          if (input.messageSnapshot) queuedTurn.messageSnapshot = input.messageSnapshot
+          this.applyRuntimeStateEvent(entry, { type: 'queue-turn', turn: queuedTurn })
         }
         break
       case 'compaction-start':
@@ -2518,7 +2519,7 @@ export class AgentSessionRuntimeService extends BaseService {
             ? agentSessionMessageService.getSessionMessage(entry.sessionId, assistantMessageId)
             : undefined
         const modelId = saved?.modelId ? UniqueModelIdSchema.parse(saved.modelId) : (source?.modelId ?? entry.modelId)
-        const turn = createSessionTurn({
+        const turnInput: Parameters<typeof createSessionTurn>[0] = {
           ...this.connectionTarget(entry),
           modelId: background ? modelId : entry.modelId,
           taskIds: [],
@@ -2528,9 +2529,10 @@ export class AgentSessionRuntimeService extends BaseService {
             ? (saved?.messageSnapshot ?? source?.messageSnapshot ?? entry.messageSnapshot)
             : entry.messageSnapshot,
           headless,
-          origin: event.origin,
-          ...(background ? { assistantMessageId } : {})
-        })
+          origin: event.origin
+        }
+        if (background) turnInput.assistantMessageId = assistantMessageId
+        const turn = createSessionTurn(turnInput)
         if (background) turn.projection = projection
         this.clearIdleTimer(entry)
         this.applyRuntimeStateEvent(entry, {
@@ -2569,11 +2571,13 @@ export class AgentSessionRuntimeService extends BaseService {
   ): void {
     this.invalidateContextUsage(entry)
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: true })
-    application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
+    const cache = application.get('CacheService')
+    const state: Extract<AgentSessionCompactionState, { status: 'compacting' }> = {
       status: 'compacting',
-      startedAt: new Date().toISOString(),
-      ...(trigger ? { trigger } : {})
-    })
+      startedAt: new Date().toISOString()
+    }
+    if (trigger) state.trigger = trigger
+    cache.setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), state)
   }
 
   private recordRuntimeUsage(
@@ -2818,14 +2822,13 @@ export class AgentSessionRuntimeService extends BaseService {
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
     const turn = this.currentTurn(entry)
-    this.applyRuntimeStateEvent(entry, {
+    const event: Extract<RuntimeStateEvent, { type: 'connection-occupancy' }> = {
       type: 'connection-occupancy',
       occupancy: 'background',
-      active,
-      ...(active
-        ? { responder: turn && turn.headless !== true ? ('interactive' as const) : ('headless' as const) }
-        : {})
-    })
+      active
+    }
+    if (active) event.responder = turn && turn.headless !== true ? 'interactive' : 'headless'
+    this.applyRuntimeStateEvent(entry, event)
     if (active) {
       this.clearIdleTimer(entry)
     } else {
@@ -2944,29 +2947,32 @@ export class AgentSessionRuntimeService extends BaseService {
           (!hasBufferedInput &&
             !turn.activeToolIds.has(request.toolCallId) &&
             !turn.projection?.toolCallMessageId(request.toolCallId)))
-      )
-        this.deliverRuntimeChunk(entry, {
+      ) {
+        const chunk: Extract<UIMessageChunk, { type: 'tool-input-available' }> = {
           type: 'tool-input-available',
           toolCallId: request.toolCallId,
           toolName: request.toolName,
           input: request.input,
-          providerExecuted: true,
-          ...(request.providerMetadata ? { providerMetadata: request.providerMetadata } : {})
-        })
+          providerExecuted: true
+        }
+        if (request.providerMetadata) chunk.providerMetadata = request.providerMetadata
+        this.deliverRuntimeChunk(entry, chunk)
+      }
       const contextId = this.currentConnection(entry)?.contextId
       if (turn) {
         const projection = turn.projection ?? (contextId ? this.rootProjection(entry, contextId) : undefined)
         if (projection) {
           turn.projection = projection
-          projection.control(turn.assistantMessageId, {
+          const chunk: Extract<UIMessageChunk, { type: 'tool-input-available' }> = {
             type: 'tool-input-available',
             toolCallId: request.toolCallId,
             toolName: request.toolName,
             input: request.input,
             providerExecuted: true,
-            dynamic: true,
-            ...(request.providerMetadata ? { providerMetadata: request.providerMetadata } : {})
-          })
+            dynamic: true
+          }
+          if (request.providerMetadata) chunk.providerMetadata = request.providerMetadata
+          projection.control(turn.assistantMessageId, chunk)
         }
       }
       const chunk: UIMessageChunk = {
@@ -2990,14 +2996,14 @@ export class AgentSessionRuntimeService extends BaseService {
     // The requesting agent outlived its parent turn. Persist a settled assistant row containing the
     // pending interaction instead of reopening a streaming turn: user follow-ups remain admissible,
     // and several subagents can wait independently without overwriting one shared live message.
-    const part = {
+    const part: Extract<CherryMessagePart, { state: 'approval-requested' }> = {
       type: `tool-${request.toolName}`,
       toolCallId: request.toolCallId,
       state: 'approval-requested',
       input: request.input,
-      approval: { id: request.approvalId },
-      ...(request.providerMetadata ? { callProviderMetadata: request.providerMetadata } : {})
-    } as CherryMessagePart
+      approval: { id: request.approvalId }
+    }
+    if (request.providerMetadata) part.callProviderMetadata = request.providerMetadata
 
     try {
       agentSessionMessageService.saveMessage(
@@ -3361,19 +3367,23 @@ export class AgentSessionRuntimeService extends BaseService {
           messages
         })
       this.applyRuntimeStateEvent(entry, { type: 'turn-stream-attaching', turn })
-      application.get('AiStreamManager').startRuntimeTurn({
+      const streamManager = application.get('AiStreamManager')
+      const request: Omit<AiStreamRequest, 'runtime'> = {
+        conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
+        trigger: 'submit-message',
+        messageId: turn.assistantMessageId,
+        messages,
+        reasoningEffort: turn.reasoningEffort,
+        serviceTier: turn.serviceTier
+      }
+      if (turn.fastMode) request.fastMode = true
+      streamManager.startRuntimeTurn({
         taskIds: turn.taskIds,
         topicId: entry.topicId,
         modelId: turn.modelId,
         rootSpan,
         request: {
-          conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
-          trigger: 'submit-message',
-          messageId: turn.assistantMessageId,
-          messages,
-          reasoningEffort: turn.reasoningEffort,
-          serviceTier: turn.serviceTier,
-          ...(turn.fastMode ? { fastMode: true } : {}),
+          ...request,
           runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId: turn.turnId }
         },
         abortController: turn.abortController,
