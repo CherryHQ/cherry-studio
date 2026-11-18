@@ -80,5 +80,13 @@ export const miniAppHandlers: IpcHandlersFor<typeof miniAppRequestSchemas> = {
   'mini_app.update.check': async ({ appId }) => checkForUpdate(appId),
   'mini_app.update.check_on_open': async ({ appId }) => checkUpdateOnOpen(appId),
   'mini_app.update.apply': async (input) => applyUpdate(input.appId, input),
-  'mini_app.update.rollback': async ({ appId }) => rollbackUpdate(appId)
+  'mini_app.update.rollback': async ({ appId }) => rollbackUpdate(appId),
+  // Agent-authored previews (stage 2, issue #21646): reads and closes only. Opening
+  // goes through the `mini_app` tool, the one path that can prove an artifact token.
+  'mini_app.authoring.list': ({ sessionId }) => application.get('MiniAppPreviewService').listSessionPreviews(sessionId),
+  'mini_app.authoring.close': async ({ sessionId, previewId }) => {
+    await application.get('MiniAppPreviewService').closePreview(previewId, sessionId)
+  },
+  'mini_app.authoring.close_session': ({ sessionId }) =>
+    application.get('MiniAppPreviewService').closeSessionPreviews(sessionId)
 }
