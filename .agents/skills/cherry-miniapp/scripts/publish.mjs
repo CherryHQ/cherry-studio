@@ -7,10 +7,12 @@
  *   node scripts/publish.mjs verify <hostedManifestUrl> <appDir> <package.miniapp> [--allow-insecure-localhost]
  *
  * `manifest` builds the HOSTED distribution manifest: the packaged manifest
- * (which must not contain a `package` block) plus `package.url`,
- * `package.sha256` and `package.size` taken from the final tested package
- * bytes on disk — never from a re-package after the fact. The package URL
- * follows the immutable path convention
+ * (which must not contain a `package` block and MUST already carry the
+ * `update` endpoint — the installer compares the archived endpoint against
+ * the hosted one, so it is established BEFORE final packaging) plus
+ * `package.url`, `package.sha256` and `package.size` taken from the final
+ * tested package bytes on disk — never from a re-package after the fact.
+ * The package URL follows the immutable path convention
  * `<baseUrl>/apps/<id>/<version>/<id>-<version>.miniapp`; a released path is
  * never overwritten, so a new version always lands at a new path.
  *
@@ -133,13 +135,39 @@ export async function buildDistributionManifest(appDir, packageFile, baseUrl) {
   const { manifest, packageBytes } = await expectedManifest(appDir, packageFile)
   const base = baseUrl.replace(/\/+$/, '')
   if (!base.startsWith('https://')) throw new Error(`baseUrl must be an https:// origin: ${baseUrl}`)
+  // REQUIRED by the hosted contract (MiniAppDistributionManifestSchema): without an
+  // update endpoint a served manifest has nowhere to be checked against. The pointer
+  // is the one mutable path in the layout — it always serves the LATEST manifest,
+  // while package paths stay immutable per version. The endpoint must come from the
+  // ARCHIVE, not from here: the installer's reviewed-vs-packaged assertion compares
+  // both update endpoints, so a value added only outside the archive produces a
+  // publish that verifies yet refuses to install. Establish it before final
+  // packaging; this preserves the archived value and refuses its absence.
+  const expectedUpdateUrl = `${base}/${hostedManifestPath(manifest.id)}`
+  const archivedUpdate = manifest.update
+  if (!archivedUpdate || typeof archivedUpdate.url !== 'string') {
+    throw new Error(
+      'manifest.json inside the package: missing update.url. The installer compares the ' +
+        'archived update endpoint against the hosted one, so the endpoint is established ' +
+        `BEFORE final packaging: set "update": { "url": "${expectedUpdateUrl}" } in the source ` +
+        'manifest and rebuild the package.'
+    )
+  }
+  let archivedUpdateOrigin
+  try {
+    archivedUpdateOrigin = new URL(archivedUpdate.url).origin
+  } catch {
+    throw new Error(`manifest.json inside the package: update.url is not a valid URL: ${archivedUpdate.url}`)
+  }
+  if (archivedUpdateOrigin !== new URL(base).origin) {
+    throw new Error(
+      `manifest.json inside the package: update.url (${archivedUpdate.url}) leaves the publishing ` +
+        `origin (${new URL(base).origin}); an installed app pins its update checks to the origin it was installed from.`
+    )
+  }
   return {
     ...manifest,
-    // REQUIRED by the hosted contract (MiniAppDistributionManifestSchema): without an
-    // update endpoint a served manifest has nowhere to be checked against. The pointer
-    // is the one mutable path in the layout — it always serves the LATEST manifest,
-    // while package paths stay immutable per version.
-    update: { url: `${base}/${hostedManifestPath(manifest.id)}` },
+    update: archivedUpdate,
     package: {
       url: `${base}/${hostedPackagePath(manifest.id, manifest.version)}`,
       // Served next to the package at its immutable versioned path, so the consent
@@ -204,6 +232,21 @@ export async function verifyPublished(hostedManifestUrl, appDir, packageFile, { 
   // is rejected by the hosted schema.
   if ((update.urlCn === undefined) !== (hostedManifest.package?.urlCn === undefined)) {
     throw new Error('hosted manifest: update.urlCn and package.urlCn must be declared together')
+  }
+  // Divergence gate: the installer's reviewed-vs-packaged assertion compares BOTH
+  // update endpoints, so a hosted block that drifts from the archived one verifies
+  // here yet refuses to install. Reject the divergence at the gate instead.
+  if (update.url !== expected.update?.url) {
+    throw new Error(
+      `hosted update.url (${update.url}) diverges from the tested package's archived endpoint ` +
+        `(${expected.update?.url ?? 'none'}); establish the endpoint before final packaging and republish`
+    )
+  }
+  if ((update.urlCn ?? undefined) !== (expected.update?.urlCn ?? undefined)) {
+    throw new Error(
+      "hosted update.urlCn diverges from the tested package's archived endpoint; " +
+        'establish the endpoint before final packaging and republish'
+    )
   }
 
   const pkg = hostedManifest.package

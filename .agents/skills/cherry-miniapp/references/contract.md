@@ -17,7 +17,7 @@ The authoritative sources live in the repository; this file is the authoring sum
 | `icon` | Optional `{ path, sha256 }` — both or neither; the digest must match the file bytes. Max 5 MB. |
 | `permissions` / `optionalPermissions` | Known leaves (`ai.chat`, `storage.get/set/delete/keys`, `file.save/load/list/delete/export`, `notification.show`, `clipboard.read/write`, `network.fetch`) or namespace wildcards (`storage.*`). Max 32 each; a leaf may not be both required and optional. |
 | `network` | Bare hostnames (no scheme, path, or trailing numeric label), unique, max 20. Hosts and a `network.*` permission must be declared together — either alone is an authoring error. |
-| `update` | Optional `{ url, urlCn? }` HTTPS endpoints serving the distribution manifest. Ignored for file installs. |
+| `update` | Optional `{ url, urlCn? }` HTTPS endpoints serving the distribution manifest. Ignored for file installs; REQUIRED in the archive for a URL publish — the installer compares the archived endpoint against the hosted one, so it is established before final packaging (see publishing.md). |
 
 ## Package limits
 
