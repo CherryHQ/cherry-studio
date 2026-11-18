@@ -51,13 +51,10 @@ export async function startV1Parse(
     fileId = completed.file.id
   }
 
+  const input = { source: { type: 'file_id', file_id: fileId } }
+  if (file.ext?.toLowerCase() === 'pdf') Object.assign(input, { page_range: 'all' })
   const job = await requestJson(connection, '/v1/parse/jobs', V1JobSchema, signal, {
-    files: [
-      {
-        source: { type: 'file_id', file_id: fileId },
-        ...(file.ext?.toLowerCase() === 'pdf' ? { page_range: 'all' } : {})
-      }
-    ],
+    files: [input],
     output_formats: ['markdown']
   })
   return job.job_id

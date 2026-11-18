@@ -201,14 +201,12 @@ export async function handleParseStage(
     queryContext.mergeCrossPageForms !== true &&
     pages.some((page) => (page.layout?.blocks.length ?? 0) > 0)
 
+  const remoteContext: Doc2xQueryContext = { ...queryContext, stage: 'exporting' }
+  if (hasStructuredLayout) remoteContext.markdownContent = buildDoc2xMarkdown(pages)
   return {
     status: 'processing',
     progress: 99,
-    remoteContext: {
-      ...queryContext,
-      stage: 'exporting',
-      ...(hasStructuredLayout ? { markdownContent: buildDoc2xMarkdown(pages) } : {})
-    }
+    remoteContext
   }
 }
 

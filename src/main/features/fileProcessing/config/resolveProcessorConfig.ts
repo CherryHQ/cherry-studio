@@ -34,15 +34,14 @@ export function getFileProcessorConfigById(processorId: FileProcessorId): FilePr
     capabilities: processor.capabilities.map((capability) => {
       const capabilityOverride = override?.capabilities?.[capability.feature]
 
-      return {
-        ...capability,
-        ...(capabilityOverride?.apiHost !== undefined ? { apiHost: capabilityOverride.apiHost } : {}),
-        ...(capabilityOverride?.modelId !== undefined ? { modelId: capabilityOverride.modelId } : {}),
-        ...(capabilityOverride?.formulaLevel !== undefined ? { formulaLevel: capabilityOverride.formulaLevel } : {}),
-        ...(capabilityOverride?.mergeCrossPageForms !== undefined
-          ? { mergeCrossPageForms: capabilityOverride.mergeCrossPageForms }
-          : {})
-      }
+      const merged = { ...capability }
+      if (capabilityOverride?.apiHost !== undefined) Object.assign(merged, { apiHost: capabilityOverride.apiHost })
+      if (capabilityOverride?.modelId !== undefined) Object.assign(merged, { modelId: capabilityOverride.modelId })
+      if (capabilityOverride?.formulaLevel !== undefined)
+        Object.assign(merged, { formulaLevel: capabilityOverride.formulaLevel })
+      if (capabilityOverride?.mergeCrossPageForms !== undefined)
+        Object.assign(merged, { mergeCrossPageForms: capabilityOverride.mergeCrossPageForms })
+      return merged
     }),
     apiKeys: override?.apiKeys,
     options: override?.options
