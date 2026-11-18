@@ -134,7 +134,7 @@ describe('pairing-time capability authorization', () => {
     expect(await request(other, 'connection.authenticate', { deviceId: device.id })).toMatchObject({
       error: { data: { reason: 'UNAUTHENTICATED' } }
     })
-    const output = connection.send({ confidential: true })
+    const output = connection.send({ jsonrpc: '2.0', id: 'confidential', result: { confidential: true } })
     apiGatewayPairedDeviceService.revokeRemoteCapability(device.id, 'configuration')
     await expect(output).rejects.toThrow('Device authorization changed')
   })
