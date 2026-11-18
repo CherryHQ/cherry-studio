@@ -26,9 +26,9 @@ export function createChatStreamLifecycle(
         const entry: ActiveExecution = {
           executionId: modelId,
           attemptId: exec.attemptId,
-          anchorMessageId: exec.anchorMessageId,
-          ...(exec.seedFromEmpty ? { seedFromEmpty: true } : {})
+          anchorMessageId: exec.anchorMessageId
         }
+        if (exec.seedFromEmpty) entry.seedFromEmpty = true
         if (exec.status === 'streaming') activeExecutions.push(entry)
         // Main-side authoritative approval-anchor identity; renderer reads this
         // instead of inferring from `parts` / SWR-lagged status.
@@ -87,12 +87,14 @@ export function createChatStreamLifecycle(
               .trim()
           )
           .find((text) => text)
-        onConversationCompleted({
+        const identity: Omit<ConversationCompletedEvent, 'completedAt' | 'responseText'> = {
           topicId: stream.topicId,
-          turnId: stream.turnId,
-          ...(stream.completedTaskCount && stream.completedTaskCount > 1
-            ? { completedTaskCount: stream.completedTaskCount }
-            : {}),
+          turnId: stream.turnId
+        }
+        if (stream.completedTaskCount && stream.completedTaskCount > 1)
+          identity.completedTaskCount = stream.completedTaskCount
+        onConversationCompleted({
+          ...identity,
           completedAt,
           responseText
         })
