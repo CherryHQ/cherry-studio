@@ -83,6 +83,29 @@ describe('Pi message display metadata', () => {
     expect(output(PI_TOOL_CALL_TOOL_NAME, { content: rich }).output).toEqual(rich)
   })
 
+  it('preserves own reserved keys and JSON numeric results in MCP text', () => {
+    const text = '{"__proto__":{"label":"retained"},"constructor":"own constructor","value":1e400}'
+    const projected = output(PI_TOOL_CALL_TOOL_NAME, { content: [{ type: 'text', text }] }).output
+
+    expect(Object.getOwnPropertyDescriptor(projected, '__proto__')).toMatchObject({ value: { label: 'retained' } })
+    expect(Object.getOwnPropertyDescriptor(projected, 'constructor')).toMatchObject({ value: 'own constructor' })
+    expect(projected).toHaveProperty('value', Infinity)
+  })
+
+  it('keeps valid deeply nested JSON decoded', () => {
+    const depth = 4000
+    const text = `${'['.repeat(depth)}0${']'.repeat(depth)}`
+    let value = output(PI_TOOL_CALL_TOOL_NAME, { content: [{ type: 'text', text }] }).output
+    let levels = 0
+    while (Array.isArray(value)) {
+      levels += 1
+      value = value[0]
+    }
+
+    expect(levels).toBe(depth)
+    expect(value).toBe(0)
+  })
+
   it('retains tool failures and the native error payload', () => {
     const message: CherryUIMessage = {
       id: 'native',

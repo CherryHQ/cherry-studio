@@ -68,7 +68,7 @@ const NULL_CONTAINER = null
  * const outputStream = adapter.transform(aiSdkStream)
  * ```
  */
-export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent> {
+export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent, Message> {
   private readonly toClientToolName?: (toolName: string) => string
   /** Cache-write tokens are Anthropic-dialect reporting, not shared adapter state. */
   private cacheWriteTokens?: number

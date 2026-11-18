@@ -5,8 +5,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
+import type { ReasoningDetailUnion } from '../../openrouter'
+import type { IReasoningCache } from '../../reasoningCache'
 import { appendInternalAgentContinuation } from '../../utils/agentContinuation'
-import { AnthropicMessageConverter, type ReasoningCache } from '../converters/AnthropicMessageConverter'
+import { AnthropicMessageConverter } from '../converters/AnthropicMessageConverter'
 
 const converter = new AnthropicMessageConverter()
 
@@ -300,7 +302,7 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
   it.each(['gemini:models/gemini-flash-latest', 'cherryin:gemini-flash-latest', 'gemini:gemini-3-pro-preview'])(
     'restores the cached thought signature for %s',
     (model) => {
-      const googleReasoningCache: ReasoningCache = { get: vi.fn(() => 'sig-abc'), set: vi.fn() }
+      const googleReasoningCache: IReasoningCache<string> = { get: vi.fn(() => 'sig-abc'), set: vi.fn() }
       const c = new AnthropicMessageConverter({ googleReasoningCache })
       const msgs = c.toUIMessages(
         params({
@@ -318,7 +320,7 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
   )
 
   it('leaves the google thought signature off a non-Gemini target', () => {
-    const googleReasoningCache: ReasoningCache = { get: vi.fn(() => 'sig-abc'), set: vi.fn() }
+    const googleReasoningCache: IReasoningCache<string> = { get: vi.fn(() => 'sig-abc'), set: vi.fn() }
     const c = new AnthropicMessageConverter({ googleReasoningCache })
     const msgs = c.toUIMessages(
       params({
@@ -332,8 +334,11 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
   })
 
   it('reconstructs OpenRouter reasoning_details onto the tool call from the cache', () => {
-    const details = [{ type: 'reasoning.text', text: 'because' }]
-    const openRouterReasoningCache: ReasoningCache = { get: vi.fn(() => details), set: vi.fn() }
+    const details: ReasoningDetailUnion[] = [{ type: 'reasoning.text', text: 'because' }]
+    const openRouterReasoningCache: IReasoningCache<ReasoningDetailUnion[]> = {
+      get: vi.fn(() => details),
+      set: vi.fn()
+    }
     const c = new AnthropicMessageConverter({ openRouterReasoningCache })
     const msgs = c.toUIMessages(
       params({

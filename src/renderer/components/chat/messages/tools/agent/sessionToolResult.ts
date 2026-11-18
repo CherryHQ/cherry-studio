@@ -72,21 +72,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function parseJsonResult(value: unknown): unknown {
-  if (isRecord(value) && Array.isArray(value.content)) {
-    const text = value.content
-      .map((item) => (isRecord(item) && typeof item.text === 'string' ? item.text : ''))
-      .filter(Boolean)
-      .join('\n')
-    try {
-      return JSON.parse(text)
-    } catch {
-      return undefined
-    }
-  }
-  if (typeof value !== 'string') return value
+function parseJsonResult(value: unknown): Record<string, unknown> | undefined {
+  const text =
+    isRecord(value) && Array.isArray(value.content)
+      ? value.content
+          .map((item) => (isRecord(item) && typeof item.text === 'string' ? item.text : ''))
+          .filter(Boolean)
+          .join('\n')
+      : typeof value === 'string'
+        ? value
+        : undefined
+  if (text === undefined) return isRecord(value) ? value : undefined
   try {
-    return JSON.parse(value)
+    const parsed: unknown = JSON.parse(text)
+    return isRecord(parsed) ? parsed : undefined
   } catch {
     return undefined
   }
@@ -94,7 +93,7 @@ function parseJsonResult(value: unknown): unknown {
 
 export function parseSessionCreateResult(value: unknown): SessionCreateResult | undefined {
   const candidate = parseJsonResult(value)
-  if (!isRecord(candidate) || candidate.ok !== true || typeof candidate.sessionId !== 'string') return undefined
+  if (!candidate || candidate.ok !== true || typeof candidate.sessionId !== 'string') return undefined
   const delivery = isRecord(candidate.delivery) ? candidate.delivery : undefined
   const sender = delivery && isRecord(delivery.sender) ? delivery.sender : undefined
   const receiver = delivery && isRecord(delivery.receiver) ? delivery.receiver : undefined
@@ -135,7 +134,7 @@ export function getSessionCreateTargetAgentName(result: SessionCreateResult | un
 
 export function parseSessionSendResult(value: unknown): SessionSendResult | undefined {
   const candidate = parseJsonResult(value)
-  if (!isRecord(candidate) || candidate.ok !== true) return undefined
+  if (!candidate || candidate.ok !== true) return undefined
 
   const delivery = isRecord(candidate.delivery) ? candidate.delivery : undefined
   const receiver = delivery && isRecord(delivery.receiver) ? delivery.receiver : undefined
@@ -172,7 +171,7 @@ export interface SessionSearchResultSession {
 
 export function parseSessionSearchResult(value: unknown): SessionSearchResultSession[] {
   const candidate = parseJsonResult(value)
-  if (!isRecord(candidate) || !Array.isArray(candidate.sessions)) return []
+  if (!candidate || !Array.isArray(candidate.sessions)) return []
 
   return candidate.sessions.filter(
     (session): session is SessionSearchResultSession =>
@@ -190,7 +189,7 @@ export interface SessionReadResult {
 
 export function parseSessionReadResult(value: unknown): SessionReadResult | undefined {
   const candidate = parseJsonResult(value)
-  if (!isRecord(candidate) || typeof candidate.sessionId !== 'string') return undefined
+  if (!candidate || typeof candidate.sessionId !== 'string') return undefined
   // Temporary conversations are ephemeral and have no addressable surface to open.
   if (candidate.source !== 'agent' && candidate.source !== 'topic') return undefined
   return { conversationType: candidate.source === 'topic' ? 'assistant' : 'agent', sessionId: candidate.sessionId }

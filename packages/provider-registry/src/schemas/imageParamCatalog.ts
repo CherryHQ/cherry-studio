@@ -20,7 +20,7 @@
  */
 import * as z from 'zod'
 
-import type { CanonicalParamKey } from './enums'
+import { CANONICAL_PARAM_KEY, type CanonicalParamKey } from './enums'
 
 export interface ImageParamCatalogEntry<S extends z.ZodTypeAny = z.ZodTypeAny> {
   /** SINGLE source of truth for the param's value type. Always optional. */
@@ -36,7 +36,7 @@ export interface ImageParamCatalogEntry<S extends z.ZodTypeAny = z.ZodTypeAny> {
  * Other JavaScript-coercible values (booleans and arrays) stay invalid instead
  * of silently becoming `0`, `1`, or another number at submission time.
  */
-export function normalizeImageParamNumber(value: unknown): unknown {
+export function normalizeImageParamNumber<T>(value: T): T | number | undefined {
   if (value == null) return undefined
   if (typeof value === 'number') return value
   if (typeof value !== 'string') return value
@@ -106,10 +106,13 @@ export const IMAGE_PARAM_CATALOG = {
   upscaleFactor: { schema: optNumber }
 } as const satisfies Record<CanonicalParamKey, ImageParamCatalogEntry>
 
+const canonicalParamKeySchema = z.enum(CANONICAL_PARAM_KEY)
+
 /** Parse one dynamic form value through its canonical catalog schema. */
-export function parseImageParamValue(key: string, value: unknown): unknown {
-  const entry = (IMAGE_PARAM_CATALOG as Record<string, ImageParamCatalogEntry>)[key]
-  if (!entry) return undefined
+export function parseImageParamValue(key: string, value: unknown): ParamValue<CanonicalParamKey> {
+  const parsedKey = canonicalParamKeySchema.safeParse(key)
+  if (!parsedKey.success) return undefined
+  const entry = IMAGE_PARAM_CATALOG[parsedKey.data]
   const parsed = entry.schema.safeParse(value)
   return parsed.success ? parsed.data : undefined
 }

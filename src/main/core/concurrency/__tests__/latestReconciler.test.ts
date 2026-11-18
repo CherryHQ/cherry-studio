@@ -299,6 +299,52 @@ describe('createLatestReconciler', () => {
     expect(mockMainLoggerService.error).toHaveBeenCalled()
   })
 
+  it.each(['snapshot', 'apply'] as const)(
+    'normalizes a non-Error %s failure without losing its cause',
+    async (stage) => {
+      const failure = 'transition unavailable'
+      let reported: unknown
+      const reconciler = createLatestReconciler({
+        name: 'test',
+        getSnapshot: () => {
+          if (stage === 'snapshot') throw failure
+          return 1
+        },
+        isSettled: () => false,
+        apply: () => {
+          throw failure
+        },
+        onError: (error) => {
+          reported = error
+        }
+      })
+      reconciler.request()
+      await reconciler.flush()
+      const error = reconciler.getLastError()
+      expect(error).toBeInstanceOf(Error)
+      expect(error?.message).toBe(failure)
+      expect(error?.cause).toBe(failure)
+      expect(reported).toBe(failure)
+    }
+  )
+
+  it('normalizes an error value that cannot be coerced to text', async () => {
+    const failure: unknown = Object.create(null)
+    const reconciler = createLatestReconciler({
+      name: 'test',
+      getSnapshot: () => 1,
+      isSettled: () => false,
+      apply: () => {
+        throw failure
+      },
+      onError: () => {}
+    })
+    reconciler.request()
+    await expect(reconciler.flush()).resolves.toBeUndefined()
+    expect(reconciler.getLastError()).toBeInstanceOf(Error)
+    expect(reconciler.getLastError()?.cause).toBe(failure)
+  })
+
   it('reports getLastError from getSnapshot failures too', async () => {
     const reconciler = createLatestReconciler<number>({
       name: 'test',
@@ -313,7 +359,7 @@ describe('createLatestReconciler', () => {
     reconciler.request()
     await reconciler.flush()
     expect(reconciler.getLastError()).toBeInstanceOf(Error)
-    expect((reconciler.getLastError() as Error).message).toBe('snapshot boom')
+    expect(reconciler.getLastError()?.message).toBe('snapshot boom')
   })
 
   it('coalesces a request during an async getSnapshot even when the stale snapshot is not settled', async () => {

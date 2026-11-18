@@ -15,7 +15,7 @@ export interface FileEvidenceOptions {
   exactSlides?: number
 }
 
-export async function validateFileEvidence(filePath: string, options: FileEvidenceOptions): Promise<unknown> {
+export async function validateFileEvidence(filePath: string, options: FileEvidenceOptions) {
   const stats = statSync(filePath)
   if (!stats.isFile()) throw new Error(`Evidence path is not a file: ${filePath}`)
   const minimumBytes = options.minimumBytes ?? 1

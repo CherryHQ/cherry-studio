@@ -302,10 +302,9 @@ export function useChatRuntimeState({
   const historyAdapter = useMemo<ConversationHistoryAdapter>(
     () => ({
       seedReservedMessages,
-      refresh,
       rollback: cache.rollbackBranch
     }),
-    [cache.rollbackBranch, refresh, seedReservedMessages]
+    [cache.rollbackBranch, seedReservedMessages]
   )
   const ensureConversation = useCallback(
     async ({ options }: ChatTurnInput) => {

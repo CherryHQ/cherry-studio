@@ -1,9 +1,8 @@
+import fs from 'node:fs'
 /**
  * Reads the failed message a doctor analysis is bound to. Everything returned here is headed for a
  * model prompt, so it is redacted and treated as untrusted text.
  */
-
-import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
@@ -25,6 +24,8 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
 import type { Message } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { DoctorAgentIncident } from '@shared/types/doctorAgent'
+import type { Serializable } from '@shared/types/serializable'
+import { SerializableSchema } from '@shared/utils/serializable'
 
 import { redactForModel } from './doctorWrites'
 
@@ -60,8 +61,8 @@ export function truncateText(text: string, limit: number): string {
 }
 
 /** Redacts secrets, then neutralizes prompt-boundary tricks in every string. */
-export function untrustedForModel(value: unknown): unknown {
-  const walk = (val: unknown): unknown => {
+export function untrustedForModel(value: unknown): Serializable {
+  const walk = (val: Serializable): Serializable => {
     if (typeof val === 'string') return defangSystemReminderTags(sanitizeUntrustedText(val))
     if (Array.isArray(val)) return val.map(walk)
     if (typeof val === 'object' && val !== null) {
@@ -121,19 +122,20 @@ function conversationKind(incident: DoctorAgentIncident): 'agent' | 'temporary' 
   return temporaryChatService.hasTopic(incident.topicId) ? 'temporary' : 'topic'
 }
 
-function compactPart(part: Parameters<typeof conversationPartEvidence>[0]): unknown {
+function compactPart(part: Parameters<typeof conversationPartEvidence>[0]): Record<string, string | undefined> | null {
   const evidence = conversationPartEvidence(part)
   if (!evidence) return null
   return Object.fromEntries(
-    Object.entries(evidence).map(([key, value]) => {
-      if (value === undefined || key === 'type' || key === 'state' || key === 'toolName') return [key, value]
+    Object.entries(evidence).map(([key, value]): [string, string | undefined] => {
+      if (key === 'type' || key === 'state' || key === 'toolName') return [key, evidence[key]]
+      if (value === undefined) return [key, undefined]
       const text = typeof value === 'string' ? value : JSON.stringify(value)
       return [key, truncateText(text, PART_TEXT_LIMIT)]
     })
   )
 }
 
-function compactMessage(message: IncidentMessage): unknown {
+function compactMessage(message: IncidentMessage) {
   return {
     id: message.id,
     role: message.role,
@@ -145,7 +147,7 @@ function compactMessage(message: IncidentMessage): unknown {
 }
 
 /** Where the failed message lives, which Agent or assistant produced it, and its errors. */
-export function incidentOverview(incident: DoctorAgentIncident): unknown {
+export function incidentOverview(incident: DoctorAgentIncident): Serializable {
   const kind = conversationKind(incident)
   const conversationId = conversationIdOf(incident.topicId)
   const message = readIncidentMessage(incident)
@@ -195,7 +197,7 @@ function precedingMessages(incident: DoctorAgentIncident, count: number): Incide
 }
 
 /** The failed message and the `before` messages leading up to it, oldest first. */
-export function incidentMessages(incident: DoctorAgentIncident, before: number): unknown {
+export function incidentMessages(incident: DoctorAgentIncident, before: number): Serializable {
   let messages: unknown[]
   try {
     messages = precedingMessages(incident, before).map(compactMessage)
@@ -206,7 +208,7 @@ export function incidentMessages(incident: DoctorAgentIncident, before: number):
   return untrustedForModel({ messages, ...(messages.length === 0 ? { missing: true } : {}) })
 }
 
-function truncateStrings(value: unknown): unknown {
+function truncateStrings(value: Serializable): Serializable {
   if (typeof value === 'string') return truncateText(value, LOG_LINE_LIMIT)
   if (Array.isArray(value)) return value.map(truncateStrings)
   if (typeof value === 'object' && value !== null) {
@@ -219,7 +221,7 @@ function truncateStrings(value: unknown): unknown {
  * App log entries (oldest first) that name this conversation, from the most recent log files. Entries stay
  * parsed: text redaction on a raw JSON line treats a leading `agentSessionId` key as a secret and eats the line.
  */
-export function incidentLogs(incident: DoctorAgentIncident, limit: number): unknown {
+export function incidentLogs(incident: DoctorAgentIncident, limit: number): Serializable {
   const ids = new Set([incident.topicId, conversationIdOf(incident.topicId)])
   const logsDir = application.getPath('app.logs')
   const files = fs.existsSync(logsDir)
@@ -230,19 +232,25 @@ export function incidentLogs(incident: DoctorAgentIncident, limit: number): unkn
         .sort((a, b) => b.mtime - a.mtime)
         .slice(0, LOG_FILES_SCANNED)
     : []
-  const matches: Record<string, unknown>[] = []
+  const matches: Record<string, Serializable>[] = []
   for (const file of files) {
     for (const line of fs.readFileSync(path.join(logsDir, file.name), 'utf-8').split('\n')) {
       if (!line.startsWith('{')) continue
-      let entry: Record<string, unknown>
+      let entry: Serializable
       try {
-        entry = JSON.parse(line)
+        entry = SerializableSchema.parse(JSON.parse(line))
       } catch {
         continue
       }
+      if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) continue
       if (![entry.topicId, entry.sessionId, entry.agentSessionId].some((id) => typeof id === 'string' && ids.has(id)))
         continue
-      matches.push({ file: file.name, ...(truncateStrings(entry) as Record<string, unknown>) })
+      matches.push({
+        file: file.name,
+        ...Object.fromEntries(
+          Object.entries(entry).map(([key, value]): [string, Serializable] => [key, truncateStrings(value)])
+        )
+      })
     }
   }
   matches.sort((a, b) => String(a.timestamp ?? '').localeCompare(String(b.timestamp ?? '')))
@@ -251,7 +259,7 @@ export function incidentLogs(incident: DoctorAgentIncident, limit: number): unkn
   return untrustedForModel({ count: matches.length, entries })
 }
 
-function requestShape(body: unknown): unknown {
+function requestShape(body: unknown): Record<string, unknown> | undefined {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) return undefined
   const shape: Record<string, unknown> = { keys: Object.keys(body) }
   const params: Record<string, unknown> = {}
@@ -290,7 +298,7 @@ function originOf(url: unknown): string | undefined {
 }
 
 /** Where the request went (now and at error time) and what it asked for, without any conversation text. */
-export function incidentRequest(incident: DoctorAgentIncident): unknown {
+export function incidentRequest(incident: DoctorAgentIncident): Serializable {
   const message = readIncidentMessage(incident)
   if (!message) return { missing: true }
   let route: { endpointType?: string; baseUrl?: string; optionsNamespace?: string; providerId: string } | undefined
@@ -325,7 +333,7 @@ export function incidentRequest(incident: DoctorAgentIncident): unknown {
 }
 
 /** The Agent runtime's own transcript around the failure: API errors, retries, failing tools, hook errors. */
-export async function incidentTranscript(incident: DoctorAgentIncident, maxEntries: number): Promise<unknown> {
+export async function incidentTranscript(incident: DoctorAgentIncident, maxEntries: number): Promise<Serializable> {
   if (conversationKind(incident) !== 'agent') return { unavailable: 'only Agent sessions keep a runtime transcript' }
   const sessionId = conversationIdOf(incident.topicId)
   const session = agentSessionService.getById(sessionId)

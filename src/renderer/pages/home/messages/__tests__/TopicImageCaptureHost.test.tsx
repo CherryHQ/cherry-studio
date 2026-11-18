@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as MessageEditingModule from '@renderer/components/chat/editing/MessageEditingContext'
 import type { MessageListProviderValue } from '@renderer/components/chat/messages/types'
 import type { Message as SharedMessage } from '@shared/data/types/message'
 
@@ -30,9 +31,9 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 }))
 
 vi.mock('../homeMessageListAdapter', async () => {
-  const { useMessageEditing } = (await vi.importActual('@renderer/components/chat/editing/MessageEditingContext')) as {
-    useMessageEditing: () => unknown
-  }
+  const { useMessageEditing } = await vi.importActual<typeof MessageEditingModule>(
+    '@renderer/components/chat/editing/MessageEditingContext'
+  )
 
   return {
     useHomeMessageListProviderValue: vi.fn(() => {

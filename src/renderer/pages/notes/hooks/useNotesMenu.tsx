@@ -88,7 +88,7 @@ export const useNotesMenu = ({
   )
 
   const runExport = useCallback(
-    async (fn: () => Promise<unknown>) => {
+    async <TResult,>(fn: () => Promise<TResult>) => {
       try {
         await fn()
       } catch (error) {

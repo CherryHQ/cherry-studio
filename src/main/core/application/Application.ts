@@ -883,7 +883,7 @@ export const application: Application = new Proxy({} as Application, {
     const instance = Application.getInstance()
     const value = instance[prop]
     if (typeof value === 'function') {
-      return (value as (...args: unknown[]) => unknown).bind(instance)
+      return value.bind(instance)
     }
     return value
   }

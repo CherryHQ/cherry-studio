@@ -58,7 +58,7 @@ type TFunction = (key: string) => string
 type MenuPresentationModeChangeOptions = {
   currentMode: MenuPresentationMode
   mode: MenuPresentationMode
-  setMenuPresentationMode: (mode: MenuPresentationMode) => Promise<unknown> | unknown
+  setMenuPresentationMode: (mode: MenuPresentationMode) => Promise<void> | void
   setTimeoutTimer: (key: string, callback: () => void, delay: number) => void
   t: TFunction
 }
@@ -622,7 +622,7 @@ const ThemePreviewSelector = ({
 }: {
   value: ThemeMode
   options: ThemePreviewOption[]
-  onChange: (value: ThemeMode) => unknown
+  onChange: (value: ThemeMode) => Promise<void> | void
 }) => (
   <div className="grid w-full grid-cols-3 gap-2">
     {options.map((option) => {

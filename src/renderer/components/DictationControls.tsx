@@ -41,7 +41,7 @@ export function DictationControls({
   const snapshot = useSyncExternalStore(dictationService.subscribe, dictationService.getSnapshot)
   const target = useSyncExternalStore(voiceTargetManager.subscribe, voiceTargetManager.getSnapshot)
   const capturing = ['starting', 'recording', 'stopping', 'transcribing'].includes(snapshot.phase)
-  const run = (action: () => Promise<unknown>) => {
+  const run = <TResult,>(action: () => Promise<TResult>) => {
     void action()
       .catch(() => undefined)
       .finally(focusInput)

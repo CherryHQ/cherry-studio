@@ -71,7 +71,7 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
     void requestRestart().catch((error) => logger.error('Could not restart after relocation', { error }))
   }
 
-  const handleGuarded = (channel: string, handler: () => unknown) => {
+  const handleGuarded = <TResult>(channel: string, handler: () => TResult) => {
     ipcMain.handle(channel, (event: IpcMainInvokeEvent) => {
       if (!validateSender(event, application.getPath('app.root'))) {
         logger.warn('Rejected relocation IPC request from untrusted sender', { channel })

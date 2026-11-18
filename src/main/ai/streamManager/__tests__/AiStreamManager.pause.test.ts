@@ -21,6 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 
+import type { dispatchStreamRequest } from '../context/dispatch'
 import type { ActiveStream, AiStreamManagerConfig, StreamListener } from '../types'
 
 // ── Mocks ───────────────────────────────────────────────────────────
@@ -29,13 +30,7 @@ import type { ActiveStream, AiStreamManagerConfig, StreamListener } from '../typ
 // Deferred so tests control when a grandfathered dispatch settles; `mock.calls`
 // exposes the request (trigger / topicId / userMessageId) for assertions.
 const dispatchResolvers: Array<() => void> = []
-const mockDispatchStreamRequest = vi.fn<
-  (
-    manager: unknown,
-    subscriber: unknown,
-    req: { topicId: string; trigger?: string; userMessageId?: string }
-  ) => Promise<unknown>
->(() => {
+const mockDispatchStreamRequest = vi.fn<typeof dispatchStreamRequest>(() => {
   return new Promise((resolve) => {
     dispatchResolvers.push(() => resolve({ mode: 'started' }))
   })
@@ -304,7 +299,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
         // Model AgentChatContextProvider.prepareDispatch(): the gate has admitted this dispatch,
         // but validateSession has not yet allowed it to persist rows or call manager.send().
         await validateSessionMock()
-        seedFakeStream(manager as ManagerInstance, 'agent-session:s1', {
+        seedFakeStream(manager, 'agent-session:s1', {
           listenerKey: 'persistence:agents-db',
           loopPromise: streamLoop.promise
         })

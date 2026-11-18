@@ -168,7 +168,7 @@ afterEach(async () => {
   }
 })
 
-async function expectPendingIdentity(action: () => Promise<unknown>) {
+async function expectPendingIdentity<TResult>(action: () => Promise<TResult>) {
   let heartbeat = false
   await withinBudget(async () => {
     await action()

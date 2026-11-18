@@ -41,6 +41,7 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import type { InputFor, WindowId } from '@shared/ipc/types'
 import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
+import type { Serializable } from '@shared/types/serializable'
 import type { BuiltinMcpServerName } from '@shared/utils/mcp'
 import { isSensitiveKey, REDACTED, redactSecretText } from '@shared/utils/redaction'
 import { safeSerialize } from '@shared/utils/serialize'
@@ -162,18 +163,20 @@ type McpToolListChangedEvent = {
   tools: Tool[]
 }
 
-export function redactSensitive(input: unknown): unknown {
+export function redactSensitive(input: unknown): Serializable {
   const maxStringLength = 300
 
-  const redact = (value: unknown, seen: WeakSet<object>): unknown => {
-    if (value == null) return value
+  const redact = (value: unknown, seen: WeakSet<object>): Serializable => {
+    if (value == null) return null
     if (typeof value === 'string') {
       const text = redactSecretText(value)
       return text.length > maxStringLength
         ? `${text.slice(0, maxStringLength)}…<${text.length - maxStringLength} more>`
         : text
     }
-    if (typeof value !== 'object') return value
+    if (typeof value === 'boolean') return value
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null
+    if (typeof value !== 'object') return REDACTED
     if (seen.has(value)) return '[Circular]'
     seen.add(value)
     if (Array.isArray(value)) return value.map((item) => redact(item, seen))

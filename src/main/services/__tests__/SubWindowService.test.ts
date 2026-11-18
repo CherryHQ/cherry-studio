@@ -20,7 +20,7 @@ const {
       () => 'mock-window-id'
     ),
     close: vi.fn<(id: string) => boolean>(() => true),
-    getWindow: vi.fn<(id: string) => unknown>(() => undefined),
+    getWindow: vi.fn<(id: string) => MockBrowserWindow | undefined>(() => undefined),
     getWindowType: vi.fn<(id: string) => string | undefined>(() => undefined),
     getWindowsByType: vi.fn<(type: string) => unknown[]>(() => []),
     getWindowInfosByType: vi.fn<(type: string) => Array<{ id: string }>>(() => []),

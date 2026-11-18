@@ -1,3 +1,4 @@
+import type { DoctorSubjectRef } from '@shared/types/doctor'
 vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () => {
   const selector = await import('@renderer/components/ModelSelector')
   return {
@@ -407,7 +408,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
   it('diagnoses the message model without falling back to the current selection', () => {
     render(<MessageListAdapterHarness topic={createTopic('topic-a')} />)
     const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
-      getDoctorSubject: (message: MessageListItem) => unknown
+      getDoctorSubject: (message: MessageListItem) => DoctorSubjectRef | undefined
     }
     expect(
       options.getDoctorSubject({

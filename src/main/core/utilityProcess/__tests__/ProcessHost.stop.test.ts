@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { STOP_GRACE_MS, STOP_TOTAL_MS } from '../protocol/constants'
 import { isUtilityProcessError, type UtilityProcessError, type UtilityProcessErrorCode } from '../UtilityProcessError'
-import { createHost, echoScript, rejectionOf } from './hostTestUtils'
+import { createHost, echoScript, expectRejected } from './hostTestUtils'
 import { flushMicrotasks, type MemoryChildScript } from './memoryProcessAdapter'
 
 beforeEach(() => vi.useFakeTimers())
@@ -47,7 +47,7 @@ describe('ProcessHost stop', () => {
 
   it('kills a child that ignores shutdown once the grace period elapses', async () => {
     const { host, adapter } = createHost({ script: ignoresShutdown })
-    const orphan = rejectionOf(host.request('ping', undefined))
+    const orphan = expectRejected(host.request('ping', undefined), (error) => expectCode(error, 'PROCESS_EXITED'))
     await flushMicrotasks()
     const child = adapter.spawns[0].child
 
@@ -58,20 +58,20 @@ describe('ProcessHost stop', () => {
 
     await expect(stopping).resolves.toBeUndefined()
     expect(child.killed).toBe(true)
-    expect(expectCode(await orphan, 'PROCESS_EXITED').intentional).toBe(true)
+    expect((await orphan).intentional).toBe(true)
   })
 
   it('fails with PROCESS_STOP_FAILED after the total budget and respawns only after the late exit', async () => {
     const { host, adapter } = createHost({ script: firstThenEcho(stuck) })
-    const orphan = rejectionOf(host.request('ping', undefined))
+    const orphan = expectRejected(host.request('ping', undefined), (error) => expectCode(error, 'PROCESS_STOP_FAILED'))
     await flushMicrotasks()
     const child = adapter.spawns[0].child
 
-    const stopping = rejectionOf(host.stop())
+    const stopping = expectRejected(host.stop(), (error) => expectCode(error, 'PROCESS_STOP_FAILED'))
     await vi.advanceTimersByTimeAsync(STOP_TOTAL_MS)
 
-    expectCode(await stopping, 'PROCESS_STOP_FAILED')
-    expectCode(await orphan, 'PROCESS_STOP_FAILED')
+    await stopping
+    await orphan
 
     const next = host.request('ping', undefined)
     await flushMicrotasks()
@@ -104,7 +104,7 @@ describe('ProcessHost stop', () => {
 
     await host.stop()
 
-    const error = expectCode(await rejectionOf(waiting), 'PROCESS_EXITED')
+    const error = await expectRejected(waiting, (error) => expectCode(error, 'PROCESS_EXITED'))
     expect(error.intentional).toBe(true)
     expect(adapter.spawns[0].child.killed).toBe(true)
     await expect(host.request('ping', undefined)).resolves.toBe('pong')
@@ -112,11 +112,11 @@ describe('ProcessHost stop', () => {
 
   it('stop() before the spawn event ends the generation as an intentional exit without connecting the child', async () => {
     const { host, adapter, logger } = createHost()
-    const waiting = rejectionOf(host.request('ping', undefined))
+    const waiting = expectRejected(host.request('ping', undefined), (error) => expectCode(error, 'PROCESS_EXITED'))
 
     await host.stop()
 
-    const error = expectCode(await waiting, 'PROCESS_EXITED')
+    const error = await waiting
     expect(error.intentional).toBe(true)
     expect(error.failureCount).toBe(0)
     expect(logger.entries.filter((entry) => entry.level === 'error')).toEqual([])
@@ -133,14 +133,14 @@ describe('ProcessHost stop', () => {
       void child.awaitConnect().then(() => setTimeout(() => child.reply({ kind: 'ready' }), 10))
     }
     const { host, logger } = createHost({ script: firstThenEcho(lateReadySlowKill) })
-    const waiting = rejectionOf(host.request('ping', undefined))
+    const waiting = expectRejected(host.request('ping', undefined), (error) => expectCode(error, 'PROCESS_EXITED'))
     await flushMicrotasks()
 
     const stopping = host.stop()
     await vi.advanceTimersByTimeAsync(20)
     await stopping
 
-    const error = expectCode(await waiting, 'PROCESS_EXITED')
+    const error = await waiting
     expect(error.intentional).toBe(true)
     expect(error.failureCount).toBe(0)
     expect(logger.entries.filter((entry) => entry.level === 'error')).toEqual([])
@@ -163,9 +163,9 @@ describe('ProcessHost withStopped', () => {
       await gate
       return 'done'
     })
-    const blocked = rejectionOf(host.request('ping', undefined))
+    const blocked = expectRejected(host.request('ping', undefined), (error) => expectCode(error, 'PROCESS_BLOCKED'))
 
-    expectCode(await blocked, 'PROCESS_BLOCKED')
+    await blocked
     release()
     await expect(maintenance).resolves.toBe('done')
     expect(exitedAtOperation).toBe(true)
@@ -200,13 +200,12 @@ describe('ProcessHost withStopped', () => {
     const { host, adapter } = createHost()
     await host.request('ping', undefined)
 
-    const failure = await rejectionOf(
+    await expectRejected(
       host.withStopped(() => {
         throw new Error('repair failed')
-      })
+      }),
+      (reason) => expect(reason).toMatchObject({ message: 'repair failed' })
     )
-
-    expect((failure as Error).message).toBe('repair failed')
     expect(adapter.spawns).toHaveLength(1)
     expect(adapter.spawns[0].child.exited).toBe(true)
     await expect(host.request('ping', undefined)).resolves.toBe('pong')
@@ -215,18 +214,19 @@ describe('ProcessHost withStopped', () => {
 
   it('skips the operation when the inner stop fails', async () => {
     const { host } = createHost({ script: stuck })
-    void rejectionOf(host.request('ping', undefined))
+    void expectRejected(host.request('ping', undefined))
     await flushMicrotasks()
     let operationCalls = 0
 
-    const maintenance = rejectionOf(
+    const maintenance = expectRejected(
       host.withStopped(() => {
         operationCalls += 1
-      })
+      }),
+      (error) => expectCode(error, 'PROCESS_STOP_FAILED')
     )
     await vi.advanceTimersByTimeAsync(STOP_TOTAL_MS)
 
-    expectCode(await maintenance, 'PROCESS_STOP_FAILED')
+    await maintenance
     expect(operationCalls).toBe(0)
   })
 })

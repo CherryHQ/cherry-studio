@@ -21,7 +21,9 @@ vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: mocks.request }
 }))
 
-function mockGet(handlers: Record<string, () => unknown>) {
+function mockGet<TResponses extends Record<string, unknown>>(handlers: {
+  [Path in keyof TResponses]: () => TResponses[Path]
+}) {
   const prefixes = Object.keys(handlers).sort((a, b) => b.length - a.length)
   vi.mocked(dataApiService.get).mockImplementation(async (path: string) => {
     for (const prefix of prefixes) {

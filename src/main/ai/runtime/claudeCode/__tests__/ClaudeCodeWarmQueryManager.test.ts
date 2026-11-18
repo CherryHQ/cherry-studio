@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import type * as ClaudeAgentSdk from '@anthropic-ai/claude-agent-sdk'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { eq } from 'drizzle-orm'
@@ -587,31 +588,39 @@ describe('ClaudeCodeWarmQueryManager', () => {
   // longer unit-tested here (a thin schema contract; see ipc-usage.md "Testing"). The
   // prewarm/close methods are exercised directly above and below.
 
-  it('drops the live MCP server instance when building the warm-query signature', () => {
-    const fakeInstance = { connect: vi.fn() }
-    // Reference itself so the live instance is circular, matching real SDK objects.
-    ;(fakeInstance as any).self = fakeInstance
-
-    const withInstance = createClaudeCodeWarmQuerySignature({
-      model: 'sonnet',
-      mcpServers: { cherry: { type: 'sdk', name: 'cherry', instance: fakeInstance } }
-    } as any)
-    const withoutInstance = createClaudeCodeWarmQuerySignature({
-      model: 'sonnet',
-      mcpServers: { cherry: { type: 'sdk', name: 'cherry' } }
-    } as any)
-
-    expect(withInstance).toBe(withoutInstance)
-    expect(withInstance).not.toContain('circular')
+  it('drops the live MCP server instance when building the warm-query signature', async () => {
+    const { createSdkMcpServer } = await vi.importActual<typeof ClaudeAgentSdk>('@anthropic-ai/claude-agent-sdk')
+    const first = createSdkMcpServer({ name: 'cherry' })
+    const second = createSdkMcpServer({ name: 'cherry' })
+    const withInstance = createClaudeCodeWarmQuerySignature({ model: 'sonnet', mcpServers: { cherry: first } })
+    expect(withInstance).toBe(createClaudeCodeWarmQuerySignature({ model: 'sonnet', mcpServers: { cherry: second } }))
+    expect(JSON.parse(withInstance).options.mcpServers).toEqual({ cherry: { type: 'sdk', name: 'cherry' } })
   })
 
-  it('still distinguishes signatures by MCP server name and type', () => {
-    const withInstance = (name: string) =>
-      createClaudeCodeWarmQuerySignature({
-        model: 'sonnet',
-        mcpServers: { srv: { type: 'sdk', name, instance: { connect: vi.fn() } } }
-      } as any)
+  it('still distinguishes signatures by MCP server name and type', async () => {
+    const { createSdkMcpServer } = await vi.importActual<typeof ClaudeAgentSdk>('@anthropic-ai/claude-agent-sdk')
+    const signature = (name: string) =>
+      createClaudeCodeWarmQuerySignature({ mcpServers: { srv: createSdkMcpServer({ name }) } })
+    expect(signature('cherry')).not.toBe(signature('assistant'))
+    expect(signature('cherry')).not.toBe(
+      createClaudeCodeWarmQuerySignature({ mcpServers: { srv: { type: 'http', url: 'https://example.com' } } })
+    )
+  })
 
-    expect(withInstance('cherry')).not.toBe(withInstance('assistant'))
+  it('keeps SDK configurations named __proto__ in the connection identity', async () => {
+    const { createSdkMcpServer } = await vi.importActual<typeof ClaudeAgentSdk>('@anthropic-ai/claude-agent-sdk')
+    const signature = (name: string) =>
+      createClaudeCodeWarmQuerySignature({ mcpServers: { ['__proto__']: createSdkMcpServer({ name }) } })
+    expect(signature('cherry')).not.toBe(signature('assistant'))
+    expect(JSON.parse(signature('cherry')).options.mcpServers['__proto__']).toEqual({ type: 'sdk', name: 'cherry' })
+  })
+
+  it('normalizes callbacks and repeated references without traversing them as process configuration', () => {
+    const shared = { VALUE: 'stable' }
+    const signature = createClaudeCodeWarmQuerySignature({ env: shared, extraArgs: shared, stderr: () => {} })
+    expect(JSON.parse(signature).options).toEqual({ env: shared, extraArgs: '[circular]', stderr: '[function]' })
+    expect(createClaudeCodeWarmQuerySignature({ env: { B: '2', A: '1' } })).toBe(
+      createClaudeCodeWarmQuerySignature({ env: { A: '1', B: '2' } })
+    )
   })
 })

@@ -153,6 +153,19 @@ describe('trimOversizedToolOutputs', () => {
       { id: 'cite-1', url: 'https://b.example', title: 'B', content: 'small body' }
     ]
 
+    it('keeps trimming when optional entity fields are undefined and persists their JSON omission', async () => {
+      registryGetAllMock.mockReturnValue([{ name: 'run_cmd', codec }])
+      const items = [{ id: 'cite-0', content: BIG, unset: undefined }]
+      const [trimmed] = await trimOversizedToolOutputs([toolPart(items)])
+      expect(trimmed).toHaveProperty('output.$persistedToolOutput.shape', 'entities')
+      expect(trimmed).toHaveProperty('output.$persistedToolOutput.skeleton', [
+        { id: 'cite-0', content: codec.snippet(BIG) }
+      ])
+      expect(trimmed).not.toHaveProperty('output.$persistedToolOutput.skeleton.0.unset')
+      expect(items[0].content).toBe(BIG)
+      expect(items[0]).toHaveProperty('unset')
+    })
+
     it('blobs each oversized entity field and keeps a snippet in the skeleton', async () => {
       registryGetAllMock.mockReturnValue([{ name: 'run_cmd', codec }])
       const [trimmed] = await trimOversizedToolOutputs([toolPart(items)])

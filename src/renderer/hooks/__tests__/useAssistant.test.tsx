@@ -3,6 +3,8 @@ import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
+
 import { useAssistant, useAssistantMutations, useAssistants } from '../useAssistant'
 
 function queryResult(data?: unknown, options: { isLoading?: boolean } = {}) {
@@ -21,7 +23,7 @@ function resetQueryMock() {
 }
 
 function ipcOk(data: unknown) {
-  return { ok: true, data }
+  return { ok: true, data } satisfies IpcResult<unknown>
 }
 
 describe('useAssistantMutations.deleteAssistant', () => {

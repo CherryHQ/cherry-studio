@@ -6,7 +6,12 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
-import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
+import {
+  inflateEntities,
+  isToolOutputBlobEntry,
+  reconstructOutput,
+  type ReconstructedToolOutput
+} from '@main/ai/contextBuild/toolOutputStore'
 import type { AiToolResultResponse, PersistedToolOutput, PersistedToolOutputBlobRef } from '@shared/ai/transport'
 import { blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 
@@ -37,7 +42,7 @@ export async function findPersistedToolOutput(
   return { found: false }
 }
 
-async function resolvePersistedToolOutput(output: PersistedToolOutput): Promise<unknown> {
+async function resolvePersistedToolOutput(output: PersistedToolOutput): Promise<ReconstructedToolOutput> {
   const ref = output.$persistedToolOutput
   const readBlob = async (blob: PersistedToolOutputBlobRef): Promise<string> => {
     try {

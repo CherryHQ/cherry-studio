@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { STOP_TOTAL_MS } from '../protocol/constants'
 import type { MainFrame } from '../protocol/frames'
 import { isUtilityProcessError, type UtilityProcessError, type UtilityProcessErrorCode } from '../UtilityProcessError'
-import { createHost, echoScript, rejectionOf } from './hostTestUtils'
+import { createHost, echoScript, expectRejected } from './hostTestUtils'
 import { flushMicrotasks, type MemoryChild, type MemoryChildScript, waitUntil } from './memoryProcessAdapter'
 
 beforeEach(() => vi.useFakeTimers())
@@ -35,27 +35,35 @@ describe('ProcessHost circuit breaker', () => {
   it('opens after three consecutive start failures and refuses to spawn while open', async () => {
     const { host, adapter } = createHost({ script: exitBeforeReady })
 
-    const first = expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_START_FAILED')
-    const second = expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_START_FAILED')
-    const third = expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_START_FAILED')
+    const first = await expectRejected(host.request('ping', undefined), (error) =>
+      expectCode(error, 'PROCESS_START_FAILED')
+    )
+    const second = await expectRejected(host.request('ping', undefined), (error) =>
+      expectCode(error, 'PROCESS_START_FAILED')
+    )
+    const third = await expectRejected(host.request('ping', undefined), (error) =>
+      expectCode(error, 'PROCESS_START_FAILED')
+    )
     expect([first.failureCount, second.failureCount, third.failureCount]).toEqual([1, 2, 3])
     expect([first.circuitOpen, second.circuitOpen, third.circuitOpen]).toEqual([false, false, true])
 
-    expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_CIRCUIT_OPEN')
+    await expectRejected(host.request('ping', undefined), (error) => expectCode(error, 'PROCESS_CIRCUIT_OPEN'))
     expect(adapter.spawns).toHaveLength(3)
   })
 
   it('resets the count on any terminal, including a handler error', async () => {
     const { host } = createHost({ script: sequence(exitBeforeReady, exitBeforeReady) })
-    await rejectionOf(host.request('ping', undefined))
-    await rejectionOf(host.request('ping', undefined))
+    await expectRejected(host.request('ping', undefined))
+    await expectRejected(host.request('ping', undefined))
 
-    const remote = expectCode(await rejectionOf(host.request('fail', undefined)), 'PROCESS_REMOTE_ERROR')
+    const remote = await expectRejected(host.request('fail', undefined), (error) =>
+      expectCode(error, 'PROCESS_REMOTE_ERROR')
+    )
     expect(remote.remote?.code).toBe('E_HANDLER')
 
-    const crashed = rejectionOf(host.request('crash', undefined))
+    const crashed = expectRejected(host.request('crash', undefined), (error) => expectCode(error, 'PROCESS_EXITED'))
     await vi.advanceTimersByTimeAsync(0)
-    const error = expectCode(await crashed, 'PROCESS_EXITED')
+    const error = await crashed
     expect(error.failureCount).toBe(1)
     expect(error.circuitOpen).toBe(false)
   })
@@ -66,16 +74,16 @@ describe('ProcessHost circuit breaker', () => {
     const errors: UtilityProcessError[] = []
 
     for (let round = 0; round < 3; round += 1) {
-      const waiting = rejectionOf(host.request('wait', undefined))
+      const waiting = expectRejected(host.request('wait', undefined), (error) => expectCode(error, 'PROCESS_EXITED'))
       await waitUntil(() => states[round]?.waitSignals.length === 1, 'wait handler started')
-      const crashed = rejectionOf(host.request('crash', undefined))
+      const crashed = expectRejected(host.request('crash', undefined), (error) => expectCode(error, 'PROCESS_EXITED'))
       await vi.advanceTimersByTimeAsync(0)
-      errors.push(expectCode(await waiting, 'PROCESS_EXITED'), expectCode(await crashed, 'PROCESS_EXITED'))
+      errors.push(await waiting, await crashed)
     }
 
     expect(errors.map((error) => error.failureCount)).toEqual([1, 1, 2, 2, 3, 3])
     expect(errors.at(-1)?.circuitOpen).toBe(true)
-    expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_CIRCUIT_OPEN')
+    await expectRejected(host.request('ping', undefined), (error) => expectCode(error, 'PROCESS_CIRCUIT_OPEN'))
   })
 
   it('counts unrequested clean exits and protocol violations', async () => {
@@ -87,12 +95,12 @@ describe('ProcessHost circuit breaker', () => {
     })
     const { host, adapter } = createHost({ script: sequence(exitZeroOnRequest, malformedOnRequest, exitZeroOnRequest) })
 
-    await rejectionOf(host.request('ping', undefined))
-    await rejectionOf(host.request('ping', undefined))
-    const third = expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_EXITED')
+    await expectRejected(host.request('ping', undefined))
+    await expectRejected(host.request('ping', undefined))
+    const third = await expectRejected(host.request('ping', undefined), (error) => expectCode(error, 'PROCESS_EXITED'))
 
     expect(third.circuitOpen).toBe(true)
-    expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_CIRCUIT_OPEN')
+    await expectRejected(host.request('ping', undefined), (error) => expectCode(error, 'PROCESS_CIRCUIT_OPEN'))
     expect(adapter.spawns).toHaveLength(3)
   })
 
@@ -104,10 +112,12 @@ describe('ProcessHost circuit breaker', () => {
       child.reply({ kind: 'protocol-error', message: 'again' })
     })
     const { host } = createHost({ script: sequence(exitBeforeReady, exitBeforeReady, floodOnRequest) })
-    await rejectionOf(host.request('ping', undefined))
-    await rejectionOf(host.request('ping', undefined))
+    await expectRejected(host.request('ping', undefined))
+    await expectRejected(host.request('ping', undefined))
 
-    const error = expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_PROTOCOL_ERROR')
+    const error = await expectRejected(host.request('ping', undefined), (error) =>
+      expectCode(error, 'PROCESS_PROTOCOL_ERROR')
+    )
     await flushMicrotasks()
 
     expect(error.failureCount).toBe(3)
@@ -131,8 +141,8 @@ describe('ProcessHost circuit breaker', () => {
 
   it('reopens after stop({ resetFailures: true })', async () => {
     const { host } = createHost({ script: sequence(exitBeforeReady, exitBeforeReady, exitBeforeReady) })
-    for (let round = 0; round < 3; round += 1) await rejectionOf(host.request('ping', undefined))
-    expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_CIRCUIT_OPEN')
+    for (let round = 0; round < 3; round += 1) await expectRejected(host.request('ping', undefined))
+    await expectRejected(host.request('ping', undefined), (error) => expectCode(error, 'PROCESS_CIRCUIT_OPEN'))
 
     await host.stop({ resetFailures: true })
 
@@ -141,9 +151,9 @@ describe('ProcessHost circuit breaker', () => {
 
   it('reopens through withStopped only when the operation succeeds', async () => {
     const { host } = createHost({ script: sequence(exitBeforeReady, exitBeforeReady, exitBeforeReady) })
-    for (let round = 0; round < 3; round += 1) await rejectionOf(host.request('ping', undefined))
+    for (let round = 0; round < 3; round += 1) await expectRejected(host.request('ping', undefined))
 
-    await rejectionOf(
+    await expectRejected(
       host.withStopped(
         () => {
           throw new Error('repair failed')
@@ -151,7 +161,7 @@ describe('ProcessHost circuit breaker', () => {
         { resetFailures: true }
       )
     )
-    expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_CIRCUIT_OPEN')
+    await expectRejected(host.request('ping', undefined), (error) => expectCode(error, 'PROCESS_CIRCUIT_OPEN'))
 
     await host.withStopped(() => 'repaired', { resetFailures: true })
     await expect(host.request('ping', undefined)).resolves.toBe('pong')
@@ -165,15 +175,19 @@ describe('ProcessHost circuit breaker', () => {
       })(child, index, options)
     }
     const { host, adapter } = createHost({ script: sequence(exitBeforeReady, exitBeforeReady, stuckAndMalformed) })
-    for (let round = 0; round < 2; round += 1) await rejectionOf(host.request('ping', undefined))
-    const opened = expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_PROTOCOL_ERROR')
+    for (let round = 0; round < 2; round += 1) await expectRejected(host.request('ping', undefined))
+    const opened = await expectRejected(host.request('ping', undefined), (error) =>
+      expectCode(error, 'PROCESS_PROTOCOL_ERROR')
+    )
     expect(opened.circuitOpen).toBe(true)
 
-    const stopping = rejectionOf(host.stop({ resetFailures: true }))
+    const stopping = expectRejected(host.stop({ resetFailures: true }), (error) =>
+      expectCode(error, 'PROCESS_STOP_FAILED')
+    )
     await vi.advanceTimersByTimeAsync(STOP_TOTAL_MS)
 
-    expectCode(await stopping, 'PROCESS_STOP_FAILED')
-    expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_CIRCUIT_OPEN')
+    await stopping
+    await expectRejected(host.request('ping', undefined), (error) => expectCode(error, 'PROCESS_CIRCUIT_OPEN'))
     expect(adapter.spawns).toHaveLength(3)
   })
 })

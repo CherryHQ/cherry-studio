@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { READY_TIMEOUT_MS } from '../protocol/constants'
 import type { MainFrame } from '../protocol/frames'
 import { isUtilityProcessError, type UtilityProcessError, type UtilityProcessErrorCode } from '../UtilityProcessError'
-import { createHost, echoScript, rejectionOf } from './hostTestUtils'
+import { createHost, echoScript, expectRejected } from './hostTestUtils'
 import {
   createMemoryProcessAdapter,
   flushMicrotasks,
@@ -58,14 +58,16 @@ describe('ProcessHost lifecycle', () => {
 
   it('fails the cold start with PROCESS_START_FAILED and kills the child when ready never arrives', async () => {
     const { host, adapter } = createHost({ script: () => {} })
-    const pending = rejectionOf(host.request('ping', undefined))
+    const pending = expectRejected(host.request('ping', undefined), (error) =>
+      expectCode(error, 'PROCESS_START_FAILED')
+    )
     await flushMicrotasks()
     await vi.advanceTimersByTimeAsync(READY_TIMEOUT_MS - 1)
     expect(adapter.spawns[0].child.killed).toBe(false)
 
     await vi.advanceTimersByTimeAsync(1)
 
-    expectCode(await pending, 'PROCESS_START_FAILED')
+    await pending
     expect(adapter.spawns[0].child.killed).toBe(true)
   })
 
@@ -73,14 +75,16 @@ describe('ProcessHost lifecycle', () => {
     const adapter = createMemoryProcessAdapter(undefined, { spawnThrows: new Error('ENOENT') })
     const { host } = createHost({ adapter })
 
-    const error = expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_START_FAILED')
+    const error = await expectRejected(host.request('ping', undefined), (error) =>
+      expectCode(error, 'PROCESS_START_FAILED')
+    )
     expect((error.cause as Error).message).toBe('ENOENT')
   })
 
   it('rejects a definition env that touches reserved variables without spawning', async () => {
     const { host, adapter } = createHost({ definition: { createEnv: () => ({ NODE_OPTIONS: '--inspect' }) } })
 
-    expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_START_FAILED')
+    await expectRejected(host.request('ping', undefined), (error) => expectCode(error, 'PROCESS_START_FAILED'))
     expect(adapter.spawns).toHaveLength(0)
   })
 
@@ -111,7 +115,9 @@ describe('ProcessHost lifecycle', () => {
       definition: { createInitData: () => Promise.reject(new Error('proxy flush failed')) }
     })
 
-    const error = expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_START_FAILED')
+    const error = await expectRejected(host.request('ping', undefined), (error) =>
+      expectCode(error, 'PROCESS_START_FAILED')
+    )
     expect((error.cause as Error).message).toBe('proxy flush failed')
     expect(error.failureCount).toBe(1)
     await waitUntil(() => adapter.spawns[0].child.killed, 'child kill')
@@ -145,7 +151,7 @@ describe('ProcessHost lifecycle', () => {
       }
     })
     let outcome: unknown
-    const pending = rejectionOf(host.request('ping', undefined)).then((error) => {
+    const pending = expectRejected(host.request('ping', undefined), (error) => {
       outcome = error
     })
 
@@ -171,7 +177,9 @@ describe('ProcessHost lifecycle', () => {
       definition: { createInitData: () => Promise.reject(new Error('proxy flush failed')) }
     })
 
-    const error = expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_START_FAILED')
+    const error = await expectRejected(host.request('ping', undefined), (error) =>
+      expectCode(error, 'PROCESS_START_FAILED')
+    )
     expect((error.cause as Error).message).toBe('ENOENT')
     await flushMicrotasks()
   })
@@ -182,11 +190,13 @@ describe('ProcessHost lifecycle', () => {
       adapter,
       definition: { createInitData: () => Promise.reject(new Error('proxy flush failed')) }
     })
-    const pending = rejectionOf(host.request('ping', undefined))
+    const pending = expectRejected(host.request('ping', undefined), (error) =>
+      expectCode(error, 'PROCESS_START_FAILED')
+    )
 
     await vi.advanceTimersByTimeAsync(READY_TIMEOUT_MS)
 
-    expectCode(await pending, 'PROCESS_START_FAILED')
+    await pending
     await flushMicrotasks()
   })
 
@@ -198,7 +208,9 @@ describe('ProcessHost lifecycle', () => {
     })
     const { host, adapter } = createHost({ script })
 
-    const error = expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_START_FAILED')
+    const error = await expectRejected(host.request('ping', undefined), (error) =>
+      expectCode(error, 'PROCESS_START_FAILED')
+    )
     expect(error.remote?.message).toBe('model missing')
     expect((error.cause as Error).message).toBe('model missing')
     await waitUntil(() => adapter.spawns[0].child.exited, 'child exit')
@@ -211,7 +223,9 @@ describe('ProcessHost lifecycle', () => {
       }
     })
 
-    const error = expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_START_FAILED')
+    const error = await expectRejected(host.request('ping', undefined), (error) =>
+      expectCode(error, 'PROCESS_START_FAILED')
+    )
     expect(error.exitCode).toBe(3)
   })
 
@@ -243,7 +257,7 @@ describe('ProcessHost lifecycle', () => {
       }
     })
 
-    const error = expectCode(await rejectionOf(host.request('echo', 'lost')), 'PROCESS_EXITED')
+    const error = await expectRejected(host.request('echo', 'lost'), (error) => expectCode(error, 'PROCESS_EXITED'))
     expect(error.intentional).toBe(false)
     expect(error.exitCode).toBe(9)
     await flushMicrotasks()
@@ -306,7 +320,7 @@ describe('ProcessHost lifecycle', () => {
       }
     })
 
-    expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_PROTOCOL_ERROR')
+    await expectRejected(host.request('ping', undefined), (error) => expectCode(error, 'PROCESS_PROTOCOL_ERROR'))
     const next = host.request('ping', undefined)
     await vi.advanceTimersByTimeAsync(50)
 
@@ -323,16 +337,17 @@ describe('ProcessHost lifecycle', () => {
       })
     })
     let settled = false
-    const pending = rejectionOf(
+    const pending = expectRejected(
       host.request('ping', undefined).finally(() => {
         settled = true
-      })
+      }),
+      (error) => expectCode(error, 'PROCESS_EXITED')
     )
     await vi.advanceTimersByTimeAsync(99)
     expect(settled).toBe(false)
 
     await vi.advanceTimersByTimeAsync(1)
-    const error = expectCode(await pending, 'PROCESS_EXITED')
+    const error = await pending
     expect(error.exitCode).toBe(5)
   })
 
@@ -361,7 +376,7 @@ describe('ProcessHost lifecycle', () => {
     await host.dispose()
 
     expect(adapter.spawns[0].child.exitCode).toBe(0)
-    expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_BLOCKED')
+    await expectRejected(host.request('ping', undefined), (error) => expectCode(error, 'PROCESS_BLOCKED'))
     expect(adapter.spawns).toHaveLength(1)
   })
 })

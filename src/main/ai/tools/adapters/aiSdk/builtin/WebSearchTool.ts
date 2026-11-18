@@ -42,7 +42,7 @@ const webSearchTool = tool({
   toModelOutput: ({ output }) => webLookupModelOutput(output)
 })
 
-export function createWebSearchToolEntry(): ToolEntry {
+export function createWebSearchToolEntry() {
   return {
     name: WEB_SEARCH_TOOL_NAME,
     // Entity codec instead of the blanket truncatable:false (same rationale as
@@ -55,7 +55,7 @@ export function createWebSearchToolEntry(): ToolEntry {
     defer: 'auto',
     tool: webSearchTool,
     applies: (scope) => scope.webToolRoutes?.webSearch === 'client'
-  }
+  } satisfies ToolEntry
 }
 
 export type WebSearchToolInput = InferToolInput<typeof webSearchTool>

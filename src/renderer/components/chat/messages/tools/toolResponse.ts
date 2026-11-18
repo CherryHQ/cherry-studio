@@ -1,6 +1,7 @@
 import { CallToolResultSchema } from '@modelcontextprotocol/core'
 import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
 import { getToolName, isToolUIPart } from 'ai'
+import type * as z from 'zod'
 
 import type { McpToolResponse, McpToolResponseStatus, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { BaseTool, McpTool } from '@renderer/types/tool'
@@ -201,22 +202,19 @@ function buildBaseToolDescriptor(toolType: Exclude<ToolType, 'mcp'>, toolCallId:
   return baseTool
 }
 
-export function normalizeToolErrorResponse(errorText: string): unknown {
+export function normalizeToolErrorResponse(errorText: string): z.infer<typeof CallToolResultSchema> {
   return {
     isError: true,
     content: [{ type: 'text', text: errorText || 'Error' }]
   }
 }
 
-function normalizeErrorOutput(part: ToolResponsePart): unknown {
+function normalizeErrorOutput(part: ToolResponsePart): z.infer<typeof CallToolResultSchema> | undefined {
   if (part.state !== 'output-error') return undefined
   return normalizeToolErrorResponse(part.errorText)
 }
 
-function normalizeToolInput(part: ToolResponsePart): unknown {
-  const input = part.input
-  if (part.callProviderMetadata?.cherry?.transport !== PI_AGENT_TRANSPORT || !isRecord(input)) return input
-  const name = getToolName(part)
+function normalizePiFileInput(name: string, input: Record<string, unknown>): Record<string, unknown> {
   if (name !== 'read' && name !== 'write' && name !== 'edit') return input
   if (name === 'edit' && Array.isArray(input.edits)) {
     return {
@@ -286,10 +284,15 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
   }
 
   const tool = buildBaseToolDescriptor(toolType, toolCallId, toolName)
+  const input = toolPart.input
+  const normalizedInput =
+    toolPart.callProviderMetadata?.cherry?.transport === PI_AGENT_TRANSPORT && isRecord(input)
+      ? normalizePiFileInput(getToolName(toolPart), input)
+      : input
   const normalResponse: NormalToolResponse = {
     id: toolCallId,
     tool,
-    arguments: normalizeToolInput(toolPart) as NormalToolResponse['arguments'],
+    arguments: normalizedInput as NormalToolResponse['arguments'],
     status,
     response,
     ...(approval ? { approval } : {}),

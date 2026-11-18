@@ -9,7 +9,7 @@ const logger = loggerService.withContext('miniAppCleanup')
  * Returns whether the cleanup itself succeeded, so a caller that COUNTS (the startup
  * sweep) can report reality; most callers ignore it.
  */
-export async function bestEffortCleanup(label: string, fn: () => Promise<unknown>): Promise<boolean> {
+export async function bestEffortCleanup<TResult>(label: string, fn: () => Promise<TResult>): Promise<boolean> {
   try {
     await fn()
     return true

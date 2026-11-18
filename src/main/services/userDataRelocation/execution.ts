@@ -608,8 +608,8 @@ async function writeRelocationOwner(directory: string, taskId: string): Promise<
 
 function isOwnedByRelocation(directory: string, taskId?: string): boolean {
   if (!taskId || !pathEntryExists(directory)) return false
-  const marker = relocationOwnerSchema.safeParse(readJsonFile(path.join(directory, RELOCATION_OWNER_MARKER)))
-  return marker.success && marker.data.taskId === taskId
+  const marker = readRelocationOwner(path.join(directory, RELOCATION_OWNER_MARKER))
+  return marker?.taskId === taskId
 }
 
 async function removeOwnedRelocationTree(directory: string, taskId: string): Promise<void> {
@@ -623,9 +623,10 @@ async function removeOwnedRelocationTree(directory: string, taskId: string): Pro
   await fsp.rmdir(directory)
 }
 
-function readJsonFile(file: string): unknown | null {
+function readRelocationOwner(file: string): z.infer<typeof relocationOwnerSchema> | null {
   try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'))
+    const marker = relocationOwnerSchema.safeParse(JSON.parse(fs.readFileSync(file, 'utf8')))
+    return marker.success ? marker.data : null
   } catch (error) {
     if (isErrno(error, 'ENOENT') || error instanceof SyntaxError) return null
     throw error

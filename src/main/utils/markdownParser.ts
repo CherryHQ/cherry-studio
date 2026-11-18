@@ -26,6 +26,18 @@ export class PluginError extends Error {
   }
 }
 
+type FrontmatterValue =
+  | string
+  | null
+  | undefined
+  | symbol
+  | Date
+  | Uint8Array
+  | FrontmatterValue[]
+  | { [key: string]: FrontmatterValue }
+  | Map<FrontmatterValue, FrontmatterValue>
+  | Set<FrontmatterValue>
+
 const YAML_PARSE_OPTIONS = { schema: 'failsafe' as const }
 
 function parseFrontmatterYaml(block: string): object {
@@ -101,10 +113,11 @@ function toString(value: unknown): string | undefined {
   return isString(value) ? value : undefined
 }
 
-function parseLooseValue(raw: string): unknown {
+function parseLooseValue(raw: string): FrontmatterValue {
   if (!raw) return ''
   try {
-    const parsed = parse(raw, YAML_PARSE_OPTIONS)
+    // SAFETY: The fixed schema and built-in YAML tags construct data values, including cyclic aliases.
+    const parsed = parse(raw, YAML_PARSE_OPTIONS) as FrontmatterValue
     return parsed === undefined ? raw : parsed
   } catch {
     return raw

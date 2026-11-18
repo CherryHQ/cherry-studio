@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { FileMetadata } from '@renderer/types/file'
+import type * as RunPaintingModule from '../runPainting'
 
-const runPaintingMock = vi.fn(async (generate: () => Promise<unknown>) => {
+const runPaintingMock = vi.fn<typeof RunPaintingModule.runPainting>(async (generate) => {
   await generate()
-  return [] as FileMetadata[]
+  return []
 })
 
 vi.mock('../runPainting', () => ({
-  runPainting: (generate: () => Promise<unknown>) => runPaintingMock(generate)
+  runPainting: (...args: Parameters<typeof RunPaintingModule.runPainting>) => runPaintingMock(...args)
 }))
 
 // Image generation goes through ipcApi.request('ai.image.generate', { requestId, payload }).

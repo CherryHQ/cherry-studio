@@ -96,7 +96,7 @@ interface ReasoningState {
 /**
  * Adapter that converts AI SDK fullStream events to OpenAI Responses API SSE events
  */
-export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamEvent> {
+export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamEvent, Response> {
   private createdAt: number
   private sequenceNumber = 0
   private toolCalls: Map<string, ToolCallState> = new Map()

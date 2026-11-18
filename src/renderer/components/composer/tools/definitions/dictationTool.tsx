@@ -57,7 +57,7 @@ function restoreFocus(inputAdapter?: QuickPanelInputAdapter) {
   inputAdapter?.focus()
 }
 
-function runAction(action: () => unknown | Promise<unknown>, inputAdapter?: QuickPanelInputAdapter) {
+function runAction<TResult>(action: () => TResult | Promise<TResult>, inputAdapter?: QuickPanelInputAdapter) {
   try {
     const result = action()
     if (result instanceof Promise) {

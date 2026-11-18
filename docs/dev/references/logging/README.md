@@ -266,6 +266,10 @@ logger.LEVEL(message, CONTEXT, MORE_CONTEXT)
 | `CONTEXT` | `object` | Optional. Additional information to be recorded in the log file. It is recommended to use the `{ key: value, ...}` format.                                                                                                                                                                                                    |
 | `error`   | `Error`  | Optional. The error stack trace will also be printed.<br />Note that the `error` caught by `catch(error)` is of the `unknown` type. According to TypeScript best practices, you should first use `instanceof` for type checking. If you are certain it is an `Error` type, you can also use a type assertion like `as Error`. |
 
+Inside structured context written to JSON file logs, `undefined` and non-finite
+numbers become `null`; `bigint`, function, and symbol values become `<redacted>`.
+Circular references and excessive nesting use `[Circular]` and `[Truncated]` placeholders.
+
 #### Recording non-`object` type context information
 
 ```typescript

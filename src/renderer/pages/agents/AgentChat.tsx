@@ -128,7 +128,7 @@ interface AgentChatProps {
   requestFileNavigation?: AgentFileNavigationRequest
   paneManualToggle?: PaneManualToggleSignal
   missingAgentSelection?: boolean
-  onCreateEmptySession?: (defaults?: CreateAgentSessionDefaults) => void | Promise<unknown>
+  onCreateEmptySession?: (defaults?: CreateAgentSessionDefaults) => void | Promise<AgentSessionEntity | null | void>
   onMissingAgentSelectionAgentChange?: (agentId: string | null) => void | Promise<void>
   onSessionWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   onVisibleAgentChange?: (agentId: string) => void
@@ -634,7 +634,7 @@ interface AgentChatSessionCenterProps {
   onAgentChange?: (agentId: string | null) => void | Promise<void>
   agentChanging?: boolean
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
-  onCreateEmptySession?: () => void | Promise<unknown>
+  onCreateEmptySession?: () => void | Promise<void>
   composerLaunchOptions?: AgentComposerLaunchOptions
   openDiagnosticReport?: (description?: string) => void
 }

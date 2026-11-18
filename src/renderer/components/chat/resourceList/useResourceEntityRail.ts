@@ -9,7 +9,7 @@ import { useOwnerResourceActivation } from './useOwnerResourceActivation'
 
 export type ResourceEntityRailReorderAnchor = ReturnType<typeof buildResourceListItemDropAnchor>
 
-type UseResourceEntityRailParams<TEntity extends ResourceEntityRailItem, TResource> = {
+type UseResourceEntityRailParams<TEntity extends ResourceEntityRailItem, TResource, TRefetch> = {
   /** Every visible entity, already mapped to a rail item. */
   entities: readonly TEntity[]
   activeEntityId?: string | null
@@ -21,7 +21,7 @@ type UseResourceEntityRailParams<TEntity extends ResourceEntityRailItem, TResour
   onCreateResource: (entityId: string) => Promise<TResource | null>
   onActivationError: (error: unknown) => void
   reorder: (entityId: string, anchor: ResourceEntityRailReorderAnchor) => Promise<void>
-  refetchEntities: () => Promise<unknown>
+  refetchEntities: () => Promise<TRefetch>
   onReorderError: (error: unknown) => void
 }
 
@@ -38,7 +38,7 @@ type UseResourceEntityRailResult<TEntity> = {
  * `orderKey` with optimistic drag reordering and activate their latest resource (or create one).
  * Variant components own visibility, data, pins, deletion, and context menus.
  */
-export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TResource>({
+export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TResource, TRefetch>({
   entities,
   activeEntityId,
   isLoading,
@@ -50,7 +50,7 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
   reorder,
   refetchEntities,
   onReorderError
-}: UseResourceEntityRailParams<TEntity, TResource>): UseResourceEntityRailResult<TEntity> {
+}: UseResourceEntityRailParams<TEntity, TResource, TRefetch>): UseResourceEntityRailResult<TEntity> {
   const [optimisticOrderIds, setOptimisticOrderIds] = useState<readonly string[] | null>(null)
   const loadResourceForOwner = useCallback((item: TEntity) => loadResourceForEntity(item.id), [loadResourceForEntity])
   const createResourceForOwner = useCallback((item: TEntity) => onCreateResource(item.id), [onCreateResource])

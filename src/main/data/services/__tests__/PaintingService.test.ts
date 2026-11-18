@@ -333,7 +333,7 @@ describe('PaintingService', () => {
       return rows.length === 1
     }
 
-    function expectNotFound(fn: () => unknown) {
+    function expectNotFound<TResult>(fn: () => TResult) {
       let err: unknown
       try {
         fn()

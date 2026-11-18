@@ -43,10 +43,11 @@ vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataA
 // The data-service layer is synchronous under better-sqlite3: failing calls
 // throw inline instead of rejecting a promise. Capture the thrown error so we
 // can assert on its shape.
-function captureError(fn: () => unknown): unknown {
+function captureError<TResult>(fn: () => TResult): Error {
   try {
     fn()
   } catch (error) {
+    if (!(error instanceof Error)) throw new Error('Expected an Error to be thrown', { cause: error })
     return error
   }
   throw new Error('Expected the call to throw, but it returned normally')
@@ -790,6 +791,21 @@ describe('AgentService', () => {
 
       const agents = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Forged Assistant'))
       expect(agents).toHaveLength(0)
+    })
+
+    it.each([null, 42, true, {}, ['support']])('rejects a malformed reserved identity: %j', (role) => {
+      const error = captureError(() =>
+        createAgentForTest({
+          type: 'claude-code',
+          name: 'Forged Agent',
+          model: TEST_MODEL_ID,
+          // Internal callers can bypass schema parsing; malformed identities must stay reserved.
+          configuration: { builtin_role: role } as never
+        })
+      )
+
+      expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Forged Agent')).all()).toHaveLength(0)
     })
 
     it('rejects updateAgent adding a builtin_role to an ordinary agent', async () => {

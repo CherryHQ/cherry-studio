@@ -143,7 +143,7 @@ describe('native context storage and reconciliation', () => {
   const dbh = setupTestDatabase()
   let directory: string
   let sessionId: string
-  const cleanup: Array<() => Promise<unknown>> = []
+  const cleanup: Array<() => Promise<OperationResult<void> | void>> = []
   const sessionContexts = () =>
     dbh.db.select().from(agentSessionContextTable).where(eq(agentSessionContextTable.sessionId, sessionId)).all()
 

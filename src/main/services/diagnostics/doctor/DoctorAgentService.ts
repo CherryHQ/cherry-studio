@@ -227,7 +227,7 @@ export class DoctorAgentService extends BaseService {
     })
   }
 
-  reportForSession(sessionId: string): unknown {
+  reportForSession(sessionId: string) {
     const { scope } = this.runForSession(sessionId)
     const report = this.currentReport(scope)
     return report ? projectDoctorReport(report, 'upload') : { status: 'missing' }

@@ -16,9 +16,14 @@ export interface ExecResult {
   isError?: boolean
 }
 
-export interface ExecCodeContext {
+export interface ExecCodeContext<TToolResult> {
   abortSignal?: AbortSignal
-  executeTool(name: string, params: Record<string, unknown>, requestId: string, signal: AbortSignal): Promise<unknown>
+  executeTool(
+    name: string,
+    params: Record<string, unknown>,
+    requestId: string,
+    signal: AbortSignal
+  ): Promise<TToolResult>
   onExecutionStarted?: (controls: { pauseTimeout: () => void; resumeTimeout: () => void }) => void
 }
 
@@ -50,7 +55,7 @@ type WorkerMessage = WorkerCallToolMessage | WorkerLogMessage | WorkerResultMess
 
 /** Runtime-neutral worker orchestration; this is not a security sandbox. Replace the worker before
  * allowing untrusted code without an outer approval gate. */
-export function runExecCode(code: string, ctx: ExecCodeContext): Promise<ExecResult> {
+export function runExecCode<TToolResult>(code: string, ctx: ExecCodeContext<TToolResult>): Promise<ExecResult> {
   return new Promise<ExecResult>((resolve) => {
     const logs: string[] = []
     const activeChildAborts = new Set<AbortController>()

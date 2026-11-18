@@ -292,7 +292,7 @@ function setSteerTransition(service: InstanceType<typeof AgentSessionRuntimeServ
   ;(service as any).handleRuntimeEvent(entry, { type: 'steer-boundary', inputIds: [input.message.id] })
 }
 
-function createAsyncQueue<T>(beforeClose?: () => unknown | Promise<unknown>) {
+function createAsyncQueue<T>(beforeClose?: () => void | Promise<void>) {
   let ended = false
   const items: T[] = []
   const waiters: Array<(value: IteratorResult<T>) => void> = []

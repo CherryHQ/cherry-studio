@@ -52,7 +52,9 @@ describe('saveAttachmentToWorkspace', () => {
     const sourceDirectory = await mkdtemp(path.join(tmpdir(), 'save-attachment-source-'))
     sourcePath = path.join(sourceDirectory, 'sales.csv')
     await writeFile(sourcePath, sourceBytes)
-    withTempCopy.mockImplementation(async (_id: string, fn: (tempPath: string) => Promise<unknown>) => fn(sourcePath))
+    withTempCopy.mockImplementation(async <TResult>(_id: string, fn: (tempPath: string) => Promise<TResult>) =>
+      fn(sourcePath)
+    )
     vi.mocked(application.get).mockImplementation((name: string) => {
       if (name === 'FileManager') return { withTempCopy } as never
       throw new Error(`Unexpected application.get(${name})`)
@@ -221,7 +223,7 @@ describe('saveAttachmentToWorkspace', () => {
     const outputDirectory = path.join(workspacePath, 'output')
     const outsideDirectory = path.dirname(sourcePath)
     await mkdir(outputDirectory)
-    withTempCopy.mockImplementationOnce(async (_id: string, fn: (tempPath: string) => Promise<unknown>) => {
+    withTempCopy.mockImplementationOnce(async <TResult>(_id: string, fn: (tempPath: string) => Promise<TResult>) => {
       await rm(outputDirectory, { recursive: true, force: true })
       await symlink(outsideDirectory, outputDirectory, 'junction')
       return fn(sourcePath)

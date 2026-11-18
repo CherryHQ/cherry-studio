@@ -1,7 +1,7 @@
 import { pathToFileURL } from 'node:url'
 
 import type { McpServer, Server, Transport } from '@modelcontextprotocol/server'
-import { serveStdio } from '@modelcontextprotocol/server/stdio'
+import { serveStdio, type StdioServerHandle } from '@modelcontextprotocol/server/stdio'
 
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
@@ -34,7 +34,7 @@ export interface AgentMcpServer {
   id?: string
   name: string
   /** Serves this server over `transport`; closing the transport ends it. */
-  connect(transport: Transport): Promise<unknown>
+  connect(transport: Transport): Promise<StdioServerHandle>
 }
 
 /** One protocol instance per connection, so each runtime transport gets its own server. */

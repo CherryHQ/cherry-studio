@@ -54,7 +54,7 @@ const kbManageTool = tool({
   toModelOutput: ({ output }) => knowledgeManageModelOutput(output)
 })
 
-export function createKbManageToolEntry(): ToolEntry {
+export function createKbManageToolEntry() {
   return {
     name: KB_MANAGE_TOOL_NAME,
     namespace: 'kb',
@@ -62,7 +62,7 @@ export function createKbManageToolEntry(): ToolEntry {
     defer: 'never',
     tool: kbManageTool,
     applies: (scope) => scope.hasAnyKnowledgeBase === true && (scope.knowledgeBaseIds?.length ?? 0) > 0
-  }
+  } satisfies ToolEntry
 }
 
 export type KnowledgeManageToolInput = InferToolInput<typeof kbManageTool>

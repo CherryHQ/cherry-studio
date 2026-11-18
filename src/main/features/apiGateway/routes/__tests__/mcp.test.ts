@@ -20,7 +20,7 @@ const {
   mockForwardRequest,
   toolsCacheListeners
 } = vi.hoisted(() => ({
-  mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
+  mockPreferenceGet: vi.fn<(key: string) => string>(() => 'test-key'),
   mockList: vi.fn(),
   mockFindByIdOrName: vi.fn(),
   mockListTools: vi.fn(),

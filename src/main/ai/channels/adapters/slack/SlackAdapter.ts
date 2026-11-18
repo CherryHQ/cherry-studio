@@ -1,5 +1,6 @@
 import { net } from 'electron'
 import WebSocket from 'ws'
+import * as z from 'zod'
 
 import { t } from '@main/i18n'
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
@@ -24,6 +25,14 @@ const SLACK_MAX_LENGTH = 4000
  * Use 1500ms throttle to stay safely within limits.
  */
 const SLACK_STREAM_THROTTLE_MS = 1500
+
+const SlackApiResponseSchema = z.looseObject({ ok: z.boolean(), error: z.string().optional() })
+const SlackAcknowledgementSchema = z.object({}).transform(() => undefined)
+const SlackMessageResponseSchema = z.object({ ts: z.string().optional() })
+const SlackIdentityResponseSchema = z.object({ user_id: z.string().optional() })
+const SlackUserResponseSchema = z.object({
+  user: z.object({ real_name: z.string().optional(), name: z.string().optional() }).optional()
+})
 
 // ─── Slack Types ──────────────────────────────────────────────
 
@@ -158,11 +167,11 @@ class SlackStreamingController {
 
   private async createMessage(): Promise<void> {
     try {
-      const data = await this.apiRequest('chat.postMessage', {
+      const data = await this.apiRequest(SlackMessageResponseSchema, 'chat.postMessage', {
         channel: this.channelId,
         text: toSlackMarkdown(this.currentText) || '...'
       })
-      this.messageTs = (data as { ts?: string }).ts ?? null
+      this.messageTs = data.ts ?? null
     } catch (error) {
       this.log.warn('Failed to create Slack streaming message', {
         error: error instanceof Error ? error.message : String(error)
@@ -178,7 +187,7 @@ class SlackStreamingController {
       converted.length > SLACK_MAX_LENGTH
         ? converted.slice(0, clampSurrogateBoundary(converted, SLACK_MAX_LENGTH - 3)) + '...'
         : converted
-    await this.apiRequest('chat.update', {
+    await this.apiRequest(SlackAcknowledgementSchema, 'chat.update', {
       channel: this.channelId,
       ts: this.messageTs,
       text: content
@@ -255,7 +264,7 @@ class SlackAdapter extends ChannelAdapter {
 
   private async fetchBotUserId(signal?: AbortSignal): Promise<void> {
     try {
-      const data = (await this.apiRequest('auth.test', {}, signal)) as { user_id?: string }
+      const data = await this.apiRequest(SlackIdentityResponseSchema, 'auth.test', {}, signal)
       this.botUserId = data.user_id ?? null
       this.log.info('Slack bot identity resolved', { botUserId: this.botUserId })
     } catch (error) {
@@ -477,9 +486,7 @@ class SlackAdapter extends ChannelAdapter {
     if (cached) return cached
 
     try {
-      const data = (await this.apiRequest('users.info', { user: userId })) as {
-        user?: { real_name?: string; name?: string }
-      }
+      const data = await this.apiRequest(SlackUserResponseSchema, 'users.info', { user: userId })
       const name = data.user?.real_name || data.user?.name || userId
       this.userNameCache.set(userId, name)
       return name
@@ -560,7 +567,7 @@ class SlackAdapter extends ChannelAdapter {
     const chunks = splitMessage(mrkdwn, SLACK_MAX_LENGTH)
 
     for (let i = 0; i < chunks.length; i++) {
-      await this.apiRequest('chat.postMessage', {
+      await this.apiRequest(SlackMessageResponseSchema, 'chat.postMessage', {
         channel: chatId,
         text: chunks[i]
       })
@@ -621,7 +628,11 @@ class SlackAdapter extends ChannelAdapter {
 
   private async addReaction(chatId: string, ts: string): Promise<void> {
     try {
-      await this.apiRequest('reactions.add', { channel: chatId, name: 'eyes', timestamp: ts })
+      await this.apiRequest(SlackAcknowledgementSchema, 'reactions.add', {
+        channel: chatId,
+        name: 'eyes',
+        timestamp: ts
+      })
       this.pendingReactions.set(chatId, ts)
     } catch {
       // Best-effort — don't fail message handling if reaction fails
@@ -633,7 +644,11 @@ class SlackAdapter extends ChannelAdapter {
     if (!ts) return
     this.pendingReactions.delete(chatId)
     try {
-      await this.apiRequest('reactions.remove', { channel: chatId, name: 'eyes', timestamp: ts })
+      await this.apiRequest(SlackAcknowledgementSchema, 'reactions.remove', {
+        channel: chatId,
+        name: 'eyes',
+        timestamp: ts
+      })
     } catch {
       // Best-effort removal
     }
@@ -641,7 +656,12 @@ class SlackAdapter extends ChannelAdapter {
 
   // ─── Slack Web API Helper ──────────────────────────────────
 
-  private async apiRequest(method: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
+  private async apiRequest<TSchema extends z.ZodType>(
+    schema: TSchema,
+    method: string,
+    body: Record<string, unknown>,
+    signal?: AbortSignal
+  ): Promise<z.output<TSchema>> {
     const response = await net.fetch(`${SLACK_API_BASE}/${method}`, {
       method: 'POST',
       headers: {
@@ -657,12 +677,12 @@ class SlackAdapter extends ChannelAdapter {
       throw new Error(`Slack API error ${method}: HTTP ${response.status} - ${errorText}`)
     }
 
-    const data = (await response.json()) as { ok: boolean; error?: string }
+    const data = SlackApiResponseSchema.parse(await response.json())
     if (!data.ok) {
       throw new Error(`Slack API error ${method}: ${data.error ?? 'unknown error'}`)
     }
 
-    return data
+    return schema.parse(data)
   }
 
   // ─── WebSocket Helper ──────────────────────────────────────

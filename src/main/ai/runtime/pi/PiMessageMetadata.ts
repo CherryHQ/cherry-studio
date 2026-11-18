@@ -1,4 +1,5 @@
 import type { AgentToolResult, ToolDefinition } from '@earendil-works/pi-coding-agent'
+import type { DynamicToolUIPart } from 'ai'
 import * as z from 'zod'
 
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
@@ -8,6 +9,7 @@ import { PI_TOOL_CALL_TOOL_NAME, PI_TOOL_EXEC_TOOL_NAME, PI_TOOL_SEARCH_TOOL_NAM
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { CherryUIMessage } from '@shared/data/types/message'
+import type { Serializable } from '@shared/types/serializable'
 
 /** pi transport tag consumed by the renderer's tool-part routing (D8). */
 export const PI_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.pi.transport
@@ -106,25 +108,39 @@ export class PiMessageMetadata {
     return {
       ...message,
       parts: [
-        ...message.parts.map((part) => {
-          if (part.type !== 'dynamic-tool') return part
-          const metadata = toolProviderMetadata(part.toolName, this.resolveToolMetadata?.(part.toolName))
-          const decoration = {
-            providerExecuted: true,
-            callProviderMetadata: { ...metadata, pi: { ...part.callProviderMetadata?.pi, ...metadata.pi } }
-          }
-          return part.state === 'output-available'
-            ? {
-                ...part,
-                ...decoration,
-                output: projectPiToolOutput(part.toolName, part.output),
-                resultProviderMetadata: metadata
-              }
-            : { ...part, ...decoration }
-        }),
+        ...message.parts.map((part) => (part.type === 'dynamic-tool' ? this.decorateToolPart(part) : part)),
         ...artifacts
       ]
     }
+  }
+
+  private decorateToolPart(part: DynamicToolUIPart): DynamicToolUIPart {
+    const metadata = toolProviderMetadata(part.toolName, this.resolveToolMetadata?.(part.toolName))
+    const decoration = {
+      providerExecuted: true,
+      callProviderMetadata: { ...metadata, pi: { ...part.callProviderMetadata?.pi, ...metadata.pi } }
+    }
+    if (part.state !== 'output-available') return { ...part, ...decoration }
+
+    const toolName = part.toolName
+    const result = part.output
+    const toolResult = asToolResult(result)
+    let output = result ?? null
+    if (toolResult) {
+      if (toolName === PI_TOOL_EXEC_TOOL_NAME) output = unwrapMcpContent(toolResult)
+      else if (toolName === PI_TOOL_SEARCH_TOOL_NAME || toolName === 'tool_exec') {
+        output = toolResult.details ?? toolResult
+      } else if (toolName.startsWith('mcp__')) {
+        const mcpResult = toolResult.structuredContent as { structuredContent?: unknown } | undefined
+        // The automation card renders the REPL's content blocks; its structuredContent is metadata only.
+        output = toolName.startsWith('mcp__automation__')
+          ? (mcpResult ?? toolResult)
+          : (mcpResult?.structuredContent ?? unwrapMcpContent(toolResult))
+      } else {
+        output = toolName === PI_TOOL_CALL_TOOL_NAME ? unwrapMcpContent(toolResult) : toolResult
+      }
+    }
+    return { ...part, ...decoration, output, resultProviderMetadata: metadata }
   }
 }
 
@@ -140,28 +156,13 @@ function asToolResult(result: unknown): AgentToolResult<unknown> | undefined {
   return candidate && Array.isArray(candidate.content) ? candidate : undefined
 }
 
-function projectPiToolOutput(toolName: string, result: unknown): unknown {
-  const toolResult = asToolResult(result)
-  if (!toolResult) return result ?? null
-  if (toolName === PI_TOOL_EXEC_TOOL_NAME) return unwrapMcpContent(toolResult)
-  if (toolName === PI_TOOL_SEARCH_TOOL_NAME || toolName === 'tool_exec') {
-    return toolResult.details ?? toolResult
-  }
-  if (toolName.startsWith('mcp__')) {
-    const mcpResult = toolResult.structuredContent as { structuredContent?: unknown } | undefined
-    // The automation card renders the REPL's content blocks; its structuredContent is metadata only.
-    if (toolName.startsWith('mcp__automation__')) return mcpResult ?? toolResult
-    return mcpResult?.structuredContent ?? unwrapMcpContent(toolResult)
-  }
-  return toolName === PI_TOOL_CALL_TOOL_NAME ? unwrapMcpContent(toolResult) : toolResult
-}
-
 /** Unwrap all-text MCP results so tool cards and citation resolution see the same shape across runtimes. */
-function unwrapMcpContent({ content }: AgentToolResult<unknown>): unknown {
+function unwrapMcpContent({ content }: AgentToolResult<unknown>): Serializable | PiToolContent[] {
   if (!content.every(isTextContent)) return content
   const text = content.map((block) => block.text).join('\n')
   try {
-    return JSON.parse(text)
+    // SAFETY: Native JSON parsing validates the grammar and constructs only serializable values.
+    return JSON.parse(text) as Serializable
   } catch {
     return text
   }

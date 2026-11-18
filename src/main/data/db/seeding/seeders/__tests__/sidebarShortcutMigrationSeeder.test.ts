@@ -13,6 +13,7 @@ import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { SerializableSchema } from '@shared/utils/serializable'
 
 describe('SidebarShortcutMigrationSeeder', () => {
   const dbh = setupTestDatabase()
@@ -21,12 +22,13 @@ describe('SidebarShortcutMigrationSeeder', () => {
     ['sidebar-shortcut-migration', 'preference'].includes(seeder.name)
   )
 
-  function readPreference(key = 'ui.sidebar_shortcut'): unknown {
-    return dbh.db
+  function readPreference(key = 'ui.sidebar_shortcut') {
+    const row = dbh.db
       .select({ value: preferenceTable.value })
       .from(preferenceTable)
       .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, key)))
-      .get()?.value
+      .get()
+    return row ? SerializableSchema.parse(row.value) : undefined
   }
 
   it('preserves order, snapshots entity names, and is idempotent', () => {

@@ -1,5 +1,8 @@
 import { vi } from 'vitest'
 
+import type { Serializable } from '@shared/types/serializable'
+import { SerializableSchema } from '@shared/utils/serializable'
+
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../../imageGenerationModel'
 
 export interface CapturedRequest {
@@ -7,21 +10,22 @@ export interface CapturedRequest {
   method: string
   headers: Headers
   /** JSON bodies are parsed; FormData is normalized to a plain inspectable record. */
-  body: unknown
+  body: ReturnType<typeof normalizeBody>
 }
 
-function normalizeBody(raw: BodyInit | null | undefined): unknown {
+function normalizeBody(
+  raw: BodyInit | null | undefined
+): Serializable | Exclude<BodyInit, string | FormData> | undefined {
   if (raw == null) return undefined
-  if (typeof raw === 'string') return JSON.parse(raw)
+  if (typeof raw === 'string') return SerializableSchema.parse(JSON.parse(raw))
   if (raw instanceof FormData) {
-    const out: Record<string, unknown> = {}
+    const out = new Map<string, string | string[]>()
     for (const [k, v] of raw.entries()) {
       const value = v instanceof Blob ? `<Blob ${v.type} ${v.size}b>` : v
-      // repeated keys (e.g. multi-image `image`) collapse into an array
-      if (k in out) out[k] = [...(Array.isArray(out[k]) ? (out[k] as unknown[]) : [out[k]]), value]
-      else out[k] = value
+      const previous = out.get(k)
+      out.set(k, previous === undefined ? value : [...(Array.isArray(previous) ? previous : [previous]), value])
     }
-    return out
+    return Object.fromEntries(out)
   }
   return raw
 }
@@ -107,8 +111,8 @@ export function runWithResponse<T>(
  * (e.g. image models that bind `config.fetch` at construction, before any
  * global mock would apply). The caller wires the provided fetch in and runs.
  */
-export async function captureWithFetch(
-  run: (fetch: typeof globalThis.fetch) => PromiseLike<unknown>
+export async function captureWithFetch<TResult>(
+  run: (fetch: typeof globalThis.fetch) => TResult
 ): Promise<CapturedRequest> {
   const cap = makeCapturingFetch()
   try {

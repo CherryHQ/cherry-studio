@@ -26,6 +26,7 @@
 
 import type { DynamicToolUIPart, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
 import { getToolName, isToolUIPart } from 'ai'
+import type * as z from 'zod'
 
 import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
@@ -53,7 +54,7 @@ import { isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transpor
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
-import { extractOutputMetadata, normalizeToolOutputResponse, type ToolMetadata } from './toolOutput'
+import { extractOutputMetadata, type ToolMetadata } from './toolOutput'
 
 export interface MessageCitations {
   /** Wire id (stringified) → citation with its assigned display number. */
@@ -150,21 +151,6 @@ function resolveCitableToolName(part: CherryMessagePart): string | null {
   return citableCherryToolName(rawName)
 }
 
-/**
- * Citation fields survive persist-time entity trimming inside the envelope's
- * skeleton (ids/urls/titles + inline snippets), so resolve from it without
- * fetching any blob — for both the stored `'entities'` envelope (cold load)
- * and its deferred projection carrying `skeleton` (transport).
- */
-function unwrapCitableOutput(output: unknown): unknown {
-  if (isPersistedToolOutput(output)) {
-    const ref = output.$persistedToolOutput
-    return ref.shape === 'entities' ? ref.skeleton : output
-  }
-  if (isDeferredToolOutput(output) && output.skeleton !== undefined) return output.skeleton
-  return output
-}
-
 function toSnippet(content: string): string {
   const trimmed = content.trim()
   if (trimmed.length <= CITATION_SNIPPET_MAX_CHARS) return trimmed
@@ -190,6 +176,41 @@ function parseKbReadCitation(
   const { id, baseId, conceptId, title, matches } = grep.data
   if (!id || matches.length === 0) return null
   return { id, baseId, conceptId, title, content: toSnippet(matches.map((match) => match.snippet).join(' … ')) }
+}
+
+type KnowledgeCitationInput = {
+  id: string | number
+  baseId?: string
+  conceptId?: string
+  title?: string
+  content: string
+}
+
+type CitableToolOutput =
+  | { kind: 'knowledge'; items: KnowledgeCitationInput[] }
+  | { kind: 'web'; items: z.infer<typeof webSearchOutputSchema> }
+
+function parseCitableToolOutput(toolName: string, output: unknown): CitableToolOutput | null {
+  let rawOutput = output
+  if (isPersistedToolOutput(output)) {
+    const ref = output.$persistedToolOutput
+    if (ref.shape === 'entities') rawOutput = ref.skeleton
+  } else if (isDeferredToolOutput(output) && output.skeleton !== undefined) {
+    rawOutput = output.skeleton
+  }
+  const { response } = extractOutputMetadata(rawOutput)
+
+  if (toolName === KB_SEARCH_TOOL_NAME) {
+    const parsed = kbSearchOutputSchema.safeParse(response)
+    return parsed.success ? { kind: 'knowledge', items: parsed.data } : null
+  }
+  if (toolName === KB_READ_TOOL_NAME) {
+    // Read-mode content is the document itself; MCP results still need their envelope removed.
+    const item = parseKbReadCitation(rawOutput) ?? parseKbReadCitation(response)
+    return item ? { kind: 'knowledge', items: [item] } : null
+  }
+  const parsed = webSearchOutputSchema.safeParse(response)
+  return parsed.success ? { kind: 'web', items: parsed.data } : null
 }
 
 /**
@@ -259,13 +280,7 @@ export function resolveMessageCitations(
     }
   }
 
-  const addKnowledgeCitation = (item: {
-    id: string | number
-    baseId?: string
-    conceptId?: string
-    title?: string
-    content: string
-  }) => {
+  const addKnowledgeCitation = (item: KnowledgeCitationInput) => {
     const key = String(item.id)
     if (byId.has(key)) return
     // One citation per document, the knowledge-base counterpart of the URL dedup below: kb_search
@@ -294,33 +309,14 @@ export function resolveMessageCitations(
   const addToolPart = (part: CherryMessagePart) => {
     const toolName = resolveCitableToolName(part)
     if (!toolName) return
-    const rawOutput = unwrapCitableOutput((part as { output?: unknown }).output)
-    const output = normalizeToolOutputResponse(rawOutput)
-
-    if (toolName === KB_SEARCH_TOOL_NAME) {
-      const parsed = kbSearchOutputSchema.safeParse(output)
-      if (!parsed.success || parsed.data.length === 0) return
-      if (ownScope) lookupCallCount += 1
-      for (const item of parsed.data) addKnowledgeCitation(item)
-      return
-    }
-
-    if (toolName === KB_READ_TOOL_NAME) {
-      // Read mode's payload carries its own top-level `content`, which `normalizeToolOutputResponse`
-      // mistakes for the MCP `{ content, metadata }` envelope and unwraps down to the bare document
-      // text. Try the raw output first (assistant path); the unwrapped form only wins on the agent
-      // path, where a real envelope does wrap the payload.
-      const item = parseKbReadCitation(rawOutput) ?? parseKbReadCitation(output)
-      if (!item) return
-      if (ownScope) lookupCallCount += 1
-      addKnowledgeCitation(item)
-      return
-    }
-
-    const parsed = webSearchOutputSchema.safeParse(output)
-    if (!parsed.success || parsed.data.length === 0) return
+    const output = parseCitableToolOutput(toolName, (part as { output?: unknown }).output)
+    if (!output || output.items.length === 0) return
     if (ownScope) lookupCallCount += 1
-    for (const item of parsed.data) {
+    if (output.kind === 'knowledge') {
+      for (const item of output.items) addKnowledgeCitation(item)
+      return
+    }
+    for (const item of output.items) {
       const key = String(item.id)
       if (byId.has(key)) continue
       const existing = item.url ? byUrl.get(item.url) : undefined

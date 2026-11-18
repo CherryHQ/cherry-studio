@@ -67,7 +67,7 @@ export function useTopicAwaitingApproval(topicId: string): boolean {
 // Fire `refresh` once when a live turn pauses for approval. The final
 // done/error/aborted handoff is owned by the page-level overlay handoff so it
 // can refresh before dropping live overlay parts.
-export function useTopicDbRefreshOnAwaitingApproval(topicId: string, refresh: () => Promise<unknown>): void {
+export function useTopicDbRefreshOnAwaitingApproval<TResult>(topicId: string, refresh: () => Promise<TResult>): void {
   const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
   const status = entry?.status
   const refreshRef = useRef(refresh)

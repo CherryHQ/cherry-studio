@@ -2,10 +2,14 @@ import type { Worker } from 'node:worker_threads'
 
 import { AgentSessionForkError } from './checkpoint'
 
-export async function runForkWorker(worker: Worker, signal: AbortSignal): Promise<unknown> {
+export async function runForkWorker<TResult>(
+  worker: Worker,
+  signal: AbortSignal,
+  parse: (result: unknown) => TResult
+): Promise<TResult> {
   try {
     signal.throwIfAborted()
-    return await new Promise<unknown>((resolve, reject) => {
+    const result = await new Promise<unknown>((resolve, reject) => {
       const onAbort = () => reject(signal.reason)
       const timer = setTimeout(() => reject(new Error('Fork worker timed out')), 60_000)
       const cleanup = () => {
@@ -28,6 +32,7 @@ export async function runForkWorker(worker: Worker, signal: AbortSignal): Promis
       })
       if (signal.aborted) onAbort()
     })
+    return parse(result)
   } finally {
     // Await termination before the operation owner removes any staged files.
     await worker.terminate()

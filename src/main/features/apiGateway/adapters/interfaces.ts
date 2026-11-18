@@ -70,7 +70,7 @@ export interface StreamTextOptions {
  * input.pipeThrough(adapter1.getTransformStream()).pipeThrough(adapter2.getTransformStream())
  * ```
  */
-export interface IStreamAdapter<TOutputEvent = unknown> {
+export interface IStreamAdapter<TOutputEvent, TResponse> {
   /**
    * Transform the AI SDK UI-message stream to a target-format event stream.
    * @param input - ReadableStream of UIMessageChunk from `AiService.streamText`
@@ -98,7 +98,7 @@ export interface IStreamAdapter<TOutputEvent = unknown> {
    * Build a non-streaming response from accumulated state
    * Call after stream is fully consumed
    */
-  buildNonStreamingResponse(): unknown
+  buildNonStreamingResponse(): TResponse
 
   /**
    * Get the response ID serialized on the provider-compatible wire

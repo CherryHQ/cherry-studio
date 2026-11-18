@@ -1,6 +1,6 @@
 /** Channel names and event names shared by the guest preload and main. */
 
-import { MINI_APP_MAX_INPUT_BYTES, MINI_APP_MAX_MESSAGES } from '@shared/types/miniAppQuota'
+import { MINI_APP_MAX_INPUT_BYTES, MINI_APP_MAX_MESSAGES, type QuotaUsageWithLimits } from '@shared/types/miniAppQuota'
 
 export const MINI_APP_BRIDGE_CHANNEL = 'mini_app.bridge'
 export const MINI_APP_STREAM_CHANNEL = 'mini_app.bridge:stream'
@@ -31,7 +31,22 @@ export interface CherryPublicError {
   message: string
 }
 
-export type BridgeResult = { ok: true; value: unknown } | { ok: false; error: CherryPublicError }
+export type MiniAppReply =
+  | { ok: boolean }
+  | { value: string | null }
+  | { keys: string[] }
+  | { data: string | null }
+  | { text: string }
+  | { names: string[] }
+  | QuotaUsageWithLimits
+  | { saved: boolean }
+  | { status: number; headers: Record<string, string>; body: string }
+  | { appId: string; version: string; hostVersion: string; locale: string }
+  | Record<string, boolean>
+  | { available: false }
+  | { available: true; reasoning: boolean; contextWindow: number | null }
+
+export type BridgeResult = { ok: true; value: MiniAppReply } | { ok: false; error: CherryPublicError }
 
 /**
  * Cheap length caps the guest checks before sending. NOT the enforcement point —

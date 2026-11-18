@@ -10,7 +10,7 @@ import type { CallOverrides } from '@main/ai/types'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
-import type { ISseFormatter, IStreamAdapter } from './adapters'
+import type { ISseFormatter } from './adapters'
 import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
 import { buildStreamErrorFrame, internalGatewayError } from './errors'
 import { resolveGatewayRequest, type MessageConfig } from './gatewayRequest'
@@ -177,7 +177,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   }
 
   // 4. Adapter + formatter translate UIMessageChunk → output format.
-  const adapter: IStreamAdapter = StreamAdapterFactory.createAdapter(outputFormat, {
+  const adapter = StreamAdapterFactory.createAdapter(outputFormat, {
     model: `${provider.id}:${modelId}`,
     ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {})
   })

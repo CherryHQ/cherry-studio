@@ -2,9 +2,8 @@
 import '@data/services/ProviderRegistryService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { describe, expect, it, type Mock } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-import { application } from '@application'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { ErrorCode } from '@shared/data/api/errors'
@@ -174,20 +173,8 @@ describe('ProviderService.update', () => {
       providerSettings: {}
     })
 
-    // Route the (now synchronous) withWriteTx through the real test DB. Because update() reads,
-    // merges, and writes inside a single synchronous withWriteTx callback, each PATCH runs to
-    // completion before the next begins — the second merges on the row the first just wrote,
-    // so neither clobbers the other's keys.
-    const withWriteTx = application.get('DbService').withWriteTx as Mock
-    withWriteTx.mockImplementation((fn: (tx: unknown) => unknown) => fn(dbh.db))
-
-    try {
-      providerService.update('p-concurrent', { providerSettings: { timeout: 30 } })
-      providerService.update('p-concurrent', { providerSettings: { rateLimit: 5 } })
-    } finally {
-      // Restore the default passthrough so the override doesn't leak into other tests.
-      withWriteTx.mockImplementation((fn: (tx: unknown) => unknown) => fn(dbh.db))
-    }
+    providerService.update('p-concurrent', { providerSettings: { timeout: 30 } })
+    providerService.update('p-concurrent', { providerSettings: { rateLimit: 5 } })
 
     const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'p-concurrent'))
     // Both keys survive — neither PATCH read a stale row and clobbered the other.

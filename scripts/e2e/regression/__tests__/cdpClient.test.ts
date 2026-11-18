@@ -4,8 +4,8 @@ import { WebSocketServer } from 'ws'
 
 import { evaluateCdpExpression } from '../cdpClient'
 
-async function withCdpServer(
-  response: (request: { id: number; method: string; params: Record<string, unknown> }) => unknown,
+async function withCdpServer<TResult>(
+  response: (request: { id: number; method: string; params: Record<string, unknown> }) => TResult,
   run: (url: string) => Promise<void>
 ): Promise<void> {
   const server = new WebSocketServer({ port: 0 })

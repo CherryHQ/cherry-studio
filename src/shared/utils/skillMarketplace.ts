@@ -9,6 +9,8 @@ import {
 export const SKILL_SEARCH_FAILED_ERROR = 'skill_search_failed'
 export const SKILL_DIRECTORY_CONTENT_HASH_PREFIX = 'directory-sha256:'
 
+export type SkillMarketplaceFetch = <TResult>(url: string, parse: (raw: unknown) => TResult) => Promise<TResult>
+
 type MarketplaceSource = {
   name: SkillSearchSource
   buildUrl: (query: string) => string
@@ -379,7 +381,7 @@ const MARKETPLACE_SOURCES: readonly MarketplaceSource[] = [
  */
 export async function searchSkillMarketplaces(
   query: string,
-  fetchJson: (url: string) => Promise<unknown>,
+  fetchJson: SkillMarketplaceFetch,
   onSourceFailure?: (source: SkillSearchSource, error: unknown) => void,
   selectedSource?: SkillSearchSource
 ): Promise<SkillSearchResult[]> {
@@ -388,7 +390,7 @@ export async function searchSkillMarketplaces(
 
   const sources = MARKETPLACE_SOURCES.filter((source) => !selectedSource || source.name === selectedSource)
   const settled = await Promise.allSettled(
-    sources.map(async (source) => source.normalize(await fetchJson(source.buildUrl(trimmed))))
+    sources.map(async (source) => fetchJson(source.buildUrl(trimmed), source.normalize))
   )
   const combined: SkillSearchResult[] = []
   let failedSourceCount = 0

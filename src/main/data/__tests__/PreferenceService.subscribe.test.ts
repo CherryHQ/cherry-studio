@@ -1,6 +1,6 @@
 import { pathToFileURL } from 'node:url'
 
-import { BrowserWindow, type IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, type IpcMain, type IpcMainInvokeEvent } from 'electron'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -47,11 +47,11 @@ const untrustedEvent = {
 
 // Mock lifecycle decorators so `new PreferenceService()` works without the container.
 // The mocked BaseService captures ipcMain handlers we can invoke directly.
-const ipcHandlers = new Map<string, (event: IpcMainInvokeEvent, ...args: any[]) => unknown>()
+const ipcHandlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
 
 vi.mock('@main/core/lifecycle', () => ({
   BaseService: class {
-    protected ipcHandle(channel: string, handler: (event: IpcMainInvokeEvent, ...args: any[]) => unknown) {
+    protected ipcHandle(channel: string, handler: Parameters<IpcMain['handle']>[1]) {
       ipcHandlers.set(channel, handler)
       return { dispose: () => ipcHandlers.delete(channel) }
     }
@@ -91,7 +91,7 @@ Object.assign(BrowserWindow, {
 
 describe('Preference_Subscribe IPC handler', () => {
   let service: any
-  let handler: (event: IpcMainInvokeEvent, ...args: any[]) => unknown
+  let handler: Parameters<IpcMain['handle']>[1]
 
   let PreferenceService: typeof PreferenceServiceType
 

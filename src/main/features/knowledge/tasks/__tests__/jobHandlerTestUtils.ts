@@ -400,7 +400,7 @@ export function createJobSnapshot(overrides: KnowledgeJobSnapshotInput): JobSnap
 }
 
 export const knowledgeLockManager = {
-  runExclusive: vi.fn(async (_key: string, task: () => Promise<unknown>) => await task())
+  runExclusive: vi.fn(async <TResult>(_key: string, task: () => Promise<TResult>) => await task())
 }
 
 export const ingestionService: Mocked<KnowledgeItemScheduler> = {
@@ -412,7 +412,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   MockMainCacheServiceUtils.resetMocks()
   knowledgeLockManager.runExclusive.mockImplementation(
-    async (_key: string, task: () => Promise<unknown>) => await task()
+    async <TResult>(_key: string, task: () => Promise<TResult>) => await task()
   )
   knowledgeBaseGetByIdMock.mockReturnValue(createBase())
   knowledgeItemGetByIdMock.mockReturnValue(createNoteItem())

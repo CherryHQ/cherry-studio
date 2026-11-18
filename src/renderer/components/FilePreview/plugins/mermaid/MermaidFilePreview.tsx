@@ -81,7 +81,11 @@ export default function MermaidFilePreview({ filePath, refreshKey }: FilePreview
   }
 
   const ready = loadState.status === 'ready' && Boolean(loadState.source.trim())
-  const actions: Array<{ label: string; icon: typeof ZoomIn; run: (preview: BasicPreviewHandles) => unknown }> = [
+  const actions: Array<{
+    label: string
+    icon: typeof ZoomIn
+    run: (preview: BasicPreviewHandles) => ReturnType<BasicPreviewHandles[keyof BasicPreviewHandles]>
+  }> = [
     { label: t('preview.zoom_out'), icon: ZoomOut, run: (preview) => preview.zoom(-ZOOM_STEP) },
     { label: t('preview.zoom_in'), icon: ZoomIn, run: (preview) => preview.zoom(ZOOM_STEP) },
     {

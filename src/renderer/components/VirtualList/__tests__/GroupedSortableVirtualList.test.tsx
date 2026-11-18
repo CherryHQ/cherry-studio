@@ -34,7 +34,6 @@ const dndMocks = vi.hoisted(() => ({
   onDragStart: undefined as undefined | ((event: any) => void),
   sortableData: new Map<string, unknown>(),
   sortableDisabled: new Map<string, boolean | { draggable?: boolean; droppable?: boolean } | undefined>(),
-  sortableStrategy: undefined as undefined | ((args: any) => unknown),
   useSensor: vi.fn((sensor, options) => ({ sensor, options })),
   verticalListSortingStrategy: vi.fn(() => ({ scaleX: 1, scaleY: 1, x: 0, y: 12 }))
 }))
@@ -88,8 +87,7 @@ vi.mock('@dnd-kit/core', () => {
 vi.mock('@dnd-kit/sortable', () => {
   const React = require('react')
   return {
-    SortableContext: ({ children, strategy }: { children: ReactNode; strategy?: (args: any) => unknown }) => {
-      dndMocks.sortableStrategy = strategy
+    SortableContext: ({ children }: { children: ReactNode }) => {
       return React.createElement('div', { 'data-testid': 'sortable-context' }, children)
     },
     useSortable: ({
@@ -164,7 +162,6 @@ function renderList(onDragEnd = vi.fn(), extraProps = {}) {
   dndMocks.droppableDisabled.clear()
   dndMocks.sortableData.clear()
   dndMocks.sortableDisabled.clear()
-  dndMocks.sortableStrategy = undefined
   dndMocks.useSensor.mockClear()
   dndMocks.verticalListSortingStrategy.mockClear()
 

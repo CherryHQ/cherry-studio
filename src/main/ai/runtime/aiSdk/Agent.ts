@@ -46,7 +46,11 @@ class MissingFinishReasonError extends Error {
   }
 }
 
-function normalizeStreamError(error: unknown, providerId: string, modelId: string): unknown {
+function normalizeStreamError<TError>(
+  error: TError,
+  providerId: string,
+  modelId: string
+): TError | MissingFinishReasonError {
   if (InvalidResponseDataError.isInstance(error) && error.message === MISSING_FINISH_REASON_MESSAGE) {
     return new MissingFinishReasonError(error, providerId, modelId)
   }

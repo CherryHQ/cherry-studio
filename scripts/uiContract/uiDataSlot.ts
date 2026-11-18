@@ -15,9 +15,9 @@ import { mergeDataUi } from './runtime'
 type AnyProps = Record<string, unknown>
 type RefTarget = Ref<unknown> | null | undefined
 
-function setForwardedRef(ref: RefTarget, node: unknown): unknown {
-  if (typeof ref === 'function') return (ref as (node: unknown) => unknown)(node)
-  if (ref !== null && ref !== undefined) (ref as { current: unknown }).current = node
+function setForwardedRef(ref: RefTarget, node: unknown): void | (() => void) {
+  if (typeof ref === 'function') return ref(node)
+  if (ref !== null && ref !== undefined) ref.current = node
   return undefined
 }
 

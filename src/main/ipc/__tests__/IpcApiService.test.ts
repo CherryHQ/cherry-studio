@@ -31,7 +31,12 @@ function makeService(): IpcApiService {
 /** The callback registered on the IpcApi_Request channel during onInit. */
 function registeredHandler() {
   const call = vi.mocked(ipcMain.handle).mock.calls.find((c) => c[0] === IpcChannel.IpcApi_Request)
-  return call?.[1] as (event: unknown, route: string, input: unknown, meta?: unknown) => Promise<unknown>
+  return call?.[1] as (
+    event: unknown,
+    route: string,
+    input: unknown,
+    meta?: unknown
+  ) => ReturnType<IpcApiService['handleRequest']>
 }
 
 const trustedEvent = {

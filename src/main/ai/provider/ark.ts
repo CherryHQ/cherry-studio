@@ -1,3 +1,6 @@
+import type { Serializable } from '@shared/types/serializable'
+import { isSerializable } from '@shared/utils/serializable'
+
 /**
  * `include` entries the OpenAI Responses adapter adds unconditionally but Ark
  * rejects with 400 `unknown type`. The adapter appends
@@ -6,9 +9,9 @@
  */
 const ARK_UNSUPPORTED_INCLUDES = new Set(['web_search_call.action.sources'])
 
-type JsonObject = Record<string, unknown>
+type JsonObject = Record<string, Serializable>
 
-function isJsonObject(value: unknown): value is JsonObject {
+function isJsonObject(value: Serializable): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -21,7 +24,7 @@ function isResponsesRequest(input: RequestInfo | URL): boolean {
   }
 }
 
-function addMissingOutputTextAnnotations(value: unknown): unknown {
+function addMissingOutputTextAnnotations(value: Serializable): Serializable {
   if (!isJsonObject(value) || !Array.isArray(value.output)) return value
 
   let outputChanged = false
@@ -69,6 +72,7 @@ export async function normalizeArkResponsesResponse(input: RequestInfo | URL, re
 
   try {
     const json: unknown = await response.clone().json()
+    if (!isSerializable(json)) return response
     const normalized = addMissingOutputTextAnnotations(json)
     if (normalized === json) return response
 

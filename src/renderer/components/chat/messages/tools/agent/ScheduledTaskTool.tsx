@@ -112,7 +112,7 @@ function ScheduledTaskCard({ task }: { task: ScheduledTaskListItem }) {
       : getTriggerSummary(trigger, t)
   const nextRun = !isOnce && task.status === 'active' && task.nextRun ? formatNextRun(task.nextRun) : undefined
 
-  const runExclusive = async (operation: () => Promise<unknown>) => {
+  const runExclusive = async <TResult,>(operation: () => Promise<TResult>) => {
     setBusy(true)
     try {
       await operation()

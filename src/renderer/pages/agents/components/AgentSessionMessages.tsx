@@ -3,7 +3,10 @@ import { memo, useEffect, useMemo } from 'react'
 import { loggerService } from '@logger'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
-import { AskUserQuestionOptimisticInputProvider } from '@renderer/components/chat/messages/tools/agent'
+import {
+  AskUserQuestionOptimisticInputProvider,
+  type AskUserQuestionOptimisticInputs
+} from '@renderer/components/chat/messages/tools/agent'
 import type { MessageListState } from '@renderer/components/chat/messages/types'
 import type {
   MessageListActions,
@@ -36,7 +39,7 @@ type Props = {
   activeAgent?: GetAgentResponse
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
-  optimisticAskUserQuestionInputsByToolCallId?: Record<string, unknown>
+  optimisticAskUserQuestionInputsByToolCallId?: AskUserQuestionOptimisticInputs
   isLoading: boolean
   /** Whether more older messages remain on the server (cursor pagination). */
   hasOlder?: boolean

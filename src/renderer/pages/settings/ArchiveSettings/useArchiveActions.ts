@@ -21,9 +21,9 @@ const logger = loggerService.withContext('ArchiveActions')
 const ALREADY_ACTIVE = Symbol('already-active')
 const NO_LONGER_IN_RECYCLE_BIN = Symbol('no-longer-in-recycle-bin')
 
-async function reconcileNotFound(
-  run: () => Promise<unknown>,
-  refresh: () => Promise<unknown>,
+async function reconcileNotFound<TResult, TRefresh>(
+  run: () => Promise<TResult>,
+  refresh: () => Promise<TRefresh>,
   activePath: ConcreteApiPaths,
   isNotFound: (error: unknown) => boolean = isDataApiNotFoundError
 ) {
@@ -46,9 +46,9 @@ async function reconcileNotFound(
 function useArchiveActionRunner() {
   const { t } = useTranslation()
 
-  return async (
+  return async <TResult>(
     action: 'restore' | 'permanent_delete',
-    run: () => Promise<unknown>,
+    run: () => Promise<TResult>,
     successAction?: ToastAction
   ): Promise<void> => {
     const messages =
@@ -90,10 +90,10 @@ async function runSinglePermanentDelete(
   return outcome
 }
 
-async function runDataPermanentDeletes(
+async function runDataPermanentDeletes<TDelete, TRefresh>(
   targets: ArchiveItem[],
-  deleteItem: (item: ArchiveItem) => Promise<unknown>,
-  refresh: () => Promise<unknown>,
+  deleteItem: (item: ArchiveItem) => Promise<TDelete>,
+  refresh: () => Promise<TRefresh>,
   staleMessage: string
 ): Promise<ArchiveBatchOutcome> {
   const staleIds = new Set<string>()
@@ -148,9 +148,9 @@ async function inspectFailedFileIds(
   return { activeIds, missingIds }
 }
 
-function useDataArchiveActions(
+function useDataArchiveActions<TRefresh>(
   domain: 'topics' | 'assistants' | 'paintings',
-  refresh: () => Promise<unknown>,
+  refresh: () => Promise<TRefresh>,
   buildRestoreSuccessAction?: (item: ArchiveItem) => ToastAction
 ) {
   const { t } = useTranslation()
@@ -194,7 +194,7 @@ function useDataArchiveActions(
   }
 }
 
-export function useTopicArchiveActions(refresh: () => Promise<unknown>) {
+export function useTopicArchiveActions<TRefresh>(refresh: () => Promise<TRefresh>) {
   const { t } = useTranslation()
 
   // Restoring a conversation is only half the job — the user usually wants it back open,
@@ -207,7 +207,7 @@ export function useTopicArchiveActions(refresh: () => Promise<unknown>) {
   return useDataArchiveActions('topics', refresh, goToConversation)
 }
 
-export function useAgentArchiveActions(refresh: () => Promise<unknown>) {
+export function useAgentArchiveActions<TRefresh>(refresh: () => Promise<TRefresh>) {
   const { t } = useTranslation()
   const runAction = useArchiveActionRunner()
   const invalidate = useInvalidateCache()
@@ -272,7 +272,7 @@ export function useAgentArchiveActions(refresh: () => Promise<unknown>) {
   }
 }
 
-export function useSessionArchiveActions(refresh: () => Promise<unknown>) {
+export function useSessionArchiveActions<TRefresh>(refresh: () => Promise<TRefresh>) {
   const writeCache = useWriteCache()
   const { t } = useTranslation()
   const runAction = useArchiveActionRunner()
@@ -339,11 +339,11 @@ export function useSessionArchiveActions(refresh: () => Promise<unknown>) {
   }
 }
 
-export function useAssistantArchiveActions(refresh: () => Promise<unknown>) {
+export function useAssistantArchiveActions<TRefresh>(refresh: () => Promise<TRefresh>) {
   return useDataArchiveActions('assistants', refresh)
 }
 
-export function usePaintingArchiveActions(refresh: () => Promise<unknown>) {
+export function usePaintingArchiveActions<TRefresh>(refresh: () => Promise<TRefresh>) {
   return useDataArchiveActions('paintings', refresh)
 }
 

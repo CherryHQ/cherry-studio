@@ -2,13 +2,15 @@ import { parseArgs } from 'node:util'
 
 import WebSocket from 'ws'
 
+import type { Serializable } from '../../src/shared/types/serializable'
+import { SerializableSchema } from '../../src/shared/utils/serializable'
 import { selectMainTarget, validateConnection } from './connection'
 import { createVoiceRuntimeSmokeExpression } from './rendererExpression'
 
-async function evaluate(socketUrl: string, expression: string): Promise<unknown> {
+async function evaluate(socketUrl: string, expression: string): Promise<Serializable | undefined> {
   const socket = new WebSocket(socketUrl, { handshakeTimeout: 5000, maxPayload: 1024 * 1024 })
   try {
-    return await new Promise((resolve, reject) => {
+    const result: unknown = await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('CDP_TIMEOUT')), 425_000)
       const finish = (value?: unknown, failed = false): void => {
         clearTimeout(timer)
@@ -47,6 +49,7 @@ async function evaluate(socketUrl: string, expression: string): Promise<unknown>
         )
       )
     })
+    return result === undefined ? undefined : SerializableSchema.parse(result)
   } finally {
     socket.terminate()
   }

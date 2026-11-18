@@ -10,7 +10,9 @@ import { loggerService } from '@logger'
 import { installBundledDevtools } from '@main/core/devtools'
 import { BaseService, Conditional, Injectable, Phase, Priority, ServicePhase, when } from '@main/core/lifecycle'
 import { isDev } from '@main/core/platform'
+import type { Serializable } from '@shared/types/serializable'
 import { isSensitiveKey, REDACTED, redactUrlParams } from '@shared/utils/redaction'
+import { isSerializable } from '@shared/utils/serializable'
 
 const logger = loggerService.withContext('MainNetworkDevtoolsService')
 
@@ -784,7 +786,9 @@ function createCapturedTextBody(
 function redactBodyText(text: string, contentType?: string): string {
   if (isJsonContentType(contentType) || looksJson(text)) {
     try {
-      return JSON.stringify(redactJsonValue(JSON.parse(text)))
+      const value: unknown = JSON.parse(text)
+      if (!isSerializable(value)) return text
+      return JSON.stringify(redactJsonValue(value))
     } catch {
       return text
     }
@@ -801,11 +805,11 @@ function redactBodyText(text: string, contentType?: string): string {
   return text
 }
 
-function redactJsonValue(value: unknown): unknown {
+function redactJsonValue(value: Serializable): Serializable {
   if (Array.isArray(value)) return value.map((item) => redactJsonValue(item))
-  if (!isRecord(value)) return value
+  if (value === null || typeof value !== 'object') return value
 
-  const result: Record<string, unknown> = {}
+  const result: Record<string, Serializable> = {}
   for (const [key, item] of Object.entries(value)) {
     result[key] = isSensitiveName(key, OAUTH_QUERY_EXTRAS) ? REDACTED : redactJsonValue(item)
   }

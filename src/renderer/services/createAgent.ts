@@ -5,9 +5,9 @@ import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 
 const logger = loggerService.withContext('createAgent')
 
-export async function createAgentAndRefresh(
+export async function createAgentAndRefresh<TResult>(
   input: CreateAgentCommand,
-  refreshAgents: () => Promise<unknown>
+  refreshAgents: () => Promise<TResult>
 ): Promise<AgentEntity> {
   const agent = await ipcApi.request('ai.agent.create', input)
   try {

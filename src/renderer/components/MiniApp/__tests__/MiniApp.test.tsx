@@ -19,8 +19,8 @@ const calculatorApp: MiniAppType = {
 
 const mocks = vi.hoisted(() => ({
   openTab: vi.fn(),
-  updateAppStatus: vi.fn(() => Promise.resolve()),
-  hideMiniApp: vi.fn(() => Promise.resolve()),
+  updateAppStatus: vi.fn(async (appId: string, status: MiniAppType['status']) => ({ ...calculatorApp, appId, status })),
+  hideMiniApp: vi.fn(async (appId: string) => ({ ...calculatorApp, appId, status: 'disabled' as const })),
   removeCustomMiniApp: vi.fn(() => Promise.resolve()),
   toggleMiniApp: vi.fn(),
   pinned: [] as MiniAppType[],

@@ -37,7 +37,7 @@ function listFixture(scrollHeight = 450) {
     }
   }
   const scroller = {
-    evaluate: async (callback: (node: typeof element) => unknown) => callback(element)
+    evaluate: async <TResult>(callback: (node: typeof element) => TResult) => callback(element)
   } as unknown as Locator
   const page = {
     waitForTimeout: async () => {
@@ -78,7 +78,7 @@ it('waits for the first rendered window after resetting a previously scrolled li
     callback()
   })
   const scroller = {
-    evaluate: async (callback: (node: typeof element) => unknown) => callback(element)
+    evaluate: async <TResult>(callback: (node: typeof element) => TResult) => callback(element)
   } as unknown as Locator
   const page = { waitForTimeout: async () => render() } as unknown as Page
 

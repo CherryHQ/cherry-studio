@@ -15,6 +15,7 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import type { DoctorSubjectRef } from '@shared/types/doctor'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 const exportActionsMock = vi.hoisted(() => ({
@@ -623,7 +624,9 @@ describe('useAgentMessageListProviderValue', () => {
 
     const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
       diagnosticReport: { location: string }
-      getDoctorSubject: (message?: { model?: { id: string; provider: string; name: string } }) => unknown
+      getDoctorSubject: (message?: {
+        model?: { id: string; provider: string; name: string }
+      }) => DoctorSubjectRef | undefined
     }
     expect(options.getDoctorSubject()).toEqual({ kind: 'agent', agentId: topic.assistantId })
     expect(

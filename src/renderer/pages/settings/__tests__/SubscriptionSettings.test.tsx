@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type {
   CherryCloudAccountPlans,
+  CherryCloudAccountRefreshResult,
   CherryCloudEndpointFact,
   CherryCloudStatus
 } from '@shared/ipc/schemas/cherryCloud'
@@ -15,7 +16,7 @@ const { requestMock, session, receiptFixture } = vi.hoisted(() => ({
   requestMock: vi.fn(),
   receiptFixture: {
     initialFact: undefined as CherryCloudEndpointFact<CherryCloudAccountPlans> | undefined,
-    refresh: undefined as (() => Promise<unknown>) | undefined
+    refresh: undefined as (() => Promise<Pick<CherryCloudAccountRefreshResult, 'outcome'>>) | undefined
   },
   session: {
     status: null as CherryCloudStatus | null,
@@ -49,7 +50,7 @@ vi.mock('@renderer/hooks/useCherryCloudReceipt', async () => {
         { revalidateOnMount: false, revalidateOnFocus: false, fallbackData: receiptFixture.initialFact }
       )
       const { mutate } = query
-      const refresh = useCallback(async () => {
+      const refresh = useCallback(async (): Promise<Pick<CherryCloudAccountRefreshResult, 'outcome'>> => {
         try {
           const value = await requestMock('test.fixture.plans')
           await mutate({ freshness: 'fresh', value, observedRevision: 1 }, { revalidate: false })

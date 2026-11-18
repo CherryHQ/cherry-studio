@@ -36,7 +36,7 @@ interface MessageStreamingLayersResult {
  * refresh the DB rows first so dropping the live overlay never flashes stale
  * base parts, and drop the overlay even when the refresh fails.
  */
-export function createOverlayRefreshHandoff(refresh: () => Promise<unknown>, resetOverlay: () => void) {
+export function createOverlayRefreshHandoff<TResult>(refresh: () => Promise<TResult>, resetOverlay: () => void) {
   return async () => {
     try {
       await refresh()

@@ -14,7 +14,7 @@ import { application } from '@application'
 import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { loggerService } from '@logger'
 import { getAppLanguage } from '@main/i18n'
-import type { BridgeResult, CherryPublicError } from '@shared/ipc/schemas/miniAppBridge'
+import type { BridgeResult, CherryPublicError, MiniAppReply } from '@shared/ipc/schemas/miniAppBridge'
 import { declaredGrantKeys, MiniAppManifestSchema, type MiniAppMethod } from '@shared/types/miniAppManifest'
 
 import { miniAppActivityLog } from '../activityLog'
@@ -63,7 +63,7 @@ type Handler = (
   requestId: string | undefined,
   /** The app's own label for this call, when it gave one. Names an `ai.cancel` target. */
   callId: string | undefined
-) => unknown | Promise<unknown>
+) => MiniAppReply | Promise<MiniAppReply>
 
 /**
  * Handlers only. The GATE is not here — it lives in `MINI_APP_METHODS`, next to the
@@ -158,7 +158,7 @@ export async function handleBridgeRequest(senderId: number, payload: unknown, em
   }
 }
 
-async function route(senderId: number, payload: unknown, emit: Emit): Promise<unknown> {
+async function route(senderId: number, payload: unknown, emit: Emit): Promise<MiniAppReply> {
   const runtime = application.get('MiniAppRuntimeService')
   const appId = runtime.resolveAppIdBySender(senderId)
   if (!appId) {

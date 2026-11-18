@@ -78,12 +78,11 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
   const { questions, answers } = useMemo(() => {
     const parsedInput = parseAskUserQuestionToolInput(toolResponse.arguments)
     const parsedOutput = parseAskUserQuestionToolInput(toolResponse.response)
-    const parsedOptimisticInput = parseAskUserQuestionToolInput(optimisticInput)
-    const questions = parsedInput?.questions ?? parsedOptimisticInput?.questions ?? parsedOutput?.questions ?? []
+    const questions = parsedInput?.questions ?? optimisticInput?.questions ?? parsedOutput?.questions ?? []
     const answers = {
       ...parsedOutput?.answers,
       ...parsedInput?.answers,
-      ...parsedOptimisticInput?.answers
+      ...optimisticInput?.answers
     }
 
     if (!questions.length) {

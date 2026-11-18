@@ -9,40 +9,51 @@ export function composeHooks(parts: ReadonlyArray<Partial<AgentLoopHooks>>): Age
   if (parts.length === 1) return parts[0]
 
   return {
-    onStart: chainVoid(parts, 'onStart'),
-    onStepFinish: chainVoid(parts, 'onStepFinish'),
-    onToolExecutionStart: chainVoid(parts, 'onToolExecutionStart'),
-    onToolExecutionEnd: chainVoid(parts, 'onToolExecutionEnd'),
-    onFinish: chainVoid(parts, 'onFinish'),
-    onAbort: chainVoid(parts, 'onAbort'),
+    onStart: chainVoid(
+      parts.map((part) => part.onStart),
+      'onStart'
+    ),
+    onStepFinish: chainVoid(
+      parts.map((part) => part.onStepFinish),
+      'onStepFinish'
+    ),
+    onToolExecutionStart: chainVoid(
+      parts.map((part) => part.onToolExecutionStart),
+      'onToolExecutionStart'
+    ),
+    onToolExecutionEnd: chainVoid(
+      parts.map((part) => part.onToolExecutionEnd),
+      'onToolExecutionEnd'
+    ),
+    onFinish: chainVoid(
+      parts.map((part) => part.onFinish),
+      'onFinish'
+    ),
+    onAbort: chainVoid(
+      parts.map((part) => part.onAbort),
+      'onAbort'
+    ),
     onError: chainOnError(parts),
     prepareStep: chainPrepareStep(parts)
   }
 }
 
-type VoidHookKey = 'onStart' | 'onStepFinish' | 'onToolExecutionStart' | 'onToolExecutionEnd' | 'onFinish' | 'onAbort'
-
-function chainVoid<K extends VoidHookKey>(
-  parts: ReadonlyArray<Partial<AgentLoopHooks>>,
-  key: K
-): AgentLoopHooks[K] | undefined {
-  type Fn = NonNullable<AgentLoopHooks[K]>
-  const fns = parts.flatMap((p) => {
-    const f = p[key]
-    return f ? [f] : []
-  })
+function chainVoid<TArgs extends unknown[]>(
+  hooks: ReadonlyArray<((...args: TArgs) => void | Promise<void>) | undefined>,
+  key: string
+): ((...args: TArgs) => void | Promise<void>) | undefined {
+  const fns = hooks.flatMap((hook) => (hook ? [hook] : []))
   if (fns.length === 0) return undefined
   if (fns.length === 1) return fns[0]
-  const composed = async (...args: Parameters<Fn>): Promise<void> => {
+  return async (...args) => {
     for (const fn of fns) {
       try {
-        await (fn as (...a: Parameters<Fn>) => unknown)(...args)
+        await fn(...args)
       } catch (err) {
         logger.warn(`composed ${key} hook threw; continuing chain`, err as Error)
       }
     }
   }
-  return composed as AgentLoopHooks[K]
 }
 
 function chainOnError(parts: ReadonlyArray<Partial<AgentLoopHooks>>): AgentLoopHooks['onError'] | undefined {

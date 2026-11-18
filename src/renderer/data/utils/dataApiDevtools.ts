@@ -3,6 +3,15 @@ import type { DataResponse, HttpMethod } from '@shared/data/api/types'
 
 type DataApiDevtoolsRequestState = 'pending' | 'success' | 'error' | 'retry'
 
+type CapturedPayload =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | CapturedPayload[]
+  | { [key: string]: CapturedPayload }
+
 interface DataApiDevtoolsOptions {
   capturePayloads: boolean
 }
@@ -15,9 +24,9 @@ interface DataApiDevtoolsEvent {
   requestId: string
   method: HttpMethod
   path: string
-  query?: unknown
-  body?: unknown
-  response?: unknown
+  query?: CapturedPayload
+  body?: CapturedPayload
+  response?: CapturedPayload
   status?: number
   retryAttempt?: number
   clientDuration?: number
@@ -169,7 +178,7 @@ function consumeClientDuration(requestId: string): number | undefined {
   return performance.now() - startTime
 }
 
-function sanitizeValue(value: unknown, depth = 0): unknown {
+function sanitizeValue(value: unknown, depth = 0): CapturedPayload {
   if (!options.capturePayloads) return undefined
   if (value === null || value === undefined) return value
 
@@ -192,8 +201,8 @@ function sanitizeValue(value: unknown, depth = 0): unknown {
     return result
   }
 
-  const result: Record<string, unknown> = {}
-  const entries = Object.entries(value as Record<string, unknown>)
+  const result: Record<string, CapturedPayload> = {}
+  const entries = Object.entries(value)
   for (const [key, item] of entries.slice(0, MAX_OBJECT_KEYS)) {
     result[key] = sanitizeValue(item, depth + 1)
   }

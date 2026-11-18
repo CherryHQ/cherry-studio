@@ -1,12 +1,14 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
+
 import { ChannelQrRegistration } from '../ChannelQrRegistration'
 import type { ChannelData } from '../channelTypes'
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 const channel: ChannelData = { id: 'wecom-draft', name: 'WeCom', type: 'wecom', isActive: false, config: {} }
-const ok = (data: unknown) => ({ ok: true, data })
+const ok = (data: unknown) => ({ ok: true, data }) satisfies IpcResult<unknown>
 const begin = { requestId: 'session', url: 'https://work.weixin.qq.com/ai/qc/c?s=qr', expiresAt: Date.now() + 300_000 }
 
 beforeEach(() => {
@@ -15,7 +17,7 @@ beforeEach(() => {
 
 describe('QR setup', () => {
   it('keeps showing the waiting status until DingTalk finishes creating the bot', async () => {
-    const polls: Array<(value: unknown) => void> = []
+    const polls: Array<(value: IpcResult<unknown>) => void> = []
     vi.mocked(window.api.ipcApi.request).mockImplementation(async (route) => {
       if (route === 'channel.registration.begin') return ok(begin)
       if (route === 'channel.registration.poll') return new Promise((resolve) => polls.push(resolve))
@@ -33,7 +35,7 @@ describe('QR setup', () => {
   })
 
   it('shows the QR code, reports expiration and permits a fresh attempt that saves credentials', async () => {
-    let finish!: (value: unknown) => void
+    let finish!: (value: IpcResult<unknown>) => void
     let expired = true
     vi.mocked(window.api.ipcApi.request).mockImplementation(async (route) => {
       if (route === 'channel.registration.begin') return ok(begin)
@@ -58,7 +60,7 @@ describe('QR setup', () => {
   })
 
   it('cancels an in-flight begin on unmount and never polls its late result', async () => {
-    let finish!: (value: unknown) => void
+    let finish!: (value: IpcResult<unknown>) => void
     const requests: string[] = []
     vi.mocked(window.api.ipcApi.request).mockImplementation(async (route) => {
       requests.push(route)

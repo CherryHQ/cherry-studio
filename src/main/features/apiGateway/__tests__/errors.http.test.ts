@@ -552,7 +552,9 @@ beforeAll(async () => {
   }
   await new Promise<void>((resolve, reject) => {
     app.listen({ port: 0, hostname: '127.0.0.1', gracefulShutdown: false }, (info) => {
-      const handle = info as unknown as { raw: { node: { server: Server }; ready(): Promise<unknown> } }
+      const handle = info as unknown as {
+        raw: { node: { server: Server }; ready(): Promise<{ node: { server: Server } }> }
+      }
       server = handle.raw.node.server
       void handle.raw.ready().then(() => {
         const address = server.address()

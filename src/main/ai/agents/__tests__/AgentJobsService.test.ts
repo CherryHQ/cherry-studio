@@ -12,6 +12,7 @@ import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as z from 'zod'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
@@ -21,7 +22,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobTable } from '@data/db/schemas/job'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { agentTaskService } from '@data/services/AgentTaskService'
+import { agentTaskService, type TaskSessionReuse } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
@@ -125,8 +126,8 @@ describe('AgentJobsService', () => {
       .filter((r) => r.taskId === taskId)
   }
 
-  function getIntervalEntry(scheduleId: string): unknown {
-    const handles = (scheduler as unknown as { intervalHandles: Map<string, unknown> }).intervalHandles
+  function getIntervalEntry(scheduleId: string) {
+    const handles = scheduler['intervalHandles']
     return handles.get(`schedule:${scheduleId}`)
   }
 
@@ -175,7 +176,7 @@ describe('AgentJobsService', () => {
         case 'AiStreamManager':
           return {
             isWriteQuiesced: false,
-            withDispatchLock: (_id: string, fn: () => unknown) => fn(),
+            withDispatchLock: <TResult>(_id: string, fn: () => TResult) => fn(),
             hasUnsettledTopicWork: () => false,
             pauseRuntimeTurn: () => {},
             abortAndDrain: async () => {}
@@ -646,8 +647,10 @@ describe('AgentJobsService', () => {
       return session.id
     }
 
-    function readReuse(taskId: string): unknown {
-      return jobScheduleService.getById(taskId)?.metadata?.reuse
+    function readReuse(taskId: string): TaskSessionReuse {
+      return z
+        .strictObject({ enabled: z.boolean(), revision: z.number().int().nonnegative() })
+        .parse(jobScheduleService.getById(taskId)?.metadata?.reuse)
     }
 
     it('enables reuse without binding a session up front', () => {

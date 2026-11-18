@@ -165,6 +165,42 @@ describe('DmxapiTransport', () => {
     expect(result).toEqual({ imageUrls: ['data:image/png;base64,QUJD', 'https://img/c.png'] })
   })
 
+  it.each([
+    { modelId: 'flux-1', payload: { data: [{ url: 42 }] } },
+    { modelId: 'qwen-image', payload: { extra: { output: { results: [{ url: 42 }] } } } },
+    { modelId: 'doubao-seedream-3-0', payload: { output: [{ content: [{ image: 42 }] }] } }
+  ])('rejects malformed image values from $modelId', async ({ modelId, payload }) => {
+    const transport = createDmxapiTransport({ apiKey: 'token' })
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }))
+
+    await expect(transport.submit({ ...baseInput, modelId, prompt: 'image', providerParams: {} })).rejects.toThrow()
+  })
+
+  it.each([
+    {
+      modelId: 'flux-1',
+      payload: { data: [{ url: null, b64_json: 'QUJD' }] },
+      expected: ['data:image/png;base64,QUJD']
+    },
+    {
+      modelId: 'qwen-image',
+      payload: { extra: { output: { results: [{ url: null }, { url: 'https://img/q.png' }] } } },
+      expected: ['https://img/q.png']
+    },
+    {
+      modelId: 'doubao-seedream-3-0',
+      payload: { output: [{ content: null, message: { content: [{ image: null, text: '![](https://img/s.png)' }] } }] },
+      expected: ['https://img/s.png']
+    }
+  ])('retains the image fallback when optional $modelId fields are null', async ({ modelId, payload, expected }) => {
+    const transport = createDmxapiTransport({ apiKey: 'token' })
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }))
+
+    await expect(transport.submit({ ...baseInput, modelId, prompt: 'image', providerParams: {} })).resolves.toEqual({
+      imageUrls: expected
+    })
+  })
+
   it('throws typed REQ_ERROR_TOKEN on 401 and REQ_ERROR_NO_BALANCE on 403', async () => {
     const transport = createDmxapiTransport({ apiKey: 'bad' })
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('', { status: 401 }))

@@ -34,7 +34,7 @@ import {
   type EchoContract,
   echoDefinition,
   echoServeOptions,
-  rejectionOf
+  expectRejected
 } from '@main/core/utilityProcess/__tests__/hostTestUtils'
 import {
   createMemoryProcessAdapter,
@@ -262,9 +262,8 @@ describe('InferenceServiceBase dispatch', () => {
       const controller = new AbortController()
       const reason = new Error('cancel native operation')
       let firstSettled = false
-      const first = rejectionOf(service.block(controller.signal)).then((error) => {
+      const first = expectRejected(service.block(controller.signal), (error) => expect(error).toBe(reason)).then(() => {
         firstSettled = true
-        return error
       })
 
       try {
@@ -282,7 +281,7 @@ describe('InferenceServiceBase dispatch', () => {
         expect(adapter.spawns).toHaveLength(1)
 
         oldChild.exit(143)
-        expect(await first).toBe(reason)
+        await first
         await expect(second).resolves.toBe('pong')
         expect(started).toEqual(['A', 'B'])
         expect(adapter.spawns).toHaveLength(2)
@@ -304,14 +303,14 @@ describe('InferenceServiceBase dispatch', () => {
 
       const blocking = service.block()
       await waitUntil(() => childStates[0]?.waitSignals.length === 1, 'first request in flight')
-      const queued = rejectionOf(service.ping(controller.signal))
+      const queued = expectRejected(service.ping(controller.signal), (error) => expect(error).toBe(reason))
       controller.abort(reason)
       await flushMicrotasks()
       expect(adapter.spawns[0].child.killed).toBe(false)
       childStates[0].release()
 
       await expect(blocking).resolves.toBe('released')
-      expect(await queued).toBe(reason)
+      await queued
       expect(adapter.spawns[0].child.killed).toBe(false)
       expect(adapter.spawns).toHaveLength(1)
       expect(
@@ -332,11 +331,11 @@ describe('InferenceServiceBase dispatch', () => {
   it('surfaces the error the child threw, not the transport wrapper around it', async () => {
     const { service } = await createService()
 
-    const error = await rejectionOf(service.boom())
-
-    expect(error).toBeInstanceOf(Error)
-    expect((error as Error).message).toBe('handler failed')
-    expect(error).toHaveProperty('code', 'E_HANDLER')
+    await expectRejected(service.boom(), (error) => {
+      expect(error).toBeInstanceOf(Error)
+      expect(error).toHaveProperty('message', 'handler failed')
+      expect(error).toHaveProperty('code', 'E_HANDLER')
+    })
   })
 })
 
@@ -412,14 +411,15 @@ describe('InferenceServiceBase teardown', () => {
     await service.ping()
 
     let spawnsDuringAfter = 0
-    const blocked = rejectionOf(
+    const blocked = expectRejected(
       service.removeModelThen('qwen3-embedding-0.6b', async () => {
         spawnsDuringAfter = adapter.spawns.filter((spawn) => !spawn.child.exited).length
         await service.ping()
-      })
+      }),
+      (error) => expect(error).toHaveProperty('code', 'PROCESS_BLOCKED')
     )
 
-    expect(await blocked).toHaveProperty('code', 'PROCESS_BLOCKED')
+    await blocked
     expect(spawnsDuringAfter).toBe(0)
   })
 })
@@ -444,11 +444,13 @@ describe('model-scoped removal', () => {
     const { service, adapter } = await createService()
     const active = service.block()
     await waitUntil(() => childStates[0]?.waitSignals.length === 1, 'active inference')
-    const queued = rejectionOf(service.ping(undefined, 'pp-ocrv6-medium'))
+    const queued = expectRejected(service.ping(undefined, 'pp-ocrv6-medium'), (error) =>
+      expect(error).toHaveProperty('code', 'PROCESS_BLOCKED')
+    )
     await service.removeModelThen('pp-ocrv6-medium', async () => {})
     childStates[0].release()
     await expect(active).resolves.toBe('released')
-    expect(await queued).toHaveProperty('code', 'PROCESS_BLOCKED')
+    await queued
     expect(adapter.spawns[0].child.exited).toBe(false)
     await service.terminate()
   })

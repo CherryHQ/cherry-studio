@@ -11,8 +11,8 @@ import { DataApiError, DataApiErrorFactory } from '@shared/data/api/errors'
  */
 
 const { mockList, mockGetById, mockSearch } = vi.hoisted(() => ({
-  mockList: vi.fn<(query: unknown) => unknown>(),
-  mockGetById: vi.fn<(id: string) => unknown>(),
+  mockList: vi.fn<(query: unknown) => { items: ReturnType<typeof kb>[]; total: number; page: number }>(),
+  mockGetById: vi.fn<(id: string) => ReturnType<typeof kb>>(),
   mockSearch: vi.fn<(baseId: string, query: string) => Promise<unknown[]>>()
 }))
 

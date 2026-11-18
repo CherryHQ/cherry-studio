@@ -25,14 +25,19 @@ import type { Provider } from '@shared/data/types/provider'
 
 import { gatewayCredentialsFingerprint } from '../agentApiGateway'
 
-function stableValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(stableValue)
-  if (!value || typeof value !== 'object') return value
+function isSignatureContainer(value: unknown): value is Record<string, unknown> | unknown[] {
+  return value !== null && typeof value === 'object'
+}
+
+function sortSignatureFields(value: Record<string, unknown> | unknown[]): Record<string, unknown> | unknown[] {
+  if (Array.isArray(value)) {
+    return value.map((entry) => (isSignatureContainer(entry) ? sortSignatureFields(entry) : entry))
+  }
   return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>)
+    Object.entries(value)
       .filter(([, entry]) => entry !== undefined)
       .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, entry]) => [key, stableValue(entry)])
+      .map(([key, entry]) => [key, isSignatureContainer(entry) ? sortSignatureFields(entry) : entry])
   )
 }
 
@@ -112,7 +117,7 @@ export async function capturePiConnectionSnapshot(
   const signature = createHash('sha256')
     .update(
       JSON.stringify(
-        stableValue({
+        sortSignatureFields({
           agent: { ...agent, updatedAt: undefined, configuration },
           session: { workspaceId: session.workspaceId, workspace: session.workspace },
           modelId,

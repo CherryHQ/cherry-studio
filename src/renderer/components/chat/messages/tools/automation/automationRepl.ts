@@ -2,6 +2,8 @@ import { CallToolResultSchema } from '@modelcontextprotocol/core'
 import * as z from 'zod'
 
 import type { BaseTool, McpTool } from '@renderer/types/tool'
+import type { Serializable } from '@shared/types/serializable'
+import { SerializableSchema } from '@shared/utils/serializable'
 
 export function getAutomationReplKind(tool: BaseTool | McpTool): 'execute' | 'reset' | undefined {
   if (tool.name === 'automation_repl' || tool.name === 'mcp__automation__js') return 'execute'
@@ -63,9 +65,9 @@ export function formatAutomationReplOutput(text: string): string {
   }
 }
 
-function parseJson(text: string): unknown {
+function parseJson(text: string): Serializable | undefined {
   try {
-    return JSON.parse(text)
+    return SerializableSchema.parse(JSON.parse(text))
   } catch {
     return undefined
   }

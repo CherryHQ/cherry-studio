@@ -13,7 +13,12 @@ import { createClaudeCodeRuntime } from '../src'
 import { ARCHIVE_CHUNK_BYTES, readArchive } from '../src/archive'
 import { confirmed } from './nativeFixture'
 
-const cleanups: (() => Promise<unknown>)[] = []
+const cleanups: Array<
+  () =>
+    | Promise<void>
+    | ReturnType<Worker['terminate']>
+    | ReturnType<ReturnType<typeof createClaudeCodeRuntime>['shutdown']>
+> = []
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
 })

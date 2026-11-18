@@ -46,32 +46,32 @@ export interface BatchUndoResult {
   failed: Array<{ id: string; error: string }>
 }
 
-interface RestoreRecycleBinItemsInput {
-  ids: readonly string[]
-  restore: (id: string) => Promise<unknown>
-  getActive: (id: string) => Promise<unknown>
-  isNotFound?: (error: unknown) => boolean
-  refresh: () => Promise<unknown>
-}
-
-interface RestoreRecycleBinItemTarget {
+interface RestoreRecycleBinItemTarget<TRestore, TActive> {
   id: string
-  restore: RestoreRecycleBinItemsInput['restore']
-  getActive: RestoreRecycleBinItemsInput['getActive']
-  isNotFound?: RestoreRecycleBinItemsInput['isNotFound']
+  restore: (id: string) => Promise<TRestore>
+  getActive: (id: string) => Promise<TActive>
+  isNotFound?: (error: unknown) => boolean
 }
 
-interface RestoreRecycleBinUndoGroupInput {
-  primary: RestoreRecycleBinItemTarget
-  related: Omit<RestoreRecycleBinItemsInput, 'refresh'>
-  refresh: RestoreRecycleBinItemsInput['refresh']
+interface RestoreRecycleBinItemsInput<TRestore, TActive, TRefresh> extends Omit<
+  RestoreRecycleBinItemTarget<TRestore, TActive>,
+  'id'
+> {
+  ids: readonly string[]
+  refresh: () => Promise<TRefresh>
 }
 
-async function restoreOrConfirmActive(
+interface RestoreRecycleBinUndoGroupInput<TPrimaryRestore, TPrimaryActive, TRelatedRestore, TRelatedActive, TRefresh> {
+  primary: RestoreRecycleBinItemTarget<TPrimaryRestore, TPrimaryActive>
+  related: Omit<RestoreRecycleBinItemsInput<TRelatedRestore, TRelatedActive, void>, 'refresh'>
+  refresh: () => Promise<TRefresh>
+}
+
+async function restoreOrConfirmActive<TRestore, TActive>(
   id: string,
-  restore: RestoreRecycleBinItemsInput['restore'],
-  getActive: RestoreRecycleBinItemsInput['getActive'],
-  isNotFound: NonNullable<RestoreRecycleBinItemsInput['isNotFound']> = isDataApiNotFoundError
+  restore: RestoreRecycleBinItemTarget<TRestore, TActive>['restore'],
+  getActive: RestoreRecycleBinItemTarget<TRestore, TActive>['getActive'],
+  isNotFound: NonNullable<RestoreRecycleBinItemTarget<TRestore, TActive>['isNotFound']> = isDataApiNotFoundError
 ): Promise<void> {
   try {
     await restore(id)
@@ -85,7 +85,9 @@ async function restoreOrConfirmActive(
   }
 }
 
-async function restoreItems(input: Omit<RestoreRecycleBinItemsInput, 'refresh'>): Promise<BatchUndoResult> {
+async function restoreItems<TRestore, TActive>(
+  input: Omit<RestoreRecycleBinItemsInput<TRestore, TActive, void>, 'refresh'>
+): Promise<BatchUndoResult> {
   const outcomes = await Promise.allSettled(
     input.ids.map((id) => restoreOrConfirmActive(id, input.restore, input.getActive, input.isNotFound))
   )
@@ -100,7 +102,7 @@ async function restoreItems(input: Omit<RestoreRecycleBinItemsInput, 'refresh'>)
   )
 }
 
-async function refreshAfterRestore(refresh: RestoreRecycleBinItemsInput['refresh']): Promise<void> {
+async function refreshAfterRestore<TRefresh>(refresh: () => Promise<TRefresh>): Promise<void> {
   try {
     await refresh()
   } catch (error) {
@@ -108,20 +110,32 @@ async function refreshAfterRestore(refresh: RestoreRecycleBinItemsInput['refresh
   }
 }
 
-export async function restoreRecycleBinItems(input: RestoreRecycleBinItemsInput): Promise<BatchUndoResult> {
+export async function restoreRecycleBinItems<TRestore, TActive, TRefresh>(
+  input: RestoreRecycleBinItemsInput<TRestore, TActive, TRefresh>
+): Promise<BatchUndoResult> {
   const result = await restoreItems(input)
   await refreshAfterRestore(input.refresh)
   return result
 }
 
-export async function restoreRecycleBinItem(input: Omit<RestoreRecycleBinItemsInput, 'ids'> & { id: string }) {
+export async function restoreRecycleBinItem<TRestore, TActive, TRefresh>(
+  input: Omit<RestoreRecycleBinItemsInput<TRestore, TActive, TRefresh>, 'ids'> & { id: string }
+) {
   const result = await restoreRecycleBinItems({ ...input, ids: [input.id] })
   const failure = result.failed[0]
   if (failure) throw new Error(failure.error)
 }
 
 /** Undo one UI delete operation without making unrelated entities part of the primary entity's restore contract. */
-export async function restoreRecycleBinUndoGroup(input: RestoreRecycleBinUndoGroupInput): Promise<void> {
+export async function restoreRecycleBinUndoGroup<
+  TPrimaryRestore,
+  TPrimaryActive,
+  TRelatedRestore,
+  TRelatedActive,
+  TRefresh
+>(
+  input: RestoreRecycleBinUndoGroupInput<TPrimaryRestore, TPrimaryActive, TRelatedRestore, TRelatedActive, TRefresh>
+): Promise<void> {
   let relatedResult: BatchUndoResult = { restored: [], failed: [] }
   try {
     await restoreOrConfirmActive(

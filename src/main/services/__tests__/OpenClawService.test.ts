@@ -20,7 +20,7 @@ const execFileSyncMock = vi.hoisted(() => vi.fn())
 const platformMock = vi.hoisted(() => ({ isWin: false }))
 const broadcastMock = vi.hoisted(() => vi.fn())
 const cacheSetSharedMock = vi.hoisted(() => vi.fn())
-const preferenceGetMock = vi.hoisted(() => vi.fn<(key: string) => unknown>(() => 'en-US'))
+const preferenceGetMock = vi.hoisted(() => vi.fn<(key: string) => string | number | undefined>(() => 'en-US'))
 
 function createSpawnChild() {
   return Object.assign(new EventEmitter(), {
@@ -2804,6 +2804,64 @@ describe('OpenClawService gateway status state machine', () => {
         },
         params: { customOption: { nested: 'keep' } }
       })
+    })
+
+    it('projects only own schema fields and preserves prototype-named JSON fields across alternatives', async () => {
+      const schema = createRuntimeConfigSchema([], [])
+      const providerSchema = schema.properties.models.properties.providers.additionalProperties
+      schemaCapabilitySpy.mockResolvedValueOnce({
+        ...schema,
+        properties: {
+          models: {
+            type: 'object',
+            properties: {
+              providers: {
+                type: 'object',
+                additionalProperties: {
+                  ...providerSchema,
+                  properties: {
+                    ...providerSchema.properties,
+                    request: {
+                      anyOf: [
+                        { type: 'object', additionalProperties: false, properties: { label: {} } },
+                        {
+                          type: 'object',
+                          additionalProperties: false,
+                          properties: JSON.parse('{"constructor":{},"__proto__":{}}')
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      })
+      fs.writeFileSync(
+        path.join(configDir, 'openclaw.json'),
+        JSON.stringify({
+          models: {
+            providers: {
+              'cherry-openai': {
+                constructor: 'unsupported',
+                request: JSON.parse('{"label":"keep","constructor":"custom","__proto__":{"enabled":true}}'),
+                models: []
+              }
+            }
+          }
+        })
+      )
+
+      expect(await service.syncProviderConfig(legacyProvider, legacyModel)).toEqual({ success: true })
+
+      const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
+      const managedProvider = written.models.providers['cherry-openai']
+      expect(Object.hasOwn(managedProvider, 'constructor')).toBe(false)
+      expect(managedProvider.request).toEqual(
+        JSON.parse('{"label":"keep","constructor":"custom","__proto__":{"enabled":true}}')
+      )
+      expect(Object.hasOwn(managedProvider.request, '__proto__')).toBe(true)
     })
 
     it('emits only optional provider and model fields supported by the resolved OpenClaw schema', async () => {

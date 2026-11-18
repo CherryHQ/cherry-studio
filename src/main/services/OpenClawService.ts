@@ -26,9 +26,11 @@ import type { Provider as DataProvider } from '@shared/data/types/provider'
 import type { BinaryAvailability } from '@shared/types/binary'
 import type { OperationResult } from '@shared/types/codeTools'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import type { Serializable } from '@shared/types/serializable'
 import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
 import { isNonChatModel } from '@shared/utils/model'
 import { redactSecretText } from '@shared/utils/redaction'
+import { SerializableSchema } from '@shared/utils/serializable'
 
 import type { Model, Provider, ProviderType, VertexProvider } from './openClawProviderTypes'
 import { vertexAiService } from './VertexAiService'
@@ -188,7 +190,7 @@ function schemaTypeMatches(type: string | string[] | undefined, value: unknown):
   })
 }
 
-function schemaValueMatches(schema: OpenClawConfigSchemaNode, value: unknown): boolean {
+function schemaValueMatches(schema: OpenClawConfigSchemaNode, value: Serializable): boolean {
   if (!schemaTypeMatches(schema.type, value)) return false
   if (schema.const !== undefined && !Object.is(schema.const, value)) return false
   if (schema.enum !== undefined && !schema.enum.some((candidate) => Object.is(candidate, value))) return false
@@ -198,11 +200,11 @@ function schemaValueMatches(schema: OpenClawConfigSchemaNode, value: unknown): b
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return true
 
   return Object.entries(schema.properties ?? {}).every(
-    ([key, property]) => !(key in value) || schemaValueMatches(property, (value as Record<string, unknown>)[key])
+    ([key, property]) => !Object.hasOwn(value, key) || schemaValueMatches(property, value[key])
   )
 }
 
-function projectDirectSchemaValue(schema: OpenClawConfigSchemaNode, value: unknown): unknown {
+function projectDirectSchemaValue(schema: OpenClawConfigSchemaNode, value: Serializable): Serializable {
   if (Array.isArray(value)) {
     if (schema.items === undefined) return value
     return value.map((item, index) => {
@@ -216,7 +218,7 @@ function projectDirectSchemaValue(schema: OpenClawConfigSchemaNode, value: unkno
 
   return Object.fromEntries(
     Object.entries(value).flatMap(([key, childValue]) => {
-      const property = schema.properties?.[key]
+      const property = schema.properties && Object.hasOwn(schema.properties, key) ? schema.properties[key] : undefined
       if (property) return [[key, projectSchemaSupportedValue(property, childValue)]]
       if (typeof schema.additionalProperties === 'object') {
         return [[key, projectSchemaSupportedValue(schema.additionalProperties, childValue)]]
@@ -226,27 +228,37 @@ function projectDirectSchemaValue(schema: OpenClawConfigSchemaNode, value: unkno
   )
 }
 
-function mergeAlternativeProjections(values: unknown[]): unknown {
+function mergeAlternativeProjections(values: Serializable[]): Serializable {
   if (values.length === 1) return values[0]
   if (values.every(Array.isArray)) {
-    const arrays = values as unknown[][]
+    const arrays: Serializable[][] = values
     return Array.from({ length: Math.max(...arrays.map((value) => value.length)) }, (_, index) =>
-      mergeAlternativeProjections(arrays.flatMap((value) => (index in value ? [value[index]] : [])))
+      mergeAlternativeProjections(arrays.flatMap((value) => (Object.hasOwn(value, index) ? [value[index]] : [])))
     )
   }
-  if (values.every((value) => value !== null && typeof value === 'object' && !Array.isArray(value))) {
-    const objects = values as Record<string, unknown>[]
+  if (
+    values.every(
+      (value): value is Record<string, Serializable> =>
+        value !== null && typeof value === 'object' && !Array.isArray(value)
+    )
+  ) {
+    const objects = values
     return Object.fromEntries(
       [...new Set(objects.flatMap((value) => Object.keys(value)))].map((key) => [
         key,
-        mergeAlternativeProjections(objects.flatMap((value) => (key in value ? [value[key]] : [])))
+        mergeAlternativeProjections(objects.flatMap((value) => (Object.hasOwn(value, key) ? [value[key]] : [])))
       ])
     )
   }
   return values[0]
 }
 
-function projectSchemaSupportedValue(schema: OpenClawConfigSchemaNode, value: unknown): unknown {
+function projectSchemaSupportedValue(
+  schema: OpenClawConfigSchemaNode,
+  value: Record<string, Serializable>
+): Record<string, Serializable>
+function projectSchemaSupportedValue(schema: OpenClawConfigSchemaNode, value: Serializable): Serializable
+function projectSchemaSupportedValue(schema: OpenClawConfigSchemaNode, value: Serializable): Serializable {
   let projected = projectDirectSchemaValue(schema, value)
 
   for (const branch of schema.allOf ?? []) {
@@ -269,12 +281,15 @@ function pickSchemaSupportedProperties(
   schema: OpenClawConfigSchemaNode,
   basePath: string[],
   value: unknown
-): Record<string, unknown> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return {}
+): Record<string, Serializable> {
+  const parsed = SerializableSchema.safeParse(value)
+  if (!parsed.success) return {}
+  const config = parsed.data
+  if (config === null || typeof config !== 'object' || Array.isArray(config)) return {}
 
   const schemaNode = findSchemaAtPath(schema, basePath)
   if (!schemaNode) return {}
-  return projectSchemaSupportedValue(schemaNode, value) as Record<string, unknown>
+  return projectSchemaSupportedValue(schemaNode, config)
 }
 
 class OpenClawPreflightError extends Error {

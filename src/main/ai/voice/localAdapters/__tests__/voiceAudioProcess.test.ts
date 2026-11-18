@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { createRecordingLogger, rejectionOf } from '@main/core/utilityProcess/__tests__/hostTestUtils'
+import { createRecordingLogger, expectRejected } from '@main/core/utilityProcess/__tests__/hostTestUtils'
 import {
   createMemoryProcessAdapter,
   flushMicrotasks,
@@ -55,7 +55,7 @@ describe('Voice audio utility process ownership', () => {
     expect(settled).toBe(false)
     expect(adapter.spawns[0].child.killed).toBe(true)
     adapter.spawns[0].child.exit(143)
-    expect(await rejectionOf(pending)).toBe(reason)
+    await expectRejected(pending, (error) => expect(error).toBe(reason))
     try {
       const result = await host.request('decode', input)
       expect(result).toMatchObject({ sampleRate: 16_000, channels: 1, durationSeconds: 0.96 })

@@ -557,8 +557,8 @@ describe('JobManager schedule control APIs', () => {
     function getScheduleDisposables(): Map<string, Disposable> {
       return (jobManager as unknown as { scheduleDisposables: Map<string, Disposable> }).scheduleDisposables
     }
-    function getIntervalEntry(scheduleId: string): unknown {
-      const handles = (scheduler as unknown as { intervalHandles: Map<string, unknown> }).intervalHandles
+    function getIntervalEntry(scheduleId: string) {
+      const handles = scheduler['intervalHandles']
       return handles.get(`schedule:${scheduleId}`)
     }
     function spyArm() {

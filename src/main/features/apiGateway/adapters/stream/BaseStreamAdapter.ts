@@ -20,7 +20,7 @@ import type { AdapterState, ContentBlockState, IStreamAdapter, StreamAdapterOpti
  * - finalize(): Clean up and emit final events
  * - buildNonStreamingResponse(): Build complete response object
  */
-export abstract class BaseStreamAdapter<TOutputEvent> implements IStreamAdapter<TOutputEvent> {
+export abstract class BaseStreamAdapter<TOutputEvent, TResponse> implements IStreamAdapter<TOutputEvent, TResponse> {
   protected state: AdapterState
   /** Events produced by the current `processChunk`/`finalize`, drained by the active driver. */
   private pendingEvents: TOutputEvent[] = []
@@ -191,7 +191,7 @@ export abstract class BaseStreamAdapter<TOutputEvent> implements IStreamAdapter<
   /**
    * Build a non-streaming response from accumulated state
    */
-  abstract buildNonStreamingResponse(): unknown
+  abstract buildNonStreamingResponse(): TResponse
 }
 
 export default BaseStreamAdapter

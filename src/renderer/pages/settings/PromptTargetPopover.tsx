@@ -9,12 +9,12 @@ import type { Prompt, PromptBindingRelation, PromptBindingTarget } from '@shared
 
 export type PromptTargetOption = ComboboxOption<{ target: PromptBindingTarget }>
 
-export type PromptTargetPopoverProps = {
+export type PromptTargetPopoverProps<TResult> = {
   bindings: PromptBindingRelation[]
   bindingsError?: Error
   isLoadingBindings: boolean
   isLoadingTargets: boolean
-  onRetry: () => void | Promise<unknown>
+  onRetry: () => void | Promise<TResult>
   prompt: Prompt
   targets: PromptTargetOption[]
   targetsError?: Error
@@ -24,7 +24,7 @@ function getBindingTargetKey(binding: PromptBindingRelation) {
   return `${binding.targetType}:${binding.targetId}`
 }
 
-export function PromptTargetPopover({
+export function PromptTargetPopover<TResult>({
   bindings,
   bindingsError,
   isLoadingBindings,
@@ -33,7 +33,7 @@ export function PromptTargetPopover({
   prompt,
   targets,
   targetsError
-}: PromptTargetPopoverProps) {
+}: PromptTargetPopoverProps<TResult>) {
   const { t } = useTranslation()
   const [isMutating, setIsMutating] = useState(false)
   const isMutatingRef = useRef(false)

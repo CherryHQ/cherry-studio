@@ -46,7 +46,7 @@ const kbListTool = tool({
   toModelOutput: ({ input, output }) => knowledgeListModelOutput(output, input)
 })
 
-export function createKbListToolEntry(): ToolEntry {
+export function createKbListToolEntry() {
   return {
     name: KB_LIST_TOOL_NAME,
     namespace: 'kb',
@@ -58,5 +58,5 @@ export function createKbListToolEntry(): ToolEntry {
     // this turn). Listing every base while none are in scope (no kb_read / kb_search to act on them)
     // is a discovery dead-end and widens the scope, so kb_list shares the siblings' gate.
     applies: (scope) => scope.hasAnyKnowledgeBase === true && (scope.knowledgeBaseIds?.length ?? 0) > 0
-  }
+  } satisfies ToolEntry
 }

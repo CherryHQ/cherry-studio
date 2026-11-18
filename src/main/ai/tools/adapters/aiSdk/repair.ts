@@ -1,4 +1,4 @@
-import { asSchema, safeParseJSON, safeValidateTypes } from '@ai-sdk/provider-utils'
+import { asSchema, safeParseJSON, safeValidateTypes, type ValidationResult } from '@ai-sdk/provider-utils'
 import {
   InvalidToolInputError,
   jsonSchema,
@@ -44,19 +44,13 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
     }
 
     const schema = asSchema(tools[toolCall.toolName].inputSchema)
-    let validate: (value: unknown) => Promise<unknown | undefined>
+    let validate: (value: unknown) => Promise<ValidationResult<unknown>>
     if (schema.validate) {
-      validate = async (value) => {
-        const result = await safeValidateTypes({ value, schema })
-        return result.success ? result.value : undefined
-      }
+      validate = (value) => safeValidateTypes({ value, schema })
     } else {
       try {
         const validator = createMcpJsonSchemaValidator(schemaJson)
-        validate = async (value) => {
-          const result = validator(value)
-          return result.success ? result.value : undefined
-        }
+        validate = async (value) => validator(value)
       } catch (err) {
         logger.warn('AI repair cannot validate the tool JSON Schema', err as Error, {
           toolName: toolCall.toolName,
@@ -66,8 +60,8 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
       }
     }
 
-    /** Canonical input, or undefined when the value does not fit the tool schema. */
-    const canonicalize = async (value: unknown): Promise<unknown> => {
+    /** Successful validation of canonical input, or undefined when no candidate fits the tool schema. */
+    const canonicalize = async (value: unknown) => {
       const candidates = [value]
       if (typeof value === 'string') {
         const reparsed = await safeParseJSON({ text: value })
@@ -76,7 +70,7 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
 
       for (const candidate of candidates) {
         const direct = await validate(candidate)
-        if (direct !== undefined) return direct
+        if (direct.success && direct.value !== undefined) return direct
         if (
           typeof candidate === 'object' &&
           candidate !== null &&
@@ -85,7 +79,7 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
           'arguments' in candidate
         ) {
           const unwrapped = await validate(candidate.arguments)
-          if (unwrapped !== undefined) return unwrapped
+          if (unwrapped.success && unwrapped.value !== undefined) return unwrapped
         }
       }
       return undefined
@@ -100,7 +94,7 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
         toolName: toolCall.toolName,
         toolCallId: toolCall.toolCallId
       })
-      return { ...toolCall, input: JSON.stringify(canonicalInput) }
+      return { ...toolCall, input: JSON.stringify(canonicalInput.value) }
     }
 
     const prompt = [
@@ -154,6 +148,6 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
       toolName: toolCall.toolName,
       toolCallId: toolCall.toolCallId
     })
-    return { ...toolCall, input: JSON.stringify(validated) }
+    return { ...toolCall, input: JSON.stringify(validated.value) }
   }
 }

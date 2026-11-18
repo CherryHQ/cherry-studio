@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { createHost, echoServeOptions, rejectionOf } from './hostTestUtils'
+import { createHost, echoServeOptions, expectRejected } from './hostTestUtils'
 import { waitUntil } from './memoryProcessAdapter'
 
 function hostWithCallbacks() {
@@ -34,7 +34,7 @@ describe('request-scoped host capabilities', () => {
     const abort = new AbortController()
     let childSignal: AbortSignal | undefined
     let release!: (value: unknown) => void
-    const result = rejectionOf(
+    const result = expectRejected(
       host.request('echo', null, {
         signal: abort.signal,
         onHostCall: async (_method, _input, signal) => {
@@ -43,11 +43,12 @@ describe('request-scoped host capabilities', () => {
             release = resolve
           })
         }
-      })
+      }),
+      (error) => expect(error).toMatchObject({ message: 'user stopped' })
     )
     await waitUntil(() => !!childSignal)
     abort.abort(new Error('user stopped'))
-    expect(await result).toMatchObject({ message: 'user stopped' })
+    await result
     expect(childSignal?.aborted).toBe(true)
     release('stale')
     expect(await host.request('ping', undefined)).toBe('pong')

@@ -3,10 +3,15 @@ import type { JobContext, JobHandler } from '@main/core/job/types'
 import { createFileProcessingJobOutput } from '../persistence/artifacts'
 import { prepareFileProcessingJob } from './jobExecution'
 import { executeRemotePolling } from './remotePolling'
-import { type FileProcessingJobPayload, fileProcessingQueue, localFileProcessingQueue } from './shared'
+import {
+  type FileProcessingJobOutput,
+  type FileProcessingJobPayload,
+  fileProcessingQueue,
+  localFileProcessingQueue
+} from './shared'
 
 // Auto capabilities keep their persisted job type while selecting a protocol at execution time.
-async function executeBackgroundJob(ctx: JobContext<FileProcessingJobPayload>): Promise<unknown> {
+async function executeBackgroundJob(ctx: JobContext<FileProcessingJobPayload>): Promise<FileProcessingJobOutput> {
   const { config, prepared } = await prepareFileProcessingJob(ctx, 'background')
   const output =
     prepared.mode === 'remote-poll'

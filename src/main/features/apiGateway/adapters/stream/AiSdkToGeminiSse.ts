@@ -75,7 +75,7 @@ function toGeminiFinishReason(reason: FinishReason | undefined): string {
   }
 }
 
-export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentResponse> {
+export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentResponse, GeminiGenerateContentResponse> {
   /** Accumulated parts, in emission order, for the non-streaming response. */
   private accumulatedParts: GeminiResponsePart[] = []
   private thoughtsTokens = 0

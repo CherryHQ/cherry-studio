@@ -1,4 +1,5 @@
 import { getSafeAiSdkErrorDiscriminants, getSafeProviderErrorMessage } from '@shared/ai/providerError'
+import type { Serializable } from '@shared/types/serializable'
 import { redactSecretText, redactUrlParams } from '@shared/utils/redaction'
 
 import { redactToShape } from './redactToShape'
@@ -29,7 +30,7 @@ function safeUrl(value: string): string {
   }
 }
 
-function responseShape(value: unknown): unknown {
+function responseShape(value: unknown): Serializable {
   if (typeof value === 'string' && value.length <= MAX_RESPONSE_INPUT_CHARS) {
     try {
       return redactToShape(JSON.parse(value), 'response')

@@ -18,7 +18,7 @@ const listingSchema = z.object({
   defaultApplication: applicationSchema.nullable()
 })
 const addonSchema = z.object({
-  list: z.custom<(targetPath: string) => Promise<unknown>>((value) => typeof value === 'function'),
+  list: z.function({ input: [z.string()], output: z.promise(listingSchema) }),
   open: z.custom<(targetPath: string, applicationId: string) => Promise<void>>((value) => typeof value === 'function')
 })
 
@@ -33,7 +33,7 @@ export function nativeTargetId(id: string): string {
 }
 
 export async function listNativeApplications(targetPath: AbsoluteFilePath) {
-  return listingSchema.parse(await loadAddon().list(targetPath))
+  return loadAddon().list(targetPath)
 }
 
 export async function openNativeApplication(targetPath: AbsoluteFilePath, applicationId: string): Promise<void> {

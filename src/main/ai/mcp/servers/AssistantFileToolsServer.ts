@@ -45,7 +45,11 @@ function failureText(error: unknown): string {
   return sanitized ? sanitized.slice(0, MAX_FAILURE_TEXT) : 'Tool execution failed'
 }
 
-async function runTool(name: string, signal: AbortSignal, run: () => Promise<unknown>): Promise<CallToolResult> {
+async function runTool<TResult>(
+  name: string,
+  signal: AbortSignal,
+  run: () => Promise<TResult>
+): Promise<CallToolResult> {
   try {
     const value = await run()
     return { content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }] }

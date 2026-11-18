@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 
+import type { Debugger } from 'electron'
 import { app, session } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WebSocketServer } from 'ws'
@@ -156,7 +157,7 @@ function createContents(
     session?: object
     devToolsOpened?: boolean
     loadingMainFrame?: boolean
-    sendCommand?: (method: string, params?: Record<string, unknown>) => Promise<unknown>
+    sendCommand?: Debugger['sendCommand']
   } = {}
 ): MockContents {
   const contents = new EventEmitter() as MockContents

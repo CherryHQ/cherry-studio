@@ -470,10 +470,10 @@ const CACHE_KEYS_DEP_SEPARATOR = '\u0000'
  * today. If a memory/persist-tier aggregation need appears, add another thin
  * shell here — do not export this core ahead of that consumer.
  */
-function useCacheKeysSelector<Values, Selection>(
-  keys: readonly string[],
-  subscribeKey: (key: string, onStoreChange: () => void) => () => void,
-  readKey: (key: string) => unknown,
+function useCacheKeysSelector<Key extends string, Value, Values, Selection>(
+  keys: readonly Key[],
+  subscribeKey: (key: Key, onStoreChange: () => void) => () => void,
+  readKey: (key: Key) => Value,
   selector: (values: Values) => Selection,
   isEqual: (a: Selection, b: Selection) => boolean
 ): Selection {
@@ -482,7 +482,7 @@ function useCacheKeysSelector<Values, Selection>(
   // rebuilds the subscription set and the snapshot closure together, keeping
   // the subscription set and the snapshot read set the same by construction.
   const keysDep = keys.join(CACHE_KEYS_DEP_SEPARATOR)
-  const stableKeys = useMemo<readonly string[]>(
+  const stableKeys = useMemo<readonly Key[]>(
     () => [...keys],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keysDep is the content identity of `keys`
     [keysDep]
@@ -501,7 +501,7 @@ function useCacheKeysSelector<Values, Selection>(
   // This satisfies getSnapshot's caching contract (no "getSnapshot should be
   // cached" warnings) without a store-level version counter.
   const getSnapshot = useMemo(() => {
-    let cachedValues: readonly unknown[] | undefined
+    let cachedValues: readonly Value[] | undefined
 
     return () => {
       const nextValues = stableKeys.map((key) => readKey(key))
@@ -525,7 +525,8 @@ function useCacheKeysSelector<Values, Selection>(
 const subscribeSharedKey = (key: string, onStoreChange: () => void): (() => void) =>
   cacheService.subscribe(key, onStoreChange)
 
-const readSharedKey = (key: string): unknown => cacheService.getSharedSnapshot(key as SharedCacheKey)
+const readSharedKey = <Key extends SharedCacheKey>(key: Key): InferSharedCacheValue<Key> | undefined =>
+  cacheService.getSharedSnapshot(key)
 
 /**
  * React hook for READ-ONLY aggregate observation of MULTIPLE cross-window

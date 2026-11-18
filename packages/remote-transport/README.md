@@ -21,7 +21,9 @@ Run `pnpm --filter @cherrystudio/remote-protocol build` before this package's
 Negotiation remains bound to the Noise transcript. Control records retain their JSON
 encoding. Binary DATA starts with `0x01`, a two-byte big-endian JSON header length,
 the bounded header and raw bytes. The marker cannot begin a JSON record. Control JSON stays
-at 64 KiB. DATA is at most 1 MiB, with a 4 KiB header limit. Noise handles its own
+at 64 KiB. `SecureChannel.read()` returns a `TransportRecord`: a validated JSON value
+or a binary `UploadChunk`. JSON records reject non-finite numbers; RPC and business
+validation remain with the receiver. DATA is at most 1 MiB, with a 4 KiB header limit. Noise handles its own
 smaller encrypted frames; application callers never split DATA into crypto frames.
 
 Mobile provides `createNativeNoiseCrypto` with Quick Crypto for bulk encryption. Electron

@@ -17,7 +17,7 @@ vi.mock('electron', () => ({
   ipcMain: { handle: ipcHandleMock, removeHandler: ipcRemoveHandlerMock }
 }))
 
-import { UserDataRelocationIpcChannels } from '@shared/types/userDataRelocation'
+import { type RelocationProgress, UserDataRelocationIpcChannels } from '@shared/types/userDataRelocation'
 
 import { openUserDataRelocationWindow } from '../window'
 
@@ -31,9 +31,10 @@ interface MockWindow extends EventEmitter {
 }
 
 let window: MockWindow
-let handlers: Map<string, (event: unknown) => unknown>
+type RelocationHandler = (event: unknown) => RelocationProgress | null | Promise<void>
+let handlers: Map<string, RelocationHandler>
 
-function invoke(channel: string): unknown {
+function invoke(channel: string): ReturnType<RelocationHandler> | undefined {
   return handlers.get(channel)?.({})
 }
 
@@ -57,9 +58,7 @@ beforeEach(() => {
   vi.unstubAllEnvs()
   validateSenderMock.mockReturnValue(true)
   handlers = new Map()
-  ipcHandleMock.mockImplementation((channel: string, handler: (event: unknown) => unknown) =>
-    handlers.set(channel, handler)
-  )
+  ipcHandleMock.mockImplementation((channel: string, handler: RelocationHandler) => handlers.set(channel, handler))
   ipcRemoveHandlerMock.mockImplementation((channel: string) => handlers.delete(channel))
   window = makeWindow()
   browserWindowMock.mockImplementation(function BrowserWindowMock() {

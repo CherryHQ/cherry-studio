@@ -23,7 +23,7 @@ vi.mock('@application', async () => {
   return mockApplicationFactory({
     AiStreamManager: {
       isWriteQuiesced: false,
-      withDispatchLock: (_id: string, operation: () => unknown) => operation(),
+      withDispatchLock: <TResult>(_id: string, operation: () => TResult) => operation(),
       hasUnsettledTopicWork: () => false,
       abortAndDrain: async () => undefined,
       pauseRuntimeTurn: vi.fn()

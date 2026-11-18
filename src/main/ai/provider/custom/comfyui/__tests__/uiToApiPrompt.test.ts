@@ -930,7 +930,7 @@ describe('convertUiWorkflowToPrompt', () => {
   })
 
   it('spends no positional slot on a forced input, and one on a widgetType override', () => {
-    const styled = (widgets: unknown[]) => ({
+    const styled = (widgets: UiNode['widgets_values']) => ({
       nodes: [
         { id: 1, type: 'EmptyLatentImage', widgets_values: [512, 512, 1] },
         {

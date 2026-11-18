@@ -2,9 +2,11 @@ import { MockUseCache } from '@test-mocks/renderer/useCache'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { CacheSetStateAction } from '@data/CacheService'
 import type { MessageListItem, MessageListSelectAllPagination } from '@renderer/components/chat/messages/types'
 import { toast } from '@renderer/services/toast'
 import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
+import type { UseCacheSchema } from '@shared/data/cache/cacheSchemas'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { useMessageSelectionController } from '../useMessageSelectionController'
@@ -15,14 +17,16 @@ vi.mock('@renderer/services/popup', () => ({
   popup: { confirm: popupConfirm }
 }))
 
-const cacheValues = {
+type SelectionState = UseCacheSchema['chat.multi_select_mode' | 'chat.selected_message_ids'] | undefined
+
+const cacheValues: Record<string, SelectionState> = {
   'chat.multi_select_mode': false,
   'chat.selected_message_ids': []
-} as Record<string, unknown>
-const cacheSetters = new Map<string, (value: unknown) => void>()
-const setCacheValue = vi.fn((key: string, value: unknown) => {
+}
+const cacheSetters = new Map<string, (value: CacheSetStateAction<SelectionState>) => void>()
+const setCacheValue = vi.fn((key: string, value: CacheSetStateAction<SelectionState>) => {
   const previous = cacheValues[key]
-  const next = typeof value === 'function' ? (value as (current: unknown) => unknown)(previous) : value
+  const next = typeof value === 'function' ? value(previous) : value
   const isEqualArray =
     Array.isArray(previous) &&
     Array.isArray(next) &&
@@ -65,7 +69,7 @@ describe('useMessageSelectionController', () => {
     MockUseCache.useCache.mockImplementation((key) => {
       let setter = cacheSetters.get(key)
       if (!setter) {
-        setter = (value: unknown) => setCacheValue(key, value)
+        setter = (value: CacheSetStateAction<SelectionState>) => setCacheValue(key, value)
         cacheSetters.set(key, setter)
       }
       return [cacheValues[key], setter] as never

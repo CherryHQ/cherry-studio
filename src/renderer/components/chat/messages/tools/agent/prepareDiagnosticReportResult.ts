@@ -1,4 +1,5 @@
 import { isToolUIPart } from 'ai'
+import * as z from 'zod'
 
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { isDeferredToolOutput } from '@shared/ai/transport'
@@ -13,21 +14,12 @@ import { buildToolResponseFromPart } from '../toolResponse'
 
 const PREPARE_DIAGNOSTIC_REPORT_TOOL_NAME = 'mcp__assistant__prepare_diagnostic_report'
 
-export interface PrepareDiagnosticReportResult {
-  readonly ok: true
-  readonly description: string
-}
+const prepareDiagnosticReportResultSchema = z.object({ ok: z.literal(true), description: z.string() })
+
+export type PrepareDiagnosticReportResult = Readonly<z.infer<typeof prepareDiagnosticReportResultSchema>>
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function parseJson(value: string): unknown {
-  try {
-    return JSON.parse(value)
-  } catch {
-    return undefined
-  }
 }
 
 export function parsePrepareDiagnosticReportResult(value: unknown): PrepareDiagnosticReportResult | undefined {
@@ -39,27 +31,26 @@ export function parsePrepareDiagnosticReportResult(value: unknown): PrepareDiagn
     if (candidate === value && Array.isArray(value.content)) candidate = value.content
   }
 
-  if (Array.isArray(candidate)) {
-    candidate = parseJson(
-      candidate
-        .map((item) => (isRecord(item) && typeof item.text === 'string' ? item.text : ''))
-        .filter(Boolean)
-        .join('\n')
-    )
-  } else if (typeof candidate === 'string') {
-    candidate = parseJson(candidate)
+  if (Array.isArray(candidate) || typeof candidate === 'string') {
+    const text =
+      typeof candidate === 'string'
+        ? candidate
+        : candidate
+            .flatMap((item) => {
+              const text = isRecord(item) && typeof item.text === 'string' ? item.text : ''
+              return text ? [text] : []
+            })
+            .join('\n')
+    try {
+      candidate = JSON.parse(text)
+    } catch {
+      return undefined
+    }
   }
+  const parsed = prepareDiagnosticReportResultSchema.safeParse(candidate)
+  if (!parsed.success || parsed.data.description.trim().length === 0) return undefined
 
-  if (
-    !isRecord(candidate) ||
-    candidate.ok !== true ||
-    typeof candidate.description !== 'string' ||
-    candidate.description.trim().length === 0
-  ) {
-    return undefined
-  }
-
-  const description = normalizeDiagnosticDescription(candidate.description.trim())
+  const description = normalizeDiagnosticDescription(parsed.data.description.trim())
   if (diagnosticDescriptionByteLength(description) > DIAGNOSTIC_DESCRIPTION_MAX_BYTES) return undefined
 
   return { ok: true, description }

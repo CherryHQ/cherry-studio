@@ -81,7 +81,7 @@ describe('ProviderService edition availability', () => {
     )
     expect(providerService.isAvailableByProviderId('global-only')).toBe(false)
 
-    const calls: Array<() => unknown> = [
+    const calls: Array<() => ReturnType<(typeof providerService)[keyof typeof providerService]>> = [
       () => providerService.assertAvailable('global-only'),
       () => providerService.getByProviderId('global-only'),
       () => providerService.resolveApiKey('global-only'),
