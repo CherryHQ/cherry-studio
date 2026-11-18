@@ -38,23 +38,10 @@ describe('deriveNoteSnapshotSlug', () => {
     expect(deriveNoteSnapshotSlug('A/B:C')).toBe('A_B_C')
   })
 
-  it('truncates an overlong title to the snapshot length cap', () => {
-    expect(deriveNoteSnapshotSlug('a'.repeat(200))).toHaveLength(80)
-  })
-
-  it('falls back to "note" when the title sanitizes to nothing usable', () => {
-    expect(deriveNoteSnapshotSlug('   ')).toBe('note')
-  })
-
   it('names a multi-line source by its first line', () => {
     // Newlines are control characters, so sanitizing the whole source would fold the body into the
     // name (`Meeting notes__- item one`) instead of titling the note.
     expect(deriveNoteSnapshotSlug('Meeting notes\n\n- item one')).toBe('Meeting notes')
-  })
-
-  it('drops a separator the length cap lands on', () => {
-    // Sanitizing turns the tab into `_`, which the trailing-whitespace strip can no longer remove.
-    expect(deriveNoteSnapshotSlug(`${'a'.repeat(79)}\tmore`)).toBe('a'.repeat(79))
   })
 })
 

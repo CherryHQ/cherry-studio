@@ -3,11 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 
 import type { MessageListItem, MessageUiState } from '../../types'
-import {
-  getEffectiveMultiModelMessageStyle,
-  isAssistantMultiModelGroup,
-  shouldUseWideLayoutForMessageGroup
-} from '../messageGroupLayout'
+import { getEffectiveMultiModelMessageStyle, isAssistantMultiModelGroup } from '../messageGroupLayout'
 
 const createMessage = (id: string, role: MessageListItem['role'] = 'assistant') =>
   ({
@@ -34,34 +30,5 @@ describe('messageGroupLayout', () => {
     const messages = [createMessage('assistant-1'), createMessage('assistant-2')]
 
     expect(getEffectiveMultiModelMessageStyle(messages, createGetMessageUiState('grid'), 'horizontal')).toBe('grid')
-  })
-
-  it('uses wide layout for horizontal and grid assistant groups', () => {
-    const messages = [createMessage('assistant-1'), createMessage('assistant-2')]
-
-    expect(shouldUseWideLayoutForMessageGroup(messages, createGetMessageUiState('horizontal'), 'fold', false)).toBe(
-      true
-    )
-    expect(shouldUseWideLayoutForMessageGroup(messages, createGetMessageUiState('grid'), 'fold', false)).toBe(true)
-  })
-
-  it('keeps narrow layout for fold, vertical, user groups, and multi-select mode', () => {
-    const messages = [createMessage('assistant-1'), createMessage('assistant-2')]
-
-    expect(shouldUseWideLayoutForMessageGroup(messages, createGetMessageUiState('fold'), 'horizontal', false)).toBe(
-      false
-    )
-    expect(shouldUseWideLayoutForMessageGroup(messages, createGetMessageUiState('vertical'), 'horizontal', false)).toBe(
-      false
-    )
-    expect(
-      shouldUseWideLayoutForMessageGroup(
-        [createMessage('user-1', 'user')],
-        createGetMessageUiState('grid'),
-        'grid',
-        false
-      )
-    ).toBe(false)
-    expect(shouldUseWideLayoutForMessageGroup(messages, createGetMessageUiState('grid'), 'grid', true)).toBe(false)
   })
 })

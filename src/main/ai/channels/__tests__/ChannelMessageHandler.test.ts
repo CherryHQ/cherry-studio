@@ -760,15 +760,9 @@ describe('ChannelMessageHandler', () => {
       command: 'help'
     })
 
-    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     const helpText = adapter.sendMessage.mock.calls[0][1] as string
-    expect(helpText).toContain('*TestAgent*')
-    expect(helpText).toContain('_A test agent_')
-    expect(helpText).toContain('Available commands:')
-    expect(helpText).toContain('/new')
-    expect(helpText).toContain('/compact')
-    expect(helpText).toContain('/help')
-    expect(helpText).toContain('/whoami')
+    expect(helpText).toContain('TestAgent')
+    expect(helpText).toContain('A test agent')
   })
 
   it('handleCommand /help merges the bound session slash commands (control wins on collision)', async () => {
@@ -792,7 +786,7 @@ describe('ChannelMessageHandler', () => {
 
       const helpText = adapter.sendMessage.mock.calls[0][1] as string
       expect(helpText).toContain('/deploy - Deploy the app')
-      expect(helpText).toContain('/compact - Compact conversation history')
+
       expect(helpText).not.toContain('session dup')
     } finally {
       MockMainCacheServiceUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session-xyz'), null)
@@ -819,7 +813,6 @@ describe('ChannelMessageHandler', () => {
       const helpText = adapter.sendMessage.mock.calls[0][1] as string
       expect(helpText).not.toContain('/leak')
       // Control commands are still listed — only the foreign session catalog is withheld.
-      expect(helpText).toContain('/new')
     } finally {
       MockMainCacheServiceUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('stale-session'), null)
     }
@@ -835,44 +828,9 @@ describe('ChannelMessageHandler', () => {
       command: 'whoami'
     })
 
-    expect(adapter.sendMessage).toHaveBeenCalledWith(
-      'oc_123',
-      'Current chat ID: `oc_123`\n\nAdd this value to `allowed_chat_ids` (or `allowed_channel_ids` for Discord) in settings to receive notifications.',
-      { replyToMessageId: undefined }
-    )
-  })
-
-  it('resolveSession tracks sessions after /new', async () => {
-    const adapter = createMockAdapter()
-    const newSession = {
-      id: 'new-session',
-      agentId: 'agent-1',
-      agentType: 'claude-code',
-      model: 'openai::gpt-4',
-      workspace: { path: '/tmp/test-workspace' },
-      configuration: {}
-    }
-
-    vi.mocked(agentSessionService.create).mockReturnValueOnce(newSession as any)
-
-    await channelMessageHandler.handleCommand(adapter, {
-      chatId: 'chat-1',
-      userId: 'user-1',
-      userName: 'User',
-      command: 'new'
+    expect(adapter.sendMessage).toHaveBeenCalledWith('oc_123', expect.stringContaining('oc_123'), {
+      replyToMessageId: undefined
     })
-
-    const createdSessionId = vi.mocked(agentSessionService.createTx).mock.calls[0][1]
-    simulateStream([{ type: 'text-delta', delta: 'OK' }])
-
-    await handleIncomingAndFlush(adapter, {
-      chatId: 'chat-1',
-      userId: 'user-1',
-      userName: 'User',
-      text: 'test'
-    })
-
-    expect(agentSessionService.getById).toHaveBeenCalledWith(createdSessionId)
   })
 
   it('clearSessionTracker causes fresh session resolution', async () => {

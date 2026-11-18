@@ -533,8 +533,7 @@ export default function OnboardingPage({
                   padded
                 />
                 <ScrollArea
-                  viewportProps={{ className: 'px-6 py-8' }}
-                  contentProps={{ className: 'flex justify-center' }}
+                  contentProps={{ className: 'flex justify-center px-6 py-8' }}
                   className="min-h-0 flex-1 border-border border-t">
                   <div className="my-auto w-full max-w-[440px]">
                     <div className="w-full">

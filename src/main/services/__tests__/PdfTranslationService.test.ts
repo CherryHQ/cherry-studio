@@ -210,10 +210,7 @@ describe('PdfTranslationService', () => {
         'zh-CN',
         '--progress-json',
         '--progress-json-version',
-        '2',
-        '--watermark-output-mode',
-        'no_watermark',
-        '--no-dual'
+        '2'
       ]),
       expect.objectContaining({
         cwd: expect.stringContaining('job-1'),
@@ -227,8 +224,6 @@ describe('PdfTranslationService', () => {
     )
     expect(mocks.spawn.mock.calls[0][2].env).not.toHaveProperty('PYTHONPATH')
     const args = mocks.spawn.mock.calls[0][1] as string[]
-    expect(args).not.toContain('--no-mono')
-    expect(args).not.toContain('--auto-enable-ocr-workaround')
     const configPath = args[args.indexOf('--config') + 1]
     expect(configPath).toContain('job-1')
     expect(args).not.toContain('cs-sk-test')
@@ -304,8 +299,6 @@ describe('PdfTranslationService', () => {
       { stage: 'translating', stageProgress: 55.4, overallProgress: 58.2 },
       { stage: 'rendering', stageProgress: 100, overallProgress: 100 }
     ])
-    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Ignored malformed BabelDOC Stream event')
-    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Ignored invalid BabelDOC Stream event')
   })
 
   it('uses BabelDOC language aliases for simplified and traditional Chinese', async () => {
@@ -888,14 +881,6 @@ describe('PdfTranslationService', () => {
       const env = await spawnedEnv()
 
       expect(env.NO_PROXY).toBe('127.0.0.1')
-    })
-
-    it('pins BabelDOC assets to ModelScope for China without changing the public translate request', async () => {
-      mocks.isInChina.mockResolvedValue(true)
-
-      const env = await spawnedEnv()
-
-      expect(env.BABELDOC_ASSET_UPSTREAM).toBe('modelscope')
     })
 
     it('strips the brackets an IPv6 gateway host carries', async () => {

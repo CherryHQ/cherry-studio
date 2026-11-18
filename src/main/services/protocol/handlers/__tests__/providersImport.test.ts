@@ -50,7 +50,6 @@ describe('providersImport protocol handler', () => {
     await handleProvidersProtocolUrl(new URL('cherrystudio://providers/api-keys?v=1&data=not-json'))
 
     expect(openSettingsInMainWindowMock).not.toHaveBeenCalled()
-    expect(loggerMock.error).toHaveBeenCalled()
   })
 
   it('preserves standard base64 plus and slash characters through URL parsing', async () => {

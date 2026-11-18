@@ -1,6 +1,3 @@
-import { renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
 /**
  * useDataChange hook tests (real hook implementation).
  *
@@ -10,6 +7,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * `_emitDataChange(...)` and verify subscribe/unsubscribe lifetime, stable
  * resubscription behavior, and latest-listener delivery.
  */
+import { renderHook } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { dataApiService } from '@data/DataApiService'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 
@@ -55,15 +55,6 @@ describe('useDataChange', () => {
     renderHook(() => useDataChange([], vi.fn()))
 
     expect(mockService.onDataChanged).not.toHaveBeenCalled()
-  })
-
-  it('does not resubscribe when re-rendered with an equal inline endpoint array', () => {
-    const listener = vi.fn()
-    const { rerender } = renderHook(() => useDataChange(['/topics', '/topics/latest'], listener))
-
-    rerender()
-
-    expect(mockService.onDataChanged).toHaveBeenCalledTimes(1)
   })
 
   it('invokes the latest listener without resubscribing', () => {

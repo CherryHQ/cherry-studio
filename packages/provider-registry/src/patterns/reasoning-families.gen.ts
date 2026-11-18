@@ -164,6 +164,8 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   // google
   { pattern: '^gemini-4(?:[.-]|$)', wireDialect: 'effort', template: true },
   { pattern: '^gemini-4-argon(?:$|[ @:-])', effort: ['low', 'medium', 'high'], toggle: false },
+  { pattern: '^gemini-4-carbon(?:$|[ @:-])', effort: ['low', 'medium', 'high'], toggle: false },
+  { pattern: '^gemini-4-hydrogen(?:$|[ @:-])', effort: ['low', 'medium', 'high', 'xhigh'], toggle: false },
   { pattern: '^gemini-2', wireDialect: 'budget', template: true },
   { pattern: '^gemini-omni', wireDialect: 'budget', template: true },
   { pattern: '^gemini-robotics', wireDialect: 'budget', template: true },
@@ -215,6 +217,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^minimax-m3[.-]1-flash$', effort: ['low', 'medium', 'high', 'xhigh', 'max'], toggle: false },
   { pattern: 'minimax-m\\d' },
   // mistral
+  { pattern: '^mistral-large-4(?:[-.]|$)', effort: ['low', 'medium', 'high'] },
   { pattern: '^mistral-small-2603', effort: ['none', 'high'] },
   { pattern: 'magistral' },
   { pattern: 'mistral-small-2603' },
@@ -231,6 +234,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '(?:llama-3-1-)?nemotron-(?:\\d+(?:-\\d+)*-)?(?:nano|super|ultra|lightning)' },
   { pattern: '^muse-glimmer' },
   // openai
+  { pattern: '^gpt-6[.-]2-(?:astra|sol)(?:$|-)', effort: ['low', 'medium', 'high', 'xhigh', 'max'] },
   { pattern: '^gpt-6[.-]1-sol(?:$|-)', effort: ['low', 'medium', 'high', 'xhigh', 'max'] },
   { pattern: '^gpt-6-astra', effort: ['low', 'medium', 'high', 'xhigh', 'max'] },
   { pattern: '^(?:o\\d|gpt).*deep[-_]?research', effort: ['medium'] },

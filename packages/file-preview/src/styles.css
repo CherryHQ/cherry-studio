@@ -16,6 +16,11 @@
 @source '../../ui/src/components/composites/empty-state/index.tsx';
 @source '../../ui/src/components/primitives/scroll-area.tsx';
 @source '../../ui/src/components/composites/image-preview/*.tsx';
+/* KaTeX formula markup (PPTD rich text) ships unstyled without these; bundle
+   the stylesheet so standalone consumers get working formulas. The KaTeX font
+   files resolve as build assets alongside the rest of the package. */
+@import 'katex/dist/katex.min.css';
+
 @custom-variant dark (&:is(.dark *));
 @custom-variant no-hover (@media (hover: none));
 

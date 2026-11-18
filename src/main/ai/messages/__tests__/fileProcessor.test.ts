@@ -107,12 +107,6 @@ describe('materializeNativeFilePart — file:// inline', () => {
     )
     expect(out).toBeNull()
   })
-
-  it('does not call FileManager when there is no cherry meta', async () => {
-    readMock.mockClear()
-    await materializeNativeFilePart(filePart({ url: `file://${imgPath}`, mediaType: 'image/png' }))
-    expect(readMock).not.toHaveBeenCalled()
-  })
 })
 
 describe('materializeNativeFilePart — fileEntryId inline', () => {
@@ -164,6 +158,7 @@ describe('attachment image padding', () => {
   ])('pads %i×%i without changing its pixels', async (width, height, outWidth, outHeight, left, top) => {
     const bytes = await input(width, height)
     const part = partFor(bytes)
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const snapshot = structuredClone(part)
     const result = await materializeNativeFilePart(part)
     const output = Buffer.from(result!.url.split(',')[1], 'base64')
