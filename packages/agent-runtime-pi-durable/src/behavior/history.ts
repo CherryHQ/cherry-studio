@@ -1,4 +1,3 @@
-import type { Message } from '@earendil-works/pi-ai'
 import {
   AssistantEntry,
   defineDoc,
@@ -24,6 +23,8 @@ import {
   decodeEntry,
   type ConversationFacts,
   type HistoryEntry,
+  type PlanState,
+  type SubagentOrigin,
   type UsageFact
 } from '@cherrystudio/agent-behavior'
 import type { GoalOwner } from '@cherrystudio/agent-behavior'
@@ -58,45 +59,6 @@ export async function pages<T>(read: (cursor?: Cursor) => Promise<Page<T, Cursor
   return items
 }
 
-/**
- * Image-free lineage entries by conversation, owned by one runtime. Reads see only published commits and the single
- * mutation line mints IDs in commit order, so a conversation's visible entries only grow, by newer IDs.
- */
-export type LineageCache = Map<ConversationId, readonly EntryRecord[]>
-
-// Facts read text, tool calls, usage and data; media stays in storage.
-function withoutMedia(entry: EntryRecord): EntryRecord {
-  if (!entry.model) return entry
-  return {
-    ...entry,
-    model: entry.model.map((message) =>
-      typeof message.content === 'string'
-        ? message
-        : ({
-            ...message,
-            content: message.content.filter((part) => part.type === 'text' || part.type === 'toolCall')
-          } as Message)
-    )
-  }
-}
-
-/** Reads only entries newer than the cached lineage. */
-export async function lineageEntries(tx: Tx, id: ConversationId, cache: LineageCache): Promise<readonly EntryRecord[]> {
-  const known = cache.get(id) ?? []
-  const after = known.at(-1)?.id
-  const fresh = await pages((cursor) =>
-    tx.scanEntries(
-      { conversationId: id, order: 'ascending', ...(after !== undefined && { minEntryId: (after + 1) as EntryId }) },
-      256,
-      cursor
-    )
-  )
-  if (!fresh.length) return known
-  const entries = [...known, ...fresh.map(withoutMedia)]
-  cache.set(id, entries)
-  return entries
-}
-
 function summaryUsage(entry: EntryRecord) {
   if (!CompactionEntry.is(entry)) return undefined
   const metadata = entry.data.metadata
@@ -106,19 +68,111 @@ function summaryUsage(entry: EntryRecord) {
   return decoded?.kind === 'record' && decoded.record.type === 'summary-usage' ? decoded : undefined
 }
 
-export function historyOf(
-  entries: readonly EntryRecord[],
-  tasks: readonly TaskRecord<JsonValue, JsonValue, JsonValue>[],
-  owner: ConversationId
-): HistoryEntry[] {
-  const calls = new Map<string, string>()
-  for (const task of tasks) {
-    if (task.kind !== ToolTask.definition.name) continue
-    const input = task.input as ToolTaskInput
-    if (input.kind === 'model') calls.set(`${input.assistant}:${input.callId}`, String(task.id))
+type Task = TaskRecord<JsonValue, JsonValue, JsonValue>
+type AssistantItem = Extract<HistoryEntry, { kind: 'assistant' }>
+type ToolResultItem = Extract<HistoryEntry, { kind: 'tool-result' }>
+type Usage = { -readonly [K in keyof UsageFact]: number }
+
+export const ZERO_USAGE = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, costUsd: 0 }
+
+function addUsage(total: Usage, usage: UsageFact) {
+  total.input += usage.input
+  total.output += usage.output
+  total.cacheRead += usage.cacheRead
+  total.cacheWrite += usage.cacheWrite
+  total.totalTokens += usage.totalTokens
+  total.costUsd += usage.costUsd
+}
+
+export function taskRun(task: Task): TaskId {
+  return (task.input as GenerationInput).runId ?? task.id
+}
+
+/**
+ * One conversation's lineage history and what behavior reads from it, folded one record at a time. Tasks fold in ID
+ * order per conversation and may interleave with entries in any way: a tool task folded after its assistant entry
+ * rewrites that call's key, and the keys of tool results that resolved through that call.
+ */
+export class HistoryFold {
+  readonly history: HistoryEntry[] = []
+  /** History length after each folded entry, for reads limited to an earlier entry. */
+  readonly ends: { readonly entry: EntryId; readonly end: number }[] = []
+  /** Newest folded task of each lineage conversation. */
+  readonly newestTasks = new Map<ConversationId, TaskId | undefined>()
+  /** Children named by run records, with the history index of each child's first record. */
+  readonly children = new Map<ThreadId, number>()
+  readonly origins: { readonly at: number; readonly value: SubagentOrigin }[] = []
+  plan: PlanState | undefined
+  /** History index of the latest user input or marker, where the current turn began. */
+  turn = -1
+  /** Own run reservations whose submission may still bind a run, and the run number reserved for each bound run. */
+  readonly reservations: { readonly key: string; readonly run: number }[] = []
+  readonly reserved = new Map<TaskId, number>()
+  readonly runs = new Set<TaskId>()
+  /** Newest own generation task of each run and overall; unfinished ones are reread on each catch-up. */
+  readonly runTasks = new Map<TaskId, TaskId>()
+  generation: Task | undefined
+  readonly jobs = new Map<TaskId, Task>()
+  /** Usage and the last assistant reply of each run, from this conversation's own entries. */
+  readonly usage = new Map<TaskId, Usage>()
+  readonly replies = new Map<TaskId, { readonly text: string; readonly stop: string; readonly error?: string }>()
+  /** Tool calls of the lineage's latest assistant message, and the calls answered after it. */
+  latestCalls: readonly { readonly id: string; readonly name: string }[] = []
+  readonly answered = new Set<string>()
+  readonly #toolTasks = new Map<string, string>()
+  readonly #calls = new Map<string, { readonly at: number; readonly index: number }[]>()
+  readonly #assignments = new Map<string, { readonly at: number; readonly call: string; key: string }[]>()
+  readonly #fallbacks = new Map<string, number[]>()
+
+  constructor(readonly owner: ConversationId) {
+    this.newestTasks.set(owner, undefined)
   }
-  const callKeys = new Map<string, string>()
-  return entries.flatMap((entry): HistoryEntry[] => {
+
+  /** Run IDs by run number; a number reserved past the runs before it leaves gaps. */
+  runIds(): (TaskId | undefined)[] {
+    const ids: (TaskId | undefined)[] = []
+    for (const run of [...this.runs].sort((a, b) => a - b)) {
+      const number = Math.max(ids.length + 1, this.reserved.get(run) ?? 0)
+      while (ids.length < number - 1) ids.push(undefined)
+      ids.push(run)
+    }
+    return ids
+  }
+
+  addTask(task: Task) {
+    this.newestTasks.set(task.conversationId, task.id)
+    if (task.conversationId === this.owner && task.kind === GenerationTask.definition.name) {
+      this.runs.add(taskRun(task))
+      this.runTasks.set(taskRun(task), task.id)
+      this.generation = task
+    }
+    if (task.conversationId === this.owner && task.kind === 'cherry.behavior-job' && task.state.status !== 'terminal')
+      this.jobs.set(task.id, task)
+    if (task.kind !== ToolTask.definition.name) return
+    const input = task.input as ToolTaskInput
+    if (input.kind !== 'model') return
+    const call = `${input.assistant}:${input.callId}`
+    const key = String(task.id)
+    this.#toolTasks.set(call, key)
+    for (const { at, index } of this.#calls.get(call) ?? []) {
+      const item = this.history[at] as AssistantItem
+      this.history[at] = {
+        ...item,
+        toolCalls: item.toolCalls.map((fact, position) =>
+          position === index ? { ...fact, callKey: callKeyOf(key) } : fact
+        )
+      }
+    }
+    for (const assignment of this.#assignments.get(input.callId) ?? [])
+      if (assignment.call === call) assignment.key = key
+    for (const at of this.#fallbacks.get(input.callId) ?? []) {
+      const item = this.history[at] as ToolResultItem
+      this.history[at] = { ...item, callKey: callKeyOf(this.#resolve(input.callId, at) ?? input.callId) }
+    }
+  }
+
+  addEntry(entry: EntryRecord) {
+    if (!this.newestTasks.has(entry.conversationId)) this.newestTasks.set(entry.conversationId, undefined)
     const id = runtimeId<'item'>(String(entry.id))
     const model = entry.model ?? []
     const text = model
@@ -129,24 +183,39 @@ export function historyOf(
       )
       .join('\n')
     const decoded = decodeEntry({ id, kind: entry.kind, data: entry.data, text })
-    if (decoded?.kind === 'record' && entry.conversationId !== owner) return []
-    if (decoded) return [decoded]
-    if (CompactionEntry.is(entry)) {
-      const accounting = entry.conversationId === owner ? summaryUsage(entry) : undefined
-      return [...(accounting ? [accounting] : []), { kind: 'compaction', id }]
-    }
-    return model.flatMap((message): HistoryEntry[] => {
-      if (message.role === 'user') return [{ kind: 'user', id, text }]
-      if (message.role === 'assistant') {
-        if (message.stopReason === 'pending' || message.stopReason === 'deferred') return []
-        const toolCalls = message.content.flatMap((part) => {
-          if (part.type !== 'toolCall') return []
-          const key = calls.get(`${entry.id}:${part.id}`) ?? `${entry.id}:${part.id}`
-          callKeys.set(part.id, key)
-          return [{ callId: part.id, callKey: callKeyOf(key), name: part.name, args: part.arguments }]
-        })
-        return [
-          {
+    if (decoded) {
+      if (decoded.kind !== 'record' || entry.conversationId === this.owner) this.#push(decoded)
+    } else if (CompactionEntry.is(entry)) {
+      const accounting = entry.conversationId === this.owner ? summaryUsage(entry) : undefined
+      if (accounting) this.#push(accounting)
+      this.#push({ kind: 'compaction', id })
+    } else
+      for (const message of model) {
+        if (message.role === 'user') this.#push({ kind: 'user', id, text })
+        else if (message.role === 'assistant') {
+          if (message.stopReason === 'pending' || message.stopReason === 'deferred') continue
+          const at = this.history.length
+          const toolCalls = message.content.flatMap((part) => {
+            if (part.type !== 'toolCall') return []
+            const call = `${entry.id}:${part.id}`
+            return [
+              {
+                callId: part.id,
+                callKey: callKeyOf(this.#toolTasks.get(call) ?? call),
+                name: part.name,
+                args: part.arguments
+              }
+            ]
+          })
+          toolCalls.forEach((fact, index) => {
+            const call = `${entry.id}:${fact.callId}`
+            this.#calls.set(call, [...(this.#calls.get(call) ?? []), { at, index }])
+            this.#assignments.set(fact.callId, [
+              ...(this.#assignments.get(fact.callId) ?? []),
+              { at, call, key: this.#toolTasks.get(call) ?? call }
+            ])
+          })
+          this.#push({
             kind: 'assistant',
             id,
             text,
@@ -161,44 +230,171 @@ export function historyOf(
               totalTokens: message.usage.totalTokens,
               costUsd: message.usage.cost.total
             }
-          }
-        ]
-      }
-      if (message.role === 'toolResult')
-        return [
-          {
+          })
+        } else if (message.role === 'toolResult') {
+          const at = this.history.length
+          if (entry.byTaskId === undefined)
+            this.#fallbacks.set(message.toolCallId, [...(this.#fallbacks.get(message.toolCallId) ?? []), at])
+          this.#push({
             kind: 'tool-result',
             id,
             callId: message.toolCallId,
-            callKey: callKeyOf(String(entry.byTaskId ?? callKeys.get(message.toolCallId) ?? message.toolCallId)),
+            callKey: callKeyOf(String(entry.byTaskId ?? this.#resolve(message.toolCallId, at) ?? message.toolCallId)),
             tool: message.toolName,
             text,
             isError: message.isError,
             details: message.details
-          }
-        ]
-      return []
-    })
-  })
+          })
+        }
+      }
+    this.ends.push({ entry: entry.id, end: this.history.length })
+    if (entry.conversationId === this.owner) this.#addOwn(entry)
+    for (const message of model) {
+      if (message.role === 'assistant') {
+        this.latestCalls = message.content.flatMap((part) =>
+          part.type === 'toolCall' ? [{ id: part.id, name: part.name }] : []
+        )
+        this.answered.clear()
+      } else if (message.role === 'toolResult') this.answered.add(message.toolCallId)
+    }
+  }
+
+  #addOwn(entry: EntryRecord) {
+    const data = entry.data as { key?: string; cherryRun?: number } | undefined
+    if (data?.key && data.cherryRun !== undefined) this.reservations.push({ key: data.key, run: data.cherryRun })
+    if (!AssistantEntry.is(entry) && !CompactionEntry.is(entry)) return
+    const runId = entry.data.runId
+    if (runId === undefined) return
+    let usage = this.usage.get(runId)
+    if (!usage) this.usage.set(runId, (usage = { ...ZERO_USAGE }))
+    const summary = summaryUsage(entry)
+    if (summary?.record.type === 'summary-usage') addUsage(usage, summary.record.value.usage)
+    for (const message of entry.model ?? []) {
+      if (message.role !== 'assistant') continue
+      addUsage(usage, { ...message.usage, costUsd: message.usage.cost.total })
+      if (AssistantEntry.is(entry))
+        this.replies.set(runId, {
+          text: message.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join(''),
+          stop: message.stopReason,
+          error: message.errorMessage
+        })
+    }
+  }
+
+  #push(item: HistoryEntry) {
+    const at = this.history.length
+    this.history.push(item)
+    if (item.kind === 'user' || item.kind === 'marker') this.turn = at
+    if (item.kind !== 'record') return
+    const { record } = item
+    if (record.type === 'subagent-run' && !this.children.has(record.value.sessionId))
+      this.children.set(record.value.sessionId, at)
+    if (record.type === 'subagent-origin') this.origins.push({ at, value: record.value })
+    if (record.type === 'plan') this.plan = record.value
+  }
+
+  // A tool result without a task takes the key of the latest earlier call with its call ID.
+  #resolve(callId: string, at: number): string | undefined {
+    return this.#assignments.get(callId)?.findLast((assignment) => assignment.at < at)?.key
+  }
+}
+
+export function historyOf(
+  entries: readonly EntryRecord[],
+  tasks: readonly Task[],
+  owner: ConversationId
+): HistoryEntry[] {
+  const fold = new HistoryFold(owner)
+  for (const task of tasks) fold.addTask(task)
+  for (const entry of entries) fold.addEntry(entry)
+  return fold.history
+}
+
+/**
+ * Advances a fold to the transaction's committed state. One mutation line mints IDs in commit order and never deletes
+ * tasks, so rows newer than the fold's cursors are exactly the unseen ones; only unfinished tasks and runless
+ * reservations are reread.
+ */
+async function catchUp(tx: Tx, fold: HistoryFold) {
+  for (const id of [...fold.jobs.keys()]) {
+    const task = (await tx.task(id))!
+    if (task.state.status === 'terminal') fold.jobs.delete(id)
+    else fold.jobs.set(id, task)
+  }
+  if (fold.generation && fold.generation.state.status !== 'terminal')
+    fold.generation = (await tx.task(fold.generation.id))!
+  const after = fold.ends.at(-1)?.entry
+  let cursor: Cursor | undefined
+  do {
+    const page = await tx.scanEntries(
+      {
+        conversationId: fold.owner,
+        order: 'ascending',
+        ...(after !== undefined && { minEntryId: (after + 1) as EntryId })
+      },
+      256,
+      cursor
+    )
+    for (const entry of page.items) fold.addEntry(entry)
+    cursor = page.next
+  } while (cursor)
+  for (const [conversationId, newest] of fold.newestTasks) {
+    const fresh: Task[] = []
+    let next: Cursor | undefined
+    // Pages grow from one task, so a conversation with no new task costs one row.
+    for (let limit = 1; ; limit = Math.min(limit * 2, 256)) {
+      const page = await tx.scanTasks({ conversationId, order: 'descending' }, limit, next)
+      const seen = page.items.findIndex((task) => newest !== undefined && task.id <= newest)
+      fresh.push(...(seen < 0 ? page.items : page.items.slice(0, seen)))
+      next = page.next
+      if (seen >= 0 || !next) break
+    }
+    for (const task of fresh.reverse()) fold.addTask(task)
+  }
+  for (const reservation of [...fold.reservations]) {
+    const input = await tx.submissionByRequest(fold.owner, reservation.key)
+    if (
+      !input ||
+      (input.type === 'input' && input.runId === undefined && (input.status === 'queued' || input.status === 'placed'))
+    )
+      continue
+    fold.reservations.splice(fold.reservations.indexOf(reservation), 1)
+    if (input.type === 'input' && input.runId !== undefined && input.runId > input.id)
+      fold.reserved.set(input.runId, Math.max(fold.reserved.get(input.runId) ?? 0, reservation.run))
+  }
+}
+
+const FOLD_TTL_MS = 10 * 60_000
+
+/** Folds of one runtime's conversations, advanced inside the transaction that reads them. */
+export class DurableFolds {
+  readonly #folds = new Map<ConversationId, { readonly fold: HistoryFold; used: number }>()
+
+  async advance(tx: Tx, id: ConversationId): Promise<HistoryFold> {
+    const now = Date.now()
+    for (const [key, held] of this.#folds) if (now - held.used > FOLD_TTL_MS) this.#folds.delete(key)
+    let held = this.#folds.get(id)
+    if (!held) this.#folds.set(id, (held = { fold: new HistoryFold(id), used: now }))
+    held.used = now
+    await catchUp(tx, held.fold)
+    return held.fold
+  }
+
+  clear() {
+    this.#folds.clear()
+  }
 }
 
 export async function readFacts(
   tx: Tx,
+  folds: DurableFolds,
   id: ConversationId,
-  lineage: LineageCache,
   abandoned: ReadonlySet<TaskId> = new Set(),
   at?: EntryId
 ): Promise<ConversationFacts> {
-  const visible = await lineageEntries(tx, id, lineage)
-  const entries = at === undefined ? visible : visible.filter((entry) => entry.id <= at)
-  const tasks = (
-    await Promise.all(
-      [...new Set([id, ...entries.map((entry) => entry.conversationId)])].map((conversationId) =>
-        pages((cursor) => tx.scanTasks({ conversationId }, 256, cursor))
-      )
-    )
-  ).flat()
-  const history = historyOf(entries, tasks, id)
+  const fold = await folds.advance(tx, id)
+  const end = at === undefined ? fold.history.length : (fold.ends.findLast((item) => item.entry <= at)?.end ?? 0)
+  const history = fold.history.slice(0, end)
   const summaries = await tx.doc(nativeSummaryUsage, id)
   for (const [key, value] of Object.entries(summaries.records)) {
     history.push({
@@ -210,92 +406,44 @@ export async function readFacts(
   const live = await tx.doc(LiveDoc, id)
   const inbox = await tx.doc(InboxDoc, id)
   const record = (await tx.conversation(id))!
-  const origin = history.findLast((entry) => entry.kind === 'record' && entry.record.type === 'subagent-origin')
+  const origin = fold.origins.findLast((item) => item.at < end)?.value
   const children = new Map<
     ThreadId,
     { running: boolean; runUsage: UsageFact[]; lastItem: ReturnType<typeof runtimeId<'item'>> }
   >()
-  const childIds = new Set(
-    history.flatMap((entry) =>
-      entry.kind === 'record' && entry.record.type === 'subagent-run' ? [entry.record.value.sessionId] : []
-    )
-  )
-  for (const child of childIds) {
+  for (const [child, first] of fold.children) {
+    if (first >= end) continue
     const childId = conversationId(child)
-    const childEntries = await lineageEntries(tx, childId, lineage)
+    const childFold = await folds.advance(tx, childId)
     const childLive = await tx.doc(LiveDoc, childId)
-    const childTasks = await pages((cursor) => tx.scanTasks({ conversationId: childId }, 256, cursor))
-    const ids = await runIds(tx, childId, lineage, childTasks, childEntries)
+    const ids = childFold.runIds()
     const runUsage = Array.from(ids, () => ({ ...ZERO_USAGE }))
     const childSummaries = await tx.doc(nativeSummaryUsage, childId)
     for (const value of Object.values(childSummaries.records)) {
       const run = ids.findIndex((id) => id === value.runId)
-      if (run < 0) continue
-      const total = runUsage[run]
-      total.input += value.usage.input
-      total.output += value.usage.output
-      total.cacheRead += value.usage.cacheRead
-      total.cacheWrite += value.usage.cacheWrite
-      total.totalTokens += value.usage.totalTokens
-      total.costUsd += value.usage.costUsd
+      if (run >= 0) addUsage(runUsage[run], value.usage)
     }
-    for (const entry of childEntries) {
-      if (entry.conversationId !== childId) continue
-      if (!AssistantEntry.is(entry) && !CompactionEntry.is(entry)) continue
-      const runId = entry.data.runId
-      if (runId === undefined) continue
-      const run = ids.indexOf(runId)
-      if (run < 0) continue
-      const summary = summaryUsage(entry)
-      if (summary?.record.type === 'summary-usage') {
-        const usage = runUsage[run]
-        const value = summary.record.value.usage
-        usage.input += value.input
-        usage.output += value.output
-        usage.cacheRead += value.cacheRead
-        usage.cacheWrite += value.cacheWrite
-        usage.totalTokens += value.totalTokens
-        usage.costUsd += value.costUsd
-      }
-      for (const message of entry.model ?? []) {
-        if (message.role !== 'assistant') continue
-        const value = message.usage
-        const usage = runUsage[run]
-        usage.input += value.input
-        usage.output += value.output
-        usage.cacheRead += value.cacheRead
-        usage.cacheWrite += value.cacheWrite
-        usage.totalTokens += value.totalTokens
-        usage.costUsd += value.cost.total
-      }
-    }
+    ids.forEach((run, index) => {
+      const usage = run === undefined ? undefined : childFold.usage.get(run)
+      if (usage) addUsage(runUsage[index], usage)
+    })
     children.set(child, {
       running: childLive.run !== undefined,
       runUsage,
-      lastItem: runtimeId(String(childEntries.at(-1)!.id))
+      lastItem: runtimeId(String(childFold.ends.at(-1)!.entry))
     })
   }
   const keysSeen = new Set(history.flatMap((entry) => ('key' in entry && entry.key ? [entry.key] : [])))
-  for (const task of tasks) {
-    if (task.conversationId !== id) continue
+  for (const task of fold.jobs.values()) {
     const input = task.input as { key?: string }
-    if (
-      task.kind === 'cherry.behavior-job' &&
-      task.state.status !== 'terminal' &&
-      task.abortReason !== 'restart' &&
-      !abandoned.has(task.id) &&
-      input.key
-    )
-      keysSeen.add(input.key)
+    if (task.abortReason !== 'restart' && !abandoned.has(task.id) && input.key) keysSeen.add(input.key)
   }
-  const outcome = tasks
-    .filter((task) => task.conversationId === id && task.kind === GenerationTask.definition.name)
-    .at(-1)?.state.outcome
+  const outcome = fold.generation?.state.outcome
   return {
     thread: threadId(id),
     lineage:
-      record.owner && origin?.kind === 'record' && origin.record.type === 'subagent-origin'
-        ? { kind: 'subagent', parent: threadId(record.owner.conversationId), origin: origin.record.value }
+      record.owner && origin
+        ? { kind: 'subagent', parent: threadId(record.owner.conversationId), origin }
         : { kind: 'root' },
     history,
     children,
@@ -319,37 +467,4 @@ export async function readFacts(
         : {})
     }
   }
-}
-
-export const ZERO_USAGE = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, costUsd: 0 }
-export function taskRun(task: TaskRecord<JsonValue, JsonValue, JsonValue>): TaskId {
-  return (task.input as GenerationInput).runId ?? task.id
-}
-export async function runIds(
-  tx: Tx,
-  id: ConversationId,
-  lineage: LineageCache,
-  tasks?: readonly TaskRecord<JsonValue, JsonValue, JsonValue>[],
-  entries?: readonly EntryRecord[]
-): Promise<(TaskId | undefined)[]> {
-  tasks ??= await pages((cursor) => tx.scanTasks({ conversationId: id }, 256, cursor))
-  entries ??= await lineageEntries(tx, id, lineage)
-  const reservations = new Map<TaskId, number>()
-  for (const entry of entries) {
-    if (entry.conversationId !== id) continue
-    const data = entry.data as { key?: string; cherryRun?: number } | undefined
-    if (!data?.key || data.cherryRun === undefined) continue
-    const input = await tx.submissionByRequest(id, data.key)
-    if (input?.type === 'input' && input.runId !== undefined && input.runId > input.id)
-      reservations.set(input.runId, Math.max(reservations.get(input.runId) ?? 0, data.cherryRun))
-  }
-  const ids: (TaskId | undefined)[] = []
-  for (const run of [
-    ...new Set(tasks.filter((task) => task.kind === GenerationTask.definition.name).map(taskRun))
-  ].sort((a, b) => a - b)) {
-    const number = Math.max(ids.length + 1, reservations.get(run) ?? 0)
-    while (ids.length < number - 1) ids.push(undefined)
-    ids.push(run)
-  }
-  return ids
 }

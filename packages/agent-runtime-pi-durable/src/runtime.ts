@@ -52,7 +52,7 @@ import {
 } from '@cherrystudio/agent-runtime'
 
 import { createPiDurableBehavior, type PiDurableBehavior } from './behavior/harness'
-import { historyOf, pages, readFacts, type LineageCache } from './behavior/history'
+import { DurableFolds, historyOf, pages, readFacts } from './behavior/history'
 import { meteredModels } from './behavior/models'
 import { ContentProjection } from './content'
 import { readContextUsage } from './contextUsage'
@@ -157,11 +157,11 @@ export async function createPiDurableRuntime(
   let harnessOptions = options.harness
   const refFor = (id: number): Thread =>
     Object.freeze({ backendId: options.backendId, id: runtimeId<'thread'>(String(id)) })
-  const lineage: LineageCache = new Map()
+  const folds = new DurableFolds()
   if (options.behavior) {
     const config = options.behavior
     behavior = createPiDurableBehavior({
-      lineage,
+      folds,
       install: (ports) => {
         behaviorEntries = install(ports, config.host).entries
       },
@@ -407,6 +407,7 @@ export async function createPiDurableRuntime(
     if (!shutdown) closeAccesses('source-lost')
   })
   void native.closed.then(() => {
+    folds.clear()
     unsubscribeClose()
     unsubscribe()
     closeAccesses(shutdown ? 'shutdown' : 'source-lost')
@@ -715,7 +716,7 @@ export async function createPiDurableRuntime(
           return message.content.find((part) => part.type === 'text')?.text ?? ''
         },
         providerSessionId: async () => (await native.snapshot(ProviderDoc, entry.conversation.id, context))?.sessionId,
-        facts: () => native.commit((tx) => readFacts(tx, entry.conversation.id, lineage), context),
+        facts: () => native.commit((tx) => readFacts(tx, folds, entry.conversation.id), context),
         async behaviorToolCallId(call) {
           if (unavailable() || call.thread !== entry.ref.id || nativeId(call.key) === undefined) return undefined
           const task = await native.getTask(Number(call.key) as never, context)
@@ -817,7 +818,7 @@ export async function createPiDurableRuntime(
             }
             try {
               if (behavior && behaviorEntries) {
-                const facts = await native.commit((tx) => readFacts(tx, entry.conversation.id, lineage), context)
+                const facts = await native.commit((tx) => readFacts(tx, folds, entry.conversation.id), context)
                 if (facts.lineage.kind === 'subagent') {
                   const receipt = await behavior.withCall(
                     entry.ref.id,
