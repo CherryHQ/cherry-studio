@@ -159,6 +159,7 @@ export const detectWithMethod = async (
 export const detectLanguageOrUnknown = async (
   text: string,
   detectLanguage: (text: string) => Promise<TranslateLangCode>,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The injected language detector can reject any value; this callback observes that failure before detection falls back to UNKNOWN_LANG_CODE.
   onError: (error: unknown) => void
 ): Promise<TranslateLangCode> => {
   try {

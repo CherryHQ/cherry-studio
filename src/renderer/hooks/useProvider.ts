@@ -19,6 +19,7 @@ import type { ApiKeyEntry, AuthConfig, Provider } from '@shared/data/types/provi
 const EMPTY_PROVIDERS: Provider[] = []
 const logger = loggerService.withContext('useProviders')
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- API-key mutation catch paths supply arbitrary failures; only Error.name or the value type is logged, never credential-bearing payloads.
 function getErrorType(error: unknown) {
   return error instanceof Error ? error.name : typeof error
 }

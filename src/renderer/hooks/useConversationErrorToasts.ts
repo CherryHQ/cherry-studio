@@ -110,6 +110,7 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
   )
 
   const report = useCallback(
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Home and Agent runtime failure callbacks pass raw stream/controller failures; the toast error classifier owns their interpretation.
     async (error: unknown, modelId?: string, message?: CherryUIMessage) => {
       if (!state.active) return
       const generation = state.generation

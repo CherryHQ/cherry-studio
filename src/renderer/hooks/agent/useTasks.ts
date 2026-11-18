@@ -30,6 +30,7 @@ const taskReadKeys = (agentId: string) => taskListReadKeys(agentId).flatMap((key
 export const TASKS_PAGE_LIMIT = 50
 
 /** Trigger-validation failures carry a branchable code — map them to the form hint instead of the raw parser message. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Scheduled-task IPC mutations reject arbitrary values; the IpcError code selects trigger guidance and the central formatter handles other failures.
 const taskCommandErrorMessage = (error: unknown, t: TFunction, fallbackPrefix: string): string => {
   if (error instanceof IpcError && error.code === aiErrorCodes.AI_AGENT_TASK_TRIGGER_INVALID) {
     return t('agent.tasks.error.triggerInvalid')
