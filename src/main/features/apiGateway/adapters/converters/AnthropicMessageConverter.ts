@@ -268,12 +268,12 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
             ...cacheProviderOptions(block)
           }
           const result = toolResults.get(block.id)
-          const base = {
-            type: 'dynamic-tool' as const,
+          const base: Pick<DynamicToolUIPart, 'type' | 'toolName' | 'toolCallId' | 'callProviderMetadata'> = {
+            type: 'dynamic-tool',
             toolName,
-            toolCallId: block.id,
-            ...(Object.keys(callProviderMetadata).length ? { callProviderMetadata } : {})
+            toolCallId: block.id
           }
+          if (Object.keys(callProviderMetadata).length) base.callProviderMetadata = callProviderMetadata
           const part: DynamicToolUIPart = result
             ? result.isError
               ? {
@@ -463,16 +463,11 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
         )
     if (model.endpointTypes?.[0] !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return reasoning
     const choice = params.tool_choice
-    return {
-      ...reasoning,
-      anthropic: {
-        ...reasoning?.anthropic,
-        ...(params.cache_control ? { cacheControl: { ...params.cache_control } } : {}),
-        ...(choice && 'disable_parallel_tool_use' in choice && choice.disable_parallel_tool_use !== undefined
-          ? { disableParallelToolUse: choice.disable_parallel_tool_use }
-          : {})
-      }
-    }
+    const anthropic: ProviderOptions['anthropic'] = { ...reasoning?.anthropic }
+    if (params.cache_control) anthropic.cacheControl = { ...params.cache_control }
+    if (choice && 'disable_parallel_tool_use' in choice && choice.disable_parallel_tool_use !== undefined)
+      anthropic.disableParallelToolUse = choice.disable_parallel_tool_use
+    return { ...reasoning, anthropic }
   }
 }
 
