@@ -48,7 +48,8 @@ function projectEntry(line: string): Record<string, unknown>[] {
   } catch {
     return []
   }
-  const base = { at: entry.timestamp, ...(entry.isSidechain ? { subagent: true } : {}) }
+  const base = { at: entry.timestamp }
+  if (entry.isSidechain) Object.assign(base, { subagent: true })
   if (entry.type === 'system') {
     const hookErrors = Array.isArray(entry.hookErrors) && entry.hookErrors.length > 0 ? entry.hookErrors : undefined
     return [
@@ -70,16 +71,15 @@ function projectEntry(line: string): Record<string, unknown>[] {
     const tools = Array.isArray(message.content)
       ? message.content.filter((block: any) => block?.type === 'tool_use').map((block: any) => block.name)
       : []
-    return [
-      {
-        kind: entry.isApiErrorMessage ? 'api_error_message' : 'assistant',
-        ...base,
-        model: message.model,
-        stopReason: message.stop_reason,
-        ...(tools.length > 0 ? { tools } : {}),
-        ...(entry.isApiErrorMessage ? { text: truncate(textOf(message.content)) } : {})
-      }
-    ]
+    const event = {
+      kind: entry.isApiErrorMessage ? 'api_error_message' : 'assistant',
+      ...base,
+      model: message.model,
+      stopReason: message.stop_reason
+    }
+    if (tools.length > 0) Object.assign(event, { tools })
+    if (entry.isApiErrorMessage) Object.assign(event, { text: truncate(textOf(message.content)) })
+    return [event]
   }
   if (entry.type === 'user' && Array.isArray(entry.message?.content)) {
     return entry.message.content
