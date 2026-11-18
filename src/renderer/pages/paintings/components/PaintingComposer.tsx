@@ -42,6 +42,7 @@ import { resolveOptions, resolveOptionValue } from '../form/resolveOptions'
 import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import { type InputCapability, usePaintingComposerInputFiles } from '../hooks/usePaintingComposerInputFiles'
 import type { MaterializeInputs } from '../hooks/usePaintingGenerationSubmit'
+import type { PaintingTarget } from '../model/paintingBatch'
 import type { PaintingData } from '../model/types/paintingData'
 import { supportsImageRequestTimeout } from '../utils/imageGenerationTimeout'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
@@ -147,7 +148,9 @@ export interface PaintingComposerProps {
    */
   onGenerate: (materialize: MaterializeInputs) => void | Promise<void>
   onCancel: () => void
-  onModelSelect: (selection: { providerId: string; modelId: string }) => void
+  /** Models chosen for this send; more than one fans the send out across them. */
+  targets: PaintingTarget[]
+  onTargetsSelect: (targets: PaintingTarget[]) => void
   onConfigChange: (updates: Partial<PaintingData>) => void
   onGenerateRandomSeed?: (key: string) => void
 }
@@ -215,7 +218,8 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   onPromptChange,
   onGenerate,
   onCancel,
-  onModelSelect,
+  targets,
+  onTargetsSelect,
   onConfigChange,
   onGenerateRandomSeed,
   model,
@@ -348,8 +352,8 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
               <>
                 <PaintingModelSelector
                   hideTitle
-                  painting={painting}
-                  onSelect={onModelSelect}
+                  targets={targets}
+                  onSelect={onTargetsSelect}
                   className={cn(COMPOSER_SELECTOR_BUTTON_CLASS, 'w-auto max-w-[200px] border border-border-subtle')}
                 />
                 <PaintingParamsButton

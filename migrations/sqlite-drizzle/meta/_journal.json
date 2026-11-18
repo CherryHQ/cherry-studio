@@ -287,6 +287,13 @@
       "when": 1794662254214,
       "tag": "0040_agent_session_tree_constraints",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1794662254215,
+      "tag": "0041_painting_batch_params",
+      "breakpoints": true
     }
   ],
   "version": "7"

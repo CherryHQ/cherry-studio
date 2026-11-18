@@ -22,6 +22,10 @@ export const PaintingSchema = z.strictObject({
   modelId: z.string().nullable().optional(),
   prompt: z.string(),
   files: PaintingFilesSchema,
+  /** Shared id of the rows created by one multi-model send; null for a single-model send. */
+  batchId: z.string().nullable().optional(),
+  /** Parameter snapshot this generation was sent with. */
+  params: z.record(z.string(), z.unknown()).nullable().optional(),
   /**
    * Stable snapshot of the referenced FileEntry rows consumed by painting history hydration.
    * List/get responses populate it so renderer caches can reject stale file metadata without

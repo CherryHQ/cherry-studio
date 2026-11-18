@@ -12,8 +12,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Model } from '@shared/data/types/model'
 import { MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 
-import type { PaintingData } from '../../model/types/paintingData'
-
 const selectorHarness = vi.hoisted(() => ({
   models: [] as Model[]
 }))
@@ -66,18 +64,6 @@ function model(overrides: Partial<Model>): Model {
   } as Model
 }
 
-function painting(overrides: Partial<PaintingData> = {}): PaintingData {
-  return {
-    id: 'p1',
-    providerId: 'openai',
-    model: 'gpt-5-image',
-    mode: 'generate',
-    prompt: '',
-    files: [],
-    ...overrides
-  }
-}
-
 describe('PaintingModelSelector', () => {
   beforeEach(() => {
     selectorHarness.models = []
@@ -99,7 +85,13 @@ describe('PaintingModelSelector', () => {
       })
     ]
 
-    render(<PaintingModelSelector hideTitle painting={painting()} onSelect={vi.fn()} />)
+    render(
+      <PaintingModelSelector
+        hideTitle
+        targets={[{ providerId: 'openai', modelId: 'gpt-5-image' }]}
+        onSelect={vi.fn()}
+      />
+    )
 
     const options = within(screen.getByTestId('selector-options'))
     expect(options.queryByText('GPT-5')).not.toBeInTheDocument()

@@ -99,12 +99,12 @@ vi.mock('../components/PaintingComposer', () => ({
     painting,
     submitting,
     onGenerate,
-    onModelSelect
+    onTargetsSelect
   }: {
     painting: { model?: string; prompt?: string; providerId: string }
     submitting: boolean
     onGenerate: () => void
-    onModelSelect: (selection: { providerId: string; modelId: string }) => void
+    onTargetsSelect: (selection: { providerId: string; modelId: string }[]) => void
   }) => (
     <div
       data-testid="painting-composer"
@@ -115,7 +115,7 @@ vi.mock('../components/PaintingComposer', () => ({
       <button type="button" disabled={submitting} onClick={onGenerate}>
         generate
       </button>
-      <button type="button" onClick={() => onModelSelect({ providerId: 'provider-1', modelId: 'model-b' })}>
+      <button type="button" onClick={() => onTargetsSelect([{ providerId: 'provider-1', modelId: 'model-b' }])}>
         select model B
       </button>
     </div>

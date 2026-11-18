@@ -69,8 +69,9 @@ function Draft({ defaults }: { defaults: PaintingDraftDefaults }) {
       generating={false}
       submitting={false}
       onPromptChange={(prompt) => setPainting((current) => ({ ...current, prompt }))}
-      onModelSelect={({ providerId, modelId }) =>
-        setPainting((current) => ({ ...current, providerId, model: modelId }))
+      targets={painting.model ? [{ providerId: painting.providerId, modelId: painting.model }] : []}
+      onTargetsSelect={([selected]) =>
+        selected && setPainting((current) => ({ ...current, providerId: selected.providerId, model: selected.modelId }))
       }
       onConfigChange={(updates) => setPainting((current) => ({ ...current, ...updates }))}
       onGenerate={() => undefined}

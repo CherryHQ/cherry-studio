@@ -64,7 +64,8 @@ const handlers = {
   onPromptChange: vi.fn(),
   onGenerate: vi.fn(),
   onCancel: vi.fn(),
-  onModelSelect: vi.fn(),
+  targets: [],
+  onTargetsSelect: vi.fn(),
   onConfigChange: vi.fn(),
   onGenerateRandomSeed: vi.fn()
 }
