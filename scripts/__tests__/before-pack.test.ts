@@ -70,10 +70,15 @@ describe('assertPrebuiltPackages', () => {
   it('reports the missing packages by name', () => {
     const missingPackage = `@img/sharp-${foreignPlatform}-x64`
     const missingPath = path.join(process.cwd(), 'node_modules', missingPackage)
+    const installedPaths = new Set<Parameters<typeof fs.existsSync>[0]>(
+      keepPackages(foreignPlatform, 'x64').map((name) => path.join(process.cwd(), 'node_modules', name))
+    )
     const existsSync = fs.existsSync
     const probe = vi
       .spyOn(fs, 'existsSync')
-      .mockImplementation((candidate) => (candidate === missingPath ? false : existsSync(candidate)))
+      .mockImplementation(
+        (candidate) => candidate !== missingPath && (installedPaths.has(candidate) || existsSync(candidate))
+      )
     try {
       expect(() => assertPrebuiltPackages(foreignPlatform, 'x64')).toThrow(
         `Missing prebuilt packages for ${foreignPlatform}-x64: ${missingPackage}`
