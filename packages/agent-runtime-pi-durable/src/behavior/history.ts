@@ -89,9 +89,10 @@ export function taskRun(task: Task): TaskId {
 }
 
 /**
- * One conversation's lineage history and what behavior reads from it, folded one record at a time. Tasks fold in ID
- * order per conversation and may interleave with entries in any way: a tool task folded after its assistant entry
- * rewrites that call's key, and the keys of tool results that resolved through that call.
+ * One conversation's lineage history and what behavior reads from it, folded one record at a time. Entries fold in ID
+ * order and tasks in ID order per conversation; a row at or below what was already folded is ignored. Tasks may
+ * interleave with entries in any way: a tool task folded after its assistant entry rewrites that call's key, and the
+ * keys of tool results that resolved through that call.
  */
 export class HistoryFold {
   readonly history: HistoryEntry[] = []
@@ -140,6 +141,7 @@ export class HistoryFold {
   }
 
   addTask(task: Task) {
+    if (task.id <= (this.newestTasks.get(task.conversationId) ?? -1)) return
     this.newestTasks.set(task.conversationId, task.id)
     if (task.conversationId === this.owner && task.kind === GenerationTask.definition.name) {
       this.runs.add(taskRun(task))
@@ -172,6 +174,7 @@ export class HistoryFold {
   }
 
   addEntry(entry: EntryRecord) {
+    if (entry.id <= (this.ends.at(-1)?.entry ?? -1)) return
     if (!this.newestTasks.has(entry.conversationId)) this.newestTasks.set(entry.conversationId, undefined)
     const id = runtimeId<'item'>(String(entry.id))
     const model = entry.model ?? []

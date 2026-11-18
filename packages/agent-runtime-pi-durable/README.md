@@ -60,8 +60,9 @@ map to `aborted`, known model/task failures to `failed`, and other unanswered re
 enable the scheduler.
 
 `durable.observe` captures content, inputs, aliases, live provenance, `backgroundResults` and foreground
-completion from one native `ConversationView` revision. Completion includes the last visible committed entry ID for desktop fork checkpoints. Retained native entries and tool tasks
-supply result origins; continuation records identify the current triggering call. Pending results
+completion from one native `ConversationView` revision. Completion includes the last visible committed entry ID for desktop fork checkpoints. A history fold of the lineage's entries and tool
+tasks, fed by the opening scan and by commit notifications, supplies result origins without retaining
+entry bodies; continuation records identify the current triggering call. Pending results
 include undelivered reports and unfinished notification generation, including the gap before it starts.
 An unknown origin is reported as unknown, never as confirmed drainage. The Pi Durable dependency patch retains atomic observer attachment with storage reads,
 and complete active-context views instead of the default bounded
@@ -79,15 +80,20 @@ Initial observation never replays earlier completion. A generation preview alrea
 the projection keeps its committed messages frozen and projects only appended entries; a later tool
 result or live progress copies only the message it changes. A view that does not extend the previous
 entries, such as after compaction, rebuilds once. Unchanged messages keep their identity across
-snapshots. Slow observers retain terminal batches through bounded recovery; final persistence must
+snapshots. An observation starts with a snapshot, and the projection publishes another only after a
+mapping reset and when a run starts or ends; every other update publishes `message.upsert`,
+`message.remove` and `input.changed` for what changed. A committed answer replaces its preview through
+`replaces`. When an update's changes cannot reproduce the new order, it publishes a snapshot instead.
+Completion rides the update's last frame, or `activity.changed` when nothing else changed.
+Slow observers retain terminal batches through bounded recovery; final persistence must
 await `Observation.drain()` after native production stops.
 `runtime.settled()` joins admitted submissions, all native tasks including background work,
 and tracked relation delivery without closing storage. Shutdown completes admitted relation reads
 before closing storage and delivers their facts before closing feeds. The desktop backup barrier
 joins settlement before draining observation callbacks and writing archives.
 
-Observations normalize committed `ConversationView` snapshots, live assistant
-partials, tool calls/results, and retained live tool output. These snapshots describe the current
+Observations normalize committed `ConversationView` revisions, live assistant
+partials, tool calls/results, and retained live tool output. Replaying them describes the current
 view; `archive()` supplies committed history. Persistent entries use native entry IDs;
 live previews use an internal source namespace. The adapter associates a disappearing
 preview only with a unique later entry produced by its native task. Where that

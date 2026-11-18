@@ -1079,7 +1079,9 @@ Main reply open through child reports and parent summarization; notifications wi
 boundary append to that same reply. A continuation uses its current triggering call, not the child's
 immutable creation call. Historical input snapshots update saved facts without reassigning old responses.
 `durable.observe` carries content, input outcomes, background-result facts and foreground completion
-from the same native commit revision. Unresolved accepted/native-only input, admission, foreground work or compaction
+from the same native commit revision. Within a run it sends message and input changes; snapshots arrive
+when observation starts, after a gap and when a run starts or ends, which is when Main detects an
+autonomous turn. Unresolved accepted/native-only input, admission, foreground work or compaction
 keeps settlement pending. Main has no pending-input polling loop and never derives completion
 from idle activity or an empty product-input map.
 

@@ -52,7 +52,7 @@ import {
 } from '@cherrystudio/agent-runtime'
 
 import { createPiDurableBehavior, type PiDurableBehavior } from './behavior/harness'
-import { DurableFolds, historyOf, pages, readFacts } from './behavior/history'
+import { DurableFolds, HistoryFold, historyOf, pages, readFacts } from './behavior/history'
 import { meteredModels } from './behavior/models'
 import { ContentProjection } from './content'
 import { readContextUsage } from './contextUsage'
@@ -463,29 +463,25 @@ export async function createPiDurableRuntime(
           conversation.id,
           { active: true },
           async (view, _release, committed) => {
-            const retained = await pages((cursor) =>
-              committed.scanEntries({ conversationId: conversation.id, order: 'ascending' }, 256, cursor, context)
-            )
-            const historyEntries = new Map(retained.map((entry) => [entry.id, entry]))
-            const sourceConversations = new Set([conversation.id, ...retained.map((entry) => entry.conversationId)])
-            const tasks = (
-              await Promise.all(
-                [...sourceConversations].map((conversationId) =>
-                  pages((cursor) => committed.scanTasks({ conversationId }, 256, cursor, context))
-                )
-              )
-            )
-              .flat()
-              .filter((task) => task.kind === ToolTask.definition.name)
-            const toolTasks = new Map(tasks.map((task) => [task.id, task]))
-            const history = () =>
-              historyOf(
-                [...historyEntries.values()].sort((a, b) => a.id - b.id),
-                [...toolTasks.values()],
-                conversation.id
-              )
-            const states: InputState[] = []
+            // Published history is a fold of the lineage, so no entry body or image is retained for it.
+            const fold = new HistoryFold(conversation.id)
             let cursor: Cursor | undefined
+            do {
+              const page = await committed.scanEntries(
+                { conversationId: conversation.id, order: 'ascending' },
+                256,
+                cursor,
+                context
+              )
+              for (const entry of page.items) fold.addEntry(entry)
+              cursor = page.next
+            } while (cursor)
+            for (const conversationId of [...fold.newestTasks.keys()])
+              for (const task of await pages((next) =>
+                committed.scanTasks({ conversationId, kind: ToolTask.definition.name }, 256, next, context)
+              ))
+                fold.addTask(task)
+            const states: InputState[] = []
             do {
               const page = await committed.scanSubmissions({ conversationId: conversation.id }, 256, cursor, context)
               for (const record of page.items) {
@@ -501,7 +497,7 @@ export async function createPiDurableRuntime(
               }
               cursor = page.next
             } while (cursor)
-            projection.update(view, undefined, states, history())
+            projection.update(view, undefined, states, fold.history)
             let currentView = view
             let publishedView = view
             detachCommits = native.observeCommits({
@@ -511,13 +507,13 @@ export async function createPiDurableRuntime(
                 const records = publication.changes.flatMap((change) => (change.type === 'entry' ? [change.value] : []))
                 for (const change of publication.changes) {
                   if (change.type === 'entry' && change.value.conversationId === conversation.id)
-                    historyEntries.set(change.value.id, change.value)
+                    fold.addEntry(change.value)
                   if (
                     change.type === 'task' &&
                     change.value.conversationId === conversation.id &&
                     change.value.kind === ToolTask.definition.name
                   )
-                    toolTasks.set(change.value.id, change.value)
+                    fold.addTask(change.value)
                   if (
                     change.type !== 'submission' ||
                     change.value.type !== 'input' ||
@@ -538,7 +534,7 @@ export async function createPiDurableRuntime(
                   changed.push(submissionState(refFor(conversation.id), record, answer, logicalIds.get(record.id)))
                 }
                 publishedView = after
-                projection.update(after, publication.seq, changed, history())
+                projection.update(after, publication.seq, changed, fold.history)
               },
               end() {}
             }).detach
@@ -550,7 +546,7 @@ export async function createPiDurableRuntime(
                 queueMicrotask(() => {
                   if (!closing && currentView === call.value && publishedView !== call.value) {
                     publishedView = call.value
-                    projection.update(call.value, undefined, [], history())
+                    projection.update(call.value, undefined, [], fold.history)
                   }
                 })
               },
