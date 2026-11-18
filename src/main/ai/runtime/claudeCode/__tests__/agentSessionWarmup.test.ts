@@ -175,11 +175,11 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
     // settingsBuilder receives `lastAgentSessionId` and reflects it as `resume`;
     // mirror that so the builder's own precedence is what the test exercises.
-    mocks.buildSessionSettings.mockImplementation(async (_session, _provider, options) => ({
-      ...options.thinkingOptions,
-      env: {},
-      ...(options?.lastAgentSessionId ? { resume: options.lastAgentSessionId } : {})
-    }))
+    mocks.buildSessionSettings.mockImplementation(async (_session, _provider, options) => {
+      const settings = { ...options.thinkingOptions, env: {} }
+      if (options?.lastAgentSessionId) Object.assign(settings, { resume: options.lastAgentSessionId })
+      return settings
+    })
   })
 
   it('uses the explicit effectiveResume token and ignores the persisted one', async () => {
@@ -1507,11 +1507,13 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       planModel: 'openai::gpt-plan',
       smallModel: 'other::small'
     })
-    mocks.getProviderByProviderId.mockImplementation((providerId: string) => ({
-      id: providerId,
-      ...(providerId === 'claude-code' ? { authMethods: ['external-cli'] } : {}),
-      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
-    }))
+    mocks.getProviderByProviderId.mockImplementation((providerId: string) => {
+      const provider: Pick<Provider, 'id' | 'authMethods'> = { id: providerId }
+      if (providerId === 'claude-code') provider.authMethods = ['external-cli']
+      return Object.assign(provider, {
+        endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+      })
+    })
     mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,
       apiModelId: `${modelId}-api`
