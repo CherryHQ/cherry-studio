@@ -663,16 +663,20 @@ export class SkillService {
     if (existing) {
       // Update metadata in-place to preserve the skill ID and its agent_skills rows.
       application.get('DbService').withWriteTx((tx) => {
-        agentGlobalSkillService.updateTx(tx, existing.id, {
+        const patch: Parameters<typeof agentGlobalSkillService.updateTx>[2] = {
           name: metadata.name,
           description: metadata.description ?? null,
           author: metadata.author ?? null,
           version: metadata.version ?? null,
           tags,
-          contentHash,
-          ...(source === 'marketplace' ? { sourceUrl } : {}),
-          ...(source === 'system' ? { sourceUrl, namespace: provenance.namespace ?? null } : {})
-        })
+          contentHash
+        }
+        if (source === 'marketplace') patch.sourceUrl = sourceUrl
+        if (source === 'system') {
+          patch.sourceUrl = sourceUrl
+          patch.namespace = provenance.namespace ?? null
+        }
+        agentGlobalSkillService.updateTx(tx, existing.id, patch)
       })
       await this.linkMirror(destFolderName, { throwOnError: true })
       const updated = agentGlobalSkillService.getById(existing.id)!
