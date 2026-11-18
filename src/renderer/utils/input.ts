@@ -102,8 +102,11 @@ const LEGACY_COMPOSER_SHORTCUTS: Record<string, ComposerShortcut> = {
   'Ctrl+Enter': isMac ? ['Ctrl', 'Enter'] : ['CommandOrControl', 'Enter']
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Preference reads retain raw persisted values, including legacy strings; validate token arrays or decode an own legacy-map entry before using a binding.
 const normalizeComposerShortcut = (stored: unknown): ComposerShortcut | null => {
-  if (typeof stored === 'string') return LEGACY_COMPOSER_SHORTCUTS[stored] ?? null
+  if (typeof stored === 'string') {
+    return Object.hasOwn(LEGACY_COMPOSER_SHORTCUTS, stored) ? (LEGACY_COMPOSER_SHORTCUTS[stored] ?? null) : null
+  }
   if (!isShortcutBinding(stored) || !stored.length) return null
   if (isMac) return stored
   // Off macOS the two tokens are the same physical key; keep one spelling so they compare equal.
@@ -113,6 +116,7 @@ const normalizeComposerShortcut = (stored: unknown): ComposerShortcut | null => 
 // Send / newline / steer must stay distinct: a stored value another role already took falls
 // back to the first free combination.
 const resolveComposerShortcut = (
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The preference cache does not decode persisted shortcut values; normalizeComposerShortcut validates them before collision resolution.
   stored: unknown,
   taken: readonly ComposerShortcut[],
   preferred: ComposerShortcut
@@ -124,12 +128,15 @@ const resolveComposerShortcut = (
   return COMPOSER_SHORTCUTS.find((candidate) => !takenIds.includes(composerShortcutId(candidate))) ?? preferred
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Composer surfaces pass persisted send preferences that may still be legacy strings; decode them before selecting a valid send binding.
 export const resolveSendShortcut = (stored: unknown): ComposerShortcut => resolveComposerShortcut(stored, [], ['Enter'])
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Composer surfaces pass raw persisted newline preferences; decode them and choose a binding distinct from send.
 export const resolveNewlineShortcut = (stored: unknown, send: ComposerShortcut): ComposerShortcut =>
   resolveComposerShortcut(stored, [send], ['Shift', 'Enter'])
 
 export const resolveSteerShortcut = (
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Agent composer steer preferences may be legacy or malformed; the shared resolver decodes them and avoids send/newline collisions.
   stored: unknown,
   send: ComposerShortcut,
   newline: ComposerShortcut
