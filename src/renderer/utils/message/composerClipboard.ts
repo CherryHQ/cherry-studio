@@ -113,6 +113,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Clipboard JSON and opaque source-token metadata supply these fields; accept only actual strings before sanitizing or restoring tokens.
 function readString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined
 }
@@ -121,6 +122,7 @@ function getFileExtensionFromName(name: string | undefined) {
   return name?.match(/\.[^.]+$/)?.[0] ?? ''
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Clipboard and source-token file metadata are untyped; accept only finite numeric sizes for display and restored attachments.
 function readNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
@@ -141,6 +143,7 @@ function isFileType(value: unknown): value is FileType {
 }
 
 function readFileDisplayPayload(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- File payloads come from forgeable clipboard JSON or opaque token metadata; copy only checked display fields and an explicitly allowed handle, never paths.
   payload: unknown,
   options: { includeHandle?: boolean } = {}
 ): FileClipboardPayload | undefined {
@@ -207,13 +210,15 @@ function resolveFileRestorationHandle(handle: string, sourceId: string): Compose
 
 function createAttachmentFromWritePayload(
   token: Pick<ComposerClipboardSourceToken, 'id' | 'label'>,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Source-token payloads are opaque; require a matching file source ID and a validated local path or Blob before registering a session restoration handle.
   payload: unknown
 ): ComposerAttachment | null {
   if (!isRecord(payload)) return null
 
   const sourceId = readComposerFileTokenSourceIdFromTokenId(token.id)
   const payloadSourceId = readString(payload.fileTokenSourceId)
-  const path = stripFileUrl(readString(payload.path))
+  const pathResult = AbsoluteFilePathSchema.safeParse(stripFileUrl(readString(payload.path)))
+  const path = pathResult.success ? pathResult.data : undefined
   const blob = payload.blob instanceof Blob ? payload.blob : undefined
   if (!sourceId || payloadSourceId !== sourceId || (!path && !blob)) return null
 
@@ -225,7 +230,7 @@ function createAttachmentFromWritePayload(
     fileTokenSourceId: sourceId,
     name,
     origin_name: readString(payload.origin_name) || name,
-    ...(path && { path: AbsoluteFilePathSchema.parse(path) }),
+    ...(path && { path }),
     ...(blob && { blob }),
     size: readNumber(payload.size) ?? 0,
     ext,
@@ -267,6 +272,7 @@ function registerTrustedPromptFragmentNonce(): string {
   return nonce
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Any app can forge clipboard MIME data; only a string nonce retained in this renderer session may restore hidden prompt text.
 function isTrustedPromptFragmentNonce(nonce: unknown): boolean {
   const value = readString(nonce)
   if (!value) return false
@@ -281,6 +287,7 @@ function hasUnsafeComposerClipboardFileTokenId(token: Pick<ComposerClipboardSour
   return isComposerFileTokenPathLike(id)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- A token rejected by the clipboard sanitizer reaches this fallback; inspect its kind and string ID to downgrade path-like file IDs to visible text.
 function isUnsafeComposerClipboardFileToken(token: unknown) {
   if (!isRecord(token)) return false
 
@@ -304,6 +311,7 @@ function createComposerClipboardTextHtml(text: string): string {
   return `<p>${inlineHtml || '<br>'}</p>`
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Clipboard JSON or unsanitized composer metadata supplies tokens; validate kind, label, safe ID and whitelisted payload before emitting a clipboard token.
 function sanitizeComposerClipboardToken(token: unknown, mode: 'read' | 'write'): ComposerClipboardToken | null {
   if (!isRecord(token)) return null
 
@@ -333,6 +341,7 @@ function sanitizeComposerClipboardToken(token: unknown, mode: 'read' | 'write'):
 }
 
 function sanitizeComposerClipboardSegment(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Clipboard fragment segments are forgeable JSON; validate their variant and fields, and gate hidden prompt restoration on session trust.
   segment: unknown,
   trustedPromptText: boolean
 ): ComposerClipboardSegment | null {
@@ -646,7 +655,7 @@ export function readComposerClipboardFragment(value: string): ComposerClipboardF
   if (!value || value.length > COMPOSER_CLIPBOARD_FRAGMENT_MAX_LENGTH) return null
 
   try {
-    const parsed = JSON.parse(value)
+    const parsed: unknown = JSON.parse(value)
     if (
       !isRecord(parsed) ||
       parsed.version !== COMPOSER_CLIPBOARD_FRAGMENT_VERSION ||
@@ -656,13 +665,15 @@ export function readComposerClipboardFragment(value: string): ComposerClipboardF
     }
 
     const trustedPromptText = isTrustedPromptFragmentNonce(parsed.nonce)
-    const segments = parsed.segments.map((segment) => sanitizeComposerClipboardSegment(segment, trustedPromptText))
-    if (segments.some((segment) => segment === null)) return null
-
-    return {
-      version: COMPOSER_CLIPBOARD_FRAGMENT_VERSION,
-      segments: segments as ComposerClipboardSegment[]
+    const rawSegments: unknown[] = parsed.segments
+    const segments: ComposerClipboardSegment[] = []
+    for (const rawSegment of rawSegments) {
+      const segment = sanitizeComposerClipboardSegment(rawSegment, trustedPromptText)
+      if (!segment) return null
+      segments.push(segment)
     }
+
+    return { version: COMPOSER_CLIPBOARD_FRAGMENT_VERSION, segments }
   } catch {
     return null
   }
