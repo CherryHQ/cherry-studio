@@ -6,6 +6,12 @@
 
 - Change the package license from AGPL-3.0-only to MIT.
 
+## 0.5.0
+
+### Minor Changes
+
+- [#24796](https://github.com/CherryHQ/cherry-studio/pull/24796) [`067925b`](https://github.com/CherryHQ/cherry-studio/commit/067925b72a369ab590da79afc73aa2a2dbd6cbbd) Thanks [@404-Page-Found](https://github.com/404-Page-Found)! - Add a PPTD slide preview plugin that renders text, shapes, lines, images, icons, tables and charts, with thumbnails, a source/preview toggle and refresh.
+
 ## 0.4.0
 
 ### Minor Changes

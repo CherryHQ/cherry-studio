@@ -14,34 +14,48 @@ export default defineCreator({
   idPrefixes: ['kimi', 'moonshot'],
   // https://platform.kimi.com/docs/guide/kimi-k3-1-pro-quickstart
   models: [
-    { id: 'kimi-k3.1-pro', name: 'Kimi K3.1 Pro', input: 2, output: 10 },
-    { id: 'kimi-k3.1-pro-highspeed', name: 'Kimi K3.1 Pro Highspeed', input: 4, output: 20 }
-  ].map<CreatorModel>(({ id, name, input, output }) => ({
-    id,
-    name,
-    family: 'kimi-k3.1',
-    capabilities: ['reasoning', 'function-call', 'image-recognition', 'video-recognition', 'structured-output'],
-    inputModalities: ['text', 'image', 'video'],
-    outputModalities: ['text'],
-    contextWindow: 1_048_576,
-    maxOutputTokens: 1_048_576,
-    parameterSupport: {
-      ...fixedSamplingParameterSupport,
-      topK: { supported: false },
-      presencePenalty: false,
-      frequencyPenalty: false,
-      maxTokens: true,
-      stopSequences: true,
-      systemMessage: true
+    {
+      id: 'kimi-k3',
+      parameterSupport: {
+        ...fixedSamplingParameterSupport,
+        topK: { supported: false },
+        presencePenalty: false,
+        frequencyPenalty: false,
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
     },
-    reasoning: { controls: [{ kind: 'effort', values: K31_EFFORTS, default: 'max' }] },
-    pricing: {
-      input: { currency: 'USD', perMillionTokens: input },
-      output: { currency: 'USD', perMillionTokens: output },
-      cacheRead: { currency: 'USD', perMillionTokens: 0.2 },
-      cacheWrite: { currency: 'USD', perMillionTokens: input }
-    }
-  })),
+    ...[
+      { id: 'kimi-k3.1-pro', name: 'Kimi K3.1 Pro', input: 2, output: 10 },
+      { id: 'kimi-k3.1-pro-highspeed', name: 'Kimi K3.1 Pro Highspeed', input: 4, output: 20 }
+    ].map<CreatorModel>(({ id, name, input, output }) => ({
+      id,
+      name,
+      family: 'kimi-k3.1',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'video-recognition', 'structured-output'],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 1_048_576,
+      maxOutputTokens: 1_048_576,
+      parameterSupport: {
+        ...fixedSamplingParameterSupport,
+        topK: { supported: false },
+        presencePenalty: false,
+        frequencyPenalty: false,
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      },
+      reasoning: { controls: [{ kind: 'effort', values: K31_EFFORTS, default: 'max' }] },
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: input },
+        output: { currency: 'USD', perMillionTokens: output },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.2 },
+        cacheWrite: { currency: 'USD', perMillionTokens: input }
+      }
+    }))
+  ],
   reasoningFamilies: [
     { pattern: '^kimi-k3[.-]1-pro(?:-highspeed)?$', effort: K31_EFFORTS, toggle: false },
     // K2.7-code only accepts thinking type 'enabled' (platform.kimi.com

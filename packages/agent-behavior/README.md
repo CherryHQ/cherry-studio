@@ -549,7 +549,7 @@ pnpm --filter @cherrystudio/agent-behavior typecheck
 Pass explicit test file paths under `packages/agent-behavior/tests/`; `tests/orchestration/` runs the orchestration on
 the fake, and `tests/orchestration/fixtures/` runs each scenario fixture three ways (to the end, crashed at every await
 point, replayed into the core). `typecheck` resolves `@cherrystudio/agent-runtime`
-types from its built `dist/`, hence the first command, and runs `tsc` twice: once over the package and once over
+types from its built `dist/`, hence the first command, and runs `tsrs` twice: once over the package and once over
 `src/core/` alone with no Node or DOM types, which keeps core free of the environment. The lint guards for imports,
 layers and key minting have their own test:
 `pnpm test:scripts scripts/__tests__/agent-behavior-boundary.test.ts`.
