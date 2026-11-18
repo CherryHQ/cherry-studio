@@ -58,6 +58,7 @@ export class IpcError extends Error {
   readonly code: string
   readonly data?: unknown
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Router issues and domain error details share this transport; each domain reader validates its own opaque data.
   constructor(code: IpcErrorCode, message: string = code, data?: unknown) {
     super(message)
     this.name = 'IpcError'
@@ -80,6 +81,7 @@ export class IpcError extends Error {
   }
 
   /** Normalize any thrown value into an IpcError (INTERNAL for unknown causes). */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- IpcApiService passes raw handler rejections here; narrow existing transport errors and Error instances before the fallback.
   static from(value: unknown): IpcError {
     if (value instanceof IpcError) return value
     if (value instanceof Error) return new IpcError(IpcErrorCode.INTERNAL, value.message)
