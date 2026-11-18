@@ -6,7 +6,11 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
-import type { PreferenceKeyType, PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
+import type {
+  PreferenceDefaultScopeType,
+  PreferenceKeyType,
+  PreferenceShortcutType
+} from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
   CommandShortcutPreferenceKey,
@@ -59,7 +63,7 @@ const contextKeys = Array.from(
   )
 )
 
-const toContextValue = (value: unknown): ContextValue => {
+const toContextValue = (value: PreferenceDefaultScopeType[PreferenceKeyType]): ContextValue => {
   return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || value == null
     ? value
     : undefined
