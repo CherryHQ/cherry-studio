@@ -107,12 +107,16 @@ export function openCodeNpmInfoFromPackage(pkg: string): OpenCodeNpmInfo {
   if (entry) {
     return { package: pkg, providerType: entry.providerType, endpointType: entry.endpointType }
   }
-  const v1Entry = OPEN_CODE_V1_NPM_ENTRIES.find((e) => e.package === pkg)
-  if (v1Entry || pkg.startsWith('@ai-sdk/')) {
+  // A prior config-only edit already normalized a legacy bare package to its `aisdk:` form;
+  // strip the prefix so a second edit recognizes the same alias instead of defaulting to
+  // openai-compatible (which would replace `settings.thinking` with `reasoningEffort`).
+  const bare = pkg.startsWith('aisdk:') ? pkg.slice('aisdk:'.length) : pkg
+  const v1Entry = OPEN_CODE_V1_NPM_ENTRIES.find((e) => e.package === bare)
+  if (v1Entry || bare.startsWith('@ai-sdk/')) {
     const providerType = v1Entry?.providerType ?? OPEN_CODE_DEFAULT_NPM_INFO.providerType
     const v2Entry = OPEN_CODE_NPM_ENTRIES.find((e) => e.providerType === providerType)
     return {
-      package: `aisdk:${pkg}`,
+      package: `aisdk:${bare}`,
       providerType,
       endpointType: v2Entry?.endpointType ?? 'openai-chat-completions'
     }

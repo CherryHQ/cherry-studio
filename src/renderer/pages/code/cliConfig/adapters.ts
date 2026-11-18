@@ -190,6 +190,16 @@ function cherryProviderKeyFrom(providers: Record<string, any>): string {
   return requireDraftValue(findCherryProviderKey(providers), 'OpenCode provider')
 }
 
+/**
+ * The OpenCode connection map, merging the legacy V1 `provider` key with the native V2
+ * `providers` key. A mixed file can carry the Cherry connection under either, and
+ * `providers ?? provider` would hide a legacy Cherry entry behind an unrelated native one;
+ * native entries win on key collisions.
+ */
+function openCodeConnectionProviders(config: Record<string, any>): Record<string, any> {
+  return { ...asRecord(config.provider), ...asRecord(config.providers) }
+}
+
 function isHermesApiMode(value: unknown): value is HermesApiMode {
   return HERMES_API_MODES.some((apiMode) => apiMode === value)
 }
@@ -559,7 +569,7 @@ const openCodeAdapter: CliConfigAdapter = {
     const existing = parseJsonOrThrow(getDraftFile(files, 'opencode-config')?.content ?? '')
     // V1-written files keep the map under `provider`, request options under `options`, and the
     // bare AI SDK package under `npm`; accept both shapes (the removal path already does).
-    const providers = asRecord(existing.providers ?? existing.provider)
+    const providers = asRecord(openCodeConnectionProviders(existing))
     const providerKey = cherryProviderKeyFrom(providers)
     const provider = asRecord(providers[providerKey])
     const providerOptions = asRecord(provider.settings ?? provider.options)
@@ -619,7 +629,7 @@ const openCodeAdapter: CliConfigAdapter = {
   },
   extractConnection(files) {
     const config = parseJsonOrThrow(getDraftFile(files, 'opencode-config')?.content ?? '')
-    const providers = asRecord(config.providers ?? config.provider)
+    const providers = asRecord(openCodeConnectionProviders(config))
     const providerKey = findCherryProviderKey(providers)
     const provider = asRecord(providerKey ? providers[providerKey] : undefined)
     const models = asRecord(provider.models)
@@ -637,7 +647,7 @@ const openCodeAdapter: CliConfigAdapter = {
     const out: Record<string, any> = {}
     if (asRecord(config.compaction).auto === true) out.autoCompact = true
     if (isOpenCodePermissionMode(config.permission)) out.permissionMode = config.permission
-    const providers = asRecord(config.providers ?? config.provider)
+    const providers = asRecord(openCodeConnectionProviders(config))
     const providerKey = findCherryProviderKey(providers)
     const provider = asRecord(providerKey ? providers[providerKey] : undefined)
     const model = asRecord(Object.entries(asRecord(provider.models))[0]?.[1])

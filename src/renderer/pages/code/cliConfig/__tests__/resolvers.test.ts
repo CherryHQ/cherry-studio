@@ -283,3 +283,16 @@ describe('resolveMinimaxProviderInfo', () => {
     })
   })
 })
+
+describe('openCodeNpmInfoFromPackage normalized alias round-trip', () => {
+  // A config-only edit rewrites a V1 `npm` value to its `aisdk:` form; the next edit reads that
+  // value back and must recognize it, not fall through to the openai-compatible default.
+  it.each([
+    ['aisdk:@ai-sdk/anthropic', 'anthropic', 'anthropic-messages'],
+    ['aisdk:@ai-sdk/google', 'google', 'google-generate-content'],
+    ['aisdk:@ai-sdk/openai', 'openai', 'openai-responses'],
+    ['aisdk:@ai-sdk/openai-compatible', 'openai-compatible', 'openai-chat-completions']
+  ])('recognizes %s as %s/%s', (pkg, providerType, endpointType) => {
+    expect(openCodeNpmInfoFromPackage(pkg)).toEqual({ package: pkg, providerType, endpointType })
+  })
+})

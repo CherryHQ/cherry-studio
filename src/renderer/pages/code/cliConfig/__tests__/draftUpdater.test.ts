@@ -373,3 +373,64 @@ describe('updateCliConfigDraftConfig', () => {
     expect(updated.find((f) => f.target === 'gemini-env')!.content).not.toContain('GOOGLE_GENAI_API_VERSION')
   })
 })
+
+describe('OpenCode mixed-map and alias round-trip regressions', () => {
+  it('keeps anthropic thinking settings across repeated config-only edits of a V1 config', async () => {
+    const files = await buildDraft(CodeCli.OPEN_CODE, anthropicProvider, 'claude-sonnet-4-6')
+    const v2 = JSON.parse(files[0].content)
+    const cherry = v2.providers['cherry-Anthropic']
+    // A V1-written reasoning config: singular `provider` map, bare AI SDK package, boolean flag.
+    const v1: Record<string, any> = { ...v2, provider: {} }
+    delete v1.providers
+    v1.provider['cherry-Anthropic'] = {
+      npm: '@ai-sdk/anthropic',
+      name: cherry.name,
+      options: { apiKey: 'sk-secret', baseURL: 'https://api.anthropic.com' },
+      models: { 'claude-sonnet-4-6': { ...cherry.models['claude-sonnet-4-6'], reasoning: true } }
+    }
+    files[0].content = JSON.stringify(v1)
+
+    const reasoning = { env: { OPENCODE_REASONING: 'true' } }
+    const first = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, files, reasoning)
+    const firstConfig = JSON.parse(first[0].content)
+    expect(firstConfig.providers['cherry-Anthropic'].package).toBe('aisdk:@ai-sdk/anthropic')
+    expect(firstConfig.providers['cherry-Anthropic'].models['claude-sonnet-4-6'].settings.thinking).toBeDefined()
+
+    // Second edit reads the normalized `aisdk:` package back; providerType must stay anthropic.
+    const extracted = extractConfigFromCliConfigDraft(CodeCli.OPEN_CODE, first)
+    const second = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, first, extracted)
+    const secondConfig = JSON.parse(second[0].content)
+    const secondModel = secondConfig.providers['cherry-Anthropic'].models['claude-sonnet-4-6']
+    expect(secondConfig.providers['cherry-Anthropic'].package).toBe('aisdk:@ai-sdk/anthropic')
+    expect(secondModel.settings.thinking).toBeDefined()
+    expect(secondModel.settings.reasoningEffort).toBeUndefined()
+  })
+
+  it('finds the Cherry connection when native and legacy provider maps are both present', async () => {
+    const files = await buildDraft(CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat')
+    const v2 = JSON.parse(files[0].content)
+    const cherry = v2.providers['cherry-DeepSeek']
+    // Mixed shape: an unrelated native `providers` entry while the Cherry connection lives in
+    // the legacy `provider` map — `providers ?? provider` would hide it.
+    const mixed: Record<string, any> = { ...v2, provider: {} }
+    mixed.providers = { 'user-owned': { npm: '@opencode/ai/providers/openai', name: 'mine', models: {} } }
+    mixed.provider['cherry-DeepSeek'] = {
+      npm: '@ai-sdk/openai-compatible',
+      name: cherry.name,
+      options: { apiKey: 'sk-secret', baseURL: 'https://api.deepseek.com/v1' },
+      models: cherry.models
+    }
+    files[0].content = JSON.stringify(mixed)
+
+    expect(extractConnectionFromCliConfigDraft(CodeCli.OPEN_CODE, files)).toEqual({
+      baseUrl: 'https://api.deepseek.com/v1',
+      apiKey: 'sk-secret',
+      model: 'deepseek-chat'
+    })
+
+    const updated = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, files, { autoCompact: true })
+    const config = JSON.parse(updated[0].content)
+    expect(config.providers['cherry-DeepSeek'].package).toBe('aisdk:@ai-sdk/openai-compatible')
+    expect(config.compaction.auto).toBe(true)
+  })
+})
