@@ -47,8 +47,9 @@ export async function getPathStatus(path: string): Promise<PathStatus> {
     // non-directory) both mean "does not resolve"; any other errno is reported
     // as inaccessible.
     const code = errorCode(error)
-    return code === 'ENOENT' || code === 'ENOTDIR'
-      ? { ok: false, reason: 'missing' }
-      : { ok: false, reason: 'inaccessible', ...(code ? { code } : {}) }
+    if (code === 'ENOENT' || code === 'ENOTDIR') return { ok: false, reason: 'missing' }
+    const status: Extract<PathStatus, { reason: 'inaccessible' }> = { ok: false, reason: 'inaccessible' }
+    if (code) status.code = code
+    return status
   }
 }
