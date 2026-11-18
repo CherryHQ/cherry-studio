@@ -42,8 +42,8 @@ const SAFE_AI_SDK_STRING_FIELDS = [
   'finishReason'
 ] as const
 
-function actionableText(value: unknown): string {
-  if (typeof value !== 'string' || value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH) return ''
+function actionableText(value: string): string {
+  if (value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH) return ''
   const text = value.trim()
   return text && !NON_ACTIONABLE_PROVIDER_TEXT.has(text.toLowerCase()) ? redactSecretText(text) : ''
 }
@@ -56,6 +56,7 @@ function containsEncodedContainer(text: string): boolean {
   return JSON_CONTAINER_PATTERN.test(candidate) || HTML_DOCUMENT_PATTERN.test(candidate)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Provider message fields may contain structured values; accept only bounded text and reject encoded containers before display.
 function providerPayloadText(value: unknown): string {
   if (typeof value !== 'string' || value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH) return ''
   let parsed: unknown = value
@@ -74,6 +75,7 @@ function providerPayloadText(value: unknown): string {
   return actionableText(value)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- SDK responseBody/data and recursive JSON.parse results are unvalidated; inspect supported message fields within the decode limit.
 function payloadText(value: unknown, decodeDepth = 0): string {
   if (typeof value === 'string') {
     if (value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH || decodeDepth >= MAX_PROVIDER_ERROR_DECODE_DEPTH) return ''
@@ -99,6 +101,7 @@ function payloadText(value: unknown, decodeDepth = 0): string {
   )
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Provider responseBody/data may be encoded JSON; inspect only bounded string code/type fields for error classification.
 function providerErrorCodes(value: unknown, decodeDepth = 0): string {
   if (typeof value === 'string') {
     if (value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH || decodeDepth >= MAX_PROVIDER_ERROR_DECODE_DEPTH) return ''
@@ -159,6 +162,7 @@ export function getSafeAiSdkErrorDiscriminants(source: Record<string, unknown>):
   return discriminants
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- APICallError.cause can be any thrown value; SDK instance guards identify the supported response failures.
 function sdkResponseDiagnostic(error: unknown): string | undefined {
   if (EmptyResponseBodyError.isInstance(error)) return EMPTY_RESPONSE_MESSAGE
   if (JSONParseError.isInstance(error)) return INVALID_JSON_MESSAGE
@@ -166,6 +170,7 @@ function sdkResponseDiagnostic(error: unknown): string | undefined {
   return undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Anthropic's synthetic responseBody and nested JSON.parse results require bounded decoding before checking the parse-error marker.
 function isEncodedJsonParseError(value: unknown, decodeDepth = 0): boolean {
   if (typeof value === 'string') {
     if (value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH || decodeDepth >= MAX_PROVIDER_ERROR_DECODE_DEPTH) return false
@@ -243,6 +248,7 @@ function serializeNestedAiSdkError(error: AISDKError, depth: number): Serialized
   return serialized
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- SDK retry errors contain arbitrary lastError/errors values; recognize supported errors and discard other values within the recursion limit.
 function serializeNestedProviderErrorAtDepth(value: unknown, depth: number): Serializable {
   if (depth >= MAX_NESTED_PROVIDER_ERROR_DEPTH) return null
   if (APICallError.isInstance(value)) {
@@ -291,6 +297,7 @@ function serializeNestedProviderErrorAtDepth(value: unknown, depth: number): Ser
   return null
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Main and renderer error serializers pass SDK failures or raw retry.lastError values; the bounded serializer validates and redacts them.
 export function serializeNestedProviderError(value: unknown): Serializable {
   return serializeNestedProviderErrorAtDepth(value, 0)
 }
