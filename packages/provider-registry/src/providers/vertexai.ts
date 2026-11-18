@@ -14,7 +14,9 @@ const geminiWebToolModels = [
   'gemini-4-argon',
   'gemini-flash-latest',
   'gemini-pro-latest',
-  'gemini-flash-lite-latest'
+  'gemini-flash-lite-latest',
+  'gemini-4-hydrogen',
+  'gemini-4-carbon'
 ]
 
 export default defineProvider({
