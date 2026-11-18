@@ -17,7 +17,7 @@ const CODE_TO_KIND: ReadonlyMap<string, NetworkFailureKind> = new Map(
  * `TypeError: fetch failed` with the errno one level down.
  */
 export function classifyNetworkError(
-  error: unknown,
+  cause: unknown,
   httpStatus?: number
 ): { readonly kind: NetworkFailureKind; readonly code?: string } {
   if (httpStatus !== undefined) {
@@ -26,7 +26,7 @@ export function classifyNetworkError(
     if (httpStatus >= 400) return { kind: 'http_client', code: `HTTP ${httpStatus}` }
   }
   const chain: unknown[] = []
-  for (let current = error; current != null && chain.length < 5; current = (current as { cause?: unknown }).cause) {
+  for (let current = cause; current != null && chain.length < 5; current = (current as { cause?: unknown }).cause) {
     chain.push(current)
   }
   const nodeCode = chain
@@ -49,8 +49,8 @@ export function classifyNetworkError(
   return { kind: 'unknown', code: nodeCode ?? chromiumCode }
 }
 
-function failed<T>(started: number, error: unknown, httpStatus?: number): NetworkLayerResult<T> {
-  return { status: 'failed', durationMs: performance.now() - started, ...classifyNetworkError(error, httpStatus) }
+function failed<T>(started: number, cause: unknown, httpStatus?: number): NetworkLayerResult<T> {
+  return { status: 'failed', durationMs: performance.now() - started, ...classifyNetworkError(cause, httpStatus) }
 }
 
 export async function resolveHost(

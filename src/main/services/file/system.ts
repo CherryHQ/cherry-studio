@@ -75,8 +75,8 @@ async function assertClipboardTarget(path: AbsoluteFilePath): Promise<void> {
   await access(path, constants.R_OK)
 }
 
-function clipboardFailureReason(error: unknown): 'missing' | 'inaccessible' {
-  const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
+function clipboardFailureReason(cause: unknown): 'missing' | 'inaccessible' {
+  const code = cause && typeof cause === 'object' && 'code' in cause ? cause.code : undefined
   return code === 'ENOENT' || code === 'ENOTDIR' ? 'missing' : 'inaccessible'
 }
 
