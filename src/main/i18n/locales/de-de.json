@@ -3,8 +3,6 @@
   "agent.builtin.cherry_doctor.description": "Integrierter Analyst der Systemdiagnose. Liest den Diagnosebericht und den Laufzeitzustand, erklärt die Ursache und schlägt begrenzte Korrekturen vor",
   "agent.builtin.cherry_support.description": "Offizieller Cherry Studio Support-Agent für Einrichtung, Fehlerbehebung, FAQs und Feedback",
   "agent.import.missing_file": "Anhang fehlt im Export: {{name}}",
-  "agent.import.reasoning": "Frühere Überlegungen",
-  "agent.import.search": "Früherer Sucheintrag",
   "agent.session.claude.runtime_unavailable": "Claude Agent ist noch nicht bereit. Warten Sie auf den Abschluss des Downloads oder versuchen Sie es erneut.",
   "agent.session.fork.execution_not_inherited": "Die Ausführung wurde nicht in diesen Sitzungszweig übernommen.",
   "agent.session.new": "Neue Aufgabe",

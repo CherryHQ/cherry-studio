@@ -3,8 +3,6 @@
   "agent.builtin.cherry_doctor.description": "Analista integrato di diagnostica di sistema. Legge il rapporto diagnostico e lo stato di esecuzione, spiega la causa del problema e propone correzioni circoscritte",
   "agent.builtin.cherry_support.description": "Agente di supporto ufficiale di Cherry Studio per la configurazione, la risoluzione dei problemi, le FAQ e i commenti",
   "agent.import.missing_file": "Allegato non disponibile nell’esportazione: {{name}}",
-  "agent.import.reasoning": "Ragionamento storico",
-  "agent.import.search": "Registro di ricerca storico",
   "agent.session.claude.runtime_unavailable": "L'agente Claude non è pronto. Attendi il completamento del download o riprova.",
   "agent.session.fork.execution_not_inherited": "Questa diramazione della sessione non ha ereditato lo stato di esecuzione.",
   "agent.session.new": "Nuova attività",
