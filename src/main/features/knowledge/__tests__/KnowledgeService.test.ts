@@ -276,9 +276,6 @@ function createNoteItem(
 ): KnowledgeItemOf<'note'> {
   const lifecycle =
     status === 'failed' ? ({ status, error: `failed ${id}` } as const) : ({ status, error: null } as const)
-  const data: KnowledgeItemOf<'file'>['data'] = { source, relativePath: basename(source) as PosixRelativeFilePath }
-  if (indexedRelativePath) data.indexedRelativePath = indexedRelativePath
-
   return {
     id,
     baseId,
@@ -320,6 +317,8 @@ function createFileItem(
 ): KnowledgeItemOf<'file'> {
   const lifecycle =
     status === 'failed' ? ({ status, error: `failed ${id}` } as const) : ({ status, error: null } as const)
+  const data: KnowledgeItemOf<'file'>['data'] = { source, relativePath: basename(source) as PosixRelativeFilePath }
+  if (indexedRelativePath) data.indexedRelativePath = indexedRelativePath
 
   return {
     id,
