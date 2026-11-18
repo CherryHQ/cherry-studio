@@ -16,6 +16,7 @@ import {
 } from '@renderer/utils/knowledgeFileEntry'
 import type { KnowledgeAddItemConflict, KnowledgeAddItemInput, KnowledgeItemType } from '@shared/data/types/knowledge'
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
+import { isHttpUrl } from '@shared/utils/url'
 
 import { useKnowledgePage } from '../KnowledgePageProvider'
 import AddKnowledgeItemDialogFooter from './addKnowledgeItemDialog/AddKnowledgeItemDialogFooter'
@@ -47,15 +48,6 @@ const knowledgeSupportedFileExtSet = new Set<string>(knowledgeSupportedFileExts)
 const knowledgeFilePickerExtensions = knowledgeSupportedFileExts.map((ext) => ext.replace(/^\./, ''))
 
 const isSupportedKnowledgeFile = (fileName: string) => knowledgeSupportedFileExtSet.has(getFileExtension(fileName))
-
-const isValidKnowledgeUrl = (value: string) => {
-  try {
-    new URL(value)
-    return true
-  } catch {
-    return false
-  }
-}
 
 const describeFileMetadata = (file: { origin_name?: string; name?: string }) => file.origin_name || file.name
 
@@ -180,7 +172,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       return
     }
 
-    if (activeSource === 'url' && !isValidKnowledgeUrl(urlValue.trim())) {
+    if (activeSource === 'url' && !isHttpUrl(urlValue.trim())) {
       setSubmitErrorMessage(t('library.import_dialog.error.invalid_url'))
       return
     }
