@@ -60,6 +60,12 @@ export async function packageApp(appDir, outFile) {
   }
 
   const names = (await walk(resolved)).sort()
+  // The host installer rejects any root-level '__cherry' entry at extraction; refuse
+  // here so a package this script writes is never one the host must turn away.
+  {
+    const reserved = names.find((name) => name.split('/')[0] === '__cherry')
+    if (reserved) throw new Error(`Package must not contain the reserved '__cherry' directory: ${reserved}`)
+  }
   if (names.length > 2000) throw new Error(`Package has ${names.length} entries; the limit is 2000`)
 
   const chunks = []

@@ -33,7 +33,7 @@
       cherry.app
         .getInfo()
         .then((info) => {
-          document.getElementById('info').textContent = `${info.name} v${info.version} (${info.id})`
+          document.getElementById('info').textContent = `${info.appId} v${info.version}`
         })
         .catch(showError)
 
@@ -46,7 +46,7 @@
       document.getElementById('load').addEventListener('click', () => {
         cherry.storage
           .get('note')
-          .then((value) => out(value ?? 'No note yet.'))
+          .then(({ value }) => out(value ?? 'No note yet.'))
           .catch(showError)
       })
     </script>
