@@ -102,6 +102,23 @@ describe('SelectionAgentWindow', () => {
     expect(conversationProps()).toMatchObject({ sessionId: 'assistant-session', firstMessage: QUOTE_DRAFT })
   })
 
+  it('leaves the reused window as a compose bar when the previous open finishes creating its session', async () => {
+    const pending = Promise.withResolvers<{ sessionId: string }>()
+    mocks.ipcRequest.mockImplementation((route: string) =>
+      route === 'ai.agent.assistant_session.create' ? pending.promise : Promise.resolve(undefined)
+    )
+    mocks.action = ASK_AGENT
+    const { rerender } = render(<SelectionAgentWindow />)
+    await act(async () => mocks.composeSend?.(QUOTE_DRAFT))
+
+    mocks.action = { ...ASK_AGENT, sessionId: 'open-2' }
+    rerender(<SelectionAgentWindow />)
+    await act(async () => pending.resolve({ sessionId: 'stale-session' }))
+
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('selection.resize_agent_window', { mode: 'conversation' })
+    expect(screen.getByTestId('compose-bar')).toBeInTheDocument()
+  })
+
   it('creates the session under a bound agent and workspace through the session API', async () => {
     MockDataApiUtils.setCustomResponse('/agent-sessions', 'POST', { id: 'bound-session' })
     mocks.action = BOUND_ASK_AGENT
