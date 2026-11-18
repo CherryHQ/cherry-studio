@@ -300,19 +300,19 @@ export class ApiServer {
         response.data = result
       }
       // Infer status code based on HTTP method
-      response.status = this.inferStatusCode(context.method!, result)
+      response.status = this.inferStatusCode(context.method!, result !== undefined)
     }
   }
 
   /**
-   * Infer status code based on HTTP method and result
+   * Infer status code based on HTTP method and result presence
    */
-  private inferStatusCode(method: HttpMethod, result: unknown): SuccessStatusCode {
+  private inferStatusCode(method: HttpMethod, hasResult: boolean): SuccessStatusCode {
     switch (method) {
       case 'POST':
         return SuccessStatus.CREATED // 201
       case 'DELETE':
-        return result === undefined ? SuccessStatus.NO_CONTENT : SuccessStatus.OK // 204 or 200
+        return hasResult ? SuccessStatus.OK : SuccessStatus.NO_CONTENT // 200 or 204
       default:
         return SuccessStatus.OK // 200
     }

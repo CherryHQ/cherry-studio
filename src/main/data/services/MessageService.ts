@@ -120,6 +120,7 @@ const MESSAGE_SEARCH_CURSOR_CONFIG = {
 }
 
 // Invalid stored limits preserve unlimited history rather than dropping context or indexing past its end.
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted assistant context settings can bypass validation; reject malformed limits before slicing history.
 export function normalizeMaxMessages(value: unknown): number | null {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null
   const floored = Math.floor(value)

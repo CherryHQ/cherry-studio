@@ -132,7 +132,12 @@ function buildAgentSearchPredicate(search: string): SQL {
  * reserved ID, so historical configuration cannot grant an ordinary Agent system capabilities.
  * Only internal seeding (`createAgentTx`) may write the role; public DataApi cannot forge it.
  */
-function matchesBuiltinRole(configuration: unknown, expectedRole: unknown): boolean {
+function matchesBuiltinRole(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored agent configuration may contain malformed capability fields; compare only the raw role before sanitation.
+  configuration: unknown,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Internal updates can bypass DTO parsing; compare the incoming raw role so malformed capability changes are still rejected.
+  expectedRole: unknown
+): boolean {
   if (!configuration || typeof configuration !== 'object') return expectedRole === undefined
   return (configuration as { builtin_role?: unknown }).builtin_role === expectedRole
 }
