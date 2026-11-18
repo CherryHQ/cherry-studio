@@ -167,12 +167,14 @@ const isFields = (value: JsonValue): value is { readonly [field: string]: JsonVa
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
 /** A turn input as the custom message Pi stores and the model reads: its kind, text, and data with the key merged in. */
-export const markerMessage = (input: TurnInput, key: string) => ({
-  customType: input.kind,
-  content: input.text,
-  display: false,
-  details: { ...(isFields(input.data) ? input.data : {}), key }
-})
+export const markerMessage = (input: TurnInput, key: string) => {
+  const customType = input.kind
+  const content = input.text
+  let details: Record<string, JsonValue> = {}
+  if (isFields(input.data)) details = { ...input.data }
+  details.key = key
+  return { customType, content, display: false, details }
+}
 
 /** Pi runs nothing and compacts nothing on this conversation. */
 export const piIdle = (conv: Conversation): boolean => conv.native !== undefined && conv.native.session.isIdle

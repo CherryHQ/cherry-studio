@@ -195,11 +195,12 @@ function nativeTool(adapter: Adapter, conv: Conversation, tool: ToolDefinition):
         signal: signal ?? new AbortController().signal
       }
       const outcome = await adapter.withScope({ owner, signal: call.signal }, (ports) => tool.run(call, ports))
-      return {
+      const result: Awaited<ReturnType<NativeTool['execute']>> = {
         content: [{ type: 'text', text: outcome.text }],
-        details: outcome.details,
-        ...(outcome.isError ? { isError: true } : {})
+        details: outcome.details
       }
+      if (outcome.isError) Object.assign(result, { isError: true })
+      return result
     }
   }
 }

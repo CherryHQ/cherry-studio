@@ -55,12 +55,13 @@ export class SessionEvents {
       case 'compaction_end': {
         const error = event.errorMessage ?? this.summaryFailure
         this.summaryFailure = undefined
-        this.listener({
+        const ended: Extract<AgentRuntimeEvent, { type: 'compaction-end' }> = {
           type: 'compaction-end',
           reason: event.reason,
-          aborted: event.aborted,
-          ...(error ? { error } : {})
-        })
+          aborted: event.aborted
+        }
+        if (error) ended.error = error
+        this.listener(ended)
         break
       }
       case 'agent_settled':

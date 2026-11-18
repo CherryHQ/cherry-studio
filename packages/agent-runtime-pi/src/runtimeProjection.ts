@@ -72,12 +72,15 @@ export class PiProjection {
     private readonly report: (error: unknown) => void,
     children: boolean
   ) {
+    const snapshot: Omit<Extract<ObservationPayload, { type: 'snapshot' }>, 'activity'> = {
+      type: 'snapshot',
+      messages: [],
+      inputs: []
+    }
+    if (children) Object.assign(snapshot, { subagents: [] })
     this.feed = new ThreadFeed(
       {
-        type: 'snapshot',
-        messages: [],
-        inputs: [],
-        ...(children ? { subagents: [] } : {}),
+        ...snapshot,
         activity: { state: session.isIdle ? 'idle' : 'active' }
       },
       report
