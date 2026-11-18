@@ -36,7 +36,7 @@ declare global {
     network: CherryNetwork
     clipboard: CherryClipboard
     /** The only inbound channel. Returns an unsubscribe function. */
-    on<E extends CherryEvent>(event: E, handler: (payload: CherryEventPayload[E]) => void): () => void
+    on<E extends CherryEvent>(event: E, handler: (payload: CherryEventPayload[E]) => void | Promise<void>): () => void
   }
 
   type CherryEvent = 'app.visibilityChange' | 'app.localeChange'

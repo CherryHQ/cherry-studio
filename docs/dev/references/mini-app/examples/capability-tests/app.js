@@ -830,7 +830,9 @@ async function init() {
   el('app-info').textContent = `${info.appId} ${info.version} · Cherry ${info.hostVersion}`
   cherry.on('app.localeChange', ({ locale }) => applyLocale(locale))
   // Permissions only change while the host UI (which hides this app) is open.
-  cherry.on('app.visibilityChange', ({ visible }) => visible && refreshPermissions())
+  cherry.on('app.visibilityChange', async ({ visible }) => {
+    if (visible) await refreshPermissions()
+  })
   el('refresh-permissions').addEventListener('click', () => refreshPermissions())
   el('clear-log').addEventListener('click', () => el('log').replaceChildren())
   for (const id of Object.keys(TESTS)) el(id).addEventListener('click', () => run(id))
