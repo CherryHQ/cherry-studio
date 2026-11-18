@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { getErrorMessage } from '@renderer/utils/error'
 import type { InputFor, OutputFor } from '@shared/ipc/types'
 import { resolveLocalizedText } from '@shared/types/miniAppManifest'
 
@@ -28,7 +29,15 @@ export interface InstallDecision {
 
 const logger = loggerService.withContext('useMiniAppInstallPreview')
 
-const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Preview and confirm IPC failures are unrestricted; normalize them for superseded-request detection and translated install-error details.
+const errorMessage = (error: unknown): string => {
+  try {
+    const message = error instanceof Error ? error.message : String(error)
+    return typeof message === 'string' ? message : getErrorMessage(error)
+  } catch {
+    return getErrorMessage(error)
+  }
+}
 
 /** Fire-and-forget: the ledger entry is idempotent to drop, and nothing awaits it. */
 const releasePending = async (installToken: string) => {
