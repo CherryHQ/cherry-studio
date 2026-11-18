@@ -32,6 +32,8 @@ export interface PiApprovalContext {
   builtinRole?: string
 }
 
+type CollectedApprovalFacts = { -readonly [K in keyof ApprovalHostFacts]: ApprovalHostFacts[K] }
+
 const BEHAVIOR_META_TOOLS = new Set([
   'AskUserQuestion',
   'todo_write',
@@ -93,7 +95,7 @@ export async function readPiApprovalFacts(
   const mandatoryBlock =
     commandPolicy?.effect === 'deny' ? commandPolicy.reason : guard?.effect === 'deny' ? guard.reason : undefined
   const policyAsk = commandPolicy?.effect === 'ask'
-  return {
+  const collected: Omit<CollectedApprovalFacts, 'destructive'> = {
     category,
     disabled,
     autoApproved: browser === 'allow' || ctx.autoApprovedTools.has(name),
@@ -110,36 +112,32 @@ export async function readPiApprovalFacts(
       )),
     sqliteGuard: sqlite?.reason,
     globalInstall,
-    miseMutation,
-    ...(globalInstall ? { globalInstallPermissionMode: ctx.getPermissionMode() ?? 'default' } : {}),
-    permissionMode: mode,
-    destructive: policyAsk,
-    ...(mandatoryBlock ? { mandatoryBlock } : {}),
-    ...(commandPolicy
-      ? {
-          commandPolicy: {
-            details: {
-              ...commandPolicy.evidence,
-              reason:
-                guard?.reason ??
-                commandPolicy.reason ??
-                (globalInstall ? t('command_approval.dependency_install') : t('command_approval.permission_required'))
-            },
-            context: commandPolicy.context,
-            changedReason: commandContextChangedReason()
-          }
-        }
-      : {}),
-    ...(rewritten ? { rewrittenArgs: { ...input, command: rewritten } } : {}),
-    ...(ctx.delegationTools.has(name)
-      ? {
-          delegation:
-            interaction.currentTurn === 'headless' || interaction.userResponse === 'unavailable'
-              ? ('unattended' as const)
-              : ('interactive' as const)
-        }
-      : {})
+    miseMutation
   }
+  if (globalInstall) collected.globalInstallPermissionMode = ctx.getPermissionMode() ?? 'default'
+  const facts: CollectedApprovalFacts = { ...collected, permissionMode: mode, destructive: policyAsk }
+  if (mandatoryBlock) facts.mandatoryBlock = mandatoryBlock
+  if (commandPolicy) {
+    facts.commandPolicy = {
+      details: {
+        ...commandPolicy.evidence,
+        reason:
+          guard?.reason ??
+          commandPolicy.reason ??
+          (globalInstall ? t('command_approval.dependency_install') : t('command_approval.permission_required'))
+      },
+      context: commandPolicy.context,
+      changedReason: commandContextChangedReason()
+    }
+  }
+  if (rewritten) facts.rewrittenArgs = { ...input, command: rewritten }
+  if (ctx.delegationTools.has(name)) {
+    facts.delegation =
+      interaction.currentTurn === 'headless' || interaction.userResponse === 'unavailable'
+        ? 'unattended'
+        : 'interactive'
+  }
+  return facts
 }
 
 /** Check the command as written and after the rtk rewrite; the stricter result governs. */
