@@ -88,10 +88,10 @@ export class FileProcessingService extends BaseService {
     const payload: FileProcessingJobPayload = {
       feature,
       file,
-      processorId: config.id,
-      ...(output ? { output } : {}),
-      ...(context ? { context } : {})
+      processorId: config.id
     }
+    if (output) payload.output = output
+    if (context) payload.context = context
 
     // The capability handler's mode picks the job type (background vs remote-poll), and for
     // background the processor's `runtime` picks the local or remote half — no `prepare()` needed.

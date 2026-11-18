@@ -12,14 +12,10 @@ import { TasksResponseSchema } from './schemas'
 import type { OpenMineruConnection } from './types'
 
 export async function createParseTask(connection: OpenMineruConnection, file: FileInfo, signal?: AbortSignal) {
+  const input = { file_name: file.ext ? `${file.name}.${file.ext}` : file.name, bytes: file.size }
+  if (file.ext?.toLowerCase() === 'pdf') Object.assign(input, { page_range: 'all' })
   const task = await requestJson(connection, '/v1/tasks', TasksResponseSchema, signal, {
-    files: [
-      {
-        file_name: file.ext ? `${file.name}.${file.ext}` : file.name,
-        bytes: file.size,
-        ...(file.ext?.toLowerCase() === 'pdf' ? { page_range: 'all' } : {})
-      }
-    ],
+    files: [input],
     output_formats: ['default']
   })
   return task.task_id

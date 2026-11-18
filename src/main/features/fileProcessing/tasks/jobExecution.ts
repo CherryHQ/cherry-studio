@@ -72,10 +72,10 @@ export async function prepareFileProcessingJob(
   assertFileTypeSupported(fileInfo, feature, config)
   await assertDocumentInputLimits(ctx, handler.mode, fileInfo, config)
 
-  const prepared = await handler.prepare(fileInfo, config, ctx.signal, {
-    ...(ctx.metadata.remoteState !== undefined ? { remoteState: ctx.metadata.remoteState } : {}),
-    ...(input.context?.dataId ? { dataId: input.context.dataId } : {})
-  })
+  const context: NonNullable<Parameters<typeof handler.prepare>[3]> = {}
+  if (ctx.metadata.remoteState !== undefined) context.remoteState = ctx.metadata.remoteState
+  if (input.context?.dataId) context.dataId = input.context.dataId
+  const prepared = await handler.prepare(fileInfo, config, ctx.signal, context)
   if (handler.mode !== 'auto') {
     assertModeMatches(prepared, expectedMode)
   }

@@ -14,12 +14,12 @@ export async function requestJson<T>(
   signal?: AbortSignal,
   body?: z.core.util.JSONType
 ): Promise<T> {
+  const headers = {}
+  if (connection.apiKey) Object.assign(headers, { Authorization: `Bearer ${connection.apiKey}` })
+  if (body !== undefined) Object.assign(headers, { 'Content-Type': 'application/json' })
   const response = await net.fetch(`${connection.apiHost}${endpoint}`, {
     method: body === undefined ? 'GET' : 'POST',
-    headers: {
-      ...(connection.apiKey ? { Authorization: `Bearer ${connection.apiKey}` } : {}),
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' })
-    },
+    headers,
     body: body === undefined ? undefined : JSON.stringify(body),
     redirect: 'manual',
     credentials: 'omit',
