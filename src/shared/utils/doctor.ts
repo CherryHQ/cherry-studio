@@ -185,7 +185,9 @@ export function projectDoctorReport(
     return { ...result, evidence: result.evidence.filter((item) => allowed.has(item.dataClass)) }
   })
   const { pendingChecks, ...rest } = report
-  return { ...rest, basics, results, ...(view === 'display' && pendingChecks ? { pendingChecks } : {}) }
+  const projected = { ...rest, basics, results }
+  if (view === 'display' && pendingChecks) Object.assign(projected, { pendingChecks })
+  return projected
 }
 
 export type DoctorPanel = 'checks' | 'export' | 'report'
