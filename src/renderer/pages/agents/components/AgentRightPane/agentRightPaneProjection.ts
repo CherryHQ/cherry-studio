@@ -1,3 +1,4 @@
+import type { DynamicToolUIPart, ToolUIPart, UITools } from 'ai'
 import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
 
 import {
@@ -24,6 +25,8 @@ import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/
 import { type DeferredToolResultRef, isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
+
+type AgentToolPart = ToolUIPart<UITools> | DynamicToolUIPart
 
 export type AgentRightPaneTab = 'browser' | 'files' | 'status' | `flow:${string}`
 
@@ -137,14 +140,10 @@ function getToolPartState(part: CherryMessagePart): string | undefined {
   return typeof state === 'string' ? state : undefined
 }
 
-function getToolPartInput(part: CherryMessagePart): unknown {
-  return (part as unknown as { input?: unknown }).input
-}
-
-function getToolPartOutput(part: CherryMessagePart): unknown {
-  const output = (part as unknown as { output?: unknown }).output
-  if (isRecord(output) && 'content' in output) return output.content
-  return output
+function getTaskToolResult(part: AgentToolPart): string | Record<string, unknown> | undefined {
+  const output = part.output
+  const result = isRecord(output) && 'content' in output ? output.content : output
+  return typeof result === 'string' || isRecord(result) ? result : undefined
 }
 
 function getToolNameFromPart(part: CherryMessagePart): string | undefined {
@@ -179,8 +178,8 @@ function textFromContent(value: unknown): string | undefined {
 }
 
 function getToolPromptText(part: CherryMessagePart | undefined): string | undefined {
-  if (!part) return undefined
-  const input = getToolPartInput(part)
+  if (!part || !isToolUIPart(part)) return undefined
+  const input = part.input
   if (typeof input === 'string') return input.trim() || undefined
   if (!isRecord(input)) return undefined
 
@@ -315,7 +314,8 @@ export function findAgentPreviewUrlCandidates(
       const part = parts[partIndex]
       if (!isToolUIPart(part) || !PREVIEW_URL_TOOL_NAMES.has(getToolName(part))) continue
 
-      const output = getToolPartOutput(part)
+      const rawOutput = part.output
+      const output = isRecord(rawOutput) && 'content' in rawOutput ? rawOutput.content : rawOutput
       if (isDeferredToolOutput(output)) {
         const excerpt = output.excerpt
         const excerptUrl = excerpt ? findAgentPreviewUrlInOutput(`${excerpt.head}\n${excerpt.tail}`) : null
@@ -431,7 +431,7 @@ export function buildAgentToolFlowProjection(
       if (!toolCallId) return
 
       const parentToolCallId = getPartParentToolCallId(part)
-      const input = getToolPartInput(part)
+      const input = part.input
       const title = isRecord(input)
         ? [input.description, input.subject, input.title, input.name].find(
             (value) => typeof value === 'string' && value.trim()
@@ -582,14 +582,14 @@ interface TaskPlanProjectionState {
 
 function applyTaskToolPart(
   state: TaskPlanProjectionState,
-  part: CherryMessagePart,
+  part: AgentToolPart,
   fallbackId: string,
   toolName: string | undefined,
   messageId: string
 ): boolean {
   const taskMap = state.tasks
-  const input = getToolPartInput(part)
-  const output = getToolPartOutput(part)
+  const input = part.input
+  const output = getTaskToolResult(part)
 
   if (toolName === AgentToolsType.TaskCreate) {
     const currentPlanCompleted =
@@ -707,11 +707,15 @@ function getNextTaskOrdinalId(taskMap: Map<string, AgentStatusTask>): string | u
 // Keyed on the canonical TodoWrite identity: every runtime's native todo tool normalizes onto
 // it through the transport-tagged tool-name mapping, so no runtime is special-cased here.
 function getTodoSnapshot(part: CherryMessagePart): AgentStatusTask[] | undefined {
-  if (getCanonicalToolName(part) !== AgentToolsType.TodoWrite || getToolPartState(part) !== 'output-available') {
+  if (
+    !isToolUIPart(part) ||
+    getCanonicalToolName(part) !== AgentToolsType.TodoWrite ||
+    getToolPartState(part) !== 'output-available'
+  ) {
     return undefined
   }
 
-  const input = getToolPartInput(part)
+  const input = part.input
   if (!isRecord(input) || !Array.isArray(input.todos)) return undefined
 
   return input.todos.flatMap((todo, index) => {
@@ -826,7 +830,7 @@ export function buildAgentRightPaneStatus(
       }
 
       if (isReportArtifactsTool(toolName)) {
-        const parsed = reportArtifactsInputSchema.safeParse(getToolPartInput(part))
+        const parsed = reportArtifactsInputSchema.safeParse(part.input)
         if (parsed.success) {
           for (const artifact of parsed.data.artifacts) {
             const path = artifact.path.trim()
