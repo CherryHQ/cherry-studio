@@ -3,7 +3,9 @@ import { createContext, use, useCallback } from 'react'
 import { dataApiService } from '@data/DataApiService'
 import { ipcApi } from '@renderer/ipc'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
+import type { ReuseOrCreateAgentSessionDto } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+import type { ReuseOrCreateTopicDto } from '@shared/data/api/schemas/topics'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 
 import { useSessions } from './agent/useSession'
@@ -33,9 +35,9 @@ export function useRawAssistantTopicsSource({ enabled }: { enabled?: boolean } =
     return result.topic
   }, [])
   const reuseOrCreateTopic = useCallback(async (assistantId: string | null, excludeTopicId?: string) => {
-    return dataApiService.post('/topics/reusable-placeholder', {
-      body: { assistantId, ...(excludeTopicId ? { excludeTopicId } : {}) }
-    })
+    const body: ReuseOrCreateTopicDto = { assistantId }
+    if (excludeTopicId) body.excludeTopicId = excludeTopicId
+    return dataApiService.post('/topics/reusable-placeholder', { body })
   }, [])
 
   return { ...listSource, loadLatestTopic, reuseOrCreateTopic }
@@ -56,11 +58,9 @@ export function useRawAgentSessionsSource({ enabled }: { enabled?: boolean } = {
   }, [])
   const reuseOrCreateSession = useCallback(
     async (agentId: string, workspace: AgentSessionWorkspaceSource, excludeSessionId?: string) => {
-      return ipcApi.request('ai.agent.session.reuse_or_create', {
-        agentId,
-        workspace,
-        ...(excludeSessionId ? { excludeSessionId } : {})
-      })
+      const input: ReuseOrCreateAgentSessionDto = { agentId, workspace }
+      if (excludeSessionId) input.excludeSessionId = excludeSessionId
+      return ipcApi.request('ai.agent.session.reuse_or_create', input)
     },
     []
   )
