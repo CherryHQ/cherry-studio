@@ -38,7 +38,9 @@ const MAX_STRING = 300
  * occurrence rather than reported as `[Circular]`. Non-JSON values become
  * placeholders; absent values and non-finite numbers become null.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- DataApi request params/body and doctor-write diagnostics are unvalidated log inputs; convert them to redacted Serializable output.
 export function redactDeep(value: unknown): Serializable {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw array items and object properties inherit the diagnostic input boundary; classify each value before serializing it.
   const redact = (val: unknown, seen: WeakSet<object>): Serializable => {
     if (val == null) return null
     if (typeof val === 'string') {
