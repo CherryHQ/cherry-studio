@@ -4,12 +4,15 @@ import {
   jsonRpcNotificationSchema,
   jsonRpcRequestSchema,
   remoteLimits,
+  type JsonRpcRequest,
   type RemoteFailure
 } from '@cherrystudio/remote-protocol'
 
 interface Schema<T> {
-  safeParse(input: unknown): { success: true; data: T } | { success: false; error: unknown }
-  parse(input: unknown): T
+  safeParse(
+    input: NonNullable<JsonRpcRequest['params']>
+  ): { success: true; data: T } | { success: false; error: unknown }
+  parse(input: T): T
 }
 
 export class RemoteRpcError extends JSONRPCErrorException {
@@ -26,11 +29,11 @@ export class RemoteRpcServer<Context> {
   private readonly server: JSONRPCServer<Context>
   private readonly active = new Set<string>()
 
-  constructor(onError: (message: string, error: unknown) => void) {
+  constructor(onError: (message: string, cause: unknown) => void) {
     this.server = new JSONRPCServer({ errorListener: onError })
-    this.server.mapErrorToJSONRPCErrorResponse = (id, error: unknown) =>
-      error instanceof JSONRPCErrorException
-        ? createJSONRPCErrorResponse(id, error.code, error.message, error.data)
+    this.server.mapErrorToJSONRPCErrorResponse = (id, cause: unknown) =>
+      cause instanceof JSONRPCErrorException
+        ? createJSONRPCErrorResponse(id, cause.code, cause.message, cause.data)
         : createJSONRPCErrorResponse(id, -32603, 'Internal error')
   }
 
@@ -39,7 +42,7 @@ export class RemoteRpcServer<Context> {
     schema: { params: Schema<Input>; result: Schema<Output> },
     handler: (params: Input, context: Context) => Output | Promise<Output>
   ): void {
-    this.server.addMethod(name, async (params: unknown, context) => {
+    this.server.addMethod(name, async (params: JsonRpcRequest['params'], context) => {
       const input = schema.params.safeParse(params ?? {})
       if (!input.success) throw new JSONRPCErrorException('Invalid params', -32602)
       return schema.result.parse(await handler(input.data, context))
