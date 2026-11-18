@@ -1,6 +1,7 @@
 import type { LoggerService } from '@main/core/logger/LoggerService'
 import type { JobError, JobSnapshot, JobStatus } from '@shared/data/api/schemas/jobs'
 import type { CatchUpPolicy, RetryPolicy, Trigger } from '@shared/data/api/schemas/jobs'
+import type { Serializable } from '@shared/types/serializable'
 
 import type { JobPayloadOf, JobType } from './jobRegistry'
 
@@ -88,8 +89,8 @@ export interface JobHandler<TPayload = unknown> {
   defaultTimeoutMs?: number
   /** Grace period to wait for handler to react to AbortSignal after cancel. Defaults to 30000ms. */
   cancelTimeoutMs?: number
-  /** Execute one job attempt. Throw to fail; reject with AbortError to cancel. */
-  execute(ctx: JobContext<TPayload>): Promise<unknown>
+  /** Execute one attempt and return JSON data or no result. Throw to fail; reject with AbortError to cancel. */
+  execute(ctx: JobContext<TPayload>): Promise<Serializable | void>
   /**
    * Optional synchronous observer of a newly committed row, before dispatch.
    * enqueueTx defers this until after commit; rollback and idempotency hits skip it.

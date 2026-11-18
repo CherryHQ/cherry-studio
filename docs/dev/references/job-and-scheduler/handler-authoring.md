@@ -32,6 +32,13 @@ protected override async onAllReady(): Promise<void> {
 
 A purely synchronous `onAllReady` body currently runs on the same tick and will normally beat the 60-second timer, but that is timing, not the framework contract: `LifecycleManager.allReady()` does not await hook completion. Registering in `onInit` remains the enforceable rule and survives later async preparation or a change to the quiet-window duration. A late registration does not throw at registration time; recovery may already have classified that type's non-terminal rows as orphaned and cancelled them.
 
+## Execution result
+
+`JobHandler.execute` returns `Promise<Serializable | void>`. Return JSON data to persist a result,
+or return nothing for a successful job without a result. Results must not contain functions,
+bigints, cycles or process-owned objects. Return a plain data summary or stable resource IDs
+rather than a live service/resource instance.
+
 ## 1. dummy.echo (minimal handler)
 
 ```typescript

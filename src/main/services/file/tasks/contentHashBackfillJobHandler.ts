@@ -13,7 +13,7 @@ declare module '@main/core/job/jobRegistry' {
 
 const BATCH_SIZE = 200
 
-export interface ContentHashBackfillSummary {
+export type ContentHashBackfillSummary = {
   total: number
   hashed: number
   skippedOrphan: number
