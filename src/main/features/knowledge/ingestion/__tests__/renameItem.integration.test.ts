@@ -15,11 +15,20 @@ import { DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP, DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE
 import { KeyedMutex } from '@shared/utils/async'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 
-const { dataDir, renameMaterialMock, getIndexStoreIfExistsMock } = vi.hoisted(() => ({
-  dataDir: `${process.env.TMPDIR ?? '/tmp'}/kb-rename-${process.pid}`,
-  renameMaterialMock: vi.fn(),
-  getIndexStoreIfExistsMock: vi.fn()
-}))
+const { dataDir, renameMaterialMock, getIndexStoreIfExistsMock } = vi.hoisted(() => {
+  // The hoisted factory runs before imports, so resolve the platform temp root by hand:
+  // on Windows the POSIX '/tmp' fallback joins into a drive-relative path
+  // ('\tmp\kb-rename-…') that AbsoluteFilePathSchema rightly rejects.
+  const tempRoot =
+    process.platform === 'win32'
+      ? (process.env.TEMP ?? process.env.TMP ?? 'C:\\Windows\\Temp')
+      : (process.env.TMPDIR ?? '/tmp')
+  return {
+    dataDir: `${tempRoot}/kb-rename-${process.pid}`,
+    renameMaterialMock: vi.fn(),
+    getIndexStoreIfExistsMock: vi.fn()
+  }
+})
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
