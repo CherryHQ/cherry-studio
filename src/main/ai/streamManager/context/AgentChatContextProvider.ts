@@ -36,7 +36,7 @@ import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './C
 import type { MainDispatchRequest } from './dispatch'
 
 function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessage {
-  return {
+  const message: CherryUIMessage & { metadata: NonNullable<CherryUIMessage['metadata']> } = {
     id: row.id,
     role: row.role,
     parts: row.data.parts ?? [],
@@ -46,10 +46,11 @@ function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessa
       modelId: row.modelId ?? undefined,
       messageSnapshot: row.messageSnapshot ?? undefined,
       delivery: row.delivery ?? undefined,
-      stats: row.stats ?? undefined,
-      ...(row.stats?.totalTokens ? { totalTokens: row.stats.totalTokens } : {})
+      stats: row.stats ?? undefined
     }
   }
+  if (row.stats?.totalTokens) message.metadata.totalTokens = row.stats.totalTokens
+  return message
 }
 
 export type ValidatedAgentDispatch = {
@@ -175,7 +176,10 @@ export class AgentChatContextProvider implements ChatContextProvider {
     const shouldAutoNameInitialTurn = deliveryMessage
       ? !agentSessionMessageService.hasSessionMessages(sessionId, deliveryMessage.id)
       : !agentSessionMessageService.hasSessionMessages(sessionId)
-    return {
+    const dispatch: Omit<
+      ValidatedAgentDispatch,
+      'messageSnapshot' | 'userMessageId' | 'userMessageParts' | 'deliveryMessage' | 'shouldAutoNameInitialTurn'
+    > = {
       sessionId,
       parentMessageId,
       topicId: req.topicId,
@@ -188,23 +192,24 @@ export class AgentChatContextProvider implements ChatContextProvider {
       reasoningEffort: req.reasoningEffort ?? agent.configuration?.reasoning_effort ?? 'default',
       serviceTier: req.serviceTier ?? agent.configuration?.service_tier ?? 'standard',
       fastMode: req.fastMode,
-      headless: isHeadless,
-      ...(authority.trustedNotifyChannels !== undefined
-        ? { trustedNotifyChannels: authority.trustedNotifyChannels }
-        : {}),
-      messageSnapshot: {
-        id: agent.id,
-        name: agent.name,
-        // Normalized effective avatar (mirrors renderer `getAgentAvatar`).
-        emoji: agent.configuration?.avatar?.trim() || '🤖',
-        ...(agent.avatarFileId ? { avatarFileId: agent.avatarFileId } : {}),
-        model: { id: rawModelId, name: modelName, provider: providerId }
-      },
-      userMessageId: deliveryMessage?.id ?? uuidv7(),
-      userMessageParts: deliveryMessage?.data.parts ?? req.userMessageParts ?? [],
-      ...(deliveryMessage ? { deliveryMessage } : {}),
-      shouldAutoNameInitialTurn
+      headless: isHeadless
     }
+    if (authority.trustedNotifyChannels !== undefined) dispatch.trustedNotifyChannels = authority.trustedNotifyChannels
+    const identity: Omit<MessageSnapshot, 'model'> = {
+      id: agent.id,
+      name: agent.name,
+      // Match the renderer's normalized effective Agent avatar.
+      emoji: agent.configuration?.avatar?.trim() || '🤖'
+    }
+    if (agent.avatarFileId) identity.avatarFileId = agent.avatarFileId
+    const validated: Omit<ValidatedAgentDispatch, 'shouldAutoNameInitialTurn'> = {
+      ...dispatch,
+      messageSnapshot: { ...identity, model: { id: rawModelId, name: modelName, provider: providerId } },
+      userMessageId: deliveryMessage?.id ?? uuidv7(),
+      userMessageParts: deliveryMessage?.data.parts ?? req.userMessageParts ?? []
+    }
+    if (deliveryMessage) validated.deliveryMessage = deliveryMessage
+    return { ...validated, shouldAutoNameInitialTurn }
   }
 
   persistDispatchTx(
