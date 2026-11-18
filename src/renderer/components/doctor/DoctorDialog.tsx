@@ -1,5 +1,5 @@
 import { ArrowLeft, History } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { type ComponentProps, lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@cherrystudio/ui'
@@ -112,10 +112,13 @@ export function DoctorDialog({ initialDescription, initialPanel, initialRunTier,
     panelHeadingRef.current?.focus()
   }, [controller.session.activePanel])
 
+  const contentProps: Pick<ComponentProps<typeof DialogContent>, 'aria-describedby'> = {}
+  if (!isExportPanel) contentProps['aria-describedby'] = undefined
+
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && void close()}>
       <DialogContent
-        {...(!isExportPanel ? { 'aria-describedby': undefined } : {})}
+        {...contentProps}
         size="xl"
         closeLabel={t('common.close')}
         closeOnOverlayClick={!controller.isCloseBlocked}
