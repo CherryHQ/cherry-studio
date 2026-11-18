@@ -48,13 +48,14 @@ function fixRequestFor(
   action: Extract<DoctorAction, { kind: 'fix' }>
 ): DoctorFixRequest | undefined {
   if (!DOCTOR_CHECK_CATALOG[checkId].fixes.some((candidate) => candidate.id === action.fixId)) return undefined
-  return {
+  const request = {
     scope,
     runId,
     checkId,
-    fixId: action.fixId,
-    ...(action.target ? { target: action.target } : {})
-  } as DoctorFixRequest
+    fixId: action.fixId
+  }
+  if (action.target) Object.assign(request, { target: action.target })
+  return request as DoctorFixRequest
 }
 
 export function useDoctorController({
