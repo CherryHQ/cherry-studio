@@ -125,9 +125,10 @@ export function loadBuiltinAgentDefaults(builtinRole: BuiltinAgentRole, language
     )
   }
 
-  return {
+  const defaults: BuiltinAgentDefaults = {
     name: definition.name?.trim() || 'Built-in Agent',
-    configuration: { ...configuration, builtin_role: builtinRole },
-    ...(definition.disabledTools ? { disabledTools: definition.disabledTools } : {})
+    configuration: { ...configuration, builtin_role: builtinRole }
   }
+  if (definition.disabledTools) defaults.disabledTools = definition.disabledTools
+  return defaults
 }

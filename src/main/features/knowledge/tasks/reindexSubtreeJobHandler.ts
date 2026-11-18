@@ -115,11 +115,12 @@ export function createReindexSubtreeJobHandler(
         return { roots: rebuildableRoots, skippedDeleting: false, skippedMissingSource: missingSourceRootIds.length }
       })
       if (activation.roots.length === 0) {
-        reportKnowledgeProgress(ctx, 100, {
+        const detail: Parameters<typeof reportKnowledgeProgress>[2] = {
           stage: activation.skippedDeleting ? 'deleting' : 'done',
-          totalFiles: 0,
-          ...(activation.skippedMissingSource > 0 ? { skippedMissingSource: activation.skippedMissingSource } : {})
-        })
+          totalFiles: 0
+        }
+        if (activation.skippedMissingSource > 0) detail.skippedMissingSource = activation.skippedMissingSource
+        reportKnowledgeProgress(ctx, 100, detail)
         return
       }
 
@@ -175,11 +176,12 @@ export function createReindexSubtreeJobHandler(
         }
       })
       if (resetResult.roots.length === 0) {
-        reportKnowledgeProgress(ctx, 100, {
+        const detail: Parameters<typeof reportKnowledgeProgress>[2] = {
           stage: resetResult.skippedDeleting ? 'deleting' : 'done',
-          totalFiles: 0,
-          ...(resetResult.skippedMissingSource > 0 ? { skippedMissingSource: resetResult.skippedMissingSource } : {})
-        })
+          totalFiles: 0
+        }
+        if (resetResult.skippedMissingSource > 0) detail.skippedMissingSource = resetResult.skippedMissingSource
+        reportKnowledgeProgress(ctx, 100, detail)
         return
       }
 
