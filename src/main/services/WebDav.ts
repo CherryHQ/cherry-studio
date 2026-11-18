@@ -29,15 +29,15 @@ export default class WebDav {
 
     // Fail-closed: TLS certificates are verified unless the user explicitly opts in.
     // The agent only serves https:// requests — plain-http hosts are unaffected.
-    this.instance = createClient(params.webdavHost, {
+    const options: NonNullable<Parameters<typeof createClient>[1]> = {
       username: params.webdavUser,
       password: params.webdavPass,
       maxBodyLength: Infinity,
-      maxContentLength: Infinity,
-      // Opt-in skips ALL certificate checks (expired/hostname too) — Node agents
-      // cannot selectively allow self-signed certs; copy must state the full scope.
-      ...(params.allowSelfSignedTls === true ? { httpsAgent: new https.Agent({ rejectUnauthorized: false }) } : {})
-    })
+      maxContentLength: Infinity
+    }
+    // Node's opt-in skips all certificate checks, including hostname and expiry.
+    if (params.allowSelfSignedTls === true) options.httpsAgent = new https.Agent({ rejectUnauthorized: false })
+    this.instance = createClient(params.webdavHost, options)
 
     this.putFileContents = this.putFileContents.bind(this)
     this.getFileContents = this.getFileContents.bind(this)
