@@ -4,6 +4,7 @@ import { defineTool } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
 import { describe, expect, it } from 'vitest'
 
+import type { CompactionSummarizer, CompactionSummaryRequest } from '../src/compaction'
 import { compactionBudgetsFitModel, resolveSessionCompaction } from '../src/compaction'
 import { readContextUsage } from '../src/contextUsage'
 import type { ModelCall } from './sessionSupport'
