@@ -200,10 +200,10 @@ compression settings to Agent forks.
 | Pi | Runtime session ID and leaf ID | Stages the newest matching native file, then branches with `SessionManager` and maps checkpoints to the child session ID |
 | Claude Code | Runtime session ID, main assistant UUID, and config directory | Its private worker calls the SDK fork API and maps assistant UUIDs into the child's transcript |
 
-Claude creates its own worker and pass them to `runForkWorker`. The
-shared helper returns an opaque result and waits for termination on success,
-failure, cancellation, or timeout before the coordinator can clean up files.
-Adapters validate the returned native result before publication.
+Claude creates its own worker and passes it to `runForkWorker` with the
+adapter's native result schema. The shared helper validates the result and
+waits for termination on success, failure, cancellation, or timeout before
+returning control to the coordinator for file cleanup and publication.
 
 Claude uses the SDK history reader to select context across retry and compaction
 records. Compaction metadata is opaque to Cherry; the SDK owns its interpretation
