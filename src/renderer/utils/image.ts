@@ -266,22 +266,26 @@ export function checkEntityImageSize(file: File): string | null {
     : null
 }
 
+/** A square region of the source image, in its pixels, that the user framed. */
+export type ImageCropArea = { x: number; y: number; width: number; height: number }
+
 /**
  * Normalize an entity image (avatar / logo) to a 128×128 cover-cropped WebP in the
  * renderer via the native canvas — the same shape main-side sharp produces (short
- * edge scaled to 128, centered square crop), so the two paths agree. Output is a few
+ * edge scaled to 128, centered square crop), so the two paths agree. `area` replaces the centered
+ * square with the one the user framed. Output is a few
  * KB, so this (not the raw upload) is what crosses IPC. Throws on any decode/encode
  * failure — the caller surfaces it so the user can retry; the raw bytes are never
  * sent to main, which could not decode them either.
  */
-export async function prepareEntityImageBytes(file: File): Promise<Uint8Array<ArrayBuffer>> {
+export async function prepareEntityImageBytes(file: File, area?: ImageCropArea): Promise<Uint8Array<ArrayBuffer>> {
   try {
     const bitmap = await createImageBitmap(file)
     try {
-      // Cover crop: sample the largest centered square, scale it to 128×128.
-      const side = Math.min(bitmap.width, bitmap.height)
-      const sx = (bitmap.width - side) / 2
-      const sy = (bitmap.height - side) / 2
+      // Cover crop: sample the framed square, or the largest centered one, and scale it to 128×128.
+      const side = area?.width ?? Math.min(bitmap.width, bitmap.height)
+      const sx = area?.x ?? (bitmap.width - side) / 2
+      const sy = area?.y ?? (bitmap.height - side) / 2
       const canvas = document.createElement('canvas')
       canvas.width = ENTITY_IMAGE_DIMENSION
       canvas.height = ENTITY_IMAGE_DIMENSION

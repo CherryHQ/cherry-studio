@@ -87,6 +87,9 @@ vi.mock('../EmojiPicker', () => ({
   EmojiPicker: () => <div data-testid="emoji-picker" />
 }))
 
+const cropAvatar = vi.hoisted(() => vi.fn())
+vi.mock('@renderer/components/Avatar/AvatarCropPopup', () => ({ AvatarCropPopup: { show: cropAvatar } }))
+
 vi.mock('@renderer/utils/image', async (importOriginal) => ({
   ...(await importOriginal<typeof ImageUtils>()),
   prepareEntityImageBytes: vi.fn(async () => new Uint8Array([1, 2, 3]))
@@ -104,6 +107,7 @@ describe('UserProfileEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockUsePreferenceUtils.resetMocks()
+    cropAvatar.mockResolvedValue({ x: 0, y: 0, width: 64, height: 64 })
   })
 
   it('shows the local nickname as text until edit is requested, then saves a trimmed draft', async () => {
@@ -173,6 +177,18 @@ describe('UserProfileEditor', () => {
         data: expect.any(Uint8Array)
       })
     })
+  })
+
+  it('frames the user avatar in a round crop and saves nothing when it is cancelled', async () => {
+    cropAvatar.mockResolvedValue(null)
+    render(<UserProfileEditor />)
+    fireEvent.click(screen.getByTestId('popover-trigger'))
+    const file = new File(['webp'], 'a.webp', { type: 'image/webp' })
+    const input = screen.getByTestId('popover-content').querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [file] } })
+
+    await waitFor(() => expect(cropAvatar).toHaveBeenCalledWith({ file, shape: 'round' }))
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('profile.set_avatar', expect.anything())
   })
 
   it('rejects an oversize avatar at pick time without calling profile.set_avatar', async () => {
