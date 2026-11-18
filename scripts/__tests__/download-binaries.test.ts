@@ -1,5 +1,3 @@
-import { execFileSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
 /**
  * Build-script coverage for download-binaries.js: the `zip-tree` extraction mode
  * (real extraction against a committed fixture, no fs mocking — the platform
@@ -7,6 +5,8 @@ import { createHash } from 'node:crypto'
  * replaced Expand-Archive, the shippability rules in verifyBundledBinaries, and
  * the shared-cache linking and reclaim logic.
  */
+import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import { createRequire } from 'node:module'
 import * as os from 'node:os'
