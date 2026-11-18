@@ -44,6 +44,14 @@ single-use credential that the browser redeems. Main opens it unchanged, fragmen
 included, only if it is on the Cloud API origin. Never log, report or persist it.
 Concurrent clicks share one in-flight entry.
 
+AMD models arrive through `/v1/models` with `provider: "amd"` and need no plan.
+Model sync treats an authorized one (`activation_required` not true) as an
+entitled free model without a quota pool. A locked one never reaches the model
+table: it goes into the receipt's `amdActivationRequiredModels`, and the selector
+shows it as an "AMD 授权" row. A `403 AMD_ACTIVATION_REQUIRED` or
+`AMD_CREDENTIAL_INVALID` response clears the model sync cache and keeps the
+session, so the next sync locks the model again.
+
 ## Login request signing
 
 The desktop client signs authorization creation and exchange requests using the

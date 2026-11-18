@@ -72,6 +72,26 @@ describe('CherryCloudQuotaNotice', () => {
     expect(startCherryCloudSubscription).not.toHaveBeenCalled()
   })
 
+  it('sends an unauthorized AMD model to the AMD entry, never to a subscription', async () => {
+    render(
+      <CherryCloudQuotaNotice
+        exhaustion={{
+          reason: 'amd_activation_required',
+          cloudModelId: 'amd/qwen',
+          isFreeModel: true,
+          isSubscribed: false
+        }}
+      />
+    )
+
+    expect(screen.getByText('登录 AMD 授权后即可免费使用')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'AMD 授权' }))
+
+    expect(request).toHaveBeenCalledWith('cherry_cloud.amd_entry.open', undefined)
+    expect(tracked()).toContainEqual(expect.objectContaining({ event: 'amd_entry_clicked', modelId: 'amd/qwen' }))
+    expect(startCherryCloudSubscription).not.toHaveBeenCalled()
+  })
+
   it.each([
     ['subscription_required', '订阅后才能使用该模型', true],
     ['not_in_plan', '当前套餐不包含该模型', false]

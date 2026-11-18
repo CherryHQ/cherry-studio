@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
+import { openAmdRegistration } from '@renderer/components/cherryCloud/amdFreeModels'
 import { useCommandRuntime } from '@renderer/hooks/command'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import type { CherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
@@ -38,6 +39,7 @@ export function CherryCloudQuotaNotice({ exhaustion }: { exhaustion: CherryCloud
     sign_in_required: t('chat.input.quota_notice.sign_in_required'),
     subscription_required: t('chat.input.quota_notice.subscription_required'),
     not_in_plan: t('chat.input.quota_notice.not_in_plan'),
+    amd_activation_required: t('models.amd_free.sign_in_hint'),
     unknown: t(exhaustion.reason === 'unknown' && exhaustion.state === 'error' ? 'error.unknown' : 'common.loading')
   }
   const Icon = quota || reason === 'unknown' ? Clock : Lock
@@ -68,6 +70,10 @@ export function CherryCloudQuotaNotice({ exhaustion }: { exhaustion: CherryCloud
       {signIn ? (
         <Button type="button" size="sm" disabled={session.isAuthorizing} onClick={() => void session.login()}>
           {t('settings.subscription.sign_in')}
+        </Button>
+      ) : exhaustion.reason === 'amd_activation_required' ? (
+        <Button type="button" size="sm" onClick={() => void openAmdRegistration(exhaustion.cloudModelId)}>
+          {t('models.amd_free.tag')}
         </Button>
       ) : quota || offerSubscription ? (
         <Button

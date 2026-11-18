@@ -16,6 +16,7 @@ export type CherryCloudQuotaExhaustion = {
   | { reason: 'unknown'; state: 'loading' | 'error' | 'stale' }
   | { reason: 'quota_exhausted'; recoversAt?: string }
   | { reason: 'sign_in_required' | 'subscription_required' | 'not_in_plan' }
+  | { reason: 'amd_activation_required'; cloudModelId: string }
 )
 
 // A pool serves the model again once all of its exhausted windows recover; any one such pool suffices.
@@ -41,8 +42,14 @@ export function useCherryCloudQuotaExhaustion(
   includeAgentOnlyModels = false
 ): CherryCloudQuotaExhaustion | null {
   const isCloudModel = Boolean(model && isManagedCherryCloudModel(model.providerId))
-  const { isModelFree, isModelLocked, isModelUnavailable, availabilityFreshness, availabilityError } =
-    useCherryCloudModelAvailability(isCloudModel)
+  const {
+    isModelFree,
+    isModelLocked,
+    isModelUnavailable,
+    isAmdActivationRequired,
+    availabilityFreshness,
+    availabilityError
+  } = useCherryCloudModelAvailability(isCloudModel)
   const locked = Boolean(model && isCloudModel && isModelLocked(model, includeAgentOnlyModels))
   const exhausted = Boolean(model && isCloudModel && !locked && isModelUnavailable(model))
   const { session, plansQuery, activePaid, upcomingPaid, isPlansReady, plansFreshness } =
@@ -78,6 +85,10 @@ export function useCherryCloudQuotaExhaustion(
       }
     }
     if (phase === 'signed-out') return { ...base, reason: 'sign_in_required' }
+    // AMD models need AMD authorization, not a plan.
+    if (isAmdActivationRequired(model)) {
+      return { ...base, reason: 'amd_activation_required', cloudModelId: parseUniqueModelId(model.id).modelId }
+    }
     if (phase !== 'signed-in' || !isPlansReady)
       return {
         ...base,
@@ -90,6 +101,7 @@ export function useCherryCloudQuotaExhaustion(
     activePaid,
     upcomingPaid,
     exhausted,
+    isAmdActivationRequired,
     isCherryAiModel,
     cherryAiPhase,
     isCloudModel,

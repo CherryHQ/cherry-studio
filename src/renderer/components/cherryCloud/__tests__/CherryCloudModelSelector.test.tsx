@@ -2,6 +2,7 @@ import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Fragment, type ReactNode } from 'react'
+import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
@@ -38,7 +39,8 @@ vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
     isModelUnavailable: () => false,
     getModelDescription: () => undefined,
     isAvailabilityReady: true,
-    availabilityError: undefined
+    availabilityError: undefined,
+    amdActivationRequiredModels: []
   })
 }))
 vi.mock('@renderer/services/cherryCloudSubscription', () => ({
@@ -113,8 +115,21 @@ describe('AMD free models', () => {
     isHidden: false
   })
 
-  it('lists the AMD rows last inside the CherryAI group in the China edition', async () => {
-    vi.stubGlobal('__APP_EDITION__', 'cn')
+  const general = ['agent', 'chat', 'translate'] as const
+  const publicCatalog = {
+    measured_at: '2026-11-09T00:00:00Z',
+    plans: [
+      {
+        id: '4ac04749-49f0-4930-9f9b-fbfe62999227',
+        display_name: 'Free',
+        is_free: true,
+        models: [{ id: 'free-model', display_name: 'Free Model', available_features: [...general] }]
+      }
+    ],
+    amd_models: [{ id: 'amd/qwen', display_name: 'AMD Qwen', available_features: ['chat', 'translate'] }]
+  }
+
+  it('lists the server catalog in the CherryAI group, with AMD rows last, and unlocks each its own way', async () => {
     availability.hidesEveryModel = false
     const providers = [provider('cherryai', 'CherryAI'), provider('openai', 'OpenAI')]
     const models = [model('cherryai', 'qwen'), model('openai', 'gpt-4')]
@@ -125,29 +140,39 @@ describe('AMD free models', () => {
       refetch: vi.fn(async () => undefined),
       mutate: vi.fn(async () => undefined)
     }))
-    try {
-      render(
+    request.mockImplementation(async (route: string) =>
+      route === 'cherry_cloud.public_plans.get' ? { ok: true, data: publicCatalog } : { ok: true, data: undefined }
+    )
+    const selector = () => (
+      <SWRConfig value={{ provider: () => new Map() }}>
         <CherryCloudModelSelector
           multiple={false}
           open
           onSelect={vi.fn()}
           trigger={<button type="button">Models</button>}
         />
-      )
-      const amdRow = await screen.findByText('Qwen3.8 27B')
+      </SWRConfig>
+    )
+    try {
+      const { rerender } = render(selector())
+      const amdRow = await screen.findByText('AMD Qwen')
       const text = document.body.textContent ?? ''
-      const qwen = [...document.querySelectorAll('*')].find((node) => node.textContent === 'qwen')
-      expect(text.indexOf('CherryAI')).toBeLessThan(text.indexOf('Qwen3.8 27B'))
-      expect(qwen?.compareDocumentPosition(amdRow)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-      expect(text.slice(text.indexOf('CherryAI'), text.indexOf('DeepSeek V4 Flash'))).not.toContain('gpt-4')
-      expect(text).not.toContain('models.amd_free.title')
-      // The 免费 filter keeps the AMD rows: they are free once authorized.
+      expect(text.indexOf('CherryAI')).toBeLessThan(text.indexOf('Free Model'))
+      expect(screen.getByText('Free Model').compareDocumentPosition(amdRow)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+      expect(text.slice(text.indexOf('CherryAI'), text.indexOf('AMD Qwen'))).not.toContain('gpt-4')
+      // The Free filter keeps both locked rows: each is free once unlocked.
       await userEvent.click(within(screen.getByTestId('model-selector-filter-tags')).getByText('models.type.free'))
-      expect(await screen.findByText('Qwen3.8 27B')).toBeInTheDocument()
+      expect(await screen.findByText('AMD Qwen')).toBeInTheDocument()
+      expect(screen.getByText('Free Model')).toBeInTheDocument()
       expect(screen.queryByText('gpt-4')).not.toBeInTheDocument()
-      expect(amdRow).toBeInTheDocument()
+
+      await userEvent.click(screen.getByText('AMD Qwen'))
+      expect(request).toHaveBeenCalledWith('cherry_cloud.amd_entry.open', undefined)
+      rerender(selector())
+      await userEvent.click(await screen.findByText('Free Model'))
+      expect(request).toHaveBeenCalledWith('cherry_cloud.login.start', undefined)
+      expect(startCherryCloudSubscription).not.toHaveBeenCalled()
     } finally {
-      vi.stubGlobal('__APP_EDITION__', 'global')
       availability.hidesEveryModel = true
     }
   })

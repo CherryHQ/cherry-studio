@@ -19,6 +19,13 @@ export const cherryCloudModelFeatureSchema = z.enum(['agent', 'chat', 'translate
 
 export type CherryCloudModelFeature = z.infer<typeof cherryCloudModelFeatureSchema>
 
+const cherryCloudPlanModelSchema = z.looseObject({
+  id: z.string(),
+  display_name: z.string().min(1),
+  capabilities: z.array(z.string()).optional(),
+  available_features: z.array(cherryCloudModelFeatureSchema)
+})
+
 const cherryCloudModelSyncResultSchema = z.strictObject({
   entitledModelIds: z.array(UniqueModelIdSchema),
   freeModelIds: z.array(UniqueModelIdSchema),
@@ -30,7 +37,9 @@ const cherryCloudModelSyncResultSchema = z.strictObject({
     agent: z.array(UniqueModelIdSchema),
     general: z.array(UniqueModelIdSchema)
   }),
-  quotaExhaustedModelIds: z.array(UniqueModelIdSchema)
+  quotaExhaustedModelIds: z.array(UniqueModelIdSchema),
+  /** AMD models the account can use only after authorizing AMD; they stay out of the model table until then. */
+  amdActivationRequiredModels: z.array(cherryCloudPlanModelSchema)
 })
 
 export type CherryCloudModelSyncResult = z.infer<typeof cherryCloudModelSyncResultSchema>
@@ -40,13 +49,6 @@ const cherryCloudSubscriptionPriceSchema = z.looseObject({
   currency: z.string(),
   interval: z.string(),
   unit_amount: z.number().int().nonnegative()
-})
-
-const cherryCloudPlanModelSchema = z.looseObject({
-  id: z.string(),
-  display_name: z.string().min(1),
-  capabilities: z.array(z.string()).optional(),
-  available_features: z.array(cherryCloudModelFeatureSchema)
 })
 
 const cherryCloudPlanSummarySchema = z.looseObject({
@@ -74,7 +76,9 @@ export const cherryCloudPublicPlanCatalogSchema = z.looseObject({
       models: z.array(cherryCloudPlanModelSchema),
       subscription_price: cherryCloudSubscriptionPriceSchema.optional()
     })
-  )
+  ),
+  /** AMD models offered after Cherry AI sign-in and AMD authorization; absent where AMD is not offered. */
+  amd_models: z.array(cherryCloudPlanModelSchema).optional()
 })
 
 const cherryCloudQuotaWindowSchema = z.looseObject({

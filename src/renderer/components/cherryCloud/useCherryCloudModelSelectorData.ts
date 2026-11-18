@@ -102,6 +102,9 @@ export function useCherryCloudModelSelectorData(options: UseModelSelectorDataOpt
   }
 }
 
+/** What a locked row asks of the user: sign in for a free model, subscribe, or authorize AMD. */
+export type CherryCloudOfferKind = 'sign_in' | 'subscription' | 'amd'
+
 export function useCherryCloudModelSelectorOffers(
   enabled: boolean,
   includeAgentOnlyModels: boolean,
@@ -109,6 +112,7 @@ export function useCherryCloudModelSelectorOffers(
   showOffers: boolean
 ) {
   const { session, plansQuery, activePaid, upcomingPaid, isPlansReady } = useCherryCloudPlans(enabled)
+  const { amdActivationRequiredModels } = useCherryCloudModelAvailability(enabled)
   const [cachedPlanModels, setCachedPlanModels] = usePersistCache('ui.cherry_cloud.plan_models')
   const livePlanModels = useMemo(
     () =>
@@ -128,43 +132,50 @@ export function useCherryCloudModelSelectorOffers(
     () => ipcApi.request('cherry_cloud.public_plans.get'),
     { shouldRetryOnError: false }
   )
-  const publicPlanModels = useMemo(
-    () =>
-      publicPlans &&
-      uniqBy(
-        publicPlans.plans.filter((plan) => !plan.is_free).flatMap((plan) => plan.models),
-        (model) => model.id
-      ),
-    [publicPlans]
-  )
   const paidPlan = activePaid ?? upcomingPaid
   const canOfferSubscription = showOffers && (signedOut || (isPlansReady && !paidPlan))
   const offers = useMemo(() => {
-    const planModels = canOfferSubscription
+    const publicModels = (free: boolean) =>
+      publicPlans?.plans.filter((plan) => plan.is_free === free).flatMap((plan) => plan.models)
+    const subscriptionModels = canOfferSubscription
       ? signedOut
-        ? (publicPlanModels ?? cachedPlanModels)
+        ? (publicModels(false) ?? cachedPlanModels)
         : (livePlanModels ?? [])
       : []
-    return planModels
-      .filter((model) => {
-        const features = new Set(model.available_features)
+    const candidates: { kind: CherryCloudOfferKind; offer: CherryCloudPlanModel }[] = showOffers
+      ? [
+          ...(signedOut ? (publicModels(true) ?? []) : []).map((offer) => ({ kind: 'sign_in' as const, offer })),
+          ...subscriptionModels.map((offer) => ({ kind: 'subscription' as const, offer })),
+          ...(signedOut ? (publicPlans?.amd_models ?? []) : amdActivationRequiredModels).map((offer) => ({
+            kind: 'amd' as const,
+            offer
+          }))
+        ]
+      : []
+    // A model in a free plan is offered as free, never as a reason to subscribe.
+    return uniqBy(candidates, ({ offer }) => offer.id)
+      .filter(({ offer }) => {
+        const features = new Set(offer.available_features)
         return (
           (includeAgentOnlyModels ? features.has('agent') : features.has('chat') && features.has('translate')) &&
-          isCherryCloudChatOffer(model) &&
-          offerFilter(model)
+          isCherryCloudChatOffer(offer) &&
+          offerFilter(offer)
         )
       })
-      .map((offer) => ({
+      .map(({ kind, offer }) => ({
+        kind,
         offer,
         modelId: createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, offer.id),
         tags: MODEL_DISPLAY_CAPABILITY_TAGS.filter((tag) => offer.capabilities?.includes(tag))
       }))
   }, [
+    showOffers,
     canOfferSubscription,
     signedOut,
-    publicPlanModels,
+    publicPlans,
     cachedPlanModels,
     livePlanModels,
+    amdActivationRequiredModels,
     includeAgentOnlyModels,
     offerFilter
   ])

@@ -12,6 +12,7 @@ import {
   type ModelSelectorProps
 } from '@renderer/components/ModelSelector'
 import { ModelTag, SubscriptionTag } from '@renderer/components/tags/Model'
+import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
@@ -20,9 +21,10 @@ import { getModelLogoRef } from '@renderer/utils/model'
 import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { SubscriptionEntrySource } from '@shared/ipc/schemas/cherryCloud'
 
-import { AMD_FREE_MODELS, isAmdFreeModelsOfferAvailable, openAmdRegistration } from './amdFreeModels'
+import { openAmdRegistration } from './amdFreeModels'
 import {
   CHERRY_CLOUD_SELECTOR_PROVIDER_IDS,
+  type CherryCloudOfferKind,
   isCherryCloudChatOffer,
   useCherryCloudModelSelectorOffers,
   useCherryCloudModelSelectorPolicy,
@@ -80,6 +82,7 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
     showSubscriptionOffers
   )
   const { isAvailabilityReady, isModelHidden } = availability
+  const session = useCherryAccountSession(enabled)
   const { providers } = useProviders({ enabled: true }, { enabled })
   const { models } = useModels({ enabled: true }, { fetchEnabled: enabled })
   const provider =
@@ -107,98 +110,90 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
       </button>
     </>
   ) : null
-  const actions = useMemo<ModelSelectorActionItem[]>(
-    () =>
-      !provider || (!isAvailabilityReady && !signedOut)
-        ? []
-        : offers.flatMap(({ offer, modelId, tags }) => {
-            const owned = models.some(
-              (model) =>
-                model.id === modelId &&
-                !isModelHidden(model, includeAgentOnlyModels ?? false) &&
-                (filter?.(model, provider) ?? true)
-            )
-            if (owned) return []
-            return [
-              {
-                key: `offer-${modelId}`,
-                type: 'action',
-                groupId: CHERRYAI_PROVIDER_ID,
-                providerId: CHERRY_CLOUD_PROVIDER_ID,
-                label: offer.display_name,
-                searchId: modelId,
-                tags,
-                leading: <OfferIcon id={modelId} name={offer.display_name} />,
-                trailing: (
-                  <div className="ml-2 flex h-[18px] max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
-                    <EntryView open={open} source="selector_locked_row" />
-                    <SubscriptionTag size={9} className="h-full" />
-                    {tags.map((tag) => (
-                      <ModelTag
-                        key={tag}
-                        tag={tag}
-                        size={9}
-                        showLabel={false}
-                        showTooltip
-                        className="h-full items-center"
-                      />
-                    ))}
-                  </div>
-                ),
-                detail: (
-                  <ModelSelectorDetailCardContent
-                    name={offer.display_name}
-                    modelIdentifier={offer.id}
-                    providerName={getProviderDisplayName(provider)}
-                    tags={tags}
-                  />
-                ),
-                onAction: () => {
-                  void startCherryCloudSubscription('selector_locked_row', { modelId })
-                }
+  const { login } = session
+  const actions = useMemo<ModelSelectorActionItem[]>(() => {
+    const lockedRows = {
+      sign_in: {
+        label: t('settings.subscription.sign_in'),
+        description: t('chat.input.quota_notice.sign_in_required'),
+        // Free models sort with the owned free models, ahead of subscription offers.
+        priority: 1
+      },
+      subscription: { label: undefined, description: undefined, priority: 0 },
+      amd: { label: t('models.amd_free.tag'), description: t('models.amd_free.sign_in_hint'), priority: 2 }
+    } satisfies Record<CherryCloudOfferKind, { label?: string; description?: string; priority: number }>
+    return !provider || (!isAvailabilityReady && !signedOut)
+      ? []
+      : offers.flatMap(({ kind, offer, modelId, tags: capabilityTags }) => {
+          const owned = models.some(
+            (model) =>
+              model.id === modelId &&
+              !isModelHidden(model, includeAgentOnlyModels ?? false) &&
+              (filter?.(model, provider) ?? true)
+          )
+          if (owned) return []
+          const row = lockedRows[kind]
+          const tags = kind === 'subscription' ? capabilityTags : (['free', ...capabilityTags] as const)
+          return [
+            {
+              key: `offer-${modelId}`,
+              type: 'action',
+              groupId: CHERRYAI_PROVIDER_ID,
+              providerId: CHERRY_CLOUD_PROVIDER_ID,
+              label: offer.display_name,
+              searchId: modelId,
+              tags: [...tags],
+              leading: <OfferIcon id={modelId} name={offer.display_name} />,
+              trailing: (
+                <div className="ml-2 flex h-[18px] max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
+                  {kind === 'subscription' && <EntryView open={open} source="selector_locked_row" />}
+                  <SubscriptionTag size={9} label={row.label} className="h-full" />
+                  {tags.map((tag) => (
+                    <ModelTag
+                      key={tag}
+                      tag={tag}
+                      size={9}
+                      showLabel={false}
+                      showTooltip
+                      className="h-full items-center"
+                    />
+                  ))}
+                </div>
+              ),
+              detail: (
+                <ModelSelectorDetailCardContent
+                  name={offer.display_name}
+                  modelIdentifier={offer.id}
+                  providerName={getProviderDisplayName(provider)}
+                  tags={[...tags]}
+                  description={row.description}
+                />
+              ),
+              priority: row.priority,
+              onAction: () => {
+                if (kind === 'sign_in') void login()
+                else if (kind === 'amd') void openAmdRegistration(offer.id)
+                else void startCherryCloudSubscription('selector_locked_row', { modelId })
               }
-            ]
-          }),
-    [isAvailabilityReady, isModelHidden, models, offers, open, signedOut, filter, includeAgentOnlyModels, provider]
-  )
-  const amdOffer = showSubscriptionOffers && isAmdFreeModelsOfferAvailable()
-  const getAmdAccess = (modelId: string) => {
-    onOpenChange(false)
-    void openAmdRegistration(modelId)
-  }
-  const amdActions: ModelSelectorActionItem[] = amdOffer
-    ? AMD_FREE_MODELS.map((model) => ({
-        key: `amd-free-${model.id}`,
-        type: 'action',
-        groupId: CHERRYAI_PROVIDER_ID,
-        providerId: CHERRY_CLOUD_PROVIDER_ID,
-        label: model.name,
-        searchId: model.id,
-        tags: ['free'],
-        leading: <OfferIcon id={model.id} name={model.name} />,
-        trailing: (
-          <div className="ml-2 flex h-[18px] shrink-0 items-center justify-end gap-1">
-            <SubscriptionTag size={9} label={t('models.amd_free.tag')} className="h-full" />
-            <ModelTag tag="free" size={9} showLabel={false} showTooltip className="h-full items-center" />
-          </div>
-        ),
-        detail: (
-          <ModelSelectorDetailCardContent
-            name={model.name}
-            modelIdentifier={model.id}
-            providerName={t('provider.radeon-cloud')}
-            tags={['free']}
-            description={t('models.amd_free.sign_in_hint')}
-          />
-        ),
-        // After the free CherryAI models (priority 1) and subscription offers.
-        priority: 2,
-        onAction: () => getAmdAccess(model.id)
-      }))
-    : []
+            }
+          ]
+        })
+  }, [
+    isAvailabilityReady,
+    isModelHidden,
+    models,
+    offers,
+    open,
+    signedOut,
+    filter,
+    includeAgentOnlyModels,
+    provider,
+    login,
+    t
+  ])
   const composition = {
     getModelPresentation,
-    actions: [...amdActions, ...actions],
+    actions,
     providerGroups: [
       {
         id: CHERRYAI_PROVIDER_ID,

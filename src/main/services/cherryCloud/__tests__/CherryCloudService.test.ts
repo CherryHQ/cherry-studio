@@ -1142,7 +1142,8 @@ describe('CherryCloudService', () => {
         agent: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go'],
         general: ['cherryai-subscription::deepseek-go']
       },
-      quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free']
+      quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free'],
+      amdActivationRequiredModels: []
     })
 
     expect(mocks.modelCreate).toHaveBeenCalledWith([
@@ -1387,10 +1388,47 @@ describe('CherryCloudService', () => {
         agent: ['cherryai-subscription::deepseek-free'],
         general: []
       },
-      quotaExhaustedModelIds: []
+      quotaExhaustedModelIds: [],
+      amdActivationRequiredModels: []
     })
     expect(mocks.modelCreate).not.toHaveBeenCalled()
     expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
+  })
+
+  it('serves authorized AMD models without a plan and offers unauthorized ones as locked previews', async () => {
+    const service = await createSignedInService()
+    const amdModel = (id: string, activationRequired: boolean) => ({
+      id,
+      display_name: id,
+      endpoint_type: 'openai-chat-completions',
+      context_window: 32_768,
+      max_output_tokens: 4_096,
+      capabilities: ['function-call'],
+      available_features: ['chat', 'translate'],
+      provider: 'amd',
+      activation_required: activationRequired
+    })
+    mockModelSync(
+      { ...accountSnapshot, entitlements: [] },
+      { data: [amdModel('amd/linked', false), amdModel('amd/locked', true)] }
+    )
+
+    await expect(service['syncEntitledModels']()).resolves.toEqual({
+      entitledModelIds: ['cherryai-subscription::amd/linked'],
+      freeModelIds: ['cherryai-subscription::amd/linked'],
+      availableModelIds: { agent: [], general: ['cherryai-subscription::amd/linked'] },
+      quotaExhaustedModelIds: [],
+      amdActivationRequiredModels: [
+        {
+          id: 'amd/locked',
+          display_name: 'amd/locked',
+          capabilities: ['function-call'],
+          available_features: ['chat', 'translate']
+        }
+      ]
+    })
+    const created = mocks.modelCreate.mock.calls.flatMap(([rows]) => rows.map((row: any) => row.dto.modelId))
+    expect(created).toEqual(['amd/linked'])
   })
 
   it('rejects model protocols outside the Cherry Cloud contract', async () => {
@@ -1424,7 +1462,8 @@ describe('CherryCloudService', () => {
       entitledModelIds: [],
       freeModelIds: [],
       availableModelIds: { agent: [], general: [] },
-      quotaExhaustedModelIds: []
+      quotaExhaustedModelIds: [],
+      amdActivationRequiredModels: []
     })
     expect(mocks.modelCreate).not.toHaveBeenCalled()
     expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
@@ -1461,7 +1500,8 @@ describe('CherryCloudService', () => {
           agent: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go'],
           general: ['cherryai-subscription::deepseek-go']
         },
-        quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free']
+        quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free'],
+        amdActivationRequiredModels: []
       })
       expect(mocks.netFetch).toHaveBeenCalledTimes(2)
     } finally {
@@ -1469,11 +1509,13 @@ describe('CherryCloudService', () => {
     }
   })
 
-  it('asks for models again after a model request is rejected with 403 ENTITLEMENT_INACTIVE', async () => {
+  it.each(['ENTITLEMENT_INACTIVE', 'AMD_ACTIVATION_REQUIRED', 'AMD_CREDENTIAL_INVALID'])(
+    'asks for models again after a model request is rejected with 403 %s',
+    async (code) => {
     const service = await createSignedInService()
     mockModelSync()
     await service.syncEntitledModelsIfStale()
-    mockCloudRoute('/v1/messages', cloudErrorResponse(403, 'ENTITLEMENT_INACTIVE'))
+    mockCloudRoute('/v1/messages', cloudErrorResponse(403, code))
     await service.authenticatedFetch('/v1/messages', { method: 'POST' })
     mocks.netFetch.mockClear()
 
@@ -1481,7 +1523,10 @@ describe('CherryCloudService', () => {
     await service.syncEntitledModelsIfStale()
 
     expect(requestCalls('/v1/models?limit=1000')).toHaveLength(1)
-  })
+    // An AMD refusal is about the AMD key, never the Cherry sign-in.
+    expect((await service.getStatus()).phase).toBe('signed-in')
+    }
+  )
 
   it('asks for models again after the system wakes from sleep', async () => {
     const service = await createSignedInService()

@@ -63,6 +63,13 @@ const PRODUCTION_API_ORIGINS = {
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000
 const CLOUD_CONTROL_REQUEST_TIMEOUT_MS = 30_000
 const CLOUD_MODEL_SYNC_CACHE_TTL_MS = 60_000
+const AMD_MODEL_PROVIDER = 'amd'
+// Refusals that change what the account may use; AMD credential rejections are not sign-out signals.
+const SYNC_INVALIDATING_FORBIDDEN_CODES = new Set([
+  'ENTITLEMENT_INACTIVE',
+  'AMD_ACTIVATION_REQUIRED',
+  'AMD_CREDENTIAL_INVALID'
+])
 
 type CherryCloudRequestInit = Omit<RequestInit, 'body'> & { body?: string }
 type CherryCloudDevice = ReturnType<typeof createDeviceKeyPair>
@@ -1055,7 +1062,8 @@ export class CherryCloudService extends BaseService {
         entitledModelIds: [],
         freeModelIds: [],
         availableModelIds: { agent: [], general: [] },
-        quotaExhaustedModelIds: []
+        quotaExhaustedModelIds: [],
+        amdActivationRequiredModels: []
       }
     }
 
@@ -1086,7 +1094,12 @@ export class CherryCloudService extends BaseService {
     const paidApiModelIds = new Set(
       activeEntitlements.filter((entitlement) => !entitlement.is_free).flatMap((entitlement) => entitlement.model_ids)
     )
-    const models = catalog.data.filter((model) => entitledModelIds.has(model.id))
+    // AMD models need no plan: the server lists them per account and gates them on AMD authorization.
+    const isAmd = (model: (typeof catalog.data)[number]) => model.provider === AMD_MODEL_PROVIDER
+    const lockedAmdModels = catalog.data.filter((model) => isAmd(model) && model.activation_required === true)
+    const models = catalog.data.filter((model) =>
+      isAmd(model) ? model.activation_required !== true : entitledModelIds.has(model.id)
+    )
     const quotaAvailableByModelId = new Map<string, boolean>()
     for (const pool of account.quota_pools) {
       // Settled usage only: remaining_units also subtracts in-flight reservations, which free up within seconds.
@@ -1107,7 +1120,9 @@ export class CherryCloudService extends BaseService {
     const freeModelIds: CherryCloudModelSyncResult['freeModelIds'] = []
     for (const model of models) {
       const uniqueModelId = createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id)
-      if (freeApiModelIds.has(model.id) && !paidApiModelIds.has(model.id)) freeModelIds.push(uniqueModelId)
+      if (isAmd(model) || (freeApiModelIds.has(model.id) && !paidApiModelIds.has(model.id))) {
+        freeModelIds.push(uniqueModelId)
+      }
       const features = new Set(model.available_features)
       if (features.has('agent')) agentModelIds.push(uniqueModelId)
       if (features.has('chat') && features.has('translate')) {
@@ -1128,7 +1143,13 @@ export class CherryCloudService extends BaseService {
         agent: [...new Set(agentModelIds)],
         general: [...new Set(generalModelIds)]
       },
-      quotaExhaustedModelIds
+      quotaExhaustedModelIds,
+      amdActivationRequiredModels: lockedAmdModels.map((model) => ({
+        id: model.id,
+        display_name: model.display_name,
+        capabilities: model.capabilities,
+        available_features: model.available_features
+      }))
     }
   }
 
@@ -1318,7 +1339,7 @@ export class CherryCloudService extends BaseService {
     // Cloud strips upstream Cherry-* headers, so upstream 401 bodies cannot invalidate the login.
     const code = response.headers.get('Cherry-Error-Code')
     // The snapshot let this request through, so the next check asks the server again.
-    if ((response.status === 403 && code === 'ENTITLEMENT_INACTIVE') || isQuotaRefusal(response)) {
+    if ((response.status === 403 && code !== null && SYNC_INVALIDATING_FORBIDDEN_CODES.has(code)) || isQuotaRefusal(response)) {
       this.modelSyncCache = null
     }
     if (idempotencyKey && isQuotaRefusal(response)) {

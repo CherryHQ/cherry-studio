@@ -16,6 +16,7 @@ const facts = vi.hoisted(() => ({
   availabilityError: undefined as Error | undefined,
   exhausted: true,
   locked: false,
+  amdLocked: false,
   phase: 'signed-in' as 'signed-in' | 'signed-out' | undefined,
   loadState: 'ready' as 'ready' | 'loading' | 'error',
   plansReady: true,
@@ -32,7 +33,8 @@ vi.mock('../useCherryCloudModelAvailability', () => ({
     availabilityError: facts.availabilityError,
     isModelFree: (model: Model) => model.id.endsWith('free-model'),
     isModelLocked: () => facts.freshness === 'fresh' && facts.locked,
-    isModelUnavailable: () => facts.freshness === 'fresh' && facts.exhausted
+    isModelUnavailable: () => facts.freshness === 'fresh' && facts.exhausted,
+    isAmdActivationRequired: () => facts.freshness === 'fresh' && facts.amdLocked
   })
 }))
 vi.mock('../useCherryAccountSession', () => ({
@@ -121,6 +123,7 @@ beforeEach(() => {
     availabilityError: undefined,
     exhausted: true,
     locked: false,
+    amdLocked: false,
     phase: 'signed-in',
     loadState: 'ready',
     plansReady: true,
@@ -237,6 +240,20 @@ describe('useCherryCloudQuotaExhaustion', () => {
     })
     const { result } = renderHook(() => useCherryCloudQuotaExhaustion(paidModel, true))
     expect(result.current?.reason).toBe(reason)
+  })
+
+  it.each([
+    ['signed-out', 'sign_in_required'],
+    ['signed-in', 'amd_activation_required']
+  ] as const)('asks for AMD authorization, not a plan, for a locked AMD model (%s)', (phase, reason) => {
+    // A subscriber is still asked to authorize AMD; plans never unlock AMD models.
+    Object.assign(facts, { phase, locked: true, amdLocked: true, exhausted: false, activePaid: paidPlan() })
+    const amdModel = {
+      id: createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'amd/qwen'),
+      providerId: CHERRY_CLOUD_PROVIDER_ID
+    } as Model
+    const { result } = renderHook(() => useCherryCloudQuotaExhaustion(amdModel))
+    expect(result.current).toMatchObject({ reason, ...(phase === 'signed-in' && { cloudModelId: 'amd/qwen' }) })
   })
 
   it('reports no obstacle for a current model with quota left', () => {

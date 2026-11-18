@@ -127,7 +127,10 @@ export const cloudModelListSchema = z.looseObject({
       context_window: z.number().int().positive(),
       max_output_tokens: z.number().int().positive(),
       capabilities: cloudModelCapabilitiesSchema,
-      available_features: z.array(cherryCloudModelFeatureSchema).min(1)
+      available_features: z.array(cherryCloudModelFeatureSchema).min(1),
+      /** `amd` marks AMD free models, served with the account's own AMD key instead of a plan entitlement. */
+      provider: z.string().optional(),
+      activation_required: z.boolean().optional()
     })
   )
 })
