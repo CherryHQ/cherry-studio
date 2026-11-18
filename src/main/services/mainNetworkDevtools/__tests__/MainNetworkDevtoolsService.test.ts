@@ -5,8 +5,10 @@ import { createServer, get as httpGet, request as httpRequest } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
+import { setImmediate } from 'node:timers/promises'
 import { promisify } from 'node:util'
-import vm from 'node:vm'
+import { setFlagsFromString } from 'node:v8'
+import vm, { runInNewContext } from 'node:vm'
 
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -56,6 +58,17 @@ import {
   redactUrl
 } from '../MainNetworkDevtoolsService'
 
+setFlagsFromString('--expose_gc')
+const collectGarbage = runInNewContext('gc') as () => void
+
+async function retainedHeap(): Promise<number> {
+  await setImmediate()
+  collectGarbage()
+  await setImmediate()
+  collectGarbage()
+  return process.memoryUsage().heapUsed
+}
+
 describe('MainNetworkDevtoolsService helpers', () => {
   beforeEach(() => {
     BaseService.resetInstances()
@@ -64,6 +77,29 @@ describe('MainNetworkDevtoolsService helpers', () => {
 
   afterEach(() => {
     BaseService.resetInstances()
+  })
+
+  it('releases large request strings while retaining their bounded diagnostic previews', async () => {
+    const previews: ReturnType<typeof captureRequestBody>[] = []
+    const before = await retainedHeap()
+    for (let index = 0; index < 20; index++) {
+      // Plain text keeps the bounded preview path: truncated JSON intentionally omits
+      // text because safe redaction cannot be established (see the secrecy cases).
+      previews.push(captureRequestBody(`doc-${index}-漢${'漢'.repeat(2 * 1024 * 1024)}`, 'text/plain'))
+    }
+
+    const retained = (await retainedHeap()) - before
+    expect(previews).toHaveLength(20)
+    expect(previews.every((preview) => preview?.truncated && preview.text?.length === 128 * 1024)).toBe(true)
+    expect(retained).toBeLessThan(16 * 1024 * 1024)
+  })
+
+  it('preserves UTF-16 code units when the capture limit splits a surrogate pair', () => {
+    const preview = captureRequestBody(`${'x'.repeat(128 * 1024 - 1)}😀tail`, 'text/plain')
+
+    expect(preview?.truncated).toBe(true)
+    expect(preview?.text).toHaveLength(128 * 1024)
+    expect(preview?.text?.endsWith('\ud83d')).toBe(true)
   })
 
   it('redacts sensitive URL credentials and query params', () => {

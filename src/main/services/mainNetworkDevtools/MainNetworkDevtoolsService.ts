@@ -1013,7 +1013,8 @@ function createCapturedTextBody(
   const redactedText = redactBodyText(visibleText, contentType, precisionRisk)
   const containsNul = redactedText.includes('\0')
   return {
-    text: redactedText,
+    // Copy UTF-16 code units so the bounded preview cannot retain the full body's backing string.
+    text: Buffer.from(redactedText, 'utf16le').toString('utf16le'),
     contentType,
     size,
     truncated: truncated || undefined,

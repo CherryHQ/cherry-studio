@@ -746,6 +746,9 @@ CLI subscription login retains native authentication. See the gateway's
 [internal endpoint policy](../api-gateway/README.md#internal-listener-for-cherry-consumers).
 
 Root content passes through `ThreadMessageProjection` and `RootMessageProjection`.
+Observation values are frozen and shared, so a repeated snapshot reuses the previous view of every
+message whose source object is unchanged without decorating it again; an explicit refresh still
+re-decorates its messages.
 Native replacements retain product ownership across steer boundaries; explicit
 retractions persist with the context checkpoint. The runtime adapter preserves ordered
 AI SDK message parts, including tool output, reasoning signatures, files and citations.
@@ -765,7 +768,10 @@ feed omits. Subsequent content follows the observer; there is no transcript poll
 
 Each child uses its own `ChildThreadProjection`, context and archive, including
 nested children under their immediate parent. Parent completion and window detach
-do not stop child persistence. Claude no longer writes child bodies into the
+do not stop child persistence. Its committed projection persists across archive reads, so a read
+redecorates only changed messages, and it writes the checkpoint, input bindings and response owners only
+when they change. It saves a message only when it differs from its stored row as that row reads back from
+JSON, where undefined fields are absent, so reopening a child rewrites nothing. Claude no longer writes child bodies into the
 parent's background-flow parts; saved historical flows remain readable.
 After a failed cold attachment, Claude retries the saved session-scoped native binding
 when it belongs to the current backend. The root's native creation lookup need not retain
@@ -1042,7 +1048,10 @@ Child attachment waits for the shared root connection, then calls the concrete
 origin, actual parent and access together. Main joins concurrent attachment through one child
 resource record. Failed creation or owner closure ends the wait; parent reply completion does not
 close independently running children. Failed attachment releases its lease and can retry, while
-failed final persistence retains the resource and its unflushed output. A detached or
+failed final persistence retains the resource and its unflushed output. A finished child (idle
+with a run result and no input without an outcome) that no viewer subscribes to is flushed and
+released, keeping only its origin and context ID; opening its panel, messaging it or a native
+resume attaches it again. A detached or
 destroyed window cannot install a late subscription. Archive reconciliation preserves product IDs
 and orders evidenced rows by committed native history followed by live content, correcting saved
 parent links when necessary; rows outside current native/live coverage remain retained in place.
@@ -1073,7 +1082,10 @@ Main reply open through child reports and parent summarization; notifications wi
 boundary append to that same reply. A continuation uses its current triggering call, not the child's
 immutable creation call. Historical input snapshots update saved facts without reassigning old responses.
 `durable.observe` carries content, input outcomes, background-result facts and foreground completion
-from the same native commit revision. Unresolved accepted/native-only input, admission, foreground work or compaction
+from the same native commit revision. Within a run it sends message and input changes; snapshots arrive
+when observation starts, after a gap and when a run starts, which is when Main detects an autonomous
+turn. A run end arrives as `activity.changed` carrying the completion, and Main reports and binds an
+input only when its state changes. Unresolved accepted/native-only input, admission, foreground work or compaction
 keeps settlement pending. Main has no pending-input polling loop and never derives completion
 from idle activity or an empty product-input map.
 
