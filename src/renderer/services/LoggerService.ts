@@ -209,17 +209,15 @@ export class LoggerService {
       // In renderer process, forward the log to main via the App_LogToMain channel
       if (!IS_WORKER) {
         // Structured clone drops custom Error fields such as cancellation names and codes.
-        const serializedData = data.map((item) =>
-          item instanceof Error
-            ? {
-                name: item.name,
-                errorMessage: item.message,
-                stack: item.stack,
-                ...('reportingHandled' in item && item.reportingHandled === true ? { reportingHandled: true } : {}),
-                code: 'code' in item && typeof item.code === 'string' ? item.code : undefined
-              }
-            : item
-        )
+        const serializedData = data.map((item) => {
+          if (!(item instanceof Error)) return item
+          const serialized = { name: item.name, errorMessage: item.message, stack: item.stack }
+          if ('reportingHandled' in item && item.reportingHandled === true)
+            Object.assign(serialized, { reportingHandled: true })
+          return Object.assign(serialized, {
+            code: 'code' in item && typeof item.code === 'string' ? item.code : undefined
+          })
+        })
         void window.electron.ipcRenderer.invoke(IpcChannel.App_LogToMain, source, level, message, serializedData)
         if (level === LEVEL.ERROR) {
           try {
