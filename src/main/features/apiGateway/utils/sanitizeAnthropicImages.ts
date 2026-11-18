@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 import type {
   ContentBlockParam,
   ImageBlockParam,
@@ -6,11 +8,9 @@ import type {
   ToolResultBlockParam
 } from '@anthropic-ai/sdk/resources/messages'
 
-type ToolResultContentBlock = Exclude<ToolResultBlockParam['content'], string | undefined>[number]
-
-import { createHash } from 'node:crypto'
-
 import { isDecodableImage } from '@main/utils/image'
+
+type ToolResultContentBlock = Exclude<ToolResultBlockParam['content'], string | undefined>[number]
 
 export const UNDECODABLE_IMAGE_PLACEHOLDER = '[image could not be decoded]'
 
