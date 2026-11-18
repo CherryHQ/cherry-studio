@@ -24,13 +24,13 @@ export const SKILL_SEARCH_FAILED_ERROR = SHARED_SKILL_SEARCH_FAILED_ERROR
 // Fetch helpers
 // ===========================================================================
 
-async function fetchJson<TResult>(url: string, parse: (raw: unknown) => TResult): Promise<TResult> {
+async function fetchJson<TResult>(url: string, schema: z.ZodType<TResult>): Promise<TResult> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   try {
     const response = await fetch(url, { signal: controller.signal })
     if (!response.ok) throw new Error('HTTP ' + response.status)
-    return parse(await response.json())
+    return schema.parse(await response.json())
   } finally {
     clearTimeout(timer)
   }
@@ -64,9 +64,7 @@ const skillsShLeaderboardSchema = z.object({
 })
 
 export async function loadSkillsShLeaderboard(page: number) {
-  const data = await fetchJson('https://skills.sh/api/skills/all-time/' + page, (raw) =>
-    skillsShLeaderboardSchema.parse(raw)
-  )
+  const data = await fetchJson('https://skills.sh/api/skills/all-time/' + page, skillsShLeaderboardSchema)
   if (data.page !== page || (data.hasMore && data.skills.length === 0)) throw new Error('Invalid skills.sh pagination')
   const items = normalizeSkillsSh({
     query: '',
@@ -102,7 +100,7 @@ export async function loadClaudePluginsSkills(
   const url = new URL('https://api.claude-plugins.dev/api/skills/search')
   url.searchParams.set('limit', String(limit))
   url.searchParams.set('offset', String(offset))
-  const data = await fetchJson(url.toString(), (raw) => ClaudePluginsSearchResponseSchema.parse(raw))
+  const data = await fetchJson(url.toString(), ClaudePluginsSearchResponseSchema)
   const total = data.total
   if (
     data.offset !== offset ||
