@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import type { OutputFor } from '@shared/ipc/types'
+import type { InputFor, OutputFor } from '@shared/ipc/types'
 import { resolveLocalizedText } from '@shared/types/miniAppManifest'
 
 /** The card's input — an install (fresh or reinstall) or an upgrade, as main decided by version. */
@@ -135,20 +135,22 @@ export function useMiniAppInstallPreview(onDone: () => void, options: { expectAp
     try {
       if (preview.kind === 'upgrade') {
         const { update } = preview
-        await ipcApi.request('mini_app.update.apply', {
+        const input: InputFor<'mini_app.update.apply'> = {
           appId: preview.appId,
-          updateToken: update.updateToken,
-          ...(decision.consented ? { consented: true } : {}),
-          ...(update.addedOptional.length > 0 ? { grantedOptional: decision.grantedOptional } : {})
-        })
+          updateToken: update.updateToken
+        }
+        if (decision.consented) input.consented = true
+        if (update.addedOptional.length > 0) input.grantedOptional = decision.grantedOptional
+        await ipcApi.request('mini_app.update.apply', input)
         toast.success(t('miniApp.install.upgrade_success', { name, version: update.version }))
       } else {
         if (!installToken) return
-        await ipcApi.request('mini_app.install.confirm', {
+        const input: InputFor<'mini_app.install.confirm'> = {
           installToken,
-          grantedOptional: decision.grantedOptional,
-          ...(preview.installed ? { reinstall: { clearData: decision.clearData === true } } : {})
-        })
+          grantedOptional: decision.grantedOptional
+        }
+        if (preview.installed) input.reinstall = { clearData: decision.clearData === true }
+        await ipcApi.request('mini_app.install.confirm', input)
         toast.success(t(preview.installed ? 'miniApp.install.reinstall_success' : 'miniApp.install.success', { name }))
       }
       if (closedRef.current || generation !== generationRef.current) return
