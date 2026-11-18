@@ -5,7 +5,7 @@ import { ElysiaCustomStatusResponse, type ErrorHandler, ValidationError } from '
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
 import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
-import { DataApiError } from '@shared/data/api/errors'
+import { DataApiError, type SerializedDataApiError } from '@shared/data/api/errors'
 import type { SerializedError } from '@shared/types/error'
 
 import type { OutputFormat } from './adapters'
@@ -80,9 +80,11 @@ const anthropicEnvelope = (type: string, message: string) => ({ type: 'error' as
 const openaiEnvelope = (type: string, message: string, code: string) => ({ error: { message, type, code } })
 
 /** Cherry REST envelope — mirrors the v2 `DataApiError` vocabulary. */
-const restEnvelope = (code: string, message: string, details?: Record<string, unknown>) => ({
-  error: { code, message, ...(details ? { details } : {}) }
-})
+const restEnvelope = (code: string, message: string, details?: Record<string, unknown>) => {
+  const error: Pick<SerializedDataApiError, 'code' | 'message' | 'details'> = { code, message }
+  if (details) error.details = details
+  return { error }
+}
 
 /**
  * JSON-RPC 2.0 error envelope for the MCP proxy. Not typed as the SDK's

@@ -2,6 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, CHERRY_SERVICE_TIER_HEADER } from '@main/ai/constants'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
+import type { AssistantTurnOptions } from '@shared/data/types/message'
 import { ENDPOINT_TYPE, ServiceTierSelectionSchema } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
@@ -84,9 +85,11 @@ export async function resolveGatewayRequest(config: MessageConfig) {
   const tier = ServiceTierSelectionSchema.safeParse(tierHeader ?? undefined)
   if ((reasoningHeader && !reasoning.success) || (tierHeader && !tier.success))
     throw asClientError(new Error('Invalid internal Agent request options'))
+  const selections: Omit<AssistantTurnOptions, 'fastMode'> = {}
+  if (reasoning.success) selections.reasoningEffort = reasoning.data
+  if (tier.success) selections.serviceTier = tier.data
   const turnOptions = {
-    ...(reasoning.success ? { reasoningEffort: reasoning.data } : {}),
-    ...(tier.success ? { serviceTier: tier.data } : {}),
+    ...selections,
     fastMode:
       config.fastMode === true || (isInternalRequest && config.requestHeaders?.get(CHERRY_FAST_MODE_HEADER) === 'true')
   }
@@ -96,7 +99,8 @@ export async function resolveGatewayRequest(config: MessageConfig) {
     ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
     : undefined
   // agentSessionId lets System Doctor attribute this upstream hop to the Agent session that made it.
-  const logContext = { providerId, modelId, ...(agentSessionId ? { agentSessionId } : {}) }
+  const logContext: { providerId: string; modelId: string; agentSessionId?: string } = { providerId, modelId }
+  if (agentSessionId) logContext.agentSessionId = agentSessionId
 
   const isStreaming = config.streaming ?? ('stream' in params && (params as { stream?: boolean }).stream === true)
 
