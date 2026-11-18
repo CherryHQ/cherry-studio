@@ -11,6 +11,7 @@ import { isDeepStrictEqual } from 'node:util'
 import * as z from 'zod'
 
 import { application } from '@application'
+import type { DataResponse } from '@shared/data/api/types'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import type { DoctorFixResult } from '@shared/types/doctor'
 import type { DoctorAgentWrite } from '@shared/types/doctorAgent'
@@ -60,6 +61,7 @@ export function isPreferenceWritable(key: string): key is DoctorWritablePreferen
 /** The value an allow-listed preference write may carry, or a thrown validation error. */
 export function parsePreferenceWrite(
   key: string,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Model tool proposals supply untyped preference values; validate against the selected allow-listed key schema before writing.
   value: unknown
 ): { key: DoctorWritablePreferenceKey; value: unknown } {
   if (!isPreferenceWritable(key)) throw new Error(`Preference "${key}" is not writable by the doctor`)
@@ -74,6 +76,7 @@ export function redactTextForModel(text: string): string {
 }
 
 /** Key-name redaction plus `redactTextForModel` on every string. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- DataApi reads, preference values and incident evidence have independent shapes; redact their nested keys and strings before model exposure.
 export function redactForModel(value: unknown): Serializable {
   const walk = (val: Serializable): Serializable => {
     if (typeof val === 'string') return redactTextForModel(val)
@@ -90,6 +93,7 @@ export function isDataApiPatchPath(path: string): boolean {
   return DATA_API_PATCH_PATHS.some((pattern) => pattern.test(path))
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Existing entity fields and preference values may contain secrets at any depth; reject writes whose undo snapshot would capture those credentials.
 function containsSecretMaterial(value: unknown): boolean {
   if (typeof value === 'string') return redactTextForModel(value) !== value
   if (Array.isArray(value)) return value.some(containsSecretMaterial)
@@ -114,7 +118,7 @@ export interface DataApiQuery {
 interface DataApiResult {
   readonly status: number
   readonly data?: unknown
-  readonly error?: unknown
+  readonly error?: DataResponse['error']
 }
 
 /** Raw in-process DataApi call; never hand its `data` to the model. */
@@ -140,6 +144,7 @@ export async function queryDataApi(input: DataApiQuery): Promise<DataApiResult> 
 
 /** Refuses a PATCH body that names a credential field at any depth, whatever the handler would do with it. */
 export function assertNoSecretFields(body: Record<string, unknown>): void {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Proposed PATCH bodies contain arbitrary nested values; reject credential keys and credential-bearing strings before the handler validates field shapes.
   const walk = (value: unknown, trail: string[]): void => {
     if (typeof value === 'string') {
       if (redactTextForModel(value) !== value) {
@@ -173,15 +178,10 @@ export interface AppliedWrite {
   readonly fix?: DoctorFixResult
 }
 
-function failureMessage(error: unknown): string {
-  if (typeof error === 'object' && error !== null && 'message' in error) return String(error.message)
-  return String(error)
-}
-
 async function readEntity(path: string): Promise<Record<string, unknown>> {
   const current = await fetchDataApi({ method: 'GET', path })
   if (current.error || typeof current.data !== 'object' || current.data === null) {
-    throw new Error(`Cannot read ${path}: ${failureMessage(current.error ?? 'no data')}`)
+    throw new Error(`Cannot read ${path}: ${current.error?.message ?? 'no data'}`)
   }
   return current.data as Record<string, unknown>
 }
@@ -201,7 +201,7 @@ export async function applyWrite(write: DoctorAgentWrite): Promise<AppliedWrite>
         before[key] = raw[key] ?? null
       }
       const result = await fetchDataApi({ method: 'PATCH', path: write.path, body: { ...write.body } })
-      if (result.error) throw new Error(failureMessage(result.error))
+      if (result.error) throw new Error(result.error.message)
       const updated = await readEntity(write.path)
       const after = Object.fromEntries(Object.keys(write.body).map((key) => [key, updated[key] ?? null]))
       return { before, after, undoable: true }
@@ -226,6 +226,7 @@ export async function applyWrite(write: DoctorAgentWrite): Promise<AppliedWrite>
 }
 
 /** Restores `before` only while the stored value is still what the write put there. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- DoctorAgentService returns applyWrite snapshots from its current-run ledger: PATCH field records or preference values, compared/restored according to write.kind.
 export async function undoWrite(write: DoctorAgentWrite, before: unknown, after: unknown): Promise<void> {
   switch (write.kind) {
     case 'data_api_patch': {
@@ -240,7 +241,7 @@ export async function undoWrite(write: DoctorAgentWrite, before: unknown, after:
         path: write.path,
         body: { ...(before as Record<string, unknown>) }
       })
-      if (result.error) throw new Error(failureMessage(result.error))
+      if (result.error) throw new Error(result.error.message)
       return
     }
     case 'preference_set': {
