@@ -104,7 +104,7 @@ export interface UtilityProcessServerIo {
   parentPort: ParentPortLike
   exit(code: number): void
   /** Registers the handler for uncaught exceptions and unhandled rejections. */
-  onFatal(handler: (error: unknown) => void): void
+  onFatal(handler: (cause: unknown) => void): void
 }
 
 interface ActiveRequest {
@@ -188,7 +188,7 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
   }
   const logger = createLogger()
 
-  const serializationFailure = (error: unknown) => ({ ...toRemoteError(error), code: 'PROCESS_SERIALIZATION_FAILED' })
+  const serializationFailure = (cause: unknown) => ({ ...toRemoteError(cause), code: 'PROCESS_SERIALIZATION_FAILED' })
 
   const sendTerminal = (
     requestId: number,
