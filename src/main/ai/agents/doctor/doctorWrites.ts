@@ -126,11 +126,10 @@ async function fetchDataApi(input: DataApiQuery): Promise<DataApiResult> {
     params: input.query,
     body: input.body
   })
-  return {
-    status: response.status,
-    ...(response.data !== undefined ? { data: response.data } : {}),
-    ...(response.error ? { error: response.error } : {})
-  }
+  const result: DataApiResult = { status: response.status }
+  if (response.data !== undefined) Object.assign(result, { data: response.data })
+  if (response.error) Object.assign(result, { error: response.error })
+  return result
 }
 
 /** In-process DataApi call; the handler layer validates, this layer redacts. */

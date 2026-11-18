@@ -94,19 +94,16 @@ export async function executeBrowserOperation(
     }
   if (name === 'goto') {
     const result = await controller.open(schemas.goto.parse(args).url, 10_000, false, false, true, signal, target.tabId)
-    return {
-      observation: result.tabId !== target.tabId,
-      value: {
-        ...result,
-        ...(result.tabId !== target.tabId
-          ? {
-              handleInvalidated: true,
-              message:
-                'Navigation completed in a replacement guest. Call browser.getTab({ tabId: result.tabId }) before continuing; the previous tab handle is no longer valid.'
-            }
-          : {})
-      }
+    const observation = result.tabId !== target.tabId
+    const value = { ...result }
+    if (observation) {
+      Object.assign(value, {
+        handleInvalidated: true,
+        message:
+          'Navigation completed in a replacement guest. Call browser.getTab({ tabId: result.tabId }) before continuing; the previous tab handle is no longer valid.'
+      })
     }
+    return { observation, value }
   }
   if (name === 'getScreenshot') {
     const { images, ...metadata } = await controller.screenshot(
@@ -127,14 +124,15 @@ export async function executeBrowserOperation(
     }
   }
   return session.run(async () => {
-    const metadata = () => ({
-      tabId: target.tabId,
-      url: sanitizeSnapshotUrl(session.guest.getURL()),
-      title: session.guest.getTitle(),
-      ...(session.pendingDialog ? { dialog: session.pendingDialog } : {}),
-      ...session.takeEvents(),
-      ...controller.takeHostEvents?.(target.tabId)
-    })
+    const metadata = () => {
+      const page = {
+        tabId: target.tabId,
+        url: sanitizeSnapshotUrl(session.guest.getURL()),
+        title: session.guest.getTitle()
+      }
+      if (session.pendingDialog) Object.assign(page, { dialog: session.pendingDialog })
+      return { ...page, ...session.takeEvents(), ...controller.takeHostEvents?.(target.tabId) }
+    }
     if (name === 'getTab' || name === 'getAXState') {
       try {
         const state = await session.snapshot({ ...schemas.getAXState.parse(args), full: true }, options)

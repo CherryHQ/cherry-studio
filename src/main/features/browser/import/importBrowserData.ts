@@ -69,24 +69,25 @@ export async function importBrowserData(
       const host = cookie.domain.replace(/^\./, '')
       const url = new URL(normalizeBrowserUrl(`${cookie.secure ? 'https' : 'http'}://${host}${cookie.path}`))
       if (url.hostname !== host || url.pathname !== cookie.path) throw new Error('Invalid cookie domain or path')
-      await target.cookies.set({
+      const details: Electron.CookiesSetDetails = {
         url: url.href,
         name: cookie.name,
         value: cookie.value,
-        path: cookie.path,
-        ...(cookie.domain.startsWith('.') ? { domain: cookie.domain } : {}),
-        secure: cookie.secure,
-        httpOnly: cookie.httpOnly,
-        ...(cookie.expires && cookie.expires > 0 ? { expirationDate: cookie.expires } : {}),
-        sameSite:
-          cookie.sameSite === 'None'
-            ? 'no_restriction'
-            : cookie.sameSite === 'Strict'
-              ? 'strict'
-              : cookie.sameSite === 'Lax'
-                ? 'lax'
-                : 'unspecified'
-      })
+        path: cookie.path
+      }
+      if (cookie.domain.startsWith('.')) details.domain = cookie.domain
+      details.secure = cookie.secure
+      details.httpOnly = cookie.httpOnly
+      if (cookie.expires && cookie.expires > 0) details.expirationDate = cookie.expires
+      details.sameSite =
+        cookie.sameSite === 'None'
+          ? 'no_restriction'
+          : cookie.sameSite === 'Strict'
+            ? 'strict'
+            : cookie.sameSite === 'Lax'
+              ? 'lax'
+              : 'unspecified'
+      await target.cookies.set(details)
       result.cookies.imported++
     } catch {
       result.cookies.failed++

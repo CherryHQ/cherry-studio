@@ -392,7 +392,10 @@ export class GuestSession implements Disposable {
     this.downloadUpdates.clear()
     const dismissedDialog = this.dismissedDialog
     this.dismissedDialog = undefined
-    return { ...(downloads.length ? { downloads } : {}), ...(dismissedDialog ? { dismissedDialog } : {}) }
+    const events: { downloads?: typeof downloads; dismissedDialog?: BrowserDialog } = {}
+    if (downloads.length) events.downloads = downloads
+    if (dismissedDialog) events.dismissedDialog = dismissedDialog
+    return events
   }
 
   private readonly onDownload = (_event: Electron.Event, item: DownloadItem, guest: Electron.WebContents) => {

@@ -205,7 +205,9 @@ export function incidentMessages(incident: DoctorAgentIncident, before: number):
     messages = []
   }
   while (messages.length > 1 && JSON.stringify(messages).length > OUTPUT_LIMIT) messages.shift()
-  return untrustedForModel({ messages, ...(messages.length === 0 ? { missing: true } : {}) })
+  const context = { messages }
+  if (messages.length === 0) Object.assign(context, { missing: true })
+  return untrustedForModel(context)
 }
 
 function truncateStrings(value: Serializable): Serializable {

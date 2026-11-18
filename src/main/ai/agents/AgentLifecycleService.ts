@@ -398,10 +398,9 @@ export class AgentLifecycleService extends BaseService {
       const tokensBySession = permanent
         ? agentSessionMessageService.listRuntimeResumeTokensBySession(ids)
         : new Map<string, Set<string>>()
-      const result = agentSessionService.deleteByIdsWithImpact(ids, {
-        permanent,
-        ...(targetState === 'active' ? { targetState } : {})
-      })
+      const options: NonNullable<Parameters<typeof agentSessionService.deleteByIdsWithImpact>[1]> = { permanent }
+      if (targetState === 'active') options.targetState = targetState
+      const result = agentSessionService.deleteByIdsWithImpact(ids, options)
       await this.finishDeletion(result.deletedIds, result.deliveryResults)
       await this.removePurgedSystemWorkspaces(
         workspaces.filter(({ path }) => result.purgedSystemWorkspacePaths.includes(path))
@@ -480,10 +479,9 @@ export class AgentLifecycleService extends BaseService {
           resumeTokensForDeletedSessions(result.deletedSessionIds ?? [], tokensBySession)
         )
       }
-      return {
-        deleted: result.deleted,
-        ...(result.deletedSessionIds ? { deletedSessionIds: result.deletedSessionIds } : {})
-      }
+      const outcome: Awaited<ReturnType<AgentLifecycleService['deleteAgentInternal']>> = { deleted: result.deleted }
+      if (result.deletedSessionIds) outcome.deletedSessionIds = result.deletedSessionIds
+      return outcome
     }
 
     return this.withStableSessions(
