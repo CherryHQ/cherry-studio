@@ -96,14 +96,15 @@ async function drain() {
     const data = jobs.splice(index < 0 ? 0 : index, 1)[0]
     try {
       const result = await handle(data)
-      post({
+      const response: HighlightResponse = {
         id: data.id,
         generation: data.generation,
-        result,
-        ...('sessionId' in data ? { sessionId: data.sessionId } : {}),
-        ...('revision' in data ? { revision: data.revision } : {}),
-        ...('configurationRevision' in data ? { configurationRevision: data.configurationRevision } : {})
-      })
+        result
+      }
+      if ('sessionId' in data) response.sessionId = data.sessionId
+      if ('revision' in data) response.revision = data.revision
+      if ('configurationRevision' in data) response.configurationRevision = data.configurationRevision
+      post(response)
     } catch (error) {
       post({
         id: data.id,
