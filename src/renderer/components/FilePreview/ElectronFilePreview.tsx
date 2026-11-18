@@ -8,7 +8,7 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
-import type { AbsoluteFilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
 import { createElectronPreviewSource } from './electronPreviewSource'
@@ -78,7 +78,7 @@ export default function ElectronFilePreview({
         }
         signal?.throwIfAborted()
         const { content } = await ipcApi.request('file.read', {
-          handle: createFilePathHandle(resolved as AbsoluteFilePath),
+          handle: createFilePathHandle(AbsoluteFilePathSchema.parse(resolved)),
           options: { mode: 'full', encoding: 'binary' }
         })
         signal?.throwIfAborted()

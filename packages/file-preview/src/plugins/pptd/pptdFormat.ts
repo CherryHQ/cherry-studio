@@ -7,7 +7,7 @@
  * Schemas validate the fields the preview renders and pass unknown fields
  * through, so newer upstream additions never break loading.
  */
-import { z } from 'zod'
+import * as z from 'zod'
 
 // —— Shared types ——
 
