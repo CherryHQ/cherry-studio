@@ -454,6 +454,13 @@ export interface PreferenceSchemas {
     'feature.local_model.hardware_acceleration.enabled': boolean
     // target-key-definitions/complex/complex
     'feature.mini_app.check_updates_on_open': boolean
+    /**
+     * App ids whose "Add to Launchpad?" prompt the user answered with "Not now"
+     * (issue #21646 stage 3, AC8): the choice persists and reads back, so the
+     * prompt never nags twice for the same app. Pinning itself is the app's
+     * `status` column, not a preference.
+     */
+    'feature.mini_app.launchpad_prompt_dismissed': string[]
     // redux/settings/maxKeepAliveMinapps
     'feature.mini_app.max_keep_alive': number
     // redux/settings/minappsOpenLinkExternal
@@ -939,6 +946,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.file_processing.overrides': {},
     'feature.local_model.hardware_acceleration.enabled': true,
     'feature.mini_app.check_updates_on_open': true,
+    'feature.mini_app.launchpad_prompt_dismissed': [],
     'feature.mini_app.max_keep_alive': 3,
     'feature.mini_app.open_link_external': false,
     'feature.mini_app.region': 'auto',

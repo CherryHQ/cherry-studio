@@ -1,6 +1,7 @@
 import { dialog } from 'electron'
 
 import { application } from '@application'
+import { miniAppService } from '@data/services/MiniAppService'
 import { miniAppActivityLog } from '@main/features/miniApp/activityLog'
 import { uninstallMiniApp } from '@main/features/miniApp/install/installer'
 import {
@@ -20,6 +21,11 @@ import {
   revokeMiniAppGrant,
   snoozePendingAdditions
 } from '@main/features/miniApp/management'
+import {
+  expectSessionArtifact,
+  resolveArtifactHandle,
+  withLaunchpadDismissal
+} from '@main/features/miniApp/preview/authoringRequests'
 import { setMiniAppLogo } from '@main/services/entityLogo'
 import type { miniAppRequestSchemas } from '@shared/ipc/schemas/miniApp'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
@@ -89,5 +95,32 @@ export const miniAppHandlers: IpcHandlersFor<typeof miniAppRequestSchemas> = {
     await application.get('MiniAppPreviewService').closePreview(previewId, sessionId)
   },
   'mini_app.authoring.close_session': async ({ sessionId }) =>
-    application.get('MiniAppPreviewService').closeSessionPreviews(sessionId)
+    application.get('MiniAppPreviewService').closeSessionPreviews(sessionId),
+  // Stage 3 (issue #21646): the click IS the preview consent. The token lookup
+  // and digest re-check live in `expectSessionArtifact` — the card never
+  // touches a token, and a swapped or repair-capped package is refused here.
+  'mini_app.authoring.request_preview': async ({ sessionId, handle }) => {
+    const realPath = await resolveArtifactHandle(handle)
+    const record = await expectSessionArtifact(sessionId, realPath)
+    return application.get('MiniAppPreviewService').openPreview({ sessionId, artifactToken: record.token })
+  },
+  // Install is a SEPARATE decision (AC8): this only builds the consent card the
+  // install flow already renders; `mini_app.install.confirm` completes it.
+  'mini_app.authoring.request_install': async ({ sessionId, handle }, ctx) => {
+    const realPath = await resolveArtifactHandle(handle)
+    await expectSessionArtifact(sessionId, realPath)
+    return previewFileForInstall(realPath, ctx.senderId)
+  },
+  'mini_app.authoring.set_launchpad': async ({ appId, action }) => {
+    if (action === 'pin') {
+      // The Launchpad is the `pinned` status; the service owns the orderKey move.
+      miniAppService.update(appId, { status: 'pinned' })
+      return
+    }
+    const preferences = application.get('PreferenceService')
+    await preferences.set(
+      'feature.mini_app.launchpad_prompt_dismissed',
+      withLaunchpadDismissal(preferences.get('feature.mini_app.launchpad_prompt_dismissed'), appId)
+    )
+  }
 }

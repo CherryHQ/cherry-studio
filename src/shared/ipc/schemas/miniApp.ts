@@ -1,5 +1,6 @@
 import * as z from 'zod'
 
+import { FileHandleSchema } from '@shared/data/types/file'
 import { LocalMiniAppSchema } from '@shared/data/types/miniApp'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { MiniAppActivityListingSchema } from '@shared/types/miniAppActivity'
@@ -265,6 +266,31 @@ export const miniAppRequestSchemas = {
   'mini_app.authoring.close_session': defineRoute({
     input: z.object({ sessionId: z.string().min(1) }),
     output: z.object({ closed: z.number(), tokensRevoked: z.number() })
+  }),
+
+  // Stage 3 (issue #21646): the artifact card's consent actions. They name a
+  // FILE (the message attachment's handle), never a token — main finds the
+  // session's own token for it, re-checks the digest against it, refuses a
+  // repair-capped artifact (AC9), and only then acts. The CLICK is the preview
+  // consent; installation consent stays with the card these routes feed
+  // (`request_install` returns exactly what `install.preview_file` returns).
+  'mini_app.authoring.request_preview': defineRoute({
+    input: z.object({ sessionId: z.string().min(1), handle: FileHandleSchema }),
+    output: MiniAppPreviewSummarySchema
+  }),
+  'mini_app.authoring.request_install': defineRoute({
+    input: z.object({ sessionId: z.string().min(1), handle: FileHandleSchema }),
+    output: InstallPreviewSummarySchema
+  }),
+  /**
+   * The Launchpad decision after an authored install (AC8): `pin` sets the app's
+   * status (the Launchpad is `pinned` rows); `dismiss` persists "Not now" so the
+   * prompt reads back as answered. Two separate routes would pretend these are
+   * the same kind of fact — one writes a row, the other a preference.
+   */
+  'mini_app.authoring.set_launchpad': defineRoute({
+    input: z.object({ appId: MiniAppIdSchema, action: z.enum(['pin', 'dismiss']) }),
+    output: z.void()
   })
 }
 
