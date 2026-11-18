@@ -73,12 +73,12 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-function isAlreadyExists(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException).code === 'EEXIST'
+function isAlreadyExists(cause: unknown): boolean {
+  return (cause as NodeJS.ErrnoException).code === 'EEXIST'
 }
 
-function isMissing(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException).code === 'ENOENT'
+function isMissing(cause: unknown): boolean {
+  return (cause as NodeJS.ErrnoException).code === 'ENOENT'
 }
 
 function parseLockOwner(content: string): LockOwner | undefined {
