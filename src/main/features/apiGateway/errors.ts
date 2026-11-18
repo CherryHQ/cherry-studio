@@ -20,11 +20,13 @@ type ProviderDetails = {
 }
 type InternalError = SerializedError & { [providerDetails]: ProviderDetails }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Provider error bodies and nested fields are untrusted JSON; this helper checks the object boundary before field extraction.
 function record(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined
 }
 
 /** Retain provider response details only for authenticated in-process runtime requests. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown and streamed failures include non-Error values and serialized error objects; normalize only checked fields before writing client envelopes.
 export function internalGatewayError(error: unknown, fallback: SerializedError): SerializedError {
   if (!(error instanceof Error) && !APICallError.isInstance(error)) return fallback
   const api = APICallError.isInstance(error) ? error : undefined
@@ -61,6 +63,7 @@ function detailsOf(error: unknown): ProviderDetails | undefined {
 
 type GatewayErrorContext = Parameters<ErrorHandler<{ DATA_API: DataApiError }>>[0]
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown and streamed failures include non-Error values and serialized error objects; normalize only checked fields before writing client envelopes.
 const messageOf = (error: unknown, fallback: string): string =>
   error instanceof Error && error.message ? error.message : fallback
 
@@ -137,6 +140,7 @@ function googleStatusName(status: number): string {
  * extras (`stack`, `url`, `requestBodyValues`, `responseBody`, `responseHeaders`)
  * are intentionally ignored so they never reach the client.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown and streamed failures include non-Error values and serialized error objects; normalize only checked fields before writing client envelopes.
 function extractError(error: unknown): {
   status?: number
   message?: string
@@ -335,6 +339,7 @@ function transformGoogleError(error: unknown): {
  * AI-SDK error extras), so the streaming and non-streaming error shapes match and
  * neither leaks `stack` / `url` / request/response bodies to the client.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown and streamed failures include non-Error values and serialized error objects; normalize only checked fields before writing client envelopes.
 export function buildStreamErrorFrame(outputFormat: OutputFormat, error: unknown): string {
   if (outputFormat === 'anthropic') {
     const { errorResponse } = transformAnthropicError(error)

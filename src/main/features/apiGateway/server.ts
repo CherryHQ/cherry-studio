@@ -166,6 +166,7 @@ export class ApiGateway {
     const http = server.raw.node.server
     if (!http.listening) http.closeAllConnections?.()
     // `stop()` must never reject: `onDeactivate` rethrows, which would strand the service activated.
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Server shutdown may reject with a non-Error value; this terminal handler records it and keeps shutdown non-rejecting.
     const closed = Promise.resolve(server.stop()).catch((error: unknown) =>
       logger.warn('API server close failed', error as Error)
     )

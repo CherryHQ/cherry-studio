@@ -1,5 +1,3 @@
-import * as z from 'zod'
-
 export const SHORTCUT_MODIFIERS = ['CommandOrControl', 'Command', 'Ctrl', 'Alt', 'AltGr', 'Shift', 'Meta'] as const
 
 export const SHORTCUT_LETTERS = [
@@ -233,17 +231,35 @@ export const normalizeShortcutToken = (value: string): ShortcutToken | undefined
   return undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored shortcut bindings may contain invalid tokens; this boundary validates the whole binding.
+export const normalizeShortcutBinding = (value: unknown): ShortcutBinding => {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const tokens: ShortcutToken[] = []
+  for (const item of value) {
+    if (typeof item !== 'string') {
+      return []
+    }
+
+    const token = normalizeShortcutToken(item)
+    if (!token) {
+      return []
+    }
+
+    tokens.push(token)
+  }
+
+  return tokens
+}
+
 export const isShortcutBinding = (value: unknown): value is ShortcutBinding => {
   if (!Array.isArray(value)) {
     return false
   }
   return value.every(isShortcutToken)
 }
-
-export const normalizeShortcutBinding = z
-  .array(z.string().transform(normalizeShortcutToken))
-  .transform((binding): ShortcutBinding => (isShortcutBinding(binding) ? binding : []))
-  .catch(() => []).parse
 
 // ---------------------------------------------------------------------------
 // Display / accelerator formatting (token-typed) for the unified command system.

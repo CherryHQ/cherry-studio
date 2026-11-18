@@ -199,6 +199,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     const encoder = new TextEncoder()
     let startupState: StartupState = 'pending'
     let resolveStartup!: () => void
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Terminal Promise barriers forward arbitrary adapter/upstream rejection values without changing their identity.
     let rejectStartup!: (error: unknown) => void
     const startup = new Promise<void>((resolve, reject) => {
       resolveStartup = resolve
@@ -218,6 +219,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
           bufferedFrames.length = 0
           resolveStartup()
         }
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Terminal Promise barriers forward arbitrary adapter/upstream rejection values without changing their identity.
         const fail = (error: unknown) => {
           if (startupState !== 'pending') return
           startupState = 'failed'
@@ -384,6 +386,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   // Non-streaming: drive the adapter to accumulate state; respond with JSON at the end.
   // Terminal barrier: resolved on done/paused, rejected on error.
   let resolveDone!: () => void
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Terminal Promise barriers forward arbitrary adapter/upstream rejection values without changing their identity.
   let rejectDone!: (error: unknown) => void
   const done = new Promise<void>((resolve, reject) => {
     resolveDone = resolve

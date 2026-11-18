@@ -17,6 +17,7 @@ const MEDIA_PAYLOAD_TOKENS = 1_500
  * count as text, not as one media constant, or the client defers compaction and then hits
  * the downstream context limit.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- This bounded fallback intentionally estimates malformed protocol JSON after conversion fails; nested values have no trusted domain type.
 export function boundedBodyTokens(body: unknown, tokenizer: TextTokenizer): number {
   return walk(body, tokenizer, 0, undefined, undefined)
 }
@@ -45,6 +46,7 @@ function stringTokens(value: string, tokenizer: TextTokenizer): number {
 }
 
 function walk(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- This bounded fallback intentionally estimates malformed protocol JSON after conversion fails; nested values have no trusted domain type.
   value: unknown,
   tokenizer: TextTokenizer,
   depth: number,

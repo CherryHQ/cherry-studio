@@ -92,7 +92,8 @@ export async function requestJson<T>(
   context: ProtocolContext,
   request: { url: string; method: 'GET' | 'POST'; headers?: Record<string, string>; body?: unknown },
   schema: z.ZodType<T>,
-  checkError?: (payload: z.infer<typeof errorSchema>) => void
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Provider error envelopes must be inspected before the provider-specific success schema is applied.
+  checkError?: (payload: unknown) => void
 ): Promise<T> {
   const defaults: Record<string, string> = {}
   if (request.body !== undefined) defaults['Content-Type'] = 'application/json'
@@ -107,10 +108,7 @@ export async function requestJson<T>(
   } catch {
     throw invalidResponse(context, 'invalid_json', `${context.call.providerId} returned invalid JSON`)
   }
-  if (checkError) {
-    const error = errorSchema.safeParse(payload)
-    if (error.success) checkError(error.data)
-  }
+  checkError?.(payload)
   const parsed = schema.safeParse(payload)
   if (!parsed.success)
     throw invalidResponse(context, 'schema_mismatch', `${context.call.providerId} response validation failed`)
@@ -119,7 +117,8 @@ export async function requestJson<T>(
 
 export function checkProviderError(
   context: ProtocolContext,
-  payload: z.infer<typeof errorSchema>,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Decoded HTTP JSON must pass the error-envelope schema before reading provider failure fields.
+  payload: unknown,
   field: 'code' | 'error_code' | 'success'
 ): void {
   const parsed = errorSchema.extend({ success: z.boolean().optional() }).safeParse(payload)

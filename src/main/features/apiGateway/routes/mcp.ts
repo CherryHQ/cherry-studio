@@ -299,6 +299,7 @@ function sessionNotFound(): Response {
 }
 
 /** `initialize` is what opts a client into a session — including inside a JSON-RPC batch. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Elysia parses JSON but does not validate MCP; the SDK transport owns JSON-RPC validation and malformed-request responses.
 function isInitialize(body: unknown): boolean {
   return Array.isArray(body) ? body.some(isInitializeRequest) : isInitializeRequest(body)
 }
@@ -321,7 +322,9 @@ function lookupSession(sessions: McpSessionStore, request: Request, serverId: st
  * `notifications/initialized` and even malformed requests, long enough to time out the
  * client handshake over something unrelated.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Elysia parses JSON but does not validate MCP; the SDK transport owns JSON-RPC validation and malformed-request responses.
 function needsWarmTools(body: unknown): boolean {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Elysia parses JSON but does not validate MCP; the SDK transport owns JSON-RPC validation and malformed-request responses.
   const wants = (message: unknown): boolean =>
     typeof message === 'object' && message !== null && (message as { method?: unknown }).method === 'tools/list'
   return Array.isArray(body) ? body.some(wants) : wants(body)
@@ -331,6 +334,7 @@ async function handleProxyPost(
   sessions: McpSessionStore,
   serverIdOrName: string,
   request: Request,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Elysia parses JSON but does not validate MCP; the SDK transport owns JSON-RPC validation and malformed-request responses.
   body?: unknown
 ): Promise<Response> {
   const server = resolveServer(serverIdOrName)
@@ -424,6 +428,7 @@ async function primeAndPipe(writable: WritableStream<Uint8Array>, source: Readab
  * Sessionless path: a throwaway bridge serves this one request. Kept for clients that POST a
  * method without an `initialize` handshake — the shape plain `curl` and the v1 endpoints allow.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Elysia parses JSON but does not validate MCP; the SDK transport owns JSON-RPC validation and malformed-request responses.
 async function handleOneShot(server: McpServer, request: Request, body?: unknown): Promise<Response> {
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
