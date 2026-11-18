@@ -242,7 +242,7 @@ export const isShortcutBinding = (value: unknown): value is ShortcutBinding => {
 
 export const normalizeShortcutBinding = z
   .array(z.string().transform(normalizeShortcutToken))
-  .pipe(z.custom<ShortcutBinding>(isShortcutBinding))
+  .transform((binding): ShortcutBinding => (isShortcutBinding(binding) ? binding : []))
   .catch(() => []).parse
 
 // ---------------------------------------------------------------------------
