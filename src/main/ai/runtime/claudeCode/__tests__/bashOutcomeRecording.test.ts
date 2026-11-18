@@ -6,7 +6,13 @@
  * directly and never exercise this wiring.
  */
 
-import type { HookCallback } from '@anthropic-ai/claude-agent-sdk'
+import type {
+  BaseHookInput,
+  HookCallback,
+  PostToolBatchHookInput,
+  PostToolUseHookInput,
+  PreToolUseHookInput
+} from '@anthropic-ai/claude-agent-sdk'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { loggerMock, applicationMock } = vi.hoisted(() => {
@@ -41,6 +47,8 @@ import { ClaudeCodeSessionStateService } from '../ClaudeCodeSessionStateService'
 import { buildClaudeCodeHooks } from '../hooks'
 
 const SESSION = 'session-1'
+const hookInput: BaseHookInput = { session_id: SESSION, transcript_path: '/data/session-1.jsonl', cwd: '/ws' }
+const hookOptions: Parameters<HookCallback>[2] = { signal: new AbortController().signal }
 
 const bashOutcomesOf = (svc: ClaudeCodeSessionStateService, sessionId: string) =>
   (svc as unknown as { bashOutcomes: Map<string, unknown[]> }).bashOutcomes.get(sessionId)
@@ -181,14 +189,18 @@ describe('bashOutcomeHook', () => {
 
   const fire = (input: Record<string, unknown>) => bashOutcomeHook(input as never, undefined, {} as never)
 
-  const bashSuccess = (response: unknown, agentId?: string) => ({
-    hook_event_name: 'PostToolUse',
-    tool_name: 'Bash',
-    tool_input: { command: 'npx tsc --noEmit' },
-    tool_response: response,
-    tool_use_id: 'tu-1',
-    ...(agentId ? { agent_id: agentId } : {})
-  })
+  const bashSuccess = (response: unknown, agentId?: string): PostToolUseHookInput => {
+    const input: PostToolUseHookInput = {
+      ...hookInput,
+      hook_event_name: 'PostToolUse',
+      tool_name: 'Bash',
+      tool_input: { command: 'npx tsc --noEmit' },
+      tool_response: response,
+      tool_use_id: 'tu-1'
+    }
+    if (agentId) input.agent_id = agentId
+    return input
+  }
 
   it('records a real PostToolUse payload into the session history', async () => {
     for (let i = 0; i < BASH_NO_PROGRESS_THRESHOLD; i++) {
@@ -278,35 +290,31 @@ describe('bashOutcomeHook', () => {
 
   const finishBatch = (toolUseId: string, agentId?: string) =>
     Promise.all(
-      postToolBatchHooks.map((hook) =>
-        hook(
-          {
-            hook_event_name: 'PostToolBatch',
-            tool_calls: [{ tool_name: 'Bash', tool_input: { command: 'git status' }, tool_use_id: toolUseId }],
-            ...(agentId ? { agent_id: agentId } : {})
-          } as never,
-          undefined,
-          {} as never
-        )
-      )
+      postToolBatchHooks.map((hook) => {
+        const input: PostToolBatchHookInput = {
+          ...hookInput,
+          hook_event_name: 'PostToolBatch',
+          tool_calls: [{ tool_name: 'Bash', tool_input: { command: 'git status' }, tool_use_id: toolUseId }]
+        }
+        if (agentId) input.agent_id = agentId
+        return hook(input, undefined, hookOptions)
+      })
     )
 
   it.each([undefined, 'agent-1'])('releases denied rewrites after each batch in scope %s', async (agentId) => {
     for (let i = 0; i < BASH_NO_PROGRESS_HARD_THRESHOLD * 2; i++) {
       const toolUseId = `tu-denied-${i}`
       vi.mocked(evaluateToolGuards).mockResolvedValueOnce({ effect: 'deny', reason: 'Loop', ruleId: 'test' })
+      const input: PreToolUseHookInput = {
+        ...hookInput,
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Bash',
+        tool_input: { command: 'git status' },
+        tool_use_id: toolUseId
+      }
+      if (agentId) input.agent_id = agentId
       const [guard] = await Promise.all([
-        toolGuardHook(
-          {
-            hook_event_name: 'PreToolUse',
-            tool_name: 'Bash',
-            tool_input: { command: 'git status' },
-            tool_use_id: toolUseId,
-            ...(agentId ? { agent_id: agentId } : {})
-          } as never,
-          toolUseId,
-          {} as never
-        ),
+        toolGuardHook(input, toolUseId, hookOptions),
         rewriteViaRtk('git status', 'rtk git status', toolUseId)
       ])
       expect(guard).toMatchObject({ hookSpecificOutput: { permissionDecision: 'deny' } })
@@ -473,18 +481,17 @@ describe('bashOutcomeHook', () => {
       svc.recordBashOutcome(SESSION, 'npx tsc --noEmit', 'same', false, 'agent-1')
     }
 
-    const preToolUse = (agentId?: string) =>
-      toolGuardHook(
-        {
-          hook_event_name: 'PreToolUse',
-          tool_name: 'Bash',
-          tool_input: { command: 'npx tsc --noEmit' },
-          tool_use_id: 'tu-9',
-          ...(agentId ? { agent_id: agentId } : {})
-        } as never,
-        undefined,
-        {} as never
-      )
+    const preToolUse = (agentId?: string) => {
+      const input: PreToolUseHookInput = {
+        ...hookInput,
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Bash',
+        tool_input: { command: 'npx tsc --noEmit' },
+        tool_use_id: 'tu-9'
+      }
+      if (agentId) input.agent_id = agentId
+      return toolGuardHook(input, undefined, hookOptions)
+    }
 
     await preToolUse('agent-1')
     await preToolUse()
