@@ -53,8 +53,11 @@ export function useAgentBrowserGuest(
         })
         .catch((error) => logger.debug('Browser input focus request ended', { error }))
     })
-    const detach = (id: string) =>
-      ipcApi.request('browser.pane.detach', { sessionId, tabId: id, ...(scope ? { scope } : {}) })
+    const detach = (id: string) => {
+      const input: InputFor<'browser.pane.detach'> = { sessionId, tabId: id }
+      if (scope) input.scope = scope
+      return ipcApi.request('browser.pane.detach', input)
+    }
     const attach = () => {
       if (attaching || tabId) return
       attaching = true
@@ -63,12 +66,13 @@ export function useAgentBrowserGuest(
           if (cancelled) return
           const webviewId = guest.getWebContentsId()
           if (!webviewId) return
-          const result = await ipcApi.request('browser.pane.attach', {
+          const input: InputFor<'browser.pane.attach'> = {
             sessionId,
             webviewId,
-            pageId,
-            ...(scope ? { scope } : {})
-          })
+            pageId
+          }
+          if (scope) input.scope = scope
+          const result = await ipcApi.request('browser.pane.attach', input)
           if (cancelled) await detach(result.tabId)
           else {
             tabId = result.tabId

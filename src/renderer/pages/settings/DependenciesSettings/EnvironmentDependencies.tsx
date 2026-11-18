@@ -68,6 +68,7 @@ import {
   validateBinaryToolDefinition
 } from '@shared/data/presets/binaryTools'
 import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
+import type { InputFor } from '@shared/ipc/types'
 import type {
   BinaryApplication,
   BinaryAvailability,
@@ -251,7 +252,9 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   // state (BinaryInstallFailureRow), not a dialog.
   const installTool = async (name: string, targetVersion?: string): Promise<void> => {
     try {
-      await ipcApi.request('binary.install_tool', { name, ...(targetVersion ? { targetVersion } : {}) })
+      const input: InputFor<'binary.install_tool'> = { name }
+      if (targetVersion) input.targetVersion = targetVersion
+      await ipcApi.request('binary.install_tool', input)
     } catch (error) {
       logger.error('Failed to install tool', error as Error)
     } finally {

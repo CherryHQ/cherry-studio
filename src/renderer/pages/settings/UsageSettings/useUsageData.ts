@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef } from 'react'
 
 import { useDataChange, useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@renderer/data/hooks/useDataApi'
 import type {
+  AiUsageRecordListQuery,
   AiUsageRecordListSortBy,
   AiUsageRecordSortOrder,
   AiUsageRecordStatsBucket
@@ -153,15 +154,11 @@ interface UseUsageEntriesDataOptions {
 
 export function useUsageEntriesData({ windowRange, currency, sortBy, sortOrder }: UseUsageEntriesDataOptions) {
   const queryCurrency = currency ?? CURRENCY.USD
-  const entriesQuery = useMemo(
-    () => ({
-      sortBy,
-      sortOrder,
-      ...(sortBy === 'cost' ? { costCurrency: queryCurrency } : {}),
-      ...toQueryRange(windowRange)
-    }),
-    [queryCurrency, sortBy, sortOrder, windowRange]
-  )
+  const entriesQuery = useMemo(() => {
+    const query: Pick<AiUsageRecordListQuery, 'sortBy' | 'sortOrder' | 'costCurrency'> = { sortBy, sortOrder }
+    if (sortBy === 'cost') query.costCurrency = queryCurrency
+    return { ...query, ...toQueryRange(windowRange) }
+  }, [queryCurrency, sortBy, sortOrder, windowRange])
   const { pages, isLoading, isRefreshing, hasNext, loadNext, refresh, reset } = useInfiniteQuery('/ai-usage-records', {
     query: entriesQuery,
     limit: ENTRY_PAGE_SIZE,
