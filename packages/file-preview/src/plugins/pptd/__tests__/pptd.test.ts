@@ -141,3 +141,40 @@ describe('remote media detection', () => {
     expect(isRemotePptdSource('http://example.com/a.png')).toBe(false)
   })
 })
+
+describe('built-in shape paths', () => {
+  it('generates closed paths for the common built-ins', async () => {
+    const { pptdShapePath } = await import('../pptdShapes')
+    for (const name of [
+      'rect',
+      'roundRect',
+      'ellipse',
+      'triangle',
+      'rtTriangle',
+      'parallelogram',
+      'trapezoid',
+      'nonIsoscelesTrapezoid',
+      'diamond',
+      'pentagon',
+      'hexagon',
+      'heptagon',
+      'octagon',
+      'decagon',
+      'dodecagon',
+      'plus',
+      'homePlate',
+      'chevron',
+      'donut',
+      'pie'
+    ]) {
+      expect(pptdShapePath(name), name).toMatch(/^M/)
+    }
+  })
+
+  it('honours adjustments and rejects unknown shapes', async () => {
+    const { pptdShapePath } = await import('../pptdShapes')
+    expect(pptdShapePath('triangle', [0])).toContain('M0,0')
+    expect(pptdShapePath('triangle', [100000])).toContain('M100000,0')
+    expect(pptdShapePath('flermp')).toBeNull()
+  })
+})

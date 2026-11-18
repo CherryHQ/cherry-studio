@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { PptdPageElement, PptdPresentation } from './pptdFormat'
 import type { PptdProjectFileReader, PptdProjectPage } from './pptdProject'
+import { PptdShapeElement } from './PptdShapeElement'
 import { pptdFillToCss, type PptdStyleContext } from './pptdStyle'
 import { PptdTextElement } from './PptdTextElement'
 
@@ -18,6 +19,9 @@ function PptdElementBody({ element, context }: { element: PptdPageElement; conte
   const { t } = useTranslation()
   if (element.elementType === 'text') {
     return <PptdTextElement element={element} context={context} />
+  }
+  if (element.elementType === 'shape') {
+    return <PptdShapeElement element={element} context={context} />
   }
   if (element.elementType === 'invalid') {
     return (
