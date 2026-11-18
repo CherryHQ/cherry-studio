@@ -9,6 +9,7 @@ import { isSerializable } from '@shared/utils/serializable'
  * @returns 序列化后的字符串，或 null（如果失败且未抛错）
  */
 export function safeSerialize(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Renderer error details and MCP log payloads can be non-JSON values; this boundary applies the caller's serialization policy.
   value: unknown,
   options: {
     /**
@@ -53,7 +54,11 @@ export function safeSerialize(
 
     case 'serialize': {
       // 宽容模式：尝试做一些安全转换
-      return tryLenientSerialize(value, space)
+      try {
+        return tryLenientSerialize(value, space)
+      } catch {
+        return null
+      }
     }
   }
 }
@@ -62,12 +67,14 @@ export function safeSerialize(
  * 尽力而为地序列化一个值，即使它不符合 Serializable。
  * 适用于调试、日志等非关键场景。
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- safeSerialize sends values rejected by isSerializable here; the JSON replacer converts supported non-JSON values.
 function tryLenientSerialize(value: unknown, space?: string | number): string {
   const seen = new WeakSet()
 
   const serialized = JSON.stringify(
     value,
-    (_, val: any) => {
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- JSON.stringify supplies raw nested properties and toJSON results; narrow each value before converting it.
+    (_, val: unknown) => {
       // 处理循环引用
       if (typeof val === 'object' && val !== null) {
         if (seen.has(val)) {
