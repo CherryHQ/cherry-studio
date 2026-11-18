@@ -7,16 +7,12 @@ import { getInterfaceMetadata, getRemoteAddressOptions } from '../remoteAddresse
 
 vi.mock('systeminformation', () => ({ networkInterfaces: vi.fn() }))
 
-const address = (value: string, internal = false): NetworkInterfaceInfo =>
-  ({
-    address: value,
-    family: value.includes(':') ? 'IPv6' : 'IPv4',
-    internal,
-    mac: '',
-    netmask: '',
-    cidr: null,
-    ...(value.includes(':') ? { scopeid: 0 } : {})
-  }) as NetworkInterfaceInfo
+const address = (value: string, internal = false): NetworkInterfaceInfo => {
+  if (value.includes(':')) {
+    return { address: value, family: 'IPv6', internal, mac: '', netmask: '', cidr: null, scopeid: 0 }
+  }
+  return { address: value, family: 'IPv4', internal, mac: '', netmask: '', cidr: null }
+}
 const nic = (iface: string, overrides = {}) => ({
   iface,
   ifaceName: iface,

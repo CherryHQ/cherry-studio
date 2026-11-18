@@ -3,17 +3,25 @@ import { generateText } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import { type EndpointConfig, type Provider, ProviderSchema } from '@shared/data/types/provider'
 
 import { applyAgentPromptCacheKey } from '../utils/promptCacheKey'
 
 function provider(id: string, endpointType: EndpointType, adapterFamily?: string): Provider {
-  return {
+  const endpoint: EndpointConfig = { baseUrl: 'https://example.invalid/v1' }
+  if (adapterFamily) endpoint.adapterFamily = adapterFamily
+  return ProviderSchema.parse({
     id,
+    name: id,
+    apiKeys: [],
+    isEnabled: true,
+    reportsActualCost: false,
+    authType: 'api-key',
+    settings: {},
     endpointConfigs: {
-      [endpointType]: { baseUrl: 'https://example.invalid/v1', ...(adapterFamily ? { adapterFamily } : {}) }
+      [endpointType]: endpoint
     }
-  } as Provider
+  })
 }
 
 function model(providerId: string, endpointType: EndpointType): Model {

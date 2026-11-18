@@ -47,13 +47,9 @@ const result = (chunkId: string, score: number) => ({
 })
 
 async function call(method: string, path: string, body?: unknown): Promise<{ status: number; body: any }> {
-  const res = await app.handle(
-    new Request(`http://localhost${path}`, {
-      method,
-      headers: { 'content-type': 'application/json' },
-      ...(body ? { body: JSON.stringify(body) } : {})
-    })
-  )
+  const init: RequestInit = { method, headers: { 'content-type': 'application/json' } }
+  if (body) init.body = JSON.stringify(body)
+  const res = await app.handle(new Request(`http://localhost${path}`, init))
   return { status: res.status, body: await res.json() }
 }
 

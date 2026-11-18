@@ -298,13 +298,16 @@ describe('processMessage (Anthropic client tools)', () => {
             ? createOpenAI({ apiKey: 'test-key', fetch }).chat(modelId)
             : createOpenAI({ apiKey: 'test-key', fetch }).responses(modelId)
       const forwardedTools: LanguageModelV3FunctionTool[] = await Promise.all(
-        Object.entries(tools).map(async ([name, tool]) => ({
-          type: 'function',
-          name,
-          description: tool.description,
-          inputSchema: await asSchema(tool.inputSchema).jsonSchema,
-          ...(Object.hasOwn(tool, 'strict') ? { strict: tool.strict } : {})
-        }))
+        Object.entries(tools).map(async ([name, tool]) => {
+          const definition: LanguageModelV3FunctionTool = {
+            type: 'function',
+            name,
+            description: tool.description,
+            inputSchema: await asSchema(tool.inputSchema).jsonSchema
+          }
+          if (Object.hasOwn(tool, 'strict')) definition.strict = tool.strict
+          return definition
+        })
       )
       await expect(model.doGenerate({ prompt: [], tools: forwardedTools })).rejects.toMatchObject({ statusCode: 400 })
       expect(wireBodies).toHaveLength(1)
