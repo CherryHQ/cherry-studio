@@ -79,10 +79,10 @@ function NotificationItem({
     interrupted: t('notification.center.result.interrupted')
   }
   const created = new Date(record.createdAt)
-  const timeLabel = created.toLocaleString(i18n.language, {
-    ...(created.toDateString() === new Date().toDateString() ? {} : { dateStyle: 'short' as const }),
-    timeStyle: 'short'
-  })
+  const timeOptions: Intl.DateTimeFormatOptions = {}
+  if (created.toDateString() !== new Date().toDateString()) timeOptions.dateStyle = 'short'
+  timeOptions.timeStyle = 'short'
+  const timeLabel = created.toLocaleString(i18n.language, timeOptions)
   const canUpdate = release && appUpdateState.available && appUpdateState.info?.version === release.version
 
   const activate = async () => {
