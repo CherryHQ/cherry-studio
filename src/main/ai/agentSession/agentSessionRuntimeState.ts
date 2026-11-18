@@ -425,23 +425,19 @@ function reduce<TTurn, TPendingTurn>(
       const terminal = current.terminal && current.terminal.status !== 'success' ? current.terminal : event.outcome
       if (current.delivery.kind === 'failed') {
         const retry = execution.kind !== 'autonomous-turn' || execution.ownership === 'released'
+        const reply: AgentSessionRuntimeReply<TTurn> = { ...current, terminal }
+        if (retry) reply.delivery = { kind: 'reserved' }
         return {
-          state: replaceReply(state, {
-            ...current,
-            terminal,
-            ...(retry ? { delivery: { kind: 'reserved' } as const } : {})
-          }),
+          state: replaceReply(state, reply),
           effects: []
         }
       }
       const held = terminal.status === 'success' && current.pendingResultToolCallIds?.length !== 0
       const settle = current.delivery.kind === 'open' && !held
+      const reply: AgentSessionRuntimeReply<TTurn> = { ...current, terminal }
+      if (settle) reply.delivery = { kind: 'awaiting-persistence' }
       return {
-        state: replaceReply(state, {
-          ...current,
-          terminal,
-          ...(settle ? { delivery: { kind: 'awaiting-persistence' } as const } : {})
-        }),
+        state: replaceReply(state, reply),
         effects: settle
           ? [
               {
@@ -463,12 +459,10 @@ function reduce<TTurn, TPendingTurn>(
             ? { status: 'error' as const, error: current.deliveryFailure.error }
             : current.terminal
           : undefined
+      const reply: AgentSessionRuntimeReply<TTurn> = { ...current, buffer: [] }
+      if (terminal) reply.delivery = { kind: 'awaiting-persistence' }
       return {
-        state: replaceReply(state, {
-          ...current,
-          buffer: [],
-          ...(terminal ? { delivery: { kind: 'awaiting-persistence' } as const } : {})
-        }),
+        state: replaceReply(state, reply),
         effects: [
           ...(current.buffer.length
             ? [{ type: 'deliver-buffer', turn: current.turn, chunks: current.buffer } as const]
@@ -592,14 +586,14 @@ function reduce<TTurn, TPendingTurn>(
         effects: connectionTeardownEffects(state)
       }
     }
-    case 'reset':
+    case 'reset': {
+      const reset = createAgentSessionRuntimeState<TTurn, TPendingTurn>()
+      if (state.lastTerminal) reset.lastTerminal = state.lastTerminal
       return {
-        state: {
-          ...createAgentSessionRuntimeState<TTurn, TPendingTurn>(),
-          ...(state.lastTerminal ? { lastTerminal: state.lastTerminal } : {})
-        },
+        state: reset,
         effects: connectionTeardownEffects(state)
       }
+    }
   }
 }
 
