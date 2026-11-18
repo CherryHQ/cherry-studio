@@ -89,15 +89,14 @@ function pageResults(raw: string, input: string, maxCharacters: number): WebSear
   )
   if (!match?.[3].trim()) return []
   const content = match[3].trim()
-  return [
-    {
-      title: match[1].trim(),
-      url: match[2],
-      content,
-      sourceInput: input,
-      ...(content.length >= maxCharacters ? { truncated: true } : {})
-    }
-  ]
+  const result: { -readonly [K in keyof WebSearchResult]: WebSearchResult[K] } = {
+    title: match[1].trim(),
+    url: match[2],
+    content,
+    sourceInput: input
+  }
+  if (content.length >= maxCharacters) result.truncated = true
+  return [result]
 }
 
 export const exaMcp: WebSearchProviderModule = {
@@ -109,14 +108,15 @@ export const exaMcp: WebSearchProviderModule = {
       call.capability === 'searchKeywords'
         ? { query: call.input, type: 'auto', numResults: call.config.maxResults, livecrawl: 'fallback' }
         : { urls: [call.input], maxCharacters: call.config.maxCharacters ?? 24_000 }
+    const headers: Record<string, string> = {
+      accept: 'application/json, text/event-stream',
+      'content-type': 'application/json'
+    }
+    if (call.credentials?.apiKey) headers['x-api-key'] = call.credentials.apiKey
     const response = await requestText(context, {
       url: context.apiHost,
       method: 'POST',
-      headers: {
-        accept: 'application/json, text/event-stream',
-        'content-type': 'application/json',
-        ...(call.credentials?.apiKey ? { 'x-api-key': call.credentials.apiKey } : {})
-      },
+      headers,
       body: JSON.stringify({
         jsonrpc: '2.0',
         id: 1,

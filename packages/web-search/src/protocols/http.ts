@@ -94,9 +94,11 @@ export async function requestJson<T>(
   schema: z.ZodType<T>,
   checkError?: (payload: unknown) => void
 ): Promise<T> {
+  const defaults: Record<string, string> = {}
+  if (request.body !== undefined) defaults['Content-Type'] = 'application/json'
   const response = await requestText(context, {
     ...request,
-    headers: { ...(request.body === undefined ? {} : { 'Content-Type': 'application/json' }), ...request.headers },
+    headers: { ...defaults, ...request.headers },
     body: request.body === undefined ? undefined : JSON.stringify(request.body)
   })
   let payload: unknown
