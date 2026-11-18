@@ -3,8 +3,6 @@
   "agent.builtin.cherry_doctor.description": "Built-in System Doctor analyst. Reads the diagnostic report and runtime state, explains the root cause, and proposes bounded fixes",
   "agent.builtin.cherry_support.description": "Official Cherry Studio support Agent for setup guidance, troubleshooting, FAQs, and feedback",
   "agent.import.missing_file": "Attachment unavailable in export: {{name}}",
-  "agent.import.reasoning": "Historical reasoning",
-  "agent.import.search": "Historical search record",
   "agent.session.claude.runtime_unavailable": "Claude Agent is not ready. Wait for the download to finish or retry.",
   "agent.session.fork.execution_not_inherited": "Execution was not inherited by this session fork.",
   "agent.session.new": "New task",
