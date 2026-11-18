@@ -1,7 +1,23 @@
 import { createHash } from 'node:crypto'
 
 import { isDataUIPart, isToolUIPart } from 'ai'
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  ne,
+  notInArray,
+  or,
+  type SQL,
+  sql
+} from 'drizzle-orm'
 import { chunk } from 'es-toolkit'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
@@ -134,7 +150,7 @@ function agentSessionMessageEntityJsonBytes(): SQL<number> {
     'id', ${sessionMessagesTable.id},
     'sessionId', ${sessionMessagesTable.sessionId},
     'role', ${sessionMessagesTable.role},
-    'data', json_remove(json(${sessionMessagesTable.data}), '$.runtimeAnchor', '$.nativeSessionId', '$.deliveryReplyAnchor', '$.mcpSkills'),
+    'data', json_remove(json(${sessionMessagesTable.data}), '$.runtimeAnchor', '$.nativeSessionId', '$.deliveryReplyAnchor', '$.mcpSkills', '$.locallyHandled'),
     'searchableText', ${sessionMessagesTable.searchableText},
     'status', ${sessionMessagesTable.status},
     'modelId', ${sessionMessagesTable.modelId},
@@ -347,6 +363,7 @@ function publicMessageData(data: SessionMessageRow['data']): AgentSessionMessage
   delete result.nativeSessionId
   delete result.mcpSkills
   delete result.deliveryReplyAnchor
+  delete result.locallyHandled
   return result
 }
 
@@ -417,23 +434,92 @@ export class AgentSessionMessageService {
     )
   }
 
-  recoveredInputReply(sessionId: string, contextId: string, inputId: string): string | undefined {
-    if (this.inputBinding(sessionId, inputId)?.contextId !== contextId) return undefined
-    const replies = application
+  /** Records the reply Main opened for each input; a regenerated reply replaces the previous one. */
+  linkReply(sessionId: string, inputIds: readonly string[], replyId: string): void {
+    if (!inputIds.length) return
+    application
       .get('DbService')
       .getDb()
-      .select({ id: sessionMessagesTable.id })
+      .update(sessionMessagesTable)
+      .set({ replyId })
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          inArray(sessionMessagesTable.id, [...inputIds]),
+          eq(sessionMessagesTable.role, 'user')
+        )
+      )
+      .run()
+  }
+
+  /**
+   * The reply Main opened for an input. An input saved before replies were linked falls back to its
+   * latest direct reply that no other input claims.
+   */
+  replyTo(sessionId: string, inputId: string): { id: string; status: string } | undefined {
+    const db = application.get('DbService').getDb()
+    const reply = { id: sessionMessagesTable.id, status: sessionMessagesTable.status }
+    const input = db
+      .select({ replyId: sessionMessagesTable.replyId })
+      .from(sessionMessagesTable)
+      .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, inputId)))
+      .get()
+    if (input?.replyId)
+      return db
+        .select(reply)
+        .from(sessionMessagesTable)
+        .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, input.replyId)))
+        .get()
+    const claimed = db
+      .select({ id: sessionMessagesTable.replyId })
+      .from(sessionMessagesTable)
+      .where(and(eq(sessionMessagesTable.sessionId, sessionId), isNotNull(sessionMessagesTable.replyId)))
+    return db
+      .select(reply)
       .from(sessionMessagesTable)
       .where(
         and(
           eq(sessionMessagesTable.sessionId, sessionId),
           eq(sessionMessagesTable.parentId, inputId),
-          eq(sessionMessagesTable.role, 'assistant')
+          eq(sessionMessagesTable.role, 'assistant'),
+          notInArray(sessionMessagesTable.id, claimed)
         )
       )
-      .limit(2)
-      .all()
-    return replies.length === 1 ? replies[0].id : undefined
+      .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+      .get()
+  }
+
+  hasContextModelInput(sessionId: string, contextId: string): boolean {
+    return Boolean(
+      application
+        .get('DbService')
+        .getDb()
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            eq(sessionMessagesTable.inputContextId, contextId),
+            sql`coalesce(json_extract(${sessionMessagesTable.data}, '$.locallyHandled'), 0) = 0`
+          )
+        )
+        .limit(1)
+        .get()
+    )
+  }
+
+  markInputLocallyHandledTx(tx: DbOrTx, sessionId: string, messageId: string, contextId: string): void {
+    tx.update(sessionMessagesTable)
+      .set({ data: sql`json_set(${sessionMessagesTable.data}, '$.locallyHandled', json('true'))` })
+      .where(
+        and(
+          eq(sessionMessagesTable.id, messageId),
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.inputContextId, contextId),
+          isNull(sessionMessagesTable.nativeInputId)
+        )
+      )
+      .run()
   }
 
   inputBinding(sessionId: string, messageId: string) {
@@ -717,7 +803,15 @@ export class AgentSessionMessageService {
     const mapping = context?.checkpointMapping?.fork
     return rows.map((row) => {
       const anchor = RuntimeForkAnchorSchema.safeParse(row.data.runtimeAnchor)
-      const checkpoint = mapping?.[row.id]
+      const importedCheckpoint = anchor.data?.checkpoint
+      const checkpoint =
+        row.data.importedHistory &&
+        importedCheckpoint?.runtime === 'pi-durable' &&
+        context &&
+        importedCheckpoint.backendId === context.backendId &&
+        context.nativeThreadId
+          ? { ...importedCheckpoint, conversationId: context.nativeThreadId }
+          : mapping?.[row.id]
       return checkpoint && anchor.success && context
         ? {
             ...row,
@@ -726,6 +820,36 @@ export class AgentSessionMessageService {
           }
         : row
     })
+  }
+
+  insertImportedMessagesTx(
+    tx: DbOrTx,
+    sessionId: string,
+    rows: readonly Pick<
+      SessionMessageRow,
+      | 'id'
+      | 'parentId'
+      | 'role'
+      | 'data'
+      | 'status'
+      | 'messageSnapshot'
+      | 'runtimeResumeToken'
+      | 'createdAt'
+      | 'updatedAt'
+    >[],
+    activeNodeId: string | null
+  ): void {
+    const root = ensureAgentSessionRootTx(tx, sessionId)
+    for (const row of rows) {
+      tx.insert(sessionMessagesTable)
+        .values({ ...row, sessionId, parentId: row.parentId ?? root })
+        .run()
+      replaceAgentSessionMessageFileRefsTx(tx, row.id, row.data)
+    }
+    tx.update(sessionTable)
+      .set({ activeNodeId: activeNodeId ?? root })
+      .where(eq(sessionTable.id, sessionId))
+      .run()
   }
 
   /** Inserts historical facts only, never delivery, billing, queue or approval ownership. */
@@ -954,7 +1078,16 @@ export class AgentSessionMessageService {
   }
 
   hasSessionMessage(sessionId: string, messageId: string): boolean {
-    return this.findExistingMessageRow(application.get('DbService').getDb(), sessionId, messageId) !== null
+    return (
+      application
+        .get('DbService')
+        .getDb()
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, messageId)))
+        .limit(1)
+        .all().length > 0
+    )
   }
 
   listLiveCreatedInRangeMetadataPage({
@@ -1445,6 +1578,25 @@ export class AgentSessionMessageService {
     if (changed.changes > 0) this.publishDeliveryChange(sessionId, messageId, 'projection')
   }
 
+  /** A `paused` user message is one the runtime withdrew before the agent received it. */
+  markUserMessageUnsent(sessionId: string, messageId: string): void {
+    const changed = application.get('DbService').withWriteTx((tx) =>
+      tx
+        .update(sessionMessagesTable)
+        .set({ status: 'paused', updatedAt: Date.now() })
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            eq(sessionMessagesTable.id, messageId),
+            eq(sessionMessagesTable.role, 'user'),
+            eq(sessionMessagesTable.status, 'success')
+          )
+        )
+        .run()
+    )
+    if (changed.changes > 0) this.publishDeliveryChange(sessionId, messageId, 'projection')
+  }
+
   private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {
     return {
       id: row.id,
@@ -1626,6 +1778,7 @@ export class AgentSessionMessageService {
       }
       if (existingRow.data.deliveryReplyAnchor) data.deliveryReplyAnchor = existingRow.data.deliveryReplyAnchor
       if (existingRow.data.nativeSessionId) data.nativeSessionId = existingRow.data.nativeSessionId
+      if (existingRow.data.locallyHandled) data.locallyHandled = true
       const runtimeResumeTokenToPersist = runtimeResumeToken ?? existingRow.runtimeResumeToken ?? null
       const updatedAtMs = timestampMs
       const modelId = message.modelId === undefined ? existingRow.modelId : message.modelId

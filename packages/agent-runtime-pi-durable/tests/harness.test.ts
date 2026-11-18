@@ -4,7 +4,7 @@ import { expect, it } from 'vitest'
 
 import { harnessContract } from '@cherrystudio/agent-behavior'
 
-import { lineageEntries, pages } from '../src/behavior/history'
+import { pages } from '../src/behavior/history'
 import { openDurableHarness } from './behaviorHarness'
 
 const cases = [
@@ -27,7 +27,13 @@ it.each(cases)('keeps repaired results readable by the native SDK when %s', asyn
     async function verify() {
       const results = await h.native().commit(async (tx) => {
         const conversations = await pages((cursor) => tx.scanConversations({}, 256, cursor))
-        const entries = (await Promise.all(conversations.map((conversation) => lineageEntries(tx, conversation.id))))
+        const entries = (
+          await Promise.all(
+            conversations.map((conversation) =>
+              pages((cursor) => tx.scanEntries({ conversationId: conversation.id, order: 'ascending' }, 256, cursor))
+            )
+          )
+        )
           .flat()
           .filter((entry) => entry.model?.some((message) => message.role === 'toolResult'))
         return Promise.all(entries.map((entry) => tx.entry(ToolResultEntry, entry.id)))

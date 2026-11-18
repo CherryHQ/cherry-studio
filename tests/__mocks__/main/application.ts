@@ -132,6 +132,11 @@ export const defaultServiceInstances = {
     ),
     guardResourceRead: vi.fn(async (_sessionId, _serverId, _uri, signal, run) => run(signal))
   },
+  AgentImportService: {
+    pause: vi.fn(() => ({ dispose: vi.fn() })),
+    drainInFlight: vi.fn(async () => ({ stragglerIds: [] })),
+    listActiveWork: vi.fn(() => [])
+  },
   PowerService: {
     preventSleep: vi.fn(() => ({ dispose: vi.fn() })),
     onResume: vi.fn(() => ({ dispose: vi.fn() }))
