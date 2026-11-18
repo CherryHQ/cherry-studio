@@ -13,7 +13,7 @@ interface ImageCaptureRequest {
 interface UseImageCaptureTargetsOptions {
   cancelMessage: string
   delayMs: number
-  rejectPendingActions: (targetId: string | undefined, reason: unknown) => void
+  rejectPendingActions: (targetId: string | undefined, reason: Error) => void
 }
 
 export function useImageCaptureTargets<TTarget>({
