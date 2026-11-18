@@ -538,14 +538,16 @@ function createSession(ctx: AutonomyToolsContext, args: z.output<typeof SessionC
     }
   }
 
-  const created = application.get('AgentSessionDeliveryService').acceptWithNewSession({
+  const service = application.get('AgentSessionDeliveryService')
+  const input: Parameters<typeof service.acceptWithNewSession>[0] = {
     senderAgentId: ctx.agentId,
     senderSessionId: ctx.sessionId,
     sessionName: title,
     workspace: resolveWorkspaceForNewSession(ctx, targetAgentId),
-    content,
-    ...(targetAgentId ? { targetAgentId } : {})
-  })
+    content
+  }
+  if (targetAgentId) input.targetAgentId = targetAgentId
+  const created = service.acceptWithNewSession(input)
   return {
     content: [
       {
@@ -661,9 +663,9 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
     prompt: message,
     trigger,
     timeoutMinutes,
-    channelIds,
-    ...(reuseSession !== undefined ? { reuseSession } : {})
-  }
+    channelIds
+  } satisfies Parameters<typeof service.updateTask>[2]
+  if (reuseSession !== undefined) Object.assign(patch, { reuseSession })
   const task =
     action === 'add'
       ? service.createTask(ctx.agentId, {

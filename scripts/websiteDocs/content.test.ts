@@ -81,11 +81,15 @@ describe('documentation reconciliation', () => {
   it.each(['text', 'binary', 'delete-edit', 'add-add'])('blocks a whole batch for a %s conflict', (kind) => {
     const f = fixture()
     const bytes = kind === 'binary' ? Buffer.from([0, 1, 2]) : 'base\n'
-    const baseFiles = { ...source, ...(kind === 'add-add' ? {} : { 'content/conflict': bytes }) }
+    const baseFiles: Parameters<typeof f.tree>[0] = { ...source }
+    if (kind !== 'add-add') baseFiles['content/conflict'] = bytes
     const base = f.tree(baseFiles)
+    const leftFiles = {
+      ...baseFiles
+    }
+    if (kind !== 'delete-edit') leftFiles['content/conflict'] = kind === 'binary' ? Buffer.from([0, 9]) : 'desktop\n'
     const left = f.tree({
-      ...baseFiles,
-      ...(kind === 'delete-edit' ? {} : { 'content/conflict': kind === 'binary' ? Buffer.from([0, 9]) : 'desktop\n' }),
+      ...leftFiles,
       'content/independent.md': 'keep\n'
     })
     const actualLeft =

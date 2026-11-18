@@ -864,8 +864,8 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
           const task = await tx.task(response.taskId)
           if (!task) throw new Error('Native compaction task is missing')
           const doc = await tx.doc(nativeSummaryUsage, task.conversationId)
-          doc.records[`${response.taskId}:${response.attempt}`] ??= {
-            owner: { goalId, ...(goalRoundId === undefined ? {} : { goalRoundId }) },
+          const record: (typeof doc.records)[string] = {
+            owner: { goalId },
             usage: {
               input: value.input,
               output: value.output,
@@ -873,9 +873,11 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
               cacheWrite: value.cacheWrite,
               totalTokens: value.totalTokens,
               costUsd: value.cost.total
-            },
-            ...(response.runId === undefined ? {} : { runId: response.runId })
+            }
           }
+          if (goalRoundId !== undefined) Object.assign(record.owner, { goalRoundId })
+          if (response.runId !== undefined) record.runId = response.runId
+          doc.records[`${response.taskId}:${response.attempt}`] ??= record
         }
       })
     ]
