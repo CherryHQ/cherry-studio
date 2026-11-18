@@ -45,8 +45,8 @@ import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } fro
 import type { JobContext } from '@main/core/job/types'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
-import { classifyErrorCategory } from '@shared/utils/errorCategory'
 
 const logger = loggerService.withContext('runAgentTask')
 
@@ -317,7 +317,8 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     onError(result) {
       complete(() => {
         const message = result.error.message ?? 'Execution failed'
-        historyOverflow = classifyErrorCategory({ text: message }) === 'context_length'
+        const failure = result.failure ?? toExecutionFailure(result.error, result.modelId)
+        historyOverflow = failure.failure.reasonCode === 'context_length'
         rejectExecution(new Error(message))
       })
     },

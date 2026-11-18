@@ -432,9 +432,10 @@ describe('runAgentTask', () => {
     })
 
     it.each([
-      ['context_length_exceeded', 1],
-      ['network timeout', 0]
-    ] as const)('handles a terminal %s on a reused session', async (message, releases) => {
+      ['context_length_exceeded', undefined, 1],
+      ['Claude Code process exited with code 1', 'context_length', 1],
+      ['network timeout', undefined, 0]
+    ] as const)('handles a terminal %s on a reused session', async (message, claudeCodeExitCategory, releases) => {
       vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
       vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary', REUSE_ON))
       vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
@@ -443,7 +444,7 @@ describe('runAgentTask', () => {
         makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
       )
       await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
-      captured.listeners[0].onError({ error: new Error(message) })
+      captured.listeners[0].onError({ error: { message, claudeCodeExitCategory } })
       await expect(run).rejects.toThrow(message)
       expect(mockReleaseOverflowed).toHaveBeenCalledTimes(releases)
     })
