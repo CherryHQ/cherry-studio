@@ -62,7 +62,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
         folderIcon(node, isExpanded)
       ) : (
         <Icon
-          icon={`${MATERIAL_ICON_PREFIX}${isExpanded ? 'folder-open' : 'folder'}`}
+          icon={`${MATERIAL_ICON_PREFIX}${isExpanded ? 'folder-base-open' : 'folder-base'}`}
           className="shrink-0"
           width={ICON_SIZE_PX}
           height={ICON_SIZE_PX}

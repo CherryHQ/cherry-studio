@@ -1,5 +1,6 @@
+import materialIconTheme from '@iconify-json/material-icon-theme/icons.json'
 import { _api } from '@iconify/react'
-import { render, waitFor } from '@testing-library/react'
+import { render } from '@testing-library/react'
 import { expect, it, vi } from 'vitest'
 
 import { getFileTokenPresentation } from '../fileTokenPresentation'
@@ -8,7 +9,11 @@ vi.unmock('@iconify/react')
 
 const presentationFor = (name: string) => getFileTokenPresentation(undefined, name)
 
-it.each(['offline.md', 'unknown.xyz'])('keeps chip and preview glyphs visible offline for %s', async (name) => {
+it.each([
+  ['offline.md', 'markdown'],
+  ['artifact.html', 'html'],
+  ['unknown.xyz', 'document']
+] as const)('renders bundled chip and preview glyphs without fetching for %s', (name, iconName) => {
   const originalFetch = _api.getFetch()
   const offlineFetch = vi.fn<typeof fetch>().mockRejectedValue(new TypeError('Failed to fetch'))
   _api.setFetch(offlineFetch)
@@ -21,12 +26,18 @@ it.each(['offline.md', 'unknown.xyz'])('keeps chip and preview glyphs visible of
   )
 
   try {
-    await waitFor(() => expect(offlineFetch).toHaveBeenCalled())
+    const expected = new DOMParser()
+      .parseFromString(
+        `<svg xmlns="http://www.w3.org/2000/svg">${materialIconTheme.icons[iconName].body}</svg>`,
+        'text/html'
+      )
+      .querySelector('svg')!
     for (const slot of ['chip', 'preview']) {
       const glyph = view.getByTestId(slot).querySelector('svg')
       expect(glyph).toBeVisible()
-      expect(glyph?.querySelector('path')).not.toBeNull()
+      expect(glyph?.innerHTML).toBe(expected.innerHTML)
     }
+    expect(offlineFetch).not.toHaveBeenCalled()
   } finally {
     view.unmount()
     if (originalFetch) _api.setFetch(originalFetch)
