@@ -33248,7 +33248,54 @@
       "metadata": {},
       "name": "GLM-Z1-Flash",
       "ownedBy": "zhipu"
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output"
+      ],
+      "contextWindow": 1048576,
+      "id": "mistral-large-4-0",
+      "inputModalities": [
+        "text",
+        "image"
+      ],
+      "metadata": {},
+      "name": "Mistral: Mistral Large 4",
+      "outputModalities": [
+        "text"
+      ],
+      "ownedBy": "mistral",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.7
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.0999999999999996
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ],
+        "supportedEfforts": [
+          "low",
+          "medium",
+          "high"
+        ]
+      }
     }
   ],
-  "version": "c20964f8efeaa72f"
+  "version": "62ea9f33873d674e"
 }
