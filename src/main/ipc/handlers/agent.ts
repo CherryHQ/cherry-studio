@@ -251,6 +251,6 @@ export const agentHandlers: IpcHandlersFor<typeof agentRequestSchemas> = {
   // The edit dialog renders Auto Approve switches from this effective policy: 'auto' tools are
   // always pre-approved and 'required'/'delegation' tools always prompt, regardless of the
   // persisted per-agent allowedTools list, so the switch must show (and lock to) that truth.
-  'agent.list_builtin_tool_policies': () =>
+  'agent.list_builtin_tool_policies': async () =>
     listBuiltinToolPolicies().map((entry) => ({ runtimeName: toMcpRuntimeName(entry), approval: entry.approval }))
 }
