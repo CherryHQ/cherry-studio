@@ -14,6 +14,8 @@ Quick jumps:
 
 For bounded input/output, declare contract `streams` and call `openStream`; [the consumer guide](../../../../docs/dev/references/utility-process/README.md#bounded-request-streams) defines frame limits, EOF, cancellation, and closure. `StreamChannel` is per-request shared host/child state, not a lifecycle service.
 
+Declare a contract's reverse-RPC input and output with `hostCall: UtilityProcessHostCall<Input, Output>`. The caller callback and child context share this type; contracts without it have no typed host capability.
+
 Host capabilities are request-scoped: a trusted child handler calls `context.callHost(method, input)`, and the caller supplies `request(..., { onHostCall })`. Without that callback, host calls fail closed. Core validates identity and request/call IDs, aborts host calls on cancellation or stop, and drops late replies. Consumers must validate payloads and enforce their own capability allow-list; the transport does not grant filesystem or application access.
 
 This directory has **no barrel**: main-side and child-side code are bundled into different processes, so a root `index.ts` would seal `runtime/` behind a boundary the child build has to cross. Import the sanctioned paths directly:

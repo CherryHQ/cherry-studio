@@ -24,6 +24,7 @@ import type {
   AutomationAccess,
   AutomationContext,
   AutomationExecution,
+  AutomationHostResult,
   AutomationKernelContract,
   AutomationOwner
 } from './contracts'
@@ -296,7 +297,11 @@ export class AutomationReplService extends BaseService {
             }
           }
           let failedAction = false
-          const dispatch = async (domain: string, input: unknown, rpcSignal: AbortSignal) => {
+          const dispatch = async (
+            domain: string,
+            input: unknown,
+            rpcSignal: AbortSignal
+          ): Promise<AutomationHostResult> => {
             const allowed = assertActive()
             const childSignal = AbortSignal.any([executionSignal, rpcSignal])
             childSignal.throwIfAborted()

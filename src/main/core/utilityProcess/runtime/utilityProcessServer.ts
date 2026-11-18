@@ -27,7 +27,12 @@ import type {
 import { isConnectFrame, isMainFrame, matchesIdentity } from '../protocol/guards'
 import { toRemoteError } from '../protocol/remoteError'
 import { StreamChannel } from '../StreamChannel'
-import type { UtilityProcessContract, UtilityProcessStreams } from '../types'
+import type {
+  UtilityProcessContract,
+  UtilityProcessHostCall,
+  UtilityProcessHostCallFor,
+  UtilityProcessStreams
+} from '../types'
 
 export interface UtilityProcessLogger {
   debug(message: string, fields?: Record<string, unknown>): void
@@ -36,19 +41,22 @@ export interface UtilityProcessLogger {
   error(message: string, fields?: Record<string, unknown>): void
 }
 
-export interface UtilityProcessHandlerContext<Event> {
+export interface UtilityProcessHandlerContext<
+  Event,
+  HostCall extends UtilityProcessHostCall<unknown, unknown> = UtilityProcessHostCall<never, never>
+> {
   /** Aborted with an AbortError whose `code` is REQUEST_CANCELLED_CODE or SHUTDOWN_CODE. */
   signal: AbortSignal
   /** Streams a typed event to the caller's `onEvent`; ignored once the request has settled. */
   emit: (event: Event) => void
-  callHost(method: string, input: unknown): Promise<unknown>
+  callHost(method: string, input: HostCall['input']): Promise<HostCall['output']>
   logger: UtilityProcessLogger
 }
 
 export type UtilityProcessHandlers<Contract extends UtilityProcessContract> = {
   [M in keyof Contract['methods']]: (
     input: Contract['methods'][M]['input'],
-    context: UtilityProcessHandlerContext<Contract['methods'][M]['event']>
+    context: UtilityProcessHandlerContext<Contract['methods'][M]['event'], UtilityProcessHostCallFor<Contract>>
   ) => Contract['methods'][M]['output'] | Promise<Contract['methods'][M]['output']>
 }
 
@@ -213,10 +221,13 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
       }
     }
     let nextCallId = 0
-    const callHost = (method: string, input: unknown): Promise<unknown> => {
+    const callHost = (
+      method: string,
+      input: UtilityProcessHostCallFor<Contract>['input']
+    ): Promise<UtilityProcessHostCallFor<Contract>['output']> => {
       if (request.settled || controller.signal.aborted) return Promise.reject(new Error('Request is no longer active'))
       if (request.hostReplies.size >= 64) return Promise.reject(new Error('Too many concurrent host calls'))
-      return new Promise((resolve, reject) => {
+      return new Promise<UtilityProcessHostCallFor<Contract>['output']>((resolve, reject) => {
         const callId = ++nextCallId
         const cleanup = () => {
           request.hostReplies.delete(callId)

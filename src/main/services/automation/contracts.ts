@@ -31,7 +31,14 @@ export interface AutomationExecution {
   omitted: number
 }
 
+export type AutomationHostResult =
+  | { ok: true; value: unknown }
+  | { ok: false; error: { code: string; effect: string; message: string } }
+
+export type AutomationHostReply = AutomationHostResult & { approvalWaitMs: number }
+
 export interface AutomationKernelContract {
+  hostCall: { input: unknown; output: AutomationHostReply }
   methods: {
     execute: UtilityProcessMethod<
       { code: string; bootstrap: string },

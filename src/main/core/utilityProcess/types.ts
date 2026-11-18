@@ -10,9 +10,13 @@ export type UtilityProcessMethod<Input, Output, Event = never> = {
   event: Event
 }
 
+/** Request-scoped capability exposed by the host to this process. */
+export type UtilityProcessHostCall<Input, Output> = { input: Input; output: Output }
+
 /** The method map a definition and its entry share. */
 export type UtilityProcessContract = {
   methods: Record<string, UtilityProcessMethod<unknown, unknown, unknown>>
+  hostCall?: UtilityProcessHostCall<unknown, unknown>
   streams?: Record<
     string,
     UtilityProcessStreamMethod<unknown, UtilityProcessStreamFrame, UtilityProcessStreamFrame, unknown>
@@ -36,6 +40,12 @@ export type UtilityProcessStreamMethod<
   output: Output
   result: Result
 }
+
+export type UtilityProcessHostCallFor<C extends UtilityProcessContract> = C extends {
+  hostCall: infer HostCall extends UtilityProcessHostCall<unknown, unknown>
+}
+  ? HostCall
+  : UtilityProcessHostCall<never, never>
 
 export type UtilityProcessStreams<C extends UtilityProcessContract> = NonNullable<C['streams']>
 
@@ -89,10 +99,13 @@ export type UtilityProcessDefinition<Contract extends UtilityProcessContract, In
   readonly __contract?: Contract
 }>
 
-export interface UtilityProcessRequestOptions<Event> {
+export interface UtilityProcessRequestOptions<
+  Event,
+  HostCall extends UtilityProcessHostCall<unknown, unknown> = UtilityProcessHostCall<never, never>
+> {
   signal?: AbortSignal
   /** Request-scoped reverse RPC; absent means the child has no host capabilities. */
-  onHostCall?: (method: string, input: unknown, signal: AbortSignal) => Promise<unknown>
+  onHostCall?: (method: string, input: HostCall['input'], signal: AbortSignal) => Promise<HostCall['output']>
   /** Called synchronously and in order for each event; a throw cancels the request under the definition's policy. */
   onEvent?: (event: Event) => void
 }
@@ -118,7 +131,7 @@ export interface UtilityProcessClient<Contract extends UtilityProcessContract> {
   request<M extends keyof Contract['methods'] & string>(
     method: M,
     input: Contract['methods'][M]['input'],
-    options?: UtilityProcessRequestOptions<Contract['methods'][M]['event']>
+    options?: UtilityProcessRequestOptions<Contract['methods'][M]['event'], UtilityProcessHostCallFor<Contract>>
   ): Promise<Contract['methods'][M]['output']>
 
   /** Short barrier: shut the live generation down; the next `request()` lazily respawns. */

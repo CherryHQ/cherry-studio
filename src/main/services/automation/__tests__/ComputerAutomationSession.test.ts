@@ -108,7 +108,7 @@ describe('computer AX pages', () => {
             request: async (
               _method: string,
               input: AutomationKernelContract['methods']['execute']['input'],
-              options: UtilityProcessRequestOptions<never>
+              options: UtilityProcessRequestOptions<never, AutomationKernelContract['hostCall']>
             ) =>
               kernel.execute(input, {
                 signal: options.signal!,

@@ -1,3 +1,4 @@
+import type { JSONValue } from '@ai-sdk/provider'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { UtilityProcessHandlerContext } from '@main/core/utilityProcess/runtime/serveUtilityProcess'
@@ -5,15 +6,17 @@ import type { UtilityProcessHandlerContext } from '@main/core/utilityProcess/run
 import { automationBootstrap } from '../bootstrap'
 import { AutomationKernel } from '../utilityEntries/AutomationKernel'
 
-const kernels = new Set<AutomationKernel>()
+type TestHostCall = { input: unknown; output: JSONValue }
+
+const kernels = new Set<AutomationKernel<TestHostCall>>()
 function createKernel() {
-  const kernel = new AutomationKernel()
+  const kernel = new AutomationKernel<TestHostCall>()
   kernels.add(kernel)
   return kernel
 }
 const context = (
-  callHost: UtilityProcessHandlerContext<never>['callHost'] = async () => null
-): UtilityProcessHandlerContext<never> => ({
+  callHost: UtilityProcessHandlerContext<never, TestHostCall>['callHost'] = async () => null
+): UtilityProcessHandlerContext<never, TestHostCall> => ({
   signal: new AbortController().signal,
   callHost,
   emit: () => {},

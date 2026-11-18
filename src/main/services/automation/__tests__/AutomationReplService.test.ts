@@ -6,6 +6,7 @@ import type { UtilityProcessRequestOptions } from '@main/core/utilityProcess/typ
 
 import { ComputerUseApproval } from '../../ComputerUseApproval'
 import { AutomationReplService } from '../AutomationReplService'
+import type { AutomationKernelContract } from '../contracts'
 
 const owner = { kind: 'topic' as const, sessionId: 'topic', ownerId: 'assistant', label: 'Conversation' }
 let service: AutomationReplService
@@ -13,7 +14,7 @@ let effects: number
 let leases: number
 let failingOperation: string | undefined
 let crashAfterDispatch: boolean
-let lastCall: UtilityProcessRequestOptions<never>['onHostCall']
+let lastCall: UtilityProcessRequestOptions<never, AutomationKernelContract['hostCall']>['onHostCall']
 
 beforeEach(async () => {
   BaseService.resetInstances()
@@ -26,7 +27,11 @@ beforeEach(async () => {
   const manager = {
     register: () => {},
     createInstance: () => ({
-      request: async (_method: string, input: { code: string }, options: UtilityProcessRequestOptions<never>) => {
+      request: async (
+        _method: string,
+        input: { code: string },
+        options: UtilityProcessRequestOptions<never, AutomationKernelContract['hostCall']>
+      ) => {
         lastCall = options.onHostCall
         const calls = JSON.parse(input.code)
         let value: { ok: boolean } = { ok: true }

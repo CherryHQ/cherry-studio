@@ -12,6 +12,7 @@ import type { UtilityProcessDefinition, UtilityProcessMethod } from '../types'
 import { createMemoryProcessAdapter, type MemoryChildScript, type MemoryProcessAdapter } from './memoryProcessAdapter'
 
 export type EchoContract = {
+  hostCall: { input: unknown; output: string }
   methods: {
     ping: UtilityProcessMethod<void, 'pong'>
     echo: UtilityProcessMethod<unknown, unknown>
