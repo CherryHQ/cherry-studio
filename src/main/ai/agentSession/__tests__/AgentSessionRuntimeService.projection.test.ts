@@ -72,7 +72,7 @@ async function fixture(
   let queue = new AsyncEventQueue<{ event: AgentRuntimeEvent; consumed: () => void }>()
   const closed = Promise.withResolvers<void>()
   const emit = (event: AgentRuntimeEvent) => new Promise<void>((consumed) => queue.push({ event, consumed }))
-  const connections = { opened: 0, sent: [] as string[] }
+  const connections = { opened: 0, closed: 0, sent: [] as string[] }
   runtimeDriverRegistry.register({
     type: 'pi',
     validateSession: () => {},
@@ -96,6 +96,7 @@ async function fixture(
         },
         redirect: () => true,
         close: async () => {
+          connections.closed++
           activeQueue.close()
           closed.resolve()
         },
@@ -156,7 +157,7 @@ async function fixture(
     queue = new AsyncEventQueue()
     await service.primeConnection('root')
   }
-  return { service, handle, context, reply, emit, project, views, done, reconnect, connections, closed: closed.promise }
+  return { service, handle, context, reply, emit, project, views, done, reconnect, connections }
 }
 const text = (id: string, value: string): CherryUIMessage => ({
   id,
@@ -282,7 +283,7 @@ it('keeps a retained connection open on Stop and starts later input only after n
     data: { parts: text('', 'Partial answer').parts }
   })
   expect(f.connections.opened).toBe(1)
-  expect(await Promise.race([f.closed.then(() => 'closed'), Promise.resolve('open')])).toBe('open')
+  expect(f.connections.closed).toBe(0)
 })
 
 // The native interrupt waits on admission and child stops; a hang there must still end the Stop.
@@ -305,6 +306,11 @@ it('ends a retained Stop whose native interrupt never returns', async () => {
   await vi.advanceTimersByTimeAsync(40_000)
 
   expect(settled).toBe(true)
+  // The fallback closes the connection instead of waiting on a second stalled interrupt.
+  expect(f.connections.closed).toBe(1)
+  expect(f.service.isSessionBusy('root')).toBe(false)
+  await f.reconnect()
+  expect(f.connections.opened).toBe(2)
 })
 
 // The native successor can publish before the preceding reply has committed and created its row.
