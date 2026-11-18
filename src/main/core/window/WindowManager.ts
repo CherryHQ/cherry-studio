@@ -108,7 +108,7 @@ export class WindowManager extends BaseService {
   private warmupStates = new Map<WindowType, WarmupState>()
 
   /** One-time initialization data per window (consumed by renderer via getInitData IPC) */
-  private initDataStore = new Map<string, unknown>()
+  private initDataStore = new Map<string, object>()
 
   /**
    * Runtime override for the registry `rememberBounds` flag, keyed by window type
@@ -327,7 +327,7 @@ export class WindowManager extends BaseService {
    * @param args - Optional `{ initData, options }` — both fields optional
    * @returns Window ID (UUID)
    */
-  public open<T = unknown>(type: WindowType, args?: OpenWindowArgs<T>): string {
+  public open<T extends object = object>(type: WindowType, args?: OpenWindowArgs<T>): string {
     const metadata = getWindowTypeMetadata(type)
 
     if (metadata.lifecycle === 'singleton') {
@@ -422,7 +422,7 @@ export class WindowManager extends BaseService {
    * @returns Window ID (UUID)
    * @throws Error if singleton window already exists
    */
-  public create<T = unknown>(type: WindowType, args?: OpenWindowArgs<T>): string {
+  public create<T extends object = object>(type: WindowType, args?: OpenWindowArgs<T>): string {
     const metadata = getWindowTypeMetadata(type)
 
     if (metadata.lifecycle === 'singleton') {
@@ -464,7 +464,7 @@ export class WindowManager extends BaseService {
    * open() on the same singleton/pooled instance. No Reused event is fired in
    * that case.
    */
-  private applyReusedInitData(managed: ManagedWindow, data: unknown): void {
+  private applyReusedInitData(managed: ManagedWindow, data: object | undefined): void {
     if (data === undefined) {
       this.initDataStore.delete(managed.id)
       return
@@ -691,12 +691,12 @@ export class WindowManager extends BaseService {
   // ─── Public API: Init data ────────────────────────────────────
 
   /** Store initialization data for a window (retrieved once by renderer via getInitData IPC) */
-  public setInitData(windowId: string, data: unknown): void {
+  public setInitData(windowId: string, data: object): void {
     this.initDataStore.set(windowId, data)
   }
 
   /** Retrieve initialization data for a window */
-  public getInitData(windowId: string): unknown | null {
+  public getInitData(windowId: string): object | null {
     return this.initDataStore.get(windowId) ?? null
   }
 
@@ -726,7 +726,7 @@ export class WindowManager extends BaseService {
    * "pushing undefined" has no meaningful semantics here, and silently
    * no-oping would hide caller bugs.
    */
-  public pushInitData<T>(windowId: string, data: T): boolean {
+  public pushInitData<T extends object>(windowId: string, data: T): boolean {
     const managed = this.windows.get(windowId)
     if (!managed || managed.window.isDestroyed()) return false
     this.setInitData(windowId, data)
@@ -744,7 +744,7 @@ export class WindowManager extends BaseService {
    * need visibility filtering, iterate `getWindows(type)` and call
    * `pushInitData` selectively.
    */
-  public pushInitDataToType<T>(type: WindowType, data: T): number {
+  public pushInitDataToType<T extends object>(type: WindowType, data: T): number {
     const ids = this.windowsByType.get(type)
     if (!ids || ids.size === 0) return 0
     let count = 0
@@ -832,7 +832,7 @@ export class WindowManager extends BaseService {
    *   provided — the event payload is that initData. No data → no event.
    * - Are shown/focused immediately based on metadata `show` behavior.
    */
-  private openPooled<T>(type: WindowType, poolConfig: PoolConfig, args?: OpenWindowArgs<T>): string {
+  private openPooled<T extends object>(type: WindowType, poolConfig: PoolConfig, args?: OpenWindowArgs<T>): string {
     const state = this.getOrCreateWarmupState(type, this.warmupInitFromPoolConfig(poolConfig))
 
     // Try to find a healthy idle window
@@ -1351,7 +1351,7 @@ export class WindowManager extends BaseService {
    * @param suppressAutoShow - When true, skip auto-show handler (used for pool idle windows)
    * @returns Window ID (UUID)
    */
-  private createWindow<T>(type: WindowType, args?: OpenWindowArgs<T>, suppressAutoShow = false): string {
+  private createWindow<T extends object>(type: WindowType, args?: OpenWindowArgs<T>, suppressAutoShow = false): string {
     const t0 = DIAGNOSTICS_ENABLED ? performance.now() : 0
     const metadata = getWindowTypeMetadata(type)
     const windowId = uuidv4()

@@ -230,7 +230,8 @@ For window types that are keyed by domain data (e.g., a topic-specific window), 
 private topicWindows = new Map<string, string>()  // topicId -> windowId
 
 wm.onWindowCreatedByType(WindowType.TopicView, ({ id }) => {
-  const topicId = wm.getInitData(id) as string
+  const data = wm.getInitData(id) as { topicId: string }
+  const topicId = data.topicId
   this.topicWindows.set(topicId, id)
 })
 
@@ -242,7 +243,7 @@ openTopic(topicId: string): void {
     wm.focus(existingId)
     return
   }
-  const windowId = wm.open(WindowType.TopicView, { initData: topicId })
+  const windowId = wm.open(WindowType.TopicView, { initData: { topicId } })
 }
 ```
 

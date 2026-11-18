@@ -403,7 +403,7 @@ export interface WindowInfo {
  * `create()` — all create paths), because the renderer is not yet ready to
  * receive IPC during those moments.
  */
-export interface OpenWindowArgs<T = unknown> {
+export interface OpenWindowArgs<T extends object = object> {
   /** Optional payload stored for the window; retrievable by the renderer via `getInitData`. */
   initData?: T
   /** Optional BrowserWindow configuration overrides. */

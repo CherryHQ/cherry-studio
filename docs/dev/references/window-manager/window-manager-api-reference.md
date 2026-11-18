@@ -85,12 +85,16 @@ These are raw transport primitives used by WindowManager and remaining legacy ch
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `open<T>` | `(type: WindowType, args?: { initData?: T, options?: Partial<WindowOptions> }) => string` | When `args.initData` is supplied, written atomically to the store before the method returns; also pushed to the renderer as the `window.reused` payload on reuse paths. |
-| `create<T>` | `(type: WindowType, args?: { initData?: T, options?: Partial<WindowOptions> }) => string` | Same atomicity as `open`, but never sends `window.reused` (all create paths are fresh creation). |
-| `setInitData` | `(windowId: string, data: unknown) => void` | Low-level primitive. Prefer the `open/create` args form in new code. |
-| `getInitData` | `(windowId: string) => unknown \| null` | Retrieve initialization data. Cleared on pool release; preserved on singleton hide. |
-| `pushInitData<T>` | `(windowId: string, data: T) => boolean` | Push fresh init data to an already-open window. Writes the store and sends `window.reused` in one step. Returns `false` if the window is missing or destroyed. Main-process only. |
-| `pushInitDataToType<T>` | `(type: WindowType, data: T) => number` | Same as `pushInitData` but fans out to every live window of the given type. Returns the number of windows that received the event. Does not filter by visibility — idle pooled windows receive the payload too. |
+| `open<T extends object>` | `(type: WindowType, args?: { initData?: T, options?: Partial<WindowOptions> }) => string` | When `args.initData` is supplied, written atomically to the store before the method returns; also pushed to the renderer as the `window.reused` payload on reuse paths. |
+| `create<T extends object>` | `(type: WindowType, args?: { initData?: T, options?: Partial<WindowOptions> }) => string` | Same atomicity as `open`, but never sends `window.reused` (all create paths are fresh creation). |
+| `setInitData` | `(windowId: string, data: object) => void` | Low-level primitive. Prefer the `open/create` args form in new code. |
+| `getInitData` | `(windowId: string) => object \| null` | Retrieve initialization data. Cleared on pool release; preserved on singleton hide. |
+| `pushInitData<T extends object>` | `(windowId: string, data: T) => boolean` | Push fresh init data to an already-open window. Writes the store and sends `window.reused` in one step. Returns `false` if the window is missing or destroyed. Main-process only. |
+| `pushInitDataToType<T extends object>` | `(type: WindowType, data: T) => number` | Same as `pushInitData` but fans out to every live window of the given type. Returns the number of windows that received the event. Does not filter by visibility — idle pooled windows receive the payload too. |
+
+Initialization payloads are objects. `OpenWindowArgs<T>` requires `T extends object`;
+use a named field to carry a scalar value. Omitting `initData` keeps the existing clear-on-reuse
+behavior. The store retains the supplied object without normalizing its fields.
 
 **Timing contract:**
 
