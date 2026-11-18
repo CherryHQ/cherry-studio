@@ -835,7 +835,11 @@ class ModelService {
         if (registryOverride?.supportsFastMode) updates.supportsFastMode = true
         if (serviceTierControl) {
           updates.requestControls = {
-            serviceTier: { default: serviceTierControl.default, options: serviceTierControl.options }
+            serviceTier: {
+              default: serviceTierControl.default,
+              options: serviceTierControl.options,
+              values: serviceTierControl.wire.values
+            }
           }
         }
         const ownedBy = registryOverride?.ownedBy ?? presetModel?.ownedBy ?? inferReasoningOwnedBy(modelId)

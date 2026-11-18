@@ -100,5 +100,7 @@ function countToolParts(parts: ReadonlyArray<{ type?: string }> | undefined): nu
 }
 
 function truncate(str: string, max: number): string {
-  return str.length > max ? `${str.slice(0, max)}…[truncated ${str.length - max} chars]` : str
+  const preview = str.length > max ? `${str.slice(0, max)}…[truncated ${str.length - max} chars]` : str
+  // Copy UTF-16 code units so the bounded preview cannot retain the full turn's backing string.
+  return Buffer.from(preview, 'utf16le').toString('utf16le')
 }
