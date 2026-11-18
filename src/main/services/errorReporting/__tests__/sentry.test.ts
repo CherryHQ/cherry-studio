@@ -149,15 +149,16 @@ describe('Sentry consent gate', () => {
     const dumps = processes.map((_, index) => new Uint8Array([77, 68, 77, 80, index]))
     try {
       for (const [index, process] of processes.entries()) {
+        const tags: NonNullable<Parameters<typeof SentryMain.captureEvent>[0]['tags']> = {
+          'event.environment': 'native',
+          'event.process': process
+        }
+        if (index > 0) tags['exit.reason'] = 'crashed'
         client.captureEvent(
           {
             platform: 'native',
             level: 'fatal',
-            tags: {
-              'event.environment': 'native',
-              'event.process': process,
-              ...(index > 0 ? { 'exit.reason': 'crashed' } : {})
-            }
+            tags
           },
           { attachments: [{ attachmentType: 'event.minidump', filename: `${index}.dmp`, data: dumps[index] }] }
         )
@@ -222,12 +223,13 @@ describe('Sentry consent gate', () => {
     const start = Date.now()
     const now = vi.spyOn(Date, 'now').mockReturnValue(start)
     const emit = async (reason: string) => {
-      captureLoggedError({
+      const info = {
         module: 'WindowManager',
         operation: 'window.renderer.exit',
-        failure: { source: 'application', kind: 'reliability', reason, outcome: 'failed' },
-        ...(stack ? { stack, errorName: 'OperationError', errorMessage: 'renderer_exit' } : {})
-      })
+        failure: { source: 'application', kind: 'reliability', reason, outcome: 'failed' }
+      }
+      if (stack) Object.assign(info, { stack, errorName: 'OperationError', errorMessage: 'renderer_exit' })
+      captureLoggedError(info)
       await client.flush(2000)
     }
     try {
@@ -434,17 +436,23 @@ describe('Sentry consent gate', () => {
     expect(options.beforeSend(critical)).not.toBeNull()
     expect(ordinary.filter(Boolean)).toHaveLength(10)
     for (let i = 1; i < 10; i++) {
+      const tags: NonNullable<Parameters<typeof SentryMain.captureEvent>[0]['tags']> = {}
+      if ('tags' in critical) Object.assign(tags, critical.tags)
+      tags.module = `critical${i}`
       expect(
         options.beforeSend({
           ...critical,
-          tags: { ...('tags' in critical ? critical.tags : {}), module: `critical${i}` }
+          tags
         })
       ).not.toBeNull()
     }
+    const overflowTags: NonNullable<Parameters<typeof SentryMain.captureEvent>[0]['tags']> = {}
+    if ('tags' in critical) Object.assign(overflowTags, critical.tags)
+    overflowTags.module = 'critical-overflow'
     expect(
       options.beforeSend({
         ...critical,
-        tags: { ...('tags' in critical ? critical.tags : {}), module: 'critical-overflow' }
+        tags: overflowTags
       })
     ).toBeNull()
     const now = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 10 * 60 * 1000 + 1)
