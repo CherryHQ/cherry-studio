@@ -140,17 +140,10 @@ function setupDocumentCapability(maxInputPages?: number, maxInputBytes?: number)
     capabilities: { document_to_markdown: capabilityHandlerMock },
     isAvailable: () => true
   }
-  resolveProcessorConfigByFeatureMock.mockReturnValue({
-    id: 'doc2x',
-    capabilities: [
-      {
-        feature: 'document_to_markdown',
-        inputs: ['document'],
-        ...(maxInputBytes === undefined ? {} : { maxInputBytes }),
-        ...(maxInputPages === undefined ? {} : { maxInputPages })
-      }
-    ]
-  })
+  const capability = { feature: 'document_to_markdown', inputs: ['document'] }
+  if (maxInputBytes !== undefined) Object.assign(capability, { maxInputBytes })
+  if (maxInputPages !== undefined) Object.assign(capability, { maxInputPages })
+  resolveProcessorConfigByFeatureMock.mockReturnValue({ id: 'doc2x', capabilities: [capability] })
   toFileInfoMock.mockResolvedValue(FAKE_PDF_FILE_INFO)
   return prepared
 }

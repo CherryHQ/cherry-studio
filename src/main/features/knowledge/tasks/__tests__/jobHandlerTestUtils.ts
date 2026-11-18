@@ -272,12 +272,14 @@ export function createNoteItem(
   // override `data`) to exercise the first-index capture path.
   relativePath: PosixRelativeFilePath | undefined = `${id}.md` as PosixRelativeFilePath
 ): KnowledgeItemOf<'note'> {
+  const data: KnowledgeItemOf<'note'>['data'] = { source: id, content: `hello ${id}` }
+  if (relativePath) data.relativePath = relativePath
   return {
     id,
     baseId: 'kb-1',
     groupId,
     type: 'note',
-    data: { source: id, content: `hello ${id}`, ...(relativePath ? { relativePath } : {}) },
+    data,
     status,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
@@ -290,12 +292,14 @@ export function createUrlItem(
   relativePath?: PosixRelativeFilePath,
   status: Exclude<KnowledgeItemOf<'url'>['status'], 'failed'> = 'processing'
 ): KnowledgeItemOf<'url'> {
+  const data: KnowledgeItemOf<'url'>['data'] = { source: 'https://example.com', url: 'https://example.com' }
+  if (relativePath) data.relativePath = relativePath
   return {
     id,
     baseId: 'kb-1',
     groupId: null,
     type: 'url',
-    data: { source: 'https://example.com', url: 'https://example.com', ...(relativePath ? { relativePath } : {}) },
+    data,
     status,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',

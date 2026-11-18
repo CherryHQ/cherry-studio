@@ -128,6 +128,18 @@ function makePricingModel({
   includeHiddenRates = false,
   inputTokenTiers
 }: PricingModelOptions = {}): Model {
+  const pricing = {
+    input: { perMillionTokens: 3, currency: CURRENCY.USD },
+    output: { perMillionTokens: 15, currency: CURRENCY.USD }
+  }
+  if (cacheReadPrice !== undefined)
+    Object.assign(pricing, { cacheRead: { perMillionTokens: cacheReadPrice, currency: CURRENCY.USD } })
+  if (cacheWritePrice !== null)
+    Object.assign(pricing, { cacheWrite: { perMillionTokens: cacheWritePrice, currency: CURRENCY.USD } })
+  if (inputTokenTiers) Object.assign(pricing, { inputTokenTiers })
+  if (includeHiddenRates) {
+    Object.assign(pricing, { perImage: { price: 0.04, unit: 'image' as const }, perMinute: { price: 0.2 } })
+  }
   return {
     id: 'openai::claude-4-sonnet',
     providerId: 'openai',
@@ -135,23 +147,7 @@ function makePricingModel({
     group: 'Anthropic',
     capabilities: [],
     supportsStreaming: true,
-    pricing: {
-      input: { perMillionTokens: 3, currency: CURRENCY.USD },
-      output: { perMillionTokens: 15, currency: CURRENCY.USD },
-      ...(cacheReadPrice !== undefined
-        ? { cacheRead: { perMillionTokens: cacheReadPrice, currency: CURRENCY.USD } }
-        : {}),
-      ...(cacheWritePrice !== null
-        ? { cacheWrite: { perMillionTokens: cacheWritePrice, currency: CURRENCY.USD } }
-        : {}),
-      ...(inputTokenTiers ? { inputTokenTiers } : {}),
-      ...(includeHiddenRates
-        ? {
-            perImage: { price: 0.04, unit: 'image' as const },
-            perMinute: { price: 0.2 }
-          }
-        : {})
-    }
+    pricing
   } as unknown as Model
 }
 
