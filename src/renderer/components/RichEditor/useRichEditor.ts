@@ -281,6 +281,15 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     [placeholder, activeCodeTheme, handleLinkHover, handleLinkHoverEnd, enableImageInsertion, disabledCommands]
   )
 
+  const attributes: NonNullable<Editor['options']['editorProps']['attributes']> = {
+    style: editable
+      ? ''
+      : 'user-select: text; -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text;',
+    spellcheck: enableSpellCheck ? 'true' : 'false'
+  }
+  // `placeholder` decorates content; callers without a visible label supply the accessible name here.
+  if (ariaLabel) attributes['aria-label'] = ariaLabel
+
   const editor = useEditor({
     shouldRerenderOnTransaction: true,
     extensions,
@@ -377,17 +386,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         return false
       },
       transformPasted: (slice) => (enableImageInsertion ? slice : stripImageNodesFromSlice(slice)),
-      attributes: {
-        // Allow text selection even when not editable
-        style: editable
-          ? ''
-          : 'user-select: text; -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text;',
-        // Set spellcheck attribute on the contenteditable element
-        spellcheck: enableSpellCheck ? 'true' : 'false',
-        // `placeholder` only reaches a ProseMirror decoration, so it gives the contenteditable no
-        // accessible name; callers without a visible label supply one here.
-        ...(ariaLabel ? { 'aria-label': ariaLabel } : {})
-      }
+      attributes
     },
     onUpdate: ({ editor, transaction }) => {
       // Ignore non-user updates (initialization/mode toggles/programmatic transactions)
