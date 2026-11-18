@@ -107,7 +107,9 @@ async function requestWrite(
   summary: string
 ): Promise<DoctorToolResult> {
   const outcome = await application.get('DoctorAgentService').requestWrite(ctx.sessionId, write, summary)
-  return { ...json(outcome), ...(outcome.status === 'failed' ? { isError: true } : {}) }
+  const result = { ...json(outcome) }
+  if (outcome.status === 'failed') result.isError = true
+  return result
 }
 
 const REPORT_TOOL: DoctorTool = {
@@ -143,7 +145,9 @@ const DATA_API_TOOL: DoctorTool = {
     if (method === 'GET') {
       if (!isDataApiGetPath(path)) throw new ToolError(`GET is not allowed on ${path}`, ToolErrorCode.InvalidParams)
       const result = await queryDataApi({ method: 'GET', path, query: optionalRecord(args, 'query') })
-      return { ...json(result), ...(result.error ? { isError: true } : {}) }
+      const response = { ...json(result) }
+      if (result.error) response.isError = true
+      return response
     }
     if (method !== 'PATCH') throw new ToolError(`Unsupported method: ${method}`, ToolErrorCode.InvalidParams)
     if (!isDataApiPatchPath(path)) {
@@ -245,9 +249,9 @@ const DOCTOR_FIX_TOOL: DoctorTool = {
       scope: binding.scope,
       runId: binding.reportRunId,
       checkId: args.checkId,
-      fixId: args.fixId,
-      ...(typeof args.target === 'string' ? { target: args.target } : {})
+      fixId: args.fixId
     }
+    if (typeof args.target === 'string') Object.assign(candidate, { target: args.target })
     if (!isDoctorFixRequest(candidate)) {
       throw new ToolError('The report declares no such fix for that check', ToolErrorCode.InvalidParams)
     }
@@ -365,11 +369,9 @@ function listOpenedDirectory(resolved: string, handle: number): DoctorToolResult
   const descriptorPath = `/proc/self/fd/${handle}`
   const entries = fs.readdirSync(descriptorPath, { withFileTypes: true }).map((entry) => {
     const entryStat = entry.isFile() ? fs.lstatSync(path.join(descriptorPath, entry.name)) : undefined
-    return {
-      name: entry.name,
-      kind: entry.isDirectory() ? 'dir' : 'file',
-      ...(entryStat?.isFile() ? { size: entryStat.size } : {})
-    }
+    const details = { name: entry.name, kind: entry.isDirectory() ? 'dir' : 'file' }
+    if (entryStat?.isFile()) Object.assign(details, { size: entryStat.size })
+    return details
   })
   assertOpenedPathIsStillReadable(resolved, fs.fstatSync(handle))
   return json({ path: resolved, entries })

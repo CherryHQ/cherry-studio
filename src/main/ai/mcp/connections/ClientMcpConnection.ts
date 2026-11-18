@@ -8,6 +8,7 @@ import {
   Client,
   CLIENT_CAPABILITIES_META_KEY,
   type ClientOptions,
+  type ClientCapabilities,
   type ConnectOptions,
   type CreateMessageRequestParamsBase,
   type GetPromptRequest,
@@ -304,18 +305,20 @@ export class ClientMcpConnection implements McpConnection {
   private paramsWithLogLevel<T extends { _meta?: Record<string, unknown> }>(params: T): T {
     if (this.era !== 'modern') return params
     const context = this.interactionStorage.getStore()?.context
-    return {
-      ...params,
+    const result = { ...params }
+    let metadata = {}
+    if (typeof params._meta === 'object' && params._meta !== null) metadata = { ...params._meta }
+    const capabilities: ClientCapabilities = {}
+    if (context?.requestElicitation) capabilities.elicitation = { form: {}, url: {} }
+    if (context?.model && context.sample) capabilities.sampling = {}
+    if (context?.roots && context.requestRoots) capabilities.roots = {}
+    return Object.assign(result, {
       _meta: {
-        ...(typeof params._meta === 'object' && params._meta !== null ? params._meta : {}),
+        ...metadata,
         [LOG_LEVEL_META_KEY]: 'info',
-        [CLIENT_CAPABILITIES_META_KEY]: {
-          ...(context?.requestElicitation ? { elicitation: { form: {}, url: {} } } : {}),
-          ...(context?.model && context.sample ? { sampling: {} } : {}),
-          ...(context?.roots && context.requestRoots ? { roots: {} } : {})
-        }
+        [CLIENT_CAPABILITIES_META_KEY]: capabilities
       }
-    }
+    })
   }
 
   public async listTools(cacheMode: CacheMode = 'use', signal?: AbortSignal): Promise<Tool[]> {
