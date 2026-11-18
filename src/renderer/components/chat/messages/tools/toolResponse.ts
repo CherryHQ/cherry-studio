@@ -259,6 +259,11 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
 
   const partialArguments =
     (status === 'streaming' || status === 'invoking') && typeof toolPart.input === 'string' ? toolPart.input : undefined
+  const approvalFields: Pick<ToolResponseLike, 'approval'> = {}
+  if (approval) approvalFields.approval = approval
+  const callFields: Pick<ToolResponseLike, 'toolCallId' | 'parentToolUseId' | 'partialArguments'> = { toolCallId }
+  if (parentToolUseId) callFields.parentToolUseId = parentToolUseId
+  if (partialArguments) callFields.partialArguments = partialArguments
 
   if (toolType === 'mcp') {
     const piResult = toolPart.state === 'output-error' ? toolPart.resultProviderMetadata?.pi?.result : toolPart.output
@@ -274,10 +279,8 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
       arguments: toolPart.input as McpToolResponse['arguments'],
       status,
       response: mcpResult.success ? mcpResult.data : response,
-      ...(approval ? { approval } : {}),
-      toolCallId,
-      ...(parentToolUseId ? { parentToolUseId } : {}),
-      ...(partialArguments ? { partialArguments } : {})
+      ...approvalFields,
+      ...callFields
     }
     return mcpResponse
   }
@@ -294,10 +297,8 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
     arguments: normalizedInput as NormalToolResponse['arguments'],
     status,
     response,
-    ...(approval ? { approval } : {}),
-    toolCallId,
-    ...(parentToolUseId ? { parentToolUseId } : {}),
-    ...(partialArguments ? { partialArguments } : {})
+    ...approvalFields,
+    ...callFields
   }
   return normalResponse
 }

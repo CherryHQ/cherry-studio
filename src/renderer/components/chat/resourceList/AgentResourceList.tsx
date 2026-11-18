@@ -550,6 +550,8 @@ export function AgentResourceList({
       const sidebarPinned = sidebarAgentFavoriteIdSet.has(item.id)
       const owner = agentsRef.current.find((agent) => agent.id === item.id)
       const deleteSessionsOnly = isProtectedBuiltinAgentRole(owner?.configuration?.builtin_role)
+      const deleteOptions: Pick<Parameters<typeof buildResolvedResourceEntityMenuAction>[0], 'shortcut'> = {}
+      if (permanentDeleteShortcut) deleteOptions.shortcut = permanentDeleteShortcut
 
       return [
         buildResolvedResourceEntityMenuAction({
@@ -609,7 +611,7 @@ export function AgentResourceList({
                 danger: true,
                 group: 'danger',
                 order: 32,
-                ...(permanentDeleteShortcut ? { shortcut: permanentDeleteShortcut } : {}),
+                ...deleteOptions,
                 availability: { visible: true, enabled: canPermanentDeleteAgent(item.id) }
               })
             ]
