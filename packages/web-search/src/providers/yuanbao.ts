@@ -33,19 +33,16 @@ export const yuanbao: WebSearchProviderModule = {
           .filter((domain) => YuanbaoDomainSchema.safeParse(domain).success)
       )
     ].slice(0, 5)
+    const body: { Query: string; Cnt?: number; Site?: string } = { Query: call.input }
+    if (!call.config.useDefaultResultCount) body.Cnt = Math.min(50, Math.ceil(call.config.maxResults / 10) * 10)
+    if (excludeDomains.length) body.Site = `exclude:${excludeDomains.join('|')}`
     const { Response: response } = await requestJson(
       context,
       {
         url: apiUrl(context.apiHost, '/SearchPro'),
         method: 'POST',
         headers: bearer(context),
-        body: {
-          Query: call.input,
-          ...(call.config.useDefaultResultCount
-            ? {}
-            : { Cnt: Math.min(50, Math.ceil(call.config.maxResults / 10) * 10) }),
-          ...(excludeDomains.length ? { Site: `exclude:${excludeDomains.join('|')}` } : {})
-        }
+        body
       },
       YuanbaoResponseSchema
     )
