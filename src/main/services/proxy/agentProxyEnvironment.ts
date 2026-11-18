@@ -59,8 +59,11 @@ const selectWindowsEnvironmentEntries = (
   return selected
 }
 
-// Python clients parse each NO_PROXY entry at construction; bracketed IPv6 and IPv6 CIDR break httpx.Client().
-// Cherry's Node matcher accepts bare IPv6; undici 6.27.0 has no CIDR matching to lose, but curl may proxy CIDR destinations.
+// Agent NO_PROXY/no_proxy must be Python-parseable: bracketed IPv6 and IPv6 CIDR raise httpx InvalidURL at client construction,
+// so [::1] becomes ::1 and IPv6 CIDR shapes are dropped. undici 6.27.0 EnvHttpProxyAgent compares bracketed hosts exactly:
+// bare ::1 does not bypass there; one string cannot satisfy both clients. Cherry's NodeProxyBackend disables in-process NO_PROXY
+// with noProxy: '' and delegates to ProxyBypassRuleMatcher, which still bypasses [::1] for a ::1 rule.
+// Clients with CIDR support (curl/libcurl) may proxy the dropped IPv6 ranges; this is the accepted price.
 const toAgentBypassRule = (rule: string): string | undefined => {
   const cidr = /^([^/]+)\/[0-9]+$/.exec(rule)
   if (cidr && isIPv6(cidr[1])) return undefined

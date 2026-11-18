@@ -7,6 +7,7 @@ import {
   mergeAgentLoopbackProxyBypass,
   stripInheritedCherryProxyMarkers
 } from '../agentProxyEnvironment'
+import { ProxyBypassRuleMatcher } from '../bypassRules'
 
 const ACTIVE_PROXY_KEYS = [
   'HTTP_PROXY',
@@ -85,6 +86,48 @@ describe('mergeAgentLoopbackProxyBypass', () => {
       })
     }
   )
+
+  it('keeps the merged Agent bypass variables free of bracketed IPv6 and IPv6 CIDR entries', () => {
+    const bypass =
+      'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],::ffff:127.0.0.0/104,169.254.0.0/16,fe80::/10,127.0.0.1,::1'
+    const result = mergeAgentLoopbackProxyBypass({
+      HTTP_PROXY: 'http://127.0.0.1:7890',
+      HTTPS_PROXY: 'http://127.0.0.1:7890',
+      no_proxy: bypass,
+      NO_PROXY: bypass
+    })
+
+    // Transport selection prioritizes Python-parseable standard variables; Cherry's Node boundary is covered below.
+    expect(result.NO_PROXY).toBe(
+      'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,::1,169.254.0.0/16,127.0.0.1'
+    )
+    expect(result.no_proxy).toBe(result.NO_PROXY)
+    const entries = (result.NO_PROXY ?? '').split(',')
+    expect(entries.filter((entry) => entry.includes('['))).toEqual([])
+    expect(entries.filter((entry) => /^[0-9a-f:]+::\/\d+$/i.test(entry))).toEqual([])
+    expect(entries).toContain('::1')
+  })
+
+  it("keeps Cherry's own Node matcher bypassing IPv6 loopback for the merged Agent bypass rules", () => {
+    const bypass =
+      'localhost,*.localhost,localhost6,localhost6.localdomain6,loopback,127.0.0.0/8,0.0.0.0,[::1],::ffff:127.0.0.0/104,169.254.0.0/16,fe80::/10,127.0.0.1,::1'
+    const result = mergeAgentLoopbackProxyBypass({
+      HTTP_PROXY: 'http://127.0.0.1:7890',
+      HTTPS_PROXY: 'http://127.0.0.1:7890',
+      no_proxy: bypass,
+      NO_PROXY: bypass
+    })
+    const matcher = new ProxyBypassRuleMatcher()
+    matcher.updateByPassRules((result.NO_PROXY ?? '').split(','))
+
+    // Cherry's Node boundary (NodeProxyBackend's noProxy: '' + this matcher) retains IPv6 loopback bypass.
+    expect(matcher.isByPass('http://[::1]:8080/')).toBe(true)
+    expect(matcher.isByPass('http://[0:0:0:0:0:0:0:1]:8080/')).toBe(true)
+    expect(matcher.isByPass('http://127.0.0.1:8080/')).toBe(true)
+    expect(matcher.isByPass('http://localhost:8080/')).toBe(true)
+    expect(matcher.isByPass('http://[2001:db8::1]/')).toBe(false)
+    expect(matcher.isByPass('https://api.example.com/')).toBe(false)
+  })
 
   it.each([
     ['2001:db8::/32,::ffff:127.0.0.0/104,fe80::/10', 'localhost,127.0.0.1,::1'],
