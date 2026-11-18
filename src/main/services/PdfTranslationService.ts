@@ -353,16 +353,17 @@ export class PdfTranslationService extends BaseService {
       const source = await this.registerSourceEntry(request.sourcePath, request.jobId)
       this.throwIfCancelled(job)
 
-      const history = application.get('DbService').withWriteTx((tx) =>
-        translateHistoryService.createFileTx(tx, {
+      const history = application.get('DbService').withWriteTx((tx) => {
+        const input: Parameters<typeof translateHistoryService.createFileTx>[1] = {
           sourceText: path.basename(request.sourcePath),
           targetText: fileName,
           sourceLanguage: toPersistedLangCodeOrNull(request.sourceLangCode),
           targetLanguage: toPersistedLangCodeOrNull(request.targetLangCode),
-          targetFileEntryId: entry.id,
-          ...(source ? { sourceFileEntryId: source.id } : {})
-        })
-      )
+          targetFileEntryId: entry.id
+        }
+        if (source) input.sourceFileEntryId = source.id
+        return translateHistoryService.createFileTx(tx, input)
+      })
       notifyDataApiDataChange([{ endpoint: '/translate/histories', kind: 'membership', entityIds: [history.id] }])
 
       return { outputPath: fileManager.getPhysicalPath(entry.id), fileName }
@@ -617,14 +618,15 @@ export class PdfTranslationService extends BaseService {
     }
 
     const runtimeHome = application.getPath('feature.pdf_translation.babeldoc')
-    return mergeBinaryExecutionEnv({
+    const env: Record<string, string> = {
       ...allowedEnv,
       ...buildSidecarCaBundleEnv(allowedEnv),
       ...buildSidecarProxyEnv(allowedEnv.NO_PROXY ?? allowedEnv.no_proxy, new URL(gatewayBaseUrl).hostname),
       HOME: runtimeHome,
       USERPROFILE: runtimeHome,
-      PYTHONUTF8: '1',
-      ...(inChina ? { BABELDOC_ASSET_UPSTREAM: 'modelscope' } : {})
-    })
+      PYTHONUTF8: '1'
+    }
+    if (inChina) env.BABELDOC_ASSET_UPSTREAM = 'modelscope'
+    return mergeBinaryExecutionEnv(env)
   }
 }
