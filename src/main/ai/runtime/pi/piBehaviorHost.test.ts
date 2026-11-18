@@ -14,7 +14,8 @@ import { createPiBehaviorHost } from './piBehaviorHost'
 const captureUsageMock = vi.hoisted(() => vi.fn(() => ({ headers: {}, release: () => {} })))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ ApiGatewayService: { captureAgentSessionUsage: captureUsageMock } })
+  const overrides = { ApiGatewayService: { captureAgentSessionUsage: captureUsageMock } }
+  return mockApplicationFactory(overrides)
 })
 
 const root = runtimeId<'thread'>('root')
@@ -195,8 +196,10 @@ describe('Pi behavior host model lookup', () => {
 
     registered.add(child.id)
     const completeSimple = vi.fn().mockResolvedValue(assistant({ content: [{ type: 'text', text: 'summary' }] }))
-    const summarize = configured.compaction!.summarize
+    const summarize = configured.compaction?.summarize
+    if (!summarize) throw new Error('child binding carries no summarizer')
     const first = await summarize(request([user('hello')], meteredStream(completeSimple)))
+    if (typeof first === 'string') throw new Error('expected a structured summary')
     expect(first.summary).toBe('summary')
     expect(usageSessionId).toHaveBeenCalledTimes(1)
     expect(captureUsageMock).toHaveBeenCalledWith('session', `usage-${child.id}`)
@@ -209,7 +212,9 @@ describe('Pi behavior host model lookup', () => {
     const sibling = { backendId: child.backendId, id: runtimeId<'thread'>('sibling-child') }
     const configuredSibling = await configureChild({ thread: sibling, modelKey: openRouterKey })
     registered.add(sibling.id)
-    await configuredSibling.compaction!.summarize(request([user('sibling')], meteredStream(completeSimple)))
+    const siblingSummarize = configuredSibling.compaction?.summarize
+    if (!siblingSummarize) throw new Error('sibling binding carries no summarizer')
+    await siblingSummarize(request([user('sibling')], meteredStream(completeSimple)))
     expect(usageSessionId).toHaveBeenCalledTimes(2)
     expect(captureUsageMock).toHaveBeenLastCalledWith('session', `usage-${sibling.id}`)
   })
