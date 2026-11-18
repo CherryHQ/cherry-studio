@@ -9,6 +9,7 @@
 import { readFileSync } from 'node:fs'
 
 import semver from 'semver'
+import type * as z from 'zod'
 
 import { type CatalogManifest, REGISTRY_SCHEMA_VERSION } from './catalog'
 import { ModelIndex, ProviderModelIndex } from './registry-index'
@@ -45,7 +46,7 @@ export function isCatalogManifestCompatible(manifest: CatalogManifest, appVersio
   return semver.gte(app, minimum) && semver.lte(app, source)
 }
 
-function readAndParse<T>(jsonPath: string, schema: { parse: (data: unknown) => T }): T {
+function readAndParse<T>(jsonPath: string, schema: z.ZodType<T>): T {
   try {
     const data = JSON.parse(readFileSync(jsonPath, 'utf-8'))
     return schema.parse(data)
