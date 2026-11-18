@@ -73,12 +73,14 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Lock creation failures are untrusted rejection values; only a verified EEXIST code means another owner holds the lock.
 function isAlreadyExists(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException).code === 'EEXIST'
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'EEXIST'
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Config and lock reads may reject; only a verified ENOENT code permits missing-file recovery.
 function isMissing(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException).code === 'ENOENT'
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT'
 }
 
 function parseLockOwner(content: string): LockOwner | undefined {
