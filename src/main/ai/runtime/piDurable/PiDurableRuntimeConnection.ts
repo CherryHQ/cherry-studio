@@ -100,6 +100,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private compacting = false
   private autonomous = false
   private failure?: unknown
+  private stopGeneration = 0
   private admission: Promise<unknown> = Promise.resolve()
   private runEnded?: PromiseWithResolvers<void>
   private nextOrigin: AutonomousTurnOrigin = { kind: 'background-work' }
@@ -209,6 +210,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       this.failure = undefined
       this.turnUsage.reset()
     }
+    const stopGeneration = this.stopGeneration
     const snapshot = this.desktop?.snapshot
     let thresholdReached = false
     if (!running && !manual && snapshot?.compactionPercent !== undefined && snapshot.model.contextWindow) {
@@ -221,7 +223,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         usage.value.contextWindow > 0 &&
         usage.value.used.tokens >= (usage.value.contextWindow * snapshot.compactionPercent) / 100
     }
-    if (manual || thresholdReached) {
+    if (manual || (thresholdReached && stopGeneration === this.stopGeneration && !this.closing)) {
       const trigger = manual ? 'manual' : 'auto'
       this.compacting = true
       this.events.push({ type: 'compaction-start', trigger })
@@ -253,6 +255,12 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         this.finishTurn()
         return
       }
+    }
+    // Stop can finish its native interrupt before this input reaches native admission.
+    if (stopGeneration !== this.stopGeneration || this.closing) {
+      this.placed.delete(input.message.id)
+      this.finishTurn(undefined, true)
+      return
     }
     try {
       await this.submit(input, input.systemReminder ? wrapSteerReminder(text) : text, 'follow-up')
@@ -768,6 +776,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async interrupt(): Promise<void> {
+    this.stopGeneration++
     // The stop must name the turn of a submission that is still being admitted.
     await this.admission
     const ended = this.sending ? (this.runEnded ??= Promise.withResolvers<void>()).promise : undefined
