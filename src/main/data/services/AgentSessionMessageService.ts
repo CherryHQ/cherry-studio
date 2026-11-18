@@ -415,6 +415,25 @@ export class AgentSessionMessageService {
     )
   }
 
+  recoveredInputReply(sessionId: string, contextId: string, inputId: string): string | undefined {
+    if (this.inputBinding(sessionId, inputId)?.contextId !== contextId) return undefined
+    const replies = application
+      .get('DbService')
+      .getDb()
+      .select({ id: sessionMessagesTable.id })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.parentId, inputId),
+          eq(sessionMessagesTable.role, 'assistant')
+        )
+      )
+      .limit(2)
+      .all()
+    return replies.length === 1 ? replies[0].id : undefined
+  }
+
   inputBinding(sessionId: string, messageId: string) {
     return application
       .get('DbService')
@@ -933,7 +952,16 @@ export class AgentSessionMessageService {
   }
 
   hasSessionMessage(sessionId: string, messageId: string): boolean {
-    return this.findExistingMessageRow(application.get('DbService').getDb(), sessionId, messageId) !== null
+    return (
+      application
+        .get('DbService')
+        .getDb()
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, messageId)))
+        .limit(1)
+        .all().length > 0
+    )
   }
 
   listLiveCreatedInRangeMetadataPage({

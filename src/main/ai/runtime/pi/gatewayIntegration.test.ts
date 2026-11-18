@@ -60,6 +60,7 @@ vi.mock('@application', async () => {
     },
     AiService: { streamText: (input: Parameters<AiService['streamText']>[0]) => mocks.ai!.streamText(input) },
     ApiGatewayService: {
+      acquireModelPayloadBudget: async () => () => {},
       captureAgentSessionUsage: (_session: string, _owner: string | undefined, parent?: AgentRuntimeTraceContext) => {
         if (!parent) return { headers: {}, release: () => {} }
         const key = String(mocks.captures.size + 1)

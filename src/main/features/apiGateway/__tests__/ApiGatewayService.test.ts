@@ -168,6 +168,55 @@ async function startInternalGateway(service: ApiGatewayService) {
 
 const CHAT_SCOPE = { path: '/v1/chat/completions', model: 'openai:gpt-4o' }
 
+describe('native model payload budget', () => {
+  const large = { data: 'A'.repeat(12 * 1024 * 1024) }
+
+  it('serializes oversized requests while allowing small requests to proceed', async () => {
+    const service = new ApiGatewayService()
+    const release = await service.acquireModelPayloadBudget(large)
+    let acquired = false
+    const second = service.acquireModelPayloadBudget(large).then((done) => {
+      acquired = true
+      return done
+    })
+    const small = await service.acquireModelPayloadBudget({ text: 'hello' })
+    expect(acquired).toBe(false)
+    small()
+    release()
+    const finish = await second
+    expect(acquired).toBe(true)
+    finish()
+  })
+
+  it('cancels queued requests without leaking capacity or blocking the next request', async () => {
+    const service = new ApiGatewayService()
+    const release = await service.acquireModelPayloadBudget(large)
+    const controller = new AbortController()
+    const aborted = service.acquireModelPayloadBudget(large, controller.signal)
+    const rejected = expect(aborted).rejects.toMatchObject({ name: 'AbortError' })
+    controller.abort()
+    await rejected
+    const next = service.acquireModelPayloadBudget(large)
+    release()
+    const done = await next
+    done()
+    const final = await service.acquireModelPayloadBudget(large)
+    final()
+  })
+
+  it('rejects queued requests when the gateway stops and can be used again afterward', async () => {
+    const service = new ApiGatewayService()
+    const release = await service.acquireModelPayloadBudget(large)
+    const queued = service.acquireModelPayloadBudget(large)
+    const rejected = expect(queued).rejects.toBeInstanceOf(Error)
+    await service._doStop()
+    await rejected
+    release()
+    const done = await service.acquireModelPayloadBudget(large)
+    done()
+  })
+})
+
 describe('ApiGatewayService internal gateway', () => {
   it('shares bounded permission retries across consumers and returns usable credentials after recovery', async () => {
     const service = new ApiGatewayService()
