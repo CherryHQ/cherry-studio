@@ -323,35 +323,37 @@ function rowToRuntimeProvider(row: UserProviderRow, metadata?: ProviderDisplayMe
   // surfaces a real invariant break instead of swallowing it.
   const logoFileId = getSingleFileRefId(providerLogoFileRefTable, row.providerId)
 
-  const metadata: Omit<Provider, 'reportsActualCost' | 'fastMode' | 'apiKeys' | 'authType' | 'settings' | 'isEnabled'> =
-    {
-      id: row.providerId,
-      presetProviderId: row.presetProviderId ?? undefined,
-      name: row.name,
-      // Preset icon key stays on `logo`, an uploaded one on `logoSrc` — mutually exclusive.
-      logo: row.logoKey ?? undefined,
-      logoSrc: logoFileId ? application.get('FileManager').getUrl(logoFileId) : undefined,
-      description: presetMetadata.description,
-      websites: presetMetadata.websites,
-      availableInEditions: presetMetadata.availableInEditions,
-      // Registry-owned connection facts (adapterFamily, modelsApiUrls, the
-      // endpoint-type key set) resolve from the CURRENT registry at read time
-      // (#17096 — the seeder is insert-only, so the row alone goes stale);
-      // the row contributes user-owned baseUrl and dialect overrides. Legacy
-      // registry-only fields such as `reasoningFormatType` are stripped first.
-      endpointConfigs:
-        providerRegistryService.mergeEndpointConfigs(row.endpointConfigs, row.providerId, row.presetProviderId) ??
-        undefined,
-      defaultChatEndpoint: row.defaultChatEndpoint ?? presetMetadata.defaultChatEndpoint,
-      modelListSource: presetMetadata.modelListSource,
-      supplementModelsFromRegistry: presetMetadata.supplementModelsFromRegistry,
-      authMethods: presetMetadata.authMethods,
-      authOptional: presetMetadata.authOptional,
-      serverTools: presetMetadata.serverTools ?? []
-    }
-  if (presetMetadata.reportedCostCurrency) metadata.reportedCostCurrency = presetMetadata.reportedCostCurrency
+  const providerFields: Omit<
+    Provider,
+    'reportsActualCost' | 'fastMode' | 'apiKeys' | 'authType' | 'settings' | 'isEnabled'
+  > = {
+    id: row.providerId,
+    presetProviderId: row.presetProviderId ?? undefined,
+    name: row.name,
+    // Preset icon key stays on `logo`, an uploaded one on `logoSrc` — mutually exclusive.
+    logo: row.logoKey ?? undefined,
+    logoSrc: logoFileId ? application.get('FileManager').getUrl(logoFileId) : undefined,
+    description: presetMetadata.description,
+    websites: presetMetadata.websites,
+    availableInEditions: presetMetadata.availableInEditions,
+    // Registry-owned connection facts (adapterFamily, modelsApiUrls, the
+    // endpoint-type key set) resolve from the CURRENT registry at read time
+    // (#17096 — the seeder is insert-only, so the row alone goes stale);
+    // the row contributes user-owned baseUrl and dialect overrides. Legacy
+    // registry-only fields such as `reasoningFormatType` are stripped first.
+    endpointConfigs:
+      providerRegistryService.mergeEndpointConfigs(row.endpointConfigs, row.providerId, row.presetProviderId) ??
+      undefined,
+    defaultChatEndpoint: row.defaultChatEndpoint ?? presetMetadata.defaultChatEndpoint,
+    modelListSource: presetMetadata.modelListSource,
+    supplementModelsFromRegistry: presetMetadata.supplementModelsFromRegistry,
+    authMethods: presetMetadata.authMethods,
+    authOptional: presetMetadata.authOptional,
+    serverTools: presetMetadata.serverTools ?? []
+  }
+  if (presetMetadata.reportedCostCurrency) providerFields.reportedCostCurrency = presetMetadata.reportedCostCurrency
   return {
-    ...metadata,
+    ...providerFields,
     reportsActualCost: presetMetadata.reportsActualCost ?? false,
     fastMode: presetMetadata.fastMode,
     apiKeys,
