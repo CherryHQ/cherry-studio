@@ -6,8 +6,8 @@ The package implements native execution; `agent-behavior` owns product rules.
 ## Host services
 
 The connection reuses Pi's gateway model binding, behavior host, approval facts,
-shell configuration and tool rendering. Each native provider call reaches Cherry's
-internal gateway, which owns upstream credentials and billing. Root and child bindings share
+shell configuration and tool rendering. Each native provider call passes protocol request/event objects to Cherry's
+gateway in process, which owns upstream credentials and billing without an internal HTTP/JSON/SSE round trip. Root and child bindings share
 the backend model registry and are restored before native execution resumes. Each binding uses its own native provider registration, preserving other models' routes,
 request options and usage callbacks even when their Cherry Provider is the same.
 
@@ -27,8 +27,8 @@ The backend supplies Pi's native `HarnessOptions.telemetry`. Durable owns submis
 spans, including tool identity, outcomes, committed-entry events and replay links. Cherry bridges
 them to its existing developer-mode OTel provider and viewer. Native persisted carriers freeze the
 initiating session and parent across recovery; roots without carriers remain untraced until a new
-traced submission. Gateway SDK calls inherit the native phase parent through internal usage capture.
-Pi model spans are suppressed because the SDK already records the request and usage; HTTP tracing
+traced submission. Gateway SDK calls inherit the native phase parent through the typed in-process call context.
+Pi model spans are suppressed because the SDK already records the request and usage; upstream HTTP tracing
 retains wire bodies and the gateway remains the sole billing writer.
 
 ## Storage and projection

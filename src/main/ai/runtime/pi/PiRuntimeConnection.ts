@@ -56,7 +56,6 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import { AsyncEventQueue } from '@shared/utils/async'
 import { markReportingHandled } from '@shared/utils/errorReporting'
 
-import { resolveApiGatewayRuntime } from '../agentApiGateway'
 import { PROMPT_SUGGESTION_INSTRUCTION } from '../promptSuggestion'
 import type {
   AgentRuntimeConnectInput,
@@ -148,7 +147,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input.modelId,
       this.input.knowledgeBaseIds
     )
-    await resolveApiGatewayRuntime(this.input.sessionId)
     await warmAgentMcpToolCatalogs(discovery.agent.mcps ?? [])
     const initialSnapshot = await capturePiConnectionSnapshot(
       this.input.sessionId,

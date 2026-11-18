@@ -1207,10 +1207,11 @@ for other sessions; validation, connection, editing, and forking retry the impor
 using that session. No failed conversion silently starts an empty context. The original DSH
 files remain untouched. Restoring an older backup repeats the same conversion.
 
-Pi model calls use native Pi protocols against Cherry's internal gateway. The gateway resolves
+Pi and Pi Durable model calls exchange native protocol request/event objects with Cherry's gateway
+in process, without internal HTTP/JSON/SSE codecs or a listener dependency. The gateway resolves
 the configured provider/model and owns credentials, request options and billing through Cherry's
 provider execution path. Pi remains the sole tool executor and loop owner. Its session retry policy
-owns retries; the native HTTP client and gateway do not retry the same request independently.
+owns retries; the object transport and gateway do not retry the same request independently.
 
 ## Internal Agent continuation normalization
 

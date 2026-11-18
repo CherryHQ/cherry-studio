@@ -84,9 +84,10 @@ vi.mock('@application', async () => {
   const overrides = {
     DbService: defaultServiceInstances.DbService,
     ApiGatewayService: {
-      acquireModelPayloadBudget: async () => () => {},
       captureAgentSessionUsage: () => ({ headers: {}, release: () => {} }),
-      ensureInternalGateway: async () => ({ baseUrl: 'http://gateway.invalid', apiKey: 'fixture' }),
+      ensureInternalGateway: async () => {
+        throw new Error('Pi Durable must start without an internal HTTP listener')
+      },
       getAgentSessionUsageHeaders: () => ({})
     },
     McpCatalogService: { listTools: mocks.catalog, onToolsCacheUpdated: () => ({ dispose() {} }) },
