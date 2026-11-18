@@ -1,6 +1,6 @@
 # Agent Note: Archive Agent Session system workspaces in the background
 
-Status: proposed
+Status: implemented
 
 English | [中文](2026-11-13-background-system-workspace-archive.zh.md)
 
@@ -45,3 +45,12 @@ Split the archive into a foreground commit and a background conversion.
 - The undo race spans the task queue and the storage mutex. A missed cancellation would archive a restored workspace, so AC3 must cover all three compression states.
 - Shutdown drain adds latency to quit when a large archive is running.
 - The write path for a workspace that is still being archived is new behavior. Its failure mode is an extra error, not data loss, but the UI must not show a session as usable while its directory is converting.
+
+## Verification
+
+- AC1 — `AgentLifecycleService.workspace.test.ts` "archives only system files and restores them before making the session active": `archiveSessions` resolves with the directory intact and the business `deletedAt` committed while exactly one `agent.archive-system-workspace` task is enqueued for the system workspace; the directory is packed only after the queued task runs. "blocks overlapping registration throughout archive shutdown and releases the reservation afterward" shows the request resolving before the task's quiesce holds the storage reservation.
+- AC2 — `AgentLifecycleService.workspace.test.ts` "commits the business archive and the archive task atomically": trashing inside a transaction that then rolls back leaves the session active, the enqueue went through the caller's transaction, and no job row persists. The handler declares `recovery: 'retry'`, so a task persisted at commit is replayed by JobManager startup recovery (covered by the JobManager suites).
+- AC3 — `AgentLifecycleService.workspace.test.ts` "cancels a queued archive task when the archive is undone" (queued: `JobManager.cancel` runs before activation and a stale replay skips the restored workspace) and "waits for an in-flight archive task when the archive is undone" (running: restore waits for the task instead of aborting the pack); completed compression is covered by the pre-existing restore tests, which now run the queued task first. `agentArchiveWorkspaceJobHandler.test.ts` "skips a workspace restored after the task was queued" covers the handler's business-state re-read.
+- AC4 — `AgentLifecycleService.workspace.test.ts` "keeps the directory if runtime shutdown fails" (directory retained, failure logged, task still queued for retry) and "releases the storage reservation when strict runtime shutdown fails" plus "sweep preserves pending restore intent..." (the pack failure surfaces through the task and retains the pending record for the sweep's retry); `agentArchiveWorkspaceJobHandler.test.ts` "propagates a compression failure so the task retries" with `defaultRetryPolicy.maxAttempts` > 1.
+- AC5 — `agentArchiveWorkspaceJobHandler.test.ts` "skips when the workspace row is gone, e.g. permanently deleted" (repeated or post-purge execution) and the recovery declaration test; the pre-existing orphan-sweep cases in `AgentLifecycleService.workspace.test.ts` (purge/retention, claimed archives, restore-intent preservation) run against the new task flow unchanged.
+- AC6 — `agentArchiveWorkspaceJobHandler.test.ts` "declares restart recovery, a shared queue and a batch concurrency cap" (`defaultConcurrency: 2`, one shared queue); "archives only system files..." asserts the user workspace directory is never packed, and only system workspaces are enqueued (root sessions joined against `AGENT_WORKSPACE_TYPE.SYSTEM`), so user directories and native JSONL paths are untouched.
