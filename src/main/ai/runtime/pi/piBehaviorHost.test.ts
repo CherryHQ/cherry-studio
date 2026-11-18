@@ -13,8 +13,13 @@ import { createPiBehaviorHost } from './piBehaviorHost'
 
 const captureUsageMock = vi.hoisted(() => vi.fn(() => ({ headers: {}, release: () => {} })))
 vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  const overrides = { ApiGatewayService: { captureAgentSessionUsage: captureUsageMock } }
+  const { mockApplicationFactory, defaultServiceInstances } = await import('@test-mocks/main/application')
+  // DbService pins a known key so the literal satisfies the weak-type ServiceOverrides
+  // check; it re-selects the default mock, so runtime behavior is unchanged.
+  const overrides = {
+    DbService: defaultServiceInstances.DbService,
+    ApiGatewayService: { captureAgentSessionUsage: captureUsageMock }
+  }
   return mockApplicationFactory(overrides)
 })
 
