@@ -38,6 +38,7 @@ import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_
 const logger = loggerService.withContext('useReorder')
 
 type ItemList = Array<Record<string, unknown>>
+type CollectionCache = ItemList | { items: ItemList } | Array<{ items: ItemList }>
 export type ReorderRequest = OrderRequest | ({ anchor: OrderRequest } & Record<string, unknown>)
 
 /**
@@ -48,14 +49,14 @@ export type ReorderRequest = OrderRequest | ({ anchor: OrderRequest } & Record<s
  * and naked `{ items }` wrappers. Return `undefined` when the shape is not
  * recognized so the optimistic path can degrade gracefully.
  */
-export type SelectItems = (cache: unknown) => ItemList | undefined
+export type SelectItems<Cache> = (cache: Cache) => ItemList | undefined
 
 /**
  * Rebuild a collection cache value after items have been reordered. Must be
  * the inverse of {@link SelectItems}: write back so a subsequent `selectItems`
  * call on the returned value yields the same list.
  */
-export type UpdateItems = (cache: unknown, items: ItemList) => unknown
+export type UpdateItems<Cache> = (cache: Cache, items: ItemList) => Cache
 
 function defaultSelectItems(cache: unknown): ItemList | undefined {
   if (cache === undefined || cache === null) return undefined
@@ -93,7 +94,7 @@ function updateInfiniteItems(cache: unknown, items: ItemList): Array<{ items: It
   })
 }
 
-export interface UseReorderOptions {
+export interface UseReorderOptions<Cache = CollectionCache> {
   /** Query parameters of the collection cache to update. */
   query?: Record<string, unknown>
   /** Target a useInfiniteQuery collection with the same page limit. */
@@ -139,12 +140,12 @@ export interface UseReorderOptions {
    * Must be provided together with {@link UpdateItems}; passing one without
    * the other throws at hook construction.
    */
-  selectItems?: SelectItems
+  selectItems?: SelectItems<Cache>
   /**
    * Escape hatch: rebuild the cache value after the items list was reordered.
    * Must be the inverse of {@link SelectItems} — see {@link UpdateItems}.
    */
-  updateItems?: UpdateItems
+  updateItems?: UpdateItems<Cache>
 }
 
 export interface UseReorderResult {
@@ -222,24 +223,23 @@ type ReorderParamsOption<TCollection extends TemplateApiPaths> =
  *
  * @example Nested group view via accessors
  * const { applyReorderedList } = useReorder('/grouped-view', {
- *   selectItems: (cache) => (cache as GroupedView).groups[0].items,
+ *   selectItems: (cache: GroupedView) => cache.groups[0].items,
  *   updateItems: (cache, items) => {
- *     const c = cache as GroupedView
- *     return { ...c, groups: [{ ...c.groups[0], items }, ...c.groups.slice(1)] }
+ *     return { ...cache, groups: [{ ...cache.groups[0], items }, ...cache.groups.slice(1)] }
  *   }
  * })
  */
-export function useReorder<TCollection extends TemplateApiPaths>(
+export function useReorder<TCollection extends TemplateApiPaths, Cache = CollectionCache>(
   collectionUrl: TCollection,
-  options: UseReorderOptions & ReorderParamsOption<TCollection>
+  options: UseReorderOptions<Cache> & ReorderParamsOption<TCollection>
 ): UseReorderResult
-export function useReorder<TCollection extends ConcreteApiPaths>(
+export function useReorder<TCollection extends ConcreteApiPaths, Cache = CollectionCache>(
   collectionUrl: TCollection,
-  options?: UseReorderOptions
+  options?: UseReorderOptions<Cache>
 ): UseReorderResult
-export function useReorder(
+export function useReorder<Cache>(
   collectionUrl: ApiPath,
-  options?: UseReorderOptions & { params?: unknown }
+  options?: UseReorderOptions<Cache> & { params?: unknown }
 ): UseReorderResult {
   const hasSelect = options?.selectItems !== undefined
   const hasUpdate = options?.updateItems !== undefined
@@ -316,7 +316,7 @@ export function useReorder(
 
   const move = useCallback(
     async (id: string, request: ReorderRequest) => {
-      const current = readCache<unknown>(resolvedCollectionUrl, query, infinite)
+      const current = readCache<Cache>(resolvedCollectionUrl, query, infinite)
       if (current === undefined) {
         logger.warn(`move called before data loaded at ${String(collectionUrl)}; ignored`)
         return
@@ -365,7 +365,7 @@ export function useReorder(
   const applyBatch = useCallback(
     // Internal: the only caller is `applyReorderedList`, which has already
     // verified the cache is loaded and that `selectItems` returns a list.
-    async (current: unknown, items: ItemList, moves: OrderBatchRequest['moves']) => {
+    async (current: Cache, items: ItemList, moves: OrderBatchRequest['moves']) => {
       setIsPending(true)
       let next = items
       for (const m of moves) {
@@ -399,7 +399,7 @@ export function useReorder(
 
   const applyReorderedList = useCallback(
     async (newList: ItemList) => {
-      const current = readCache<unknown>(resolvedCollectionUrl, query, infinite)
+      const current = readCache<Cache>(resolvedCollectionUrl, query, infinite)
       if (current === undefined) {
         logger.warn(`applyReorderedList called before data loaded at ${String(collectionUrl)}; ignored`)
         return

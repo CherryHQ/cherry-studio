@@ -170,7 +170,7 @@ export function MarketplaceLoadState({
   loading?: boolean
   error?: unknown
   empty: boolean
-  retry?: () => unknown
+  retry?: () => void | Promise<void>
 }) {
   const { t } = useTranslation()
   if (error)

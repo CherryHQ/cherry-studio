@@ -71,10 +71,18 @@ export function MarketplaceSkills({
         loading={catalog.isLoading}
         error={catalog.error}
         empty={!filtered.length}
-        retry={() => catalog.mutate().catch(() => {})}
+        retry={async () => {
+          await catalog.mutate().catch(() => {})
+        }}
       />
       {installed.error ? (
-        <MarketplaceLoadState error={installed.error} empty={false} retry={() => installed.refresh().catch(() => {})} />
+        <MarketplaceLoadState
+          error={installed.error}
+          empty={false}
+          retry={async () => {
+            await installed.refresh().catch(() => {})
+          }}
+        />
       ) : null}
       {skipped > 0 ? (
         <p role="status" className="text-muted-foreground mb-3 text-xs">
