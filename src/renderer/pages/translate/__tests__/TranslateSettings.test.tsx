@@ -225,6 +225,7 @@ describe('TranslateSettings', () => {
   const setAutoDetectionMethod = vi.fn().mockResolvedValue(undefined)
   const setEnableMarkdown = vi.fn().mockResolvedValue(undefined)
   const setAutoCopy = vi.fn().mockResolvedValue(undefined)
+  const setSelectionToolbar = vi.fn().mockResolvedValue(undefined)
   const setScrollSync = vi.fn().mockResolvedValue(undefined)
   const setBidirectionalEnabled = vi.fn().mockResolvedValue(undefined)
   const setModelPrompt = vi.fn().mockResolvedValue(undefined)
@@ -238,6 +239,7 @@ describe('TranslateSettings', () => {
     setAutoDetectionMethod.mockReset()
     setEnableMarkdown.mockReset()
     setAutoCopy.mockReset()
+    setSelectionToolbar.mockReset()
     setScrollSync.mockReset()
     setBidirectionalEnabled.mockReset()
     setModelPrompt.mockReset()
@@ -251,6 +253,7 @@ describe('TranslateSettings', () => {
       ['feature.translate.page.enable_markdown', setEnableMarkdown],
       ['feature.translate.page.auto_copy', setAutoCopy],
       ['feature.translate.page.scroll_sync', setScrollSync],
+      ['feature.translate.selection_toolbar.enabled', setSelectionToolbar],
       ['feature.translate.page.bidirectional_enabled', setBidirectionalEnabled],
       ['feature.translate.model_prompt', setModelPrompt]
     ])
@@ -261,6 +264,15 @@ describe('TranslateSettings', () => {
 
   afterEach(() => {
     cleanup()
+  })
+
+  // RED: a missing settings switch makes the toolbar action impossible to hide persistently.
+  it('persists the selection toolbar translation toggle', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.selection_toolbar.enabled', true)
+    render(<TranslateSettings visible onClose={vi.fn()} />)
+    const row = screen.getByText('translate.settings.selection_toolbar').parentElement!
+    fireEvent.click(within(row).getByRole('button'))
+    await waitFor(() => expect(setSelectionToolbar).toHaveBeenCalledWith(false))
   })
 
   it('warns and blocks pair persistence when selecting the same bidirectional language', () => {

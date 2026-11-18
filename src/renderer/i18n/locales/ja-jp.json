@@ -6501,6 +6501,7 @@
   "translate.settings.model_placeholder": "翻訳モデルを選択してください",
   "translate.settings.preview": "Markdown プレビュー",
   "translate.settings.scroll_sync": "スクロール同期設定",
+  "translate.settings.selection_toolbar": "テキスト選択ツールバーに翻訳を表示",
   "translate.settings.title": "翻訳設定",
   "translate.source_language": "ソース言語",
   "translate.stop": "翻訳を停止",

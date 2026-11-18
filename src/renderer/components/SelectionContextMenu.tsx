@@ -252,6 +252,8 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
 
   return (
     <TextSelectionToolbar
+      getSelectedText={(selection) => extractSelectedText(selection)}
+      onCopyText={handleCopy}
       onCopy={(selection) => handleCopy(extractSelectedText(selection))}
       onQuote={(selection) => handleQuote(extractSelectedText(selection, { singleDollar: mathEnableSingleDollar }))}
       onSaveToNotes={(selection) =>

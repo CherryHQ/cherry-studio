@@ -6501,6 +6501,7 @@
   "translate.settings.model_placeholder": "Choisissez le modèle de traduction",
   "translate.settings.preview": "Aperçu Markdown",
   "translate.settings.scroll_sync": "Paramètres de synchronisation du défilement",
+  "translate.settings.selection_toolbar": "Afficher la traduction dans la barre de sélection de texte",
   "translate.settings.title": "Paramètres de traduction",
   "translate.source_language": "Langue source",
   "translate.stop": "Arrêter la traduction",

@@ -6501,6 +6501,7 @@
   "translate.settings.model_placeholder": "Επιλέξτε μοντέλο μετάφρασης",
   "translate.settings.preview": "Προεπισκόπηση Markdown",
   "translate.settings.scroll_sync": "Ρύθμιση συγχρονισμού κύλισης",
+  "translate.settings.selection_toolbar": "Εμφάνιση μετάφρασης στη γραμμή επιλογής κειμένου",
   "translate.settings.title": "Ρυθμίσεις μετάφρασης",
   "translate.source_language": "Γλώσσα Πηγής",
   "translate.stop": "Σταματήστε τη μετάφραση",

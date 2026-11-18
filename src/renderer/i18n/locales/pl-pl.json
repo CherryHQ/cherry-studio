@@ -6577,6 +6577,7 @@
   "translate.settings.model_placeholder": "Wybierz model tłumaczenia",
   "translate.settings.preview": "Podgląd Markdown",
   "translate.settings.scroll_sync": "Ustawienia synchronizacji przewijania",
+  "translate.settings.selection_toolbar": "Pokaż tłumaczenie na pasku zaznaczania tekstu",
   "translate.settings.title": "Ustawienia tłumaczenia",
   "translate.source_language": "Język źródłowy",
   "translate.stop": "Zatrzymaj tłumaczenie",

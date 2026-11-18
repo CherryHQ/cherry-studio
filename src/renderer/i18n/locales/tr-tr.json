@@ -6501,6 +6501,7 @@
   "translate.settings.model_placeholder": "Çeviri modelini seçin",
   "translate.settings.preview": "Markdown Önizlemesi",
   "translate.settings.scroll_sync": "Kaydırma Eşitleme Ayarları",
+  "translate.settings.selection_toolbar": "Metin seçimi araç çubuğunda çeviriyi göster",
   "translate.settings.title": "Çeviri Ayarları",
   "translate.source_language": "Kaynak Dil",
   "translate.stop": "Çeviriyi Durdur",
