@@ -65,12 +65,12 @@ export interface ChildProcessGoneDetails {
 interface Deferred<T> {
   promise: Promise<T>
   resolve: (value: T) => void
-  reject: (reason: unknown) => void
+  reject: (cause: unknown) => void
 }
 
 function createDeferred<T>(): Deferred<T> {
   let resolve!: (value: T) => void
-  let reject!: (reason: unknown) => void
+  let reject!: (cause: unknown) => void
   const promise = new Promise<T>((res, rej) => {
     resolve = res
     reject = rej
@@ -90,13 +90,13 @@ function abortable<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
   })
 }
 
-const describe = (error: unknown): string => toRemoteError(error).message
+const describe = (cause: unknown): string => toRemoteError(cause).message
 
 type Outcome = { value: unknown } | { error: unknown }
 
 interface Pending<Contract extends UtilityProcessContract> {
   resolve: (value: unknown) => void
-  reject: (error: unknown) => void
+  reject: (cause: unknown) => void
   onEvent?: (event: unknown) => void
   onHostCall?: UtilityProcessRequestOptions<unknown, UtilityProcessHostCallFor<Contract>>['onHostCall']
   hostCalls: AbortController
@@ -744,11 +744,11 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     })
   }
 
-  private cancelRequest(generation: Generation<Contract>, requestId: number, reason: unknown): void {
+  private cancelRequest(generation: Generation<Contract>, requestId: number, cause: unknown): void {
     const pending = generation.pending.get(requestId)
     if (pending === undefined) return
     if (this.definition.cancellation === 'cooperative') {
-      this.settlePending(generation, requestId, { error: reason })
+      this.settlePending(generation, requestId, { error: cause })
       generation.tombstones.add(requestId)
       if (generation.phase !== 'ready' || generation.settled) return
       try {
@@ -759,9 +759,9 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
       return
     }
     if (pending.settleWith !== null) return
-    pending.hostCalls.abort(reason)
+    pending.hostCalls.abort(cause)
     pending.dropTerminals = true
-    pending.settleWith = { reason }
+    pending.settleWith = { reason: cause }
     if (generation.phase === 'stopping') return
     generation.intentionalExit = true
     generation.phase = 'stopping'

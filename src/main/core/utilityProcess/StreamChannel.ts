@@ -133,12 +133,12 @@ export class StreamChannel {
     return this.inputEnded
   }
 
-  abort(reason: unknown): void {
+  abort(cause: unknown): void {
     if (this.failure) return
-    this.failure = { reason }
-    for (const writer of this.writes.splice(0)) writer.reject(reason)
-    this.end?.reject(reason)
-    this.reader?.reject(reason)
+    this.failure = { reason: cause }
+    for (const writer of this.writes.splice(0)) writer.reject(cause)
+    this.end?.reject(cause)
+    this.reader?.reject(cause)
     this.reader = undefined
     this.queue.length = 0
     this.held = undefined
