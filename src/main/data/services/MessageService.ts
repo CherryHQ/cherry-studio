@@ -2319,18 +2319,14 @@ export class MessageService {
     let copiedActiveNodeId = ''
 
     for (const sourceMessage of rows) {
-      const copiedStats: MessageStats = {
-        ...(sourceMessage.stats?.timeFirstTokenMs !== undefined
-          ? { timeFirstTokenMs: sourceMessage.stats.timeFirstTokenMs }
-          : {}),
-        ...(sourceMessage.stats?.timeCompletionMs !== undefined
-          ? { timeCompletionMs: sourceMessage.stats.timeCompletionMs }
-          : {}),
-        ...(sourceMessage.stats?.timeThinkingMs !== undefined
-          ? { timeThinkingMs: sourceMessage.stats.timeThinkingMs }
-          : {}),
-        ...(sourceMessage.stats?.runtimeTiming ? { runtimeTiming: sourceMessage.stats.runtimeTiming } : {})
-      }
+      const copiedStats: MessageStats = {}
+      if (sourceMessage.stats?.timeFirstTokenMs !== undefined)
+        copiedStats.timeFirstTokenMs = sourceMessage.stats.timeFirstTokenMs
+      if (sourceMessage.stats?.timeCompletionMs !== undefined)
+        copiedStats.timeCompletionMs = sourceMessage.stats.timeCompletionMs
+      if (sourceMessage.stats?.timeThinkingMs !== undefined)
+        copiedStats.timeThinkingMs = sourceMessage.stats.timeThinkingMs
+      if (sourceMessage.stats?.runtimeTiming) copiedStats.runtimeTiming = sourceMessage.stats.runtimeTiming
       let copiedParentId: string
       if (sourceMessage.parentId && copiedMessageIds.has(sourceMessage.parentId)) {
         copiedParentId = copiedMessageIds.get(sourceMessage.parentId)!

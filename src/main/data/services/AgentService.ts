@@ -902,10 +902,11 @@ export class AgentService {
   deleteAgent(id: string, options: { deleteSessions?: boolean; permanent?: boolean } = {}) {
     const impact = application.get('DbService').withWriteTx((tx) => this.deleteAgentStateTx(tx, id, options))
     this.notifyDeleted(id, impact)
-    return {
-      deleted: impact.deleted,
-      ...(impact.deletedSessionIds ? { deletedSessionIds: impact.deletedSessionIds } : {})
+    const result: Pick<typeof impact, 'deleted'> & Partial<Pick<typeof impact, 'deletedSessionIds'>> = {
+      deleted: impact.deleted
     }
+    if (impact.deletedSessionIds) result.deletedSessionIds = impact.deletedSessionIds
+    return result
   }
 
   deleteAgentStateTx(

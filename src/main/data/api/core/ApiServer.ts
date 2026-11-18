@@ -107,12 +107,12 @@ export class ApiServer {
       // Opt-in timing: devtools reads metadata in dev; diagnostics additionally logs slow requests.
       if (DATA_API_TIMING_ENABLED) {
         const duration = performance.now() - perfStart
-        requestContext.response.metadata = {
+        const metadata = {
           ...requestContext.response.metadata,
-          duration,
-          ...(DATA_API_HANDLER_TIMING_ENABLED ? { handlerDuration } : {}),
-          timestamp: Date.now()
+          duration
         }
+        if (DATA_API_HANDLER_TIMING_ENABLED) Object.assign(metadata, { handlerDuration })
+        requestContext.response.metadata = { ...metadata, timestamp: Date.now() }
         if (DIAGNOSTICS_ENABLED && duration > SLOW_THRESHOLD_MS.dataApiRequest)
           logger.info(`[Diagnostics/dataapi] ${duration.toFixed(1)}ms ${method} ${path}`)
       }
@@ -131,17 +131,16 @@ export class ApiServer {
       apiError.reportingHandled = true
 
       const duration = DATA_API_TIMING_ENABLED ? performance.now() - perfStart : undefined
+      const timing: Pick<NonNullable<DataResponse['metadata']>, 'duration' | 'handlerDuration'> = {}
+      if (DATA_API_TIMING_ENABLED) {
+        timing.duration = duration
+        if (DATA_API_HANDLER_TIMING_ENABLED) timing.handlerDuration = handlerDuration
+      }
       return {
         id: request.id,
         status: apiError.status,
         error: apiError.toJSON(), // Serialize for IPC transmission
-        metadata: DATA_API_TIMING_ENABLED
-          ? {
-              duration,
-              ...(DATA_API_HANDLER_TIMING_ENABLED ? { handlerDuration } : {}),
-              timestamp: Date.now()
-            }
-          : { timestamp: Date.now() }
+        metadata: { ...timing, timestamp: Date.now() }
       }
     }
   }
