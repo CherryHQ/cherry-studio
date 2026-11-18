@@ -28,7 +28,6 @@ export function withIdleTimeout<T>(
   timeoutMs: number
 ): { stream: ReadableStream<T>; idle: IdleTimeoutHandle } {
   const idle = new IdleTimeoutController(timeoutMs)
-  let active = true
 
   // When the idle timer fires, abort the caller's controller so the abort
   // propagates through every signal already wired into the AI SDK request
@@ -41,7 +40,6 @@ export function withIdleTimeout<T>(
   idle.signal.addEventListener('abort', onIdleAbort, { once: true })
 
   const cleanup = () => {
-    active = false
     idle.cleanup()
     idle.signal.removeEventListener('abort', onIdleAbort)
   }
@@ -75,19 +73,5 @@ export function withIdleTimeout<T>(
   // to rearm with a longer bound; the next pulled chunk's `idle.reset()` above
   // restores the default. Don't `idle.cleanup()` to pause indefinitely — a renderer
   // that never responds would leave the stream + subprocess hanging until app quit.
-  return {
-    stream,
-    idle: {
-      reset: (durationMs) => {
-        if (active) idle.reset(durationMs)
-      },
-      cleanup: idle.cleanup,
-      pause: () => {
-        if (active) idle.pause()
-      },
-      resume: () => {
-        if (active) idle.resume()
-      }
-    }
-  }
+  return { stream, idle }
 }
