@@ -1,3 +1,4 @@
+import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
 import { buildSpanView } from '../spanPresenters'
@@ -28,6 +29,19 @@ const tabData = (view: { tabs: { value: string; data: unknown }[] }, value: stri
   view.tabs.find((tab) => tab.value === value)?.data
 
 describe('buildSpanView span-type registry', () => {
+  it('ignores malformed nested token counts from unvalidated trace history', () => {
+    const usage = { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 }
+    Object.defineProperty(usage, 'prompt_tokens_details', { value: { cached_tokens: { toString: null } } })
+
+    const view = buildSpanView(node({ modelName: 'gpt-x', attributes: { 'gen_ai.request.model': 'gpt-x' }, usage }), t)
+    const row = view.rows.find((entry) => entry.label === 'trace.tokenUsage')
+
+    expect(row?.content).toBeDefined()
+    const markup = renderToStaticMarkup(row?.content)
+    expect(markup).toContain('↑100')
+    expect(markup).not.toContain('trace.cachedTokens')
+  })
+
   it('HTTP span: url/method/status rows, header tabs, body-only input, no model', () => {
     const view = buildSpanView(
       node({

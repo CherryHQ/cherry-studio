@@ -42,6 +42,7 @@ interface SpanPresenter {
 }
 
 const attrsOf = (node: TraceNode): Record<string, unknown> => node.attributes ?? {}
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Trace attributes and decoded MCP server fields have heterogeneous values; accept only nonempty strings for detail rows.
 const str = (value: unknown): string | undefined => (typeof value === 'string' && value ? value : undefined)
 
 /** Common tab set for spans without bespoke tabs: inputs / outputs / raw. */
@@ -157,7 +158,12 @@ const modelPresenter: SpanPresenter = {
   }
 }
 
-function getTokenDetail(usage: unknown, detailsKey: string, tokenKey: string): number | undefined {
+function getTokenDetail(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- TraceStorageService reads historical span JSON without usage validation; check nested token counts before rendering them.
+  usage: unknown,
+  detailsKey: 'prompt_tokens_details' | 'completion_tokens_details',
+  tokenKey: string
+): number | undefined {
   if (!usage || typeof usage !== 'object') return undefined
   const details = (usage as Record<string, unknown>)[detailsKey]
   if (!details || typeof details !== 'object') return undefined
@@ -228,12 +234,25 @@ interface McpCall {
 }
 
 /** Parse the MCP span input (`[{ server, name, args }]`) to its single call. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- MCP trace inputs are serialized call arguments; decode the call object and check server identity strings before presenting them.
 function parseMcpCall(raw: unknown): McpCall | undefined {
   if (typeof raw !== 'string') return undefined
   try {
-    const parsed = JSON.parse(raw)
-    const call = Array.isArray(parsed) ? parsed[0] : parsed
-    return call && typeof call === 'object' ? (call as McpCall) : undefined
+    const parsed: unknown = JSON.parse(raw)
+    const call: unknown = Array.isArray(parsed) ? parsed[0] : parsed
+    if (!call || typeof call !== 'object' || Array.isArray(call)) return undefined
+    const record = call as Record<string, unknown>
+    const server =
+      record.server && typeof record.server === 'object' && !Array.isArray(record.server)
+        ? (record.server as Record<string, unknown>)
+        : undefined
+    return {
+      server: server
+        ? { name: str(server.name), type: str(server.type), description: str(server.description) }
+        : undefined,
+      name: str(record.name),
+      args: record.args
+    }
   } catch {
     return undefined
   }
