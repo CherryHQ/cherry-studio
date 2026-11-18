@@ -64,13 +64,14 @@ const PNG_1PX_RAW = PNG_1PX.slice('data:image/png;base64,'.length)
 const GIF_1PX = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
 
 function imageFilePart(url: string, entryId?: string, filename = 'photo.png', mediaType = 'image/png') {
-  return {
+  const part: Extract<MessageExportView['parts'][number], { type: 'file' }> = {
     type: 'file',
     mediaType,
     url,
-    filename,
-    ...(entryId ? { providerMetadata: { cherry: { fileEntryId: entryId } } } : {})
+    filename
   }
+  if (entryId) part.providerMetadata = { cherry: { fileEntryId: entryId } }
+  return part
 }
 
 function generateImagePart(items: Array<{ id: string; name: string }>, state = 'output-available') {
