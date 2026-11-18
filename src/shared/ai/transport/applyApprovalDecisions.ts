@@ -31,15 +31,18 @@ export function applyApprovalDecisions(
     if (part.state !== 'approval-requested') return part
     const decision = byApprovalId.get(id)
     if (!decision) return part
-    return {
-      ...part,
-      ...(decision.updatedInput !== undefined ? { input: decision.updatedInput } : {}),
-      state: 'approval-responded',
-      approval: {
-        id: decision.approvalId,
-        approved: decision.approved,
-        ...(decision.reason !== undefined ? { reason: decision.reason } : {})
-      }
+    const updated = { ...part }
+    if (decision.updatedInput !== undefined) updated.input = decision.updatedInput
+    const approval: Extract<CherryMessagePart, { state: 'approval-responded' }>['approval'] = {
+      id: decision.approvalId,
+      approved: decision.approved
     }
+    if (decision.reason !== undefined) approval.reason = decision.reason
+    const responded: Extract<CherryMessagePart, { state: 'approval-responded' }> = {
+      ...updated,
+      state: 'approval-responded',
+      approval
+    }
+    return responded
   })
 }

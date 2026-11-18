@@ -61,6 +61,7 @@ export function toExecutionFailure(
   const reasonCode = layer === 'host' ? 'internal' : (reasons[category] ?? 'unknown')
   const providerId = safeText(error.providerId ?? modelId?.split('::')[0], 128)
   const model = safeText(modelId ?? error.modelId, 128)
+  const context: NonNullable<ExecutionFailure['failure']['context']> = {}
   const value: ExecutionFailure = {
     message,
     retryable: error.isRetryable === true && !['auth', 'permission', 'quota', 'internal'].includes(reasonCode),
@@ -68,13 +69,12 @@ export function toExecutionFailure(
       version: 1,
       reasonCode,
       source: { layer: layer ?? (status || error.providerErrorCategory ? 'provider' : 'runtime') },
-      context: {
-        ...(status && status >= 100 && status <= 599 ? { statusCode: status } : {}),
-        ...(providerId ? { providerId } : {}),
-        ...(model ? { modelId: model } : {})
-      }
+      context
     }
   }
+  if (status && status >= 100 && status <= 599) context.statusCode = status
+  if (providerId) context.providerId = providerId
+  if (model) context.modelId = model
   while (new TextEncoder().encode(JSON.stringify(value)).length > 4096)
     value.message = Array.from(value.message)
       .slice(0, Math.floor(Array.from(value.message).length / 2))
