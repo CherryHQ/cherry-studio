@@ -66,9 +66,13 @@ persisted at once. The Work composer sends it immediately instead of holding it 
 dock, because the descriptor declares `nativeFollowUp`; the connection has no single-submission gate and Main keeps no queue for it. Durable places it at the next run
 boundary, in the same batch as the preceding answer. The connection announces the placement with
 `steer-boundary` after that batch's projection, so the preceding answer stays in its reply and Main
-opens a new one. Durable reports the preceding input's outcome only when the run ends, so Main
+opens a new one. The event marks the placement as a follow-up: Main holds it while the previous reply
+is still starting, so it never joins that reply, while steers placed into the running turn still share
+its continuation. Durable reports the preceding input's outcome only when the run ends, so Main
 settles that reply as answered at the boundary and replaces it if the outcome is not `completed`;
-cycle completion reads only the input that owns the current reply. `/compact` still waits in Main's queue, and input is refused while compacting.
+cycle completion reads only the input that owns the current reply. A follow-up whose submission
+fails before it reaches Durable moves to Main's queue.
+`/compact` still waits in Main's queue, and input is refused while compacting.
 Product snapshots and headless policy stay on the Main session entry under the input ID, including
 unknown admission across connection replacement. The successor reconciles the original binding
 without resending, while generation checks reject stale callbacks.
@@ -82,11 +86,14 @@ cancellation and ownership semantics.
 
 - User Stop calls `interrupt()` and keeps the access open. It records the shared stop policy,
   cancels the native foreground scope and stops running background children. Unconsumed input is
-  withdrawn, including queued follow-ups, which receive an `aborted` outcome. The connection emits
+  withdrawn, including queued follow-ups, which receive an `aborted` outcome without being placed;
+  Main marks each such message `paused`, shown as not sent with Resend and Edit. The connection emits
   `stop-confirmed` after the stopped turn's terminal event; the
-  next message reuses the same access. If Durable completed or failed the input before the stop
+  next message reuses the same access. An unconfirmed stop, including a native interrupt that never
+  returns, closes the access after 20 seconds. If Durable completed or failed the input before the stop
   landed, Main replaces the paused reply with that outcome. When that outcome arrived before Stop
-  registered, Main reads it from Durable's input record.
+  registered, Main reads it from Durable's input record. A reply that a background run continued after
+  its input ended stays paused. Deliveries receive one terminal event for the stopped reply.
 - A gap is followed by a recovery snapshot. A failed child projection write is logged and
   reattaches that child from a fresh native snapshot. The backend error hook carries diagnostics
   only: it is logged and neither ends a turn nor closes a root.
@@ -103,8 +110,10 @@ cancellation and ownership semantics.
   when it opened it (`reply_id`); queued inputs are saved before their replies, so row ancestry
   cannot identify that reply. A queued input that has no reply yet gets a new one. Follow-ups
   still queued are placed and answered after it. A pending reply whose input already has a
-  Durable outcome is rebuilt from committed entries with that outcome. Boot recovery leaves
-  admitted delivery turns pending and opens their Sessions so Durable finishes them.
+  Durable outcome is rebuilt from committed entries with that outcome; a reply already stored
+  with a terminal status is not rebuilt. Boot recovery leaves admitted delivery turns pending and
+  opens their Sessions so Durable finishes them; a Session that cannot connect ends its delivery
+  turn as an error.
 - Closing a child panel only detaches its projection subscription.
 
 Background continuation keeps one child identity. Independent continuation of an ended
@@ -122,10 +131,12 @@ attribution, repeated snapshots, the difference between stop and shutdown, Stop 
 closing, resynchronization after a child projection fault and after a root observation overflow, a
 backend diagnostic that leaves the turn and its access running, naming the input that reopening
 resumes, and native follow-up admission: placement after the preceding answer, a send during running
-work, Stop withdrawal and answering after reopen. `AgentSessionRuntimeService.projection.test.ts`
-covers continuing a resumed input, outcome rebuilds, the Stop/completion race in both orders and
-placed follow-ups getting their own replies in Main; `recoverSessionDeliveries.test.ts` covers boot
-delivery recovery.
+work, Stop withdrawal, a submission that throws and answering after reopen.
+`AgentSessionRuntimeService.projection.test.ts` covers continuing a resumed input, outcome rebuilds,
+the Stop/completion race in both orders with one terminal event, Stop on a background continuation, a
+native interrupt that never returns, placed follow-ups getting their own replies in Main, including
+one placed before the previous reply opens, and withdrawn input; `recoverSessionDeliveries.test.ts`
+covers boot delivery recovery, including a Session that cannot connect.
 `durableMcp.test.ts` runs an actual linked MCP server through the native tool loop.
 The storage and child-projection suites cover strict reopen, interrupted binding
 recovery and asynchronous archive reconciliation.

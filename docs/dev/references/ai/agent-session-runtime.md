@@ -293,10 +293,14 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    dock until the turn ends. Pi Durable submits
    it with its `follow-up` busy policy and persists it at once, so the queue survives a crash.
    When Durable places the input, the driver emits `steer-boundary` after the preceding answer;
-   the host gives the input its own reply. The preceding reply settles as answered there; Durable
-   reports its input's outcome when the run ends, and the host then replaces a reply whose input
-   did not complete. An autonomous reply settles at that boundary, and a
-   deferred user turn resumes there. A refused submission falls back to the host queue.
+   the host gives the input its own reply. The event's `followUp` flag marks such a placement: the
+   host holds it while a steer transition or reservation is pending, or while the current reply has
+   no open stream, so a later placement never joins an earlier reply. Steers still merge into one
+   continuation. The preceding reply settles as answered at the boundary; Durable reports its
+   input's outcome when the run ends, and the host then replaces a reply whose input did not
+   complete. An autonomous reply settles at that boundary, and a deferred user turn resumes
+   there. A refused submission, or one that throws before it reaches the runtime, falls back to the
+   host queue.
    An input queued before a restart has no entry-side context; the host reads its bound user
    message instead. If that input starts native work by itself, it also gets a new reply.
 3. **No redirect-eligible open normal turn, or a driver that cannot steer** —
@@ -699,7 +703,8 @@ On startup, the runtime owner terminalizes abandoned Pi product placeholders wit
 identities or replaying their inputs. Rows owned by persisted delivery turns remain with delivery recovery.
 `pi-durable` placeholders stay `pending`: when the Session reopens, Durable continues a resumed input
 in the reply its `replyId` names, and an input that already has a Durable outcome rebuilds its reply from
-committed entries with that outcome.
+committed entries with that outcome. Delivery recovery ends a recovered delivery turn as an error
+when its Session cannot connect, because no runtime can then resume it.
 
 For Claude Code, the resume token is the SDK `session_id`. The driver
 maps it to `options.resume`. This is separate from the SDK's file
@@ -1253,10 +1258,13 @@ For other connections, when the idle timer expires, the runtime closes the entry
 Service stop and destroy close all runtime entries. User Stop (`stopSession()`) additionally
 invokes an optional connection `interrupt()` before closing, including when the visible stream has
 already finished but background work remains. A `retainOnStop` connection (Pi Durable) is
-interrupted but not closed: Stop withdraws queued follow-ups, and the connection's `stopping`
+interrupted but not closed: Stop withdraws queued follow-ups, and the host marks each withdrawn user
+message `paused`, which the transcript shows as not sent with Resend and Edit. The connection's `stopping`
 occupancy keeps the session busy and holds later input until the connection emits
 `stop-confirmed`. If the native input completed or failed before the stop landed, its outcome replaces the
-paused reply. A failed or unconfirmed stop (20 s) falls back to closing. Durable shutdown preserves ordinary
+paused reply, unless a background run continued that reply after its input ended. `onTurnTerminal`
+fires once for the stopped reply, after that decision. A failed or unconfirmed stop (20 s, including
+the native interrupt call) falls back to closing. Durable shutdown preserves ordinary
 unfinished root tasks; explicit interruption cancels them. Reopen applies shared behavior's
 `onOpen` before native resume, disarming goals and stopping interrupted background children.
 Repeated `closeSession()` calls join the in-flight close. A closing session rejects new

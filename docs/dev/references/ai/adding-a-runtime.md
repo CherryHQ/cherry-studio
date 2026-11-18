@@ -138,10 +138,11 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      - `followUp(input)` — native admission for a message sent while native work runs. The
        runtime persists the input in its own queue at once, so it survives a crash; the host
        prefers `redirect` for an open turn, then `followUp`, then its own queue. Emit
-       `steer-boundary` with the input ID when the runtime places it, after the content that
-       answers the input before it, so each input gets its own reply. Report a refused submission
-       through `input-submission`. Return false when no native work runs or the text is a host
-       command such as `/compact`. Pi Durable implements it.
+       `steer-boundary` with the input ID and `followUp: true` when the runtime places it, after
+       the content that answers the input before it, so each input gets its own reply. Report a
+       refused submission through `input-submission`, and emit `steer-undelivered` for one that
+       fails before it reaches the runtime. Return false when no native work runs or the text is a
+       host command such as `/compact`. Pi Durable implements it.
      - `retainWhileIdle` — keep an owned in-process runtime beyond the host idle TTL;
        explicit retirement and service shutdown still close it.
      - `background-work-state` — retain the connection while native background work exists.

@@ -56,9 +56,9 @@ The mapping does not depend on whether the host is closing. Main applies the sam
 
 ### Stop
 
-Stop calls the connection's `interrupt()`. Durable writes its stop record before it aborts the foreground scope, and running background children are stopped through the child stop operation. Stop also withdraws queued follow-ups, which end `aborted`. The connection and the backend stay open; input sent after Stop waits for `stop-confirmed` and then reuses the same access. An unconfirmed stop falls back to closing after 20 seconds.
+Stop calls the connection's `interrupt()`. Durable writes its stop record before it aborts the foreground scope, and running background children are stopped through the child stop operation. Stop also withdraws queued follow-ups, which end `aborted` without being placed. Main marks each withdrawn message as not sent (`paused`), and the transcript offers Resend and Edit for it. The connection and the backend stay open; input sent after Stop waits for `stop-confirmed` and then reuses the same access. An unconfirmed stop falls back to closing after 20 seconds; the deadline includes the native interrupt itself.
 
-If Durable completed or failed the input before the stop landed, Main replaces the paused reply with that outcome. Main takes it from the outcome event, or from Durable's input record when the event arrived before Stop registered.
+If Durable completed or failed the input before the stop landed, Main replaces the paused reply with that outcome. Main takes it from the outcome event, or from Durable's input record when the event arrived before Stop registered. Main keeps the reply paused when a background run had continued it after its input ended, because Stop ended that run. Deliveries receive one terminal event for the stopped reply, after Main has decided its status.
 
 ### Connection faults
 
@@ -71,16 +71,18 @@ A message sent while a turn runs is submitted to Durable and persisted at once:
 - Enter while busy sends a native follow-up (`whenBusy: 'follow-up'`). The `nativeFollowUp` runtime capability makes the composer send at once instead of using its follow-up dock.
 - The steer shortcut sends a steer (`whenBusy: 'steer'`) that Durable places before the next model call.
 
-The connection admits these sends while native work runs; it refuses input only during compaction. Main opens a queued input's reply when Durable places the input, so each queued input gets its own reply. Main's own queue only holds input that Durable refuses or that arrives when no native work is running.
+The connection admits these sends while native work runs; it refuses input only during compaction. Main opens a queued input's reply when Durable places the input, so each queued input gets its own reply. A placement that arrives while the previous reply is still starting waits for it instead of joining it; steers placed into the running turn still share its continuation. Durable reports each input's outcome when the run ends, after the next input was placed; Main then replaces the earlier reply when its input did not complete, such as an answer cut off by the output limit. Main's own queue only holds input that Durable refuses, input whose submission fails before it reaches Durable, and input that arrives when no native work is running.
 
 ### Recovery
 
 Product rows are projections of Durable's record. On reopen:
 
-- A resumed input is attached to its original user message through that message's native input ID, and its output continues in that message's reply.
+- A resumed input is attached to its original user message through that message's native input ID, and its output continues in the reply Main linked to that message when it opened the reply. Queued messages are saved before their replies, so row order cannot say which reply answers which message; the link is stored on the user row (`reply_id`).
 - A reply that never reached terminal persistence gets its parts from Durable's committed entries and its status from the Durable outcome.
 
-Boot recovery never marks a `pi-durable` reply as `error` without a Durable outcome; it leaves an admitted delivery turn pending for the runtime to resume.
+Only replies that are still pending are rebuilt; a row already stored with a terminal status keeps it.
+
+Boot recovery never marks a `pi-durable` reply as `error` without a Durable outcome; it leaves an admitted delivery turn pending for the runtime to resume. When the recovered Session cannot connect, no runtime can resume the turn, and Main ends it as an error.
 
 ### Delivery
 
@@ -102,8 +104,11 @@ The decision shipped as a Spec-first stack:
 ## Consequences
 
 - A `pi-durable` message sent during a turn is saved before it runs, survives a crash, and gets its own reply. The follow-up dock is not used for `pi-durable`; Claude Code and Pi keep it.
+- When several messages are queued before the first of them is answered, the transcript lists those messages before their replies: each reply is saved at the end of the branch, after the messages already in it.
+- User rows of agent sessions gain a nullable `reply_id` column, added by an appended migration; rows saved before it fall back to their direct assistant child.
+- A message that Stop withdrew stays in the transcript, marked as not sent. Resend sends a new copy and keeps the marked row.
 - Stop keeps the backend and its history loaded, so the next message does not reopen the backend. The backend stays resident after Stop, as it already did while idle.
-- Reopening rewrites the status and parts of rows that were stored wrongly before this change, following Durable's record. Rows without a Durable outcome stay unchanged.
+- Reopening rebuilds the status and parts of a reply that is still pending, following Durable's record. Rows stored with a terminal status before this change, including wrong `error` rows, are not rewritten; rows without a Durable outcome stay unchanged.
 - Native `submit` and `interrupt` can resume the whole shared Harness, and Stop no longer pairs them with a shutdown.
 - Stopping background children remains a host rule. If Durable offers a scoped stop, the host should switch to it.
 - An exception while applying a root observation batch still fails the turn and closes the access; it has no resynchronization path.
@@ -112,10 +117,10 @@ The decision shipped as a Spec-first stack:
 
 ## Verification
 
-- AC1 — `PiDurableRuntimeConnection.test.ts` › "reports a stop that Durable records before close as a paused turn, not a failure", "preserves output truncation through the desktop error boundary" and "keeps the turn and the access when the Durable backend reports a diagnostic"; `AgentSessionRuntimeService.projection.test.ts` › "keeps a stopped reply paused when the runtime reports the abort before closing", "replaces a paused reply with the Durable outcome reported before/after Stop registers" and "settles an unfinished reply from its Durable $outcome outcome on reopen".
-- AC2 — `PiDurableRuntimeConnection.test.ts` › "keeps the access open after Stop, ends running background children and answers the next message"; `AgentSessionRuntimeService.projection.test.ts` › "keeps a retained connection open on Stop and starts later input only after native confirmation"; the Electron Stop scenario answers the next message.
+- AC1 — `PiDurableRuntimeConnection.test.ts` › "reports a stop that Durable records before close as a paused turn, not a failure", "preserves output truncation through the desktop error boundary" and "keeps the turn and the access when the Durable backend reports a diagnostic"; `AgentSessionRuntimeService.projection.test.ts` › "keeps a stopped reply paused when the runtime reports the abort before closing", "replaces a paused reply with the Durable outcome reported before/after Stop registers" (one terminal event), "keeps a reply paused when Stop ends its background continuation", "keeps the output-limit classification for a truncated Durable outcome on reopen", "saves a truncated answer as an output-limit error after its follow-up was placed" and "settles an unfinished reply from its Durable $outcome outcome on reopen"; `PiDurableRuntimeConnection.test.ts` › "reports a truncated answer on its own input and completes the follow-up on its own outcome".
+- AC2 — `PiDurableRuntimeConnection.test.ts` › "keeps the access open after Stop, ends running background children and answers the next message"; `AgentSessionRuntimeService.projection.test.ts` › "keeps a retained connection open on Stop and starts later input only after native confirmation" and "ends a retained Stop whose native interrupt never returns"; the Electron Stop scenario answers the next message.
 - AC3 — `PiDurableRuntimeConnection.test.ts` with the real runtime: "resynchronizes a failed child projection without closing the root access" injects a child write fault, "resynchronizes the root projection after an observation overflow without ending the turn" produces Durable's overflow gap with a held consumer, and "keeps the turn and the access when the Durable backend reports a diagnostic" fires the backend error hook mid-turn.
-- AC4 — `PiDurableRuntimeConnection.test.ts` native follow-up tests (placement after the preceding answer, a send during running work, Stop withdrawal, answering after reopen); `agentSessionRuntimeState.test.ts` placement transitions; `AgentSessionRuntimeService.projection.test.ts` › "gives a Durable input $label its own reply when placed"; `AgentComposer.test.tsx` busy Enter; the Electron queued follow-up and kill scenarios.
-- AC5 — `PiDurableRuntimeConnection.test.ts` › "names the placed input that reopening resumes"; `AgentSessionRuntimeService.projection.test.ts` › "continues a resumed Durable input in its original reply"; in the Electron kill scenario the killed input completes in its original reply.
-- AC6 — `AgentSessionRuntimeService.projection.test.ts` › "settles an unfinished reply from its Durable $outcome outcome on reopen"; `recoverSessionDeliveries.test.ts` › "leaves an admitted Durable delivery turn for the runtime to resume"; the Electron kill scenario ends without error rows.
+- AC4 — `PiDurableRuntimeConnection.test.ts` native follow-up tests (placement after the preceding answer, a send during running work, Stop withdrawal, a submission that throws, answering after reopen); `agentSessionRuntimeState.test.ts` placement transitions; `AgentSessionRuntimeService.projection.test.ts` › "gives a Durable input $label its own reply when placed", "gives a Durable placement its own reply when it arrives before the previous one opens" and "marks a queued Durable input that Stop withdrew as not sent"; `AgentComposer.test.tsx` busy Enter and "resends or restores a message that Stop withdrew before sending"; `MessageGroup.test.tsx` › "marks a withdrawn user message as not sent and offers to resend or edit it"; the Electron queued follow-up and kill scenarios.
+- AC5 — `PiDurableRuntimeConnection.test.ts` › "names the placed input that reopening resumes"; `AgentSessionRuntimeService.projection.test.ts` › "continues a resumed Durable input in its original reply", "continues a resumed input in its linked reply when an earlier reply sits below it" and "links each steered input to the reply opened for it"; in the Electron kill scenario the killed input completes in its original reply.
+- AC6 — `AgentSessionRuntimeService.projection.test.ts` › "settles an unfinished reply from its Durable $outcome outcome on reopen"; `recoverSessionDeliveries.test.ts` › "leaves an admitted Durable delivery turn for the runtime to resume" and "ends a recovered Durable delivery turn whose session cannot connect"; the Electron kill scenario ends without error rows.
 - AC7 — `tests/e2e/smoke/piDurableTurnAuthority.test.ts` with a local mock provider: a queued follow-up, a steer, Stop followed by a new message, and SIGKILL of Main mid-turn each persist Durable's outcome with no error row or error part, and the Stop and kill scenarios show the subagent transcript in its panel. On the stack base the queued, Stop and kill scenarios fail.
