@@ -3,7 +3,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { useQuery } from '@data/hooks/useDataApi'
 import type { GroupedVirtualListGroup } from '@renderer/components/VirtualList'
-import type { ContentSearchGroup, ContentSearchSourceType } from '@shared/data/api/schemas/search'
+import type {
+  ContentSearchGroup,
+  ContentSearchQueryParams,
+  ContentSearchSourceType,
+  EntitySearchQueryParams
+} from '@shared/data/api/schemas/search'
 import type { GlobalSearchRecentEntry } from '@shared/data/cache/cacheValueTypes'
 
 import {
@@ -228,24 +233,21 @@ export function useGlobalSearchPanelData({
     const cursorSources = contentSearchSources.filter((source) => requestedContentSearchCursors[source])
     return cursorSources.length > 0 ? cursorSources : contentSearchSources
   }, [contentSearchSources, requestedContentSearchCursors])
-  const contentSearchQuery = useMemo(
-    () => ({
+  const contentSearchQuery = useMemo(() => {
+    const query: ContentSearchQueryParams = {
       q: deferredQuery,
       sources: requestedContentSearchSources,
-      limitPerSource: messageSearchLimit,
-      ...(Object.keys(requestedContentSearchCursors).length > 0 ? { cursors: requestedContentSearchCursors } : {}),
-      ...(updatedAtFrom ? { createdAtFrom: updatedAtFrom } : {})
-    }),
-    [deferredQuery, messageSearchLimit, requestedContentSearchCursors, requestedContentSearchSources, updatedAtFrom]
-  )
-  const searchQuery = useMemo(
-    () => ({
-      q: deferredQuery,
-      types: searchTypes,
-      ...(updatedAtFrom ? { updatedAtFrom } : {})
-    }),
-    [deferredQuery, searchTypes, updatedAtFrom]
-  )
+      limitPerSource: messageSearchLimit
+    }
+    if (Object.keys(requestedContentSearchCursors).length > 0) query.cursors = requestedContentSearchCursors
+    if (updatedAtFrom) query.createdAtFrom = updatedAtFrom
+    return query
+  }, [deferredQuery, messageSearchLimit, requestedContentSearchCursors, requestedContentSearchSources, updatedAtFrom])
+  const searchQuery = useMemo(() => {
+    const query: EntitySearchQueryParams = { q: deferredQuery, types: searchTypes }
+    if (updatedAtFrom) query.updatedAtFrom = updatedAtFrom
+    return query
+  }, [deferredQuery, searchTypes, updatedAtFrom])
 
   useEffect(() => {
     setContentSearchState((state) =>
