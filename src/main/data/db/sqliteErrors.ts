@@ -90,6 +90,7 @@ export type SqliteErrorHandlers = {
  * Walk the `.cause` chain of `err`, yielding each `Error` encountered up to
  * `MAX_CAUSE_DEPTH` levels. Stops when a non-Error is reached. Internal helper.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Caught values and nested Error.cause values may be non-Errors; inspect only verified Error instances up to the depth limit.
 function* walkCauseChain(err: unknown): Generator<Error> {
   let current: unknown = err
   for (let depth = 0; depth < MAX_CAUSE_DEPTH; depth++) {
@@ -147,6 +148,7 @@ function extractCheckName(message: string): string | undefined {
  * if (kind?.kind === 'unique') { ... }
  * ```
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- DB operations also throw application failures; classify only recognized Error chains and leave other thrown values unclassified.
 export function classifySqliteError(e: unknown): SqliteConstraint | null {
   for (const err of walkCauseChain(e)) {
     const code = (err as { code?: string }).code
@@ -236,6 +238,7 @@ export function withSqliteErrors<T>(operation: () => T, handlers: SqliteErrorHan
     // synchronously, so it is not a source). Adopt it as a promise so the same classification maps its
     // rejection. A plain synchronous result (rows array, RunResult, mapped object) skips this.
     if (result != null && typeof (result as { then?: unknown }).then === 'function') {
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Deferred Drizzle/thenable operations may reject with any value; use the same translation and unchanged-rethrow contract.
       return Promise.resolve(result).catch((e: unknown) => mapSqliteError(e, handlers)) as T
     }
     return result
@@ -248,6 +251,7 @@ export function withSqliteErrors<T>(operation: () => T, handlers: SqliteErrorHan
  * Classify a SQLite constraint error and rethrow it via the matching handler; if it is not a
  * recognized constraint (or no handler is registered for that kind) rethrow the original error.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Synchronous throws and deferred query rejections must be rethrown by identity unless a matching SQLite constraint handler translates them.
 function mapSqliteError(e: unknown, handlers: SqliteErrorHandlers): never {
   const classification = classifySqliteError(e)
   if (classification) {
