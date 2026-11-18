@@ -187,11 +187,11 @@ function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): De
   return deferred
 }
 
-function projectToolOutputForRenderer(output: unknown, ref: DeferredToolResultRef): unknown {
+function createDeferredToolOutput(output: unknown, ref: DeferredToolResultRef): DeferredToolOutput | undefined {
   const isPersisted = isPersistedToolOutput(output)
-  if (!isPersisted && isDeferredToolOutput(output)) return output
+  if (!isPersisted && isDeferredToolOutput(output)) return undefined
   const serialized = isPersisted ? JSON.stringify(output) : serializeOversizedToolOutput(output)
-  if (serialized === undefined) return output
+  if (serialized === undefined) return undefined
   const versionedRef = { ...ref, revision: createHash('sha256').update(serialized).digest('hex') }
   if (isPersisted) {
     const persisted = output.$persistedToolOutput
@@ -213,12 +213,12 @@ export function projectMessagePartForRenderer(
 ): CherryMessagePart {
   if (!isToolUIPart(part) || part.state !== 'output-available') return part
 
-  const output = projectToolOutputForRenderer(part.output, {
+  const output = createDeferredToolOutput(part.output, {
     topicId,
     messageId,
     toolCallId: part.toolCallId
   })
-  if (output === part.output) return part
+  if (output === undefined) return part
   return { ...part, output }
 }
 
@@ -246,11 +246,11 @@ export function projectStreamChunkForRenderer(
 ): UIMessageChunk {
   if (chunk.type !== 'tool-output-available' || !messageId) return chunk
 
-  const output = projectToolOutputForRenderer(chunk.output, {
+  const output = createDeferredToolOutput(chunk.output, {
     topicId,
     messageId,
     toolCallId: chunk.toolCallId
   })
-  if (output === chunk.output) return chunk
+  if (output === undefined) return chunk
   return { ...chunk, output }
 }
