@@ -59,6 +59,11 @@ const NULL_INFERENCE_GEO = null
 const NULL_SERVICE_TIER = null
 const NULL_CONTAINER = null
 
+type ThinkingUsage = { output_tokens_details?: { thinking_tokens: number } }
+type AnthropicStreamEvent =
+  | Exclude<RawMessageStreamEvent, RawMessageDeltaEvent>
+  | (Omit<RawMessageDeltaEvent, 'usage'> & { usage: MessageDeltaUsage & ThinkingUsage })
+
 /**
  * Adapter that converts AI SDK fullStream events to Anthropic SSE events
  *
@@ -68,9 +73,9 @@ const NULL_CONTAINER = null
  * const outputStream = adapter.transform(aiSdkStream)
  * ```
  */
-export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent> {
+export class AiSdkToAnthropicSse extends BaseStreamAdapter<AnthropicStreamEvent> {
   private readonly toClientToolName?: (toolName: string) => string
-  /** Cache-write tokens are Anthropic-dialect reporting, not shared adapter state. */
+  /** Split cache writes from the cache-inclusive input total for Anthropic usage. */
   private cacheWriteTokens?: number
 
   constructor(options: StreamAdapterOptions) {
@@ -208,6 +213,9 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
     if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
     if (metadata.stats?.inputTokenDetails?.cacheReadTokens !== undefined) {
       this.state.cacheReadTokens = metadata.stats.inputTokenDetails.cacheReadTokens
+    }
+    if (metadata.stats?.outputTokenDetails?.reasoningTokens !== undefined) {
+      this.state.reasoningTokens = metadata.stats.outputTokenDetails.reasoningTokens
     }
     if (metadata.stats?.inputTokenDetails?.cacheWriteTokens !== undefined) {
       this.cacheWriteTokens = metadata.stats.inputTokenDetails.cacheWriteTokens
@@ -481,23 +489,20 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
     // `finish` may also carry the final usage projection.
     this.applyUsageMetadata(chunk.messageMetadata as GatewayUsageMetadata | undefined)
 
-    if (!this.state.stopReason) {
-      switch (chunk.finishReason) {
-        case 'stop':
-          this.state.stopReason = 'end_turn'
-          break
-        case 'length':
-          this.state.stopReason = 'max_tokens'
-          break
-        case 'tool-calls':
-          this.state.stopReason = 'tool_use'
-          break
-        case 'content-filter':
-          this.state.stopReason = 'refusal'
-          break
-        default:
-          this.state.stopReason = 'end_turn'
-      }
+    switch (chunk.finishReason) {
+      case 'length':
+        this.state.stopReason = 'max_tokens'
+        break
+      case 'tool-calls':
+        this.state.stopReason = 'tool_use'
+        break
+      case 'content-filter':
+        this.state.stopReason = 'refusal'
+        break
+      case 'stop':
+      case 'other':
+      default:
+        this.state.stopReason = this.state.toolBlocks.size > 0 ? 'tool_use' : 'end_turn'
     }
   }
 
@@ -516,8 +521,11 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
 
     // Emit message_delta with final stop reason and usage
     const inputUsage = this.splitAnthropicInputUsage()
-    const usage: MessageDeltaUsage = {
+    const usage: MessageDeltaUsage & ThinkingUsage = {
       output_tokens: this.state.outputTokens,
+      ...(this.state.reasoningTokens !== undefined
+        ? { output_tokens_details: { thinking_tokens: this.state.reasoningTokens } }
+        : {}),
       input_tokens: inputUsage.inputTokens,
       // The usage projection carries cache reads/writes on `inputTokenDetails`
       // (split above); there is no breakdown when the runtime reports totals only.
@@ -526,7 +534,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
       server_tool_use: null
     }
 
-    const messageDeltaEvent: RawMessageDeltaEvent = {
+    const messageDeltaEvent: AnthropicStreamEvent = {
       type: 'message_delta',
       delta: {
         container: NULL_CONTAINER,
@@ -602,6 +610,9 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
       usage: {
         input_tokens: inputUsage.inputTokens,
         output_tokens: this.state.outputTokens,
+        ...(this.state.reasoningTokens !== undefined
+          ? { output_tokens_details: { thinking_tokens: this.state.reasoningTokens } }
+          : {}),
         cache_creation: NULL_CACHE_CREATION,
         cache_creation_input_tokens: inputUsage.cacheCreationInputTokens,
         cache_read_input_tokens: inputUsage.cacheReadInputTokens ?? 0,

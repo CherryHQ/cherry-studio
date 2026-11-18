@@ -13247,19 +13247,19 @@
       "outputModalities": ["text"],
       "ownedBy": "minimax",
       "parameterSupport": {
-        "frequencyPenalty": true,
+        "frequencyPenalty": false,
         "maxTokens": true,
-        "presencePenalty": true,
+        "presencePenalty": false,
         "stopSequences": true,
         "systemMessage": true,
         "temperature": {
-          "supported": true
+          "supported": false
         },
         "topK": {
           "supported": false
         },
         "topP": {
-          "supported": true
+          "supported": false
         }
       },
       "pricing": {
@@ -13298,19 +13298,19 @@
       "outputModalities": ["text"],
       "ownedBy": "minimax",
       "parameterSupport": {
-        "frequencyPenalty": true,
+        "frequencyPenalty": false,
         "maxTokens": true,
-        "presencePenalty": true,
+        "presencePenalty": false,
         "stopSequences": true,
         "systemMessage": true,
         "temperature": {
-          "supported": true
+          "supported": false
         },
         "topK": {
           "supported": false
         },
         "topP": {
-          "supported": true
+          "supported": false
         }
       },
       "pricing": {
@@ -14895,6 +14895,22 @@
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "moonshot",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -17367,6 +17383,22 @@
       "name": "GPT 5.6 Luna",
       "outputModalities": ["text"],
       "ownedBy": "openai",
+      "parameterSupport": {
+        "frequencyPenalty": true,
+        "maxTokens": true,
+        "presencePenalty": true,
+        "stopSequences": true,
+        "systemMessage": true,
+        "temperature": {
+          "supported": true
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -23823,7 +23855,36 @@
       "metadata": {},
       "name": "GLM-Z1-Flash",
       "ownedBy": "zhipu"
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
+      "contextWindow": 1048576,
+      "id": "mistral-large-4-0",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Mistral: Mistral Large 4",
+      "outputModalities": ["text"],
+      "ownedBy": "mistral",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.7
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.0999999999999996
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "medium", "high"]
+          }
+        ],
+        "supportedEfforts": ["low", "medium", "high"]
+      }
     }
   ],
-  "version": "bb4a43b8aec47a93"
+  "version": "482f772f118f1804"
 }
