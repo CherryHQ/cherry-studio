@@ -21,7 +21,10 @@ vi.mock('@application', () => mockMiniAppApplication({ MiniAppPreviewService: pr
 const { registerMiniAppTools } = await import('../cherryMiniAppTools')
 const { callBuiltinTool, listBuiltinTools, toolText } = await import('./builtinMcpClient')
 
-const CONTEXT = { sessionId: 'agent-session-1', roots: [{ uri: 'file:///tmp/agent-workspace', name: 'workspace' }] }
+const CONTEXT = {
+  ownerSessionId: 'agent-session:session-1',
+  roots: [{ uri: 'file:///tmp/agent-workspace', name: 'workspace' }]
+}
 
 function createServer(): McpServer {
   const server = new McpServer({ name: 'cherry-tools', version: '1.0.0' })
@@ -45,10 +48,10 @@ describe('cherryMiniAppTools', () => {
   })
 
   it('threads the connection session into the authoring core', async () => {
-    previewServiceStub.listSessionPreviews.mockReturnValue([{ previewId: 'p1', sessionId: CONTEXT.sessionId }])
+    previewServiceStub.listSessionPreviews.mockReturnValue([{ previewId: 'p1', sessionId: CONTEXT.ownerSessionId }])
     const result = resultJson(await callBuiltinTool(createServer, 'mini_app', { action: 'status' }))
-    expect(previewServiceStub.listSessionPreviews).toHaveBeenCalledWith(CONTEXT.sessionId)
-    expect(result).toEqual({ previews: [{ previewId: 'p1', sessionId: CONTEXT.sessionId }] })
+    expect(previewServiceStub.listSessionPreviews).toHaveBeenCalledWith(CONTEXT.ownerSessionId)
+    expect(result).toEqual({ previews: [{ previewId: 'p1', sessionId: CONTEXT.ownerSessionId }] })
   })
 
   it('returns the core refusal as JSON instead of throwing', async () => {

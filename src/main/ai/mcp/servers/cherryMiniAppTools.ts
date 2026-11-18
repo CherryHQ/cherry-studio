@@ -38,20 +38,25 @@ import {
 const logger = loggerService.withContext('McpServer:CherryMiniAppTools')
 
 export interface MiniAppToolsContext {
-  /** The agent session that owns previews and artifact tokens for this connection. */
-  sessionId: string
+  /**
+   * The preview/token-owning session identity for this connection — the TOPIC form
+   * (`agent-session:<id>`), NOT the raw session id. The renderer's artifact actions
+   * and preview panes key on the topic form, so tokens and previews issued here must
+   * agree with it or every read-back misses.
+   */
+  ownerSessionId: string
   /** Workspace roots `validate` may read; the host derives them from the session record. */
   roots: ReadonlyArray<{ uri: string; name?: string }>
 }
 
-export function registerMiniAppTools(server: McpServer, { sessionId, roots }: MiniAppToolsContext): void {
+export function registerMiniAppTools(server: McpServer, { ownerSessionId, roots }: MiniAppToolsContext): void {
   server.registerTool(
     MINI_APP_TOOL_NAME,
     { description: MINI_APP_DESCRIPTION, inputSchema: miniAppAuthoringInputSchema },
     async (input) => {
-      const output = await runMiniAppAuthoring(input, { sessionId, roots })
+      const output = await runMiniAppAuthoring(input, { sessionId: ownerSessionId, roots })
       if ('error' in output) {
-        logger.warn('mini_app call refused', { sessionId, action: input.action, code: output.code })
+        logger.warn('mini_app call refused', { sessionId: ownerSessionId, action: input.action, code: output.code })
       }
       return modelOutputToMcpResult({ type: 'json', value: output })
     }
@@ -60,9 +65,13 @@ export function registerMiniAppTools(server: McpServer, { sessionId, roots }: Mi
     MINIAPP_BROWSER_TOOL_NAME,
     { description: MINIAPP_BROWSER_DESCRIPTION, inputSchema: miniappBrowserInputSchema },
     async (input) => {
-      const output = await runMiniappBrowser(input, { sessionId })
+      const output = await runMiniappBrowser(input, { sessionId: ownerSessionId })
       if ('error' in output) {
-        logger.warn('miniapp-browser call refused', { sessionId, action: input.action, code: output.code })
+        logger.warn('miniapp-browser call refused', {
+          sessionId: ownerSessionId,
+          action: input.action,
+          code: output.code
+        })
       }
       return modelOutputToMcpResult({ type: 'json', value: output })
     }

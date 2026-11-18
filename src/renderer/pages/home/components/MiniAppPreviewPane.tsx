@@ -20,8 +20,9 @@ async function loadPreviews(sessionId: string) {
 /**
  * The agent-authored preview pane (issue #21646, stage 2): the renderer surface for
  * previews the session's `mini_app` tool opened, mounted by BOTH the home topics
- * right pane (keyed by topic id) and the agents page right pane (keyed by agent
- * session id) — previews are bound per session, so the same component serves both.
+ * right pane (keyed by topic id) and the agents page right pane (keyed by the
+ * agent-session topic id) — previews are bound per session, so the same component
+ * serves both.
  * It lists the session's previews,
  * prepares the selected one's partition exactly like an installed app
  * (`mini_app.runtime.prepare` — the webview may not attach before the protocol

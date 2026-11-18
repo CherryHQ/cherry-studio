@@ -108,8 +108,6 @@ import { formatAgentWebviewAnnotationPrompt } from '@shared/utils/webviewAnnotat
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
-
-const MiniAppPreviewPane = lazy(() => import('@renderer/pages/home/components/MiniAppPreviewPane'))
 import { AgentBrowserView } from './AgentBrowserView'
 import {
   type AgentPreviewUrlCandidate,
@@ -150,6 +148,8 @@ function toBrowsableHtmlUrl(filePath: string): string | null {
 const TracePane = lazy(() =>
   import('@renderer/components/chat/trace/TracePane').then((module) => ({ default: module.TracePane }))
 )
+
+const MiniAppPreviewPane = lazy(() => import('@renderer/pages/home/components/MiniAppPreviewPane'))
 
 /** Any non-ignored entry counts: a directory-only workspace is still browsable by expanding it. */
 function containsEntry(root: TreeDirRoot | null): boolean {
@@ -1252,15 +1252,16 @@ function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<Agen
 
 /**
  * The Mini App preview surface for agent sessions (issue #21646, stage 3): the same
- * pane the home topics right panel mounts, keyed by the agent session id the
- * cherry-tools `mini_app` MCP tool binds previews to. Browser automation
- * (`miniapp-browser`) needs this surface to hold the preview's live guest.
+ * pane the home topics right panel mounts, keyed by the agent-session TOPIC id the
+ * cherry-tools `mini_app` MCP tool binds previews and artifact tokens to.
+ * Browser automation (`miniapp-browser`) needs this surface to hold the preview's
+ * live guest.
  */
 function AgentMiniAppPreviewRightPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
   if (!scope.meta.sessionId) return null
   return (
     <Suspense fallback={null}>
-      <MiniAppPreviewPane open={active} sessionId={scope.meta.sessionId} />
+      <MiniAppPreviewPane open={active} sessionId={buildAgentSessionTopicId(scope.meta.sessionId)} />
     </Suspense>
   )
 }
