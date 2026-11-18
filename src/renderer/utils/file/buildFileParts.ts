@@ -15,7 +15,7 @@
 import { ipcApi } from '@renderer/ipc'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileUIPart } from '@shared/data/types/message'
-import { withCherryMeta } from '@shared/data/types/uiParts'
+import { type CherryFileMeta, withCherryMeta } from '@shared/data/types/uiParts'
 import { createFilePathHandle, toFileUrl } from '@shared/utils/file'
 
 export function withComposerFilePartMeta(
@@ -23,12 +23,12 @@ export function withComposerFilePartMeta(
   attachment: Pick<ComposerAttachment, 'fileTokenSourceId' | 'composerFileKind' | 'path'>,
   fileEntryId?: string
 ): FileUIPart {
-  return withCherryMeta(part, {
-    ...(fileEntryId ? { fileEntryId } : {}),
-    fileTokenSourceId: attachment.fileTokenSourceId,
-    ...(attachment.composerFileKind ? { composerFileKind: attachment.composerFileKind } : {}),
-    ...(attachment.path ? { originalPath: attachment.path } : {})
-  })
+  const metadata: CherryFileMeta = {}
+  if (fileEntryId) metadata.fileEntryId = fileEntryId
+  metadata.fileTokenSourceId = attachment.fileTokenSourceId
+  if (attachment.composerFileKind) metadata.composerFileKind = attachment.composerFileKind
+  if (attachment.path) metadata.originalPath = attachment.path
+  return withCherryMeta(part, metadata)
 }
 
 /**
