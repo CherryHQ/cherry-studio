@@ -288,10 +288,13 @@ export class WebSearchService extends BaseService {
     ].filter((providerId) => successfulProviderIds.has(providerId))
     const providerId = providerIds.at(-1) ?? context.provider.id
 
-    const mergedResponse: WebSearchResponse = {
+    const provenance: Pick<WebSearchResponse, 'query' | 'providerId' | 'providerIds'> = {
       query: context.inputs.join(' | '),
-      providerId,
-      ...(providerIds.length > 1 ? { providerIds } : {}),
+      providerId
+    }
+    if (providerIds.length > 1) provenance.providerIds = providerIds
+    const mergedResponse: WebSearchResponse = {
+      ...provenance,
       capability: context.capability,
       inputs: context.inputs,
       results: successfulSearches.flatMap((item) => item.value.results)
