@@ -42,15 +42,18 @@ export const assistant = (
     stop?: 'stop' | 'length' | 'toolUse' | 'error' | 'aborted'
     error?: string
   } = {}
-): HistoryEntry => ({
-  kind: 'assistant',
-  id: item(),
-  text,
-  toolCalls: options.calls ?? [],
-  usage: options.usage ?? usage(0),
-  stop: options.stop ?? 'stop',
-  ...(options.error === undefined ? {} : { error: options.error })
-})
+): HistoryEntry => {
+  const entry: Extract<HistoryEntry, { kind: 'assistant' }> = {
+    kind: 'assistant',
+    id: item(),
+    text,
+    toolCalls: options.calls ?? [],
+    usage: options.usage ?? usage(0),
+    stop: options.stop ?? 'stop'
+  }
+  if (options.error !== undefined) Object.assign(entry, { error: options.error })
+  return entry
+}
 /** A call whose `CallKey` is `key:<callId>`, the same key `result` derives for its `callId`. */
 export const callTo = (name: string, args: JsonValue = {}, callId = `c${++items}`): ToolCallFact => ({
   callId,
@@ -61,29 +64,28 @@ export const callTo = (name: string, args: JsonValue = {}, callId = `c${++items}
 export const result = (
   tool: string,
   options: { isError?: boolean; details?: JsonValue; text?: string; callId?: string } = {}
-): HistoryEntry => ({
-  kind: 'tool-result',
-  id: item(),
-  callId: options.callId ?? 'c',
-  callKey: callKeyOf(`key:${options.callId ?? 'c'}`),
-  tool,
-  isError: options.isError ?? false,
-  ...(options.details === undefined ? {} : { details: options.details }),
-  text: options.text ?? ''
-})
-export const record = (value: PolicyRecord, key?: string): HistoryEntry => ({
-  kind: 'record',
-  id: item(),
-  ...(key === undefined ? {} : { key }),
-  record: value
-})
-export const marker = (value: MarkerFact, key?: string, text = ''): HistoryEntry => ({
-  kind: 'marker',
-  id: item(),
-  ...(key === undefined ? {} : { key }),
-  marker: value,
-  text
-})
+): HistoryEntry => {
+  const entry: Omit<Extract<HistoryEntry, { kind: 'tool-result' }>, 'text'> = {
+    kind: 'tool-result',
+    id: item(),
+    callId: options.callId ?? 'c',
+    callKey: callKeyOf(`key:${options.callId ?? 'c'}`),
+    tool,
+    isError: options.isError ?? false
+  }
+  if (options.details !== undefined) Object.assign(entry, { details: options.details })
+  return { ...entry, text: options.text ?? '' }
+}
+export const record = (value: PolicyRecord, key?: string): HistoryEntry => {
+  const entry: Omit<Extract<HistoryEntry, { kind: 'record' }>, 'record'> = { kind: 'record', id: item() }
+  if (key !== undefined) Object.assign(entry, { key })
+  return { ...entry, record: value }
+}
+export const marker = (value: MarkerFact, key?: string, text = ''): HistoryEntry => {
+  const entry: Omit<Extract<HistoryEntry, { kind: 'marker' }>, 'marker' | 'text'> = { kind: 'marker', id: item() }
+  if (key !== undefined) Object.assign(entry, { key })
+  return { ...entry, marker: value, text }
+}
 export const goalEntry = (value: GoalSnapshot | GoalCleared) => record({ type: 'goal', value })
 export const roundEntry = (round: RoundDetails) => marker({ type: 'goal-round', round }, round.id)
 export const compaction = (): HistoryEntry => ({ kind: 'compaction', id: item() })
