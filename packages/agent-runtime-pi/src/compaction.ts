@@ -1,6 +1,11 @@
 import type { Api, Message, Model, Usage } from '@earendil-works/pi-ai'
 import { transformMessages } from '@earendil-works/pi-ai/api/transform-messages'
-import { type CompactionSettings, convertToLlm, type ExtensionFactory } from '@earendil-works/pi-coding-agent'
+import {
+  type CompactionResult,
+  type CompactionSettings,
+  convertToLlm,
+  type ExtensionFactory
+} from '@earendil-works/pi-coding-agent'
 
 import type { CompactionReason } from './sessionEvents'
 
@@ -43,28 +48,27 @@ export function compactionSummaryExtension(
     pi.on('session_before_compact', async (event, ctx) => {
       const { preparation, signal } = event
       try {
-        const result = await summarize({
+        const request: Omit<CompactionSummaryRequest, 'signal'> = {
           reason: event.reason,
           sessionId: ctx.sessionManager.getSessionId(),
           model: ctx.model!,
           messages: transformMessages(
             convertToLlm([...preparation.messagesToSummarize, ...preparation.turnPrefixMessages]),
             ctx.model!
-          ),
-          ...(preparation.previousSummary === undefined ? {} : { previousSummary: preparation.previousSummary }),
-          ...(event.customInstructions === undefined ? {} : { instructions: event.customInstructions }),
-          signal
-        })
+          )
+        }
+        if (preparation.previousSummary !== undefined) request.previousSummary = preparation.previousSummary
+        if (event.customInstructions !== undefined) request.instructions = event.customInstructions
+        const result = await summarize(Object.assign(request, { signal }))
         const summary = typeof result === 'string' ? result : result.summary
         if (!summary.trim()) throw new Error('The summarizer returned an empty summary')
-        return {
-          compaction: {
-            summary,
-            firstKeptEntryId: preparation.firstKeptEntryId,
-            tokensBefore: preparation.tokensBefore,
-            ...(typeof result === 'string' ? {} : { usage: result.usage })
-          }
+        const compaction: CompactionResult = {
+          summary,
+          firstKeptEntryId: preparation.firstKeptEntryId,
+          tokensBefore: preparation.tokensBefore
         }
+        if (typeof result !== 'string') compaction.usage = result.usage
+        return { compaction }
       } catch (error) {
         // A throwing handler would make Pi fall back to its own summarizer on the session model.
         if (!signal.aborted) onFailure(error instanceof Error ? error.message : String(error))
