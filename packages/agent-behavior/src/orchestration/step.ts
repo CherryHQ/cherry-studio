@@ -75,12 +75,11 @@ export async function step<R extends JsonValue>(
     else await execute(context, effect)
   }
   if (touched) await emitViews(context, thread)
-  return {
-    ...committed,
-    ...(started === undefined ? {} : { started }),
-    ...(retracted === undefined ? {} : { retracted }),
-    ...(messaged === undefined ? {} : { messaged })
-  }
+  const executed: Executed<R> = { ...committed }
+  if (started !== undefined) Object.assign(executed, { started })
+  if (retracted !== undefined) Object.assign(executed, { retracted })
+  if (messaged !== undefined) Object.assign(executed, { messaged })
+  return executed
 }
 
 /** C3–C6, C14: each setting read once for one decision. */

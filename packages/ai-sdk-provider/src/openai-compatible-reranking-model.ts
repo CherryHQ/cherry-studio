@@ -123,10 +123,11 @@ export function createOpenAICompatibleRerankingModel(
       }
       return url.toString()
     },
-    headers: () => ({
-      ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}),
-      ...settings.headers
-    }),
+    headers: () => {
+      const headers: Partial<Pick<NonNullable<typeof settings.headers>, 'Authorization'>> = {}
+      if (settings.apiKey) headers.Authorization = `Bearer ${settings.apiKey}`
+      return { ...headers, ...settings.headers }
+    },
     fetch: settings.fetch
   })
 }

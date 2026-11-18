@@ -208,18 +208,19 @@ const withGoogleImageOptions = (model: ImageModelV3, providerKey: string, isGemi
       source.imageResolution ?? source.imageSize ?? source.image_size ?? source.resolution
     )
 
+    const defaults: JSONObject = {}
+    if (aspectRatio) defaults.aspectRatio = aspectRatio
+    if (personGeneration) defaults.personGeneration = personGeneration
     const googleOptions: JSONObject = {
-      ...(aspectRatio ? { aspectRatio } : {}),
-      ...(personGeneration ? { personGeneration } : {}),
+      ...defaults,
       ...existingGoogle
     }
 
     if (isGeminiImage && (aspectRatio || imageSize || Object.keys(existingImageConfig).length > 0)) {
-      googleOptions.imageConfig = {
-        ...existingImageConfig,
-        ...(aspectRatio ? { aspectRatio } : {}),
-        ...(imageSize ? { imageSize } : {})
-      }
+      const imageConfig = { ...existingImageConfig }
+      if (aspectRatio) imageConfig.aspectRatio = aspectRatio
+      if (imageSize) imageConfig.imageSize = imageSize
+      googleOptions.imageConfig = imageConfig
     }
 
     return model.doGenerate({

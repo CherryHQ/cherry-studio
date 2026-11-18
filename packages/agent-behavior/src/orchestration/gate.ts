@@ -44,9 +44,9 @@ export function gateHandlers(host: HostPorts): GateHandlers {
       const request = {
         call: ref,
         tool: { ...tool, args: decision.args ?? call.args },
-        presentation: decision.presentation,
-        ...(decision.details === undefined ? {} : { details: decision.details })
+        presentation: decision.presentation
       }
+      if (decision.details !== undefined) Object.assign(request, { details: decision.details })
       const answer = await ports.memory
         .remember(keys.approvalMemo(call.key), () => host.approvals.ask(request, call.signal))
         .catch((error: unknown) => {
