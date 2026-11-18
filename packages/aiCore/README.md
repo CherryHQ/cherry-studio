@@ -387,6 +387,12 @@ await client.streamObject({
 - **插件支持**：自定义注册表仍可享受插件系统的部分功能
 - **最佳实践**：结合两种方式的优点，既有动态加载的性能优势，又有统一注册表的便利性
 
+## 工具输出 codec
+
+`EntityToolOutputCodec.deflate` 可以检查未知输入；成功时返回 AI SDK `JSONValue` 类型的 skeleton。
+`assemble` 只接收同一个 codec 生成的 skeleton，并返回 `JSONValue`，同时保留引用锚点和对象键的插入顺序。
+自定义 codec 需要将原来的 `unknown` skeleton 和重组结果收紧为 `JSONValue`；不匹配的数据由 `deflate` 返回 `null`。
+
 ## 📚 相关资源
 
 - [Vercel AI SDK 文档](https://ai-sdk.dev/)

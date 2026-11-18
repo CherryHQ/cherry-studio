@@ -15,9 +15,20 @@
  * byte-stable for prefix caching.
  */
 
+import { isJSONValue, type JSONObject, type JSONValue } from '@ai-sdk/provider'
+
 import { CITATION_SNIPPET_MAX_CHARS } from '@shared/ai/builtinTools'
 
 import type { ToolOutputCodec } from './adapters/aiSdk/types'
+
+function acceptsJsonMetadata(value: unknown): value is JSONValue {
+  try {
+    return isJSONValue(value)
+  } catch {
+    // Recursive SDK validation can throw on cyclic or excessively deep metadata.
+    return false
+  }
+}
 
 function snippet(text: string): string {
   const trimmed = text.trim()
@@ -38,14 +49,15 @@ export function makeEntitiesCodec({ contentKey }: { contentKey: string }): ToolO
         if (typeof content !== 'string') return null
         blobs.push({ key: `/${index}/${contentKey}`, text: content })
       }
-      return { skeleton: value, blobs }
+      return acceptsJsonMetadata(value) ? { skeleton: value, blobs } : null
     },
     assemble(skeleton, texts) {
-      const items = skeleton as Array<Record<string, unknown>>
+      // SAFETY: assemble consumes the JSON entity array accepted by this codec's deflate.
+      const items = skeleton as JSONObject[]
       return items.map((item, index) => {
         const key = `/${index}/${contentKey}`
         if (!(key in texts) || texts[key] === item[contentKey]) return item
-        const clone: Record<string, unknown> = {}
+        const clone: JSONObject = {}
         for (const k of Object.keys(item)) clone[k] = k === contentKey ? texts[key] : item[k]
         return clone
       })
@@ -61,13 +73,14 @@ export function makeTextFieldCodec({ textKey }: { textKey: string }): ToolOutput
       if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
       const text = (value as Record<string, unknown>)[textKey]
       if (typeof text !== 'string') return null
-      return { skeleton: value, blobs: [{ key: `/${textKey}`, text }] }
+      return acceptsJsonMetadata(value) ? { skeleton: value, blobs: [{ key: `/${textKey}`, text }] } : null
     },
     assemble(skeleton, texts) {
-      const record = skeleton as Record<string, unknown>
+      // SAFETY: assemble consumes the JSON record accepted by this codec's deflate.
+      const record = skeleton as JSONObject
       const key = `/${textKey}`
       if (!(key in texts) || texts[key] === record[textKey]) return record
-      const clone: Record<string, unknown> = {}
+      const clone: JSONObject = {}
       for (const k of Object.keys(record)) clone[k] = k === textKey ? texts[key] : record[k]
       return clone
     },
