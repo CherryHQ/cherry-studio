@@ -263,22 +263,23 @@ class ImportService {
       role: message.role,
       data: { parts: message.parts },
       status: 'success',
-      setAsActive: false,
-      ...(siblingsGroupId ? { siblingsGroupId } : {})
+      setAsActive: false
     }
+    if (siblingsGroupId) dto.siblingsGroupId = siblingsGroupId
 
     if (message.role === 'assistant' && message.model) {
-      dto.messageSnapshot = {
+      const snapshot = {
         id: assistant.id,
         name: assistant.name,
         emoji: assistant.emoji,
         model: {
           id: message.model.id,
           name: message.model.name,
-          provider: message.model.provider,
-          ...(message.model.group ? { group: message.model.group } : {})
+          provider: message.model.provider
         }
       }
+      if (message.model.group) Object.assign(snapshot.model, { group: message.model.group })
+      dto.messageSnapshot = snapshot
     }
 
     return dto

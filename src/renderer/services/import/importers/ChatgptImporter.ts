@@ -146,21 +146,21 @@ export class ChatgptImporter implements ConversationImporter {
       .map(normalizeExportText)
       .join('\n\n')
 
-    return {
-      sourceId,
-      ...(parentSourceId ? { parentSourceId } : {}),
+    const node: Pick<ImportMessageNode, 'sourceId' | 'parentSourceId'> = { sourceId }
+    if (parentSourceId) node.parentSourceId = parentSourceId
+    const message: ImportMessageNode = Object.assign(node, {
       role,
-      parts: [{ type: 'text', text: content }],
-      // Set model for assistant messages to display GPT-5 logo
-      ...(role === 'assistant' && {
-        model: {
-          id: 'gpt-5',
-          provider: 'openai',
-          name: 'GPT-5',
-          group: 'gpt-5'
-        }
-      })
-    }
+      parts: [{ type: 'text', text: content }] satisfies ImportMessageNode['parts']
+    })
+    // Set model for assistant messages to display GPT-5 logo
+    if (role === 'assistant')
+      message.model = {
+        id: 'gpt-5',
+        provider: 'openai',
+        name: 'GPT-5',
+        group: 'gpt-5'
+      }
+    return message
   }
 
   /**
