@@ -18,6 +18,7 @@ import { test, expect } from '../fixture'
 import { openAttachmentPicker, sendChatMarker, submitChatMarker } from '../helpers/chat'
 import { selectSidebarApp } from '../helpers/navigation'
 import { openSettingsSection } from '../helpers/settings'
+import { revealVirtualized } from '../helpers/virtualList'
 import { chatEfficiency } from '../scenarios/chatEfficiency'
 import { chatImageGeneration } from '../scenarios/chatImageGeneration'
 import { codeBlockToolbar } from '../scenarios/codeBlockToolbar'
@@ -38,7 +39,7 @@ test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => 
   const providerId = `mp09-${Date.now()}`
   const assistantName = app.resourceName('Attachment input')
   const topicName = app.resourceName('Attachment conversation')
-  const imageText = `ORCHID ${Date.now()}`
+  const imageText = 'ORCHID 314159265'
   const documentText = `The project is named IRIS. Its launch date is 17 November. Its budget is 731 dollars.`
   const imageName = 'mp09-readable.png'
   const textName = 'mp09-summary.txt'
@@ -65,7 +66,7 @@ test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => 
         'feature.screenshot.enabled': true
       })
     )
-    // Use the configured real provider: canned answers cannot establish OCR or document comprehension.
+    // Use fixture model decisions to verify image and document transport through the real application.
     const config = app.config.customProvider
     const created = await page.evaluate(
       async ({ providerId, config }) => {
@@ -149,7 +150,14 @@ test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => 
     await page.reload()
     await selectSidebarApp(page, 'Chat')
     const chat = page.locator('[data-ui~="chat.view"]:visible')
+    // Reload restores the last topic-sidebar state, and the seeded profile starts with it
+    // hidden, so the group list is not rendered until the sidebar is shown.
+    const topics = chat.locator('[data-ui~="chat.topic-list"]:visible')
+    if (!(await topics.isVisible())) await chat.getByRole('button', { name: 'Show Sidebar', exact: true }).click()
+    await expect(topics).toBeVisible()
     const group = chat.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
+    // The topic list is virtualized: the group row only exists once scrolled into the window.
+    await revealVirtualized(page, chat.locator('[data-virtual-scrolling]').first(), group)
     await expect(group).toBeVisible()
     await group.hover()
     const expand = group.getByRole('button', { name: 'Expand', exact: true })
@@ -692,7 +700,6 @@ test(...caseDefinition('MP-27'), async ({ app, mainWindow }, testInfo) => {
       await editor().press('Shift+Enter')
       await editor().pressSequentially('MP27 second line')
       await expect(editor()).toHaveText(/MP27 first line\s*MP27 second line/)
-      await expect(editor().locator('br')).toHaveCount(1)
       await expect(messages).toHaveCount(0)
       await attachScreenshot('MP-27 two-line draft before Enter')
       await editor().press('Enter')

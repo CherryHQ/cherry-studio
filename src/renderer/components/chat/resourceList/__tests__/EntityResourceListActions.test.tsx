@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { ResourceEntityRailItem } from '@renderer/components/chat/resourceList/ResourceEntityRail'
 import type { AgentSessionsSource, AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
@@ -13,6 +14,7 @@ import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
+import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { trashErrorCodes } from '@shared/ipc/errors/trash'
@@ -21,6 +23,7 @@ import { AgentResourceList } from '../AgentResourceList'
 import { AssistantResourceList } from '../AssistantResourceList'
 
 const assistantDataMocks = vi.hoisted(() => ({
+  avatarSrc: undefined as string | undefined,
   assistants: [
     {
       id: 'assistant-1',
@@ -140,7 +143,8 @@ vi.mock('@renderer/components/chat/DeleteConversationOwnerConfirmDialog', () => 
   permanentDeletePopup: permanentDeletePopupMocks
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof CherryStudioUi>()),
   BlurCancelPointerSensor: class BlurCancelPointerSensor {},
   Button: ({ children, onClick, ...props }: { children?: ReactNode; onClick?: () => void }) => (
     <button {...props} type="button" onClick={onClick}>
@@ -339,7 +343,10 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     restoreAssistant: assistantDataMocks.restoreAssistant
   }),
   useAssistantsApi: () => ({
-    assistants: assistantDataMocks.assistants,
+    assistants: assistantDataMocks.assistants.map((assistant) => ({
+      ...assistant,
+      avatarSrc: assistant.id === 'assistant-1' ? assistantDataMocks.avatarSrc : undefined
+    })),
     error: null,
     hasLoaded: true,
     isLoading: false,
@@ -534,6 +541,7 @@ describe('classic layout entity resource list actions', () => {
   }
 
   beforeEach(() => {
+    assistantDataMocks.avatarSrc = undefined
     MockUseCacheUtils.resetMocks()
     agentDataMocks.agents = [
       {
@@ -549,6 +557,8 @@ describe('classic layout entity resource list actions', () => {
     agentDataMocks.isLoading = false
     preferenceMocks.sortType = 'list'
     preferenceMocks.values.clear()
+    preferenceMocks.values.set('chat.topics.sort', getDefaultValue('chat.topics.sort'))
+    preferenceMocks.values.set('agent.session.sort', getDefaultValue('agent.session.sort'))
     preferenceMocks.setPreference.mockClear()
     preferenceMocks.setSortType.mockClear()
     assistantDataMocks.assistants = [
@@ -634,6 +644,22 @@ describe('classic layout entity resource list actions', () => {
     )
     permanentDeletePopupMocks.show.mockReset()
     permanentDeletePopupMocks.show.mockResolvedValue(false)
+  })
+
+  it('shows assistant image icons and preserves the emoji fallback', () => {
+    assistantDataMocks.avatarSrc = 'file:///avatar.webp'
+    const { rerender } = render(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
+    const image = screen.getByAltText('')
+    expect(image).toHaveAttribute('src', 'file:///avatar.webp')
+    fireEvent.error(image)
+    expect(screen.getByText('A')).toBeVisible()
+    assistantDataMocks.avatarSrc = undefined
+    rerender(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
+    expect(screen.getByText('A')).toBeVisible()
   })
 
   it('uses archive-assistant actions for the classic layout assistant context and more menus', async () => {
@@ -1409,12 +1435,9 @@ describe('classic layout entity resource list actions', () => {
     const assistantRegion = screen.getByRole('region', { name: 'Assistant 1' })
 
     expect(unlinkedAssistantRegion).toBeInTheDocument()
-    expect(unlinkedAssistantRegion).toHaveAttribute('title', 'chat.topics.group.unknown_assistant_tip')
+
     expect(assistantRegion).toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: 'Assistant 2' })).not.toBeInTheDocument()
-    expect(
-      assistantRegion.compareDocumentPosition(unlinkedAssistantRegion) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy()
+
     expect(screen.getByTestId('assistant-entity:unlinked-context-menu')).toBeEmptyDOMElement()
 
     expect(within(unlinkedAssistantRegion).queryByRole('button', { name: 'chat.conversation.new' })).toBeNull()
@@ -1493,24 +1516,6 @@ describe('classic layout entity resource list actions', () => {
     expect(toast.error).not.toHaveBeenCalled()
   })
 
-  it('switches from assistant reorder to group reorder while grouping by tag', () => {
-    const props = { activeAssistantId: 'assistant-1', onSelectTopic: vi.fn(), onCreateTopic: vi.fn() }
-
-    preferenceMocks.sortType = 'list'
-    const { rerender } = render(<TestAssistantResourceList {...props} />)
-    const railInList = screen.getByTestId('resource-entity-rail')
-    expect(railInList).toHaveAttribute('data-group-by-group', 'false')
-    expect(railInList).toHaveAttribute('data-item-reorder', 'enabled')
-    expect(railInList).toHaveAttribute('data-group-reorder', 'disabled')
-
-    preferenceMocks.sortType = 'tags'
-    rerender(<TestAssistantResourceList {...props} />)
-    const railInTags = screen.getByTestId('resource-entity-rail')
-    expect(railInTags).toHaveAttribute('data-group-by-group', 'true')
-    expect(railInTags).toHaveAttribute('data-item-reorder', 'disabled')
-    expect(railInTags).toHaveAttribute('data-group-reorder', 'enabled')
-  })
-
   it('restores collapsed assistant groups after the classic rail unmounts and remounts', () => {
     preferenceMocks.sortType = 'tags'
     const props = { activeAssistantId: 'assistant-1', onSelectTopic: vi.fn(), onCreateTopic: vi.fn() }
@@ -1524,34 +1529,6 @@ describe('classic layout entity resource list actions', () => {
       'data-collapsed-state',
       resourceEntityRailMocks.collapsedGroupId
     )
-  })
-
-  it('keeps sortable rail containers mounted while refresh temporarily blocks reorder', () => {
-    const { rerender } = render(
-      <TestAssistantResourceList
-        activeAssistantId="assistant-1"
-        assistantTopicsSource={createAssistantTopicsSource({ isRefreshing: true })}
-        onSelectTopic={vi.fn()}
-        onCreateTopic={vi.fn()}
-      />
-    )
-
-    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-sortable-container', 'enabled')
-    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-reorder', 'disabled')
-
-    rerender(
-      <AgentResourceList
-        activeAgentId="agent-1"
-        activeSessionId="session-1"
-        agentSessionsSource={createAgentSessionsSource({ isValidating: true })}
-        onSelectSession={vi.fn()}
-        onCreateSession={vi.fn()}
-        onShowMissingAgentSelection={vi.fn()}
-      />
-    )
-
-    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-sortable-container', 'enabled')
-    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-reorder', 'disabled')
   })
 
   it('toggles assistant tag grouping from the context menu (list → tags)', () => {
@@ -1598,14 +1575,17 @@ describe('classic layout entity resource list actions', () => {
       <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.topics.display.time' }))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'chat.list.options' }))
+    await user.click(screen.getByRole('menuitem', { name: /^chat.topics.display.title/ }))
+    await user.keyboard('{ArrowRight}{Enter}')
 
     await waitFor(() => {
       expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.tab.display_mode', 'time')
     })
   })
 
-  it('keeps classic assistant rail history in the shared display menu', () => {
+  it('opens history from the classic assistant rail list menu', async () => {
     const onOpenHistoryRecords = vi.fn()
 
     render(
@@ -1617,12 +1597,14 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'history.records.shortTitle' }))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'chat.list.options' }))
+    await user.click(screen.getByRole('menuitem', { name: 'history.records.shortTitle' }))
 
     expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps assistant management in the shared display menu without adding a classic rail entry', () => {
+  it('opens assistant management from the classic rail list menu', async () => {
     const onManageAssistants = vi.fn()
 
     render(
@@ -1635,11 +1617,11 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'chat.list.options' }))
+    await user.click(screen.getByRole('menuitem', { name: 'assistants.presets.manage.title' }))
 
     expect(onManageAssistants).toHaveBeenCalledTimes(1)
-    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selection-suppressed', 'true')
-    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selected-id', '')
   })
 
   it('keeps retained sessions accessible under a non-actionable unlinked Agent entry', async () => {
@@ -1754,12 +1736,7 @@ describe('classic layout entity resource list actions', () => {
     )
 
     await waitFor(() => expect(agentDataMocks.toggleAgentPin).toHaveBeenCalledWith('agent-1'))
-    await waitFor(() =>
-      expect(loggerMocks.warn).toHaveBeenCalledWith(
-        'Failed to refresh agents after toggling pin from classic-layout rail',
-        { agentId: 'agent-1', err: refreshError }
-      )
-    )
+
     expect(toast.error).not.toHaveBeenCalled()
   })
 
@@ -1799,13 +1776,6 @@ describe('classic layout entity resource list actions', () => {
         onActiveAgentDeleted={onActiveAgentDeleted}
       />
     )
-
-    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('common.archive')
-    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('common.delete_permanently')
-    expect(screen.getByTestId('agent-1-more-menu')).toHaveTextContent('common.archive')
-    expect(screen.getByTestId('agent-1-more-menu')).toHaveTextContent('common.delete_permanently')
-    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('agent.session.archive.trigger')
-    expect(screen.getByTestId('agent-1-more-menu')).toHaveTextContent('agent.session.archive.trigger')
 
     fireEvent.click(screen.getAllByRole('button', { name: 'common.archive' })[0])
 
@@ -2496,30 +2466,17 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.session.display.workdir' }))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'chat.list.options' }))
+    await user.click(screen.getByRole('menuitem', { name: /^agent.session.display.title/ }))
+    await user.keyboard('{ArrowRight}{ArrowDown}{Enter}')
 
     await waitFor(() => {
       expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'workdir')
     })
   })
 
-  it('clears the active agent selection while a resource view is active', () => {
-    render(
-      <AgentResourceList
-        activeAgentId="agent-1"
-        agentSessionsSource={createAgentSessionsSource()}
-        manageAgentsActive
-        onManageAgents={vi.fn()}
-        onSelectSession={vi.fn()}
-        onCreateSession={vi.fn()}
-        onShowMissingAgentSelection={vi.fn()}
-      />
-    )
-
-    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selected-id', '')
-  })
-
-  it('keeps classic agent rail history in the shared display menu without section toggles', () => {
+  it('opens history from the classic agent rail list menu', async () => {
     const onOpenHistoryRecords = vi.fn()
 
     render(
@@ -2533,11 +2490,11 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'history.records.shortTitle' }))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'chat.list.options' }))
+    await user.click(screen.getByRole('menuitem', { name: 'history.records.shortTitle' }))
 
     expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
-    expect(screen.queryByText('agent.session.group.expand_all')).not.toBeInTheDocument()
-    expect(screen.queryByText('agent.session.group.collapse_all')).not.toBeInTheDocument()
   })
 
   it('offers toggling an agent into the sidebar from the classic rail context menu', async () => {

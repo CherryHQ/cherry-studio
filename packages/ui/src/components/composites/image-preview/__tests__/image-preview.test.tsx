@@ -10,6 +10,7 @@ import {
   type ImagePreviewItem,
   type ImagePreviewTransform,
   ImagePreviewTrigger,
+  ImagePreviewViewport,
   useImagePreviewTransform
 } from '../index'
 
@@ -151,6 +152,34 @@ describe('useImagePreviewTransform', () => {
   })
 })
 
+describe('ImagePreviewViewport', () => {
+  it('owns Ctrl-wheel image zoom while plain wheel still bubbles to the window', () => {
+    function Preview() {
+      const controls = useImagePreviewTransform()
+      return (
+        <>
+          <ImagePreviewViewport item={ITEMS[0]} transformControls={controls} />
+          <output aria-label="Image zoom">{controls.transform.zoom}</output>
+        </>
+      )
+    }
+    const windowWheel = vi.fn()
+    window.addEventListener('wheel', windowWheel, { capture: false })
+    try {
+      render(<Preview />)
+      const viewport = screen.getByTestId('image-preview-viewport')
+      fireEvent.wheel(viewport, { ctrlKey: true, deltaY: -100 })
+      expect(Number(screen.getByLabelText('Image zoom').textContent)).toBeGreaterThan(1)
+      expect(windowWheel).not.toHaveBeenCalled()
+
+      fireEvent.wheel(viewport, { deltaY: -100 })
+      expect(windowWheel).toHaveBeenCalledOnce()
+    } finally {
+      window.removeEventListener('wheel', windowWheel, { capture: false })
+    }
+  })
+})
+
 describe('ImagePreviewDialog', () => {
   it('renders the active item and switches between images', () => {
     function Demo() {
@@ -178,36 +207,20 @@ describe('ImagePreviewDialog', () => {
     expect(screen.getByAltText('One')).toHaveAttribute('src', ITEMS[0].src)
   })
 
-  it('renders all view transform controls', () => {
+  it('fades the full-screen preview and overlay without moving the image', () => {
     render(<ImagePreviewDialog open items={ITEMS} labels={LABELS} onOpenChange={vi.fn()} />)
 
-    expect(
-      screen
-        .getAllByRole('button')
-        .map((button) => button.getAttribute('aria-label'))
-        .filter((label) => label !== LABELS.previous && label !== LABELS.next && label !== LABELS.close)
-    ).toEqual([
-      LABELS.zoomOut,
-      LABELS.zoomIn,
-      LABELS.rotateLeft,
-      LABELS.rotateRight,
-      LABELS.flipHorizontal,
-      LABELS.flipVertical,
-      LABELS.reset
-    ])
-  })
-
-  it('uses a plain close icon and disables preview motion', () => {
-    render(<ImagePreviewDialog open items={ITEMS} labels={LABELS} onOpenChange={vi.fn()} />)
-
-    const closeButton = screen.getByRole('button', { name: LABELS.close })
-    expect(closeButton).toHaveClass('rounded-none', 'bg-transparent', 'shadow-none', 'transition-none')
-    expect(closeButton).not.toHaveClass('rounded-full')
-    expect(screen.getByTestId('image-preview-dialog')).toHaveClass('data-[state=open]:animate-none')
-    expect(document.querySelector('[data-slot="dialog-overlay"]')).toHaveClass(
-      'data-[state=closed]:animate-none',
-      'data-[state=open]:animate-none'
+    // Full-screen previews share the Dialog fade contract without directional translation.
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveClass('data-[state=open]:fade-in-0', 'data-[state=closed]:fade-out-0')
+    expect(dialog).not.toHaveClass('data-[state=open]:animate-none', 'data-[state=closed]:animate-none')
+    expect(dialog).not.toHaveClass(
+      'data-[state=open]:slide-in-from-bottom-4',
+      'data-[state=closed]:slide-out-to-bottom-4'
     )
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+    expect(overlay).toHaveClass('data-[state=open]:fade-in-0', 'data-[state=closed]:fade-out-0')
+    expect(overlay).not.toHaveClass('data-[state=open]:animate-none', 'data-[state=closed]:animate-none')
     expect(screen.getByAltText('One')).not.toHaveClass('transition-transform')
   })
 

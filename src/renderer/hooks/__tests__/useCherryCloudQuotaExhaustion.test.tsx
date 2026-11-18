@@ -136,6 +136,21 @@ describe('useCherryCloudQuotaExhaustion', () => {
     })
   })
 
+  it('ignores a window that reads zero only because of in-flight reservations', () => {
+    const reservedOnly = { ...window_(40, '2026-10-27T15:00:00Z'), active_reserved_units: 40, remaining_units: 0 }
+    facts.plans = {
+      ...plans,
+      entitlements: [
+        {
+          ...plans.entitlements[0],
+          quota_pools: [pool(['free-model'], [window_(0, '2026-10-27T10:00:00Z'), reservedOnly])]
+        }
+      ]
+    }
+    const { result } = renderHook(() => useCherryCloudQuotaExhaustion(freeModel))
+    expect(result.current).toMatchObject({ reason: 'quota_exhausted', recoversAt: '2026-10-27T10:00:00.000Z' })
+  })
+
   it('does not invent recovery time from an exhausted monthly period without a reported recovery', () => {
     facts.plans = {
       ...plans,

@@ -109,6 +109,9 @@ export interface StreamListener {
   /** Orders terminal persistence before notifications and cleanup work after them. */
   readonly terminalPhase?: 'persistence' | 'cleanup'
 
+  /** Return a promise only while this consumer has no capacity. */
+  ready?(): void | Promise<void>
+
   onChunk(
     chunk: UIMessageChunk,
     sourceModelId?: UniqueModelId,
@@ -119,7 +122,8 @@ export interface StreamListener {
   onMessage?(message: CherryUIMessage, sourceModelId?: UniqueModelId, sourceKind?: AiStreamSource['kind']): void
   onDone(result: StreamDoneResult): void | Promise<void>
   onPaused(result: StreamPausedResult): void | Promise<void>
-  onError(result: StreamErrorResult): void | Promise<void>
+  /** The original exception is available only to in-process prompt listeners. */
+  onError(result: StreamErrorResult, originalError?: unknown): void | Promise<void>
   /** Returning `false` removes the listener immediately. */
   isAlive(): boolean
 }

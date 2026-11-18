@@ -112,7 +112,10 @@ export const skillHandlers: IpcHandlersFor<typeof skillRequestSchemas> = {
   'skill.list_catalog': (query) => skillService.listCatalog(query),
   'skill.list_local': ({ workdir }) =>
     toSkillResult(() => skillService.listLocal(workdir), 'Failed to list local plugins'),
-  'skill.reconcile': ({ skillId }) => (skillId ? skillService.reconcileSkill(skillId) : skillService.reconcileSkills()),
+  'skill.reconcile': (input) => {
+    if ('externalExportsOnly' in input) return skillService.syncExternalExports()
+    return input.skillId ? skillService.reconcileSkill(input.skillId) : skillService.reconcileSkills()
+  },
   'skill.remote.check': ({ skillId }) => skillService.checkRemoteUpdate(skillId),
   'skill.remote.apply': async (options) => {
     try {

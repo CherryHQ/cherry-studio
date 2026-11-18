@@ -30,11 +30,19 @@ This will:
 
 > **Note**: CI will check that PRs modifying packages include a changeset.
 
-Run `pnpm changeset:check` to validate pending changesets. Do not include packages
-listed in `config.json`'s `ignore` setting: their changesets survive versioning and
-prevent the release action from reaching npm publication. PR CI and the release
-workflow reject these entries. Empty changesets (`pnpm changeset add --empty`)
-remain valid for changes that need no package release.
+Run `pnpm changeset:check` to validate pending changesets. Entries must name an
+existing workspace package that is neither `private: true` nor listed in
+`config.json`'s `ignore` setting. A `workspace:*` dependency does not make a package
+private, and public packages can include a changeset for their first release.
+
+Run `pnpm changeset:check --base origin/main` (or your stack's base branch) to also
+reject entries for packages with no changed files in this change scope. This
+includes committed, staged, unstaged, and untracked files relative to the merge
+base. Only newly added or edited changesets receive this scope check; pending
+changesets inherited from the base remain valid. PR CI supplies its target branch
+as the base; the release workflow checks package eligibility without a PR scope.
+Empty changesets (`pnpm changeset add --empty`) remain valid when no package
+release is needed.
 
 ### Versioning and publishing
 
