@@ -1,9 +1,9 @@
-import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 /**
  * Storage-agnostic terminal-event listener: filters by `modelId`, folds
  * errors into `finalMessage.parts`, carries message-owned runtime stats, and
  * delegates the write to a `PersistenceBackend`.
  */
+import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { logFailure } from '@main/core/logger/logFailure'

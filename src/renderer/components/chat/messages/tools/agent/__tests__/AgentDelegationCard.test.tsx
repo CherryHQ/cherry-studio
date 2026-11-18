@@ -76,6 +76,7 @@ describe('delegated task card', () => {
         current.approvals = []
         return true as never
       }
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       return structuredClone(current) as never
     })
     mount()
@@ -99,6 +100,7 @@ describe('delegated task card', () => {
         current.approvals = []
         return true as never
       }
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       return structuredClone(current) as never
     })
     mount()
@@ -130,6 +132,7 @@ describe('delegated task card', () => {
         current.delivery.outcome = 'interrupted'
         return undefined as never
       }
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       return structuredClone(current) as never
     })
     mount()

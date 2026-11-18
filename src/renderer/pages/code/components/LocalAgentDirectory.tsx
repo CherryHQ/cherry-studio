@@ -143,7 +143,7 @@ export function LocalAgentDirectory({
   const [detections, setDetections] = useState<LocalAgentDetection[]>([])
   const [detecting, setDetecting] = useState(false)
   const [query, setQuery] = useState('')
-  const search = useSearch({ strict: false }) as { id?: string; tool?: CodeCli }
+  const search: { id?: string; tool?: CodeCli } = useSearch({ strict: false })
   const navigate = useNavigate()
   const requestedId =
     (search.id === 'cli:deepseek-harness' || search.id === 'cli:openclaw' ? search.id.slice(4) : search.id) ??

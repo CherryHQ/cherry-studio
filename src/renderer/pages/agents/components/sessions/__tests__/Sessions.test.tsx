@@ -4040,7 +4040,7 @@ describe('Sessions', () => {
     setupSessions({ sessions: [createSession({ id: 'session-a', agentId: 'agent-a', orderKey: 'a' })] })
     render(<SessionsForTest />)
     const group = screen.getByRole('button', { name: 'Pi' }).closest('div')!
-    fireEvent.pointerDown(within(group).getByRole('button', { name: 'More' }))
+    await userEvent.setup().click(within(group).getByRole('button', { name: 'More' }))
     expect(await screen.findAllByRole('menuitem', { name: 'Edit Agent' })).not.toHaveLength(0)
     expect(screen.queryByRole('menuitem', { name: 'Agent icon' })).not.toBeInTheDocument()
     fireEvent.contextMenu(group)

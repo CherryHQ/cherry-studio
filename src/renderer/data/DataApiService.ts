@@ -1,4 +1,3 @@
-import { loggerService } from '@logger'
 /**
  * @fileoverview DataApiService - API client for data requests (Renderer Process)
  *
@@ -29,6 +28,7 @@ import { loggerService } from '@logger'
  * @see {@link DataApiService} Main process coordinator
  * @see {@link useDataApi} React hook for data requests
  */
+import { loggerService } from '@logger'
 import type { RequestContext } from '@shared/data/api/errors'
 import { DataApiError, DataApiErrorFactory, ErrorCode, toDataApiError } from '@shared/data/api/errors'
 import type { BodyForPath, QueryParamsForPath, ResponseForPath } from '@shared/data/api/paths'

@@ -568,6 +568,7 @@ export class AcpConnection extends LocalConnection {
         .then(() => {
           if (this.legacyMode) this.legacyMode.currentModeId = value
           if (this.localSessionInfo.mode) this.localSessionInfo.mode.currentValue = value
+          // oxlint-disable-next-line no-restricted-globals -- Snapshot mutable ACP session/tool state before queuing an event.
           this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
         })
     } else {
@@ -649,6 +650,7 @@ export class AcpConnection extends LocalConnection {
         .flatMap((option) => ('group' in option ? option.options : [option]))
         .map((option) => ({ id: option.value, name: option.name }))
     }
+    // oxlint-disable-next-line no-restricted-globals -- Snapshot mutable ACP session/tool state before queuing an event.
     this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
   }
   private requireSession(sessionId: string) {
@@ -732,6 +734,7 @@ export class AcpConnection extends LocalConnection {
     if (update.sessionUpdate === 'current_mode_update' && !this.modeConfigId && this.legacyMode) {
       this.legacyMode.currentModeId = update.currentModeId
       if (this.localSessionInfo.mode) this.localSessionInfo.mode.currentValue = update.currentModeId
+      // oxlint-disable-next-line no-restricted-globals -- Snapshot mutable ACP session/tool state before queuing an event.
       this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
     }
     if (
@@ -797,6 +800,7 @@ export class AcpConnection extends LocalConnection {
         }
       }
     }
+    // oxlint-disable-next-line no-restricted-globals -- Snapshot mutable ACP session/tool state before queuing an event.
     this.tool(id, `ACP: ${tool.title}`, { localAcpTool: structuredClone(tool) }, true)
     if (tool.status === 'completed' || tool.status === 'failed')
       this.result(id, tool.rawOutput ?? tool.content ?? tool.status, tool.status === 'failed')
