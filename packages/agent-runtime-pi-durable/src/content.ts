@@ -47,6 +47,7 @@ export class ContentProjection {
   entry(entry: EntryRecord): void {
     // Imported history already has product-owned display records; native entries supply context only.
     if (entry.kind === 'cherry.imported-history') return
+    if (entry.kind === 'cherry.reference-context') return
     for (const [index, message] of (entry.model ?? []).entries()) {
       this.message(message, entryMessageId(entry, index), 'complete')
       const inputId = (entry.data as { cherryInputId?: string })?.cherryInputId

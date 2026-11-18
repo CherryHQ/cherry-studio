@@ -237,9 +237,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       return
     }
     try {
-      const context = !input.systemReminder && /^\/goal(?:\s|$)/.test(text) ? undefined : input.context
-      const prompt = context ? buildAgentUserContent(input.message, context) : text
-      await this.submit(input, input.systemReminder ? wrapSteerReminder(prompt) : prompt, 'follow-up')
+      await this.submit(input, input.systemReminder ? wrapSteerReminder(text) : text, 'follow-up')
     } catch (error) {
       if (!running) this.sending = false
       throw error
@@ -253,8 +251,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   redirect(input: AgentRuntimeCommand): boolean {
     if (!this.active || this.closing) return false
     this.steers.add(input.message.id)
-    void this.submit(input, wrapSteerReminder(buildAgentUserContent(input.message, input.context)), 'steer').catch(
-      (error) => this.fail(error)
+    void this.submit(input, wrapSteerReminder(buildAgentUserContent(input.message)), 'steer').catch((error) =>
+      this.fail(error)
     )
     return true
   }
@@ -275,12 +273,18 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private async submit(input: AgentRuntimeCommand, text: string, whenBusy: 'follow-up' | 'steer') {
-    const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, whenBusy, {
-      text,
-      parts: input.message.data.parts
-    })
-    this.input.onInputPrepared?.(input.message.id, this.context!.id)
-    const submitted = this.handle!.input.submit(draft)
+    const submitted = (async () => {
+      if (input.context?.length)
+        await this.handle!.durable.initializeContext(
+          buildAgentUserContent({ ...input.message, data: { parts: input.context } })
+        )
+      const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, whenBusy, {
+        text,
+        parts: input.message.data.parts
+      })
+      this.input.onInputPrepared?.(input.message.id, this.context!.id)
+      return this.handle!.input.submit(draft)
+    })()
     this.admission = submitted.catch(() => undefined)
     const result = await submitted
     this.events.push({ type: 'input-submission', contextId: this.context!.id, result })

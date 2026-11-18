@@ -1197,8 +1197,11 @@ characters (JSON length for structured values). Longer results use line-aligned 
 excerpts with 500/1,000 character budgets and an explicit omission marker. Failed calls
 retain at most 256 characters of error text. Persisted results reuse stored excerpts and
 structured identities without loading full blobs. Complete outputs remain in product
-history for display. Drivers use their
-ordinary input and attachment conversion.
+history for display. Drivers use their ordinary input and attachment conversion.
+Pi Durable initializes reference text through a passive native write before dispatching the
+original input, so local commands and autonomous goal rounds retain the same model context.
+The native request ID deduplicates initialization across reopening. The reference entry starts
+no model run and is excluded from product projections and behavior-authorizing user history.
 Native admission still checks the original product message parts; reference context does
 not rewrite user messages or dispatch historical tools.
 

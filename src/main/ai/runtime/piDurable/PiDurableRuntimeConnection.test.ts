@@ -1257,7 +1257,15 @@ describe('desktop Pi Durable connection', () => {
   })
 
   // A freshly allocated Durable root must not resolve the verifier's initialization ID as a child.
-  it('verifies and completes a goal in a newly created native root', async () => {
+  it.each([false, true])('verifies and completes a goal with imported history: %s', async (withHistory) => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'auto' }
+    if (withHistory) {
+      message('Remember mango from the imported conversation')
+      input.branchHead = messages.saveMessage({
+        sessionId: input.sessionId,
+        message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Mango recorded' }] } }
+      }).id
+    }
     script = respondingModel((call) => {
       if (call.systemPrompt.startsWith('Evaluate whether the objective'))
         return assistantReply('{"verdict":"met","reason":"Output is present"}')
@@ -1282,7 +1290,11 @@ describe('desktop Pi Durable connection', () => {
       )
     })
     const { connection, events } = await connect()
-    await connection.send({ message: message('/goal Produce the requested output') })
+    const command = message('/goal Produce the requested output')
+    await connection.send({
+      message: command,
+      context: await readSessionHistory(input.sessionId, command.id, connection.contextId)
+    })
     await expect.poll(() => text(events)).toContain('GOAL_VERIFIED')
     expect(script.calls.filter((call) => call.systemPrompt.startsWith('Evaluate whether the objective'))).toHaveLength(
       1
@@ -1291,6 +1303,17 @@ describe('desktop Pi Durable connection', () => {
       .flatMap((message) => message.parts)
       .find((part) => part.type === 'dynamic-tool' && part.toolName === 'update_goal')
     expect(completion).toMatchObject({ state: 'output-available' })
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: 'input-submission',
+        result: expect.objectContaining({ status: 'acknowledged', facts: ['locally-handled'] })
+      })
+    )
+    if (withHistory) {
+      const firstRound = script.calls.find((call) => !call.systemPrompt.startsWith('Evaluate whether the objective'))!
+      expect(JSON.stringify(firstRound.messages)).toContain('Remember mango from the imported conversation')
+      expect(JSON.stringify(firstRound.messages)).toContain('Mango recorded')
+    }
   })
 
   // Locally handled commands must keep their answer when the desktop consumes message projections.
@@ -1346,6 +1369,7 @@ describe('desktop Pi Durable connection', () => {
       await savedAnswer(reopened)
       expect(JSON.stringify(script.calls[0].messages)).toContain('Mango recorded')
       expect(JSON.stringify(script.calls[0].messages)).toContain('What did I tell you to remember?')
+      expect(JSON.stringify(script.calls[0].messages).match(/Previous conversation history/g)).toHaveLength(1)
     }
   )
 
