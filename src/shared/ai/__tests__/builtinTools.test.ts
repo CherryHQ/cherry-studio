@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
 import {
+  ASK_EXPERT_MAX_CONTEXT_CHARS,
+  askExpertInputSchema,
   KB_MANAGE_ADD_MAX_ITEMS,
   kbListInputSchema,
   kbManageInputSchema,
@@ -12,6 +14,16 @@ import {
 } from '../builtinTools'
 
 describe('builtin tool contracts', () => {
+  it('requires a self-contained ask_expert question and defaults its type to other', () => {
+    const base = { objective: 'o', context: 'c', output_format: 'f', trigger: 't' }
+
+    expect(askExpertInputSchema.parse(base).question_type).toBe('other')
+    expect(askExpertInputSchema.safeParse({ ...base, context: '   ' }).success).toBe(false)
+    expect(
+      askExpertInputSchema.safeParse({ ...base, context: 'x'.repeat(ASK_EXPERT_MAX_CONTEXT_CHARS + 1) }).success
+    ).toBe(false)
+  })
+
   it('keeps `format` out of the web_fetch schema so any provider accepts it', () => {
     // Zod's `.url()` emits `format: "uri"`, which strict OpenAI-compatible providers reject with a
     // 400 that kills the whole request, not just this tool ("Invalid schema for function
