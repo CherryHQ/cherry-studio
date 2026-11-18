@@ -97,7 +97,7 @@ describe('server-tool model eligibility', () => {
     (apiModelId) => {
       const vertex = bundledProviders.providers.find((p) => p.id === 'vertexai')! as unknown as Provider
       const embedding = model(apiModelId, { providerId: 'vertexai', capabilities: [MODEL_CAPABILITY.EMBEDDING] })
-      const custom = { id: 'custom', serverTools: [] } as Provider
+      const custom = { id: 'custom', serverTools: [] } as unknown as Provider
 
       expect(isBuiltinWebSearchAvailable(embedding, vertex, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).toBe(false)
       expect(isBuiltinWebSearchAvailable(model(apiModelId), custom, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).toBe(false)
