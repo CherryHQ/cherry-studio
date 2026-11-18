@@ -26,6 +26,9 @@ const cherryCloudPlanModelSchema = z.looseObject({
   available_features: z.array(cherryCloudModelFeatureSchema)
 })
 
+/** An AMD model the account must authorize; `activation_endpoint` is the same-origin path that issues its entry link. */
+const cherryCloudAmdModelSchema = cherryCloudPlanModelSchema.extend({ activation_endpoint: z.string().optional() })
+
 const cherryCloudModelSyncResultSchema = z.strictObject({
   entitledModelIds: z.array(UniqueModelIdSchema),
   freeModelIds: z.array(UniqueModelIdSchema),
@@ -39,7 +42,7 @@ const cherryCloudModelSyncResultSchema = z.strictObject({
   }),
   quotaExhaustedModelIds: z.array(UniqueModelIdSchema),
   /** AMD models the account can use only after authorizing AMD; they stay out of the model table until then. */
-  amdActivationRequiredModels: z.array(cherryCloudPlanModelSchema)
+  amdActivationRequiredModels: z.array(cherryCloudAmdModelSchema)
 })
 
 export type CherryCloudModelSyncResult = z.infer<typeof cherryCloudModelSyncResultSchema>
@@ -77,8 +80,8 @@ export const cherryCloudPublicPlanCatalogSchema = z.looseObject({
       subscription_price: cherryCloudSubscriptionPriceSchema.optional()
     })
   ),
-  /** AMD models offered after Cherry AI sign-in and AMD authorization; absent where AMD is not offered. */
-  amd_models: z.array(cherryCloudPlanModelSchema).optional()
+  /** Main adds the AMD entries of the public `/v1/models`; absent or empty where AMD is not offered. */
+  amd_models: z.array(cherryCloudAmdModelSchema).optional()
 })
 
 const cherryCloudQuotaWindowSchema = z.looseObject({
@@ -259,7 +262,10 @@ export const cherryCloudRequestSchemas = {
     }),
     output: z.void()
   }),
-  'cherry_cloud.amd_entry.open': defineRoute({ input: z.void(), output: z.void() }),
+  'cherry_cloud.amd_entry.open': defineRoute({
+    input: z.strictObject({ modelId: z.string().min(1).max(200) }),
+    output: z.void()
+  }),
   'cherry_cloud.login.cancel': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
   'cherry_cloud.session.revoke': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
   'cherry_cloud.models.sync': defineRoute({

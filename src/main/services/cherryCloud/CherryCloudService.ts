@@ -64,6 +64,15 @@ const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000
 const CLOUD_CONTROL_REQUEST_TIMEOUT_MS = 30_000
 const CLOUD_MODEL_SYNC_CACHE_TTL_MS = 60_000
 const AMD_MODEL_PROVIDER = 'amd'
+type CloudCatalogModel = Infer<typeof cloudModelListSchema>['data'][number]
+const isAmdModel = (model: CloudCatalogModel) => model.provider === AMD_MODEL_PROVIDER
+const toAmdModelPreview = (model: CloudCatalogModel) => ({
+  id: model.id,
+  display_name: model.display_name,
+  capabilities: model.capabilities,
+  available_features: model.available_features,
+  activation_endpoint: model.activation_endpoint
+})
 // Refusals that change what the account may use; AMD credential rejections are not sign-out signals.
 const SYNC_INVALIDATING_FORBIDDEN_CODES = new Set([
   'ENTITLEMENT_INACTIVE',
@@ -932,10 +941,10 @@ export class CherryCloudService extends BaseService {
     return { outcome: 'opened' }
   }
 
-  /** Signs in when required, then opens the single-use AMD entry the server issues to this desktop session. */
-  public async openAmdEntry(senderId: WindowId | null): Promise<void> {
+  /** Signs in when required, then opens the single-use AMD entry the server issues for the model. */
+  public async openAmdEntry(senderId: WindowId | null, modelId: string): Promise<void> {
     if (!this.amdEntryPromise) {
-      const entry = this.openAmdEntryOnce(senderId).finally(() => {
+      const entry = this.openAmdEntryOnce(senderId, modelId).finally(() => {
         if (this.amdEntryPromise === entry) this.amdEntryPromise = null
       })
       this.amdEntryPromise = entry
@@ -943,7 +952,7 @@ export class CherryCloudService extends BaseService {
     return this.amdEntryPromise
   }
 
-  private async openAmdEntryOnce(senderId: WindowId | null): Promise<void> {
+  private async openAmdEntryOnce(senderId: WindowId | null, modelId: string): Promise<void> {
     const generation = this.lifecycleGeneration
     let status = await this.getStatus()
     if (status.phase !== 'signed-in') {
@@ -961,7 +970,14 @@ export class CherryCloudService extends BaseService {
       )
     }
     if (!isSenderCurrent()) return
-    const response = await this.authenticatedFetch('/api/v1/amd/desktop/entry', {
+    const models = await this.syncEntitledModelsIfStale()
+    // Signing in may reveal the account already authorized AMD; the refreshed picker then offers the model.
+    if (models.entitledModelIds.includes(createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, modelId))) return
+    const endpoint = models.amdActivationRequiredModels.find((model) => model.id === modelId)?.activation_endpoint
+    if (!endpoint) throw new CherryCloudAmdEntryError('the model offers no activation entry')
+    if (!isSenderCurrent()) return
+    // authenticatedFetch refuses any endpoint outside the Cloud API origin.
+    const response = await this.authenticatedFetch(endpoint, {
       method: 'POST',
       signal: AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
     })
@@ -1043,14 +1059,41 @@ export class CherryCloudService extends BaseService {
     return this.syncEntitledModels()
   }
 
-  /** The plan catalog needs no session, so the model picker can offer paid models before sign-in. */
+  /** The plan and model catalogs need no session, so the model picker can offer models before sign-in. */
   public async getPublicPlans(): Promise<CherryCloudPublicPlanCatalog> {
-    const response = await net.fetch(`${resolveCherryCloudApiOrigin()}/api/v1/public/plans`, {
-      redirect: 'error',
-      signal: AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
-    })
+    const [response, amdModels] = await Promise.all([
+      net.fetch(`${resolveCherryCloudApiOrigin()}/api/v1/public/plans`, {
+        redirect: 'error',
+        signal: AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
+      }),
+      this.getPublicAmdModels()
+    ])
     if (!response.ok) throw new Error(`Cherry Cloud plan catalog request failed (${response.status})`)
-    return cherryCloudPublicPlanCatalogSchema.parse(await response.json())
+    return { ...cherryCloudPublicPlanCatalogSchema.parse(await response.json()), amd_models: amdModels }
+  }
+
+  /** Unsigned `/v1/models`; a server without the public catalog answers 401 and offers no AMD rows. */
+  private async getPublicAmdModels(): Promise<CherryCloudModelSyncResult['amdActivationRequiredModels']> {
+    try {
+      const response = await net.fetch(`${resolveCherryCloudApiOrigin()}/v1/models?limit=1000`, {
+        headers: { 'anthropic-version': '2023-06-01' },
+        redirect: 'error',
+        signal: AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
+      })
+      if (!response.ok) {
+        discardResponse(response)
+        return []
+      }
+      return cloudModelListSchema
+        .parse(await response.json())
+        .data.filter(isAmdModel)
+        .map(toAmdModelPreview)
+    } catch (error) {
+      logger.warn('Cherry Cloud public model catalog unavailable', {
+        reason: error instanceof Error ? error.message : String(error)
+      })
+      return []
+    }
   }
 
   private async syncEntitledModelsOnce(
@@ -1095,10 +1138,9 @@ export class CherryCloudService extends BaseService {
       activeEntitlements.filter((entitlement) => !entitlement.is_free).flatMap((entitlement) => entitlement.model_ids)
     )
     // AMD models need no plan: the server lists them per account and gates them on AMD authorization.
-    const isAmd = (model: (typeof catalog.data)[number]) => model.provider === AMD_MODEL_PROVIDER
-    const lockedAmdModels = catalog.data.filter((model) => isAmd(model) && model.activation_required === true)
+    const lockedAmdModels = catalog.data.filter((model) => isAmdModel(model) && model.activation_required === true)
     const models = catalog.data.filter((model) =>
-      isAmd(model) ? model.activation_required !== true : entitledModelIds.has(model.id)
+      isAmdModel(model) ? model.activation_required !== true : entitledModelIds.has(model.id)
     )
     const quotaAvailableByModelId = new Map<string, boolean>()
     for (const pool of account.quota_pools) {
@@ -1120,7 +1162,7 @@ export class CherryCloudService extends BaseService {
     const freeModelIds: CherryCloudModelSyncResult['freeModelIds'] = []
     for (const model of models) {
       const uniqueModelId = createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id)
-      if (isAmd(model) || (freeApiModelIds.has(model.id) && !paidApiModelIds.has(model.id))) {
+      if (isAmdModel(model) || (freeApiModelIds.has(model.id) && !paidApiModelIds.has(model.id))) {
         freeModelIds.push(uniqueModelId)
       }
       const features = new Set(model.available_features)
@@ -1144,12 +1186,7 @@ export class CherryCloudService extends BaseService {
         general: [...new Set(generalModelIds)]
       },
       quotaExhaustedModelIds,
-      amdActivationRequiredModels: lockedAmdModels.map((model) => ({
-        id: model.id,
-        display_name: model.display_name,
-        capabilities: model.capabilities,
-        available_features: model.available_features
-      }))
+      amdActivationRequiredModels: lockedAmdModels.map(toAmdModelPreview)
     }
   }
 

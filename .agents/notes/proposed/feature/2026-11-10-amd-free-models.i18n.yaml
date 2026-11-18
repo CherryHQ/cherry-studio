@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-10-amd-free-models.md
-2026-11-10-amd-free-models.md: 3303a0e36c855c6e45e60d9f61c1d642e8df4ed7
-2026-11-10-amd-free-models.zh.md: d81d9af289d86a0478613b5fdeb9c8703b66f97d
+2026-11-10-amd-free-models.md: c8146998431d4a5778973a60e7690bf9343a6df5
+2026-11-10-amd-free-models.zh.md: 34d132543194da7c1e30b0c8a2f1812e23b3ba46

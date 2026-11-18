@@ -10,7 +10,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 export async function openAmdRegistration(modelId: string): Promise<void> {
   trackSubscriptionEvent({ event: 'amd_entry_clicked', flowId: crypto.randomUUID(), modelId })
   try {
-    await ipcApi.request('cherry_cloud.amd_entry.open')
+    await ipcApi.request('cherry_cloud.amd_entry.open', { modelId })
   } catch (error) {
     toast.error({
       key: 'cherry-cloud-amd-entry',

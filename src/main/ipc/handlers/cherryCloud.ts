@@ -37,8 +37,8 @@ export const cherryCloudHandlers: IpcHandlersFor<typeof cherryCloudRequestSchema
   'cherry_cloud.login.start': async () => runCloudCommand(() => application.get('CherryCloudService').startLogin()),
   'cherry_cloud.subscription.start': async (input, ctx) =>
     runCloudCommand(() => application.get('CherryCloudService').startSubscription(input, ctx.senderId)),
-  'cherry_cloud.amd_entry.open': async (_, ctx) =>
-    runCloudCommand(() => application.get('CherryCloudService').openAmdEntry(ctx.senderId)),
+  'cherry_cloud.amd_entry.open': async (input, ctx) =>
+    runCloudCommand(() => application.get('CherryCloudService').openAmdEntry(ctx.senderId, input.modelId)),
   'cherry_cloud.login.cancel': async () => application.get('CherryCloudService').cancelLogin(),
   'cherry_cloud.session.revoke': async () => application.get('CherryCloudService').revokeCurrentSession(),
   'cherry_cloud.models.sync': async () => application.get('CherryCloudService').syncEntitledModelsIfStale(),

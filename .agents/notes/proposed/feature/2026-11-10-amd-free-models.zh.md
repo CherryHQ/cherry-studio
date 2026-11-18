@@ -21,9 +21,9 @@ AMD 合作方注册接口（ADP v0.1，2026-10-27）只接受携带 AMD 分配�
 - **AMD 合作方客户端。** 新增一个小包，为每个合作方请求加上 `X-ADP-Client-Id`、`X-Timestamp`、`X-Nonce` 和 `X-Signature`，签名原文为 `X-App-Id={client_id}&X-Timestamp={ts}&X-Nonce={nonce}&Body={raw_body}`，复用 `internal/alipay/sign.go` 的 RSA 私钥解析。提供表单、公司查询、发送验证码、注册四个调用，以及用用户 Key 发起的用量和负载查询。配置使用 `CLOUD_API_AMD_*` 变量，通过现有 Secret/SealedSecret 机制下发；任一值缺失时功能关闭。外呼使用本区域的依赖超时，结果未知的注册请求绝不自动重发。
 - **注册状态。** 新增仅国内的表，按 Cherry 账号记录 AMD `user_id`、以账号绑定关联数据加密封存的 AMD API Key、`register_source`、状态，以及进行中的尝试（幂等键、请求哈希、`possibly_sent`），沿用 `alipay_customer` 的模式。原始 Key 不出现在日志、响应或埋点中。
 - **网页接口**（网页会话加 CSRF，规则与 `/api/v1/web-account` 一致）：注册表单（预填的已验证手机号临时从 ZITADEL 获取、不落库）、公司查询、发送验证码、提交注册、注册状态、模型负载。AMD 的响应信封（`code`、`field_errors`、`retry_after`）原样透传，便于网页把错误放到对应字段。
-- **模型目录。** AMD 模型不是套餐。服务端把 `CLOUD_API_AMD_MODELS` 配置的模型（ID 以 `amd/` 开头，只支持 `openai-chat-completions`）列入每个国内账号的 `/v1/models`，标记 `provider: "amd"`，账号没有可用的 AMD Key 时再标记 `activation_required`。`GET /api/v1/public/plans` 在 `amd_models` 中列出同样的模型，供未登录的客户端展示。AMD 请求不做 Cherry 额度预留、扣减或结算。
+- **模型目录。** AMD 模型不是套餐。服务端把 `CLOUD_API_AMD_MODELS` 配置的模型（ID 以 `amd/` 开头，只支持 `openai-chat-completions`）列入 `/v1/models`，标记 `provider: "amd"`、`requires_login: true` 和 `activation_endpoint`，账号没有可用的 AMD Key 时再标记 `activation_required`。`/v1/models` 是公开目录：不带签名的请求也会列出全部已上架模型，包括需要开通的 AMD 模型，供未登录的客户端展示。列出不代表有调用权限；每次调用时仍校验登录、套餐权益和 AMD 开通状态。AMD 请求不做 Cherry 额度预留、扣减或结算。
 - **网关。** `amd/` 模型的请求用调用者加密保存的 AMD Key 转发到当前环境的 AMD 模型网关，不使用供应商 Key 或其他账号的 Key，也不回退到付费模型。没有绑定或绑定已作废时返回 `403 AMD_ACTIVATION_REQUIRED`；AMD 拒绝 Key 时返回 `403 AMD_CREDENTIAL_INVALID`，这不是登出信号；AMD 自身的 `429` 返回 `RATE_LIMITED` 并保留 `Retry-After`。
-- **桌面到网页的交接。** `POST /api/v1/amd/desktop/entry`（Product Session Bearer、对空请求体的 v2 设备签名、每次新的请求 ID）返回 `{ entry_url, expires_in }`：形如 `https://<cloud-api-origin>/amd/enter#<凭证>` 的链接，60 秒内有效且只能兑换一次。浏览器兑换后设置网页会话 Cookie 并跳转；网页随后要求与客户端相同的 Cherry 账号。这样无需 CORS 或共享 cookie 即可证明访问由客户端发起。
+- **桌面到网页的交接。** 对模型的 `activation_endpoint`（目前是 `/api/v1/amd/desktop/entry`）发起 `POST`（Product Session Bearer、对空请求体的 v2 设备签名、每次新的请求 ID）返回 `{ entry_url, expires_in }`：形如 `https://<cloud-api-origin>/amd/enter#<凭证>` 的链接，60 秒内有效且只能兑换一次。浏览器兑换后设置网页会话 Cookie 并跳转；网页随后要求与客户端相同的 Cherry 账号。这样无需 CORS 或共享 cookie 即可证明访问由客户端发起。
 
 ### 注册网页（新建独立前端项目）
 
@@ -36,7 +36,7 @@ AMD 合作方注册接口（ADP v0.1，2026-10-27）只接受携带 AMD 分配�
 - CherryAI 选择器分组向所有用户展示服务端目录，客户端自己不保存模型列表。每个锁定行写明解锁方式：
   - **免费模型**：未登录时，`/api/v1/public/plans` 中免费套餐的模型显示为锁定行；点击后登录 Cherry AI。
   - **订阅模型**：与现在一样展示付费套餐预览；点击后开始订阅。
-  - **AMD 模型**：未登录时取 `amd_models`，登录后取 `/v1/models` 中 `activation_required` 的条目，显示为「AMD 授权」锁定行，hover 说明需要 AMD 授权。点击时如未登录先登录，再由主进程申请入口链接并原样在系统浏览器中打开。客户端不自行拼接页面地址，也不记录、上报或保存该链接。
+  - **AMD 模型**：未登录时取不带签名的 `/v1/models` 中的 AMD 条目，登录后取其中 `activation_required` 的条目，显示为「AMD 授权」锁定行，hover 说明需要 AMD 授权。点击时如未登录先登录，再由主进程向已签名目录中该模型的 `activation_endpoint` 申请入口链接，并原样在系统浏览器中打开；如果账号其实已经授权，则不打开任何页面。客户端不自行拼接页面地址，也不记录、上报或保存该链接。
 - 已授权的 AMD 模型与已授权的套餐模型一样同步进 CherryAI 提供方，标记免费且不占额度。未授权的 AMD 模型不写入模型表。
 - 对话请求被 `AMD_ACTIVATION_REQUIRED` 或 `AMD_CREDENTIAL_INVALID` 拒绝时，模型快照失效，下次同步把该模型显示为锁定；输入框随后显示「AMD 授权」而不是发送。Cherry 登录保持不变。
 - 客户端不读取 `GET /api/v1/amd/desktop/status`。行内文案只说 AMD 授权，不承诺新注册，因此注册关闭时依然正确；注册、关联和等待的分支由网页负责。
@@ -63,10 +63,10 @@ AMD 合作方注册接口（ADP v0.1，2026-10-27）只接受携带 AMD 分配�
 
 - AC1 — Cloud API 的 AMD 客户端对 AMD 文档示例生成完全一致的签名，并在发送前拒绝未签名、已过期或配置不全的调用。（verification: unit；owner: Cloud API）
 - AC2 — 在模拟 AMD 服务下，表单、公司查询、发送验证码和注册原样透传 AMD 的响应信封和字段错误；同一请求体重复注册复用幂等键，请求体变化时换新键，结果未知的尝试不会被自动重发。（verification: integration；owner: Cloud API）
-- AC3 — 注册或关联成功后封存 AMD Key；随后该账号的 `/v1/models` 以 `activation_required: false` 列出 AMD 模型，`/api/v1/public/plans` 在 `amd_models` 中列出这些模型，且任何响应和日志都不含原始 Key 或完整手机号。（verification: integration；owner: Cloud API）
+- AC3 — 注册或关联成功后封存 AMD Key；随后该账号的 `/v1/models` 以 `activation_required: false` 列出 AMD 模型，不带签名的 `/v1/models` 以需要开通的状态列出这些模型，且任何响应和日志都不含原始 Key 或完整手机号。（verification: integration；owner: Cloud API）
 - AC4 — AMD 模型的对话请求使用调用者自己的 AMD Key 转发；没有可用绑定的调用者收到 `403 AMD_ACTIVATION_REQUIRED`，Key 被拒绝时收到 `403 AMD_CREDENTIAL_INVALID`，AMD `429` 以 `RATE_LIMITED` 返回。（verification: integration；owner: Cloud API）
 - AC5 — 模型负载接口为已注册账号返回 AMD 各模型的负载，保留 `unknown`，并拒绝未注册账号。（verification: unit 和 integration；owner: Cloud API）
-- AC6 — `/api/v1/amd/desktop/entry` 返回的入口链接以同一 Cherry 账号打开网页，用一次或 60 秒后失效，无法重放；桌面端以签名的空请求体 POST 申请，原样打开返回的地址，并拒绝 Cloud API 域名之外的地址。（verification: integration 和主进程测试；owner: Cloud API 和 desktop）
+- AC6 — 模型的 `activation_endpoint`（`/api/v1/amd/desktop/entry`）返回的入口链接以同一 Cherry 账号打开网页，用一次或 60 秒后失效，无法重放；桌面端以签名的空请求体 POST 申请，原样打开返回的地址，并拒绝 Cloud API 域名之外的地址。（verification: integration 和主进程测试；owner: Cloud API 和 desktop）
 - AC7 — 网页对接 Cloud API 接口完成三步注册并显示状态页，把透传的字段错误放到对应步骤，且不对未触碰的空字段显示必填错误。（verification: web 单元测试和测试部署上的人工验证；owner: web 项目）
 - AC8 — CherryAI 选择器分组展示服务端目录：未登录时，免费、订阅和 AMD 行各自以对应的解锁方式（登录、订阅、AMD 授权）锁定；登录后，未授权的 AMD 模型显示为「AMD 授权」锁定行，授权并聚焦刷新后显示为可选的免费模型；客户端不保存模型列表，不显示订阅推荐的选择器中没有锁定行。AMD 拒绝请求时模型被锁定但不登出，输入框提供 AMD 授权。未登录时 Qwen 无法发送，输入框提示登录。（verification: renderer 和主进程测试、Electron；owner: desktop）
 - AC9 — 任一 `CLOUD_API_AMD_*` 配置缺失，或在全球区域时，AMD 路由、目录条目和网关分支均不生效，现有行为不变。（verification: unit 配置测试；owner: Cloud API）
@@ -78,4 +78,4 @@ AMD 合作方注册接口（ADP v0.1，2026-10-27）只接受携带 AMD 分配�
 - **文案和条款。** `terms_version` 仍是「待业务确认」；权益文案（新用户额度、专属资源、首批模型）发布前须与 AMD 确认。
 - **手机号来源。** 预填依赖 ZITADEL 中有已验证的手机号；没有的账号需自行输入，并接收 AMD 自己的短信验证码。
 - **Key 被吊销。** 用户若在 AMD 控制台重置 Key，下一次请求返回 `AMD_CREDENTIAL_INVALID`；模型重新锁定，用户通过同一入口重新授权。
-- **跨仓库交付。** 三个交付物分别上线。服务端列出 AMD 模型时桌面端才显示 AMD 行；未登录用户要等 `/api/v1/public/plans` 带上 `amd_models` 才能看到；通用选择器只在模型的 `available_features` 同时包含 `chat` 和 `translate` 时提供它们。
+- **跨仓库交付。** 三个交付物分别上线。服务端列出 AMD 模型时桌面端才显示 AMD 行；未登录用户要等服务端部署公开的 `/v1/models` 才能看到；通用选择器只在模型的 `available_features` 同时包含 `chat` 和 `translate` 时提供它们。

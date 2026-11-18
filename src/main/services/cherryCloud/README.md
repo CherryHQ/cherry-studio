@@ -37,20 +37,24 @@ records the preservation boundary, deliberate fixes and offline verification lim
 
 ## AMD entry
 
-`openAmdEntry` signs in when required, then sends `POST /api/v1/amd/desktop/entry`
-through `authenticatedFetch`. It has an empty body and uses the v2 device signature,
-so every attempt gets a new request ID. The response's `entry_url` is a 60-second,
-single-use credential that the browser redeems. Main opens it unchanged, fragment
-included, only if it is on the Cloud API origin. Never log, report or persist it.
-Concurrent clicks share one in-flight entry.
+`openAmdEntry` signs in when required, then sends `POST` to the model's
+`activation_endpoint` from the signed catalog (today `/api/v1/amd/desktop/entry`)
+through `authenticatedFetch`, which refuses any other origin. If the refreshed
+catalog shows the model authorized already, it opens nothing. The request has an
+empty body and uses the v2 device signature, so every attempt gets a new request
+ID. The response's `entry_url` is a 60-second, single-use credential that the
+browser redeems. Main opens it unchanged, fragment included, only if it is on the
+Cloud API origin. Never log, report or persist it. Concurrent clicks share one
+in-flight entry.
 
 AMD models arrive through `/v1/models` with `provider: "amd"` and need no plan.
 Model sync treats an authorized one (`activation_required` not true) as an
 entitled free model without a quota pool. A locked one never reaches the model
 table: it goes into the receipt's `amdActivationRequiredModels`, and the selector
-shows it as an "AMD 授权" row. A `403 AMD_ACTIVATION_REQUIRED` or
-`AMD_CREDENTIAL_INVALID` response clears the model sync cache and keeps the
-session, so the next sync locks the model again.
+shows it as an "AMD 授权" row. Signed out, `getPublicPlans` adds the AMD entries
+of the unsigned `/v1/models`; a server that still requires a session there yields
+none. A `403 AMD_ACTIVATION_REQUIRED` or `AMD_CREDENTIAL_INVALID` response clears
+the model sync cache and keeps the session, so the next sync locks the model again.
 
 ## Login request signing
 
