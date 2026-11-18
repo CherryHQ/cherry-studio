@@ -31,7 +31,9 @@ const mocks = vi.hoisted(() => ({
   readExternal: vi.fn()
 }))
 
-vi.mock('@renderer/services/toast', () => ({ toast: { success: mocks.toastSuccess, error: mocks.toastError } }))
+vi.mock('@renderer/services/toast', () => ({
+  toast: { success: mocks.toastSuccess, error: mocks.toastError, closeToast: vi.fn() }
+}))
 
 vi.mock('@logger', () => ({
   loggerService: {

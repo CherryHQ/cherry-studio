@@ -197,7 +197,7 @@ describe('model connectivity against an HTTP provider', () => {
   }
 
   it.each([true, false])(
-    'finishes automatic diagnostics without a billable conversation (streaming: %s)',
+    'finishes automatic diagnostics without a billable conversation (supportsStreaming=%s)',
     async (supportsStreaming) => {
       dbh.db.update(userModelTable).set({ supportsStreaming }).run()
       const started = await start()
@@ -223,6 +223,7 @@ describe('model connectivity against an HTTP provider', () => {
       expect(confirmed.pendingChecks).toEqual([])
       expect(paths).toHaveLength(3)
       expect(requests).toHaveLength(1)
+      expect(requests[0].stream === true).toBe(supportsStreaming)
       expect(requests[0]).toMatchObject({
         model: 'wire-model',
         messages: [
@@ -230,7 +231,6 @@ describe('model connectivity against an HTTP provider', () => {
           { role: 'user', content: 'hi' }
         ]
       })
-      expect(Boolean(requests[0].stream)).toBe(supportsStreaming)
       expect(requests[0]).not.toHaveProperty('tools')
     }
   )

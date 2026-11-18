@@ -202,6 +202,7 @@ export type AgentRuntimeEvent =
       state: 'started'
       origin: AutonomousTurnOrigin
       sourceToolCallIds?: readonly string[]
+      recoveredInputId?: string
     }
   | { type: 'autonomous-turn-state'; state: 'finished' }
   | { type: 'error'; error: unknown }
@@ -221,6 +222,7 @@ export interface AgentRuntimeConnection {
   /** Bound product context for controls that precede the first native message. */
   readonly contextId?: string
 
+  predictPrompt?(signal: AbortSignal): Promise<string>
   readonly events: AsyncIterable<AgentRuntimeEvent>
   /** The configured Runtime owner remains resident until explicit retirement. */
   readonly retainWhileIdle?: boolean

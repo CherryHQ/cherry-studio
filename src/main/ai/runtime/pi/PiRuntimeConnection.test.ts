@@ -65,6 +65,7 @@ vi.mock('@application', async () => {
   const overrides = {
     DbService: defaultServiceInstances.DbService,
     ApiGatewayService: {
+      acquireModelPayloadBudget: async () => () => {},
       captureAgentSessionUsage: () => ({ headers: {}, release: () => {} }),
       ensureInternalGateway: async () => ({ baseUrl: 'http://gateway.invalid', apiKey: 'fixture' }),
       getAgentSessionUsageHeaders: () => ({})

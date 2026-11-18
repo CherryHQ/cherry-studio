@@ -1,4 +1,7 @@
 import { EventEmitter } from 'node:events'
+import { setImmediate } from 'node:timers/promises'
+import { setFlagsFromString } from 'node:v8'
+import { runInNewContext } from 'node:vm'
 
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -47,6 +50,17 @@ import {
   redactUrl
 } from '../MainNetworkDevtoolsService'
 
+setFlagsFromString('--expose_gc')
+const collectGarbage = runInNewContext('gc') as () => void
+
+async function retainedHeap(): Promise<number> {
+  await setImmediate()
+  collectGarbage()
+  await setImmediate()
+  collectGarbage()
+  return process.memoryUsage().heapUsed
+}
+
 describe('MainNetworkDevtoolsService helpers', () => {
   beforeEach(() => {
     BaseService.resetInstances()
@@ -55,6 +69,29 @@ describe('MainNetworkDevtoolsService helpers', () => {
 
   afterEach(() => {
     BaseService.resetInstances()
+  })
+
+  it('releases large request strings while retaining their bounded diagnostic previews', async () => {
+    const previews: ReturnType<typeof captureRequestBody>[] = []
+    const before = await retainedHeap()
+    for (let index = 0; index < 20; index++) {
+      previews.push(
+        captureRequestBody(JSON.stringify({ index, content: '漢'.repeat(2 * 1024 * 1024) }), 'application/json')
+      )
+    }
+
+    const retained = (await retainedHeap()) - before
+    expect(previews).toHaveLength(20)
+    expect(previews.every((preview) => preview?.truncated && preview.text?.length === 128 * 1024)).toBe(true)
+    expect(retained).toBeLessThan(16 * 1024 * 1024)
+  })
+
+  it('preserves UTF-16 code units when the capture limit splits a surrogate pair', () => {
+    const preview = captureRequestBody(`${'x'.repeat(128 * 1024 - 1)}😀tail`, 'text/plain')
+
+    expect(preview?.truncated).toBe(true)
+    expect(preview?.text).toHaveLength(128 * 1024)
+    expect(preview?.text?.endsWith('\ud83d')).toBe(true)
   })
 
   it('redacts sensitive URL credentials and query params', () => {

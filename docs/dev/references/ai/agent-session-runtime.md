@@ -43,6 +43,41 @@ The built-in drivers are Claude Code, Pi and Pi Durable. Their
 query/session transports, tool surfaces, approval gates, and resume formats are
 driver internals behind the same host contract.
 
+## Next-prompt suggestions
+
+Main starts prediction at the end of an eligible successful interactive root turn.
+`ai.agent.session.predict_prompt` consumes that existing ephemeral result using the
+source reply and model IDs; opening a composer never starts another native prediction.
+Main checks attached-window focus before starting prediction; losing focus while it
+is running does not invalidate the result. Main validates idle ownership, preference and Plan mode, and
+cancels on input, context invalidation, connection closure or preference changes.
+`ai.agent.session.abort_prediction` cancels the matching consumer request.
+Tab or the text-direction forward arrow accepts editable text without sending.
+
+Claude Code enables the SDK's `promptSuggestions` option for interactive cold and
+warm queries. Its native `prompt_suggestion` arrives after `result` through the existing
+reader. Native suppression yields no host fallback. A resident native snapshot can seed
+state until the next real user message; an observation gap clears it. This is not a
+promise to restore suggestions from archived transcripts. Disabling the preference
+updates the connection rebuild signature at the next safe idle boundary.
+
+Pi and Pi Durable use patched native `createQueryFork` APIs on the compacted effective
+context. They append the Claude Code instruction from `src/main/ai/runtime/promptSuggestion.ts`
+verbatim, preserving the active model, reasoning, session identity and tool declarations.
+One ordinary streaming request aborts on the first tool call without executing tools.
+Prediction writes no transcript, task, goal, continuation or parent reply usage state.
+The pi-ai patch retains explicit parent cache breakpoints without adding any on the
+prediction suffix; automatic server-side caching remains provider-controlled.
+There is no invented timeout or minimum-reasoning override. Gateway owns billing.
+
+Pi checks the documented two-assistant-message and 10,000-token cache gates, then
+cleans wrappers/labels from the first text block and applies the documented candidate
+filters (under 100 UTF-16 units, at most 12 approximate multilingual words). Display
+checks reject control characters, command prefixes and recognized secret forms while
+retaining the original text. Private vendor flags, backoff and unused-streak defaults
+are not specified by the research and are not fabricated. Headless/autonomous turns
+and history opening do not generate host predictions; a resident result can be read again.
+
 ## Ownership
 
 | Owner | Responsibility |
@@ -711,6 +746,9 @@ CLI subscription login retains native authentication. See the gateway's
 [internal endpoint policy](../api-gateway/README.md#internal-listener-for-cherry-consumers).
 
 Root content passes through `ThreadMessageProjection` and `RootMessageProjection`.
+Observation values are frozen and shared, so a repeated snapshot reuses the previous view of every
+message whose source object is unchanged without decorating it again; an explicit refresh still
+re-decorates its messages.
 Native replacements retain product ownership across steer boundaries; explicit
 retractions persist with the context checkpoint. The runtime adapter preserves ordered
 AI SDK message parts, including tool output, reasoning signatures, files and citations.
@@ -1007,7 +1045,10 @@ Child attachment waits for the shared root connection, then calls the concrete
 origin, actual parent and access together. Main joins concurrent attachment through one child
 resource record. Failed creation or owner closure ends the wait; parent reply completion does not
 close independently running children. Failed attachment releases its lease and can retry, while
-failed final persistence retains the resource and its unflushed output. A detached or
+failed final persistence retains the resource and its unflushed output. A finished child (idle
+with a run result and no input without an outcome) that no viewer subscribes to is flushed and
+released, keeping only its origin and context ID; opening its panel, messaging it or a native
+resume attaches it again. A detached or
 destroyed window cannot install a late subscription. Archive reconciliation preserves product IDs
 and orders evidenced rows by committed native history followed by live content, correcting saved
 parent links when necessary; rows outside current native/live coverage remain retained in place.

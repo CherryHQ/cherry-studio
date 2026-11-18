@@ -59,7 +59,13 @@ import { ConversationNotificationService } from '@main/services/ConversationNoti
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
 import { DoctorAgentService, DoctorService } from '@main/services/diagnostics'
 import { ErrorReportingService } from '@main/services/errorReporting'
-import { DirectoryTreeManager, FileManager, FileIntakeService, FileEditService } from '@main/services/file'
+import {
+  DirectoryTreeManager,
+  FileManager,
+  FileIntakeService,
+  FileEditService,
+  FileObservationService
+} from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
 import { LogRetentionService } from '@main/services/LogRetentionService'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
@@ -148,6 +154,7 @@ export const services = {
   AttachmentPresenceService,
   FileIntakeService,
   DirectoryTreeManager,
+  FileObservationService,
   FileProcessingService,
   PowerService,
   RuntimeActivityService,

@@ -13,6 +13,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import type { WebContents } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -25,6 +26,7 @@ import type * as lifecycleModule from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { TreeMutationPushPayload } from '@shared/utils/file'
 
+import { FileObservationService } from '../../observation/FileObservationService'
 import { tryTestRipgrepPath } from './ripgrepTestUtils'
 
 const ripgrepAvailable = tryTestRipgrepPath() !== null
@@ -105,6 +107,7 @@ describe.skipIf(!ripgrepAvailable)('DirectoryTreeManager integration', () => {
   beforeEach(async () => {
     tmp = await mkdtemp(path.join(tmpdir(), 'cherry-tree-registry-'))
     BaseService.resetInstances()
+    MockApplicationUtils.setService('FileObservationService', new FileObservationService())
     registry = new DirectoryTreeManager()
     await registry._doInit()
   })

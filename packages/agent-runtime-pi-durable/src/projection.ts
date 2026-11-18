@@ -41,6 +41,7 @@ export class DurableProjection {
   private readonly cycle = new Set<string>()
   private completion?: DurableObservation['completion']
   private history: readonly HistoryEntry[] = []
+  private committed?: { readonly entries: readonly EntryRecord[]; readonly content: ContentProjection }
   private backgroundResults: DurableObservation['backgroundResults'] = {
     status: 'confirmed',
     value: { active: false, pending: [], notification: [] }
@@ -68,8 +69,21 @@ export class DurableProjection {
 
   observe(sink: (batch: DurableObservation) => void | Promise<void>): Observation {
     const active = this.preview?.id
+    const snapshot = this.feed.snapshot
+    const pending = snapshot.inputs.findLast((input) => !input.outcome && input.facts.includes('placed'))
+    const anchors = pending?.inputId
+      ? snapshot.messages.flatMap((message, index) =>
+          message.role === 'user' && message.metadata?.inputId === pending.inputId ? [index] : []
+        )
+      : []
+    const boundary = anchors.length === 1 ? anchors[0] : Infinity
+    const baseline = new Set(
+      snapshot.messages
+        .filter((message, index) => message.id === active || (index > boundary && message.role === 'assistant'))
+        .map((message) => message.id)
+    )
     const historical = new Set(
-      this.feed.snapshot.messages.filter((message) => message.id !== active).map((message) => message.id)
+      snapshot.messages.filter((message) => !baseline.has(message.id)).map((message) => message.id)
     )
     return this.feed.observeCaptured(sink, (event, delivery) => {
       for (const [committed, preview] of Object.entries(this.aliases))
@@ -82,7 +96,7 @@ export class DurableProjection {
           events: [event],
           aliases: this.aliases,
           live: messages
-            .filter((message) => (delivery === 'baseline' ? message.id === active : !historical.has(message.id)))
+            .filter((message) => (delivery === 'baseline' ? baseline.has(message.id) : !historical.has(message.id)))
             .map((message) => message.id),
           completion,
           backgroundResults: this.backgroundResults
@@ -133,8 +147,7 @@ export class DurableProjection {
         this.cycle.add(input.nativeInput?.id ?? input.inputId!)
     const unfinished = inputs.some((input) => !input.outcome && !input.facts.includes('locally-handled'))
     const live = view.docs['pi.live'] as LiveState | undefined
-    const content = new ContentProjection()
-    for (const entry of view.entries) content.entry(entry)
+    const content = this.committedContent(view.entries).fork()
     const after = view.entries.reduce((latest, entry) => Math.max(latest, entry.id), 0)
     const generation = live?.generation
     const previous = this.preview
@@ -215,6 +228,20 @@ export class DurableProjection {
     })
     this.completion = undefined
     for (const input of changed) this.feed.publish({ type: 'input.changed', input })
+  }
+
+  /** Native views append the same entry records; project only appended entries and share the rest. */
+  private committedContent(entries: readonly EntryRecord[]): ContentProjection {
+    const previous = this.committed
+    const extended =
+      previous !== undefined &&
+      previous.entries.length <= entries.length &&
+      previous.entries.every((entry, index) => entries[index] === entry)
+    const content = extended ? previous.content : new ContentProjection()
+    for (const entry of entries.slice(extended ? previous.entries.length : 0)) content.entry(entry)
+    content.seal()
+    this.committed = { entries, content }
+    return content
   }
 }
 

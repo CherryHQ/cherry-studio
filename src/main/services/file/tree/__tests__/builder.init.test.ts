@@ -8,7 +8,7 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import * as watcherModule from '../../watcher'
 import type { WatcherEvent, WatcherListener } from '../../watcher'
-import { createDirectoryTree } from '../builder'
+import { createObservedDirectoryTree as createDirectoryTree } from './treeTestUtils'
 
 const scan = vi.hoisted(() => vi.fn<() => Promise<string[]>>())
 vi.mock('../search', () => ({ listDirectory: scan }))

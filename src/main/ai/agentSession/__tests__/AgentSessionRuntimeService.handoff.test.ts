@@ -38,7 +38,7 @@ const snapshot: MessageSnapshot = {
   model: { id: 'model', name: 'Model', provider: 'test' }
 }
 
-async function fixture(opts: { headless?: boolean; redirect?: boolean } = {}) {
+async function fixture(opts: { headless?: boolean; redirect?: boolean; recovery?: boolean } = {}) {
   dbh.db.insert(userProviderTable).values({ providerId: 'test', name: 'Test', orderKey: 'a0' }).run()
   dbh.db
     .insert(userModelTable)
@@ -137,18 +137,20 @@ async function fixture(opts: { headless?: boolean; redirect?: boolean } = {}) {
     })
   })
   const service = new AgentSessionRuntimeService()
-  const handle = service.beginTurn({
-    sessionId: 'root',
-    topicId: 'agent-session:root',
-    agentId: 'agent',
-    agentType: 'pi',
-    modelId: 'test::model',
-    assistantMessageId: replyB.id,
-    traceId: 'a'.repeat(32),
-    userMessage: user,
-    headless: opts.headless,
-    messageSnapshot: snapshot
-  })
+  const handle = opts.recovery
+    ? undefined!
+    : service.beginTurn({
+        sessionId: 'root',
+        topicId: 'agent-session:root',
+        agentId: 'agent',
+        agentType: 'pi',
+        modelId: 'test::model',
+        assistantMessageId: replyB.id,
+        traceId: 'a'.repeat(32),
+        userMessage: user,
+        headless: opts.headless,
+        messageSnapshot: snapshot
+      })
   await service.primeConnection('root')
   await emit({ type: 'supported-commands', commands: [] })
   onTestFinished(async () => {
@@ -953,3 +955,74 @@ it.each([false, true])(
     expect(f.service.isSessionBusy('root')).toBe(false)
   }
 )
+
+it('restores a reply from its bound input before any projection checkpoint exists', async () => {
+  const f = await fixture({ recovery: true })
+  dbh.db
+    .update(agentSessionMessageTable)
+    .set({ inputContextId: f.context.id })
+    .where(eq(agentSessionMessageTable.id, f.user.id))
+    .run()
+  dbh.db
+    .update(agentSessionMessageTable)
+    .set({ parentId: f.user.id })
+    .where(eq(agentSessionMessageTable.id, f.replyB.id))
+    .run()
+  expect(messages.recoveredInputReply('root', f.context.id, f.user.id)).toBe(f.replyB.id)
+  expect(messages.recoveredInputReply('root', 'another-context', f.user.id)).toBeUndefined()
+  await f.emit({
+    type: 'autonomous-turn-state',
+    state: 'started',
+    origin: { kind: 'background-work' },
+    recoveredInputId: f.user.id
+  })
+  await vi.waitFor(() => expect(f.starts).toHaveLength(1))
+  const finish = f.open(f.starts[0])
+  await f.project('recovered-native-answer', 'RECOVERED_OUTPUT')
+  await f.emit({ type: 'turn-complete' })
+  await f.emit({ type: 'autonomous-turn-state', state: 'finished' })
+  await finish()
+  expect(messages.getSessionMessage('root', f.replyB.id).data.parts).toEqual(
+    expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'RECOVERED_OUTPUT' })])
+  )
+  expect(f.sent).toEqual([])
+  expect(f.service.isSessionBusy('root')).toBe(false)
+  const nextUser = messages.saveMessage({
+    sessionId: 'root',
+    parentId: f.replyB.id,
+    message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'continue' }] } }
+  })
+  const nextReply = messages.saveMessage({
+    sessionId: 'root',
+    parentId: nextUser.id,
+    message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+  })
+  const next = f.service.beginTurn({
+    sessionId: 'root',
+    topicId: 'agent-session:root',
+    agentId: 'agent',
+    agentType: 'pi',
+    modelId: 'test::model',
+    assistantMessageId: nextReply.id,
+    traceId: 'a'.repeat(32),
+    userMessage: nextUser,
+    messageSnapshot: snapshot
+  })
+  const finishNext = f.open({
+    request: {
+      conversation: { id: 'root', topicId: 'agent-session:root' },
+      trigger: 'submit-message',
+      messageId: nextReply.id,
+      runtime: { kind: 'agent-session', sessionId: 'root', turnId: next.turnId }
+    },
+    abortController: next.abortController,
+    listeners: next.listeners
+  })
+  await vi.waitFor(() => expect(f.sent).toEqual([nextUser.id]))
+  await f.project('next-answer', 'NEXT_OUTPUT')
+  await f.emit({ type: 'turn-complete' })
+  await finishNext()
+  expect(messages.getSessionMessage('root', nextReply.id).data.parts).toEqual(
+    expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'NEXT_OUTPUT' })])
+  )
+})

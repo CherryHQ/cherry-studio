@@ -7,7 +7,7 @@ import type {
   LiveState,
   TaskId
 } from '@earendil-works/pi-durable'
-import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { describe, expect, it, onTestFinished } from 'vitest'
 
 import { runtimeId, type ObservationPayload } from '@cherrystudio/agent-runtime'
 
@@ -45,28 +45,75 @@ const live = (attempt = 1): LiveState => ({
   generation: { attempt, message: JSON.parse(JSON.stringify(fauxAssistantMessage('same text'))) }
 })
 
-it('copies only the newly published history when updating a view without observers', () => {
+it('keeps complete isolated history when updating a view without observers', () => {
   const projection = new DurableProjection({ backendId: runtimeId('backend'), id: runtimeId('1') }, (error) => {
     throw error
   })
   const entries = Array.from({ length: 32 }, (_, index) => entry(index + 1, `saved-${index}`))
   projection.update(view(entries))
-  // oxlint-disable-next-line no-restricted-properties -- Measure real clone work without replacing the copy or isolation behavior.
-  const clone = globalThis.structuredClone
-  let copiedMessages = 0
-  const measured = vi.spyOn(globalThis, 'structuredClone').mockImplementation((value, options) => {
-    if (value && typeof value === 'object' && 'messages' in value && Array.isArray(value.messages))
-      copiedMessages += value.messages.length
-    return clone(value, options)
-  })
-  try {
-    projection.update(view(entries))
-    expect(copiedMessages).toBe(entries.length)
-  } finally {
-    measured.mockRestore()
-  }
-  expect(projection.feed.snapshot.messages).toHaveLength(entries.length)
+  const previous = projection.feed.snapshot
+  expect(() => {
+    previous.messages[0].parts.length = 0
+  }).toThrow(TypeError)
+  projection.update(view([...entries, entry(33, 'new')]))
+  expect(projection.feed.snapshot.messages.map((message) => message.parts)).toEqual([
+    ...Array.from({ length: 32 }, (_, index) => [{ type: 'text', text: `saved-${index}`, state: 'done' }]),
+    [{ type: 'text', text: 'new', state: 'done' }]
+  ])
+  expect(previous.messages).toHaveLength(32)
+  previous.messages.forEach((message, index) => expect(projection.feed.snapshot.messages[index]).toBe(message))
   onTestFinished(() => projection.close())
+})
+
+it('copies only messages that live progress or a later result changes, and rebuilds after compaction', () => {
+  const call = fauxAssistantMessage(fauxToolCall('echo', {}, { id: 'call' }), { stopReason: 'toolUse' })
+  const before = entry(9, 'before')
+  const assistant: EntryRecord = { ...entry(10, ''), model: [call] }
+  const result: EntryRecord = {
+    id: 11 as EntryId,
+    conversationId,
+    kind: 'pi.tool_result',
+    byTaskId: 8 as TaskId,
+    model: [
+      {
+        role: 'toolResult',
+        toolCallId: 'call',
+        toolName: 'echo',
+        content: [{ type: 'text', text: 'finished' }],
+        isError: false,
+        timestamp: 0
+      }
+    ]
+  }
+  const { projection, update } = setup(view([before, assistant]))
+  const initial = projection.feed.snapshot.messages
+  update(
+    view([before, assistant], {
+      run: { taskId, inputs: [], turns: 0 },
+      tools: [{ callId: 'call', name: 'echo', status: 'running', taskId: 8 as TaskId, output: 'partial' }]
+    })
+  )
+  const progressed = projection.feed.snapshot.messages
+  update(view([before, assistant]))
+  const settled = projection.feed.snapshot.messages
+  update(view([before, assistant, result]))
+  const finished = projection.feed.snapshot.messages
+
+  expect(progressed[0]).toBe(initial[0])
+  expect(finished[0]).toBe(initial[0])
+  expect(progressed[1].parts[0]).toMatchObject({ output: { content: [{ text: 'partial' }] }, preliminary: true })
+  expect(settled[1]).toBe(initial[1])
+  expect(initial[1].parts[0]).toMatchObject({ toolCallId: 'call', state: 'input-available' })
+  expect(finished[1].parts[0]).toMatchObject({
+    state: 'output-available',
+    output: { content: [{ type: 'text', text: 'finished' }] },
+    preliminary: false
+  })
+
+  update(view([entry(20, 'compacted')]))
+  expect(projection.feed.snapshot.messages.map((message) => message.parts)).toEqual([
+    [{ type: 'text', text: 'compacted', state: 'done' }]
+  ])
 })
 
 describe('Durable preview identity', () => {
@@ -164,6 +211,85 @@ describe('Durable preview identity', () => {
 })
 
 // Recovered live output must reach the product writer instead of becoming historical for the whole run.
+it.each(['placed', 'completed', 'queued', 'ambiguous'] as const)(
+  'restores committed tool output only for an unfinished placed input (%s)',
+  async (status) => {
+    const inputId = runtimeId<'input'>('recover-input')
+    const input: EntryRecord = {
+      ...entry(10, ''),
+      kind: 'pi.user',
+      data: { cherryInputId: inputId },
+      model: [{ role: 'user', content: 'continue', timestamp: 1 }]
+    }
+    const call: EntryRecord = {
+      ...entry(11, ''),
+      model: [fauxAssistantMessage(fauxToolCall('read', { path: 'page.png' }, { id: 'read-page' }))]
+    }
+    const initial = view(
+      [entry(5, 'previous answer'), ...(status === 'ambiguous' ? [{ ...input, id: 9 as EntryId }] : []), input, call],
+      { run: { taskId, inputs: [], turns: 0 } }
+    )
+    const { projection } = setup(initial)
+    projection.update(initial, 1, [
+      {
+        inputId,
+        facts: status === 'queued' ? ['accepted', 'queued'] : ['accepted', 'placed'],
+        ...(status === 'completed' && { outcome: 'completed' })
+      }
+    ])
+    const batches: DurableObservation[] = []
+    const observation = projection.observe((batch) => {
+      batches.push(batch)
+    })
+    await observation.drain()
+    const baseline = batches[0]
+    const restored = baseline.events.flatMap((event) =>
+      event.type === 'snapshot' ? event.messages.filter((message) => baseline.live.includes(message.id)) : []
+    )
+    expect(restored.map((message) => message.id)).toEqual(status === 'placed' ? ['entry:11:0'] : [])
+    if (status === 'placed') {
+      expect(restored[0].parts).toContainEqual(
+        expect.objectContaining({ type: 'dynamic-tool', toolCallId: 'read-page', input: { path: 'page.png' } })
+      )
+      projection.update(
+        view([
+          ...initial.entries,
+          {
+            ...entry(12, ''),
+            model: [
+              {
+                role: 'toolResult',
+                toolCallId: 'read-page',
+                toolName: 'read',
+                content: [{ type: 'text', text: 'restored page' }],
+                isError: false,
+                timestamp: 2
+              }
+            ]
+          }
+        ])
+      )
+      await observation.drain()
+      const completed = batches.at(-1)!
+      expect(
+        completed.events.flatMap((event) =>
+          event.type === 'snapshot'
+            ? event.messages
+                .filter((message) => completed.live.includes(message.id))
+                .flatMap((message) => message.parts)
+            : []
+        )
+      ).toContainEqual(
+        expect.objectContaining({
+          toolCallId: 'read-page',
+          state: 'output-available',
+          output: expect.objectContaining({ content: [{ type: 'text', text: 'restored page' }] })
+        })
+      )
+    }
+  }
+)
+
 it('keeps an active preview live when attaching midway through a generation', async () => {
   const { projection, update } = setup(view([entry(5, 'older committed answer')], live()))
   const batches: DurableObservation[] = []

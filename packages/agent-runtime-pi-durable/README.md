@@ -18,7 +18,10 @@ available for native diagnostics; `onError` receives adapter/observer failures.
 `create(options)` takes native `ConversationCreateOptions`. `open(ref)` only opens
 an existing conversation in this backend. Concurrent accesses share one normalized
 source. `release()` stops that access's subscriptions; it does not close the shared
-Harness or cancel work. `shutdown()` seals all accesses, closes the Harness and
+Harness or cancel work. Releasing a conversation's last access unloads it: the adapter
+detaches its native view and drops its loaded history, and a later `open` loads it again.
+When an unloaded child receives input, its nearest loaded ancestor publishes
+`subagent.upsert` so hosts can observe it again. `shutdown()` seals all accesses, closes the Harness and
 storage, and joins tracked calls. Unfinished durable tasks are not marked cancelled.
 It captures committed archives after native execution has quiesced and before storage
 closes; retained accesses can flush these archives until `release()`.
@@ -72,8 +75,12 @@ confirm foreground completion. Native progress may remain unpersisted for up to 
 facts, including placed native-only inputs. Completion stays pending during admission, unresolved input,
 foreground work or compaction, and carries terminal inputs after their content. Revision and pending state stay private to the projection.
 A confirmed rejection releases only its temporary admission hold; unknown admission remains unresolved.
-Initial observation never replays earlier completion. A generation preview already active at attachment remains live for its product consumer; only the committed prefix is historical. A returning preview receives a fresh local identity even when a resumed native task repeats its attempt number. Slow observers retain terminal batches through
-recovery; final persistence must await `Observation.drain()` after native production stops.
+Initial observation never replays earlier completion. A generation preview already active at attachment remains live for its product consumer; committed output after the unique logical user-input boundary of an unfinished placed input also remains live. Earlier answers, queued inputs and ambiguous boundaries remain historical. A returning preview receives a fresh local identity even when a resumed native task repeats its attempt number. State-only reads and updates use `ThreadFeed.state`. Native views append the same entry records, so
+the projection keeps its committed messages frozen and projects only appended entries; a later tool
+result or live progress copies only the message it changes. A view that does not extend the previous
+entries, such as after compaction, rebuilds once. Unchanged messages keep their identity across
+snapshots. Slow observers retain terminal batches through bounded recovery; final persistence must
+await `Observation.drain()` after native production stops.
 `runtime.settled()` joins admitted submissions, all native tasks including background work,
 and tracked relation delivery without closing storage. Shutdown completes admitted relation reads
 before closing storage and delivers their facts before closing feeds. The desktop backup barrier
@@ -213,3 +220,25 @@ results independently of the outer script outcome. Archive projection reads thos
 records without executing tools. Missing legacy or over-budget payloads remain
 explicitly absent; complete successful built-in artifact declarations can render
 through the same tool mapping as direct calls.
+
+## Detached prompt prediction
+
+`durable.predictPrompt(instruction, signal)` uses the patched native
+`Conversation.createQueryFork()` to snapshot the committed compacted context returned by `contextUsage`.
+The shared pi-ai fork makes one streaming model request without submitting input,
+writing transcript/history, creating tasks or changing goals. It retains the parent
+model, reasoning, session identity and tool declarations, but aborts at the first
+streamed tool call before any tool can execute. Owner shutdown cancels the request.
+
+The pi-ai dependency patch carries `skipCacheWrite` through provider option conversion.
+Anthropic, Anthropic-compatible chat completions and Bedrock retain the parent's
+explicit cache breakpoints and add none for the response/prediction suffix. This is
+not `cacheRetention: 'none'`: cache reads remain enabled. Automatic server-side cache
+writes are provider-controlled; the flag does not promise to disable those writes.
+Continuation state and parent reply usage/budget accounting are not updated by the fork.
+There is no prediction-specific reasoning, timeout or retry override.
+
+Prediction requires at least two assistant messages, a successful latest response,
+and documented uncached/cache-write token gates. The host owns turn-end scheduling,
+focus/Plan/preference gates and source-reply validation; renderer reads consume the
+existing ephemeral result without triggering another query.
