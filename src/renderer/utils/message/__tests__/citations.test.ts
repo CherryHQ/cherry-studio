@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import type { KbReadOutput } from '@shared/ai/builtinTools'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import {
@@ -42,18 +43,22 @@ const kbReadPart = (output: unknown, toolCallId = 'c5'): CherryMessagePart =>
     output
   }) as never
 
-const kbReadOutput = (id: string | undefined, overrides: Record<string, unknown> = {}) => ({
-  ...(id === undefined ? {} : { id }),
-  conceptId: 'doc/two.md',
-  title: 'Two.md',
-  type: 'file',
-  totalChars: 10,
-  charStart: 0,
-  charEnd: 10,
-  content: 'read slice',
-  truncated: false,
-  ...overrides
-})
+const kbReadOutput = (id: string | undefined, overrides: Record<string, unknown> = {}) => {
+  const identity: Pick<KbReadOutput, 'id'> = {}
+  if (id !== undefined) identity.id = id
+  return {
+    ...identity,
+    conceptId: 'doc/two.md',
+    title: 'Two.md',
+    type: 'file',
+    totalChars: 10,
+    charStart: 0,
+    charEnd: 10,
+    content: 'read slice',
+    truncated: false,
+    ...overrides
+  }
+}
 
 const kbGrepOutput = (id: string) => ({
   id,

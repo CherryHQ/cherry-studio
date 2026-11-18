@@ -1669,11 +1669,12 @@ describe('backslash math markdown contract', () => {
         nodes: e
           .getJSON()
           .content?.[0]?.content?.map(asNode)
-          .map((node) =>
-            node.type === 'inlineMath'
-              ? { type: node.type, latex: node.attrs?.latex }
-              : { type: node.type, text: node.text, ...(node.marks ? { marks: node.marks } : {}) }
-          ),
+          .map((node) => {
+            if (node.type === 'inlineMath') return { type: node.type, latex: node.attrs?.latex }
+            const content: Pick<JSONContent, 'type' | 'text' | 'marks'> = { type: node.type, text: node.text }
+            if (node.marks) content.marks = node.marks
+            return content
+          }),
         saved: source,
         bytes: Buffer.from(source).toString('hex'),
         check: 'passed'
@@ -2231,15 +2232,12 @@ b
       expect(math(e).map((n) => [n.type, n.attrs?.latex])).toEqual([['inlineMath', 'a']])
       expect(e.getJSON().content).toHaveLength(1)
       expect(e.state.doc.textContent).toBe(`Z outer  ${text} Q`)
+      const expectedMark: NonNullable<JSONContent['marks']>[number] = { type: mark }
+      if (mark === 'enhancedLink') expectedMark.attrs = { href: 'https://example.com', title: null }
       expect(e.getJSON().content?.[0]?.content).toContainEqual(
         expect.objectContaining({
           text,
-          marks: [
-            expect.objectContaining({
-              type: mark,
-              ...(mark === 'enhancedLink' ? { attrs: { href: 'https://example.com', title: null } } : {})
-            })
-          ]
+          marks: [expect.objectContaining(expectedMark)]
         })
       )
       source = e.getMarkdown()
