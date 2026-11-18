@@ -200,10 +200,9 @@ describe('packaging tool assets', () => {
       ranges.push(request.headers.range ?? '')
       const payload = `payload:${request.url}`
       const offset = Number(request.headers.range?.match(/^bytes=(\d+)-$/)?.[1] ?? 0)
-      response.writeHead(offset ? 206 : 200, {
-        'Content-Length': payload.length - offset,
-        ...(offset ? { 'Content-Range': `bytes ${offset}-${payload.length - 1}/${payload.length}` } : {})
-      })
+      const headers: http.OutgoingHttpHeaders = { 'Content-Length': payload.length - offset }
+      if (offset) headers['Content-Range'] = `bytes ${offset}-${payload.length - 1}/${payload.length}`
+      response.writeHead(offset ? 206 : 200, headers)
       response.end(payload.slice(offset))
     }
     await prepareTools('test', 'x64', options('second'))
