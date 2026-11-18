@@ -4,42 +4,32 @@ import os from 'node:os'
 import path from 'node:path'
 import { PassThrough } from 'node:stream'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { translateHistoryFileRefTable } from '@data/db/schemas/fileRelations'
+import { translateHistoryTable } from '@data/db/schemas/translateHistory'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { fileEntryService } from '@data/services/FileEntryService'
+import { BaseService } from '@main/core/lifecycle'
 import { getShellEnv } from '@main/utils/shellEnv'
+import { FileEntryIdSchema, type FileEntryId } from '@shared/data/types/file'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
+import { IpcChannel } from '@shared/IpcChannel'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 const mocks = vi.hoisted(() => ({
-  appGet: vi.fn(),
-  createFileTx: vi.fn(),
   getBinaryPath: vi.fn(),
   isInChina: vi.fn(),
-  modelGetByKey: vi.fn(),
-  notifyDataApiDataChange: vi.fn(),
   spawn: vi.fn()
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    get: mocks.appGet,
-    getPath: vi.fn((key: string, filename?: string) => {
-      if (key === 'feature.pdf_translation.temp') return filename ? path.join(TEST_ROOT, filename) : TEST_ROOT
-      if (key === 'feature.pdf_translation.babeldoc') return path.join(TEST_ROOT, 'runtime')
-      if (key === 'feature.binary.data') return path.join(TEST_ROOT, 'binary')
-      if (key === 'feature.binary.data.isolated.rustup') return path.join(TEST_ROOT, 'binary', 'rustup')
-      if (key === 'feature.binary.data.isolated.cargo') return path.join(TEST_ROOT, 'binary', 'cargo')
-      throw new Error(`Unexpected path key: ${key}`)
-    })
-  }
-}))
-
-vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: mocks.modelGetByKey } }))
-vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: mocks.notifyDataApiDataChange }))
-vi.mock('@data/services/TranslateHistoryService', () => ({
-  translateHistoryService: { createFileTx: mocks.createFileTx }
-}))
 vi.mock('@main/utils/binaryResolver', () => ({ getBinaryPath: mocks.getBinaryPath }))
 vi.mock('@main/services/RegionService', () => ({ regionService: { isInChina: mocks.isInChina } }))
 vi.mock('@main/utils/processRunner', () => ({
@@ -49,23 +39,11 @@ vi.mock('@main/utils/processRunner', () => ({
 vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: vi.fn(() => Promise.resolve({ OPENAI_API_KEY: 'shell-secret', PATH: '/usr/bin' }))
 }))
-vi.mock('@main/core/lifecycle', () => {
-  class BaseService {}
-  return {
-    BaseService,
-    DependsOn: () => (target: unknown) => target,
-    Injectable: () => (target: unknown) => target,
-    Phase: { WhenReady: 'whenReady' },
-    ServicePhase: () => (target: unknown) => target
-  }
-})
-
 const TEST_ROOT = path.join(os.tmpdir(), 'cherry-pdf-translation-service-test')
 const SOURCE_PATH = path.join(TEST_ROOT, 'source', 'research paper.pdf') as AbsoluteFilePath
 const MANAGED_BINARY = path.join(TEST_ROOT, 'managed', 'babeldoc-stream')
-const TRANSLATED_ENTRY_ID = '019606a0-0000-7000-8000-000000000001'
-const SOURCE_ENTRY_ID = '019606a0-0000-7000-8000-000000000002'
-const HISTORY_ID = '019606a0-0000-7000-8000-000000000003'
+const TRANSLATED_ENTRY_ID = FileEntryIdSchema.parse('019606a0-0000-7000-8000-000000000001')
+const SOURCE_ENTRY_ID = FileEntryIdSchema.parse('019606a0-0000-7000-8000-000000000002')
 /** Where `getPhysicalPath` puts an internal entry — `{userData}/Data/Files/{id}.{ext}` in production. */
 const managedPath = (id: string) => path.join(TEST_ROOT, 'files', `${id}.pdf`)
 
@@ -81,8 +59,6 @@ const fileManager = {
   permanentDelete: vi.fn(),
   rename: vi.fn()
 }
-const tx = Symbol('tx')
-const dbService = { withWriteTx: vi.fn() }
 const streamEvent = (event: Record<string, unknown>) =>
   `${JSON.stringify({ schema: 'babeldoc-stream/v2', ...event })}\n`
 const finishEvent = () =>
@@ -97,10 +73,81 @@ const finishEvent = () =>
   })
 
 const { PdfTranslationService } = await import('../PdfTranslationService')
+const dataChangeBroadcast = vi.mocked(application.get('WindowManager').broadcast)
+let service: InstanceType<typeof PdfTranslationService>
 
 describe('PdfTranslationService', () => {
+  const dbh = setupTestDatabase()
+
+  function createManagedEntry(name: string) {
+    const now = Date.now()
+    dbh.db
+      .insert(fileEntryTable)
+      .values({
+        id: TRANSLATED_ENTRY_ID,
+        origin: 'internal',
+        name,
+        ext: 'pdf',
+        size: 2048,
+        cleanupPolicy: 'delete_when_unreferenced',
+        createdAt: now,
+        updatedAt: now
+      })
+      .onConflictDoUpdate({ target: fileEntryTable.id, set: { name } })
+      .run()
+    return fileEntryService.getById(TRANSLATED_ENTRY_ID)
+  }
+
+  function ensureSourceEntry(externalPath: string) {
+    const now = Date.now()
+    const name = path.parse(externalPath).name
+    dbh.db
+      .insert(fileEntryTable)
+      .values({
+        id: SOURCE_ENTRY_ID,
+        origin: 'external',
+        name,
+        ext: 'pdf',
+        externalPath,
+        cleanupPolicy: 'delete_when_unreferenced',
+        createdAt: now,
+        updatedAt: now
+      })
+      .onConflictDoUpdate({ target: fileEntryTable.id, set: { name, externalPath } })
+      .run()
+    return fileEntryService.getById(SOURCE_ENTRY_ID)
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
+    BaseService.resetInstances()
+    service = new PdfTranslationService()
+    MockApplicationUtils.resetServices()
+    MockApplicationUtils.setService('BinaryManager', binaryManager)
+    MockApplicationUtils.setService('ApiGatewayService', apiGateway)
+    MockApplicationUtils.setService('FileManager', fileManager)
+    vi.spyOn(application, 'getPath').mockImplementation((key, filename) => {
+      let base = path.join(TEST_ROOT, key)
+      if (key === 'feature.pdf_translation.temp') base = TEST_ROOT
+      if (key === 'feature.pdf_translation.babeldoc') base = path.join(TEST_ROOT, 'runtime')
+      if (key === 'feature.binary.data') base = path.join(TEST_ROOT, 'binary')
+      if (key === 'feature.binary.data.isolated.rustup') base = path.join(TEST_ROOT, 'binary', 'rustup')
+      if (key === 'feature.binary.data.isolated.cargo') base = path.join(TEST_ROOT, 'binary', 'cargo')
+      return filename ? path.join(base, filename) : base
+    })
+    dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI' }).run()
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'openai::gpt-4.1',
+        providerId: 'openai',
+        modelId: 'gpt-4.1',
+        name: 'GPT-4.1',
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true
+      })
+      .run()
     fs.rmSync(TEST_ROOT, { force: true, recursive: true })
     fs.mkdirSync(path.dirname(SOURCE_PATH), { recursive: true })
     fs.writeFileSync(SOURCE_PATH, '%PDF-test')
@@ -108,35 +155,20 @@ describe('PdfTranslationService', () => {
     fs.writeFileSync(MANAGED_BINARY, '#!/bin/sh')
     fs.chmodSync(MANAGED_BINARY, 0o755)
 
-    mocks.appGet.mockImplementation((name: string) => {
-      if (name === 'BinaryManager') return binaryManager
-      if (name === 'ApiGatewayService') return apiGateway
-      if (name === 'FileManager') return fileManager
-      if (name === 'DbService') return dbService
-      throw new Error(`Unexpected service: ${name}`)
+    fileManager.createInternalEntry.mockImplementation(async ({ path: artifact }: { path: string }) =>
+      createManagedEntry(path.parse(artifact).name)
+    )
+    fileManager.rename.mockImplementation(async (id: FileEntryId, name: string) => {
+      dbh.db.update(fileEntryTable).set({ name }).where(eq(fileEntryTable.id, id)).run()
+      return fileEntryService.getById(id)
     })
-    // The entry inherits BabelDOC's noisy basename, then `rename` trades it for the display name.
-    fileManager.createInternalEntry.mockImplementation(({ path: artifact }: { path: string }) =>
-      Promise.resolve({ id: TRANSLATED_ENTRY_ID, name: path.parse(artifact).name, ext: 'pdf' })
+    fileManager.ensureExternalEntry.mockImplementation(async ({ externalPath }: { externalPath: string }) =>
+      ensureSourceEntry(externalPath)
     )
-    fileManager.rename.mockImplementation((id: string, newName: string) =>
-      Promise.resolve({ id, name: newName, ext: 'pdf' })
-    )
-    fileManager.ensureExternalEntry.mockResolvedValue({ id: SOURCE_ENTRY_ID, name: 'research paper', ext: 'pdf' })
     fileManager.getPhysicalPath.mockImplementation(managedPath)
-    fileManager.permanentDelete.mockResolvedValue(undefined)
-    dbService.withWriteTx.mockImplementation((fn: (handle: unknown) => unknown) => fn(tx))
-    mocks.createFileTx.mockReturnValue({ id: HISTORY_ID })
+    fileManager.permanentDelete.mockImplementation(async (id: FileEntryId) => fileEntryService.delete(id))
     mocks.getBinaryPath.mockResolvedValue(MANAGED_BINARY)
     mocks.isInChina.mockResolvedValue(false)
-    mocks.modelGetByKey.mockReturnValue({
-      id: 'openai::gpt-4.1-internal',
-      providerId: 'openai',
-      apiModelId: 'gpt-4.1',
-      capabilities: [],
-      isEnabled: true,
-      name: 'GPT-4.1'
-    })
     binaryManager.getToolSnapshots.mockResolvedValue({
       'babeldoc-stream': {
         name: 'babeldoc-stream',
@@ -175,15 +207,14 @@ describe('PdfTranslationService', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+    MockApplicationUtils.resetServices()
     fs.rmSync(TEST_ROOT, { force: true, recursive: true })
   })
 
   it('uses the manually installed BabelDOC, routes the selected model through Cherry Gateway, and returns the translated PDF', async () => {
-    const service = new PdfTranslationService()
-
     const result = await service.translate({
       jobId: 'job-1',
-      modelId: 'openai::gpt-4.1-internal',
+      modelId: 'openai::gpt-4.1',
       sourcePath: SOURCE_PATH,
       sourceLangCode: 'en-us',
       targetLangCode: 'zh-cn'
@@ -278,12 +309,11 @@ describe('PdfTranslationService', () => {
     })
     const onStage = vi.fn()
     const onProgress = vi.fn()
-    const service = new PdfTranslationService()
 
     await service.translate(
       {
         jobId: 'job-progress',
-        modelId: 'openai::gpt-4.1-internal',
+        modelId: 'openai::gpt-4.1',
         sourcePath: SOURCE_PATH,
         sourceLangCode: 'en-us',
         targetLangCode: 'zh-cn'
@@ -302,11 +332,9 @@ describe('PdfTranslationService', () => {
   })
 
   it('uses BabelDOC language aliases for simplified and traditional Chinese', async () => {
-    const service = new PdfTranslationService()
-
     const result = await service.translate({
       jobId: 'job-language-aliases',
-      modelId: 'openai::gpt-4.1-internal',
+      modelId: 'openai::gpt-4.1',
       sourcePath: SOURCE_PATH,
       sourceLangCode: 'zh-hans',
       targetLangCode: 'zh-hant'
@@ -318,11 +346,9 @@ describe('PdfTranslationService', () => {
   })
 
   it('records the translation in history and hands both PDFs to FileManager', async () => {
-    const service = new PdfTranslationService()
-
     await service.translate({
       jobId: 'job-history',
-      modelId: 'openai::gpt-4.1-internal',
+      modelId: 'openai::gpt-4.1',
       sourcePath: SOURCE_PATH,
       sourceLangCode: 'en-us',
       targetLangCode: 'zh-cn'
@@ -340,16 +366,23 @@ describe('PdfTranslationService', () => {
       externalPath: SOURCE_PATH,
       cleanupPolicy: 'delete_when_unreferenced'
     })
-    expect(mocks.createFileTx).toHaveBeenCalledWith(tx, {
+    const histories = dbh.db.select().from(translateHistoryTable).all()
+    expect(histories).toHaveLength(1)
+    expect(histories[0]).toMatchObject({
+      kind: 'file',
       sourceText: 'research paper.pdf',
       targetText: 'research paper.zh-CN.pdf',
       sourceLanguage: 'en-us',
-      targetLanguage: 'zh-cn',
-      targetFileEntryId: TRANSLATED_ENTRY_ID,
-      sourceFileEntryId: SOURCE_ENTRY_ID
+      targetLanguage: 'zh-cn'
     })
-    expect(mocks.notifyDataApiDataChange).toHaveBeenCalledWith([
-      { endpoint: '/translate/histories', kind: 'membership', entityIds: [HISTORY_ID] }
+    expect(dbh.db.select().from(translateHistoryFileRefTable).all()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceId: histories[0].id, fileEntryId: TRANSLATED_ENTRY_ID, role: 'target' }),
+        expect.objectContaining({ sourceId: histories[0].id, fileEntryId: SOURCE_ENTRY_ID, role: 'source' })
+      ])
+    )
+    expect(dataChangeBroadcast).toHaveBeenCalledWith(IpcChannel.DataApi_DataChanged, [
+      { endpoint: '/translate/histories', kind: 'membership', entityIds: [histories[0].id] }
     ])
     expect(fileManager.permanentDelete).not.toHaveBeenCalled()
     // The temp dir is gone even though the run succeeded — its content now lives in FileManager.
@@ -357,37 +390,33 @@ describe('PdfTranslationService', () => {
   })
 
   it('records an auto-detected source language as null', async () => {
-    const service = new PdfTranslationService()
-
     await service.translate({
       jobId: 'job-auto-lang',
-      modelId: 'openai::gpt-4.1-internal',
+      modelId: 'openai::gpt-4.1',
       sourcePath: SOURCE_PATH,
       sourceLangCode: 'auto',
       targetLangCode: 'zh-cn'
     })
 
-    expect(mocks.createFileTx).toHaveBeenCalledWith(tx, expect.objectContaining({ sourceLanguage: null }))
+    expect(dbh.db.select().from(translateHistoryTable).get()).toMatchObject({ sourceLanguage: null })
   })
 
   it('keeps the translation when the source PDF cannot be referenced', async () => {
     fileManager.ensureExternalEntry.mockRejectedValueOnce(new Error('case-collision'))
-    const service = new PdfTranslationService()
 
     const result = await service.translate({
       jobId: 'job-source-unreferenceable',
-      modelId: 'openai::gpt-4.1-internal',
+      modelId: 'openai::gpt-4.1',
       sourcePath: SOURCE_PATH,
       sourceLangCode: 'en-us',
       targetLangCode: 'zh-cn'
     })
 
     expect(result.fileName).toBe('research paper.zh-CN.pdf')
-    expect(mocks.createFileTx).toHaveBeenCalledWith(
-      tx,
-      expect.objectContaining({ targetFileEntryId: TRANSLATED_ENTRY_ID })
-    )
-    expect(mocks.createFileTx.mock.calls[0][1]).not.toHaveProperty('sourceFileEntryId')
+    expect(dbh.db.select().from(translateHistoryTable).all()).toHaveLength(1)
+    expect(dbh.db.select().from(translateHistoryFileRefTable).all()).toEqual([
+      expect.objectContaining({ fileEntryId: TRANSLATED_ENTRY_ID, role: 'target' })
+    ])
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
       'Failed to reference the source PDF; recording the translation without it',
       expect.objectContaining({ jobId: 'job-source-unreferenceable', sourcePath: SOURCE_PATH })
@@ -402,11 +431,10 @@ describe('PdfTranslationService', () => {
           resolveSourceEntry = resolve
         })
     )
-    const service = new PdfTranslationService()
 
     const translation = service.translate({
       jobId: 'job-cancel-persistence',
-      modelId: 'openai::gpt-4.1-internal',
+      modelId: 'openai::gpt-4.1',
       sourcePath: SOURCE_PATH,
       sourceLangCode: 'en-us',
       targetLangCode: 'zh-cn'
@@ -417,7 +445,7 @@ describe('PdfTranslationService', () => {
     resolveSourceEntry({ id: SOURCE_ENTRY_ID, name: 'research paper', ext: 'pdf' })
 
     await expect(translation).rejects.toThrow('PDF translation cancelled')
-    expect(mocks.createFileTx).not.toHaveBeenCalled()
+    expect(dbh.db.select().from(translateHistoryTable).all()).toEqual([])
     expect(fileManager.permanentDelete).toHaveBeenCalledWith(TRANSLATED_ENTRY_ID)
     expect(mockMainLoggerService.error).not.toHaveBeenCalledWith(
       'Failed to persist translated PDF result',
@@ -427,14 +455,15 @@ describe('PdfTranslationService', () => {
   })
 
   it('deletes the translated entry when the history write fails', async () => {
-    mocks.createFileTx.mockImplementationOnce(() => {
-      throw new Error('history write failed')
+    fileManager.ensureExternalEntry.mockImplementationOnce(async ({ externalPath }: { externalPath: string }) => {
+      const source = ensureSourceEntry(externalPath)
+      fileEntryService.delete(source.id)
+      return source
     })
-    const service = new PdfTranslationService()
 
     const translation = service.translate({
       jobId: 'job-history-failure',
-      modelId: 'openai::gpt-4.1-internal',
+      modelId: 'openai::gpt-4.1',
       sourcePath: SOURCE_PATH,
       sourceLangCode: 'en-us',
       targetLangCode: 'zh-cn'
@@ -447,16 +476,19 @@ describe('PdfTranslationService', () => {
     // Without the compensating delete the entry would sit in the file manager as an
     // unexplained PDF until the cleanup grace window elapsed.
     expect(fileManager.permanentDelete).toHaveBeenCalledWith(TRANSLATED_ENTRY_ID)
-    expect(mocks.notifyDataApiDataChange).not.toHaveBeenCalled()
+    expect(dataChangeBroadcast).not.toHaveBeenCalled()
+    expect(dbh.db.select().from(translateHistoryTable).all()).toEqual([])
+    expect(dbh.db.select().from(translateHistoryFileRefTable).all()).toEqual([])
+    expect(dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, TRANSLATED_ENTRY_ID)).get()).toBeUndefined()
+    expect(fs.existsSync(SOURCE_PATH)).toBe(true)
   })
 
   it('reports a persistence failure when the translated entry cannot be created', async () => {
     fileManager.createInternalEntry.mockRejectedValueOnce(new Error('copy failed'))
-    const service = new PdfTranslationService()
 
     const translation = service.translate({
       jobId: 'job-entry-failure',
-      modelId: 'openai::gpt-4.1-internal',
+      modelId: 'openai::gpt-4.1',
       sourcePath: SOURCE_PATH,
       sourceLangCode: 'en-us',
       targetLangCode: 'zh-cn'
@@ -467,7 +499,7 @@ describe('PdfTranslationService', () => {
       message: 'The PDF was translated, but its result could not be saved'
     })
     expect(fileManager.permanentDelete).not.toHaveBeenCalled()
-    expect(mocks.createFileTx).not.toHaveBeenCalled()
+    expect(dbh.db.select().from(translateHistoryTable).all()).toEqual([])
   })
 
   it('keeps the BabelDOC-derived name when the display name is too long', async () => {
@@ -475,6 +507,9 @@ describe('PdfTranslationService', () => {
     const sourcePath = path.join(TEST_ROOT, 'source', `${stem}.pdf`) as AbsoluteFilePath
     fs.writeFileSync(sourcePath, '%PDF-test')
     vi.spyOn(fs.promises, 'access').mockResolvedValue(undefined)
+    fileManager.createInternalEntry.mockImplementationOnce(async () =>
+      createManagedEntry('research.no_watermark.zh-CN.mono')
+    )
     mocks.spawn.mockImplementationOnce(() => {
       const child = new EventEmitter() as EventEmitter & {
         stderr: PassThrough
@@ -491,11 +526,10 @@ describe('PdfTranslationService', () => {
       })
       return child
     })
-    const service = new PdfTranslationService()
 
     const result = await service.translate({
       jobId: 'job-unsafe-display-name',
-      modelId: 'openai::gpt-4.1-internal',
+      modelId: 'openai::gpt-4.1',
       sourcePath,
       sourceLangCode: 'en-us',
       targetLangCode: 'zh-cn'
@@ -508,11 +542,10 @@ describe('PdfTranslationService', () => {
 
   it('keeps the BabelDOC-derived name when applying the display name fails', async () => {
     fileManager.rename.mockRejectedValueOnce(new Error('rename failed'))
-    const service = new PdfTranslationService()
 
     const result = await service.translate({
       jobId: 'job-display-name-failed',
-      modelId: 'openai::gpt-4.1-internal',
+      modelId: 'openai::gpt-4.1',
       sourcePath: SOURCE_PATH,
       sourceLangCode: 'en-us',
       targetLangCode: 'zh-cn'
@@ -544,11 +577,10 @@ describe('PdfTranslationService', () => {
     ]
   ])('requires BabelDOC to be installed manually when it is %s', async (_case, snapshots) => {
     binaryManager.getToolSnapshots.mockResolvedValueOnce(snapshots)
-    const service = new PdfTranslationService()
 
     const translation = service.translate({
       jobId: 'job-reconcile-failed',
-      modelId: 'openai::gpt-4.1-internal',
+      modelId: 'openai::gpt-4.1',
       sourcePath: SOURCE_PATH,
       sourceLangCode: 'en-us',
       targetLangCode: 'zh-cn'
@@ -570,11 +602,10 @@ describe('PdfTranslationService', () => {
         application: { status: 'applied', version: '0.6.4.post1' }
       }
     })
-    const service = new PdfTranslationService()
 
     const translation = service.translate({
       jobId: 'job-outdated',
-      modelId: 'openai::gpt-4.1-internal',
+      modelId: 'openai::gpt-4.1',
       sourcePath: SOURCE_PATH,
       sourceLangCode: 'en-us',
       targetLangCode: 'zh-cn'
@@ -601,11 +632,10 @@ describe('PdfTranslationService', () => {
       })
       return child
     })
-    const service = new PdfTranslationService()
 
     const translation = service.translate({
       jobId: 'job-scanned-pdf',
-      modelId: 'openai::gpt-4.1-internal',
+      modelId: 'openai::gpt-4.1',
       sourcePath: SOURCE_PATH,
       sourceLangCode: 'en-us',
       targetLangCode: 'zh-cn'
@@ -624,10 +654,9 @@ describe('PdfTranslationService', () => {
       child.kill = vi.fn()
       return child
     })
-    const service = new PdfTranslationService()
     const pending = service.translate({
       jobId: 'job-cancel',
-      modelId: 'openai::gpt-4.1-internal',
+      modelId: 'openai::gpt-4.1',
       sourcePath: SOURCE_PATH,
       sourceLangCode: 'en-us',
       targetLangCode: 'zh-cn'
@@ -652,7 +681,6 @@ describe('PdfTranslationService', () => {
   it('kills the sidecar when cancel lands in the window between the last check and spawn', async () => {
     type TestChild = EventEmitter & { stderr: PassThrough; stdout: PassThrough; kill: ReturnType<typeof vi.fn> }
     let child: TestChild | undefined
-    const service = new PdfTranslationService()
     mocks.spawn.mockImplementationOnce(() => {
       child = new EventEmitter() as TestChild
       child.stderr = new PassThrough()
@@ -667,7 +695,7 @@ describe('PdfTranslationService', () => {
 
     const pending = service.translate({
       jobId: 'job-cancel-race',
-      modelId: 'openai::gpt-4.1-internal',
+      modelId: 'openai::gpt-4.1',
       sourcePath: SOURCE_PATH,
       sourceLangCode: 'en-us',
       targetLangCode: 'zh-cn'
@@ -696,7 +724,7 @@ describe('PdfTranslationService', () => {
     const service = new TestPdfTranslationService()
     const translation = service.translate({
       jobId: 'job-stop',
-      modelId: 'openai::gpt-4.1-internal',
+      modelId: 'openai::gpt-4.1',
       sourcePath: SOURCE_PATH,
       sourceLangCode: 'en-us',
       targetLangCode: 'zh-cn'
@@ -732,11 +760,10 @@ describe('PdfTranslationService', () => {
       children.set(path.basename(outputDir), child)
       return child
     })
-    const service = new PdfTranslationService()
     const translate = (jobId: string) =>
       service.translate({
         jobId,
-        modelId: 'openai::gpt-4.1-internal',
+        modelId: 'openai::gpt-4.1',
         sourcePath: SOURCE_PATH,
         sourceLangCode: 'en-us',
         targetLangCode: 'zh-cn'
@@ -772,11 +799,10 @@ describe('PdfTranslationService', () => {
       })
       return child
     })
-    const service = new PdfTranslationService()
 
     const translation = service.translate({
       jobId: 'job-nonzero-exit',
-      modelId: 'openai::gpt-4.1-internal',
+      modelId: 'openai::gpt-4.1',
       sourcePath: SOURCE_PATH,
       sourceLangCode: 'en-us',
       targetLangCode: 'zh-cn'
@@ -804,11 +830,10 @@ describe('PdfTranslationService', () => {
       queueMicrotask(() => child.emit('close', 0, null))
       return child
     })
-    const service = new PdfTranslationService()
 
     const translation = service.translate({
       jobId: 'job-missing-finish',
-      modelId: 'openai::gpt-4.1-internal',
+      modelId: 'openai::gpt-4.1',
       sourcePath: SOURCE_PATH,
       sourceLangCode: 'en-us',
       targetLangCode: 'zh-cn'
@@ -851,10 +876,9 @@ describe('PdfTranslationService', () => {
     })
 
     const spawnedEnv = async (): Promise<Record<string, string>> => {
-      const service = new PdfTranslationService()
       await service.translate({
         jobId: 'job-proxy',
-        modelId: 'openai::gpt-4.1-internal',
+        modelId: 'openai::gpt-4.1',
         sourcePath: SOURCE_PATH,
         sourceLangCode: 'en-us',
         targetLangCode: 'zh-cn'
@@ -952,10 +976,9 @@ describe('PdfTranslationService', () => {
 
   describe('sidecar CA bundle environment', () => {
     const spawnedEnv = async (): Promise<Record<string, string>> => {
-      const service = new PdfTranslationService()
       await service.translate({
         jobId: 'job-ca-bundle',
-        modelId: 'openai::gpt-4.1-internal',
+        modelId: 'openai::gpt-4.1',
         sourcePath: SOURCE_PATH,
         sourceLangCode: 'en-us',
         targetLangCode: 'zh-cn'
