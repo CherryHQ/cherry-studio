@@ -1,5 +1,17 @@
 # @cherrystudio/provider-registry
 
+## 0.7.0
+
+### Minor Changes
+
+- [#23236](https://github.com/CherryHQ/cherry-studio/pull/23236) [`4dac4a0`](https://github.com/CherryHQ/cherry-studio/commit/4dac4a0fc63903a10082b57807c41bd682c65150) Thanks [@copilot-swe-agent](https://github.com/apps/copilot-swe-agent)! - Expose native Mistral Large 4 low/medium/high reasoning controls while keeping OpenRouter reasoning support provider-specific.
+
+## 0.6.4
+
+### Patch Changes
+
+- [#24776](https://github.com/CherryHQ/cherry-studio/pull/24776) [`2e3424b`](https://github.com/CherryHQ/cherry-studio/commit/2e3424be3be4229195cd05cc5604dd6313e261f9) Thanks [@DeJeune](https://github.com/DeJeune)! - Correct sampling support for GPT 5.6 Luna, Kimi K3, and MiniMax M3 models, and declare official GLM 5-series sampling ranges.
+
 ## 0.6.3
 
 ### Patch Changes

@@ -1,5 +1,3 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
 /**
  * Unit tests for imageGenerationJobHandler.
  *
@@ -13,6 +11,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * means a job never outlives its process, so `patchMetadata` is asserted absent
  * rather than exercised.
  */
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { JobContext } from '@main/core/job/types'
 
 import type { ImageGenerationJobPayload } from '../jobTypes'
