@@ -64,9 +64,10 @@ function rowToAssistant(
   avatarFileId?: FileEntryId
 ): Assistant {
   const clean = nullsToUndefined(row)
+  if (avatarFileId)
+    Object.assign(clean, { avatarFileId, avatarSrc: application.get('FileManager').getUrl(avatarFileId) })
   return {
     ...clean,
-    ...(avatarFileId ? { avatarFileId, avatarSrc: application.get('FileManager').getUrl(avatarFileId) } : {}),
     // Preserve the T | null contract: `modelId` is legitimately nullable (R3 exception).
     modelId: row.modelId as UniqueModelId | null,
     groupId: row.groupId,
@@ -525,10 +526,9 @@ export class AssistantDataService {
       importedPromptIds
     } = application.get('DbService').withWriteTx((tx) => {
       const group = groupName ? groupService.findOrCreateByNameTx(tx, 'assistant', groupName) : null
-      const created = this.createTx(tx, {
-        ...assistantDto,
-        ...(group ? { groupId: group.id } : {})
-      })
+      const imported = { ...assistantDto }
+      if (group) Object.assign(imported, { groupId: group.id })
+      const created = this.createTx(tx, imported)
       const importedPromptIds = promptService.createRestrictedForTargetTx(
         tx,
         { type: 'assistant', id: created.assistant.id },

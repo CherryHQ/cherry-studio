@@ -67,9 +67,10 @@ function withSourceContext(sourceType: ContentSearchSourceType, error: unknown) 
 export const CONTENT_SEARCH_SOURCE_ADAPTERS = {
   'topic-message': {
     search(input) {
+      const query: Pick<Parameters<typeof messageService.search>[0], 'q' | 'topicId'> = { q: input.q }
+      if (input.filter?.topicId) query.topicId = input.filter.topicId
       const result = messageService.search({
-        q: input.q,
-        ...(input.filter?.topicId ? { topicId: input.filter.topicId } : {}),
+        ...query,
         cursor: input.cursor,
         limit: input.limit,
         createdAtFrom: input.createdAtFrom
@@ -84,9 +85,10 @@ export const CONTENT_SEARCH_SOURCE_ADAPTERS = {
   },
   'session-message': {
     search(input) {
+      const query: Pick<Parameters<typeof agentSessionMessageService.search>[0], 'q' | 'sessionId'> = { q: input.q }
+      if (input.filter?.sessionId) query.sessionId = input.filter.sessionId
       const result = agentSessionMessageService.search({
-        q: input.q,
-        ...(input.filter?.sessionId ? { sessionId: input.filter.sessionId } : {}),
+        ...query,
         cursor: input.cursor,
         limit: input.limit,
         createdAtFrom: input.createdAtFrom
