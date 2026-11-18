@@ -23,11 +23,13 @@ function elementTransform(element: PptdPageElement): string | undefined {
 function PptdElementBody({
   element,
   context,
-  readProjectFile
+  readProjectFile,
+  thumbnail = false
 }: {
   element: PptdPageElement
   context: PptdStyleContext
   readProjectFile?: PptdProjectFileReader
+  thumbnail?: boolean
 }) {
   const { t } = useTranslation()
   if (element.elementType === 'text') {
@@ -49,7 +51,7 @@ function PptdElementBody({
     return <PptdTableElement element={element} context={context} />
   }
   if (element.elementType === 'chart') {
-    return <PptdChartElement element={element} context={context} />
+    return <PptdChartElement element={element} context={context} staticPreview={thumbnail} />
   }
   if (element.elementType === 'invalid') {
     return (
@@ -76,6 +78,8 @@ interface PptdSlideCanvasProps {
   page: PptdProjectPage
   zoom: number
   readProjectFile?: PptdProjectFileReader
+  /** Thumbnail mode: heavy renderers (charts) show light stand-ins. */
+  thumbnail?: boolean
 }
 
 /**
@@ -84,7 +88,7 @@ interface PptdSlideCanvasProps {
  * element type has a renderer it shows a visible placeholder naming the
  * element, per the spec's "nothing is silently dropped" rule.
  */
-export function PptdSlideCanvas({ presentation, page, zoom, readProjectFile }: PptdSlideCanvasProps) {
+export function PptdSlideCanvas({ presentation, page, zoom, readProjectFile, thumbnail }: PptdSlideCanvasProps) {
   const { t } = useTranslation()
   const [width, height] = presentation.size
   const scale = zoom / 100
@@ -142,7 +146,12 @@ export function PptdSlideCanvas({ presentation, page, zoom, readProjectFile }: P
                 transform: elementTransform(element),
                 opacity: element.elementType !== 'invalid' ? element.opacity : undefined
               }}>
-              <PptdElementBody element={element} context={context} readProjectFile={readProjectFile} />
+              <PptdElementBody
+                element={element}
+                context={context}
+                readProjectFile={readProjectFile}
+                thumbnail={thumbnail}
+              />
             </div>
           ))}
       </div>

@@ -20,6 +20,23 @@ function PptdFilePreview({ document }: FilePreviewPluginProps) {
   const [pageIndex, setPageIndex] = useState(0)
   const [zoom, setZoom] = useState(100)
   const [reloadNonce, setReloadNonce] = useState(0)
+  const [view, setView] = useState<'preview' | 'source'>('preview')
+  const [sourceText, setSourceText] = useState<string | null>(null)
+
+  // AC7: the source toggle reads the manifest text fresh; the plugin never writes.
+  useEffect(() => {
+    if (view !== 'source') return
+    const controller = new AbortController()
+    document
+      .readRange(0, document.size)
+      .then((bytes) => {
+        if (!controller.signal.aborted) setSourceText(new TextDecoder().decode(bytes))
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setSourceText(null)
+      })
+    return () => controller.abort()
+  }, [view, document])
 
   const readProjectFile = useMemo(() => {
     try {
@@ -80,18 +97,51 @@ function PptdFilePreview({ document }: FilePreviewPluginProps) {
   const { project } = state
   const clampedIndex = Math.min(pageIndex, project.pages.length - 1)
   const page = project.pages[clampedIndex]
+  const thumbZoom = (140 / project.presentation.size[0]) * 100
 
   return (
     <FilePreviewLayout.Frame>
       <FilePreviewLayout.Content>
         <div className="flex h-full flex-col">
-          <div className="flex flex-1 items-center justify-center overflow-auto p-4">
-            <PptdSlideCanvas
-              presentation={project.presentation}
-              page={page}
-              zoom={zoom}
-              readProjectFile={readProjectFile ?? undefined}
-            />
+          <div className="flex flex-1 overflow-hidden">
+            {view === 'preview' && (
+              <div className="flex w-44 flex-col gap-2 overflow-y-auto border-r border-border p-2">
+                {project.pages.map((thumbPage, index) => (
+                  <button
+                    key={thumbPage.path}
+                    type="button"
+                    aria-current={index === clampedIndex}
+                    onClick={() => setPageIndex(index)}
+                    className={`overflow-hidden rounded border text-left ${
+                      index === clampedIndex ? 'border-primary' : 'border-border'
+                    }`}>
+                    <div className="pointer-events-none">
+                      <PptdSlideCanvas
+                        presentation={project.presentation}
+                        page={thumbPage}
+                        zoom={thumbZoom}
+                        readProjectFile={readProjectFile ?? undefined}
+                        thumbnail
+                      />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            {view === 'source' ? (
+              <pre className="flex-1 overflow-auto p-4 font-mono text-xs whitespace-pre-wrap">
+                {sourceText ?? t('file_preview.loading')}
+              </pre>
+            ) : (
+              <div className="flex flex-1 items-center justify-center overflow-auto p-4">
+                <PptdSlideCanvas
+                  presentation={project.presentation}
+                  page={page}
+                  zoom={zoom}
+                  readProjectFile={readProjectFile ?? undefined}
+                />
+              </div>
+            )}
           </div>
           <div className="flex items-center justify-center gap-3 border-t border-border p-2 text-sm">
             <button type="button" disabled={clampedIndex <= 0} onClick={() => setPageIndex(clampedIndex - 1)}>
@@ -115,6 +165,9 @@ function PptdFilePreview({ document }: FilePreviewPluginProps) {
             </button>
             <button type="button" onClick={() => setReloadNonce((nonce) => nonce + 1)}>
               {t('file_preview.pptd.refresh')}
+            </button>
+            <button type="button" onClick={() => setView((value) => (value === 'preview' ? 'source' : 'preview'))}>
+              {view === 'preview' ? t('file_preview.pptd.source_view') : t('file_preview.pptd.preview_view')}
             </button>
           </div>
         </div>

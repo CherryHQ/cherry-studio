@@ -5,7 +5,16 @@ import { buildPptdChartOption } from './pptdChart'
 import type { PptdBorder, PptdChart, PptdFill, PptdShadow } from './pptdFormat'
 import { pptdColorToCss, pptdFillToCss, type PptdStyleContext } from './pptdStyle'
 
-export function PptdChartElement({ element, context }: { element: PptdChart; context: PptdStyleContext }) {
+export function PptdChartElement({
+  element,
+  context,
+  staticPreview = false
+}: {
+  element: PptdChart
+  context: PptdStyleContext
+  /** Thumbnail mode: no echarts instance, just a light stand-in. */
+  staticPreview?: boolean
+}) {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const [supported] = useState(() => buildPptdChartOption(element, context) !== null)
@@ -49,6 +58,16 @@ export function PptdChartElement({ element, context }: { element: PptdChart; con
       dispose?.()
     }
   }, [element, context, supported])
+
+  if (staticPreview) {
+    return (
+      <div
+        className="flex h-full w-full items-center justify-center bg-muted/40 text-xs text-muted-foreground"
+        aria-hidden="true">
+        {t('file_preview.pptd.chart_thumbnail')}
+      </div>
+    )
+  }
 
   if (!supported) {
     const types = ((element as unknown as { series?: { type?: string }[] }).series ?? [])
