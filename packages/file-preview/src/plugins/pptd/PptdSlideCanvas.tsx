@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 
+import { PptdChartElement } from './PptdChartElement'
 import type { PptdPageElement, PptdPresentation } from './pptdFormat'
 import { PptdIconElement } from './PptdIconElement'
 import { PptdImageElement } from './PptdImageElement'
@@ -47,6 +48,9 @@ function PptdElementBody({
   if (element.elementType === 'table') {
     return <PptdTableElement element={element} context={context} />
   }
+  if (element.elementType === 'chart') {
+    return <PptdChartElement element={element} context={context} />
+  }
   if (element.elementType === 'invalid') {
     return (
       <div
@@ -63,20 +67,8 @@ function PptdElementBody({
       </div>
     )
   }
-  return (
-    <div
-      role="note"
-      style={{
-        width: '100%',
-        height: '100%',
-        border: '1px dashed #B45309',
-        color: '#B45309',
-        fontSize: 11,
-        overflow: 'hidden'
-      }}>
-      {t('file_preview.pptd.unsupported_element', { id: element.elementId, type: element.elementType })}
-    </div>
-  )
+  // The elementType union is exhaustive; this only appeases the return-type check.
+  return null
 }
 
 interface PptdSlideCanvasProps {

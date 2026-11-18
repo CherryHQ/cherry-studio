@@ -314,3 +314,148 @@ describe('table placement and styles', () => {
     })
   })
 })
+
+describe('chart option building', () => {
+  const elementBase = { elementId: 'c1', bounds: [0, 0, 400, 300] as [number, number, number, number] }
+
+  it('builds a bar chart with dataset, theme cycle and percent-ratio widths', async () => {
+    const { buildPptdChartOption } = await import('../pptdChart')
+    const option = buildPptdChartOption(
+      {
+        ...elementBase,
+        elementType: 'chart',
+        data: {
+          cols: ['year', 'revenue'],
+          rows: [
+            ['2023', 82.5],
+            ['2024', 96.3]
+          ]
+        },
+        series: [{ type: 'bar', encode: { x: 'year', y: 'revenue' }, fill: '$primary' }],
+        barWidth: 0.5,
+        title: 'Revenue'
+      },
+      { theme: { colors: { primary: '#2563EB', accent: '#F59E0B' } } }
+    )
+    expect(option).not.toBeNull()
+    expect(option.dataset.source).toEqual([
+      ['year', 'revenue'],
+      ['2023', 82.5],
+      ['2024', 96.3]
+    ])
+    expect(option.color).toEqual(['#2563EB', '#F59E0B'])
+    expect(option.series[0]).toMatchObject({ type: 'bar', barWidth: '50%', itemStyle: { color: '#2563EB' } })
+    expect(option.title).toMatchObject({ text: 'Revenue' })
+    expect(option.legend).toEqual({ show: false })
+  })
+
+  it('shows the legend for multiple series and hides it when disabled', async () => {
+    const { buildPptdChartOption } = await import('../pptdChart')
+    const data = { cols: ['x', 'a', 'b'], rows: [[1, 2, 3]] }
+    const two = buildPptdChartOption(
+      {
+        ...elementBase,
+        elementType: 'chart',
+        data,
+        series: [
+          { type: 'line', encode: { x: 'x', y: 'a' } },
+          { type: 'line', encode: { x: 'x', y: 'b' } }
+        ]
+      },
+      {}
+    )
+    expect(two?.legend).toEqual({ show: true })
+    const off = buildPptdChartOption(
+      {
+        ...elementBase,
+        elementType: 'chart',
+        data,
+        series: [{ type: 'line', encode: { x: 'x', y: 'a' } }],
+        legend: false
+      },
+      {}
+    )
+    expect(off?.legend).toEqual({ show: false })
+  })
+
+  it('maps area to a filled line and converts gradients', async () => {
+    const { buildPptdChartOption } = await import('../pptdChart')
+    const option = buildPptdChartOption(
+      {
+        ...elementBase,
+        elementType: 'chart',
+        data: { cols: ['x', 'y'], rows: [[1, 2]] },
+        series: [
+          {
+            type: 'area',
+            encode: { x: 'x', y: 'y' },
+            fill: {
+              type: 'gradient',
+              gradientType: 'linear',
+              angle: 90,
+              stops: [
+                { position: 0, color: '#2563EB' },
+                { position: 1, color: '#F59E0B' }
+              ]
+            }
+          }
+        ]
+      },
+      {}
+    )
+    const series = option?.series[0]
+    expect(series.type).toBe('line')
+    expect(series.areaStyle.color).toMatchObject({
+      type: 'linear',
+      x: 0.5,
+      y: 0,
+      x2: 0.5,
+      y2: 1,
+      colorStops: [
+        { offset: 0, color: '#2563EB' },
+        { offset: 1, color: '#F59E0B' }
+      ]
+    })
+  })
+
+  it('returns null for unsupported types and invalid configs', async () => {
+    const { buildPptdChartOption } = await import('../pptdChart')
+    expect(
+      buildPptdChartOption(
+        {
+          ...elementBase,
+          elementType: 'chart',
+          data: { cols: ['x', 'y'], rows: [[1, 2]] },
+          series: [{ type: 'sankey', encode: { x: 'x', y: 'y' } }]
+        },
+        {}
+      )
+    ).toBeNull()
+    expect(buildPptdChartOption({ ...elementBase, elementType: 'chart' }, {})).toBeNull()
+  })
+
+  it('encodes pie slices by category and value with donut radius', async () => {
+    const { buildPptdChartOption } = await import('../pptdChart')
+    const option = buildPptdChartOption(
+      {
+        ...elementBase,
+        elementType: 'chart',
+        data: {
+          cols: ['kind', 'share'],
+          rows: [
+            ['A', 40],
+            ['B', 60]
+          ]
+        },
+        series: [{ type: 'pie', encode: { category: 'kind', value: 'share' }, innerRadius: 0.5 }]
+      },
+      {}
+    )
+    expect(option?.series[0]).toMatchObject({
+      type: 'pie',
+      encode: { itemName: 'kind', value: 'share' },
+      radius: ['50%', '70%'],
+      startAngle: 90
+    })
+  })
+})
