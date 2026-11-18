@@ -119,8 +119,8 @@ function withChunkCherryMeta<C extends UIMessageChunk>(
   }
 }
 
-function toProviderMetadata(value: unknown): ProviderMetadata | undefined {
-  return isRecord(value) ? (value as ProviderMetadata) : undefined
+function toProviderMetadata(value: ProviderMetadata | undefined): ProviderMetadata | undefined {
+  return isRecord(value) ? value : undefined
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
