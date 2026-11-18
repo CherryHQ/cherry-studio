@@ -13,6 +13,7 @@ export class PcmCapture {
   private closed = false
   private stopping?: Promise<number>
   private resolveTail?: (frames: number) => void
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The drain barrier forwards arbitrary capture or write failures, so its rejection sink cannot promise an Error instance.
   private rejectTail?: (error: unknown) => void
   private closing?: Promise<void>
   private failure?: unknown
@@ -20,6 +21,7 @@ export class PcmCapture {
 
   constructor(
     private readonly write: (chunk: SpeechPcmChunk) => Promise<void>,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- PCM writes can reject arbitrary values; the capture callback forwards them to dictation error classification.
     private readonly onError: (error: unknown) => void,
     private readonly onLimit: () => void
   ) {
@@ -77,6 +79,7 @@ export class PcmCapture {
         await this.write({ startFrame: data.startFrame, samples: data.samples })
         this.node?.port.postMessage({ type: 'ack', frames: data.startFrame + data.samples.length })
       })
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The injected PCM write promise can reject arbitrary values; this observer forwards the failure into capture teardown.
       void this.sending.catch((error: unknown) => this.fail(error))
     }
     this.source = this.context.createMediaStreamSource(stream)
@@ -134,6 +137,7 @@ export class PcmCapture {
     this.stream = undefined
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Capture failures include arbitrary write rejections; this boundary forwards the same value to the drain barrier and consumer before closing resources.
   private fail(error: unknown): void {
     if (this.closed || this.failure) return
     this.failure = error

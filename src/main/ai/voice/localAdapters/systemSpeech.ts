@@ -9,6 +9,7 @@ export function nativeClient(timeoutMs?: number): SystemSpeechNativeClient {
   return new SystemSpeechNativeClient({ helperPath: application.getPath('feature.voice.helper_file'), timeoutMs })
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- System helper and decoder failures are heterogeneous; native predicates map only verified codes to public voice reasons.
 export function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeError {
   if (signal?.aborted) return new VoiceRuntimeError('aborted')
   if (error instanceof VoiceRuntimeError) return error

@@ -134,6 +134,7 @@ export class VoiceDomainError extends Error {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Voice IPC requests and subscription setup can throw arbitrary values; this boundary classifies IpcError before mapping a voice-domain reason.
 function toVoiceDomainError(error: unknown): VoiceDomainError {
   if (error instanceof VoiceDomainError) return error
   if (error instanceof IpcError) return new VoiceDomainError(reasonByCode.get(error.code) ?? 'operation_failed')
@@ -291,6 +292,7 @@ export class VoiceService {
           this.applyState(state)
         }
       })
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Initialization may reject from IPC or its state-application continuation; this observer only detaches owned subscriptions and rethrows the original failure.
       .catch((error: unknown) => {
         this.detach(generation)
         if (this.initialization?.generation === generation) this.initialization = undefined
@@ -468,6 +470,7 @@ export class VoiceService {
         }
         return state
       },
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Recording admission can reject; this handler releases the matching reservation and propagates the failure without assuming its shape.
       async (error: unknown) => {
         if (admission.generation !== this.lifecycleGeneration) {
           this.releasePendingMaterialization(sessionId, admission.token)
@@ -493,6 +496,7 @@ export class VoiceService {
   ): StreamingTranscription {
     const identity = { sessionId: input.sessionId, requestId: this.createId() }
     let resolveReady!: () => void
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The ready barrier must forward the arbitrary rejection value from transcription startup without asserting an Error instance.
     let rejectReady!: (error: unknown) => void
     const ready = new Promise<void>((resolve, reject) => {
       resolveReady = resolve
@@ -504,6 +508,7 @@ export class VoiceService {
       else onRevision(event.update)
     })
     const result = this.invoke(() => this.ipc.request('ai.voice.transcription.start', { ...input, ...identity }))
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Transcription startup may reject before the ready event; this handler forwards that failure to both startup barriers.
       .catch((error: unknown) => {
         rejectReady(error)
         throw error
@@ -563,6 +568,7 @@ export class VoiceService {
           }
           return result
         },
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Speech generation rejection must release only its own admission and preserve the original failure unless lifecycle cancellation wins.
         async (error: unknown) => {
           if (sequence.activeSpeechToken === speechToken) sequence.activeSpeechToken = undefined
           if (reservation.generation !== this.lifecycleGeneration) {
@@ -629,6 +635,7 @@ export class VoiceService {
           if (sequence.nextChunkIndex !== undefined) sequence.nextChunkIndex += 1
         }
       },
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Output-release failure is an arbitrary rejection; this handler clears its matching token and rethrows without inspecting the payload.
       (error: unknown) => {
         if (sequence.activeReleaseToken === releaseToken) sequence.activeReleaseToken = undefined
         if (reservation.generation !== this.lifecycleGeneration) {
@@ -899,11 +906,14 @@ export class VoiceService {
   }
 
   private invoke<T>(operation: () => Promise<T>): Promise<T> {
-    return Promise.resolve()
-      .then(operation)
-      .catch((error: unknown) => {
-        throw toVoiceDomainError(error)
-      })
+    return (
+      Promise.resolve()
+        .then(operation)
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Voice transport calls may throw or reject arbitrary values; toVoiceDomainError classifies them at this boundary.
+        .catch((error: unknown) => {
+          throw toVoiceDomainError(error)
+        })
+    )
   }
 
   private optionalLanguage(value: string): string | undefined {

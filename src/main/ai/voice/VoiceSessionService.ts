@@ -1275,16 +1275,19 @@ export class VoiceSessionService extends BaseService {
         controller.signal
       )
     )
-    return configuration
-      .catch((error: unknown) => {
-        if (controller.signal.aborted || session.closed || powerEpoch !== this.powerEpoch) {
-          throw new VoiceRuntimeError('aborted')
-        }
-        throw error
-      })
-      .finally(() => {
-        if (session.preflightAbort === controller) session.preflightAbort = undefined
-      })
+    return (
+      configuration
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Speech preflight may reject with arbitrary configuration/provider failures; only session invalidation replaces the rejection.
+        .catch((error: unknown) => {
+          if (controller.signal.aborted || session.closed || powerEpoch !== this.powerEpoch) {
+            throw new VoiceRuntimeError('aborted')
+          }
+          throw error
+        })
+        .finally(() => {
+          if (session.preflightAbort === controller) session.preflightAbort = undefined
+        })
+    )
   }
 
   private async abandonUnstartedPlayback(session: Session, requestId: string): Promise<void> {

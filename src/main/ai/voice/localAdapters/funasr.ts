@@ -29,6 +29,7 @@ const ASR_INFERENCE_TIMEOUT_MS = 120_000
 const ASR_INFERENCE_REALTIME_FACTOR = 2
 const logger = loggerService.withContext('FunAsrAdapter')
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native inference, filesystem and utility-process failures have heterogeneous shapes; convert verified model/process codes into bounded voice reasons.
 function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeError {
   if (signal?.aborted) return new VoiceRuntimeError('aborted')
   if (error instanceof VoiceRuntimeError) return error
@@ -119,6 +120,7 @@ export function createFunAsrTranscriptionModel(options: TranscriptionOptions): T
           const transcript = await application
             .get('AsrInferenceService')
             .transcribe(FUNASR_BUNDLE_ID, { kind: 'wav', filePath: inputPath }, inferenceSignal)
+            // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native inference, filesystem and utility-process failures have heterogeneous shapes; convert verified model/process codes into bounded voice reasons.
             .catch((error: unknown) => {
               if (inferenceTimeout.aborted && !input.abortSignal?.aborted) throw new VoiceRuntimeError('timeout')
               throw error

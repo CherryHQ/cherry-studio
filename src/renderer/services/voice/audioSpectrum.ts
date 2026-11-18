@@ -23,6 +23,7 @@ export function createAudioSpectrum(input: MediaStream | HTMLAudioElement): Audi
     if (!microphone) source.connect(context.destination)
     source.connect(analyser)
     if (microphone)
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- WebAudio resume may reject; the logger records the original failure without assuming an Error shape.
       void context.resume().catch((error: unknown) => logger.warn('Could not resume audio spectrum', { error }))
     return {
       analyser,

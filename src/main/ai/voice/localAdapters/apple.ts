@@ -39,6 +39,7 @@ function supportsAppleAssetInstall(): boolean {
   return supportsApple() && (getVoiceEnvironment().majorVersion ?? 0) >= 26
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- System speech, decoding and adapter work can throw arbitrary values; only verified native codes are logged and exposed as voice reasons.
 function normalizeAppleFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeError {
   const normalized = normalizeFailure(error, signal)
   if (signal?.aborted || error instanceof VoiceRuntimeError) return normalized

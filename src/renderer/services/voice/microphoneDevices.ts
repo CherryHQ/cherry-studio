@@ -17,6 +17,7 @@ export function subscribeMicrophoneChanges(onChange: () => void): () => void {
   return () => navigator.mediaDevices.removeEventListener('devicechange', onChange)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Microphone APIs can reject arbitrary values; this classifier checks DOMException names before mapping permission or device failures.
 export function microphoneErrorReason(error: unknown): VoiceErrorReason {
   if (error instanceof DOMException) {
     if (['NotAllowedError', 'PermissionDeniedError', 'SecurityError'].includes(error.name))

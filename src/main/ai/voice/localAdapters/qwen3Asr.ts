@@ -22,6 +22,7 @@ import { completeTranscriptionOperation } from './sdkOperations'
 const ASR_INFERENCE_TIMEOUT_MS = 120_000
 const logger = loggerService.withContext('Qwen3AsrAdapter')
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- ASR inference, decoding and stream pumps can reject with arbitrary values; normalize verified voice/process codes and preserve original rejection barriers.
 function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeError {
   if (signal?.aborted) return new VoiceRuntimeError('aborted')
   if (error instanceof VoiceRuntimeError) return error
@@ -98,6 +99,7 @@ export function createQwen3AsrTranscriptionModel(options: TranscriptionOptions):
         const transcript = await application
           .get('AsrInferenceService')
           .transcribe(QWEN3_ASR_BUNDLE_ID, { kind: 'samples', samples, sampleRate: 16_000 }, signal)
+          // oxlint-disable-next-line anti-slop/no-unknown-parameters -- ASR inference, decoding and stream pumps can reject with arbitrary values; normalize verified voice/process codes and preserve original rejection barriers.
           .catch((error: unknown) => {
             if (timeout.aborted && !input.abortSignal?.aborted) throw new VoiceRuntimeError('timeout')
             throw error
@@ -137,12 +139,14 @@ const streamingTranscription: TranscriptionOperation = {
         throw new VoiceRuntimeError('invalid_request')
       return application.get('AsrInferenceService').stream(QWEN3_ASR_BUNDLE_ID, input.format.sampleRate, lifetime)
     })
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- ASR inference, decoding and stream pumps can reject with arbitrary values; normalize verified voice/process codes and preserve original rejection barriers.
     void opened.then((stream) => stream.completed).catch((error: unknown) => rejectReady(error))
     const closed = opened.then(
       (stream) => stream.closed,
       () => undefined
     )
     let resolveReady!: () => void
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- ASR inference, decoding and stream pumps can reject with arbitrary values; normalize verified voice/process codes and preserve original rejection barriers.
     let rejectReady!: (error: unknown) => void
     const ready = new Promise<void>((resolve, reject) => {
       resolveReady = resolve
@@ -165,6 +169,7 @@ const streamingTranscription: TranscriptionOperation = {
         if (!result.text.trim()) throw new VoiceRuntimeError('no_speech')
         return { text: result.text, segments: [] }
       })
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- ASR inference, decoding and stream pumps can reject with arbitrary values; normalize verified voice/process codes and preserve original rejection barriers.
       .catch(async (error: unknown) => {
         const failure =
           lifetime.reason instanceof VoiceRuntimeError ? lifetime.reason : normalizeFailure(error, lifetime)
@@ -175,6 +180,7 @@ const streamingTranscription: TranscriptionOperation = {
       })
       .finally(() => clearTimeout(loadingTimer))
     void completed.catch(() => undefined)
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- ASR inference, decoding and stream pumps can reject with arbitrary values; normalize verified voice/process codes and preserve original rejection barriers.
     void pump.catch((error: unknown) => controller.abort(error))
     void ready.catch(() => undefined)
     const updates = {

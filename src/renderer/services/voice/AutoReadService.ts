@@ -209,6 +209,7 @@ export class AutoReadService {
         return
       }
     })()
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Automatic reading can fail in parsing, backlog limits or speech IPC; this handler classifies RangeError and VoiceDomainError before recording the outcome.
       .catch((error: unknown) => {
         this.#cancel(record)
         const reason =
