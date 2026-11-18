@@ -669,8 +669,9 @@ the shared prefix's original context. Confirmed native progress marks the
 binding as `bound`; the product message tree owns the published branch head.
 
 For Pi, root execution uses the common Runtime's `create/open/observe/input.submit` path.
-Main keeps two private identities on the user message: the captured `inputContextId` and the
-evidenced `nativeInputId`. Connections consume native receipts and outcomes; response projection
+Main keeps three private identities on the user message: the captured `inputContextId`, the
+evidenced `nativeInputId` and `replyId`, the reply Main opened for it. Queued inputs are saved
+before their replies, so row ancestry cannot stand in for `replyId`. Connections consume native receipts and outcomes; response projection
 persists content and its source mapping. Explicit non-admission releases an unconfirmed binding,
 while an unknown result retains it without automatic resubmission. Observation snapshots establish the live
 projection baseline and never replace or replay the product archive. Lost observations fail closed.
@@ -681,7 +682,7 @@ acknowledgement, even without a model prompt. Resume tokens are published after 
 On startup, the runtime owner terminalizes abandoned Pi product placeholders without clearing native
 identities or replaying their inputs. Rows owned by persisted delivery turns remain with delivery recovery.
 `pi-durable` placeholders stay `pending`: when the Session reopens, Durable continues a resumed input
-in its original reply, and an input that already has a Durable outcome rebuilds its reply from
+in the reply its `replyId` names, and an input that already has a Durable outcome rebuilds its reply from
 committed entries with that outcome.
 
 For Claude Code, the resume token is the SDK `session_id`. The driver

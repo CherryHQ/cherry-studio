@@ -89,9 +89,10 @@ cancellation and ownership semantics.
   shared `onOpen`, then resumes the scheduler. Shared policy disarms goals and stops
   interrupted background children; shutdown is not a promise to resume every child.
 - After an unclean exit, a placed input without an outcome resumes on reopen. The connection
-  names it in `recoveredInputId`, and its output continues the reply under the original user
-  message. A pending reply whose input already has a Durable outcome is rebuilt from committed
-  entries with that outcome. Boot recovery leaves admitted delivery turns pending and opens their
+  names it in `recoveredInputId`, and its output continues the reply Main linked to that input
+  when it opened it (`reply_id`); queued inputs are saved before their replies, so row ancestry
+  cannot identify that reply. A pending reply whose input already has a Durable outcome is
+  rebuilt from committed entries with that outcome. Boot recovery leaves admitted delivery turns pending and opens their
   Sessions so Durable finishes them.
 - Closing a child panel only detaches its projection subscription.
 

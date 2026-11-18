@@ -136,6 +136,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     getNativeSessionId: vi.fn(),
     captureHead: () => 'branch-head',
     branchTip: (_sessionId: string, messageId: string) => messageId,
+    linkReply: vi.fn(),
     sharesBranch: mocks.sharesBranch,
     findCrashOrphanedAssistantMessages: mocks.findCrashOrphanedAssistantMessages,
     resolveCrashOrphanedMessages: mocks.resolveCrashOrphanedMessages,

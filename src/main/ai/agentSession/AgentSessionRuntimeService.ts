@@ -835,6 +835,7 @@ export class AgentSessionRuntimeService extends BaseService {
       trustedNotifyChannels: input.trustedNotifyChannels
     })
     const { turnId } = turn
+    agentSessionMessageService.linkReply(input.sessionId, turn.taskIds, input.assistantMessageId)
 
     // Prewarming can replace the entry while prepareBranch awaits closure, so recheck before reuse.
     if (
@@ -955,6 +956,7 @@ export class AgentSessionRuntimeService extends BaseService {
           : undefined
     if (reserved) {
       reserved.taskIds = [...new Set([...reserved.taskIds, ...inputs.map(({ message }) => message.id)])]
+      agentSessionMessageService.linkReply(entry.sessionId, reserved.taskIds, reserved.assistantMessageId)
       return reserved
     }
     const source = this.currentTurn(entry)
@@ -3537,6 +3539,7 @@ export class AgentSessionRuntimeService extends BaseService {
         messageSnapshot: turn.messageSnapshot
       }
     })
+    agentSessionMessageService.linkReply(entry.sessionId, turn.taskIds, turn.assistantMessageId)
     if (!background) entry.branchHead = turn.assistantMessageId
     if (turn.origin)
       application

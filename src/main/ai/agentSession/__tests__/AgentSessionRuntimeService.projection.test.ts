@@ -363,6 +363,75 @@ it('continues a resumed Durable input in its original reply', async () => {
   expect(messages.getSessionMessage('root', f.reply.id).data.parts).toEqual(text('', 'First answer').parts)
 })
 
+function savedUser(parentId: string, value: string) {
+  return messages.saveMessage({
+    sessionId: 'root',
+    parentId,
+    message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: value }] } }
+  })
+}
+
+// Inputs queued before their replies exist sit above those replies, so row ancestry names the wrong input.
+it('links each steered input to the reply opened for it', async () => {
+  let next: StartRuntimeTurnInput | undefined
+  MockApplicationUtils.setService('AiStreamManager', {
+    startRuntimeTurn: (input: StartRuntimeTurnInput) => {
+      next = input
+    }
+  })
+  const f = await fixture()
+  await f.project([text('first', 'Original answer')])
+  const first = savedUser(f.reply.id, 'First steer')
+  f.service.enqueueUserMessage('root', first)
+  const second = savedUser(first.id, 'Second steer')
+  f.service.enqueueUserMessage('root', second)
+  await f.emit({ type: 'steer-boundary', inputIds: [first.id] })
+  const result: StreamDoneResult = { status: 'success', finalMessage: (await f.done).finalMessage, isTopicDone: false }
+  await f.handle.listeners[0].onDone(result)
+  await f.handle.listeners[1].onDone(result)
+  await expect.poll(() => next).toBeDefined()
+
+  expect(messages.replyTo('root', first.id)?.id).toBe(next!.request.messageId)
+  expect(messages.replyTo('root', second.id)).toBeUndefined()
+})
+
+// Two queued inputs leave Q2 -> Q3 -> A2 -> A3; closing during A3 must resume Q3 in A3, not in A2.
+it('continues a resumed input in its linked reply when an earlier reply sits below it', async () => {
+  let next: StartRuntimeTurnInput | undefined
+  MockApplicationUtils.setService('AiStreamManager', {
+    startRuntimeTurn: (input: StartRuntimeTurnInput) => {
+      next = input
+    }
+  })
+  const f = await fixture(undefined, false, 'pi-durable')
+  await settleFirstTurn(f)
+  const q2 = savedUser(f.reply.id, 'Second question')
+  const q3 = savedUser(q2.id, 'Third question')
+  const a2 = messages.saveMessage({
+    sessionId: 'root',
+    parentId: q3.id,
+    message: { role: 'assistant', status: 'success', data: { parts: text('', 'Second answer').parts } }
+  })
+  const a3 = messages.saveMessage({
+    sessionId: 'root',
+    parentId: a2.id,
+    message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+  })
+  messages.linkReply('root', [q2.id], a2.id)
+  messages.linkReply('root', [q3.id], a3.id)
+
+  await f.emit({
+    type: 'autonomous-turn-state',
+    state: 'started',
+    origin: { kind: 'background-work' },
+    recoveredInputId: q3.id
+  })
+  await expect.poll(() => next).toBeDefined()
+
+  expect(next!.request.messageId).toBe(a3.id)
+  expect(messages.getSessionMessage('root', a2.id).status).toBe('success')
+})
+
 // AC6: the reply never reached terminal persistence; reopening rebuilds it from Durable's record.
 it.each([
   { outcome: 'completed', status: 'success' },
