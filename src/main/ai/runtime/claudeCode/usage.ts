@@ -51,11 +51,12 @@ export function v3UsageToStats(usage: LanguageModelV3Usage): MessageStats {
     textTokens: usage.outputTokens.text,
     reasoningTokens: usage.outputTokens.reasoning
   })
-  return {
+  const stats: MessageStats = {
     inputTokens: inputTotal,
     outputTokens: outputTotal,
-    totalTokens: inputTotal + outputTotal,
-    ...(inputTokenDetails ? { inputTokenDetails } : {}),
-    ...(outputTokenDetails ? { outputTokenDetails } : {})
+    totalTokens: inputTotal + outputTotal
   }
+  if (inputTokenDetails) stats.inputTokenDetails = inputTokenDetails
+  if (outputTokenDetails) stats.outputTokenDetails = outputTokenDetails
+  return stats
 }

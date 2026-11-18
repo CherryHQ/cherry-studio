@@ -205,23 +205,24 @@ export class ClaudeMessageMetadata {
 
   private buildToolProviderMetadata(state: ToolMetadata): Record<string, JSONObject> {
     const claudeCode: JSONObject = {
-      parentToolCallId: state.parentToolCallId ?? null,
-      ...(state.sdkBlockType ? { sdkBlockType: state.sdkBlockType } : {}),
-      ...(state.serverName ? { serverName: state.serverName } : {}),
-      ...(state.serverId ? { serverId: state.serverId } : {})
+      parentToolCallId: state.parentToolCallId ?? null
     }
+    if (state.sdkBlockType) claudeCode.sdkBlockType = state.sdkBlockType
+    if (state.serverName) claudeCode.serverName = state.serverName
+    if (state.serverId) claudeCode.serverId = state.serverId
+
+    const transport = AGENT_RUNTIME_CAPABILITIES['claude-code'].transport
+    const tool: JSONObject = { type: state.toolType ?? 'provider' }
+    if (state.displayName) tool.name = state.displayName
+    if (state.description) tool.description = state.description
+    if (state.serverName) tool.serverName = state.serverName
+    if (state.serverId) tool.serverId = state.serverId
 
     return {
       'claude-code': claudeCode,
       cherry: {
-        transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport,
-        tool: {
-          type: state.toolType ?? 'provider',
-          ...(state.displayName ? { name: state.displayName } : {}),
-          ...(state.description ? { description: state.description } : {}),
-          ...(state.serverName ? { serverName: state.serverName } : {}),
-          ...(state.serverId ? { serverId: state.serverId } : {})
-        }
+        transport,
+        tool
       }
     }
   }
@@ -232,16 +233,15 @@ export class ClaudeMessageMetadata {
     rawContent?: unknown
   ): NonNullable<JSONValue> {
     if (state.toolType !== 'mcp') return result
-    return {
-      content: hasMcpNonTextContent(rawContent) ? normalizeMcpToolContent(rawContent) : result,
-      metadata: {
-        type: 'mcp',
-        name: state.displayName ?? state.name,
-        ...(state.description ? { description: state.description } : {}),
-        serverName: state.serverName ?? 'MCP',
-        serverId: state.serverId ?? state.serverName ?? 'unknown'
-      }
+    const content = hasMcpNonTextContent(rawContent) ? normalizeMcpToolContent(rawContent) : result
+    const metadata: JSONObject = {
+      type: 'mcp',
+      name: state.displayName ?? state.name
     }
+    if (state.description) metadata.description = state.description
+    metadata.serverName = state.serverName ?? 'MCP'
+    metadata.serverId = state.serverId ?? state.serverName ?? 'unknown'
+    return { content, metadata }
   }
 }
 

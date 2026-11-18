@@ -90,14 +90,14 @@ function usageToStats(total: LanguageModelUsage, contextTokens: number | undefin
     textTokens: total.outputTokenDetails?.textTokens,
     reasoningTokens: total.outputTokenDetails?.reasoningTokens
   })
-  return {
-    ...(total.inputTokens !== undefined ? { inputTokens: total.inputTokens } : {}),
-    ...(total.outputTokens !== undefined ? { outputTokens: total.outputTokens } : {}),
-    ...(total.totalTokens !== undefined ? { totalTokens: total.totalTokens } : {}),
-    contextTokens,
-    ...(inputTokenDetails ? { inputTokenDetails } : {}),
-    ...(outputTokenDetails ? { outputTokenDetails } : {})
-  }
+  const stats: MessageStats = {}
+  if (total.inputTokens !== undefined) stats.inputTokens = total.inputTokens
+  if (total.outputTokens !== undefined) stats.outputTokens = total.outputTokens
+  if (total.totalTokens !== undefined) stats.totalTokens = total.totalTokens
+  stats.contextTokens = contextTokens
+  if (inputTokenDetails) stats.inputTokenDetails = inputTokenDetails
+  if (outputTokenDetails) stats.outputTokenDetails = outputTokenDetails
+  return stats
 }
 
 export function attachUsageObserver(agent: Agent): void {
