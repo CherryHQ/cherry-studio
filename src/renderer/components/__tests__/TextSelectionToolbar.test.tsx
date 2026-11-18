@@ -1,10 +1,11 @@
-import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CommandSharedPreferencesContext } from '@renderer/hooks/command'
+import { toast } from '@renderer/services/toast'
 import type * as TranslateUtils from '@renderer/utils/translate'
 import { translateText } from '@renderer/utils/translate'
 import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
@@ -87,6 +88,7 @@ async function selectText(element: HTMLElement, endElement = element, duringSele
 describe('automatic selected-text actions', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    vi.mocked(toast.error).mockClear()
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryLoading('/translate/languages')
     MockUsePreferenceUtils.resetMocks()
@@ -230,6 +232,93 @@ describe('automatic selected-text actions', () => {
     }
     await waitFor(() => expect(screen.queryByRole('button', { name: 'common.copy' })).not.toBeInTheDocument())
   })
+  it.each([false, true])('does not request languages before translating when enabled is %s', async (enabled) => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.selection_toolbar.enabled', enabled)
+    MockUseDataApiUtils.mockQueryResult('/translate/languages', { data: undefined, error: new Error('IPC down') })
+    renderContent()
+    await selectText(screen.getByText('Selected message text'))
+    expect(screen.getByRole('button', { name: 'common.copy' })).toBeVisible()
+
+    const queries = mockUseQuery.mock.calls.filter(([path]) => path === '/translate/languages')
+    expect(queries.length).toBeGreaterThan(0)
+    expect(queries.map(([, options]) => options?.enabled)).toEqual(queries.map(() => false))
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('requests languages on Translate and localizes the snapshotted target when data arrives', async () => {
+    const user = userEvent.setup()
+    const request = pendingTranslation()
+    const view = renderContent()
+    await selectText(screen.getByText('Selected message text'))
+    const before = mockUseQuery.mock.calls.filter(([path]) => path === '/translate/languages').length
+    expect(
+      mockUseQuery.mock.calls.some(([path, options]) => path === '/translate/languages' && options?.enabled === true)
+    ).toBe(false)
+    await user.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    expect(
+      mockUseQuery.mock.calls
+        .filter(([path]) => path === '/translate/languages')
+        .slice(before)
+        .some(([, options]) => options?.enabled === true)
+    ).toBe(true)
+    expect(translateText).toHaveBeenCalledWith(
+      'Selected message text',
+      'zh-cn',
+      expect.any(Function),
+      expect.any(AbortSignal)
+    )
+    expect(screen.getByText('translate.translate_to zh-cn')).toBeVisible()
+
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.target_language', 'ja-jp')
+    MockUseDataApiUtils.mockQueryData(
+      '/translate/languages',
+      BUILTIN_TRANSLATE_LANGUAGES.map((language) => ({
+        ...language,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }))
+    )
+    view.rerender(contentView())
+    expect(screen.getByText('translate.translate_to languages.chinese')).toBeVisible()
+    await act(async () => request.resolve('Translated selection'))
+    expect(screen.getByText('Translated selection')).toBeVisible()
+  })
+
+  it('renders the translation with a language code and one toast when languages fail to load', async () => {
+    const user = userEvent.setup()
+    MockUseDataApiUtils.mockQueryResult('/translate/languages', { data: undefined, error: new Error('IPC down') })
+    renderContent()
+    await selectText(screen.getByText('Selected message text'))
+    await user.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    expect(translateText).toHaveBeenCalledWith(
+      'Selected message text',
+      'zh-cn',
+      expect.any(Function),
+      expect.any(AbortSignal)
+    )
+    expect(await screen.findByText('Translated selection')).toBeVisible()
+    expect(screen.getByText('translate.translate_to zh-cn')).toBeVisible()
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith(
+      'Failed to load translate languages. Some features may be unavailable.'
+    )
+  })
+
+  it('reports a language load failure once on a page with two selection menus', async () => {
+    const user = userEvent.setup()
+    MockUseDataApiUtils.mockQueryResult('/translate/languages', { data: undefined, error: new Error('IPC down') })
+    const first = renderContent()
+    renderContent()
+    await selectText(within(first.container).getByText('Selected message text'))
+    await user.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    expect(await screen.findByText('Translated selection')).toBeVisible()
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith(
+      'Failed to load translate languages. Some features may be unavailable.'
+    )
+  })
+
   // RED: a missing Translate entry or runAction dismissal loses the inline result and original selection.
   it('translates the selected text in the same popover and returns to the original actions', async () => {
     const user = userEvent.setup()

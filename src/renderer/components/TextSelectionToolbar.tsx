@@ -6,6 +6,7 @@ import { Button, Popover, PopoverAnchor, PopoverContent } from '@cherrystudio/ui
 import { usePreference } from '@data/hooks/usePreference'
 import { useTranslate, useTranslateLanguages } from '@renderer/hooks/translate'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
+import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 
 interface TextSelectionToolbarProps {
   children: ReactNode
@@ -47,11 +48,11 @@ interface SelectionSnapshot {
 interface TranslationState {
   status: 'idle' | 'loading' | 'done' | 'error'
   text: string
-  targetLabel: string
+  targetCode: TranslateLangCode | null
   errorKey: string
 }
 
-const IDLE_TRANSLATION: TranslationState = { status: 'idle', text: '', targetLabel: '', errorKey: '' }
+const IDLE_TRANSLATION: TranslationState = { status: 'idle', text: '', targetCode: null, errorKey: '' }
 
 export function TextSelectionToolbar({
   children,
@@ -65,7 +66,8 @@ export function TextSelectionToolbar({
   const { t } = useTranslation()
   const [translateEnabled] = usePreference('feature.translate.selection_toolbar.enabled')
   const [targetLanguage] = usePreference('feature.translate.page.target_language')
-  const { getLabel } = useTranslateLanguages()
+  const [languagesRequested, setLanguagesRequested] = useState(false)
+  const { getLabel } = useTranslateLanguages({ enabled: translateEnabled && languagesRequested })
   const [translation, setTranslation] = useState<TranslationState>(IDLE_TRANSLATION)
   const requestGenerationRef = useRef(0)
   const selectionSnapshotRef = useRef<SelectionSnapshot | null>(null)
@@ -263,11 +265,12 @@ export function TextSelectionToolbar({
       return
     }
     if (!selected.snapshot.text.trim()) return
+    if (!languagesRequested) setLanguagesRequested(true)
     resetTranslation()
     const generation = requestGenerationRef.current
     const target = targetLanguage === UNKNOWN_LANG_CODE ? 'en-us' : targetLanguage
     selectionSnapshotRef.current = selected.snapshot
-    setTranslation({ status: 'loading', text: '', targetLabel: getLabel(target, false) ?? target, errorKey: '' })
+    setTranslation({ status: 'loading', text: '', targetCode: target, errorKey: '' })
     try {
       const result = await translate(selected.snapshot.text, target)
       if (requestGenerationRef.current !== generation || result === undefined) return
@@ -329,7 +332,7 @@ export function TextSelectionToolbar({
               <>
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sm font-medium">
-                    {t('translate.translate_to')} {translation.targetLabel}
+                    {t('translate.translate_to')} {getLabel(translation.targetCode, false) ?? translation.targetCode}
                   </span>
                   <Button
                     type="button"
