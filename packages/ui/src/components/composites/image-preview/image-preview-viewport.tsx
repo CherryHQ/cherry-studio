@@ -251,6 +251,11 @@ export function ImagePreviewViewport({
     setIsDragging(false)
   }, [])
 
+  const dimensions: Pick<React.CSSProperties, 'height' | 'width'> = {}
+  if (imageSize.width > 0) {
+    dimensions.height = imageSize.height
+    dimensions.width = imageSize.width
+  }
   const image = (
     <ImagePreviewImage
       key={itemKey}
@@ -282,7 +287,7 @@ export function ImagePreviewViewport({
       onPointerMove={handlePointerMove}
       onPointerUp={stopDragging}
       style={{
-        ...(imageSize.width > 0 ? { height: imageSize.height, width: imageSize.width } : {}),
+        ...dimensions,
         visibility: isGeometryReady ? 'visible' : 'hidden'
       }}
       transform={transform}

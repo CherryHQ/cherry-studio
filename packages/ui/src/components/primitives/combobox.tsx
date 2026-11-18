@@ -587,6 +587,11 @@ export function Combobox<TExtra extends object = Record<never, never>>({
     typeof triggerWidth === 'string' && triggerWidth.trim().endsWith('%')
       ? 'var(--radix-popover-trigger-width)'
       : triggerWidth
+  const commandProps: Pick<React.ComponentProps<typeof Command>, 'value' | 'onValueChange'> = {}
+  if (!multiple) {
+    commandProps.value = activeValue
+    commandProps.onValueChange = setActiveValue
+  }
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
@@ -626,9 +631,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
           event.preventDefault()
           triggerInputRef.current?.focus()
         }}>
-        <Command
-          shouldFilter={!manualFilterEnabled}
-          {...(!multiple ? { value: activeValue, onValueChange: setActiveValue } : {})}>
+        <Command shouldFilter={!manualFilterEnabled} {...commandProps}>
           {contentSearchEnabled && (
             <CommandInput
               placeholder={searchPlaceholder}

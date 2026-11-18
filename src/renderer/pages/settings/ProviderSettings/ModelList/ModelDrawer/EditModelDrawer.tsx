@@ -208,41 +208,30 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
             )
           : null
 
-      return {
-        ...(overrides?.reasoning ? { reasoning: overrides.reasoning } : {}),
-        name: nextName || model.name,
-        group: nextGroup || model.group,
-        ...(hasPurposeFieldsOverride && resolvedPurposeFields
-          ? { endpointTypes: [...resolvedPurposeFields.endpointTypes] }
-          : hasEndpointTypesOverride
-            ? {
-                endpointTypes: mode === 'endpoint-types' ? [...(overrides.endpointTypes ?? [])] : undefined
-              }
-            : {}),
-        ...(resolvedPurposeFields
-          ? {
-              capabilities: resolvedPurposeFields.capabilities,
-              inputModalities: resolvedPurposeFields.inputModalities
-            }
-          : nextClassification && classifiedCapabilities && classifiedInputModalities
-            ? {
-                capabilities: classifiedCapabilities,
-                inputModalities: classifiedInputModalities
-              }
-            : {}),
-        ...(hasPurposeFieldsOverride && resolvedPurposeFields
-          ? { outputModalities: resolvedPurposeFields.outputModalities }
-          : {}),
-        supportsStreaming: overrides?.supportsStreaming ?? supportsStreaming,
-        ...(hasContextWindowOverride && nextContextWindow !== undefined ? { contextWindow: nextContextWindow } : {}),
-        ...(hasMaxInputTokensOverride && nextMaxInputTokens !== undefined
-          ? { maxInputTokens: nextMaxInputTokens }
-          : {}),
-        ...(hasMaxOutputTokensOverride && nextMaxOutputTokens !== undefined
-          ? { maxOutputTokens: nextMaxOutputTokens }
-          : {}),
-        ...(hasPricingOverride ? { pricing: overrides.pricing } : {})
+      const patch: UpdateModelDto = {}
+      if (overrides?.reasoning) patch.reasoning = overrides.reasoning
+      patch.name = nextName || model.name
+      patch.group = nextGroup || model.group
+      if (hasPurposeFieldsOverride && resolvedPurposeFields) {
+        patch.endpointTypes = [...resolvedPurposeFields.endpointTypes]
+      } else if (hasEndpointTypesOverride) {
+        patch.endpointTypes = mode === 'endpoint-types' ? [...(overrides.endpointTypes ?? [])] : undefined
       }
+      if (resolvedPurposeFields) {
+        patch.capabilities = resolvedPurposeFields.capabilities
+        patch.inputModalities = resolvedPurposeFields.inputModalities
+      } else if (nextClassification && classifiedCapabilities && classifiedInputModalities) {
+        patch.capabilities = classifiedCapabilities
+        patch.inputModalities = classifiedInputModalities
+      }
+      if (hasPurposeFieldsOverride && resolvedPurposeFields)
+        patch.outputModalities = resolvedPurposeFields.outputModalities
+      patch.supportsStreaming = overrides?.supportsStreaming ?? supportsStreaming
+      if (hasContextWindowOverride && nextContextWindow !== undefined) patch.contextWindow = nextContextWindow
+      if (hasMaxInputTokensOverride && nextMaxInputTokens !== undefined) patch.maxInputTokens = nextMaxInputTokens
+      if (hasMaxOutputTokensOverride && nextMaxOutputTokens !== undefined) patch.maxOutputTokens = nextMaxOutputTokens
+      if (hasPricingOverride) patch.pricing = overrides.pricing
+      return patch
     },
     [
       group,
