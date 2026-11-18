@@ -22,6 +22,8 @@ Pi 和 Pi Durable 在主进程运行，却通过 Cherry 内部 HTTP 网关调用
 
 协议边界还须保留结构化 reasoning 签名、缓存写入和思考 token 拆分，以及明确的最终截断或过滤原因。模型原生引用及工具参数增量不在此次补齐范围内。
 
+固定版本 AI SDK 已支持的 Gemini 请求配置通过共享单次调用合同映射：采样、JSON/schema 输出、函数选择、安全设置、缓存上下文，以及原生媒体、标签和服务选项。HTTP 与对象调用使用同一投影。未支持的本地客户端行为以 SDK 能力错误失败，不伪造 HTTP 状态。客户端函数执行仍归原生 runtime。文件输出与 Google 结束元数据保留原生事件形状；Pi 文字会话维持既有输出能力。
+
 ## Alternatives considered
 
 - 内存 fetch 仍保留 JSON/SSE 编解码。
@@ -41,6 +43,9 @@ Pi 和 Pi Durable 在主进程运行，却通过 Cherry 内部 HTTP 网关调用
 - AC7 — OpenAI 协议保留上游提供的 cache-write 拆分，普通输入、缓存读写及总量不重复计数。（验证：unit — usage 转换与原生消费者测试）
 - AC8 — Anthropic 保留上游提供的 thinking_tokens，正文和签名回放不变。（验证：unit — usage 转换与原生消费者测试）
 - AC9 — 工具调用之后的明确 length/content-filter 结束原因优先于工具存在性；error 和取消保持失败或中止。（验证：unit — 四种协议终态测试）
+
+- AC10 — Gemini HTTP 与对象请求通过共享准备路径保留固定 SDK 支持的配置，包括安全/缓存上下文、采样、JSON/schema 输出、函数选择及原生 provider 选项；未支持的本地客户端行为不会变成 HTTP 错误包。（验证：unit — 转换器、标准参数及生产网关/原生消费者测试）
+- AC11 — Gemini 响应保留配置模态与续接所需的文件 part 和 Google 结束元数据，不在网关增加工具执行，也不改变 Pi 文字会话的输出能力。（验证：unit — 协议适配器与生产网关测试；manual — Electron 文字/工具及 HTTP 结构化输出验收）
 
 ## Risks
 
