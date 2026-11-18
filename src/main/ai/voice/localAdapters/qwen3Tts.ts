@@ -73,6 +73,7 @@ export function getQwen3TtsStatus(signal?: AbortSignal): LocalVoiceStatus {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native inference, filesystem and utility-process failures have heterogeneous shapes; convert verified model/process codes into bounded voice reasons.
 function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeError {
   if (signal?.aborted) return new VoiceRuntimeError('aborted')
   if (error instanceof VoiceRuntimeError) return error

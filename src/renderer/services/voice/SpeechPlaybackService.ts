@@ -131,6 +131,7 @@ const IDLE_SNAPSHOT: SpeechPlaybackSnapshot = Object.freeze({
   progress: Object.freeze({ completed: 0, total: 0 })
 })
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Playback combines browser audio, text-iterator and IPC failures; this classifier recognizes VoiceDomainError before exposing a domain reason.
 function errorReason(error: unknown): VoiceErrorReason {
   return error instanceof VoiceDomainError ? error.reason : 'operation_failed'
 }
@@ -205,6 +206,7 @@ export class SpeechPlaybackService {
       })
     })
     this.ownerWindow.addEventListener('beforeunload', this.handleBeforeUnload)
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Voice startup may reject; this observer detaches only the matching playback lifecycle and rethrows the arbitrary failure.
     const initialization = this.voice.initialize().catch((error: unknown) => {
       if (generation === this.lifecycleGeneration && this.initialization === initialization) {
         this.detach()
@@ -315,6 +317,7 @@ export class SpeechPlaybackService {
         }
         this.assertCurrent(run)
         await this.voice.finishSpeechText({ sessionId: run.sessionId, requestId: operation.requestId, sequence })
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Streaming text iteration and IPC writes can fail independently; this handler classifies their arbitrary rejection after cancelling input.
       })().catch((error: unknown) => {
         textInput.cancel()
         if (!run.stopped) void this.failPlayback(run, errorReason(error)).catch(() => undefined)
@@ -747,6 +750,7 @@ export class SpeechPlaybackService {
     if (!event.playback) return
     this.acceptTarget(run, event.playback)
     const attemptId = run.target?.attemptId
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- An audio playback command may fail in browser or IPC work; only the current attempt classifies and reports the failure.
     void this.executeTarget(run).catch((error: unknown) => {
       if (run.stopped || run.target?.attemptId !== attemptId) return
       return this.failPlayback(run, errorReason(error))
@@ -776,6 +780,7 @@ export class SpeechPlaybackService {
       run.operation = undefined
       this.releaseRun(run, publishIdle)
     })()
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Playback teardown combines several asynchronous resources; this boundary converts any cleanup failure into the stored VoiceDomainError.
       .catch((error: unknown) => {
         const reason = errorReason(error)
         run.cleanupError = new VoiceDomainError(reason)

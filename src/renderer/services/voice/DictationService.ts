@@ -107,6 +107,7 @@ interface DictationServiceOptions {
   mediaDevices?: DictationMediaDevices
   createPcmCapture?: (
     write: (chunk: SpeechPcmChunk) => Promise<void>,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- PCM capture forwards browser and write-promise failures; DictationService classifies them before publishing a domain error category.
     onError: (error: unknown) => void,
     onLimit: () => void
   ) => Pick<PcmCapture, 'start' | 'stop' | 'cancel'> & { readonly analyser?: AnalyserNode }
@@ -148,6 +149,7 @@ interface DictationRecovery {
 
 const voiceReasons = new Set<string>(Object.keys(voiceErrorCodes))
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Dictation receives arbitrary browser and service failures; this classifier validates the reason field against known voice reasons before using it.
 function errorCategory(error: unknown, fallback: DictationErrorCategory): DictationErrorCategory {
   if (typeof error !== 'object' || error === null || !('reason' in error)) return fallback
   const reason = (error as { reason?: unknown }).reason
@@ -213,6 +215,7 @@ export class DictationService {
     } catch (error) {
       return Promise.reject(error)
     }
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Voice initialization can reject; this observer resets the matching dictation initialization and rethrows its original failure.
     const promise = this.voice.initialize().catch((error: unknown) => {
       if (this.initialization?.generation === generation) {
         this.initialization = undefined
@@ -475,6 +478,7 @@ export class DictationService {
       )
       active.streaming = operation
       active.transcription = operation
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Streaming transcription can reject with an arbitrary value; only the current dictation run forwards it for error classification.
       void operation.result.catch((error: unknown) => {
         if (this.isCurrent(active)) void this.failStreaming(active, error)
       })
@@ -521,6 +525,7 @@ export class DictationService {
     }
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Streaming dictation failures come from both microphone APIs and transcription IPC; this boundary classifies both before cleanup and publication.
   private async failStreaming(active: ActiveDictation, error: unknown): Promise<void> {
     if (!this.isCurrent(active)) return
     const reason = errorCategory(error, microphoneErrorReason(error))
@@ -629,6 +634,7 @@ export class DictationService {
     }
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Pre-recording setup can fail in multiple services; this handler classifies the original failure only after owned-session cleanup succeeds.
   private async failUnready(active: ActiveDictation, error: unknown): Promise<void> {
     if (this.active !== active) return
     const cleanupError = await this.cleanupSession(active)
@@ -706,6 +712,7 @@ export class DictationService {
 
   private discardSession(active: ActiveDictation): Promise<void> {
     if (!active.discardTask) {
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Session discard may reject; the cached task must be cleared for retry while its arbitrary failure is rethrown unchanged.
       active.discardTask = this.voice.discardSession(active.sessionId).catch((error: unknown) => {
         active.discardTask = undefined
         throw error

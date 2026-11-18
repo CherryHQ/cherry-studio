@@ -4,12 +4,12 @@ import { VoiceRuntimeError } from './VoiceRuntimeError'
 
 /** One acknowledged handoff prevents IPC producers from outrunning inference. */
 export class VoiceTextInput implements AsyncIterable<SpeechTextEvent> {
-  private pending?: { event: SpeechTextEvent; resolve: () => void; reject: (error: unknown) => void }
+  private pending?: { event: SpeechTextEvent; resolve: () => void; reject: (error: VoiceRuntimeError) => void }
   private wake?: () => void
   private sequence = 0
   private characters: number
   private ended = false
-  private failure?: unknown
+  private failure?: VoiceRuntimeError
 
   constructor(private readonly initialText: string) {
     this.characters = initialText.length
@@ -43,7 +43,8 @@ export class VoiceTextInput implements AsyncIterable<SpeechTextEvent> {
     this.wake?.()
   }
 
-  close(error: unknown = new VoiceRuntimeError('aborted')): void {
+  close(): void {
+    const error = new VoiceRuntimeError('aborted')
     this.failure = error
     this.pending?.reject(error)
     this.pending = undefined

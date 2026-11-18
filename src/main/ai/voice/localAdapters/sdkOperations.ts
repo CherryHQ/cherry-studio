@@ -23,6 +23,7 @@ function completeExecution<T>(work: (signal: AbortSignal) => Promise<T>, signal?
     })
   const closed = completed.then(
     () => undefined,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- SDK execution and abort checks may reject with arbitrary values; the cleanup channel propagates only verified VoiceCleanupError.
     (error: unknown) => {
       if (error instanceof VoiceCleanupError) throw error
     }

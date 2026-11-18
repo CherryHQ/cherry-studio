@@ -41,6 +41,7 @@ function playbackErrorKey(reason: VoiceErrorReason) {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Manual playback may fail during speech or confirmation UI; this presenter classifies VoiceDomainError and uses a generic reason for other failures.
 function showPlaybackError(error: unknown): void {
   const reason = error instanceof VoiceDomainError ? error.reason : 'operation_failed'
   const title = i18n.t(playbackErrorKey(reason))

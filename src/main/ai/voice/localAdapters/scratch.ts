@@ -12,6 +12,7 @@ const logger = loggerService.withContext('VoiceScratch')
 export async function withScratch<T>(
   operation: (directory: string) => Promise<T>,
   signal: AbortSignal | undefined,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Scratch setup and wrapped operations can throw arbitrary values; the adapter callback owns conversion into VoiceRuntimeError.
   mapFailure: (error: unknown, signal?: AbortSignal) => VoiceRuntimeError
 ): Promise<T> {
   checkAbort(signal)

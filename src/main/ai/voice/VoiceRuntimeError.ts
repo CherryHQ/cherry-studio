@@ -19,6 +19,7 @@ export function checkAbort(signal?: AbortSignal): void {
   if (signal?.aborted) throw new VoiceRuntimeError('aborted')
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Voice operations can fail before adapter normalization; only verified VoiceRuntimeError reasons may cross IPC.
 export function voiceIpcError(error: unknown): IpcError {
   const reason = error instanceof VoiceRuntimeError ? error.reason : 'operation_failed'
   return new IpcError(voiceErrorCodes[reason], reason, { reason })
