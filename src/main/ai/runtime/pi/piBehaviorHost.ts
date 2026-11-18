@@ -6,7 +6,7 @@ import * as z from 'zod'
 import { application } from '@application'
 import type { ApprovalOutcome, CallRef, HostPorts, BehaviorEvent } from '@cherrystudio/agent-behavior'
 import type { JsonValue, ThreadId, Thread } from '@cherrystudio/agent-runtime'
-import type { AgentRuntimeCompaction } from '@cherrystudio/agent-runtime-pi'
+import type { AgentRuntimeCompaction, CompactionSummarizer } from '@cherrystudio/agent-runtime-pi'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
@@ -155,27 +155,39 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
       if (!models.has(modelKey)) await host.models.find('', thread.id)
       const model = models.get(modelKey)
       if (!model) throw new Error(`Unknown subagent model: ${modelKey}`)
-      let child = bindings.get(modelKey)
-      if (!child) {
-        const created = await (options.bindModel?.(model) ??
+      let created = bindings.get(modelKey)
+      if (!created) {
+        created = await (options.bindModel?.(model) ??
           createPiGatewayModelBinding(input, providerService.getByProviderId(model.providerId), model))
-        // A child session compacts with its own binding: the inherited root summarizer's model is
-        // not registered in this session's runtime ("Unknown provider"), which would cancel
-        // compaction and let child history grow unbounded. The summary continues in this session's
-        // context, and its usage is attributed to the child like any other child model call.
-        const usageSessionId = await options.usageSessionId(thread.id)
-        child = {
-          ...created,
-          compaction: {
-            ...resolvePiCompactionSettings(created.model.contextWindow, created.model.maxTokens),
-            summarize: createPiCompactionSummarizer({
-              binding: created,
-              usage: () =>
-                application.get('ApiGatewayService').captureAgentSessionUsage(input.sessionId, usageSessionId)
-            })
+        bindings.set(modelKey, created)
+      }
+      const bound = created
+      // A child session compacts with its own binding: the inherited root summarizer's model is
+      // not registered in this session's runtime ("Unknown provider"), which would cancel
+      // compaction and let child history grow unbounded. The summary continues in this session's
+      // context, and its usage is attributed to the child like any other child model call.
+      // The child's usage owner (its native session id) does not exist until the child is
+      // registered, which happens only after this configuration returns — resolving it here
+      // aborts the child before it starts. Resolve it when the first summary request begins,
+      // freeze it for this child, and keep it out of the model-wide binding cache so a second
+      // child on the same model attributes usage to its own session.
+      let summarizer: CompactionSummarizer | undefined
+      const child: ChildBinding = {
+        ...bound,
+        compaction: {
+          ...resolvePiCompactionSettings(bound.model.contextWindow, bound.model.maxTokens),
+          summarize: async (request) => {
+            if (!summarizer) {
+              const usageSessionId = await options.usageSessionId(thread.id)
+              summarizer = createPiCompactionSummarizer({
+                binding: bound,
+                usage: () =>
+                  application.get('ApiGatewayService').captureAgentSessionUsage(input.sessionId, usageSessionId)
+              })
+            }
+            return summarizer(request)
           }
         }
-        bindings.set(modelKey, child)
       }
       threads.set(thread.id, modelKey)
       return child
