@@ -67,6 +67,7 @@ import {
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
+import { getConversationListSortLocale } from '@renderer/utils/chat/conversationListSort'
 import { buildResourceListGroupDropAnchor, withSoleGroupLabelHidden } from '@renderer/utils/chat/resourceListBase'
 import {
   applyOptimisticTopicDisplayMove,
@@ -227,6 +228,7 @@ export function Topics({
   const [storedPanePosition, setStoredPanePosition] = usePreference('topic.tab.position')
   const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
   const [assistantSortType, setAssistantSortType] = usePreference('assistant.tab.sort_type')
+  const sortLocale = getConversationListSortLocale()
   const [topicSort] = usePreference('chat.topics.sort')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const resolvedPanePosition = panePosition ?? storedPanePosition
@@ -743,10 +745,11 @@ export function Topics({
       sortTopicsForDisplayGroups(topics, {
         assistantRankById,
         sort: topicSort,
+        sortLocale,
         mode: displayMode,
         now: groupNow
       }),
-    [assistantRankById, displayMode, groupNow, topicSort, topics]
+    [assistantRankById, displayMode, groupNow, sortLocale, topicSort, topics]
   )
 
   const groupedTopics = useMemo(

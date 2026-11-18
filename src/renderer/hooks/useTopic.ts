@@ -34,7 +34,7 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
-import { conversationListSortQuery } from '@renderer/utils/chat/conversationListSort'
+import { conversationListSortQuery, getConversationListSortLocale } from '@renderer/utils/chat/conversationListSort'
 import { withPriorCitationParts } from '@renderer/utils/message/exportView'
 import { ErrorCode, isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -292,11 +292,13 @@ export function useTopics(opts?: {
   enabled?: boolean
   sort?: ConversationListSort
 }) {
+  useTranslation()
+  const sortLocale = getConversationListSortLocale()
   const query =
     opts?.sort || opts?.q?.trim()
       ? {
           ...(opts?.q?.trim() ? { q: opts.q.trim() } : {}),
-          ...(opts?.sort ? conversationListSortQuery(opts.sort) : {})
+          ...(opts?.sort ? conversationListSortQuery(opts.sort, sortLocale) : {})
         }
       : undefined
   const loadAll = opts?.loadAll === true

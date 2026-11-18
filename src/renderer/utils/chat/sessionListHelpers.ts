@@ -53,6 +53,7 @@ export type SessionDisplayGroupOptions = {
 
 export type SessionDisplaySortOptions = {
   sort?: ConversationListSort
+  sortLocale?: string
   agentRankById?: ReadonlyMap<string, number>
   mode: AgentSessionDisplayMode
   now?: Parameters<typeof getResourceTimeBucket>[1]
@@ -343,7 +344,7 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
   options: SessionDisplaySortOptions
 ): T[] {
   const isPinned = (session: T) => session.pinned === true
-  const compare = options.sort ? compareConversationListItems<T>(options.sort) : undefined
+  const compare = options.sort ? compareConversationListItems<T>(options.sort, options.sortLocale) : undefined
 
   if (options.mode === 'time') {
     return sortRankedResourceItems(sessions, {
@@ -394,6 +395,7 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
 
 export type SessionListViewOptions = {
   sort?: ConversationListSort
+  sortLocale?: string
   agentById: ReadonlyMap<string, SessionDisplayAgent>
   agentRankById: ReadonlyMap<string, number>
   labels: SessionDisplayGroupLabels
@@ -407,11 +409,11 @@ export type SessionListViewOptions = {
 /** Builds the list as displayed, so rendering and event handlers cannot disagree on order. */
 export function deriveSessionListView<T extends SessionListItem>(
   items: readonly T[],
-  { agentById, agentRankById, labels, mode, now, sort, visibleAgentId, workspaces }: SessionListViewOptions,
+  { agentById, agentRankById, labels, mode, now, sort, sortLocale, visibleAgentId, workspaces }: SessionListViewOptions,
   optimisticMove?: ResourceListItemReorderPayload | null
 ) {
   const workdirDisplay = createSessionWorkdirDisplayMaps(items, workspaces)
-  const sorted = sortSessionsForDisplayGroups(items, { agentRankById, mode, now, sort, workdirDisplay })
+  const sorted = sortSessionsForDisplayGroups(items, { agentRankById, mode, now, sort, sortLocale, workdirDisplay })
   const ordered = optimisticMove ? applyOptimisticSessionDisplayMove(sorted, optimisticMove) : sorted
   const visibleItems =
     visibleAgentId === undefined

@@ -59,6 +59,7 @@ import {
 import { toast } from '@renderer/services/toast'
 import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { getConversationListSortLocale } from '@renderer/utils/chat/conversationListSort'
 import { withSoleGroupLabelHidden } from '@renderer/utils/chat/resourceListBase'
 import {
   type AgentSessionDisplayMode,
@@ -202,6 +203,7 @@ const Sessions = ({
   const groupNow = useCurrentDayStart()
 
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
+  const sortLocale = getConversationListSortLocale()
   const [sessionSort] = usePreference('agent.session.sort')
   const [storedPanePosition, setStoredPanePosition] = usePreference('agent.session.position')
   // Agent session icon style is stored under its own key so it no longer mutates the assistant's.
@@ -453,6 +455,7 @@ const Sessions = ({
       mode: displayMode,
       now: groupNow,
       sort: sessionSort,
+      sortLocale,
       visibleAgentId: isRightPanel ? (agentIdFilter ?? null) : undefined,
       workspaces: workspaceRowsForDisplay
     }),
@@ -464,6 +467,7 @@ const Sessions = ({
       groupNow,
       isRightPanel,
       sessionSort,
+      sortLocale,
       t,
       workspaceRowsForDisplay
     ]

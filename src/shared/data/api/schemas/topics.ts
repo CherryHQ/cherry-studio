@@ -8,7 +8,7 @@
 import * as z from 'zod'
 
 import { AssistantIdSchema } from '../../types/assistant'
-import { ConversationListSortBySchema } from '../../types/conversationList'
+import { ConversationListSortBySchema, ConversationListSortLocaleSchema } from '../../types/conversationList'
 import { type Topic, TopicNameSchema, TopicSchema } from '../../types/topic'
 import type { CursorPaginationResponse } from '../types'
 import { type OrderEndpoints, OrderRequestSchema } from './_endpointHelpers'
@@ -55,6 +55,7 @@ export type MoveTopicDto = z.infer<typeof MoveTopicSchema>
  */
 export const ListTopicsQuerySchema = z.strictObject({
   sortBy: ConversationListSortBySchema.optional(),
+  sortLocale: ConversationListSortLocaleSchema.optional(),
   sortOrder: z.enum(['asc', 'desc']).optional(),
   /** Exact topic ids to include. */
   ids: z.array(z.string().min(1)).min(1).max(200).optional(),

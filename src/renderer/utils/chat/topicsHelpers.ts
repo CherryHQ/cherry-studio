@@ -50,6 +50,7 @@ export type TopicDisplayGroupOptions = {
 
 export type TopicDisplaySortOptions = {
   sort?: ConversationListSort
+  sortLocale?: string
   assistantRankById?: ReadonlyMap<string, number>
   mode: TopicDisplayMode
   now?: Parameters<typeof getResourceTimeBucket>[1]
@@ -236,13 +237,13 @@ function getAssistantGroupRank<T extends Pick<Topic, 'assistantId'>>(
 }
 
 export function sortTopicsForDisplayGroups<
-  T extends Pick<Topic, 'assistantId' | 'lastActivityAt' | 'pinned' | 'createdAt'> & {
+  T extends Pick<Topic, 'id' | 'assistantId' | 'lastActivityAt' | 'pinned' | 'createdAt'> & {
     name?: string
     orderKey?: string
   }
 >(topics: readonly T[], options: TopicDisplaySortOptions): T[] {
   const isPinned = (topic: T) => topic.pinned === true
-  const compare = options.sort ? compareConversationListItems<T>(options.sort) : undefined
+  const compare = options.sort ? compareConversationListItems<T>(options.sort, options.sortLocale) : undefined
 
   if (options.mode === 'assistant') {
     return topics

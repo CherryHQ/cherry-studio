@@ -24,6 +24,8 @@ Name sorting uses one shared `Intl.Collator` comparator with the application loc
 
 Name queries carry a validated locale in the query/cache key. Changing application language starts a new page chain. The main process reads only eligible unpinned `(id, name)` pairs, sorts and applies the name/id cursor with the shared comparator, then hydrates the bounded page in that order. This avoids a native SQLite ICU extension; other sorts retain their SQL pagination. Pins and all domain filters retain their existing behavior.
 
+Stateless metadata selection and key parsing live in `main/utils/listOrdering.ts`, with no data-layer dependency. Field selection, defaults, eligibility queries, SQL ordering and cursor composition stay in the owning data services.
+
 ## Alternatives considered
 
 - Treat every non-empty `orderKey` as a drag marker: rejected because creation assigns it too.
@@ -47,3 +49,6 @@ Name pagination reads and sorts all matching name/id pairs per request: O(n) met
 - AC3 — `src/main/data/services/__tests__/conversationListSort.test.ts` verifies default/custom inference, equal timestamps, empty tables, excluded rows and preservation of existing preferences against production SQLite migrations.
 - AC4 — The same database suite pages both domains in all automatic directions across pins, ties, empty names and cursor punctuation, without changing manual keys.
 - AC5 — Electron changes Chat to Manually, drags a time-group row to the first position, reloads and observes the saved order; automatic mode exposes no enabled sortable rows. The database and renderer suites preserve manual keys and pin precedence.
+
+- AC6 — `src/shared/utils/__tests__/nameOrdering.test.ts` covers all 17 UI locales plus Arabic/Korean, natural numbers, accents, punctuation and canonical/case ties; database and renderer group tests use the same comparator.
+- AC7 — `useConversationListSorting.test.ts` verifies fresh page chains on language change; database tests cover scoped candidates and deleted anchors; Electron switches both lists between pinyin and stroke order, compares paged API results and checks reload persistence.

@@ -27,7 +27,7 @@ import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
-import { conversationListSortQuery } from '@renderer/utils/chat/conversationListSort'
+import { conversationListSortQuery, getConversationListSortLocale } from '@renderer/utils/chat/conversationListSort'
 import type { SessionListItem } from '@renderer/utils/chat/sessionListHelpers'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
@@ -256,10 +256,13 @@ export const useSessions = (
   const loadAll = typeof options === 'number' ? false : (options.loadAll ?? false)
   const enabled = typeof options === 'number' ? undefined : options.enabled
   const sort = typeof options === 'number' ? undefined : options.sort
+  const sortLocale = getConversationListSortLocale()
   const query = useMemo(
     () =>
-      sort ? { ...getSessionListQuery(agentId), ...conversationListSortQuery(sort) } : getSessionListQuery(agentId),
-    [agentId, sort]
+      sort
+        ? { ...getSessionListQuery(agentId), ...conversationListSortQuery(sort, sortLocale) }
+        : getSessionListQuery(agentId),
+    [agentId, sort, sortLocale]
   )
 
   // A load-all source must refresh every loaded page once the chain is complete,

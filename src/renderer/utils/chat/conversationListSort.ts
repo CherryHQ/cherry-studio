@@ -1,28 +1,31 @@
-import type { ConversationListSort } from '@shared/data/types/conversationList'
+import i18n from 'i18next'
 
-function compareNames(left: string, right: string) {
-  // SQLite's binary name order follows Unicode code points, not UTF-16 code units.
-  const a = Array.from(left, (character) => character.codePointAt(0) ?? 0)
-  const b = Array.from(right, (character) => character.codePointAt(0) ?? 0)
-  for (let i = 0; i < Math.min(a.length, b.length); i++) {
-    if (a[i] !== b[i]) return a[i] - b[i]
-  }
-  return a.length - b.length
+import type { ConversationListSort } from '@shared/data/types/conversationList'
+import { defaultLanguage } from '@shared/utils/languages'
+import { createNameComparator } from '@shared/utils/nameOrdering'
+
+export function getConversationListSortLocale() {
+  return i18n.resolvedLanguage ?? defaultLanguage
 }
 
-export function conversationListSortQuery(sort: ConversationListSort) {
-  return { sortBy: sort.by, sortOrder: sort.by === 'orderKey' ? ('asc' as const) : sort.direction }
+export function conversationListSortQuery(sort: ConversationListSort, locale = getConversationListSortLocale()) {
+  return {
+    sortBy: sort.by,
+    sortOrder: sort.by === 'orderKey' ? ('asc' as const) : sort.direction,
+    ...(sort.by === 'name' ? { sortLocale: locale } : {})
+  }
 }
 
 export function compareConversationListItems<
-  T extends { name?: string; orderKey?: string; createdAt: string; lastActivityAt: string }
->(sort: ConversationListSort): (a: T, b: T) => number {
+  T extends { id: string; name?: string; orderKey?: string; createdAt: string; lastActivityAt: string }
+>(sort: ConversationListSort, locale = getConversationListSortLocale()): (a: T, b: T) => number {
+  if (sort.by === 'name') return createNameComparator(locale, sort.direction)
+  if (sort.by === 'orderKey') {
+    return (a, b) => ((a.orderKey ?? '') < (b.orderKey ?? '') ? -1 : (a.orderKey ?? '') > (b.orderKey ?? '') ? 1 : 0)
+  }
+  const { by, direction } = sort
   return (a, b) => {
-    if (sort.by === 'orderKey') {
-      return (a.orderKey ?? '') < (b.orderKey ?? '') ? -1 : (a.orderKey ?? '') > (b.orderKey ?? '') ? 1 : 0
-    }
-    const compared =
-      sort.by === 'name' ? compareNames(a.name ?? '', b.name ?? '') : Date.parse(a[sort.by]) - Date.parse(b[sort.by])
-    return sort.direction === 'asc' ? compared : -compared
+    const compared = Date.parse(a[by]) - Date.parse(b[by])
+    return direction === 'asc' ? compared : -compared
   }
 }

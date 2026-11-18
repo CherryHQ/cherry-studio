@@ -23,14 +23,18 @@ const rows = [
 ]
 
 describe('independent conversation sorting', () => {
-  it('keeps Unicode names in the database pagination order', () => {
+  it('sorts names naturally with the requested locale inside display groups', () => {
     const input = [
-      { ...rows[0], name: '😀' },
-      { ...rows[1], name: '\uE000' }
+      { ...rows[0], name: 'ä10' },
+      { ...rows[1], name: 'a2' }
     ]
-    expect(input.toSorted(compareConversationListItems({ by: 'name', direction: 'asc' })).map((row) => row.id)).toEqual(
-      ['new', 'old']
-    )
+    expect(
+      sortTopicsForDisplayGroups(input, {
+        mode: 'assistant',
+        sort: { by: 'name', direction: 'asc' },
+        sortLocale: 'de-DE'
+      }).map((row) => row.id)
+    ).toEqual(['new', 'old'])
   })
 
   it('keeps custom order after activity and recovers it after automatic sorting', () => {

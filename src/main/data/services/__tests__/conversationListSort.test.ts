@@ -1,4 +1,5 @@
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -41,8 +42,8 @@ describe('conversation list sorting', () => {
       ['lastActivityAt', 'asc', ['a', 'e', 'c', 'd', 'b']],
       ['createdAt', 'desc', ['a', 'e', 'c', 'd', 'b']],
       ['createdAt', 'asc', ['b', 'c', 'd', 'e', 'a']],
-      ['name', 'asc', ['b', 'd', 'c', 'a', 'e']],
-      ['name', 'desc', ['e', 'a', 'c', 'd', 'b']],
+      ['name', 'asc', ['b', 'e', 'd', 'c', 'a']],
+      ['name', 'desc', ['a', 'c', 'd', 'e', 'b']],
       ['orderKey', 'asc', ['a', 'b', 'c', 'd', 'e']]
     ])(`${entityType}: pages %s %s without losing tied or escaped values`, (sortBy, sortOrder, expected) => {
       seed(entityType)
@@ -81,7 +82,102 @@ describe('conversation list sorting', () => {
       expect(cursor).toBeUndefined()
       expect(dbh.db.select({ id: table.id, orderKey: table.orderKey }).from(table).all()).toEqual(before)
     })
+
+    it.each([
+      ['en-US', ['item2', 'item10', 'z']],
+      ['zh-CN', ['阿', '八', '中']],
+      ['zh-TW', ['一', '二', '三']],
+      ['cs-CZ', ['h', 'ch', 'i']],
+      ['th-TH', ['กบ', 'เกาะ', 'ขา']],
+      ['tr-TR', ['h', 'ı', 'i', 'j']],
+      ['el-GR', ['α', 'ά', 'β']],
+      ['ru-RU', ['е', 'ё', 'ж']]
+    ] as const)(`${entityType}: paginates %s names before hydrating each page`, (sortLocale, expected) => {
+      seed(
+        entityType,
+        expected.toReversed().map((name, index) => ({ ...rows[0], id: String(index), name }))
+      )
+      for (const sortOrder of ['asc', 'desc'] as const) {
+        const names: string[] = []
+        let cursor: string | undefined
+        for (let page = 0; page < 10; page++) {
+          const query = { sortBy: 'name' as const, sortLocale, sortOrder, cursor, limit: 1 }
+          const result =
+            entityType === 'topic'
+              ? topicService.listByCursor(query)
+              : agentSessionService.listByCursor({ ...query, scope: 'ordinary' })
+          names.push(...result.items.map((item) => item.name))
+          cursor = result.nextCursor
+          if (!cursor) break
+        }
+        expect(names).toEqual(sortOrder === 'asc' ? expected : expected.toReversed())
+        expect(cursor).toBeUndefined()
+      }
+    })
+
+    it(`${entityType}: continues past a deleted anchor and canonical/case ties`, () => {
+      seed(
+        entityType,
+        ['é', 'É', 'e\u0301', 'z'].map((name, index) => ({ ...rows[0], id: `id-${index}`, name }))
+      )
+      const query = { sortBy: 'name' as const, sortOrder: 'asc' as const, sortLocale: 'fr-FR', limit: 1 }
+      const first =
+        entityType === 'topic'
+          ? topicService.listByCursor(query)
+          : agentSessionService.listByCursor({ ...query, scope: 'ordinary' })
+      expect(first.items.map((item) => item.id)).toEqual(['id-0'])
+      expect(first.nextCursor).toBeDefined()
+      const table = entityType === 'topic' ? topicTable : agentSessionTable
+      dbh.db.update(table).set({ deletedAt: 1 }).where(eq(table.id, 'id-0')).run()
+      const remainingQuery = { ...query, cursor: first.nextCursor, limit: 10 }
+      const rest =
+        entityType === 'topic'
+          ? topicService.listByCursor(remainingQuery)
+          : agentSessionService.listByCursor({ ...remainingQuery, scope: 'ordinary' })
+      expect(rest.items.map((item) => item.id)).toEqual(['id-1', 'id-2', 'id-3'])
+      expect(rest.nextCursor).toBeUndefined()
+    })
   }
+
+  it('localizes topic search without admitting excluded or trashed candidates', () => {
+    seed(
+      'topic',
+      ['item10', 'item2', 'item1', 'other'].map((name, index) => ({ ...rows[0], id: String(index), name }))
+    )
+    dbh.db.update(topicTable).set({ deletedAt: 1 }).where(eq(topicTable.id, '2')).run()
+    const result = topicService.listByCursor({
+      sortBy: 'name',
+      sortLocale: 'en-US',
+      sortOrder: 'asc',
+      q: 'item',
+      ids: ['0', '1', '2', '3']
+    })
+    expect(result.items.map((item) => item.name)).toEqual(['item2', 'item10'])
+  })
+
+  it('keeps localized session name candidates scoped to ordinary sessions and the workspace', () => {
+    seed(
+      'session',
+      ['item10', 'item2'].map((name, index) => ({ ...rows[0], id: String(index), name }))
+    )
+    dbh.db.insert(agentWorkspaceTable).values({ id: 'other-work', name: 'Other', path: '/other', orderKey: 'a1' }).run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values([
+        { id: 'other', name: 'item1', workspaceId: 'other-work', orderKey: 'a1' },
+        { id: 'background', name: 'item1', workspaceId: 'work', orderKey: 'a2', type: 'background' },
+        { id: 'deleted', name: 'item1', workspaceId: 'work', orderKey: 'a3', deletedAt: 1 }
+      ])
+      .run()
+    const result = agentSessionService.listByCursor({
+      scope: 'ordinary',
+      workspaceId: 'work',
+      sortBy: 'name',
+      sortOrder: 'asc',
+      sortLocale: 'en-US'
+    })
+    expect(result.items.map((item) => item.name)).toEqual(['item2', 'item10'])
+  })
 
   // Key existence is not drag evidence; creation assigns keys to every row.
   it.each([
