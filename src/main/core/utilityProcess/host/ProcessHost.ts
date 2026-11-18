@@ -693,15 +693,15 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
 
   // ─── Requests ───
 
-  private dispatch(
+  private dispatch<M extends keyof Contract['methods'] & string>(
     generation: Generation,
-    method: string,
-    input: unknown,
+    method: M,
+    input: Contract['methods'][M]['input'],
     signal: AbortSignal | undefined,
     onEvent: ((event: unknown) => void) | undefined,
     onHostCall: UtilityProcessRequestOptions<unknown>['onHostCall']
-  ): Promise<unknown> {
-    return new Promise<unknown>((resolve, reject) => {
+  ): Promise<Contract['methods'][M]['output']> {
+    return new Promise<Contract['methods'][M]['output']>((resolve, reject) => {
       if (signal?.aborted) {
         reject(signal.reason)
         return

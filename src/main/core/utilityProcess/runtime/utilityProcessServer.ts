@@ -27,7 +27,7 @@ import type {
 import { isConnectFrame, isMainFrame, matchesIdentity } from '../protocol/guards'
 import { toRemoteError } from '../protocol/remoteError'
 import { StreamChannel } from '../StreamChannel'
-import type { UtilityProcessContract, UtilityProcessStreamFrame, UtilityProcessStreams } from '../types'
+import type { UtilityProcessContract, UtilityProcessStreams } from '../types'
 
 export interface UtilityProcessLogger {
   debug(message: string, fields?: Record<string, unknown>): void
@@ -107,8 +107,6 @@ interface ActiveRequest {
   hostReplies: Map<number, (outcome: { value: unknown } | { error: RemoteErrorShape }) => void>
 }
 
-type Handler = (input: unknown, context: UtilityProcessHandlerContext<unknown>) => unknown
-
 const abortError = (code: string, message: string): Error => {
   const error = new Error(message) as Error & { code: string }
   error.name = 'AbortError'
@@ -120,15 +118,10 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
   options: ServeUtilityProcessOptions<Contract, InitData>,
   io: UtilityProcessServerIo
 ): void {
-  const handlers = options.handlers as Record<string, Handler>
+  // SAFETY: dispatch below validates own method names before using the declared handler map.
+  const handlers = options.handlers as Record<string, UtilityProcessHandlers<Contract>[keyof Contract['methods']]>
   const streams = options.streams as
-    | Record<
-        string,
-        (
-          input: unknown,
-          context: UtilityProcessStreamContext<UtilityProcessStreamFrame, UtilityProcessStreamFrame>
-        ) => unknown
-      >
+    | Record<string, UtilityProcessStreamHandlers<Contract>[keyof UtilityProcessStreams<Contract>]>
     | undefined
   const active = new Map<number, ActiveRequest>()
   const tombstones = new Set<number>()
