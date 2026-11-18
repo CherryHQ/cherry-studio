@@ -1261,16 +1261,22 @@ export class MessageService {
       for (const p of input.placeholders) {
         const status = p.status ?? 'pending'
         const createdAt = Date.now()
+        const placeholder: Pick<
+          typeof messageTable.$inferInsert,
+          'id' | 'topicId' | 'parentId' | 'role' | 'data' | 'status' | 'siblingsGroupId'
+        > = {
+          ...(p.id && { id: p.id }),
+          topicId: input.topicId,
+          parentId: userMessage.id,
+          role: p.role,
+          data: p.data,
+          status
+        }
+        if (input.siblingsGroupId !== undefined) placeholder.siblingsGroupId = input.siblingsGroupId
         const [row] = tx
           .insert(messageTable)
           .values({
-            ...(p.id && { id: p.id }),
-            topicId: input.topicId,
-            parentId: userMessage.id,
-            role: p.role,
-            data: p.data,
-            status,
-            ...(input.siblingsGroupId !== undefined ? { siblingsGroupId: input.siblingsGroupId } : {}),
+            ...placeholder,
             modelId: p.modelId,
             messageSnapshot: p.messageSnapshot,
             createdAt,
@@ -1507,10 +1513,10 @@ export class MessageService {
         delete stats.timeThinkingMs
       }
       const data: MessageData = {
-        parts: [],
-        ...(row.data?.modelSelection ? { modelSelection: row.data.modelSelection } : {}),
-        ...(row.data?.turnOptions ? { turnOptions: row.data.turnOptions } : {})
+        parts: []
       }
+      if (row.data?.modelSelection) data.modelSelection = row.data.modelSelection
+      if (row.data?.turnOptions) data.turnOptions = row.data.turnOptions
       const descendantIds = this.getDescendantIdsTx(tx, id)
       this.clearContextAnchorsTx(tx, descendantIds)
       const [updated] = tx

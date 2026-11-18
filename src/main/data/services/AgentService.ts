@@ -202,9 +202,10 @@ function rowToAgent(
   avatarFileId?: FileEntryId
 ): AgentEntity {
   const clean = nullsToUndefined(row)
+  if (avatarFileId)
+    Object.assign(clean, { avatarFileId, avatarSrc: application.get('FileManager').getUrl(avatarFileId) })
   return {
     ...clean,
-    ...(avatarFileId ? { avatarFileId, avatarSrc: application.get('FileManager').getUrl(avatarFileId) } : {}),
     mcps,
     knowledgeBaseIds,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
@@ -514,13 +515,9 @@ export class AgentService {
       existing.configuration && typeof existing.configuration === 'object' && !Array.isArray(existing.configuration)
         ? { ...existing.configuration, builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
         : { builtin_role: BUILTIN_AGENT_ROLE.SUPPORT }
-    tx.update(agentsTable)
-      .set({
-        configuration,
-        ...(shouldRestore ? { deletedAt: null } : {})
-      })
-      .where(eq(agentsTable.id, CHERRY_SUPPORT_AGENT_ID))
-      .run()
+    const updates: Pick<typeof agentsTable.$inferInsert, 'configuration' | 'deletedAt'> = { configuration }
+    if (shouldRestore) updates.deletedAt = null
+    tx.update(agentsTable).set(updates).where(eq(agentsTable.id, CHERRY_SUPPORT_AGENT_ID)).run()
 
     const [claimed] = tx.select().from(agentsTable).where(eq(agentsTable.id, CHERRY_SUPPORT_AGENT_ID)).limit(1).all()
     return claimed ?? null

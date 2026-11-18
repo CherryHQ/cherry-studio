@@ -5,7 +5,8 @@ import type { ProviderRuntimeOptions } from 'electron-updater/out/providers/Prov
 import type { LegacyBridgeTarget } from './legacyBridgeTarget'
 
 export function createLegacyBridgeProvider(target: LegacyBridgeTarget): CustomPublishOptions {
-  const file = { url: target.url, sha512: target.sha512, ...('size' in target ? { size: target.size } : {}) }
+  const file: UpdateInfo['files'][number] = { url: target.url, sha512: target.sha512 }
+  if ('size' in target) file.size = target.size
   const info: UpdateInfo = {
     version: target.version,
     files: [file],
