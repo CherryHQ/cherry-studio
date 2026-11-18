@@ -31,11 +31,13 @@ function makeService(): IpcApiService {
 /** The callback registered on the IpcApi_Request channel during onInit. */
 function registeredHandler() {
   const call = vi.mocked(ipcMain.handle).mock.calls.find((c) => c[0] === IpcChannel.IpcApi_Request)
-  return call?.[1] as (
+  if (!call) throw new Error('IpcApi request handler was not registered')
+  return call[1] as (
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Admission tests pass partial sender/frame fixtures through the real sender trust gate.
     event: unknown,
     route: string,
-    input: unknown,
-    meta?: unknown
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- This registered IPC entry receives raw renderer input before the router selects and parses its schema.
+    input: unknown
   ) => ReturnType<IpcApiService['handleRequest']>
 }
 
@@ -142,23 +144,25 @@ describe('IpcApiService request handling', () => {
 describe('IpcApiService event sending', () => {
   it('broadcast() fans an event out to all windows via WindowManager.broadcast', () => {
     const svc = makeService()
-    ;(svc.broadcast as unknown as (e: string, p: unknown) => void)('window.resized', { width: 800 })
-    expect(windowManager.broadcast).toHaveBeenCalledWith(IpcChannel.IpcApi_Event, 'window.resized', { width: 800 })
+    svc.broadcast('mcp.catalog.changed', { serverId: 'server-1', kind: 'prompts' })
+    expect(windowManager.broadcast).toHaveBeenCalledWith(IpcChannel.IpcApi_Event, 'mcp.catalog.changed', {
+      serverId: 'server-1',
+      kind: 'prompts'
+    })
   })
 
   it('send() directs an event to one window resolved from its WindowId', () => {
     const svc = makeService()
-    ;(svc.send as unknown as (id: string, e: string, p: unknown) => void)('win-1', 'window.resized', { width: 640 })
+    svc.send('win-1', 'window.maximized_changed', true)
 
-    expect(sendSpy).toHaveBeenCalledWith(IpcChannel.IpcApi_Event, 'window.resized', { width: 640 })
+    expect(windowManager.getWindow).toHaveBeenCalledWith('win-1')
+    expect(sendSpy).toHaveBeenCalledWith(IpcChannel.IpcApi_Event, 'window.maximized_changed', true)
   })
 
   it('send() is a no-op when the target window is already gone', () => {
     windowManager.getWindow.mockReturnValue(undefined)
     const svc = makeService()
-    expect(() =>
-      (svc.send as unknown as (id: string, e: string, p: unknown) => void)('win-gone', 'window.resized', {})
-    ).not.toThrow()
+    expect(() => svc.send('win-gone', 'window.maximized_changed', true)).not.toThrow()
     expect(sendSpy).not.toHaveBeenCalled()
   })
 
@@ -169,9 +173,7 @@ describe('IpcApiService event sending', () => {
     // WindowManager.broadcast "skips destroyed" contract.
     windowManager.getWindow.mockReturnValue({ isDestroyed: () => true, webContents: { send: sendSpy } })
     const svc = makeService()
-    expect(() =>
-      (svc.send as unknown as (id: string, e: string, p: unknown) => void)('win-dying', 'window.resized', {})
-    ).not.toThrow()
+    expect(() => svc.send('win-dying', 'window.maximized_changed', true)).not.toThrow()
     expect(sendSpy).not.toHaveBeenCalled()
   })
 })
