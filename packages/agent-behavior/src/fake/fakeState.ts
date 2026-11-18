@@ -177,7 +177,8 @@ export const resultEntry = (id: ItemId, call: ToolCallFact, result: ToolResultFa
 type MarkerEntry = Extract<HistoryEntry, { kind: 'marker' }>
 /** `input` as the keyed marker it stores, or undefined when it is not one; the caller assigns the id. */
 function markerOf(input: TurnInput, key: string): MarkerEntry | undefined {
-  const data = { ...(isFields(input.data) ? input.data : {}), key }
+  const data = isFields(input.data) ? { ...input.data } : {}
+  Object.assign(data, { key })
   const entry = decodeEntry({ id: '' as ItemId, kind: input.kind, data, text: input.text })
   return entry?.kind === 'marker' ? entry : undefined
 }
