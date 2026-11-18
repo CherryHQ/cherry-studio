@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process'
+import { execFile, type ExecFileOptions } from 'node:child_process'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import { createRequire } from 'node:module'
@@ -286,24 +286,18 @@ function addNpmAllowBuildsOption(tool: string, packages?: readonly string[]): st
 }
 
 const FIXED_CATALOG: ReadonlyMap<string, FixedToolDefinition> = new Map<string, FixedToolDefinition>([
-  ...PRESETS_BINARY_TOOLS.map((preset): [string, FixedToolDefinition] => [
-    preset.name,
-    {
-      name: preset.name,
-      tool: preset.tool,
-      ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {}),
-      ...(preset.pipDependencies?.length ? { pipDependencies: preset.pipDependencies } : {})
-    }
-  ]),
-  ...CODE_CLI_TOOL_PRESETS.map((preset): [string, FixedToolDefinition] => [
-    preset.executable,
-    {
-      name: preset.executable,
-      tool: preset.miseTool,
-      ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {}),
-      ...(preset.latestVersionPrefix ? { latestVersionPrefix: preset.latestVersionPrefix } : {})
-    }
-  ])
+  ...PRESETS_BINARY_TOOLS.map((preset): [string, FixedToolDefinition] => {
+    const definition: FixedToolDefinition = { name: preset.name, tool: preset.tool }
+    if (preset.npmAllowBuilds?.length) definition.npmAllowBuilds = preset.npmAllowBuilds
+    if (preset.pipDependencies?.length) definition.pipDependencies = preset.pipDependencies
+    return [preset.name, definition]
+  }),
+  ...CODE_CLI_TOOL_PRESETS.map((preset): [string, FixedToolDefinition] => {
+    const definition: FixedToolDefinition = { name: preset.executable, tool: preset.miseTool }
+    if (preset.npmAllowBuilds?.length) definition.npmAllowBuilds = preset.npmAllowBuilds
+    if (preset.latestVersionPrefix) definition.latestVersionPrefix = preset.latestVersionPrefix
+    return [preset.executable, definition]
+  })
 ])
 // Re-exported for main-process callers and tests.
 export { validateBinaryToolDefinition }
@@ -603,18 +597,23 @@ export class BinaryManager extends BaseService {
       if (entries?.length) {
         const activeEntry = entries.find((entry) => entry.active)
         const version = activeEntry?.version ?? entries.at(-1)?.version
+        const broken: Extract<BinaryApplication, { status: 'broken' }> = { status: 'broken' }
+        if (version) broken.version = version
         if (!activeEntry) {
           // Installed artifacts are not an applied recipe. A leftover shim counts
           // as runnable only when mise itself can still resolve its target.
           const runnable = await this.resolveRunnableShim(name, tool)
-          return {
-            application: { status: 'broken', ...(version ? { version } : {}) },
-            ...(runnable ? { mise: { path: runnable.path, ...(version ? { version } : {}) } } : {})
+          const derivedTool: DerivedTool = { application: broken }
+          if (runnable) {
+            const mise: NonNullable<DerivedTool['mise']> = { path: runnable.path }
+            if (version) mise.version = version
+            derivedTool.mise = mise
           }
+          return derivedTool
         }
         const runnable = await this.resolveRunnableShim(name, tool)
         if (!runnable) {
-          return { application: { status: 'broken', ...(version ? { version } : {}) } }
+          return { application: broken }
         }
         // The active entry proves the exact recipe is installed; the shim must also
         // resolve to THIS entry's install, not a same-named binary from another
@@ -622,15 +621,16 @@ export class BinaryManager extends BaseService {
         // Update/Uninstall authority over a foreign provider. When mise omits
         // install_path, fall back to the runnable-only check above.
         if (!(await this.isWithinInstall(activeEntry, runnable.canonical))) {
-          return { application: { status: 'broken', ...(version ? { version } : {}) } }
+          return { application: broken }
         }
         if (!this.hasRequiredRuntimeDependencies(tool, runnable.canonical)) {
-          return { application: { status: 'broken', ...(version ? { version } : {}) } }
+          return { application: broken }
         }
-        return {
-          application: { status: 'applied', ...(version ? { version } : {}) },
-          mise: { path: runnable.path, ...(version ? { version } : {}) }
-        }
+        const applied: Extract<BinaryApplication, { status: 'applied' }> = { status: 'applied' }
+        if (version) applied.version = version
+        const mise: NonNullable<DerivedTool['mise']> = { path: runnable.path }
+        if (version) mise.version = version
+        return { application: applied, mise }
       }
 
       if (!(await hasExecutableCandidateShim(shimPath))) return { application: { status: 'absent' } }
@@ -648,21 +648,16 @@ export class BinaryManager extends BaseService {
     for (const name of names) {
       const derivedTool = derived.get(name)!
       const mise = derivedTool.mise
-      const availability: BinaryAvailability = mise
-        ? {
-            source: 'mise',
-            path: mise.path,
-            ...(mise.version ? { version: mise.version } : {})
-          }
-        : name in bundled
-          ? {
-              source: 'bundled',
-              path: application.getPath('cherry.bin', getBinaryName(name)),
-              ...(bundled[name] ? { version: bundled[name] } : {})
-            }
-          : system[name]
-            ? { source: 'system', path: system[name] }
-            : { source: 'none' }
+      let availability: BinaryAvailability
+      if (mise) {
+        availability = { source: 'mise', path: mise.path }
+        if (mise.version) availability.version = mise.version
+      } else if (name in bundled) {
+        availability = { source: 'bundled', path: application.getPath('cherry.bin', getBinaryName(name)) }
+        if (bundled[name]) availability.version = bundled[name]
+      } else {
+        availability = system[name] ? { source: 'system', path: system[name] } : { source: 'none' }
+      }
       const operation = operations[name]
       // External availability satisfies only untargeted failures; targeted
       // failures must remain visible so Retry repeats the requested version.
@@ -673,13 +668,12 @@ export class BinaryManager extends BaseService {
         (!derivedTool.application || derivedTool.application.status === 'absent') &&
         (availability.source === 'system' || availability.source === 'bundled')
       const staleInFlight = this.isStaleInFlightOperation(name, operation?.status)
-      snapshots[name] = {
-        name,
-        ...(definitionsByName.has(name) ? { definition: definitionsByName.get(name)! } : {}),
-        availability,
-        ...(derivedTool.application ? { application: derivedTool.application } : {}),
-        ...(operation && !staleFailedInstall && !staleInFlight ? { operation } : {})
-      }
+      const identity: Omit<BinaryToolSnapshot, 'availability'> = { name }
+      if (definitionsByName.has(name)) identity.definition = definitionsByName.get(name)!
+      const snapshot: BinaryToolSnapshot = { ...identity, availability }
+      if (derivedTool.application) snapshot.application = derivedTool.application
+      if (operation && !staleFailedInstall && !staleInFlight) snapshot.operation = operation
+      snapshots[name] = snapshot
     }
     return snapshots
   }
@@ -790,12 +784,14 @@ export class BinaryManager extends BaseService {
               logger.warn('Unable to measure installed tool size', { name, reason: measured.reason })
             }
             const current = cache.get<InstalledSizesCache>(INSTALLED_SIZES_CACHE_KEY)
+            let existingEntries: InstalledSizesCache['entries'] = {}
+            if (current?.revision === revision) existingEntries = current.entries
             cache.set<InstalledSizesCache>(
               INSTALLED_SIZES_CACHE_KEY,
               {
                 revision,
                 entries: {
-                  ...(current?.revision === revision ? current.entries : {}),
+                  ...existingEntries,
                   [name]: {
                     identity,
                     sizeBytes: measured.sizeBytes,
@@ -949,12 +945,10 @@ export class BinaryManager extends BaseService {
       ]
       const status = statusRules.find(([matches]) => matches)?.[1] ?? 'not_installed'
 
-      return {
-        name,
-        status,
-        ...(definition ? { recipe: definition.tool } : {}),
-        ...(version ? { version } : {})
-      }
+      const entry: ManagedCliInventoryEntry = { name, status }
+      if (definition) entry.recipe = definition.tool
+      if (version) entry.version = version
+      return entry
     })
 
     signal?.throwIfAborted()
@@ -1236,12 +1230,16 @@ export class BinaryManager extends BaseService {
     // cwd is always a throwaway tmp dir so mise never picks up a project-local
     // mise.toml from the main process's working directory.
     try {
-      return await execFileAsync(this.miseBin, args, {
+      const options: Pick<ExecFileOptions, 'cwd' | 'env' | 'timeout' | 'signal' | 'killSignal'> = {
         cwd: os.tmpdir(),
         env,
-        timeout: timeoutMs,
-        ...(opts?.signal ? { signal: opts.signal, killSignal: 'SIGKILL' as const } : {})
-      })
+        timeout: timeoutMs
+      }
+      if (opts?.signal) {
+        options.signal = opts.signal
+        options.killSignal = 'SIGKILL'
+      }
+      return await execFileAsync(this.miseBin, args, options)
     } catch (error) {
       if (error instanceof Error) {
         // A timeout kill leaves stderr at whatever progress line mise printed
@@ -1870,12 +1868,13 @@ export class BinaryManager extends BaseService {
     }
     if (!this.miseBin) {
       const error = new Error('Binary backend not available')
-      this.setOperation(name, {
+      const operation: Extract<BinaryOperation, { status: 'failed' }> = {
         status: 'failed',
         action: 'install',
-        error: error.message,
-        ...(targetVersion ? { targetVersion } : {})
-      })
+        error: error.message
+      }
+      if (targetVersion) operation.targetVersion = targetVersion
+      this.setOperation(name, operation)
       return Promise.reject(error)
     }
 
@@ -1956,12 +1955,13 @@ export class BinaryManager extends BaseService {
     if (outcome.kind === 'failed') {
       // Retain the target so Retry cannot silently clear an unmet version
       // through an applied or external name-only no-op.
-      this.setOperation(name, {
+      const operation: Extract<BinaryOperation, { status: 'failed' }> = {
         status: 'failed',
         action: 'install',
-        error: outcome.error,
-        ...(targetVersion ? { targetVersion } : {})
-      })
+        error: outcome.error
+      }
+      if (targetVersion) operation.targetVersion = targetVersion
+      this.setOperation(name, operation)
       throw new Error(outcome.error)
     }
     // Unknown name: validation found no fixed/custom recipe, so there is no card
@@ -2591,7 +2591,9 @@ export class BinaryManager extends BaseService {
         : typeof source.version === 'string'
           ? source.version
           : undefined
-    return { name: source.name, tool: source.tool, ...(requestedVersion ? { requestedVersion } : {}) }
+    const definition: CustomToolDefinition = { name: source.name, tool: source.tool }
+    if (requestedVersion) definition.requestedVersion = requestedVersion
+    return definition
   }
 
   /** A label for a skipped raw entry that never carried a usable name. */
