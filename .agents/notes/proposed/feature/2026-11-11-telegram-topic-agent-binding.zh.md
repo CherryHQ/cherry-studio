@@ -14,20 +14,20 @@ Telegram 渠道保持一个连接和一个所属 Agent。论坛话题可以映�
 
 ### 配置
 
-- Telegram 渠道配置新增 `topic_agents`：从论坛 thread id（数字形式的 `message_thread_id`）到 agent id 的映射。该字段可选，默认为空，因此现有渠道行为不变，但会出现下文所述的按话题拆分历史。
+- Telegram 渠道配置新增 `topic_agents`：从按聊天区分的话题键（`chatId:threadId`，即数字形式的聊天 id 加 `message_thread_id`）到 agent id 的映射。thread id 仅在单个聊天内唯一，按聊天区分键可以在一个渠道允许多个群组时避免映射冲突。该字段可选，默认为空，因此现有渠道行为不变，但会出现下文所述的按话题拆分历史。
 - 消息分发时从渠道记录中读取该映射，因此修改后无需重连机器人即可生效。
 
 ### 分发
 
 - 入站的 Telegram 消息和命令携带 thread id。每个论坛话题拥有独立的对话（`chatId:threadId`），同一超级群组中的不同话题不会共享会话历史。
 - Handler 按消息解析应答的 Agent。映射过的话题使用其 Agent；未映射的话题，或映射的 Agent 不存在或未激活，则使用渠道 Agent，并记录一条警告日志。
-- 话题消息的回复、输入中状态和流式草稿都发送到该话题的 thread 中。
+- 话题消息的回复和输入中状态发送到该话题的 thread 中。流式草稿依赖 Telegram 的 `sendMessageDraft`，其 `chat_id` 仅接受私聊，因此在 Telegram 提供群组流式机制之前，超级群组话题退化为输入中状态加最终消息。
 - 会话归属仍按应答 Agent 校验，因此已持久化、属于其他话题 Agent 的会话会被替换，而不是复用。
 
 ### 命令与界面
 
 - `/topics` 在发送命令的话题中回复已配置的话题与 Agent 对应关系；若未配置，则说明尚未配置。
-- Telegram 渠道表单新增"话题 Agent"区域：数字形式的 thread id、Agent 选择器、添加与删除。保存前会拒绝非数字的 thread id 和重复的 id。
+- Telegram 渠道表单新增"话题 Agent"区域：聊天选择器（取自渠道允许的聊天 id）、数字形式的 thread id、Agent 选择器、添加与删除。保存前会拒绝非数字的 thread id 和重复的聊天/话题组合。
 
 ## Alternatives considered
 
@@ -44,7 +44,7 @@ Telegram 渠道保持一个连接和一个所属 Agent。论坛话题可以映�
 - AC3 — 对话题消息的回复通过 `message_thread_id` 发送到该话题的 thread 中；话题之外的消息发送时不带 thread id。（verification: unit；owner: Telegram adapter）
 - AC4 — 当映射的话题 Agent 不存在或未激活时，消息由渠道 Agent 回复，并记录一条警告日志。（verification: unit；owner: channel message handler）
 - AC5 — `/topics` 在发送命令的话题中回复，列出每个已映射的 thread id 及其 Agent 名称；若未配置，则说明尚未配置话题 Agent。（verification: unit；owner: channel message handler）
-- AC6 — Telegram 渠道表单可添加和删除话题 Agent 映射，拒绝非数字的 thread id 与重复的 id，并将映射保存为 `topic_agents`。（verification: renderer；owner: channel settings UI）
+- AC6 — Telegram 渠道表单可添加和删除话题 Agent 映射，拒绝非数字的 thread id 与重复的聊天/话题组合，并将映射保存为 `topic_agents`。（verification: renderer；owner: channel settings UI）
 
 ## Risks
 

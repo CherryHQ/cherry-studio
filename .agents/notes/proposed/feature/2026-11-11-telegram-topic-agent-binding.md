@@ -14,20 +14,20 @@ A Telegram channel keeps one connection and one owning agent. A forum topic can 
 
 ### Configuration
 
-- The Telegram channel config gains `topic_agents`: a map from forum thread id (numeric `message_thread_id`) to agent id. It is optional and defaults to empty, so existing channels behave as before apart from the per-topic history split described below.
+- The Telegram channel config gains `topic_agents`: a map from a chat-scoped topic key (`chatId:threadId`, the numeric chat id plus `message_thread_id`) to agent id. Thread ids are only unique within a chat, so keying by chat keeps mappings unambiguous when one channel allows several groups. It is optional and defaults to empty, so existing channels behave as before apart from the per-topic history split described below.
 - The map is read from the channel row when a message is dispatched, so an edit takes effect without reconnecting the bot.
 
 ### Dispatch
 
 - Inbound Telegram messages and commands carry the thread id. Each forum topic gets its own conversation (`chatId:threadId`), so topics in one supergroup never share session history.
 - The handler resolves the answering agent per message. A mapped topic uses its agent. An unmapped topic, or a mapped agent that is missing or not active, uses the channel agent; the fallback logs a warning.
-- Replies, typing indicators, and stream drafts for a topic message are sent into that topic's thread.
+- Replies and typing indicators for a topic message are sent into that topic's thread. Stream drafts follow Telegram's `sendMessageDraft`, whose `chat_id` accepts private chats only, so supergroup topics fall back to typing indicators plus the final message until Telegram offers a group streaming mechanism.
 - Session ownership is already checked against the answering agent, so a persisted session that belongs to a previous topic agent is replaced rather than reused.
 
 ### Commands and UI
 
 - `/topics` replies in the topic where it was sent with the configured topic-to-agent assignments, or says that none are configured.
-- The Telegram channel form gets a "Topic agents" section: a numeric thread id, an agent select, add and remove. Non-numeric thread ids and duplicate ids are rejected before saving.
+- The Telegram channel form gets a "Topic agents" section: a chat select (from the channel's allowed chat ids), a numeric thread id, an agent select, add and remove. Non-numeric thread ids and duplicate chat/thread pairs are rejected before saving.
 
 ## Alternatives considered
 
@@ -44,7 +44,7 @@ A Telegram channel keeps one connection and one owning agent. A forum topic can 
 - AC3 — A reply to a topic message is posted into that topic's thread through `message_thread_id`, and a message outside a topic is sent without a thread id. (verification: unit; owner: Telegram adapter)
 - AC4 — When a mapped topic agent is missing or not active, the message is answered by the channel agent and a warning is logged. (verification: unit; owner: channel message handler)
 - AC5 — `/topics` replies in the topic where it was sent, listing each mapped thread id with its agent name, or states that no topic agents are configured. (verification: unit; owner: channel message handler)
-- AC6 — The Telegram channel form adds and removes topic-agent mappings, rejects non-numeric thread ids and duplicates, and saves the map as `topic_agents`. (verification: renderer; owner: channel settings UI)
+- AC6 — The Telegram channel form adds and removes topic-agent mappings, rejects non-numeric thread ids and duplicate chat/thread pairs, and saves the map as `topic_agents`. (verification: renderer; owner: channel settings UI)
 
 ## Risks
 
