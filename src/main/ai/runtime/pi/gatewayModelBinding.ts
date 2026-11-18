@@ -62,63 +62,62 @@ export async function createPiGatewayModelBinding(
     }))
   // Native provider re-registration replaces its models and stream handler.
   const providerName = sharedModels ? `cherry-gateway/${input.sessionId}/${randomUUID()}` : provider.id
-  modelRuntime.registerProvider(providerName, {
+  const registration: Parameters<ModelRuntime['registerProvider']>[1] = {
     name: provider.name,
     api,
     baseUrl: formatPiBaseUrl(gateway.baseUrl, api),
     // Pi interpolates configured keys; supply the gateway key through runtime credentials instead.
-    apiKey: 'cherry-managed-runtime-key',
-    models: [
-      {
-        id: modelId,
-        name: model.name,
-        reasoning: model.capabilities.includes(MODEL_CAPABILITY.REASONING) || model.reasoning !== undefined,
-        input: modalities,
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-        contextWindow: resolveAgentContextWindow(model),
-        maxTokens: model.maxOutputTokens ?? 8_192,
-        // CherryIN can omit the signature delta on thinking blocks that must be replayed.
-        ...(provider.id === 'cherryin' && api === 'anthropic-messages' ? { compat: { allowEmptySignature: true } } : {})
-      }
-    ],
-    headers: {
-      ...gateway.usageHeaders,
-      [CHERRY_REASONING_EFFORT_HEADER]: input.reasoningEffort ?? 'default',
-      ...(input.serviceTier ? { [CHERRY_SERVICE_TIER_HEADER]: input.serviceTier } : {}),
-      [CHERRY_FAST_MODE_HEADER]: String(input.fastMode === true)
-    },
-    // Pi's session retry policy owns retries; neither gateway nor HTTP client retries a step.
-    streamSimple: (model, context, options) => {
-      const parent = getPiTraceContext(options?.telemetry)
-      const capture = parent
-        ? application.get('ApiGatewayService').captureAgentSessionUsage(input.sessionId, undefined, parent)
-        : undefined
-      try {
-        // Native reasoning can enlarge per-call output caps before the gateway receives them.
-        const stream = streamSimple(model, context, {
-          ...options,
-          ...(capture && { headers: { ...options?.headers, ...capture.headers } }),
-          reasoning: undefined,
-          maxRetries: 0
+    apiKey: 'cherry-managed-runtime-key'
+  }
+  const definition: NonNullable<Parameters<ModelRuntime['registerProvider']>[1]['models']>[number] = {
+    id: modelId,
+    name: model.name,
+    reasoning: model.capabilities.includes(MODEL_CAPABILITY.REASONING) || model.reasoning !== undefined,
+    input: modalities,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: resolveAgentContextWindow(model),
+    maxTokens: model.maxOutputTokens ?? 8_192
+  }
+  // CherryIN can omit the signature delta on thinking blocks that must be replayed.
+  if (provider.id === 'cherryin' && api === 'anthropic-messages') definition.compat = { allowEmptySignature: true }
+  registration.models = [definition]
+  const headers: NonNullable<Parameters<ModelRuntime['registerProvider']>[1]['headers']> = {
+    ...gateway.usageHeaders,
+    [CHERRY_REASONING_EFFORT_HEADER]: input.reasoningEffort ?? 'default'
+  }
+  if (input.serviceTier) headers[CHERRY_SERVICE_TIER_HEADER] = input.serviceTier
+  headers[CHERRY_FAST_MODE_HEADER] = String(input.fastMode === true)
+  registration.headers = headers
+  // Pi's session retry policy owns retries; neither gateway nor HTTP client retries a step.
+  registration.streamSimple = (model, context, options) => {
+    const parent = getPiTraceContext(options?.telemetry)
+    const capture = parent
+      ? application.get('ApiGatewayService').captureAgentSessionUsage(input.sessionId, undefined, parent)
+      : undefined
+    try {
+      // Native reasoning can enlarge per-call output caps before the gateway receives them.
+      const stream = streamSimple(model, context, {
+        ...options,
+        ...(capture && { headers: { ...options?.headers, ...capture.headers } }),
+        reasoning: undefined,
+        maxRetries: 0
+      })
+      void stream
+        .result()
+        .then((message) => {
+          if (!options?.readOnlyFork) onUsage?.(message.usage, options?.sessionId, message.responseId)
         })
-        void stream
-          .result()
-          .then((message) => {
-            if (!options?.readOnlyFork) onUsage?.(message.usage, options?.sessionId, message.responseId)
-          })
-          .catch((error) => {
-            loggerService
-              .withContext('PiGatewayModelBinding')
-              .error('Failed to observe native model response', { error })
-          })
-          .finally(() => capture?.release())
-        return stream
-      } catch (error) {
-        capture?.release()
-        throw error
-      }
+        .catch((error) => {
+          loggerService.withContext('PiGatewayModelBinding').error('Failed to observe native model response', { error })
+        })
+        .finally(() => capture?.release())
+      return stream
+    } catch (error) {
+      capture?.release()
+      throw error
     }
-  })
+  }
+  modelRuntime.registerProvider(providerName, registration)
   await modelRuntime.setRuntimeApiKey(providerName, gateway.apiKey)
   const registered = modelRuntime.getModel(providerName, modelId)
   if (!registered) throw new Error(`Pi gateway model ${modelId} was not registered`)

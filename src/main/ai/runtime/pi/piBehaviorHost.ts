@@ -1,5 +1,6 @@
 import { writeFile } from 'node:fs/promises'
 
+import type { JSONObject } from '@ai-sdk/provider'
 import { isToolUIPart } from 'ai'
 import * as z from 'zod'
 
@@ -191,7 +192,10 @@ export async function createPiInteractionPorts(
         signal,
         resolve
       })
-      if (pending)
+      if (pending) {
+        const cherry: JSONObject = { transport: PI_TRANSPORT, toolName: name }
+        if (parentToolCallId) cherry.parentToolCallId = parentToolCallId
+        if (details !== undefined) cherry.commandPolicy = z.json().parse(details)
         options.emit({
           type: 'tool-approval-request',
           request: {
@@ -201,15 +205,11 @@ export async function createPiInteractionPorts(
             input: args,
             presentation,
             providerMetadata: {
-              cherry: {
-                transport: PI_TRANSPORT,
-                toolName: name,
-                ...(parentToolCallId ? { parentToolCallId } : {}),
-                ...(details === undefined ? {} : { commandPolicy: z.json().parse(details) })
-              }
+              cherry
             }
           }
         })
+      }
     })
     signal.throwIfAborted()
     return decision

@@ -11,6 +11,7 @@ import type {
   AgentRuntimeEvent as PiEvent,
   PiObservation,
   PiRuntime,
+  PiSessionOptions,
   PiThreadHandle
 } from '@cherrystudio/agent-runtime-pi'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
@@ -331,6 +332,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         return child.projection.context.sessionId
       }
     })
+    const settings: NonNullable<PiSessionOptions['settings']> = {}
+    if (shellPath) settings.shellPath = shellPath
+    if (loginPathPrefix) settings.shellCommandPrefix = loginPathPrefix
     const options = {
       ...binding,
       cwd: workspacePath,
@@ -344,10 +348,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       tools: managedShellTools,
       excludeTools: [...this.disabledTools],
       behavior,
-      settings: {
-        ...(shellPath ? { shellPath } : {}),
-        ...(loginPathPrefix ? { shellCommandPrefix: loginPathPrefix } : {})
-      },
+      settings,
       extensionFactories: [
         createPiIdentityExtension(agentDataPath),
         pi.createCodemodeExtension({ models: false }),
