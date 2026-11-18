@@ -37,6 +37,7 @@ export class LocalRuntimeDriver implements AgentSessionRuntimeDriver {
     return agent.configuration?.localRuntime?.enabled ? `runtime:${agent.id}` : undefined
   }
   readonly type = 'local'
+  readonly contentSource = 'chunks' as const
   readonly capabilities = ['agent-session'] as const
   validateSession(session: AgentSessionEntity) {
     const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined

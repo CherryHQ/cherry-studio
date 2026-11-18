@@ -79,6 +79,9 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
 
 1. **Driver** (`AgentSessionRuntimeDriver`) — required members:
    - `type` (the `AgentType` literal)
+   - Optional `contentSource: 'chunks'` selects the existing Main SDK chunk reader;
+     omission selects authoritative messages. The host selects the source by this
+     capability, not by runtime type. Local CLI drivers declare `chunks`.
    - `validateSession(session)` — throw if the session can't be served
      (missing workspace, agent, model, unusable provider). Must be
      **side-effect free**: it runs on every dispatch, so it must not consume
@@ -97,8 +100,9 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
 
 2. **Connection** (`AgentRuntimeConnection`) — required members:
    - `events` — an `AsyncIterable<AgentRuntimeEvent>`. Minimum viable event
-     mapping: `message-projection` for authoritative Agent content, `chunk` for
-     host controls and display metadata, `turn-complete` to settle the
+     mapping: `message-projection` for authoritative content by default, or `chunk`
+     for content when the driver declares `contentSource: 'chunks'`. Both paths use
+     `chunk` for host controls and display metadata, `turn-complete` to settle the
      host turn (the host closes the UI turn on this event — a runtime that
      never emits it strands the turn), `resume-token` whenever the runtime
      learns a recovery handle, `error` on failure.
@@ -160,7 +164,9 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
    carrier, tool snippets, skills transport, and the representation of base/append.
    See [System prompt ownership](./agent-session-runtime.md#system-prompt-ownership).
 
-4. **Content producer** — choose one source per execution. Common runtime adapters
+4. **Content producer** — choose one source per execution through the driver's
+   `contentSource` capability. Chunk drivers emit SDK content chunks for Main's
+   `pipeStreamLoop` to accumulate with `readUIMessageStream`. Message-source adapters
    expose AI SDK `RuntimeMessage` values through observation. Native deltas use
    `RuntimeMessageStream` before observer fanout; authoritative native snapshots
    can produce messages directly. Main uses `ThreadMessageProjection` and product

@@ -16,7 +16,7 @@ sources:
 
 ## Ownership and message model
 
-Root conversations and children use `CherryUIMessage`. Each execution selects one content source: chunk streams use `readUIMessageStream` in `pipeStreamLoop`; all Agent roots use authoritative message views composed with host display state by `RootMessageProjection`. `pipeMessageStream` forwards those views and execution metadata. Their runtime adapters accumulate native content into SDK messages before observer fan-out. Each native owner has an independent projection. Child messages come from `ThreadMessageProjection`, Main-owned reply composition, and native archive reconciliation. The renderer receives message snapshots and patches, without running another SDK reader.
+Root conversations and children use `CherryUIMessage`. Each execution selects one content source: chunk streams use `readUIMessageStream` in `pipeStreamLoop`; message-source Agent roots use authoritative message views composed with host display state by `RootMessageProjection`. Agent drivers default to messages; local CLI drivers declare `contentSource: 'chunks'`, selecting the Main SDK reader by capability rather than runtime type. Both paths publish through `TopicMessageProjection`. `pipeMessageStream` forwards those views and execution metadata. Message-source runtime adapters accumulate native content into SDK messages before observer fan-out. Each native owner has an independent projection. Child messages come from `ThreadMessageProjection`, Main-owned reply composition, and native archive reconciliation. The renderer receives message snapshots and patches, without running another SDK reader.
 
 ```text
 Root message source → TopicMessageProjection ──┐

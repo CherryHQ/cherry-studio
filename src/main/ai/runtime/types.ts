@@ -308,6 +308,8 @@ export interface AgentRuntimeConnection {
 
 export interface AgentSessionRuntimeDriver {
   readonly type: string
+  /** Omit for authoritative message projections; declare chunks for SDK delta accumulation. */
+  readonly contentSource?: 'chunks'
   /** Local CLI runtimes key execution identity by agent rather than by a spawned process. */
   getExecutionId?(agent: AgentEntity): ExecutionId | undefined
   /** Native artifact ownership and checkpoint remapping before session recovery. */

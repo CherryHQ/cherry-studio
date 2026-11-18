@@ -78,6 +78,7 @@ import {
 } from '@shared/data/types/model'
 import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { AsyncEventQueue } from '@shared/utils/async'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
 import { normalizePromptSuggestion } from '../runtime/promptSuggestion'
@@ -1212,6 +1213,40 @@ export class AgentSessionRuntimeService extends BaseService {
       // Routed through the machine so the settle is a real transition (`awaiting-persistence`)
       // rather than an out-of-band mutation the busy/live queries cannot see.
       this.applyRuntimeStateEvent(entry, { type: 'runtime-terminal', turn, outcome: { status: 'paused' } })
+    }
+    if (runtimeDriverRegistry.getAgentSessionDriver(entry.agentType)?.contentSource === 'chunks') {
+      const queue = new AsyncEventQueue<{ chunk: UIMessageChunk } | { error: unknown }>()
+      const reader = queue[Symbol.asyncIterator]()
+      return {
+        kind: 'chunks',
+        stream: new ReadableStream<UIMessageChunk>(
+          {
+            start: () => {
+              void start({
+                enqueue: (chunk) => queue.push({ chunk }),
+                message: () => {},
+                close: () => queue.close(),
+                error: (error) => {
+                  queue.push({ error })
+                  queue.close()
+                }
+              })
+            },
+            async pull(controller) {
+              const next = await reader.next()
+              if (next.done) controller.close()
+              else if ('error' in next.value) controller.error(next.value.error)
+              else controller.enqueue(next.value.chunk)
+            },
+            cancel: () => {
+              queue.close()
+              cancel()
+            }
+          },
+          // Surface the original failure only after all preceding content has drained.
+          { highWaterMark: 0 }
+        )
+      }
     }
     return {
       kind: 'messages',

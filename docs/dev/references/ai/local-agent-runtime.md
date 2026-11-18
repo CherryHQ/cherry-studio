@@ -137,7 +137,11 @@ provider is required. “Local” refers to the CLI process, not an offline mode
   identifier when reported by the CLI.
 - `AgentSessionRuntimeService` owns turn scheduling, approvals, persistence and
   connection disposal. The local driver maps ACP, Claude Agent SDK, and Codex
-  App Server into the existing runtime event contract.
+  App Server into the existing runtime event contract. `LocalRuntimeDriver` declares
+  `contentSource: 'chunks'`; the host selects the existing Main SDK reader by this
+  capability, not by runtime type. Main accumulates the content chunks and publishes
+  the same shared message projections to desktop consumers; persistence ownership
+  is unchanged.
 - The CLI owns authentication, project settings, MCP and Skills. Selecting a native
   model writes its default configuration and the Agent record together; failure
   restores the file. Gateway selections retain their Cherry model identity separately from the native

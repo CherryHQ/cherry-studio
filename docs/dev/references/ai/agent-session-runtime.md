@@ -779,7 +779,7 @@ tombstones in the same database transaction. Cached checkpoints cannot overwrite
 tombstones; live projections and reconnect recovery exclude deleted owners, including
 older dangling checkpoints, so replay cannot attach deleted content to a later reply.
 Main adds Cherry display metadata before publishing `CherryUIMessage`.
-All Agent drivers use the `messages` source for the entire execution. `RootMessageProjection`
+The Claude Code driver uses the `messages` source for the entire execution. `RootMessageProjection`
 owns host approval and data-part display; `pipeMessageStream` forwards its body with
 execution metadata and never accumulates a second text/tool body. Publishing, listeners and persistence receive the same
 `CherryUIMessage`. The package's `ClaudeControlState` owns native lifecycle interpretation;
