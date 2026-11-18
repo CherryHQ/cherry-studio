@@ -72,6 +72,33 @@ describe('Qwen Anthropic web tools', () => {
 })
 
 describe('server-tool model eligibility', () => {
+  describe.each(['dashscope', 'dashscope-copy'])('%s Responses search delivery', (providerId) => {
+    const preset = bundledProviders.providers.find((p) => p.id === 'dashscope')! as unknown as Provider
+    const host = { ...preset, id: providerId, presetProviderId: 'dashscope' }
+
+    it('withholds native qwen-plus search on Responses', () => {
+      expect(isBuiltinWebSearchAvailable(model('qwen-plus'), host, ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe(false)
+    })
+
+    it('withholds native qwen-plus Responses search even for all-chat declarations', () => {
+      expect(
+        isBuiltinWebSearchAvailable(
+          model('qwen-plus'),
+          { ...host, serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'all-chat-models' }] },
+          ENDPOINT_TYPE.OPENAI_RESPONSES
+        )
+      ).toBe(false)
+    })
+
+    it('keeps native qwen-plus Chat search available', () => {
+      expect(isBuiltinWebSearchAvailable(model('qwen-plus'), host, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe(true)
+    })
+
+    it('keeps native qwen3-5-plus Responses search available', () => {
+      expect(isBuiltinWebSearchAvailable(model('qwen3-5-plus'), host, ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe(true)
+    })
+  })
+
   it.each([
     ['dashscope', 'qwen3-max-preview'],
     ['openai', 'gpt-5.2-chat-latest'],

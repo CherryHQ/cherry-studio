@@ -472,6 +472,42 @@ describe('DashScope routed search delivery', () => {
     expect(JSON.stringify(options)).not.toContain('"search_options"')
   }
 
+  describe.each(['dashscope', 'dashscope-copy'])('%s Responses aliases', (providerId) => {
+    describe.each(['qwen-plus', 'qwen-flash', 'qwen-plus-character'])('%s', (wireId) => {
+      it.each([true, false])('uses client/none when client search readiness is %s', (ready) => {
+        const p = host(providerId)
+        for (const apiModelId of [wireId, '']) {
+          const m = hosted(wireId, providerId, apiModelId)
+          const result = delivery(m, p, responses, ready)
+          expect(buildProviderBuiltinWebSearchConfig('openai', webSearchConfig, m, p)).toBeUndefined()
+          expectNoChatSearch(result.options)
+          expect(result.route.webSearch).toBe(ready ? 'client' : 'none')
+        }
+      })
+    })
+
+    it('keeps qwen-plus Chat search on the server', () => {
+      const p = host(providerId)
+      for (const apiModelId of ['qwen-plus', '']) {
+        const m = hosted('qwen-plus', providerId, apiModelId)
+        const result = delivery(m, p, chat, true)
+        expect(result.route.webSearch).toBe('server')
+        expect(result.options).toMatchObject({ [providerId]: { enable_search: true } })
+      }
+    })
+
+    it('keeps qwen3-5-plus Responses search on the server', () => {
+      const p = host(providerId)
+      for (const apiModelId of ['qwen3-5-plus', '']) {
+        const m = hosted('qwen3-5-plus', providerId, apiModelId)
+        const result = delivery(m, p, responses, true)
+        expect(result.route.webSearch).toBe('server')
+        expectNoChatSearch(result.options)
+        expect(buildProviderBuiltinWebSearchConfig('openai', webSearchConfig, m, p)).toEqual({ openai: {} })
+      }
+    })
+  })
+
   describe.each(['dashscope', 'user-copy-1'])('%s', (providerId) => {
     it.each(['glm-5.2', 'kimi/kimi-k3', 'kimi-k3'])(
       'routes %s through client/none on Chat and server on Responses',
