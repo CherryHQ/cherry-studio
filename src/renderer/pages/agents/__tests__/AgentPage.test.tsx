@@ -734,6 +734,7 @@ vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
 }))
 
 import { useTabSelfVisuals } from '@renderer/hooks/tab'
+import { handOffAgentDraft, takeAgentDraftHandoffs } from '@renderer/services/agentDraftHandoff'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 
@@ -992,6 +993,65 @@ describe('AgentPage', () => {
     render(<AgentPage />)
 
     await waitFor(() => expect(agentPageMocks.composerLaunchOptions).toBeUndefined())
+  })
+
+  it('keeps a handed-off requirement when the composer drains the queue during Skill preparation', async () => {
+    agentPageMocks.agents = []
+    const skillSession = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-skill-race',
+      agentId: 'cherry-assistant',
+      workspaceId: undefined,
+      workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+    }
+    agentPageMocks.routeSearch = { intent: 'skill', sessionId: skillSession.id, skillId: 'skill-1' }
+    activeSessionMocks.session = skillSession
+    activeSessionMocks.sessionSource = 'query'
+    handOffAgentDraft(skillSession.id, {
+      text: 'Build me a habit tracker',
+      tokens: [],
+      files: [],
+      knowledgeBaseIds: []
+    })
+
+    // Hold the Skill fetch open so the composer could mount (and drain the one-shot
+    // queue) before preparation finishes — the requirement must survive that.
+    let resolveSkill!: (skill: unknown) => void
+    agentPageMocks.dataApiGet.mockImplementation(async (path: string) => {
+      if (path === '/skills/skill-1') {
+        return await new Promise((resolve) => {
+          resolveSkill = resolve
+        })
+      }
+      return agentPageMocks.workspace
+    })
+
+    render(<AgentPage />)
+    await waitFor(() => expect(agentPageMocks.dataApiGet).toHaveBeenCalledWith('/skills/skill-1'))
+
+    // The composer raced us and took nothing: the intent reserved the handoff first.
+    expect(takeAgentDraftHandoffs(skillSession.id)).toEqual([])
+
+    resolveSkill({
+      id: 'skill-1',
+      name: 'Writer',
+      description: 'Draft clear prose',
+      folderName: 'writer',
+      source: 'local',
+      sourceUrl: null,
+      namespace: null,
+      author: null,
+      version: null,
+      sourceTags: [],
+      contentHash: 'hash',
+      isGlobalEnabled: true,
+      isEnabled: true,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    })
+
+    await waitFor(() => expect(agentPageMocks.composerLaunchOptions).toBeDefined())
+    expect(agentPageMocks.composerLaunchOptions?.initialDraft?.text).toBe('Build me a habit tracker')
   })
 
   it('clears an invalid Skill intent without creating a composer draft', async () => {

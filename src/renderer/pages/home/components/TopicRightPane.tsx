@@ -154,7 +154,7 @@ function TopicMiniAppPreviewRightPanel({ active, scope }: RightPanelComponentPro
   if (!scope.topicId) return null
   return (
     <Suspense fallback={null}>
-      <MiniAppPreviewPane open={active} topicId={scope.topicId} />
+      <MiniAppPreviewPane open={active} sessionId={scope.topicId} />
     </Suspense>
   )
 }

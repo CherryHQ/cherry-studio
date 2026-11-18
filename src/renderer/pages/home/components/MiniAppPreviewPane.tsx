@@ -13,20 +13,23 @@ const REFRESH_INTERVAL_MS = 5000
 
 type PreviewSummary = Awaited<ReturnType<typeof loadPreviews>>[number]
 
-async function loadPreviews(topicId: string) {
-  return ipcApi.request('mini_app.authoring.list', { sessionId: topicId })
+async function loadPreviews(sessionId: string) {
+  return ipcApi.request('mini_app.authoring.list', { sessionId })
 }
 
 /**
- * The agent-authored preview pane (issue #21646, stage 2): the one renderer surface
- * for previews the session's `mini_app` tool opened. It lists the topic's previews,
+ * The agent-authored preview pane (issue #21646, stage 2): the renderer surface for
+ * previews the session's `mini_app` tool opened, mounted by BOTH the home topics
+ * right pane (keyed by topic id) and the agents page right pane (keyed by agent
+ * session id) — previews are bound per session, so the same component serves both.
+ * It lists the session's previews,
  * prepares the selected one's partition exactly like an installed app
  * (`mini_app.runtime.prepare` — the webview may not attach before the protocol
  * handler and network policy are on the partition), and closes previews through
  * `mini_app.authoring.close`. Opening stays tool-only: there is deliberately no
  * "open" here, so no renderer path can spend an artifact token it never held.
  */
-export const MiniAppPreviewPane: FC<{ topicId: string; open: boolean }> = ({ topicId, open }) => {
+export const MiniAppPreviewPane: FC<{ sessionId: string; open: boolean }> = ({ sessionId, open }) => {
   const { t } = useTranslation()
   const [previews, setPreviews] = useState<PreviewSummary[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -35,7 +38,7 @@ export const MiniAppPreviewPane: FC<{ topicId: string; open: boolean }> = ({ top
 
   const refresh = useCallback(async () => {
     try {
-      const list = await loadPreviews(topicId)
+      const list = await loadPreviews(sessionId)
       setPreviews(list)
       setSelectedId((current) =>
         current && list.some((p) => p.previewId === current) ? current : (list[0]?.previewId ?? null)
@@ -43,7 +46,7 @@ export const MiniAppPreviewPane: FC<{ topicId: string; open: boolean }> = ({ top
     } catch (error) {
       logger.warn('Failed to list mini app previews', { error })
     }
-  }, [topicId])
+  }, [sessionId])
 
   useEffect(() => {
     if (!open) return
@@ -81,13 +84,13 @@ export const MiniAppPreviewPane: FC<{ topicId: string; open: boolean }> = ({ top
   const close = useCallback(
     async (previewId: string) => {
       try {
-        await ipcApi.request('mini_app.authoring.close', { sessionId: topicId, previewId })
+        await ipcApi.request('mini_app.authoring.close', { sessionId, previewId })
       } catch (error) {
         logger.warn('Failed to close mini app preview', { error })
       }
       await refresh()
     },
-    [topicId, refresh]
+    [sessionId, refresh]
   )
 
   return (
