@@ -26,8 +26,15 @@ import { useReorder } from '../useReorder'
 // --- dataApiService mock ---
 // We mock at the `dataApiService.*` boundary (not `useMutation`) so the
 // observable request shape matches what the server would receive.
-const patchMock = vi.fn<(path: string, options?: { body?: unknown; query?: unknown }) => Promise<unknown>>()
-const getMock = vi.fn<(path: string, options?: { query?: unknown }) => Promise<unknown>>()
+const patchMock =
+  vi.fn<(path: string, options?: { body?: unknown; query?: unknown }) => Promise<Record<string, never>>>()
+const getMock =
+  vi.fn<
+    (
+      path: string,
+      options?: { query?: unknown }
+    ) => Promise<Item[] | (CollectionValue & { total?: number; nextCursor?: string | null })>
+  >()
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {
@@ -181,12 +188,13 @@ describe('useReorder - template collection paths', () => {
     const template = '/prompt-bindings/:targetType/:targetId' as const
     const resolved = '/prompt-bindings/assistant/assistant-1'
     const initial: Item[] = [{ id: 'a' }, { id: 'b' }]
+    getMock.mockResolvedValue(initial)
     const { Wrapper, cache } = createSWRTestWrapper([[[resolved], initial]])
     patchMock.mockResolvedValue({})
 
     const { result } = renderHook(
       () => {
-        useSWR([resolved], ([path]) => getMock(path, {}) as Promise<Item[]>, {
+        useSWR([resolved], ([path]) => getMock(path, {}), {
           revalidateOnMount: false,
           revalidateIfStale: false,
           revalidateOnFocus: false,
@@ -280,7 +288,7 @@ describe('useReorder - isPending toggle', () => {
     const initial: CollectionValue = { items: [{ id: 'a' }, { id: 'b' }] }
     const { Wrapper } = makeWrapper(initial)
 
-    let resolvePatch: (v: unknown) => void = () => {}
+    let resolvePatch: (v: Awaited<ReturnType<typeof patchMock>>) => void = () => {}
     patchMock.mockImplementation(
       () =>
         new Promise((resolve) => {

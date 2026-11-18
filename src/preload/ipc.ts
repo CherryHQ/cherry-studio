@@ -1,5 +1,6 @@
 import { ipcRenderer, type IpcRendererEvent } from 'electron'
 
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
 import { IpcChannel } from '@shared/IpcChannel'
 
 /**
@@ -11,7 +12,7 @@ import { IpcChannel } from '@shared/IpcChannel'
  * the raw transport that crosses the contextBridge.
  */
 export const ipcApi = {
-  request: (route: string, input?: unknown, meta?: unknown): Promise<unknown> =>
+  request: (route: string, input?: unknown, meta?: unknown): Promise<IpcResult<unknown>> =>
     ipcRenderer.invoke(IpcChannel.IpcApi_Request, route, input, meta),
 
   on: (event: string, callback: (payload: unknown) => void): (() => void) => {

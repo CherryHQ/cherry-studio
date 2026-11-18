@@ -204,7 +204,7 @@ type Props = {
   externalContextControls?: boolean
   sendMessage: (message?: { text: string }, options?: AgentComposerSendOptions) => Promise<boolean | void>
   stop: () => Promise<void>
-  onCreateEmptySession?: () => void | Promise<unknown>
+  onCreateEmptySession?: () => void | Promise<void>
   onAgentChange?: (agentId: string | null) => void | Promise<void>
   agentChanging?: boolean
   canChangeAgent?: boolean

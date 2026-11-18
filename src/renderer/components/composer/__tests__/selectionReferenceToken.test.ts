@@ -23,10 +23,10 @@ const t = (key: string, options?: Record<string, unknown>) =>
   options ? `${key}(${Object.values(options).join(',')})` : key
 
 /** Mirrors the office-transform skill's side: find the fence, JSON.parse its body. */
-function parseSelectionRefFence(promptText: string | undefined): unknown {
+function parseSelectionRefFence(promptText: string | undefined): SelectionReference {
   const match = /^```selection-ref\n([\s\S]*)\n```$/.exec(promptText ?? '')
   if (!match) throw new Error(`promptText is not a selection-ref fenced block: ${promptText}`)
-  return JSON.parse(match[1])
+  return SelectionReferenceSchema.parse(JSON.parse(match[1]))
 }
 
 describe('createSelectionReferenceToken', () => {
@@ -34,7 +34,6 @@ describe('createSelectionReferenceToken', () => {
     const token = createSelectionReferenceToken(XLSX_REFERENCE, t)
 
     expect(parseSelectionRefFence(token.promptText)).toEqual(XLSX_REFERENCE)
-    expect(SelectionReferenceSchema.parse(parseSelectionRefFence(token.promptText))).toEqual(XLSX_REFERENCE)
   })
 
   it('keeps the fence body on a single line so the block stays greppable', () => {
@@ -86,7 +85,7 @@ describe('createSelectionReferenceToken', () => {
   it('attaches a document comment beside the anchor and shows it on the chip', () => {
     const commented = { ...XLSX_REFERENCE, comment: 'Recalculate with the March numbers' }
     const token = createSelectionReferenceToken(commented, t)
-    const parsed = SelectionReferenceSchema.parse(parseSelectionRefFence(token.promptText))
+    const parsed = parseSelectionRefFence(token.promptText)
 
     expect(parsed.anchor).toEqual(XLSX_REFERENCE.anchor)
     expect(parsed.comment).toBe('Recalculate with the March numbers')

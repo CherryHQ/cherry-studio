@@ -70,7 +70,8 @@ describe('createKimiWebSearchTool', () => {
     const runFiber = vi.fn(async () => '----MOONSHOT ENCRYPTED BEGIN----payload')
     const kimiTool = createKimiWebSearchTool(runFiber)
 
-    const output = await (kimiTool.execute as (i: unknown, o: unknown) => Promise<unknown>)({ query: 'q' }, {})
+    if (!kimiTool.execute) throw new Error('Kimi search tool has no executor')
+    const output = await kimiTool.execute({ query: 'q' }, { toolCallId: 'search-1', messages: [] })
 
     expect(runFiber).toHaveBeenCalledWith({ query: 'q' })
     expect(output).toBe('----MOONSHOT ENCRYPTED BEGIN----payload')

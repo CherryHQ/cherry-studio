@@ -8,11 +8,12 @@ import type { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import type * as RendererIpc from '@renderer/ipc'
 import type { ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { OutputFor } from '@shared/ipc/types'
 
 import ChatContent from '../ChatContent'
 
 interface IpcMock {
-  request: (route: string, input: unknown) => unknown
+  request: (route: string, input: unknown) => Promise<OutputFor<'ai.stream.open'> | void>
   on: (event: string, callback: (payload: unknown) => void) => () => void
 }
 
@@ -274,10 +275,12 @@ describe('ChatContent', () => {
   } as any
 
   const originalApi = window.api as any
-  let streamOpen: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  let streamOpen: ReturnType<typeof vi.fn<(input: unknown) => Promise<OutputFor<'ai.stream.open'>>>>
 
   beforeEach(() => {
-    streamOpen = vi.fn().mockResolvedValue({ mode: 'started' })
+    streamOpen = vi
+      .fn<(input: unknown) => Promise<OutputFor<'ai.stream.open'>>>()
+      .mockResolvedValue({ mode: 'started' })
     // Route ai.stream.open through the spy; other stream routes/events are inert here
     // (useChatWithHistory is mocked, so the real transport never runs).
     ipcMock.request = (route, input) => (route === 'ai.stream.open' ? streamOpen(input) : Promise.resolve(undefined))
@@ -494,7 +497,7 @@ describe('ChatContent', () => {
     streamOpen.mockResolvedValueOnce({
       mode: 'started',
       reservedMessages: [reservedAssistant],
-      activeExecutions: [{ executionId: 'provider::model-a', anchorMessageId: 'reserved-assistant' }]
+      activeExecutions: [{ executionId: 'provider::model-a', attemptId: 1, anchorMessageId: 'reserved-assistant' }]
     })
     mockUseTopicMessages.mockReturnValue({
       uiMessages: [historyUser, historyAssistant],
@@ -704,7 +707,7 @@ describe('ChatContent', () => {
     streamOpen.mockResolvedValueOnce({
       mode: 'started',
       reservedMessages: [reservedUser, reservedAssistant],
-      activeExecutions: [{ executionId: 'provider::model', anchorMessageId: 'reserved-assistant' }]
+      activeExecutions: [{ executionId: 'provider::model', attemptId: 1, anchorMessageId: 'reserved-assistant' }]
     })
 
     const view = render(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
@@ -1221,7 +1224,7 @@ describe('ChatContent', () => {
             status: 'pending',
             createdAt: '2026-01-01T00:00:04.000Z'
           }
-        } as CherryUIMessage
+        }
       ]
     })
 

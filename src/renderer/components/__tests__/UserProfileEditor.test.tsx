@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as ImageUtils from '@renderer/utils/image'
 
 const mocks = vi.hoisted(() => ({
-  ipcRequest: vi.fn(async (): Promise<unknown> => undefined)
+  ipcRequest: vi.fn(async () => undefined)
 }))
 
 type PopoverContextValue = {

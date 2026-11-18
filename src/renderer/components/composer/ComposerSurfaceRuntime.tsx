@@ -122,7 +122,7 @@ interface ComposerClipboardCopyView {
       empty: boolean
       content: () => {
         content: {
-          toJSON: () => unknown
+          toJSON: () => JSONContent[] | null
         }
       }
     }
@@ -494,7 +494,7 @@ function createComposerDraftFromSelectedContent(view: ComposerClipboardCopyView)
   const content = selection.content().content.toJSON()
   if (!Array.isArray(content) || content.length === 0) return null
 
-  return serializeComposerDocument({ type: 'doc', content: content as JSONContent[] })
+  return serializeComposerDocument({ type: 'doc', content })
 }
 
 function handleComposerCopy(

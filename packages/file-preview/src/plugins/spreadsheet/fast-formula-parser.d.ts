@@ -44,13 +44,27 @@ declare module 'fast-formula-parser' {
     readonly error: string
   }
 
+  export type FormulaScalar = string | number | boolean | null | undefined | FormulaErrorClass
+  export type FormulaValue = FormulaScalar | FormulaValue[]
+
+  export interface FormulaReference {
+    ref: { sheet?: string } & (Pick<ParserPosition, 'row' | 'col'> | Pick<ParserRangeRef, 'from' | 'to'>)
+  }
+
+  export interface FormulaCollection {
+    data: FormulaValue[]
+    refs: FormulaReference[]
+  }
+
+  export type FormulaArgumentValue = FormulaValue | FormulaReference | FormulaCollection
+
   /**
    * Single argument shape received by custom functions, wrapped internally by the library.
    * Prefer consuming it through FormulaHelpers. The streaming aggregate adapter reads `.value` directly to avoid the
    * library's quadratic `flattenDeep`; `omitted` marks omitted args like `SUM(1,,3)`.
    */
   export interface FunctionArg {
-    value: unknown
+    value: FormulaArgumentValue
     isArray?: boolean
     isRangeRef?: boolean
     isCellRef?: boolean
@@ -70,19 +84,19 @@ declare module 'fast-formula-parser' {
       valueType: number | null,
       allowUnion: boolean,
       hook: (item: unknown, info: unknown) => void,
-      defValue?: unknown,
+      defValue?: FormulaValue,
       minSize?: number
     ): void
     /** Normalize one argument to a scalar value, parsing literals according to valueType. */
-    accept(param: FunctionArg, type?: number | null, defValue?: unknown): unknown
+    accept(param: FunctionArg, type?: number | null, defValue?: FormulaValue): FormulaArgumentValue | FunctionArg
   }
 
   /** Custom function signature: receives FunctionArgs, returns a scalar, and throws FormulaError for Excel errors. */
-  export type ParserFunction = (...args: FunctionArg[]) => unknown
+  export type ParserFunction = (...args: FunctionArg[]) => FormulaArgumentValue
 
   export interface FormulaParserConfig {
-    onCell?: (ref: ParserCellRef) => unknown
-    onRange?: (ref: ParserRangeRef) => unknown[][]
+    onCell?: (ref: ParserCellRef) => FormulaScalar
+    onRange?: (ref: ParserRangeRef) => FormulaScalar[][]
     /** Append/override built-in functions. Merge order is after built-ins, so library stubs can be replaced. */
     functions?: Record<string, ParserFunction>
   }
@@ -101,6 +115,6 @@ declare module 'fast-formula-parser' {
     static Types: FormulaTypes
     constructor(config?: FormulaParserConfig)
     /** With allowReturnArray=false (default), multi-cell range/union results normalize to #VALUE!. */
-    parse(formula: string, position: ParserPosition, allowReturnArray?: boolean): unknown
+    parse(formula: string, position: ParserPosition, allowReturnArray?: boolean): FormulaValue
   }
 }

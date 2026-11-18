@@ -1,5 +1,6 @@
 import { XMLParser } from 'fast-xml-parser'
 import type JSZip from 'jszip'
+import * as z from 'zod'
 
 import { emuToPx, MAX_FLOATING_OBJECTS } from '../gridLayout'
 import type { ChartModel, ChartSeries, ChartType, PxRect } from '../renderModel'
@@ -41,7 +42,8 @@ const xmlParser = new XMLParser({
 const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
 /** Any node value produced by fast-xml-parser: element object/array or primitive value. */
-type XmlNode = Record<string, unknown>
+const xmlValueSchema = z.json()
+type XmlValue = z.infer<typeof xmlValueSchema>
 
 /** Strip namespace prefixes, for example 'c:chart' -> 'chart' and 'a:t' -> 't'. */
 const localName = (tag: string): string => {
@@ -50,9 +52,9 @@ const localName = (tag: string): string => {
 }
 
 /** Find a child node by local name, accepting both 'c:xxx' and 'xxx' namespace styles. */
-const findChild = (node: unknown, name: string): unknown => {
-  if (!node || typeof node !== 'object') return undefined
-  const obj = node as XmlNode
+const findChild = (node: XmlValue | undefined, name: string): XmlValue | undefined => {
+  if (!node || typeof node !== 'object' || Array.isArray(node)) return undefined
+  const obj = node
   for (const key of Object.keys(obj)) {
     if (key.startsWith('@_')) continue
     if (localName(key) === name) return obj[key]
@@ -61,25 +63,25 @@ const findChild = (node: unknown, name: string): unknown => {
 }
 
 /** Find all matching child nodes by local name and normalize single-child parser output to an array. */
-const findChildren = (node: unknown, name: string): unknown[] => {
+const findChildren = (node: XmlValue | undefined, name: string): XmlValue[] => {
   const found = findChild(node, name)
   if (found === undefined) return []
   return Array.isArray(found) ? found : [found]
 }
 
 /** Return all direct child entries as [localName, value][], skipping attributes. */
-const entries = (node: unknown): [string, unknown][] => {
-  if (!node || typeof node !== 'object') return []
-  const obj = node as XmlNode
+const entries = (node: XmlValue | undefined): [string, XmlValue][] => {
+  if (!node || typeof node !== 'object' || Array.isArray(node)) return []
+  const obj = node
   return Object.keys(obj)
     .filter((key) => !key.startsWith('@_'))
     .map((key) => [localName(key), obj[key]])
 }
 
 /** Find an attribute by local name, accepting both 'r:id' and 'id' namespace styles. */
-const getAttr = (node: unknown, attr: string): string | undefined => {
-  if (!node || typeof node !== 'object') return undefined
-  const obj = node as XmlNode
+const getAttr = (node: XmlValue | undefined, attr: string): string | undefined => {
+  if (!node || typeof node !== 'object' || Array.isArray(node)) return undefined
+  const obj = node
   for (const key of Object.keys(obj)) {
     if (!key.startsWith('@_')) continue
     if (localName(key.slice(2)) === attr) {
@@ -91,9 +93,9 @@ const getAttr = (node: unknown, attr: string): string | undefined => {
 }
 
 /** Read the val attribute from nodes shaped like `<tag val="x"/>`. */
-const valAttr = (node: unknown): string | undefined => getAttr(node, 'val')
+const valAttr = (node: XmlValue | undefined): string | undefined => getAttr(node, 'val')
 
-const toNumber = (value: unknown): number | undefined => {
+const toNumber = (value: XmlValue | undefined): number | undefined => {
   if (value === undefined || value === null || value === '') return undefined
   const n = Number(value)
   return Number.isNaN(n) ? undefined : n
@@ -110,7 +112,7 @@ interface Relationship {
 }
 
 const parseRelationships = (xml: string): Relationship[] => {
-  const doc = xmlParser.parse(xml)
+  const doc = xmlValueSchema.parse(xmlParser.parse(xml))
   const root = findChild(doc, 'Relationships')
   return findChildren(root, 'Relationship').map((rel) => ({
     id: getAttr(rel, 'Id') ?? '',
@@ -149,7 +151,7 @@ export const createChartSheetPartPathMap = async (zip: JSZip): Promise<ReadonlyM
   ])
   if (!workbookXml || !relsXml) return new Map()
 
-  const doc = xmlParser.parse(workbookXml)
+  const doc = xmlValueSchema.parse(xmlParser.parse(workbookXml))
   const workbook = findChild(doc, 'workbook')
   const sheets = findChildren(findChild(workbook, 'sheets'), 'sheet')
   const relById = new Map(parseRelationships(relsXml).map((rel) => [rel.id, rel]))
@@ -185,7 +187,7 @@ interface AnchoredChartRef {
   chartRId: string
 }
 
-const readAnchorPoint = (node: unknown): { col: number; colOff: number; row: number; rowOff: number } => ({
+const readAnchorPoint = (node: XmlValue | undefined): { col: number; colOff: number; row: number; rowOff: number } => ({
   col: toNumber(findChild(node, 'col')) ?? 0,
   colOff: toNumber(findChild(node, 'colOff')) ?? 0,
   row: toNumber(findChild(node, 'row')) ?? 0,
@@ -203,7 +205,7 @@ const anchorPointToPx = (
 
 /** Extract graphicFrame -> chart rId from one anchor node and calculate its PxRect. */
 const extractAnchoredChart = (
-  anchorNode: unknown,
+  anchorNode: XmlValue | undefined,
   kind: 'twoCellAnchor' | 'oneCellAnchor' | 'absoluteAnchor',
   layout: SheetLayoutAccessor
 ): AnchoredChartRef | null => {
@@ -255,7 +257,7 @@ interface ExtractedAnchors {
 }
 
 const extractAnchoredCharts = (drawingXml: string, layout: SheetLayoutAccessor, budget: number): ExtractedAnchors => {
-  const doc = xmlParser.parse(drawingXml)
+  const doc = xmlValueSchema.parse(xmlParser.parse(drawingXml))
   const root = findChild(doc, 'wsDr')
   const charts: AnchoredChartRef[] = []
   let skippedAnchors = 0
@@ -288,7 +290,7 @@ const PLOT_AREA_TYPE_MAP: Record<string, ChartType> = {
 }
 
 /** Concatenate plain text from rich-text nodes, taking all a:t values from title tx/rich or literals without strRef. */
-const collectText = (node: unknown, acc: string[] = []): string[] => {
+const collectText = (node: XmlValue | undefined, acc: string[] = []): string[] => {
   if (Array.isArray(node)) {
     for (const item of node) collectText(item, acc)
     return acc
@@ -304,7 +306,7 @@ const collectText = (node: unknown, acc: string[] = []): string[] => {
   return acc
 }
 
-const parseTitle = (chartNode: unknown): string | undefined => {
+const parseTitle = (chartNode: XmlValue | undefined): string | undefined => {
   const title = findChild(chartNode, 'title')
   if (!title) return undefined
   const text = collectText(title).join('')
@@ -317,7 +319,11 @@ const MAX_CHART_CACHE_POINTS = 10_000
 export const MAX_CHART_SERIES = 255
 
 /** numCache/strCache -> array filled by idx to ptCount length. Missing idx -> null; invalid declarations return null. */
-const readCache = (refNode: unknown, cacheTag: string, warnings: string[]): (string | number | null)[] | null => {
+const readCache = (
+  refNode: XmlValue | undefined,
+  cacheTag: string,
+  warnings: string[]
+): (string | number | null)[] | null => {
   const cache = findChild(refNode, cacheTag)
   if (!cache) return null
   const ptCount = toNumber(valAttr(findChild(cache, 'ptCount'))) ?? 0
@@ -353,14 +359,14 @@ const readCache = (refNode: unknown, cacheTag: string, warnings: string[]): (str
 }
 
 /** Read the f reference formula from numRef/strRef. Sheet prefix handling is delegated to SheetDataAccessor. */
-const readRefFormula = (refNode: unknown): string | undefined => {
+const readRefFormula = (refNode: XmlValue | undefined): string | undefined => {
   const f = findChild(refNode, 'f')
   return typeof f === 'string' || typeof f === 'number' ? String(f) : undefined
 }
 
 /** c:cat or c:val node, containing numRef or strRef, -> data array plus reference string. */
 const readDataSource = (
-  sourceNode: unknown,
+  sourceNode: XmlValue | undefined,
   warnings: string[]
 ): { cache: (string | number | null)[] | null; ref: string | undefined } => {
   if (!sourceNode) return { cache: null, ref: undefined }
@@ -374,7 +380,11 @@ const readDataSource = (
 }
 
 /** Series name source: c:tx -> strRef, preferring cache then reference backfill, or literal c:v. */
-const readSeriesName = (txNode: unknown, data: SheetDataAccessor, warnings: string[]): string | undefined => {
+const readSeriesName = (
+  txNode: XmlValue | undefined,
+  data: SheetDataAccessor,
+  warnings: string[]
+): string | undefined => {
   if (!txNode) return undefined
   const strRef = findChild(txNode, 'strRef')
   if (strRef) {
@@ -412,7 +422,7 @@ const flattenRange = (rows: (string | number | null)[][]): (string | number | nu
 }
 
 const readCategoriesOrValues = (
-  sourceNode: unknown,
+  sourceNode: XmlValue | undefined,
   data: SheetDataAccessor,
   warnings: string[]
 ): (string | number | null)[] => {
@@ -426,7 +436,7 @@ const readCategoriesOrValues = (
   return []
 }
 
-const parseSeries = (serNode: unknown, data: SheetDataAccessor, warnings: string[]): ChartSeries => {
+const parseSeries = (serNode: XmlValue | undefined, data: SheetDataAccessor, warnings: string[]): ChartSeries => {
   const name = readSeriesName(findChild(serNode, 'tx'), data, warnings)
 
   const catValues = readCategoriesOrValues(findChild(serNode, 'cat'), data, warnings)
@@ -446,7 +456,10 @@ const parseSeries = (serNode: unknown, data: SheetDataAccessor, warnings: string
 }
 
 /** First supported chart-type node under plotArea. Records downgrade warnings for combo charts. */
-const pickChartTypeNode = (plotArea: unknown, warnings: string[]): { tag: string; node: unknown } | null => {
+const pickChartTypeNode = (
+  plotArea: XmlValue | undefined,
+  warnings: string[]
+): { tag: string; node: XmlValue | undefined } | null => {
   const candidates = entries(plotArea).filter(([name]) => name.endsWith('Chart'))
   if (candidates.length === 0) return null
 
@@ -464,7 +477,7 @@ const pickChartTypeNode = (plotArea: unknown, warnings: string[]): { tag: string
 }
 
 const parseChartXml = (chartXml: string, data: SheetDataAccessor, warnings: string[]): Omit<ChartModel, 'rect'> => {
-  const doc = xmlParser.parse(chartXml)
+  const doc = xmlValueSchema.parse(xmlParser.parse(chartXml))
   const chartSpace = findChild(doc, 'chartSpace')
   const chartNode = findChild(chartSpace, 'chart')
   const plotArea = findChild(chartNode, 'plotArea')

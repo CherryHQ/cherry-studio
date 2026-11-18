@@ -1,7 +1,7 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { cacheService } from '@data/CacheService'
@@ -10,6 +10,8 @@ import { getAgentDraftCacheKey } from '@renderer/components/composer/variants/ag
 import { useCommandHandler } from '@renderer/hooks/command'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
+
+import type AgentChat from '../AgentChat'
 
 const agentPageMocks = vi.hoisted(() => ({
   historyOnActiveRecordChange: undefined as ((sessionId: string | null) => void) | undefined,
@@ -409,10 +411,7 @@ vi.mock('../AgentChat', () => {
         sessionLoading: boolean
       }
       missingAgentSelection?: boolean
-      onCreateEmptySession?: (defaults?: {
-        agentId?: string | null
-        workspace?: { type: string; workspaceId?: string }
-      }) => void | Promise<unknown>
+      onCreateEmptySession?: ComponentProps<typeof AgentChat>['onCreateEmptySession']
       onMissingAgentSelectionAgentChange?: (agentId: string | null) => void | Promise<void>
       onVisibleAgentChange?: (agentId: string) => void
       onVisibleWorkspaceChange?: (workspaceId: string) => void

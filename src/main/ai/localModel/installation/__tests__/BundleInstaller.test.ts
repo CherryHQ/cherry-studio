@@ -417,8 +417,8 @@ describe('remove', () => {
     // the pending deletion is still walking.
     let finishDeletion: (() => void) | undefined
     terminateRuntimeThen.mockImplementationOnce(
-      (after: () => Promise<unknown>) =>
-        new Promise((resolve) => {
+      <T>(after: () => Promise<T>) =>
+        new Promise<T>((resolve) => {
           finishDeletion = () => resolve(after())
         })
     )
@@ -445,9 +445,10 @@ describe('remove', () => {
   it('runs dependent preference cleanup only after the files are deleted', async () => {
     installComplete()
     const order: string[] = []
-    terminateRuntimeThen.mockImplementationOnce(async (after: () => Promise<unknown>) => {
-      await after()
+    terminateRuntimeThen.mockImplementationOnce(async <T>(after: () => Promise<T>) => {
+      const result = await after()
       order.push('deleted')
+      return result
     })
     afterRemove.mockImplementationOnce(async () => {
       order.push('preferences')

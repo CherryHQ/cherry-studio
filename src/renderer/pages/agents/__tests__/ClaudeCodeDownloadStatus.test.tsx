@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { beforeEach, expect, it, vi } from 'vitest'
 
 import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import AgentComposerSlot from '../AgentComposerSlot'
 
@@ -109,7 +110,7 @@ it('keeps failures blocked and retries explicitly; switching runtime restores it
 })
 
 it('does not overwrite a completed download with a stale ensure response', async () => {
-  let resolve!: (value: unknown) => void
+  let resolve!: (value: IpcResult<unknown>) => void
   vi.mocked(window.api.ipcApi.request).mockImplementation(
     () =>
       new Promise((done) => {

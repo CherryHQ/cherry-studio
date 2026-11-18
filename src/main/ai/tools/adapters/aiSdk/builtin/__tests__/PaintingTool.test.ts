@@ -5,6 +5,7 @@ import type { Tool } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { readProviderModelRegistry } from '@cherrystudio/provider-registry/node'
+import { generateImageOutputSchema } from '@shared/ai/generateImageTool'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { ImageGenerationSupport } from '@shared/data/types/model'
@@ -44,7 +45,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-import { generateImageFromPrompt, PAINTING_MODEL_NOT_CONFIGURED_NOTE } from '../../../../painting'
+import { generateImageFromPrompt, paintingErrorSchema, PAINTING_MODEL_NOT_CONFIGURED_NOTE } from '../../../../painting'
 import { createGenerateImageToolEntry } from '../PaintingTool'
 
 const entry = createGenerateImageToolEntry()
@@ -57,16 +58,14 @@ function makeOptions(abortSignal = new AbortController().signal): ToolExecutionO
   }
 }
 
-function callExecute(
+async function callExecute(
   args: { prompt: string; image_ids?: string[]; [key: string]: unknown },
   abortSignal?: AbortSignal,
   selectedTool: Tool = entry.tool
-): Promise<unknown> {
-  const execute = selectedTool.execute as (
-    args: { prompt: string; image_ids?: string[]; [key: string]: unknown },
-    options: ToolExecutionOptions
-  ) => Promise<unknown>
-  return execute(args, makeOptions(abortSignal))
+) {
+  if (!selectedTool.execute) throw new Error('Painting tool must support execution')
+  const output = await selectedTool.execute(args, makeOptions(abortSignal))
+  return generateImageOutputSchema.or(paintingErrorSchema).parse(output)
 }
 
 const generateSupport = {
@@ -220,7 +219,7 @@ describe('generate_image', () => {
   it('returns a configuration note (and skips generation) when no model is configured', async () => {
     getPreference.mockReturnValue(null)
 
-    const result = (await callExecute({ prompt: 'a cat' })) as { error: string }
+    const result = await callExecute({ prompt: 'a cat' })
 
     expect(result).toEqual({ error: expect.any(String) })
     expect(generateImage).not.toHaveBeenCalled()

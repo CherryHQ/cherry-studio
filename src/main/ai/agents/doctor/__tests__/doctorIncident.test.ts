@@ -123,6 +123,35 @@ describe('incidentMessages', () => {
     expect(messages.map((item) => item.id)).toEqual(['msg-2', 'msg-3'])
   })
 
+  it('keeps tool identity and state readable while bounding structured input and output evidence', () => {
+    mocks.sessionMessages[2] = message('msg-2', 'assistant', '', {
+      data: {
+        parts: [
+          {
+            type: 'dynamic-tool',
+            toolCallId: 'call-1',
+            toolName: 'search',
+            state: 'output-available',
+            input: { query: 'safe' },
+            output: { content: 'visible line '.repeat(100) + 'OMITTED_TOOL_TAIL' }
+          }
+        ]
+      }
+    })
+    const result = incidentMessages(incident, 1)
+    expect(result).toHaveProperty(
+      'messages.0.parts.0',
+      expect.objectContaining({
+        type: 'dynamic-tool',
+        toolName: 'search',
+        state: 'output-available',
+        input: '{"query":"safe"}',
+        output: expect.stringMatching(/^\{"content":"visible line /)
+      })
+    )
+    expect(JSON.stringify(result)).not.toContain('OMITTED_TOOL_TAIL')
+  })
+
   it('redacts credentials inside message text', () => {
     expect(JSON.stringify(incidentMessages(incident, 5))).not.toContain(KEY)
   })
@@ -166,6 +195,34 @@ describe('incidentRequest', () => {
 })
 
 describe('incidentLogs', () => {
+  it('keeps nested JSON values and bounds every log string while skipping malformed lines', () => {
+    fs.writeFileSync(
+      path.join(logsDir, 'app.2026-10-09.log'),
+      [
+        '{"broken":',
+        JSON.stringify({
+          sessionId: 'session-1',
+          timestamp: '2026-10-09 00:00:01',
+          extra: { count: 7, active: true, nested: [null, { line: 'visible '.repeat(200) + 'OMITTED_LOG_TAIL' }] }
+        })
+      ].join('\n')
+    )
+    const result = incidentLogs(incident, 100)
+    expect(result).toMatchObject({
+      count: 1,
+      entries: [
+        {
+          extra: {
+            count: 7,
+            active: true,
+            nested: [null, { line: expect.stringMatching(/^visible /) }]
+          }
+        }
+      ]
+    })
+    expect(JSON.stringify(result)).not.toContain('OMITTED_LOG_TAIL')
+  })
+
   it('keeps only lines naming this conversation, including the API gateway hop, with keys redacted', () => {
     // The logger writes keys alphabetically, so an id key like `agentSessionId` leads the line.
     const lines = [

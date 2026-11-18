@@ -1,4 +1,4 @@
-import { asSchema, type ToolSet } from 'ai'
+import { asSchema, type JSONSchema7, type ToolSet } from 'ai'
 
 /** One wire tool definition (what `countToolDefs` and the remote Anthropic count consume). */
 export interface WireToolDef {
@@ -27,9 +27,9 @@ export async function toWireToolDefs(tools: ToolSet | undefined): Promise<WireTo
 }
 
 /** Canonical JSONSchema as the SDK serializes it; a minimal object schema on failure. */
-async function canonicalSchema(schema: unknown): Promise<unknown> {
+async function canonicalSchema(schema: Parameters<typeof asSchema>[0]): Promise<JSONSchema7> {
   try {
-    return (await asSchema(schema as Parameters<typeof asSchema>[0]).jsonSchema) ?? { type: 'object' }
+    return (await asSchema(schema).jsonSchema) ?? { type: 'object' }
   } catch {
     return { type: 'object' }
   }

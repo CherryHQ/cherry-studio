@@ -111,7 +111,7 @@ const mcpResourceReadTool = tool({
   }
 })
 
-export function createMcpResourceReadToolEntry(): ToolEntry {
+export function createMcpResourceReadToolEntry() {
   return {
     name: MCP_RESOURCE_READ_TOOL_NAME,
     namespace: 'mcp_resource',
@@ -125,5 +125,5 @@ export function createMcpResourceReadToolEntry(): ToolEntry {
     defer: 'never',
     tool: mcpResourceReadTool,
     applies: (scope) => (scope.mcpResourceServerIds?.size ?? 0) > 0 || scope.mcpToolIds.size > 0
-  }
+  } satisfies ToolEntry
 }

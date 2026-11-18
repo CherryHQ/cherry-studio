@@ -155,13 +155,18 @@ export function createHost(
   return { host, adapter, logger, definition }
 }
 
-/** Resolves to the rejection of `promise`; fails loudly if it resolves instead. */
-export async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
+/** Checks a rejection reason without returning unchecked error data to callers. */
+export function expectRejected(promise: Promise<unknown>): Promise<void>
+export function expectRejected<Result>(promise: Promise<unknown>, inspect: (reason: unknown) => Result): Promise<Result>
+export async function expectRejected<Result>(
+  promise: Promise<unknown>,
+  inspect?: (reason: unknown) => Result
+): Promise<Result | void> {
   let value: unknown
   try {
     value = await promise
   } catch (error) {
-    return error
+    return inspect?.(error)
   }
   throw new Error(`expected rejection, got ${JSON.stringify(value)}`)
 }

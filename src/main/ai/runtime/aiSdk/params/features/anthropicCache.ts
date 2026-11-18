@@ -228,7 +228,7 @@ function clampCacheMarkers(params: LanguageModelV3CallOptions, selected: Set<str
       rank = holder.rank
       continue
     }
-    const remove = (node: unknown, depth: number): unknown => {
+    const remove = (node: unknown, depth: number): Record<string, unknown> | unknown[] => {
       if (depth === path.length) {
         const holder = node as { providerOptions: { anthropic: Record<string, unknown> } }
         const anthropic = { ...holder.providerOptions.anthropic }

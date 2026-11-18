@@ -55,7 +55,3 @@ export function extractOutputMetadata(output: unknown): { response: unknown; met
 
   return { response: output }
 }
-
-export function normalizeToolOutputResponse(output: unknown): unknown {
-  return extractOutputMetadata(output).response
-}

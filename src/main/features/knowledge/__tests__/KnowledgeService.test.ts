@@ -22,6 +22,7 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
 
 import type * as PathStorage from '../pathStorage'
+import { toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 
 const {
   cancelManyMock,
@@ -364,15 +365,7 @@ function enqueuedSourceCopies(): Array<[string, string]> {
     )
 }
 
-type IngestionInternals = {
-  addItems(
-    baseId: string,
-    inputs: unknown[],
-    conflictStrategy?: 'rename' | 'detect' | 'replace',
-    options?: { copyInline?: boolean }
-  ): Promise<unknown>
-  scheduleItem(baseId: string, itemId: string, parentJobId?: string | null): Promise<void>
-}
+type IngestionInternals = Pick<InstanceType<typeof KnowledgeService>['ingestionService'], 'addItems' | 'scheduleItem'>
 
 function ingestionOf(service: unknown): IngestionInternals {
   return (service as { ingestionService: IngestionInternals }).ingestionService
@@ -681,7 +674,7 @@ describe('KnowledgeService', () => {
       createFileItem('file-1', 'kb-1', resolvePath('/docs/source.pdf'), 'processing')
     )
     fileProcessingStartTaskMock.mockResolvedValueOnce(startedTask(new Promise(() => {})))
-    await ingestionOf(service).scheduleItem('kb-1', 'file-1')
+    await ingestionOf(service).scheduleItem(toKnowledgeBaseId('kb-1'), toKnowledgeItemId('file-1'))
 
     await service.deleteBase('kb-1')
 
@@ -1141,7 +1134,7 @@ describe('KnowledgeService', () => {
     fileProcessingStartTaskMock.mockResolvedValueOnce(startedTask(done.promise))
 
     // The copy job hands a file to this step once its bytes are in raw/.
-    await ingestionOf(service).scheduleItem('kb-1', 'file-1')
+    await ingestionOf(service).scheduleItem(toKnowledgeBaseId('kb-1'), toKnowledgeItemId('file-1'))
 
     expect(fileProcessingStartTaskMock).toHaveBeenCalledWith({
       feature: 'document_to_markdown',
@@ -1184,7 +1177,7 @@ describe('KnowledgeService', () => {
     )
     const done = createDeferred<SettledFileProcessingTask>()
     fileProcessingStartTaskMock.mockResolvedValueOnce(startedTask(done.promise))
-    await ingestionOf(service).scheduleItem('kb-1', 'file-1')
+    await ingestionOf(service).scheduleItem(toKnowledgeBaseId('kb-1'), toKnowledgeItemId('file-1'))
 
     onDidChangeTask({ ...queuedTask(), status: 'processing', progress: 42 })
     expect(MockMainCacheServiceUtils.getSharedCacheValue('knowledge.item.file_processing_progress.file-1')).toBe(42)
@@ -1424,7 +1417,7 @@ describe('KnowledgeService', () => {
 
     // The processed-artifact reservation guard must treat the note snapshot as occupied (it lives
     // under `raw/` too), so it refuses the colliding `.md` output instead of overwriting it on disk.
-    await expect(ingestionService.scheduleItem('kb-1', 'file-1')).rejects.toThrow(
+    await expect(ingestionService.scheduleItem(toKnowledgeBaseId('kb-1'), toKnowledgeItemId('file-1'))).rejects.toThrow(
       'Knowledge file already exists: source.md'
     )
     expect(fileProcessingStartTaskMock).not.toHaveBeenCalled()
@@ -1441,9 +1434,9 @@ describe('KnowledgeService', () => {
       options?.includeDeleting ? [processingFile, deletingFile] : [processingFile]
     )
 
-    await expect(ingestionOf(service).scheduleItem('kb-1', 'file-1')).rejects.toThrow(
-      'Knowledge file already exists: source.md'
-    )
+    await expect(
+      ingestionOf(service).scheduleItem(toKnowledgeBaseId('kb-1'), toKnowledgeItemId('file-1'))
+    ).rejects.toThrow('Knowledge file already exists: source.md')
     expect(fileProcessingStartTaskMock).not.toHaveBeenCalled()
   })
 
@@ -1721,7 +1714,7 @@ describe('KnowledgeService', () => {
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
     knowledgeItemGetByIdMock.mockReturnValueOnce(processingFile)
 
-    await ingestionOf(service).scheduleItem('kb-1', 'file-1')
+    await ingestionOf(service).scheduleItem(toKnowledgeBaseId('kb-1'), toKnowledgeItemId('file-1'))
 
     expect(fileProcessingStartTaskMock).not.toHaveBeenCalled()
     expect(enqueueMock).toHaveBeenCalledWith(
@@ -1741,7 +1734,7 @@ describe('KnowledgeService', () => {
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
     knowledgeItemGetByIdMock.mockReturnValueOnce(processingFile)
 
-    await ingestionOf(service).scheduleItem('kb-1', 'file-1')
+    await ingestionOf(service).scheduleItem(toKnowledgeBaseId('kb-1'), toKnowledgeItemId('file-1'))
 
     expect(fileProcessingStartTaskMock).not.toHaveBeenCalled()
     expect(enqueueMock).toHaveBeenCalledWith(

@@ -25,13 +25,19 @@ import { application } from '@application'
 import { ContextPrompts } from '@cherrystudio/ai-core'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { loggerService } from '@logger'
-import { isToolOutputBlobEntry, spliceTextAtKey } from '@main/ai/contextBuild/toolOutputStore'
+import {
+  isToolOutputBlobEntry,
+  reconstructOutput,
+  type ReconstructedToolOutput,
+  spliceTextAtKey
+} from '@main/ai/contextBuild/toolOutputStore'
 import {
   blobRefsOf,
   isPersistedToolOutput,
   type PersistedToolOutputBlobRef,
   type PersistedToolOutputRef
 } from '@shared/ai/transport'
+import { SerializableSchema } from '@shared/utils/serializable'
 
 const logger = loggerService.withContext('PersistedOutputRendering')
 
@@ -74,22 +80,16 @@ function renderMarkerForBlob(blob: PersistedToolOutputBlobRef): string {
   )
 }
 
-function renderOutput(ref: PersistedToolOutputRef): unknown {
+function renderOutput(ref: PersistedToolOutputRef): ReconstructedToolOutput {
   if (ref.shape === 'entities') {
-    let value = ref.skeleton
+    let value = SerializableSchema.parse(ref.skeleton)
     for (const blob of ref.blobRefs) {
       value = spliceTextAtKey(value, blob.key, renderMarkerForBlob(blob))
     }
     return value
   }
   const marker = renderMarkerForBlob(blobRefsOf(ref)[0])
-  if (ref.shape === 'mcp-content') {
-    return {
-      content: [{ type: 'text', text: marker }],
-      ...(ref.metadata !== undefined ? { metadata: ref.metadata } : {})
-    }
-  }
-  return marker
+  return reconstructOutput(ref, marker)
 }
 
 /**

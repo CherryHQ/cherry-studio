@@ -39,7 +39,7 @@ const {
     )
   ),
   scopedCredentials: new Map<string, { path: string; model: string }>(),
-  mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
+  mockPreferenceGet: vi.fn<(key: string) => string>(() => 'test-key'),
   mockProcessMessage: vi.fn<(config: unknown) => Promise<Response>>(
     async () =>
       new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } })
@@ -419,7 +419,9 @@ describe('API gateway routes (integration)', () => {
       try {
         const baseUrl = await new Promise<string>((resolve, reject) => {
           app.listen({ port: 0, hostname: '127.0.0.1', gracefulShutdown: false }, (info) => {
-            const handle = info as unknown as { raw: { node: { server: Server }; ready(): Promise<unknown> } }
+            const handle = info as unknown as {
+              raw: { node: { server: Server }; ready(): Promise<{ node: { server: Server } }> }
+            }
             server = handle.raw.node.server
             void handle.raw.ready().then(() => {
               const address = server!.address()

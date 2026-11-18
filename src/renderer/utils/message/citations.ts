@@ -53,7 +53,7 @@ import { isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transpor
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
-import { extractOutputMetadata, normalizeToolOutputResponse, type ToolMetadata } from './toolOutput'
+import { extractOutputMetadata, type ToolMetadata } from './toolOutput'
 
 export interface MessageCitations {
   /** Wire id (stringified) → citation with its assigned display number. */
@@ -295,7 +295,7 @@ export function resolveMessageCitations(
     const toolName = resolveCitableToolName(part)
     if (!toolName) return
     const rawOutput = unwrapCitableOutput((part as { output?: unknown }).output)
-    const output = normalizeToolOutputResponse(rawOutput)
+    const { response: output } = extractOutputMetadata(rawOutput)
 
     if (toolName === KB_SEARCH_TOOL_NAME) {
       const parsed = kbSearchOutputSchema.safeParse(output)
@@ -306,10 +306,8 @@ export function resolveMessageCitations(
     }
 
     if (toolName === KB_READ_TOOL_NAME) {
-      // Read mode's payload carries its own top-level `content`, which `normalizeToolOutputResponse`
-      // mistakes for the MCP `{ content, metadata }` envelope and unwraps down to the bare document
-      // text. Try the raw output first (assistant path); the unwrapped form only wins on the agent
-      // path, where a real envelope does wrap the payload.
+      // Read-mode `content` belongs to the document, so try the raw payload before unwrapping.
+      // The agent path still needs the MCP envelope removed.
       const item = parseKbReadCitation(rawOutput) ?? parseKbReadCitation(output)
       if (!item) return
       if (ownScope) lookupCallCount += 1

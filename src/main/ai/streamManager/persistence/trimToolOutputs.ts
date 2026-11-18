@@ -40,6 +40,7 @@ import {
 } from '@shared/ai/transport'
 import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { SerializableSchema } from '@shared/utils/serializable'
 
 const logger = loggerService.withContext('TrimToolOutputs')
 
@@ -59,7 +60,7 @@ async function trimViaCodec(
   if (oversized.length === 0) return null
 
   const blobRefs: PersistedToolOutputBlobRef[] = []
-  let skeleton = deflated.skeleton
+  let skeleton = SerializableSchema.parse(JSON.parse(JSON.stringify(deflated.skeleton)))
   for (const blob of oversized) {
     const { entry, vfsFilename } = await persistToolOutputText(blob.text)
     const { head, tail, totalChars, totalLines } = computeHeadTailExcerpt(

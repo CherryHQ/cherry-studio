@@ -81,6 +81,20 @@ describe('createAiRepair', () => {
     expect(generateText).not.toHaveBeenCalled()
   })
 
+  it('rejects canonical arguments that validate to undefined instead of emitting a non-JSON input', async () => {
+    generateText.mockResolvedValue({ output: { query: 'repaired' } })
+    const repaired = await repair({
+      system: undefined,
+      messages: [],
+      toolCall: makeToolCall(KB_SEARCH_TOOL_NAME, { query: 'original' }),
+      tools: { [KB_SEARCH_TOOL_NAME]: { inputSchema: querySchema.transform(() => undefined) } },
+      inputSchema: async () => ({ type: 'object', properties: { query: { type: 'string' } } }),
+      error: inputErr
+    })
+
+    expect(repaired).toBeNull()
+  })
+
   it('rejects a JSON Schema repair that violates uniqueItems', async () => {
     const schemaJson: JSONSchema7 = {
       type: 'object',

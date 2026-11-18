@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import * as z from 'zod'
 
 const fetchMock = vi.hoisted(() => vi.fn())
 
@@ -10,9 +11,9 @@ import { createDifyKnowledgeServer } from '../servers/difyKnowledge'
 const searchKnowledge = (args: Record<string, unknown>) =>
   callBuiltinTool(() => createDifyKnowledgeServer('key', ['https://api.example.com']), 'search_knowledge', args)
 
-function sentTopK(): unknown {
-  const [, init] = fetchMock.mock.calls[0] as [string, { body: string }]
-  return JSON.parse(init.body).retrieval_model.top_k
+function sentTopK(): number {
+  const { body } = z.object({ body: z.string() }).parse(fetchMock.mock.calls[0][1])
+  return z.object({ retrieval_model: z.object({ top_k: z.number() }) }).parse(JSON.parse(body)).retrieval_model.top_k
 }
 
 describe('dify-knowledge search_knowledge', () => {

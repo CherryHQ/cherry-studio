@@ -37,7 +37,7 @@ interface AgentComposerSlotProps {
   sendDisabled: boolean
   onAgentChange?: (agentId: string | null) => void | Promise<void>
   agentChanging?: boolean
-  onCreateEmptySession?: () => void | Promise<unknown>
+  onCreateEmptySession?: () => void | Promise<void>
   composerContext: ComposerContextValue
   composerLaunchOptions?: AgentComposerLaunchOptions
   editing?: AgentChatRuntimeState['editing']

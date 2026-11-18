@@ -221,12 +221,12 @@ describe('FileManager entry-cleanup wiring', () => {
     powerState.idleSeconds = 0
     const cleanup = vi.spyOn(fm, 'runEntryCleanup').mockResolvedValue(completedReport())
     const internals = fm as unknown as {
-      registerInterval(fn: () => void, ms: number): unknown
+      registerInterval: InstanceType<typeof BaseService>['registerInterval']
       registerIpcHandlers(): void
       deps: { danglingCache: { initFromDb(): Promise<void> } }
       onInit(): Promise<void>
     }
-    vi.spyOn(internals, 'registerInterval').mockReturnValue(undefined)
+    vi.spyOn(internals, 'registerInterval').mockReturnValue({ dispose: () => undefined })
     vi.spyOn(internals, 'registerIpcHandlers').mockImplementation(() => undefined)
     vi.spyOn(internals.deps.danglingCache, 'initFromDb').mockResolvedValue(undefined)
 

@@ -8,7 +8,7 @@ import type { CherryMessagePart, Message } from '@shared/data/types/message'
 import type { ReadConversationResult } from './readConversation'
 
 /** Project stored UI parts into evidence without attachment locators or runtime metadata. */
-export function conversationPartEvidence(part: CherryMessagePart): Record<string, unknown> | null {
+export function conversationPartEvidence(part: CherryMessagePart) {
   if (isToolUIPart(part)) {
     return {
       type: part.type,

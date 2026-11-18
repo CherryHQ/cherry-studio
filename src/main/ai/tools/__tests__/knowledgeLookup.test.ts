@@ -1,13 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type { KnowledgeAddItemsResult, KnowledgeBase } from '@shared/data/types/knowledge'
+
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
 }))
 
 const { knowledgeSearchMock, addItemsMock, createBaseMock } = vi.hoisted(() => ({
   knowledgeSearchMock: vi.fn<() => Promise<unknown[]>>(),
-  addItemsMock: vi.fn<() => Promise<unknown>>(),
-  createBaseMock: vi.fn<() => Promise<unknown>>()
+  addItemsMock: vi.fn<() => Promise<KnowledgeAddItemsResult>>(),
+  createBaseMock: vi.fn<() => Promise<Pick<KnowledgeBase, 'id' | 'name'>>>()
 }))
 vi.mock('@application', () => ({
   application: {

@@ -356,7 +356,7 @@ describe('functional updater (runtime)', () => {
 // Derive the updater's `prev` type straight from each hook's real signature:
 // setter = return[1]; its arg is `V | ((prev: ReadonlyValue<V>) => V)`; we pull
 // out the function constituent and read its first parameter.
-type Updater<Arg> = Extract<Arg, (...args: never[]) => unknown>
+type Updater<Arg> = Arg extends (...args: infer Args) => infer Result ? (...args: Args) => Result : never
 type MemorySetterArg<K extends Parameters<typeof useCache>[0]> = Parameters<ReturnType<typeof useCache<K>>[1]>[0]
 type MemoryPrev<K extends Parameters<typeof useCache>[0]> = Parameters<Updater<MemorySetterArg<K>>>[0]
 

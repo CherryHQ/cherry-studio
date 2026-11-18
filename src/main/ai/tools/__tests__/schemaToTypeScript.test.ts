@@ -61,6 +61,21 @@ describe('jsonSchemaToTypeScript', () => {
     )
   })
 
+  it('decodes escaped JSON pointer segments and bounds recursive references', () => {
+    expect(
+      jsonSchemaToTypeScript({
+        $ref: '#/$defs/a~1b~0c',
+        $defs: { 'a/b~c': { type: 'integer' } }
+      })
+    ).toBe('number')
+    expect(
+      jsonSchemaToTypeScript({
+        $ref: '#/$defs/self',
+        $defs: { self: { $ref: '#/$defs/self' } }
+      })
+    ).toBe('unknown')
+  })
+
   it('combines multiple tools into one valid overload block', () => {
     const output = toolsToTypeScript([
       { name: 'first', description: 'First tool', inputSchema: { type: 'object' } },

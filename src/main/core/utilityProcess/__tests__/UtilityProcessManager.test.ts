@@ -39,7 +39,7 @@ import {
   type EchoChildState,
   type EchoContract,
   echoServeOptions,
-  rejectionOf
+  expectRejected
 } from './hostTestUtils'
 import { createMemoryProcessAdapter, flushMicrotasks, type MemoryChild, waitUntil } from './memoryProcessAdapter'
 
@@ -179,8 +179,10 @@ describe('UtilityProcessManager', () => {
     await manager._doStop()
 
     expect(adapter.spawns.map((spawn) => spawn.child.exitCode)).toEqual([0, 0])
-    const error = await rejectionOf(manager.client(echoDefinition).request('ping', undefined))
-    expect(isUtilityProcessError(error, 'PROCESS_BLOCKED')).toBe(true)
+    const blocked = await expectRejected(manager.client(echoDefinition).request('ping', undefined), (error) =>
+      isUtilityProcessError(error, 'PROCESS_BLOCKED')
+    )
+    expect(blocked).toBe(true)
     await expect(manager.client(echoDefinition).stop()).resolves.toBeUndefined()
     expect(adapter.spawns).toHaveLength(2)
   })
@@ -236,18 +238,22 @@ describe('UtilityProcessManager', () => {
     })
     await manager._doInit()
     const client = manager.client(echoDefinition)
-    const orphan = rejectionOf(client.request('wait', undefined))
+    const orphan = expectRejected(client.request('wait', undefined), (error) =>
+      isUtilityProcessError(error, 'PROCESS_STOP_FAILED')
+    )
     await waitUntil(() => adapter.spawns[0]?.child.frames.some((frame) => frame.kind === 'request'), 'request sent')
     const stuck = adapter.spawns[0].child
 
     const stopping = manager._doStop()
     await vi.advanceTimersByTimeAsync(STOP_TOTAL_MS)
     await stopping
-    expect(isUtilityProcessError(await orphan, 'PROCESS_STOP_FAILED')).toBe(true)
+    expect(await orphan).toBe(true)
     await manager._doInit()
 
-    const blocked = await rejectionOf(client.request('ping', undefined))
-    expect(isUtilityProcessError(blocked, 'PROCESS_BLOCKED')).toBe(true)
+    const blocked = await expectRejected(client.request('ping', undefined), (error) =>
+      isUtilityProcessError(error, 'PROCESS_BLOCKED')
+    )
+    expect(blocked).toBe(true)
     expect(adapter.spawns).toHaveLength(1)
 
     stuck.exit(137)
@@ -264,8 +270,9 @@ describe('UtilityProcessManager', () => {
     let blockedCode: string | undefined
 
     await client.withStopped(async () => {
-      const error = await rejectionOf(client.request('ping', undefined))
-      blockedCode = isUtilityProcessError(error) ? error.code : undefined
+      blockedCode = await expectRejected(client.request('ping', undefined), (reason) =>
+        isUtilityProcessError(reason) ? reason.code : undefined
+      )
     })
 
     expect(blockedCode).toBe('PROCESS_BLOCKED')
@@ -291,12 +298,13 @@ describe('UtilityProcessManager', () => {
       })
       await waitUntil(() => steps.length === 1, 'first maintenance started')
       const failure = new Error('replacement failed')
-      const second = rejectionOf(
+      const second = expectRejected(
         client.withStopped(async () => {
           steps.push('second')
           await secondGate.promise
           throw failure
-        })
+        }),
+        (error) => expect(error).toBe(failure)
       )
 
       // Stopping must finish without waiting for the unbounded maintenance callback.
@@ -305,18 +313,26 @@ describe('UtilityProcessManager', () => {
       const third = client.withStopped(() => steps.push('third'))
       await flushMicrotasks()
       expect(steps).toEqual(['first'])
-      expect(isUtilityProcessError(await rejectionOf(client.request('ping', undefined)), 'PROCESS_BLOCKED')).toBe(true)
+      expect(
+        await expectRejected(client.request('ping', undefined), (error) =>
+          isUtilityProcessError(error, 'PROCESS_BLOCKED')
+        )
+      ).toBe(true)
       expect(adapter.spawns).toHaveLength(1)
 
       firstGate.resolve()
       await first
       await waitUntil(() => steps.length === 2, 'second maintenance started')
       expect(steps).toEqual(['first', 'second'])
-      expect(isUtilityProcessError(await rejectionOf(client.request('ping', undefined)), 'PROCESS_BLOCKED')).toBe(true)
+      expect(
+        await expectRejected(client.request('ping', undefined), (error) =>
+          isUtilityProcessError(error, 'PROCESS_BLOCKED')
+        )
+      ).toBe(true)
       expect(adapter.spawns).toHaveLength(1)
 
       secondGate.resolve()
-      expect(await second).toBe(failure)
+      await second
       await third
       expect(steps).toEqual(['first', 'second', 'third'])
       await expect(client.request('ping', undefined)).resolves.toBe('pong')

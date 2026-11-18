@@ -609,6 +609,31 @@ describe('SlackAdapter', () => {
 
   // ─── API Error Handling ───────────────────────────────────
 
+  it.each([
+    { body: { ok: 'true', ts: '123.456' }, path: ['ok'] },
+    { body: { ok: true, ts: 123 }, path: ['ts'] }
+  ])('rejects malformed Slack success fields at $path', async ({ body, path }) => {
+    const adapter = createAdapter()
+    mockNetFetch.mockResolvedValueOnce(mockJsonResponse(body))
+    await expect(adapter.sendMessage('C0ALLOWED', 'Hello')).rejects.toMatchObject({
+      name: 'ZodError',
+      issues: [expect.objectContaining({ path })]
+    })
+  })
+
+  it('uses the sender ID when Slack returns a malformed user name', async () => {
+    const adapter = await connectAdapter()
+    const messageSpy = vi.fn()
+    adapter.on('message', messageSpy)
+    mockNetFetch.mockImplementation((url: string) =>
+      Promise.resolve(
+        mockJsonResponse(url.includes('users.info') ? { ok: true, user: { real_name: 42 } } : { ok: true })
+      )
+    )
+    simulateMessageEvent({ channel: 'C0ALLOWED', user: USER1_ID, text: 'Hello' })
+    await vi.waitFor(() => expect(messageSpy).toHaveBeenCalledWith(expect.objectContaining({ userName: USER1_ID })))
+  })
+
   it('sendMessage() throws when Slack API returns ok=false', async () => {
     const adapter = await connectAdapter()
 

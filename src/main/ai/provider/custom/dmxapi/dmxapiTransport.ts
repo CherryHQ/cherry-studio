@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 import { t } from '@main/i18n'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
@@ -104,7 +106,7 @@ class DmxapiTransport implements ImageGenerationTransport {
     }
     if (normalized.size) body.size = normalized.size
 
-    const data = await this.requestJson('/v1/images/generations', body, input.signal)
+    const data = await this.requestJson(dmxapiAsyncResponseSchema, '/v1/images/generations', body, input.signal)
     return { imageUrls: parseDmxapiAsyncResults(data) }
   }
 
@@ -133,7 +135,7 @@ class DmxapiTransport implements ImageGenerationTransport {
     if (params.addWatermark !== undefined) body.watermark = params.addWatermark
     if (params.webSearch) body.tools = [{ type: 'web_search' }]
 
-    const data = await this.requestJson('/v1/responses', body, input.signal)
+    const data = await this.requestJson(responsesApiResponseSchema, '/v1/responses', body, input.signal)
     return { imageUrls: parseResponsesApiOutput(data) }
   }
 
@@ -161,7 +163,7 @@ class DmxapiTransport implements ImageGenerationTransport {
       ...(Object.keys(parameters).length > 0 && { parameters })
     }
 
-    const data = await this.requestJson('/v1/responses', body, input.signal)
+    const data = await this.requestJson(responsesApiResponseSchema, '/v1/responses', body, input.signal)
     return { imageUrls: parseResponsesApiOutput(data) }
   }
 
@@ -181,16 +183,17 @@ class DmxapiTransport implements ImageGenerationTransport {
     }
     if (normalized.size) body.size = normalized.size
 
-    const data = await this.requestJson('/v1/images/generations', body, input.signal)
+    const data = await this.requestJson(openAiFlatResponseSchema, '/v1/images/generations', body, input.signal)
     return { imageUrls: parseOpenAIFlatResults(data) }
   }
 
-  private async requestJson(
+  private async requestJson<TSchema extends z.ZodType>(
+    schema: TSchema,
     path: string,
     body: Record<string, unknown>,
     signal?: AbortSignal,
     opts?: { authHeader?: string; authValue?: string }
-  ): Promise<unknown> {
+  ): Promise<z.infer<TSchema>> {
     const url = path.startsWith('http') ? path : `${this.baseURL}${path}`
     const authHeader = opts?.authHeader ?? 'Authorization'
     const authValue = opts?.authValue ?? `Bearer ${this.apiKey}`
@@ -213,7 +216,7 @@ class DmxapiTransport implements ImageGenerationTransport {
       throw createPaintingGenerateError('REMOTE_ERROR', { message })
     }
 
-    return response.json()
+    return schema.parse(await response.json())
   }
 }
 
@@ -221,29 +224,49 @@ class DmxapiTransport implements ImageGenerationTransport {
 // Response parsers (one per backend family)
 // ──────────────────────────────────────────────────────────────────────────────
 
-function parseDmxapiAsyncResults(data: unknown): string[] {
-  const output = (data as { extra?: { output?: { results?: Array<{ url?: string }> } } })?.extra?.output
-  return (output?.results ?? []).map((r) => r.url ?? '').filter((url): url is string => !!url)
+const dmxapiAsyncResponseSchema = z.object({
+  extra: z
+    .object({
+      output: z.object({ results: z.array(z.object({ url: z.string().nullish() })).nullish() }).nullish()
+    })
+    .nullish()
+})
+const responseContentSchema = z.object({
+  text: z.string().nullish(),
+  image: z.string().nullish(),
+  type: z.string().nullish()
+})
+const responseOutputSchema = z.object({
+  content: z.array(responseContentSchema).nullish(),
+  message: z.object({ content: z.array(responseContentSchema).nullish() }).nullish()
+})
+const responsesApiResponseSchema = z.object({
+  output: z.union([responseOutputSchema, z.array(responseOutputSchema)]).nullish()
+})
+const openAiFlatResponseSchema = z.object({
+  data: z.array(z.object({ url: z.string().nullish(), b64_json: z.string().nullish() })).nullish()
+})
+
+function parseDmxapiAsyncResults(data: z.infer<typeof dmxapiAsyncResponseSchema>): string[] {
+  return (data.extra?.output?.results ?? []).map((result) => result.url ?? '').filter(Boolean)
 }
 
-function parseResponsesApiOutput(data: unknown): string[] {
-  type Content = { text?: string; image?: string; type?: string }
-  type Output = { content?: Content[]; message?: { content?: Content[] } }
-  const outputs = (data as { output?: Output | Output[] })?.output
-  const list: Output[] = Array.isArray(outputs) ? outputs : outputs ? [outputs] : []
+function parseResponsesApiOutput(data: z.infer<typeof responsesApiResponseSchema>): string[] {
+  const outputs = data.output
+  const list = Array.isArray(outputs) ? outputs : outputs ? [outputs] : []
   const urls: string[] = []
   for (const entry of list) {
     const parts = entry.content ?? entry.message?.content ?? []
     for (const part of parts) {
       if (part.image) urls.push(part.image)
-      else if (typeof part.text === 'string') urls.push(...extractUrlsFromText(part.text))
+      else if (part.text) urls.push(...extractUrlsFromText(part.text))
     }
   }
   return urls
 }
 
-function parseOpenAIFlatResults(data: unknown): string[] {
-  const items = (data as { data?: Array<{ url?: string; b64_json?: string }> })?.data ?? []
+function parseOpenAIFlatResults(data: z.infer<typeof openAiFlatResponseSchema>): string[] {
+  const items = data.data ?? []
   return items
     .map((item) => {
       if (item.url) return item.url

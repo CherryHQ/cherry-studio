@@ -1,6 +1,7 @@
-import { createAnthropic } from '@ai-sdk/anthropic'
+import { type AnthropicLanguageModelOptions, createAnthropic } from '@ai-sdk/anthropic'
 import type { LanguageModelV3CallOptions, LanguageModelV3FunctionTool, LanguageModelV3Message } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
+import * as z from 'zod'
 
 import type { Assistant } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
@@ -39,13 +40,27 @@ function hasCacheControl(value: unknown): boolean {
   return Boolean(getCacheControl(value))
 }
 
-function getCacheControl(value: unknown): unknown {
-  const options = (
-    (value as { providerOptions?: unknown }).providerOptions as
-      | { anthropic?: { cacheControl?: unknown; cache_control?: unknown } }
-      | undefined
-  )?.anthropic
-  return options?.cacheControl ?? options?.cache_control
+const cacheControlSchema = z.object({
+  type: z.literal('ephemeral'),
+  ttl: z.enum(['5m', '1h']).optional()
+}) satisfies z.ZodType<NonNullable<AnthropicLanguageModelOptions['cacheControl']>>
+
+function getCacheControl(value: unknown) {
+  const parsed = z
+    .object({
+      providerOptions: z
+        .object({
+          anthropic: z
+            .object({ cacheControl: z.unknown().optional(), cache_control: z.unknown().optional() })
+            .optional()
+        })
+        .optional()
+    })
+    .safeParse(value)
+  if (!parsed.success) return undefined
+  const options = parsed.data.providerOptions?.anthropic
+  const control = options?.cacheControl ?? options?.cache_control
+  return control === undefined ? undefined : cacheControlSchema.parse(control)
 }
 
 function collectCacheControls(params: LanguageModelV3CallOptions): unknown[] {

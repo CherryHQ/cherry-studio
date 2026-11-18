@@ -132,9 +132,9 @@ function buildAgentSearchPredicate(search: string): SQL {
  * reserved ID, so historical configuration cannot grant an ordinary Agent system capabilities.
  * Only internal seeding (`createAgentTx`) may write the role; public DataApi cannot forge it.
  */
-function getBuiltinRole(configuration: unknown): unknown {
-  if (!configuration || typeof configuration !== 'object') return undefined
-  return (configuration as { builtin_role?: unknown }).builtin_role
+function matchesBuiltinRole(configuration: unknown, expectedRole: unknown): boolean {
+  if (!configuration || typeof configuration !== 'object') return expectedRole === undefined
+  return (configuration as { builtin_role?: unknown }).builtin_role === expectedRole
 }
 
 function removeUntrustedSupportRole(id: string, configuration: unknown): Record<string, unknown> {
@@ -142,7 +142,7 @@ function removeUntrustedSupportRole(id: string, configuration: unknown): Record<
     configuration && typeof configuration === 'object' && !Array.isArray(configuration)
       ? { ...(configuration as Record<string, unknown>) }
       : {}
-  if (id === CHERRY_SUPPORT_AGENT_ID || getBuiltinRole(configuration) !== BUILTIN_AGENT_ROLE.SUPPORT) {
+  if (id === CHERRY_SUPPORT_AGENT_ID || !matchesBuiltinRole(configuration, BUILTIN_AGENT_ROLE.SUPPORT)) {
     return next
   }
   delete next.builtin_role
@@ -359,8 +359,8 @@ export class AgentService {
    * non-data side effects and supplies the already-reserved id.
    */
   createAgentWithId(id: string, req: AgentCreateInput, avatarFileId?: FileEntryId): AgentEntity {
-    // Reserved capability identity — see getBuiltinRole. Seeding writes via createAgentTx.
-    if (getBuiltinRole(req.configuration) !== undefined) {
+    // Reserved capability identity — see matchesBuiltinRole. Seeding writes via createAgentTx.
+    if (!matchesBuiltinRole(req.configuration, undefined)) {
       throw DataApiErrorFactory.invalidOperation(
         'create agent',
         'configuration.builtin_role is reserved for system agents'
@@ -445,7 +445,7 @@ export class AgentService {
     insertData: Omit<InsertAgentRow, 'orderKey'>,
     position: 'first' | 'last' = 'last'
   ): { agent: AgentRow; modelName: string | null } | null {
-    if (getBuiltinRole(insertData.configuration) === BUILTIN_AGENT_ROLE.SUPPORT && id !== CHERRY_SUPPORT_AGENT_ID) {
+    if (matchesBuiltinRole(insertData.configuration, BUILTIN_AGENT_ROLE.SUPPORT) && id !== CHERRY_SUPPORT_AGENT_ID) {
       throw DataApiErrorFactory.invalidOperation(
         'create built-in Agent',
         'Cherry Support must use its reserved system identity'
@@ -507,7 +507,7 @@ export class AgentService {
     if (!existing) return null
 
     const shouldRestore = options.restoreDeleted === true && existing.deletedAt !== null
-    if (getBuiltinRole(existing.configuration) === BUILTIN_AGENT_ROLE.SUPPORT && !shouldRestore) {
+    if (matchesBuiltinRole(existing.configuration, BUILTIN_AGENT_ROLE.SUPPORT) && !shouldRestore) {
       return existing
     }
     const configuration =
@@ -837,9 +837,9 @@ export class AgentService {
 
           if (configurationPatch !== undefined || modelChanged) {
             const persistedConfiguration = removeUntrustedSupportRole(current.id, current.configuration)
-            const existingRole = getBuiltinRole(persistedConfiguration)
-            const incomingRole = getBuiltinRole(configurationPatch)
-            if (incomingRole !== undefined && incomingRole !== existingRole) {
+            const incomingRole =
+              configurationPatch && typeof configurationPatch === 'object' ? configurationPatch.builtin_role : undefined
+            if (incomingRole !== undefined && !matchesBuiltinRole(persistedConfiguration, incomingRole)) {
               throw DataApiErrorFactory.invalidOperation(
                 'update agent',
                 'configuration.builtin_role is reserved for system agents'

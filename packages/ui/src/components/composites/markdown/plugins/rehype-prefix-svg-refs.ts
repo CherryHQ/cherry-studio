@@ -8,6 +8,7 @@
  * same SVG follow suit.
  */
 
+import type { Element, Nodes, Properties, Root } from 'hast'
 import { visit } from 'unist-util-visit'
 
 const rewriteSvgReference = (value: string, idMap: Map<string, string>) => {
@@ -27,26 +28,24 @@ const rewriteSvgReference = (value: string, idMap: Map<string, string>) => {
   return rewritten
 }
 
-const rewriteSvgProperty = (value: unknown, idMap: Map<string, string>): unknown => {
+const rewriteSvgProperty = (value: Properties[string], idMap: Map<string, string>): Properties[string] => {
   if (typeof value === 'string') {
     return rewriteSvgReference(value, idMap)
   }
 
   if (Array.isArray(value)) {
-    return value.map((item) => rewriteSvgProperty(item, idMap))
+    return value.map((item) => (typeof item === 'string' ? rewriteSvgReference(item, idMap) : item))
   }
 
   return value
 }
 
-const walkElement = (node: any, visitor: (node: any) => void) => {
-  if (!node || typeof node !== 'object') return
-
+const walkElement = (node: Nodes, visitor: (node: Element) => void) => {
   if (node.type === 'element') {
     visitor(node)
   }
 
-  if (Array.isArray(node.children)) {
+  if ('children' in node) {
     for (const child of node.children) {
       walkElement(child, visitor)
     }
@@ -54,10 +53,10 @@ const walkElement = (node: any, visitor: (node: any) => void) => {
 }
 
 export function rehypePrefixSvgReferences(clobberPrefix = 'user-content-') {
-  return (tree: any) => {
+  return (tree: Root) => {
     if (!clobberPrefix) return
 
-    visit(tree, 'element', (svgNode: any) => {
+    visit(tree, 'element', (svgNode) => {
       if (svgNode.tagName !== 'svg') return
 
       const idMap = new Map<string, string>()

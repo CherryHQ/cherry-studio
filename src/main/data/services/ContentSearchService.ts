@@ -1,7 +1,13 @@
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory, ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api/errors'
+import {
+  type DataApiError,
+  DataApiErrorFactory,
+  ErrorCode,
+  isDataApiError,
+  toDataApiError
+} from '@shared/data/api/errors'
 import type {
   ContentSearchFilters,
   ContentSearchGroup,
@@ -29,7 +35,7 @@ type ContentSearchSourceAdapter<T extends ContentSearchSourceType> = {
   search(input: ContentSearchAdapterInput<T>): Extract<ContentSearchGroup, { sourceType: T }>
 }
 
-function toSourceCursorError(sourceType: ContentSearchSourceType, error: unknown): unknown {
+function toSourceCursorError<TError>(sourceType: ContentSearchSourceType, error: TError): TError | DataApiError {
   if (!isDataApiError(error) || error.code !== ErrorCode.VALIDATION_ERROR) return error
 
   const details = error.details as { fieldErrors?: Record<string, string[]> } | undefined

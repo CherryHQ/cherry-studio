@@ -4,7 +4,7 @@ import type { ThreadId } from '@cherrystudio/agent-runtime'
 
 import { callTool, childSpec, holds, type Holds, latch, reply, toolResults } from '../../src/contract/fixtures'
 import { ensureDriver } from '../../src/core/driver/jobs'
-import { callKeyOf, ENTRY_KINDS, type UsageFact } from '../../src/core/facts'
+import { callKeyOf, ENTRY_KINDS, type GoalNotice, type UsageFact } from '../../src/core/facts'
 import { admittedRounds, currentGoal } from '../../src/core/goal/goalHistory'
 import { keys } from '../../src/core/keys'
 import { pendingResults } from '../../src/core/subagents/subagentLedger'
@@ -306,7 +306,7 @@ describe('idle driver', () => {
   // run's starter, so a compaction afterwards would write that withdrawn round's prompt into the summary.
   it('leaves a round withdrawn before its admission out of a later compaction', async () => {
     const hold = holds()
-    let pause: (() => Promise<unknown>) | undefined
+    let pause: (() => Promise<GoalNotice>) | undefined
     const pauseAfterStart = (ports: BoundPorts): BoundPorts => ({
       ...ports,
       turns: {
@@ -342,7 +342,7 @@ describe('idle driver', () => {
   // run it started must stop.
   it('withdraws and stops a round the goal changed under, then runs the new one', async () => {
     const hold = holds()
-    let edit: (() => Promise<unknown>) | undefined
+    let edit: (() => Promise<GoalNotice>) | undefined
     const afterStart = (ports: BoundPorts): BoundPorts => ({
       ...ports,
       turns: {
@@ -384,7 +384,7 @@ describe('idle driver', () => {
     const hold = holds()
     const stopReached = latch()
     const stopGate = latch()
-    let edit: (() => Promise<unknown>) | undefined
+    let edit: (() => Promise<GoalNotice>) | undefined
     const editThenHoldStop = (ports: BoundPorts): BoundPorts => ({
       ...ports,
       turns: {

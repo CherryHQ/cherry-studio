@@ -110,7 +110,7 @@ describe('ModelService edition availability', () => {
     })
     await dbh.db.insert(userModelTable).values(modelRow('global-only', 'hidden-model', 'a0'))
 
-    const calls: Array<[string, () => unknown]> = [
+    const calls: Array<[string, () => ReturnType<(typeof modelService)[keyof typeof modelService]>]> = [
       ['getByKey', () => modelService.getByKey('global-only', 'hidden-model')],
       ['create', () => modelService.create([{ dto: { providerId: 'global-only', modelId: 'new-model' } }])],
       ['update', () => modelService.update('global-only', 'hidden-model', { name: 'changed' })],

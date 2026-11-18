@@ -14,6 +14,8 @@ import { type AgentSessionMessageRow, agentSessionMessageTable } from '@data/db/
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import type { DbOrTx } from '@data/db/types'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { Serializable } from '@shared/types/serializable'
+import { SerializableSchema } from '@shared/utils/serializable'
 
 import { agentSessionContextService } from './AgentSessionContextService'
 import { agentSessionMessageService } from './AgentSessionMessageService'
@@ -58,8 +60,8 @@ export class AgentSessionForkService {
     if (!messageIds.length) return []
     const parent = alias(agentSessionMessageTable, 'parent')
     const anchor = (data: AnySQLiteColumn) =>
-      sql<unknown>`json_quote(json_extract(${data}, '$.runtimeAnchor'))`.mapWith((value: string): unknown =>
-        JSON.parse(value)
+      sql<Serializable>`json_quote(json_extract(${data}, '$.runtimeAnchor'))`.mapWith(
+        (value: string): Serializable => SerializableSchema.parse(JSON.parse(value))
       )
     return application
       .get('DbService')

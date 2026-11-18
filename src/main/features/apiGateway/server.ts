@@ -17,10 +17,10 @@ const SHUTDOWN_GRACE_MS = 3_000
 
 // The Node adapter returns srvx internals, not the Bun server type exposed by Elysia.
 type NodeServerInfo = {
-  stop: () => Promise<unknown>
+  stop: () => Promise<void>
   raw: {
     node: { server: HttpServer }
-    ready: () => Promise<unknown>
+    ready: () => Promise<NodeServerInfo['raw']>
   }
 }
 
