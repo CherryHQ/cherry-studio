@@ -62,14 +62,7 @@ export function PptdShapeElement({ element, context }: { element: PptdShape; con
   const border = element.border
   const stroke = border?.color ? pptdColorToCss(border.color, context) : undefined
   const strokeWidth = border?.width ?? (stroke ? 1 : 0)
-  const dasharray =
-    border?.style === 'dash'
-      ? '8 6'
-      : border?.style === 'dot'
-        ? '2 4'
-        : border?.style === 'dashDot'
-          ? '8 4 2 4'
-          : undefined
+  const dasharray = border?.style === 'dash' ? '8 6' : border?.style === 'dot' ? '2 4' : undefined
 
   const shadow = element.shadow
   const filter = shadow
