@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { BridgeResult } from '@shared/ipc/schemas/miniAppBridge'
 
 import { mockMiniAppApplication } from '../../__tests__/applicationMock'
+import type { MiniAppPreviewService } from '../../preview/MiniAppPreviewService'
 
 const resolveAppIdBySender = vi.fn()
 const beginCapabilityCall = vi.fn()
@@ -236,10 +237,10 @@ describe('handleBridgeRequest', () => {
     const runtimeId = 'preview-33333333-3333-3333-3333-333333333333'
     vi.mocked(application.getExisting).mockImplementation((name: string) =>
       name === 'MiniAppPreviewService'
-        ? {
+        ? ({
             getPreviewByRuntimeId: (id: string) =>
               id === runtimeId ? { runtimeId, appId: 'com.example.manifest', version: '2.3.4' } : undefined
-          }
+          } as unknown as MiniAppPreviewService)
         : undefined
     )
     resolveAppIdBySender.mockReturnValue(runtimeId)

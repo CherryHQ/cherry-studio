@@ -9,6 +9,7 @@ import { application } from '@application'
 import { miniAppTable } from '@data/db/schemas/miniApp'
 
 import { miniAppStorageFile } from '../../paths'
+import type { MiniAppPreviewService } from '../../preview/MiniAppPreviewService'
 import { clearPreviewStores, readPreviewStorage } from '../previewStores'
 import { MINI_APP_QUOTAS, QuotaExceededError, RateLimitedError } from '../quota'
 import { storageCapability } from '../storage'
@@ -131,7 +132,9 @@ describe('cherry.storage under a live preview', () => {
     )
     vi.mocked(application.getExisting).mockImplementation((name: string) =>
       name === 'MiniAppPreviewService'
-        ? { getPreviewByRuntimeId: (id: string) => (id === RUNTIME ? { runtimeId: RUNTIME } : undefined) }
+        ? ({
+            getPreviewByRuntimeId: (id: string) => (id === RUNTIME ? { runtimeId: RUNTIME } : undefined)
+          } as unknown as MiniAppPreviewService)
         : undefined
     )
   })
