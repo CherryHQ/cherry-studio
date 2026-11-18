@@ -11,7 +11,7 @@ import {
 } from '../sessionToolResult'
 
 function toolResponse(name: string, serverId?: string) {
-  const tool = { id: name, name, type: serverId ? 'mcp' : 'provider' }
+  const tool = { id: name, name, type: serverId ? 'mcp' : 'provider' } satisfies ToolResponseLike['tool']
   if (serverId) Object.assign(tool, { serverId })
   return {
     id: `response-${name}`,
@@ -20,7 +20,7 @@ function toolResponse(name: string, serverId?: string) {
     arguments: { title: 'Research session' },
     status: 'done',
     response: JSON.stringify({ ok: true, sessionId: 'session-research' })
-  } as never
+  } satisfies ToolResponseLike
 }
 
 describe('getSessionToolTargets', () => {
