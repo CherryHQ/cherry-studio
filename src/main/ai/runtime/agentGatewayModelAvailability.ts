@@ -1,3 +1,4 @@
+import { t } from '@main/i18n'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isGatewayRoutableModel } from '@shared/utils/model'
@@ -16,16 +17,16 @@ import { AgentModelUnavailableError } from './agentModelUnavailableError'
 export function assertAgentGatewayModelAvailable(provider: Provider, model: Model, modelAddress: string): void {
   if (provider.isEnabled === false) {
     throw new AgentModelUnavailableError(
-      `Agent model "${modelAddress}" is not available: provider "${provider.id}" is disabled.`
+      t('agent.model_unavailable.provider_disabled', { modelAddress, providerId: provider.id })
     )
   }
   if (model.isEnabled === false) {
-    throw new AgentModelUnavailableError(`Agent model "${modelAddress}" is not available: the model is disabled.`)
+    throw new AgentModelUnavailableError(t('agent.model_unavailable.model_disabled', { modelAddress }))
   }
   if (isExternalCliProvider(provider)) {
-    throw new AgentModelUnavailableError(`Agent model "${modelAddress}" is not available through the API gateway.`)
+    throw new AgentModelUnavailableError(t('agent.model_unavailable.gateway_unroutable', { modelAddress }))
   }
   if (!isGatewayRoutableModel(model)) {
-    throw new AgentModelUnavailableError(`Agent model "${modelAddress}" is not available through the API gateway.`)
+    throw new AgentModelUnavailableError(t('agent.model_unavailable.gateway_unroutable', { modelAddress }))
   }
 }
