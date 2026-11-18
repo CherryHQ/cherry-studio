@@ -1,6 +1,8 @@
 import type { FinishReason, UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
+import type { MessageStats } from '@shared/data/types/message'
+
 import { OpenAiSseFormatter } from '../formatters/OpenAiSseFormatter'
 import { AiSdkToOpenAiSse, type OpenAiCompatibleChunk } from '../stream/AiSdkToOpenAiSse'
 
@@ -19,23 +21,22 @@ interface GatewayUsage {
 }
 
 const createFinish = (finishReason: FinishReason | undefined = 'stop', usage?: GatewayUsage): UIMessageChunk => {
-  const messageMetadata =
-    usage !== undefined
-      ? {
-          stats: {
-            totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-            inputTokens: usage.inputTokens ?? 0,
-            outputTokens: usage.outputTokens ?? 0,
-            ...(usage.cacheReadTokens !== undefined
-              ? { inputTokenDetails: { cacheReadTokens: usage.cacheReadTokens } }
-              : {}),
-            ...(usage.reasoningTokens !== undefined
-              ? { outputTokenDetails: { reasoningTokens: usage.reasoningTokens } }
-              : {})
-          }
-        }
-      : undefined
-  return { type: 'finish', finishReason: finishReason || 'stop', ...(messageMetadata ? { messageMetadata } : {}) }
+  let stats: MessageStats | undefined
+  if (usage !== undefined) {
+    stats = {
+      totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
+      inputTokens: usage.inputTokens ?? 0,
+      outputTokens: usage.outputTokens ?? 0
+    }
+    if (usage.cacheReadTokens !== undefined) stats.inputTokenDetails = { cacheReadTokens: usage.cacheReadTokens }
+    if (usage.reasoningTokens !== undefined) stats.outputTokenDetails = { reasoningTokens: usage.reasoningTokens }
+  }
+  const chunk: Extract<UIMessageChunk, { type: 'finish' }> = {
+    type: 'finish',
+    finishReason: finishReason || 'stop'
+  }
+  if (stats) chunk.messageMetadata = { stats }
+  return chunk
 }
 
 function createMockStream(events: readonly UIMessageChunk[]) {
