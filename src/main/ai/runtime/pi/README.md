@@ -139,10 +139,10 @@ committed child history while its access remains readable, and releases access a
 Native session, goal and subagent tests live in `packages/agent-runtime-pi/tests/`. They use Pi
 providers directly, including scripted native streams with fixed usage for budget assertions.
 `gatewayIntegration.test.ts` exercises real gateway
-execution, provider selection, request options, cancellation, bounded object delivery and SQLite billing against a loopback upstream.
+execution, provider selection, request options, cancellation, object delivery and SQLite billing against a loopback upstream.
 It also rejects internal request JSON encoding and SSE formatting for all four native protocols.
 `PiRuntimeConnection.test.ts` covers desktop connection ownership and native context associations
 with a native test provider substituted at the model-binding boundary.
 The integration uses the real `ApiGatewayService` object-call and capture methods. Native request
-timeouts, hook-failure cleanup and capacity waits are covered separately from upstream idle detection.
+timeouts and hook-failure cleanup are covered separately from upstream idle detection.
 Live-provider and Electron acceptance remain separate checks.

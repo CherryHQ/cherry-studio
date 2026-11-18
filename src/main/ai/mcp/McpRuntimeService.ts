@@ -20,7 +20,6 @@ import {
   ElicitResultSchema
 } from '@modelcontextprotocol/core'
 import { app } from 'electron'
-import { nanoid } from 'nanoid'
 import { v4 as uuidv4 } from 'uuid'
 import * as z from 'zod'
 
@@ -909,7 +908,7 @@ export class McpRuntimeService extends BaseService {
       const prompts = await (await this.getOrCreateConnection(server, null)).listPrompts(cacheMode)
       return prompts.map((prompt) => ({
         ...prompt,
-        id: `p${nanoid()}`,
+        id: `p${crypto.randomUUID()}`,
         serverId: server.id,
         serverName: server.name
       }))

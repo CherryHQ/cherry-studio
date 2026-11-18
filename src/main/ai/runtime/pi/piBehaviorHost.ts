@@ -1,12 +1,10 @@
 import { writeFile } from 'node:fs/promises'
 
-import { isToolUIPart } from 'ai'
 import * as z from 'zod'
 
 import { application } from '@application'
-import type { ApprovalOutcome, CallRef, HostPorts, BehaviorEvent } from '@cherrystudio/agent-behavior'
+import type { CallRef, HostPorts, BehaviorEvent } from '@cherrystudio/agent-behavior'
 import type { JsonValue, ThreadId, Thread } from '@cherrystudio/agent-runtime'
-import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import type { McpSkillService } from '@main/ai/skills/McpSkillService'
@@ -42,7 +40,6 @@ const answerSchema = z.object({
   annotations: z.record(z.string(), z.object({ notes: z.string().optional() })).optional()
 })
 const verdictSchema = z.object({ verdict: z.enum(['met', 'not_met', 'impossible']), reason: z.string() })
-const callSchema = z.object({ thread: z.string(), key: z.string() })
 const approvalId = (call: CallRef) => `behavior:${JSON.stringify(call)}`
 
 /** Desktop services for one root's behavior tree; no tool loop or policy decisions live here. */
@@ -80,7 +77,7 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
   }
 
   const host: HostPorts = {
-    ...(await createPiInteractionPorts(options)),
+    ...createPiInteractionPorts(options),
     models: {
       async find(query) {
         const candidates = modelService
@@ -161,12 +158,10 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
   }
 }
 
-export async function createPiInteractionPorts(
+export function createPiInteractionPorts(
   options: Pick<HostOptions, 'input' | 'approval' | 'emit' | 'toolCallIdentity'>
-): Promise<Pick<HostPorts, 'approvals' | 'questions'>> {
-  const { callKeyOf } = await import('@cherrystudio/agent-behavior')
+): Pick<HostPorts, 'approvals' | 'questions'> {
   const { input, approval } = options
-  const outcomes = new Map<string, ApprovalOutcome>()
   const skillApprovals = new WeakMap<CallRef, NonNullable<ReturnType<McpSkillService['toolApproval']>>>()
 
   async function ask(
@@ -245,79 +240,32 @@ export async function createPiInteractionPorts(
         }
       },
       async ask({ call, tool, details }, signal) {
-        const id = approvalId(call)
-        outcomes.set(id, { call, state: 'pending' })
+        const args = recordSchema.parse(tool.args)
+        const skills = application.get('McpSkillService')
+        if (skills.guardTool(input.sessionId, tool.name)) return { kind: 'denied' }
+        const skillApproval = skillApprovals.get(call)
+        skillApprovals.delete(call)
+        let decision: DispatchDecision | undefined
         try {
-          const args = recordSchema.parse(tool.args)
-          const skills = application.get('McpSkillService')
-          const denial = skills.guardTool(input.sessionId, tool.name)
-          if (denial) {
-            outcomes.set(id, { call, state: 'denied' })
-            return { kind: 'denied' }
-          }
-          const skillApproval = skillApprovals.get(call)
-          skillApprovals.delete(call)
-          let decision: DispatchDecision | undefined
-          try {
-            decision = await ask(
-              call,
-              tool.name,
-              args,
-              skillApproval ? AbortSignal.any([signal, skillApproval.signal]) : signal,
-              details
-            )
-            if (decision?.approved && skillApproval) {
-              if (decision.updatedInput) decision = { approved: false }
-              else decision = { ...decision, updatedInput: skillApproval.approve() }
-            }
-          } catch (error) {
-            if (!skillApproval || signal.aborted) throw error
-            decision = { approved: false }
-          }
-          const feedback = decision?.reasonSource === 'user' ? decision.reason : undefined
-          outcomes.set(id, {
+          decision = await ask(
             call,
-            state: decision?.approved ? 'granted' : decision ? 'denied' : 'unavailable',
-            feedback
-          })
-          if (!decision) return { kind: 'unavailable' }
-          return decision.approved
-            ? { kind: 'granted', ...(decision.updatedInput && { args: recordSchema.parse(decision.updatedInput) }) }
-            : { kind: 'denied', feedback }
-        } catch (error) {
-          outcomes.delete(id)
-          throw error
-        }
-      },
-      async outcomes(thread, calls) {
-        const persisted = new Map<string, ApprovalOutcome>()
-        for (const message of agentSessionMessageService.listApprovalMessages(input.sessionId)) {
-          for (const part of message.data.parts ?? []) {
-            if (!isToolUIPart(part) || !part.approval?.id.startsWith('behavior:')) continue
-            const id = part.approval.id
-            if (persisted.has(id)) continue
-            let parsed: unknown
-            try {
-              parsed = JSON.parse(id.slice('behavior:'.length))
-            } catch {
-              continue
-            }
-            const ref = callSchema.safeParse(parsed)
-            if (!ref.success || ref.data.thread !== thread) continue
-            const answered = 'approved' in part.approval ? part.approval : undefined
-            persisted.set(id, {
-              call: { thread, key: callKeyOf(ref.data.key) },
-              state: answered ? (answered.approved ? 'granted' : 'denied') : 'unavailable',
-              feedback: answered?.reason
-            })
+            tool.name,
+            args,
+            skillApproval ? AbortSignal.any([signal, skillApproval.signal]) : signal,
+            details
+          )
+          if (decision?.approved && skillApproval) {
+            if (decision.updatedInput) decision = { approved: false }
+            else decision = { ...decision, updatedInput: skillApproval.approve() }
           }
+        } catch (error) {
+          if (!skillApproval || signal.aborted) throw error
+          decision = { approved: false }
         }
-        for (const [id, outcome] of outcomes) persisted.set(id, outcome)
-        return [...persisted.values()].filter(
-          (outcome) =>
-            outcome.call.thread === thread &&
-            (calls.length === 0 || calls.some((call) => call.key === outcome.call.key))
-        )
+        if (!decision) return { kind: 'unavailable' }
+        return decision.approved
+          ? { kind: 'granted', ...(decision.updatedInput && { args: recordSchema.parse(decision.updatedInput) }) }
+          : { kind: 'denied', feedback: decision.reasonSource === 'user' ? decision.reason : undefined }
       }
     },
     questions: {

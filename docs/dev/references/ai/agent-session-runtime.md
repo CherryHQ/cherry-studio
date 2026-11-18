@@ -1034,10 +1034,12 @@ reopening native compaction history. Electron acceptance is checked separately.
 ### Pi behavior host
 
 `piBehaviorHost.ts` implements the existing `HostPorts` using Cherry services.
-Approvals and questions use existing cards; approval outcomes stay in message
-parts. Environment facts (disabled tools, protected paths, delegation attendance
-and shell classification) come from `piApprovalFacts.ts`; shared behavior decides
-whether to run, ask or block. No new approval table is required.
+Approvals and questions use existing cards; a person's answer stays in their
+message parts, and the shared rules read a denial only from the call's blocked
+result in the conversation history, never from those parts. Environment facts
+(disabled tools, protected paths, delegation attendance and shell
+classification) come from `piApprovalFacts.ts`; shared behavior decides whether
+to run, ask or block. No new approval table is required.
 
 Pi and Pi Durable child threads use the root's live permission mode, interaction
 state and tool restrictions. Delegation does not grant Full Access. A child call

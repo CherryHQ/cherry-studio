@@ -51,6 +51,39 @@ The repository previously carried target-architecture documents for a generic
 adapter layer and root package barrel. Those APIs did not land; the current
 reference set documents implemented behavior only.
 
+## Conversation list sorting
+
+The Chat and Agent conversation list menus expose separate Group by and Sort by
+controls. Each domain saves its sorting choice across the sidebar and right
+panel: Last updated, Date created, Name, or Manually. Automatic sorts support
+ascending and descending directions. Grouping controls section placement; the
+selected sort applies within each group, and pinned rows retain pin order.
+
+Last updated uses conversation activity (`lastActivityAt`), so renaming or
+reordering a conversation does not move it. Automatic sorting disables row
+reordering. Manually enables supported group-local drops and preserves custom
+order across activity changes and switches to other sorting modes. Collection
+queries apply the selected order before cursor pagination.
+
+Name sorting follows the application language using ICU/CLDR collation. It
+compares numeric runs naturally (`2` before `10`), ignores case, distinguishes
+accents and punctuation, and uses ascending id order for equivalent names in
+both directions. Simplified Chinese uses pinyin; Traditional Chinese uses stroke
+order. Japanese kanji are not automatically converted to readings. Mixed-script
+titles use the selected locale's collation rules. Changing application language
+starts a new localized page chain.
+
+The main process sorts matching name/id metadata with the shared comparator
+before hydrating the current page. This keeps database pagination and display
+groups consistent without a native SQLite ICU extension. Name pagination reads
+all matching name/id pairs per request; other modes retain SQL keyset pagination.
+
+On first upgrade, missing sorting settings are inferred separately from active
+Chat and ordinary Agent rows. A stored manual order that differs from creation
+time descending selects Manually; otherwise the default is Last updated descending.
+Equal creation timestamps do not imply a custom order. Existing sorting settings
+are preserved, and initialization never rewrites conversation order keys.
+
 ## Agent mode controls
 
 The Agent composer exposes Plan as an independent Quick Panel toggle on harnesses
