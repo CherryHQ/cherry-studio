@@ -29,15 +29,15 @@ import '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { AgentSessionUsageAttribution } from '@main/ai/agentSession/AgentSessionUsageAttribution'
 import { AiService } from '@main/ai/AiService'
-import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, CHERRY_SERVICE_TIER_HEADER } from '@main/ai/constants'
-import { createPiTelemetry, observabilitySinks, type AgentRuntimeTraceContext } from '@main/ai/observability'
+import { createPiTelemetry, observabilitySinks } from '@main/ai/observability'
 import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
+import type { InProcessUsageContext } from '@main/ai/types'
 import type * as CustomFetch from '@main/ai/utils/customFetch'
 import { BaseService } from '@main/core/lifecycle'
 import { StreamAdapterFactory } from '@main/features/apiGateway/adapters'
 import type { InputFormat } from '@main/features/apiGateway/adapters/interfaces'
+import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
 import { gatewayErrorHandler } from '@main/features/apiGateway/errors'
-import { createGatewayObjectTransports } from '@main/features/apiGateway/objectStream'
 import { processMessage } from '@main/features/apiGateway/proxyStream'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { SpanEntity } from '@shared/data/types/trace'
@@ -48,8 +48,8 @@ import { createPiBehaviorHost } from './piBehaviorHost'
 
 const mocks = vi.hoisted(() => ({
   messageId: 'original-answer',
-  captures: new Map<string, AgentRuntimeTraceContext>(),
-  objectHeaders: [] as Headers[],
+  gatewayService: undefined as ApiGatewayService | undefined,
+  usageContexts: new Map<string, InProcessUsageContext>(),
   gatewayUrl: '',
   gatewayRequests: 0,
   manager: undefined as AiStreamManager | undefined,
@@ -58,6 +58,9 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory, defaultServiceInstances } = await import('@test-mocks/main/application')
+  const isHttpFixture = (headers: Headers) =>
+    headers.get('authorization') === 'Bearer internal-fixture-key' ||
+    headers.get('x-goog-api-key') === 'internal-fixture-key'
   const overrides = {
     ...defaultServiceInstances,
     AiStreamManager: {
@@ -66,48 +69,37 @@ vi.mock('@application', async () => {
     },
     AiService: { streamText: (input: Parameters<AiService['streamText']>[0]) => mocks.ai!.streamText(input) },
     ApiGatewayService: {
-      acquireModelPayloadBudget: async () => () => {},
-      captureAgentSessionUsage: (_session: string, _owner: string | undefined, parent?: AgentRuntimeTraceContext) => {
-        if (!parent) return { headers: {}, release: () => {} }
-        const key = String(mocks.captures.size + 1)
-        mocks.captures.set(key, parent)
-        return {
-          headers: { 'x-cherry-agent-usage-capture': key },
-          release: () => {
-            mocks.captures.delete(key)
-          }
-        }
-      },
-      createAgentObjectTransports: (input: {
-        sessionId: string
-        headers?: Record<string, string | null>
-        reasoningEffort?: string
-        serviceTier?: string
-        fastMode?: boolean
-      }) => {
-        const headers = new Headers()
-        for (const [name, value] of Object.entries(input.headers ?? {})) if (value !== null) headers.set(name, value)
-        headers.set('authorization', 'Bearer internal-fixture-key')
-        headers.set('x-cherry-agent-session-id', input.sessionId)
-        headers.set(CHERRY_REASONING_EFFORT_HEADER, input.reasoningEffort ?? 'default')
-        headers.set(CHERRY_FAST_MODE_HEADER, String(input.fastMode === true))
-        if (input.serviceTier) headers.set(CHERRY_SERVICE_TIER_HEADER, input.serviceTier)
-        mocks.objectHeaders.push(headers)
-        return createGatewayObjectTransports({ requestHeaders: headers })
-      },
-      ensureInternalGateway: async () => ({ baseUrl: mocks.gatewayUrl, apiKey: 'internal-fixture-key' }),
-      getAgentSessionUsageHeaders: (sessionId: string) => ({ 'x-cherry-agent-session-id': sessionId }),
-      isInternalRequest: (headers: Headers) => headers.get('authorization') === 'Bearer internal-fixture-key',
-      getAgentSessionId: (headers: Headers) => headers.get('x-cherry-agent-session-id'),
-      resolveAgentSessionUsage: (headers: Headers, responseId: string) => ({
-        agentSessionId: headers.get('x-cherry-agent-session-id')!,
-        assistantMessageId: mocks.messageId,
-        source: null,
-        traceContext: mocks.captures.get(headers.get('x-cherry-agent-usage-capture') ?? ''),
-        ...(mocks.attribution && { recordInvocation: mocks.attribution.capture(responseId) })
-      })
+      acquireModelPayloadBudget: (payload: unknown, signal?: AbortSignal) =>
+        mocks.gatewayService!.acquireModelPayloadBudget(payload, signal),
+      captureAgentSessionUsage: (...args: Parameters<ApiGatewayService['captureAgentSessionUsage']>) =>
+        mocks.gatewayService!.captureAgentSessionUsage(...args),
+      createAgentObjectTransports: (...args: Parameters<ApiGatewayService['createAgentObjectTransports']>) =>
+        mocks.gatewayService!.createAgentObjectTransports(...args),
+      getAgentSessionUsageHeaders: (id: string) => mocks.gatewayService!.getAgentSessionUsageHeaders(id),
+      isInternalRequest: (headers: Headers) =>
+        headers.get('authorization') === 'Bearer internal-fixture-key' ||
+        mocks.gatewayService!.isInternalRequest(headers),
+      getAgentSessionId: (headers: Headers) =>
+        isHttpFixture(headers)
+          ? (headers.get('x-cherry-agent-session-id') ?? undefined)
+          : mocks.gatewayService!.getAgentSessionId(headers),
+      resolveAgentSessionUsage: (headers: Headers, responseId: string) =>
+        isHttpFixture(headers)
+          ? application
+              .get('AgentSessionRuntimeService')
+              .getActiveUsageContext(headers.get('x-cherry-agent-session-id')!, responseId)
+          : mocks.gatewayService!.resolveAgentSessionUsage(headers, responseId)
+
     },
-    AgentSessionRuntimeService: { getActiveUsageContext: () => ({ assistantMessageId: mocks.messageId, source: null }) }
+    AgentSessionRuntimeService: {
+      getActiveUsageContext: (sessionId: string, responseId?: string) =>
+        mocks.usageContexts.get(sessionId) ?? {
+          agentSessionId: sessionId,
+          assistantMessageId: mocks.messageId,
+          source: null,
+          ...(mocks.attribution && responseId && { recordInvocation: mocks.attribution.capture(responseId) })
+        }
+    }
   }
   return mockApplicationFactory(overrides)
 })
@@ -161,6 +153,8 @@ describe('native Pi through the production gateway', () => {
     BaseService.resetInstances()
     mocks.manager = new AiStreamManager()
     mocks.ai = new AiService()
+    mocks.gatewayService = new ApiGatewayService()
+    mocks.usageContexts.clear()
     gateway = createServer(async (request, response) => {
       mocks.gatewayRequests += 1
       const abort = new AbortController()
@@ -201,7 +195,6 @@ describe('native Pi through the production gateway', () => {
     mocks.gatewayUrl = `http://127.0.0.1:${(gateway.address() as AddressInfo).port}`
     requests.length = 0
     mocks.gatewayRequests = 0
-    mocks.objectHeaders.length = 0
     holdResponse = false
     upstreamClosed = false
     protocol = 'openai'
@@ -525,7 +518,6 @@ describe('native Pi through the production gateway', () => {
       const records = dbh.db.select().from(aiUsageRecordTable).all()
       expect(records).toHaveLength(1)
       expect(records[0]).toMatchObject({ inputTokens: 100, outputTokens: 25 })
-      await expect.poll(() => mocks.captures.size).toBe(0)
     } finally {
       await preferences.set('app.developer_mode.enabled', previous)
       await tracerProvider.shutdown()
@@ -541,7 +533,9 @@ describe('native Pi through the production gateway', () => {
       })
       .where(eq(userModelTable.id, 'port::wire-model'))
       .run()
-    const headers = mocks.objectHeaders
+    for (const id of ['parent', 'fork', 'third']) {
+      mocks.usageContexts.set(id, { agentSessionId: id, assistantMessageId: id, source: null })
+    }
     const provider = providerService.getByProviderId('port')
     const model = modelService.getByKey('port', 'wire-model')
     const first = await createPiGatewayModelBinding(
@@ -573,12 +567,13 @@ describe('native Pi through the production gateway', () => {
     )
     expect(results.map((result) => result.stopReason)).toEqual(['stop', 'stop', 'stop'])
     expect(
-      headers.map((header) => [header.get('x-cherry-agent-session-id'), header.get('x-cherry-service-tier')]).sort()
-    ).toEqual([
-      ['fork', 'standard'],
-      ['parent', 'fast'],
-      ['third', 'fast']
-    ])
+      dbh.db
+        .select()
+        .from(aiUsageRecordTable)
+        .all()
+        .map((row) => row.messageId)
+        .sort()
+    ).toEqual(['fork', 'parent', 'third'])
     expect(requests.map((request) => request.reasoning_effort).sort()).toEqual(['high', 'low', 'medium'])
   })
 
@@ -1008,6 +1003,74 @@ describe('native Pi through the production gateway', () => {
     expect(dbh.db.select().from(aiUsageRecordTable).all()).toMatchObject([{ messageId: 'original-answer' }])
   })
 
+  it('retains the child capture and trace when a root binding makes a detached model call', async () => {
+    mocks.usageContexts.set('root', {
+      agentSessionId: 'root',
+      assistantMessageId: 'root-message',
+      source: { type: 'agent', id: 'original-agent', name: 'Original Agent', icon: null }
+    })
+    const captured: SpanEntity[] = []
+    const tracerProvider = new BasicTracerProvider()
+    vi.spyOn(trace, 'getTracer').mockImplementation((name) => tracerProvider.getTracer(name))
+    observabilitySinks.register({
+      id: 'child-capture-test',
+      writeSpanEntity: (span) => {
+        captured.push(span)
+      }
+    })
+    const preferences = application.get('PreferenceService')
+    const previous = preferences.get('app.developer_mode.enabled')
+    await preferences.set('app.developer_mode.enabled', true)
+    const parent = {
+      topicId: 'agent-session:child',
+      sessionId: 'child',
+      turnId: 'verifier',
+      traceId: '11111111111111111111111111111111',
+      rootSpanId: '2222222222222222'
+    }
+    const capture = mocks.gatewayService!.captureAgentSessionUsage('root', 'child', parent)
+    const native = createPiTelemetry({
+      getParent: () => ({
+        ...parent,
+        topicId: 'agent-session:root',
+        sessionId: 'root',
+        traceId: '33333333333333333333333333333333',
+        rootSpanId: '4444444444444444'
+      }),
+      isEnabled: () => true
+    })
+    try {
+      const binding = await createPiGatewayModelBinding(
+        { sessionId: 'root' },
+        providerService.getByProviderId('port'),
+        modelService.getByKey('port', 'wire-model')
+      )
+      const request = vi.spyOn(mocks.ai!, 'streamText')
+      const answer = await native.startSpan({ name: 'root-phase' }, (telemetry) =>
+        binding.modelRuntime.completeSimple(
+          binding.model,
+          normalizeContext({ messages: [{ role: 'user', content: 'verify child', timestamp: 1 }] }),
+          { headers: capture.headers, telemetry }
+        )
+      )
+      expect(answer.stopReason).toBe('stop')
+      expect(request.mock.calls[0][0].usageContext).toMatchObject({
+        agentSessionId: 'child',
+        traceContext: parent
+      })
+      expect(dbh.db.select().from(aiUsageRecordTable).all()).toMatchObject([
+        { sourceType: 'agent', sourceId: 'original-agent', inputTokens: 100, outputTokens: 25 }
+      ])
+      expect(captured.filter((span) => span.name === 'ai.streamText')).toMatchObject([
+        { traceId: parent.traceId, parentId: parent.rootSpanId, topicId: parent.topicId }
+      ])
+    } finally {
+      capture.release()
+      await preferences.set('app.developer_mode.enabled', previous)
+      await tracerProvider.shutdown()
+    }
+  })
+
   it.each([true, false])(
     'binds Google native root and child response identities to stored usage (streaming: %s)',
     async (streaming) => {
@@ -1201,17 +1264,31 @@ describe('native Pi through the production gateway', () => {
   })
 
   function directObjectCall(signal?: AbortSignal) {
-    const transports = createGatewayObjectTransports({
-      requestHeaders: new Headers({
-        authorization: 'Bearer internal-fixture-key',
-        'x-cherry-agent-session-id': 'session'
-      })
-    })
+    const transports = mocks.gatewayService!.createAgentObjectTransports({ sessionId: 'session' })
     return transports['openai-completions'](
       { model: 'port:wire-model', messages: [{ role: 'user', content: 'Hello' }], stream: true },
       { signal }
     )
   }
+
+  it.each([{ labels: { task: 'test' } }, { automaticFunctionCalling: { disable: true } }])(
+    'rejects unsupported Gemini config instead of silently moving it into generationConfig: %j',
+    async (config) => {
+      const transports = mocks.gatewayService!.createAgentObjectTransports({ sessionId: 'session' })
+      await expect(
+        transports['google-generative-ai']({ model: 'port:wire-model', contents: 'hello', config }, {})
+      ).rejects.toMatchObject({ status: 400, message: expect.stringContaining('Unsupported Gemini config') })
+      expect(requests).toHaveLength(0)
+    }
+  )
+
+  it('returns protocol-shaped preparation failures from object calls', async () => {
+    const transports = mocks.gatewayService!.createAgentObjectTransports({ sessionId: 'session' })
+    await expect(
+      transports['openai-completions']({ model: 'missing', messages: [], stream: true }, {})
+    ).rejects.toMatchObject({ status: 400, error: { error: { message: expect.any(String) } } })
+    expect(requests).toHaveLength(0)
+  })
 
   it('rejects object calls when execution cannot start', async () => {
     vi.spyOn(mocks.manager!, 'streamPrompt').mockImplementation(() => {
@@ -1267,6 +1344,77 @@ describe('native Pi through the production gateway', () => {
     await expect.poll(() => upstreamClosed).toBe(true)
   })
 
+  it('honors native request timeout before semantic output and releases the upstream', async () => {
+    holdResponse = true
+    call = () => ({})
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const answer = await binding.modelRuntime.completeSimple(
+      binding.model,
+      normalizeContext({ messages: [{ role: 'user', content: 'wait', timestamp: 1 }] }),
+      { timeoutMs: 50, signal: AbortSignal.timeout(2_000) }
+    )
+    expect(answer.stopReason).toBe('error')
+    expect(answer.errorMessage).toMatch(/timeout/i)
+    await expect.poll(() => upstreamClosed).toBe(true)
+  })
+
+  it.each([
+    { format: 'openai', endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS },
+    { format: 'openai-responses', endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES },
+    { format: 'anthropic', endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES },
+    { format: 'gemini', endpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT }
+  ])('cancels the $format upstream when onResponse rejects before iteration', async ({ endpoint }) => {
+    dbh.db
+      .update(userProviderTable)
+      .set({
+        endpointConfigs: { [endpoint]: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1` } },
+        defaultChatEndpoint: endpoint
+      })
+      .where(eq(userProviderTable.providerId, 'port'))
+      .run()
+    let cancelled = false
+    vi.spyOn(mocks.ai!, 'streamText').mockResolvedValue({
+      kind: 'chunks',
+      stream: new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          controller.enqueue({ type: 'start', messageId: 'hook-failure' })
+          controller.enqueue({ type: 'text-start', id: 'text' })
+          controller.enqueue({ type: 'text-delta', id: 'text', delta: 'hello' })
+        },
+        cancel() {
+          cancelled = true
+        }
+      })
+    })
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const abort = new AbortController()
+    try {
+      const answer = await binding.modelRuntime.completeSimple(
+        binding.model,
+        normalizeContext({ messages: [{ role: 'user', content: 'hello', timestamp: 1 }] }),
+        {
+          signal: abort.signal,
+          onResponse: () => {
+            throw new Error('consumer hook failed')
+          }
+        }
+      )
+      expect(answer.stopReason).toBe('error')
+      expect(answer.errorMessage).toContain('consumer hook failed')
+      await expect.poll(() => cancelled, { timeout: 500 }).toBe(true)
+    } finally {
+      abort.abort()
+    }
+  })
+
   it('bounds producer progress while object events are unread and resumes without loss', async () => {
     let produced = 0
     const count = 512
@@ -1297,6 +1445,57 @@ describe('native Pi through the production gateway', () => {
     for await (const event of response.events) text += event.choices[0]?.delta.content ?? ''
     expect(text).toBe('x'.repeat(count))
     expect(produced).toBe(count)
+  })
+
+  it('does not count object consumer backpressure as upstream idleness', async () => {
+    const start = mocks.manager!.streamPrompt.bind(mocks.manager)
+    vi.spyOn(mocks.manager!, 'streamPrompt').mockImplementation((input) => start({ ...input, idleTimeoutMs: 100 }))
+    let produced = 0
+    let cancelled = false
+    vi.spyOn(mocks.ai!, 'streamText').mockResolvedValue({
+      kind: 'chunks',
+      stream: new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          controller.enqueue({ type: 'start', messageId: 'backpressure-timeout' })
+          controller.enqueue({ type: 'text-start', id: 'text' })
+        },
+        pull(controller) {
+          if (produced++ < 512) controller.enqueue({ type: 'text-delta', id: 'text', delta: 'x' })
+          else {
+            controller.enqueue({ type: 'text-end', id: 'text' })
+            controller.enqueue({ type: 'finish', finishReason: 'stop' })
+            controller.close()
+          }
+        },
+        cancel() {
+          cancelled = true
+        }
+      })
+    })
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    let cancel = async () => {}
+    try {
+      const response = await directObjectCall()
+      const iterator = response.events[Symbol.asyncIterator]()
+      cancel = async () => {
+        await iterator.return?.()
+      }
+      await vi.advanceTimersByTimeAsync(0)
+      expect(produced).toBeGreaterThanOrEqual(32)
+      expect(produced).toBeLessThan(128)
+      await vi.advanceTimersByTimeAsync(500)
+      expect(cancelled).toBe(false)
+      let text = ''
+      while (true) {
+        const result = await iterator.next()
+        if (result.done) break
+        text += result.value.choices[0]?.delta.content ?? ''
+      }
+      expect(text).toBe('x'.repeat(512))
+    } finally {
+      await cancel()
+      vi.useRealTimers()
+    }
   })
 
   it('delivers a textless Responses batch of tool errors without blocking native recovery', async () => {

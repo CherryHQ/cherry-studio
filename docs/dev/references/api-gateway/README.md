@@ -26,6 +26,9 @@ There is no separate raw HTTP branch. Desktop Pi and Pi Durable inject native pr
 transports into this same conversion and execution path. They exchange request/event objects
 without an internal HTTP listener, request JSON encoding or SSE formatting. Native replay,
 tools and retry ownership remain in Pi; external clients, including Claude Code, keep HTTP.
+Object calls carry a typed trusted context for session ownership, request selections and usage.
+They do not authenticate through synthetic bearer headers. Explicit child captures take precedence
+over a root binding's defaults and ambient trace parent.
 
 Generation requests route through main's `AiStreamManager` as equal,
 **non-persisting** subscribers (alongside the renderer's `WebContentsListener`
@@ -373,6 +376,10 @@ A streaming request has two error regimes:
 The in-process object transport also releases its iterator when an adapter accepts a
 deliverable tool-error call, before a textless batch can fill the bounded event queue
 and block further production. Non-object tool arguments still fail before this release.
+The native `timeoutMs` bounds startup and subsequent upstream idle waits; capacity waits do not
+count as upstream idleness. Native providers release the response on every terminal path,
+including a rejected response hook before iteration. Gemini loads its SDK response wrapper
+on demand and rejects config fields the shared converter cannot represent.
 
 Client disconnect before commitment abandons the pending response, clears its
 startup buffer, aborts the manager execution, and does not surface a gateway

@@ -61,7 +61,8 @@ function detailsOf(error: unknown): ProviderDetails | undefined {
 
 /** Preserve the HTTP dialect's error semantics without encoding a response body. */
 export function objectGatewayError(error: unknown, fallback: SerializedError, format: OutputFormat): Error {
-  const retained = internalGatewayError(error, fallback)
+  const status = extractError(error).status
+  const retained = { ...internalGatewayError(error, fallback), ...(status !== undefined && { statusCode: status }) }
   const { statusCode, errorResponse } =
     format === 'anthropic'
       ? transformAnthropicError(retained)

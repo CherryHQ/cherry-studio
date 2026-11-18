@@ -8,7 +8,6 @@ import { v4 as uuidv4 } from 'uuid'
 import { application } from '@application'
 import { advertisedEndpointSchema } from '@cherrystudio/remote-protocol'
 import { loggerService } from '@logger'
-import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, CHERRY_SERVICE_TIER_HEADER } from '@main/ai/constants'
 import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -498,18 +497,33 @@ export class ApiGatewayService extends BaseService implements Activatable {
     reasoningEffort?: ReasoningEffortOption
     serviceTier?: ServiceTierSelection
     fastMode?: boolean
+    traceContext?: InProcessUsageContext['traceContext']
   }) {
     const headers = new Headers()
     for (const [name, value] of Object.entries(input.headers ?? {})) {
       if (value !== null) headers.set(name, value)
     }
-    headers.delete('x-api-key')
-    headers.set('authorization', `Bearer ${this.internalApiKey}`)
-    headers.set(AGENT_SESSION_ID_HEADER, input.sessionId)
-    headers.set(CHERRY_REASONING_EFFORT_HEADER, input.reasoningEffort ?? 'default')
-    headers.set(CHERRY_FAST_MODE_HEADER, String(input.fastMode === true))
-    if (input.serviceTier) headers.set(CHERRY_SERVICE_TIER_HEADER, input.serviceTier)
-    return createGatewayObjectTransports({ requestHeaders: headers })
+    const sessionId = headers.get(AGENT_SESSION_ID_HEADER)?.trim() || input.sessionId
+    const key = headers.get(AGENT_USAGE_CAPTURE_HEADER)
+    const captured = key ? this.usageCaptures.get(key) : undefined
+    return createGatewayObjectTransports({
+      requestHeaders: headers,
+      agentContext: {
+        agentSessionId: sessionId,
+        reasoningEffort: input.reasoningEffort ?? 'default',
+        serviceTier: input.serviceTier,
+        fastMode: input.fastMode === true,
+        resolveUsage: (responseId) => {
+          const usage = key
+            ? captured?.agentSessionId === sessionId
+              ? captured
+              : undefined
+            : application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId, responseId)
+          const traceContext = key ? (captured?.traceContext ?? input.traceContext) : input.traceContext
+          return usage && traceContext ? { ...usage, traceContext } : usage
+        }
+      }
+    })
   }
 
   captureAgentSessionUsage(

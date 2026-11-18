@@ -1,14 +1,14 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 
-import { application } from '@application'
 import { loggerService } from '@logger'
 import { resolveAiSdkProviderId, resolveEndpointProviderOptionsKey } from '@main/ai/provider/endpoint'
-import type { CallOverrides } from '@main/ai/types'
+import type { CallOverrides, InProcessUsageContext } from '@main/ai/types'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { MessageConverterFactory } from './adapters'
 import { resolveGatewayRequest, type MessageConfig } from './gatewayRequest'
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
+import { GATEWAY_STREAM_IDLE_TIMEOUT_MS } from './streamLifecycle'
 import { appendInternalAgentContinuation } from './utils/agentContinuation'
 import { normalizeAnthropicToolHistory } from './utils/anthropicToolHistory'
 import { positionInlineSystemMessages } from './utils/inlineSystemMessages'
@@ -39,9 +39,7 @@ export async function prepareGatewayMessage(config: MessageConfig) {
     target: endpoint.endpointType,
     outputFormat
   })
-  const internal = config.requestHeaders
-    ? application.get('ApiGatewayService').isInternalRequest(config.requestHeaders)
-    : false
+  const internal = request.isInternalRequest
   let effectiveParams = params
 
   if (isInternalAnthropicAgentRequest) {
@@ -132,4 +130,23 @@ export async function prepareGatewayMessage(config: MessageConfig) {
     ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {})
   }
   return { ...request, messages, convertedMessages, callOverrides, adapterOptions, internal }
+}
+
+export function gatewayPromptOptions(
+  request: Awaited<ReturnType<typeof prepareGatewayMessage>>,
+  usageContext: InProcessUsageContext | undefined,
+  idleTimeoutMs = GATEWAY_STREAM_IDLE_TIMEOUT_MS
+) {
+  return {
+    ...request.turnOptions,
+    uniqueModelId: request.uniqueModelId,
+    resolvedModel: request.resolvedModel,
+    messages: request.messages,
+    callOverrides: request.callOverrides,
+    contextOwner: 'caller' as const,
+    ...(usageContext ? { usageContext } : {}),
+    ...(request.agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
+    idleTimeoutMs,
+    maxRetries: 0 as const
+  }
 }

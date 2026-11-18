@@ -9,8 +9,8 @@ import type { ISseFormatter, IStreamAdapter } from './adapters'
 import { StreamAdapterFactory } from './adapters'
 import { buildStreamErrorFrame, internalGatewayError } from './errors'
 import type { MessageConfig } from './gatewayRequest'
-import { prepareGatewayMessage } from './prepareGatewayMessage'
-import { GATEWAY_STREAM_IDLE_TIMEOUT_MS, isStartupCommitChunk, streamInterruptedError } from './streamLifecycle'
+import { gatewayPromptOptions, prepareGatewayMessage } from './prepareGatewayMessage'
+import { isStartupCommitChunk, streamInterruptedError } from './streamLifecycle'
 
 
 export type { MessageConfig } from './gatewayRequest'
@@ -20,20 +20,8 @@ const logger = loggerService.withContext('ProxyStreamService')
 type StartupState = 'pending' | 'committed' | 'abandoned' | 'failed'
 
 export async function processMessage(config: MessageConfig): Promise<Response> {
-  const {
-    messages,
-    convertedMessages,
-    callOverrides,
-    adapterOptions,
-    internal,
-    outputFormat,
-    resolvedModel,
-    uniqueModelId,
-    agentSessionId,
-    turnOptions,
-    logContext,
-    isStreaming
-  } = await prepareGatewayMessage(config)
+  const request = await prepareGatewayMessage(config)
+  const { messages, convertedMessages, adapterOptions, internal, outputFormat, logContext, isStreaming } = request
   const { onError, onComplete, signal } = config
   const adapter: IStreamAdapter = StreamAdapterFactory.createAdapter(outputFormat, adapterOptions)
   const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)
@@ -41,6 +29,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders, adapter.getMessageId())
     : undefined
 
+  const promptOptions = gatewayPromptOptions(request, usageContext)
   const streamId = `gateway-${uuidv4()}`
   if (messages !== convertedMessages) {
     logger.info('Appended assistant-tail continuation for internal agent request', { ...logContext, streamId })
@@ -192,19 +181,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         if (closed) return
         try {
           aiStreamManager.streamPrompt({
-            ...turnOptions,
+            ...promptOptions,
             streamId,
-            uniqueModelId,
-            resolvedModel,
-            messages,
-            listener,
-            callOverrides,
-            contextOwner: 'caller',
-            ...(usageContext ? { usageContext } : {}),
-            ...(agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
-            idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS,
-            // Serve exactly the admitted model; clients own retries, and fallbacks would bypass admission.
-            maxRetries: 0
+            listener
           })
         } catch (error) {
           fail(error)
@@ -292,18 +271,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   try {
     if (!aborted) {
       aiStreamManager.streamPrompt({
-        ...turnOptions,
+        ...promptOptions,
         streamId,
-        uniqueModelId,
-        resolvedModel,
-        messages,
-        listener,
-        callOverrides,
-        contextOwner: 'caller',
-        ...(usageContext ? { usageContext } : {}),
-        ...(agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
-        idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS,
-        maxRetries: 0
+        listener
       })
     }
 

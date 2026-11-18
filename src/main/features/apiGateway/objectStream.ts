@@ -1,23 +1,29 @@
 import { randomUUID } from 'node:crypto'
 
 import type { ObjectTransportResponse, ObjectTransports } from '@earendil-works/pi-ai'
-import { GenerateContentResponse } from '@google/genai'
 import type { UIMessageChunk } from 'ai'
 
 import { application } from '@application'
+import { loggerService } from '@logger'
 import type { StreamListener } from '@main/ai/streamManager'
+import { serializeError } from '@main/ai/utils/serializeError'
 
 import { type IStreamAdapter, StreamAdapterFactory, type StreamAdapterOptions } from './adapters'
 import { objectGatewayError } from './errors'
-import type { MessageConfig } from './gatewayRequest'
-import { prepareGatewayMessage } from './prepareGatewayMessage'
-import { GATEWAY_STREAM_IDLE_TIMEOUT_MS, isStartupCommitChunk, streamInterruptedError } from './streamLifecycle'
+import type { AgentGatewayContext, MessageConfig } from './gatewayRequest'
+import { gatewayPromptOptions, prepareGatewayMessage } from './prepareGatewayMessage'
+import { isStartupCommitChunk, streamInterruptedError } from './streamLifecycle'
+
+const logger = loggerService.withContext('GatewayObjectStream')
+
+type ObjectMessageConfig = MessageConfig & { timeoutMs?: number }
 
 type ObjectItem<T> = { kind: 'event'; event: T } | { kind: 'error'; error: unknown }
 
-export function createGatewayObjectTransports(
-  config: Pick<MessageConfig, 'requestHeaders'>
-): Required<ObjectTransports> {
+export function createGatewayObjectTransports(config: {
+  agentContext: AgentGatewayContext
+  requestHeaders?: Headers
+}): Required<ObjectTransports> {
   return {
     'anthropic-messages': async (params, options) => {
       const response = await processObjectMessage(
@@ -57,10 +63,43 @@ export function createGatewayObjectTransports(
         (input) => StreamAdapterFactory.createAdapter('openai-responses', input)
       ),
     'google-generative-ai': async (params, options) => {
-      const { systemInstruction, tools, toolConfig, safetySettings, cachedContent, ...generationConfig } =
-        params.config ?? {}
-      delete generationConfig.abortSignal
-      delete generationConfig.httpOptions
+      const nativeConfig = params.config ?? {}
+      const supported = new Set([
+        'systemInstruction',
+        'tools',
+        'toolConfig',
+        'temperature',
+        'topP',
+        'topK',
+        'maxOutputTokens',
+        'stopSequences',
+        'thinkingConfig',
+        'abortSignal',
+        'httpOptions'
+      ])
+      const unsupported = Object.entries(nativeConfig).filter(
+        ([key, value]) => value !== undefined && !supported.has(key)
+      )
+      if (unsupported.length > 0) {
+        const error = Object.assign(
+          new Error(`Unsupported Gemini config: ${unsupported.map(([key]) => key).join(', ')}`),
+          { status: 400 }
+        )
+        logger.warn('Gateway object request failed', { agentSessionId: config.agentContext.agentSessionId, error })
+        throw objectGatewayError(error, serializeError(error), 'gemini')
+      }
+      const { GenerateContentResponse } = await import('@google/genai')
+      const {
+        systemInstruction,
+        tools,
+        toolConfig,
+        temperature,
+        topP,
+        topK,
+        maxOutputTokens,
+        stopSequences,
+        thinkingConfig
+      } = nativeConfig
       const response = await processObjectMessage(
         {
           ...config,
@@ -73,9 +112,7 @@ export function createGatewayObjectTransports(
             systemInstruction,
             tools,
             toolConfig,
-            safetySettings,
-            cachedContent,
-            generationConfig
+            generationConfig: { temperature, topP, topK, maxOutputTokens, stopSequences, thinkingConfig }
           }
         },
         (input) => StreamAdapterFactory.createAdapter('gemini', input)
@@ -89,16 +126,41 @@ export function createGatewayObjectTransports(
 }
 
 async function processObjectMessage<T>(
-  config: MessageConfig,
+  config: ObjectMessageConfig,
+  createAdapter: (options: StreamAdapterOptions) => IStreamAdapter<T>
+): Promise<ObjectTransportResponse<T>> {
+  const timeoutController = new AbortController()
+  const signal = AbortSignal.any([timeoutController.signal, ...(config.signal ? [config.signal] : [])])
+  const timeout =
+    config.timeoutMs === undefined
+      ? undefined
+      : setTimeout(
+          () =>
+            timeoutController.abort(
+              Object.assign(new DOMException('Model request timeout exceeded', 'TimeoutError'), { status: 504 })
+            ),
+          config.timeoutMs
+        )
+  try {
+    return await openObjectMessage({ ...config, signal }, createAdapter)
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout)
+  }
+}
+
+async function openObjectMessage<T>(
+  config: ObjectMessageConfig,
   createAdapter: (options: StreamAdapterOptions) => IStreamAdapter<T>
 ): Promise<ObjectTransportResponse<T>> {
   config.signal?.throwIfAborted()
-  const request = await prepareGatewayMessage({ ...config, streaming: true })
+  const request = await prepareGatewayMessage({ ...config, streaming: true }).catch((error: unknown) => {
+    if (config.signal?.aborted) throw error
+    logger.warn('Gateway object request failed', { agentSessionId: config.agentContext?.agentSessionId, error })
+    throw objectGatewayError(error, serializeError(error), config.outputFormat ?? 'anthropic')
+  })
   config.signal?.throwIfAborted()
   const adapter = createAdapter(request.adapterOptions)
-  const usageContext = config.requestHeaders
-    ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders, adapter.getMessageId())
-    : undefined
+  const usageContext = config.agentContext?.resolveUsage(adapter.getMessageId())
   const manager = application.get('AiStreamManager')
   const streamId = `gateway-object-${randomUUID()}`
   let controller!: ReadableStreamDefaultController<ObjectItem<T>>
@@ -130,6 +192,9 @@ async function processObjectMessage<T>(
   }
   const fail = (error: unknown) => {
     if (closed) return
+    if (!config.signal?.aborted || config.signal.reason?.name === 'TimeoutError') {
+      logger.warn('Gateway object stream failed', { ...request.logContext, streamId, error })
+    }
     if (!started) rejectStart(error)
     else controller.enqueue({ kind: 'error', error })
     close()
@@ -141,6 +206,14 @@ async function processObjectMessage<T>(
   const write = (events: T[]) => {
     for (const event of events) controller.enqueue({ kind: 'event', event })
   }
+  const cancel = (closeStream: boolean) => {
+    if (closed) return
+    closed = true
+    config.signal?.removeEventListener('abort', abort)
+    if (closeStream) controller.close()
+    release()
+    manager.abort(streamId, 'object model consumer closed')
+  }
   const stream = new ReadableStream<ObjectItem<T>>(
     {
       start(value) {
@@ -149,13 +222,7 @@ async function processObjectMessage<T>(
       pull() {
         release()
       },
-      cancel() {
-        if (closed) return
-        closed = true
-        config.signal?.removeEventListener('abort', abort)
-        release()
-        manager.abort(streamId, 'object model consumer closed')
-      }
+      cancel: () => cancel(false)
     },
     { highWaterMark: 32 }
   )
@@ -163,7 +230,7 @@ async function processObjectMessage<T>(
     id: streamId,
     ready: () =>
       closed || (controller.desiredSize ?? 0) > 0
-        ? Promise.resolve()
+        ? undefined
         : new Promise<void>((resolve) => {
             wake = resolve
           }),
@@ -195,18 +262,9 @@ async function processObjectMessage<T>(
   config.signal?.addEventListener('abort', abort, { once: true })
   try {
     manager.streamPrompt({
-      ...request.turnOptions,
+      ...gatewayPromptOptions(request, usageContext, config.timeoutMs),
       streamId,
-      uniqueModelId: request.uniqueModelId,
-      resolvedModel: request.resolvedModel,
-      messages: request.messages,
-      listener,
-      callOverrides: request.callOverrides,
-      contextOwner: 'caller',
-      ...(usageContext ? { usageContext } : {}),
-      ...(request.agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
-      idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS,
-      maxRetries: 0
+      listener
     })
   } catch (error) {
     fail(error)
@@ -220,6 +278,7 @@ async function processObjectMessage<T>(
   return {
     status: 200,
     headers: new Headers(),
+    cancel: () => cancel(true),
     events: mapEvents(stream, (item) => {
       if (item.kind === 'error') throw item.error
       return item.event

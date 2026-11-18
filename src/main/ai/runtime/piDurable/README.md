@@ -27,7 +27,7 @@ The backend supplies Pi's native `HarnessOptions.telemetry`. Durable owns submis
 spans, including tool identity, outcomes, committed-entry events and replay links. Cherry bridges
 them to its existing developer-mode OTel provider and viewer. Native persisted carriers freeze the
 initiating session and parent across recovery; roots without carriers remain untraced until a new
-traced submission. Gateway SDK calls inherit the native phase parent through internal usage capture.
+traced submission. Gateway SDK calls inherit the native phase parent through the typed in-process call context.
 Pi model spans are suppressed because the SDK already records the request and usage; upstream HTTP tracing
 retains wire bodies and the gateway remains the sole billing writer.
 

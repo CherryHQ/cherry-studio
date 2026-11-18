@@ -244,9 +244,6 @@ it.each(['grok-cli', 'openai-codex'])('registers %s OAuth models with internal c
   })
   const binding = await createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, model)
   expect(binding.model.api).toBe('openai-responses')
-  expect(await binding.modelRuntime.getAuth(binding.model)).toMatchObject({
-    auth: { apiKey: 'cherry-object-transport' }
-  })
 })
 
 it('prefers a model protocol over the provider default', async () => {
@@ -514,11 +511,6 @@ it.each(['same', 'provider', 'model', 'api'])(
 it('preserves each model route and usage owner when a child shares the native gateway registry', async () => {
   const requests: {
     url?: string
-    authorization?: string
-    session?: string | string[]
-    reasoning?: string | string[]
-    tier?: string | string[]
-    fast?: string | string[]
     body: unknown
   }[] = []
   const server = createServer(async (req, res) => {
@@ -526,11 +518,6 @@ it('preserves each model route and usage owner when a child shares the native ga
     for await (const chunk of req) raw += chunk
     requests.push({
       url: req.url,
-      authorization: req.headers.authorization,
-      session: req.headers['x-cherry-agent-session-id'],
-      reasoning: req.headers['x-cherry-reasoning-effort'],
-      tier: req.headers['x-cherry-service-tier'],
-      fast: req.headers['x-cherry-fast-mode'],
       body: JSON.parse(raw)
     })
     res.writeHead(200, { 'content-type': 'text/event-stream' })
@@ -600,11 +587,6 @@ it('preserves each model route and usage owner when a child shares the native ga
   expect(requests).toMatchObject([
     {
       url: '/v1/chat/completions',
-      authorization: undefined,
-      session: 'session-1',
-      reasoning: 'high',
-      tier: 'flex',
-      fast: 'true',
       body: { model: 'local:wire-name', messages: [{ role: 'user', content: 'Hello' }] }
     }
   ])
@@ -614,14 +596,14 @@ it('preserves each model route and usage owner when a child shares the native ga
     { sessionId: 'child-session' }
   )
   expect(childAnswer.stopReason).toBe('stop')
-  expect(requests[1]).toMatchObject({ reasoning: 'low', body: { model: 'local:child-wire' } })
+  expect(requests[1]).toMatchObject({ body: { model: 'local:child-wire' } })
   const prediction = await binding.modelRuntime.completeSimple(
     binding.model,
     normalizeContext({ messages: [{ role: 'user', content: 'Predict', timestamp: 3 }] }),
     { sessionId: 'native-child', readOnlyFork: true, skipCacheWrite: true, disableContinuation: true }
   )
   expect(prediction.stopReason).toBe('stop')
-  expect(requests[2]).toMatchObject({ reasoning: 'high', session: 'session-1' })
+  expect(requests[2]).toMatchObject({ body: { model: 'local:wire-name' } })
 
   expect(usages).toEqual([{ sessionId: 'native-child', responseId: 'r', tokens: 15 }])
 })
