@@ -752,7 +752,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
         }
 
         // string / number / boolean
-        cellModel.raw = value as string | number | boolean
+        cellModel.raw = value
         cellModel.text = formatCellValue(value, cell.numFmt, date1904)
         cells[key] = cellModel
       })
