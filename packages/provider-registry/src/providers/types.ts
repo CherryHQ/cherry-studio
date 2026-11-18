@@ -118,7 +118,7 @@ export function openaiCompatible(
     serverTools?: ProviderServerToolConfig[]
   } & GenFields
 ): Provider {
-  const chatConfig: NonNullable<ProviderConnection['endpointConfigs']['openai-chat-completions']> = {
+  const chatConfig: NonNullable<NonNullable<ProviderConnection['endpointConfigs']>['openai-chat-completions']> = {
     adapterFamily: 'openai-compatible',
     baseUrl: p.baseUrl
   }
