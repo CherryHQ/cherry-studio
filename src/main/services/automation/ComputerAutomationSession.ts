@@ -147,7 +147,8 @@ export class ComputerAutomationSession {
       }
       case 'scroll': {
         const { ref, ...p } = schemas.scroll.parse(args)
-        action = { ...common, type: 'scroll', ...p, ...(ref ? { elementId: element(ref) } : {}) }
+        action = { ...common, type: 'scroll', ...p }
+        if (ref) action.elementId = element(ref)
         break
       }
       case 'performSecondaryAction': {
@@ -214,20 +215,28 @@ export class ComputerAutomationSession {
           nextCursor: randomUUID() as string | undefined
         }
       : undefined
-    const displayValue = {
+    const displayValue: Pick<Snapshot, 'app' | 'window' | 'inputChannel'> & {
+      id: string
+      target: string
+      tree?: Snapshot['tree']
+      page?: typeof pagination
+      screenshot?:
+        | Snapshot['screenshot']
+        | ({ status: 'available' } & Pick<NonNullable<typeof image>, 'width' | 'height'>)
+    } = {
       id: page.id,
       target,
       app: state.app,
       window: state.window,
-      inputChannel: state.inputChannel,
-      ...(ax
-        ? { tree: available ? { status: 'available' as const, elements, truncated: available.truncated } : state.tree }
-        : {}),
-      ...(pagination ? { page: pagination } : {}),
-      ...(screenshot
-        ? { screenshot: image ? { status: 'available', width: image.width, height: image.height } : state.screenshot }
-        : {})
+      inputChannel: state.inputChannel
     }
+    if (ax)
+      displayValue.tree = available ? { status: 'available', elements, truncated: available.truncated } : state.tree
+    if (pagination) displayValue.page = pagination
+    if (screenshot)
+      displayValue.screenshot = image
+        ? { status: 'available', width: image.width, height: image.height }
+        : state.screenshot
     let bytes = Buffer.byteLength(JSON.stringify(displayValue))
     if (bytes + 32 > budget)
       throw new ComputerUseError('INVALID_ARGUMENT', 'AX observation metadata exceeds the page budget.')
@@ -235,9 +244,9 @@ export class ComputerAutomationSession {
       for (const element of available.elements.slice(page.offset)) {
         const mapped = {
           ...element,
-          id: `${page.id}:${element.id}`,
-          ...(element.parentId !== undefined ? { parentId: `${page.id}:${element.parentId}` } : {})
+          id: `${page.id}:${element.id}`
         }
+        if (element.parentId !== undefined) mapped.parentId = `${page.id}:${element.parentId}`
         const size = Buffer.byteLength(JSON.stringify(mapped)) + 1
         // Reserve room for counters; budget serialized UTF-8, including escaped UI text.
         if (bytes + size + 32 > budget) {
@@ -283,9 +292,11 @@ export class ComputerAutomationSession {
           .join('\n')
       : undefined
     if (screenshot) binding.coordinates = Boolean(image)
+    const value: typeof displayValue & { text?: string } = { ...displayValue }
+    if (text !== undefined) value.text = text
     return {
       observation: true,
-      value: { ...displayValue, ...(text !== undefined ? { text } : {}) },
+      value,
       displayValue,
       images: image ? [{ data: Buffer.from(image.data).toString('base64'), mimeType: image.mimeType }] : []
     }
