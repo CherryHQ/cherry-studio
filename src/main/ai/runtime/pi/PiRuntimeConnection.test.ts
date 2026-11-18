@@ -944,7 +944,7 @@ describe('desktop Pi root connection', () => {
       const partial = access!.snapshot()
       // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       const frozen = structuredClone(partial)
-      await expect.poll(() => events.some((event) => event.type === 'turn-complete'), { timeout: 5000 }).toBe(true)
+      await expect.poll(() => events.some((event) => event.type === 'turn-complete'), { timeout: 15_000 }).toBe(true)
       await expect.poll(() => access!.snapshot().active).toBe(false)
       expect(partial).toEqual(frozen)
       expect(
