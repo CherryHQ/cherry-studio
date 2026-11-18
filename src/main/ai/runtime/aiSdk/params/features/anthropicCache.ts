@@ -75,16 +75,16 @@ function withCacheProviderOptions<T extends { providerOptions?: unknown }>(
   value: T,
   cacheControl: ReturnType<typeof getCacheControl>
 ): T {
-  return {
-    ...value,
-    providerOptions: {
-      ...(value.providerOptions && typeof value.providerOptions === 'object' ? value.providerOptions : {}),
-      anthropic: {
-        ...((value as Holder).providerOptions as { anthropic?: object } | undefined)?.anthropic,
-        cacheControl
-      }
+  const result = { ...value }
+  const providerOptions =
+    value.providerOptions && typeof value.providerOptions === 'object' ? { ...value.providerOptions } : {}
+  Object.assign(providerOptions, {
+    anthropic: {
+      ...((value as Holder).providerOptions as { anthropic?: object } | undefined)?.anthropic,
+      cacheControl
     }
-  }
+  })
+  return Object.assign(result, { providerOptions })
 }
 
 interface CacheBreakpointBudget {

@@ -91,10 +91,12 @@ export class ModernMcpProxy {
             ? undefined
             : (progress, total) => {
                 this.lastActivityAt = Date.now()
+                const params = { progressToken, progress }
+                if (total !== undefined) Object.assign(params, { total })
                 void context.mcpReq
                   .notify({
                     method: 'notifications/progress',
-                    params: { progressToken, progress, ...(total === undefined ? {} : { total }) }
+                    params
                   })
                   .catch((error) => logger.debug('MCP proxy progress stream closed', { error }))
               }

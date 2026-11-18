@@ -227,9 +227,9 @@ export async function createExternalMcpConnection({
       command: launch.command,
       args: launch.args,
       env: buildStdioEnvironment(loginShellEnv, serverEnv),
-      stderr: 'pipe',
-      ...(server.dxtPath ? { cwd: server.dxtPath } : {})
+      stderr: 'pipe'
     }
+    if (server.dxtPath) parameters.cwd = server.dxtPath
     const transport = new StdioClientTransport(parameters)
     transport.stderr?.on('data', (data) => log.stdio(data.toString().trim()))
     return transport
