@@ -9,6 +9,7 @@ import { MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
 
 import { createTestBinding, scriptedModel } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { createPiBehaviorHost } from './piBehaviorHost'
+import { resolvePiCompactionSettings } from './piCompactionSettings'
 
 const root = runtimeId<'thread'>('root')
 const child = { backendId: runtimeId<'backend'>('pi'), id: runtimeId<'thread'>('restored-child') }
@@ -91,17 +92,18 @@ describe('Pi behavior host model lookup', () => {
 
   async function createHost() {
     const rootModel = modelService.list({ enabled: true }).find((model) => model.id === 'anthropic::sonnet')!
-    const binding = await createTestBinding({ stream: scriptedModel([]).model })
+    const native = await createTestBinding({ stream: scriptedModel([]).model })
+    const binding = { ...native, compaction: resolvePiCompactionSettings(native.model) }
     return createPiBehaviorHost({
       input: { sessionId: 'session', agentId: 'agent', modelId: rootModel.id },
       root: () => root,
       model: rootModel,
       binding,
       rootModelKey: anthropicKey,
-      bindModel: async (model: Model) => ({
-        ...binding,
-        model: { ...binding.model, id: model.id, provider: model.providerId }
-      }),
+      bindModel: async (model: Model) => {
+        const selected = { ...binding.model, id: model.id, provider: model.providerId }
+        return { ...binding, model: selected, compaction: resolvePiCompactionSettings(selected) }
+      },
       approval: {
         sessionId: 'session',
         workspacePath: '/tmp',
