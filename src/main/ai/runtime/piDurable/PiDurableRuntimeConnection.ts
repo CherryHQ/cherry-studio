@@ -70,6 +70,13 @@ type DurableChildResource = {
   finished: boolean
 }
 
+function isCompactCommand(text: string) {
+  return /^\/compact(?:\s|$)/.test(text.trim())
+}
+
+/** Durable answered the submission; the host already received it as `input-submission`. */
+class SubmissionRefused extends Error {}
+
 export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   get contextId(): string | undefined {
     return this.context?.id
@@ -102,6 +109,12 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private readonly steers = new Set<string>()
   /** The last state reported per input; snapshots repeat unchanged ones. */
   private readonly captured = new Map<string, InputState>()
+  /** Inputs submitted while native work ran; their placement is announced even with an outcome. */
+  private readonly queued = new Set<string>()
+  /** Product inputs whose placement was announced; each placement starts its own reply once. */
+  private readonly placed = new Set<string>()
+  /** The input whose reply the host is writing. */
+  private current?: string
   private readonly children = new Map<
     string,
     | { state: 'opening'; pending: Promise<DurableChildResource | undefined> }
@@ -180,12 +193,23 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   async send(input: AgentRuntimeCommand): Promise<void> {
     if (!this.handle || !this.context || this.closing) throw new Error('Durable runtime is unavailable')
-    if (this.sending) throw new Error('Durable already has an active submission')
-    this.sending = true
-    this.failure = undefined
-    this.turnUsage.reset()
     const text = buildAgentUserContent(input.message)
-    if (!input.systemReminder && /^\/compact(?:\s|$)/.test(text.trim())) {
+    const compact = !input.systemReminder && isCompactCommand(text)
+    if (compact && this.sending) throw new Error('Durable cannot compact while native work is running')
+    // Compaction is not an input run; the host holds input behind its compaction occupancy.
+    if (this.compacting) throw new Error('Durable is compacting')
+    // Input that arrives while native work runs waits in Durable's queue and joins the running turn.
+    const running = this.sending
+    this.sending = true
+    // The host turn already owns input that starts new work; only a queued placement needs announcing.
+    if (running) this.queued.add(input.message.id)
+    else {
+      this.placed.add(input.message.id)
+      this.current = input.message.id
+      this.failure = undefined
+      this.turnUsage.reset()
+    }
+    if (compact) {
       this.compacting = true
       this.events.push({ type: 'compaction-start', trigger: 'manual' })
       try {
@@ -213,9 +237,9 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       return
     }
     try {
-      await this.submit(input, input.systemReminder ? wrapSteerReminder(text) : text, 'reject')
+      await this.submit(input, input.systemReminder ? wrapSteerReminder(text) : text, 'follow-up')
     } catch (error) {
-      this.sending = false
+      if (!running) this.sending = false
       throw error
     }
   }
@@ -233,7 +257,22 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     return true
   }
 
-  private async submit(input: AgentRuntimeCommand, text: string, whenBusy: 'reject' | 'steer') {
+  followUp(input: AgentRuntimeCommand): boolean {
+    const text = buildAgentUserContent(input.message)
+    // `/compact` is a host command; it waits in the host queue and runs as compaction.
+    if (!this.sending || this.closing || this.compacting || isCompactCommand(text)) return false
+    this.queued.add(input.message.id)
+    void this.submit(input, wrapSteerReminder(text), 'follow-up').catch((error) => {
+      logger.warn('Durable follow-up submission failed', { sessionId: this.input.sessionId, error })
+      if (error instanceof SubmissionRefused) return
+      // It never reached Durable's queue, so the host queues it instead.
+      this.queued.delete(input.message.id)
+      this.events.push({ type: 'steer-undelivered', inputIds: [input.message.id] })
+    })
+    return true
+  }
+
+  private async submit(input: AgentRuntimeCommand, text: string, whenBusy: 'follow-up' | 'steer') {
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, whenBusy, {
       text,
       parts: input.message.data.parts
@@ -245,7 +284,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     this.events.push({ type: 'input-submission', contextId: this.context!.id, result })
     if (result.status !== 'acknowledged') {
       applyNativeSubmissionResult(this.input.sessionId, this.context!.id, result)
-      throw new Error(result.error.message)
+      throw new SubmissionRefused(result.error.message)
     }
     this.captureInput(result)
   }
@@ -260,6 +299,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private async onObservation(batch: DurableObservation): Promise<void> {
+    const placements: string[] = []
     try {
       for (const event of batch.events) {
         if (event.type === 'context.changed') this.events.push({ type: 'context-usage', result: event.result })
@@ -268,20 +308,22 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         if (event.type === 'snapshot') {
           const nowActive = event.activity.state === 'active'
           if (nowActive && !this.sending && !this.closing) {
+            // After reopen, Durable resumes a placed input that has no outcome yet; the started event names it.
             const pending = event.inputs.findLast((input) => !input.outcome && input.facts.includes('placed'))
             const recoveredInputId = pending && bindNativeInput(this.input.sessionId, this.context!.id, pending)
+            if (recoveredInputId) this.placed.add(recoveredInputId)
             this.beginAutonomous(
               batch.backgroundResults.status === 'confirmed' ? batch.backgroundResults.value.notification : undefined,
               recoveredInputId
             )
           }
-          for (const input of event.inputs) this.captureInput(input)
+          for (const input of event.inputs) this.captureInput(input, placements)
           this.active = nowActive
           for (const relation of event.subagents ?? [])
             if (relation.child && !this.releasedChildren.has(this.childKey(relation.child.id)))
               this.attachChild(relation.child.id)
         } else if (event.type === 'activity.changed') this.active = event.activity.state === 'active'
-        else if (event.type === 'input.changed') this.captureInput(event.input)
+        else if (event.type === 'input.changed') this.captureInput(event.input, placements)
         else if (event.type === 'subagent.upsert' && event.subagent.child) this.attachChild(event.subagent.child.id)
         // Durable follows each gap with a recovery snapshot; neither a gap nor a diagnostic ends native work.
         else if (event.type === 'diagnostic' || (event.type === 'gap' && event.reason === 'disconnected'))
@@ -296,6 +338,11 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         (message) => this.adapter.decorate(message)
       )
       await this.projection.accept(batch)
+      // The answer before a placed input arrives in the same batch, so the boundary follows its projection.
+      if (placements.length) {
+        this.current = placements.at(-1)
+        this.events.push({ type: 'steer-boundary', inputIds: placements, followUp: true })
+      }
       const results = batch.backgroundResults
       this.events.push({
         type: 'background-results',
@@ -306,7 +353,11 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         active: results.status !== 'confirmed' || results.value.active
       })
       if (batch.completion && !this.compacting && !this.closing && this.sending) {
-        const { inputs } = batch.completion
+        // Each earlier input settled its own reply at its boundary.
+        const owner = this.current
+        const inputs = owner
+          ? batch.completion.inputs.filter((input) => input.inputId === owner)
+          : batch.completion.inputs
         const failed = inputs.map(nativeOutcomeTerminal).find((terminal) => terminal?.status === 'error')
         if (failed?.status === 'error') this.failure ??= failed.error
         const aborted = inputs.some((input) => input.outcome === 'aborted')
@@ -322,6 +373,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     this.autonomous = true
     this.failure = undefined
     this.turnUsage.reset()
+    this.current = recoveredInputId
     this.events.push({
       type: 'autonomous-turn-state',
       state: 'started',
@@ -332,25 +384,40 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     this.nextOrigin = { kind: 'background-work' }
   }
 
-  private captureInput(input: InputState) {
+  private captureInput(input: InputState, placements?: string[]) {
     // Snapshots repeat every input; only a changed one is reported and bound again.
     const key = input.nativeInput?.id ?? input.inputId
     if (key !== undefined && isDeepStrictEqual(this.captured.get(key), input)) return
     if (key !== undefined) this.captured.set(key, input)
     this.events.push({ type: 'input-state', contextId: this.context!.id, input })
     const messageId = bindNativeInput(this.input.sessionId, this.context!.id, input)
-    if (messageId && input.facts.includes('placed')) {
-      const steer = this.steers.has(messageId) ? messageId : undefined
-      if (steer) {
-        this.steers.delete(messageId)
-        this.events.push({ type: 'steer-boundary', inputIds: [steer] })
-      }
+    if (!messageId) return
+    if (input.facts.includes('placed')) this.announcePlacement(messageId, input, placements)
+    // Durable never places an input again once it has an outcome.
+    if (input.outcome) {
+      this.queued.delete(messageId)
+      this.placed.delete(messageId)
     }
+  }
+
+  private announcePlacement(messageId: string, input: InputState, placements?: string[]) {
+    if (this.steers.delete(messageId)) {
+      this.placed.add(messageId)
+      this.current = messageId
+      this.events.push({ type: 'steer-boundary', inputIds: [messageId] })
+      return
+    }
+    if (!placements || this.placed.has(messageId)) return
+    // Without the outcome check, reopening would announce every historical input.
+    if (!this.queued.delete(messageId) && input.outcome) return
+    this.placed.add(messageId)
+    placements.push(messageId)
   }
 
   private finishTurn(entryId?: string, aborted = false) {
     if (this.closing || !this.sending) return
     this.sending = false
+    this.current = undefined
     this.events.push(
       this.failure
         ? { type: 'error', error: this.failure }

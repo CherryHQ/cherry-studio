@@ -273,7 +273,8 @@ A live follow-up is a **steer**. Steering is queue-based, never an
 interrupt: the current turn is **never aborted** to apply a steer (a user
 Stop is now the only abort source). `enqueueUserMessage()`:
 
-1. **Open normal user turn + a driver that can steer** — calls
+1. **Open normal user turn + a driver that can steer**, unless the input carries the follow-up
+   intent described in case 2 — calls
    `connection.redirect({ message, systemReminder: true })`. The driver
    submits the immutable input to the native queue. Claude Code uses SDK
    `priority: 'next'`: native admission either folds it into the running turn
@@ -284,7 +285,21 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    `started` alone is not placement evidence.
    Pi consumes its own queue: unplaced inputs remaining after stop/error
    receive native aborted evidence and are not automatically resent.
-2. **No redirect-eligible open normal turn, or a driver that cannot steer** —
+2. **Other running native work, or a follow-up intent, + a driver with native admission** — calls
+   `connection.followUp(...)` for an interactive input on the current config. When the runtime
+   descriptor declares `nativeFollowUp`, the Work composer sends a busy-time Enter at once with
+   `followUp: true` instead of holding it in its follow-up dock; Main then skips `redirect` even
+   for an open turn. The steer shortcut still steers. Other runtimes keep busy-time Enter in the
+   dock until the turn ends. Pi Durable submits
+   it with its `follow-up` busy policy and persists it at once, so the queue survives a crash.
+   When Durable places the input, the driver emits `steer-boundary` after the preceding answer;
+   the host gives the input its own reply. The preceding reply settles as answered there; Durable
+   reports its input's outcome when the run ends, and the host then replaces a reply whose input
+   did not complete. An autonomous reply settles at that boundary, and a
+   deferred user turn resumes there. A refused submission falls back to the host queue.
+   An input queued before a restart has no entry-side context; the host reads its bound user
+   message instead. If that input starts native work by itself, it also gets a new reply.
+3. **No redirect-eligible open normal turn, or a driver that cannot steer** —
    appends the message and its `steer` flag to the session entry's `runtimeState.queue`
    so the next turn can wrap it in a steer system-reminder
    and schedules it once runtime ownership returns to `idle`.
@@ -309,7 +324,8 @@ can retain the connection without holding a reply open. A notification without p
 cannot reopen a settled reply.
 
 An independent receive-only autonomous generation never accepts a redirect. Follow-ups
-remain in `runtimeState.queue` until terminal persistence releases runtime ownership.
+remain in `runtimeState.queue` until terminal persistence releases runtime ownership,
+unless the driver admits them natively (case 2 above).
 The runtime's `autonomous-turn-state: started` event names why it opened the turn
 (`AutonomousTurnOrigin`: Claude Code waking after background work). The shared reply preparation path publishes it to the shared
 cache under `agent.session.turn_origin.${sessionId}.${messageId}` — live session

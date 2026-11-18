@@ -286,8 +286,17 @@ function reduce<TTurn, TPendingTurn>(
         ? { state: { ...state, execution: { kind: 'turn', reply: execution.reply } }, effects: [] }
         : { state, effects: [] }
     case 'steer-boundary': {
-      if (execution.kind !== 'turn' && execution.kind !== 'idle') return invalid(state, event)
-      const successor = reply(event.turn)
+      if (execution.kind === 'steer-transition') return invalid(state, event)
+      // Native work answers queued input after its own: the deferred user turn resumes, or a placed input starts.
+      if (
+        execution.kind === 'autonomous-turn' &&
+        ((execution.deferred && execution.deferred.turn !== event.turn) ||
+          // An unopened source has no stream to settle, so rolling away from it would never persist it.
+          !['open', 'awaiting-persistence', 'settled'].includes(execution.reply.delivery.kind))
+      )
+        return invalid(state, event)
+      const successor =
+        execution.kind === 'autonomous-turn' && execution.deferred ? execution.deferred : reply(event.turn)
       if (execution.kind === 'idle')
         return { state: { ...state, execution: { kind: 'turn', reply: successor } }, effects: [] }
       const source = execution.reply

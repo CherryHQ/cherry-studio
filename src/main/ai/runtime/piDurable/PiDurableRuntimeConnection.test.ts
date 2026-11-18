@@ -1142,7 +1142,7 @@ describe('desktop Pi Durable connection', () => {
         await summary.reached
         expect(events.some((event) => event.type === 'compaction-start')).toBe(true)
         expect(events.filter((event) => event.type === 'turn-complete' || event.type === 'error')).toEqual([])
-        await expect(connection.send({ message: message('overlapping input') })).rejects.toThrow('active submission')
+        await expect(connection.send({ message: message('overlapping input') })).rejects.toThrow('compacting')
         if (outcome === 'stop') await connection.interrupt()
         if (outcome === 'close') await connection.close()
       } finally {
@@ -2181,6 +2181,167 @@ describe('desktop Pi Durable connection', () => {
         )
       )
       .toBe(true)
+  })
+
+  /** Answers each input by its text; `first` waits for the returned gate. */
+  function answerByInput() {
+    const held = gate()
+    script = respondingModel((call) => {
+      const last = JSON.stringify(call.messages.findLast((entry) => entry.role === 'user'))
+      if (last.includes('second')) return assistantReply('second answer')
+      return held.wait(assistantReply('first answer'))
+    })
+    return held
+  }
+  function projectionIndex(events: AgentRuntimeEvent[], value: string) {
+    return events.findIndex(
+      (event) =>
+        event.type === 'message-projection' &&
+        event.projection.messages.some((item) => JSON.stringify(item.parts).includes(value))
+    )
+  }
+
+  // AC4: a follow-up must wait in Durable's queue and start its own reply after the answer before it.
+  it('queues a message sent during a turn in Durable and announces it after the preceding answer', async () => {
+    const held = answerByInput()
+    const { connection, events, nativeInputs } = await connect()
+    await connection.send({ message: message('first') })
+    await held.reached
+    const second = message('second')
+    expect(connection.followUp({ message: second, systemReminder: true })).toBe(true)
+    await expect
+      .poll(() => nativeInputs.some((state) => state.nativeInput && state.facts.includes('queued')))
+      .toBe(true)
+    held.open()
+    await done(events)
+
+    const boundaries = events.filter((event) => event.type === 'steer-boundary')
+    expect(boundaries).toEqual([expect.objectContaining({ inputIds: [second.id] })])
+    const boundary = events.indexOf(boundaries[0])
+    expect(projectionIndex(events, 'first answer')).toBeLessThan(boundary)
+    expect(projectionIndex(events, 'second answer')).toBeGreaterThan(boundary)
+    expect(nativeInputs.some((state) => state.inputId === second.id && state.outcome === 'completed')).toBe(true)
+    expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  // A truncated answer belongs to its own input; the follow-up placed after it must not inherit the failure.
+  it('reports a truncated answer on its own input and completes the follow-up on its own outcome', async () => {
+    const held = gate()
+    script = respondingModel((call) => {
+      const last = JSON.stringify(call.messages.findLast((entry) => entry.role === 'user'))
+      if (last.includes('second')) return assistantReply('second answer')
+      return held.wait(assistantReply('first answer', 'length'))
+    })
+    const { connection, events, nativeInputs } = await connect()
+    const first = message('first')
+    await connection.send({ message: first })
+    await held.reached
+    expect(connection.followUp({ message: message('second'), systemReminder: true })).toBe(true)
+    await expect
+      .poll(() => nativeInputs.some((state) => state.nativeInput && state.facts.includes('queued')))
+      .toBe(true)
+    held.open()
+    await done(events)
+
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: 'input-state',
+        input: expect.objectContaining({
+          inputId: first.id,
+          outcome: 'unanswered',
+          error: expect.objectContaining({ code: 'output-truncated' })
+        })
+      })
+    )
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
+  })
+
+  // AC4: a send that races running native work used to fail with "Durable already has an active submission".
+  it('admits a send that arrives while native work runs', async () => {
+    const held = answerByInput()
+    const { connection, events, nativeInputs } = await connect()
+    await connection.send({ message: message('first') })
+    await held.reached
+    const second = message('second')
+    await connection.send({ message: second })
+    held.open()
+    await done(events)
+
+    expect(text(events)).toContain('second answer')
+    expect(events).toContainEqual(expect.objectContaining({ type: 'steer-boundary', inputIds: [second.id] }))
+    expect(nativeInputs.some((state) => state.inputId === second.id && state.outcome === 'completed')).toBe(true)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  // Stop withdraws input queued behind the stopped turn; it must not start a run of its own afterwards.
+  it('withdraws a queued follow-up on Stop', async () => {
+    const held = answerByInput()
+    const { connection, events, nativeInputs } = await connect()
+    await connection.send({ message: message('first') })
+    await held.reached
+    const second = message('second')
+    connection.followUp({ message: second, systemReminder: true })
+    await expect
+      .poll(() => nativeInputs.some((state) => state.nativeInput && state.facts.includes('queued')))
+      .toBe(true)
+    await connection.interrupt()
+    await expect.poll(() => events.some((event) => event.type === 'stop-confirmed')).toBe(true)
+    await new Promise((resolve) => setTimeout(resolve, 300))
+
+    expect(nativeInputs.findLast((state) => state.inputId === second.id)).toMatchObject({ outcome: 'aborted' })
+    expect(text(events)).not.toContain('second answer')
+    expect(events).not.toContainEqual(expect.objectContaining({ type: 'steer-boundary', inputIds: [second.id] }))
+  })
+
+  // A follow-up that fails before reaching Durable is in no queue; handing it back lets the host send it.
+  it('hands a follow-up whose submission throws back to the host', async () => {
+    const held = answerByInput()
+    const { connection, events } = await connect()
+    await connection.send({ message: message('first') })
+    await held.reached
+    const second = message('second')
+    const changed = { ...second, data: { parts: [{ type: 'text' as const, text: 'edited elsewhere' }] } }
+
+    expect(connection.followUp({ message: changed, systemReminder: true })).toBe(true)
+
+    await expect.poll(() => events).toContainEqual({ type: 'steer-undelivered', inputIds: [second.id] })
+    held.open()
+    await done(events)
+  })
+
+  // AC4: the queued input is Durable's record, so it is answered after the app exits mid-turn.
+  it('answers a queued follow-up after reopening', async () => {
+    const held = answerByInput()
+    const first = await connect()
+    const user = message('first')
+    await first.connection.send({ message: user })
+    await held.reached
+    const second = message('second')
+    first.connection.followUp({ message: second, systemReminder: true })
+    await expect
+      .poll(() => first.nativeInputs.some((state) => state.nativeInput && state.facts.includes('queued')))
+      .toBe(true)
+    await first.connection.close()
+
+    script = respondingModel((call) =>
+      assistantReply(
+        JSON.stringify(call.messages.findLast((entry) => entry.role === 'user')).includes('second')
+          ? 'second answer'
+          : 'first answer'
+      )
+    )
+    const reopened = await connect()
+    await done(reopened.events)
+    expect(reopened.events).toContainEqual(
+      expect.objectContaining({ type: 'autonomous-turn-state', state: 'started', recoveredInputId: user.id })
+    )
+    expect(reopened.events).toContainEqual(expect.objectContaining({ type: 'steer-boundary', inputIds: [second.id] }))
+    expect(text(reopened.events)).toContain('second answer')
+    expect(reopened.nativeInputs.some((state) => state.inputId === second.id && state.outcome === 'completed')).toBe(
+      true
+    )
   })
 
   // Catches a resumed input surfacing as unattributed background work, which detaches it from its reply.

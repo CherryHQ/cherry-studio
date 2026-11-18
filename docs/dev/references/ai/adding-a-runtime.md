@@ -56,6 +56,9 @@ bottom of this document — read them.
      orphan models (provider deleted / not yet loaded); decide fail-open vs
      fail-closed explicitly and say why in a comment. A runtime that needs
      provider endpoint config to drive the model must fail closed.
+   - `nativeFollowUp` — true only when the connection implements `followUp()`. The composer then
+     sends a message typed while the agent works at once, with the follow-up intent, instead of
+     holding it in its window-local follow-up dock.
    - `transport` — a unique tag stamped on every tool part by your stream
      adapter (`providerMetadata.cherry.transport`); the renderer uses it to
      route tool parts to the right card renderer.
@@ -132,6 +135,13 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        inputs as aborted when execution ends without placing them, without automatic resend.
        Claude uses native next-priority admission across the turn boundary and never
        returns an accepted input for host resend.
+     - `followUp(input)` — native admission for a message sent while native work runs. The
+       runtime persists the input in its own queue at once, so it survives a crash; the host
+       prefers `redirect` for an open turn, then `followUp`, then its own queue. Emit
+       `steer-boundary` with the input ID when the runtime places it, after the content that
+       answers the input before it, so each input gets its own reply. Report a refused submission
+       through `input-submission`. Return false when no native work runs or the text is a host
+       command such as `/compact`. Pi Durable implements it.
      - `retainWhileIdle` — keep an owned in-process runtime beyond the host idle TTL;
        explicit retirement and service shutdown still close it.
      - `background-work-state` — retain the connection while native background work exists.
@@ -244,5 +254,5 @@ These are the choices nothing enforces:
 - `pnpm build:check` for this broad cross-process change.
 - Manual smoke: create an agent of the new type (selector shows the label),
   open a session, run a turn with a mutating tool (approval prompt
-  appears), send a mid-turn follow-up (steers or queues per your `redirect`
-  support), restart the app and resume the session.
+  appears), send a mid-turn follow-up (steers or queues per your `redirect` and
+  `followUp` support), restart the app and resume the session.

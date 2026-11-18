@@ -527,7 +527,8 @@ interface SendResult {
   `models` is empty → `listeners` upsert by id; **no models are
   launched**. Reached by (a) a chat steer — the provider already persisted the
   steer user row and `dispatch` enqueued it on `pendingSteers`; and (b) an
-  agent-session follow-up already enqueued on the session's `runtimeState.queue`. An
+  agent-session follow-up already handed to the runtime by `enqueueUserMessage()`, which steers it,
+  admits it to the runtime's native queue, or appends it to `runtimeState.queue`. An
   empty-`models` send with no live stream is likewise a no-op (the row is
   already enqueued) — `send()` never throws on empty models.
 - **started**: topic is idle or grace-period (terminal) → any leftover

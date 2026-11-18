@@ -80,6 +80,7 @@ import { normalizePromptSuggestion } from '../runtime/promptSuggestion'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
 import type {
+  AgentRuntimeCommand,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
@@ -309,6 +310,10 @@ type AgentSessionRuntimeEntry = {
   recoveredOutcomes?: Map<string, NativeInputState>
   /** `inputId:outcome` pairs already resolved outside a live turn; Durable republishes them every revision. */
   notedOutcomes?: Set<string>
+  /** Follow-up placements waiting for the current reply to open; each starts its own reply, in order. */
+  deferredPlacements?: (readonly string[])[]
+  /** Inputs whose reply a follow-up placement settled before Durable reported their outcome, mapped to that reply. */
+  followedReplies?: Map<string, string>
   interactionWindowId?: string
   sessionId: string
   topicId: string
@@ -725,6 +730,26 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.prediction?.controller.abort()
     this.syncRuntimeActivity()
     for (const effect of transition.effects) this.applyRuntimeStateEffect(entry, effect)
+    this.flushDeferredPlacements(entry)
+  }
+
+  private flushDeferredPlacements(entry: AgentSessionRuntimeEntry): void {
+    while (entry.deferredPlacements && !this.placementWaits(entry)) {
+      const [next, ...rest] = entry.deferredPlacements
+      entry.deferredPlacements = rest.length ? rest : undefined
+      this.startPlacedInputs(entry, next, undefined, true)
+    }
+  }
+
+  /** A follow-up runs on its own, so it must not join a pending reply or roll one that has no stream yet. */
+  private placementWaits(entry: AgentSessionRuntimeEntry): boolean {
+    const execution = entry.runtimeState.execution
+    return (
+      execution.kind === 'steer-transition' ||
+      (execution.kind === 'turn' &&
+        (execution.reservation !== undefined ||
+          !['open', 'awaiting-persistence'].includes(execution.reply.delivery.kind)))
+    )
   }
 
   private syncRuntimeActivity(): void {
@@ -940,6 +965,51 @@ export class AgentSessionRuntimeService extends BaseService {
     return agent
       ? { type: 'agent', id: agent.id, name: agent.name ?? null, icon: agent.configuration?.avatar ?? null }
       : null
+  }
+
+  /**
+   * Moves output to the reply of inputs the runtime just placed. With native admission, an input
+   * this process did not submit (queued before a restart) is read back from its bound user message.
+   */
+  private startPlacedInputs(
+    entry: AgentSessionRuntimeEntry,
+    ids: readonly string[],
+    connection = this.currentConnection(entry),
+    followUp = false
+  ): boolean {
+    const execution = entry.runtimeState.execution
+    const deferred = execution.kind === 'autonomous-turn' ? execution.deferred?.turn : undefined
+    if (deferred && ids.includes(deferred.userMessage.id)) {
+      if (followUp) this.awaitFollowedOutcome(entry)
+      this.applyRuntimeStateEvent(entry, { type: 'steer-boundary', turn: deferred })
+      return true
+    }
+    const owned = new Set(getAgentSessionRuntimeTurns(entry.runtimeState).flatMap((turn) => turn.taskIds))
+    const placed = ids.filter((id) => !owned.has(id))
+    const inputs = this.pendingInputValues(entry, placed, true)
+    if (connection?.followUp && connection.contextId)
+      for (const id of placed) {
+        if (inputs.some((input) => input.message.id === id)) continue
+        if (agentSessionMessageService.inputBinding(entry.sessionId, id)?.contextId !== connection.contextId) continue
+        inputs.push({
+          message: agentSessionMessageService.getSessionMessage(entry.sessionId, id),
+          systemReminder: true
+        })
+      }
+    if (!inputs.length) return false
+    const turn = this.reserveSteerContinuation(entry, inputs)
+    if (turn && followUp) this.awaitFollowedOutcome(entry)
+    if (turn) this.applyRuntimeStateEvent(entry, { type: 'steer-boundary', turn })
+    return turn !== undefined
+  }
+
+  /** A follow-up settles the open reply as answered; Durable reports its input's outcome only when the run ends. */
+  private awaitFollowedOutcome(entry: AgentSessionRuntimeEntry): void {
+    const execution = entry.runtimeState.execution
+    if (execution.kind !== 'turn' && execution.kind !== 'autonomous-turn') return
+    const { turn, delivery } = execution.reply
+    if (delivery.kind !== 'open') return
+    for (const id of turn.taskIds) (entry.followedReplies ??= new Map()).set(id, turn.assistantMessageId)
   }
 
   private reserveSteerContinuation(
@@ -1251,6 +1321,8 @@ export class AgentSessionRuntimeService extends BaseService {
       reasoningEffort?: ReasoningEffortOption
       serviceTier?: ServiceTierSelection
       fastMode?: boolean
+      /** Answer after the current work instead of steering it. */
+      followUp?: boolean
     } = {}
   ): void {
     this.assertSessionWritable(sessionId)
@@ -1288,16 +1360,11 @@ export class AgentSessionRuntimeService extends BaseService {
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, turn.knowledgeBaseIds),
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, knowledgeBaseIds)
       )
-    if (
-      entry.runtimeState.execution.kind === 'turn' &&
-      entry.runtimeState.execution.reply.delivery.kind === 'open' &&
-      turn &&
-      this.isTurnLive(entry, turn) &&
-      !entry.stopping &&
-      turn.headless !== true &&
-      !headless &&
-      canRedirectOnCurrentConfig
-    ) {
+    const interactive =
+      turn !== undefined && !entry.stopping && turn.headless !== true && !headless && canRedirectOnCurrentConfig
+    const connection = this.currentConnection(entry)
+    const submitNatively = (submit: ((input: AgentRuntimeCommand) => boolean) | undefined) => {
+      if (!submit) return false
       const input: AgentRuntimeUserInput = {
         // oxlint-disable-next-line no-restricted-globals -- Isolate one submitted user message while native redirect and persistence can mutate it.
         message: structuredClone(message),
@@ -1306,11 +1373,23 @@ export class AgentSessionRuntimeService extends BaseService {
         ...(messageSnapshot ? { messageSnapshot } : {})
       }
       const pending = (entry.pendingInputs ??= new Map())
-      if (pending.has(message.id)) return
+      if (pending.has(message.id)) return true
       pending.set(message.id, { input, generation: entry.connectionGeneration })
-      if (this.currentConnection(entry)?.redirect?.({ message: input.message, systemReminder: true })) return
+      if (submit({ message: input.message, systemReminder: true })) return true
       pending.delete(message.id)
+      return false
     }
+    if (
+      interactive &&
+      !opts.followUp &&
+      entry.runtimeState.execution.kind === 'turn' &&
+      entry.runtimeState.execution.reply.delivery.kind === 'open' &&
+      this.isTurnLive(entry, turn) &&
+      submitNatively(connection?.redirect?.bind(connection))
+    )
+      return
+    // A runtime with native admission holds the message in its own queue, which survives a crash.
+    if (interactive && submitNatively(connection?.followUp?.bind(connection))) return
 
     // No redirect-eligible open normal turn (or backend can't steer) → queue as the next turn,
     // wrapped in a steer system-reminder.
@@ -2524,15 +2603,14 @@ export class AgentSessionRuntimeService extends BaseService {
       }
       case 'input-state':
         this.resolvePendingInput(entry, event.contextId, event.input)
-        this.noteNativeOutcome(entry, event.input)
+        this.noteNativeOutcome(entry, event.contextId, event.input)
         break
-      case 'steer-boundary': {
-        const inputs = this.pendingInputValues(entry, event.inputIds, true)
-        if (!inputs.length) break
-        const turn = this.reserveSteerContinuation(entry, inputs)
-        if (turn) this.applyRuntimeStateEvent(entry, { type: 'steer-boundary', turn })
+      case 'steer-boundary':
+        // Each follow-up placement keeps its place behind earlier ones and gets its own reply.
+        if (event.followUp && (entry.deferredPlacements || this.placementWaits(entry)))
+          (entry.deferredPlacements ??= []).push(event.inputIds)
+        else this.startPlacedInputs(entry, event.inputIds, connection, event.followUp)
         break
-      }
       case 'steer-undelivered':
         // Steers stashed via redirect() that this turn ended before injecting → queue them as the
         // next turn (with a steer system-reminder). The following `turn-complete` → markTurnTerminal
@@ -2607,6 +2685,13 @@ export class AgentSessionRuntimeService extends BaseService {
         const recoveredReply = event.recoveredInputId
           ? agentSessionMessageService.replyTo(entry.sessionId, event.recoveredInputId)?.id
           : undefined
+        // A queued input that starts native work has no reply yet; it gets its own instead of a background one.
+        if (
+          event.recoveredInputId &&
+          !recoveredReply &&
+          this.startPlacedInputs(entry, [event.recoveredInputId], connection)
+        )
+          break
         const assistantMessageId =
           recoveredReply ??
           (background
@@ -3316,10 +3401,16 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /** Records a native outcome for a reply that no runtime turn will settle. */
-  private noteNativeOutcome(entry: AgentSessionRuntimeEntry, input: NativeInputState): void {
+  private noteNativeOutcome(entry: AgentSessionRuntimeEntry, contextId: string, input: NativeInputState): void {
     if (entry.agentType !== 'pi-durable' || !input.inputId || !input.outcome) return
     if (entry.stopping?.input?.id === input.inputId) {
       entry.stopping.input.outcome = input
+      return
+    }
+    const followed = entry.followedReplies?.get(input.inputId)
+    if (followed) {
+      entry.followedReplies!.delete(input.inputId)
+      if (input.outcome !== 'completed') void this.correctFollowedReply(entry, contextId, followed, input)
       return
     }
     const noted = `${input.inputId}:${input.outcome}`
@@ -3329,6 +3420,32 @@ export class AgentSessionRuntimeService extends BaseService {
       return
     ;(entry.notedOutcomes ??= new Set()).add(noted)
     if (replyId) (entry.recoveredOutcomes ??= new Map()).set(replyId, input)
+    // Stop withdraws input Durable had not placed yet, so no reply will ever follow it.
+    else if (
+      input.outcome === 'aborted' &&
+      !input.facts.includes('placed') &&
+      !agentSessionMessageService.replyTo(entry.sessionId, input.inputId)
+    )
+      agentSessionMessageService.markUserMessageUnsent(entry.sessionId, input.inputId)
+  }
+
+  private async correctFollowedReply(
+    entry: AgentSessionRuntimeEntry,
+    contextId: string,
+    replyId: string,
+    input: NativeInputState
+  ): Promise<void> {
+    try {
+      await application.get('AiStreamManager').drainRuntimeReply(entry.topicId, replyId)
+      if (this.isCurrentEntry(entry))
+        this.settleFromNativeOutcome(entry, this.rootProjection(entry, contextId), replyId, input)
+    } catch (error) {
+      logger.warn('Failed to apply a late Durable outcome to a followed reply', {
+        sessionId: entry.sessionId,
+        replyId,
+        error
+      })
+    }
   }
 
   /** Persists a reply with the status that the native outcome maps to. */

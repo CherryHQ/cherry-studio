@@ -2,6 +2,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 
+import { application } from '@application'
 import { runtimeId } from '@cherrystudio/agent-runtime'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -74,7 +75,7 @@ async function fixture(
   let queue = new AsyncEventQueue<{ event: AgentRuntimeEvent; consumed: () => void }>()
   const closed = Promise.withResolvers<void>()
   const emit = (event: AgentRuntimeEvent) => new Promise<void>((consumed) => queue.push({ event, consumed }))
-  const connections = { opened: 0, closed: 0, sent: [] as string[] }
+  const connections = { opened: 0, closed: 0, sent: [] as string[], followUps: [] as string[], steers: [] as string[] }
   runtimeDriverRegistry.register({
     type: agentType,
     validateSession: () => {},
@@ -97,7 +98,16 @@ async function fixture(
         send: async ({ message }) => {
           connections.sent.push(message.id)
         },
-        redirect: () => true,
+        redirect: ({ message }: { message: { id: string } }) => {
+          connections.steers.push(message.id)
+          return true
+        },
+        ...(agentType === 'pi-durable' && {
+          followUp: ({ message }: { message: { id: string } }) => {
+            connections.followUps.push(message.id)
+            return true
+          }
+        }),
         close: async () => {
           connections.closed++
           activeQueue.close()
@@ -588,6 +598,216 @@ it('ends a retained Stop whose native interrupt never returns', async () => {
   expect(f.service.isSessionBusy('root')).toBe(false)
   await f.reconnect()
   expect(f.connections.opened).toBe(2)
+})
+
+/** Streams the successor reply that the host launched for a placed input and persists it. */
+async function answerSuccessor(f: Awaited<ReturnType<typeof fixture>>, next: StartRuntimeTurnInput, value: string) {
+  const runtime = next.request.runtime
+  if (runtime?.kind !== 'agent-session') throw new Error('Expected a runtime turn')
+  const source = f.service.openTurnStream({
+    sessionId: 'root',
+    turnId: runtime.turnId,
+    signal: next.abortController!.signal
+  })
+  if (source.kind !== 'messages') throw new Error('Expected message source')
+  const done = pipeMessageStream(
+    source.stream,
+    next.abortController!.signal,
+    { id: next.request.messageId!, role: 'assistant', parts: [] },
+    () => {},
+    () => {}
+  )
+  await f.project([text('second', value)])
+  await f.emit({ type: 'turn-complete' })
+  await next.listeners[0].onDone({ status: 'success', finalMessage: (await done).finalMessage })
+  return messages.getSessionMessage('root', next.request.messageId!)
+}
+
+// AC4: busy-time input waits in Durable's queue, then gets its own reply once Durable places it.
+it.each([
+  { submitted: true, label: 'submitted in this process' },
+  { submitted: false, label: 'queued before a restart' }
+])('gives a Durable input $label its own reply when placed', async ({ submitted }) => {
+  let next: StartRuntimeTurnInput | undefined
+  MockApplicationUtils.setService('AiStreamManager', {
+    startRuntimeTurn: (input: StartRuntimeTurnInput) => {
+      next = input
+    }
+  })
+  const f = await fixture(undefined, false, 'pi-durable')
+  await vi.waitFor(() => expect(f.connections.sent).toHaveLength(1))
+  await f.project([text('first', 'First answer')])
+  const followup = savedUser(f.reply.id, 'Second question')
+  if (submitted) {
+    f.service.enqueueUserMessage('root', followup, { followUp: true })
+    expect(f.connections.followUps).toEqual([followup.id])
+    expect(f.connections.steers).toEqual([])
+  } else
+    application.get('DbService').withWriteTx((tx) => messages.bindInputContextTx(tx, 'root', followup.id, f.context.id))
+  expect(f.service.inspect('root')?.pendingMessageCount).toBe(0)
+
+  await f.emit({ type: 'steer-boundary', inputIds: [followup.id] })
+  const first = await f.done
+  await f.handle.listeners[0].onDone({ status: 'success', finalMessage: first.finalMessage, isTopicDone: false })
+  await f.handle.listeners[1].onDone({ status: 'success', finalMessage: first.finalMessage, isTopicDone: false })
+  await expect.poll(() => next).toBeDefined()
+  const second = await answerSuccessor(f, next!, 'Second answer')
+
+  expect(second.data.parts).toEqual(text('', 'Second answer').parts)
+  expect(messages.replyTo('root', followup.id)?.id).toBe(second.id)
+  expect(messages.getSessionMessage('root', f.reply.id).data.parts).toEqual(text('', 'First answer').parts)
+})
+
+// Durable answers each placement in its own run; one placed before the previous reply opens must not join it.
+it('gives a Durable placement its own reply when it arrives before the previous one opens', async () => {
+  const launched: StartRuntimeTurnInput[] = []
+  MockApplicationUtils.setService('AiStreamManager', {
+    startRuntimeTurn: (input: StartRuntimeTurnInput) => void launched.push(input)
+  })
+  const f = await fixture(undefined, false, 'pi-durable')
+  await vi.waitFor(() => expect(f.connections.sent).toHaveLength(1))
+  await f.project([text('first', 'First answer')])
+  const second = savedUser(f.reply.id, 'Second question')
+  const third = savedUser(second.id, 'Third question')
+  f.service.enqueueUserMessage('root', second, { followUp: true })
+  f.service.enqueueUserMessage('root', third, { followUp: true })
+
+  await f.emit({ type: 'steer-boundary', inputIds: [second.id], followUp: true })
+  await f.project([text('second', 'Second answer')])
+  await f.emit({ type: 'steer-boundary', inputIds: [third.id], followUp: true })
+  const first = await f.done
+  const result: StreamDoneResult = { status: 'success', finalMessage: first.finalMessage, isTopicDone: false }
+  await f.handle.listeners[0].onDone(result)
+  await f.handle.listeners[1].onDone(result)
+  await expect.poll(() => launched).toHaveLength(1)
+  const runtime = launched[0].request.runtime
+  if (runtime?.kind !== 'agent-session') throw new Error('Expected a runtime turn')
+  const source = f.service.openTurnStream({
+    sessionId: 'root',
+    turnId: runtime.turnId,
+    signal: launched[0].abortController!.signal
+  })
+  if (source.kind !== 'messages') throw new Error('Expected message source')
+  let streamed: Awaited<ReturnType<typeof pipeMessageStream>> | undefined
+  void pipeMessageStream(
+    source.stream,
+    launched[0].abortController!.signal,
+    { id: launched[0].request.messageId!, role: 'assistant', parts: [] },
+    () => {},
+    () => {}
+  ).then((value) => (streamed = value))
+  // The third placement ends this reply once its stream has taken the buffered answer.
+  await expect.poll(() => streamed).toBeDefined()
+  const handoff: StreamDoneResult = { status: 'success', finalMessage: streamed!.finalMessage, isTopicDone: false }
+  for (const listener of launched[0].listeners) await listener.onDone(handoff)
+  await expect.poll(() => launched).toHaveLength(2)
+
+  expect(launched.map((input) => input.request.messages?.[0]?.id)).toEqual([second.id, third.id])
+  expect(launched[1].request.messageId).not.toBe(launched[0].request.messageId)
+  expect(messages.getSessionMessage('root', launched[0].request.messageId!).data.parts).toEqual(
+    text('', 'Second answer').parts
+  )
+})
+
+// Durable reports an answer's outcome only when the run ends, after the follow-up placed behind it.
+it('saves a truncated answer as an output-limit error after its follow-up was placed', async () => {
+  MockApplicationUtils.setService('AiStreamManager', {
+    startRuntimeTurn: () => {},
+    drainRuntimeReply: async () => {}
+  })
+  const f = await fixture(undefined, false, 'pi-durable')
+  await vi.waitFor(() => expect(f.connections.sent).toHaveLength(1))
+  await f.project([text('first', 'First answer')])
+  const followup = savedUser(f.reply.id, 'Second question')
+  f.service.enqueueUserMessage('root', followup, { followUp: true })
+  await f.emit({ type: 'steer-boundary', inputIds: [followup.id], followUp: true })
+  const first = await f.done
+  const result: StreamDoneResult = { status: 'success', finalMessage: first.finalMessage, isTopicDone: false }
+  await f.handle.listeners[0].onDone(result)
+  await f.handle.listeners[1].onDone(result)
+
+  await f.emit({
+    type: 'input-state',
+    contextId: f.context.id,
+    input: {
+      inputId: runtimeId(f.user.id),
+      facts: ['accepted', 'placed'],
+      outcome: 'unanswered',
+      error: { operation: 'input', code: 'output-truncated', message: 'Output limit reached' }
+    }
+  })
+
+  await vi.waitFor(() => expect(messages.getSessionMessage('root', f.reply.id).status).toBe('error'))
+  const saved = messages.getSessionMessage('root', f.reply.id)
+  expect(saved.data.parts).toEqual([
+    ...text('', 'First answer').parts,
+    expect.objectContaining({
+      type: 'data-error',
+      data: expect.objectContaining({ finishReason: 'length', i18nKey: 'output_token_limit_reached' })
+    })
+  ])
+})
+
+// AC4 Stop: Durable withdraws input still queued; the transcript must not show it as sent.
+it('marks a queued Durable input that Stop withdrew as not sent', async () => {
+  MockApplicationUtils.setService('AiStreamManager', {
+    drainRuntimeReply: async () => {},
+    pauseRuntimeTurn: () => false
+  })
+  const f = await fixture(async () => {}, true, 'pi-durable')
+  await vi.waitFor(() => expect(f.connections.sent).toHaveLength(1))
+  await f.project([text('answer', 'Partial answer')])
+  const queued = savedUser(f.reply.id, 'Queued question')
+  f.service.enqueueUserMessage('root', queued, { followUp: true })
+  f.handle.abortController.abort('user-requested')
+  const paused: StreamPausedResult = { status: 'paused', isTopicDone: true, finalMessage: (await f.done).finalMessage }
+  await f.handle.listeners[0].onPaused(paused)
+  await f.handle.listeners[1].onPaused(paused)
+  const stopped = f.service.stopSession('root', 'user-requested')
+
+  await f.emit({
+    type: 'input-state',
+    contextId: f.context.id,
+    input: {
+      inputId: runtimeId(queued.id),
+      facts: ['accepted', 'queued'],
+      outcome: 'aborted',
+      error: { operation: 'input', code: 'aborted', message: 'aborted' }
+    }
+  })
+  await f.emit({ type: 'turn-complete', status: 'paused' })
+  await f.emit({ type: 'stop-confirmed' })
+  await stopped
+
+  expect(messages.getSessionMessage('root', queued.id).status).toBe('paused')
+  expect(messages.getSessionMessage('root', f.reply.id).status).toBe('paused')
+})
+
+// AC4: a queued input that starts native work on its own has no reply to continue yet.
+it('opens a new reply when a queued Durable input starts native work', async () => {
+  let next: StartRuntimeTurnInput | undefined
+  MockApplicationUtils.setService('AiStreamManager', {
+    startRuntimeTurn: (input: StartRuntimeTurnInput) => {
+      next = input
+    }
+  })
+  const f = await fixture(undefined, false, 'pi-durable')
+  await settleFirstTurn(f)
+  const queued = savedUser(f.reply.id, 'Queued before exit')
+  application.get('DbService').withWriteTx((tx) => messages.bindInputContextTx(tx, 'root', queued.id, f.context.id))
+
+  await f.emit({
+    type: 'autonomous-turn-state',
+    state: 'started',
+    origin: { kind: 'background-work' },
+    recoveredInputId: queued.id
+  })
+  await expect.poll(() => next).toBeDefined()
+  const reply = await answerSuccessor(f, next!, 'Queued answer')
+
+  expect(reply.data.parts).toEqual(text('', 'Queued answer').parts)
+  expect(messages.replyTo('root', queued.id)?.id).toBe(reply.id)
+  expect(messages.getSessionMessage('root', f.reply.id).data.parts).toEqual(text('', 'First answer').parts)
 })
 
 // The native successor can publish before the preceding reply has committed and created its row.

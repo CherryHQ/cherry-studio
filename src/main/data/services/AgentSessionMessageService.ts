@@ -1400,6 +1400,25 @@ export class AgentSessionMessageService {
     if (changed.changes > 0) this.publishDeliveryChange(sessionId, messageId, 'projection')
   }
 
+  /** A `paused` user message is one the runtime withdrew before the agent received it. */
+  markUserMessageUnsent(sessionId: string, messageId: string): void {
+    const changed = application.get('DbService').withWriteTx((tx) =>
+      tx
+        .update(sessionMessagesTable)
+        .set({ status: 'paused', updatedAt: Date.now() })
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            eq(sessionMessagesTable.id, messageId),
+            eq(sessionMessagesTable.role, 'user'),
+            eq(sessionMessagesTable.status, 'success')
+          )
+        )
+        .run()
+    )
+    if (changed.changes > 0) this.publishDeliveryChange(sessionId, messageId, 'projection')
+  }
+
   private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {
     return {
       id: row.id,
