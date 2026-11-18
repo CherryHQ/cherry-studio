@@ -79,7 +79,12 @@ vi.mock('@cherrystudio/agent-runtime-claude-code', () => ({
       }
     }),
     shutdown: async () => {
-      await state.observe?.({ events: [{ type: 'closed', reason: 'shutdown' }], controls: [] })
+      await state.observe?.({
+        events: [{ type: 'closed', reason: 'shutdown' }],
+        controls: [],
+        native: [],
+        retracted: []
+      })
       return { status: 'confirmed' }
     }
   })

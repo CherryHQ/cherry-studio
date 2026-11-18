@@ -47,14 +47,46 @@ export function stripUnsupportedModelParams(params: SamplingParams, model: Model
   const acceptsTopP = modelAcceptsSamplingParam(model, 'topP')
   const gemini4 = isGemini4Model(model)
   const normalizeTemperature = model.providerId === 'dashscope' && isQwenModel(model)
-  if (acceptsTemperature && acceptsTopP && !normalizeTemperature) return params
+  const support = model.parameterSupport
+  const temperatureRange = support?.temperature?.range ?? support?.temperature
+  const topPRange = support?.topP?.range ?? support?.topP
+  const acceptsFrequencyPenalty = !gemini4 && !isGemini3Model(model) && support?.frequencyPenalty !== false
+  const acceptsPresencePenalty = !gemini4 && !isGemini3Model(model) && support?.presencePenalty !== false
+  const hasSamplingRange =
+    temperatureRange?.min !== undefined ||
+    temperatureRange?.max !== undefined ||
+    topPRange?.min !== undefined ||
+    topPRange?.max !== undefined
+  if (
+    acceptsTemperature &&
+    acceptsTopP &&
+    acceptsFrequencyPenalty &&
+    acceptsPresencePenalty &&
+    !hasSamplingRange &&
+    !normalizeTemperature
+  )
+    return params
 
-  function strip<T>(values: Record<string, T>): Record<string, T> {
-    const cleaned = { ...values }
+  function strip<T>(values: Record<string, T>): Record<string, T | number> {
+    const cleaned: Record<string, T | number> = { ...values }
     if (!acceptsTemperature) delete cleaned.temperature
     if (!acceptsTopP) {
       delete cleaned.topP
       delete cleaned.top_p
+    }
+    if (!acceptsFrequencyPenalty) {
+      delete cleaned.frequencyPenalty
+      delete cleaned.frequency_penalty
+    }
+    if (!acceptsPresencePenalty) {
+      delete cleaned.presencePenalty
+      delete cleaned.presence_penalty
+    }
+    for (const key of ['temperature', 'topP', 'top_p'] as const) {
+      const range = key === 'temperature' ? temperatureRange : topPRange
+      const value = cleaned[key]
+      if (typeof value !== 'number' || !Number.isFinite(value)) continue
+      cleaned[key] = Math.min(range?.max ?? Infinity, Math.max(range?.min ?? -Infinity, value))
     }
     if (gemini4 || isClaudeFixedSamplingModel(model)) {
       delete cleaned.topK
@@ -70,7 +102,7 @@ export function stripUnsupportedModelParams(params: SamplingParams, model: Model
       Number.isFinite(cleaned.temperature) &&
       cleaned.temperature >= 2
     ) {
-      cleaned.temperature = 1.9 as T
+      cleaned.temperature = 1.9
     }
     return cleaned
   }

@@ -57,7 +57,9 @@ Decided per file part in `prepareChatMessages`
   the request bytes leave the main process; stored FileEntry and persisted message
   part bytes remain unchanged. Compliant images and inputs outside the strict
   decoder, including remote URLs and AVIF/HEIC, pass through unchanged; images
-  that cannot be padded are also sent unchanged. This prevents providers such as
+  that cannot be padded are also sent unchanged. Each decision (valid, rejected or
+  padded) is cached by a SHA-256 digest of the data URL in a bounded 512-entry
+  LRU, so a history image repeated across model calls is decoded only once. This prevents providers such as
   Volcengine Ark from rejecting the whole request and aborting the turn when an
   image edge is below their minimum.
 - Unknown extensions undergo a conservative content sniff (binary detection +

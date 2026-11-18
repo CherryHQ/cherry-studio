@@ -13,7 +13,7 @@
   },
   "scripts": {
     "build": "tsdown",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/agent-runtime-acp/tsconfig.json"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "2.4.0",
