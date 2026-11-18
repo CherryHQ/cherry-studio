@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from 'vitest'
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { BridgeResult } from '@shared/ipc/schemas/miniAppBridge'
-
-import { mockMiniAppApplication } from '../../__tests__/applicationMock'
+import { miniAppInstallationTable, miniAppTable } from '@data/db/schemas/miniApp'
 
 const resolveAppIdBySender = vi.fn()
 const beginCapabilityCall = vi.fn()
@@ -14,15 +15,6 @@ const recordCall = vi.fn()
 class PermissionDeniedError extends Error {}
 vi.mock('../../grants', () => ({ assertMethodAllowed, PermissionDeniedError }))
 vi.mock('../../activityLog', () => ({ miniAppActivityLog: { recordCall } }))
-vi.mock('@application', () =>
-  mockMiniAppApplication({
-    MiniAppRuntimeService: { resolveAppIdBySender, beginCapabilityCall },
-    PreferenceService: { get: () => 'zh-CN' },
-    DbService: {
-      getDb: () => ({ select: () => ({ from: () => ({ where: () => ({ all: () => [{ version: '1.0.0' }] }) }) }) })
-    }
-  })
-)
 
 const storageSet = vi.fn(() => ({ ok: true }))
 const storageKeys = vi.fn()
@@ -43,17 +35,45 @@ const { MiniAppUnavailableError } = await import('../../errors')
 
 const noopEmit = () => {}
 
-/**
- * Narrows the envelope AND names the failure. `BridgeResult` is a discriminated union,
- * so `result.value` does not typecheck unquantified — and a bare `as { ok: true }` cast
- * silences that by reporting `expected undefined to be …`, which says nothing about why.
- */
-function expectOk(result: BridgeResult): unknown {
-  if (result.ok) return result.value
-  throw new Error(`expected ok, got ${result.error.name}: ${result.error.message}`)
-}
-
 describe('handleBridgeRequest', () => {
+  const dbh = setupTestDatabase()
+
+  beforeEach(() => {
+    MockApplicationUtils.setService('MiniAppRuntimeService', { resolveAppIdBySender, beginCapabilityCall })
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
+  })
+
+  afterEach(() => {
+    MockApplicationUtils.resetServices()
+    MockMainPreferenceServiceUtils.resetMocks()
+  })
+
+  function installApp(appId: string, version: string, orderKey = 'a0'): void {
+    dbh.db
+      .insert(miniAppTable)
+      .values({ appId, kind: 'app', name: appId, url: `cherry-miniapp://${appId}/index.html`, orderKey })
+      .run()
+    dbh.db
+      .insert(miniAppInstallationTable)
+      .values({
+        appId,
+        version,
+        contentHash: 'sha256:fixture',
+        source: 'file',
+        manifestJson: {
+          id: appId,
+          name: { en: appId },
+          description: { en: 'Bridge test fixture' },
+          version,
+          entry: 'index.html',
+          permissions: [],
+          optionalPermissions: [],
+          network: []
+        }
+      })
+      .run()
+  }
+
   it('records every attributable call with its public outcome, the refused ones included', async () => {
     // The bug this guards: logging only after the gate. An app probing what it was not
     // granted is exactly the line the activity log exists to show.
@@ -106,12 +126,12 @@ describe('handleBridgeRequest', () => {
   })
 
   it('ignores a caller-supplied appId', async () => {
+    installApp('com.example.real', '1.0.0')
+    installApp('com.example.spoofed', '9.0.0', 'a1')
     resolveAppIdBySender.mockReturnValue('com.example.real')
-    const info = expectOk(
-      await handleBridgeRequest(1, { method: 'app.getInfo', appId: 'com.example.spoofed' }, noopEmit)
-    ) as { appId: string }
-
-    expect(info.appId).toBe('com.example.real')
+    await expect(
+      handleBridgeRequest(1, { method: 'app.getInfo', appId: 'com.example.spoofed' }, noopEmit)
+    ).resolves.toMatchObject({ ok: true, value: { appId: 'com.example.real', version: '1.0.0' } })
   })
 
   it('rejects an unknown method', async () => {
@@ -217,17 +237,20 @@ describe('handleBridgeRequest', () => {
   })
 
   it('leaves ungated environment methods reachable without a grant', async () => {
+    installApp('com.example.real', '1.0.0')
     resolveAppIdBySender.mockReturnValue('com.example.real')
     assertMethodAllowed.mockClear()
 
-    const info = expectOk(await handleBridgeRequest(1, { method: 'app.getInfo' }, noopEmit))
+    const info = await handleBridgeRequest(1, { method: 'app.getInfo' }, noopEmit)
 
     // `app.getInfo` is `gate: 'none'` — the gate function still runs, and returns.
     expect(assertMethodAllowed).toHaveBeenCalledWith('com.example.real', 'app.getInfo')
     // NO `theme` — §6.4 dropped it (the guest uses `matchMedia`). The mini app's own
     // version is distinct from the host's, and `application.getVersion()` does not exist.
-    expect(info).toMatchObject({ appId: 'com.example.real', locale: 'zh-CN', version: '1.0.0' })
-    expect(info).toHaveProperty('hostVersion')
-    expect(info).not.toHaveProperty('theme')
+    expect(info).toMatchObject({
+      ok: true,
+      value: { appId: 'com.example.real', locale: 'zh-CN', version: '1.0.0', hostVersion: expect.any(String) }
+    })
+    expect(info).not.toHaveProperty('value.theme')
   })
 })
