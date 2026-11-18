@@ -1,4 +1,5 @@
 import { app, net } from 'electron'
+import type * as z from 'zod'
 
 import {
   type CatalogManifest,
@@ -42,10 +43,8 @@ export const resolveRegistryBaseUrl = async (): Promise<string> =>
 
 const MANIFEST_FILE = 'manifest.json'
 
-// Validators keyed by file — the SAME schemas RegistryLoader validates with on
-// read, so an accepted download is guaranteed loadable. Typed structurally
-// (only `version` is read here) to sidestep the schemas' distinct outputs.
-const SCHEMA_BY_FILE: Record<RemoteRegistryFileName, { parse: (data: unknown) => { version: string } }> = {
+// Downloads use the same schemas as RegistryLoader; only the version is read here.
+const SCHEMA_BY_FILE: Record<RemoteRegistryFileName, z.ZodType<{ version: string }>> = {
   'models.json': ModelListSchema,
   'provider-models.json': ProviderModelListSchema
 }

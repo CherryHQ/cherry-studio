@@ -30,7 +30,7 @@ type TokenDanceCallback = {
 type TokenDanceCallbackServer = {
   callbackUrl: string
   waitForCode: Promise<TokenDanceCallback>
-  fail: (error: unknown) => void
+  fail: (cause: unknown) => void
   close: () => Promise<void>
 }
 
@@ -95,16 +95,16 @@ function listen(server: Server): Promise<number> {
 async function startCallbackServer(state: string): Promise<TokenDanceCallbackServer> {
   let settled = false
   let resolveCode!: (callback: TokenDanceCallback) => void
-  let rejectCode!: (error: unknown) => void
+  let rejectCode!: (cause: unknown) => void
 
   const waitForCode = new Promise<TokenDanceCallback>((resolve, reject) => {
     resolveCode = resolve
     rejectCode = reject
   })
-  const settleReject = (error: unknown) => {
+  const settleReject = (cause: unknown) => {
     if (settled) return
     settled = true
-    rejectCode(error)
+    rejectCode(cause)
   }
 
   const server = createServer((request, response) => {
