@@ -107,10 +107,10 @@ export class RemoteAccessService extends BaseService {
         this.endpoint = { ...advertised, identity: deviceIdentityId(identity) }
         this.advertisement.update(this.endpoint.identity!, advertised.port, advertised.ipv6)
       })
-      .catch((error: unknown) => {
+      .catch((cause: unknown) => {
         if (revision !== this.endpointRevision) return
         application.get('CacheService').setShared('feature.remote_access.discovery_status', 'unavailable')
-        logger.warn('Remote identity unavailable for discovery', error as Error)
+        logger.warn('Remote identity unavailable for discovery', cause as Error)
       })
   }
 
@@ -163,9 +163,9 @@ export class RemoteAccessService extends BaseService {
       entry.remote?.dispose()
       this.connections.delete(socket)
     })
-    void this.run(socket, entry).catch((error: unknown) => {
-      if (entry.abort.signal.aborted && error === entry.abort.signal.reason) return
-      logger.warn('Remote session ended with an error', { address, error: (error as Error).message })
+    void this.run(socket, entry).catch((cause: unknown) => {
+      if (entry.abort.signal.aborted && cause === entry.abort.signal.reason) return
+      logger.warn('Remote session ended with an error', { address, error: (cause as Error).message })
       socket.close(1011, 'Remote session failed')
     })
   }
@@ -205,9 +205,9 @@ export class RemoteAccessService extends BaseService {
   }
 
   private getIdentity(): Promise<Uint8Array> {
-    this.identity ??= loadDesktopIdentity().catch((error: unknown) => {
+    this.identity ??= loadDesktopIdentity().catch((cause: unknown) => {
       this.identity = undefined
-      throw error
+      throw cause
     })
     return this.identity
   }

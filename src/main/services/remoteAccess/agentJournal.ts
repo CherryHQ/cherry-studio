@@ -906,7 +906,11 @@ class RemoteAgentListener implements StreamListener {
     })
   }
 
-  onChunk(chunk: UIMessageChunk, _sourceModelId?: unknown, anchorMessageId?: string): void {
+  onChunk(
+    chunk: UIMessageChunk,
+    _sourceModelId?: Parameters<StreamListener['onChunk']>[1],
+    anchorMessageId?: string
+  ): void {
     if (!this.current) return
     if (this.projected && chunk.type !== 'tool-approval-request') return
     this.guard(() => {

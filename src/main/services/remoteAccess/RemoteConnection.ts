@@ -1,17 +1,22 @@
 import { createHash, randomUUID } from 'node:crypto'
 
+import type * as z from 'zod'
+
 import {
   connectionMethods,
   pairingMethods,
   remoteAuthorizationSchema,
   remoteLimits,
   uploadTransferLimits,
+  type uploadAckSchema,
+  type UploadAck,
+  type JsonRpcResponse,
   type UploadChunk,
   type DirectEndpoint,
   type RemoteAuthorization,
   type RemoteCapability
 } from '@cherrystudio/remote-protocol'
-import { agentUploadLimits } from '@cherrystudio/remote-protocol/agent'
+import { agentUploadLimits, type agentNotificationSchema } from '@cherrystudio/remote-protocol/agent'
 import { configurationMethods } from '@cherrystudio/remote-protocol/configuration'
 import { RemoteRpcError, RemoteRpcServer, type SecureChannel } from '@cherrystudio/remote-transport'
 import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
@@ -171,7 +176,7 @@ export class RemoteConnection {
       throw new Error('Upload window exceeded')
     this.incomingUploads.add(input.requestId)
     this.incomingUploadBytes += input.bytes.length
-    let params
+    let params: UploadAck
     try {
       const owner = { ...this.requireCapability('agent'), peerIdentity: this.channel.remoteIdentity }
       const state = await this.hub.uploads.write(owner, input)
@@ -230,7 +235,9 @@ export class RemoteConnection {
   isAuthenticated(): boolean {
     return this.authentication !== undefined
   }
-  send(value: unknown): Promise<void> {
+  send(
+    value: JsonRpcResponse | JsonRpcResponse[] | z.infer<typeof agentNotificationSchema | typeof uploadAckSchema>
+  ): Promise<void> {
     const write = this.writes.then(() => {
       this.checkAuthorization(false)
       return this.channel.write(value)

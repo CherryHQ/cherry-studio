@@ -101,8 +101,7 @@ export function getSession(sessionId: string): AgentSessionEntity {
 
 export type ProjectedPart = { part: AgentPart; text: string }
 
-function dataPart(partId: string, revision: string, name: string, value: unknown): ProjectedPart {
-  const text = JSON.stringify(value)
+function dataPart(partId: string, revision: string, name: string, text: string): ProjectedPart {
   return { part: { partId, revision, kind: 'data', name, content: contentOf(partId, revision, text) }, text }
 }
 
@@ -164,7 +163,12 @@ export function projectMessageParts(
     } else if (part.type === 'data-error') {
       const failure = toExecutionFailure(part.data as SerializedError, message.modelId ?? undefined)
       projected.push(
-        dataPart(partId, revision, 'data-error', { data: { message: failure.message, executionFailure: failure } })
+        dataPart(
+          partId,
+          revision,
+          'data-error',
+          JSON.stringify({ data: { message: failure.message, executionFailure: failure } })
+        )
       )
     } else if (part.type === 'file') {
       const metadata = readCherryMeta(part)?.remoteAttachment
@@ -187,11 +191,16 @@ export function projectMessageParts(
         })
       } else
         projected.push(
-          dataPart(partId, revision, 'file', { mediaType: part.mediaType, filename: part.filename ?? null })
+          dataPart(
+            partId,
+            revision,
+            'file',
+            JSON.stringify({ mediaType: part.mediaType, filename: part.filename ?? null })
+          )
         )
     } else if (part.type !== 'step-start') {
       const { type, ...rest } = part as { type: string }
-      projected.push(dataPart(partId, revision, type, rest))
+      projected.push(dataPart(partId, revision, type, JSON.stringify(rest)))
     }
   })
   return projected

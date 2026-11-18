@@ -1,7 +1,14 @@
 import { randomUUID } from 'node:crypto'
 
+import type * as z from 'zod'
+
 import { remoteLimits } from '@cherrystudio/remote-protocol'
-import type { AgentCheckpointPage, AgentParams, AgentResult } from '@cherrystudio/remote-protocol/agent'
+import type {
+  agentNotificationSchema,
+  AgentCheckpointPage,
+  AgentParams,
+  AgentResult
+} from '@cherrystudio/remote-protocol/agent'
 import { RemoteRpcError } from '@cherrystudio/remote-transport'
 import { loggerService } from '@logger'
 
@@ -33,7 +40,7 @@ export class AgentSubscriptions {
 
   constructor(
     private readonly hub: RemoteAgentHub,
-    private readonly send: (notification: unknown) => Promise<void>
+    private readonly send: (notification: z.infer<typeof agentNotificationSchema>) => Promise<void>
   ) {}
 
   subscribe(input: AgentParams<'agent.sessions.subscribe'>): AgentResult<'agent.sessions.subscribe'> {
@@ -216,13 +223,13 @@ export class AgentSubscriptions {
       jsonrpc: '2.0',
       method: 'agent.subscriptions.resetRequired',
       params: { subscriptionId: subscription.id, reason }
-    }).catch((error: unknown) => logger.warn('Failed to deliver subscription reset', error as Error))
+    }).catch((cause: unknown) => logger.warn('Failed to deliver subscription reset', cause as Error))
   }
 
   private schedule(subscription: Subscription): void {
     subscription.pump = subscription.pump
       .then(() => this.pump(subscription))
-      .catch((error: unknown) => logger.warn('Subscription pump failed', error as Error))
+      .catch((cause: unknown) => logger.warn('Subscription pump failed', cause as Error))
   }
 
   private async pump(subscription: Subscription): Promise<void> {
