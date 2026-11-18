@@ -1,4 +1,4 @@
-import type { Message } from '@earendil-works/pi-ai'
+import type { Message, ToolResultMessage } from '@earendil-works/pi-ai'
 import type { EntryRecord } from '@earendil-works/pi-durable'
 
 import { projectNestedTool, runtimeId, type RuntimeMessage } from '@cherrystudio/agent-runtime'
@@ -97,7 +97,13 @@ export class ContentProjection {
     this.calls.set(part.toolCallId, { message: parent.message, index })
   }
 
-  private result(callId: string, output: unknown, error: boolean, preliminary = false): void {
+  private result(
+    callId: string,
+    output: Pick<ToolResultMessage, 'content' | 'nestedCalls' | 'details'> &
+      Partial<Pick<ToolResultMessage, 'isError'>>,
+    error: boolean,
+    preliminary = false
+  ): void {
     const owner = this.calls.get(callId)
     if (!owner) return
     const part = owner.message.parts[owner.index]
@@ -113,20 +119,17 @@ export class ContentProjection {
       ? {
           ...base,
           state: 'output-error',
-          errorText: this.errorText(output),
+          errorText: this.errorText(output.content),
           resultProviderMetadata: { pi: { result: JSON.parse(JSON.stringify(output)) } }
         }
       : { ...base, state: 'output-available', output, preliminary }
   }
 
-  private errorText(output: unknown): string {
-    const content = (output as { content?: { type: string; text?: string }[] }).content
-    return (
-      content
-        ?.filter((part) => part.type === 'text')
-        .map((part) => part.text)
-        .join('\n') ?? String(output)
-    )
+  private errorText(content: ToolResultMessage['content']): string {
+    return content
+      .filter((part) => part.type === 'text')
+      .map((part) => part.text)
+      .join('\n')
   }
 
   progress(callId: string, text: string): void {
