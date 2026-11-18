@@ -14,6 +14,7 @@
 import { createHash } from 'node:crypto'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { deflateRawSync } from 'node:zlib'
 
 import { validateApp } from './validate.mjs'
@@ -127,7 +128,12 @@ export async function packageApp(appDir, outFile) {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// argv[1] is a raw filesystem path, import.meta.url a file URL: comparing them
+// directly skips the CLI entirely on Windows or in a directory with spaces.
+// Normalize the argv side to a URL so the documented `node <script>` invocation
+// always enters (and importing the module never does).
+const isCliEntry = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+if (isCliEntry) {
   const [appDir, outFile] = process.argv.slice(2)
   if (!appDir || !outFile) {
     console.error('Usage: node scripts/package.mjs <appDir> <out.miniapp>')

@@ -12,6 +12,7 @@
 import { createHash } from 'node:crypto'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 const MAX_MANIFEST_BYTES = 256 * 1024
 const MAX_ICON_BYTES = 5 * 1024 * 1024
@@ -222,8 +223,10 @@ export async function validateApp(appDir) {
   const files = await walk(appDir)
   for (const file of files) {
     if (!TEXT_EXTENSIONS.has(path.extname(file.rel).toLowerCase())) continue
+    // Every text asset is scanned, whatever its size: skipping large ones lets a
+    // bundle smuggle a development-server reference past AC2, and the read is
+    // already bounded by the package size limits above.
     const bytes = await fs.readFile(file.full)
-    if (bytes.length > 1024 * 1024) continue
     const match = DEV_SERVER_RE.exec(bytes.toString('utf8'))
     if (match) issues.push(`${file.rel}: references a development server (${match[0]})`)
   }
@@ -231,7 +234,12 @@ export async function validateApp(appDir) {
   return { ok: issues.length === 0, issues }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// argv[1] is a raw filesystem path, import.meta.url a file URL: comparing them
+// directly skips the CLI entirely on Windows or in a directory with spaces.
+// Normalize the argv side to a URL so the documented `node <script>` invocation
+// always enters (and importing the module never does).
+const isCliEntry = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+if (isCliEntry) {
   const appDir = process.argv[2]
   if (!appDir) {
     console.error('Usage: node scripts/validate.mjs <appDir>')

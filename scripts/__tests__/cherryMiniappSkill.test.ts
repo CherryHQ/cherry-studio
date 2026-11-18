@@ -1,8 +1,10 @@
+import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { promisify } from 'node:util'
 
 import { afterAll, describe, expect, it } from 'vitest'
 
@@ -10,6 +12,8 @@ import { afterAll, describe, expect, it } from 'vitest'
 const SKILL_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.agents/skills/cherry-miniapp')
 const { validateApp } = await import(path.join(SKILL_DIR, 'scripts/validate.mjs'))
 const { packageApp } = await import(path.join(SKILL_DIR, 'scripts/package.mjs'))
+
+const execFileAsync = promisify(execFile)
 
 const tempDirs: string[] = []
 
@@ -113,6 +117,48 @@ describe('cherry-miniapp skill', () => {
     // ZIP local file header magic, and the manifest lands at the archive root.
     expect(bytes.subarray(0, 4)).toEqual(Buffer.from([0x50, 0x4b, 0x03, 0x04]))
     expect(bytes.includes(Buffer.from('manifest.json'))).toBe(true)
+  })
+
+  it('scans text assets over 1 MiB for development-server references (AC2)', async () => {
+    const dir = await copyTemplate()
+    // A bundle too big for the old size cap: exactly the smuggle the cap allowed.
+    const big = `const api = 'http://localhost:5173/api';
+export const pad = '${'x'.repeat(1024 * 1024)}';
+`
+    await fs.writeFile(path.join(dir, 'bundle.js'), big)
+    expect((await validateApp(dir)).issues.join('\n')).toMatch(/references a development server/)
+
+    const clean = await copyTemplate()
+    await fs.writeFile(
+      path.join(clean, 'bundle.js'),
+      `export const pad = '${'y'.repeat(1024 * 1024)}';
+`
+    )
+    expect((await validateApp(clean)).ok).toBe(true)
+  })
+
+  it('runs as a CLI from a directory with spaces (Windows-style entry paths)', async () => {
+    // The scripts ship inside the skill; the user runs them from wherever the
+    // skill landed, spaces included. argv[1] is a raw path there, so the entry
+    // guard must normalize it — a skipped guard exits 0 while doing NOTHING.
+    const spaced = path.join(await makeTempDir(), 'skill dir with spaces', 'scripts')
+    await fs.mkdir(spaced, { recursive: true })
+    await Promise.all(
+      ['validate.mjs', 'package.mjs'].map((name) =>
+        fs.copyFile(path.join(SKILL_DIR, 'scripts', name), path.join(spaced, name))
+      )
+    )
+    const appDir = await copyTemplate()
+
+    const validated = await execFileAsync(process.execPath, [path.join(spaced, 'validate.mjs'), appDir])
+    expect(JSON.parse(validated.stdout)).toMatchObject({ ok: true })
+
+    const out = path.join(await makeTempDir(), 'cli packed.miniapp')
+    const packed = await execFileAsync(process.execPath, [path.join(spaced, 'package.mjs'), appDir, out])
+    const printed = JSON.parse(packed.stdout)
+    expect(printed.ok).toBe(true)
+    const bytes = await fs.readFile(out)
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(printed.sha256)
   })
 
   it('refuses to package an invalid app', async () => {
