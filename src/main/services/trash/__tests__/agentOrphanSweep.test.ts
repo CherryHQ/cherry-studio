@@ -54,6 +54,7 @@ describe('sweepAgentOrphans', () => {
       if (name === 'AgentSessionRuntimeService') {
         return {
           listClaimedResumeTokens: () => new Set(runtimeClaimedResumeTokens),
+          invalidateSessionContextUsage: () => {},
           cancelSessionForks: async () => {},
           closeSessionForArchive
         }

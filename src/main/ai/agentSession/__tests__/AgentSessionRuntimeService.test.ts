@@ -70,6 +70,8 @@ const mocks = vi.hoisted(() => ({
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
   ensureTraceId: vi.fn(),
+  getContextUsageSnapshot: vi.fn((): null => null),
+  setContextUsageSnapshot: vi.fn(),
   recordUsage: vi.fn(),
   trackTokenUsage: vi.fn()
 }))
@@ -112,7 +114,10 @@ vi.mock('@data/services/AgentSessionService', async (importOriginal) => {
   return {
     agentSessionService: Object.assign(Object.create(actual.agentSessionService), {
       getById: mocks.getSessionById,
-      ensureTraceId: mocks.ensureTraceId
+      listIdsByAgent: () => [],
+      ensureTraceId: mocks.ensureTraceId,
+      getContextUsageSnapshot: mocks.getContextUsageSnapshot,
+      setContextUsageSnapshot: mocks.setContextUsageSnapshot
     })
   }
 })
@@ -123,6 +128,7 @@ vi.mock('@data/services/AgentService', () => ({
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
+    onBranchSelected: () => () => {},
     saveMessage: mocks.saveMessage,
     replaceMessageParts: mocks.replaceMessageParts,
     markAssistantMessageTerminalError: vi.fn(),
@@ -561,7 +567,7 @@ describe('AgentSessionRuntimeService', () => {
       id: message.id ?? 'generated-message-id',
       updatedAt: '2026-01-01T00:00:00.000Z'
     }))
-    mocks.getSessionById.mockReturnValue({ updatedAt: '2026-01-01T00:00:01.000Z' })
+    mocks.getSessionById.mockReturnValue({ agentId: 'agent-1', updatedAt: '2026-01-01T00:00:01.000Z' })
     mocks.getSessionMessage.mockReturnValue({
       id: 'assistant-1',
       role: 'assistant',
@@ -605,6 +611,8 @@ describe('AgentSessionRuntimeService', () => {
       if (name === 'PreferenceService') return defaultServiceInstances.PreferenceService
       if (name === 'CacheService')
         return {
+          getPersist: defaultServiceInstances.CacheService.getPersist,
+          setPersist: defaultServiceInstances.CacheService.setPersist,
           setShared: mocks.cacheSetShared,
           getShared: mocks.cacheGetShared,
           deleteShared: mocks.cacheDeleteShared

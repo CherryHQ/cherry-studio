@@ -552,6 +552,7 @@ export class AgentLifecycleService extends BaseService {
     const closed = await Promise.allSettled(
       sessionIds.map(async (sessionId) => {
         const runtime = application.get('AgentSessionRuntimeService')
+        runtime.invalidateSessionContextUsage(sessionId)
         await runtime.cancelSessionForks(sessionId)
         await runtime.closeSession(sessionId)
       })

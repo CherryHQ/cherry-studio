@@ -1,6 +1,6 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
-import { eq } from 'drizzle-orm'
+import { eq, getTableColumns, sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 import { applyMigrations } from '@data/db/applyMigrations'
@@ -28,6 +28,15 @@ function seedSessions(dbh: ReturnType<typeof setupTestDatabase>) {
       }))
     )
     .run()
+}
+
+function seedHistoricalSessions(dbh: ReturnType<typeof setupTestDatabase>) {
+  dbh.sqlite.exec(`
+    INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+    VALUES ('work', 'Work', '/work', 'user', 'a0', 10, 20);
+    INSERT INTO agent_session (id, name, workspace_id, order_key, created_at, updated_at, last_activity_at)
+    VALUES ('flat', 'flat', 'work', 'flat', 10, 20, 10), ('branched', 'branched', 'work', 'branched', 10, 20, 10);
+  `)
 }
 
 describe('Session tree storage constraints', () => {
@@ -79,7 +88,7 @@ describe('Session tree populated upgrade', () => {
   const dbh = setupTestDatabase({ beforeMigration: '0039_agent_session_tree_backfill' })
 
   it('preserves all 10,001 flat messages and their order across upgrade', () => {
-    seedSessions(dbh)
+    seedHistoricalSessions(dbh)
     const insert = dbh.sqlite.prepare(
       "INSERT INTO agent_session_message (id, session_id, role, data, status, created_at, updated_at) VALUES (?, 'flat', 'user', ?, 'success', ?, ?)"
     )
@@ -113,7 +122,7 @@ describe('Session tree populated branch upgrade', () => {
   const dbh = setupTestDatabase({ beforeMigration: '0039_agent_session_tree_backfill' })
 
   it('backfills flat history while preserving message facts, existing branches, selection and FTS', () => {
-    seedSessions(dbh)
+    seedHistoricalSessions(dbh)
     for (const id of ['b', 'a']) {
       dbh.db
         .insert(messages)
@@ -138,7 +147,11 @@ describe('Session tree populated branch upgrade', () => {
     service.saveMessage({ sessionId: 'branched', parentId: root, message: { role: 'user', data: { parts: [] } } })
     dbh.db.update(sessions).set({ activeNodeId: first.id }).where(eq(sessions.id, 'branched')).run()
     const before = dbh.db.select().from(messages).all()
-    const sessionBefore = dbh.db.select().from(sessions).where(eq(sessions.id, 'branched')).get()
+    const sessionBefore = dbh.db
+      .select({ ...getTableColumns(sessions), contextUsageSnapshot: sql<null>`null` })
+      .from(sessions)
+      .where(eq(sessions.id, 'branched'))
+      .get()
     applyMigrations(dbh.db, resolveMigrationsPath())
     expect(readAgentSessionPath(dbh.db, 'flat').map((row) => row.id)).toEqual(['a', 'b'])
     for (const row of before) {
@@ -174,7 +187,7 @@ for (const invalidParent of ['missing', 'foreign']) {
     const dbh = setupTestDatabase({ beforeMigration: '0039_agent_session_tree_backfill' })
 
     it('rejects invalid edges and rolls back the entire upgrade without changing rows', () => {
-      seedSessions(dbh)
+      seedHistoricalSessions(dbh)
       const otherRoot = service.captureHead('branched')
       dbh.db
         .insert(messages)

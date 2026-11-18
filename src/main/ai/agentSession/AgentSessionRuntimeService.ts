@@ -3,7 +3,7 @@ import { isToolUIPart, type UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
-import type { InputState } from '@cherrystudio/agent-runtime'
+import type { InputState, ThreadContextUsage } from '@cherrystudio/agent-runtime'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as childContexts } from '@data/services/AgentSessionContextService'
@@ -46,7 +46,9 @@ import {
 } from '@shared/ai/agentSessionCompaction'
 import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
-  type AgentSessionContextUsage
+  isAgentSessionContextUsageSnapshot,
+  type AgentSessionContextUsage,
+  type AgentSessionContextUsageSnapshot
 } from '@shared/ai/agentSessionContextUsage'
 import {
   AGENT_SESSION_CLOSING_CACHE_KEY,
@@ -324,6 +326,13 @@ type AgentSessionRuntimeEntry = {
   /** Synchronous terminal commits; later native changes update these rows directly. */
   persistedMessageIds?: Set<string>
   contextUsageEpoch?: number
+  contextUsageReading?: {
+    usage: ThreadContextUsage
+    measuredAt: string
+    turnAssistantMessageId: string
+    turnId: string
+    identity: NonNullable<ReturnType<AgentSessionRuntimeService['captureContextUsageIdentity']>>
+  }
   contextUsageModel?: UniqueModelId
 }
 
@@ -556,6 +565,9 @@ export class AgentSessionRuntimeService extends BaseService {
           )
         }
       })
+    )
+    this.registerDisposable(
+      agentSessionMessageService.onBranchSelected((sessionId) => this.invalidateSessionContextUsage(sessionId))
     )
     this.registerDisposable(toolApprovalRegistry.onAborted((aborted) => this.retireAbortedApprovalCard(aborted)))
   }
@@ -978,6 +990,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * entry idles under the same TTL as a post-turn one, so it self-tears-down if never used.
    */
   async primeConnection(sessionId: string): Promise<void> {
+    this.restoreContextUsageSnapshot(sessionId)
     if (this.forks.edits.has(sessionId)) return
     try {
       const existing = this.entries.get(sessionId)
@@ -1056,10 +1069,14 @@ export class AgentSessionRuntimeService extends BaseService {
    * covered by the pull.
    */
   private async handleAgentUpdated(agentId: string, updates: UpdateAgentDto, agent: AgentEntity): Promise<void> {
+    for (const sessionId of agentSessionService.listIdsByAgent(agentId)) {
+      this.invalidateSessionContextUsage(sessionId)
+    }
     const modelEdited = Object.prototype.hasOwnProperty.call(updates, 'model')
     const reconciles: Promise<void>[] = []
     for (const entry of this.entries.values()) {
       if (entry.agentId !== agentId) continue
+      this.invalidateContextUsage(entry)
 
       // A cleared model (`PATCH { model: null }`) is unroutable only when no
       // session override remains — a session with its own model stays routable.
@@ -1101,6 +1118,7 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'patched':
         return
       case 'rebuild': {
+        this.invalidateContextUsage(entry)
         // Safe live patches are already applied. Rebuild eagerly only when nothing is streaming —
         // a roll or non-terminal turn keeps its connection, and the next fresh turn's pull picks up
         // the rebuild.
@@ -1143,6 +1161,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * on the stale model; and a fresh dispatch fails fast in the chat context with "no model configured".
    */
   private invalidateModelClearedEntry(entry: AgentSessionRuntimeEntry): void {
+    this.invalidateContextUsage(entry)
     if (this.liveTurn(entry)) {
       application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'agent-model-cleared')
     }
@@ -1312,6 +1331,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const isRowRoll =
       entry.runtimeState.execution.kind === 'steer-transition' &&
       entry.runtimeState.execution.source.turn === completedTurn
+    entry.contextUsageReading = undefined
     this.applyRuntimeStateEvent(entry, { type: 'turn-terminal', turn: completedTurn, status })
     if (status === 'success' && !isRowRoll) this.startPromptPrediction(entry)
     this._onTurnTerminal.fire({
@@ -1422,6 +1442,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * connection if nothing else holds it.
    */
   acquireWarmLease(sessionId: string, sender: Electron.WebContents | undefined): void {
+    this.restoreContextUsageSnapshot(sessionId)
     const pendingTeardown = this.pendingWarmTeardowns.get(sessionId)
     if (pendingTeardown) {
       clearTimeout(pendingTeardown)
@@ -2136,6 +2157,7 @@ export class AgentSessionRuntimeService extends BaseService {
           case 'patched':
             return true
           case 'rebuild': {
+            this.invalidateContextUsage(entry)
             // Background work may keep the old connection alive, but it cannot make a spawn-frozen
             // mismatch safe. Hold this fresh turn until the driver releases that work, then loop,
             // close A, connect B, and only then admit the user input.
@@ -2704,9 +2726,16 @@ export class AgentSessionRuntimeService extends BaseService {
       do {
         refresh.pending = false
         const epoch = entry.contextUsageEpoch
+        const turn = this.currentTurn(entry)
+        const captured = {
+          identity: this.captureContextUsageIdentity(entry.sessionId, entry.modelId),
+          turnAssistantMessageId: turn?.assistantMessageId,
+          turnId: turn?.turnId
+        }
         const result = await connection.getContextUsage!()
         if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) return
-        if (epoch === entry.contextUsageEpoch && !refresh.pending) this.persistContextUsage(entry, result)
+        if (epoch !== entry.contextUsageEpoch) return
+        if (!refresh.pending) this.persistContextUsage(entry, result, captured)
         else refresh.pending = true
       } while (refresh.pending)
     })()
@@ -2718,18 +2747,159 @@ export class AgentSessionRuntimeService extends BaseService {
       })
   }
 
-  private invalidateContextUsage(entry: AgentSessionRuntimeEntry): void {
-    entry.prediction?.controller.abort()
-    entry.contextUsageEpoch = (entry.contextUsageEpoch ?? 0) + 1
-    application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId))
+  private settleContextUsageSnapshot(
+    entry: AgentSessionRuntimeEntry,
+    assistantMessageId: string,
+    turnId: string
+  ): void {
+    const pending = entry.contextUsageReading
+    if (
+      !this.isCurrentEntry(entry) ||
+      pending?.turnAssistantMessageId !== assistantMessageId ||
+      pending.turnId !== turnId
+    )
+      return
+    const identity = this.captureContextUsageIdentity(entry.sessionId, entry.modelId)
+    if (
+      !identity ||
+      identity.headMessageId !== assistantMessageId ||
+      identity.modelId !== pending.identity.modelId ||
+      identity.contextId !== pending.identity.contextId
+    )
+      return
+    let head: AgentSessionMessageEntity
+    try {
+      head = agentSessionMessageService.getSessionMessage(entry.sessionId, identity.headMessageId)
+    } catch {
+      return
+    }
+    if (head.role !== 'assistant' || head.status !== 'success') return
+    agentSessionService.setContextUsageSnapshot(entry.sessionId, {
+      ...identity,
+      measuredAt: pending.measuredAt,
+      usage: pending.usage
+    })
+    entry.contextUsageReading = undefined
   }
 
-  private persistContextUsage(entry: AgentSessionRuntimeEntry, result: AgentSessionContextUsage['result']): void {
+  private captureContextUsageIdentity(
+    sessionId: string,
+    modelId?: UniqueModelId
+  ): Omit<AgentSessionContextUsageSnapshot, 'measuredAt' | 'usage'> | undefined {
+    try {
+      const session = agentSessionService.getById(sessionId)
+      if (!session.agentId) return
+      const agent = agentService.getAgent(session.agentId)
+      const effectiveModel = modelId ?? session.model ?? agent?.model
+      if (!effectiveModel || !modelService.existsByIdTx(application.get('DbService').getDb(), effectiveModel)) return
+      const headMessageId = agentSessionMessageService.captureHead(sessionId)
+      const head = agentSessionMessageService.getSessionMessage(sessionId, headMessageId)
+      const context = childContexts.branchTx(application.get('DbService').getDb(), sessionId, headMessageId)
+      if (!context || context.parentContextId || context.bindingState !== 'bound' || !context.nativeThreadId) return
+      return {
+        modelId: effectiveModel,
+        // The context ID identifies its backend and native thread.
+        contextId: context.id,
+        headMessageId,
+        headUpdatedAt: head.updatedAt
+      }
+    } catch {
+      return undefined
+    }
+  }
+
+  private restoreContextUsageSnapshot(sessionId: string): void {
+    const cache = application.get('CacheService')
+    const record = agentSessionService.getContextUsageSnapshot(sessionId)
+    if (record === null) {
+      agentSessionService.setContextUsageSnapshot(sessionId, null)
+      return
+    }
+    const identity = this.captureContextUsageIdentity(sessionId)
+    if (
+      !isAgentSessionContextUsageSnapshot(record) ||
+      !identity ||
+      Object.entries(identity).some(([key, value]) => record[key as keyof typeof identity] !== value)
+    ) {
+      agentSessionService.setContextUsageSnapshot(sessionId, null)
+      if (cache.getShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId))?.snapshot?.restored)
+        cache.deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId))
+      return
+    }
+    const live = cache.getShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId))
+    if (live?.modelId === record.modelId && live.result.status === 'confirmed' && !live.snapshot?.restored) return
+    cache.setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId), {
+      modelId: record.modelId,
+      result: { status: 'confirmed', value: record.usage },
+      snapshot: { measuredAt: record.measuredAt, restored: true }
+    })
+  }
+
+  invalidateSessionContextUsage(sessionId: string): void {
+    const entry = this.entries.get(sessionId)
+    if (entry) {
+      entry.contextUsageEpoch = (entry.contextUsageEpoch ?? 0) + 1
+      entry.contextUsageReading = undefined
+    }
+    const cache = application.get('CacheService')
+    cache.deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId))
+    agentSessionService.setContextUsageSnapshot(sessionId, null)
+  }
+
+  private invalidateContextUsage(entry: AgentSessionRuntimeEntry): void {
+    entry.prediction?.controller.abort()
+    entry.contextUsageReading = undefined
+    this.invalidateSessionContextUsage(entry.sessionId)
+  }
+
+  private persistContextUsage(
+    entry: AgentSessionRuntimeEntry,
+    result: AgentSessionContextUsage['result'],
+    captured: {
+      identity: ReturnType<AgentSessionRuntimeService['captureContextUsageIdentity']>
+      turnAssistantMessageId?: string
+      turnId?: string
+    } = {
+      identity: this.captureContextUsageIdentity(entry.sessionId, entry.modelId),
+      turnAssistantMessageId: this.currentTurn(entry)?.assistantMessageId,
+      turnId: this.currentTurn(entry)?.turnId
+    }
+  ): void {
     if (!this.isCurrentEntry(entry)) return
     if (entry.contextUsageModel !== entry.modelId) return
-    application
-      .get('CacheService')
-      .setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), { modelId: entry.modelId, result })
+    try {
+      const session = agentSessionService.getById(entry.sessionId)
+      const agent = session?.agentId ? agentService.getAgent(session.agentId) : undefined
+      const effectiveModel = session?.model ?? agent?.model
+      if (!agent || (entry.modelId !== agent.model && entry.modelId !== effectiveModel)) return
+    } catch {
+      return
+    }
+    const identity = this.captureContextUsageIdentity(entry.sessionId, entry.modelId)
+    const connection = this.currentConnection(entry)
+    const cache = application.get('CacheService')
+    if (result.status !== 'confirmed' || !result.value.used) this.invalidateContextUsage(entry)
+    cache.setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), { modelId: entry.modelId, result })
+    const source = captured.identity
+    if (
+      result.status !== 'confirmed' ||
+      !result.value.used ||
+      !source ||
+      !identity ||
+      source.modelId !== entry.modelId ||
+      source.contextId !== identity.contextId ||
+      (connection?.contextId && connection.contextId !== source.contextId)
+    )
+      return
+    if (!connection) return
+    const { turnAssistantMessageId, turnId } = captured
+    if (!turnAssistantMessageId || !turnId) return
+    const measuredAt = new Date().toISOString()
+    entry.contextUsageReading = { usage: result.value, measuredAt, turnAssistantMessageId, turnId, identity: source }
+    if (identity.headMessageId !== source.headMessageId || identity.headMessageId !== turnAssistantMessageId) return
+    const head = agentSessionMessageService.getSessionMessage(entry.sessionId, identity.headMessageId)
+    if (head.role !== 'assistant' || head.status !== 'success') return
+    agentSessionService.setContextUsageSnapshot(entry.sessionId, { ...identity, measuredAt, usage: result.value })
   }
 
   /**
@@ -3038,7 +3208,8 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   private resetConnectionRuntimeState(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
     if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) return
-    this.invalidateContextUsage(entry)
+    entry.contextUsageEpoch = (entry.contextUsageEpoch ?? 0) + 1
+    entry.contextUsageReading = undefined
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'background', active: false })
     if (entry.runtimeState.execution.kind === 'autonomous-turn') {
       this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-finished' })
@@ -3493,6 +3664,7 @@ export class AgentSessionRuntimeService extends BaseService {
         onPersisted: () => {
           ;(entry.persistedMessageIds ??= new Set()).add(assistantMessageId)
           entry.usageAttribution?.flush(assistantMessageId)
+          if (!entry.closing) this.settleContextUsageSnapshot(entry, assistantMessageId, currentTurn.turnId)
         },
         afterPersist
       }),
@@ -3616,6 +3788,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry: AgentSessionRuntimeEntry,
     resetRuntimeState = true
   ): AgentRuntimeConnection | undefined {
+    entry.contextUsageReading = undefined
     const connection = this.currentConnection(entry)
     if (connection && resetRuntimeState) this.resetConnectionRuntimeState(entry, connection)
     if (connection) this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected', connection })
