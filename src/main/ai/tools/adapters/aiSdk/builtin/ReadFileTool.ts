@@ -30,6 +30,7 @@ import {
   type ReadFileResult,
   readFileResultSchema
 } from '@shared/ai/builtinTools'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { FILE_TYPE } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 
@@ -45,7 +46,12 @@ const MEDIA_READ_SNAPSHOT_TTL_MS = 30 * 60 * 1000
  * Full media analysis for paging. The first page analyzes (so a partial result can be retried);
  * later pages reuse its text, because an uncached partial re-run can shift every offset.
  */
-async function readMediaAnalysis(entryId: string, offset: number | undefined, signal?: AbortSignal): Promise<string> {
+async function readMediaAnalysis(
+  entryId: string,
+  offset: number | undefined,
+  chatModelId: UniqueModelId | undefined,
+  signal?: AbortSignal
+): Promise<string> {
   const cache = application.get('CacheService')
   const key = `read-file:media:${entryId}`
   const snapshot = offset ? cache.get<unknown>(key) : undefined
@@ -53,7 +59,9 @@ async function readMediaAnalysis(entryId: string, offset: number | undefined, si
     signal?.throwIfAborted()
     return snapshot
   }
-  const text = await application.get('MediaAnalysisService').analyzeToFullText({ kind: 'entry', entryId }, signal)
+  const text = await application
+    .get('MediaAnalysisService')
+    .analyzeToFullText({ kind: 'entry', entryId }, signal, { fallbackVisionModelId: chatModelId })
   cache.set(key, text, MEDIA_READ_SNAPSHOT_TTL_MS)
   return text
 }
@@ -65,6 +73,8 @@ Attachments are already inlined into the conversation. Call this when an attachm
 /** Resolution context: the allow-list of this request's attachments. */
 export interface ReadFileContext {
   attachments: ReadonlyArray<FileAttachmentRef>
+  /** The chat model; analyzes video frames when no Video Vision model is selected, matching Chat's inline result. */
+  chatModelId?: UniqueModelId
 }
 
 function isReadFileError(result: ReadFileResult): result is ReadFileError {
@@ -97,7 +107,7 @@ function paginate(text: string, offset = 0, limit = READ_FILE_PAGE_SIZE): ReadFi
 
 export async function readFile(
   input: ReadFileInput,
-  { attachments }: ReadFileContext,
+  { attachments, chatModelId }: ReadFileContext,
   signal?: AbortSignal
 ): Promise<ReadFileResult> {
   // Resolve the model-facing handle to an internal entry id against the request's
@@ -117,7 +127,7 @@ export async function readFile(
 
     let text: string | null
     if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
-      text = await readMediaAnalysis(entryId, input.offset, signal)
+      text = await readMediaAnalysis(entryId, input.offset, chatModelId, signal)
     } else if (fileType === FILE_TYPE.IMAGE) {
       text = await application.get('FileProcessingService').ocrImage({ kind: 'entry', entryId }, signal)
     } else {
@@ -156,7 +166,11 @@ const readFileTool = tool({
   outputSchema: readFileResultSchema,
   execute: async (input, options) => {
     const { request } = getToolCallContext(options)
-    return readFile(input, { attachments: request.fileAttachments ?? [] }, request.abortSignal)
+    return readFile(
+      input,
+      { attachments: request.fileAttachments ?? [], chatModelId: request.model },
+      request.abortSignal
+    )
   },
   toModelOutput: ({ output }) => readFileModelOutput(output)
 })

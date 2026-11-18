@@ -3,7 +3,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const { getByIdMock, mediaAnalysisMock, ocrMock } = vi.hoisted(() => ({
   getByIdMock: vi.fn<(id: string) => Promise<{ ext: string | null }>>(),
-  mediaAnalysisMock: vi.fn<(file: { kind: 'entry'; entryId: string }, signal?: AbortSignal) => Promise<string>>(),
+  mediaAnalysisMock:
+    vi.fn<
+      (
+        file: { kind: 'entry'; entryId: string },
+        signal?: AbortSignal,
+        options?: { fallbackVisionModelId?: string }
+      ) => Promise<string>
+    >(),
   ocrMock: vi.fn<() => Promise<string>>()
 }))
 vi.mock('@application', async () => {
@@ -102,11 +109,27 @@ describe('readFile — extracted content', () => {
       const r = await readFile(input({ filename: `voice.${ext}` }), ctx([att(`voice.${ext}`)]))
 
       expect(r).toEqual({ text: '[00:00] spoken line', totalChars: 19 })
-      expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
+      expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined, {
+        fallbackVisionModelId: undefined
+      })
       expect(extractMock).not.toHaveBeenCalled()
       expect(ocrMock).not.toHaveBeenCalled()
     }
   )
+
+  it('analyzes video frames with the chat model, matching the inline result', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'mp4' })
+    mediaAnalysisMock.mockResolvedValueOnce('[0:00] a red screen')
+
+    await readFile(input({ filename: 'silent.mp4' }), {
+      attachments: [att('silent.mp4')],
+      chatModelId: 'openai::gpt-4.1-mini'
+    })
+
+    expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined, {
+      fallbackVisionModelId: 'openai::gpt-4.1-mini'
+    })
+  })
 
   it.each(['mp3', 'mp4', 'webm', 'm4a', 'opus', '3gp'])(
     'returns paged full media analysis for .%s attachments',
@@ -117,7 +140,9 @@ describe('readFile — extracted content', () => {
       const r = await readFile(input({ filename: `media.${ext}`, offset: 14, limit: 12 }), ctx([att(`media.${ext}`)]))
 
       expect(r).toEqual({ text: '[00:10] beta', totalChars: 40, nextOffset: 26 })
-      expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
+      expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined, {
+        fallbackVisionModelId: undefined
+      })
       expect(extractMock).not.toHaveBeenCalled()
     }
   )
@@ -299,13 +324,16 @@ describe('createReadFileToolEntry', () => {
         experimental_context: {
           requestId: 'request-1',
           abortSignal: controller.signal,
+          model: 'openai::gpt-4.1-mini',
           fileAttachments: [att('clip.mp4')]
         }
       }
     )
 
     expect(result).toEqual({ text: '[00:00] agent result', totalChars: 20 })
-    expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, controller.signal)
+    expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, controller.signal, {
+      fallbackVisionModelId: 'openai::gpt-4.1-mini'
+    })
   })
 
   it('carries a persist-only text-field codec (in-flight output is text, so the codec never fires there)', async () => {
