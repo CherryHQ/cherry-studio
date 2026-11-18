@@ -200,17 +200,12 @@ async function openObjectMessage<T>(
   let controller!: ReadableStreamDefaultController<ObjectItem<T>>
   let closed = false
   let started = false
-  let wake: (() => void) | undefined
   let resolveStart!: () => void
   let rejectStart!: (error: unknown) => void
   const startup = new Promise<void>((resolve, reject) => {
     resolveStart = resolve
     rejectStart = reject
   })
-  const release = () => {
-    wake?.()
-    wake = undefined
-  }
   const commit = () => {
     if (!started) {
       started = true
@@ -222,7 +217,6 @@ async function openObjectMessage<T>(
     closed = true
     config.signal?.removeEventListener('abort', abort)
     controller.close()
-    release()
   }
   const fail = (error: unknown) => {
     if (closed) return
@@ -245,35 +239,21 @@ async function openObjectMessage<T>(
     closed = true
     config.signal?.removeEventListener('abort', abort)
     if (closeStream) controller.close()
-    release()
     manager.abort(streamId, 'object model consumer closed')
   }
-  const stream = new ReadableStream<ObjectItem<T>>(
-    {
-      start(value) {
-        controller = value
-      },
-      pull() {
-        release()
-      },
-      cancel: () => cancel(false)
+  const stream = new ReadableStream<ObjectItem<T>>({
+    start(value) {
+      controller = value
     },
-    { highWaterMark: 32 }
-  )
+    cancel: () => cancel(false)
+  })
   const listener: StreamListener = {
     id: streamId,
-    ready: () =>
-      closed || (controller.desiredSize ?? 0) > 0
-        ? undefined
-        : new Promise<void>((resolve) => {
-            wake = resolve
-          }),
     onChunk: (chunk: UIMessageChunk) => {
       if (closed) return
       try {
-        const events = adapter.transformChunk(chunk)
-        write(events)
-        if (isStartupCommitChunk(chunk) || (chunk.type === 'tool-input-error' && events.length > 0)) commit()
+        write(adapter.transformChunk(chunk))
+        if (isStartupCommitChunk(chunk)) commit()
       } catch (error) {
         fail(error)
         manager.abort(streamId, 'object model adapter failed')
