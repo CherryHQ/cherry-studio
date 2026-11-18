@@ -290,13 +290,9 @@ async function prepareChatMessage<T extends UIMessage>(
       if (fileType === FILE_TYPE.IMAGE) {
         const outcome = await ocrNonVisionImage(fileEntryId, ctx.signal)
         if (outcome.kind !== 'text') {
-          logger.warn('Non-vision image OCR produced no readable text', {
-            messageId: message.id,
-            displayName,
-            fileEntryId,
-            outcome: outcome.kind,
-            ...(outcome.kind === 'failed' ? { reason: outcome.reason } : {})
-          })
+          const context = { messageId: message.id, displayName, fileEntryId, outcome: outcome.kind }
+          if (outcome.kind === 'failed') Object.assign(context, { reason: outcome.reason })
+          logger.warn('Non-vision image OCR produced no readable text', context)
           throw new NonVisionImageOcrError(outcome)
         }
         defer(kept, pending, handle, outcome.text)
