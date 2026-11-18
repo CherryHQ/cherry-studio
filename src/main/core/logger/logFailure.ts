@@ -21,12 +21,15 @@ export function logFailure(
           .split('\n')
           .filter((line) => /^\s+at /.test(line))
       : undefined
-  logger[level](message, {
+  const context = {
     operation,
     failure,
     errorName: 'OperationError',
-    errorMessage: failure.reason,
-    ...(frames?.length ? { stack: [`OperationError: ${failure.reason}`, ...frames].join('\n') } : {}),
+    errorMessage: failure.reason
+  }
+  if (frames?.length) Object.assign(context, { stack: [`OperationError: ${failure.reason}`, ...frames].join('\n') })
+  logger[level](message, {
+    ...context,
     diagnostic: { error },
     reportingHandled: hasReportingOwner(error)
   })
