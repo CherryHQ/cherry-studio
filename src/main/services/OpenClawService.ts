@@ -178,7 +178,7 @@ function schemaSupportsPath(schema: OpenClawConfigSchemaNode, pathSegments: stri
   return findSchemaAtPath(schema, pathSegments) !== undefined
 }
 
-function schemaTypeMatches(type: string | string[] | undefined, value: unknown): boolean {
+function schemaTypeMatches(type: string | string[] | undefined, value: Serializable): boolean {
   if (type === undefined) return true
   const types = Array.isArray(type) ? type : [type]
   return types.some((candidate) => {
@@ -280,6 +280,7 @@ function projectSchemaSupportedValue(schema: OpenClawConfigSchemaNode, value: Se
 function pickSchemaSupportedProperties(
   schema: OpenClawConfigSchemaNode,
   basePath: string[],
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Hand-edited openclaw.json provider/model fields reach this projection unvalidated; SerializableSchema rejects non-JSON values.
   value: unknown
 ): Record<string, Serializable> {
   const parsed = SerializableSchema.safeParse(value)
@@ -1286,6 +1287,7 @@ export class OpenClawService extends BaseService {
   }
 
   private async resolveSyncConfig(
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Non-IPC service callers can bypass the nominal model ID type; validate the selection before provider/model lookups.
     uniqueModelId: unknown
   ): Promise<{ provider: OpenClawSyncProvider; primaryModel: OpenClawSyncModel }> {
     const parsed = UniqueModelIdSchema.safeParse(uniqueModelId)
