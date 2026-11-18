@@ -212,15 +212,16 @@ export class AiSdkSpanAdapter {
     const promptTokens = input ?? 0
     const completionTokens = output ?? 0
     // Object keys stay snake_case: this is the TokenUsage contract in trace-core/types/config.ts.
-    return {
+    const usage: TokenUsage = {
       prompt_tokens: promptTokens,
       completion_tokens: completionTokens,
       // Prefer the SDK's reported total (it accounts for reasoning/cached), else sum the two.
-      total_tokens: total ?? promptTokens + completionTokens,
-      // cached input tokens are a subset of input; reasoning tokens a subset of output.
-      ...(cached !== undefined ? { prompt_tokens_details: { cached_tokens: cached } } : {}),
-      ...(reasoning !== undefined ? { completion_tokens_details: { reasoning_tokens: reasoning } } : {})
+      total_tokens: total ?? promptTokens + completionTokens
     }
+    // Cached input is a subset of input; reasoning tokens are a subset of output.
+    if (cached !== undefined) usage.prompt_tokens_details = { cached_tokens: cached }
+    if (reasoning !== undefined) usage.completion_tokens_details = { reasoning_tokens: reasoning }
+    return usage
   }
 
   /**

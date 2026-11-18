@@ -182,7 +182,7 @@ function convertSpan(
   const events = span.events?.map(convertSpanEvent)
   const parentId = parentSpanId ?? (context?.rootSpanId && context.rootSpanId !== spanId ? context.rootSpanId : '')
 
-  return {
+  const identity: Omit<SpanEntity, 'attributes' | 'isEnd' | 'events' | 'links' | 'topicId' | 'modelName' | 'usage'> = {
     id: spanId,
     traceId,
     parentId,
@@ -190,26 +190,29 @@ function convertSpan(
     startTime: unixNanoToMillis(span.startTimeUnixNano),
     endTime: span.endTimeUnixNano === undefined ? null : unixNanoToMillis(span.endTimeUnixNano),
     status: normalizeStatus(span.status?.code),
-    kind: normalizeKind(span.kind),
-    attributes: {
-      ...attributes,
-      ...resolveContentAttributes(span.name, attributes, events),
-      ...(context
-        ? {
-            'trace.topicId': context.topicId,
-            'trace.modelName': modelName ?? context.modelName ?? '',
-            'cs.agent_session_id': context.sessionId,
-            'cs.agent_turn_id': context.turnId
-          }
-        : {})
-    },
+    kind: normalizeKind(span.kind)
+  }
+  const contentAttributes: Attributes = {
+    ...attributes,
+    ...resolveContentAttributes(span.name, attributes, events)
+  }
+  if (context) {
+    contentAttributes['trace.topicId'] = context.topicId
+    contentAttributes['trace.modelName'] = modelName ?? context.modelName ?? ''
+    contentAttributes['cs.agent_session_id'] = context.sessionId
+    contentAttributes['cs.agent_turn_id'] = context.turnId
+  }
+  const entity: SpanEntity = {
+    ...identity,
+    attributes: contentAttributes,
     isEnd: span.endTimeUnixNano !== undefined,
     events,
     links: span.links?.map(convertLink).filter((link): link is Link => Boolean(link)),
     topicId: context?.topicId,
-    modelName,
-    ...(usage ? { usage } : {})
+    modelName
   }
+  if (usage) entity.usage = usage
+  return entity
 }
 
 function convertSpanEvent(event: NonNullable<OtlpSpan['events']>[number]): TimedEvent {
@@ -230,10 +233,10 @@ function convertLogRecord(record: OtlpLogRecord, inheritedAttributes: Attributes
   const attributes: OTelAttributes = {
     'otel.signal': 'logs',
     ...toOtelAttributes(inheritedAttributes),
-    ...otelAttributesFromKeyValues(record.attributes),
-    ...(record.severityText ? { 'log.severity_text': record.severityText } : {}),
-    ...(record.severityNumber !== undefined ? { 'log.severity_number': record.severityNumber } : {})
+    ...otelAttributesFromKeyValues(record.attributes)
   }
+  if (record.severityText) attributes['log.severity_text'] = record.severityText
+  if (record.severityNumber !== undefined) attributes['log.severity_number'] = record.severityNumber
   const body = anyValueToOtelAttributeValue(record.body)
   if (body !== undefined) attributes['log.body'] = body
   const eventName = typeof attributes['event.name'] === 'string' ? attributes['event.name'] : undefined
@@ -386,12 +389,13 @@ function resolveUsage(attributes: Attributes): TokenUsage | undefined {
   if (cacheReadTokens !== undefined) promptDetails.cache_read_tokens = cacheReadTokens
   if (cacheCreationTokens !== undefined) promptDetails.cache_creation_tokens = cacheCreationTokens
 
-  return {
+  const usage: TokenUsage = {
     prompt_tokens: prompt,
     completion_tokens: completion,
-    total_tokens: prompt + completion,
-    ...(Object.keys(promptDetails).length > 0 ? { prompt_tokens_details: promptDetails } : {})
+    total_tokens: prompt + completion
   }
+  if (Object.keys(promptDetails).length > 0) usage.prompt_tokens_details = promptDetails
+  return usage
 }
 
 function resolveContentAttributes(
