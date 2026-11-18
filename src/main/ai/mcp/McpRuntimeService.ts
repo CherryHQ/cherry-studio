@@ -7,8 +7,11 @@ import {
   UnauthorizedError,
   type CacheMode,
   type CallToolResult,
+  type CreateMessageRequestParamsBase,
+  type ElicitRequest,
   type GetPromptResult,
   type Progress,
+  type Root,
   type ServerCapabilities,
   type Tool
 } from '@modelcontextprotocol/client'
@@ -139,6 +142,7 @@ function canAuthorizeInteractively(requestContext?: McpInteractionContext | null
 }
 
 /** Delay before the next automatic connect; Infinity waits for restart or a config change. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Connection and health promises can reject with arbitrary values; only recognized SDK authentication/HTTP failures stop automatic retries.
 export function connectRetryDelayMs(error: unknown, attempts: number): number {
   if (attempts >= MCP_CONNECT_MAX_ATTEMPTS) return Infinity
   for (let cause = error, depth = 0; cause && depth < 5; cause = (cause as Error).cause, depth++) {
@@ -151,8 +155,10 @@ export function connectRetryDelayMs(error: unknown, attempts: number): number {
 
 interface PendingInteraction {
   windowId: WindowId
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The IPC response envelope leaves value untyped; the server-requested elicitation JSON schema validates accepted form content.
   validate?: (value: unknown) => boolean
   resolve(response: McpInteractionResponse): void
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Pending interactions reject with arbitrary AbortSignal.reason values as well as window/runtime shutdown errors.
   reject(error: unknown): void
   cleanup(): void
 }
@@ -163,9 +169,11 @@ type McpToolListChangedEvent = {
   tools: Tool[]
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Server log data, caught transport failures and tool arguments have independent schemas; redact before publishing serializable diagnostics.
 export function redactSensitive(input: unknown): Serializable {
   const maxStringLength = 300
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Nested diagnostic fields may include cycles, functions, bigints or secrets; each value must be inspected before serialization.
   const redact = (value: unknown, seen: WeakSet<object>): Serializable => {
     if (value == null) return null
     if (typeof value === 'string') {
@@ -290,6 +298,7 @@ export class McpRuntimeService extends BaseService {
     return mcpServerService.getById(serverId)
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Connection, health and catalog catches supply arbitrary failures; normalize only their display message for the status cache.
   public setServerStatus(serverId: string, state: McpRuntimeState, error?: unknown, authorizing?: boolean): void {
     if (this.removedServerIds.has(serverId)) return
 
@@ -436,6 +445,7 @@ export class McpRuntimeService extends BaseService {
     })
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Request/connect/health catches include SDK failures and caller cancellation reasons; classification must preserve the original thrown value.
   private logFailure(server: McpServer, operation: string, error: unknown, signal?: AbortSignal): void {
     const failure = classifyMcpFailure(
       error,
@@ -564,6 +574,7 @@ export class McpRuntimeService extends BaseService {
     return waitForConnection(initialize, signal)
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Failed connect and health promises supply the exact rejection retained by the retry gate and rethrown to subsequent callers.
   private recordConnectionFailure(server: McpServer, error: unknown, interactive: boolean): void {
     const serverKey = this.getServerKey(server)
     const attempts = (this.connectFailures.get(serverKey)?.attempts ?? 0) + 1
@@ -728,6 +739,7 @@ export class McpRuntimeService extends BaseService {
 
   public async callToolById(
     toolId: string,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Dynamic MCP tools accept caller objects or JSON strings; callToolByServer normalizes strings before the selected connection handles tool arguments.
     params: unknown,
     callId?: string,
     interactionContext?: McpInteractionContext,
@@ -1067,7 +1079,11 @@ export class McpRuntimeService extends BaseService {
     }
     if (!context.windowId || !context.topicId || context.requestElicitation) return context
     const host = context
-    const authorize = (kind: 'elicitation' | 'sampling' | 'roots', payload: unknown, signal: AbortSignal) =>
+    const authorize = (
+      kind: 'elicitation' | 'sampling' | 'roots',
+      payload: ElicitRequest | CreateMessageRequestParamsBase | { roots: ReadonlyArray<Root> },
+      signal: AbortSignal
+    ) =>
       this.requestInteraction({
         serverId,
         windowId: host.windowId!,
@@ -1146,6 +1162,7 @@ export class McpRuntimeService extends BaseService {
         cleanup()
         resolve(response)
       }
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- AbortSignal.reason is arbitrary; settle once and remove interaction listeners before forwarding that original rejection.
       const fail = (error: unknown) => {
         if (settled) return
         settled = true
