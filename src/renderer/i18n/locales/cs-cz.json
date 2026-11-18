@@ -6078,6 +6078,7 @@
   "settings.tool.websearch.check_failed": "Ověření se nezdařilo",
   "settings.tool.websearch.check_page_fetch_failed": "Querit odpověděl, ale testovací stránku ({{url}}) nelze načíst. Načítání URL nebylo ověřeno.",
   "settings.tool.websearch.check_success": "Ověření proběhlo úspěšně",
+  "settings.tool.websearch.check_success_keyword_probe": "Připojeno (ověřeno vyhledávání podle klíčových slov; vyhledávání obrázků používá stejné přihlašovací údaje)",
   "settings.tool.websearch.compression.cutoff.limit.label": "Limit délky",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Zadejte délku",
   "settings.tool.websearch.compression.cutoff.limit.tooltip": "Omezí délku obsahu výsledků hledání; obsah přesahující limit bude zkrácen (např. na 2000 znaků)",

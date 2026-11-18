@@ -6078,6 +6078,7 @@
   "settings.tool.websearch.check_failed": "Falha na verificação",
   "settings.tool.websearch.check_page_fetch_failed": "O Querit respondeu, mas não conseguiu obter a página de teste ({{url}}). A obtenção de URL não foi verificada.",
   "settings.tool.websearch.check_success": "Verificação bem-sucedida",
+  "settings.tool.websearch.check_success_keyword_probe": "Conectado (pesquisa por palavras-chave verificada; a pesquisa de imagens usa as mesmas credenciais)",
   "settings.tool.websearch.compression.cutoff.limit.label": "Comprimento do corte",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Comprimento de entrada",
   "settings.tool.websearch.compression.cutoff.limit.tooltip": "Limita o comprimento do conteúdo dos resultados de pesquisa; o conteúdo excedente será cortado (por exemplo, 2000 caracteres)",

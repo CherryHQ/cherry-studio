@@ -6078,6 +6078,7 @@
   "settings.tool.websearch.check_failed": "Échec de la vérification",
   "settings.tool.websearch.check_page_fetch_failed": "Querit a répondu, mais n’a pas pu récupérer la page de test ({{url}}). La récupération d’URL n’a pas été vérifiée.",
   "settings.tool.websearch.check_success": "Vérification réussie",
+  "settings.tool.websearch.check_success_keyword_probe": "Connecté (recherche par mots-clés vérifiée ; la recherche d'images utilise les mêmes identifiants)",
   "settings.tool.websearch.compression.cutoff.limit.label": "Longueur de troncature",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Longueur d'entrée",
   "settings.tool.websearch.compression.cutoff.limit.tooltip": "Limite la longueur du contenu des résultats de recherche ; le contenu dépassant cette limite sera tronqué (par exemple, 2000 caractères)",

@@ -6078,6 +6078,7 @@
   "settings.tool.websearch.check_failed": "Αποτυχία επαλήθευσης",
   "settings.tool.websearch.check_page_fetch_failed": "Το Querit απάντησε, αλλά δεν μπόρεσε να ανακτήσει τη δοκιμαστική σελίδα ({{url}}). Η ανάκτηση URL δεν επαληθεύτηκε.",
   "settings.tool.websearch.check_success": "Επιτυχής επαλήθευση",
+  "settings.tool.websearch.check_success_keyword_probe": "Συνδέθηκε (ελέγχθηκε η αναζήτηση λέξεων-κλειδιών· η αναζήτηση εικόνων χρησιμοποιεί τα ίδια διαπιστευτήρια)",
   "settings.tool.websearch.compression.cutoff.limit.label": "Μήκος αποκοπής",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Μήκος εισαγωγής",
   "settings.tool.websearch.compression.cutoff.limit.tooltip": "Περιορίζει το μήκος του περιεχομένου των αποτελεσμάτων αναζήτησης· το περιεχόμενο που υπερβαίνει το όριο θα αποκόπτεται (π.χ. 2000 χαρακτήρες)",

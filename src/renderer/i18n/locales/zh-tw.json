@@ -6078,6 +6078,7 @@
   "settings.tool.websearch.check_failed": "驗證失敗",
   "settings.tool.websearch.check_page_fetch_failed": "Querit 已回應，但無法擷取測試頁面（{{url}}）。URL 擷取功能尚未通過驗證。",
   "settings.tool.websearch.check_success": "驗證成功",
+  "settings.tool.websearch.check_success_keyword_probe": "連線成功（已探測關鍵字搜尋；圖片搜尋使用相同的憑證）",
   "settings.tool.websearch.compression.cutoff.limit.label": "截斷長度",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "輸入長度",
   "settings.tool.websearch.compression.cutoff.limit.tooltip": "限制搜尋結果的內容長度，超過限制的內容將被截斷（例如 2000 字元）",

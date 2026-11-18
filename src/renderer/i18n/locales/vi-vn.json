@@ -6078,6 +6078,7 @@
   "settings.tool.websearch.check_failed": "Xác minh thất bại",
   "settings.tool.websearch.check_page_fetch_failed": "Querit đã phản hồi nhưng không thể tải trang thử nghiệm ({{url}}). Chức năng tải nội dung từ URL chưa được xác minh.",
   "settings.tool.websearch.check_success": "Xác minh thành công",
+  "settings.tool.websearch.check_success_keyword_probe": "Đã kết nối (đã kiểm tra tìm kiếm từ khóa; tìm kiếm hình ảnh dùng cùng thông tin xác thực)",
   "settings.tool.websearch.compression.cutoff.limit.label": "Giới hạn cắt",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Nhập chiều dài",
   "settings.tool.websearch.compression.cutoff.limit.tooltip": "Giới hạn độ dài nội dung của kết quả tìm kiếm, nội dung vượt quá giới hạn sẽ bị cắt ngắn (ví dụ: 2000 ký tự)",

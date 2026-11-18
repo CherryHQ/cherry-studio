@@ -6078,6 +6078,7 @@
   "settings.tool.websearch.check_failed": "Doğrulama başarısız",
   "settings.tool.websearch.check_page_fetch_failed": "Querit yanıt verdi ancak test sayfasını ({{url}}) getiremedi. URL içeriği getirme işlevi doğrulanamadı.",
   "settings.tool.websearch.check_success": "Doğrulama başarılı",
+  "settings.tool.websearch.check_success_keyword_probe": "Bağlandı (anahtar kelime araması doğrulandı; görsel arama aynı kimlik bilgilerini kullanır)",
   "settings.tool.websearch.compression.cutoff.limit.label": "Kesme Sınırı",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Uzunluğu girin",
   "settings.tool.websearch.compression.cutoff.limit.tooltip": "Arama sonuçlarının içerik uzunluğunu sınırlar; sınırı aşan içerik kesilir (ör. 2000 karakter)",
