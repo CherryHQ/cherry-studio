@@ -13,7 +13,7 @@ import {
 
 import type { NoiseCrypto } from './crypto'
 import { readDeviceIdentity } from './identity'
-import { binaryRecordBytes, encodeRecord, decodeRecord, type TransportRecord } from './records'
+import { binaryRecordBytes, encodeRecord, decodeRecord, type JsonControlRecord, type TransportRecord } from './records'
 
 const profile = 'cherry-remote-noise-xx-v1'
 const unsupportedUpgrade = (): never => {
@@ -26,7 +26,7 @@ const upgrader: Upgrader = {
   getStreamMuxers: () => new Map(),
   getConnectionEncrypters: () => new Map()
 }
-const encode = (value: unknown): Uint8Array => new TextEncoder().encode(JSON.stringify(value))
+const encode = (value: JsonControlRecord): Uint8Array => new TextEncoder().encode(JSON.stringify(value))
 
 export interface ChannelOptions {
   crypto?: NoiseCrypto
