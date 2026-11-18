@@ -123,6 +123,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     if (!senderId) return false
     return application.get('AgentDelegationService').respond(originSessionId, requestId, approvalId, decision)
   },
+  'ai.agent.session.predict_prompt': (input) => application.get('AgentSessionRuntimeService').predictPrompt(input),
+  'ai.agent.session.abort_prediction': async ({ sessionId, requestId }) =>
+    application.get('AgentSessionRuntimeService').abortPromptPrediction(sessionId, requestId),
   'ai.projection.attach': ({ target, subscriptionId }, { senderId }) => {
     const sender = senderWebContents(senderId)
     if (!sender || senderId === null) throw new Error('Projection subscription requires a window')
@@ -358,7 +361,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AgentSessionRuntimeService').stopBackgroundTask(sessionId, taskId),
   'ai.agent.session.open_path': async ({ sessionId, path }) => {
     const workspacePath = agentSessionService.getById(sessionId).workspace.path
-    await openRequestPath(path, AbsoluteFilePathSchema.safeParse(workspacePath).data)
+    await openRequestPath(path, AbsoluteFilePathSchema.safeParse(workspacePath).data, {
+      channel: 'ai.agent.session.open_path'
+    })
   },
 
   // ── Agent scheduled-task commands — thin delegation to the owning AgentJobsService. ──

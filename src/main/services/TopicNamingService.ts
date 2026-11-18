@@ -71,6 +71,7 @@ const DEFAULT_AGENT_SESSION_NAMES = new Set([
   'fără nume',
   'adsız',
   'senza nome',
+  'bez nazwy',
   'ไม่มีชื่อ'
 ])
 

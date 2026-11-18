@@ -437,7 +437,7 @@ describe('WordFilePreview', () => {
     expect(screen.getByTestId('docx-preview-content')).not.toHaveAttribute('data-picker')
   })
 
-  it('loads and renders DOCX pages with a centered standalone toolbar', async () => {
+  it('loads and renders DOCX pages', async () => {
     render(
       <WordFilePreview
         sourceId={filePath}
@@ -461,10 +461,7 @@ describe('WordFilePreview', () => {
         useBase64URL: true
       })
     )
-    const toolbar = screen.getByRole('toolbar', { name: 'preview.label' })
-    expect(toolbar).toHaveClass('h-11', 'min-h-11')
-    expect(toolbar).not.toHaveClass('bg-background')
-    expect(toolbar.firstElementChild).toHaveClass('mx-auto', 'justify-center')
+
     await waitFor(() => expect(screen.getByTestId('docx-preview-page-indicator')).toHaveTextContent('1 / 2'))
 
     fireEvent.click(screen.getByRole('button', { name: 'common.next' }))

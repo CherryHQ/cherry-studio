@@ -1,10 +1,11 @@
-import type { UIMessage } from 'ai'
-import { v7 as uuidv7 } from 'uuid'
 /**
  * Owns `agent-session:{id}` topics. Reads state from sessions /
  * agents, persists through `agentSessionMessageService`, single-model
  * only (no selector fan-out), passes `userMessage` for the inject path.
  */
+
+import type { UIMessage } from 'ai'
+import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
@@ -18,18 +19,18 @@ import {
 } from '@data/services/AgentSessionMessageService'
 import { getAgentSessionHead } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { modelService } from '@data/services/ModelService'
 import { isOpenClawTechnicalTitle } from '@main/ai/agentSession/topic'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode'
 import { reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { reserveDurableBranchTx } from '@main/ai/runtime/piDurable/durableContext'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import { getProviderModelId } from '@shared/ai/executionIdentity'
-import type { ExecutionId } from '@shared/ai/executionIdentity'
+import { type ExecutionId, getProviderModelId } from '@shared/ai/executionIdentity'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
-import { parseUniqueModelId, type ServiceTierSelection } from '@shared/data/types/model'
+import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { validateEditedInput } from '../../agentSession/editInput'
@@ -65,6 +66,8 @@ export type ValidatedAgentDispatch = {
   agentUpdatedAt: string
   agentType: string
   agentName: string
+  /** Parent agent default model — used for optimistic concurrency, not turn routing. */
+  agentDefaultModel: UniqueModelId | null
   uniqueModelId: ExecutionId
   reasoningEffort: ReasoningEffortOption
   serviceTier: ServiceTierSelection
@@ -130,8 +133,27 @@ export class AgentChatContextProvider implements ChatContextProvider {
     if (!agent) {
       throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Agent not found for Session ${sessionId}`)
     }
-    if (!agent.model && agent.type !== 'local') {
-      throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Agent ${agent.id} has no model configured`)
+
+    const isHeadless = req.headless === true
+    // Interactive turns prefer the per-session override; headless runs keep the
+    // agent default so background tasks stay independent of sibling sessions.
+    const candidate = agent.type === 'local' ? null : !isHeadless && session.model ? session.model : agent.model
+    let providerUniqueModelId: UniqueModelId | null = null
+    if (candidate) {
+      try {
+        parseUniqueModelId(candidate)
+        providerUniqueModelId = candidate
+      } catch {
+        providerUniqueModelId = null
+      }
+    }
+    if (!providerUniqueModelId && agent.type !== 'local') {
+      throw new AgentSessionDeliveryRoutingError(
+        'TARGET_UNAVAILABLE',
+        isHeadless && session.model
+          ? `Agent ${agent.id} has no model configured (scheduled runs use the agent default)`
+          : `Agent ${agent.id} has no model configured`
+      )
     }
 
     const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
@@ -139,7 +161,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Unsupported agent runtime type: ${agent.type}`)
     }
     const parentMessageId = agentSessionMessageService.captureHead(sessionId)
-    await driver.validateSession(session)
+    await driver.validateSession(session, { headless: isHeadless })
 
     const deliveryMessage = req.agentDeliveryMessage
     if (
@@ -149,8 +171,16 @@ export class AgentChatContextProvider implements ChatContextProvider {
       throw new Error('Invalid durable agent delivery message')
     }
 
-    const uniqueModelId: ExecutionId = agent.model ?? `runtime:${agent.id}`
-    const providerModel = agent.model ? parseUniqueModelId(agent.model) : undefined
+    const uniqueModelId: ExecutionId = providerUniqueModelId ?? `runtime:${agent.id}`
+    const providerModel = providerUniqueModelId ? parseUniqueModelId(providerUniqueModelId) : undefined
+    const modelName =
+      providerUniqueModelId && providerModel
+        ? providerUniqueModelId === agent.model
+          ? (agent.modelName ?? providerModel.modelId)
+          : (modelService
+              .getNamesByUniqueIdsTx(application.get('DbService').getDb(), [providerUniqueModelId])
+              .get(providerUniqueModelId) ?? providerModel.modelId)
+        : undefined
     const shouldAutoNameInitialTurn =
       (deliveryMessage
         ? !agentSessionMessageService.hasSessionMessages(sessionId, deliveryMessage.id)
@@ -166,11 +196,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
       agentUpdatedAt: agent.updatedAt,
       agentType: agent.type,
       agentName: agent.name,
+      agentDefaultModel: agent.model,
       uniqueModelId,
       reasoningEffort: req.reasoningEffort ?? agent.configuration?.reasoning_effort ?? 'default',
       serviceTier: req.serviceTier ?? agent.configuration?.service_tier ?? 'standard',
       fastMode: req.fastMode,
-      headless: req.headless === true,
+      headless: isHeadless,
       ...(authority.trustedNotifyChannels !== undefined
         ? { trustedNotifyChannels: authority.trustedNotifyChannels }
         : {}),
@@ -184,7 +215,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           ? {
               model: {
                 id: providerModel.modelId,
-                name: agent.modelName ?? providerModel.modelId,
+                name: modelName ?? providerModel.modelId,
                 provider: providerModel.providerId
               }
             }
@@ -365,7 +396,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
             {
               id: validated.agentId,
               updatedAt: validated.agentUpdatedAt,
-              model: validated.uniqueModelId,
+              model: validated.agentDefaultModel,
               type: validated.agentType
             },
             'edit'

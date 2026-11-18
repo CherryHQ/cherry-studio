@@ -22,8 +22,8 @@ import {
   type MessageListSelectAllPagination,
   type MessageListState,
   type MessageRuntime,
-  type MessageUserProfile,
-  type MessageStreamingLayers
+  type MessageStreamingLayers,
+  type MessageUserProfile
 } from '@renderer/components/chat/messages/types'
 import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
@@ -458,6 +458,10 @@ export function useAgentMessageListProviderValue({
     },
     [sessionId, t, notifyError]
   )
+  const agentRenderConfig = useMemo(
+    () => ({ ...renderConfig, keepIntermediateAssistantText: true, expandToolSteps: true }),
+    [renderConfig]
+  )
   const state = useMemo<MessageListState>(
     () => ({
       topic,
@@ -473,7 +477,7 @@ export function useAgentMessageListProviderValue({
       messageNavigation,
       ...DEFAULT_MESSAGE_LIST_CONFIG,
       listKey: resolvedAgentId,
-      renderConfig,
+      renderConfig: agentRenderConfig,
       menuConfig,
       selection: selectionController.selection,
       getMessageUiState: messageUiStateCache.getMessageUiState,
@@ -497,7 +501,7 @@ export function useAgentMessageListProviderValue({
       normalInteractionsEnabled,
       displayPartsByMessageId,
       renderActiveTurnStatus,
-      renderConfig,
+      agentRenderConfig,
       resolvedAgentId,
       selectionController.selection,
       displayStreamingLayers,
@@ -612,6 +616,10 @@ export function useAgentMessageListProviderValue({
       selectionLayer: true,
       userProfile: headerCapabilities.userProfile,
       assistantProfile,
+      authorAvatars:
+        assistantProfile?.id && assistantProfile.avatar !== undefined
+          ? new Map([[assistantProfile.id, assistantProfile.avatar]])
+          : undefined,
       assistantAvatarSources,
       imageExportFileName: topic.name,
       aiUsageMessageKind: 'agent-session'

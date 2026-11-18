@@ -79,18 +79,13 @@ function TextPreviewError() {
 }
 
 interface TextPreviewContentProps {
+  location?: FilePreviewPluginProps['location']
   filePath: string
   loadState: TextFileLoadState
-  sourceLocation?: FilePreviewPluginProps['sourceLocation']
   onLineComment?: FilePreviewPluginProps['onLineComment']
 }
 
-function TextPreviewContent({
-  filePath,
-  loadState,
-  sourceLocation,
-  onLineComment
-}: TextPreviewContentProps): ReactNode {
+function TextPreviewContent({ filePath, loadState, onLineComment, location }: TextPreviewContentProps): ReactNode {
   if (loadState.status === 'loading') return <TextPreviewLoading />
   if (loadState.status === 'empty') return <TextPreviewEmpty />
   if (loadState.status === 'too_large') return <TextPreviewTooLarge />
@@ -100,9 +95,9 @@ function TextPreviewContent({
     <div className="flex min-h-full w-full">
       <Suspense fallback={<TextPreviewLoading />}>
         <FileEditor
+          location={location}
           value={loadState.content}
           fileName={filePath}
-          sourceLocation={sourceLocation}
           readOnly
           expanded
           wrapLines
@@ -119,8 +114,8 @@ export default function TextFilePreview({
   metadata,
   metadataRequest,
   refreshKey,
-  sourceLocation,
-  onLineComment
+  onLineComment,
+  location
 }: FilePreviewPluginProps) {
   const [loadState, setLoadState] = useState<TextFileLoadState>({ status: 'loading' })
   const sourceMetadata = metadataRequest ?? metadata.size
@@ -167,9 +162,9 @@ export default function TextFilePreview({
     <FilePreviewLayout.Frame>
       <FilePreviewLayout.Content composerInset={loadState.status !== 'ready'}>
         <TextPreviewContent
+          location={location}
           filePath={filePath}
           loadState={loadState}
-          sourceLocation={sourceLocation}
           onLineComment={onLineComment}
         />
       </FilePreviewLayout.Content>

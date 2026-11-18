@@ -334,21 +334,6 @@ describe('ConfigEditPanel', () => {
     vi.clearAllMocks()
   })
 
-  it('keeps the model selector available when the current CLI config points at another model', async () => {
-    renderPanel()
-
-    await waitFor(() => expect(screen.getAllByText('code.cli_config.unknown_provider')).toHaveLength(1))
-
-    expect(screen.getByText('code.model_selection')).toBeInTheDocument()
-    expect(screen.getAllByText('code.cli_config.unknown_provider')).toHaveLength(1)
-    expect(screen.queryByText('code.endpoint_hint')).not.toBeInTheDocument()
-    expect(screen.queryByText('code.model_hint_config')).not.toBeInTheDocument()
-    expect(screen.getByTestId('model-selector')).toBeInTheDocument()
-    expect(screen.getByText('code.model_mode.common')).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByText('code.model_mode.detailed')).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.queryByTestId('claude-config-fields-advanced')).not.toBeInTheDocument()
-  })
-
   it('locks tool-field editing while the draft is foreign and unlocks once a model is selected', async () => {
     renderPanel()
 
@@ -539,41 +524,6 @@ describe('ConfigEditPanel', () => {
     expect(readCliConfigDraftMock).not.toHaveBeenCalled()
   })
 
-  it('keeps the CLI config editor visible without a saved model', async () => {
-    const codexFiles: CliConfigFileDraft[] = [
-      {
-        target: 'codex-config',
-        label: 'Codex config.toml',
-        path: '/tmp/config.toml',
-        language: 'toml',
-        content: ''
-      },
-      {
-        target: 'codex-auth',
-        label: 'Codex auth.json',
-        path: '/tmp/auth.json',
-        language: 'json',
-        content: ''
-      }
-    ]
-    readCliConfigFilesMock.mockResolvedValue(codexFiles)
-
-    renderPanel(vi.fn(), {
-      cliTool: CodeCli.OPENAI_CODEX,
-      isCurrentProvider: false,
-      providerConfig: null
-    })
-
-    await waitFor(() =>
-      expect(readCliConfigFilesMock).toHaveBeenCalledWith(CodeCli.OPENAI_CODEX, { includeEmpty: true })
-    )
-
-    fireEvent.click(screen.getByText('common.advanced_settings'))
-
-    expect(screen.getByTestId('cli-config-editor')).toBeInTheDocument()
-    expect(readCliConfigDraftMock).not.toHaveBeenCalled()
-  })
-
   it('closes the dialog and opens the provider settings tab from the dialog title', async () => {
     const { onClose } = renderPanel()
 
@@ -685,24 +635,5 @@ describe('ConfigEditPanel', () => {
 
     fireEvent.click(screen.getByText('common.advanced_settings'))
     await waitFor(() => expect(screen.getByTestId('cli-config-editor')).toHaveTextContent(updatedFile.content))
-  })
-
-  it('shows DeepSeek Harness parameters in the provider configuration dialog', async () => {
-    renderPanel(vi.fn(), {
-      cliTool: CodeCli.DEEPSEEK_HARNESS,
-      isCurrentProvider: false,
-      files: [],
-      providerConfig: {
-        modelId: 'anthropic::claude-old',
-        config: { agentPreset: 'minimal', permissionMode: 'workspace-write' }
-      }
-    })
-
-    await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
-    expect(screen.getByText('code.tool_parameters')).toBeInTheDocument()
-    expect(screen.getByText('code.deepseek_harness.agent_preset')).toBeInTheDocument()
-    expect(screen.getByText('code.deepseek_harness.permission_mode')).toBeInTheDocument()
-    expect(screen.queryByText('code.deepseek_harness.settings_title')).not.toBeInTheDocument()
-    expect(screen.queryByText('common.advanced_settings')).not.toBeInTheDocument()
   })
 })

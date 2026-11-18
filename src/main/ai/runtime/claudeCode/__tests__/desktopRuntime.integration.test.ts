@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url'
 import { startup, type SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import sharp from 'sharp'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -31,6 +32,7 @@ import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { pipeMessageStream } from '@main/ai/streamManager/pipeMessageStream'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { getSentryLogContext } from '@shared/utils/sentry'
 
 import { ClaudeFeed } from '../../../../../../packages/agent-runtime-claude-code/src/observation'
 import { fixture, spawnChild } from '../../../../../../packages/agent-runtime-claude-code/tests/nativeFixture'
@@ -208,6 +210,7 @@ it('keeps both real SDK background notifications in one persisted Main reply unt
   const unexpected: unknown[] = []
   MockApplicationUtils.setService('AiStreamManager', {
     getInteractionWindow: () => undefined,
+    retireToolApproval: () => false,
     startRuntimeTurn: (input: unknown) => unexpected.push(input),
     broadcastTopicError: (...args: unknown[]) => unexpected.push(args),
     drainRuntimeReply: async () => {},
@@ -309,7 +312,7 @@ it('joins native steer to the shared answer while keeping foreground child histo
   request.reply.finish('tool_use')
   const child = await test.request()
   const second = test.input('Use the revised requirement')
-  expect(connection.redirect!(second)).toBe(true)
+  expect(connection.redirect!({ ...second, systemReminder: true })).toBe(true)
   await expect
     .poll(() =>
       test.nativeInputs.some((state) => state.inputId === second.message.id && state.facts.includes('dispatch-started'))
@@ -318,7 +321,29 @@ it('joins native steer to the shared answer while keeping foreground child histo
   child.reply.block({ type: 'text', text: 'Independent child answer' })
   child.reply.finish()
   const response = await test.request()
-  expect(JSON.stringify(response.body.messages)).toContain('Use the revised requirement')
+  const steerEntry = response.body.messages.find((message) =>
+    JSON.stringify(message).includes('Use the revised requirement')
+  )
+  expect(steerEntry).toBeDefined()
+  const steerPayload = JSON.stringify(steerEntry)
+  // Measured provider payloads wrap Cherry's block in the vendor's own outer <system-reminder>.
+  expect(steerPayload.match(/The user sent the following message:/g)).toHaveLength(1)
+  const cherryStart = steerPayload.indexOf('The user sent the following message:')
+  const cherryEnd = steerPayload.indexOf('</system-reminder>', cherryStart)
+  expect(cherryEnd).toBeGreaterThan(cherryStart)
+  const cherryReminder = steerPayload.slice(cherryStart, cherryEnd)
+  expect(cherryReminder).toContain('Use the revised requirement')
+  expect(cherryReminder).toContain('arrived while you were already working')
+  expect(cherryReminder).toContain('a new instruction from the user, not a continuation of the current task')
+  expect(cherryReminder).toContain('Finish the step already in flight if it cannot be interrupted')
+  expect(cherryReminder).toContain('Before any further work and before ending this turn, you must write')
+  expect(cherryReminder).toContain('one short user-visible sentence that restates what the user asked for')
+  expect(cherryReminder).toContain('Then either act on the message or state when it will be handled')
+  expect(cherryReminder).toContain('Do not silently defer it to a later turn')
+  expect(cherryReminder).toContain(
+    "Where it conflicts with the remainder of your current plan, the user's message takes priority"
+  )
+  expect(steerPayload).toContain('Use the revised requirement')
   response.reply.block({ type: 'text', text: 'Revised root answer' })
   response.reply.finish()
   const boundary = await test.wait('steer-boundary')
@@ -734,10 +759,16 @@ it('submits native image blocks and local document paths through the common owne
   const connection = await test.connect()
   await connection.send(input)
   const request = await test.request()
-  const sent = JSON.stringify(request.body.messages)
-  expect(sent).toContain(attachment)
-  expect(sent).toContain(image)
-  expect(sent).toContain('Inspect these attachments')
+  const content = request.body.messages.flatMap((message) => (Array.isArray(message.content) ? message.content : []))
+  const sentText = content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
+  expect(sentText).toContain(path.resolve(attachment))
+  expect(content).toContainEqual(
+    expect.objectContaining({
+      type: 'image',
+      source: expect.objectContaining({ type: 'base64', media_type: 'image/png', data: image })
+    })
+  )
+  expect(sentText).toContain('Inspect these attachments')
   request.reply.block({ type: 'text', text: 'Attachments received' })
   request.reply.finish()
   await test.wait('turn-complete')
@@ -888,6 +919,237 @@ it('recovers current content and one terminal result after observer overflow, th
   }
 }, 60000)
 
+it.each(['unmappable child', 'root compaction'] as const)(
+  'continues the current service reply after %s',
+  async (scenario) => {
+    const wire = wireProcess()
+    const test = await desktop()
+    const build = ports.build.getMockImplementation()!
+    ports.build.mockImplementation(async () => ({
+      ...(await build()),
+      contextWindow: { model: 'test', tokens: 100000 }
+    }))
+    MockApplicationUtils.setService('ClaudeCodeProcessManager', {
+      spawn: (_options: SpawnOptions, diagnostics: ClaudeCodeProcessDiagnostics) => {
+        diagnostics.exited = new Promise<void>((resolve) => wire.process.once('exit', () => resolve()))
+        return wire.process
+      }
+    })
+    cleanups.push(async () => wire.exit())
+    const agentId = randomUUID()
+    const modelId = 'native-test::claude-sonnet-4-6'
+    dbh.db.insert(userProviderTable).values({ providerId: 'native-test', name: 'Test', orderKey: 'a0' }).run()
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: modelId,
+        providerId: 'native-test',
+        modelId: 'claude-sonnet-4-6',
+        name: 'Model',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: 'a0'
+      })
+      .run()
+    dbh.db
+      .insert(agentTable)
+      .values({ id: agentId, type: 'claude-code', name: 'Agent', instructions: '', model: modelId, orderKey: 'a0' })
+      .run()
+    dbh.db.update(agentSessionTable).set({ agentId }).where(eq(agentSessionTable.id, test.sessionId)).run()
+    BaseService.resetInstances()
+    runtimeDriverRegistry.clearForTest()
+    let nativeHandle: ClaudeThreadHandle | undefined
+    runtimeDriverRegistry.register({
+      type: 'claude-code',
+      validateSession: () => {},
+      connect: async (input) => {
+        const connection = await test.connect(undefined, undefined, false, input)
+        nativeHandle = (connection as unknown as { handle: ClaudeThreadHandle }).handle
+        vi.spyOn(connection, 'reconcile').mockResolvedValue('current')
+        const events = connection.events
+        Object.defineProperty(connection, 'events', {
+          value: (async function* () {
+            for await (const event of events) {
+              test.events.push(event)
+              yield event
+            }
+          })()
+        })
+        return connection
+      }
+    })
+    const service = new AgentSessionRuntimeService()
+    MockApplicationUtils.setService('AgentSessionRuntimeService', service)
+    MockApplicationUtils.setService('AiStreamManager', {
+      getInteractionWindow: () => undefined,
+      startRuntimeTurn: () => {},
+      broadcastTopicError: () => {},
+      drainRuntimeReply: async () => {},
+      abort: () => {}
+    })
+    cleanups.push(async () => {
+      await service.closeSession(test.sessionId)
+      runtimeDriverRegistry.clearForTest()
+      BaseService.resetInstances()
+    })
+    const user = test.input('Continue after interruption').message
+    const reply = messages.saveMessage({
+      sessionId: test.sessionId,
+      message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+    const handle = service.beginTurn({
+      sessionId: test.sessionId,
+      topicId: `agent-session:${test.sessionId}`,
+      agentId,
+      agentType: 'claude-code',
+      modelId,
+      assistantMessageId: reply.id,
+      userMessage: user,
+      headless: true
+    })
+    await service.primeConnection(test.sessionId)
+    const source = service.openTurnStream({
+      sessionId: test.sessionId,
+      turnId: handle.turnId,
+      signal: handle.abortController.signal
+    })
+    if (source.kind !== 'messages') throw new Error('Expected message stream')
+    let current = ''
+    const reading = pipeMessageStream(
+      source.stream,
+      handle.abortController.signal,
+      { id: reply.id, role: 'assistant', parts: [] },
+      (message) => {
+        current = JSON.stringify(message.parts)
+      },
+      () => {}
+    )
+    await expect.poll(() => wire.inputs.length).toBe(1)
+    const sessionId = sessionContexts(test.sessionId).find((context) => context.nativeThreadId)!.nativeThreadId!
+    const inputId = wire.inputs[0].uuid!
+    const text = (value: string) => ({ type: 'text' as const, text: value, citations: null })
+    const baseline = assistantMessage(
+      sessionId,
+      [text('Earlier root content'), { type: 'tool_use', id: 'toolu_root', name: 'Agent', input: {} }],
+      { user_message_uuid: inputId }
+    )
+    wire.send(baseline)
+    await test.wait('message-projection', (event) =>
+      JSON.stringify(event.projection.messages).includes('Earlier root content')
+    )
+    if (scenario === 'unmappable child') {
+      wire.send(
+        assistantMessage(sessionId, [text('Unmappable child content')], {
+          parent_tool_use_id: 'toolu_missing',
+          user_message_uuid: inputId
+        })
+      )
+    } else {
+      // A fabricated process has no native archive, so boundary refresh cannot read native storage.
+      wire.send({
+        type: 'stream_event',
+        uuid: randomUUID(),
+        session_id: sessionId,
+        parent_tool_use_id: null,
+        event: { type: 'message_start', message: { ...baseline.message, content: [] } }
+      })
+      await test.wait('context-usage', (event) => event.result.status === 'confirmed')
+      expect(await nativeHandle!.claude.archive()).toMatchObject({
+        status: 'rejected',
+        error: { code: 'native-storage-missing' }
+      })
+      const beforeBoundary = test.events.length
+      wire.send({
+        type: 'system',
+        subtype: 'compact_boundary',
+        uuid: randomUUID(),
+        session_id: sessionId,
+        compact_metadata: { trigger: 'manual', pre_tokens: 1 }
+      })
+      await test.wait(
+        'context-usage',
+        (event) => event.result.status === 'unknown' && event.result.error.code === 'compacted'
+      )
+      await expect
+        .poll(() =>
+          test.events
+            .slice(beforeBoundary)
+            .some(
+              (event) =>
+                event.type === 'message-projection' &&
+                JSON.stringify(event.projection.messages).includes('Earlier root content')
+            )
+        )
+        .toBe(true)
+    }
+    const continuation = assistantMessage(sessionId, [text('Main continues')], { user_message_uuid: inputId })
+    wire.send(continuation)
+    const projected = await test.wait('message-projection', (event) =>
+      event.projection.messages.some(
+        (message) =>
+          event.projection.live.includes(message.id) &&
+          message.parts.some((part) => part.type === 'text' && part.text === 'Main continues')
+      )
+    )
+    expect(projected.projection.live).toContain(continuation.uuid)
+    await expect.poll(() => current).toContain('Main continues')
+    expect(service.isSessionBusy(test.sessionId)).toBe(true)
+    if (scenario === 'unmappable child')
+      wire.send(assistantMessage(sessionId, [text('Main finishes')], { user_message_uuid: inputId }))
+    wire.send({
+      type: 'result',
+      subtype: 'success',
+      uuid: randomUUID(),
+      session_id: sessionId,
+      user_message_uuid: inputId,
+      duration_ms: 1,
+      duration_api_ms: 1,
+      is_error: false,
+      num_turns: 1,
+      result: '',
+      stop_reason: 'end_turn',
+      total_cost_usd: 0,
+      usage: {
+        input_tokens: 1,
+        output_tokens: 1,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
+        iterations: [],
+        server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
+        service_tier: 'standard',
+        inference_geo: 'us',
+        speed: 'standard'
+      },
+      modelUsage: {},
+      permission_denials: []
+    })
+    const result = await reading
+    expect(result.threw).toBeUndefined()
+    if (!result.finalMessage) throw new Error('Missing final message')
+    expect(JSON.stringify(result.finalMessage.parts)).toContain('Main continues')
+    if (scenario === 'unmappable child') {
+      const texts = result.finalMessage.parts.filter((part) => part.type === 'text').map((part) => part.text)
+      expect(texts.indexOf('Main continues')).toBeLessThan(texts.indexOf('Main finishes'))
+      expect(texts).toContain('Main finishes')
+    }
+    for (const listener of handle.listeners)
+      await listener.onDone({ status: 'success', finalMessage: result.finalMessage })
+    const rows = dbh.db
+      .select()
+      .from(sessionMessagesTable)
+      .where(eq(sessionMessagesTable.sessionId, test.sessionId))
+      .all()
+      .filter((row) => row.role === 'assistant')
+    expect(rows.filter((row) => JSON.stringify(row).includes('Main continues'))).toHaveLength(1)
+    expect(JSON.stringify(test.events.filter((event) => event.type === 'message-projection'))).not.toContain(
+      'Unmappable child content'
+    )
+    expect(test.events.filter((event) => event.type === 'error')).toEqual([])
+  },
+  30000
+)
+
 // Committed sources use bare UUIDs; historical content cannot satisfy the current turn's salvage threshold.
 it.each(['current-answer', 'history-only', 'user-only'])(
   'salvages only current assistant output after native JSON truncation (%s)',
@@ -990,6 +1252,12 @@ it.each(['current-answer', 'history-only', 'user-only'])(
     expect(test.events.filter((event) => event.type === 'turn-complete')).toHaveLength(
       source === 'current-answer' ? 1 : 0
     )
+    const reported = mockMainLoggerService.error.mock.calls
+      .map((call) => call[1])
+      .find((entry) => entry?.operation === 'agent.claude.prompt')
+    expect(reported).toMatchObject({
+      failure: { runtime: 'claude-code', outcome: source === 'current-answer' ? 'recovered' : 'failed' }
+    })
     wire.exit()
   },
   30000
@@ -1041,54 +1309,66 @@ it('maps native SDK usage to product token totals once per response', async () =
   ])
 })
 
-it('publishes the native resume identity before a failed first result', async () => {
-  const wire = wireProcess()
-  const test = await desktop({ spawnClaudeCodeProcess: () => wire.process })
-  const connection = await test.connect()
-  const context = sessionContexts(test.sessionId).find((context) => context.nativeThreadId)!
-  await connection.send(test.input('First input fails'))
-  await expect.poll(() => wire.inputs.length).toBe(1)
-  wire.send({
-    type: 'result',
-    subtype: 'error_during_execution',
-    uuid: randomUUID(),
-    session_id: context.nativeThreadId!,
-    user_message_uuid: wire.inputs[0].uuid,
-    duration_ms: 1,
-    duration_api_ms: 1,
-    is_error: true,
-    num_turns: 1,
-    stop_reason: null,
-    total_cost_usd: 0,
-    errors: ['Native failure'],
-    modelUsage: {},
-    permission_denials: [],
-    usage: {
-      input_tokens: 1,
-      output_tokens: 0,
-      cache_creation_input_tokens: 0,
-      cache_read_input_tokens: 0,
-      cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
-      iterations: [],
-      server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
-      service_tier: 'standard',
-      inference_geo: 'us',
-      speed: 'standard'
-    }
-  })
-  await expect
-    .poll(() => test.events.find((event) => event.type === 'error'))
-    .toMatchObject({
-      error: { message: 'Native failure' }
+it.each([
+  { subtype: 'error_during_execution', message: 'Native failure', eligible: true },
+  { subtype: 'error_max_turns', message: 'Limit reached', eligible: false },
+  { subtype: 'error_during_execution', message: 'insufficient balance', eligible: false }
+] as const)(
+  'publishes and classifies a failed first result: $message',
+  async ({ subtype, message: errorMessage, eligible }) => {
+    const wire = wireProcess()
+    const test = await desktop({ spawnClaudeCodeProcess: () => wire.process })
+    const connection = await test.connect()
+    const context = sessionContexts(test.sessionId).find((context) => context.nativeThreadId)!
+    await connection.send(test.input('First input fails'))
+    await expect.poll(() => wire.inputs.length).toBe(1)
+    wire.send({
+      type: 'result',
+      subtype,
+      uuid: randomUUID(),
+      session_id: context.nativeThreadId!,
+      user_message_uuid: wire.inputs[0].uuid,
+      duration_ms: 1,
+      duration_api_ms: 1,
+      is_error: true,
+      num_turns: 1,
+      stop_reason: null,
+      total_cost_usd: 0,
+      errors: [errorMessage],
+      modelUsage: {},
+      permission_denials: [],
+      usage: {
+        input_tokens: 1,
+        output_tokens: 0,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
+        iterations: [],
+        server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
+        service_tier: 'standard',
+        inference_geo: 'us',
+        speed: 'standard'
+      }
     })
-  const resume = test.events.findIndex(
-    (event) => event.type === 'resume-token' && event.token === context.nativeThreadId
-  )
-  expect(resume).toBeGreaterThanOrEqual(0)
-  expect(resume).toBeLessThan(test.events.findIndex((event) => event.type === 'error'))
-  expect(test.events.some((event) => event.type === 'turn-complete')).toBe(false)
-  wire.exit()
-})
+    await expect
+      .poll(() => test.events.find((event) => event.type === 'error'))
+      .toMatchObject({
+        error: { message: errorMessage, reportingHandled: true }
+      })
+    const resume = test.events.findIndex(
+      (event) => event.type === 'resume-token' && event.token === context.nativeThreadId
+    )
+    expect(resume).toBeGreaterThanOrEqual(0)
+    expect(resume).toBeLessThan(test.events.findIndex((event) => event.type === 'error'))
+    expect(test.events.some((event) => event.type === 'turn-complete')).toBe(false)
+    const records = mockMainLoggerService.error.mock.calls
+      .map((call) => call[1])
+      .filter((entry) => entry?.operation === 'agent.claude.prompt' && !entry.reportingHandled)
+    expect(records).toHaveLength(1)
+    expect(getSentryLogContext({ ...records[0], level: 'error' }) !== undefined).toBe(eligible)
+    wire.exit()
+  }
+)
 
 // Catches a mid-turn mode switch that only reaches the next turn: the real SDK subprocess would run
 // (or refuse) the turn's next tool call under the mode the user just left.
@@ -1147,4 +1427,53 @@ it.each([
     expect(existsSync(path.join(test.options.cwd, 'marker.txt'))).toBe(runs)
   },
   30000
+)
+
+it('interrupts an active native request before retiring its owner and permits a new connection', async () => {
+  const test = await desktop()
+  const connection = await test.connect()
+  await connection.send(test.input('Start a response that will be stopped'))
+  const request = await test.request()
+  request.reply.block({ type: 'text', text: 'Content before stop' })
+  await expect.poll(() => JSON.stringify(test.events)).toContain('Content before stop')
+
+  await connection.interrupt!()
+  await expect
+    .poll(() => test.events.some((event) => event.type === 'error' || event.type === 'turn-complete'))
+    .toBe(true)
+  await connection.close()
+  expect(test.children.every((child) => child.exitCode !== null || child.signalCode !== null)).toBe(true)
+  expect(JSON.stringify(test.events)).toContain('Content before stop')
+
+  test.events.length = 0
+  const next = await test.connect()
+  await next.send(test.input('Continue after stopping'))
+  const resumed = await test.request()
+  resumed.reply.block({ type: 'text', text: 'New response after stop' })
+  resumed.reply.finish()
+  await test.wait('turn-complete')
+  expect(JSON.stringify(test.events)).toContain('New response after stop')
+}, 30000)
+
+it.each(['unanswered', 'rejected'] as const)(
+  'retires the native process when interrupt is %s',
+  async (failure) => {
+    const test = await desktop()
+    const connection = await test.connect()
+    const handle = (connection as unknown as { handle: ClaudeThreadHandle }).handle
+    vi.spyOn(handle, 'interrupt').mockImplementation(() =>
+      failure === 'unanswered'
+        ? new Promise(() => {})
+        : Promise.resolve({
+            status: 'unknown',
+            error: { operation: 'interrupt', code: 'native-error', message: 'No receipt' }
+          })
+    )
+    await connection.send(test.input('Wait for cancellation'))
+    await test.request()
+    await connection.interrupt!()
+    expect(test.children.every((child) => child.exitCode !== null || child.signalCode !== null)).toBe(true)
+    await connection.close()
+  },
+  15000
 )

@@ -42,7 +42,6 @@ export interface AgentConversationControlsProps {
   localSessionId?: string
   workspace?: AgentConversationWorkspace | null
   workspaceId?: string | null
-  showWorkspace?: boolean
   workspaceChanging?: boolean
   workspaceWarning?: string
   selectAgentLabel: string
@@ -193,6 +192,7 @@ function ModelControl({
   )
   return (
     <ModelSelector
+      allowPresentationSwitch
       multiple={false}
       includeAgentOnlyModels
       value={model}
@@ -375,7 +375,7 @@ export function AgentConversationControls(props: AgentConversationControlsProps)
       ) : (
         <ModelControl {...props} />
       )}
-      {props.showWorkspace !== false && <WorkspaceControl {...props} />}
+      <WorkspaceControl {...props} />
     </>
   )
 }

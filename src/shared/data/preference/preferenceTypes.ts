@@ -6,6 +6,7 @@ import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agent
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
 import type { AgentLanguage } from '@shared/data/types/agentLanguage'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { CodeCli } from '@shared/types/codeCli'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
 
 import type { PreferenceSchemas } from './preferenceSchemas'
@@ -109,6 +110,7 @@ export enum ThemeMode {
 export type LanguageVarious =
   | 'zh-CN'
   | 'zh-TW'
+  | 'cs-CZ'
   | 'de-DE'
   | 'el-GR'
   | 'en-US'
@@ -116,6 +118,7 @@ export type LanguageVarious =
   | 'fr-FR'
   | 'it-IT'
   | 'ja-JP'
+  | 'pl-PL'
   | 'pt-PT'
   | 'ro-RO'
   | 'ru-RU'
@@ -292,6 +295,7 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'exa',
   'exa-mcp',
   'bocha',
+  'stepfun',
   'querit',
   'fetch',
   'jina',
@@ -303,6 +307,7 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'deepseek',
   'desearch',
   'searchapi',
+  'serpkite',
   'duckduckgo'
 ] as const satisfies readonly (RemoteProviderId | 'fetch' | 'duckduckgo')[]
 
@@ -364,8 +369,6 @@ export interface WebSearchProvider {
 // ============================================================================
 // CodeCLI Types
 // ============================================================================
-
-import { CodeCli } from '@shared/types/codeCli'
 
 // Retain retired CLI configuration keys when reading and updating stored preferences.
 export const CODE_CLI_IDS = [...Object.values(CodeCli), 'gemini-cli'] as unknown as readonly [

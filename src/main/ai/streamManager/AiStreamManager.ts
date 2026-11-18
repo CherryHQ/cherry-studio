@@ -7,7 +7,9 @@ import { application } from '@application'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { CHAT_STREAM_IDLE_TIMEOUT_MS } from '@main/ai/constants'
+import { logAiFailure } from '@main/ai/errorReporting'
 import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
+import { classifyAiSdkFailure } from '@main/ai/runtime/aiSdk'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { serializeError } from '@main/ai/utils/serializeError'
 import {
@@ -1345,6 +1347,29 @@ export class AiStreamManager extends BaseService {
     return changed
   }
 
+  retireToolApproval(
+    topicId: string,
+    toolCallId: string,
+    owner?: { anchorMessageId?: string; attemptId?: number }
+  ): boolean {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return false
+    let changed = false
+    let pendingApprovalFlipped = false
+    for (const exec of stream.executions.values()) {
+      if (owner?.anchorMessageId !== undefined && exec.anchorMessageId !== owner.anchorMessageId) continue
+      if (owner?.attemptId !== undefined && exec.attemptId !== owner.attemptId) continue
+      if (!exec.pendingApprovalToolCallIds?.delete(toolCallId)) continue
+      while (exec.runtimeTiming.finishApproval({ toolCallId })) {}
+      changed = true
+      if (exec.pendingApprovalToolCallIds.size === 0) pendingApprovalFlipped = true
+    }
+    if (changed && pendingApprovalFlipped) {
+      stream.lifecycle.onApprovalPendingChanged(stream)
+    }
+    return changed
+  }
+
   addCompletedRuntimeSpan(topicId: string, assistantMessageId: string, span: MessageRuntimeSpan): boolean {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return false
@@ -1394,7 +1419,7 @@ export class AiStreamManager extends BaseService {
       if (isAgentSessionTopic(topicId)) {
         const runtimeClosing = application
           .get('AgentSessionRuntimeService')
-          .closeSession(extractAgentSessionId(topicId))
+          .closeSession(extractAgentSessionId(topicId), true)
         const drainReplacementLoops = async (): Promise<void> => {
           for (;;) {
             const replacement = this.activeStreams.get(topicId)
@@ -1666,7 +1691,8 @@ export class AiStreamManager extends BaseService {
     topicId: string,
     modelId: ExecutionId,
     error: SerializedError,
-    expectedExecution?: StreamExecution
+    expectedExecution?: StreamExecution,
+    originalError?: unknown
   ): Promise<void> {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return
@@ -1709,7 +1735,7 @@ export class AiStreamManager extends BaseService {
 
     const settleTerminalDispatch = this.beginTerminalDispatch(topicId)
     try {
-      await this.dispatchToListeners(stream, exec, result)
+      await this.dispatchToListeners(stream, exec, result, originalError)
       this.emitUnsuccessfulExecution(stream, exec, result)
 
       // See onExecutionDone: awaited terminal dispatch may outlive this stream's registry slot.
@@ -2146,7 +2172,7 @@ export class AiStreamManager extends BaseService {
     exec.loopPromise = launchLoop()
       .catch((err) => {
         // Defensive funnel for sync throws (e.g. `streamText` rejects before returning a stream).
-        return this.onExecutionError(topicId, modelId, serializeError(err), exec)
+        return this.onExecutionError(topicId, modelId, serializeError(err), exec, err)
       })
       .finally(() => activity.dispose())
 
@@ -2223,9 +2249,16 @@ export class AiStreamManager extends BaseService {
         return
       }
       if (!signal.aborted) {
-        logger.error('streamText failed before stream start', { topicId, modelId, err: chatErrorContext(err) })
+        logAiFailure(
+          logger,
+          'streamText failed before stream start',
+          err,
+          'chat.stream.start',
+          classifyAiSdkFailure(err),
+          { topicId, modelId, err: chatErrorContext(err) }
+        )
       }
-      await this.onExecutionError(topicId, modelId, serializeError(err), exec)
+      await this.onExecutionError(topicId, modelId, serializeError(err), exec, err)
       return
     }
 
@@ -2267,37 +2300,48 @@ export class AiStreamManager extends BaseService {
     exec.timings.completedAt = result.broadcastCompletedAt
 
     if (result.accumulationError !== undefined) {
-      logger.error('Message accumulation failed', {
-        topicId,
-        modelId,
-        err: chatErrorContext(result.accumulationError.error)
-      })
+      logAiFailure(
+        logger,
+        'Message accumulation failed',
+        result.accumulationError.error,
+        'chat.stream.accumulate',
+        { source: 'application', kind: 'defect', reason: 'message_accumulation_failed', outcome: 'failed' },
+        { topicId, modelId, err: chatErrorContext(result.accumulationError.error) }
+      )
     }
 
     if (result.threw !== undefined) {
       const abortShaped = signal.aborted && (result.threw.error === signal.reason || isAbortError(result.threw.error))
-      const fromThrow = serializeError(result.threw.error)
       if (abortShaped) {
         logger.debug('Execution aborted', { topicId, modelId, reason: signal.reason })
       } else {
-        logger.error('AI stream error', {
-          topicId,
-          modelId,
-          attemptId: exec.attemptId,
-          stage: 'response-stream',
-          origin: 'throw',
-          cause: chatErrorContext(result.threw.error),
-          ...(result.streamErrorText !== undefined
-            ? { chunk: chatErrorContext({ message: result.streamErrorText }) }
-            : {})
-        })
+        logAiFailure(
+          logger,
+          'AI stream error',
+          result.threw.error,
+          'chat.stream.consume',
+          classifyAiSdkFailure(result.threw.error),
+          {
+            topicId,
+            modelId,
+            attemptId: exec.attemptId,
+            stage: 'response-stream',
+            origin: 'throw',
+            cause: chatErrorContext(result.threw.error),
+            ...(result.streamErrorText !== undefined
+              ? { chunk: chatErrorContext({ message: result.streamErrorText }) }
+              : {})
+          }
+        )
       }
+      const fromThrow = serializeError(result.threw.error)
       const serialized =
         result.streamErrorText !== undefined && !signal.aborted && !hasHttpMetadata(fromThrow) && !fromThrow.i18nKey
           ? errorFromStreamChunk(result.streamErrorText)
           : fromThrow
+      if (fromThrow.reportingHandled === true) serialized.reportingHandled = true
       if (!abortShaped) serialized.streamStage = 'response-stream'
-      await this.onExecutionError(topicId, modelId, serialized, exec)
+      await this.onExecutionError(topicId, modelId, serialized, exec, result.threw.error)
       return
     }
 
@@ -2420,7 +2464,8 @@ export class AiStreamManager extends BaseService {
   private async dispatchToListeners(
     stream: ActiveStream,
     exec: StreamExecution,
-    result: StreamDoneResult | StreamPausedResult | StreamErrorResult
+    result: StreamDoneResult | StreamPausedResult | StreamErrorResult,
+    originalError?: unknown
   ): Promise<void> {
     const dead: string[] = []
     const listeners = [...stream.listeners]
@@ -2450,7 +2495,7 @@ export class AiStreamManager extends BaseService {
             ? listener.onDone(result)
             : result.status === 'paused'
               ? listener.onPaused(result)
-              : listener.onError(result)
+              : listener.onError(result, stream.lifecycle === promptStreamLifecycle ? originalError : undefined)
         exec.finalMessage = result.finalMessage
         await dispatch
       } catch (err) {

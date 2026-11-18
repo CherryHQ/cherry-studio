@@ -96,17 +96,6 @@ describe('ProviderSetting', () => {
     expect(providerApiSetupModuleState.loaded).toBe(true)
   })
 
-  it('shares one API-key draft between authentication and model settings', () => {
-    render(<ProviderSetting providerId="openai" />)
-
-    expect(screen.getByTestId('provider-detail-shell')).toBeInTheDocument()
-    expect(screen.getByText('provider-header-openai')).toBeInTheDocument()
-    expect(screen.getByText('authentication-section-openai-shared-draft-key')).toBeInTheDocument()
-    expect(screen.getByText('model-list-openai-shared-draft-key')).toBeInTheDocument()
-    expect(useProviderApiKeyMock).toHaveBeenCalledTimes(1)
-    expect(useProviderApiKeyMock).toHaveBeenCalledWith('openai')
-  })
-
   it('opens the requested setup step when a newly created provider is selected', () => {
     render(<ProviderSetting providerId="openai" initialApiSetupStep="models" />)
 

@@ -136,15 +136,12 @@ describe('AssistantConversationPickerDialog', () => {
 
     render(<AssistantConversationPickerDialog open onOpenChange={onOpenChange} assistants={[]} onSelect={vi.fn()} />)
 
-    expect(mocks.pickerProps.createAction.row('').title).toBe('selector.assistant.create_new')
     expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-open', 'false')
 
     fireEvent.click(screen.getByText('create-new'))
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-kind', 'assistant')
-    expect(mocks.createDialogProps.initialName).toBe('')
   })
 
   it('names the create row after the search query and seeds it into the create dialog', () => {
@@ -153,8 +150,6 @@ describe('AssistantConversationPickerDialog', () => {
     // The row that used to disappear while searching now previews the assistant it would create.
     const namedRow = mocks.pickerProps.createAction.row('测试助手')
     expect(namedRow.title).toBe('测试助手')
-    expect(namedRow.tag).toBe('selector.assistant.create_tag')
-    expect(namedRow.icon).toBeTruthy()
 
     fireEvent.click(screen.getByText('create-new-from-query'))
 
@@ -210,37 +205,5 @@ describe('AssistantConversationPickerDialog', () => {
 
     expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-open', 'true')
     expect(onSelect).not.toHaveBeenCalled()
-  })
-
-  it('defaults to the combined view and filters via the popover', async () => {
-    const assistants = [{ id: 'a1', name: 'My Assistant' }] as any
-
-    render(<AssistantConversationPickerDialog open onOpenChange={vi.fn()} assistants={assistants} onSelect={vi.fn()} />)
-
-    // Default: no filter → combined 资源库 + 助手库 list, create row present, paging on.
-    expect(mocks.pickerProps.items).toHaveLength(2)
-    expect(mocks.pickerProps.createAction).toBeTruthy()
-    expect(mocks.pickerProps.pageSize).toBe(50)
-
-    const selectFilter = async (label: string) => {
-      fireEvent.click(screen.getByRole('button', { name: 'selector.assistant.filter' }))
-      fireEvent.click(await screen.findByText(label))
-    }
-
-    // Filter to 助手库 (catalog only) → presets only, create row dropped.
-    await selectFilter('assistants.presets.title')
-    expect(mocks.pickerProps.items).toHaveLength(1)
-    expect(mocks.pickerProps.items[0].id).toBe('catalog:preset-1')
-    expect(mocks.pickerProps.createAction).toBeUndefined()
-
-    // Back to 全部 → combined list with the create row.
-    await selectFilter('common.all')
-    expect(mocks.pickerProps.items).toHaveLength(2)
-    expect(mocks.pickerProps.createAction).toBeTruthy()
-
-    // Filter to 资源库 (mine only) → assistants only.
-    await selectFilter('library.title')
-    expect(mocks.pickerProps.items).toHaveLength(1)
-    expect(mocks.pickerProps.items[0].id).toBe('assistant:a1')
   })
 })

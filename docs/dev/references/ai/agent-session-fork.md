@@ -6,6 +6,10 @@ sources:
   - src/main/ai/agentSession/persistence/AgentSessionMessageBackend.ts
   - src/main/data/services/AgentSessionForkService.ts
   - src/main/data/services/AgentSessionMessageService.ts
+  - src/main/data/db/schemas/agentSessionMessage.ts
+  - src/main/data/db/seeding/seeders/AgentSessionMessageTreeSeeder.ts
+  - migrations/sqlite-drizzle/0039_agent_session_tree_backfill.sql
+  - migrations/sqlite-drizzle/0040_agent_session_tree_constraints.sql
   - src/main/ai/runtime/fork
   - src/main/ai/runtime/claudeCode
   - src/main/ai/runtime/pi
@@ -63,7 +67,11 @@ including outgoing cross-session deliveries. Failed preparation or publication p
 Pi Durable noninitial edits publish the native fork's allocated product context identity and remapped checkpoints in the replacement input transaction. First-input edits reserve a fresh empty backend/context and create native storage only on dispatch. Native numeric IDs are local to a store, so publication and recovery check the exact context rather than matching an unrelated backend's token.
 Neither edit/resend nor branch selection restores workspace files.
 
-The sibling navigator selects the chosen sibling's latest descendant. Selection
+Public message PATCH and DELETE reject in-flight deliveries (`accepted` or
+`delivering`), including messages without a native input binding yet.
+
+The sibling navigator follows the newest immediate child by `(createdAt, id)`
+at each level until it reaches a leaf beneath the chosen sibling. Selection
 only changes the stored view; it does not run the harness. The next send resolves
 that branch's native context. An idle connection on another branch is closed
 before connecting; an active connection prevents a cross-branch send.
@@ -75,10 +83,23 @@ history token from the captured branch; an allocated identity alone is not proof
 that native history exists. Other edits publish their verified native fork before
 startup, and switching the UI selection does not change the captured branch.
 
-The additive schema migration supplies parent/selection and binding fields.
-`AgentSessionMessageTreeSeeder` converts old flat archives into one selected
-path, preserving existing IDs and message facts. Previously deleted tails cannot
+SQLite enforces that only roots have a null parent, and every non-root parent
+exists in the same Session. Deleting a message with children requires reparenting
+those children first; deleting the whole Session still removes its entire archive.
+These constraints do not enforce acyclicity or native execution bindings.
+
+An appended data migration converts untouched flat archives, including empty
+Sessions, into one selected path before the constraint migration rebuilds the table. Existing branches and
+selections are preserved; invalid existing parent edges abort the upgrade without
+changing user rows. V1 conversion runs in the 2.2.2 bridge release; its v2
+archives follow the same appended migration path. Startup seeding only backfills
+legacy delivery reply anchors. Previously deleted tails cannot
 be recovered.
+
+Message pages select IDs before loading payloads. With `deferToolOutputs`, each
+assistant message is projected as it is loaded, so raw oversized outputs do not
+accumulate across the page. Default reads retain the complete stored payload,
+and cursor ordering and the 50/200 default/maximum limits are unchanged.
 
 ## Ownership and dependencies
 
@@ -133,9 +154,10 @@ coordinates runtime and filesystem operations in addition to SQLite writes.
 5. The coordinator clones visible messages with new IDs, remaps their anchors,
    strips execution state and statistics, and publishes the native artifacts.
 6. `DbService.withWriteTx` rechecks the source prefix, captured context bindings,
-   backend locators, Agent, and workspace, then creates the child, messages and
-   per-segment context bindings atomically. Later source appends are allowed;
-   changes to the selected prefix fail with `source_changed`. A read-model change
+   backend locators, Agent, workspace, and session model override, then creates the child,
+   messages and per-segment context bindings atomically. The child inherits the source
+   session model override, including `null` to follow the Agent default. Later source
+   appends are allowed; changes to the selected prefix fail with `source_changed`. A read-model change
    notification follows the commit, and IPC returns the child session ID.
 
 Copied contexts retain separate native histories. Only the context at the selected
@@ -184,6 +206,14 @@ Claude creates its own worker and pass them to `runForkWorker`. The
 shared helper returns an opaque result and waits for termination on success,
 failure, cancellation, or timeout before the coordinator can clean up files.
 Adapters validate the returned native result before publication.
+
+Claude uses the SDK history reader to select context across retry and compaction
+records. Compaction metadata is opaque to Cherry; the SDK owns its interpretation
+and UUID remapping. A missing parent reference alone does not reject a fork. Before staging
+the child, the worker reads both prefixes through the SDK and requires the same
+ordered messages, types and contents under the SDK's UUID mapping. The selected
+checkpoint must remain readable. A failed read or changed context is rejected;
+Cherry does not repair parent links or change the original transcript.
 
 ## Publication and failure cleanup
 

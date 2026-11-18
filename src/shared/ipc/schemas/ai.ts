@@ -66,6 +66,7 @@ import {
 
 import { defineRoute } from '../define'
 import { codeCliRequestSchemas } from './codeCli'
+import { ImageBytesSchema } from './entityImage'
 
 /**
  * AI IPC schemas — `AiService`'s non-streaming model operations (text/embedding/image
@@ -101,6 +102,7 @@ export type HeartbeatRunResult = z.infer<typeof HeartbeatRunResultSchema>
 export const CreateAgentCommandSchema = AgentBaseSchema.extend({
   model: UniqueModelIdSchema.nullable(),
   type: AgentEntitySchema.shape.type,
+  avatarImage: ImageBytesSchema.optional(),
   /**
    * Create-only: ids of pre-existing global skills to enable for the new
    * Agent. Join rows are written in the same DB transaction as the Agent.
@@ -250,6 +252,19 @@ export const aiRequestSchemas = {
     }),
     output: z.boolean()
   }),
+  'ai.agent.session.predict_prompt': defineRoute({
+    input: z.strictObject({
+      sessionId: z.string().min(1),
+      replyId: z.string().min(1),
+      modelId: UniqueModelIdSchema,
+      requestId: z.uuid()
+    }),
+    output: z.object({ supported: z.boolean(), text: z.string() })
+  }),
+  'ai.agent.session.abort_prediction': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), requestId: z.uuid() }),
+    output: z.void()
+  }),
   'ai.projection.attach': defineRoute({
     input: z.strictObject({ target: projectionTargetSchema, subscriptionId: z.uuid() }),
     output: z.custom<MessageProjectionView | null>()
@@ -276,6 +291,7 @@ export const aiRequestSchemas = {
       // Callers that do not need cancellation keep the existing wire shape.
       requestId: z.string().min(1).optional(),
       ...aiChatRequestShape,
+      disableTools: z.boolean().optional(),
       reasoningEffort: ReasoningEffortOptionSchema.optional(),
       serviceTier: ServiceTierSelectionSchema.optional(),
       system: z.string().optional(),

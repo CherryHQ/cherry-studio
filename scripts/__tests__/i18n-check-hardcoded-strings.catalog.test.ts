@@ -75,3 +75,65 @@ it('fails the strict gate for hardcoded UI strings in the portable preview packa
   expect(output.mock.calls.flat().join('\n')).toContain('File Preview Package')
   expect(output.mock.calls.flat().join('\n')).toContain('Preview.tsx:1')
 })
+
+it('reports literal toast text in any language and ignores translated toast text', () => {
+  const directory = mkdtempSync(resolve(tmpdir(), 'cherry-i18n-scan-'))
+  const file = resolve(directory, 'useActions.ts')
+  writeFileSync(
+    file,
+    `
+    toast.warning('Message is still syncing — try again in a moment');
+    window.toast.error(\`Failed to save\`);
+    toast.info(\`Deleted \${count} items\`);
+    toast.success({ title: 'Saved', description: '已保存' });
+    toast.loading({ title: 'Uploading', promise });
+    toast.error(t('common.error'));
+    toast.error(\`\${t('settings.mcp.deleteError')}: \${error.message}\`);
+    toast.success({ title: t('common.success'), key: 'save-result' });
+    toast.errorFromException('ignored');
+  `
+  )
+  try {
+    expect(
+      new HardcodedStringDetector()
+        .scanFile(file, 'renderer')
+        .map((finding) => [finding.content, finding.type])
+        .sort()
+    ).toEqual(
+      [
+        ["'Message is still syncing — try again in a moment'", 'english'],
+        ['`Failed to save`', 'english'],
+        ['`Deleted ${count} items`', 'english'],
+        ["'Saved'", 'english'],
+        ["'已保存'", 'chinese'],
+        ["'Uploading'", 'english']
+      ].sort()
+    )
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+it('fails the strict gate for English toast text', () => {
+  const directory = resolve('src/renderer')
+  filesystem.existsSync.mockImplementation((path: string) => path === directory)
+  filesystem.readdirSync.mockReturnValue([{ name: 'useActions.ts', isDirectory: () => false, isFile: () => true }])
+  vi.spyOn(HardcodedStringDetector.prototype, 'scanFile').mockReturnValue([
+    {
+      file: resolve(directory, 'useActions.ts'),
+      line: 1,
+      content: "'Message is still syncing'",
+      source: 'renderer',
+      type: 'english',
+      nodeType: 'ToastCall'
+    }
+  ])
+  vi.stubEnv('I18N_STRICT', 'true')
+  vi.spyOn(console, 'log').mockImplementation(() => {})
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.spyOn(process, 'exit').mockImplementation((code) => {
+    throw new Error(`Exit ${code}`)
+  })
+
+  expect(main).toThrow('Exit 1')
+})

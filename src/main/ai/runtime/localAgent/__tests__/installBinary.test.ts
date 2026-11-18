@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
-import AdmZip from 'adm-zip'
+import JSZip from 'jszip'
 import * as tar from 'tar'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,10 +35,10 @@ describe('system binary installation', () => {
     )
 
   it('extracts a zip, verifies its digest and publishes a command without breaking sibling resources', async () => {
-    const zip = new AdmZip()
-    zip.addFile('bundle/agent', Buffer.from('#!/bin/sh\ncat "$(dirname "$0")/resource"\n'))
-    zip.addFile('bundle/resource', Buffer.from('installed agent'))
-    const body = zip.toBuffer()
+    const zip = new JSZip()
+    zip.file('bundle/agent', Buffer.from('#!/bin/sh\ncat "$(dirname "$0")/resource"\n'))
+    zip.file('bundle/resource', Buffer.from('installed agent'))
+    const body = await zip.generateAsync({ type: 'nodebuffer' })
     serve(body)
     const command = await installBinaryAgent(
       'example-agent',
@@ -77,9 +77,9 @@ describe('system binary installation', () => {
   })
 
   it('resolves registry Windows command separators to the extracted file', async () => {
-    const zip = new AdmZip()
-    zip.addFile('dist-package/cursor-agent.cmd', Buffer.from('@echo ready'))
-    serve(zip.toBuffer())
+    const zip = new JSZip()
+    zip.file('dist-package/cursor-agent.cmd', Buffer.from('@echo ready'))
+    serve(await zip.generateAsync({ type: 'nodebuffer' }))
     const entry = await installBinaryAgent(
       'example-agent',
       {

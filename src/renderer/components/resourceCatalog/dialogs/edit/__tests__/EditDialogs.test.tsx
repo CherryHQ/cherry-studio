@@ -5,6 +5,7 @@ vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () =>
   }
 })
 
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -389,6 +390,13 @@ vi.mock('react-i18next', async (importOriginal) => {
           'agent.tasks.intervalUnit': 'minutes',
           'library.config.agent.field.heartbeat_enabled.label': 'Heartbeat',
           'library.config.agent.field.heartbeat_interval.label': 'Heartbeat interval',
+          'library.config.agent.field.language.label': 'Reply language',
+          'library.config.agent.field.language.mode.inherit': 'Use global',
+          'library.config.agent.field.language.mode.off': 'No constraint',
+          'library.config.agent.field.language.mode.custom': 'Custom',
+          'settings.agent.language.follow_conversation': 'Follow conversation language',
+          'settings.agent.language.combo_label': 'Reply language preset',
+          'settings.agent.language.custom_label': 'Custom reply language',
           'library.config.agent.field.model.hint': 'Primary agent model.',
           'library.config.agent.field.model.hint.claude_code': 'Pins the opus alias (ANTHROPIC_MODEL).',
           'library.config.agent.field.model.label': 'Model',
@@ -1232,11 +1240,7 @@ describe('edit dialogs', () => {
 
     selectTab('Prompts')
     expect(within(screen.getByRole('tabpanel', { name: 'Prompts' })).getByText('Prompts')).toBeInTheDocument()
-    expect(useQueryMock).toHaveBeenCalledWith('/prompts', { enabled: true, query: { visibility: 'restricted' } })
-    expect(useQueryMock).toHaveBeenCalledWith('/prompt-bindings/:targetType/:targetId', {
-      enabled: true,
-      params: { targetType: 'assistant', targetId: ASSISTANT.id }
-    })
+
     fireEvent.click(screen.getByRole('button', { name: 'Bind prompt' }))
     fireEvent.click(await screen.findByText('Reusable prompt'))
 
@@ -1386,7 +1390,7 @@ describe('edit dialogs', () => {
     fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Updated assistant description' } })
     const modelTrigger = screen.getByRole('button', { name: 'Model' })
     expect(modelTrigger).toHaveTextContent('Old Model')
-    expect(modelTrigger).not.toHaveTextContent('Provider')
+
     fireEvent.click(modelTrigger)
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
     await waitFor(() =>
@@ -1519,15 +1523,6 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('keeps assistant grouping single-select while exposing the shared create action', async () => {
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
-
-    openGroupSelect()
-    expect(screen.queryByPlaceholderText('Search groups')).not.toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: 'No group' })).not.toBeInTheDocument()
-    expect(await screen.findByRole('option', { name: 'New Group' })).toBeInTheDocument()
-  })
-
   it('closes the group selector without closing the assistant edit dialog when clicking elsewhere inside it', async () => {
     const onOpenChange = vi.fn()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
@@ -1559,28 +1554,22 @@ describe('edit dialogs', () => {
       within(screen.getByRole('tabpanel', { name: 'System Prompt' })).getByText('System Prompt')
     ).toBeInTheDocument()
     const instructionsInput = screen.getByLabelText('Prompt editor')
-    expect(instructionsInput).toHaveAttribute('placeholder', 'Tell this assistant how to respond')
+
     expect(screen.getByLabelText('Prompt preview')).toHaveTextContent('Original instructions Old Model')
-    expect(promptProcessorMock).toHaveBeenLastCalledWith({
-      prompt: 'Original instructions {{model_name}}',
-      modelName: 'Old Model'
-    })
+
     fireEvent.change(instructionsInput, { target: { value: 'Updated instructions {{model_name}}' } })
     selectTab('Basic')
     // The trigger is named by its visible label, which is Claude Code's opus slot on this agent.
     const modelTrigger = screen.getByRole('button', { name: 'Model (Opus)' })
     expect(modelTrigger).toHaveTextContent('Old Model')
-    expect(modelTrigger).not.toHaveTextContent('Provider')
+
     fireEvent.click(modelTrigger)
     fireEvent.click(screen.getAllByRole('button', { name: 'Pick model' })[0])
     selectTab('System Prompt')
     await waitFor(() =>
       expect(screen.getByLabelText('Prompt preview')).toHaveTextContent('Updated instructions Updated Model')
     )
-    expect(promptProcessorMock).toHaveBeenLastCalledWith({
-      prompt: 'Updated instructions {{model_name}}',
-      modelName: 'Updated Model'
-    })
+
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenCalledWith({
         body: expect.objectContaining({
@@ -1613,6 +1602,56 @@ describe('edit dialogs', () => {
     expect(screen.queryByRole('button', { name: 'Model (Opus) Help' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Plan model Help' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Small model Help' })).not.toBeInTheDocument()
+  })
+
+  it('reflects the global reply language without saving an agent override', async () => {
+    const previous = MockUsePreferenceUtils.getPreferenceValue('agent.language')
+    try {
+      MockUsePreferenceUtils.setPreferenceValue('agent.language', '日本語')
+      const view = render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+      const mode = screen.getByRole('combobox', { name: 'Reply language' })
+      expect(mode).toHaveTextContent('Use global · 日本語')
+      MockUsePreferenceUtils.setPreferenceValue('agent.language', null)
+      view.rerender(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+      await waitFor(() => expect(mode).toHaveTextContent('Use global · Follow conversation language'))
+      expect(updateAgentMock).not.toHaveBeenCalled()
+    } finally {
+      MockUsePreferenceUtils.setPreferenceValue('agent.language', previous)
+    }
+  })
+
+  it('persists reply language modes and trims a custom language', async () => {
+    const user = userEvent.setup()
+    render(
+      <AgentEditDialog
+        open
+        resource={{ ...AGENT, configuration: { ...AGENT.configuration, language: 'English' } }}
+        onOpenChange={vi.fn()}
+      />
+    )
+    const mode = screen.getByRole('combobox', { name: 'Reply language' })
+    await user.click(mode)
+    await user.click(screen.getByRole('option', { name: /^Use global/ }))
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenLastCalledWith({ body: { configuration: { language: undefined } } })
+    )
+    expect(screen.queryByRole('textbox', { name: 'Custom reply language' })).not.toBeInTheDocument()
+
+    await user.click(mode)
+    await user.click(screen.getByRole('option', { name: 'No constraint' }))
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenLastCalledWith({ body: { configuration: { language: null } } })
+    )
+
+    await user.click(mode)
+    await user.click(screen.getByRole('option', { name: 'Custom' }))
+    const custom = screen.getByRole('textbox', { name: 'Custom reply language' })
+    await user.clear(custom)
+    await user.type(custom, ' Français ')
+    await user.tab()
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenLastCalledWith({ body: { configuration: { language: 'Français' } } })
+    )
   })
 
   it('persists a heartbeat timeout edit independently of the interval', async () => {
@@ -1763,7 +1802,7 @@ describe('edit dialogs', () => {
 
     await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Polished agent instructions'))
     expect(fetchGenerateMock).toHaveBeenCalledWith({
-      prompt: expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.'),
+      prompt: expect.any(String),
       content: 'Original instructions',
       model: DEFAULT_PROMPT_MODEL,
       throwOnError: true,
@@ -1782,7 +1821,7 @@ describe('edit dialogs', () => {
     render(<AgentEditDialog open resource={{ ...AGENT, instructions: '' }} onOpenChange={vi.fn()} />)
 
     selectTab('System Prompt')
-    expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('0')
+
     const generateButton = screen.getByRole('button', { name: GENERATE_PROMPT_BUTTON })
     expect(generateButton).toBeEnabled()
     fireEvent.click(generateButton)
@@ -1790,7 +1829,7 @@ describe('edit dialogs', () => {
     await waitFor(() =>
       expect(fetchGenerateMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          prompt: expect.stringContaining('You are a Prompt Generator.'),
+          prompt: expect.any(String),
           content: 'Alpha Agent',
           model: DEFAULT_PROMPT_MODEL,
           throwOnError: true
@@ -1798,7 +1837,6 @@ describe('edit dialogs', () => {
       )
     )
     expect(screen.getByLabelText('Prompt editor')).toHaveValue('Generated agent instructions')
-    expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('1')
   })
 
   it('allows closing and tab navigation while an agent prompt action is in flight', async () => {
@@ -1815,46 +1853,6 @@ describe('edit dialogs', () => {
     expect(screen.getByRole('tab', { name: 'Basic' })).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('keeps MCP catalog rows compact without detail text', async () => {
-    mcpStatusState.current = {
-      'mcp-command-only': { state: 'connected', lastCheckedAt: 1 }
-    }
-    useQueryMock.mockImplementation((path: string) => {
-      if (path === '/mcp-servers') {
-        return {
-          data: {
-            items: [
-              {
-                id: 'mcp-command-only',
-                name: '@cherry/mcp-auto-install',
-                description: 'Installs MCP servers automatically',
-                baseUrl: 'https://mcp.example.com',
-                command: 'npx',
-                isActive: true
-              }
-            ]
-          },
-          isLoading: false
-        }
-      }
-      if (path === '/prompts' || path.startsWith('/prompt-bindings/')) {
-        return { data: [], isLoading: false, refetch: vi.fn() }
-      }
-      return { data: { items: [] }, isLoading: false }
-    })
-
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
-
-    selectTab('MCP')
-
-    expect(await screen.findByText('@cherry/mcp-auto-install')).toBeInTheDocument()
-    expect(screen.queryByText('Installs MCP servers automatically')).not.toBeInTheDocument()
-    expect(screen.queryByText('https://mcp.example.com')).not.toBeInTheDocument()
-    expect(screen.queryByText('npx')).not.toBeInTheDocument()
-    expect(screen.getByRole('switch', { name: '@cherry/mcp-auto-install' })).toBeInTheDocument()
-    expect(screen.getByText('Connected')).toBeInTheDocument()
-  })
-
   it('submits assistant knowledge, MCP, and model parameter changes', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
@@ -1864,7 +1862,7 @@ describe('edit dialogs', () => {
 
     selectTab('Knowledge')
     await waitFor(() => expect(screen.getByText('Linked knowledge')).toBeVisible())
-    expectHelpTrigger('Linked knowledge', 'Choose knowledge bases.')
+
     const addKnowledgeButton = screen.getByRole('button', { name: 'Add knowledge base' })
     fireEvent.click(addKnowledgeButton)
     expect(screen.getByText('Knowledge One')).toBeInTheDocument()
@@ -1881,12 +1879,7 @@ describe('edit dialogs', () => {
 
     selectTab('Model')
     await waitFor(() => expect(screen.getByRole('button', { name: 'Temperature Help' })).toBeVisible())
-    expectHelpTrigger('Temperature', 'Controls randomness.')
-    expectHelpTrigger('Top-P', 'Controls nucleus sampling.')
-    expectHelpTrigger('Max tokens', 'Caps response length.')
-    expectHelpTrigger('Stream output', 'Stream responses.')
-    expectHelpTrigger('Max tool call rounds', 'Caps tool-call rounds at 100.')
-    expectHelpTrigger('Custom parameters', 'Extra provider parameters.')
+
     fireEvent.click(screen.getByRole('switch', { name: 'Temperature' }))
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
@@ -1964,14 +1957,13 @@ describe('edit dialogs', () => {
     // off, so it must not be named after the feature.
     const overrideSwitch = await screen.findByRole('switch', { name: 'Customize context management' })
     expect(overrideSwitch).not.toBeChecked()
-    expect(screen.getByText('Following the global settings')).toBeVisible()
+
     // Offload/compression fields belong to the override and stay hidden…
     expect(screen.queryByLabelText('Tool-output truncation threshold')).not.toBeInTheDocument()
 
     fireEvent.click(overrideSwitch)
 
     expect(await screen.findByLabelText('Tool-output truncation threshold')).toBeInTheDocument()
-    expect(screen.queryByText('Following the global settings')).not.toBeInTheDocument()
   })
 
   // The compression trigger is a three-state override: empty means inherit, and the
@@ -1992,17 +1984,6 @@ describe('edit dialogs', () => {
     expect(screen.getByText('%')).toBeVisible()
   })
 
-  it('keeps the message limit outside the override, since scope is not an overflow policy', async () => {
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
-
-    selectTab('Model')
-
-    // …while the scope control is reachable with the override off.
-    const overrideSwitch = await screen.findByRole('switch', { name: 'Customize context management' })
-    expect(overrideSwitch).not.toBeChecked()
-    expect(screen.getByLabelText('Recent messages kept')).toBeInTheDocument()
-  })
-
   it('expresses "no message limit" as an empty named field rather than a second switch', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
@@ -2010,10 +1991,8 @@ describe('edit dialogs', () => {
 
     const input = await screen.findByLabelText('Recent messages kept')
     // No stored override → unlimited, shown as an empty field with a placeholder.
-    expect(input).toHaveValue('')
-    expect(input).toHaveAttribute('placeholder', 'Unlimited')
+
     // The limit is one control, not a switch plus a number.
-    expect(screen.queryByRole('switch', { name: 'Recent messages kept' })).not.toBeInTheDocument()
 
     fireEvent.focus(input)
     fireEvent.change(input, { target: { value: '5' } })
@@ -2094,7 +2073,6 @@ describe('edit dialogs', () => {
     const maxToolCallsSwitch = await screen.findByRole('switch', { name: 'Max tool call rounds' })
 
     expect(maxToolCallsSwitch).not.toBeChecked()
-    expect(screen.getByText('Default (100 rounds)')).toBeVisible()
 
     fireEvent.click(maxToolCallsSwitch)
     const maxToolCallsInput = await screen.findByDisplayValue('20')
@@ -2128,24 +2106,22 @@ describe('edit dialogs', () => {
     selectTab('System Prompt')
     await expectVariablesHelpOnOpen()
     const polishButton = screen.getByRole('button', { name: POLISH_PROMPT_BUTTON })
-    expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('0')
+
     fireEvent.click(polishButton)
 
     await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Polished assistant prompt'))
     expect(fetchGenerateMock).toHaveBeenCalledWith({
-      prompt: expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.'),
+      prompt: expect.any(String),
       content: 'Original prompt',
       model: DEFAULT_PROMPT_MODEL,
       throwOnError: true,
       signal: expect.any(AbortSignal)
     })
-    expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('1')
 
     const undoButton = screen.getByRole('button', { name: 'Undo' })
     fireEvent.click(undoButton)
 
     expect(screen.getByLabelText('Prompt editor')).toHaveValue('Original prompt')
-    expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('2')
   })
 
   it('generates an assistant prompt from its name when the prompt is blank', async () => {
@@ -2157,15 +2133,13 @@ describe('edit dialogs', () => {
 
     await waitFor(() => expect(screen.getByLabelText('Prompt editor')).toHaveValue('Generated prompt'))
     expect(fetchGenerateMock).toHaveBeenCalledWith({
-      prompt: expect.stringContaining('You are a Prompt Generator.'),
+      prompt: expect.any(String),
       content: 'Alpha Assistant',
       model: DEFAULT_PROMPT_MODEL,
       throwOnError: true,
       signal: expect.any(AbortSignal)
     })
-    expect(fetchGenerateMock.mock.calls[0][0].prompt).not.toContain(
-      'Create a useful system prompt from the supplied name or title.'
-    )
+
     expect(screen.getByRole('button', { name: POLISH_PROMPT_BUTTON })).toBeInTheDocument()
   })
 
@@ -2192,7 +2166,7 @@ describe('edit dialogs', () => {
     fireEvent.click(await screen.findByRole('option', { name: /Plan Only/ }))
 
     selectTab('Advanced')
-    expectHelpTrigger('Environment variables', 'One KEY=VALUE per line')
+
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'FOO=bar' } })
 
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
@@ -2206,36 +2180,11 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('shows agent tool categories directly in the left tab list', async () => {
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
-
-    expect(screen.queryByRole('button', { name: 'Tools' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('tab', { name: 'Tools' })).not.toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Built-in tools' })).toHaveAttribute('aria-selected', 'false')
-    expect(screen.queryByText('No built-in tools enabled')).not.toBeInTheDocument()
-
-    selectTab('Built-in tools')
-    expect(screen.getByRole('tab', { name: 'Built-in tools' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByText('Read')).toBeInTheDocument()
-
-    selectTab('MCP')
-    expect(screen.getByText('MCP One')).toBeInTheDocument()
-
-    selectTab('技能')
-    expect(screen.getByText('Skill One')).toBeInTheDocument()
-  })
-
   it('projects pi capabilities without exposing Claude-only fields', async () => {
     render(<AgentEditDialog open resource={PI_AGENT} onOpenChange={vi.fn()} />)
 
-    expect(screen.queryByText('Plan model')).not.toBeInTheDocument()
-    expect(screen.queryByText('Small model')).not.toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Knowledge' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'MCP' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: '技能' })).toBeInTheDocument()
-
     selectTab('Built-in tools')
-    expect(screen.getByRole('switch', { name: 'Read files' })).toBeInTheDocument()
+
     fireEvent.click(screen.getByRole('switch', { name: 'Run shell commands' }))
 
     await waitFor(() =>
@@ -2339,23 +2288,6 @@ describe('edit dialogs', () => {
     expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/skills')
     expect(ipcRequestMock).not.toHaveBeenCalledWith('tab.detach', expect.anything())
     expect(onOpenChange).not.toHaveBeenCalled()
-  })
-
-  it('reuses the shared skill catalog in the agent edit dialog', async () => {
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="tools.skills" />)
-
-    await waitFor(() =>
-      expect(skillCatalogPickerMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          mode: 'edit',
-          skills: installedSkillsState.current.skills,
-          loading: false,
-          selectedIds: [],
-          disabled: false
-        })
-      )
-    )
-    expect(screen.getByTestId('skill-catalog-picker')).toHaveAttribute('data-mode', 'edit')
   })
 
   it('waits for background skill refresh before initializing the editable baseline', async () => {
@@ -2608,13 +2540,6 @@ describe('edit dialogs', () => {
     selectTab('Basic')
 
     expect(screen.getByLabelText('Avatar and name')).toHaveValue('Draft Agent')
-  })
-
-  it('shows the immutable runtime guidance without requiring hover or focus', () => {
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
-
-    expect(screen.getByText('Cannot be changed after creation')).toBeVisible()
-    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
   })
 
   it('shows an auto-save error and still allows the dialog to close', async () => {

@@ -8,8 +8,7 @@ import {
   type Query,
   type SDKAssistantMessage,
   type SDKMessage,
-  type SDKUserMessage,
-  type SessionStoreEntry
+  type SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 
 import {
@@ -26,7 +25,8 @@ import {
   type SubmitResult
 } from '@cherrystudio/agent-runtime'
 
-import { readArchive } from './archive'
+import { readArchive, type NativeArchiveEntry } from './archive'
+import { cloneHistoryData } from './cloneHistoryData'
 import { normalizeContextUsage } from './contextUsage'
 import { claudeThread, isCommandLifecycle, isUuid, rejected, runtimeError } from './identity'
 import { ClaudeProjection } from './projection'
@@ -315,6 +315,7 @@ export class ClaudeOwner {
         message: {
           type: 'user',
           uuid,
+          // oxlint-disable-next-line no-restricted-globals -- Detach one submitted user content payload before asynchronous SDK consumption.
           message: { role: 'user', content: structuredClone(content) },
           priority: policy === 'steer' ? 'next' : 'later',
           parent_tool_use_id: null,
@@ -494,7 +495,6 @@ export class ClaudeOwner {
     const projection =
       commandInput?.projection ?? (agentId ? this.projection(task?.sessionId ?? this.activeSession, agentId) : root)
     if (!agentId && 'parent_tool_use_id' in message && message.parent_tool_use_id) {
-      root.publish([{ type: 'gap', reason: 'mapping-reset' }])
       return
     }
     const events: ObservationPayload[] = []
@@ -545,12 +545,13 @@ export class ClaudeOwner {
           }
         })
     }
-    if (!agentId && message.type === 'system' && message.subtype === 'compact_boundary') {
+    const compactedContext =
+      !agentId && message.type === 'system' && message.subtype === 'compact_boundary'
+        ? { status: 'unknown' as const, error: runtimeError('contextUsage', 'compacted') }
+        : undefined
+    if (compactedContext) {
       this.contextEpoch++
-      events.push({
-        type: 'context.changed',
-        result: { status: 'unknown', error: runtimeError('contextUsage', 'compacted') }
-      })
+      events.push({ type: 'context.changed', result: compactedContext })
     }
     if (message.type === 'assistant') {
       events.push(...projection.remove(message.supersedes ?? []))
@@ -573,6 +574,7 @@ export class ClaudeOwner {
           break
         case 'compact_boundary':
           events.push({ type: 'gap', reason: 'mapping-reset' })
+          if (compactedContext) events.push({ ...projection.feed.snapshot, contextUsage: compactedContext })
           break
         case 'permission_denied':
           events.push(...projection.deny(message.tool_use_id))
@@ -712,7 +714,7 @@ export class ClaudeOwner {
       const archive = await readArchive(this.runtime.configDir, this.config.cwd, sessionId)
       if (!archive) throw new Error('native-storage-missing')
       const root = this.projection(sessionId)
-      const entriesFor = (agentId?: string): SessionStoreEntry[] =>
+      const entriesFor = (agentId?: string): NativeArchiveEntry[] =>
         archive.entries
           .filter((batch) => batch.subpath === (agentId ? `subagents/agent-${agentId}` : undefined))
           .flatMap((batch) => batch.entries)
@@ -764,7 +766,7 @@ export class ClaudeOwner {
       if (refresh || !this.archives.has(projection.thread.id)) await this.refresh(projection.thread.id.split('/')[0])
       const archive = this.archives.get(projection.thread.id)
       return archive
-        ? { status: 'confirmed', value: structuredClone(refresh ? archive : projection.committed(archive)) }
+        ? { status: 'confirmed', value: cloneHistoryData(refresh ? archive : projection.committed(archive)) }
         : rejected('archive', 'native-storage-missing')
     } catch (error) {
       this.report(error)
@@ -808,7 +810,8 @@ export class ClaudeOwner {
       await Promise.race([
         Promise.all([this.pump, this.exit]),
         new Promise<void>((resolve) => {
-          timeout = setTimeout(resolve, 5000)
+          // SDK 0.3.311 escalates after 2s + 5s; allow exit delivery and source drain afterward.
+          timeout = setTimeout(resolve, 10_000)
         })
       ])
       clearTimeout(timeout)

@@ -104,11 +104,13 @@ import {
 } from '@shared/ipc/errors/ai'
 
 import { rejectPendingAgentSessionImageActions } from '../../messages/agentSessionImageActionBus'
+import type { CreateAgentSessionDefaults } from '../../types'
 import { useOptionalAgentFileNavigation } from '../AgentRightPane'
 import { type AgentGroupActionContext, executeAgentGroupAction, resolveAgentGroupActions } from './agentGroupActions'
 import { buildCreateSessionSeedIndex } from './createSessionSeed'
 import { AgentGroupMoreMenu, WorkdirGroupMoreMenu } from './groupMoreMenus'
 import { SessionListBody } from './SessionListBody'
+import { EMPTY_SESSION_LIST_ITEM_RECONCILIATION, reconcileSessionListItems } from './sessionListItemSharing'
 import { useSessionCreation } from './useSessionCreation'
 import { useSessionExpansion } from './useSessionExpansion'
 import { useSessionGroupStructure } from './useSessionGroupStructure'
@@ -120,9 +122,8 @@ import {
   resolveWorkdirGroupActions,
   type WorkdirGroupActionContext
 } from './workdirGroupActions'
+
 const AgentSessionImageCaptureHost = lazy(() => import('../../messages/AgentSessionImageCaptureHost'))
-import type { CreateAgentSessionDefaults } from '../../types'
-import { EMPTY_SESSION_LIST_ITEM_RECONCILIATION, reconcileSessionListItems } from './sessionListItemSharing'
 
 type SessionsBaseProps = {
   agentSessionsSource: AgentSessionsSource

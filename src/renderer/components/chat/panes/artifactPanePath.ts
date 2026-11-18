@@ -1,4 +1,4 @@
-import type { FileSourceLocation } from '@renderer/types/fileSourceLocation'
+import type { FileLocation } from '@renderer/types/fileLocation'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { joinPath } from '@renderer/utils/path'
 import { isWin } from '@renderer/utils/platform'
@@ -14,9 +14,9 @@ import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/fil
 export const WORKSPACE_ROOT_ID = '__workspace_root__'
 
 interface ArtifactPaneFileSelectionBase {
+  location?: FileLocation
   workspacePath: string
   filePath: string
-  sourceLocation?: FileSourceLocation
 }
 
 interface ArtifactPaneArtifactSelection extends ArtifactPaneFileSelectionBase {

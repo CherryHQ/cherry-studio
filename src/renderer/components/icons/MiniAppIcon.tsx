@@ -1,11 +1,12 @@
 import type { FC } from 'react'
 
 import { getProviderIconAssetMetrics } from '@cherrystudio/ui/icons'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { getMiniAppsLogoRef, useMiniAppLogo } from '@renderer/components/icons/miniAppsLogo'
 import { TAB_ICON_CLI_PREFIX } from '@renderer/utils/tabIcons'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
-import { getIconDisplayConfig, miniAppContainedIcon } from './iconDisplayConfig'
+import { getIconDisplayConfig } from './iconDisplayConfig'
 import { LocalAgentIcon } from './LocalAgentIcon'
 
 interface Props {
@@ -41,23 +42,19 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', artworkSize, size 
     if (!Icon) {
       return (
         <span
-          className={`flex shrink-0 items-center justify-center ${appearance === 'sidebar' ? 'overflow-hidden rounded-full border border-transparent bg-white/90 dark:border-border dark:bg-transparent' : ''}`}
+          className={`flex shrink-0 items-center justify-center ${appearance === 'sidebar' ? 'overflow-hidden rounded-full' : ''}`}
           style={{ width: `${size}px`, height: `${size}px`, userSelect: 'none', ...style }}
         />
       )
     }
     if (appearance === 'sidebar') {
       const displayConfig = getIconDisplayConfig('mini-app', logoRef.meta.id)
-      if (displayConfig?.scale && displayConfig.scale < 1) {
-        return <Icon.Avatar size={size} className="select-none" shape="circle" />
-      }
-
-      const iconScale = app.logo?.toLowerCase() === 'bolt' ? 1.3 : (displayConfig?.scale ?? 1)
+      const iconScale = displayConfig?.scale ?? 1
       const iconSize = size * iconScale
 
       return (
         <span
-          className="flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-transparent bg-white/90 dark:border-border dark:bg-transparent"
+          className="flex shrink-0 items-center justify-center overflow-hidden rounded-full"
           style={{ width: `${size}px`, height: `${size}px`, userSelect: 'none', ...style }}>
           <Icon
             aria-label={app.name || 'MiniApp Icon'}
@@ -74,13 +71,15 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', artworkSize, size 
           ? getProviderIconAssetMetrics({ kind: logoRef.kind, iconId: logoRef.meta.id })
           : undefined
       const iconSize =
-        metrics && artworkSize !== undefined
-          ? artworkSize * (displayConfig && displayConfig.scale < 1 ? 1 : metrics.canvasScale)
-          : size * (displayConfig?.scale ?? 1)
+        metrics && artworkSize !== undefined ? artworkSize * metrics.canvasScale : size * (displayConfig?.scale ?? 1)
 
       return (
         <span
-          className="flex shrink-0 items-center justify-center"
+          className={cn(
+            'flex shrink-0 items-center justify-center',
+            appearance === 'plain' &&
+              '[--icon-neutral-background:var(--muted)] dark:[--icon-neutral-background:initial]'
+          )}
           style={{
             width: `${size}px`,
             height: `${size}px`,
@@ -88,7 +87,6 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', artworkSize, size 
             ...style
           }}>
           <Icon
-            {...(displayConfig?.viewBox ? { viewBox: displayConfig.viewBox } : {})}
             aria-label={app.name || 'MiniApp Icon'}
             className="select-none"
             style={{
@@ -103,7 +101,7 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', artworkSize, size 
       )
     }
 
-    return <Icon.Avatar size={size} className="border border-border select-none" shape="rounded" />
+    return <Icon.Avatar size={size} className="select-none" shape="rounded" />
   }
 
   if (src) {
@@ -139,18 +137,15 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', artworkSize, size 
       )
     }
 
-    const imageDisplayConfig = appearance === 'plain' ? miniAppContainedIcon : undefined
-    const imageSize = size * (imageDisplayConfig?.scale ?? 1)
-
     return (
       <img
         src={src}
-        className={appearance === 'plain' ? 'select-none' : 'rounded-2xl border border-border select-none'}
+        className={
+          appearance === 'plain' ? 'shrink-0 object-cover select-none' : 'rounded-2xl border border-border select-none'
+        }
         style={{
-          width: `${imageSize}px`,
-          height: `${imageSize}px`,
-          borderRadius:
-            imageDisplayConfig?.borderRadius === undefined ? undefined : `${imageDisplayConfig.borderRadius}px`,
+          width: `${size}px`,
+          height: `${size}px`,
           backgroundColor: app.background,
           userSelect: 'none',
           ...style

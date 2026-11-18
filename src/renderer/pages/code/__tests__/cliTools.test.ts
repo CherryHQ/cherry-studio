@@ -92,6 +92,24 @@ describe('GATEWAY_CAPABLE_CLI_TOOLS', () => {
   })
 })
 
+describe('Antigravity provider support', () => {
+  it('matches Gemini-compatible providers and offers the Unified Gateway', () => {
+    const providers = [
+      {
+        id: 'gemini',
+        endpointConfigs: { 'google-generate-content': { baseUrl: 'https://google.example' } }
+      },
+      { id: 'aihubmix', endpointConfigs: {} },
+      { id: 'anthropic', endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example' } } }
+    ] as unknown as Provider[]
+
+    const antigravityIds = CLI_TOOL_PROVIDER_MAP[CodeCli.ANTIGRAVITY_CLI](providers).map((provider) => provider.id)
+
+    expect(antigravityIds).toEqual(['gemini', 'aihubmix'])
+    expect(GATEWAY_CAPABLE_CLI_TOOLS.has(CodeCli.ANTIGRAVITY_CLI)).toBe(true)
+  })
+})
+
 describe('DeepSeek Harness provider support', () => {
   const provider = (partial: Record<string, unknown>): Provider =>
     ({

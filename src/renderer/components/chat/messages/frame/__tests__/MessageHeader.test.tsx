@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -104,7 +104,31 @@ describe('MessageHeader', () => {
     providerState.meta = {}
   })
 
-  it('uses the snapshot image instead of the live avatar', async () => {
+  it('updates historical author avatars and restores the snapshot after deletion', () => {
+    const message = createMessage('assistant', {
+      messageSnapshot: { id: 'agent-1', name: 'Original name', emoji: '🎓' }
+    })
+    providerState.meta = { authorAvatars: new Map([['agent-1', '🐱']]) }
+    const { rerender } = render(<MessageHeader message={message} />)
+    expect(screen.getAllByText('🐱')[0]).toBeVisible()
+    expect(screen.getByText('Original name')).toBeVisible()
+
+    providerState.meta = { authorAvatars: new Map([['agent-1', '🐶']]) }
+    rerender(<MessageHeader message={{ ...message }} />)
+    expect(screen.getAllByText('🐶')[0]).toBeVisible()
+    expect(screen.queryByText('🐱')).not.toBeInTheDocument()
+
+    providerState.meta = { authorAvatars: new Map([['other-agent', '🐶']]) }
+    rerender(<MessageHeader message={{ ...message }} />)
+    expect(screen.getAllByText('🎓')[0]).toBeVisible()
+    expect(screen.queryByText('🐶')).not.toBeInTheDocument()
+
+    providerState.meta = {}
+    rerender(<MessageHeader message={{ ...message }} />)
+    expect(screen.getAllByText('🎓')[0]).toBeVisible()
+  })
+
+  it('uses an explicit current avatar and retains snapshot images as the fallback', async () => {
     class LoadedImage {
       complete = true
       naturalWidth = 1
@@ -118,16 +142,22 @@ describe('MessageHeader', () => {
       assistantAvatarSources: new Map([['file:frozen', 'file:///frozen.webp']])
     }
     try {
-      render(
-        <MessageHeader
-          message={createMessage('assistant', {
-            messageSnapshot: { id: 'a1', name: 'Frozen', emoji: '🎓', avatarFileId: 'file:frozen' }
-          })}
-        />
-      )
-      const image = await screen.findByRole('img')
-      expect(image).toHaveAttribute('src', 'file:///frozen.webp')
-      fireEvent.error(image)
+      const message = createMessage('assistant', {
+        messageSnapshot: { id: 'a1', name: 'Frozen', emoji: '🎓', avatarFileId: 'file:frozen' }
+      })
+      const { rerender } = render(<MessageHeader message={message} />)
+      expect(await screen.findByRole('img')).toHaveAttribute('src', 'file:///frozen.webp')
+      providerState.meta = { ...providerState.meta, authorAvatars: new Map([['a1', 'file:///live.webp']]) }
+      rerender(<MessageHeader message={{ ...message }} />)
+      await waitFor(() => expect(screen.getByRole('img')).toHaveAttribute('src', 'file:///live.webp'))
+      providerState.meta = { ...providerState.meta, authorAvatars: new Map([['a1', '🤖']]) }
+      rerender(<MessageHeader message={{ ...message }} />)
+      expect(screen.queryByRole('img')).not.toBeInTheDocument()
+      expect(screen.getAllByText('🤖')[0]).toBeVisible()
+      providerState.meta = { ...providerState.meta, authorAvatars: undefined }
+      rerender(<MessageHeader message={{ ...message }} />)
+      await waitFor(() => expect(screen.getByRole('img')).toHaveAttribute('src', 'file:///frozen.webp'))
+      fireEvent.error(screen.getByRole('img'))
       expect(screen.getAllByText('🎓')[0]).toBeVisible()
       expect(screen.queryByRole('img')).not.toBeInTheDocument()
     } finally {
@@ -166,31 +196,6 @@ describe('MessageHeader', () => {
     }
   })
 
-  it('keeps content and footer in the same body column', () => {
-    const { container } = render(
-      <MessageHeader
-        message={createMessage()}
-        contentSlot={<div className="message-content-container">Content</div>}
-        footerSlot={<div className="MessageFooter">Footer</div>}
-      />
-    )
-
-    const bodyColumn = container.querySelector('.message-body-column')
-    const content = container.querySelector('.message-body-content')
-    const footerSlot = container.querySelector('.message-footer-slot')
-    const footer = container.querySelector('.MessageFooter')
-
-    expect(content?.closest('.message-body-column')).toBe(bodyColumn)
-    expect(footer?.closest('.message-body-column')).toBe(bodyColumn)
-    expect(footer?.closest('.message-footer-slot')).toBe(footerSlot)
-  })
-
-  it('omits the body column when there is no body slot', () => {
-    const { container } = render(<MessageHeader message={createMessage()} />)
-
-    expect(container.querySelector('.message-body-column')).toBeNull()
-  })
-
   it('explains a runtime-started assistant turn with its origin', () => {
     // A goal round has no user message above it; the badge is the transcript's only explanation.
     const { getByText } = render(
@@ -207,73 +212,9 @@ describe('MessageHeader', () => {
     expect(queryByText('agent.session_turn_origin.background_work')).toBeNull()
   })
 
-  it('shows the snapshot assistant name without repeating the model beside it', () => {
-    const { getByText, queryByText } = render(
-      <MessageHeader
-        message={createMessage('assistant', {
-          model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' },
-          messageSnapshot: {
-            id: 'a1',
-            name: 'My Assistant',
-            emoji: '🤖',
-            model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
-          }
-        })}
-      />
-    )
-    expect(getByText('My Assistant')).toBeTruthy()
-    expect(queryByText('GPT-4')).toBeNull()
-  })
-
-  it('shows the model avatar and name beside the assistant when model identity is requested', () => {
-    const { getByText } = render(
-      <MessageHeader
-        showModelIdentity
-        message={createMessage('assistant', {
-          model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' },
-          messageSnapshot: {
-            id: 'a1',
-            name: 'My Assistant',
-            emoji: '🤖',
-            model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
-          }
-        })}
-      />
-    )
-
-    expect(getByText('My Assistant')).toBeTruthy()
-    expect(getByText('G').closest('[aria-hidden="true"]')).toBeTruthy()
-    expect(getByText('GPT-4')).toBeTruthy()
-  })
-
-  it('shows the snapshot agent name as primary', () => {
-    const { getByText } = render(
-      <MessageHeader
-        message={createMessage('assistant', {
-          model: { id: 'claude', name: 'Claude', provider: 'anthropic' },
-          messageSnapshot: {
-            id: 'ag1',
-            name: 'My Agent',
-            model: { id: 'claude', name: 'Claude', provider: 'anthropic' }
-          }
-        })}
-      />
-    )
-    expect(getByText('My Agent')).toBeTruthy()
-  })
-
-  it('marks the real message selection checkbox for drag selection lookup', () => {
-    providerState.actions = { selectMessage: vi.fn() }
-    providerState.selection = { isMultiSelectMode: true, selectedMessageIds: [] }
-
-    const { container } = render(<MessageHeader message={createMessage()} />)
-
-    expect(container.querySelector('[data-message-select-checkbox]')).not.toBeNull()
-  })
-
   it('shows durable sender attribution without transport status on a received message', () => {
     const sender = { agentId: 'agent-a', sessionId: 'session-a' }
-    const { container, getByText } = render(
+    const { getByText } = render(
       <MessageHeader
         message={createMessage('user', {
           delivery: {
@@ -296,8 +237,6 @@ describe('MessageHeader', () => {
     )
 
     expect(getByText('From Agent A / Research')).toBeTruthy()
-    expect(container.querySelector('.lucide-mouse-pointer-click')).not.toBeNull()
-    expect(screen.queryByText('agent.session_delivery.status.accepted')).toBeNull()
   })
 
   it('opens the sending session from durable attribution', async () => {

@@ -5,6 +5,7 @@ import type { DoctorState } from '@shared/types/doctor'
 import type { DoctorAgentState } from '@shared/types/doctorAgent'
 import type { AbsoluteFilePath, FileType } from '@shared/types/file'
 import type { McpTool } from '@shared/types/mcp'
+import type { MarketplaceSkill } from '@shared/types/skillMarketplace'
 
 import type { AgentSessionApiRetryState } from '../../ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks, AgentSessionTaskEvents } from '../../ai/agentSessionBackgroundTasks'
@@ -32,6 +33,8 @@ export type CacheAppUpdateState = {
 }
 
 export type CacheActiveSearches = Record<string, WebSearchStatus>
+
+export type CacheMarketplaceSkillCatalog = MarketplaceSkill[] | null
 
 // For cache schema, we use any for complex types to avoid circular dependencies
 // The actual type checking will be done at runtime by the cache system

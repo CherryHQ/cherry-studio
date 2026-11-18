@@ -94,6 +94,32 @@ describe('application-local dictation shortcuts', () => {
     screen.getByRole('textbox', { name: 'Dictation input' }).focus()
   }
 
+  it('leaves hold and toggle keys unconsumed while Off and restores shortcuts on On', () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', 'off')
+    const view = render(<Host />)
+    screen.getByRole('textbox', { name: 'Dictation input' }).focus()
+    const holdEvent = new KeyboardEvent('keydown', { code: 'AltLeft', altKey: true, cancelable: true })
+    fireEvent(window, holdEvent)
+    void act(() => vi.advanceTimersByTime(300))
+    const toggleEvent = new KeyboardEvent('keydown', {
+      code: 'ControlLeft',
+      ctrlKey: true,
+      altKey: true,
+      cancelable: true
+    })
+    fireEvent(window, toggleEvent)
+    expect(holdEvent.defaultPrevented).toBe(false)
+    expect(toggleEvent.defaultPrevented).toBe(false)
+    expect(start).not.toHaveBeenCalled()
+    up('ControlLeft')
+    up('AltLeft')
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.recognition.model_id', '')
+    view.rerender(<Host />)
+    down('AltLeft')
+    void act(() => vi.advanceTimersByTime(300))
+    expect(start).toHaveBeenCalledOnce()
+  })
+
   it('keeps Alt release-to-stop after an intercepted Control release', () => {
     mount()
     fireEvent.keyDown(window, { code: 'ControlLeft', key: 'Control', ctrlKey: true })

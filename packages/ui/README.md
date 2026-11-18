@@ -240,6 +240,14 @@ preset uses the same renderer for Streamdown.
 
 ### Icon Generation
 
+Provider and Model logos are full-canvas tiles. Source SVGs own each brand's artwork scale and negative space;
+callers size the complete tile without adding another inset or enlarging its canvas. Neutral light backgrounds
+use `var(--icon-neutral-background, #FFFFFF)` so a host can provide a presentation surface without recoloring the
+mark. Fixed brand backgrounds remain part of the artwork. Mini-app launchpad tiles set this component-local
+variable to `--muted` in light mode and reset it in dark mode, preserving the icon's existing dark treatment.
+Monochrome marks use theme-specific foregrounds and backgrounds; fixed brand-color artwork retains its original
+palette. Generic action glyphs remain separate.
+
 Use the package command for all icon generation so ESLint fixes and the repository formatter run after the generated files are updated.
 
 In this command, `--type=icons` means general UI icons that are not Provider or Model logos.
@@ -422,3 +430,25 @@ Delay for imperative Dialog hosts before unmounting: 200 ms.
 ## License
 
 MIT
+
+## ScrollArea spacing contract
+
+`ScrollArea.className` owns the scroll region's dimensions and boundary. `viewportProps` owns
+scroll events, focus, and viewport behavior. Neither carries content padding; put that spacing
+in `contentProps.className`. The scrollbar stays anchored to the root, independently of the
+content inset. Internal scrollbar track spacing is part of the primitive and remains unchanged.
+
+```tsx
+<ScrollArea
+  className="max-h-60"
+  viewportProps={{ className: 'overflow-x-hidden', tabIndex: 0 }}
+  contentProps={{ className: 'pl-5 pr-3' }}>
+  {children}
+</ScrollArea>
+```
+
+An ancestor with padding still insets the whole scroll region. For edge-aligned nested lists,
+keep the group full width, pad its heading and content separately, and reserve a separate lane
+for the outer scrollbar when both tracks can be visible. Preserve native scroll chaining.
+The `cherry-scroll-area/no-container-padding` Oxlint rule checks explicit consumer padding;
+it cannot decide whether an ancestor's inset is intentional or verify rendered geometry.

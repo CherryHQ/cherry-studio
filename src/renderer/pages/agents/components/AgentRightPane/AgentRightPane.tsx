@@ -88,11 +88,11 @@ import { agentBrowserRuntimeService } from '@renderer/services/AgentBrowserRunti
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
-import type { FileSourceLocation } from '@renderer/types/fileSourceLocation'
+import type { FileLocation } from '@renderer/types/fileLocation'
 import type { ComposerFileReference } from '@renderer/types/selectionReference'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { resolveInlineFilePath } from '@renderer/utils/filePath'
+import { expandHomeRelativePath } from '@renderer/utils/filePath'
 import { getFilePreviewExtension } from '@renderer/utils/filePreview'
 import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { cn } from '@renderer/utils/style'
@@ -264,8 +264,8 @@ interface AgentRightPaneActions {
   canOpenArtifactFile: boolean
   canPreviewInputFileInRightPane: boolean
   openAgentToolFlow: (input: AgentToolFlowOpenInput, nested?: boolean) => void
-  openArtifactFile: (path: string, sourceLocation?: FileSourceLocation) => void
-  openFileFromPreview: (path: string) => void
+  openArtifactFile: (path: string, location?: FileLocation) => void
+  openFileFromPreview: (path: string, location?: FileLocation) => void
   previewInputFileInRightPane: (input: MessageInputFilePreview) => void
   openBrowserUrl?: (url: string) => void
   openExternalUrl: (url: string) => void
@@ -462,15 +462,14 @@ function AgentRightPaneActionsProvider({
     [canOpenAgentToolFlow, panelActions, replaceFlowTab]
   )
   const openArtifactFileTarget = useCallback(
-    (path: string, fromPreview: boolean, sourceLocation?: FileSourceLocation) => {
+    (path: string, fromPreview: boolean, location?: FileLocation) => {
       if (!canOpenArtifactFile) return
       const requestId = artifactOpenRequestRef.current + 1
       artifactOpenRequestRef.current = requestId
-      const resolved = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
-      const selection: ArtifactPaneFileSelection | null =
-        resolved && sourceLocation ? { ...resolved, sourceLocation, previewType: 'file', readOnly: true } : resolved
-      const htmlUrl = selection ? toBrowsableHtmlUrl(getArtifactPaneSelectionPath(selection)) : null
-      if (htmlUrl && !sourceLocation) {
+      const resolved = resolveArtifactPaneFileSelection(workspacePath, expandHomeRelativePath(path))
+      const selection = resolved && location ? { ...resolved, location: { ...location } } : resolved
+      const htmlUrl = selection && !location ? toBrowsableHtmlUrl(getArtifactPaneSelectionPath(selection)) : null
+      if (htmlUrl) {
         openBrowserUrl(htmlUrl)
         panelActions.tryOpen(BROWSER_PANE_ID, { userInitiated: true })
         return
@@ -514,11 +513,11 @@ function AgentRightPaneActionsProvider({
     [artifactOpenRequestRef, canOpenArtifactFile, panelActions, openBrowserUrl, requestFileSelection, t, workspacePath]
   )
   const openArtifactFile = useCallback(
-    (path: string, sourceLocation?: FileSourceLocation) => openArtifactFileTarget(path, false, sourceLocation),
+    (path: string, location?: FileLocation) => openArtifactFileTarget(path, false, location),
     [openArtifactFileTarget]
   )
   const openFileFromPreview = useCallback(
-    (path: string) => openArtifactFileTarget(path, true),
+    (path: string, location?: FileLocation) => openArtifactFileTarget(path, true, location),
     [openArtifactFileTarget]
   )
   const setSelectedFile = useCallback(
@@ -531,7 +530,7 @@ function AgentRightPaneActionsProvider({
   const activateFileTab = useCallback(
     (tab: ArtifactPaneFileSelection) => {
       invalidatePreviewRequests()
-      requestFileSelection(tab, clearReturnTarget)
+      requestFileSelection({ ...tab, location: undefined }, clearReturnTarget)
     },
     [clearReturnTarget, invalidatePreviewRequests, requestFileSelection]
   )
@@ -724,7 +723,16 @@ function AgentRightPaneStateProvider({
         return
       }
       explicitBrowserBaselineRef.current = null
-      if (browserUrl !== url) setBrowserUrlState({ sessionId, url, profile: WebviewSecurityProfile.AgentDevPreview })
+      if (browserUrl !== url) {
+        if (sessionId)
+          agentBrowserRuntimeService.openPage(sessionId, url, WebviewSecurityProfile.AgentDevPreview, {
+            previewKey: new URL(url).origin,
+            activate:
+              !agentBrowserRuntimeService.get(sessionId) ||
+              agentBrowserRuntimeService.get(sessionId)?.url === 'about:blank'
+          })
+        setBrowserUrlState({ sessionId, url, profile: WebviewSecurityProfile.AgentDevPreview })
+      }
     },
     [browserUrl, messages, partsByMessageId, sessionId]
   )
@@ -745,6 +753,7 @@ function AgentRightPaneStateProvider({
         waitingForHistory: isMessageHistoryLoading && !frontier,
         url
       }
+      if (sessionId) agentBrowserRuntimeService.openPage(sessionId, url)
       setBrowserUrlState({
         sessionId,
         url,
@@ -816,7 +825,6 @@ function AgentRightPaneStateProvider({
     (selection, onAccepted, closeActive = !selection) => {
       if (!closeActive && isSameFileSelection(previewFileSelection, selection)) {
         setPreviewFileSelection(selection)
-        setFileTabs((tabs) => tabs.map((tab) => (selection && isSameFileSelection(tab, selection) ? selection : tab)))
         onAccepted?.()
         return
       }
@@ -830,7 +838,7 @@ function AgentRightPaneStateProvider({
           next = nextTabs[Math.min(activeIndex, nextTabs.length - 1)] ?? null
         }
       } else if (next && !nextTabs.some((tab) => isSameFileSelection(tab, next))) {
-        nextTabs = nextTabs.toSpliced(activeIndex + 1, 0, next)
+        nextTabs = nextTabs.toSpliced(activeIndex + 1, 0, { ...next, location: undefined })
       }
       showFileTabs(nextTabs, next)
       onAccepted?.()
@@ -849,12 +857,15 @@ function AgentRightPaneStateProvider({
         applyFileSelection(selection, onAccepted, closeActive)
         return
       }
+      const requestId = artifactOpenRequestRef.current
       setPendingLeave({
         fileName: getPathBasename(previewFileSelection.filePath),
-        proceed: () => applyFileSelection(selection, onAccepted, closeActive)
+        proceed: () => {
+          if (artifactOpenRequestRef.current === requestId) applyFileSelection(selection, onAccepted, closeActive)
+        }
       })
     },
-    [applyFileSelection, autoSave, fileSession.isDirty, previewFileSelection]
+    [applyFileSelection, artifactOpenRequestRef, autoSave, fileSession.isDirty, previewFileSelection]
   )
   const closeInactiveFileTab = useCallback((tab: ArtifactPaneFileSelection) => {
     setFileTabs((tabs) => tabs.filter((candidate) => !isSameFileSelection(candidate, tab)))
@@ -880,8 +891,9 @@ function AgentRightPaneStateProvider({
     previousSessionIdRef.current = sessionId
     if (!sessionChanged) return
     const kept = fileTabs.filter((tab) => tab.previewType !== 'file')
-    if (kept.length === fileTabs.length) return
-    showFileTabs(kept, previewFileSelection?.previewType === 'file' ? (kept[0] ?? null) : previewFileSelection)
+    const next = previewFileSelection?.previewType === 'file' ? (kept[0] ?? null) : previewFileSelection
+    if (kept.length === fileTabs.length && !next?.location) return
+    showFileTabs(kept, next ? { ...next, location: undefined } : null)
   }, [fileTabs, previewFileSelection, sessionId, showFileTabs])
 
   const requestFileEditMode = useCallback((mode: AgentFileEditorMode) => {
@@ -1178,6 +1190,7 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
 const ANNOTATION_TOKEN_LABEL_MAX = 32
 
 function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
+  const panelActions = useRightPanelActions()
   const runtime = useAgentRightPaneRuntime()
   const { acceptDetectedBrowserUrl } = runtime
   const sessionId = scope.meta.sessionId
@@ -1225,11 +1238,11 @@ function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<Agen
       initialUrl={runtime.browserUrl ?? undefined}
       securityProfile={runtime.browserProfile}
       sessionId={sessionId}
-      onNavigate={runtime.openBrowserUrl}
       target={target}
       isHostActive={active}
       onAnnotationSaved={handleAnnotationSaved}
       toolbarActions={<RightPanelHeaderControls canMaximize />}
+      onEmpty={panelActions.close}
     />
   )
 }
@@ -1523,19 +1536,14 @@ function useAgentRightPaneStatus(active = true): AgentRightPaneStatus {
 
 export function AgentTaskProgressCapsule() {
   const { t } = useTranslation()
-  const runtime = useAgentRightPaneRuntime()
   const status = useAgentRightPaneStatus()
 
-  if (status.totalTaskCount === 0 || status.completedTaskCount === status.totalTaskCount) return null
-
-  const hasActiveAssistantRun = runtime.messages.some(
-    (message) => message.role === 'assistant' && message.metadata?.status === 'pending'
-  )
+  if (!status.isTaskPlanActive || status.totalTaskCount === 0 || status.completedTaskCount === status.totalTaskCount) {
+    return null
+  }
   const explicitActiveTaskIndex = status.tasks.findIndex((task) => task.status === 'in_progress')
   const inferredActiveTaskIndex =
-    hasActiveAssistantRun && explicitActiveTaskIndex < 0
-      ? status.tasks.findIndex((task) => task.status === 'pending')
-      : -1
+    explicitActiveTaskIndex < 0 ? status.tasks.findIndex((task) => task.status === 'pending') : -1
   const currentTaskIndex =
     explicitActiveTaskIndex >= 0
       ? explicitActiveTaskIndex

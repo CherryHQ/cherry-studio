@@ -260,9 +260,12 @@ Agent connections may additionally bind `agentSessionId` in this in-memory scope
 request headers cannot override that binding or attribute an unbound scoped key.
 The runtime host resolves the active assistant message at request start. The
 internal listener accepts only those keys, sent in a header, and the public
-listener accepts only the user's key. Cherry Cloud models are served only to
-internal requests; which Cloud models a feature may use is decided where the
-model is chosen, not here. Gateway requests run without Cherry's retries or
+listener accepts only the user's key. Enabled CherryAI subscription chat models
+are listed and served by the public gateway as `cherryai-subscription:<apiModelId>`,
+including in Code Mate's gateway model picker. Requests use the signed-in CherryAI
+account and its subscription quota; the provider refreshes model entitlements
+before sending, and the server enforces quota. Internal consumers still apply
+their feature-specific model selection rules. Gateway requests run without Cherry's retries or
 fallback models, so a request is served only by the model it named.
 
 Internal Anthropic requests prefer Anthropic Messages when the model declares
@@ -581,7 +584,14 @@ such as the pairing body's `413`, are preserved through Elysia's `ParseError` wr
 Provider/runtime errors in `transformAnthropicError`, `transformOpenAiError`, and
 `transformGoogleError` use numeric `status`, then numeric `statusCode`, and prefer
 structured `error.message` over `message`. An existing status preserves the selected
-provider message. Without a status, `TimeoutError` or an exact message of
+provider message. A sanitized 400 classified as context overflow prefixes that message with
+`context_length_exceeded` in HTTP and SSE errors so native clients can recognize it even
+when the original evidence was a structured code or lay beyond the message limit.
+OpenAI-format errors also carry `context_length_exceeded` as their error code.
+Without a status, `AI_InvalidArgumentError` maps to 400 with a bounded, redacted message
+(or `Invalid request parameters` when no safe message remains). A standalone
+`AI_TypeValidationError` does not establish a request error: it can describe an invalid
+upstream response. Otherwise, `TimeoutError` or an exact message of
 `Upstream idle timeout exceeded`, `Stream idle timeout exceeded`, or
 `Idle timeout exceeded` maps to 504 with `Upstream request timed out`; otherwise
 `AbortError`, `ResponseAborted`, or string code `ABORT_ERR` maps to 504 with
@@ -592,10 +602,22 @@ and their SSE error frames: the AI SDK can create an `APICallError` with
 `statusCode: response.status` when an upstream 2xx body is unusable, and returning
 that 2xx would make clients parse the error as a successful response.
 An already committed SSE response remains HTTP 200 and can report the normalized
-server-error classification only in its terminal error frame.
+error classification only in its terminal error frame.
 Unmatched statusless errors remain 500 with
 internal messages shown only in development. JSON responses and terminal SSE error
 frames exclude AI-SDK stack, URL, and request/response diagnostic extras.
+
+For authenticated internal runtime requests, the prompt stream also passes its original
+provider exception to the gateway without putting it in persisted or renderer-facing error
+state. The existing endpoint error handlers retain provider response details while shaping
+the error into the requested dialect and preserving its HTTP status. Request IDs and rate-limit
+headers are forwarded from an allowlist; request bodies and credential headers are not.
+For an internal Anthropic request, a classified context-overflow 400 also gains a
+`Prompt is too long:` prefix so Claude Code can recognize it; the provider message and
+structured error fields remain in the response.
+After HTTP 200 is committed, provider details go in the dialect error event instead of
+changing the response status or headers. Runtime SDKs may normalize that response further.
+Public gateway clients continue to receive the sanitized errors above.
 
 ## Key invariants
 

@@ -90,7 +90,7 @@
 
 | Document | Description |
 |----------|-------------|
-| [Chat Reference](./references/chat/README.md) | Current chat-domain map covering shared renderer modules, page-owned adapters, rich clipboard, and the message tree |
+| [Chat Reference](./references/chat/README.md) | Current chat-domain map covering shared renderer modules, page-owned adapters, rich clipboard, the message tree, and ordinary-chat context handling |
 | [Composer Rich Clipboard](./references/chat/composer-rich-clipboard.md) | Private clipboard format that preserves composer tokens across copy/paste between message surfaces and the composer |
 | [Message Tree](./references/chat/message-tree.md) | Message-tree model for topic chat: adjacency list, virtual root, sibling groups, invariants, delete semantics |
 
@@ -137,7 +137,7 @@
 | [Preference System Overview](./references/data/preference-overview.md) | Preference architecture - generated key schema, SQLite ownership, BootConfig routing, renderer cache, and cross-window sync |
 | [Preference Schema Guide](./references/data/preference-schema-guide.md) | How to add Preference keys through the data-classify generator without editing generated schemas |
 | [Preference Usage Guide](./references/data/preference-usage.md) | Current usePreference, useMultiplePreferences, and direct PreferenceService APIs |
-| [Migration V2 (Main Process)](./references/data/v2-migration-guide.md) | One-shot v1-to-v2 migration engine - upgrade gate, migrator contracts, data source readers, status tracking |
+| [Upgrading v1 Data](./references/data/v2-migration-guide.md) | Upgrade old profiles through a fixed migration-capable release before starting the current application |
 
 ### Diagnostics
 
@@ -155,6 +155,7 @@
 | [File Editing Sessions](./references/file/file-editing.md) | Independent file editing drafts, conditional persistence, revalidation, and retained draft recovery |
 | [File Entry Cleanup](./references/file/file-entry-cleanup.md) | Scan-based cleanup of unreferenced file entries using the per-entry cleanup policy |
 | [FileManager Architecture](./references/file/file-manager-architecture.md) | Current FileManager storage, lifecycle, atomic-write, watcher, dangling-cache, and orphan-cleanup behavior |
+| [File Observation](./references/file/file-observation.md) | Native file observation ownership, invalidation subscriptions, directory leases, and renderer recovery |
 | [Fuzzy Search for Directory Listings](./references/file/fuzzy-search.md) | Current list and fuzzy-search behavior for the legacy directory-listing IPC methods |
 | [Upload Integrity](./references/file/upload-integrity.md) | Implementation plan for native mobile SHA-256, verified upload completion, and restart-safe integrity checks |
 

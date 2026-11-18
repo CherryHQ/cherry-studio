@@ -69,6 +69,8 @@ describe('MessageTokenDetailsCard cost', () => {
     expect(row).toHaveTextContent(formatWith('USD', 0.0123))
     expect(row).toHaveTextContent('Billed by provider')
     expect(row).not.toHaveTextContent('Estimated')
+
+    // Mixed-size source and amount text must share a visual center in the cost row.
   })
 
   it('renders the persisted currency instead of assuming USD', () => {

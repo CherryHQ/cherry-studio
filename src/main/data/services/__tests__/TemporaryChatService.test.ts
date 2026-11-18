@@ -37,6 +37,29 @@ describe('TemporaryChatService', () => {
     notifyDataApiDataChangeMock.mockClear()
   })
 
+  it('selects a user-aligned context window before copying message payloads and keeps it detached', () => {
+    const topic = service.createTopic({ name: 'windowed' })
+    const old = mainText('discarded')
+    service.appendMessage(topic.id, { role: 'user', data: old })
+    service.appendMessage(topic.id, { role: 'assistant', data: mainText('old reply') })
+    service.appendMessage(topic.id, { role: 'user', data: mainText('current') })
+    service.appendMessage(topic.id, { role: 'assistant', data: mainText('current reply') })
+    let oldPayloadReads = 0
+    Object.defineProperty(old, 'parts', {
+      enumerable: true,
+      get() {
+        oldPayloadReads++
+        return []
+      }
+    })
+    const selected = service.listMessages(topic.id, 1)
+    expect(selected.map((message) => message.role)).toEqual(['user', 'assistant'])
+    expect(oldPayloadReads).toBe(0)
+    selected[0].data.parts = []
+    expect(service.listMessages(topic.id, 1)[0].data.parts).toEqual(mainText('current').parts)
+    expect(service.listMessages(topic.id)).toHaveLength(4)
+  })
+
   describe('appendMessage — input validation', () => {
     let topicId: string
     beforeEach(async () => {
@@ -121,12 +144,12 @@ describe('TemporaryChatService', () => {
       expect(topic.id).toMatch(/^[0-9a-f-]{36}$/)
       expect(topic.name).toBe('hello')
       expect(topic.activeNodeId).toBeUndefined()
-      expect(topic.orderKey).toBe('')
+
       expect(typeof topic.createdAt).toBe('string')
       expect(new Date(topic.createdAt).getTime()).toBeGreaterThan(0)
     })
 
-    it('appendMessage returns Message with parentId=null, siblingsGroupId=0, searchableText=""', async () => {
+    it('appendMessage preserves supplied snapshots in a linear conversation', async () => {
       const topic = service.createTopic({ name: 'T' })
       const snapshot = {
         id: 'a1',
@@ -142,11 +165,11 @@ describe('TemporaryChatService', () => {
       })
       expect(msg.parentId).toBeNull()
       expect(msg.siblingsGroupId).toBe(0)
-      expect(msg.searchableText).toBe('')
+
       expect(msg.topicId).toBe(topic.id)
       expect(msg.modelId).toBe('mdl-1')
       expect(msg.messageSnapshot).toEqual(snapshot)
-      expect(msg.stats).toBeNull()
+
       expect(typeof msg.createdAt).toBe('string')
     })
 

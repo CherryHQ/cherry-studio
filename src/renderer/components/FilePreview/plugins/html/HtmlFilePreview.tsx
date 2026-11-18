@@ -19,7 +19,6 @@ import { toSafeFileUrl } from '@shared/utils/file'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import type { FilePreviewPluginProps } from '../../types'
-import TextFilePreview from '../text/TextFilePreview'
 import { type HtmlFilePreviewMode, HtmlFilePreviewToolbar } from './HtmlFilePreviewToolbar'
 
 const logger = loggerService.withContext('HtmlFilePreview')
@@ -86,13 +85,14 @@ function HtmlPreviewEmpty() {
 }
 
 interface HtmlPreviewContentProps {
+  location?: FilePreviewPluginProps['location']
   loadState: HtmlFileLoadState
   fileName: string
   baseUrl: string
   mode: HtmlFilePreviewMode
 }
 
-function HtmlPreviewContent({ loadState, fileName, baseUrl, mode }: HtmlPreviewContentProps): ReactNode {
+function HtmlPreviewContent({ loadState, fileName, baseUrl, mode, location }: HtmlPreviewContentProps): ReactNode {
   if (loadState.status === 'loading') return <HtmlPreviewLoading />
   if (loadState.status === 'error') return <HtmlPreviewError />
   if (loadState.status === 'too_large') return <HtmlPreviewTooLarge />
@@ -102,6 +102,7 @@ function HtmlPreviewContent({ loadState, fileName, baseUrl, mode }: HtmlPreviewC
       <div className="flex min-h-full w-full">
         <Suspense fallback={<HtmlPreviewLoading />}>
           <FileEditor
+            location={location}
             value={loadState.content}
             fileName={fileName}
             wrapLines
@@ -130,27 +131,26 @@ function HtmlPreviewContent({ loadState, fileName, baseUrl, mode }: HtmlPreviewC
   )
 }
 
-export default function HtmlFilePreview(props: FilePreviewPluginProps) {
-  const { sourceLocation } = props
-  if (sourceLocation && Number.isInteger(sourceLocation.line) && sourceLocation.line > 0) {
-    return <TextFilePreview {...props} />
-  }
-  return <HtmlRenderedPreview {...props} />
-}
-
-function HtmlRenderedPreview({
+export default function HtmlFilePreview({
   filePath,
   fileName,
   metadata,
   metadataRequest,
   refreshKey,
-  type = 'file'
+  type = 'file',
+  location
 }: FilePreviewPluginProps) {
-  const [mode, setMode] = useState<HtmlFilePreviewMode>('preview')
+  const [mode, setMode] = useState<HtmlFilePreviewMode>(location ? 'source' : 'preview')
   const [loadState, setLoadState] = useState<HtmlFileLoadState>({ status: 'loading' })
   const sourceMetadata = metadataRequest ?? metadata.size
   const baseUrl = useMemo(() => toSafeFileUrl(filePath, getFilePreviewExtension(filePath)), [filePath])
-  const effectiveMode = type === 'artifact' ? 'preview' : mode
+  const [previousLocation, setPreviousLocation] = useState(location)
+  if (previousLocation !== location) {
+    setPreviousLocation(location)
+    setMode(location ? 'source' : 'preview')
+  }
+  const effectiveMode = type === 'artifact' ? (location ? 'source' : 'preview') : mode
+  const renderArtifact = type === 'artifact' && !location
   const artifactTarget = useMemo(() => {
     const prefix = 'artifact-file:'
     const pathSuffix = filePath.slice(-(WEBVIEW_ANNOTATION_LIMITS.targetId - prefix.length))
@@ -163,7 +163,7 @@ function HtmlRenderedPreview({
   // Layout cleanup invalidates reads before promise callbacks can beat passive cleanup.
   // Read metadata after ancestor layout setup, including Activity reconnections.
   useLayoutEffect(() => {
-    if (type === 'artifact') return
+    if (renderArtifact) return
     let cancelled = false
     setLoadState((current) => (current.status === 'ready' ? current : { status: 'loading' }))
 
@@ -193,9 +193,9 @@ function HtmlRenderedPreview({
     return () => {
       cancelled = true
     }
-  }, [filePath, sourceMetadata, refreshKey, type])
+  }, [filePath, sourceMetadata, refreshKey, renderArtifact])
 
-  if (type === 'artifact') {
+  if (renderArtifact) {
     return (
       <FilePreviewLayout.Frame>
         <div className="min-h-0 flex-1">
@@ -217,7 +217,13 @@ function HtmlRenderedPreview({
         <HtmlFilePreviewToolbar disabled={loadState.status !== 'ready'} mode={mode} onModeChange={setMode} />
       ) : null}
       <FilePreviewLayout.Content>
-        <HtmlPreviewContent loadState={loadState} fileName={fileName} baseUrl={baseUrl} mode={effectiveMode} />
+        <HtmlPreviewContent
+          location={location}
+          loadState={loadState}
+          fileName={fileName}
+          baseUrl={baseUrl}
+          mode={effectiveMode}
+        />
       </FilePreviewLayout.Content>
     </FilePreviewLayout.Frame>
   )

@@ -1,8 +1,8 @@
-import type { FileSourceLocation } from '@renderer/types/fileSourceLocation'
+import type { FileLocation } from '@renderer/types/fileLocation'
 
 export interface FileOpenActions {
   /** Open a file in the in-app artifact preview pane. */
-  openArtifactFile?: (path: string, sourceLocation?: FileSourceLocation) => void | Promise<void>
+  openArtifactFile?: (path: string, location?: FileLocation) => void | Promise<void>
   /** Open a path in the system file manager (used for directories, or when no preview pane exists). */
   openPath?: (path: string) => void | Promise<void>
   /** Authoritative directory check (fs.stat-backed; resolves false on a missing path). */
@@ -19,18 +19,13 @@ export interface FileOpenActions {
  * the file manager so the link is never a silent dead end. Never rejects — failures
  * invoke `onError`.
  */
-export async function openFileTarget(
-  path: string,
-  actions: FileOpenActions,
-  sourceLocation?: FileSourceLocation
-): Promise<void> {
+export async function openFileTarget(path: string, actions: FileOpenActions, location?: FileLocation): Promise<void> {
   try {
     const directory = actions.isDirectory ? await actions.isDirectory(path) : false
     if (directory || !actions.openArtifactFile) {
       await actions.openPath?.(path)
     } else {
-      if (sourceLocation) await actions.openArtifactFile(path, sourceLocation)
-      else await actions.openArtifactFile(path)
+      await (location ? actions.openArtifactFile(path, location) : actions.openArtifactFile(path))
     }
   } catch {
     actions.onError?.()

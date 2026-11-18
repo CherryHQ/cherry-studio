@@ -71,7 +71,6 @@ describe('cherry-tools CLI tools', () => {
     expect(tools.find((tool) => tool.name === CLI_SEARCH_TOOL_NAME)?.inputSchema.required).toEqual(['query'])
     expect(tools.find((tool) => tool.name === CLI_INSTALL_TOOL_NAME)?.inputSchema.required).toEqual(['name', 'tool'])
   })
-
   it('returns the live BinaryManager inventory on every call', async () => {
     binaryManager.getToolInventory.mockResolvedValue([{ name: 'bun', status: 'ready', version: '1.3.14' }])
     const cli = await connectCli()

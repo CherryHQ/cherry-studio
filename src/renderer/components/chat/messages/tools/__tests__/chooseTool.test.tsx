@@ -1,4 +1,5 @@
 import { act, render } from '@testing-library/react'
+import type * as React from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
@@ -115,5 +116,38 @@ describe('chooseTool', () => {
 
   it('returns null for an unknown non-Cherry tool', async () => {
     expect(await testIdOf(chooseTool(resp('totally_unknown_tool', 'builtin')))).toBeNull()
+  })
+})
+
+describe('tool response classification', () => {
+  it('classifies an AI SDK dynamic image tool as builtin', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolCallId: 'image-call',
+      toolName: 'generate_image',
+      state: 'output-available',
+      input: { prompt: 'a cat' },
+      output: [{ id: 'file-1', name: 'cat.png' }]
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.tool.type).toBe('builtin')
+  })
+
+  it('classifies Pi builtin metadata as provider execution', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolCallId: 'pi-read',
+      toolName: 'read',
+      state: 'output-available',
+      input: { path: '/workspace/file.md' },
+      output: 'content',
+      callProviderMetadata: {
+        cherry: { transport: 'pi-agent', tool: { type: 'builtin', name: 'read' } }
+      }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.tool.type).toBe('provider')
   })
 })

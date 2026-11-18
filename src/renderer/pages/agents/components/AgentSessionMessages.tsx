@@ -105,8 +105,8 @@ const AgentSessionMessages = ({
     () =>
       activeAgent
         ? {
-            name: activeAgent.name,
             id: activeAgent.id,
+            name: activeAgent.name,
             avatarIcon: activeAgent.configuration?.localRuntime ? (
               <LocalAgentIcon presetId={activeAgent.configuration.localRuntime.presetId} size={30} />
             ) : undefined,

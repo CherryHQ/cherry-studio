@@ -21,7 +21,7 @@ export function FilePreviewPage({ filePath }: FilePreviewPageProps) {
       <FilePreview
         filePath={filePath}
         refreshKey={refreshKey}
-        sourceLocation={getFilePreviewSourceLocation(currentTab?.metadata)}
+        location={getFilePreviewSourceLocation(currentTab?.metadata)}
       />
     )
 

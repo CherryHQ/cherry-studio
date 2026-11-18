@@ -559,7 +559,10 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
           </DialogDescription>
         </DialogHeader>
         {props.agentNotice}
-        <ScrollArea viewportProps={{ className: 'p-1 pr-3' }} className="-m-1 max-h-[60vh]">
+        <ScrollArea
+          contentProps={{ className: 'p-1 pr-3' }}
+
+          className="-m-1 max-h-[60vh]">
           <FieldGroup>
             <Field data-invalid={(submitted && !name.trim()) || undefined}>
               <FieldLabel required htmlFor="task-form-name">

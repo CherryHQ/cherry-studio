@@ -79,13 +79,6 @@ describe('buildInitialAgentFormState', () => {
     expect(state.envVarsText).toBe('DEBUG=1\nNODE_ENV=production')
   })
 
-  it('leaves heartbeat off when configuration omits heartbeat keys', () => {
-    const state = buildInitialAgentFormState(createAgent({ configuration: {} }))
-
-    expect(state.heartbeatEnabled).toBe(false)
-    expect(state.heartbeatInterval).toBe(30)
-  })
-
   it('clamps an out-of-range stored heartbeat interval the same way the main process does', () => {
     // A stored 5000 would otherwise render in the form while the main-side
     // sync schedules 1440 — form and schedule must agree.

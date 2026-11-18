@@ -21,7 +21,7 @@ import { getOpenTargetBadge, getOpenTargetLabel, OpenTargetIcon } from '@rendere
 import { useExternalOpenTargets } from '@renderer/hooks/useExternalOpenTargets'
 import { ipcApi } from '@renderer/ipc'
 import { getFileIconName } from '@renderer/utils/fileIconName'
-import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
+import { normalizeInlineFilePath, parseInlineFileTarget } from '@renderer/utils/filePath'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { isMac, isWin } from '@renderer/utils/platform'
@@ -52,10 +52,11 @@ export const ClickableFilePath = memo(function ClickableFilePath({
     () => (preserveWrappingPunctuation ? path : normalizeInlineFilePath(path)),
     [path, preserveWrappingPunctuation]
   )
-  const unresolvedTargetPath = useMemo(
-    () => resolveInlineFilePath(path, { preserveWrappingPunctuation }),
+  const target = useMemo(
+    () => parseInlineFileTarget(path, { preserveWrappingPunctuation }),
     [path, preserveWrappingPunctuation]
   )
+  const unresolvedTargetPath = target.path
   const iconName = useMemo(() => getFileIconName(displayPath), [displayPath])
   const actions = useOptionalMessageListActions()
   const resolvePath = actions?.resolvePath
@@ -65,13 +66,17 @@ export const ClickableFilePath = memo(function ClickableFilePath({
   )
   const openFilePreviewTab = useOptionalOpenFilePreviewTab()
   const sourceLine = line != null && Number.isInteger(line) && line > 0 ? line : undefined
+  const resolvedLocation = useMemo(
+    () => (target.location ? { ...target.location } : sourceLine ? { line: sourceLine } : undefined),
+    [sourceLine, target.location]
+  )
   const openArtifactFile = interactive ? actions?.openArtifactFile : undefined
   const openPath = interactive ? actions?.openPath : undefined
   const isDirectory = interactive ? actions?.isDirectory : undefined
   const notifyError = actions?.notifyError
   const hasAbsoluteTargetPath = AbsoluteFilePathSchema.safeParse(targetPath).success
   const canOpen = Boolean(
-    openArtifactFile || openPath || (interactive && sourceLine && openFilePreviewTab && hasAbsoluteTargetPath)
+    openArtifactFile || openPath || (interactive && resolvedLocation && openFilePreviewTab && hasAbsoluteTargetPath)
   )
   const { isLoading, targets, openTarget } = useExternalOpenTargets(targetPath, 'file', {
     enabled: canOpen && hasAbsoluteTargetPath && actionsMenuOpen
@@ -136,11 +141,10 @@ export const ClickableFilePath = memo(function ClickableFilePath({
       e?.stopPropagation()
       // Each action takes the unresolved path and resolves it itself — the pane and `isDirectory`
       // against the workspace, `openPath` in main. `targetPath` is left for the menu and the toast.
-      const sourceLocation = sourceLine ? { line: sourceLine } : undefined
       const openSourcePreview =
-        sourceLocation && openFilePreviewTab
+        resolvedLocation && openFilePreviewTab
           ? () => {
-              openFilePreviewTab(normalizeFilePreviewPath(targetPath), undefined, sourceLocation)
+              openFilePreviewTab(normalizeFilePreviewPath(targetPath), undefined, resolvedLocation)
             }
           : undefined
       await openFileTarget(
@@ -151,17 +155,17 @@ export const ClickableFilePath = memo(function ClickableFilePath({
           isDirectory,
           onError: () => notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
         },
-        sourceLocation
+        resolvedLocation
       )
     },
     [
       canOpen,
       isDirectory,
-      sourceLine,
       notifyError,
       openArtifactFile,
       openFilePreviewTab,
       openPath,
+      resolvedLocation,
       t,
       targetPath,
       unresolvedTargetPath
@@ -199,7 +203,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({
               style={{ fontSize: '1.1em' }}
             />
             {displayName ?? displayPath}
-            {line != null && <span className="text-muted-foreground">:{line}</span>}
+            {line != null && !target.location && <span className="text-muted-foreground">:{line}</span>}
           </span>
         </ContextMenuTrigger>
       </Tooltip>

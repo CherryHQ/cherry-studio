@@ -243,7 +243,7 @@ describe('ClickableFilePath', () => {
     })
   })
 
-  it('should strip line suffixes before opening', async () => {
+  it('separates line and column from the filesystem path', async () => {
     renderWithProvider(<ClickableFilePath path="src/renderer/src/index.tsx:42:5" />, {
       openArtifactFile: mockOpenArtifactFile
     })
@@ -251,7 +251,7 @@ describe('ClickableFilePath', () => {
     fireEvent.click(screen.getByRole('link', { name: 'src/renderer/src/index.tsx' }))
 
     await waitFor(() => {
-      expect(mockOpenArtifactFile).toHaveBeenCalledWith('src/renderer/src/index.tsx')
+      expect(mockOpenArtifactFile).toHaveBeenCalledWith('src/renderer/src/index.tsx', { line: 42, column: 5 })
     })
   })
 
@@ -265,7 +265,7 @@ describe('ClickableFilePath', () => {
     fireEvent.click(screen.getByRole('link', { name: path }))
 
     await waitFor(() => {
-      expect(mockOpenArtifactFile).toHaveBeenCalledWith('/tmp/report(final)[v2].ts')
+      expect(mockOpenArtifactFile).toHaveBeenCalledWith('/tmp/report(final)[v2].ts', { line: 42, column: 5 })
     })
   })
 

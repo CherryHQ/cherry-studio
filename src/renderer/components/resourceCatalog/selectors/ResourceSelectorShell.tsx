@@ -13,7 +13,7 @@ import {
 } from 'react'
 
 import { ScrollArea } from '@cherrystudio/ui'
-import { Checkbox, EmptyState, type EmptyStatePreset } from '@cherrystudio/ui'
+import { Checkbox, EmptyState } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import {
@@ -57,10 +57,6 @@ export type ResourceSelectorShellLabels = {
   groupFilter?: string
 }
 
-type ResourceSelectorShellEmptyState = {
-  preset: EmptyStatePreset
-}
-
 type ResourceSelectorSection<T extends ResourceSelectorShellItem> = {
   key: string
   header?: ReactNode
@@ -91,8 +87,6 @@ type ResourceSelectorShellSharedProps<T extends ResourceSelectorShellItem> = {
 
   onCreateNew?: () => void
   onEditItem?: (item: T) => void
-
-  emptyState?: ResourceSelectorShellEmptyState
 
   labels: ResourceSelectorShellLabels
 
@@ -316,7 +310,6 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     onOpen,
     onCreateNew,
     onEditItem,
-    emptyState,
     labels,
     loading,
     width,
@@ -696,12 +689,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     : undefined
 
   const listContent = loading ? null : flatItems.length === 0 ? (
-    <EmptyState
-      compact
-      preset={emptyState?.preset ?? 'no-result'}
-      description={labels.emptyText}
-      className="min-h-full px-3 py-4"
-    />
+    <EmptyState compact description={labels.emptyText} className="min-h-full px-3 py-4" />
   ) : (
     sections.map((section, sectionIndex) => {
       if (section.items.length === 0) return null
@@ -778,13 +766,14 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
 
         return (
           <ScrollArea
+            contentProps={{ className: 'px-1 py-1' }}
             viewportProps={{
               ref: listRef,
               id: listboxId,
               role: 'listbox',
               'aria-multiselectable': multiEnabled,
               tabIndex: -1,
-              className: 'scroll-pt-1.5 px-1 py-1 outline-none'
+              className: 'scroll-pt-1.5 outline-none'
             }}
             className="min-h-0 flex-1"
             style={{ height: listHeight }}>
