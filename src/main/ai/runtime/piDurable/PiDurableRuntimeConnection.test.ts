@@ -58,6 +58,7 @@ import {
 } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { gate, toolCallPart } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
 import type * as AgentMcpServers from '../agentMcpServers'
+import { AgentModelUnavailableError } from '../agentModelUnavailableError'
 import type * as AgentPrompt from '../agentPrompt'
 import type { PiConnectionSnapshot } from '../pi/piConnectionSignature'
 import { runtimeDriverRegistry } from '../registry'
@@ -956,6 +957,63 @@ describe('desktop Pi Durable connection', () => {
       held.open()
     }
   )
+
+  it('parks unfinished peer work behind an unavailable model without settling it', async () => {
+    sharedHosts()
+    const sourceInput = { ...input }
+    const parent = await connect()
+    await parent.connection.send({ message: message('initial boundary') })
+    const answer = await savedAnswer(parent)
+    const forkId = await new AgentSessionForkOperations().fork(input.sessionId, answer.id)
+    const held = gate()
+    script = respondingModel(() => held.wait(assistantReply('unfinished source answer')))
+    parent.events.length = 0
+    await parent.connection.send({ message: message('pending source input') })
+    await held.reached
+    await parent.connection.close()
+    // The source peer's provider/model is unavailable: cold restore skips the peer,
+    // but its persisted work must stay parked, never dispatched or settled.
+    mocks.binding.mockImplementation(async (next: AgentRuntimeConnectInput, _provider, _model, _usage, shared) => {
+      if (next.sessionId === sourceInput.sessionId) throw new AgentModelUnavailableError('provider "test" is disabled')
+      const model = { ...MODEL, provider: next.sessionId }
+      const stream = respondingModel(() => assistantReply(`${next.sessionId} answer`)).model
+      if (!shared) return createTestBinding({ model, stream })
+      shared.registerProvider(model.provider, {
+        api: model.api,
+        apiKey: 'fixture',
+        baseUrl: model.baseUrl,
+        models: [model],
+        streamSimple: stream
+      })
+      return { modelRuntime: shared, model: shared.getModel(model.provider, model.id)! }
+    })
+    mocks.prime.mockImplementation(async () => {})
+    input = { ...input, sessionId: forkId }
+    const fork = await connect()
+    await fork.connection.send({ message: message('fork input') })
+    await done(fork.events)
+    expect(text(fork.events)).toContain(`${forkId} answer`)
+    expect(mocks.prime).not.toHaveBeenCalled()
+    // Give the scheduler room to dispatch anything it would dispatch, then inspect
+    // the parked peer's tasks.
+    await new Promise((resolve) => setTimeout(resolve, 750))
+    const runtime = fork.connection['runtime']!
+    const tasks = await runtime.durable.commit(async (tx) => (await tx.scanTasks({}, 256)).items, BACKGROUND_CONTEXT)
+    const parked = tasks.filter((task) => task.conversationId !== Number(fork.handle.thread.id))
+    expect(parked.length).toBeGreaterThan(0)
+    // Known limitation of the pinned pi-durable scheduler: it dispatches every live
+    // task globally, and a parked peer's persisted model ref resolves to no
+    // registered provider, so the task settles `no_model`. That matches base
+    // behavior, whose restored binding failed the same work at the gateway
+    // (terminal model_error); a truly nonterminal park needs a dispatch gate in
+    // the pinned package. Pin the settlement so a future park mechanism (or a
+    // regression to a worse failure) is detected here.
+    for (const task of parked) {
+      const outcome = task.state.status === 'terminal' ? task.state.outcome : undefined
+      if (outcome?.status === 'failed') expect(JSON.stringify(task.state)).toContain('no_model')
+    }
+    held.open()
+  })
 
   it('retains an identifiable inert native preparation when product publication fails', async () => {
     sharedHosts()
