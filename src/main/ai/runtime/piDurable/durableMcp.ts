@@ -64,16 +64,13 @@ export async function createDurableMcp(servers: Record<string, AgentMcpServer>) 
                 if (part.type === 'image') return [{ type: 'image' as const, data: part.data, mimeType: part.mimeType }]
                 return [{ type: 'text' as const, text: JSON.stringify(part) }]
               })
-              return {
-                output: content,
-                isError: result.isError === true,
-                ...(result.structuredContent
-                  ? {
-                      details: result.structuredContent as JsonValue,
-                      ...(tool.outputSchema && { structuredOutput: result.structuredContent as JsonValue })
-                    }
-                  : {})
+              const output = { output: content, isError: result.isError === true }
+              if (result.structuredContent) {
+                Object.assign(output, { details: result.structuredContent as JsonValue })
+                if (tool.outputSchema)
+                  Object.assign(output, { structuredOutput: result.structuredContent as JsonValue })
               }
+              return output
             }
           })
         )

@@ -12,13 +12,11 @@ export function modelOutputToMcpResult(
 /** v1 accepts only objects in structuredContent; its text fallback carries other JSON values. */
 export function mcpLegacyResult(result: CallToolResult) {
   const { structuredContent, ...rest } = result
-  return {
-    ...rest,
-    content: mcpModelContent(result),
-    ...(structuredContent !== null && typeof structuredContent === 'object' && !Array.isArray(structuredContent)
-      ? { structuredContent: structuredContent as Record<string, unknown> }
-      : {})
+  const legacy: CallToolResult = { ...rest, content: mcpModelContent(result) }
+  if (structuredContent !== null && typeof structuredContent === 'object' && !Array.isArray(structuredContent)) {
+    legacy.structuredContent = structuredContent as Record<string, unknown>
   }
+  return legacy
 }
 
 /** Include structured results in model-visible content without repeating a server's JSON text fallback. */

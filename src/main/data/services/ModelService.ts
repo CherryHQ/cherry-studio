@@ -479,12 +479,11 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
 }
 
 function applyStoredModelState(model: Model, row: UserModelRow): Model {
-  return {
-    ...model,
-    hasCustomPricing: row.pricing != null,
-    ...(model.reasoning && row.reasoning?.defaultEffort !== undefined
-      ? { reasoning: { ...model.reasoning, defaultEffort: row.reasoning.defaultEffort } }
-      : {}),
+  const result: Model = { ...model, hasCustomPricing: row.pricing != null }
+  if (model.reasoning && row.reasoning?.defaultEffort !== undefined) {
+    result.reasoning = { ...model.reasoning, defaultEffort: row.reasoning.defaultEffort }
+  }
+  return Object.assign(result, {
     userDefaultReasoningEffort: row.reasoning?.defaultEffort,
     id: createUniqueModelId(row.providerId, row.modelId),
     providerId: row.providerId,
@@ -494,7 +493,7 @@ function applyStoredModelState(model: Model, row: UserModelRow): Model {
     isHidden: row.isHidden,
     isDeprecated: row.isDeprecated,
     notes: row.notes ?? undefined
-  }
+  })
 }
 
 function createPresetFallback(

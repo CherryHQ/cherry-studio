@@ -23,16 +23,14 @@ import { timestampToISO } from './utils/rowMappers'
 const logger = loggerService.withContext('DataApi:ApiGatewayPairedDeviceService')
 
 function rowToApiGatewayPairedDevice(row: ApiGatewayPairedDeviceRow): ApiGatewayPairedDevice {
-  return {
+  const device: Pick<ApiGatewayPairedDevice, 'id' | 'name' | 'platform' | 'remoteAccess'> = {
     id: row.id,
     name: row.name,
-    platform: row.platform,
-    ...(row.peerIdentity
-      ? { remoteAccess: { capabilities: authorizationFor(row).grants.map((grant) => grant.domain) } }
-      : {}),
-    createdAt: timestampToISO(row.createdAt),
-    updatedAt: timestampToISO(row.updatedAt)
+    platform: row.platform
   }
+  if (row.peerIdentity)
+    device.remoteAccess = { capabilities: authorizationFor(row).grants.map((grant) => grant.domain) }
+  return { ...device, createdAt: timestampToISO(row.createdAt), updatedAt: timestampToISO(row.updatedAt) }
 }
 
 function authorizationFor(row: ApiGatewayPairedDeviceRow): RemoteAuthorization {
