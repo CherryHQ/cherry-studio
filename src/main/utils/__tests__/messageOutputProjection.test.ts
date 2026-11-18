@@ -9,7 +9,8 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   DEFER_TOOL_OUTPUT_BYTES,
   projectMessagePartForRenderer,
-  projectStreamChunkForRenderer
+  projectStreamChunkForRenderer,
+  shouldDeferToolOutput
 } from '../messageOutputProjection'
 
 const TOPIC_ID = 'agent-session:session-1'
@@ -258,6 +259,18 @@ describe('message tool-output projection', () => {
       output: unknown
     }
     expect(projected.output).toBe(summarized)
+  })
+
+  // Catches a nesting too deep to walk failing the projection instead of leaving the output in place.
+  it('leaves an output nested too deeply to measure untouched', () => {
+    let deep: unknown = 'x'
+    for (let depth = 0; depth < 100_000; depth++) deep = [deep]
+
+    const projected = projectMessagePartForRenderer(partWith(deep), TOPIC_ID, MESSAGE_ID) as unknown as {
+      output: unknown
+    }
+    expect(projected.output).toBe(deep)
+    expect(shouldDeferToolOutput(deep)).toBe(false)
   })
 
   it('does nothing without a message id to address the result by', () => {

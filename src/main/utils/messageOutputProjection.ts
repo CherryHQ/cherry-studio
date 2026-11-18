@@ -186,8 +186,13 @@ function serializeOversizedToolOutput(output: unknown): string | undefined {
 
 /** Whether a payload exceeds the renderer transport budget. */
 function exceedsToolOutputTransportLimit(output: unknown): boolean {
-  // Decides large payloads without serializing them; only small ones are measured exactly.
-  if (textExceeds(output, DEFER_TOOL_OUTPUT_BYTES)) return true
+  try {
+    // Decides large payloads without serializing them; only small ones are measured exactly.
+    if (textExceeds(output, DEFER_TOOL_OUTPUT_BYTES)) return true
+  } catch {
+    // Nesting too deep to walk is too deep to serialize, so the output stays inline.
+    return false
+  }
   return serializeOversizedToolOutput(output) !== undefined
 }
 
