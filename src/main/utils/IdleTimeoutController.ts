@@ -7,21 +7,18 @@
  * `TimeoutError` DOMException.
  */
 
-/** Timer controls for upstream progress, bounded waits and consumer backpressure. */
+/** Lightweight handle exposing only the reset / cleanup callbacks. */
 export interface IdleTimeoutHandle {
   /** Restart the countdown. Pass `durationMs` to arm a one-off window (e.g. a generous
    *  human-approval wait); omit it to use the controller's configured timeout. */
   reset: (durationMs?: number) => void
   cleanup: () => void
-  pause: () => void
-  resume: () => void
 }
 
 export class IdleTimeoutController {
   private controller: AbortController
   private timerId: ReturnType<typeof setTimeout> | null = null
   private readonly timeoutMs: number
-  private paused = false
 
   constructor(timeoutMs: number) {
     this.timeoutMs = timeoutMs
@@ -37,7 +34,7 @@ export class IdleTimeoutController {
   /** Reset the idle timer. Call this every time new data arrives. Pass `durationMs` to arm a one-off
    *  window (e.g. a generous human-approval wait); omit it to use the configured timeout. */
   reset = (durationMs?: number): void => {
-    if (this.controller.signal.aborted || this.paused) return
+    if (this.controller.signal.aborted) return
     this.clearTimer()
     this.startTimer(durationMs ?? this.timeoutMs)
   }
@@ -45,17 +42,6 @@ export class IdleTimeoutController {
   /** Clean up the timer (e.g. when the stream finishes normally). */
   cleanup = (): void => {
     this.clearTimer()
-  }
-
-  pause = (): void => {
-    this.paused = true
-    this.clearTimer()
-  }
-
-  resume = (): void => {
-    if (!this.paused) return
-    this.paused = false
-    this.reset()
   }
 
   private startTimer(durationMs: number = this.timeoutMs): void {
