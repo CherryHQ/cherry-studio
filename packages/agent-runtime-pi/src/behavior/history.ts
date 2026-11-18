@@ -151,17 +151,19 @@ function projectMessage(id: ItemId, message: ContextMessage, thread: ThreadId): 
       }
       return message.errorMessage === undefined ? reply : { ...reply, error: message.errorMessage }
     }
-    case 'toolResult':
-      return {
+    case 'toolResult': {
+      const result: Extract<HistoryEntry, { kind: 'tool-result' }> = {
         kind: 'tool-result',
         id,
         callId: message.toolCallId,
         callKey: callKeyFor(thread, message.toolCallId),
         tool: message.toolName,
         isError: message.isError,
-        text: textOf(message.content),
-        ...(message.details === undefined ? {} : { details: message.details })
+        text: textOf(message.content)
       }
+      if (message.details !== undefined) Object.assign(result, { details: message.details })
+      return result
+    }
     default:
       return undefined
   }
