@@ -997,19 +997,18 @@ vi.mock('@cherrystudio/ui', async () => {
       React.createElement('div', { ...props, 'data-testid': 'avatar-fallback' }, children),
     EmojiAvatar: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'emoji-avatar' }, children),
-    EmojiIcon: ({ emoji, className, fluid, fontSize, size }) =>
-      React.createElement(
+    EmojiIcon: ({ emoji, className, fluid, fontSize, size }) => {
+      const attributes = { className, 'data-testid': 'emoji-icon' }
+      if (fluid !== undefined) Object.assign(attributes, { 'data-fluid': String(fluid) })
+      if (fontSize !== undefined) Object.assign(attributes, { 'data-font-size': String(fontSize) })
+      if (size !== undefined) Object.assign(attributes, { 'data-size': String(size) })
+      return React.createElement(
         'div',
-        {
-          className,
-          'data-testid': 'emoji-icon',
-          ...(fluid !== undefined ? { 'data-fluid': String(fluid) } : {}),
-          ...(fontSize !== undefined ? { 'data-font-size': String(fontSize) } : {}),
-          ...(size !== undefined ? { 'data-size': String(size) } : {})
-        },
+        attributes,
         React.createElement('span', { 'aria-hidden': 'true', 'data-testid': 'emoji-icon-background' }, emoji || '⭐️'),
         emoji
-      ),
+      )
+    },
     DescriptionSwitch: MockCherrystudioUI.DescriptionSwitch,
     Switch: ({ checked, defaultChecked, onCheckedChange, ...props }) =>
       React.createElement('input', {
