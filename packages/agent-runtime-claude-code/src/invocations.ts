@@ -54,10 +54,13 @@ function mergeInvocationUsage(
 function pendingInvocationFromAssistant(message: SDKAssistantMessage, fallbackModel: string): PendingInvocationUsage {
   const isComplete = message.message.stop_reason != null && message.aborted !== true && message.error === undefined
   const assistantUsage = isComplete ? invocationUsage(message.message.usage) : undefined
-  return {
+  const pending: Omit<PendingInvocationUsage, 'completionObserved' | 'isStreamStopped'> = {
     id: message.message.id,
-    model: resolveSdkInvocationModel(message.message.model, fallbackModel),
-    ...(assistantUsage ? { assistantUsage } : {}),
+    model: resolveSdkInvocationModel(message.message.model, fallbackModel)
+  }
+  if (assistantUsage) pending.assistantUsage = assistantUsage
+  return {
+    ...pending,
     completionObserved: isComplete,
     isStreamStopped: false
   }
@@ -108,14 +111,17 @@ function mergePendingInvocation(current: PendingInvocationUsage, next: PendingIn
   const terminalUsage = mergeInvocationUsage(current.terminalUsage, next.terminalUsage)
   const timing = next.timing ?? current.timing
   const metrics = next.metrics ?? current.metrics
-  return {
+  const pending: Omit<PendingInvocationUsage, 'completionObserved' | 'isStreamStopped'> = {
     id: current.id,
-    model: next.model || current.model,
-    ...(startUsage ? { startUsage } : {}),
-    ...(assistantUsage ? { assistantUsage } : {}),
-    ...(terminalUsage ? { terminalUsage } : {}),
-    ...(timing ? { timing } : {}),
-    ...(metrics ? { metrics } : {}),
+    model: next.model || current.model
+  }
+  if (startUsage) pending.startUsage = startUsage
+  if (assistantUsage) pending.assistantUsage = assistantUsage
+  if (terminalUsage) pending.terminalUsage = terminalUsage
+  if (timing) pending.timing = timing
+  if (metrics) pending.metrics = metrics
+  return {
+    ...pending,
     completionObserved: current.completionObserved || next.completionObserved,
     isStreamStopped: current.isStreamStopped || next.isStreamStopped
   }
@@ -159,14 +165,16 @@ export class ClaudeInvocations {
       if (isSyntheticClaudeModel(sdkMessage.model)) return
       const startUsage = invocationUsage(sdkMessage.usage)
       const ttftMs = finiteNonnegativeDuration(message.ttft_ms)
-      this.captureInvocationForLane(lane, {
+      const pending: Omit<PendingInvocationUsage, 'completionObserved' | 'isStreamStopped'> = {
         id: sdkMessage.id,
-        model: resolveSdkInvocationModel(sdkMessage.model, ''),
-        ...(startUsage ? { startUsage } : {}),
-        timing: {
-          streamStartedAt: performance.now(),
-          ...(ttftMs !== undefined ? { ttftMs } : {})
-        },
+        model: resolveSdkInvocationModel(sdkMessage.model, '')
+      }
+      if (startUsage) pending.startUsage = startUsage
+      const timing: InvocationTiming = { streamStartedAt: performance.now() }
+      if (ttftMs !== undefined) timing.ttftMs = ttftMs
+      pending.timing = timing
+      this.captureInvocationForLane(lane, {
+        ...pending,
         completionObserved: false,
         isStreamStopped: false
       })
@@ -189,12 +197,11 @@ export class ClaudeInvocations {
       const terminalUsage = invocationUsage(message.event.usage)
       const isStreamStopped = message.event.delta.stop_reason !== null
       const finalized = isStreamStopped ? this.finalizeInvocationTiming(current) : current
-      this.pendingInvocations.set(requestId, {
-        ...finalized,
-        ...(terminalUsage ? { terminalUsage } : {}),
-        completionObserved: finalized.completionObserved || isStreamStopped,
-        isStreamStopped: finalized.isStreamStopped || isStreamStopped
-      })
+      const pending = { ...finalized }
+      if (terminalUsage) pending.terminalUsage = terminalUsage
+      pending.completionObserved = finalized.completionObserved || isStreamStopped
+      pending.isStreamStopped = finalized.isStreamStopped || isStreamStopped
+      this.pendingInvocations.set(requestId, pending)
       if (isStreamStopped && (terminalUsage || current.terminalUsage)) this.commitInvocationUsage(requestId)
       return
     }
@@ -227,13 +234,12 @@ export class ClaudeInvocations {
       thinkingDurationMs = Math.max(0, Math.round(performance.now() - thinkingStartedAt))
     }
 
+    const nextTiming = { ...timing }
+    if (thinkingStartedAt !== undefined) nextTiming.thinkingStartedAt = thinkingStartedAt
+    if (thinkingDurationMs !== undefined) nextTiming.thinkingDurationMs = thinkingDurationMs
     return {
       ...pending,
-      timing: {
-        ...timing,
-        ...(thinkingStartedAt !== undefined ? { thinkingStartedAt } : {}),
-        ...(thinkingDurationMs !== undefined ? { thinkingDurationMs } : {})
-      }
+      timing: nextTiming
     }
   }
 
@@ -252,16 +258,14 @@ export class ClaudeInvocations {
       (timing.thinkingStartedAt !== undefined
         ? Math.max(0, Math.round(completedAt - timing.thinkingStartedAt))
         : undefined)
-    const metrics = {
-      ...(timeFirstTokenMs !== undefined ? { timeFirstTokenMs } : {}),
-      ...(timeCompletionMs !== undefined ? { timeCompletionMs } : {}),
-      ...(timeThinkingMs !== undefined ? { timeThinkingMs } : {})
-    }
+    const metrics: NonNullable<ClaudeInvocation['metrics']> = {}
+    if (timeFirstTokenMs !== undefined) metrics.timeFirstTokenMs = timeFirstTokenMs
+    if (timeCompletionMs !== undefined) metrics.timeCompletionMs = timeCompletionMs
+    if (timeThinkingMs !== undefined) metrics.timeThinkingMs = timeThinkingMs
 
-    return {
-      ...pending,
-      ...(Object.keys(metrics).length > 0 ? { metrics } : {})
-    }
+    const finalized = { ...pending }
+    if (Object.keys(metrics).length > 0) finalized.metrics = metrics
+    return finalized
   }
 
   private captureInvocationForLane(lane: string, next: PendingInvocationUsage): void {
@@ -313,12 +317,11 @@ export class ClaudeInvocations {
       mergeInvocationUsage(pending.startUsage, pending.assistantUsage),
       pending.terminalUsage
     )
-    this.emitted.push({
-      responseId: pending.id,
-      ...(pending.model ? { model: pending.model } : {}),
-      ...(usage ? { usage } : {}),
-      ...(pending.metrics ? { metrics: pending.metrics } : {})
-    })
+    const invocation: ClaudeInvocation = { responseId: pending.id }
+    if (pending.model) invocation.model = pending.model
+    if (usage) invocation.usage = usage
+    if (pending.metrics) invocation.metrics = pending.metrics
+    this.emitted.push(invocation)
   }
 
   private invocationLane(parentToolUseId: string | null | undefined): string {

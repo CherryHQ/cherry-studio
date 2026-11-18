@@ -60,6 +60,7 @@ it('merges native usage, preserves unreported counts, accepts zero, and emits ea
       }
     }
   ])
+  expect(completed[0]).not.toHaveProperty('metrics')
   expect(invocations.accept(assistant)).toEqual([])
   expect(invocations.accept(stream({ type: 'message_stop' }))).toEqual([])
   expect(invocations.close()).toEqual([])
@@ -101,7 +102,10 @@ it.each([-1, Number.NaN, Number.POSITIVE_INFINITY])('does not report invalid tok
   const assistant = assistantMessage('session', [])
   assistant.message.usage.output_tokens = outputTokens
   invocations.accept(assistant)
-  expect(invocations.close()).toEqual([{ responseId: assistant.message.id, model: assistant.message.model }])
+  const completed = invocations.close()
+  expect(completed).toEqual([{ responseId: assistant.message.id, model: assistant.message.model }])
+  expect(completed[0]).not.toHaveProperty('usage')
+  expect(completed[0]).not.toHaveProperty('metrics')
 })
 
 it('does not charge an unfinished stream from its initial usage alone', () => {
