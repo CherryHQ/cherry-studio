@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 import { matchesPinyinInitials } from '@renderer/utils/pinyin'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -6,22 +8,24 @@ import { useBundledCatalog } from './useBundledCatalog'
 
 export const ASSISTANT_CATALOG_MY_TAB = '__mine__'
 
-interface AssistantCatalogModel {
-  id?: string
-  provider?: string
-  name?: string
-  group?: string
-}
+const assistantCatalogPresetSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  prompt: z.string().optional(),
+  description: z.string().optional(),
+  emoji: z.string().optional(),
+  group: z.array(z.string()).optional(),
+  defaultModel: z
+    .object({
+      id: z.string().optional(),
+      provider: z.string().optional(),
+      name: z.string().optional(),
+      group: z.string().optional()
+    })
+    .optional()
+})
 
-export interface AssistantCatalogPreset {
-  id: string
-  name: string
-  prompt?: string
-  description?: string
-  emoji?: string
-  group?: string[]
-  defaultModel?: AssistantCatalogModel
-}
+export type AssistantCatalogPreset = z.infer<typeof assistantCatalogPresetSchema>
 
 export interface AssistantCatalogTab {
   id: string
@@ -54,16 +58,14 @@ ORDERED_GROUP_ALIASES.forEach((aliases, index) => {
   aliases.forEach((alias) => orderedGroupRank.set(alias, index))
 })
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Bundled catalog JSON is untyped; decode every exposed preset and model field before search, grouping or assistant creation.
 function normalizePresets(value: unknown): AssistantCatalogPreset[] {
   if (!Array.isArray(value)) return []
 
-  return value.filter((preset): preset is AssistantCatalogPreset => {
-    return Boolean(
-      preset &&
-      typeof preset === 'object' &&
-      typeof (preset as AssistantCatalogPreset).id === 'string' &&
-      typeof (preset as AssistantCatalogPreset).name === 'string'
-    )
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Catalog array entries remain raw values until each complete preset passes its schema.
+  return value.flatMap((preset: unknown) => {
+    const result = assistantCatalogPresetSchema.safeParse(preset)
+    return result.success ? [result.data] : []
   })
 }
 
