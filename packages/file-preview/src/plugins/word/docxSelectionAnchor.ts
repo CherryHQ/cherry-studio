@@ -57,9 +57,11 @@ export function paragraphToDocxAnchor(
   if (!Number.isInteger(paragraph) || paragraph < 0) return null
 
   const paraId = paragraphElement.dataset.paraId
+  const anchor: Extract<DocumentAnchor, { format: 'docx' }> = { format: 'docx', paragraph }
+  if (paraId) Object.assign(anchor, { paraId })
 
   return {
-    anchor: { format: 'docx', paragraph, ...(paraId ? { paraId } : {}) },
+    anchor,
     excerpt: paragraphExcerpt(paragraphElement),
     // The resolved paragraph itself, so the caller marks the element the ordinal came from instead
     // of resolving `closest('p')` a second time and risking a different answer.

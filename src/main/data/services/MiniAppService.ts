@@ -240,10 +240,9 @@ export class MiniAppService {
   update(appId: string, dto: UpdateMiniAppInput): MiniApp {
     const hasStatusUpdate = dto.status !== undefined
     const hasCustomUpdate = customMutableFields.some((field) => hasOwnDefined(dto, field))
-    const modelUpdates = {
-      ...(dto.aiModelId !== undefined ? { aiModelId: dto.aiModelId } : {}),
-      ...(dto.aiQuickModelId !== undefined ? { aiQuickModelId: dto.aiQuickModelId } : {})
-    }
+    const modelUpdates: Pick<UpdateMiniAppInput, 'aiModelId' | 'aiQuickModelId'> = {}
+    if (dto.aiModelId !== undefined) modelUpdates.aiModelId = dto.aiModelId
+    if (dto.aiQuickModelId !== undefined) modelUpdates.aiQuickModelId = dto.aiQuickModelId
     const hasAiModelUpdate = Object.keys(modelUpdates).length > 0
 
     if (!hasStatusUpdate && !hasCustomUpdate && !hasAiModelUpdate) {
