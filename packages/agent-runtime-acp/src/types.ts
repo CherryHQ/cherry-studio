@@ -62,7 +62,7 @@ export interface AcpRuntimeOptions {
   connect(): Promise<AcpTransportLease>
   loadConfiguration?(thread: Thread): Promise<NewSessionRequest>
   readonly callbacks?: AcpHostCallbacks
-  report(error: unknown): void
+  report(cause: unknown): void
 }
 
 export type AcpInputDraft = Omit<InputDraft, 'text'> & { readonly content: readonly ContentBlock[] }

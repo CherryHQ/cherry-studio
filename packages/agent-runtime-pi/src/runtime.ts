@@ -53,7 +53,7 @@ export interface PiRuntimeOptions {
   backendId: BackendId
   /** Load the exact saved context and its configuration; undefined means not found. */
   load?: (ref: Thread) => Promise<PiSessionOptions | undefined>
-  onError?: (error: unknown, context?: PiRuntimeErrorContext) => void
+  onError?: (cause: unknown, context?: PiRuntimeErrorContext) => void
 }
 export type PiSessionOptions = Omit<AgentRuntimeSessionOptions, 'compaction'> & {
   behavior: PiRuntimeBehavior

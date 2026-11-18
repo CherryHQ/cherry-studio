@@ -18,7 +18,7 @@ export class ClaudeFeed {
   private legacy: NonNullable<ClaudeObservation['legacy']> = {}
   private controlState?: ClaudeControlState['snapshot']
 
-  constructor(private readonly report: (error: unknown) => void) {
+  constructor(private readonly report: (cause: unknown) => void) {
     this.state = new ThreadFeed(
       {
         type: 'snapshot',

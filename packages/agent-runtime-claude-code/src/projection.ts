@@ -69,7 +69,7 @@ export class ClaudeProjection {
 
   constructor(
     readonly thread: Thread,
-    report: (error: unknown) => void
+    report: (cause: unknown) => void
   ) {
     this.feed = new ClaudeFeed(report)
   }
