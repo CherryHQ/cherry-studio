@@ -32,7 +32,9 @@ const budgetFrom = (args: JsonValue | undefined): GoalBudget | undefined => {
   const fields = fieldsOf(args)
   const tokens = numberField(fields, 'budget_tokens')
   const usd = numberField(fields, 'budget_usd')
-  const budget = { ...(hasNumber(tokens) ? { tokens } : {}), ...(hasNumber(usd) ? { usd } : {}) }
+  const budget: { -readonly [K in keyof GoalBudget]: GoalBudget[K] } = {}
+  if (hasNumber(tokens)) budget.tokens = tokens
+  if (hasNumber(usd)) budget.usd = usd
   return budget.tokens === undefined && budget.usd === undefined ? undefined : budget
 }
 
@@ -98,11 +100,14 @@ export const decideCreateGoal = (facts: Facts, inputs: CallInputs, call: CallKey
       throw new GoalError('A goal is already set; edit, pause or clear it first.')
     const args = fieldsOf(inputs.args)
     const max = numberField(args, 'max_goal_rounds')
+    const overrides: { -readonly [K in keyof Parameters<typeof createGoal>[3]]: Parameters<typeof createGoal>[3][K] } =
+      {}
+    if (hasNumber(max)) overrides.maxGoalRounds = max
     const goal = createGoal(
       keys.goalFromCall(call),
       stringField(args, 'objective') ?? '',
       inputs.settings.goalDefaults,
-      { ...(hasNumber(max) ? { maxGoalRounds: max } : {}), budget: budgetFrom(inputs.args) },
+      Object.assign(overrides, { budget: budgetFrom(inputs.args) }),
       inputs.now
     )
     const ops = [goalRecord(facts, goal, keys.goalCall(call)), ensureDriver(facts)]
@@ -143,11 +148,10 @@ export const decideUpdateGoal = (facts: Facts, inputs: CallInputs, call: CallKey
       case 'edit': {
         requireHumanTurn(facts, 'edit')
         if (!extras) throw new GoalError('edit needs an objective, max_goal_rounds, budget_tokens or budget_usd')
-        const patch = {
-          ...(hasText(objective) ? { objective } : {}),
-          ...(hasNumber(max) ? { maxGoalRounds: max } : {}),
-          budget
-        }
+        const patch: { -readonly [K in keyof Parameters<typeof editGoal>[1]]: Parameters<typeof editGoal>[1][K] } = {}
+        if (hasText(objective)) patch.objective = objective
+        if (hasNumber(max)) patch.maxGoalRounds = max
+        patch.budget = budget
         return write(editGoal(goal, patch, inputs.settings.goalDefaults.maxGoalRoundsCeiling, inputs.now, usage))
       }
       case 'pause':
