@@ -60,11 +60,11 @@ export function initSentry(): void {
             : runtime === 'ai-sdk'
               ? dependencies.ai
               : undefined
-      return sanitizeSentryEvent({
-        ...filtered,
-        tags: { ...filtered.tags, ...(runtimeVersion ? { 'runtime.version': runtimeVersion } : {}) },
-        user: { ...filtered.user, id: getClientId() }
-      })
+      const report = { ...filtered }
+      report.tags = { ...filtered.tags }
+      if (runtimeVersion) report.tags['runtime.version'] = runtimeVersion
+      report.user = { ...filtered.user, id: getClientId() }
+      return sanitizeSentryEvent(report)
     },
     defaultIntegrations: false,
     integrations: allowedIntegrations(),
