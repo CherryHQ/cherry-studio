@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { Button, type RenderRowArgs } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { CommandContextMenu, type CommandContextMenuExtraItem, type MaybePromise } from '@renderer/components/command'
-import { getFileIconName } from '@renderer/utils/fileIconName'
+import { FileIcon } from '@renderer/components/icons/FileIcon'
 
 import type { FileTreeAnimationSlot, FileTreeNode, FileTreeRenameSlot } from './types'
 
@@ -72,12 +72,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
     return fileIcon ? (
       fileIcon(node)
     ) : (
-      <Icon
-        icon={`${MATERIAL_ICON_PREFIX}${getFileIconName(node.name)}`}
-        className="shrink-0"
-        width={ICON_SIZE_PX}
-        height={ICON_SIZE_PX}
-      />
+      <FileIcon path={node.name} className="shrink-0" width={ICON_SIZE_PX} height={ICON_SIZE_PX} />
     )
   }
 
