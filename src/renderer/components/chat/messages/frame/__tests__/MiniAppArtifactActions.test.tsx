@@ -96,6 +96,7 @@ describe('MiniAppArtifactActions (AC7/AC8)', () => {
   it('installs through the consent flow, then offers the Launchpad decision (AC8)', async () => {
     request.mockResolvedValueOnce(installPreview) // request_install
     request.mockResolvedValueOnce({}) // install.confirm
+    request.mockResolvedValueOnce(false) // launchpad_answered: not answered yet
     render(<MiniAppArtifactActions handle={HANDLE} topicId="topic-9" />)
 
     await userEvent.click(screen.getByRole('button', { name: /install to mini apps/i }))
@@ -118,16 +119,37 @@ describe('MiniAppArtifactActions (AC7/AC8)', () => {
     )
   })
 
-  it('reads back an answered Launchpad prompt: dismissed apps are not asked again (AC8)', async () => {
+  it('reads back an answered Launchpad prompt: pinned or dismissed apps are not asked again (AC8)', async () => {
+    // The pinned half is the regression the review caught: "Add to Launchpad" writes
+    // the app's STATUS, so a reinstall must not re-ask. The read-back route owns the
+    // pinned-or-dismissed contract; here it answers true.
+    request.mockResolvedValueOnce(installPreview)
+    request.mockResolvedValueOnce({})
+    request.mockResolvedValueOnce(true) // launchpad_answered: pinned
+    render(<MiniAppArtifactActions handle={HANDLE} topicId="topic-9" />)
+
+    await userEvent.click(screen.getByRole('button', { name: /install to mini apps/i }))
+    await userEvent.click(await screen.findByRole('button', { name: 'confirm-install' }))
+
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith('mini_app.authoring.launchpad_answered', {
+        appId: 'com.example.cardapp'
+      })
+    )
+    await waitFor(() => expect(screen.queryByText(/add to launchpad\?/i)).toBeNull())
+  })
+
+  it('falls back to the dismissed list when the read-back fails', async () => {
     dismissedApps.current = ['com.example.cardapp']
     request.mockResolvedValueOnce(installPreview)
     request.mockResolvedValueOnce({})
+    request.mockRejectedValueOnce(new Error('route gone')) // launchpad_answered
     render(<MiniAppArtifactActions handle={HANDLE} topicId="topic-9" />)
 
     await userEvent.click(screen.getByRole('button', { name: /install to mini apps/i }))
     await userEvent.click(await screen.findByRole('button', { name: 'confirm-install' }))
 
     await waitFor(() => expect(request).toHaveBeenCalledWith('mini_app.install.confirm', expect.anything()))
-    expect(screen.queryByText(/add to launchpad\?/i)).toBeNull()
+    await waitFor(() => expect(screen.queryByText(/add to launchpad\?/i)).toBeNull())
   })
 })

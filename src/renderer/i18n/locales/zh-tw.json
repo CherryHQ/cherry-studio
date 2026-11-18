@@ -2762,6 +2762,7 @@
   "miniApp.add.agent_draft_placeholder": "Describe the mini app you want, for example: a pomodoro timer with a daily log",
   "miniApp.add.agent_open_skills": "Open skills settings",
   "miniApp.add.agent_skill_missing": "The cherry-miniapp skill is not installed. Import it from a ZIP file or GitHub in the skills settings, then return here.",
+  "miniApp.add.agent_skill_missing_scope": "沒有該技能時，此主機僅提供產生和打包功能。預覽、真實執行階段測試、安裝和發佈都需要安裝該技能。",
   "miniApp.add.agent_start": "Start",
   "miniApp.add.agent_start_error": "Could not start the authoring session",
   "miniApp.add.app_description": "安裝授權後可以呼叫本機能力",

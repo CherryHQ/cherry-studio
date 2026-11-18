@@ -23,6 +23,7 @@ import {
 } from '@main/features/miniApp/management'
 import {
   expectSessionArtifact,
+  isLaunchpadAnswered,
   resolveArtifactHandle,
   withLaunchpadDismissal
 } from '@main/features/miniApp/preview/authoringRequests'
@@ -110,6 +111,14 @@ export const miniAppHandlers: IpcHandlersFor<typeof miniAppRequestSchemas> = {
     const realPath = await resolveArtifactHandle(handle)
     await expectSessionArtifact(sessionId, realPath)
     return previewFileForInstall(realPath, ctx.senderId)
+  },
+  'mini_app.authoring.launchpad_answered': async ({ appId }) => {
+    const preferences = application.get('PreferenceService')
+    return isLaunchpadAnswered(
+      miniAppService.getByAppId(appId).status,
+      preferences.get('feature.mini_app.launchpad_prompt_dismissed'),
+      appId
+    )
   },
   'mini_app.authoring.set_launchpad': async ({ appId, action }) => {
     if (action === 'pin') {

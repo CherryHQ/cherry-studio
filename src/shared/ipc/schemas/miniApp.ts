@@ -292,6 +292,16 @@ export const miniAppRequestSchemas = {
   'mini_app.authoring.set_launchpad': defineRoute({
     input: z.object({ appId: MiniAppIdSchema, action: z.enum(['pin', 'dismiss']) }),
     output: z.void()
+  }),
+  /**
+   * The post-install read-back for that prompt: pinned OR dismissed means answered.
+   * The status half matters on reinstall and upgrade — pinning sets the status, not
+   * the dismissed list, so checking only the list re-asks a question the user
+   * already answered with "Add to Launchpad".
+   */
+  'mini_app.authoring.launchpad_answered': defineRoute({
+    input: z.object({ appId: MiniAppIdSchema }),
+    output: z.boolean()
   })
 }
 
