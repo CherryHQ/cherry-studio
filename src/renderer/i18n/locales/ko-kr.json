@@ -5198,6 +5198,8 @@
   "settings.messages.navigation.none": "없음",
   "settings.messages.scroll_to_bottom_on_send.hint": "메시지를 보낸 후 최신 메시지로 자동 스크롤합니다.",
   "settings.messages.scroll_to_bottom_on_send.label": "전송 시 최신 메시지로 스크롤",
+  "settings.messages.show_citation_markers.hint": "지식 베이스나 웹 검색을 사용한 답변에 인라인 출처 마커를 표시합니다. 출처는 메시지 아래에 계속 나열되며, 숨기면 복사할 때 마커가 생략됩니다.",
+  "settings.messages.show_citation_markers.label": "출처 마커 표시",
   "settings.messages.show_message_outline": "메시지 개요 표시",
   "settings.messages.title": "메시지 설정",
   "settings.messages.use_serif_font": "세리프 글꼴 사용",
