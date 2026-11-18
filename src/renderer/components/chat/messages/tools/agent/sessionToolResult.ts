@@ -72,6 +72,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool responses arrive as direct objects, JSON strings or MCP text-content envelopes; decode text and require an object before receipt validation.
 function parseJsonResult(value: unknown): Record<string, unknown> | undefined {
   const text =
     isRecord(value) && Array.isArray(value.content)
@@ -91,6 +92,7 @@ function parseJsonResult(value: unknown): Record<string, unknown> | undefined {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- session_create output comes from tool-response transport; validate success, session ID and nested delivery strings before creating a card.
 export function parseSessionCreateResult(value: unknown): SessionCreateResult | undefined {
   const candidate = parseJsonResult(value)
   if (!candidate || candidate.ok !== true || typeof candidate.sessionId !== 'string') return undefined
@@ -132,6 +134,7 @@ export function getSessionCreateTargetAgentName(result: SessionCreateResult | un
   return result?.delivery?.receiverSnapshot?.agentName?.trim() || undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- session_send output comes from tool-response transport; validate success and nested receiver/snapshot strings before creating a navigation target.
 export function parseSessionSendResult(value: unknown): SessionSendResult | undefined {
   const candidate = parseJsonResult(value)
   if (!candidate || candidate.ok !== true) return undefined
@@ -169,17 +172,30 @@ export interface SessionSearchResultSession {
   sessionName: string
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- session_search output may be JSON or an MCP envelope; validate session entries and optional agent names before rendering openable cards.
 export function parseSessionSearchResult(value: unknown): SessionSearchResultSession[] {
   const candidate = parseJsonResult(value)
   if (!candidate || !Array.isArray(candidate.sessions)) return []
 
-  return candidate.sessions.filter(
-    (session): session is SessionSearchResultSession =>
-      isRecord(session) &&
-      typeof session.sessionId === 'string' &&
-      session.isCurrent !== true &&
-      typeof session.sessionName === 'string'
-  )
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Search arrays can contain malformed entries; validate every field used by navigation before constructing a target.
+  return candidate.sessions.flatMap((session: unknown): SessionSearchResultSession[] => {
+    if (
+      !isRecord(session) ||
+      typeof session.sessionId !== 'string' ||
+      session.isCurrent === true ||
+      typeof session.sessionName !== 'string'
+    ) {
+      return []
+    }
+    return [
+      {
+        sessionId: session.sessionId,
+        sessionName: session.sessionName,
+        isCurrent: false,
+        agentName: typeof session.agentName === 'string' ? session.agentName : undefined
+      }
+    ]
+  })
 }
 
 export interface SessionReadResult {
@@ -187,6 +203,7 @@ export interface SessionReadResult {
   sessionId: string
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- session_read output may be JSON or an MCP envelope; require a session ID and an addressable agent/topic source before navigation.
 export function parseSessionReadResult(value: unknown): SessionReadResult | undefined {
   const candidate = parseJsonResult(value)
   if (!candidate || typeof candidate.sessionId !== 'string') return undefined
