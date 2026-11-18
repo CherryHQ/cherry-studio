@@ -76,6 +76,12 @@ const PaintingPage: FC = () => {
     return fallback ? { ...painting, model: String(fallback) } : painting
   }, [cachedGeneration, currentPainting, liveGenerationState, modelCatalog.currentModelOptions])
 
+  const outputModel = useMemo(() => {
+    if (currentPainting.files.length === 0) return undefined
+    const receipt = history.items.find((item) => item.id === currentPainting.id) ?? currentPainting
+    return receipt.model ? { providerId: receipt.providerId, model: receipt.model } : undefined
+  }, [currentPainting, history.items])
+
   const {
     generating,
     submitting,
@@ -236,7 +242,7 @@ const PaintingPage: FC = () => {
                         onRemove={batch.remove}
                       />
                     ) : (
-                      <Artboard painting={composerPainting} isLoading={generating} />
+                      <Artboard painting={composerPainting} isLoading={generating} outputModel={outputModel} />
                     ))}
                 </div>
                 {showTemplateShowcase && (
@@ -257,7 +263,7 @@ const PaintingPage: FC = () => {
                             onSelect={(prompt) => patchPainting({ prompt })}
                           />
                         ) : (
-                          <Artboard painting={composerPainting} isLoading={false} />
+                          <Artboard painting={composerPainting} isLoading={false} outputModel={outputModel} />
                         )}
 
                         <p className="mt-[clamp(4px,2cqh,10px)] max-w-lg shrink-0 px-4 pb-1 text-center text-xs leading-5 text-muted-foreground">

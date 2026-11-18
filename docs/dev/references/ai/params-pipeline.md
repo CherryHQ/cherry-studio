@@ -1,6 +1,7 @@
 ---
 description: buildAgentParams and the RequestFeature model composing plugins, tools, hooks, and provider quirks per request
 sources:
+  - src/main/ai/utils/modelParameters.ts
   - src/main/ai/runtime/aiSdk/params/buildAgentParams.ts
   - src/main/ai/runtime/aiSdk/params/feature.ts
   - src/main/ai/runtime/aiSdk/params/features/internalFeatures.ts
@@ -181,13 +182,16 @@ they are not contributed by a `RequestFeature`. Assistant `temperature`
 and `topP` values are capability-filtered, then custom standard params
 override them, and per-call overrides apply last. After service tier, per-call
 and Fast Mode options, and the output limit have been resolved,
-`stripRejectedSamplingParams` applies the resolved model's temperature/topP
-support and existing family policies to all three parameter surfaces:
+`stripUnsupportedModelParams` applies the resolved model's temperature/topP
+support, frequency/presence penalty support, and existing family policies to all three parameter surfaces:
 
 - Top-level standard parameters.
 - Direct fields in each `providerOptions` namespace.
 - Top-level body-passthrough parameters, including the wire alias `top_p`.
 
+Declared temperature/topP ranges clamp finite numeric values after all overrides,
+including the `top_p` body alias. Unsupported penalty fields are removed in both
+camelCase and snake_case; Gemini 3/4 omit penalties even without registry metadata.
 The filter does not mutate its inputs or traverse arbitrary nested custom data.
 Assistant enable flags, reasoning-aware limits, and mutual-exclusion rules stay
 in `getTemperature` / `getTopP`; this final step enforces sampling omission

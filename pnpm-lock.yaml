@@ -906,9 +906,6 @@ importers:
       '@types/use-sync-external-store':
         specifier: ^0.0.6
         version: 0.0.6
-      '@types/uuid':
-        specifier: ^10.0.0
-        version: 10.0.0
       '@types/which':
         specifier: 3.0.4
         version: 3.0.4
@@ -1975,6 +1972,12 @@ importers:
 
   packages/file-preview:
     dependencies:
+      katex:
+        specifier: 0.16.22
+        version: 0.16.22
+      yaml:
+        specifier: 2.8.2
+        version: 2.8.2
       zod:
         specifier: ^4.1.5
         version: 4.4.3
@@ -8674,9 +8677,6 @@ packages:
 
   '@types/use-sync-external-store@0.0.6':
     resolution: {integrity: sha512-zFDAD+tlpf2r4asuHEj0XH6pY6i0g5NeAHPn+15wk3BV6JA69eERFXC1gyGThDkVa1zCyKr5jox1+2LbV/AMLg==}
-
-  '@types/uuid@10.0.0':
-    resolution: {integrity: sha512-7gqG38EyHgyP1S+7+xomFtL+ZNHcKv6DwNaCZmJmo1vgMugyF3TCnXVg4t1uk89mLNwnLtnY3TpOpCOyp1/xHQ==}
 
   '@types/which@3.0.4':
     resolution: {integrity: sha512-liyfuo/106JdlgSchJzXEQCVArk0CvevqPote8F8HgWgJ3dRCcTHgJIsLDuee0kxk/mhbInzIZk3QWSZJ8R+2w==}
@@ -23176,8 +23176,6 @@ snapshots:
   '@types/unist@3.0.3': {}
 
   '@types/use-sync-external-store@0.0.6': {}
-
-  '@types/uuid@10.0.0': {}
 
   '@types/which@3.0.4': {}
 
