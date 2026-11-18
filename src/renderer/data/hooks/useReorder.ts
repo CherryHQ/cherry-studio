@@ -38,7 +38,10 @@ import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_
 const logger = loggerService.withContext('useReorder')
 
 type ItemList = Array<Record<string, unknown>>
-type CollectionCache = ItemList | { items: ItemList } | Array<{ items: ItemList }>
+type CollectionPage = { items: ItemList }
+type SingleCollectionCache = ItemList | CollectionPage
+type InfiniteCollectionCache = CollectionPage[]
+type CollectionCache = SingleCollectionCache | InfiniteCollectionCache
 export type ReorderRequest = OrderRequest | ({ anchor: OrderRequest } & Record<string, unknown>)
 
 /**
@@ -58,36 +61,42 @@ export type SelectItems<Cache> = (cache: Cache) => ItemList | undefined
  */
 export type UpdateItems<Cache> = (cache: Cache, items: ItemList) => Cache
 
+function isItemList(value: unknown): value is ItemList {
+  if (!Array.isArray(value)) return false
+  const items: unknown[] = value
+  return items.every((item) => item !== null && typeof item === 'object' && !Array.isArray(item))
+}
+
+function isCollectionPage(value: unknown): value is CollectionPage {
+  return (
+    value !== null && typeof value === 'object' && !Array.isArray(value) && 'items' in value && isItemList(value.items)
+  )
+}
+
+function isInfiniteCollectionCache(value: unknown): value is InfiniteCollectionCache {
+  if (!Array.isArray(value)) return false
+  const pages: unknown[] = value
+  return pages.every(isCollectionPage)
+}
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- useReadCache returns an unchecked SWR snapshot; validate record items in an array or items wrapper before optimistic reordering.
 function defaultSelectItems(cache: unknown): ItemList | undefined {
-  if (cache === undefined || cache === null) return undefined
-  if (Array.isArray(cache)) return cache as ItemList
-  if (typeof cache === 'object' && 'items' in cache) {
-    const items = (cache as { items?: unknown }).items
-    if (Array.isArray(items)) return items as ItemList
-  }
-  return undefined
+  if (isItemList(cache)) return cache
+  return isCollectionPage(cache) ? cache.items : undefined
 }
 
-function defaultUpdateItems(cache: unknown, items: ItemList): ItemList | { items: ItemList } {
-  if (Array.isArray(cache)) return items
-  if (cache !== null && typeof cache === 'object') {
-    return { ...cache, items }
-  }
-  // Reached only when the caller bypasses the not-loaded guard with an
-  // accessor-less call on a primitive cache value — fall back to the items
-  // array so downstream writes still make forward progress.
-  return items
+function defaultUpdateItems(cache: SingleCollectionCache, items: ItemList): SingleCollectionCache {
+  return Array.isArray(cache) ? items : { ...cache, items }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Infinite SWR snapshots are unchecked; require the items-object pages produced by useInfiniteQuery before optimistic reordering.
 function selectInfiniteItems(cache: unknown): ItemList | undefined {
-  if (!Array.isArray(cache)) return undefined
-  const lists = cache.map(defaultSelectItems)
-  return lists.every((items) => items !== undefined) ? lists.flat() : undefined
+  return isInfiniteCollectionCache(cache) ? cache.flatMap((page) => page.items) : undefined
 }
 
-function updateInfiniteItems(cache: unknown, items: ItemList): Array<{ items: ItemList }> {
+function updateInfiniteItems(cache: InfiniteCollectionCache, items: ItemList): InfiniteCollectionCache {
   let offset = 0
-  return (cache as Array<{ items: ItemList }>).map((page) => {
+  return cache.map((page) => {
     const nextItems = items.slice(offset, offset + page.items.length)
     offset += page.items.length
     return { ...page, items: nextItems }
@@ -247,7 +256,16 @@ export function useReorder<Cache>(
     throw new Error('useReorder: options.selectItems and options.updateItems must be provided together')
   }
   const selectItems = options?.selectItems ?? (options?.infinite ? selectInfiniteItems : defaultSelectItems)
-  const updateItems = options?.updateItems ?? (options?.infinite ? updateInfiniteItems : defaultUpdateItems)
+  const updateItems = useCallback(
+    (cache: Cache, items: ItemList) => {
+      if (options?.updateItems) return options.updateItems(cache, items)
+      if (options?.infinite) {
+        return isInfiniteCollectionCache(cache) ? updateInfiniteItems(cache, items) : undefined
+      }
+      return isItemList(cache) || isCollectionPage(cache) ? defaultUpdateItems(cache, items) : undefined
+    },
+    [options?.updateItems, options?.infinite]
+  )
 
   const readCache = useReadCache()
   const writeCache = useWriteCache()
@@ -279,7 +297,7 @@ export function useReorder<Cache>(
     } as never
   )
   const writeCurrent = useCallback(
-    async (value: unknown) => {
+    async (value: Cache | CollectionCache) => {
       if (infinite) await writeInfiniteCache(value as never)
       else await writeCache(resolvedCollectionUrl, value, query)
     },
@@ -374,7 +392,7 @@ export function useReorder<Cache>(
       const optimistic = updateItems(current, next)
 
       try {
-        await writeCurrent(optimistic)
+        if (optimistic !== undefined) await writeCurrent(optimistic)
         await patchBatch({ params: mutationParams, body: { moves } } as Parameters<typeof patchBatch>[0])
       } catch (err) {
         logger.warn(`batch reorder failed for ${String(collectionUrl)}, rolling back`, { error: err })

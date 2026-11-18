@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import React from 'react'
 import useSWR, { unstable_serialize } from 'swr'
+import { unstable_serialize as serializeInfinite } from 'swr/infinite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as RendererConstantModule from '@renderer/utils/platform'
@@ -675,6 +676,29 @@ describe('useReorder - custom accessors', () => {
 })
 
 describe('useReorder - query and infinite caches', () => {
+  it.each([
+    { shape: 'flat-array page', pages: [[{ id: 'a' }, { id: 'b' }]] },
+    { shape: 'non-record item', pages: [{ items: [null, { id: 'b' }], nextCursor: null }] }
+  ])('skips a damaged infinite overlay with a $shape while still dispatching the explicit move', async ({ pages }) => {
+    const { Wrapper, cache } = createSWRTestWrapper()
+    const key = serializeInfinite(() => ['/knowledge-bases', { limit: 2 }])
+    cache.set(key, { data: pages })
+    patchMock.mockResolvedValue({})
+    const { result } = renderHook(
+      () => useReorder('/knowledge-bases', { infinite: { limit: 2 }, revalidateOnSuccess: false }),
+      { wrapper: Wrapper }
+    )
+
+    await act(async () => {
+      await result.current.move('b', { position: 'first' })
+    })
+
+    expect(cache.get(key)?.data).toBe(pages)
+    expect(patchMock.mock.calls).toEqual([
+      ['/knowledge-bases/b/order', { body: { position: 'first' }, query: undefined }]
+    ])
+  })
+
   it('updates subscribers of the selected query without changing a sibling collection', async () => {
     const query = { entityType: 'knowledge' } as const
     const initial = [{ id: 'a' }, { id: 'b' }]
