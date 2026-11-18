@@ -278,33 +278,33 @@ function completedDoctorState(
   pendingChecks?: readonly DoctorPendingCheck[]
 ): DoctorState {
   const now = Date.now()
+  const report: Omit<Extract<DoctorState, { status: 'completed' }>['report'], 'summary'> = {
+    schemaVersion: 1,
+    scope: 'global',
+    runId: 'completed-quick',
+    tier: 'quick',
+    selectedCheckIds: results.map((result) => result.id),
+    startedAt: new Date(now - 1_000).toISOString(),
+    finishedAt: new Date(now).toISOString(),
+    expiresAt,
+    basics: {
+      version: '2.0.0',
+      edition: 'global',
+      channel: 'latest',
+      platform: 'darwin',
+      arch: 'arm64',
+      osRelease: '25.0.0',
+      runtime: {},
+      isPackaged: true,
+      isPortable: false,
+      userDataPath: '/Users/local/CherryStudio'
+    },
+    results
+  }
+  if (pendingChecks) Object.assign(report, { pendingChecks })
   return {
     status: 'completed',
-    report: {
-      schemaVersion: 1,
-      scope: 'global',
-      runId: 'completed-quick',
-      tier: 'quick',
-      selectedCheckIds: results.map((result) => result.id),
-      startedAt: new Date(now - 1_000).toISOString(),
-      finishedAt: new Date(now).toISOString(),
-      expiresAt,
-      basics: {
-        version: '2.0.0',
-        edition: 'global',
-        channel: 'latest',
-        platform: 'darwin',
-        arch: 'arm64',
-        osRelease: '25.0.0',
-        runtime: {},
-        isPackaged: true,
-        isPortable: false,
-        userDataPath: '/Users/local/CherryStudio'
-      },
-      results,
-      ...(pendingChecks ? { pendingChecks } : {}),
-      summary: { pass: 0, warn: 0, fail: 0, skip: 0, error: 0 }
-    }
+    report: Object.assign(report, { summary: { pass: 0, warn: 0, fail: 0, skip: 0, error: 0 } })
   }
 }
 

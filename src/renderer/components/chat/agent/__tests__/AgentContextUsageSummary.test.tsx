@@ -89,18 +89,17 @@ describe('AgentContextUsageSummary', () => {
       total: 1,
       page: 1
     })
+    const resource: NonNullable<ThreadContextUsage['resources']>[number] = {
+      id: 'search',
+      category: 'mcp-tools',
+      name: `mcp__${serverId}__search_issues`,
+      count: { tokens: 87, precision: 'estimated' }
+    }
+    if (hasSource) Object.assign(resource, { source: serverId })
     renderSummary({
       usage: {
         ...usage,
-        resources: [
-          {
-            id: 'search',
-            category: 'mcp-tools',
-            name: `mcp__${serverId}__search_issues`,
-            ...(hasSource ? { source: serverId } : {}),
-            count: { tokens: 87, precision: 'estimated' }
-          }
-        ]
+        resources: [resource]
       },
       percentage: 20
     })
