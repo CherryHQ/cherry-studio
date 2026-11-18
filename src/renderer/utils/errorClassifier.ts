@@ -60,12 +60,10 @@ export function getClaudeCodeExitInfo(error?: SerializedError): ClaudeCodeExitIn
   const reference = errorBag?.diagnosticReference
   if (!category || typeof reference !== 'string' || !reference) return undefined
 
-  return {
-    category,
-    reference,
-    ...(typeof errorBag?.processExitCode === 'number' ? { exitCode: errorBag.processExitCode } : {}),
-    ...(typeof errorBag?.processExitSignal === 'string' ? { exitSignal: errorBag.processExitSignal } : {})
-  }
+  const info: ClaudeCodeExitInfo = { category, reference }
+  if (typeof errorBag?.processExitCode === 'number') info.exitCode = errorBag.processExitCode
+  if (typeof errorBag?.processExitSignal === 'string') info.exitSignal = errorBag.processExitSignal
+  return info
 }
 
 /**
