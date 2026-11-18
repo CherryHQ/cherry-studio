@@ -159,7 +159,11 @@ export function saveResult(out: string, result: Result, secrets: string[] = []):
   const redacted: Result = {
     ...result,
     errors: result.errors.map((error) => ({ ...error, message: redact(error.message) })),
-    steps: result.steps.map((step) => ({ ...step, ...(step.detail ? { detail: redact(step.detail) } : {}) })),
+    steps: result.steps.map((step) => {
+      const redactedStep = { ...step }
+      if (step.detail) redactedStep.detail = redact(step.detail)
+      return redactedStep
+    }),
     environment: { ...result.environment, unavailable: result.environment.unavailable.map((reason) => redact(reason)) }
   }
   writeFileSync(join(out, 'results.json.tmp'), `${JSON.stringify(redacted, null, 2)}\n`, { mode: 0o600 })
