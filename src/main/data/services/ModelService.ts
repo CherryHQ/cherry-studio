@@ -852,12 +852,10 @@ class ModelService {
             declaredReasoning: model.capabilities.includes(MODEL_CAPABILITY.REASONING)
           })
         }
-        if (reasoning)
-          updates.reasoning = {
-            ...reasoning,
-            ...(row.reasoning?.defaultEffort !== undefined ? { defaultEffort: row.reasoning.defaultEffort } : {})
-          }
-        else if (model.reasoning) updates.reasoning = undefined
+        if (reasoning) {
+          updates.reasoning = { ...reasoning }
+          if (row.reasoning?.defaultEffort !== undefined) updates.reasoning.defaultEffort = row.reasoning.defaultEffort
+        } else if (model.reasoning) updates.reasoning = undefined
         return Object.keys(updates).length > 0 ? { ...model, ...updates } : model
       } catch (error) {
         // A registry-lookup failure must not silently strip a model's

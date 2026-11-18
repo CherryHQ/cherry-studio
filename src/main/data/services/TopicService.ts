@@ -482,15 +482,15 @@ export class TopicService {
     options: { permanent?: boolean; targetState?: 'active' | 'trashed' } = {}
   ): DeleteTopicsResult {
     const dbService = application.get('DbService')
-    const deletedIds = dbService.withWriteTx((tx) =>
-      options.permanent === true
-        ? this.purgeManyByIdsTx(tx, ids, {
-            requireAll: true,
-            targetState: options.targetState,
-            ...(options.targetState === 'active' ? { protectPinned: true } : {})
-          })
-        : this.trashManyByIdsTx(tx, ids, { requireAll: true })
-    )
+    const deletedIds = dbService.withWriteTx((tx) => {
+      if (options.permanent !== true) return this.trashManyByIdsTx(tx, ids, { requireAll: true })
+      const purgeOptions: NonNullable<Parameters<typeof this.purgeManyByIdsTx>[2]> = {
+        requireAll: true,
+        targetState: options.targetState
+      }
+      if (options.targetState === 'active') purgeOptions.protectPinned = true
+      return this.purgeManyByIdsTx(tx, ids, purgeOptions)
+    })
     this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
     if (deletedIds.length > 0) pinService.notifyPurged()
 

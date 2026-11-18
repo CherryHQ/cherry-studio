@@ -123,9 +123,10 @@ export function commitRetiredAgentSessionMigration(
     delete data.runtimeAnchor
     delete data.nativeSessionId
     const anchor = anchors.get(row.id)
+    if (anchor) data.runtimeAnchor = anchor
     tx.update(agentSessionMessageTable)
       .set({
-        data: { ...data, ...(anchor ? { runtimeAnchor: anchor } : {}) },
+        data,
         status: pendingMessageIds.has(row.id) ? 'pending' : row.status,
         runtimeResumeToken: migration.resumeToken,
         updatedAt: row.updatedAt

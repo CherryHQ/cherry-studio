@@ -1191,15 +1191,21 @@ export class MessageService {
         }
 
         const createdAt = Date.now()
+        const message: Pick<
+          typeof messageTable.$inferInsert,
+          'topicId' | 'parentId' | 'role' | 'data' | 'status' | 'siblingsGroupId'
+        > = {
+          topicId: input.topicId,
+          parentId: resolvedParentId,
+          role: dto.role,
+          data: dto.data,
+          status: dto.status ?? 'pending'
+        }
+        if (dto.siblingsGroupId !== undefined) message.siblingsGroupId = dto.siblingsGroupId
         const [row] = tx
           .insert(messageTable)
           .values({
-            topicId: input.topicId,
-            parentId: resolvedParentId,
-            role: dto.role,
-            data: dto.data,
-            status: dto.status ?? 'pending',
-            ...(dto.siblingsGroupId !== undefined ? { siblingsGroupId: dto.siblingsGroupId } : {}),
+            ...message,
             modelId: dto.modelId,
             messageSnapshot: dto.messageSnapshot,
             createdAt,
@@ -1234,15 +1240,9 @@ export class MessageService {
         }
 
         const activityTimestamp = Date.now()
-        const [updatedRow] = tx
-          .update(messageTable)
-          .set({
-            data: input.userMessage.data,
-            ...(input.userMessage.modelId ? { modelId: input.userMessage.modelId } : {})
-          })
-          .where(eq(messageTable.id, row.id))
-          .returning()
-          .all()
+        const updates: Pick<typeof messageTable.$inferInsert, 'data' | 'modelId'> = { data: input.userMessage.data }
+        if (input.userMessage.modelId) updates.modelId = input.userMessage.modelId
+        const [updatedRow] = tx.update(messageTable).set(updates).where(eq(messageTable.id, row.id)).returning().all()
         replaceChatMessageFileRefsTx(tx, row.id, input.userMessage.data, row.messageSnapshot)
         userMessage = rowToMessage(updatedRow)
         latestActivityAt = activityTimestamp

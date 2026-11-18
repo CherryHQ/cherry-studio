@@ -60,13 +60,16 @@ interface PaintingFileSnapshot {
 export const UPDATE_PAINTING_FIELD_MAP: Array<keyof UpdatePaintingDto> = ['providerId', 'modelId', 'prompt']
 
 function rowToPainting(row: PaintingRow, files: PaintingFiles, fileDataFingerprint?: string): Painting {
-  return {
+  const painting: Pick<Painting, 'id' | 'providerId' | 'modelId' | 'prompt' | 'files' | 'fileDataFingerprint'> = {
     id: row.id,
     providerId: row.providerId,
     modelId: row.modelId,
     prompt: row.prompt,
-    files,
-    ...(fileDataFingerprint ? { fileDataFingerprint } : {}),
+    files
+  }
+  if (fileDataFingerprint) painting.fileDataFingerprint = fileDataFingerprint
+  return {
+    ...painting,
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),
