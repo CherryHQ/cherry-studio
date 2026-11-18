@@ -20,7 +20,7 @@ Pi 和 Pi Durable 在主进程运行，却通过 Cherry 内部 HTTP 网关调用
 
 本提案仅部分取代 harness 边界决策中的内部 HTTP 要求。Pi/Pi Durable 保留原生调度、历史、工具、压缩与恢复。现有 UIMessage 转换、工具参数 JSON 片段、持久化及真实上游网络编解码继续保留。包括 Claude Code 在内的外部客户端继续使用 HTTP。
 
-协议边界还须保留结构化 reasoning 签名、缓存写入和思考 token 拆分，以及明确的最终截断或过滤原因。模型原生引用使用 Pi 的公共来源数据和流事件表达 URL 与文档来源，并在 Pi/Pi Durable 的实时、持久化及重开投影中保留。四种协议适配器映射原生引用字段；不引入 Cherry 私有 metadata codec，不改变工具引用或工具参数增量行为。
+协议边界还须保留结构化 reasoning 签名、缓存写入和思考 token 拆分，以及明确的最终截断或过滤原因。模型原生引用及工具参数增量不在此次补齐范围内。
 
 ## Alternatives considered
 
@@ -41,7 +41,6 @@ Pi 和 Pi Durable 在主进程运行，却通过 Cherry 内部 HTTP 网关调用
 - AC7 — OpenAI 协议保留上游提供的 cache-write 拆分，普通输入、缓存读写及总量不重复计数。（验证：unit — usage 转换与原生消费者测试）
 - AC8 — Anthropic 保留上游提供的 thinking_tokens，正文和签名回放不变。（验证：unit — usage 转换与原生消费者测试）
 - AC9 — 工具调用之后的明确 length/content-filter 结束原因优先于工具存在性；error 和取消保持失败或中止。（验证：unit — 四种协议终态测试）
-- AC10 — URL 与文档来源通过四种协议及 Pi 公共来源契约贯通到 Pi/Pi Durable 的实时、持久化和重开消息，并在客户端展示；工具引用保持有效。（验证：unit — 原生来源与投影测试；Electron — 来源展示与重开验收）
 
 ## Risks
 
