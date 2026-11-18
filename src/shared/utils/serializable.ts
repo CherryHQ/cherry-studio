@@ -9,7 +9,7 @@ import type { Serializable } from '@shared/types/serializable'
 export function isSerializable(value: unknown): value is Serializable {
   const seen = new Set<unknown>()
 
-  function _isSerializable(val: unknown): boolean {
+  function _isSerializable(val: unknown): val is Serializable {
     if (val === null || val === undefined) {
       return val !== undefined
     }
