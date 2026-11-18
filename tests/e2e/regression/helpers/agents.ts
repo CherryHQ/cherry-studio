@@ -7,6 +7,7 @@ import { expect } from '@playwright/test'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { IpcResult } from '@shared/ipc/errors/IpcError'
+import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 
 import {
   type BuiltinAssistantAgent,
@@ -140,15 +141,20 @@ export async function createAgent(
   // The create wizard only offers Pi Durable; seed supported legacy runtimes
   // through the real command before exercising their UI execution and persistence.
   const model = createUniqueModelId(options.providerId, options.model)
-  const created = (await page.evaluate((input) => window.api.ipcApi.request('ai.agent.create', input), {
+  const command: CreateAgentCommand = {
     name: options.name,
-    type: options.runtime === 'Claude Agent' ? ('claude-code' as const) : ('pi' as const),
-    model,
-    ...(options.runtime === 'Claude Agent' ? { planModel: model, smallModel: model } : {}),
-    configuration: {
-      permission_mode: options.permission === 'Full Access' ? ('bypassPermissions' as const) : ('default' as const)
-    }
-  })) as IpcResult<AgentEntity>
+    type: options.runtime === 'Claude Agent' ? 'claude-code' : 'pi',
+    model
+  }
+  if (options.runtime === 'Claude Agent') {
+    command.planModel = model
+    command.smallModel = model
+  }
+  command.configuration = { permission_mode: options.permission === 'Full Access' ? 'bypassPermissions' : 'default' }
+  const created = (await page.evaluate(
+    (input) => window.api.ipcApi.request('ai.agent.create', input),
+    command
+  )) as IpcResult<AgentEntity>
   expect(created.ok, JSON.stringify(created)).toBe(true)
   await page.reload()
   await startNewAgentTask(page, options.name)
