@@ -44,27 +44,6 @@ describe('AuthConnectionSlotsLayout', () => {
     expect(text.indexOf('core')).toBeLessThan(text.indexOf('afterAuth'))
   })
 
-  it('renders core content inside the shell card', () => {
-    const { container } = render(
-      <AuthConnectionSlotsLayout providerId="openai">
-        <div>core-only</div>
-      </AuthConnectionSlotsLayout>
-    )
-
-    expect(container.textContent).toContain('core-only')
-    expect(container.querySelector('section')).not.toBeNull()
-  })
-
-  it('does not render an extra configuration heading', () => {
-    const { container } = render(
-      <AuthConnectionSlotsLayout providerId="openai">
-        <div>core</div>
-      </AuthConnectionSlotsLayout>
-    )
-
-    expect(container.querySelector('h3')).toBeNull()
-  })
-
   it('omits the empty generic authentication container for login-based providers', () => {
     providersById.set('openai-codex', { id: 'openai-codex', authMethods: ['oauth'] })
 

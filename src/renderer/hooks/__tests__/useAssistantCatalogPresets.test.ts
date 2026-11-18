@@ -20,9 +20,7 @@ vi.mock('react-i18next', () => ({
 
 import {
   ASSISTANT_CATALOG_MY_TAB,
-  buildAssistantCatalogTabs,
   filterAssistantCatalogPresets,
-  getAssistantPresetCatalogKey,
   toCreateAssistantDtoFromCatalogPreset,
   useAssistantCatalogPresets
 } from '../useAssistantCatalogPresets'
@@ -65,21 +63,6 @@ describe('assistant catalog presets', () => {
 
     expect(assistantCatalogMocks.read).not.toHaveBeenCalled()
     expect(result.current).toEqual({ error: null, retry: expect.any(Function), isLoading: false, presets: [] })
-  })
-
-  it('keeps my assistants first and orders known system groups before custom groups', () => {
-    const tabs = buildAssistantCatalogTabs(
-      [
-        { id: 'preset-business', name: 'Business helper', group: ['Business'] },
-        { id: 'preset-career', name: 'Career helper', group: ['Career'] },
-        { id: 'preset-custom', name: 'Custom helper', group: ['Custom'] }
-      ],
-      2,
-      'Mine'
-    )
-
-    expect(tabs.map((tab) => tab.id)).toEqual([ASSISTANT_CATALOG_MY_TAB, 'Career', 'Business', 'Custom'])
-    expect(tabs.map((tab) => tab.count)).toEqual([2, 1, 1, 1])
   })
 
   it('filters only the active system group by name or description', () => {
@@ -134,11 +117,5 @@ describe('assistant catalog presets', () => {
       emoji: 'PM',
       modelId: 'openai::gpt-4o'
     })
-  })
-
-  it('uses the preset id as the stable catalog key', () => {
-    expect(getAssistantPresetCatalogKey({ id: '550e8400-e29b-41d4-a716-446655440000' })).toBe(
-      '550e8400-e29b-41d4-a716-446655440000'
-    )
   })
 })

@@ -1,6 +1,6 @@
 # Pi Durable agent runtime
 
-`createPiDurableRuntime` adapts Pi Durable 1.5.0 to the
+`createPiDurableRuntime` adapts Pi Durable 1.5.2 to the
 [agent runtime contracts](../agent-runtime/README.md). It owns one native `Harness`,
 its storage, conversation views, and commit observation. It does not implement
 another scheduler, submission queue, or agent loop. The
@@ -140,10 +140,10 @@ cancelling; child interruption follows its current shared ownership. Opening ins
 model bindings and runs `onOpen` before scheduler resume. Desktop hosts can select owned conversations and rebind root configuration before this recovery. Inherited model context remains visible, while behavior authority and summary charges come only from conversation-owned records. That policy stops interrupted
 background children and disarms goals; ordinary unfinished root tasks can resume.
 
-Compaction captures the behavior history before summarizing. The native dependency patch preserves
-opaque summary metadata on the compaction entry, including the keyed usage record returned by the
-shared lifecycle. Task memos expire at completion and are not the accounting archive. Reopening
-projects each stored summary charge once; a compaction during a child run retains that run's identity.
+Native Durable compaction generates its own summary. Its task captures the history boundary and initiating run;
+each summary request checks that run's request limit. Reported usage is persisted in the same native transaction
+as the response and projected once into goal and child-run accounting, including after restart. The gateway owns
+provider billing independently.
 
 Tool-result gates transform contiguous text spans and retain their positions among images. Native
 structured output, UI details and other result fields survive the transformation.
@@ -204,3 +204,34 @@ child ownership, stop, delivery, approval and reopen; run-metadata tests disting
 same-run steering from late continuation. SQLite tests close and reopen an orderly
 runtime; they do not prove process-kill recovery or exactly-once external side effects.
 Desktop and live-provider acceptance are separate from these package tests.
+
+## Nested tool evidence
+
+Nested calls project onto their owning assistant message using native IDs and parent
+edges. Native session records retain executed arguments, terminal state and bounded
+results independently of the outer script outcome. Archive projection reads those
+records without executing tools. Missing legacy or over-budget payloads remain
+explicitly absent; complete successful built-in artifact declarations can render
+through the same tool mapping as direct calls.
+
+## Detached prompt prediction
+
+`durable.predictPrompt(instruction, signal)` uses the patched native
+`Conversation.createQueryFork()` to snapshot the committed compacted context returned by `contextUsage`.
+The shared pi-ai fork makes one streaming model request without submitting input,
+writing transcript/history, creating tasks or changing goals. It retains the parent
+model, reasoning, session identity and tool declarations, but aborts at the first
+streamed tool call before any tool can execute. Owner shutdown cancels the request.
+
+The pi-ai dependency patch carries `skipCacheWrite` through provider option conversion.
+Anthropic, Anthropic-compatible chat completions and Bedrock retain the parent's
+explicit cache breakpoints and add none for the response/prediction suffix. This is
+not `cacheRetention: 'none'`: cache reads remain enabled. Automatic server-side cache
+writes are provider-controlled; the flag does not promise to disable those writes.
+Continuation state and parent reply usage/budget accounting are not updated by the fork.
+There is no prediction-specific reasoning, timeout or retry override.
+
+Prediction requires at least two assistant messages, a successful latest response,
+and documented uncached/cache-write token gates. The host owns turn-end scheduling,
+focus/Plan/preference gates and source-reply validation; renderer reads consume the
+existing ephemeral result without triggering another query.

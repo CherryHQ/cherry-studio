@@ -151,7 +151,7 @@ describe('useImeAwareDebouncedValue with a real input harness', () => {
 
   it('commits the final DOM text when compositionend precedes the final change event', () => {
     render(<SearchHarness />)
-    const input = screen.getByLabelText('harness search') as HTMLInputElement
+    const input = screen.getByLabelText<HTMLInputElement>('harness search')
 
     fireEvent.compositionStart(input)
     // Romanization intermediates flow through onChange while composing and
@@ -177,7 +177,7 @@ describe('useImeAwareDebouncedValue with a real input harness', () => {
 
   it('syncs the controlled value off the composition intermediate in the same tick', () => {
     render(<SearchHarness />)
-    const input = screen.getByLabelText('harness search') as HTMLInputElement
+    const input = screen.getByLabelText<HTMLInputElement>('harness search')
 
     fireEvent.compositionStart(input)
     fireEvent.change(input, { target: { value: 'ni' } })

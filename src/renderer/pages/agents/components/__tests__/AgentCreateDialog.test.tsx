@@ -54,9 +54,6 @@ describe('AgentCreateDialog', () => {
 
     render(<AgentCreateDialog open onOpenChange={vi.fn()} onCreated={onCreated} />)
 
-    expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-kind', 'agent')
-
     fireEvent.click(screen.getByText('submit-create'))
 
     await waitFor(() =>

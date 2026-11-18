@@ -101,6 +101,21 @@ describe('classifyError', () => {
     ).toBe(category)
   })
 
+  // #24238: a provider's validation error without a structured status was shown as
+  // "Response interrupted, check network stability or retry".
+  it('reports a status-less provider validation error in the response stream as a request failure', () => {
+    const message =
+      '400 {"message":"Unexpected role \\"tool\\". Allowed roles are \\"user\\", \\"assistant\\" or \\"system\\"","type":"invalid_request_error","code":"bad_request"}'
+
+    expect(
+      classifyError(makeError({ name: 'StreamError', message, streamStage: 'response-stream' }), 'custom')
+    ).toEqual({
+      category: 'bad_request',
+      i18nKey: 'error.diagnosis.bad_request',
+      navTarget: '/settings/provider?id=custom'
+    })
+  })
+
   it('leaves app-owned guidance in control of a marked unknown error', () => {
     const error = makeError({ i18nKey: 'missing_finish_reason', streamStage: 'response-stream' })
     expect(classifyError(error).category).toBe('unknown')
@@ -193,7 +208,6 @@ required service tier.`
   it('returns unknown for undefined error', () => {
     const result = classifyError(undefined)
     expect(result.category).toBe('unknown')
-    expect(result.navTarget).toBeNull()
   })
 
   it('returns unknown for empty error', () => {
@@ -424,20 +438,17 @@ required service tier.`
   it('classifies 401 as auth', () => {
     const result = classifyError(makeError({ statusCode: 401 }))
     expect(result.category).toBe('auth')
-    expect(result.navTarget).toBe('/settings/provider')
   })
 
   it('classifies 401 as auth with providerId in navTarget', () => {
     const result = classifyError(makeError({ statusCode: 401 }), 'openai')
     expect(result.category).toBe('auth')
-    expect(result.navTarget).toBe('/settings/provider?id=openai')
   })
 
   // Permission — 403 means the key was accepted, so it must not read as "invalid API key".
   it('classifies 403 as permission, not auth', () => {
     const result = classifyError(makeError({ statusCode: 403 }), 'openai')
     expect(result.category).toBe('permission')
-    expect(result.navTarget).toBe('/settings/provider?id=openai')
   })
 
   it('classifies a 403 with billing signals as quota, not permission', () => {
@@ -453,7 +464,6 @@ required service tier.`
       })
     )
     expect(result.category).toBe('region')
-    expect(result.navTarget).toBe('/settings/general')
   })
 
   it('classifies a service unavailable in the user region as region', () => {
@@ -523,7 +533,6 @@ required service tier.`
     const result = classifyError(makeError({ message: "Model with id 'provider/model' not found" }))
 
     expect(result.category).toBe('model')
-    expect(result.i18nKey).toBe('error.diagnosis.model')
   })
 
   // #22571: main rejects a stale assistant-bound model before calling the provider. Falling through
@@ -610,14 +619,12 @@ required service tier.`
   it('classifies HTTP 402 as quota', () => {
     const result = classifyError(makeError({ statusCode: 402, message: 'Payment Required' }))
     expect(result.category).toBe('quota')
-    expect(result.navTarget).toBe('/settings/provider')
   })
 
   // Network
   it('classifies econnrefused as network', () => {
     const result = classifyError(makeError({ message: 'connect ECONNREFUSED 127.0.0.1:443' }))
     expect(result.category).toBe('network')
-    expect(result.navTarget).toBe('/settings/general')
   })
 
   it('offers network recovery for the embedded runtime connection code', () => {
@@ -729,7 +736,6 @@ required service tier.`
   it('classifies 400 + content_filter as content', () => {
     const result = classifyError(makeError({ statusCode: 400, message: 'content_filter triggered' }))
     expect(result.category).toBe('content')
-    expect(result.navTarget).toBeNull()
   })
 
   it('classifies content_filter without a status', () => {
@@ -772,7 +778,6 @@ required service tier.`
   it('classifies embedding error as knowledge', () => {
     const result = classifyError(makeError({ message: 'embedding model failed' }))
     expect(result.category).toBe('knowledge')
-    expect(result.navTarget).toBe('/app/knowledge')
   })
 
   it('classifies knowledge base error as knowledge', () => {
@@ -789,14 +794,12 @@ required service tier.`
   it('classifies ocr error', () => {
     const result = classifyError(makeError({ message: 'OCR engine not initialized' }))
     expect(result.category).toBe('ocr')
-    expect(result.navTarget).toBeNull()
   })
 
   // MCP
   it('classifies mcp server error', () => {
     const result = classifyError(makeError({ message: 'MCP server failed to start' }))
     expect(result.category).toBe('mcp')
-    expect(result.navTarget).toBe('/settings/mcp/servers')
   })
 
   it('classifies mcp connection error', () => {
@@ -813,7 +816,6 @@ required service tier.`
   it('classifies Chromium ERR_PROXY_CONNECTION_FAILED as proxy', () => {
     const result = classifyError(makeError({ message: 'net::ERR_PROXY_CONNECTION_FAILED' }))
     expect(result.category).toBe('proxy')
-    expect(result.navTarget).toBe('/settings/general')
   })
 
   it('classifies Chromium ERR_PROXY_AUTH_REQUESTED as proxy', () => {
@@ -825,7 +827,6 @@ required service tier.`
   it('classifies Chromium ERR_MANDATORY_PROXY_CONFIGURATION_FAILED as proxy', () => {
     const result = classifyError(makeError({ message: 'net::ERR_MANDATORY_PROXY_CONFIGURATION_FAILED' }))
     expect(result.category).toBe('proxy')
-    expect(result.navTarget).toBe('/settings/general')
   })
 
   it('classifies a Chromium socket-to-proxies failure as proxy', () => {

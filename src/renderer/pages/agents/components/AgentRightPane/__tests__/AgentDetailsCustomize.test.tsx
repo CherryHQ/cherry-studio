@@ -23,6 +23,7 @@ function mount() {
           tasks: [],
           completedTaskCount: 0,
           totalTaskCount: 0,
+          isTaskPlanActive: false,
           artifacts: [],
           runTasks: [
             { id: 'a', title: 'Review', taskType: 'subagent', status: 'pending' },
@@ -120,7 +121,14 @@ it('hides desktop control without stopping an application', () => {
   const row = { ownerId: 'agent:s:a', label: 'Agent', appId: 'app', status: 'active' as const }
   const content = (
     <AgentSessionDetailsSections
-      status={{ tasks: [], runTasks: [], completedTaskCount: 0, totalTaskCount: 0, artifacts: [] }}
+      status={{
+        tasks: [],
+        runTasks: [],
+        completedTaskCount: 0,
+        totalTaskCount: 0,
+        isTaskPlanActive: false,
+        artifacts: []
+      }}
       desktopControls={[row]}
       stopDesktopControl={stop}
     />

@@ -1,6 +1,3 @@
-import type { ChatRequestOptions } from 'ai'
-import { useCallback, useMemo, useRef, useState } from 'react'
-
 /**
  * Build the `ChatWriteActions` bag passed down through context.
  *
@@ -15,6 +12,10 @@ import { useCallback, useMemo, useRef, useState } from 'react'
  * this file exists to get the ~300 lines of handler code out of
  * `ChatContent.tsx`, not to change behaviour.
  */
+import type { ChatRequestOptions } from 'ai'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
@@ -131,6 +132,7 @@ export function useChatWriteActions(params: Params): Result {
     createMessageTrigger,
     setActiveNodeTrigger
   } = cache
+  const { t } = useTranslation()
   const startNewContextPromiseRef = useRef<Promise<void> | null>(null)
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
 
@@ -494,13 +496,13 @@ export function useChatWriteActions(params: Params): Result {
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('setActiveNode on unpersisted message', { messageId, topicId: topic.id })
-          toast.warning('Message is still syncing — try again in a moment')
+          toast.warning(t('message.error.still_syncing'))
           return
         }
         throw err
       }
     },
-    [setActiveNodeTrigger, topic.id]
+    [setActiveNodeTrigger, t, topic.id]
   )
 
   const handleSetActiveBranch = useCallback<ChatWriteActions['setActiveBranch']>(
@@ -516,7 +518,7 @@ export function useChatWriteActions(params: Params): Result {
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('setActiveBranch on unpersisted message', { throughNodeId, topicId: topic.id })
-          toast.warning('Message is still syncing — try again in a moment')
+          toast.warning(t('message.error.still_syncing'))
           return
         }
         throw err
@@ -531,7 +533,7 @@ export function useChatWriteActions(params: Params): Result {
         throw err
       }
     },
-    [setActiveNodeTrigger, topic.id]
+    [setActiveNodeTrigger, t, topic.id]
   )
 
   const handlePause = useCallback<ChatWriteActions['pause']>(() => {

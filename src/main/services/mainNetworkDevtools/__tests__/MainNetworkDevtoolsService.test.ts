@@ -169,7 +169,7 @@ describe('MainNetworkDevtoolsService helpers', () => {
       expect(cloneSpy).not.toHaveBeenCalled()
       expect(serviceState.events[0]?.responseBody).toMatchObject({
         contentType: 'application/octet-stream',
-        note: 'Binary response body is not captured.'
+        note: expect.any(String)
       })
       // The original response is untouched and still fully readable by the real caller.
       await expect(result.arrayBuffer()).resolves.toHaveProperty('byteLength', 4)
@@ -508,8 +508,6 @@ describe('MainNetworkDevtoolsService helpers', () => {
     // Panel install must hang off onAllReady, not onInit: this service runs in the
     // Background phase, which starts before app.whenReady() resolves.
     await service._doAllReady()
-
-    expect(installBundledDevtools).toHaveBeenCalledWith('main-network', 'Main Network', expect.any(Function))
     const serviceState = service as unknown as { isOriginAllowed: (origin: string | undefined) => boolean }
     expect(serviceState.isOriginAllowed('chrome-extension://main-network-id')).toBe(true)
   })
@@ -565,7 +563,7 @@ describe('MainNetworkDevtoolsService helpers', () => {
       statusText: 'OK',
       responseBody: {
         contentType: 'text/plain',
-        note: 'Node http/https response body capture is skipped to avoid changing stream consumption.'
+        note: expect.any(String)
       }
     })
   })

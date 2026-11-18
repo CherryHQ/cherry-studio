@@ -14,8 +14,11 @@ export function getAgentAvatar(avatar?: unknown) {
   return typeof avatar === 'string' ? avatar.trim() || DEFAULT_AGENT_AVATAR : DEFAULT_AGENT_AVATAR
 }
 
-export function getAgentAvatarFromConfiguration(configuration?: Pick<AgentConfiguration, 'avatar'> | null) {
-  return getAgentAvatar(configuration?.avatar)
+export function getAgentAvatarFromConfiguration(
+  configuration?: Pick<AgentConfiguration, 'avatar'> | null,
+  avatarSrc?: string
+) {
+  return avatarSrc || getAgentAvatar(configuration?.avatar)
 }
 
 export function getAgentDescriptionForDisplay(

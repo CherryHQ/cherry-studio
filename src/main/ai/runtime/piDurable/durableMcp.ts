@@ -1,4 +1,4 @@
-import type { JsonValue } from '@earendil-works/chord'
+import type { JsonValue } from '@earendil-works/chord/json'
 import type { TextContent, ImageContent } from '@earendil-works/pi-ai'
 import type { ToolRegistration } from '@earendil-works/pi-durable'
 import type { Schema } from '@earendil-works/pi-schema'
@@ -48,7 +48,8 @@ export async function createDurableMcp(servers: Record<string, AgentMcpServer>) 
             parameters,
             ...(tool.outputSchema && { structuredOutputSchema: tool.outputSchema }),
             replay: tool.annotations?.readOnlyHint === true ? 'safe' : 'unsafe',
-            callers: serverId === 'automation' ? ['model', 'tools'] : ['tools'],
+            callers: ['model', 'tools'],
+            deferred: serverId !== 'automation' ? true : undefined,
             async execute(args, _api, context) {
               const result = await client.callTool(
                 { name: tool.name, arguments: args },

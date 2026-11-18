@@ -41,7 +41,7 @@ export async function readDurableRequest(storage: Storage, thread: string) {
 }
 export async function saveDurableRequest(runtime: PiDurableRuntime, thread: string, input: AgentRuntimeConnectInput) {
   const { BACKGROUND_CONTEXT } = await import('@earendil-works/chord/context')
-  const { copyJson } = await import('@earendil-works/chord')
+  const { copyJson } = await import('@earendil-works/chord/json')
   const token = await requestDocument()
   const request = requestSchema.parse(copyJson(requestSchema.parse(input), { omitUndefinedProperties: true }))
   await runtime.durable.commit(async (tx) => {
