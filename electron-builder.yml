@@ -286,6 +286,7 @@ releaseInfo:
     - [Skills] Cherry-only built-in skills are no longer exported to the shared ~/.agents/skills directory.
     - [Feishu] Initial channel connections retry with backoff instead of staying stopped after a failed handshake.
     - [UI] Empty assistant, agent, and notes sidebars explain that they are empty instead of showing a blank panel.
+    - [Agent] Fixed agent sessions with background subagents slowing down a little more every round.
 
     💄 Improvements
     - [Conversations] Grouping choices are clearer, and list controls are separated from history and management navigation in conversation and Agent session menus.
@@ -373,6 +374,7 @@ releaseInfo:
     - [技能] 仅限 Cherry 的内置技能不再导出到共享的 ~/.agents/skills 目录。
     - [飞书] 初始频道连接失败后会按退避策略重试，而不再一直保持停止状态。
     - [界面] 助手、智能体和笔记侧边栏为空时会说明当前为空，而不再显示空白面板。
+    - [智能体] 修复使用后台子智能体的 Agent 会话每一轮都比上一轮更慢的问题。
 
     💄 改进
     - [会话] 会话和智能体会话菜单中的分组选项更清晰，列表控制与历史和管理的导航相互分离。

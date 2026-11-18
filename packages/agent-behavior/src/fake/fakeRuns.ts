@@ -18,6 +18,7 @@ import {
   append,
   appendInput,
   type Epoch,
+  type FakeResult,
   type FakeState,
   gateFacts,
   type Loop,
@@ -283,7 +284,7 @@ async function callTool(
   loop: Loop,
   call: ToolCallFact,
   replaying: boolean
-): Promise<ToolResultFact> {
+): Promise<FakeResult> {
   const key = call.callKey
   const intent = replaying ? host.state.intents.get(key) : undefined
   if (intent?.replay === 'unsafe') return INTERRUPTED
@@ -302,7 +303,8 @@ async function callTool(
       const asked = { ...gated, signal: loop.abort.signal }
       const verdict: GateVerdict = (await epoch.gate?.before(asked, gateFacts(thread, loop.window), scope.ports)) ?? {}
       if (!host.alive(epoch)) return never()
-      if (verdict.block !== undefined) return { isError: true, text: `Tool call blocked: ${verdict.block}` }
+      if (verdict.block !== undefined)
+        return { isError: true, text: `Tool call blocked: ${verdict.block}`, blocked: verdict.block }
       if (verdict.args !== undefined) gated = { ...gated, args: verdict.args }
     }
     const found = epoch.tools.get(call.name)
