@@ -320,9 +320,9 @@ export class AnthropicImporter implements ConversationImporter {
       parts.push({ type: 'text', text: messageText })
     }
 
-    return {
-      sourceId: anthropicMessage.uuid,
-      ...(parentSourceId ? { parentSourceId } : {}),
+    const node: Pick<ImportMessageNode, 'sourceId' | 'parentSourceId'> = { sourceId: anthropicMessage.uuid }
+    if (parentSourceId) node.parentSourceId = parentSourceId
+    return Object.assign(node, {
       role,
       parts,
       // Neither export shape carries a per-message model field (chat_messages only
@@ -330,7 +330,7 @@ export class AnthropicImporter implements ConversationImporter {
       // assistant message in a conversation shares the conversation-level model —
       // the real id when the export records one, the default Claude model otherwise.
       ...(role === 'assistant' && { model })
-    }
+    })
   }
 
   /**
