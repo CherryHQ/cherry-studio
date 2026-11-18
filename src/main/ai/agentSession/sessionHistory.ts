@@ -1,12 +1,8 @@
-import { isToolUIPart } from 'ai'
+import { getToolName, isToolUIPart } from 'ai'
 
 import { application } from '@application'
 import { readAgentSessionPath } from '@data/services/agentSessionMessageTree'
-import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
-import { isPersistedToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
-
-import { buildAgentSessionTopicId } from './topic'
 
 /** Reuse product history only before this branch has submitted native input. */
 export async function readSessionHistory(
@@ -28,14 +24,19 @@ export async function readSessionHistory(
       (row.deliveryStatus && row.deliveryStatus !== 'consumed')
     )
       continue
-    const parts: CherryMessagePart[] = []
-    for (const part of row.data.parts ?? []) {
+    const parts = (row.data.parts ?? []).map((part) => {
       if (part.type === 'file') files.push(part)
-      if (isToolUIPart(part) && part.state === 'output-available' && isPersistedToolOutput(part.output)) {
-        const stored = await findPersistedToolOutput(buildAgentSessionTopicId(sessionId), row.id, part.toolCallId)
-        parts.push(stored.found ? { ...part, output: stored.output } : part)
-      } else parts.push(part)
-    }
+      if (!isToolUIPart(part)) return part
+      return {
+        type: part.type,
+        toolCallId: part.toolCallId,
+        toolName: getToolName(part),
+        state: part.state,
+        input: part.input,
+        output: part.state === 'output-available' ? '[Historical tool output omitted]' : undefined,
+        errorText: part.state === 'output-error' ? part.errorText.slice(0, 256) : undefined
+      }
+    })
     history.push(JSON.stringify({ role: row.role, status: row.status, parts }))
   }
   if (!history.length) return

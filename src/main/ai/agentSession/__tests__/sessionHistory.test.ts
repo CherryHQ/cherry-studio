@@ -76,11 +76,66 @@ it('rebuilds the selected prefix without import metadata, preserving consecutive
   expect(content).toContain('"role":"user"')
   expect(content).toContain('"role":"assistant"')
   expect(content).toContain('"queries":["mango"]')
-  expect(content).toContain('"results":[]')
+  expect(content).toContain('Historical tool output omitted')
   expect(content).toContain('Historical reasoning step')
   expect(content).not.toContain('Sibling banana')
   expect(content.endsWith('Continue')).toBe(true)
   expect(messages.getSessionMessage('session', current.id).data.parts).toEqual([{ type: 'text', text: 'Continue' }])
+})
+
+it('omits inline and persisted tool output bodies from model context while preserving stored history', async () => {
+  const parts: CherryMessagePart[] = [
+    {
+      type: 'dynamic-tool',
+      toolCallId: 'search-call',
+      toolName: 'search',
+      state: 'output-available',
+      input: { queries: ['historical query'] },
+      output: { results: [{ snippet: 'LARGE_SEARCH_BODY'.repeat(10_000) }] }
+    },
+    {
+      type: 'tool-read_file',
+      toolCallId: 'read-call',
+      state: 'output-available',
+      input: { path: 'notes.txt' },
+      output: {
+        $persistedToolOutput: {
+          fileEntryId: randomUUID(),
+          vfsFilename: 'stored-output.txt',
+          head: 'STORED_OUTPUT_HEAD',
+          tail: 'STORED_OUTPUT_TAIL',
+          totalChars: 100_000,
+          totalLines: 1000,
+          shape: 'text'
+        }
+      }
+    },
+    {
+      type: 'dynamic-tool',
+      toolCallId: 'failed-call',
+      toolName: 'shell',
+      state: 'output-error',
+      input: { command: 'read missing-file' },
+      errorText: 'File not found. ' + 'VERBOSE_ERROR_BODY'.repeat(1000)
+    },
+    { type: 'text', text: 'The answer already summarizes the useful findings.' }
+  ]
+  const original = save('assistant', parts)
+  const current = save('user', [{ type: 'text', text: 'Continue from the findings' }])
+  const content = buildAgentUserContent(current, await readSessionHistory('session', current.id))
+  expect(content).toContain('"toolName":"search"')
+  expect(content).toContain('"queries":["historical query"]')
+  expect(content).toContain('"toolName":"read_file"')
+  expect(content).toContain('"path":"notes.txt"')
+  expect(content).toContain('"state":"output-error"')
+  expect(content).toContain('File not found.')
+  expect(content).toContain('The answer already summarizes the useful findings.')
+  expect(content).not.toContain('LARGE_SEARCH_BODY')
+  expect(content).not.toContain('STORED_OUTPUT_HEAD')
+  expect(content).not.toContain('STORED_OUTPUT_TAIL')
+  expect(content).not.toContain('stored-output.txt')
+  expect(content.length).toBeLessThan(4000)
+  expect(messages.getSessionMessage('session', original.id).data.parts).toEqual(parts)
 })
 
 it('keeps history available after warming a fresh native identity and stops rebuilding after native input', async () => {

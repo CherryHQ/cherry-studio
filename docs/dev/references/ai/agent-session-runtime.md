@@ -2,6 +2,7 @@
 description: Host/driver split for agent sessions — turn lifecycle, follow-up queue, resume tokens, and shared prompt materializer
 sources:
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/main/ai/agentSession/sessionHistory.ts
   - src/main/ai/agentSession/import
   - src/main/ai/agentSession/relocateSystemWorkspaces.ts
   - src/main/ai/runtime/workspaceRelocation.ts
@@ -1190,8 +1191,11 @@ existing migration below.
 `AgentSessionRuntimeService` supplies a selected product-history prefix as model-only
 `AgentRuntimeCommand.context` when a branch has no previous native input. The generic
 `readSessionHistory` reader follows message parents, excludes the current input and
-unfinished deliveries, and retains role labels, reasoning, full historical tool records
-and managed file parts. Drivers use their ordinary input and attachment conversion.
+unfinished deliveries, and retains role labels, reasoning, tool names, inputs, completion
+states and managed file parts. Tool output bodies are omitted; failed calls retain at most
+256 characters of error text. Persisted tool outputs are not hydrated for this reference
+context. Complete outputs remain in product history for display. Drivers use their
+ordinary input and attachment conversion.
 Native admission still checks the original product message parts; reference context does
 not rewrite user messages or dispatch historical tools.
 
