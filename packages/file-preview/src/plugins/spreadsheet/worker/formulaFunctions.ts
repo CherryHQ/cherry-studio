@@ -11,7 +11,7 @@
  * More complex functions that depend on range lookup or condition parsing, such as SUMIFS/COUNTIFS/MATCH/SUBTOTAL,
  * are out of scope for this change.
  */
-import type { FunctionArg, ParserFunction } from 'fast-formula-parser'
+import type { FormulaArgumentValue, FormulaCollection, FunctionArg, ParserFunction } from 'fast-formula-parser'
 import FormulaParser from 'fast-formula-parser'
 
 const H = FormulaParser.FormulaHelpers
@@ -29,18 +29,12 @@ const EXCEL_ERROR_CODES: ReadonlySet<string> = new Set([
   '#VALUE!'
 ])
 
-interface FormulaCollection {
-  readonly data: unknown[]
-  readonly refs: unknown[]
-}
-
-function isFormulaCollection(value: unknown): value is FormulaCollection {
+function isFormulaCollection(value: FormulaArgumentValue): value is FormulaCollection {
   if (typeof value !== 'object' || value === null) return false
-  const candidate = value as Partial<FormulaCollection>
-  return Array.isArray(candidate.data) && Array.isArray(candidate.refs)
+  return 'data' in value && 'refs' in value && Array.isArray(value.data) && Array.isArray(value.refs)
 }
 
-function forEachScalar(value: unknown, visit: (item: unknown) => void): void {
+function forEachScalar(value: FormulaArgumentValue, visit: (item: FormulaArgumentValue | FunctionArg) => void): void {
   if (!Array.isArray(value)) {
     visit(value)
     return
@@ -51,7 +45,11 @@ function forEachScalar(value: unknown, visit: (item: unknown) => void): void {
 }
 
 /** Mirrors flattenParams without its quadratic flattenDeep allocation for range, array, and union arguments. */
-function forEachFlattenedParam(params: FunctionArg[], valueType: number | null, visit: (item: unknown) => void): void {
+function forEachFlattenedParam(
+  params: FunctionArg[],
+  valueType: number | null,
+  visit: (item: FormulaArgumentValue | FunctionArg) => void
+): void {
   if (params.length === 0) {
     H.flattenParams(params, valueType, true, visit)
     return
@@ -71,7 +69,7 @@ function forEachFlattenedParam(params: FunctionArg[], valueType: number | null, 
   }
 }
 
-function throwIfErrorValue(value: unknown): void {
+function throwIfErrorValue(value: FormulaArgumentValue | FunctionArg): void {
   if (typeof value === 'string' && EXCEL_ERROR_CODES.has(value)) {
     throw new FormulaError(value)
   }
