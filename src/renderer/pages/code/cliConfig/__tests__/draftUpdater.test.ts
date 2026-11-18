@@ -398,7 +398,8 @@ describe('OpenCode mixed-map and alias round-trip regressions', () => {
 
     // Second edit reads the normalized `aisdk:` package back; providerType must stay anthropic.
     const extracted = extractConfigFromCliConfigDraft(CodeCli.OPEN_CODE, first)
-    const second = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, first, extracted)
+    expect(extracted).not.toBeNull()
+    const second = updateCliConfigDraftConfig(CodeCli.OPEN_CODE, first, extracted!)
     const secondConfig = JSON.parse(second[0].content)
     const secondModel = secondConfig.providers['cherry-Anthropic'].models['claude-sonnet-4-6']
     expect(secondConfig.providers['cherry-Anthropic'].package).toBe('aisdk:@ai-sdk/anthropic')
