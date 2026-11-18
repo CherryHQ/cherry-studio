@@ -241,7 +241,7 @@ export class AnthropicImporter implements ConversationImporter {
     model: ModelSnapshot,
     parentSourceId?: string
   ): ImportMessageNode {
-    const role = anthropicMessage.sender === 'human' ? 'user' : 'assistant'
+    const role: ImportMessageNode['role'] = anthropicMessage.sender === 'human' ? 'user' : 'assistant'
     const parts: ImportMessageNode['parts'] = []
     const contentBlocks = anthropicMessage.content ?? []
 
