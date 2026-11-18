@@ -6,9 +6,12 @@ import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agent
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
 import type { AgentLanguage } from '@shared/data/types/agentLanguage'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { CodeCli } from '@shared/types/codeCli'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
 
 import type { PreferenceSchemas } from './preferenceSchemas'
+
+export type { ConversationListSort } from '../types/conversationList'
 
 /** DB-backed preferences only (stored in SQLite) */
 export type PreferenceDefaultScopeType = PreferenceSchemas['default']
@@ -130,6 +133,7 @@ export type LanguageVarious =
   | 'fr-FR'
   | 'it-IT'
   | 'ja-JP'
+  | 'ko-KR'
   | 'pl-PL'
   | 'pt-PT'
   | 'ro-RO'
@@ -381,8 +385,6 @@ export interface WebSearchProvider {
 // ============================================================================
 // CodeCLI Types
 // ============================================================================
-
-import { CodeCli } from '@shared/types/codeCli'
 
 export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'claude-code',

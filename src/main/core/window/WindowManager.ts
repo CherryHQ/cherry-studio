@@ -155,6 +155,13 @@ export class WindowManager extends BaseService {
   /** Fires when a window is truly destroyed (NOT on pool release). */
   public readonly onWindowDestroyed: Event<ManagedWindow> = this._onWindowDestroyed.event
 
+  private readonly _onWindowReleasedToPool = new Emitter<ManagedWindow>()
+  /**
+   * Fires when a pooled window is closed and goes back to the idle pool alive. A release that
+   * destroys the window fires `onWindowDestroyed` instead, so the two never fire for the same close.
+   */
+  public readonly onWindowReleasedToPool: Event<ManagedWindow> = this._onWindowReleasedToPool.event
+
   /**
    * Subscribe to window creations for a specific {@link WindowType}. Equivalent to
    * `onWindowCreated` + an inline type filter — prefer this when you only care
@@ -176,6 +183,16 @@ export class WindowManager extends BaseService {
    */
   public onWindowDestroyedByType(type: WindowType, listener: (managed: ManagedWindow) => void): Disposable {
     return this.onWindowDestroyed((managed) => {
+      if (managed.type === type) listener(managed)
+    })
+  }
+
+  /**
+   * Subscribe to pool releases for a specific {@link WindowType}. A service that keeps
+   * per-window session state for a pooled type clears it here as well as on destruction.
+   */
+  public onWindowReleasedToPoolByType(type: WindowType, listener: (managed: ManagedWindow) => void): Disposable {
+    return this.onWindowReleasedToPool((managed) => {
       if (managed.type === type) listener(managed)
     })
   }
@@ -288,6 +305,7 @@ export class WindowManager extends BaseService {
     // Dispose before closing windows: every subscriber has already stopped.
     this._onWindowCreated.dispose()
     this._onWindowDestroyed.dispose()
+    this._onWindowReleasedToPool.dispose()
 
     // GC timer is auto-disposed via registerInterval; just drop the reference.
     this.warmupGcTimer = null
@@ -1066,6 +1084,7 @@ export class WindowManager extends BaseService {
     }
 
     this.updateDockVisibility()
+    this._onWindowReleasedToPool.fire(managed)
   }
 
   /**
