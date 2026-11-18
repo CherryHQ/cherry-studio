@@ -35,6 +35,18 @@ describe('ChatMarkdown adapter', () => {
     mocks.actions = undefined
   })
 
+  it.each(['success', 'streaming'] as const)('passes line ranges from %s Markdown to the preview', async (status) => {
+    const opened: Array<{ path: string; line?: number; endLine?: number }> = []
+    mocks.actions = {
+      openArtifactFile: (path: string, location?: { line: number; endLine?: number }) => {
+        opened.push({ path, ...location })
+      }
+    }
+    render(<ChatMarkdown block={{ id: 'located', content: '[Source](src/main.ts#L42-L48)', status }} />)
+    await userEvent.click(await screen.findByRole('link', { name: 'Source' }))
+    expect(opened).toEqual([{ path: 'src/main.ts', line: 42, endLine: 48 }])
+  })
+
   it('keeps the paused message placeholder in the chat adapter', () => {
     render(<ChatMarkdown block={{ id: 'part', content: '', status: 'paused' }} />)
     expect(screen.getByText('message.chat.completion.paused')).toBeVisible()

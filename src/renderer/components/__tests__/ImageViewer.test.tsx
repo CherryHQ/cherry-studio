@@ -6,10 +6,11 @@ import userEvent from '@testing-library/user-event'
 import { createInstance } from 'i18next'
 import type { ReactNode } from 'react'
 import { I18nextProvider } from 'react-i18next'
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import en from '@renderer/i18n/locales/en-us.json'
 import { toast } from '@renderer/services/toast'
+import { convertImageToPng } from '@renderer/utils/image'
 import type * as ImageUtils from '@renderer/utils/image'
 
 import ImageViewer from '../ImageViewer'
@@ -28,7 +29,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/utils/image', async (importOriginal) => {
   const actual = await importOriginal<typeof ImageUtils>()
-  return { ...actual, transformImageToPng: mocks.transformImageToPng }
+  return {
+    ...actual,
+    convertImageToPng: vi.fn(actual.convertImageToPng),
+    transformImageToPng: mocks.transformImageToPng
+  }
 })
 
 const i18n = createInstance()
@@ -50,6 +55,8 @@ class MockClipboardItem {
 
 describe('ImageViewer', () => {
   let user: ReturnType<typeof userEvent.setup>
+  afterEach(() => vi.unstubAllGlobals())
+
   beforeEach(() => {
     vi.clearAllMocks()
     user = userEvent.setup()
@@ -126,7 +133,7 @@ describe('ImageViewer', () => {
   it('bakes the external content transform when saving from the context menu', async () => {
     renderWithI18n(
       <ImageViewer
-        src="data:image/png;base64,aGVsbG8="
+        src="data:image/jpeg;base64,/9j/4QECAwD/2Q=="
         alt="Example image"
         contextMenuTransform={{ flipX: true, offsetX: 20, rotation: -90, zoom: 2 }}
         preview={false}
@@ -144,6 +151,112 @@ describe('ImageViewer', () => {
       })
       expect(mocks.saveImage).toHaveBeenCalledWith('Example image', 'data:image/png;base64,dHJhbnNmb3JtZWQ=')
     })
+  })
+
+  it.each([
+    {
+      source: 'data:image/jpeg;base64,/9j/4QECAwD/2Q==',
+      filename: 'Original.jpg',
+      label: 'JPEG',
+      extension: 'jpg',
+      bytes: new Uint8Array([255, 216, 255, 225, 1, 2, 3, 0, 255, 217])
+    },
+    {
+      source: 'data:image/webp;base64,UklGRgQAAABXRUJQ',
+      filename: 'Original.webp',
+      label: 'WEBP',
+      extension: 'webp',
+      bytes: new Uint8Array([82, 73, 70, 70, 4, 0, 0, 0, 87, 69, 66, 80])
+    },
+    {
+      source: `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg"><text>原图</text></svg>')}`,
+      filename: 'Original.svg',
+      label: 'SVG',
+      extension: 'svg',
+      bytes: Uint8Array.from(
+        new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"><text>原图</text></svg>')
+      )
+    }
+  ])(
+    'saves original bytes as $filename without baking zoom or pan',
+    async ({ source, filename, label, extension, bytes }) => {
+      vi.stubGlobal('Blob', NativeBlob)
+      renderWithI18n(
+        <ImageViewer
+          src={source}
+          alt={filename}
+          contextMenuTransform={{ offsetX: 20, offsetY: -30, rotation: 360, zoom: 2 }}
+        />
+      )
+
+      fireEvent.contextMenu(screen.getByRole('img', { name: filename }))
+      await user.click(screen.getByRole('button', { name: 'Save As' }))
+
+      await waitFor(() =>
+        expect(mocks.save).toHaveBeenCalledWith(filename, bytes, {
+          filters: [{ name: label, extensions: [extension] }]
+        })
+      )
+      expect(mocks.saveImage).not.toHaveBeenCalled()
+      expect(toast.success).toHaveBeenCalledWith(en['common.saved'])
+    }
+  )
+
+  it.each(['', 'image/x-unknown', 'application/octet-stream'])(
+    'converts a source with MIME %j to PNG instead of guessing its extension',
+    async (type) => {
+      mocks.fetch.mockResolvedValueOnce({ ok: true, blob: async () => new Blob(['original'], { type }) })
+      vi.mocked(convertImageToPng).mockResolvedValueOnce(new Blob(['converted'], { type: 'image/png' }))
+      renderWithI18n(<ImageViewer src="https://example.com/image" alt="Unknown" />)
+
+      fireEvent.contextMenu(screen.getByRole('img', { name: 'Unknown' }))
+      await user.click(screen.getByRole('button', { name: 'Save As' }))
+
+      await waitFor(() => expect(mocks.saveImage).toHaveBeenCalledWith('Unknown', 'data:image/png;base64,Y29udmVydGVk'))
+      expect(mocks.save).not.toHaveBeenCalled()
+    }
+  )
+
+  it('saves original bytes again after a completed save', async () => {
+    vi.stubGlobal('Blob', NativeBlob)
+    renderWithI18n(<ImageViewer src="data:image/jpeg;base64,/9j/4QECAwD/2Q==" alt="Original.jpg" />)
+
+    for (const call of [1, 2]) {
+      fireEvent.contextMenu(screen.getByRole('img', { name: 'Original.jpg' }))
+      await user.click(screen.getByRole('button', { name: 'Save As' }))
+
+      await waitFor(() =>
+        expect(mocks.save).toHaveBeenNthCalledWith(
+          call,
+          'Original.jpg',
+          new Uint8Array([255, 216, 255, 225, 1, 2, 3, 0, 255, 217]),
+          { filters: [{ name: 'JPEG', extensions: ['jpg'] }] }
+        )
+      )
+    }
+  })
+
+  it('reports a failed original-byte save and allows retrying', async () => {
+    vi.stubGlobal('Blob', NativeBlob)
+    mocks.save.mockRejectedValueOnce(new Error('Disk full'))
+    renderWithI18n(<ImageViewer src="data:image/webp;base64,UklGRgQAAABXRUJQ" alt="Original.webp" />)
+
+    fireEvent.contextMenu(screen.getByRole('img', { name: 'Original.webp' }))
+    await user.click(screen.getByRole('button', { name: 'Save As' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(en['common.save_failed']))
+    expect(toast.success).not.toHaveBeenCalled()
+
+    fireEvent.contextMenu(screen.getByRole('img', { name: 'Original.webp' }))
+    await user.click(screen.getByRole('button', { name: 'Save As' }))
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(en['common.saved']))
+    expect(mocks.save).toHaveBeenLastCalledWith(
+      'Original.webp',
+      new Uint8Array([82, 73, 70, 70, 4, 0, 0, 0, 87, 69, 66, 80]),
+      { filters: [{ name: 'WEBP', extensions: ['webp'] }] }
+    )
+    expect(mocks.saveImage).not.toHaveBeenCalled()
   })
 
   it.each([{}, { rotation: 90, flipX: true }, { flipY: true }])(
