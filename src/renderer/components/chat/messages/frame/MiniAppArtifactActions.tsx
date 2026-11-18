@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { useOptionalRightPanelActions } from '@renderer/components/chat/panes/Shell/RightPanel'
+import { useOptionalRightPanelActions } from '@renderer/components/chat/panes/Shell'
 import { InstallConsentDialog } from '@renderer/components/MiniApp/InstallConsentDialog'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useExitPresence } from '@renderer/hooks/useExitPresence'

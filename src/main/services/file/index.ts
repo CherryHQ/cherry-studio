@@ -76,6 +76,7 @@ export { dispatchHandle } from './internal/dispatch'
 // Path-level content helpers for FileHandle routes and the path-only conditional write.
 export { runPathMutationExclusive } from './pathMutationLock'
 export { readByPath, readChunkByPath, writeIfUnchangedByPath } from './utils/content'
+export { resolvePhysicalPath } from './utils/pathResolver'
 
 // Live on-disk metadata by path (`fs.stat` projection). Consumed by the File
 // IPC batch-metadata handler.

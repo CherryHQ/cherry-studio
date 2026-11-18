@@ -14,7 +14,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { fileEntryService } from '@data/services/FileEntryService'
-import { resolvePhysicalPath } from '@main/services/file/utils/pathResolver'
+import { resolvePhysicalPath } from '@main/services/file'
 import type { FileHandle } from '@shared/data/types/file'
 
 import { sha256File } from '../install/archive'
