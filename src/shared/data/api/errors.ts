@@ -451,14 +451,15 @@ export class DataApiError<T extends ErrorCode = ErrorCode> extends Error {
    * @returns Serialized error object for IPC
    */
   toJSON(): SerializedDataApiError {
-    return {
+    const serialized: SerializedDataApiError = {
       code: this.code,
       message: this.message,
       status: this.status,
       details: this.details as Record<string, unknown> | undefined,
-      requestContext: this.requestContext,
-      ...(this.reportingHandled ? { reportingHandled: true as const } : {})
+      requestContext: this.requestContext
     }
+    if (this.reportingHandled) serialized.reportingHandled = true
+    return serialized
   }
 
   /**

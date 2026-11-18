@@ -222,10 +222,13 @@ function apiResponseDiagnostic(error: APICallError, depth: number): string | und
 function serializeNestedAiSdkError(error: AISDKError, depth: number): SerializedError {
   const source = error as unknown as Record<string, unknown>
   const diagnostic = sdkResponseDiagnostic(error)
-  const serialized: SerializedError = {
+  const identity: Pick<SerializedError, 'name' | 'message' | 'providerErrorCategory'> = {
     name: getSafeProviderErrorMessage({ message: error.name }),
-    message: diagnostic ?? getSafeProviderErrorMessage({ message: error.message }),
-    ...(diagnostic ? { providerErrorCategory: 'parse' as const } : {}),
+    message: diagnostic ?? getSafeProviderErrorMessage({ message: error.message })
+  }
+  if (diagnostic) identity.providerErrorCategory = 'parse'
+  const serialized: SerializedError = {
+    ...identity,
     stack: null,
     cause: null,
     ...getSafeAiSdkErrorDiscriminants(source)
