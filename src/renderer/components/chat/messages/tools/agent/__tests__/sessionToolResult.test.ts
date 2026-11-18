@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import type { ToolResponseLike } from '../../toolResponse'
 import {
   getSessionCreateTargetAgentName,
   getSessionToolTargets,
@@ -123,6 +124,17 @@ describe('getSessionToolTargets', () => {
         sessionId: 'session-b',
         sessionName: 'Session B'
       }
+    ])
+  })
+
+  it('keeps a valid search target openable when its optional agent name has the wrong type', () => {
+    const response: ToolResponseLike = toolResponse('session_search', 'cherry-tools')
+    response.response = JSON.stringify({
+      sessions: [{ sessionId: 'session-a', sessionName: ' Session A ', agentName: 42 }]
+    })
+
+    expect(getSessionToolTargets(response)).toMatchObject([
+      { sessionId: 'session-a', sessionName: 'Session A', agentName: undefined }
     ])
   })
 
