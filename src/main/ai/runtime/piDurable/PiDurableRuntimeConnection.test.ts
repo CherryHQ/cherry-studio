@@ -1574,6 +1574,8 @@ describe('desktop Pi Durable connection', () => {
       const view = await connection.childProjection('spawn')
       expect(view).toBeDefined()
       expect(view!.snapshot().canSubmit).toBe(true)
+      // A watched child stays loaded after it finishes, so close still owns its final archive flush.
+      if (scenario === 'retry archive flush') view!.subscribe(() => {})
       expect(text(events)).not.toContain('child first')
       held.open()
       await expect.poll(() => JSON.stringify(view!.snapshot().messages), CHILD_WAIT).toContain('child first answer')
@@ -1928,6 +1930,68 @@ describe('desktop Pi Durable connection', () => {
     expect(answer()).toMatchObject({ id, metadata: { status: 'success' } })
     expect(text(events)).not.toContain('child prefix')
     expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  const finishedChild = async () => {
+    let root = ''
+    let childRuns = 0
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root)
+        return assistantReply(childRuns++ === 0 ? 'child first answer' : 'child continued answer')
+      if (!call.messages.some((entry) => entry.role === 'toolResult'))
+        return assistantReply(
+          [
+            toolCallPart('spawn', 'subagent', {
+              description: 'research',
+              prompt: 'child work',
+              background: true,
+              fork: false
+            })
+          ],
+          'toolUse'
+        )
+      return assistantReply('parent done')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate') })
+    await done(events)
+    await expect.poll(() => [connection['releasedChildren'].size, connection['children'].size]).toEqual([1, 0])
+    return connection
+  }
+
+  // Catches releasing a reopened finished child before the caller's continuation subscribes to it.
+  it('keeps a reopened finished child for a subscriber that arrives in its continuation', async () => {
+    const connection = await finishedChild()
+    const view = (await connection.childProjection('spawn'))!
+    await Promise.resolve()
+    const updates: string[] = []
+    view.subscribe((update) => updates.push(JSON.stringify(update)))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(view.snapshot().available).toBe(true)
+    await connection.messageChild(view.snapshot().contextId, 'continue research')
+    await expect.poll(() => updates.join()).toContain('child continued answer')
+  })
+
+  // Catches close skipping a finished child whose release flush failed while close waited for it.
+  it('flushes a finished child on close after its release flush fails', async () => {
+    const connection = await finishedChild()
+    const view = (await connection.childProjection('spawn'))!
+    const unsubscribe = view.subscribe(() => {})
+    const [child] = await connection['childResources']()
+    const flushing = gate()
+    vi.spyOn(child.projection, 'stop').mockImplementationOnce(async () => {
+      await flushing.wait(undefined)
+      throw new Error('archive temporarily unavailable')
+    })
+    await new Promise((resolve) => setImmediate(resolve))
+    unsubscribe()
+    await flushing.reached
+    const closing = connection.close()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    flushing.open()
+    await closing
+    expect(view.snapshot().available).toBe(false)
   })
 
   it.each(['shutdown', 'stop'] as const)('distinguishes %s from durable cancellation', async (action) => {
