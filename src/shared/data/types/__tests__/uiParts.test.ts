@@ -27,11 +27,12 @@ const diagnosis: DiagnosisResult = {
 }
 
 function dataErrorPart(cherry?: Record<string, unknown>): Extract<CherryMessagePart, { type: 'data-error' }> {
-  return {
+  const part: Extract<CherryMessagePart, { type: 'data-error' }> = {
     type: 'data-error',
-    data: { name: 'AuthError', message: 'Unauthorized' },
-    ...(cherry ? { providerMetadata: { cherry } } : {})
-  } as unknown as Extract<CherryMessagePart, { type: 'data-error' }>
+    data: { name: 'AuthError', message: 'Unauthorized' }
+  }
+  if (cherry) Object.assign(part, { providerMetadata: { cherry } })
+  return part
 }
 
 // ============================================================================
