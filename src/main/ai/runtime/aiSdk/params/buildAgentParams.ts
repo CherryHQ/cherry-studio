@@ -8,6 +8,7 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
+import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
 import { collectMcpToolResources } from '@main/ai/messages/mcpToolResources'
@@ -95,8 +96,12 @@ const logger = loggerService.withContext('buildAgentParams')
 /** The request's workspace roots, resolved from the agent session record — never from model input. */
 function sessionWorkspaceRoots(topicId: string | undefined): RequestContext['roots'] {
   if (!topicId) return undefined
+  // Agent sessions reach this builder as `agent-session:<id>` topics, while the session
+  // row is keyed by the RAW id — an exact lookup on the topic id always misses and would
+  // silently strip the mini_app tool's workspace authorization.
+  const sessionId = isAgentSessionTopic(topicId) ? extractAgentSessionId(topicId) : topicId
   try {
-    const session = agentSessionService.getById(topicId)
+    const session = agentSessionService.getById(sessionId)
     return [{ uri: session.workspace.path, name: 'session-workspace' }]
   } catch (error) {
     // An ordinary chat topic simply has no agent session; anything else is worth a line.

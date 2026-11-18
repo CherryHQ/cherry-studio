@@ -120,6 +120,10 @@ export function buildAgentMcpServers(
         agentId: agent.id,
         agentDataPath,
         sessionId: session.id,
+        // The mini_app authoring core's workspace authorization: the session's own
+        // workspace, derived host-side from the session record (the same roots the
+        // interaction context carries), never from model input.
+        roots: interactionContext.roots,
         workspaceSource,
         workspacePath: session.workspace.path,
         trustedNotifyChannels: notificationContext.channels,

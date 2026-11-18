@@ -18,6 +18,9 @@
  * - {@link registerDocumentTools} (`…__to_markdown`) — converts workspace, agent-data, and
  *   session-attachment documents with Cherry's bundled converter and writes agent-private
  *   temporary Markdown.
+ * - {@link registerMiniAppTools} (`…__mini_app`, `…__miniapp-browser`) — validates, previews,
+ *   inspects and closes agent-authored Mini Apps and drives the bound preview page, wrapping
+ *   the same runtime-agnostic cores the AI-SDK builtin tools use.
  *
  * The factory runs once per connection, so runtime-dependent tool surfaces (the painting
  * model's generate_image schema, kb_* visibility, notify recipients) are decided there.
@@ -59,8 +62,12 @@ import {
 import { type AutonomyToolsContext, registerAutonomyTools } from './cherryAutonomyTools'
 import { registerCliTools } from './cherryCliTools'
 import { type KnowledgeToolsContext, registerKnowledgeTools } from './cherryKnowledgeTools'
+import { type MiniAppToolsContext, registerMiniAppTools } from './cherryMiniAppTools'
 
-export type CherryToolsOptions = AutonomyToolsContext & KnowledgeToolsContext & CherryDocumentContext
+export type CherryToolsOptions = AutonomyToolsContext &
+  KnowledgeToolsContext &
+  CherryDocumentContext &
+  MiniAppToolsContext
 
 const logger = loggerService.withContext('McpServer:CherryBuiltinTools')
 
@@ -127,5 +134,6 @@ export function createCherryToolsServer(options: CherryToolsOptions): McpServer 
   registerAutonomyTools(server, options)
   registerCliTools(server)
   registerDocumentTools(server, options)
+  registerMiniAppTools(server, options)
   return server
 }
