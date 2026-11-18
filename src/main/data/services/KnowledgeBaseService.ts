@@ -295,24 +295,20 @@ export class KnowledgeBaseService {
   }
 
   listForDiscovery(query: KnowledgeBaseDiscoveryQuery): KnowledgeBaseDiscoveryPage {
-    const page = this.listCursorWithFilters(
-      {
-        limit: query.limit,
-        ...(query.cursor ? { cursor: query.cursor } : {}),
-        ...(query.query ? { search: query.query } : {})
-      },
-      {
-        ...(query.groupId ? { groupId: query.groupId } : {}),
-        ...(query.restrictedIds ? { ids: query.restrictedIds } : {}),
-        includeItemSourcesInSearch: true
-      }
-    )
+    const cursorQuery: ListKnowledgeBasesQuery = { limit: query.limit }
+    if (query.cursor) cursorQuery.cursor = query.cursor
+    if (query.query) cursorQuery.search = query.query
+    const filters: Omit<KnowledgeBaseListFilters, 'includeItemSourcesInSearch'> = {}
+    if (query.groupId) filters.groupId = query.groupId
+    if (query.restrictedIds) filters.ids = query.restrictedIds
+    const page = this.listCursorWithFilters(cursorQuery, { ...filters, includeItemSourcesInSearch: true })
 
-    return {
+    const result: KnowledgeBaseDiscoveryPage = {
       items: page.items.map(knowledgeBaseListItemToBase),
-      total: page.total,
-      ...(page.nextCursor ? { nextCursor: page.nextCursor } : {})
+      total: page.total
     }
+    if (page.nextCursor) result.nextCursor = page.nextCursor
+    return result
   }
 
   private listCursorWithFilters(
