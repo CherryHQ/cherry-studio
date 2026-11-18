@@ -48,13 +48,9 @@ import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import { ensureAgentSessionRootTx } from './agentSessionMessageTree'
+import { conversationListOrdering } from './conversationListOrdering'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
-import {
-  decodePinnedListCursor,
-  encodeEntityCursor,
-  encodeEntitySectionStart,
-  encodePinCursor
-} from './utils/pinnedListCursor'
+import { decodePinnedListCursor, encodeEntitySectionStart, encodePinCursor } from './utils/pinnedListCursor'
 
 const logger = loggerService.withContext('AgentSessionService')
 
@@ -799,11 +795,10 @@ export class AgentSessionService {
   /**
    * Two-section page mirroring `TopicService.listByCursor`: pinned sessions
    * first (via the shared `pin` table, ordered by `pin.orderKey`) then unpinned
-   * by `session.orderKey ASC, id ASC` (manual/creation drag order). A partial
+   * by the selected sort key and `id ASC` (default: manual `orderKey ASC`). A partial
    * pin page spills into the unpinned section to fill `limit`. Pins float a
    * session to the top independent of its own `orderKey`, so both rails share
-   * one pagination contract; recency ordering for the time-grouped view is
-   * applied by the renderer over the loaded list.
+   * one pagination contract; sorting is applied before reading each page.
    */
   listByCursor(
     query: ListAgentSessionsQuery & { scope: 'ordinary' | 'all-conversations'; taskId?: string }
@@ -811,6 +806,12 @@ export class AgentSessionService {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'agent-session')
+    const ordering = conversationListOrdering({
+      columns: sessionsTable,
+      cursor,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder
+    })
     const agentFilter = query.agentId ? eq(sessionsTable.agentId, query.agentId) : undefined
     const workspaceFilter = query.workspaceId ? eq(sessionsTable.workspaceId, query.workspaceId) : undefined
     const idFilter = query.ids ? inArray(sessionsTable.id, query.ids) : undefined
@@ -882,14 +883,6 @@ export class AgentSessionService {
     const remaining = limit - items.length
     const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'session'))
 
-    let sessionAfter: SQL | undefined
-    if (cursor.section === 'entity' && cursor.orderKey !== null) {
-      sessionAfter = or(
-        gt(sessionsTable.orderKey, cursor.orderKey),
-        and(eq(sessionsTable.orderKey, cursor.orderKey), gt(sessionsTable.id, cursor.id))
-      )
-    }
-
     const sessionRows = db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
@@ -906,10 +899,10 @@ export class AgentSessionService {
           activeAgentFilter,
           inTrash ? isNotNull(sessionsTable.deletedAt) : isNull(sessionsTable.deletedAt),
           notInArray(sessionsTable.id, pinnedSubquery),
-          sessionAfter
+          ordering.after
         )
       )
-      .orderBy(asc(sessionsTable.orderKey), asc(sessionsTable.id))
+      .orderBy(...ordering.orderBy)
       .limit(remaining + 1)
       .all()
 
@@ -921,7 +914,7 @@ export class AgentSessionService {
     let nextCursor: string | undefined
     if (hasMoreInSession) {
       const last = sessionRows[remaining - 1]
-      nextCursor = encodeEntityCursor(last.session.orderKey, last.session.id)
+      nextCursor = ordering.encode(last.session)
     }
 
     return { items: items.map((i) => i.session), nextCursor }

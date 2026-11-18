@@ -27,6 +27,7 @@ import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
+import { conversationListSortQuery } from '@renderer/utils/chat/conversationListSort'
 import type { SessionListItem } from '@renderer/utils/chat/sessionListHelpers'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
@@ -39,6 +40,7 @@ import type {
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
+import type { ConversationListSort } from '@shared/data/types/conversationList'
 import type { Pin } from '@shared/data/types/pin'
 import { isAgentSessionPinnedError } from '@shared/ipc/errors/ai'
 
@@ -51,6 +53,7 @@ type UseSessionsOptions = {
   pageSize?: number
   loadAll?: boolean
   enabled?: boolean
+  sort?: ConversationListSort
 }
 
 export type SessionDeleteOutcome = { status: 'succeeded' } | { status: 'stale' } | { status: 'failed'; error: string }
@@ -252,6 +255,12 @@ export const useSessions = (
   const pageSize = typeof options === 'number' ? options : (options.pageSize ?? DEFAULT_SESSION_PAGE_SIZE)
   const loadAll = typeof options === 'number' ? false : (options.loadAll ?? false)
   const enabled = typeof options === 'number' ? undefined : options.enabled
+  const sort = typeof options === 'number' ? undefined : options.sort
+  const query = useMemo(
+    () =>
+      sort ? { ...getSessionListQuery(agentId), ...conversationListSortQuery(sort) } : getSessionListQuery(agentId),
+    [agentId, sort]
+  )
 
   // A load-all source must refresh every loaded page once the chain is complete,
   // but it should fetch only the new page while the chain is growing. SWR
@@ -261,16 +270,16 @@ export const useSessions = (
   // complete. Progressive pagination retains SWR's first-page revalidation.
   const [revalidateAllPages, setRevalidateAllPages] = useState(false)
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/agent-sessions', {
-    query: getSessionListQuery(agentId),
+    query,
     limit: pageSize,
     enabled,
     swrOptions: { revalidateAll: revalidateAllPages, revalidateFirstPage: !loadAll }
   })
   // Cache key includes the query, so reorder operates on the same key.
-  const { applyReorderedList } = useReorder('/agent-sessions')
+  const { applyReorderedList } = useReorder('/agent-sessions', { query, infinite: { limit: pageSize } })
 
   // AgentSessionService returns sessions pinned-first (by `pin.orderKey`) then by
-  // the persisted `orderKey`, `id`. The `/pins` map is composed in the renderer
+  // the selected sort key and `id`. The `/pins` map is composed in the renderer
   // for row indicators, toggle handling, and display grouping/sorting that
   // promotes pinned sessions.
   const flatSessions = useInfiniteFlatItems(pages)
@@ -291,17 +300,15 @@ export const useSessions = (
   const pinIdBySessionIdRef = useRef(pinIdBySessionId)
   pinIdBySessionIdRef.current = pinIdBySessionId
   const readSessionListItems = useCallback((): SessionListItem[] => {
-    const loadedPages = readCache<CursorPaginationResponse<AgentSessionEntity>[]>(
-      '/agent-sessions',
-      getSessionListQuery(agentId),
-      { limit: pageSize }
-    )
+    const loadedPages = readCache<CursorPaginationResponse<AgentSessionEntity>[]>('/agent-sessions', query, {
+      limit: pageSize
+    })
     const pins = readCache<Pin[]>('/pins', SESSION_PINS_QUERY)
     const pinnedIds = new Set(pins?.map((pin) => pin.entityId))
     return (loadedPages ?? []).flatMap((page) =>
       page.items.map((session) => ({ ...session, pinned: pinnedIds.has(session.id) }))
     )
-  }, [agentId, pageSize, readCache])
+  }, [pageSize, query, readCache])
   const total = sessions.length
   const hasMore = hasNext
   const isFullyLoaded = !loadAll || (!isLoading && !hasMore)

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-18-conversation-list-sort.md
+2026-11-18-conversation-list-sort.md: 0915405a9641306ee3a62deefe9ecde9d5256e62
+2026-11-18-conversation-list-sort.zh.md: 29aa099ee1ea38a747fe79084c466e822f885c59

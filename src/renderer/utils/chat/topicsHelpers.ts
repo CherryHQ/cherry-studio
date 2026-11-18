@@ -19,6 +19,9 @@ import {
 } from '@renderer/utils/chat/resourceListBase'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { TopicDisplayMode as PreferenceTopicDisplayMode } from '@shared/data/preference/preferenceTypes'
+import type { ConversationListSort } from '@shared/data/types/conversationList'
+
+import { compareConversationListItems } from './conversationListSort'
 
 export type TopicDisplayMode = PreferenceTopicDisplayMode
 
@@ -46,9 +49,8 @@ export type TopicDisplayGroupOptions = {
 }
 
 export type TopicDisplaySortOptions = {
+  sort?: ConversationListSort
   assistantRankById?: ReadonlyMap<string, number>
-  /** Time mode only: order rows inside each time group by manual `orderKey` instead of recency. */
-  manualOrder?: boolean
   mode: TopicDisplayMode
   now?: Parameters<typeof getResourceTimeBucket>[1]
 }
@@ -233,15 +235,14 @@ function getAssistantGroupRank<T extends Pick<Topic, 'assistantId'>>(
   return TOPIC_UNLINKED_ASSISTANT_RANK
 }
 
-function readOptionalOrderKey<T extends object>(item: T): string | undefined {
-  return 'orderKey' in item && typeof item.orderKey === 'string' ? item.orderKey : undefined
-}
-
-export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'assistantId' | 'lastActivityAt' | 'pinned'>>(
-  topics: readonly T[],
-  options: TopicDisplaySortOptions
-): T[] {
+export function sortTopicsForDisplayGroups<
+  T extends Pick<Topic, 'assistantId' | 'lastActivityAt' | 'pinned' | 'createdAt'> & {
+    name?: string
+    orderKey?: string
+  }
+>(topics: readonly T[], options: TopicDisplaySortOptions): T[] {
   const isPinned = (topic: T) => topic.pinned === true
+  const compare = options.sort ? compareConversationListItems<T>(options.sort) : undefined
 
   if (options.mode === 'assistant') {
     return topics
@@ -251,7 +252,8 @@ export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'assistantId' |
         if (a.topic.pinned !== b.topic.pinned) return a.topic.pinned ? -1 : 1
         if (a.topic.pinned && b.topic.pinned) return a.index - b.index
         return (
-          compareResourceOrderKey(readOptionalOrderKey(a.topic), readOptionalOrderKey(b.topic)) || a.index - b.index
+          (compare ? compare(a.topic, b.topic) : compareResourceOrderKey(a.topic.orderKey, b.topic.orderKey)) ||
+          a.index - b.index
         )
       })
       .map(({ topic }) => topic)
@@ -261,8 +263,6 @@ export function sortTopicsForDisplayGroups<T extends Pick<Topic, 'assistantId' |
     getRank: (topic) =>
       topic.pinned === true ? 0 : TOPIC_TIME_BUCKET_RANK[getTopicTimeBucket(topic.lastActivityAt, options.now)],
     isPinned,
-    compareWithinGroup: options.manualOrder
-      ? (a, b) => compareResourceOrderKey(readOptionalOrderKey(a), readOptionalOrderKey(b))
-      : compareResourceRecency((topic) => topic.lastActivityAt)
+    compareWithinGroup: compare ?? compareResourceRecency((topic) => topic.lastActivityAt)
   })
 }

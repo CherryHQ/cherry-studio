@@ -32,6 +32,7 @@ import type {
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { Topic } from '@shared/data/types/topic'
 
+import { conversationListOrdering } from './conversationListOrdering'
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
@@ -700,7 +701,7 @@ export class TopicService {
 
   /**
    * Two-section page: pinned topics (via `pin` JOIN, ordered by `pin.orderKey`)
-   * then unpinned (ordered by `topic.orderKey ASC, id ASC` — manual/creation
+   * then unpinned (query-selected sort, default `topic.orderKey ASC, id ASC` — manual/creation
    * drag order). A partial pin page spills into the unpinned section to fill
    * `limit`. This mirrors `AgentSessionService.listByCursor` so both rails share
    * one pagination contract (pinned-first, then manual order); recency ordering
@@ -710,6 +711,12 @@ export class TopicService {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'topic')
+    const ordering = conversationListOrdering({
+      columns: topicTable,
+      cursor,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder
+    })
     const search = buildSearchPredicate(query.q)
     const idFilter = query.ids ? inArray(topicTable.id, query.ids) : undefined
     const inTrash = query.inTrash === true
@@ -772,10 +779,7 @@ export class TopicService {
             lt(topicTable.updatedAt, Number(cursor.orderKey)),
             and(eq(topicTable.updatedAt, Number(cursor.orderKey)), gt(topicTable.id, cursor.id))
           )
-        : or(
-            gt(topicTable.orderKey, cursor.orderKey),
-            and(eq(topicTable.orderKey, cursor.orderKey), gt(topicTable.id, cursor.id))
-          )
+        : ordering.after
     }
 
     const topicRows = db
@@ -790,9 +794,7 @@ export class TopicService {
           search
         )
       )
-      .orderBy(
-        ...(inTrash ? [desc(topicTable.updatedAt), asc(topicTable.id)] : [asc(topicTable.orderKey), asc(topicTable.id)])
-      )
+      .orderBy(...(inTrash ? [desc(topicTable.updatedAt), asc(topicTable.id)] : ordering.orderBy))
       .limit(remaining + 1)
       .all()
 
@@ -804,7 +806,7 @@ export class TopicService {
     let nextCursor: string | undefined
     if (hasMoreInTopic) {
       const last = topicRows[remaining - 1]
-      nextCursor = encodeEntityCursor(inTrash ? String(last.updatedAt) : last.orderKey, last.id)
+      nextCursor = inTrash ? encodeEntityCursor(String(last.updatedAt), last.id) : ordering.encode(last)
     }
 
     return { items: items.map((i) => i.topic), nextCursor }
