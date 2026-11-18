@@ -35,8 +35,6 @@ import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentC
 import { KeyedMessageActivityStore } from '@renderer/components/chat/messages/hooks/useMessageActivityState'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
-
-const MiniAppPreviewPane = lazy(() => import('@renderer/pages/home/components/MiniAppPreviewPane'))
 import type { MessageInputFilePreview } from '@renderer/components/chat/messages/types'
 import type { MessageStreamingLayers } from '@renderer/components/chat/messages/types'
 import {
@@ -110,6 +108,8 @@ import { formatAgentWebviewAnnotationPrompt } from '@shared/utils/webviewAnnotat
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
+
+const MiniAppPreviewPane = lazy(() => import('@renderer/pages/home/components/MiniAppPreviewPane'))
 import { AgentBrowserView } from './AgentBrowserView'
 import {
   type AgentPreviewUrlCandidate,
