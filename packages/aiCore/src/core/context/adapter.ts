@@ -86,11 +86,9 @@ export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
 
   for (const msg of repairToolResultNames(prompt)) {
     if (msg.role === 'system') {
-      messages.push({
-        role: 'system',
-        content: msg.content,
-        ...(msg.providerOptions ? { _providerOptions: msg.providerOptions } : {})
-      })
+      const message: AISDKMessage = { role: 'system', content: msg.content }
+      if (msg.providerOptions) message._providerOptions = msg.providerOptions
+      messages.push(message)
       continue
     }
 
@@ -110,11 +108,12 @@ export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
           // through `_userContent`, which `toAISDK` hands back to the AI SDK
           // provider verbatim. We only record `data` when it's already a string,
           // so we never invent a fake encoding for non-string inputs.
-          attachments.push({
+          const attachment: Attachment = {
             mediaType: part.mediaType,
-            data: typeof part.data === 'string' ? part.data : '',
-            ...(part.filename ? { filename: part.filename } : {})
-          })
+            data: typeof part.data === 'string' ? part.data : ''
+          }
+          if (part.filename) attachment.filename = part.filename
+          attachments.push(attachment)
         }
       }
 
@@ -122,9 +121,9 @@ export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
         role: 'user',
         content: text,
         _userContent: msg.content,
-        _originalText: text,
-        ...(msg.providerOptions ? { _providerOptions: msg.providerOptions } : {})
+        _originalText: text
       }
+      if (msg.providerOptions) m._providerOptions = msg.providerOptions
       if (attachments.length) m.attachments = attachments
       messages.push(m)
       continue
@@ -163,11 +162,12 @@ export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
         } else if (part.type === 'file') {
           // See user-side comment above: data is a presence signal only;
           // _assistantContent carries the actual payload through round-trip.
-          attachments.push({
+          const attachment: Attachment = {
             mediaType: part.mediaType,
-            data: typeof part.data === 'string' ? part.data : '',
-            ...(part.filename ? { filename: part.filename } : {})
-          })
+            data: typeof part.data === 'string' ? part.data : ''
+          }
+          if (part.filename) attachment.filename = part.filename
+          attachments.push(attachment)
         }
       }
 
@@ -176,9 +176,9 @@ export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
         role: 'assistant',
         content: joinedText,
         _assistantContent: msg.content,
-        _originalText: joinedText,
-        ...(msg.providerOptions ? { _providerOptions: msg.providerOptions } : {})
+        _originalText: joinedText
       }
+      if (msg.providerOptions) m._providerOptions = msg.providerOptions
       if (toolCalls.length > 0) m.tool_calls = toolCalls
       if (thinking) m.thinking = thinking
       if (attachments.length) m.attachments = attachments
@@ -195,15 +195,16 @@ export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
       for (const part of msg.content) {
         if (part.type === 'tool-result') {
           const text = stringifyToolOutput(part.output)
-          messages.push({
+          const message: AISDKMessage = {
             role: 'tool',
             content: text,
             tool_call_id: part.toolCallId,
             _toolContent: [part],
             _originalText: text,
-            _toolName: part.toolName,
-            ...(firstOfMessage && msg.providerOptions ? { _providerOptions: msg.providerOptions } : {})
-          })
+            _toolName: part.toolName
+          }
+          if (firstOfMessage && msg.providerOptions) message._providerOptions = msg.providerOptions
+          messages.push(message)
           firstOfMessage = false
         }
       }
@@ -240,32 +241,35 @@ export function toAISDK(messages: ContextMessage[]): LanguageModelV3Prompt {
     const contentModified = msg._originalText !== undefined && msg._originalText !== msg.content
 
     if (msg.role === 'system') {
-      prompt.push({
+      const message: Extract<LanguageModelV3Message, { role: 'system' }> = {
         role: 'system',
-        content: msg.content,
-        ...(msg._providerOptions ? { providerOptions: msg._providerOptions } : {})
-      })
+        content: msg.content
+      }
+      if (msg._providerOptions) message.providerOptions = msg._providerOptions
+      prompt.push(message)
       i++
       continue
     }
 
     if (msg.role === 'user') {
-      prompt.push({
+      const message: Extract<LanguageModelV3Message, { role: 'user' }> = {
         role: 'user',
-        content: !contentModified && msg._userContent ? msg._userContent : [{ type: 'text', text: msg.content }],
-        ...(msg._providerOptions ? { providerOptions: msg._providerOptions } : {})
-      })
+        content: !contentModified && msg._userContent ? msg._userContent : [{ type: 'text', text: msg.content }]
+      }
+      if (msg._providerOptions) message.providerOptions = msg._providerOptions
+      prompt.push(message)
       i++
       continue
     }
 
     if (msg.role === 'assistant') {
-      prompt.push({
+      const message: Extract<LanguageModelV3Message, { role: 'assistant' }> = {
         role: 'assistant',
         content:
-          !contentModified && msg._assistantContent ? msg._assistantContent : [{ type: 'text', text: msg.content }],
-        ...(msg._providerOptions ? { providerOptions: msg._providerOptions } : {})
-      })
+          !contentModified && msg._assistantContent ? msg._assistantContent : [{ type: 'text', text: msg.content }]
+      }
+      if (msg._providerOptions) message.providerOptions = msg._providerOptions
+      prompt.push(message)
       i++
       continue
     }
@@ -305,11 +309,12 @@ export function toAISDK(messages: ContextMessage[]): LanguageModelV3Prompt {
         }
         i++
       }
-      prompt.push({
+      const message: Extract<LanguageModelV3Message, { role: 'tool' }> = {
         role: 'tool',
-        content: toolResults,
-        ...(providerOptions ? { providerOptions } : {})
-      })
+        content: toolResults
+      }
+      if (providerOptions) message.providerOptions = providerOptions
+      prompt.push(message)
       continue
     }
 
