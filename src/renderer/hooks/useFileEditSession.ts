@@ -15,6 +15,7 @@ import type {
   PreparedFileMutation,
   SessionLease
 } from '@renderer/services/fileEdit/FileEditSessionManager'
+import { getErrorMessage } from '@renderer/utils/error'
 import { UnsupportedFileTextError, type UnsupportedFileTextReason } from '@renderer/utils/fileTextSnapshot'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
@@ -81,8 +82,16 @@ export function useFileEditSession(
           setAcquired({ request, lease })
         }
       },
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- FileEditSessionManager.acquire rethrows transport or lease failures; normalize only the still-current acquisition into the hook error state.
       (error: unknown) => {
-        if (!cancelled) setAcquired({ request, error: error instanceof Error ? error : new Error(String(error)) })
+        if (cancelled) return
+        let normalized: Error
+        try {
+          normalized = error instanceof Error ? error : new Error(String(error))
+        } catch {
+          normalized = new Error(getErrorMessage(error))
+        }
+        setAcquired({ request, error: normalized })
       }
     )
     return () => {
