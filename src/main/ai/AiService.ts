@@ -1314,18 +1314,19 @@ export class AiService extends BaseService {
     })
 
     const retryPolicy = readRetryPolicy()
-    const result = await this.withRuntimeActivity('ai:embed-many', () =>
-      aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
+    const result = await this.withRuntimeActivity('ai:embed-many', () => {
+      const options: Parameters<typeof aiCoreEmbedMany<AppProviderSettingsMap>>[2] = {
         model: sdkConfig.modelId,
         values: request.values,
         // Bound batch fan-out to avoid embedding rate limits when retries are enabled.
         ...(retryPolicy.enabled && { maxParallelCalls: EMBEDDING_MAX_PARALLEL_CALLS }),
         // Preserve the SDK's default retry count when the global retry policy is disabled.
         maxRetries: request.requestOptions?.maxRetries ?? (retryPolicy.enabled ? retryPolicy.maxAttempts : 2),
-        onProviderCallStart: () => createProviderCallHandler(usageContext()),
-        ...(signal ? { abortSignal: signal } : {})
-      })
-    )
+        onProviderCallStart: () => createProviderCallHandler(usageContext())
+      }
+      if (signal) Object.assign(options, { abortSignal: signal })
+      return aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, options)
+    })
 
     return { embeddings: result.embeddings, usage: result.usage }
   }

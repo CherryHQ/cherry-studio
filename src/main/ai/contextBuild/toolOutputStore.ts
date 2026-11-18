@@ -133,10 +133,11 @@ export function reconstructOutput(
   fullText: string
 ): string | ReconstructedMcpTextOutput {
   if (ref.shape === 'text') return fullText
-  return {
-    content: [{ type: 'text', text: fullText }],
-    ...(ref.metadata !== undefined ? { metadata: ref.metadata } : {})
+  const output: ReconstructedMcpTextOutput = {
+    content: [{ type: 'text', text: fullText }]
   }
+  if (ref.metadata !== undefined) output.metadata = ref.metadata
+  return output
 }
 
 /**

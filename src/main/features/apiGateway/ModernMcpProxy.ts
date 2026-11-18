@@ -80,31 +80,25 @@ export class ModernMcpProxy {
       context: ServerContext
     ): Promise<ResultTypeMap[M] | InputRequiredResult> => {
       const progressToken = context.mcpReq._meta?.progressToken
-      return application.get('McpRuntimeService').forwardRequest(
-        config.id,
-        method,
-        {
-          ...params,
-          ...(context.mcpReq.inputResponses === undefined ? {} : { inputResponses: context.mcpReq.inputResponses }),
-          ...(context.mcpReq.requestState() === undefined ? {} : { requestState: context.mcpReq.requestState() })
-        },
-        {
-          signal: context.mcpReq.signal,
-          capabilities: context.mcpReq.envelope?.[CLIENT_CAPABILITIES_META_KEY] ?? {},
-          onProgress:
-            progressToken === undefined
-              ? undefined
-              : (progress, total) => {
-                  this.lastActivityAt = Date.now()
-                  void context.mcpReq
-                    .notify({
-                      method: 'notifications/progress',
-                      params: { progressToken, progress, ...(total === undefined ? {} : { total }) }
-                    })
-                    .catch((error) => logger.debug('MCP proxy progress stream closed', { error }))
-                }
-        }
-      ) as Promise<ResultTypeMap[M] | InputRequiredResult>
+      const request = { ...params }
+      if (context.mcpReq.inputResponses !== undefined) request.inputResponses = context.mcpReq.inputResponses
+      if (context.mcpReq.requestState() !== undefined) request.requestState = context.mcpReq.requestState()
+      return application.get('McpRuntimeService').forwardRequest(config.id, method, request, {
+        signal: context.mcpReq.signal,
+        capabilities: context.mcpReq.envelope?.[CLIENT_CAPABILITIES_META_KEY] ?? {},
+        onProgress:
+          progressToken === undefined
+            ? undefined
+            : (progress, total) => {
+                this.lastActivityAt = Date.now()
+                void context.mcpReq
+                  .notify({
+                    method: 'notifications/progress',
+                    params: { progressToken, progress, ...(total === undefined ? {} : { total }) }
+                  })
+                  .catch((error) => logger.debug('MCP proxy progress stream closed', { error }))
+              }
+      }) as Promise<ResultTypeMap[M] | InputRequiredResult>
     }
     server.setRequestHandler('tools/call', (request, context) => forward('tools/call', request.params, context))
     server.setRequestHandler('prompts/get', (request, context) => forward('prompts/get', request.params, context))
