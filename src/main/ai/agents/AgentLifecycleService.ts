@@ -165,6 +165,7 @@ export class AgentLifecycleService extends BaseService {
         const workspaces = agentSessionService
           .listSystemWorkspaceSessions([id])
           .filter((workspace) => workspace.deletedAt !== null)
+        await this.settlePendingWorkspaceArchives(workspaces)
         return agentWorkspaceStorageService.restoreWorkspaces(workspaces, () => agentSessionService.restore(id))
       })
     )
@@ -505,10 +506,11 @@ export class AgentLifecycleService extends BaseService {
    * restored workspace (the handler's business-state re-read is the backstop).
    */
   private async settlePendingWorkspaceArchives(workspaces: Array<{ id: string; path: string }>): Promise<void> {
-    const jobManager = application.get('JobManager')
     for (const workspace of workspaces) {
       const active = jobService.findActiveByIdempotencyKey(ARCHIVE_SYSTEM_WORKSPACE_JOB_KEY_PREFIX + workspace.id)
       if (!active) continue
+      // Resolved lazily: a restore with no queued archive never touches the job runtime.
+      const jobManager = application.get('JobManager')
       if (active.status !== 'running') {
         await jobManager.cancel(active.id, 'Workspace restored before its archive ran')
         continue

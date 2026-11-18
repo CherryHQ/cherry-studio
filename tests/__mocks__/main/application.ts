@@ -87,7 +87,13 @@ const mockIpcApiService = {
 /** Minimal JobManager mock for handler registration and startup enqueues. */
 export const mockJobManager = {
   registerHandler: vi.fn(),
-  enqueue: vi.fn(() => ({ id: 'mock-job-id', snapshot: {}, finished: Promise.resolve({}) }))
+  enqueue: vi.fn(() => ({ id: 'mock-job-id', snapshot: {}, finished: Promise.resolve({}) })),
+  enqueueTx: vi.fn((_tx: unknown, _type: string, _input: unknown) => ({
+    id: 'mock-job-id',
+    snapshot: {},
+    finished: Promise.resolve({})
+  })),
+  cancel: vi.fn(async (_jobId: string, _reason?: string) => ({ outcome: 'cancelled' as const }))
 }
 
 export const mockNotificationService = {
