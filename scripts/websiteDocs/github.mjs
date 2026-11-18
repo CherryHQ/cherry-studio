@@ -7,17 +7,17 @@ export const syncBranch = 'docs-sync/content'
 export const statePath = '.github/website-docs-sync-state.json'
 
 export async function api(endpoint, method = 'GET', body, allowMissing = false) {
-  const response = await fetch(`https://api.github.com/${endpoint}`, {
+  const url = `https://api.github.com/${endpoint}`
+  const request = {
     method,
-    signal: AbortSignal.timeout(60_000),
-    headers: {
-      Accept: 'application/vnd.github+json',
-      'Content-Type': 'application/json',
-      ...(process.env.GH_TOKEN ? { Authorization: `Bearer ${process.env.GH_TOKEN}` } : {}),
-      'X-GitHub-Api-Version': '2022-11-28'
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) })
-  })
+    signal: AbortSignal.timeout(60_000)
+  }
+  const headers = { Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' }
+  if (process.env.GH_TOKEN) Object.assign(headers, { Authorization: `Bearer ${process.env.GH_TOKEN}` })
+  Object.assign(headers, { 'X-GitHub-Api-Version': '2022-11-28' })
+  Object.assign(request, { headers })
+  if (body !== undefined) Object.assign(request, { body: JSON.stringify(body) })
+  const response = await fetch(url, request)
   if (response.status === 404 && allowMissing) return null
   if (!response.ok) throw new Error(`GitHub ${method} ${endpoint}: HTTP ${response.status}`)
   return response.status === 204 ? {} : response.json()
@@ -47,14 +47,17 @@ export async function managedHead(side, pr) {
 }
 
 export async function freshness(side, revision, state, description) {
-  await api(`repos/${repositories[side]}/statuses/${sha(revision)}`, 'POST', {
+  const endpoint = `repos/${repositories[side]}/statuses/${sha(revision)}`
+  const status = {
     context: 'website-docs/freshness',
     state,
-    description,
-    ...(process.env.GITHUB_RUN_ID
-      ? { target_url: `https://github.com/${repositories.desktop}/actions/runs/${process.env.GITHUB_RUN_ID}` }
-      : {})
-  })
+    description
+  }
+  if (process.env.GITHUB_RUN_ID)
+    Object.assign(status, {
+      target_url: `https://github.com/${repositories.desktop}/actions/runs/${process.env.GITHUB_RUN_ID}`
+    })
+  await api(endpoint, 'POST', status)
 }
 
 export async function signedCommit(side, branch, expected, files, headline, details) {
