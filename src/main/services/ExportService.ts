@@ -196,17 +196,16 @@ export class ExportService {
           // Only a leading paragraph is inlined behind the marker; any other first block (code,
           // quote, nested list) reaches its own handler so container levels stay balanced.
           const hasLeadParagraph = tokens[i + 1].type === 'paragraph_open'
-          elements.push(
-            new Paragraph({
-              children: [
-                new TextRun({ text: itemNumber == null ? '•' : `${itemNumber}.`, bold: true }),
-                new TextRun({ text: '\t' }),
-                ...(hasLeadParagraph ? processInlineTokens(tokens[i + 2].children || [], false, quoteLevel > 0) : [])
-              ],
-              indent: { left: (listCounters.length + quoteLevel) * 720 },
-              ...(quoteLevel > 0 ? { border: quoteBorder } : {})
-            })
-          )
+          const listOptions: Docx.IParagraphOptions = {
+            children: [
+              new TextRun({ text: itemNumber == null ? '•' : `${itemNumber}.`, bold: true }),
+              new TextRun({ text: '\t' }),
+              ...(hasLeadParagraph ? processInlineTokens(tokens[i + 2].children || [], false, quoteLevel > 0) : [])
+            ],
+            indent: { left: (listCounters.length + quoteLevel) * 720 }
+          }
+          if (quoteLevel > 0) Object.assign(listOptions, { border: quoteBorder })
+          elements.push(new Paragraph(listOptions))
           if (hasLeadParagraph) {
             i += 3
           }

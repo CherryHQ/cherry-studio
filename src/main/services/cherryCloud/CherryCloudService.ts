@@ -375,18 +375,19 @@ export class CherryCloudService extends BaseService {
     let pending: PendingAuthorization | null = null
 
     try {
+      const body = {
+        state: secrets.state,
+        code_challenge: secrets.codeChallenge,
+        code_challenge_method: 'S256',
+        device_public_key: device.publicKey,
+        machine_code: machineCode,
+        platform: platformName(),
+        client_version: app.getVersion().replace(/^v/, '')
+      }
+      if (loopbackCallback) Object.assign(body, { callback_port: loopbackCallback.port })
       const created = await this.postJson(
         '/api/v1/desktop/authorizations',
-        {
-          state: secrets.state,
-          code_challenge: secrets.codeChallenge,
-          code_challenge_method: 'S256',
-          device_public_key: device.publicKey,
-          machine_code: machineCode,
-          platform: platformName(),
-          client_version: app.getVersion().replace(/^v/, ''),
-          ...(loopbackCallback ? { callback_port: loopbackCallback.port } : {})
-        },
+        body,
         createDesktopAuthorizationResponseSchema,
         operation.controller.signal
       )
