@@ -21,7 +21,10 @@ async function shortened(host: HostPorts, call: CallKey, report: RunReport): Pro
       ? text
       : storedMarker(host, { name: offloadName(text), content: text, key: call, tool: SUBAGENT_TOOL_NAME })
   const [text, partial] = await Promise.all([shorten(report.report), shorten(report.partial)])
-  return { ...report, ...(text === undefined ? {} : { report: text }), ...(partial === undefined ? {} : { partial }) }
+  const result = { ...report }
+  if (text !== undefined) result.report = text
+  if (partial !== undefined) result.partial = partial
+  return result
 }
 
 /**

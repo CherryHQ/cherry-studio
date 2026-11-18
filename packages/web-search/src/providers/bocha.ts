@@ -29,18 +29,15 @@ export const bocha: WebSearchProviderModule = {
   async execute(context) {
     const { call } = context
     if (call.capability !== 'searchKeywords') throw new TypeError('Expected keyword search')
+    const body = { query: call.input, count: call.config.maxResults, summary: true }
+    if (call.config.excludeDomains !== undefined) Object.assign(body, { exclude: call.config.excludeDomains.join(',') })
     const payload = await requestJson(
       context,
       {
         url: apiUrl(context.apiHost, '/v1/web-search'),
         method: 'POST',
         headers: bearer(context),
-        body: {
-          query: call.input,
-          count: call.config.maxResults,
-          summary: true,
-          ...(call.config.excludeDomains === undefined ? {} : { exclude: call.config.excludeDomains.join(',') })
-        }
+        body
       },
       BochaSearchResponseSchema,
       (value) => checkProviderError(context, value, 'code')

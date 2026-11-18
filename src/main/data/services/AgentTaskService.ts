@@ -126,7 +126,10 @@ export function isCircuitBreakerPaused(metadata: unknown): boolean {
 
 /** Same merge discipline as writeTaskSessionReuse — the column replaces wholesale. */
 export function writeCircuitBreakerPaused(metadata: unknown, paused: boolean): Record<string, unknown> {
-  return { ...(isPlainRecord(metadata) ? metadata : {}), [CIRCUIT_BREAKER_PAUSED_KEY]: paused }
+  if (!isPlainRecord(metadata)) return { [CIRCUIT_BREAKER_PAUSED_KEY]: paused }
+  const next = { ...metadata }
+  next[CIRCUIT_BREAKER_PAUSED_KEY] = paused
+  return next
 }
 
 function referencesWorkspace(value: unknown, workspaceId: string): value is Record<string, unknown> {
@@ -168,7 +171,10 @@ export function writeTaskSessionReuse(
   metadata: Record<string, unknown> | undefined,
   reuse: TaskSessionReuse
 ): Record<string, unknown> {
-  return { ...(isPlainRecord(metadata) ? metadata : {}), [TASK_REUSE_METADATA_KEY]: reuse }
+  if (!isPlainRecord(metadata)) return { [TASK_REUSE_METADATA_KEY]: reuse }
+  const next = { ...metadata }
+  next[TASK_REUSE_METADATA_KEY] = reuse
+  return next
 }
 
 export function isMissedTask(metadata: Record<string, unknown>): boolean {
