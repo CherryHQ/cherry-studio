@@ -36,19 +36,18 @@ it('times each reasoning block through its own end and preserves timing through 
   onTestFinished(() => projection.close())
   const startedAt = Date.now()
   const accept = async (parts: RuntimeMessage['parts'], complete = false) => {
+    const event: Extract<ClaudeObservation['events'][number], { type: 'message.upsert' }> = {
+      type: 'message.upsert',
+      message: {
+        id: complete ? 'canonical' : 'partial',
+        role: 'assistant',
+        parts,
+        metadata: { completeness: complete ? 'complete' : 'partial' }
+      }
+    }
+    if (complete) Object.assign(event, { replaces: [{ session: projection.thread, id: runtimeId<'item'>('partial') }] })
     const batch: ClaudeObservation = {
-      events: [
-        {
-          type: 'message.upsert',
-          message: {
-            id: complete ? 'canonical' : 'partial',
-            role: 'assistant',
-            parts,
-            metadata: { completeness: complete ? 'complete' : 'partial' }
-          },
-          ...(complete ? { replaces: [{ session: projection.thread, id: runtimeId<'item'>('partial') }] } : {})
-        }
-      ],
+      events: [event],
       native: [
         {
           source: 'live',
@@ -291,43 +290,44 @@ it.each([true, false])(
     const id = randomUUID()
     const reason = '套餐「Cherry Plus」额度已耗尽，建议 30天后重试。'
     const text = `API Error: Request rejected (429) · ${reason}`
-    const messages = await project({ id, role: 'assistant', parts: [{ type: 'text', text, state: 'done' }] }, [
-      {
-        source: 'live',
-        ...(failed ? { isApiErrorMessage: true as const } : {}),
+    const native: Extract<ClaudeObservation['native'][number], { source: 'live' }> = {
+      source: 'live',
+      message: {
+        type: 'assistant',
+        uuid: id,
+        session_id: 'session',
+        parent_tool_use_id: null,
         message: {
-          type: 'assistant',
-          uuid: id,
-          session_id: 'session',
-          parent_tool_use_id: null,
-          ...(failed ? { error: 'rate_limit' as const } : {}),
-          message: {
-            id: 'response',
-            type: 'message',
-            role: 'assistant',
-            model: 'test',
-            content: [{ type: 'text', text, citations: null }],
-            container: null,
-            context_management: null,
-            stop_details: null,
-            stop_reason: 'end_turn',
-            stop_sequence: null,
-            usage: {
-              input_tokens: 0,
-              output_tokens: 0,
-              cache_creation: null,
-              cache_creation_input_tokens: null,
-              cache_read_input_tokens: null,
-              inference_geo: null,
-              iterations: null,
-              server_tool_use: null,
-              service_tier: null,
-              speed: null
-            }
+          id: 'response',
+          type: 'message',
+          role: 'assistant',
+          model: 'test',
+          content: [{ type: 'text', text, citations: null }],
+          container: null,
+          context_management: null,
+          stop_details: null,
+          stop_reason: 'end_turn',
+          stop_sequence: null,
+          usage: {
+            input_tokens: 0,
+            output_tokens: 0,
+            cache_creation: null,
+            cache_creation_input_tokens: null,
+            cache_read_input_tokens: null,
+            inference_geo: null,
+            iterations: null,
+            server_tool_use: null,
+            service_tier: null,
+            speed: null
           }
         }
       }
-    ])
+    }
+    if (failed) {
+      Object.assign(native, { isApiErrorMessage: true })
+      Object.assign(native.message, { error: 'rate_limit' })
+    }
+    const messages = await project({ id, role: 'assistant', parts: [{ type: 'text', text, state: 'done' }] }, [native])
     expect(messages[0].parts).toEqual([{ type: 'text', text: failed ? reason : text, state: 'done' }])
   }
 )
@@ -339,20 +339,19 @@ it.each([true, false])(
     const reason = 'Quota exhausted; retry tomorrow.'
     const text = `API Error: Request rejected (429) · ${reason}`
     const message = { id, role: 'assistant' as const, parts: [{ type: 'text' as const, text, state: 'done' as const }] }
-    const cold = await project(message, [
-      {
-        source: 'archive',
-        ...(rejected ? { isApiErrorMessage: true as const } : {}),
-        message: {
-          type: 'assistant',
-          uuid: id,
-          session_id: 'session',
-          parent_tool_use_id: null,
-          parent_agent_id: null,
-          message: { content: [{ type: 'text', text }] }
-        }
+    const native: Extract<ClaudeObservation['native'][number], { source: 'archive' }> = {
+      source: 'archive',
+      message: {
+        type: 'assistant',
+        uuid: id,
+        session_id: 'session',
+        parent_tool_use_id: null,
+        parent_agent_id: null,
+        message: { content: [{ type: 'text', text }] }
       }
-    ])
+    }
+    if (rejected) Object.assign(native, { isApiErrorMessage: true })
+    const cold = await project(message, [native])
     expect(cold[0].parts).toEqual([{ type: 'text', text: rejected ? reason : text, state: 'done' }])
   }
 )
