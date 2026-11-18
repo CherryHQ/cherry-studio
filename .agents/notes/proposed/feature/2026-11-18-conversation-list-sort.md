@@ -20,12 +20,19 @@ Before default preferences are seeded, initialize only missing sorting preferenc
 
 Collection queries accept explicit sort field and direction. Apply sorting before cursor pagination, retain pin precedence and an ascending id tiebreak, and include the sorting choice in renderer cache keys. Use the same within-group order in all conversation list surfaces. Omitted query sorting keeps the existing API default for unrelated consumers.
 
+Name sorting uses one shared `Intl.Collator` comparator with the application locale, natural numeric ordering, case-insensitive accent-sensitive comparison and significant punctuation. Canonically equivalent names and numeric/case ties use ascending id as the final key in both directions. All 17 supported UI locales use their ICU/CLDR rules, including Latin, Greek, Cyrillic, Thai, Han and Japanese kana; other scripts in titles use that same locale's mixed-script ordering. Japanese kanji are not automatically converted to readings.
+
+Name queries carry a validated locale in the query/cache key. Changing application language starts a new page chain. The main process reads only eligible unpinned `(id, name)` pairs, sorts and applies the name/id cursor with the shared comparator, then hydrates the bounded page in that order. This avoids a native SQLite ICU extension; other sorts retain their SQL pagination. Pins and all domain filters retain their existing behavior.
+
 ## Alternatives considered
 
 - Treat every non-empty `orderKey` as a drag marker: rejected because creation assigns it too.
 - Infer from `updatedAt`: rejected because messages and metadata also change it.
 - Sort only the loaded renderer rows: rejected because later pages can contain the actual first result.
 - Rewrite manual keys when selecting an automatic sort: rejected because switching back must restore the custom order.
+
+- Unicode binary ordering: rejected for Name because it does not follow language-specific expectations.
+- Add a native SQLite ICU extension: deferred because the current driver has no JavaScript collation registration API and a native extension adds platform-specific build/distribution work.
 
 ## Acceptance criteria
 
@@ -35,6 +42,11 @@ Collection queries accept explicit sort field and direction. Apply sorting befor
 - AC4 — Every automatic sort and direction produces deterministic complete pagination across pin boundaries, tied values, empty names and names containing cursor punctuation (verification: main database tests)
 - AC5 — Automatic sorts preserve manual keys and disable row reordering; switching to Manually restores the stored custom order, while pins retain pin order (verification: renderer and Electron)
 
+- AC6 — Name sorting follows the application locale across the 17 supported UI languages, mixed-script titles, natural numbers, accents, case and canonical-equivalence ties, with the same order before pagination and within display groups (verification: shared, main database and renderer tests)
+- AC7 — Changing language starts a fresh localized page chain and updates visible order; scoped filters, pins, deleted cursor anchors and both name directions preserve complete pagination (verification: main database, renderer and Electron)
+
 ## Risks
 
 Legacy inference recognizes current order rather than historical actions. Imports may also create a non-default order and will be preserved as Manually. Time grouping still assigns rows to activity buckets, so row ordering applies within those buckets. No shipped schema migration is rewritten and no conversation rows are changed by preference initialization.
+
+Name pagination reads and sorts all matching name/id pairs per request: O(n) metadata and O(n log n) comparisons. It does not load all conversation payloads. ICU upgrades can change linguistic ordering; locale-specific page chains are refreshed on language changes.
