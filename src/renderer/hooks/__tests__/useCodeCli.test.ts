@@ -59,11 +59,12 @@ function providerConfig(toolState: CodeCliToolState, providerId: string): CliPro
   return provider
 }
 
-const cfg = (overrides: Partial<CliProviderConfig> = {}): CliProviderConfig => ({
-  modelId: overrides.modelId ?? 'anthropic::claude-4',
-  ...(overrides.config ? { config: overrides.config } : {}),
-  ...(overrides.sortIndex !== undefined ? { sortIndex: overrides.sortIndex } : {})
-})
+const cfg = (overrides: Partial<CliProviderConfig> = {}): CliProviderConfig => {
+  const config: CliProviderConfig = { modelId: overrides.modelId ?? 'anthropic::claude-4' }
+  if (overrides.config) config.config = overrides.config
+  if (overrides.sortIndex !== undefined) config.sortIndex = overrides.sortIndex
+  return config
+}
 
 const state = (providers: Record<string, CliProviderConfig>, current: string | null) => ({
   providers,
