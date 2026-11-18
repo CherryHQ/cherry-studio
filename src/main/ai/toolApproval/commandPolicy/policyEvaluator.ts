@@ -97,7 +97,9 @@ function appendSource(
   origin?: CommandRange
 ): CommandSemantics[] {
   const source = analysis.sources.length
-  analysis.sources.push({ text, dialect, ...(origin ? { origin } : {}) })
+  const entry: CommandAnalysis['sources'][number] = { text, dialect }
+  if (origin) entry.origin = origin
+  analysis.sources.push(entry)
   if (depth > MAX_COMMAND_NESTING || source >= 64) {
     analysis.diagnostics.push({ reason: 'nesting-limit', range: origin ?? { start: 0, end: text.length, source } })
     return []

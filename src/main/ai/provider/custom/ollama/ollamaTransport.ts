@@ -53,7 +53,7 @@ class OllamaTransport implements ImageGenerationTransport {
     const [width, height] = input.size?.split('x').map(Number) ?? []
     const steps = input.providerParams.steps
     const fetchImpl = this.fetch ?? fetch
-    const response = await fetchImpl(`${this.baseURL}/generate`, {
+    const requestOptions: NonNullable<Parameters<typeof fetchImpl>[1]> = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...this.headers },
       body: JSON.stringify({
@@ -64,9 +64,10 @@ class OllamaTransport implements ImageGenerationTransport {
         ...(typeof steps === 'number' && { steps }),
         ...(input.seed !== undefined && { options: { seed: input.seed } })
       }),
-      signal: input.signal,
-      ...(this.fetch ? {} : { dispatcher: longRunningDispatcher })
-    })
+      signal: input.signal
+    }
+    if (!this.fetch) Object.assign(requestOptions, { dispatcher: longRunningDispatcher })
+    const response = await fetchImpl(`${this.baseURL}/generate`, requestOptions)
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }))

@@ -226,7 +226,7 @@ export function parseCommandSyntax(text: string, dialect: CommandDialect, source
         if (name) {
           const words = [name, ...arguments_].map((part) => decodeWord(part, dialect, source))
           if (words[0].value === undefined) diagnostic('dynamic-executable', words[0].range)
-          result.commands.push({
+          const command: Omit<ExecutableCommand, 'substitutions'> = {
             id: result.commands.length,
             dialect,
             raw: node.text,
@@ -236,8 +236,11 @@ export function parseCommandSyntax(text: string, dialect: CommandDialect, source
             controls,
             assignments: children(node)
               .filter((part) => part.type === 'variable_assignment')
-              .map((part) => decodeWord(part, dialect, source)),
-            ...(functionSource ? { functionSource } : {}),
+              .map((part) => decodeWord(part, dialect, source))
+          }
+          if (functionSource) command.functionSource = functionSource
+          result.commands.push({
+            ...command,
             substitutions: descendants(node, (part) => part.type === 'command_substitution').map((part) =>
               part.text.startsWith('$(') ? part.text.slice(2, -1) : part.text.slice(1, -1)
             )
@@ -251,13 +254,14 @@ export function parseCommandSyntax(text: string, dialect: CommandDialect, source
         const operator =
           node.children.filter((child): child is Node => child !== null).find((child) => !child.isNamed)?.text ??
           node.text.split(/\s/)[0]
-        result.redirections.push({
+        const redirection: CommandRedirection = {
           raw: node.text,
           range: range(node),
           operator,
-          pipeline: redirectPipeline,
-          ...(destination ? { target: decodeWord(destination, dialect, source) } : {})
-        })
+          pipeline: redirectPipeline
+        }
+        if (destination) redirection.target = decodeWord(destination, dialect, source)
+        result.redirections.push(redirection)
       }
       if (node.type === 'heredoc_redirect') {
         const owner = node.parent?.childForFieldName('body')
