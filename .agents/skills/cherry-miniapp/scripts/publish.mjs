@@ -165,11 +165,27 @@ export async function buildDistributionManifest(appDir, packageFile, baseUrl) {
         `origin (${new URL(base).origin}); an installed app pins its update checks to the origin it was installed from.`
     )
   }
+  // Mirror pairing: an archived update.urlCn makes the hosted package.urlCn
+  // MANDATORY (the hosted schema refuses one without the other), so a builder
+  // that preserved the mirror yet omitted the package twin would emit a
+  // manifest its own verifier rejects. The mirror serves the same immutable
+  // layout from its own origin; derive the twin from it.
+  let packageUrlCn
+  if (archivedUpdate.urlCn !== undefined) {
+    let cnOrigin
+    try {
+      cnOrigin = new URL(archivedUpdate.urlCn).origin
+    } catch {
+      throw new Error(`manifest.json inside the package: update.urlCn is not a valid URL: ${archivedUpdate.urlCn}`)
+    }
+    packageUrlCn = `${cnOrigin}/${hostedPackagePath(manifest.id, manifest.version)}`
+  }
   return {
     ...manifest,
     update: archivedUpdate,
     package: {
       url: `${base}/${hostedPackagePath(manifest.id, manifest.version)}`,
+      ...(packageUrlCn ? { urlCn: packageUrlCn } : {}),
       // Served next to the package at its immutable versioned path, so the consent
       // card can show the icon before downloading; the host verifies it against
       // icon.sha256, the same digest the packaged icon must match at install.

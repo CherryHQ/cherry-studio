@@ -132,11 +132,19 @@ describe('publish.mjs manifest', () => {
     )
   })
 
-  it('preserves an archived China-mirror endpoint verbatim', async () => {
-    const update = { url: `${BASE}${MANIFEST_PATH}`, urlCn: `${BASE}/apps/com.example.miniapp/manifest.cn.json` }
+  it('preserves an archived China-mirror endpoint verbatim and derives the paired package mirror', async () => {
+    const update = {
+      url: `${BASE}${MANIFEST_PATH}`,
+      urlCn: 'https://cn-mirror.example/apps/com.example.miniapp/manifest.json'
+    }
     const { appDir, packageFile } = await packageTemplate(update)
     const manifest = await buildDistributionManifest(appDir, packageFile, BASE)
     expect(manifest.update).toEqual(update)
+    // The hosted schema refuses update.urlCn without package.urlCn: the builder
+    // must emit a manifest its own verifier accepts.
+    expect(manifest.package.urlCn).toBe(
+      'https://cn-mirror.example/apps/com.example.miniapp/1.0.0/com.example.miniapp-1.0.0.miniapp'
+    )
   })
 
   it('refuses a package whose archived manifest never established the update endpoint', async () => {
