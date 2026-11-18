@@ -225,7 +225,7 @@ test(...caseDefinition('MP-141'), async ({ app, mainWindow: page }, testInfo) =>
     await openSettingsSection(page, 'Device Connections')
     const settings = () => page.locator('[data-ui~="settings.view"]:visible')
     await expect(
-      settings().getByText('Connect mobile devices over a local, company or VPN network.', { exact: true })
+      settings().getByRole('img', { name: 'Connect mobile devices over a local, company or VPN network.', exact: true })
     ).toBeVisible()
     const continueButton = () =>
       page.getByRole('button', { name: 'Already installed? Connect your device', exact: true })

@@ -102,16 +102,18 @@ test(...caseDefinition('MP-05'), async ({ app, mainWindow }, testInfo) => {
     const view = page.locator('[data-ui~="agent.view"]:visible')
     const showSidebar = view.getByRole('button', { name: 'Show Sidebar', exact: true })
     if (await showSidebar.isVisible()) await showSidebar.click()
-    const displayMode = view.getByRole('button', { name: 'Display mode', exact: true })
-    await displayMode.click()
-    await page.locator('[data-slot="menu-item"]').getByText('Agent', { exact: true }).click()
-    await displayMode.click()
-    const collapseAll = page.getByRole('button', { name: 'Collapse all', exact: true })
-    if (await collapseAll.isVisible()) {
-      await collapseAll.click()
-      await displayMode.click()
-    }
-    await page.getByRole('button', { name: 'Expand all', exact: true }).click()
+    // The list options trigger is an icon-only button; match its aria-label directly
+    // because the accessible-name lookup does not resolve it once the rail re-renders.
+    const listOptions = page.locator('button[aria-label="List options"]:visible').first()
+    await listOptions.click()
+    await page.getByRole('menuitem', { name: /^Group by/ }).click()
+    await page.getByRole('menuitemradio', { name: 'Agent', exact: true }).click()
+    await expect(listOptions).toBeVisible()
+    await listOptions.click()
+    const collapseAll = page.getByRole('menuitem', { name: 'Collapse all', exact: true })
+    if (await collapseAll.isVisible()) await collapseAll.click()
+    await listOptions.click()
+    await page.getByRole('menuitem', { name: 'Expand all', exact: true }).click()
     const sessionScroller = view.locator('[data-virtual-scrolling]').first()
     const showMore = view.getByRole('button', { name: 'Show more', exact: true }).first()
     for (let step = 0; step < sessions.length; step += 1) {
@@ -787,8 +789,8 @@ test(...caseDefinition('MP-46'), async ({ app, mainWindow }, testInfo) => {
   const history = () => page.getByRole('region', { name: 'History', exact: true })
   const openHistory = async () => {
     await selectSidebarApp(page, 'Chat')
-    await page.getByRole('button', { name: 'Display mode', exact: true }).click()
-    await page.getByRole('button', { name: 'History', exact: true }).click()
+    await page.getByRole('button', { name: 'List options', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'History', exact: true }).click()
     await expect(history()).toBeVisible()
     await history().getByPlaceholder('Search conversations...', { exact: true }).fill(prefix)
   }

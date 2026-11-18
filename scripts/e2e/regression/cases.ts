@@ -334,6 +334,13 @@ export const REGRESSION_CASES = [
   },
   { id: 'MP-48', title: 'Save and restore chat drafts', tasks: ['topics'], phase: 'topics', capabilities: [] },
   {
+    id: 'MP-02',
+    title: 'Stream, stop, and restore a chat conversation',
+    tasks: ['chat-core', 'mp02ChatCoreLifecycle', 'chatCore'],
+    phase: 'chatCore',
+    capabilities: []
+  },
+  {
     id: 'MP-09',
     title: 'Attach files and images',
     tasks: ['chat-core'],

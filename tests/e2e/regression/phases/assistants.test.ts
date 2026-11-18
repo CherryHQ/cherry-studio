@@ -559,8 +559,11 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
     const original = AssistantSchema.parse(created.data)
     await page.reload()
     await selectSidebarApp(page, 'Chat')
-    await page.getByRole('button', { name: 'Display mode', exact: true }).click()
-    await page.getByText('Manage Assistants', { exact: true }).click()
+    const showSidebar = page.getByRole('button', { name: 'Show Sidebar', exact: true })
+    if (await showSidebar.isVisible()) await showSidebar.click()
+    await screenshot('MP-23 assistants list before opening manage')
+    await page.locator('button[aria-label="List options"]:visible').first().click()
+    await page.getByRole('menuitem', { name: 'Manage Assistants', exact: true }).click()
     const cards = page
       .getByRole('button', { name, exact: true })
       .filter({ has: page.getByRole('heading', { name, exact: true }) })

@@ -28,6 +28,17 @@ export async function collectVirtualizedText(page: Page, scroller: Locator): Pro
 
 /** Scroll a virtualized list until the target entry is part of the rendered window. */
 export async function revealVirtualized(page: Page, scroller: Locator, target: Locator): Promise<void> {
+  // Short lists are not virtualized: the scroller never mounts and every row is
+  // already rendered, so plain scroll-into-view is enough. Without this branch the
+  // caller times out waiting for a scroll container that will never appear.
+  if ((await scroller.count()) === 0) {
+    await target.first().waitFor({ state: 'visible', timeout: 15_000 })
+    await target
+      .first()
+      .scrollIntoViewIfNeeded()
+      .catch(() => {})
+    return
+  }
   await scroller.evaluate(async (element) => {
     element.scrollTop = 0
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))

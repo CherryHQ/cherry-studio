@@ -65,8 +65,9 @@ export async function workspaceLifecycle(app: RegressionApp, page: Page, testInf
     await closeSettings(page)
     await selectSidebarApp(page, 'Work')
     const view = page.locator('[data-ui~="agent.view"]:visible').first()
-    await view.getByRole('button', { name: 'Display mode', exact: true }).click()
-    await page.getByRole('button', { name: 'Agent', exact: true }).click()
+    await page.locator('button[aria-label="List options"]:visible').first().click()
+    await page.getByRole('menuitem', { name: /^Group by/ }).click()
+    await page.getByRole('menuitemradio', { name: 'Agent', exact: true }).click()
     await createAgent(page, {
       name: agentName,
       runtime: 'Pi',
@@ -78,8 +79,9 @@ export async function workspaceLifecycle(app: RegressionApp, page: Page, testInf
     await page.locator(`[data-option-id="${original.id}"]`).click()
     await expect(view.getByRole('button', { name: originalName, exact: true }).last()).toBeVisible()
 
-    await view.getByRole('button', { name: 'Display mode', exact: true }).click()
-    await page.getByRole('button', { name: 'Work directory', exact: true }).click()
+    await page.locator('button[aria-label="List options"]:visible').first().click()
+    await page.getByRole('menuitem', { name: /^Group by/ }).click()
+    await page.getByRole('menuitemradio', { name: 'Work directory', exact: true }).click()
     const group = view.getByRole('listbox').getByRole('button', { name: originalName, exact: true })
     await expect(group).toBeVisible()
     await group.click({ button: 'right' })
@@ -131,8 +133,9 @@ export async function workspaceLifecycle(app: RegressionApp, page: Page, testInf
     expect(await readdir(emptyPath)).toEqual([])
     await screenshot('MP-53 real tool wrote in switched workspace')
 
-    await view.getByRole('button', { name: 'Display mode', exact: true }).click()
-    await page.getByRole('button', { name: 'Agent', exact: true }).click()
+    await page.locator('button[aria-label="List options"]:visible').first().click()
+    await page.getByRole('menuitem', { name: /^Group by/ }).click()
+    await page.getByRole('menuitemradio', { name: 'Agent', exact: true }).click()
     await startNewAgentTask(page, agentName)
     await view
       .getByRole('button', { name: new RegExp(`^No work directory$|^${targetName}$`) })
@@ -155,8 +158,9 @@ export async function workspaceLifecycle(app: RegressionApp, page: Page, testInf
     await expect.poll(async () => (await readWorkspaces()).some(({ id }) => id === empty.id)).toBe(false)
     await page.reload()
     await selectSidebarApp(page, 'Work')
-    await view.getByRole('button', { name: 'Display mode', exact: true }).click()
-    await page.getByRole('button', { name: 'Work directory', exact: true }).click()
+    await page.locator('button[aria-label="List options"]:visible').first().click()
+    await page.getByRole('menuitem', { name: /^Group by/ }).click()
+    await page.getByRole('menuitemradio', { name: 'Work directory', exact: true }).click()
     await expect(view.getByRole('button', { name: emptyName, exact: true })).toHaveCount(0)
     expect((await stat(emptyPath)).isDirectory()).toBe(true)
     expect(await readdir(emptyPath)).toEqual([])

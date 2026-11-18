@@ -125,8 +125,8 @@ async function readAgent(page: Page, id: string) {
 
 async function catalog(page: Page, name: string) {
   const view = page.locator('[data-ui~="agent.view"]').filter({ visible: true }).first()
-  await view.getByRole('button', { name: 'Display mode', exact: true }).click()
-  await page.getByText('Manage Agents', { exact: true }).click()
+  await view.locator('button[aria-label="List options"]:visible').first().click()
+  await page.getByRole('menuitem', { name: 'Manage Agents', exact: true }).click()
   const card = view
     .locator('[data-ui~="resource-catalog.card.button"]')
     .and(view.getByRole('button', { name, exact: true }))

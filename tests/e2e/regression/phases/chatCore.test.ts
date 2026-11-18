@@ -19,6 +19,7 @@ import { openAttachmentPicker, sendChatMarker, submitChatMarker } from '../helpe
 import { selectSidebarApp } from '../helpers/navigation'
 import { openSettingsSection } from '../helpers/settings'
 import { revealVirtualized } from '../helpers/virtualList'
+import { mp02ChatCoreLifecycle } from '../mp02ChatCoreLifecycle'
 import { chatEfficiency } from '../scenarios/chatEfficiency'
 import { chatImageGeneration } from '../scenarios/chatImageGeneration'
 import { codeBlockToolbar } from '../scenarios/codeBlockToolbar'
@@ -33,6 +34,11 @@ import { messageTokenDetails } from '../scenarios/messageTokenDetails'
 import { polishPrompt } from '../scenarios/polishPrompt'
 import { searchAndFetch } from '../scenarios/searchAndFetch'
 import { searchChatMessages } from '../scenarios/searchChatMessages'
+
+test(...caseDefinition('MP-02'), async ({ app, mainWindow }, testInfo) => {
+  test.setTimeout(180_000)
+  await mp02ChatCoreLifecycle(app, mainWindow, testInfo)
+})
 
 test(...caseDefinition('MP-09'), async ({ app, mainWindow: page }, testInfo) => {
   test.setTimeout(6 * 60_000)
