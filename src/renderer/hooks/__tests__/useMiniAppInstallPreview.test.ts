@@ -74,6 +74,20 @@ describe('useMiniAppInstallPreview request ownership', () => {
     expect(result.current.busy).toBe(false)
   })
 
+  it('shows a preview failure and clears loading when the rejection cannot be printed', async () => {
+    const { result } = renderHook(() => useMiniAppInstallPreview(vi.fn()))
+
+    await act(async () => {
+      await expect(
+        result.current.settle(() => Promise.reject({ toString: null }), 'miniApp.install.preview_error')
+      ).resolves.toBeUndefined()
+    })
+
+    expect(result.current.error).toMatchObject({ key: 'miniApp.install.preview_error' })
+    expect(result.current.error?.params?.message).toEqual(expect.any(String))
+    expect(result.current.busy).toBe(false)
+  })
+
   it('ignores a superseded failure while the newer preview is loading', async () => {
     const stale = deferred<InstallPreview>()
     const current = deferred<InstallPreview>()

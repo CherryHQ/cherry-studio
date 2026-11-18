@@ -4,11 +4,20 @@ import { useTranslation } from 'react-i18next'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { getErrorMessage } from '@renderer/utils/error'
 import type { InputFor, OutputFor } from '@shared/ipc/types'
 
 const logger = loggerService.withContext('useMiniAppUpdate')
 
-const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Mini-app check and apply IPC failures are unrestricted rejection values; normalize them before interpolating update-error notifications.
+const errorMessage = (error: unknown): string => {
+  try {
+    const message = error instanceof Error ? error.message : String(error)
+    return typeof message === 'string' ? message : getErrorMessage(error)
+  } catch {
+    return getErrorMessage(error)
+  }
+}
 
 /** An update that carries a token — the two shapes the review surfaces can render. */
 export type UpdateOffer = Exclude<OutputFor<'mini_app.update.check'>, { status: 'current' }>
