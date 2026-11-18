@@ -3,6 +3,8 @@ import {
   isWebSearchError,
   type WebSearchClient,
   type WebSearchCredentials,
+  type WebSearchFetchUrlsCall,
+  type WebSearchKeywordsCall,
   type WebSearchProviderModule,
   type WebSearchResultSet
 } from '@cherrystudio/web-search'
@@ -78,7 +80,7 @@ export class RemoteWebSearchProvider extends BaseWebSearchProvider {
     let response: WebSearchResultSet
     try {
       // searchImages is rejected above, so the result set always carries keyword/fetch results here.
-      response = (await this.client.execute(
+      response = await this.client.execute<WebSearchFetchUrlsCall | WebSearchKeywordsCall>(
         capability === 'searchKeywords'
           ? {
               ...common,
@@ -96,7 +98,7 @@ export class RemoteWebSearchProvider extends BaseWebSearchProvider {
               }
             }
           : { ...common, capability, config: { apiHost } }
-      )) as WebSearchResultSet
+      )
     } catch (error) {
       if (isWebSearchError(error) && error.kind === 'configuration') {
         const code: WebSearchConfigErrorCode = ['api_key_missing', 'api_host_missing', 'api_host_invalid'].includes(
