@@ -4,6 +4,7 @@ import React, { useMemo } from 'react'
 
 import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
 import { MarkdownLinkRenderer } from '@renderer/components/markdown'
+import type { FileLocation } from '@renderer/types/fileLocation'
 import type { Citation } from '@renderer/types/message'
 import { findCitationInChildren } from '@renderer/utils/markdownLight'
 import { cn } from '@renderer/utils/style'
@@ -16,7 +17,7 @@ interface LinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
   node?: Element
   citationRegistry?: ReadonlyMap<number, Citation>
   /** When set, schemeless hrefs that look like workspace files route here instead of navigating. */
-  openFilePath?: (path: string) => void | Promise<void>
+  openFilePath?: (path: string, location?: FileLocation) => void | Promise<void>
 }
 
 function hasSameUrl(href: string | undefined, citationUrl: string): boolean {

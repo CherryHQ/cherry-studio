@@ -77,7 +77,7 @@ vi.mock('lucide-react', async (importOriginal) => ({
 }))
 vi.mock('@renderer/components/CodeBlockView/HtmlArtifactsPopup', () => ({ default: mocks.HtmlArtifactsPopup }))
 vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
     default: mocks.HtmlPreviewFrame

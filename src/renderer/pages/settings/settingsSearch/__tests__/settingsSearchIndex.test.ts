@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 import { settingsMenu } from '@renderer/components/settingsMenu'
 import enUS from '@renderer/i18n/locales/en-us.json'
+import koKR from '@renderer/i18n/locales/ko-kr.json'
 import zhCN from '@renderer/i18n/locales/zh-cn.json'
 
 import { settingsSearchSections } from '../aggregate'
@@ -25,10 +26,7 @@ function lookup(locale: unknown, key: string): unknown {
 }
 
 /** Every *.search.ts the aggregator would glob — drift must fail here, not silently */
-const globbedSearchModules = import.meta.glob('../../**/*.search.ts', { eager: true }) as Record<
-  string,
-  { route?: unknown }
->
+const globbedSearchModules = import.meta.glob<{ route?: unknown }>('../../**/*.search.ts', { eager: true })
 
 const SCAN_ROOTS = [resolve('src/renderer/pages/settings'), resolve('src/renderer/components/chat/settings')]
 
@@ -209,5 +207,22 @@ describe('settings search index aliases', () => {
   ])('query "%s" hits the indexed row via alias', (query, anchorId) => {
     const focusIds = rankEntries(query, settingsSearchSections, tEnUs).map((r) => r.focusId)
     expect(focusIds).toContain(focusIdOf(anchorId))
+  })
+})
+
+describe('Korean settings discovery', () => {
+  it.each([
+    ['언어', 'setting-general-display-language'],
+    ['프록시', 'setting-general-proxy-mode'],
+    ['자동시작', 'setting-general-launch-onboot'],
+    ['proxy', 'setting-general-proxy-mode']
+  ])('finds the setting for %s with a Korean interface', (query, focusId) => {
+    const results = rankEntries(
+      query,
+      settingsSearchSections,
+      (key) => String(lookup(koKR, key) ?? key),
+      (key) => String(lookup(enUS, key) ?? key)
+    )
+    expect(results.some((result) => result.focusId === focusId)).toBe(true)
   })
 })

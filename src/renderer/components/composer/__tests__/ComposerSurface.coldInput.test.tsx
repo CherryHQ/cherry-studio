@@ -137,14 +137,19 @@ async function flushFrame() {
   })
 }
 
-it('accepts a cold suggestion as editable text without sending it', async () => {
+it.each([
+  ['Tab', 'ltr'],
+  ['ArrowRight', 'ltr'],
+  ['ArrowLeft', 'rtl']
+])('accepts a cold suggestion with %s in %s without sending it', async (key, direction) => {
   const user = userEvent.setup()
   const send = vi.fn()
   render(<Harness suggestion="Run the tests." onSend={send} />)
   const fallback = screen.getByRole('textbox', { name: 'Painting prompt' })
+  fallback.style.direction = direction
   expect(screen.getByLabelText('Stored draft')).toBeEmptyDOMElement()
   await user.click(fallback)
-  await user.keyboard('{Tab}')
+  await user.keyboard(`{${key}}`)
   expect(screen.getByLabelText('Stored draft')).toHaveTextContent('Run the tests.')
   expect(send).not.toHaveBeenCalled()
 })

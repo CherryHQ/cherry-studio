@@ -48,7 +48,7 @@ required service tier.`
     )
 
     expect(toast.getToastQueue().toasts.find((item) => item.key === key)).toMatchObject({
-      title: enUS['models.detail.quota_exhausted'],
+      title: enUS['models.detail.quota_insufficient_for_request'],
       details: planText,
       action: undefined
     })

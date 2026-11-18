@@ -4,9 +4,9 @@ import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
-import AdmZip from 'adm-zip'
+import JSZip from 'jszip'
 
-it('redacts step titles and failures before JSON, HTML and blob reporters serialize them', () => {
+it('redacts step titles and failures before JSON, HTML and blob reporters serialize them', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'cherry-report-redaction-'))
   const require = createRequire(import.meta.url)
   const secret = 'mock-key-not-checked'
@@ -44,16 +44,16 @@ it('redacts step titles and failures before JSON, HTML and blob reporters serial
     const report = JSON.parse(readFileSync(json, 'utf8'))
     expect(report.stats.unexpected).toBe(1)
     expect(readFileSync(json, 'utf8')).not.toContain(secret)
-    const blobReport = new AdmZip(blob).getEntry('report.jsonl')!.getData().toString('utf8')
+    const blobReport = await (await JSZip.loadAsync(readFileSync(blob))).file('report.jsonl')!.async('string')
     expect(blobReport).not.toContain(secret)
     expect(blobReport).toContain('Fill \\"[REDACTED]\\"')
     expect(blobReport).toContain('Entry failed: [REDACTED]')
     const htmlSource = readFileSync(join(html, 'index.html'), 'utf8')
     const embedded = htmlSource.match(/<template id="playwrightReportBase64">data:application\/zip;base64,([^<]+)/)!
-    const htmlReport = new AdmZip(Buffer.from(embedded[1], 'base64'))
-    const entries = htmlReport.getEntries().filter((entry) => entry.entryName.endsWith('.json'))
+    const htmlReport = await JSZip.loadAsync(Buffer.from(embedded[1], 'base64'))
+    const entries = htmlReport.file(/\.json$/)
     expect(entries.length).toBeGreaterThan(0)
-    for (const entry of entries) expect(entry.getData().toString('utf8')).not.toContain(secret)
+    for (const entry of entries) expect(await entry.async('string')).not.toContain(secret)
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
