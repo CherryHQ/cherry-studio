@@ -33,11 +33,10 @@ export class MessageServiceBackend implements PersistenceBackend {
     // FileManager write is async); the tx then writes the envelope data and
     // its tool_output file refs together.
     const parts = await trimOversizedToolOutputs(finalMessage?.parts ?? [], this.opts.contextSettingsOverride)
+    const data: Parameters<typeof messageService.finalizeAssistantMessage>[1]['data'] = { parts }
+    if (this.opts.turnOptions) data.turnOptions = this.opts.turnOptions
     messageService.finalizeAssistantMessage(this.opts.assistantMessageId, {
-      data: {
-        parts,
-        ...(this.opts.turnOptions ? { turnOptions: this.opts.turnOptions } : {})
-      },
+      data,
       status,
       runtimeStats
     })

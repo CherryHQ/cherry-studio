@@ -21,6 +21,7 @@ import type { SerializedError } from '@shared/types/error'
 import {
   dropEmptyContentParts,
   finalizeInterruptedParts,
+  type PersistAssistantInput,
   type PersistenceBackend,
   stripTransientStatusParts
 } from '../persistence/PersistenceBackend'
@@ -122,18 +123,18 @@ export class PersistenceListener implements StreamListener {
       : finalMessage
     const contextTokens = finalMessageForPersistence?.metadata?.stats?.contextTokens
     result.finalMessage = finalMessageForPersistence
-    const runtimeStats: MessageRuntimeStatsInput = {
-      ...(runtimeTiming ? { runtimeTiming } : {}),
-      ...(typeof contextTokens === 'number' && Number.isFinite(contextTokens) ? { contextTokens } : {})
-    }
+    const runtimeStats: { -readonly [K in keyof MessageRuntimeStatsInput]: MessageRuntimeStatsInput[K] } = {}
+    if (runtimeTiming) runtimeStats.runtimeTiming = runtimeTiming
+    if (typeof contextTokens === 'number' && Number.isFinite(contextTokens)) runtimeStats.contextTokens = contextTokens
 
     try {
-      const saved = await this.opts.backend.persistAssistant({
+      const input: PersistAssistantInput = {
         finalMessage: finalMessageForPersistence,
         status,
-        modelId: this.opts.modelId,
-        ...(Object.keys(runtimeStats).length > 0 ? { runtimeStats } : {})
-      })
+        modelId: this.opts.modelId
+      }
+      if (Object.keys(runtimeStats).length > 0) input.runtimeStats = runtimeStats
+      const saved = await this.opts.backend.persistAssistant(input)
       if (saved) result.persistence = { status: 'saved', message: saved }
       logger.info('Assistant message persisted', {
         backend: this.opts.backend.kind,
@@ -203,10 +204,11 @@ function mergeErrorIntoMessage(
 ): CherryUIMessage {
   const baseParts = (base?.parts ?? []) as CherryMessagePart[]
   const errorPart: CherryMessagePart = { type: 'data-error', data: { ...error, executionFailure: failure } }
-  return {
+  const message: CherryUIMessage = {
     id: base?.id ?? anchorMessageId ?? crypto.randomUUID(),
     role: 'assistant',
-    parts: [...baseParts, errorPart],
-    ...(base?.metadata ? { metadata: base.metadata } : {})
+    parts: [...baseParts, errorPart]
   }
+  if (base?.metadata) message.metadata = base.metadata
+  return message
 }

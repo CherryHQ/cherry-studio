@@ -6,9 +6,10 @@ export interface MessageRuntimeTimingSink {
 }
 
 function cloneTiming(timing: MessageRuntimeTiming): MessageRuntimeTiming {
+  const timestamps: Omit<MessageRuntimeTiming, 'spans'> = { startedAt: timing.startedAt }
+  if (timing.completedAt !== undefined) timestamps.completedAt = timing.completedAt
   return {
-    startedAt: timing.startedAt,
-    ...(timing.completedAt !== undefined ? { completedAt: timing.completedAt } : {}),
+    ...timestamps,
     spans: timing.spans.map((span) => ({ ...span }))
   }
 }
@@ -35,13 +36,13 @@ export class MessageRuntimeTimingCollector {
     const id = `tool:${toolCallId}`
     const existing = this.findSpan(id)
     if (existing) return
-    this.timing.spans.push({
+    const identity: Omit<Extract<MessageRuntimeSpan, { kind: 'tool-execution' }>, 'startedAt'> = {
       id,
       kind: 'tool-execution',
-      toolCallId,
-      ...(toolName ? { toolName } : {}),
-      startedAt
-    })
+      toolCallId
+    }
+    if (toolName) identity.toolName = toolName
+    this.timing.spans.push({ ...identity, startedAt })
   }
 
   finishTool(toolCallId: string, durationMs: number, toolName?: string, completedAt = Date.now()): void {
@@ -53,12 +54,15 @@ export class MessageRuntimeTimingCollector {
     // start-hook timestamp, which may precede other start hooks.
     const startedAt = completedAt - durationMs
     const resolvedToolName = toolName ?? existing?.toolName
+    const identity: Omit<Extract<MessageRuntimeSpan, { kind: 'tool-execution' }>, 'startedAt'> = {
+      id,
+      kind: 'tool-execution',
+      toolCallId
+    }
+    if (resolvedToolName) identity.toolName = resolvedToolName
     this.upsertSpan(
       {
-        id,
-        kind: 'tool-execution',
-        toolCallId,
-        ...(resolvedToolName ? { toolName: resolvedToolName } : {}),
+        ...identity,
         startedAt,
         completedAt: Math.max(startedAt, completedAt)
       },
@@ -69,14 +73,14 @@ export class MessageRuntimeTimingCollector {
   startApproval(approvalId: string, toolCallId: string, toolName?: string, startedAt = Date.now()): void {
     const id = `approval:${approvalId}`
     if (this.findSpan(id)) return
-    this.timing.spans.push({
+    const identity: Omit<Extract<MessageRuntimeSpan, { kind: 'approval-wait' }>, 'startedAt'> = {
       id,
       kind: 'approval-wait',
       approvalId,
-      toolCallId,
-      ...(toolName ? { toolName } : {}),
-      startedAt
-    })
+      toolCallId
+    }
+    if (toolName) identity.toolName = toolName
+    this.timing.spans.push({ ...identity, startedAt })
   }
 
   finishApproval(identity: { approvalId?: string; toolCallId?: string }, completedAt = Date.now()): boolean {

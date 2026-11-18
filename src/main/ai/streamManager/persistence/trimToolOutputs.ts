@@ -87,16 +87,17 @@ async function trimWholeText(output: unknown, threshold: number): Promise<Persis
     PERSIST_HEAD_CHARS,
     PERSIST_TAIL_CHARS
   )
-  return {
+  const reference: PersistedToolOutputRef = {
     fileEntryId: entry.id,
     vfsFilename,
     head,
     tail,
     totalChars,
     totalLines,
-    shape: extracted.shape,
-    ...(extracted.metadata !== undefined ? { metadata: extracted.metadata } : {})
+    shape: extracted.shape
   }
+  if (extracted.metadata !== undefined) reference.metadata = extracted.metadata
+  return reference
 }
 
 /**
