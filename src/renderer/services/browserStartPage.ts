@@ -21,8 +21,8 @@ export function rememberBrowserPageUrl(context: string, value: string): void {
   if (preferenceService.getCachedValue('app.browser.start_page.mode') !== 'last') return
   const url = sanitizeBrowserVisitUrl(value)
   if (url === undefined) return
-  cacheService.setPersist('ui.browser.last_urls', (urls) => ({
-    ...(urls && typeof urls === 'object' && !Array.isArray(urls) ? urls : {}),
-    [context]: url
-  }))
+  cacheService.setPersist('ui.browser.last_urls', (urls) => {
+    if (urls && typeof urls === 'object' && !Array.isArray(urls)) return { ...urls, [context]: url }
+    return { [context]: url }
+  })
 }
