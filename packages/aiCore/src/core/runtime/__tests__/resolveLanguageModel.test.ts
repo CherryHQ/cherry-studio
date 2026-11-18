@@ -18,7 +18,7 @@ vi.mock('../../providers', () => ({
 }))
 
 vi.mock('ai', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
     wrapLanguageModel: vi.fn((config: any) => ({

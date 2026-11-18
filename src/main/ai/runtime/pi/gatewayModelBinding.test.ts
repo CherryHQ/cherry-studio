@@ -583,6 +583,14 @@ it('preserves each model route and usage owner when a child shares the native ga
   )
   expect(childAnswer.stopReason).toBe('stop')
   expect(requests[1]).toMatchObject({ reasoning: 'low', body: { model: 'local:child-wire' } })
+  const prediction = await binding.modelRuntime.completeSimple(
+    binding.model,
+    normalizeContext({ messages: [{ role: 'user', content: 'Predict', timestamp: 3 }] }),
+    { sessionId: 'native-child', readOnlyFork: true, skipCacheWrite: true, disableContinuation: true }
+  )
+  expect(prediction.stopReason).toBe('stop')
+  expect(requests[2]).toMatchObject({ reasoning: 'high', session: 'session-1' })
+
   expect(usages).toEqual([{ sessionId: 'native-child', responseId: 'r', tokens: 15 }])
 })
 

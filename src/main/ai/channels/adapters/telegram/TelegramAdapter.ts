@@ -10,6 +10,7 @@ import {
 } from '@main/utils/downloadAsBase64'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
+import { splitMessage } from '../../utils'
 
 const TELEGRAM_MAX_LENGTH = 4096
 const TELEGRAM_LONG_POLL_TIMEOUT_SECONDS = 30
@@ -41,8 +42,6 @@ const withGetUpdatesTimeout: Transformer = async (prev, method, payload, signal)
     signal?.removeEventListener('abort', abort)
   }
 }
-
-import { splitMessage } from '../../utils'
 
 class TelegramAdapter extends ChannelAdapter {
   private bot: Bot | null = null

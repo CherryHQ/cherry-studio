@@ -198,6 +198,12 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     }
     return notesTree.map((n) => toFileTreeNode(n, false))
   }, [isShowSearch, hasSearchKeyword, searchResults, isShowStarred, notesTree])
+  // Search stays quiet until a keyword has been searched; the other views always explain an empty tree.
+  const emptyTreeText = isShowSearch
+    ? hasSearchKeyword && !isSearching
+      ? t('common.no_results')
+      : null
+    : t(isShowStarred ? 'notes.favorites_empty' : 'notes.empty')
 
   const expandedIds = useMemo<ReadonlySet<string>>(() => {
     if (isShowSearch || isShowStarred) return new Set<string>()
@@ -445,6 +451,13 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                 renderRowExtras={renderRowExtras}
                 renderRowDetail={renderRowDetail}
                 getMenuItems={getTreeNodeMenuItems}
+                emptyState={
+                  emptyTreeText && (
+                    <div className="text-muted-foreground flex h-full items-center justify-center px-5 py-10 text-center text-xs break-words">
+                      {emptyTreeText}
+                    </div>
+                  )
+                }
               />
             </div>
           </CommandContextMenu>
