@@ -18,7 +18,8 @@
  *    which is neither the UI `inputs[]` order nor freed by a link override.
  */
 
-type JsonObject = Record<string, unknown>
+type WorkflowValue = string | number | boolean | null | undefined | WorkflowValue[] | JsonObject
+type JsonObject = { [key: string]: WorkflowValue }
 
 export interface UiNode {
   id: number
@@ -27,7 +28,7 @@ export interface UiNode {
   title?: string
   inputs?: Array<{ name: string; type?: string; link?: number | null; widget?: { name: string } }>
   outputs?: Array<{ name: string; type?: string; links?: number[] | null; widget?: { name: string } }>
-  widgets_values?: unknown[] | JsonObject
+  widgets_values?: WorkflowValue[] | JsonObject
   widgets_values_named?: JsonObject
 }
 
@@ -70,13 +71,13 @@ export type ObjectInfo = Record<
     output_node?: boolean
     /** The types this class produces. `STRING` marks a node that carries text
      * to whatever reads it. */
-    output?: unknown
+    output?: WorkflowValue
   }
 >
 
 export interface ApiPromptNode {
   class_type: string
-  inputs: Record<string, unknown>
+  inputs: Record<string, WorkflowValue>
   _meta: { title: string }
 }
 
@@ -143,7 +144,7 @@ export type Reference = [string, number]
 /** One hop of an alias resolution: the producer to keep following, or a final
  * value. Tagged so the invalid state — both fields, or neither — cannot be
  * represented. */
-type AliasStep = { kind: 'ref'; ref: Reference; type?: string } | { kind: 'value'; value: unknown }
+type AliasStep = { kind: 'ref'; ref: Reference; type?: string } | { kind: 'value'; value: WorkflowValue }
 
 interface WidgetNames {
   /** Every positional slot a widget declaration spends, in declaration order.
@@ -158,7 +159,7 @@ interface WidgetNames {
 
 /** The declaration config of a top-level widget, `{}` when it has none. */
 function widgetConfig(info: ObjectInfo[string], name: string): JsonObject {
-  const entry = (info.input?.required?.[name] ?? info.input?.optional?.[name]) as unknown[] | undefined
+  const entry = (info.input?.required?.[name] ?? info.input?.optional?.[name]) as WorkflowValue[] | undefined
   return Array.isArray(entry) && entry.length > 1 && typeof entry[1] === 'object' ? (entry[1] as JsonObject) : {}
 }
 
@@ -178,13 +179,13 @@ const widgetNames = (acc: WidgetNames): string[] => acc.positions.filter((name):
 /** The widget implementation a declaration asks for: an explicit `widgetType`
  * (`"PAINTER"`, `"hidden"`, …) wins, otherwise the input type — `litegraph
  * Service.addInputSocket` looks the constructor up under exactly that key. */
-const widgetTypeOf = (type: unknown, config: JsonObject): string =>
+const widgetTypeOf = (type: WorkflowValue, config: JsonObject): string =>
   (config.widgetType as string | undefined) ?? (Array.isArray(type) ? 'COMBO' : (type as string))
 
 /** A declaration spends a positional slot when the frontend renders a widget
  * for it: a declared `widgetType` names the implementation to instantiate, so
  * an input whose own type is not a widget type still spends one. */
-const spendsWidgetSlot = (widgetType: string, config: JsonObject, values?: unknown[]): boolean =>
+const spendsWidgetSlot = (widgetType: string, config: JsonObject, values?: WorkflowValue[]): boolean =>
   config.widgetType !== undefined ||
   WIDGET_TYPES.has(widgetType) ||
   NON_SCALAR_WIDGET_TYPES.has(widgetType) ||
@@ -199,7 +200,7 @@ function widgetInputNames(
   includeAdvanced = false,
   spec: JsonObject = info.input ?? {},
   prefix?: string,
-  values?: unknown[],
+  values?: WorkflowValue[],
   acc: WidgetNames = { positions: [], curves: new Set() },
   order: { required?: string[]; optional?: string[] } = info.input_order ?? {}
 ): WidgetNames {
@@ -214,7 +215,7 @@ function widgetInputNames(
     for (const name of sectionNames) {
       const raw = sectionSpec[name]
       const fullName = prefix ? `${prefix}.${name}` : name
-      const entry = raw as unknown[]
+      const entry = raw as WorkflowValue[]
       if (!Array.isArray(entry) || entry.length === 0) continue
       const type = entry[0]
       const config = (entry.length > 1 && typeof entry[1] === 'object' ? entry[1] : {}) as JsonObject
@@ -246,7 +247,7 @@ function widgetInputNames(
   return acc
 }
 
-export const isReference = (value: unknown): value is Reference =>
+export const isReference = (value: WorkflowValue): value is Reference =>
   Array.isArray(value) && value.length === 2 && typeof value[0] === 'string'
 
 /**
@@ -287,14 +288,14 @@ const isPlainTextNode = (node: ApiPromptNode): boolean =>
  * default, a combo's first entry, or null), and ComfyUI rejects the whole
  * prompt when a required key is simply absent — the built-in `ImageCompare`
  * (`compare_view`, socketless) failed every Qwen-Image-Edit run that way. */
-function requiredInputFallbacks(info: ObjectInfo[string], values?: unknown[]): Array<[string, unknown]> {
+function requiredInputFallbacks(info: ObjectInfo[string], values?: WorkflowValue[]): Array<[string, WorkflowValue]> {
   const spec = info.input?.required
   if (!spec) return []
   const declared = info.input_order?.required ?? []
   const names = declared.length > 0 ? declared.filter((name) => name in spec) : Object.keys(spec)
-  const out: Array<[string, unknown]> = []
+  const out: Array<[string, WorkflowValue]> = []
   for (const name of names) {
-    const entry = spec[name] as unknown[]
+    const entry = spec[name] as WorkflowValue[]
     if (!Array.isArray(entry) || entry.length === 0) continue
     const config = (entry.length > 1 && typeof entry[1] === 'object' ? entry[1] : {}) as JsonObject
     // A socket is satisfied by a link, never by a value, so only a declaration
@@ -313,11 +314,7 @@ function requiredInputFallbacks(info: ObjectInfo[string], values?: unknown[]): A
     // config — the cloud templates fail without one
     // (`GeminiNanoBanana2V2.response_modalities`, `KlingImageGenerationNode.
     // image_type`, `MeshyMultiImageToModelNode.symmetry_mode`).
-    const options = Array.isArray(entry[0])
-      ? entry[0]
-      : Array.isArray(config.options)
-        ? (config.options as unknown[])
-        : undefined
+    const options = Array.isArray(entry[0]) ? entry[0] : Array.isArray(config.options) ? config.options : undefined
     if (options !== undefined && options.length > 0 && widgetType !== 'COMFY_DYNAMICCOMBO_V3') {
       out.push([name, options[0]])
       continue
@@ -368,7 +365,7 @@ function bypassInputSlot(node: UiNode, slot: number, requestedType?: string): nu
  * so a widget value that is itself an array is wrapped in an object the backend
  * unwraps during execution. Matches the ComfyUI frontend's `graphToPrompt`.
  */
-function wrapWidgetValue(value: unknown): unknown {
+function wrapWidgetValue(value: WorkflowValue): WorkflowValue {
   return Array.isArray(value) ? { __value__: value } : value
 }
 
@@ -414,8 +411,8 @@ export function convertUiWorkflowToPrompt(
     linkId: number,
     links: Map<number, UiLink>,
     remap: Map<number, number>,
-    bindings: Map<number, Map<number, unknown>>
-  ): unknown {
+    bindings: Map<number, Map<number, WorkflowValue>>
+  ): WorkflowValue {
     const link = links.get(linkId)
     if (!link) {
       warnings.push(`dangling link ${linkId}`)
@@ -434,13 +431,13 @@ export function convertUiWorkflowToPrompt(
   /** The declared type of a prompt node's input, for bypass slot selection. */
   function consumerInputType(node: ApiPromptNode, name: string): string | undefined {
     const spec = objectInfo[node.class_type]?.input
-    const entry = (spec?.required?.[name] ?? spec?.optional?.[name]) as unknown[] | undefined
+    const entry = (spec?.required?.[name] ?? spec?.optional?.[name]) as WorkflowValue[] | undefined
     const type = Array.isArray(entry) ? entry[0] : undefined
     return Array.isArray(type) ? type.join(',') : typeof type === 'string' ? type : undefined
   }
 
-  const namedValues = (values: JsonObject, linked: Set<string>): Record<string, unknown> => {
-    const out: Record<string, unknown> = {}
+  const namedValues = (values: JsonObject, linked: Set<string>): Record<string, WorkflowValue> => {
+    const out: Record<string, WorkflowValue> = {}
     for (const [name, value] of Object.entries(values)) {
       if (!linked.has(name)) out[name] = wrapWidgetValue(value)
     }
@@ -452,13 +449,13 @@ export function convertUiWorkflowToPrompt(
   function widgetValues(
     node: UiNode,
     linked: Set<string>
-  ): { values: Record<string, unknown>; controls: Map<string, string> } {
+  ): { values: Record<string, WorkflowValue>; controls: Map<string, string> } {
     const raw = node.widgets_values
     const info = objectInfo[node.type]
     const controls = new Map<string, string>()
     if (!info) return { values: {}, controls }
-    let out: Record<string, unknown>
-    let values: unknown[]
+    let out: Record<string, WorkflowValue>
+    let values: WorkflowValue[]
     // A named map keys the mode as `control_after_generate` itself; the widget it
     // belongs to is the one the server declares the control on.
     const named = node.widgets_values_named ?? (raw !== undefined && !Array.isArray(raw) ? raw : undefined)
@@ -505,7 +502,7 @@ export function convertUiWorkflowToPrompt(
           for (const curveName of wider.curves) curves.add(curveName)
         }
       }
-      const positional: Record<string, unknown> = {}
+      const positional: Record<string, WorkflowValue> = {}
       names.forEach((name, index) => {
         if (name === CONTROL_AFTER_GENERATE) {
           // The mode follows the widget it controls.
@@ -541,7 +538,7 @@ export function convertUiWorkflowToPrompt(
    * A combo keeps its saved option, and an input another node feeds follows
    * that node's own control.
    */
-  function redrawRandomized(node: UiNode, inputs: Record<string, unknown>, controls: Map<string, string>) {
+  function redrawRandomized(node: UiNode, inputs: Record<string, WorkflowValue>, controls: Map<string, string>) {
     if (!options.random) return
     for (const [name, mode] of controls) {
       if (mode !== 'randomize' || typeof inputs[name] !== 'number') continue
@@ -560,7 +557,7 @@ export function convertUiWorkflowToPrompt(
     kind: string,
     links: Map<number, UiLink>,
     remap: Map<number, number>,
-    bindings: Map<number, Map<number, unknown>>
+    bindings: Map<number, Map<number, WorkflowValue>>
   ) {
     const id = remap.get(node.id)!
     const alias: Record<number, (type?: string) => AliasStep | undefined> = {}
@@ -610,7 +607,7 @@ export function convertUiWorkflowToPrompt(
     node: UiNode,
     links: Map<number, UiLink>,
     remap: Map<number, number>,
-    bindings: Map<number, Map<number, unknown>>
+    bindings: Map<number, Map<number, WorkflowValue>>
   ) {
     const id = remap.get(node.id)!
     if (node.type === PRIMITIVE_NODE) {
@@ -640,7 +637,7 @@ export function convertUiWorkflowToPrompt(
     // when the instance actually carries one, so an unbound promotion is the
     // interior's value, not an absent input.
     const linked = new Set<string>()
-    const inputs: Record<string, unknown> = {}
+    const inputs: Record<string, WorkflowValue> = {}
     for (const slot of node.inputs ?? []) {
       if (slot.link == null) continue
       const resolved = resolveLink(slot.link, links, remap, bindings)
@@ -662,7 +659,7 @@ export function convertUiWorkflowToPrompt(
     instance: UiNode,
     links: Map<number, UiLink>,
     remap: Map<number, number>,
-    bindings: Map<number, Map<number, unknown>>
+    bindings: Map<number, Map<number, WorkflowValue>>
   ) {
     const id = remap.get(instance.id)!
     const definition = subgraphs.get(instance.type)!
@@ -692,11 +689,11 @@ export function convertUiWorkflowToPrompt(
     // widget. The `inputs[]` in the file is a different list — it can omit a
     // promoted widget altogether — so reading the positions off it shifts every
     // value that follows the omission.
-    const innerBindings = new Map<number, Map<number, unknown>>()
+    const innerBindings = new Map<number, Map<number, WorkflowValue>>()
     if (inputNodeId !== undefined) {
       const values = instance.widgets_values
       const saved = new Map((instance.inputs ?? []).map((slot) => [slot.name, slot]))
-      const byName = new Map<string, unknown>()
+      const byName = new Map<string, WorkflowValue>()
       let widgetIndex = 0
       for (const def of definition.inputs ?? []) {
         const slot = saved.get(def.name)
@@ -717,7 +714,7 @@ export function convertUiWorkflowToPrompt(
         }
         if (widget) widgetIndex += 1
       }
-      const bySlot = new Map<number, unknown>()
+      const bySlot = new Map<number, WorkflowValue>()
       ;(definition.inputs ?? []).forEach((def, index) => {
         if (!byName.has(def.name)) {
           warnings.push(`instance ${instance.id} has no value for promoted input ${def.name}`)
@@ -760,7 +757,7 @@ export function convertUiWorkflowToPrompt(
     node: UiNode,
     links: Map<number, UiLink>,
     remap: Map<number, number>,
-    bindings: Map<number, Map<number, unknown>>
+    bindings: Map<number, Map<number, WorkflowValue>>
   ) {
     if (node.mode === 2) return // muted: never runs; consumers of it are dropped below
     if (node.mode === 4) {
@@ -781,7 +778,7 @@ export function convertUiWorkflowToPrompt(
   // alias holder (a bypass fed by a bypass), so follow the chain until a real
   // producer or value shows up, carrying the consumer's type through the way
   // the frontend does (the chosen input's own type seeds the next hop).
-  const resolveAlias = (ref: Reference, type: string | undefined): unknown => {
+  const resolveAlias = (ref: Reference, type: string | undefined): WorkflowValue => {
     const seen = new Set<string>()
     let current = { ref, type }
     while (true) {
@@ -874,7 +871,7 @@ const isPromptShaped = (name: string): boolean => {
  * leftmost one wins. `conditioning` is not one of them: a combiner and a
  * forwarder name their single stream that way without being the sampler.
  */
-function positiveConditioning(inputs: Record<string, unknown>): Reference | undefined {
+function positiveConditioning(inputs: Record<string, WorkflowValue>): Reference | undefined {
   for (const [name, value] of Object.entries(inputs)) {
     if (!isReference(value)) continue
     if (name === 'positive' || /^cond\d+$/.test(name)) return value
@@ -911,7 +908,7 @@ export function hasPromptText(prompt: Record<string, ApiPromptNode>): boolean {
  * Keyed on the declared input names rather than the class, so the same rule
  * covers any node that declares this shape.
  */
-function selectedSwitchBranch(node: ApiPromptNode): { name: 'on_true' | 'on_false'; value: unknown } | undefined {
+function selectedSwitchBranch(node: ApiPromptNode): { name: 'on_true' | 'on_false'; value: WorkflowValue } | undefined {
   const selector = node.inputs.switch
   if (typeof selector !== 'boolean') return undefined
   const name = selector ? 'on_true' : 'on_false'
@@ -932,7 +929,7 @@ function declaredInputType(objectInfo: ObjectInfo, classType: string, name: stri
   const entry = (spec?.required?.[name] ??
     spec?.optional?.[name] ??
     spec?.required?.[leaf] ??
-    spec?.optional?.[leaf]) as unknown[] | undefined
+    spec?.optional?.[leaf]) as WorkflowValue[] | undefined
   const type = Array.isArray(entry) ? entry[0] : undefined
   return Array.isArray(type) ? 'COMBO' : typeof type === 'string' ? type : undefined
 }
@@ -963,7 +960,7 @@ export function findPromptTarget(
   // over conditioning transformers that merely forward a positive stream, so
   // the per-run seed is written where the graph samples, not into a side
   // branch.
-  const conditioningInputs = (node: ApiPromptNode): Record<string, unknown> =>
+  const conditioningInputs = (node: ApiPromptNode): Record<string, WorkflowValue> =>
     isReference(node.inputs.guider) ? (prompt[node.inputs.guider[0]]?.inputs ?? {}) : node.inputs
   const withPositive = Object.entries(prompt).filter(([, node]) => {
     // `conditioningInputs` follows one `guider` hop, so a sampler reading its
@@ -1263,7 +1260,7 @@ export function applySeed(graph: Record<string, ApiPromptNode>, seed: number | u
  * the seed it always wrote; a node that only nests its seed — the API
  * generators and the newer template nodes do — still counts as one that samples.
  */
-const seedInputKey = (inputs: Record<string, unknown>): string | undefined => {
+const seedInputKey = (inputs: Record<string, WorkflowValue>): string | undefined => {
   if ('seed' in inputs) return 'seed'
   if ('noise_seed' in inputs) return 'noise_seed'
   return Object.keys(inputs).find((key) => key.endsWith('.seed') || key.endsWith('.noise_seed'))
@@ -1277,7 +1274,7 @@ const seedInputKey = (inputs: Record<string, unknown>): string | undefined => {
  */
 function writeSeed(
   graph: Record<string, ApiPromptNode>,
-  inputs: Record<string, unknown>,
+  inputs: Record<string, WorkflowValue>,
   key: string,
   value: number
 ): void {
