@@ -78,6 +78,7 @@ function taskRunSessionId(job: JobSnapshot): string | null {
   return typeof saved === 'string' ? saved : typeof legacy === 'string' ? legacy : null
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- JobScheduleSnapshot.jobInputTemplate is untyped handler-specific JSON; check task fields and parse workspace before projecting a task.
 function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate | null {
   if (typeof value !== 'object' || value === null) return null
 
@@ -120,11 +121,13 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
  * config-driven convergence (heartbeat sync) can tell "paused by the breaker"
  * apart from plain drift and must not silently re-arm it.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Schedule metadata is read directly from its JSON column; accept the breaker marker only from a record with the literal true value.
 export function isCircuitBreakerPaused(metadata: unknown): boolean {
   return isPlainRecord(metadata) && metadata[CIRCUIT_BREAKER_PAUSED_KEY] === true
 }
 
 /** Same merge discipline as writeTaskSessionReuse — the column replaces wholesale. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Snapshot metadata comes directly from stored JSON; discard primitive/array containers instead of spreading them into replacement metadata.
 export function writeCircuitBreakerPaused(metadata: unknown, paused: boolean): Record<string, unknown> {
   if (!isPlainRecord(metadata)) return { [CIRCUIT_BREAKER_PAUSED_KEY]: paused }
   const next = { ...metadata }
@@ -150,6 +153,7 @@ function findWorkspaceScheduleReferences(schedules: JobScheduleSnapshot[], works
   return references
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Schedule metadata, queued job inputs and legacy templates supply raw reuse epochs; reject missing or malformed revisions as zero.
 export function normalizeTaskSessionReuseRevision(value: unknown): number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0
 }
