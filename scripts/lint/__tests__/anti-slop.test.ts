@@ -47,6 +47,7 @@ describe('available generic anti-slop rules', () => {
     ['no-reflect-get', 'export const result = Reflect.get({ value: 1 }, "value")'],
     ['no-object-parameters', 'export function read(value: object) { return value }'],
     ['no-array-filter-map', 'export const result = [1, 2].filter(value => value > 0).map(value => value * 2)'],
+    ['no-conditional-empty-object-spread', 'export const result = { ...(Math.random() > 0.5 ? { value: 1 } : {}) }'],
     ['no-accumulating-spread', 'export const result = [1, 2].reduce((acc, item) => [...acc, item], [] as number[])'],
     ['no-unknown-type-aliases', 'export type Boundary = unknown'],
     ['no-unknown-returns', 'export function read(): unknown { return "value" }'],
