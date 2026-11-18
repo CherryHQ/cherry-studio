@@ -118,19 +118,12 @@ function passThroughAnthropicReasoning(
   effort: GatewayReasoningEffort | null | undefined
 ): ProviderOptions | undefined {
   if (!config && effort == null) return undefined
-  return {
-    anthropic: {
-      ...(config
-        ? {
-            thinking:
-              config.type === 'enabled'
-                ? { type: 'enabled', budgetTokens: config.budget_tokens }
-                : { type: config.type }
-          }
-        : {}),
-      ...(effort != null ? { effort } : {})
-    }
-  }
+  const anthropic: ProviderOptions['anthropic'] = {}
+  if (config)
+    anthropic.thinking =
+      config.type === 'enabled' ? { type: 'enabled', budgetTokens: config.budget_tokens } : { type: config.type }
+  if (effort != null) anthropic.effort = effort
+  return { anthropic }
 }
 
 /** Keep Gemini sentinels and optional fields exactly as supplied. */

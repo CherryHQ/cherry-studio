@@ -387,10 +387,10 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk, O
     const message: OpenAiCompatibleMessage = {
       role: 'assistant',
       content,
-      refusal: null,
-      ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
-      ...(toolCallsArray.length > 0 ? { tool_calls: toolCallsArray } : {})
+      refusal: null
     }
+    if (reasoningContent) message.reasoning_content = reasoningContent
+    if (toolCallsArray.length > 0) message.tool_calls = toolCallsArray
 
     return {
       id: this.getMessageId(),

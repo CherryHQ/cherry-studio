@@ -326,12 +326,12 @@ export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateC
           const toolName = part.functionCall.name ?? 'unknown'
           const toolCallId = part.functionCall.id ?? `${toolName}-${toolCallSeq++}`
           const output = takeToolOutput(part.functionCall, toolResponses)
-          const base = {
-            type: 'dynamic-tool' as const,
+          const base: Pick<DynamicToolUIPart, 'type' | 'toolName' | 'toolCallId' | 'callProviderMetadata'> = {
+            type: 'dynamic-tool',
             toolName,
-            toolCallId,
-            ...(signatureMetadata ? { callProviderMetadata: signatureMetadata } : {})
+            toolCallId
           }
+          if (signatureMetadata) base.callProviderMetadata = signatureMetadata
           const toolPart: DynamicToolUIPart =
             output !== undefined
               ? { ...base, state: 'output-available', input: part.functionCall.args ?? {}, output }
