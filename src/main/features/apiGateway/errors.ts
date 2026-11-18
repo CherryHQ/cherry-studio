@@ -225,6 +225,21 @@ const anthropicTypeForStatus = (status: number): string => {
   return 'invalid_request_error'
 }
 
+// vLLM: https://github.com/vllm-project/vllm/blob/b5b9f7982cc82a2925e6f83cbe2e9b39aaf7fb47/vllm/renderers/params.py#L544-L548
+// llama.cpp: https://github.com/ggml-org/llama.cpp/blob/65758d01f5eee145e71e3e903d930574cb5d523e/tools/server/server-context.cpp#L4041-L4043
+const overflowLimit = /(?:maximum context length is|available context size \()\s*([\d,]+) tokens/i
+const overflowRequest =
+  /(?:resulted in|you requested|request has|contains(?: at least)?|request \()\s*([\d,]+) (?:input )?tokens/i
+
+// Claude Code sizes an overflow (and its reactive compaction) only from Anthropic's `N tokens > M` wording.
+function anthropicOverflowMessage(message: string): string {
+  const limit = Number(overflowLimit.exec(message)?.[1].replaceAll(',', ''))
+  const requested = Number(overflowRequest.exec(message)?.[1].replaceAll(',', ''))
+  return requested > limit
+    ? `Prompt is too long: ${requested} tokens > ${limit} maximum. ${message}`
+    : `Prompt is too long: ${message}`
+}
+
 /**
  * Shape an unknown provider/runtime error into the Anthropic error envelope.
  * Inlined from the former `MessagesService`. Status-driven so it correctly maps the
@@ -243,7 +258,7 @@ function transformAnthropicError(error: unknown): {
     statusCode === 400 &&
     category === 'context_length' &&
     !message.toLowerCase().includes('prompt is too long')
-      ? `Prompt is too long: ${message}`
+      ? anthropicOverflowMessage(message)
       : message
   const requestId =
     error !== null && typeof error === 'object' && typeof (error as { request_id?: unknown }).request_id === 'string'

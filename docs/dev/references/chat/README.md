@@ -195,7 +195,8 @@ reduction still applies before summarization.
 
 The shared matcher in `packages/aiCore/src/contextOverflow.ts` recognizes provider-message patterns such as
 `context_length_exceeded`, `too many tokens`, `maximum context length`,
-`context window`, `prompt is too long`, and `input is too long`. Both overflow recovery and
+`context window`, `prompt is too long`, `input is too long`, and llama.cpp's
+`exceeds the available context size`. Both overflow recovery and
 `src/shared/utils/errorCategory.ts` use it; recovery also requires an AI SDK HTTP 400 error and excludes
 authentication, quota, and rate-limit failures.
 The error toast offers one action for that category: `trimContext`, wired in
