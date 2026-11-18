@@ -89,11 +89,13 @@ const legacyChatModels = [
 const overrides: ProviderModelOffer[] = [
   // The effort SKUs are the 250615+ line Ark serves over /responses, where the built-in web_search tool
   // and encrypted-CoT replay live — list Responses first so it's preferred, keeping chat selectable.
-  ...effortModels.map((apiModelId) => ({
-    apiModelId,
-    endpointTypes: ['openai-responses' as const, 'openai-chat-completions' as const],
-    ...(fastTierModels.has(apiModelId) ? { supportsFastMode: true } : {}),
-    reasoningContracts: highEffortDefaults.has(apiModelId)
+  ...effortModels.map((apiModelId) => {
+    const offer: ProviderModelOffer = {
+      apiModelId,
+      endpointTypes: ['openai-responses', 'openai-chat-completions']
+    }
+    if (fastTierModels.has(apiModelId)) offer.supportsFastMode = true
+    offer.reasoningContracts = highEffortDefaults.has(apiModelId)
       ? {
           'openai-chat-completions': {
             ...effortContracts['openai-chat-completions'],
@@ -102,7 +104,8 @@ const overrides: ProviderModelOffer[] = [
           'openai-responses': { ...effortContracts['openai-responses'], support: { defaultEffort: 'high' as const } }
         }
       : effortContracts
-  })),
+    return offer
+  }),
   ...chatOnlyEffortModels.map((apiModelId) => ({
     apiModelId,
     endpointTypes: ['openai-chat-completions' as const],

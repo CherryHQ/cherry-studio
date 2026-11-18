@@ -202,11 +202,10 @@ export class ClientMcpConnection implements McpConnection {
   private async recoverCatalogSubscription(): Promise<void> {
     if (this.era !== 'modern') return
     const capabilities = this.serverCapabilities
-    const filter = {
-      ...(capabilities?.tools?.listChanged ? { toolsListChanged: true } : {}),
-      ...(capabilities?.prompts?.listChanged ? { promptsListChanged: true } : {}),
-      ...(capabilities?.resources?.listChanged ? { resourcesListChanged: true } : {})
-    }
+    const filter: NonNullable<Parameters<typeof this.client.listen>[0]> = {}
+    if (capabilities?.tools?.listChanged) filter.toolsListChanged = true
+    if (capabilities?.prompts?.listChanged) filter.promptsListChanged = true
+    if (capabilities?.resources?.listChanged) filter.resourcesListChanged = true
     if (!Object.keys(filter).length) return
     const signal = this.subscriptionAbort.signal
     let subscription = this.client.autoOpenedSubscription

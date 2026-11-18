@@ -828,10 +828,9 @@ async function sendNotification(ctx: AutonomyToolsContext, args: NotifyInput): P
   const fileFailed = file !== undefined && filesSent === 0
   const deliveryFailed = errors.length > 0 && (messageFailed || fileFailed)
 
-  return {
-    content: [{ type: 'text', text: parts.join(' ') }],
-    ...(deliveryFailed ? { isError: true } : {})
-  }
+  const result: CallToolResult = { content: [{ type: 'text', text: parts.join(' ') }] }
+  if (deliveryFailed) result.isError = true
+  return result
 }
 
 // ── Config tool handlers ──────────────────────────────────────────
