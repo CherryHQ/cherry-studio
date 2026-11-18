@@ -176,25 +176,27 @@ function normalizePricingForComparison(pricing: RuntimeModelPricing): RuntimeMod
     currency: tier.currency ?? CURRENCY.USD
   })
 
-  return {
+  const normalized: RuntimeModelPricing = {
     input: normalizeTier(pricing.input),
-    output: normalizeTier(pricing.output),
-    ...(pricing.cacheRead ? { cacheRead: normalizeTier(pricing.cacheRead) } : {}),
-    ...(pricing.cacheWrite ? { cacheWrite: normalizeTier(pricing.cacheWrite) } : {}),
-    ...(pricing.inputTokenTiers?.length
-      ? {
-          inputTokenTiers: pricing.inputTokenTiers.map((tier) => ({
-            minInputTokens: tier.minInputTokens,
-            input: normalizeTier(tier.input),
-            output: normalizeTier(tier.output),
-            ...(tier.cacheRead ? { cacheRead: normalizeTier(tier.cacheRead) } : {}),
-            ...(tier.cacheWrite ? { cacheWrite: normalizeTier(tier.cacheWrite) } : {})
-          }))
-        }
-      : {}),
-    ...(pricing.perImage ? { perImage: pricing.perImage } : {}),
-    ...(pricing.perMinute ? { perMinute: pricing.perMinute } : {})
+    output: normalizeTier(pricing.output)
   }
+  if (pricing.cacheRead) normalized.cacheRead = normalizeTier(pricing.cacheRead)
+  if (pricing.cacheWrite) normalized.cacheWrite = normalizeTier(pricing.cacheWrite)
+  if (pricing.inputTokenTiers?.length) {
+    normalized.inputTokenTiers = pricing.inputTokenTiers.map((tier) => {
+      const normalizedTier: NonNullable<RuntimeModelPricing['inputTokenTiers']>[number] = {
+        minInputTokens: tier.minInputTokens,
+        input: normalizeTier(tier.input),
+        output: normalizeTier(tier.output)
+      }
+      if (tier.cacheRead) normalizedTier.cacheRead = normalizeTier(tier.cacheRead)
+      if (tier.cacheWrite) normalizedTier.cacheWrite = normalizeTier(tier.cacheWrite)
+      return normalizedTier
+    })
+  }
+  if (pricing.perImage) normalized.perImage = pricing.perImage
+  if (pricing.perMinute) normalized.perMinute = pricing.perMinute
+  return normalized
 }
 
 /**
@@ -232,12 +234,13 @@ export function resolveReasoningProfileFromRegistry(input: {
       ? configureOpenAIResponsesSummary(baseWire, input.reasoningSummary)
       : baseWire
 
-  return {
+  const profile: ResolvedReasoningProfile = {
     format: formatType,
     support: input.contract?.support,
-    wire,
-    ...(input.wireDialect !== undefined ? { wireDialect: input.wireDialect } : {})
+    wire
   }
+  if (input.wireDialect !== undefined) profile.wireDialect = input.wireDialect
+  return profile
 }
 
 /**
@@ -425,15 +428,18 @@ export function createCustomModel(
   // descriptor when the id is recognizably a reasoning SKU, so custom rows
   // are descriptor-driven like catalog rows (#16598).
   const reasoning = inferCustomModelReasoning(modelId, profile)
-  return {
+  const model: Omit<Model, 'supportsStreaming' | 'isEnabled' | 'isHidden'> = {
     id: createUniqueModelId(providerId, modelId),
     providerId,
     apiModelId: modelId,
     name: modelId,
     ownedBy: inferReasoningOwnedBy(modelId),
     capabilities: [],
-    reasoning,
-    ...(serviceTierControl ? { requestControls: { serviceTier: projectServiceTierControl(serviceTierControl) } } : {}),
+    reasoning
+  }
+  if (serviceTierControl) model.requestControls = { serviceTier: projectServiceTierControl(serviceTierControl) }
+  return {
+    ...model,
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false
@@ -502,7 +508,7 @@ export function mergePresetModel(
     ? Array.from(new Set([...capabilities, MODEL_CAPABILITY.REASONING]))
     : capabilities
 
-  return {
+  const metadata: Omit<Model, 'parameterSupport' | 'pricing' | 'isEnabled' | 'isHidden' | 'replaceWith'> = {
     id: createUniqueModelId(providerId, presetModel.id),
     providerId,
     apiModelId: catalogOverride?.apiModelId ?? presetModel.id,
@@ -518,9 +524,12 @@ export function mergePresetModel(
     maxInputTokens,
     endpointTypes,
     supportsStreaming: true,
-    reasoning,
-    ...(catalogOverride?.supportsFastMode ? { supportsFastMode: true } : {}),
-    ...(serviceTierControl ? { requestControls: { serviceTier: projectServiceTierControl(serviceTierControl) } } : {}),
+    reasoning
+  }
+  if (catalogOverride?.supportsFastMode) metadata.supportsFastMode = true
+  if (serviceTierControl) metadata.requestControls = { serviceTier: projectServiceTierControl(serviceTierControl) }
+  return {
+    ...metadata,
     parameterSupport: parameterSupport as RuntimeParameterSupport | undefined,
     pricing,
     isEnabled: !(catalogOverride?.disabled ?? false),
