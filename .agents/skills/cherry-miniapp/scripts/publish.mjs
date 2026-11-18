@@ -145,7 +145,9 @@ export async function buildDistributionManifest(appDir, packageFile, baseUrl) {
       // Served next to the package at its immutable versioned path, so the consent
       // card can show the icon before downloading; the host verifies it against
       // icon.sha256, the same digest the packaged icon must match at install.
-      ...(manifest.icon ? { iconUrl: `${base}/${hostedIconPath(manifest.id, manifest.version, manifest.icon.path)}` } : {}),
+      ...(manifest.icon
+        ? { iconUrl: `${base}/${hostedIconPath(manifest.id, manifest.version, manifest.icon.path)}` }
+        : {}),
       sha256: sha256Hex(packageBytes),
       size: packageBytes.length
     }
@@ -233,10 +235,7 @@ export async function verifyPublished(hostedManifestUrl, appDir, packageFile, { 
     throw new Error('hosted manifest: package.iconUrl declared without an icon block to verify it against')
   }
   if (expected.icon?.path) {
-    if (
-      hostedManifest.icon?.path !== expected.icon.path ||
-      hostedManifest.icon?.sha256 !== expected.icon.sha256
-    ) {
+    if (hostedManifest.icon?.path !== expected.icon.path || hostedManifest.icon?.sha256 !== expected.icon.sha256) {
       throw new Error('hosted manifest icon block does not match the tested package icon')
     }
     const iconUrl = pkg.iconUrl ?? new URL(hostedManifest.icon.path, hostedManifestUrl).href
