@@ -171,16 +171,17 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
   // 3. Assemble first-class per-request overrides (sampling / tools / provider options).
   const callOverrides: CallOverrides = {
-    ...streamOptions,
-    ...(tools ? { tools } : {}),
-    ...(Object.keys(providerOptions).length > 0 ? { providerOptions } : {})
+    ...streamOptions
   }
+  if (tools) callOverrides.tools = tools
+  if (Object.keys(providerOptions).length > 0) callOverrides.providerOptions = providerOptions
 
   // 4. Adapter + formatter translate UIMessageChunk → output format.
-  const adapter = StreamAdapterFactory.createAdapter(outputFormat, {
-    model: `${provider.id}:${modelId}`,
-    ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {})
-  })
+  const adapterOptions: NonNullable<Parameters<typeof StreamAdapterFactory.createAdapter>[1]> = {
+    model: `${provider.id}:${modelId}`
+  }
+  if (converter.toClientToolName) adapterOptions.toClientToolName = converter.toClientToolName.bind(converter)
+  const adapter = StreamAdapterFactory.createAdapter(outputFormat, adapterOptions)
   const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)
   const usageContext = config.requestHeaders
     ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders, adapter.getMessageId())
@@ -336,7 +337,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
         if (closed) return
         try {
-          aiStreamManager.streamPrompt({
+          const prompt: Omit<Parameters<typeof aiStreamManager.streamPrompt>[0], 'idleTimeoutMs' | 'maxRetries'> = {
             ...turnOptions,
             streamId,
             uniqueModelId,
@@ -344,9 +345,12 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             messages,
             listener,
             callOverrides,
-            contextOwner: 'caller',
-            ...(usageContext ? { usageContext } : {}),
-            ...(agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
+            contextOwner: 'caller'
+          }
+          if (usageContext) prompt.usageContext = usageContext
+          if (agentSessionId) prompt.tokenUsageSource = 'agent'
+          aiStreamManager.streamPrompt({
+            ...prompt,
             idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS,
             // Serve exactly the admitted model; clients own retries, and fallbacks would bypass admission.
             maxRetries: 0
@@ -436,7 +440,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
   try {
     if (!aborted) {
-      aiStreamManager.streamPrompt({
+      const prompt: Omit<Parameters<typeof aiStreamManager.streamPrompt>[0], 'idleTimeoutMs' | 'maxRetries'> = {
         ...turnOptions,
         streamId,
         uniqueModelId,
@@ -444,9 +448,12 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         messages,
         listener,
         callOverrides,
-        contextOwner: 'caller',
-        ...(usageContext ? { usageContext } : {}),
-        ...(agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
+        contextOwner: 'caller'
+      }
+      if (usageContext) prompt.usageContext = usageContext
+      if (agentSessionId) prompt.tokenUsageSource = 'agent'
+      aiStreamManager.streamPrompt({
+        ...prompt,
         idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS,
         maxRetries: 0
       })
