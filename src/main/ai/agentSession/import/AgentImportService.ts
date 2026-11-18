@@ -140,8 +140,8 @@ export class AgentImportService extends BaseService {
       [...this.runs.keys()].some((id) => getConversationImporter(this.operation(id).importerId).id === importer.id)
     )
       throw new Error('An import is already running')
-    const digest = await importer.digest(file)
     const archive = await importer.open(file)
+    const { digest } = archive
     let preview: Awaited<ReturnType<ImportArchive['preview']>>
     try {
       preview = await archive.preview()
@@ -215,9 +215,9 @@ export class AgentImportService extends BaseService {
     try {
       const file = z.string().parse(operation.sourceFile)
       const importer = getConversationImporter(operation.importerId)
-      if ((await importer.digest(file)) !== operation.digest) throw new Error('Import file changed')
       const archive = await importer.open(file)
       try {
+        if (archive.digest !== operation.digest) throw new Error('Import file changed')
         signal.throwIfAborted()
         if (operation.createAgent) await this.createImportAgent(operation, importer, signal)
         for (const sourceId of archive.sourceIds) {

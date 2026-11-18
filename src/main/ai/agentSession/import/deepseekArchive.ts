@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
-import { createReadStream } from 'node:fs'
-import { stat } from 'node:fs/promises'
+import { close, createReadStream, fstat, open } from 'node:fs'
+import { promisify } from 'node:util'
 
 import StreamZip from 'node-stream-zip'
 import * as z from 'zod'
@@ -13,17 +13,22 @@ const MAX_ENTRY_BYTES = 32 * 1024 * 1024
 const MAX_ARCHIVE_BYTES = 512 * 1024 * 1024
 const MAX_TOTAL_BYTES = 1024 * 1024 * 1024
 
-export async function deepseekArchiveDigest(file: string): Promise<string> {
-  if ((await stat(file)).size > MAX_ARCHIVE_BYTES) throw new Error('DeepSeek archive is too large')
-  const hash = createHash('sha256')
-  for await (const chunk of createReadStream(file)) hash.update(chunk)
-  return hash.digest('hex')
-}
-
 export async function openDeepseekArchive(file: string) {
-  if ((await stat(file)).size > MAX_ARCHIVE_BYTES) throw new Error('DeepSeek archive is too large')
-  const zip = new StreamZip.async({ file })
+  const fd = await promisify(open)(file, 'r')
+  let release = () => promisify(close)(fd)
   try {
+    const source = await promisify(fstat)(fd)
+    if (source.size > MAX_ARCHIVE_BYTES) throw new Error('DeepSeek archive is too large')
+    const assertUnchanged = async () => {
+      const current = await promisify(fstat)(fd)
+      if (current.size !== source.size || current.mtimeMs !== source.mtimeMs) throw new Error('Import file changed')
+    }
+    const hash = createHash('sha256')
+    for await (const chunk of createReadStream(file, { fd, autoClose: false, start: 0 })) hash.update(chunk)
+    await assertUnchanged()
+    const digest = hash.digest('hex')
+    const zip = new StreamZip.async({ fd })
+    release = () => zip.close()
     const entries = await zip.entries()
     const names = Object.keys(entries)
     if (names.length !== (await zip.entriesCount) || names.length > 20_000)
@@ -46,6 +51,7 @@ export async function openDeepseekArchive(file: string) {
         throw new Error('DeepSeek archive exceeds extraction limits')
     }
     const read = async (name: string): Promise<Buffer> => {
+      await assertUnchanged()
       const entry = entries[name]
       if (!entry?.isFile) throw new Error(`Missing DeepSeek archive entry: ${name}`)
       const chunks: Buffer[] = []
@@ -57,6 +63,7 @@ export async function openDeepseekArchive(file: string) {
         chunks.push(bytes)
       }
       if (size !== entry.size) throw new Error('Incomplete DeepSeek archive entry')
+      await assertUnchanged()
       return Buffer.concat(chunks)
     }
     const json = async (name: string): Promise<unknown> => JSON.parse((await read(name)).toString('utf8'))
@@ -104,9 +111,9 @@ export async function openDeepseekArchive(file: string) {
       }
       return value
     }
-    return { index, load, read, close: () => zip.close() }
+    return { digest, index, load, read, close: release }
   } catch (error) {
-    await zip.close()
+    await release()
     throw error
   }
 }

@@ -54,6 +54,10 @@ export function bindNativeInput(sessionId: string, contextId: string, input: Inp
   if (!messageId) return undefined
   const binding = messages.inputBinding(sessionId, messageId)
   if (binding?.contextId !== contextId) return undefined
+  if (input.facts.includes('locally-handled'))
+    application
+      .get('DbService')
+      .withWriteTx((tx) => messages.markInputLocallyHandledTx(tx, sessionId, messageId, contextId))
   if (input.nativeInput && binding.nativeInputId !== input.nativeInput.id) {
     const nativeInputId = input.nativeInput.id
     application

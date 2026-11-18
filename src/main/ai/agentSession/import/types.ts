@@ -26,6 +26,7 @@ export interface ImportContext {
 }
 
 export interface ImportArchive {
+  readonly digest: string
   sourceIds: readonly string[]
   /** Validate every conversation without creating managed files or publishing sessions. */
   preview(): Promise<{ messages: number; missingFiles: string[] }>
@@ -37,6 +38,5 @@ export interface ConversationImporter {
   readonly id: string
   readonly name: string
   readonly emoji: string
-  digest(file: string): Promise<string>
   open(file: string): Promise<ImportArchive>
 }

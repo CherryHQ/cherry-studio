@@ -149,7 +149,7 @@ function agentSessionMessageEntityJsonBytes(): SQL<number> {
     'id', ${sessionMessagesTable.id},
     'sessionId', ${sessionMessagesTable.sessionId},
     'role', ${sessionMessagesTable.role},
-    'data', json_remove(json(${sessionMessagesTable.data}), '$.runtimeAnchor', '$.nativeSessionId', '$.deliveryReplyAnchor'),
+    'data', json_remove(json(${sessionMessagesTable.data}), '$.runtimeAnchor', '$.nativeSessionId', '$.deliveryReplyAnchor', '$.locallyHandled'),
     'searchableText', ${sessionMessagesTable.searchableText},
     'status', ${sessionMessagesTable.status},
     'modelId', ${sessionMessagesTable.modelId},
@@ -361,6 +361,7 @@ function publicMessageData(data: SessionMessageRow['data']): AgentSessionMessage
   delete result.runtimeAnchor
   delete result.nativeSessionId
   delete result.deliveryReplyAnchor
+  delete result.locallyHandled
   return result
 }
 
@@ -484,6 +485,39 @@ export class AgentSessionMessageService {
       )
       .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
       .get()
+  }
+
+  hasContextModelInput(sessionId: string, contextId: string): boolean {
+    return Boolean(
+      application
+        .get('DbService')
+        .getDb()
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            eq(sessionMessagesTable.inputContextId, contextId),
+            sql`coalesce(json_extract(${sessionMessagesTable.data}, '$.locallyHandled'), 0) = 0`
+          )
+        )
+        .limit(1)
+        .get()
+    )
+  }
+
+  markInputLocallyHandledTx(tx: DbOrTx, sessionId: string, messageId: string, contextId: string): void {
+    tx.update(sessionMessagesTable)
+      .set({ data: sql`json_set(${sessionMessagesTable.data}, '$.locallyHandled', json('true'))` })
+      .where(
+        and(
+          eq(sessionMessagesTable.id, messageId),
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.inputContextId, contextId),
+          isNull(sessionMessagesTable.nativeInputId)
+        )
+      )
+      .run()
   }
 
   inputBinding(sessionId: string, messageId: string) {
@@ -1637,6 +1671,7 @@ export class AgentSessionMessageService {
       }
       if (existingRow.data.deliveryReplyAnchor) data.deliveryReplyAnchor = existingRow.data.deliveryReplyAnchor
       if (existingRow.data.nativeSessionId) data.nativeSessionId = existingRow.data.nativeSessionId
+      if (existingRow.data.locallyHandled) data.locallyHandled = true
       const runtimeResumeTokenToPersist = runtimeResumeToken ?? existingRow.runtimeResumeToken ?? null
       const updatedAtMs = timestampMs
       const modelId = message.modelId === undefined ? existingRow.modelId : message.modelId

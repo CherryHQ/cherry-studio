@@ -14,9 +14,9 @@ import { buildAgentUserContent, withAgentContext } from '@main/ai/runtime/agentU
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { prepareDurableBranch } from '@main/ai/runtime/piDurable/durableContext'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import { MessageDataSchema, type CherryMessagePart } from '@shared/data/types/message'
 
-import { prepareNativeSubmission } from '../nativeSubmission'
+import { applyNativeSubmissionResult, prepareNativeSubmission } from '../nativeSubmission'
 import { readSessionHistory } from '../sessionHistory'
 
 const dbh = setupTestDatabase()
@@ -253,7 +253,7 @@ it('keeps history available after warming a fresh native identity and stops rebu
   const context = preparePiBranch('session', head)
   contexts.bindContext(context.id, context.nativeThreadId!)
   const current = save('user', [{ type: 'text', text: 'Continue' }])
-  const history = await readSessionHistory('session', current.id)
+  const history = await readSessionHistory('session', current.id, context.id)
   expect(history?.length).toBeGreaterThan(0)
   const draft = prepareNativeSubmission('session', current.id, context.id, 'reject', {
     text: buildAgentUserContent(current, history),
@@ -262,7 +262,49 @@ it('keeps history available after warming a fresh native identity and stops rebu
   expect(draft.text).toContain('Mango recorded')
   expect(messages.getSessionMessage('session', current.id).data.parts).toEqual([{ type: 'text', text: 'Continue' }])
   const next = save('user', [{ type: 'text', text: 'Follow up' }])
-  expect(await readSessionHistory('session', next.id)).toBeUndefined()
+  expect(await readSessionHistory('session', next.id, context.id)).toBeUndefined()
+})
+
+it('retains history across a local command whose reply owns the fresh context anchor and resume token', async () => {
+  const local = save('user', [{ type: 'text', text: '/goal' }])
+  const notice = save('assistant', [{ type: 'text', text: 'Local command notice' }])
+  const context = prepareDurableBranch('session', notice.id)
+  const draft = prepareNativeSubmission('session', local.id, context.id, 'reject')
+  applyNativeSubmissionResult('session', context.id, {
+    status: 'acknowledged',
+    inputId: draft.inputId,
+    facts: ['locally-handled']
+  })
+  messages.saveMessage({
+    sessionId: 'session',
+    message: { id: local.id, role: local.role, status: local.status, data: local.data }
+  })
+  expect(messages.getSessionMessage('session', local.id).data).not.toHaveProperty('locallyHandled')
+  dbh.db
+    .update(agentSessionMessageTable)
+    .set({ runtimeResumeToken: 'local-native-root' })
+    .where(eq(agentSessionMessageTable.id, notice.id))
+    .run()
+  const current = save('user', [{ type: 'text', text: 'Continue' }])
+  const content = buildAgentUserContent(current, await readSessionHistory('session', current.id, context.id))
+  expect(content).toContain('Mango recorded')
+  expect(content).not.toContain('/goal')
+  expect(content).not.toContain('Local command notice')
+})
+
+it('does not accept a caller-authored local-command marker as evidence of non-model input', async () => {
+  const current = messages.saveMessage({
+    sessionId: 'session',
+    message: {
+      role: 'user',
+      status: 'success',
+      data: MessageDataSchema.parse({ parts: [{ type: 'text', text: 'Real input' }], locallyHandled: true })
+    }
+  })
+  const context = prepareDurableBranch('session', head)
+  prepareNativeSubmission('session', current.id, context.id, 'reject')
+  const next = save('user', [{ type: 'text', text: 'Follow up' }])
+  expect(await readSessionHistory('session', next.id, context.id)).toBeUndefined()
 })
 
 it('retains attachment metadata through the existing runtime input conversion without changing product parts', async () => {

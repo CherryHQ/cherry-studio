@@ -129,11 +129,10 @@ describe('Agent import publication', () => {
       id: 'fixture',
       name: 'Another source',
       emoji: '📚',
-      digest: async (file) =>
-        createHash('sha256')
+      open: async (file) => ({
+        digest: createHash('sha256')
           .update(await readFile(file))
           .digest('hex'),
-      open: async () => ({
         sourceIds: ['conversation-with-string-id'],
         preview: async () => ({ messages: 3, missingFiles: [] }),
         load: async () => source,
@@ -285,7 +284,9 @@ describe('Agent import publication', () => {
     const service = new AgentImportService()
     const file = await archiveFixture()
     const preview = await service.prepare(file)
-    await writeFile(file, 'changed archive')
+    const replacement = conversation()
+    replacement.title = 'Changed archive'
+    await writeFile(file, await readFile(await archiveFixture([], 3, replacement)))
     service.start(preview.id)
     expect(await settle(service)).toMatchObject({
       status: 'failed',
@@ -294,6 +295,31 @@ describe('Agent import publication', () => {
     })
     expect(dbh.db.select().from(agentTable).all()).toEqual([])
     expect(dbh.db.select().from(agentSessionTable).all()).toEqual([])
+  })
+  it('publishes only the bytes identified by the opened archive and resumes the same receipt', async () => {
+    const file = await archiveFixture()
+    const service = new AgentImportService()
+    const preview = await service.prepare(file)
+    const replacement = conversation()
+    replacement.title = 'Replacement contents'
+    const bytes = await readFile(await archiveFixture([], 3, replacement))
+    const importer = importers.getConversationImporter()
+    const open = importer.open.bind(importer)
+    vi.spyOn(importer, 'open').mockImplementationOnce(async (path) => {
+      const archive = await open(path)
+      await rename(path, `${path}.original`)
+      await writeFile(path, bytes)
+      return archive
+    })
+    service.start(preview.id)
+    expect(await settle(service)).toMatchObject({ status: 'completed', imported: 1 })
+    expect(dbh.db.select().from(agentSessionTable).get()?.name).toBe(conversation().title)
+    await rename(`${file}.original`, file)
+    const retry = await service.prepare(file)
+    expect(retry.id).toBe(preview.id)
+    service.start(retry.id)
+    expect(await settle(service)).toMatchObject({ status: 'completed', skipped: 1 })
+    expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(1)
   })
   it('requires the source ZIP and accepts its new location when reselected', async () => {
     const service = new AgentImportService()

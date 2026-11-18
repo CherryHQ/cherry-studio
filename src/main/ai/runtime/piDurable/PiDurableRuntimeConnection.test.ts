@@ -1303,6 +1303,52 @@ describe('desktop Pi Durable connection', () => {
     expect(events.filter((event) => event.type === 'error')).toEqual([])
   })
 
+  it.each(['/goal', '/goal Recall the imported conversation'])(
+    'routes %s locally and retains imported history for the next model input after reopening',
+    async (command) => {
+      snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'plan' }
+      message('Remember mango from the imported conversation')
+      const selected = messages.saveMessage({
+        sessionId: input.sessionId,
+        message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Mango recorded' }] } }
+      })
+      input.branchHead = selected.id
+      const first = await connect()
+      const local = message(command)
+      await first.connection.send({
+        message: local,
+        context: await readSessionHistory(input.sessionId, local.id, first.connection.contextId)
+      })
+      await done(first.events)
+      expect(script.calls).toHaveLength(0)
+      expect(first.events).toContainEqual(
+        expect.objectContaining({
+          type: 'input-submission',
+          result: expect.objectContaining({ status: 'acknowledged', facts: ['locally-handled'] })
+        })
+      )
+      expect(text(first.events)).not.toBe('')
+      expect(messages.hasContextInput(input.sessionId, first.connection.contextId!)).toBe(true)
+      expect(messages.hasContextModelInput(input.sessionId, first.connection.contextId!)).toBe(false)
+      const notice = messages.saveMessage({
+        sessionId: input.sessionId,
+        runtimeResumeToken: first.handle.thread.id,
+        message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: text(first.events) }] } }
+      })
+      await first.connection.close()
+      input.branchHead = notice.id
+      const reopened = await connect()
+      const followup = message('What did I tell you to remember?')
+      await reopened.connection.send({
+        message: followup,
+        context: await readSessionHistory(input.sessionId, followup.id, reopened.connection.contextId)
+      })
+      await savedAnswer(reopened)
+      expect(JSON.stringify(script.calls[0].messages)).toContain('Mango recorded')
+      expect(JSON.stringify(script.calls[0].messages)).toContain('What did I tell you to remember?')
+    }
+  )
+
   // Catches approval edits being shown in the UI but the original write still executing.
   it('executes only approved arguments and returns a question answer to the native loop', async () => {
     snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }

@@ -1,4 +1,5 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { readFile, rename, writeFile } from 'node:fs/promises'
 
 import { expect, it } from 'vitest'
 
@@ -9,6 +10,34 @@ it('reads the source tree from the original ZIP without flattening it', async ()
   const archive = await openDeepseekArchive(await archiveFixture())
   try {
     expect(await archive.load('sample')).toEqual(conversation())
+  } finally {
+    await archive.close()
+  }
+})
+it('keeps the digest and parsed contents on the opened ZIP when its path is replaced', async () => {
+  const file = await archiveFixture()
+  const digest = createHash('sha256')
+    .update(await readFile(file))
+    .digest('hex')
+  const archive = await openDeepseekArchive(file)
+  try {
+    await rename(file, `${file}.original`)
+    const replacement = conversation()
+    replacement.title = 'Replacement contents'
+    await writeFile(file, await readFile(await archiveFixture([], 3, replacement)))
+    expect(archive.digest).toBe(digest)
+    expect((await archive.load('sample')).title).toBe(conversation().title)
+  } finally {
+    await archive.close()
+  }
+})
+
+it('rejects in-place changes to the opened ZIP before reading a conversation', async () => {
+  const file = await archiveFixture()
+  const archive = await openDeepseekArchive(file)
+  try {
+    await writeFile(file, 'replaced in place')
+    await expect(archive.load('sample')).rejects.toThrow('Import file changed')
   } finally {
     await archive.close()
   }

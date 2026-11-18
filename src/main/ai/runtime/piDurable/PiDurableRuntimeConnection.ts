@@ -237,7 +237,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       return
     }
     try {
-      const prompt = input.context ? buildAgentUserContent(input.message, input.context) : text
+      const context = !input.systemReminder && /^\/goal(?:\s|$)/.test(text) ? undefined : input.context
+      const prompt = context ? buildAgentUserContent(input.message, context) : text
       await this.submit(input, input.systemReminder ? wrapSteerReminder(prompt) : prompt, 'follow-up')
     } catch (error) {
       if (!running) this.sending = false
@@ -283,8 +284,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     this.admission = submitted.catch(() => undefined)
     const result = await submitted
     this.events.push({ type: 'input-submission', contextId: this.context!.id, result })
+    applyNativeSubmissionResult(this.input.sessionId, this.context!.id, result)
     if (result.status !== 'acknowledged') {
-      applyNativeSubmissionResult(this.input.sessionId, this.context!.id, result)
       throw new SubmissionRefused(result.error.message)
     }
     this.captureInput(result)

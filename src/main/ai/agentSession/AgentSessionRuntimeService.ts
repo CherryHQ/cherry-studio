@@ -3329,10 +3329,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (entry.stopping || !this.isTurnLive(entry, turn)) return
     const connection = this.currentConnection(entry)
     if (!connection) throw new Error('Agent runtime connection unavailable')
-    const context =
-      connection.contextId && agentSessionMessageService.hasContextInput(entry.sessionId, connection.contextId)
-        ? undefined
-        : await readSessionHistory(entry.sessionId, turn.userMessage.id)
+    const context = await readSessionHistory(entry.sessionId, turn.userMessage.id, connection.contextId)
     if (
       !this.isCurrentEntry(entry) ||
       this.currentTurn(entry) !== turn ||

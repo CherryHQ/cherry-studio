@@ -1203,7 +1203,11 @@ Native admission still checks the original product message parts; reference cont
 not rewrite user messages or dispatch historical tools.
 
 Fresh native bindings use the selected product position as their anchor, keeping sibling
-paths independent. Subsequent inputs and reopening reuse the ordinary native conversation.
+paths independent. Local commands route against the original input without reference-context
+prefixes. A Main-only `locallyHandled` acknowledgement retains native ownership while
+excluding the local input and reply from model history. The product prefix remains available
+for the next model submission after a local command or reopening. Once native model input
+has been submitted, subsequent inputs and reopening reuse the ordinary native conversation.
 Known native identities follow their existing recovery rules; a missing native store is
 never silently replaced with product history. This path creates no native-history files,
 rebuild state or historical checkpoints and does not inspect import provenance.
@@ -1232,12 +1236,16 @@ separate Agents, and a deleted destination is not silently recreated. A synchron
 transaction publishes each session, its messages, file references and receipt. Cancellation
 preserves completed sessions. Agent lifecycle pause/drain includes preparation and import.
 The original ZIP is read directly without copying, modifying or deleting it. Operations
-retain its path and digest and verify the digest before import; a moved or unavailable
+retain its path and digest and verify the digest before import. Hashing and parsing share
+one opened file descriptor, retaining the original bytes when the path is replaced. Entry
+reads reject size or modification-time changes to that file. A moved or unavailable
 source must be reselected. Completed sessions use managed attachments independently of ZIP.
 
 Search/open/image-search records use completed standard tool parts with observed input
 and complete output, interleaved with reasoning in source order. Queries, snippets, links,
 source status and zero-result searches remain visible without synthetic answer citations.
+Validated HTTP(S) URLs in structured result objects use the existing link controls while
+the complete records remain visible.
 Source failures and empty messages show export status rather than a runtime error.
 Conflicting attachment IDs fail validation. Files and images use ordinary Harness
 attachment conversion; missing files remain explicit text. No credentials, billing,

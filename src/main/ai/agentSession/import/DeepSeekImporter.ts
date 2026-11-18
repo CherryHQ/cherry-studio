@@ -1,5 +1,5 @@
 import { deepseekFiles } from './deepseek'
-import { deepseekArchiveDigest, openDeepseekArchive } from './deepseekArchive'
+import { openDeepseekArchive } from './deepseekArchive'
 import { deepseekContent } from './deepseekContent'
 import type { ConversationImporter, ImportArchive, ImportMessageNode } from './types'
 
@@ -7,11 +7,11 @@ export class DeepSeekImporter implements ConversationImporter {
   readonly id = 'deepseek'
   readonly name = 'DeepSeek'
   readonly emoji = '🐋'
-  readonly digest = deepseekArchiveDigest
 
   async open(file: string): Promise<ImportArchive> {
     const archive = await openDeepseekArchive(file)
     return {
+      digest: archive.digest,
       sourceIds: archive.index.map((item) => item.id),
       preview: async () => {
         let messages = 0
