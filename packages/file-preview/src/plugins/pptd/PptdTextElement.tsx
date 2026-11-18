@@ -34,7 +34,7 @@ export function PptdTextElement({ element, context }: PptdTextElementProps) {
         ...(vertical ? { writingMode: 'vertical-rl' } : {}),
         ...(content.gradient
           ? {
-              ...(pptdFillToCss({ type: 'gradient', ...content.gradient }, context) ?? {}),
+              ...pptdFillToCss({ type: 'gradient', ...content.gradient }, context),
               WebkitBackgroundClip: 'text',
               backgroundClip: 'text',
               color: 'transparent'

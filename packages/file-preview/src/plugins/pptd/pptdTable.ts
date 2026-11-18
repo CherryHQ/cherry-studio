@@ -120,7 +120,7 @@ export function resolvePptdCellTextStyle(
   const ref = cell.textStyle?.startsWith('$') ? context.theme?.textStyles?.[cell.textStyle.slice(1)] : undefined
   mergeTextFields(base, ref)
   mergeTextFields(base, cell)
-  return base as ResolvedPptdTextStyle
+  return base
 }
 
 export interface PptdCellBorders {

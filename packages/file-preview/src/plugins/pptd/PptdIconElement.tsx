@@ -18,7 +18,7 @@ export function PptdIconElement({ element, context }: { element: PptdIcon; conte
   useEffect(() => {
     const controller = new AbortController()
     setIcon(undefined)
-    fetchPptdIcon(element.iconName, controller.signal).then((data) => {
+    void fetchPptdIcon(element.iconName, controller.signal).then((data) => {
       if (!controller.signal.aborted) setIcon(data)
     })
     return () => controller.abort()

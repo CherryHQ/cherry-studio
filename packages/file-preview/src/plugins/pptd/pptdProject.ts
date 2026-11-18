@@ -7,7 +7,7 @@ import { parse as parseYaml } from 'yaml'
 
 import type { PreviewDocument } from '../../source'
 import type { PreviewResources } from '../../types'
-import type { PptdElement, PptdPage, PptdPageElement, PptdPresentation } from './pptdFormat'
+import type { PptdPage, PptdPageElement, PptdPresentation } from './pptdFormat'
 import { pptdElementSchema, pptdPageSchema, pptdPresentationSchema } from './pptdFormat'
 
 export interface PptdProjectPageOk {
@@ -46,7 +46,7 @@ function yamlErrorReason(error: unknown): string {
 export function parsePptdElement(raw: unknown, index: number): PptdPageElement {
   const result = pptdElementSchema.safeParse(raw)
   if (result.success) {
-    return result.data as PptdElement
+    return result.data
   }
   const candidate = (raw ?? {}) as Record<string, unknown>
   const declaredType = typeof candidate.elementType === 'string' ? candidate.elementType : 'unknown'

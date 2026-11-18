@@ -56,7 +56,7 @@ export function PptdTableElement({ element, context }: { element: PptdTable; con
         height: '100%',
         filter,
         overflow: 'hidden',
-        ...(pptdFillToCss(element.fill, context) ?? {})
+        ...pptdFillToCss(element.fill, context)
       }}>
       <table
         style={{
@@ -103,7 +103,7 @@ export function PptdTableElement({ element, context }: { element: PptdTable; con
                       verticalAlign: align[1] === 'middle' ? 'middle' : align[1] === 'bottom' ? 'bottom' : 'top',
                       padding: 4,
                       overflow: 'hidden',
-                      ...(fillCss ?? {}),
+                      ...fillCss,
                       ...sideCss(sides.top, 'Top'),
                       ...sideCss(sides.right, 'Right'),
                       ...sideCss(sides.bottom, 'Bottom'),

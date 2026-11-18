@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  isRemotePptdSource,
-  loadPptdProject,
-  parsePptdElement,
-  parsePptdPage,
-  parsePptdPresentation
-} from '../pptdProject'
+import { isRemotePptdSource, loadPptdProject, parsePptdPage, parsePptdPresentation } from '../pptdProject'
 import { normalizePptdRichText, resolvePptdTextStyle, splitPptdMathSegments } from '../pptdRichText'
 import { pptdColorToCss, pptdFillToCss } from '../pptdStyle'
 
@@ -337,7 +331,7 @@ describe('chart option building', () => {
       },
       { theme: { colors: { primary: '#2563EB', accent: '#F59E0B' } } }
     )
-    expect(option).not.toBeNull()
+    if (!option) throw new Error('expected a chart option')
     expect(option.dataset.source).toEqual([
       ['year', 'revenue'],
       ['2023', 82.5],

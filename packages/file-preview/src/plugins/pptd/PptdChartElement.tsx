@@ -27,7 +27,7 @@ export function PptdChartElement({
     width: '100%',
     height: '100%',
     overflow: 'hidden',
-    ...(pptdFillToCss(frame.fill, context) ?? {}),
+    ...pptdFillToCss(frame.fill, context),
     ...(border
       ? {
           border: `${border.width ?? 1}px ${border.style === 'dash' ? 'dashed' : border.style === 'dot' ? 'dotted' : 'solid'} ${
@@ -49,7 +49,7 @@ export function PptdChartElement({
     let dispose: (() => void) | undefined
     let cancelled = false
     // Lazy-load echarts so it stays out of the main bundle (spreadsheet pattern).
-    import('./PptdChartRenderer').then((module) => {
+    void import('./PptdChartRenderer').then((module) => {
       if (cancelled || !containerRef.current) return
       dispose = module.renderPptdChart(element, context, containerRef.current)
     })
