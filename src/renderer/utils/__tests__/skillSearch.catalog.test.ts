@@ -17,9 +17,9 @@ describe('claude-plugins.dev independent skills', () => {
   it('browses without a search term and advances past entries that cannot be installed', async () => {
     const page = await loadClaudePluginsSkills(
       2,
-      async (url, parse) => {
+      async (url, schema) => {
         expect(url).toBe('https://api.claude-plugins.dev/api/skills/search?limit=2&offset=2')
-        return parse({ skills: [{ ...pdf, metadata: null }, pdf], offset: 2, limit: 2, total: 5 })
+        return schema.parse({ skills: [{ ...pdf, metadata: null }, pdf], offset: 2, limit: 2, total: 5 })
       },
       2
     )
@@ -34,15 +34,15 @@ describe('claude-plugins.dev independent skills', () => {
 
   it('stops on the final page and preserves the exact skill directory in search', async () => {
     const response = { skills: [pdf], offset: 0, limit: 20, total: 1 }
-    expect(await loadClaudePluginsSkills(0, async (_url, parse) => parse(response))).toMatchObject({
+    expect(await loadClaudePluginsSkills(0, async (_url, schema) => schema.parse(response))).toMatchObject({
       hasMore: false,
       nextOffset: 1
     })
     const results = await searchSkillMarketplaces(
       'pdf',
-      async (url, parse) => {
+      async (url, schema) => {
         expect(url).toBe('https://api.claude-plugins.dev/api/skills/search?q=pdf&limit=20')
-        return parse(response)
+        return schema.parse(response)
       },
       undefined,
       'claude-plugins.dev'
@@ -56,7 +56,9 @@ describe('claude-plugins.dev independent skills', () => {
     { skills: [pdf], offset: 0, limit: 20 },
     { skills: [pdf], offset: 0, limit: 20, total: -1 }
   ])('rejects a broken pagination response instead of looping', async (response) => {
-    await expect(loadClaudePluginsSkills(0, async (_url, parse) => parse(response))).rejects.toThrow('pagination')
+    await expect(loadClaudePluginsSkills(0, async (_url, schema) => schema.parse(response))).rejects.toThrow(
+      'pagination'
+    )
   })
 
   it('rejects invalid offsets before any network request', async () => {
