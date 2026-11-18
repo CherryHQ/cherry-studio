@@ -176,6 +176,13 @@ function isPiServableUniqueModel(uniqueModelId: string): boolean {
   }
 }
 
+/**
+ * Idempotency-key prefix for the `agent.archive-system-workspace` JobManager
+ * task enqueued by `trashByIdsTx`: undo finds a queued archive task by
+ * `<prefix><root session id>`. Exported for the job handler and lifecycle undo.
+ */
+export const ARCHIVE_SYSTEM_WORKSPACE_JOB_KEY_PREFIX = 'archive-system-workspace:'
+
 export class AgentSessionService {
   createChildArchiveTx(tx: DbOrTx, ownerSessionId: string, name: string): string {
     const owner = tx.select().from(sessionsTable).where(eq(sessionsTable.id, ownerSessionId)).get()
@@ -1270,6 +1277,35 @@ export class AgentSessionService {
       tx.update(sessionsTable).set({ deletedAt }).where(inArray(sessionsTable.id, idChunk)).run()
     }
     pinService.purgeForEntitiesTx(tx, 'session', trashedIds)
+    // Enqueue one background archive task per archived system workspace inside
+    // the same transaction (issue #21645): the trash commit and the task commit
+    // or roll back together, and the request resolves without waiting for the
+    // compression. The handler re-reads the business state before packing, so a
+    // restored workspace is never re-archived by a stale task.
+    const archivedSystemWorkspaces = chunk(trashedIds, SQLITE_INARRAY_CHUNK).flatMap((idChunk) =>
+      tx
+        .select({ id: sessionsTable.id })
+        .from(sessionsTable)
+        .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+        .where(
+          and(
+            inArray(sessionsTable.id, idChunk),
+            isNull(sessionsTable.ownerSessionId),
+            eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.SYSTEM)
+          )
+        )
+        .all()
+    )
+    for (const workspace of archivedSystemWorkspaces) {
+      application
+        .get('JobManager')
+        .enqueueTx(
+          tx,
+          'agent.archive-system-workspace',
+          { sessionId: workspace.id },
+          { idempotencyKey: ARCHIVE_SYSTEM_WORKSPACE_JOB_KEY_PREFIX + workspace.id }
+        )
+    }
     return { trashedIds, taskScheduleIds, deliveryResults }
   }
 
