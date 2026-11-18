@@ -20,6 +20,8 @@ Pi 和 Pi Durable 在主进程运行，却通过 Cherry 内部 HTTP 网关调用
 
 本提案仅部分取代 harness 边界决策中的内部 HTTP 要求。Pi/Pi Durable 保留原生调度、历史、工具、压缩与恢复。现有 UIMessage 转换、工具参数 JSON 片段、持久化及真实上游网络编解码继续保留。包括 Claude Code 在内的外部客户端继续使用 HTTP。
 
+协议边界还须保留结构化 reasoning 签名、缓存写入和思考 token 拆分，以及明确的最终截断或过滤原因。模型原生引用使用 Pi 的公共来源数据和流事件表达 URL 与文档来源，并在 Pi/Pi Durable 的实时、持久化及重开投影中保留。四种协议适配器映射原生引用字段；不引入 Cherry 私有 metadata codec，不改变工具引用或工具参数增量行为。
+
 ## Alternatives considered
 
 - 内存 fetch 仍保留 JSON/SSE 编解码。
@@ -34,6 +36,12 @@ Pi 和 Pi Durable 在主进程运行，却通过 Cherry 内部 HTTP 网关调用
 - AC3 — 取消、失败、提前关闭迭代器和慢消费者都能完成收尾，不泄漏工作或产生无界缓冲。（验证：unit — 对象流生命周期测试）
 - AC4 — root、child 和脱离父调用的调用保留发起时 usage/tracing 归属，每次只产生一条 provider 计费记录。（验证：unit — 使用 setupTestDatabase 的生产网关集成测试）
 - AC5 — Pi 和 Pi Durable 使用对象 transport；外部 HTTP 行为及可复现的依赖安装保持有效。（验证：unit — 受影响的桌面和 HTTP 测试；packaged artifact — 依赖构建和类型检查）
+
+- AC6 — Chat Completions 的结构化 reasoning_details 在同模型的工具续轮中原样保留，包括仅加密推理。（验证：unit — 原生 Pi 与生产网关往返测试）
+- AC7 — OpenAI 协议保留上游提供的 cache-write 拆分，普通输入、缓存读写及总量不重复计数。（验证：unit — usage 转换与原生消费者测试）
+- AC8 — Anthropic 保留上游提供的 thinking_tokens，正文和签名回放不变。（验证：unit — usage 转换与原生消费者测试）
+- AC9 — 工具调用之后的明确 length/content-filter 结束原因优先于工具存在性；error 和取消保持失败或中止。（验证：unit — 四种协议终态测试）
+- AC10 — URL 与文档来源通过四种协议及 Pi 公共来源契约贯通到 Pi/Pi Durable 的实时、持久化和重开消息，并在客户端展示；工具引用保持有效。（验证：unit — 原生来源与投影测试；Electron — 来源展示与重开验收）
 
 ## Risks
 
