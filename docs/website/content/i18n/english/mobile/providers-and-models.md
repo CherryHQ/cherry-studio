@@ -4,9 +4,9 @@ icon: key-round
 
 # Providers and models
 
-A provider supplies an AI service; a model is the particular AI you use through it. The same model can be offered by several platforms, each with its own credentials. This guide describes Mobile **0.3.0**.
+A provider supplies an AI service; a model is the particular AI you use through it. The same model can be offered by several platforms, each with its own credentials.
 
-Start with an **API key**, or an account sign-in method actually offered on the configuration page. Cherry Studio includes no model credits; supported models and charges depend on the provider.
+Start with an **API key**, or an account sign-in method actually offered on the configuration page. Your own services require their own usable credits. Existing entitled community accounts use managed CherryAI models, while organization catalogs follow their service. These differ from ordinary provider-key sign-in; see [accounts and organizations](accounts-and-organizations.md).
 
 ## Add a built-in provider
 
@@ -16,7 +16,7 @@ Start with an **API key**, or an account sign-in method actually offered on the 
 4. Continue to model setup: fetch and select models, or manually enter the platform's exact model ID.
 5. Return to the provider list, confirm it is enabled, and select a model in chat.
 
-Open an already added provider to edit it instead of creating a duplicate. New providers require completing the page's continue/create action; existing providers save as described below.
+Recommendations adapt to the detected network region, falling back to device region when needed, without replacing existing configurations. Open an already added provider to edit it instead of creating a duplicate. New providers require completing the page's continue/create action; existing providers save as described below.
 
 <div data-mobile-gallery="pair">
 <figure data-mobile-shot="phone"><a href="../../../assets/mobile/en/providers-list.webp"><img src="../../../assets/mobile/en/providers-list.webp" alt="Model services: enabled providers are listed first"></a><figcaption><p><strong>iPhone</strong> · Model services: enabled providers are listed first</p></figcaption></figure>
@@ -50,6 +50,12 @@ A phone must be able to reach an HTTP service running on your computer. On the p
 
 Some chat requests can try another enabled key after authentication or rate-limit errors. This does not increase account credits or guarantee recovery for every request.
 
+## App accounts versus provider accounts
+
+Manage community/organization sign-in in the profile area, and a provider's OAuth sign-in on that provider's configuration. Completing one does not complete the other. Managed CherryAI/organization services may be read-only; renaming them or editing capability flags cannot grant access.
+
+Vertex AI uses Google Cloud service-account credentials and project permissions for supported Gemini or Claude models. Follow its configuration/platform requirements rather than substituting consumer Google sign-in, a Gemini API key, or another subscription.
+
 ## Sign in with an account
 
 If configuration offers sign-in, follow its authorization page and return to Cherry Studio to confirm. Not every catalog provider supports account login, and a consumer chat subscription is not necessarily usable as API credits.
@@ -64,15 +70,19 @@ Success applies to this configuration and model, not every model. A check does n
 
 ## Choose models and defaults
 
-The conversation model picker changes the current agent's model. Search or use filters such as **All**, **Free**, and **Vision**. If a model is missing, clear filters and check provider/model enablement.
+A single choice in the conversation model picker changes the current agent's model. Selecting several text models requests parallel answers without replacing its default; see [multiple models and branches](conversation-branches.md). Search or use filters such as **All**, **Free**, and **Vision**. If a model is missing, clear filters and check provider/model enablement.
 
 Vision and Free reflect catalog information. Actual capabilities and credits depend on the platform; editing a capability flag cannot give a model a capability it lacks.
 
-**Settings → Default model** offers default text, drawing, and translation models. Existing agents keep their own selections. For translation fallback rules, see [Reply and skill-document translation](translation.md).
+**Settings → Default model** offers text, drawing, translation, and naming-related model settings, including automatic naming. Existing agents keep their own selections. For translation fallback rules, see [Reply and skill-document translation](translation.md).
 
 <div data-mobile-gallery="single">
 <figure data-mobile-shot="phone"><a href="../../../assets/mobile/en/iphone-models.webp"><img src="../../../assets/mobile/en/iphone-models.webp" alt="Provider models: sync or add manually; vision models are labeled"></a><figcaption><p><strong>iPhone</strong> · Provider models: sync or add manually; vision models are labeled</p></figcaption></figure>
 </div>
+
+## Key order and individual checks
+
+Key-based providers can configure rotation order and check a particular key independently. Success for that key does not establish that all other keys work. Do not treat rotation as extra quota or guaranteed recovery for every request.
 
 ## Related guides
 

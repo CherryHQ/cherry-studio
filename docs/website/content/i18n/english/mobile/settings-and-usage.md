@@ -4,89 +4,77 @@ icon: settings
 
 # Settings, usage, and background replies
 
-Open Settings from the sidebar to change reading preferences, defaults, and background behavior.
+Open Settings from the sidebar for reading, models, voice, permissions, and local data. Backups, DeepSeek import, and cache cleanup live under **Settings → Data**.
 
 ## Theme, language, and text size
 
-In **Settings → General**:
+Use **Settings → General** for theme, app language, font size, share watermark, and document parser. App and documentation language are separate. Watermarks affect future sharing; local Save is unwatermarked. See [sharing](sharing-and-export.md).
 
-* Choose light, dark, or system theme.
-* Choose the app language. App and documentation languages are selected separately.
-* Open font size and use its preview to choose a comfortable size.
-* Enable/disable the share watermark for future exports.
+General also includes:
 
-Changes save directly. Retry any failed save before leaving.
+| Option | Effect |
+| --- | --- |
+| Send on Enter | Changes keyboard sending behavior; follow its description |
+| Multi-model reply cards | Changes card/standard presentation without rewriting content |
+| Branch conversation tree view | Switches tree/flat recent-activity presentation; enabled by default and does not merge branches |
+| Automatically collapse process | Changes reading presentation of thinking/tool activity without deleting records |
+| Keep screen awake while generating | Attempts to keep the foreground screen awake; off by default and does not extend background execution |
 
-<div data-mobile-gallery="pair">
-<figure data-mobile-shot="phone"><a href="../../../assets/mobile/en/settings-home.webp"><img src="../../../assets/mobile/en/settings-home.webp" alt="Settings home"></a><figcaption><p><strong>iPhone</strong> · Settings home</p></figcaption></figure>
-<figure data-mobile-shot="phone"><a href="../../../assets/mobile/en/general-settings.webp"><img src="../../../assets/mobile/en/general-settings.webp" alt="General: theme, language, text size, watermark, and document parser"></a><figcaption><p><strong>iPhone</strong> · General: theme, language, text size, watermark, and document parser</p></figcaption></figure>
-</div>
+Changes save through their respective actions; retry failures. See [conversation branches](conversation-branches.md) for actual use.
 
 ## Default and drawing models
 
-In **Settings → Default model**:
+Set default text, drawing, and translation models separately in **Settings → Default model**. Unset translation falls back to the default text model; see [translation](translation.md).
 
-* **Default model** supplies the initial text-model choice for new agents.
-* **Drawing model** supplies default drawing and the image-generation tool used by text agents.
-* **Translation model** handles replies and skill documents; when unset it uses the default text model. See [Translation](translation.md).
+The page also provides automatic naming and a naming-model choice. Naming determines conversation titles rather than replacing the agent's answering model. The chosen model must still be authorized for its purpose.
 
-Selecting or clearing saves immediately. Existing agents keep their own models; change them in their editor or conversation picker.
-
-If the list is empty, add available models and enable their provider first. See [model management](model-management.md) for capabilities, limits, and pricing.
-
-<div data-mobile-gallery="single">
-<figure data-mobile-shot="phone"><a href="../../../assets/mobile/en/default-model.webp"><img src="../../../assets/mobile/en/default-model.webp" alt="Default, translation, and drawing models are set separately"></a><figcaption><p><strong>iPhone</strong> · Default, translation, and drawing models are set separately</p></figcaption></figure>
-</div>
+Existing agents retain their models when global defaults change. Organization spaces may constrain choices/edits. For an empty list, check the current account, provider, and loading state; see [accounts and organizations](accounts-and-organizations.md).
 
 ## Understand usage
 
-Open Home from the sidebar and inspect **AI usage**. Its detail view groups recorded activity by date, model, or provider.
+Open **AI usage** from Settings or the home usage entry. Explore overview, distribution, performance, and history with time/provider/model filters. Individual replies also expose input/output, requests, duration, and cost.
 
-A response also has usage details for its model, input/output, request count, elapsed time, and cost. A **token** is a model's unit of content, not a word count. History, thinking, and repeated tool calls may also consume tokens.
+A **token** measures model content, not words. History, thinking, tool round trips, and parallel answers can all consume usage.
 
-* Provider-reported charges and estimates based on configured prices have different sources; inspect the labels.
-* Missing prices can mean partial cost coverage, not free usage.
-* Answering again and tool work can create additional requests. Deleting chat does not refund credits or remove recorded usage.
-* These figures describe usage recorded by this app, not the provider account's complete balance or official bill.
+* Provider-reported amounts differ from configured-price estimates; follow the labels.
+* Missing pricing means incomplete estimates, not free calls.
+* Deleting chats does not refund charges. Regeneration and additional models make new requests.
+* Local usage is not a third-party account's complete balance or official bill.
 
-Check the provider account for actual billing and remaining credits.
+Community CherryAI plan/quota data comes from the account service separately from local usage. Sending depends on actual entitlement/admission checks, not a previously displayed sidebar balance.
 
 ## Continue after leaving the app
 
-Open **Settings → Notifications**.
+Use **Settings → Notifications** to inspect execution status and system limits:
 
-| Option | Purpose |
+| Item | Purpose |
 | --- | --- |
-| iPhone/iPad: Live Activity | Shows task status on supported lock screens or Dynamic Island after leaving the app |
-| Android: Background replies | Attempts to continue generation and show status in notifications |
-| Reply completion notifications | Attempts to notify you when a reply finishes while the app is in the background |
+| Background running | Displays execution-protection and power restrictions |
+| Android battery/vendor settings | Opens system battery, autostart, and background controls where provided by the device |
+| iPhone/iPad Live Activity | Controls lock-screen/Dynamic Island status display, **not background execution** |
+| Reply completion notifications | Notifies background completion where OS permission allows |
 
-Progress display and completion alerts are separate options. System notification permission is also required; an enabled app switch cannot override denied permission. Tap a task notification to return to its content.
+Supported devices prefer system continued processing. Alternative fallback methods require explicit consent where offered. First-use or task prompts may require reading background guidance; dismissing a notice, status card, or notification is not task cancellation.
 
-Completion while you are already viewing the task is generally quiet. Live Activities mainly appear after leaving the app, so not seeing one in the foreground does not necessarily indicate a problem.
-
-<div data-mobile-gallery="single">
-<figure data-mobile-shot="phone"><a href="../../../assets/mobile/en/notifications.webp"><img src="../../../assets/mobile/en/notifications.webp" alt="Notifications: background status, Live Activities, and completion alerts"></a><figcaption><p><strong>iPhone</strong> · Notifications: background status, Live Activities, and completion alerts</p></figcaption></figure>
-</div>
+OS notification permission and app preferences are separate. Live Activities mainly appear away from the task; completing a task already being viewed is generally quiet. Task notifications return to its content.
 
 ## Why did locking the screen interrupt generation?
 
-Background support is not a guarantee of continuous execution. Battery policies, operating-system limits, network loss, or process termination can stop work. Keep lengthy tasks in the foreground where possible.
+System duration, power, network, and process limits mean **continuous execution is not guaranteed**. Live Activity only displays state, and keeping the foreground screen awake does not extend locked-screen execution. Keep lengthy work in the foreground where possible.
 
-A dropped model connection may trigger an automatic retry with visible status; pending message queues can also recover after reopening. If the OS ends the process, only saved data is reliable. Inspect the reply, retry state, and queue before sending again. Check painting records before repeating generation.
+Connection failures may show retries, and queued inputs can recover after reopening. If the OS ends the app, rely on saved content. Inspect the reply, queue, and approvals before resending to avoid duplicate work or charges.
 
-iOS background execution is time-limited. Live Activity displays status without guaranteeing continuous execution. A remote desktop task does not automatically stop when the phone disconnects; see [Remote chat](remote-chat.md).
-
-A task can also pause for tool approval; return to the app and respond. Task state remains available in the app even if a notification is not delivered.
+Computer tasks do not automatically stop when the phone disconnects; see [desktop agents](remote-chat.md). [Background read-aloud](voice.md) is separately controlled by the system and does not establish successful generation.
 
 ## Parsing, backups, and feedback
 
-* **Settings → General → Document parser** controls subsequent document extraction; see [Chat and files](chat-and-files.md).
-* **Settings → Backup and restore** exports a full archive or replaces data from one; see [Backup](backup-and-restore.md).
-* **Settings → About** shows the version, feedback, and feedback history. Copy a report ID and check its progress after submission. Shake feedback must be enabled first, and screenshot inclusion is chosen per submission.
+* **Settings → General → Document parser:** changes subsequent reads; see [Chat and files](chat-and-files.md).
+* **Settings → Data → Backup and restore:** exports a full archive or replaces data; see [backup](backup-and-restore.md).
+* **Settings → Data → Import from DeepSeek:** imports an official export download link without replacing current conversations; see [import](deepseek-import.md).
+* **Settings → Data → Clear conversation runtime cache:** finish running/queued work first and confirm. Chat history/files remain; old conversations rebuild working context and the next reply can take longer. This does not clear chat history.
+* **Settings → Voice:** separately configures dictation, transcription, and read-aloud; see [voice](voice.md).
+* **Settings → About us:** version, feedback, and history; failure surfaces also offer [diagnosis](diagnostics.md).
 
 ## Privacy and permissions
 
-**Settings → Privacy** has separate anonymous-usage and error-report controls. **Settings → System permissions** manages camera, photos, calendar, and other device access. One does not replace the other.
-
-See [data, privacy, and permissions](data-privacy.md).
+**Privacy** controls anonymous usage/error reports; **System permissions** controls device access; **Accounts and organizations** controls identity and data space. They do not replace one another. See [data and privacy](data-privacy.md).
