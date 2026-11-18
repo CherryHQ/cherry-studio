@@ -469,29 +469,32 @@ describe('memory organization lifecycle and commit fences', () => {
     return { chat, users, append, key: `memory:extraction:assistant/${chat.topicId}` }
   }
 
-  it.each(['changed', 'corrected'] as const)(
+  it.each([
+    ['changed', 'Old address', 'I now live in Suzhou.'],
+    ['corrected', 'Old address', 'I have always lived in Suzhou.'],
+    ['qualified', 'Coffee after lunch', 'Coffee after lunch except on night shifts.']
+  ] as const)(
     'automatically applies an explicit %s correction and keeps later batches moving',
-    async (correction) => {
-      await save('- "Old address"\n- "Prefers Chinese"\n')
+    async (correction, oldFact, replacement) => {
+      await save(`- "${oldFact}"\n- "Prefers Chinese"\n`)
       const oldSession = memory.open({ scope, assertAuthorized: () => undefined })
-      expect((await memory.entrySnapshot('correction-chat', oldSession)).content).toContain('Old address')
+      expect((await memory.entrySnapshot('correction-chat', oldSession)).content).toContain(oldFact)
       oldSession.dispose()
-      const batch = batchConversation(8, 'Please correct the old address: I now live in Suzhou.')
+      const batch = batchConversation(8, replacement)
       generate.mockImplementationOnce(async () => {
-        const reply = JSON.parse(automaticReply([{ kind: 'personal_fact', quote: 'I now live in Suzhou.' }]))
+        const reply = JSON.parse(automaticReply([{ kind: 'personal_fact', quote: replacement }]))
         Object.assign(reply.candidates[0], {
-          text: 'Lives in Suzhou.',
+          text: replacement,
           action: 'correct',
           correction,
-          existing: [{ path: 'MEMORY.md', quote: 'Old address' }]
+          existing: [{ path: 'MEMORY.md', quote: oldFact }]
         })
         return { text: JSON.stringify(reply), finishReason: 'stop' }
       })
       expect(await dreaming.execute(job())).toMatchObject({ saved: 1 })
-      expect((await session.read('MEMORY.md')).content).toContain('Lives in Suzhou.')
-      expect((await session.read('MEMORY.md')).content).not.toContain('Old address')
+      expect((await session.read('MEMORY.md')).content).toBe(`- "${replacement}"\n- "Prefers Chinese"\n`)
       const nextSession = memory.open({ scope, assertAuthorized: () => undefined })
-      expect((await memory.entrySnapshot('correction-chat', nextSession)).content).toContain('Lives in Suzhou.')
+      expect((await memory.entrySnapshot('correction-chat', nextSession)).content).toContain(replacement)
       nextSession.dispose()
       expect((await session.revisions())[0].retirement?.reason).toBe(correction)
       batch.append(8)

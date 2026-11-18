@@ -54,7 +54,7 @@ You can also tell the Agent directly in **Work**:
 Remember: All externally published Chinese copy must use full-width punctuation and avoid exaggerated titles. Apply this rule to all future related tasks.
 ```
 
-When correcting information, identify the old fact and what changed. Explicit user corrections of a uniquely matched old item replace the current fact and retain the old claim as changed or originally mistaken. Ambiguous conflicts preserve the existing fact. Pi and Claude Code also support memory-file writes through native file tools, with permission and version checks. Check the tool result to confirm a save; if saving is unconfirmed, read the file again before editing.
+When correcting information, identify the old fact and what changed. Explicit user corrections of a uniquely matched old item replace the current fact and retain the old claim as changed, originally mistaken, or qualified by an explicit condition or exception. Ambiguous conflicts preserve the existing fact. Pi and Claude Code also support memory-file writes through native file tools, with permission and version checks. Check the tool result to confirm a save; if saving is unconfirmed, read the file again before editing.
 
 Stopped or failed turns are omitted as whole turns within the same sixteen-message window. Ordinary Agent or Assistant configuration changes preserve pending extraction. If a save is uncertain and the file was subsequently changed, that batch is recorded as conflict-skipped while later batches continue. Foreground chat also defers organization without consuming its attempt allowance.
 
