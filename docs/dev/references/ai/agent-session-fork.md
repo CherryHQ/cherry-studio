@@ -193,6 +193,8 @@ without an `app_state` fork record. Cherry does not
 generate a summary, reconstruct model context from UI messages, or apply Chat
 compression settings to Agent forks.
 
+Legacy DeepSeek imports that prepared native history retain their native entry IDs. When reading such a Fork/Edit prefix, `AgentSessionMessageService` rebases their conversation ID to the selected product branch's native conversation in the same backend. This preserves the corresponding ancestor path without a quadratic checkpoint map. Current imports create no historical native checkpoints; answers produced after continuation use normal runtime checkpoints.
+
 ## Native adapter paths
 
 | Adapter | Native boundary | Fork implementation |

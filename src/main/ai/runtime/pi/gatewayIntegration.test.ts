@@ -2,12 +2,22 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { resolve } from 'node:path'
 
+import { UnsupportedFunctionalityError } from '@ai-sdk/provider'
 import { normalizeContext } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
-import { GoogleGenAI } from '@google/genai'
+import {
+  FunctionCallingConfigMode,
+  GoogleGenAI,
+  HarmBlockThreshold,
+  HarmCategory,
+  MediaResolution,
+  Modality,
+  ServiceTier
+} from '@google/genai'
 import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { setupTestDatabase } from '@test-helpers/db'
+import type { UIMessageChunk } from 'ai'
 import { eq } from 'drizzle-orm'
 import { Type } from 'typebox'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -28,11 +38,14 @@ import '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { AgentSessionUsageAttribution } from '@main/ai/agentSession/AgentSessionUsageAttribution'
 import { AiService } from '@main/ai/AiService'
-import { createPiTelemetry, observabilitySinks, type AgentRuntimeTraceContext } from '@main/ai/observability'
+import { createPiTelemetry, observabilitySinks } from '@main/ai/observability'
 import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
+import type { InProcessUsageContext } from '@main/ai/types'
 import type * as CustomFetch from '@main/ai/utils/customFetch'
 import { BaseService } from '@main/core/lifecycle'
+import { StreamAdapterFactory } from '@main/features/apiGateway/adapters'
 import type { InputFormat } from '@main/features/apiGateway/adapters/interfaces'
+import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
 import { gatewayErrorHandler } from '@main/features/apiGateway/errors'
 import { processMessage } from '@main/features/apiGateway/proxyStream'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
@@ -44,14 +57,19 @@ import { createPiBehaviorHost } from './piBehaviorHost'
 
 const mocks = vi.hoisted(() => ({
   messageId: 'original-answer',
-  captures: new Map<string, AgentRuntimeTraceContext>(),
+  gatewayService: undefined as ApiGatewayService | undefined,
+  usageContexts: new Map<string, InProcessUsageContext>(),
   gatewayUrl: '',
+  gatewayRequests: 0,
   manager: undefined as AiStreamManager | undefined,
   ai: undefined as AiService | undefined,
   attribution: undefined as AgentSessionUsageAttribution | undefined
 }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory, defaultServiceInstances } = await import('@test-mocks/main/application')
+  const isHttpFixture = (headers: Headers) =>
+    headers.get('authorization') === 'Bearer internal-fixture-key' ||
+    headers.get('x-goog-api-key') === 'internal-fixture-key'
   const overrides = {
     ...defaultServiceInstances,
     AiStreamManager: {
@@ -60,30 +78,34 @@ vi.mock('@application', async () => {
     },
     AiService: { streamText: (input: Parameters<AiService['streamText']>[0]) => mocks.ai!.streamText(input) },
     ApiGatewayService: {
-      captureAgentSessionUsage: (_session: string, _owner: string | undefined, parent?: AgentRuntimeTraceContext) => {
-        if (!parent) return { headers: {}, release: () => {} }
-        const key = String(mocks.captures.size + 1)
-        mocks.captures.set(key, parent)
-        return {
-          headers: { 'x-cherry-agent-usage-capture': key },
-          release: () => {
-            mocks.captures.delete(key)
-          }
-        }
-      },
-      ensureInternalGateway: async () => ({ baseUrl: mocks.gatewayUrl, apiKey: 'internal-fixture-key' }),
-      getAgentSessionUsageHeaders: (sessionId: string) => ({ 'x-cherry-agent-session-id': sessionId }),
-      isInternalRequest: (headers: Headers) => headers.get('authorization') === 'Bearer internal-fixture-key',
-      getAgentSessionId: (headers: Headers) => headers.get('x-cherry-agent-session-id'),
-      resolveAgentSessionUsage: (headers: Headers, responseId: string) => ({
-        agentSessionId: headers.get('x-cherry-agent-session-id')!,
-        assistantMessageId: mocks.messageId,
-        source: null,
-        traceContext: mocks.captures.get(headers.get('x-cherry-agent-usage-capture') ?? ''),
-        ...(mocks.attribution && { recordInvocation: mocks.attribution.capture(responseId) })
-      })
+      captureAgentSessionUsage: (...args: Parameters<ApiGatewayService['captureAgentSessionUsage']>) =>
+        mocks.gatewayService!.captureAgentSessionUsage(...args),
+      createAgentObjectTransports: (...args: Parameters<ApiGatewayService['createAgentObjectTransports']>) =>
+        mocks.gatewayService!.createAgentObjectTransports(...args),
+      getAgentSessionUsageHeaders: (id: string) => mocks.gatewayService!.getAgentSessionUsageHeaders(id),
+      isInternalRequest: (headers: Headers) =>
+        headers.get('authorization') === 'Bearer internal-fixture-key' ||
+        mocks.gatewayService!.isInternalRequest(headers),
+      getAgentSessionId: (headers: Headers) =>
+        isHttpFixture(headers)
+          ? (headers.get('x-cherry-agent-session-id') ?? undefined)
+          : mocks.gatewayService!.getAgentSessionId(headers),
+      resolveAgentSessionUsage: (headers: Headers, responseId: string) =>
+        isHttpFixture(headers)
+          ? application
+              .get('AgentSessionRuntimeService')
+              .getActiveUsageContext(headers.get('x-cherry-agent-session-id')!, responseId)
+          : mocks.gatewayService!.resolveAgentSessionUsage(headers, responseId)
     },
-    AgentSessionRuntimeService: { getActiveUsageContext: () => ({ assistantMessageId: mocks.messageId, source: null }) }
+    AgentSessionRuntimeService: {
+      getActiveUsageContext: (sessionId: string, responseId?: string) =>
+        mocks.usageContexts.get(sessionId) ?? {
+          agentSessionId: sessionId,
+          assistantMessageId: mocks.messageId,
+          source: null,
+          ...(mocks.attribution && responseId && { recordInvocation: mocks.attribution.capture(responseId) })
+        }
+    }
   }
   return mockApplicationFactory(overrides)
 })
@@ -126,6 +148,7 @@ describe('native Pi through the production gateway', () => {
   let holdResponse = false
   let upstreamClosed = false
   let protocol: InputFormat = 'openai'
+  let geminiEvents: unknown[] | undefined
   const requests: Array<Record<string, unknown>> = []
   let call: (body: Record<string, unknown>) => { content?: string; tool_calls?: unknown[] }
   let rejectUpstream:
@@ -137,7 +160,10 @@ describe('native Pi through the production gateway', () => {
     BaseService.resetInstances()
     mocks.manager = new AiStreamManager()
     mocks.ai = new AiService()
+    mocks.gatewayService = new ApiGatewayService()
+    mocks.usageContexts.clear()
     gateway = createServer(async (request, response) => {
+      mocks.gatewayRequests += 1
       const abort = new AbortController()
       response.on('close', () => abort.abort())
       try {
@@ -175,9 +201,11 @@ describe('native Pi through the production gateway', () => {
     await new Promise<void>((done) => gateway.listen(0, '127.0.0.1', done))
     mocks.gatewayUrl = `http://127.0.0.1:${(gateway.address() as AddressInfo).port}`
     requests.length = 0
+    mocks.gatewayRequests = 0
     holdResponse = false
     upstreamClosed = false
     protocol = 'openai'
+    geminiEvents = undefined
     mocks.messageId = 'original-answer'
     mocks.attribution = undefined
     call = () => ({ content: 'Model answer' })
@@ -235,6 +263,11 @@ describe('native Pi through the production gateway', () => {
         return
       }
       if (protocol === 'gemini') {
+        if (geminiEvents) {
+          res.writeHead(200, { 'content-type': 'text/event-stream' })
+          res.end(geminiEvents.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''))
+          return
+        }
         const parts = [
           { text: 'reasoning', thought: true, thoughtSignature: Buffer.from('thought-signature').toString('base64') },
           { text: 'answer' },
@@ -498,7 +531,6 @@ describe('native Pi through the production gateway', () => {
       const records = dbh.db.select().from(aiUsageRecordTable).all()
       expect(records).toHaveLength(1)
       expect(records[0]).toMatchObject({ inputTokens: 100, outputTokens: 25 })
-      await expect.poll(() => mocks.captures.size).toBe(0)
     } finally {
       await preferences.set('app.developer_mode.enabled', previous)
       await tracerProvider.shutdown()
@@ -514,7 +546,9 @@ describe('native Pi through the production gateway', () => {
       })
       .where(eq(userModelTable.id, 'port::wire-model'))
       .run()
-    const headers: Headers[] = []
+    for (const id of ['parent', 'fork', 'third']) {
+      mocks.usageContexts.set(id, { agentSessionId: id, assistantMessageId: id, source: null })
+    }
     const provider = providerService.getByProviderId('port')
     const model = modelService.getByKey('port', 'wire-model')
     const first = await createPiGatewayModelBinding(
@@ -536,11 +570,6 @@ describe('native Pi through the production gateway', () => {
       undefined,
       first.modelRuntime
     )
-    const saved = fetch
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
-      if (String(input).startsWith(mocks.gatewayUrl)) headers.push(new Headers(init?.headers))
-      return saved(input, init)
-    })
     const results = await Promise.all(
       [first, child, later].map((binding) =>
         binding.modelRuntime.completeSimple(
@@ -551,12 +580,13 @@ describe('native Pi through the production gateway', () => {
     )
     expect(results.map((result) => result.stopReason)).toEqual(['stop', 'stop', 'stop'])
     expect(
-      headers.map((header) => [header.get('x-cherry-agent-session-id'), header.get('x-cherry-service-tier')]).sort()
-    ).toEqual([
-      ['fork', 'standard'],
-      ['parent', 'fast'],
-      ['third', 'fast']
-    ])
+      dbh.db
+        .select()
+        .from(aiUsageRecordTable)
+        .all()
+        .map((row) => row.messageId)
+        .sort()
+    ).toEqual(['fork', 'parent', 'third'])
     expect(requests.map((request) => request.reasoning_effort).sort()).toEqual(['high', 'low', 'medium'])
   })
 
@@ -695,7 +725,22 @@ describe('native Pi through the production gateway', () => {
         id: model.provider,
         models: [model],
         auth: { apiKey: { name: 'gateway', resolve: async () => ({ auth: { apiKey: 'internal-fixture-key' } }) } },
-        api: { stream, streamSimple }
+        api: {
+          stream: (model, context, options) =>
+            stream({ ...model, api: 'openai-completions' }, context, {
+              ...options,
+              objectTransports: application
+                .get('ApiGatewayService')
+                .createAgentObjectTransports({ sessionId: 'session' })
+            }),
+          streamSimple: (model, context, options) =>
+            streamSimple({ ...model, api: 'openai-completions' }, context, {
+              ...options,
+              objectTransports: application
+                .get('ApiGatewayService')
+                .createAgentObjectTransports({ sessionId: 'session' })
+            })
+        }
       })
     )
     const durable = confirmed(
@@ -971,6 +1016,74 @@ describe('native Pi through the production gateway', () => {
     expect(dbh.db.select().from(aiUsageRecordTable).all()).toMatchObject([{ messageId: 'original-answer' }])
   })
 
+  it('retains the child capture and trace when a root binding makes a detached model call', async () => {
+    mocks.usageContexts.set('root', {
+      agentSessionId: 'root',
+      assistantMessageId: 'root-message',
+      source: { type: 'agent', id: 'original-agent', name: 'Original Agent', icon: null }
+    })
+    const captured: SpanEntity[] = []
+    const tracerProvider = new BasicTracerProvider()
+    vi.spyOn(trace, 'getTracer').mockImplementation((name) => tracerProvider.getTracer(name))
+    observabilitySinks.register({
+      id: 'child-capture-test',
+      writeSpanEntity: (span) => {
+        captured.push(span)
+      }
+    })
+    const preferences = application.get('PreferenceService')
+    const previous = preferences.get('app.developer_mode.enabled')
+    await preferences.set('app.developer_mode.enabled', true)
+    const parent = {
+      topicId: 'agent-session:child',
+      sessionId: 'child',
+      turnId: 'verifier',
+      traceId: '11111111111111111111111111111111',
+      rootSpanId: '2222222222222222'
+    }
+    const capture = mocks.gatewayService!.captureAgentSessionUsage('root', 'child', parent)
+    const native = createPiTelemetry({
+      getParent: () => ({
+        ...parent,
+        topicId: 'agent-session:root',
+        sessionId: 'root',
+        traceId: '33333333333333333333333333333333',
+        rootSpanId: '4444444444444444'
+      }),
+      isEnabled: () => true
+    })
+    try {
+      const binding = await createPiGatewayModelBinding(
+        { sessionId: 'root' },
+        providerService.getByProviderId('port'),
+        modelService.getByKey('port', 'wire-model')
+      )
+      const request = vi.spyOn(mocks.ai!, 'streamText')
+      const answer = await native.startSpan({ name: 'root-phase' }, (telemetry) =>
+        binding.modelRuntime.completeSimple(
+          binding.model,
+          normalizeContext({ messages: [{ role: 'user', content: 'verify child', timestamp: 1 }] }),
+          { headers: capture.headers, telemetry }
+        )
+      )
+      expect(answer.stopReason).toBe('stop')
+      expect(request.mock.calls[0][0].usageContext).toMatchObject({
+        agentSessionId: 'child',
+        traceContext: parent
+      })
+      expect(dbh.db.select().from(aiUsageRecordTable).all()).toMatchObject([
+        { sourceType: 'agent', sourceId: 'original-agent', inputTokens: 100, outputTokens: 25 }
+      ])
+      expect(captured.filter((span) => span.name === 'ai.streamText')).toMatchObject([
+        { traceId: parent.traceId, parentId: parent.rootSpanId, topicId: parent.topicId }
+      ])
+    } finally {
+      capture.release()
+      await preferences.set('app.developer_mode.enabled', previous)
+      await tracerProvider.shutdown()
+    }
+  })
+
   it.each([true, false])(
     'binds Google native root and child response identities to stored usage (streaming: %s)',
     async (streaming) => {
@@ -1110,5 +1223,819 @@ describe('native Pi through the production gateway', () => {
     await expect.poll(() => upstreamClosed).toBe(true)
     expect(outcome()).toBe('aborted')
     expect(requests).toHaveLength(1)
+  })
+  it.each([
+    { format: 'openai', endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS },
+    { format: 'openai-responses', endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES },
+    { format: 'anthropic', endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES },
+    { format: 'gemini', endpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT }
+  ] as const)('executes $format without internal request JSON or SSE codecs', async ({ format, endpoint }) => {
+    protocol = format
+    dbh.db
+      .update(userProviderTable)
+      .set({
+        endpointConfigs: {
+          [endpoint]: {
+            baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/${format === 'gemini' ? 'v1beta' : 'v1'}`
+          }
+        },
+        defaultChatEndpoint: endpoint
+      })
+      .where(eq(userProviderTable.providerId, 'port'))
+      .run()
+    const stringify = JSON.stringify
+    vi.spyOn(JSON, 'stringify').mockImplementation((value, replacer, space) => {
+      if (
+        value &&
+        !Array.isArray(value) &&
+        typeof value === 'object' &&
+        'model' in value &&
+        value.model === 'port:wire-model' &&
+        ('messages' in value || 'input' in value || 'contents' in value)
+      ) {
+        throw new Error('Internal protocol requests must remain objects')
+      }
+      return stringify(value, replacer, space)
+    })
+    vi.spyOn(StreamAdapterFactory, 'getFormatter').mockImplementation(() => {
+      throw new Error('Internal protocol events must not use an SSE formatter')
+    })
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const answer = await binding.modelRuntime.completeSimple(
+      binding.model,
+      normalizeContext({ messages: [{ role: 'user', content: 'Hello', timestamp: 1 }] })
+    )
+    expect(answer.stopReason).toBe('stop')
+    expect(answer.content.some((part) => part.type === 'text' && part.text.length > 0)).toBe(true)
+    expect(mocks.gatewayRequests).toBe(0)
+    expect(requests).toHaveLength(1)
+    expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(1)
+  })
+
+  it('replays encrypted Chat reasoning through the native consumer and production converter exactly once', async () => {
+    const details = [{ type: 'reasoning.encrypted', id: 'r1', format: 'anthropic-claude-v1', data: 'opaque' }]
+    const metadata = { openrouter: { reasoning_details: details } }
+    let step = 0
+    const upstream = vi.spyOn(mocks.ai!, 'streamText').mockImplementation(async () => ({
+      kind: 'chunks',
+      stream: new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          if (step++ === 0) {
+            controller.enqueue({ type: 'reasoning-start', id: 'r1' })
+            controller.enqueue({ type: 'reasoning-end', id: 'r1', providerMetadata: metadata })
+            controller.enqueue({
+              type: 'tool-input-available',
+              toolCallId: 'lookup_1',
+              toolName: 'lookup',
+              input: { query: 'example' },
+              providerMetadata: metadata
+            })
+            controller.enqueue({ type: 'finish', finishReason: 'tool-calls' })
+          } else {
+            controller.enqueue({ type: 'text-start', id: 't1' })
+            controller.enqueue({ type: 'text-delta', id: 't1', delta: 'done' })
+            controller.enqueue({ type: 'text-end', id: 't1' })
+            controller.enqueue({ type: 'finish', finishReason: 'stop' })
+          }
+          controller.close()
+        }
+      })
+    }))
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const user = { role: 'user' as const, content: 'look up example', timestamp: 1 }
+    const answer = await binding.modelRuntime.completeSimple(binding.model, normalizeContext({ messages: [user] }))
+    expect(answer.stopReason).toBe('toolUse')
+    const thinking = answer.content.find((part) => part.type === 'thinking')
+    expect(thinking?.thinkingSignature && JSON.parse(thinking.thinkingSignature)).toEqual(details)
+    const result = await binding.modelRuntime.completeSimple(
+      binding.model,
+      normalizeContext({
+        messages: [
+          user,
+          answer,
+          {
+            role: 'toolResult',
+            toolCallId: 'lookup_1',
+            toolName: 'lookup',
+            content: [{ type: 'text', text: 'found' }],
+            isError: false,
+            timestamp: 2
+          }
+        ]
+      })
+    )
+    expect(result.stopReason).toBe('stop')
+    expect(upstream.mock.calls[1][0].messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: 'assistant',
+          parts: expect.arrayContaining([expect.objectContaining({ type: 'reasoning', providerMetadata: metadata })])
+        })
+      ])
+    )
+  })
+
+  it.each([
+    {
+      endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      api: 'chat',
+      usage: { input: 50, output: 10, cacheRead: 20, cacheWrite: 30, totalTokens: 110 }
+    },
+    {
+      endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      api: 'responses',
+      usage: { input: 50, output: 10, cacheRead: 20, cacheWrite: 30, totalTokens: 110 }
+    },
+    {
+      endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      api: 'anthropic',
+      usage: { input: 50, output: 10, cacheRead: 20, cacheWrite: 30, reasoning: 7, totalTokens: 110 }
+    }
+  ])('retains native $api token breakdowns through the object response', async ({ endpoint, usage }) => {
+    dbh.db
+      .update(userProviderTable)
+      .set({
+        endpointConfigs: { [endpoint]: { baseUrl: 'http://unused.invalid/v1' } },
+        defaultChatEndpoint: endpoint
+      })
+      .where(eq(userProviderTable.providerId, 'port'))
+      .run()
+    vi.spyOn(mocks.ai!, 'streamText').mockResolvedValue({
+      kind: 'chunks',
+      stream: new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          controller.enqueue({
+            type: 'message-metadata',
+            messageMetadata: {
+              stats: {
+                inputTokens: 100,
+                outputTokens: 10,
+                inputTokenDetails: { cacheReadTokens: 20, cacheWriteTokens: 30 },
+                outputTokenDetails: { reasoningTokens: 7 }
+              }
+            }
+          })
+          controller.enqueue({ type: 'finish', finishReason: 'stop' })
+          controller.close()
+        }
+      })
+    })
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const answer = await binding.modelRuntime.completeSimple(
+      binding.model,
+      normalizeContext({ messages: [{ role: 'user', content: 'hello', timestamp: 1 }] })
+    )
+    expect(answer.stopReason).toBe('stop')
+    expect(answer.usage).toMatchObject(usage)
+  })
+
+  it.each(
+    [
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      ENDPOINT_TYPE.OPENAI_RESPONSES,
+      ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+    ].flatMap((endpoint) => [
+      { endpoint, reason: 'length' as const, stop: 'length' },
+      { endpoint, reason: 'content-filter' as const, stop: 'error' }
+    ])
+  )('keeps native $reason after a complete tool call on $endpoint', async ({ endpoint, reason, stop }) => {
+    dbh.db
+      .update(userProviderTable)
+      .set({
+        endpointConfigs: { [endpoint]: { baseUrl: 'http://unused.invalid/v1' } },
+        defaultChatEndpoint: endpoint
+      })
+      .where(eq(userProviderTable.providerId, 'port'))
+      .run()
+    vi.spyOn(mocks.ai!, 'streamText').mockResolvedValue({
+      kind: 'chunks',
+      stream: new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          controller.enqueue({ type: 'tool-input-available', toolCallId: 'lookup_1', toolName: 'lookup', input: {} })
+          controller.enqueue({ type: 'finish', finishReason: reason })
+          controller.close()
+        }
+      })
+    })
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const answer = await binding.modelRuntime.completeSimple(
+      binding.model,
+      normalizeContext({ messages: [{ role: 'user', content: 'hello', timestamp: 1 }] })
+    )
+    expect(answer.stopReason).toBe(stop)
+    expect(answer.content.some((part) => part.type === 'toolCall' && part.name === 'lookup')).toBe(true)
+  })
+
+  it.each(['object', 'http'] as const)('preserves supported Gemini configuration on the %s path', async (path) => {
+    protocol = 'gemini'
+    dbh.db
+      .update(userProviderTable)
+      .set({
+        endpointConfigs: {
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+            baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1beta`
+          }
+        },
+        defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      })
+      .where(eq(userProviderTable.providerId, 'port'))
+      .run()
+    const config = {
+      temperature: 0.4,
+      topP: 0.8,
+      topK: 20,
+      maxOutputTokens: 128,
+      stopSequences: ['END'],
+      presencePenalty: 0.2,
+      frequencyPenalty: 0.3,
+      seed: 42,
+      responseMimeType: 'application/json',
+      responseJsonSchema: { type: 'object', properties: { answer: { type: 'string' } }, required: ['answer'] },
+      safetySettings: [
+        { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH }
+      ],
+      cachedContent: 'cachedContents/context',
+      labels: { task: 'gateway' },
+      serviceTier: ServiceTier.FLEX,
+      continuationToken: 'resume-here',
+      responseModalities: [Modality.TEXT, Modality.IMAGE],
+      imageConfig: { aspectRatio: '16:9', imageSize: '2K' },
+      mediaResolution: MediaResolution.MEDIA_RESOLUTION_HIGH,
+      audioTimestamp: true,
+      tools: [
+        {
+          functionDeclarations: [
+            { name: 'lookup', parametersJsonSchema: { type: 'object', properties: {} } },
+            { name: 'other', parametersJsonSchema: { type: 'object', properties: {} } }
+          ]
+        }
+      ],
+      toolConfig: {
+        functionCallingConfig: { mode: FunctionCallingConfigMode.ANY, allowedFunctionNames: ['lookup'] },
+        retrievalConfig: { latLng: { latitude: 10, longitude: 20 } }
+      }
+    }
+    const contents = [{ role: 'user', parts: [{ text: 'hello' }] }]
+    if (path === 'object') {
+      const response = await mocks
+        .gatewayService!.createAgentObjectTransports({ sessionId: 'session' })
+        ['google-generative-ai'](
+          { model: 'port:wire-model', contents, config: { ...config, automaticFunctionCalling: { disable: true } } },
+          {}
+        )
+      for await (const event of response.events) expect(event).toHaveProperty('candidates')
+    } else {
+      const {
+        tools,
+        toolConfig,
+        safetySettings,
+        cachedContent,
+        labels,
+        serviceTier,
+        continuationToken,
+        ...generationConfig
+      } = config
+      const response = await fetch(`${mocks.gatewayUrl}/v1beta/models/port:wire-model:streamGenerateContent`, {
+        method: 'POST',
+        body: JSON.stringify({
+          contents,
+          tools,
+          toolConfig,
+          safetySettings,
+          cachedContent,
+          labels,
+          serviceTier,
+          continuationToken,
+          generationConfig
+        })
+      })
+      expect(response.status).toBe(200)
+      await response.text()
+    }
+    expect(requests).toHaveLength(1)
+    expect(requests[0]).toMatchObject({
+      generationConfig: {
+        temperature: 0.4,
+        topP: 0.8,
+        topK: 20,
+        maxOutputTokens: 128,
+        stopSequences: ['END'],
+        presencePenalty: 0.2,
+        frequencyPenalty: 0.3,
+        seed: 42,
+        responseMimeType: 'application/json',
+        responseSchema: { type: 'object', properties: { answer: { type: 'string' } }, required: ['answer'] },
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { aspectRatio: '16:9', imageSize: '2K' },
+        mediaResolution: 'MEDIA_RESOLUTION_HIGH',
+        audioTimestamp: true
+      },
+      safetySettings: [{ category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' }],
+      cachedContent: 'cachedContents/context',
+      labels: { task: 'gateway' },
+      serviceTier: 'flex',
+      continuationToken: 'resume-here',
+      toolConfig: {
+        functionCallingConfig: { mode: 'ANY', allowedFunctionNames: ['lookup'] },
+        retrievalConfig: { latLng: { latitude: 10, longitude: 20 } }
+      }
+    })
+    expect(mocks.gatewayRequests).toBe(path === 'object' ? 0 : 1)
+  })
+
+  it.each(['object', 'http'] as const)(
+    'retains Gemini media and continuation metadata on the %s path',
+    async (path) => {
+      protocol = 'gemini'
+      dbh.db
+        .update(userProviderTable)
+        .set({
+          endpointConfigs: {
+            [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+              baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1beta`
+            }
+          },
+          defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+        })
+        .where(eq(userProviderTable.providerId, 'port'))
+        .run()
+      const safetyRatings = [{ category: 'HARM_CATEGORY_HARASSMENT', probability: 'LOW', blocked: false }]
+      geminiEvents = [
+        {
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [
+                  { inlineData: { mimeType: 'image/png', data: 'AQID' }, thoughtSignature: 'media-signature' },
+                  { text: 'caption' }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          candidates: [
+            {
+              content: { role: 'model', parts: [] },
+              finishReason: 'MAX_TOKENS',
+              finishMessage: 'Budget exhausted',
+              continuationToken: 'resume-token',
+              safetyRatings
+            }
+          ],
+          promptFeedback: { safetyRatings },
+          usageMetadata: { promptTokenCount: 100, candidatesTokenCount: 25, totalTokenCount: 125, serviceTier: 'flex' }
+        }
+      ]
+      const contents = [{ role: 'user', parts: [{ text: 'hello' }] }]
+      const frames: unknown[] = []
+      if (path === 'object') {
+        const response = await mocks
+          .gatewayService!.createAgentObjectTransports({ sessionId: 'session' })
+          ['google-generative-ai']({ model: 'port:wire-model', contents }, {})
+        for await (const event of response.events) frames.push(event)
+      } else {
+        const response = await fetch(`${mocks.gatewayUrl}/v1beta/models/port:wire-model:streamGenerateContent`, {
+          method: 'POST',
+          body: JSON.stringify({ contents })
+        })
+        expect(response.status).toBe(200)
+        for (const frame of (await response.text()).split('\n\n')) {
+          if (frame.startsWith('data: ')) frames.push(JSON.parse(frame.slice(6)))
+        }
+      }
+      expect(frames).toContainEqual(
+        expect.objectContaining({
+          candidates: [
+            expect.objectContaining({
+              content: {
+                role: 'model',
+                parts: [{ inlineData: { mimeType: 'image/png', data: 'AQID' }, thoughtSignature: 'media-signature' }]
+              }
+            })
+          ]
+        })
+      )
+      expect(frames.at(-1)).toMatchObject({
+        candidates: [
+          {
+            finishReason: 'MAX_TOKENS',
+            finishMessage: 'Budget exhausted',
+            continuationToken: 'resume-token',
+            safetyRatings
+          }
+        ],
+        promptFeedback: { safetyRatings },
+        usageMetadata: { serviceTier: 'flex' }
+      })
+    }
+  )
+
+  it.each([
+    { mode: FunctionCallingConfigMode.NONE, allowed: undefined },
+    { mode: FunctionCallingConfigMode.AUTO, allowed: undefined },
+    { mode: FunctionCallingConfigMode.ANY, allowed: ['lookup', 'second'] },
+    { mode: FunctionCallingConfigMode.VALIDATED, allowed: ['lookup'] }
+  ])('retains Gemini $mode function selection without gateway execution', async ({ mode, allowed }) => {
+    protocol = 'gemini'
+    dbh.db
+      .update(userProviderTable)
+      .set({
+        endpointConfigs: {
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+            baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1beta`
+          }
+        },
+        defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      })
+      .where(eq(userProviderTable.providerId, 'port'))
+      .run()
+    const response = await mocks
+      .gatewayService!.createAgentObjectTransports({ sessionId: 'session' })
+      ['google-generative-ai'](
+        {
+          model: 'port:wire-model',
+          contents: 'hello',
+          config: {
+            tools: [
+              {
+                functionDeclarations: ['lookup', 'second', 'other'].map((name) => ({
+                  name,
+                  parametersJsonSchema: { type: 'object', properties: {} }
+                }))
+              }
+            ],
+            toolConfig: { functionCallingConfig: { mode, allowedFunctionNames: allowed } }
+          }
+        },
+        {}
+      )
+    for await (const event of response.events) expect(event).toHaveProperty('candidates')
+    expect(requests).toHaveLength(1)
+    expect(requests[0]).toMatchObject({
+      tools: [
+        {
+          functionDeclarations: (allowed ?? ['lookup', 'second', 'other']).map((name) =>
+            expect.objectContaining({ name })
+          )
+        }
+      ],
+      toolConfig: { functionCallingConfig: { mode } }
+    })
+  })
+
+  function directObjectCall(signal?: AbortSignal) {
+    const transports = mocks.gatewayService!.createAgentObjectTransports({ sessionId: 'session' })
+    return transports['openai-completions'](
+      { model: 'port:wire-model', messages: [{ role: 'user', content: 'Hello' }], stream: true },
+      { signal }
+    )
+  }
+
+  it.each([{ speechConfig: { languageCode: 'en-US' } }, { automaticFunctionCalling: { disable: false } }])(
+    'rejects unsupported Gemini config as a local capability failure without an HTTP envelope: %j',
+    async (config) => {
+      const transports = mocks.gatewayService!.createAgentObjectTransports({ sessionId: 'session' })
+      const error = await transports['google-generative-ai'](
+        { model: 'port:wire-model', contents: 'hello', config },
+        {}
+      ).catch((error: unknown) => error)
+      expect(UnsupportedFunctionalityError.isInstance(error)).toBe(true)
+      expect(error).toHaveProperty('message', expect.stringContaining('Unsupported Gemini config'))
+      expect(error).not.toHaveProperty('status')
+      expect(error).not.toHaveProperty('error')
+      expect(requests).toHaveLength(0)
+    }
+  )
+
+  it('keeps local Gemini capability failures out of the native provider HTTP error display', async () => {
+    dbh.db
+      .update(userProviderTable)
+      .set({
+        endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'http://unused.invalid/v1beta' } },
+        defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      })
+      .where(eq(userProviderTable.providerId, 'port'))
+      .run()
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const answer = await binding.modelRuntime.completeSimple(
+      binding.model,
+      normalizeContext({ messages: [{ role: 'user', content: 'hello', timestamp: 1 }] }),
+      {
+        onPayload: () => ({
+          model: 'port:wire-model',
+          contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
+          config: { speechConfig: { languageCode: 'en-US' } }
+        })
+      }
+    )
+    expect(answer.stopReason).toBe('error')
+    expect(answer.errorMessage).toContain('Unsupported Gemini config: speechConfig')
+    expect(answer.errorMessage).not.toMatch(/\b400\b|INVALID_ARGUMENT/)
+    expect(requests).toHaveLength(0)
+  })
+
+  it('returns protocol-shaped preparation failures from object calls', async () => {
+    const transports = mocks.gatewayService!.createAgentObjectTransports({ sessionId: 'session' })
+    await expect(
+      transports['openai-completions']({ model: 'missing', messages: [], stream: true }, {})
+    ).rejects.toMatchObject({ status: 400, error: { error: { message: expect.any(String) } } })
+    expect(requests).toHaveLength(0)
+  })
+
+  it('rejects object calls when execution cannot start', async () => {
+    vi.spyOn(mocks.manager!, 'streamPrompt').mockImplementation(() => {
+      throw new Error('execution unavailable')
+    })
+    await expect(directObjectCall()).rejects.toThrow('execution unavailable')
+    expect(requests).toHaveLength(0)
+  })
+
+  it('retains partial object output and rejects a failed stream instead of completing it', async () => {
+    let upstream!: ReadableStreamDefaultController<UIMessageChunk>
+    vi.spyOn(mocks.ai!, 'streamText').mockResolvedValue({
+      kind: 'chunks',
+      stream: new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          upstream = controller
+          controller.enqueue({ type: 'start', messageId: 'failed-test' })
+          controller.enqueue({ type: 'text-start', id: 'text' })
+          controller.enqueue({ type: 'text-delta', id: 'text', delta: 'partial' })
+        }
+      })
+    })
+    const response = await directObjectCall()
+    let text = ''
+    const reading = (async () => {
+      for await (const event of response.events) text += event.choices[0]?.delta.content ?? ''
+    })()
+    const failed = expect(reading).rejects.toThrow('connection lost')
+    await expect.poll(() => text).toBe('partial')
+    upstream.error(new Error('connection lost'))
+    await failed
+    expect(text).toBe('partial')
+  })
+
+  it('aborts upstream when an object iterator is closed before its first read', async () => {
+    holdResponse = true
+    const response = await directObjectCall()
+    const iterator = response.events[Symbol.asyncIterator]()
+    await iterator.return?.()
+    await expect.poll(() => upstreamClosed).toBe(true)
+    expect(mocks.gatewayRequests).toBe(0)
+  })
+
+  it('aborts an object call while waiting for its first semantic output', async () => {
+    holdResponse = true
+    call = () => ({})
+    const abort = new AbortController()
+    const pending = directObjectCall(abort.signal)
+    const rejected = expect(pending).rejects.toThrow('cancel before content')
+    await expect.poll(() => requests.length).toBe(1)
+    abort.abort(new Error('cancel before content'))
+    await rejected
+    await expect.poll(() => upstreamClosed).toBe(true)
+  })
+
+  it('honors native request timeout before semantic output and releases the upstream', async () => {
+    holdResponse = true
+    call = () => ({})
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const answer = await binding.modelRuntime.completeSimple(
+      binding.model,
+      normalizeContext({ messages: [{ role: 'user', content: 'wait', timestamp: 1 }] }),
+      { timeoutMs: 50, signal: AbortSignal.timeout(2_000) }
+    )
+    expect(answer.stopReason).toBe('error')
+    expect(answer.errorMessage).toMatch(/timeout/i)
+    await expect.poll(() => upstreamClosed).toBe(true)
+  })
+
+  it.each([
+    { format: 'openai', endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS },
+    { format: 'openai-responses', endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES },
+    { format: 'anthropic', endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES },
+    { format: 'gemini', endpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT }
+  ])('cancels the $format upstream when onResponse rejects before iteration', async ({ endpoint }) => {
+    dbh.db
+      .update(userProviderTable)
+      .set({
+        endpointConfigs: { [endpoint]: { baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1` } },
+        defaultChatEndpoint: endpoint
+      })
+      .where(eq(userProviderTable.providerId, 'port'))
+      .run()
+    let cancelled = false
+    vi.spyOn(mocks.ai!, 'streamText').mockResolvedValue({
+      kind: 'chunks',
+      stream: new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          controller.enqueue({ type: 'start', messageId: 'hook-failure' })
+          controller.enqueue({ type: 'text-start', id: 'text' })
+          controller.enqueue({ type: 'text-delta', id: 'text', delta: 'hello' })
+        },
+        cancel() {
+          cancelled = true
+        }
+      })
+    })
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const abort = new AbortController()
+    try {
+      const answer = await binding.modelRuntime.completeSimple(
+        binding.model,
+        normalizeContext({ messages: [{ role: 'user', content: 'hello', timestamp: 1 }] }),
+        {
+          signal: abort.signal,
+          onResponse: () => {
+            throw new Error('consumer hook failed')
+          }
+        }
+      )
+      expect(answer.stopReason).toBe('error')
+      expect(answer.errorMessage).toContain('consumer hook failed')
+      await expect.poll(() => cancelled, { timeout: 500 }).toBe(true)
+    } finally {
+      abort.abort()
+    }
+  })
+
+  it('bounds producer progress while object events are unread and resumes without loss', async () => {
+    let produced = 0
+    const count = 512
+    vi.spyOn(mocks.ai!, 'streamText').mockResolvedValue({
+      kind: 'chunks',
+      stream: new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          controller.enqueue({ type: 'start', messageId: 'bounded-test' })
+          controller.enqueue({ type: 'text-start', id: 'text' })
+        },
+        pull(controller) {
+          if (produced < count) {
+            produced += 1
+            controller.enqueue({ type: 'text-delta', id: 'text', delta: 'x' })
+          } else {
+            controller.enqueue({ type: 'text-end', id: 'text' })
+            controller.enqueue({ type: 'finish', finishReason: 'stop' })
+            controller.close()
+          }
+        }
+      })
+    })
+    const response = await directObjectCall()
+    await expect.poll(() => produced).toBeGreaterThanOrEqual(32)
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(produced).toBeLessThan(128)
+    let text = ''
+    for await (const event of response.events) text += event.choices[0]?.delta.content ?? ''
+    expect(text).toBe('x'.repeat(count))
+    expect(produced).toBe(count)
+  })
+
+  it('does not count object consumer backpressure as upstream idleness', async () => {
+    const start = mocks.manager!.streamPrompt.bind(mocks.manager)
+    vi.spyOn(mocks.manager!, 'streamPrompt').mockImplementation((input) => start({ ...input, idleTimeoutMs: 100 }))
+    let produced = 0
+    let cancelled = false
+    vi.spyOn(mocks.ai!, 'streamText').mockResolvedValue({
+      kind: 'chunks',
+      stream: new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          controller.enqueue({ type: 'start', messageId: 'backpressure-timeout' })
+          controller.enqueue({ type: 'text-start', id: 'text' })
+        },
+        pull(controller) {
+          if (produced++ < 512) controller.enqueue({ type: 'text-delta', id: 'text', delta: 'x' })
+          else {
+            controller.enqueue({ type: 'text-end', id: 'text' })
+            controller.enqueue({ type: 'finish', finishReason: 'stop' })
+            controller.close()
+          }
+        },
+        cancel() {
+          cancelled = true
+        }
+      })
+    })
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    let cancel = async () => {}
+    try {
+      const response = await directObjectCall()
+      const iterator = response.events[Symbol.asyncIterator]()
+      cancel = async () => {
+        await iterator.return?.()
+      }
+      await vi.advanceTimersByTimeAsync(0)
+      expect(produced).toBeGreaterThanOrEqual(32)
+      expect(produced).toBeLessThan(128)
+      await vi.advanceTimersByTimeAsync(500)
+      expect(cancelled).toBe(false)
+      let text = ''
+      while (true) {
+        const result = await iterator.next()
+        if (result.done) break
+        text += result.value.choices[0]?.delta.content ?? ''
+      }
+      expect(text).toBe('x'.repeat(512))
+    } finally {
+      await cancel()
+      vi.useRealTimers()
+    }
+  })
+
+  it('delivers a textless Responses batch of tool errors without blocking native recovery', async () => {
+    const calls = Array.from({ length: 8 }, (_, index) => ({
+      id: `unknown-${index}`,
+      name: `unknown_tool_${index}`,
+      arguments: { index }
+    }))
+    let nextCall = 0
+    vi.spyOn(mocks.ai!, 'streamText').mockResolvedValue({
+      kind: 'chunks',
+      stream: new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          controller.enqueue({ type: 'start', messageId: 'tool-errors' })
+        },
+        async pull(controller) {
+          await new Promise<void>((resolve) => setImmediate(resolve))
+          const call = calls[nextCall++]
+          if (call) {
+            controller.enqueue({
+              type: 'tool-input-error',
+              toolCallId: call.id,
+              toolName: call.name,
+              input: call.arguments,
+              errorText: 'Unknown tool'
+            })
+          } else {
+            controller.enqueue({ type: 'finish', finishReason: 'tool-calls' })
+            controller.close()
+          }
+        }
+      })
+    })
+    dbh.db
+      .update(userProviderTable)
+      .set({
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+            baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`
+          }
+        },
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES
+      })
+      .where(eq(userProviderTable.providerId, 'port'))
+      .run()
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const answer = await binding.modelRuntime.completeSimple(
+      binding.model,
+      normalizeContext({ messages: [{ role: 'user', content: 'Run the tools', timestamp: 1 }] }),
+      { signal: AbortSignal.timeout(2_000) }
+    )
+    expect(answer.stopReason, answer.errorMessage).toBe('toolUse')
+    expect(answer.content.filter((part) => part.type === 'toolCall')).toMatchObject(
+      calls.map(({ name, arguments: input }) => ({ name, arguments: input }))
+    )
+    expect(
+      answer.content
+        .filter((part) => part.type === 'text')
+        .map((part) => part.text)
+        .join('')
+    ).toBe('')
+    expect(mocks.gatewayRequests).toBe(0)
   })
 })

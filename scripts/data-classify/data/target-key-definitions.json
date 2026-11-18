@@ -1634,6 +1634,26 @@
       ],
       "status": "classified",
       "description": "Ordered session details sections and their visibility"
+    },
+    {
+      "targetKey": "chat.topics.sort",
+      "type": "PreferenceTypes.ConversationListSort",
+      "defaultValue": {
+        "by": "lastActivityAt",
+        "direction": "desc"
+      },
+      "status": "classified",
+      "description": "Independent conversation list sorting"
+    },
+    {
+      "targetKey": "agent.session.sort",
+      "type": "PreferenceTypes.ConversationListSort",
+      "defaultValue": {
+        "by": "lastActivityAt",
+        "direction": "desc"
+      },
+      "status": "classified",
+      "description": "Independent conversation list sorting"
     }
   ]
 }

@@ -7,6 +7,7 @@ import { Button, ConfirmDialog, EmptyState, SegmentedControl, Skeleton } from '@
 import { loggerService } from '@logger'
 import { FilePreview } from '@renderer/components/FilePreview'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
+import { FileIcon } from '@renderer/components/icons/FileIcon'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { ipcApi } from '@renderer/ipc'
@@ -94,7 +95,6 @@ export const SkillFileBrowser = function SkillFileBrowser({
     [access, selectedFile]
   )
   const fileSession = useFileEditSession(editableHandle, `skill:${skillId}`)
-  const notifyExternalChange = fileSession.notifyExternalChange
   const reloadFile = fileSession.reload
   const keepCurrentDraft = fileSession.keepDraft
   const selectedFileRef = useRef<AbsoluteFilePath | null>(selectedFile)
@@ -128,14 +128,13 @@ export const SkillFileBrowser = function SkillFileBrowser({
   const handleTreeMutation = useCallback(
     (event: TreeMutationEvent) => {
       if (access !== 'read_write') return
-      notifyExternalChange()
       const activePath = selectedFileRef.current
       if (event.type === 'updated' && activePath === event.path) {
         return
       }
       void reconcileSkill().catch(() => undefined)
     },
-    [access, notifyExternalChange, reconcileSkill]
+    [access, reconcileSkill]
   )
 
   const { root, version, isLoading, error } = useDirectoryTree(rootPath, undefined, handleTreeMutation)
@@ -323,7 +322,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
   const previewHeader = (
     <>
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <FileText className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+        <FileIcon path={selectedFileName} className="size-3.5 shrink-0" aria-hidden />
         <span className="truncate text-sm font-medium text-foreground">
           {selectedFileName || t('library.skill_detail.select_file')}
         </span>
