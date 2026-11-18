@@ -45,9 +45,11 @@ external callers cannot override these through internal headers.
 Responses reasoning preserves provider-issued item IDs and encrypted content in both streaming and
 non-streaming output and on subsequent input, including items with no readable summary. The gateway
 uses AI SDK provider metadata for this round trip; it does not decrypt or synthesize the encrypted state.
-Anthropic redacted thinking retains its ciphertext as `redacted_thinking`. Gemini text and thought
+Chat Completions retains OpenRouter structured `reasoning_details`, including encrypted-only state, on output and subsequent input. Repeated cumulative metadata snapshots produce one native replay signature. Anthropic redacted thinking retains its ciphertext as `redacted_thinking`. Gemini text and thought
 parts retain their signatures, including metadata-only deltas. The pinned AI SDK patch forwards empty
 text deltas carrying provider metadata so those updates reach both native replay and accumulated output.
+
+OpenAI usage retains reported cache-read and cache-write breakdowns without changing cache-inclusive input totals. Anthropic reports uncached input separately from cache reads/writes and retains reported `thinking_tokens`. Unreported breakdowns remain absent. A final token-limit or filtering outcome takes precedence over earlier tool calls; successful tool calls cannot turn a truncated or filtered response into normal completion.
 
 > **Naming.** React components and the lifecycle service use `apiGateway`;
 > IpcApi routes use `api_gateway.*`; Preference and Shared Cache keys use

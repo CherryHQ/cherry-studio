@@ -1263,6 +1263,173 @@ describe('native Pi through the production gateway', () => {
     expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(1)
   })
 
+  it('replays encrypted Chat reasoning through the native consumer and production converter exactly once', async () => {
+    const details = [{ type: 'reasoning.encrypted', id: 'r1', format: 'anthropic-claude-v1', data: 'opaque' }]
+    const metadata = { openrouter: { reasoning_details: details } }
+    let step = 0
+    const upstream = vi.spyOn(mocks.ai!, 'streamText').mockImplementation(async () => ({
+      kind: 'chunks',
+      stream: new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          if (step++ === 0) {
+            controller.enqueue({ type: 'reasoning-start', id: 'r1' })
+            controller.enqueue({ type: 'reasoning-end', id: 'r1', providerMetadata: metadata })
+            controller.enqueue({
+              type: 'tool-input-available',
+              toolCallId: 'lookup_1',
+              toolName: 'lookup',
+              input: { query: 'example' },
+              providerMetadata: metadata
+            })
+            controller.enqueue({ type: 'finish', finishReason: 'tool-calls' })
+          } else {
+            controller.enqueue({ type: 'text-start', id: 't1' })
+            controller.enqueue({ type: 'text-delta', id: 't1', delta: 'done' })
+            controller.enqueue({ type: 'text-end', id: 't1' })
+            controller.enqueue({ type: 'finish', finishReason: 'stop' })
+          }
+          controller.close()
+        }
+      })
+    }))
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const user = { role: 'user' as const, content: 'look up example', timestamp: 1 }
+    const answer = await binding.modelRuntime.completeSimple(binding.model, normalizeContext({ messages: [user] }))
+    expect(answer.stopReason).toBe('toolUse')
+    const thinking = answer.content.find((part) => part.type === 'thinking')
+    expect(thinking?.thinkingSignature && JSON.parse(thinking.thinkingSignature)).toEqual(details)
+    const result = await binding.modelRuntime.completeSimple(
+      binding.model,
+      normalizeContext({
+        messages: [
+          user,
+          answer,
+          {
+            role: 'toolResult',
+            toolCallId: 'lookup_1',
+            toolName: 'lookup',
+            content: [{ type: 'text', text: 'found' }],
+            isError: false,
+            timestamp: 2
+          }
+        ]
+      })
+    )
+    expect(result.stopReason).toBe('stop')
+    expect(upstream.mock.calls[1][0].messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: 'assistant',
+          parts: expect.arrayContaining([expect.objectContaining({ type: 'reasoning', providerMetadata: metadata })])
+        })
+      ])
+    )
+  })
+
+  it.each([
+    {
+      endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      api: 'chat',
+      usage: { input: 50, output: 10, cacheRead: 20, cacheWrite: 30, totalTokens: 110 }
+    },
+    {
+      endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      api: 'responses',
+      usage: { input: 50, output: 10, cacheRead: 20, cacheWrite: 30, totalTokens: 110 }
+    },
+    {
+      endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      api: 'anthropic',
+      usage: { input: 50, output: 10, cacheRead: 20, cacheWrite: 30, reasoning: 7, totalTokens: 110 }
+    }
+  ])('retains native $api token breakdowns through the object response', async ({ endpoint, usage }) => {
+    dbh.db
+      .update(userProviderTable)
+      .set({
+        endpointConfigs: { [endpoint]: { baseUrl: 'http://unused.invalid/v1' } },
+        defaultChatEndpoint: endpoint
+      })
+      .where(eq(userProviderTable.providerId, 'port'))
+      .run()
+    vi.spyOn(mocks.ai!, 'streamText').mockResolvedValue({
+      kind: 'chunks',
+      stream: new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          controller.enqueue({
+            type: 'message-metadata',
+            messageMetadata: {
+              stats: {
+                inputTokens: 100,
+                outputTokens: 10,
+                inputTokenDetails: { cacheReadTokens: 20, cacheWriteTokens: 30 },
+                outputTokenDetails: { reasoningTokens: 7 }
+              }
+            }
+          })
+          controller.enqueue({ type: 'finish', finishReason: 'stop' })
+          controller.close()
+        }
+      })
+    })
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const answer = await binding.modelRuntime.completeSimple(
+      binding.model,
+      normalizeContext({ messages: [{ role: 'user', content: 'hello', timestamp: 1 }] })
+    )
+    expect(answer.stopReason).toBe('stop')
+    expect(answer.usage).toMatchObject(usage)
+  })
+
+  it.each(
+    [
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      ENDPOINT_TYPE.OPENAI_RESPONSES,
+      ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+    ].flatMap((endpoint) => [
+      { endpoint, reason: 'length' as const, stop: 'length' },
+      { endpoint, reason: 'content-filter' as const, stop: 'error' }
+    ])
+  )('keeps native $reason after a complete tool call on $endpoint', async ({ endpoint, reason, stop }) => {
+    dbh.db
+      .update(userProviderTable)
+      .set({
+        endpointConfigs: { [endpoint]: { baseUrl: 'http://unused.invalid/v1' } },
+        defaultChatEndpoint: endpoint
+      })
+      .where(eq(userProviderTable.providerId, 'port'))
+      .run()
+    vi.spyOn(mocks.ai!, 'streamText').mockResolvedValue({
+      kind: 'chunks',
+      stream: new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          controller.enqueue({ type: 'tool-input-available', toolCallId: 'lookup_1', toolName: 'lookup', input: {} })
+          controller.enqueue({ type: 'finish', finishReason: reason })
+          controller.close()
+        }
+      })
+    })
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    const answer = await binding.modelRuntime.completeSimple(
+      binding.model,
+      normalizeContext({ messages: [{ role: 'user', content: 'hello', timestamp: 1 }] })
+    )
+    expect(answer.stopReason).toBe(stop)
+    expect(answer.content.some((part) => part.type === 'toolCall' && part.name === 'lookup')).toBe(true)
+  })
+
   function directObjectCall(signal?: AbortSignal) {
     const transports = mocks.gatewayService!.createAgentObjectTransports({ sessionId: 'session' })
     return transports['openai-completions'](

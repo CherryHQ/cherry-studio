@@ -20,6 +20,8 @@ HTTP 与对象交付共享网关准备和协议适配器。HTTP 路由保留鉴�
 
 本决策仅部分取代 harness 边界决策中的内部 HTTP 要求。Pi/Pi Durable 保留原生调度、历史、工具、压缩与恢复。现有 UIMessage 转换、工具参数 JSON 片段、持久化及真实上游网络编解码继续保留。包括 Claude Code 在内的外部客户端继续使用 HTTP。
 
+协议适配器同时保留结构化推理签名和原生用量拆分。Chat Completions 将 OpenRouter 重复提供的 reasoning_details 累计快照仅交付一次，并从原生历史恢复为 provider metadata，包括没有可读文本的加密状态。OpenAI 协议保留缓存写入，Anthropic 保留 thinking_tokens；缺失的细分保持缺失。明确的最终截断或过滤原因优先于工具存在性。模型原生引用和工具参数增量不在此次补齐范围内。
+
 ## Alternatives considered
 
 - 内存 fetch 仍保留 JSON/SSE 编解码。
@@ -39,4 +41,8 @@ Provider SDK 隐式处理整形、校验和错误分类。对象路径提供原�
 - AC2 — 生产网关集成对四种协议禁止内部协议请求 JSON 编码和 SSE 格式化，验证零次内部 HTTP 请求、一次上游请求和一条计费记录；同时覆盖不透明 reasoning 重放、工具归属、请求选择及结构化 provider 失败。
 - AC3 — 生产网关集成覆盖执行启动失败、部分输出后流失败、语义输出前取消、首次读取前关闭迭代器、有界生产进度，以及慢消费后的无损恢复。包含八个对象形状工具错误的无文本批次会返回所有原生 Responses 工具调用，不再阻塞到取消；该回归在启动修复前失败。请求超时、hook 失败清理和背压空闲计时回归也在生命周期修复前失败；四种原生响应 hook 抛错时都会释放 execution。
 - AC4 — 使用 `setupTestDatabase` 的生产网关集成覆盖并发 root、原生 phase 父级、冻结的消息归属、root/child 响应关联，以及原生 summary 的归属和唯一计费写入者。测试调用真实 `ApiGatewayService` 对象调用和 capture 方法；child capture 回归在类型上下文修复前因 usage context 为 undefined 而失败。
-- AC5 — 14 个受影响 Main 测试文件通过（1768 项通过，2 项跳过），以及 18 项原生 HTTP 回归测试通过。`pnpm install --frozen-lockfile` 和 `pnpm typecheck:node` 通过；依赖补丁安装重新构建了原生 runtime 包。隔离的 Electron 开发构建成功打开主窗口。真实供应商调用、分发包测试和性能测量仍是独立检查。
+- AC5 — 十个受影响的 Main 测试文件及 18 项原生 HTTP 回归测试通过。`pnpm install --frozen-lockfile` 与 `pnpm typecheck:node` 通过，依赖安装构建原生 runtime 包。隔离 Electron 开发构建能打开主窗口。打包分发测试及性能测量仍是独立检查。
+- AC6 — `protocolFidelity.test.ts` 与 `gatewayIntegration.test.ts` 验证重复 metadata 只交付一次结构化签名，并通过真实原生 Pi 消费者与生产转换器将仅加密 reasoning 状态送入工具续轮。
+- AC7 — 同一组测试验证 OpenAI Chat/Responses 的输入总量 100 拆为普通输入 50、缓存读 20、缓存写 30；输出 10 和总量 110 保持不变。
+- AC8 — 同一组测试验证 Anthropic 的 output_tokens=10 与 thinking_tokens=7 穿过对象包装并进入原生 usage，流式和非流式响应均保留细分。
+- AC9 — 同一组测试验证完整工具调用后的 length/content-filter 不被工具原因覆盖；原生四协议均返回截断或过滤终态，现有取消和流中错误用例仍通过。

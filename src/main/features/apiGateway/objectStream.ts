@@ -37,7 +37,7 @@ export function createGatewayObjectTransports(config: {
             ? {
                 ...event,
                 delta: { ...event.delta, container: null },
-                usage: { ...event.usage, output_tokens_details: null }
+                usage: { ...event.usage, output_tokens_details: event.usage.output_tokens_details ?? null }
               }
             : event.type === 'message_start'
               ? {

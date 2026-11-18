@@ -20,6 +20,8 @@ Object delivery uses a capacity gate before accumulator/listener fan-out and a b
 
 This decision partially supersedes only the internal HTTP requirement in the harness boundary decision. Pi/Pi Durable retain native scheduling, history, tools, compaction and recovery. Existing UIMessage conversion, tool-argument JSON fragments, persistence and real upstream network codecs remain. External clients, including Claude Code, keep HTTP.
 
+Protocol adapters also preserve structured reasoning signatures and native usage breakdowns. Chat Completions delivers repeated OpenRouter reasoning_details cumulative snapshots once and restores native history as provider metadata, including encrypted state without readable text. OpenAI dialects retain cache writes and Anthropic retains thinking_tokens; unreported breakdowns remain absent. Explicit final truncation or filtering takes precedence over tool presence. Provider citations and tool-argument delta delivery remain outside this extension.
+
 ## Alternatives considered
 
 - In-memory fetch retains JSON/SSE codecs.
@@ -35,8 +37,12 @@ The gateway remains the only provider configuration, upstream credential, AI SDK
 
 ## Verification
 
-- AC1 — `gatewayModelBinding.test.ts` (25 passed), `gatewayIntegration.test.ts` (53 passed) and native `nativeSession.test.ts` / `queryFork.test.ts` (18 passed) cover the four object protocols, native replay and unchanged default HTTP execution.
+- AC1 — `gatewayModelBinding.test.ts` (25 passed), `gatewayIntegration.test.ts` (65 passed) and native `nativeSession.test.ts` / `queryFork.test.ts` (18 passed) cover the four object protocols, native replay and unchanged default HTTP execution.
 - AC2 — Production gateway integration rejects internal protocol request JSON encoding and SSE formatting for all four protocols, with zero internal HTTP requests, one upstream request and one billing record; it also covers opaque reasoning replay, tool ownership, request selections and structured provider failures.
 - AC3 — Production gateway integration covers execution startup failure, partial-output stream failure, cancellation before semantic output, iterator closure before its first read, bounded producer progress and lossless resumption after slow consumption. A textless batch of eight object-shaped tool errors returns all native Responses tool calls instead of stalling until cancellation; this regression failed before the startup fix. Request-timeout, hook-failure cleanup and backpressure-idle regressions also failed before their lifecycle fixes; all four native response hooks release the execution when they throw.
 - AC4 — Production gateway integration with `setupTestDatabase` covers concurrent roots, native phase parenting, frozen message attribution, root/child response joins and native summary ownership with one billing writer. It calls the real `ApiGatewayService` object/capture methods; the child-capture regression failed with undefined usage context before the typed-context fix.
-- AC5 — Fourteen affected Main test files passed (1768 tests, 2 skipped), along with 18 native HTTP regression tests. `pnpm install --frozen-lockfile` and `pnpm typecheck:node` passed; dependency patch installation rebuilt the native runtime packages. An isolated Electron development build opened its Main window. Live-provider calls, packaged distribution testing and performance measurement remain separate checks.
+- AC5 — Ten affected Main files pass alongside 18 native HTTP regression tests. `pnpm install --frozen-lockfile` and `pnpm typecheck:node` pass; the dependency installation builds the native runtime packages. An isolated Electron development build opens its Main window. Packaged distribution testing and performance measurement remain separate checks.
+- AC6 — `protocolFidelity.test.ts` and `gatewayIntegration.test.ts` verify one structured signature delivery despite repeated metadata, and encrypted-only reasoning reaches tool continuation through the real native Pi consumer and production converter.
+- AC7 — The same tests verify Chat/Responses input total 100 splits into uncached input 50, cache read 20 and cache write 30, retaining output 10 and total 110.
+- AC8 — The same tests verify Anthropic output_tokens=10 and thinking_tokens=7 cross the object wrapper into native usage; streaming and non-streaming responses retain the breakdown.
+- AC9 — The same tests verify length/content-filter after a complete tool call overrides tool presence; all four native protocols retain truncated or filtered outcomes, and existing cancellation and stream failure cases still pass.

@@ -213,6 +213,7 @@ export interface AdapterState {
   model: string
   inputTokens: number
   cacheReadTokens?: number
+  cacheWriteTokens?: number
   outputTokens: number
   reasoningTokens?: number
   currentBlockIndex: number
