@@ -793,6 +793,21 @@ describe('AgentService', () => {
       expect(agents).toHaveLength(0)
     })
 
+    it.each([null, 42, true, {}, ['support']])('rejects a malformed reserved identity: %j', (role) => {
+      const error = captureError(() =>
+        createAgentForTest({
+          type: 'claude-code',
+          name: 'Forged Agent',
+          model: TEST_MODEL_ID,
+          // Internal callers can bypass schema parsing; malformed identities must stay reserved.
+          configuration: { builtin_role: role } as never
+        })
+      )
+
+      expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Forged Agent')).all()).toHaveLength(0)
+    })
+
     it('rejects updateAgent adding a builtin_role to an ordinary agent', async () => {
       const created = createAgentForTest({
         type: 'claude-code',

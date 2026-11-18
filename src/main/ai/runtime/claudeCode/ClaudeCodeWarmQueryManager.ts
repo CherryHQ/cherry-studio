@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk'
+import type { McpServerConfigForProcessTransport, Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk'
 
 import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -8,6 +8,7 @@ import { loggerService } from '@logger'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { deriveRootSpanId } from '@shared/data/types/trace'
+import type { Serializable } from '@shared/types/serializable'
 
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import type { AgentNotificationContext } from '../agentMcpServers'
@@ -74,24 +75,29 @@ export function stripWarmQueryOptions(options: Options): Options {
   return rest
 }
 
-function normalizeForSignature(value: unknown, seen = new WeakSet<object>()): unknown {
-  if (value === undefined) return undefined
-  if (value === null || typeof value !== 'object') {
-    return typeof value === 'function' ? '[function]' : value
-  }
+function normalizeForSignature(value: unknown, seen = new WeakSet<object>()): Serializable | undefined {
+  if (value === undefined || typeof value === 'symbol') return undefined
   if (typeof value === 'function') return '[function]'
+  if (typeof value === 'bigint') throw new TypeError('Do not know how to serialize a BigInt')
+  if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')
+    return value
   if (seen.has(value)) return '[circular]'
   seen.add(value)
 
   if (Array.isArray(value)) {
-    return value.map((item) => normalizeForSignature(item, seen))
+    return value.map((item) => normalizeForSignature(item, seen) ?? null)
   }
 
-  const entries = Object.entries(value as Record<string, unknown>)
+  const entries = Object.entries(value)
     .filter(([, item]) => item !== undefined)
     .sort(([a], [b]) => a.localeCompare(b))
 
-  return Object.fromEntries(entries.map(([key, item]) => [key, normalizeForSignature(item, seen)]))
+  return Object.fromEntries(
+    entries.flatMap(([key, item]): [string, Serializable][] => {
+      const normalized = normalizeForSignature(item, seen)
+      return normalized === undefined ? [] : [[key, normalized]]
+    })
+  )
 }
 
 /**
@@ -99,19 +105,15 @@ function normalizeForSignature(value: unknown, seen = new WeakSet<object>()): un
  * with a stable `{ type, name }` descriptor so the signature is built from a
  * serializable subset instead of deep-normalizing the live SDK object graph.
  */
-function sanitizeMcpServersForSignature(mcpServers: Options['mcpServers']): unknown {
-  if (!mcpServers || typeof mcpServers !== 'object') return mcpServers
-  const sanitized: Record<string, unknown> = {}
-  for (const [key, config] of Object.entries(mcpServers)) {
-    if (config && typeof config === 'object' && 'instance' in config) {
-      const rest = { ...(config as Record<string, unknown>) }
-      delete rest.instance
-      sanitized[key] = rest
-    } else {
-      sanitized[key] = config
-    }
-  }
-  return sanitized
+function sanitizeMcpServersForSignature(
+  mcpServers: NonNullable<Options['mcpServers']>
+): Record<string, McpServerConfigForProcessTransport> {
+  return Object.fromEntries(
+    Object.entries(mcpServers).map(([key, config]) => {
+      if (config.type !== 'sdk') return [key, config]
+      return [key, { type: config.type, name: config.name, timeout: config.timeout, tools: config.tools }]
+    })
+  )
 }
 
 const ROTATING_CREDENTIAL_ENV_KEYS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN'] as const

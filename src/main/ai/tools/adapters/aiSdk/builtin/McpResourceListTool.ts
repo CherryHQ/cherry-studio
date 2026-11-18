@@ -45,7 +45,7 @@ const mcpResourceListTool = tool({
   }
 })
 
-export function createMcpResourceListToolEntry(): ToolEntry {
+export function createMcpResourceListToolEntry() {
   return {
     name: MCP_RESOURCE_LIST_TOOL_NAME,
     namespace: 'mcp_resource',
@@ -53,5 +53,5 @@ export function createMcpResourceListToolEntry(): ToolEntry {
     defer: 'auto',
     tool: mcpResourceListTool,
     applies: (scope) => (scope.mcpResourceServerIds?.size ?? 0) > 0
-  }
+  } satisfies ToolEntry
 }

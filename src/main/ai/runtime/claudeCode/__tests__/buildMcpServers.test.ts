@@ -85,10 +85,8 @@ vi.mock('@main/i18n', () => ({
 // Exercise the server factories eagerly: the real serveStdio only builds a
 // server once a wire handshake arrives, which a unit test cannot drive.
 vi.mock('@modelcontextprotocol/server/stdio', () => ({
-  serveStdio: (
-    factory: () => { connect: (transport: unknown) => Promise<unknown> },
-    options?: { transport?: unknown }
-  ) => factory().connect(options?.transport)
+  serveStdio: (factory: () => { connect: (transport: unknown) => Promise<void> }, options?: { transport?: unknown }) =>
+    factory().connect(options?.transport)
 }))
 
 vi.mock('@main/ai/mcp/servers/assistant', () => ({

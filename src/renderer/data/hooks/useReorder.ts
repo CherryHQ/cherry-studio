@@ -67,10 +67,10 @@ function defaultSelectItems(cache: unknown): ItemList | undefined {
   return undefined
 }
 
-function defaultUpdateItems(cache: unknown, items: ItemList): unknown {
+function defaultUpdateItems(cache: unknown, items: ItemList): ItemList | { items: ItemList } {
   if (Array.isArray(cache)) return items
   if (cache !== null && typeof cache === 'object') {
-    return { ...(cache as Record<string, unknown>), items }
+    return { ...cache, items }
   }
   // Reached only when the caller bypasses the not-loaded guard with an
   // accessor-less call on a primitive cache value — fall back to the items
@@ -84,7 +84,7 @@ function selectInfiniteItems(cache: unknown): ItemList | undefined {
   return lists.every((items) => items !== undefined) ? lists.flat() : undefined
 }
 
-function updateInfiniteItems(cache: unknown, items: ItemList): unknown {
+function updateInfiniteItems(cache: unknown, items: ItemList): Array<{ items: ItemList }> {
   let offset = 0
   return (cache as Array<{ items: ItemList }>).map((page) => {
     const nextItems = items.slice(offset, offset + page.items.length)
@@ -302,16 +302,6 @@ export function useReorder(
     revalidate ? { refresh: [resolvedCollectionUrl] } : undefined
   )
 
-  /**
-   * Snapshot-read the current collection value without subscribing.
-   * Returns `undefined` when the collection has not been fetched yet — the
-   * caller distinguishes this from an unrecognized shape.
-   */
-  const readCurrent = useCallback(
-    (): unknown => readCache<unknown>(resolvedCollectionUrl, query, infinite),
-    [readCache, resolvedCollectionUrl, query, infinite]
-  )
-
   const warnUnrecognizedShape = useCallback(
     (source: string) => {
       if (unrecognizedWarnedRef.current) return
@@ -326,7 +316,7 @@ export function useReorder(
 
   const move = useCallback(
     async (id: string, request: ReorderRequest) => {
-      const current = readCurrent()
+      const current = readCache<unknown>(resolvedCollectionUrl, query, infinite)
       if (current === undefined) {
         logger.warn(`move called before data loaded at ${String(collectionUrl)}; ignored`)
         return
@@ -355,7 +345,9 @@ export function useReorder(
       }
     },
     [
-      readCurrent,
+      readCache,
+      query,
+      infinite,
       selectItems,
       updateItems,
       computeOptimistic,
@@ -407,7 +399,7 @@ export function useReorder(
 
   const applyReorderedList = useCallback(
     async (newList: ItemList) => {
-      const current = readCurrent()
+      const current = readCache<unknown>(resolvedCollectionUrl, query, infinite)
       if (current === undefined) {
         logger.warn(`applyReorderedList called before data loaded at ${String(collectionUrl)}; ignored`)
         return
@@ -424,7 +416,18 @@ export function useReorder(
       }
       return applyBatch(current, items, moves)
     },
-    [readCurrent, selectItems, idKey, move, applyBatch, collectionUrl, warnUnrecognizedShape]
+    [
+      readCache,
+      resolvedCollectionUrl,
+      query,
+      infinite,
+      selectItems,
+      idKey,
+      move,
+      applyBatch,
+      collectionUrl,
+      warnUnrecognizedShape
+    ]
   )
 
   return { move, applyReorderedList, isPending }

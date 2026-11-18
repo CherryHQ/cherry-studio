@@ -2,9 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
+import { aiRequestSchemas } from '@shared/ipc/schemas/ai'
+import { translateRequestSchemas } from '@shared/ipc/schemas/translate'
+import type { InputFor, OutputFor } from '@shared/ipc/types'
 
 interface IpcMock {
-  request: (route: string, input: unknown) => unknown
+  request: (route: string, input: unknown) => Promise<OutputFor<'translate.open'> | OutputFor<'ai.stream.abort'>>
   on: (event: string, callback: (payload: unknown) => void) => () => void
 }
 
@@ -17,7 +20,7 @@ vi.mock('i18next', () => ({
 // at the fresh per-test mock in beforeEach.
 const { ipcMock } = vi.hoisted((): { ipcMock: IpcMock } => ({
   ipcMock: {
-    request: () => undefined,
+    request: async () => undefined,
     on: () => () => {}
   }
 }))
@@ -53,7 +56,7 @@ const TARGET = {
 } as TranslateLanguage
 
 interface MockAiApi {
-  streamAbort: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  streamAbort: ReturnType<typeof vi.fn<(input: InputFor<'ai.stream.abort'>) => Promise<OutputFor<'ai.stream.abort'>>>>
   onStreamChunk: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   onStreamDone: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   onStreamError: ReturnType<typeof vi.fn<(...args: any[]) => any>>
@@ -74,7 +77,9 @@ function createMocks(): {
 } {
   const listeners: MockListeners = { chunk: [], done: [], error: [] }
   const ai: MockAiApi = {
-    streamAbort: vi.fn().mockResolvedValue(undefined),
+    streamAbort: vi
+      .fn<(input: InputFor<'ai.stream.abort'>) => Promise<OutputFor<'ai.stream.abort'>>>()
+      .mockResolvedValue(undefined),
     onStreamChunk: vi.fn((cb: (data: { topicId: string; chunk: unknown }) => void) => {
       listeners.chunk.push(cb)
       return () => {
@@ -99,14 +104,14 @@ function createMocks(): {
   }
   // `translate.open` behaviour — renderer generates `streamId`, echo it back so
   // emit helpers can use it. Exposed separately so failure tests can override it.
-  const translateOpen = vi.fn(async ({ streamId }: { streamId: string }) => ({ streamId }))
+  const translateOpen = vi.fn(async ({ streamId }: InputFor<'translate.open'>) => ({ streamId }))
   // ipcApi.request dispatcher wired to the spies above.
-  const request = vi.fn((route: string, input: unknown): unknown => {
+  const request = vi.fn<IpcMock['request']>((route, input) => {
     switch (route) {
       case 'translate.open':
-        return translateOpen(input as { streamId: string })
+        return translateOpen(translateRequestSchemas['translate.open'].input.parse(input))
       case 'ai.stream.abort':
-        return ai.streamAbort(input)
+        return ai.streamAbort(aiRequestSchemas['ai.stream.abort'].input.parse(input))
       default:
         return Promise.resolve(undefined)
     }

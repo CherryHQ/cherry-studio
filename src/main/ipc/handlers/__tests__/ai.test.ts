@@ -747,10 +747,9 @@ describe('aiHandlers — Agent Session archive commands', () => {
   ] as const)('maps busy errors from %s to a branchable IPC error', async (route, input, serviceMethod) => {
     agentLifecycleService[serviceMethod].mockRejectedValueOnce(new AgentSessionArchiveBusyError(['session-a']))
 
-    const error = await (aiHandlers[route] as (input: never, context: typeof ctx) => Promise<unknown>)(
-      input as never,
-      ctx
-    ).catch((caught) => caught)
+    const error = await (
+      aiHandlers[route] as (input: never, context: typeof ctx) => ReturnType<(typeof aiHandlers)[typeof route]>
+    )(input as never, ctx).catch((caught) => caught)
 
     expect(error).toBeInstanceOf(IpcError)
     expect(error).toMatchObject({

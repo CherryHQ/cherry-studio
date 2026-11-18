@@ -1,4 +1,4 @@
-import { Extension, InputRule, mergeAttributes, Node } from '@tiptap/core'
+import { Extension, InputRule, type MarkdownToken, mergeAttributes, Node } from '@tiptap/core'
 import { BlockMath, InlineMath, type MathematicsOptions } from '@tiptap/extension-mathematics'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 
@@ -71,7 +71,9 @@ const backslashMath = (block: boolean) => {
         if (lexingProtectedSpans) return undefined
         if (block) {
           const { lexer } = helper as typeof helper & {
-            lexer?: { blockTokens?: (src: string, ...args: unknown[]) => unknown }
+            lexer?: {
+              blockTokens?: (src: string, tokens?: MarkdownToken[], lastParagraphClipped?: boolean) => MarkdownToken[]
+            }
           }
           if (lexer && typeof lexer.blockTokens === 'function') {
             if (!wrapped.has(lexer)) {

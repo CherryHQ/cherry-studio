@@ -149,7 +149,7 @@ export async function writeCliConfigDraft(args: {
   files?: CliConfigFileDraft[]
   writePrimaryModel?: boolean
   gateway?: CliConfigGatewayContext
-}): Promise<unknown> {
+}): Promise<void> {
   let files = args.files
   if (args.modelId) {
     const writeArgs: CliConfigDraftBuildArgs = {

@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useDictationEnabled } from '@renderer/hooks/useDictationEnabled'
 import { APPLE_ASR_MODEL_ID } from '@shared/ai/localVoice'
+import type { Serializable } from '@shared/types/serializable'
 
 // Undo the global mock from renderer.setup.ts — we want the REAL PreferenceService
 vi.unmock('@data/PreferenceService')
@@ -29,7 +30,7 @@ const onChanged = vi.fn((callback: (key: string, value: unknown) => void) => {
 })
 const getAll = vi.fn(async () => ({}))
 const subscribe = vi.fn(async () => {})
-const get = vi.fn(async (): Promise<unknown> => true)
+const get = vi.fn(async (): Promise<Serializable | undefined> => true)
 const getMultipleRaw = vi.fn(async (keys: string[]) => Object.fromEntries(keys.map((key) => [key, `${key}-value`])))
 const set = vi.fn(async () => {})
 const setMultiple = vi.fn(async () => {})
@@ -279,7 +280,7 @@ describe('subscription alignment and admission truth', () => {
   })
 
   it('rereads after a push and returns the second snapshot instead of the cache', async () => {
-    let resolve!: (value: unknown) => void
+    let resolve!: (value: Awaited<ReturnType<typeof get>>) => void
     get.mockReturnValueOnce(
       new Promise((done) => {
         resolve = done

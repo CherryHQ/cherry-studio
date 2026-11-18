@@ -10,7 +10,7 @@ import { getSentryLogContext } from '@shared/utils/sentry'
 
 import { ApiServer } from '../ApiServer'
 
-function createServer(handler: () => unknown): ApiServer {
+function createServer<TResult>(handler: () => TResult): ApiServer {
   return new (ApiServer as any)({ '/tags': { POST: handler } })
 }
 

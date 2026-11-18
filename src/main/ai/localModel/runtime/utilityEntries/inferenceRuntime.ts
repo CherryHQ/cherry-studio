@@ -12,12 +12,18 @@
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 
+import type { FeatureExtractionPipeline } from '@huggingface/transformers'
+import type { PaddleOcrService } from 'ppu-paddle-ocr'
+
 import type * as MlxAsrRuntime from '@cherrystudio/mlx-asr'
 import { CPU_LOCAL_INFERENCE_PROFILE } from '@main/ai/localModel/runtime/inferenceAcceleration'
 import type { InferenceInitData, LocalInferenceRuntimeProfile } from '@main/ai/localModel/runtime/protocol'
 import type { UtilityProcessLogger } from '@main/core/utilityProcess/runtime/serveUtilityProcess'
 
-type DisposableResource = { dispose?: () => unknown; destroy?: () => unknown }
+type DisposableResource = {
+  dispose?: FeatureExtractionPipeline['dispose']
+  destroy?: PaddleOcrService['destroy']
+}
 
 let appPath: string | undefined
 let runtimeProfile: LocalInferenceRuntimeProfile = CPU_LOCAL_INFERENCE_PROFILE

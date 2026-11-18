@@ -13,11 +13,15 @@ import {
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
   type KbGrepMatch,
+  type KbGrepOutput,
+  type KbReadOutput,
+  type KbSearchOutput,
   kbGrepOutputSchema,
   kbReadOutputSchema,
   kbSearchOutputSchema,
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME,
+  type WebSearchOutput,
   webSearchOutputSchema
 } from '@shared/ai/builtinTools'
 import {
@@ -78,7 +82,9 @@ function toCitationGrepMatches(matches: KbGrepMatch[]): KbGrepMatch[] {
 }
 
 /** Keep only the schema-valid fields and bounded snippets needed to render citations. */
-function toCitationPayloadSkeleton(output: unknown): unknown | undefined {
+function toCitationPayloadSkeleton(
+  output: unknown
+): WebSearchOutput | KbSearchOutput | KbReadOutput | KbGrepOutput | undefined {
   const web = webSearchOutputSchema.safeParse(output)
   if (web.success) {
     return web.data.map((item) => ({ ...item, content: toCitationSnippet(item.content) }))
@@ -109,7 +115,7 @@ function toCitationPayloadSkeleton(output: unknown): unknown | undefined {
  * Extract a citation skeleton from schema-valid builtin output or an MCP envelope
  * attributed to Cherry Tools by its server id or user-visible server name.
  */
-function toCitationSkeleton(output: unknown): unknown | undefined {
+function toCitationSkeleton(output: unknown) {
   if (!isRecord(output) || !isRecord(output.metadata)) return toCitationPayloadSkeleton(output)
 
   const metadata = output.metadata
@@ -164,7 +170,7 @@ function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): De
 
   const entities = Array.isArray(skeleton)
     ? skeleton
-    : isRecord(skeleton) && Array.isArray(skeleton.content)
+    : 'content' in skeleton && Array.isArray(skeleton.content)
       ? skeleton.content
       : undefined
   if (!entities || entities.length <= 1) return deferred

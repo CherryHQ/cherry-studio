@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { REQUEST_CANCELLED_CODE } from '../protocol/constants'
 import type { MainFrame } from '../protocol/frames'
 import { isUtilityProcessError, type UtilityProcessError, type UtilityProcessErrorCode } from '../UtilityProcessError'
-import { createHost, echoScript, rejectionOf } from './hostTestUtils'
+import { createHost, echoScript, expectRejected } from './hostTestUtils'
 import { flushMicrotasks, type MemoryChild, type MemoryChildScript, waitUntil } from './memoryProcessAdapter'
 
 beforeEach(() => vi.useFakeTimers())
@@ -38,7 +38,7 @@ describe('ProcessHost cancellation (cooperative)', () => {
     await waitUntil(() => states[0].waitSignals.length === 1, 'handler started')
     controller.abort(reason)
 
-    expect(await rejectionOf(pending)).toBe(reason)
+    await expectRejected(pending, (error) => expect(error).toBe(reason))
     await waitUntil(() => states[0].waitSignals[0].aborted, 'child abort')
     expect((states[0].waitSignals[0].reason as { code: string }).code).toBe(REQUEST_CANCELLED_CODE)
 
@@ -53,7 +53,9 @@ describe('ProcessHost cancellation (cooperative)', () => {
     const reason = new Error('too late')
     controller.abort(reason)
 
-    expect(await rejectionOf(host.request('ping', undefined, { signal: controller.signal }))).toBe(reason)
+    await expectRejected(host.request('ping', undefined, { signal: controller.signal }), (error) =>
+      expect(error).toBe(reason)
+    )
     expect(adapter.spawns).toHaveLength(0)
   })
 
@@ -66,7 +68,7 @@ describe('ProcessHost cancellation (cooperative)', () => {
     const other = host.request('ping', undefined)
     controller.abort(reason)
 
-    expect(await rejectionOf(aborted)).toBe(reason)
+    await expectRejected(aborted, (error) => expect(error).toBe(reason))
     await expect(other).resolves.toBe('pong')
     expect(adapter.spawns).toHaveLength(1)
     expect(adapter.spawns[0].child.killed).toBe(false)
@@ -94,7 +96,7 @@ describe('ProcessHost cancellation (cooperative)', () => {
       }
     })
 
-    expect(await rejectionOf(pending)).toBe(failure)
+    await expectRejected(pending, (error) => expect(error).toBe(failure))
     expect(seen).toEqual([1, 2])
     await expect(host.request('ping', undefined)).resolves.toBe('pong')
     expect(adapter.spawns).toHaveLength(1)
@@ -103,7 +105,10 @@ describe('ProcessHost cancellation (cooperative)', () => {
   it('rejects an unclonable input with PROCESS_SERIALIZATION_FAILED and leaves the generation usable', async () => {
     const { host, adapter } = createHost()
 
-    expectCode(await rejectionOf(host.request('echo', () => 1)), 'PROCESS_SERIALIZATION_FAILED')
+    await expectRejected(
+      host.request('echo', () => 1),
+      (error) => expectCode(error, 'PROCESS_SERIALIZATION_FAILED')
+    )
 
     await expect(host.request('ping', undefined)).resolves.toBe('pong')
     expect(adapter.spawns).toHaveLength(1)
@@ -127,10 +132,10 @@ describe('ProcessHost cancellation (terminate)', () => {
     })
     controller.abort(reason)
 
-    expect(await rejectionOf(cancelled)).toBe(reason)
+    await expectRejected(cancelled, (error) => expect(error).toBe(reason))
     expect(exitedWhenRejected).toBe(true)
     expect(child.killed).toBe(true)
-    const error = expectCode(await rejectionOf(bystander), 'PROCESS_EXITED')
+    const error = await expectRejected(bystander, (error) => expectCode(error, 'PROCESS_EXITED'))
     expect(error.intentional).toBe(true)
   })
 
@@ -143,7 +148,7 @@ describe('ProcessHost cancellation (terminate)', () => {
       const pending = host.request('wait', undefined, { signal: controller.signal })
       await waitUntil(() => states[round].waitSignals.length === 1, `handler ${round} started`)
       controller.abort(new Error(`cancel ${round}`))
-      await rejectionOf(pending)
+      await expectRejected(pending)
     }
 
     await expect(host.request('ping', undefined)).resolves.toBe('pong')
@@ -160,7 +165,7 @@ describe('ProcessHost cancellation (terminate)', () => {
       }
     })
 
-    expect(await rejectionOf(pending)).toBe(failure)
+    await expectRejected(pending, (error) => expect(error).toBe(failure))
     expect(adapter.spawns[0].child.killed).toBe(true)
     await expect(host.request('ping', undefined)).resolves.toBe('pong')
     expect(adapter.spawns).toHaveLength(2)
@@ -182,7 +187,7 @@ describe('ProcessHost protocol violations', () => {
     const bystander = host.request('ping', undefined)
     await expect(host.request('echo', 'x')).resolves.toBe('first')
 
-    expectCode(await rejectionOf(bystander), 'PROCESS_PROTOCOL_ERROR')
+    await expectRejected(bystander, (error) => expectCode(error, 'PROCESS_PROTOCOL_ERROR'))
     expect(adapter.spawns[0].child.killed).toBe(true)
     await expect(host.request('ping', undefined)).resolves.toBe('pong')
     expect(adapter.spawns).toHaveLength(2)
@@ -209,7 +214,7 @@ describe('ProcessHost protocol violations', () => {
       })
     })
 
-    expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_PROTOCOL_ERROR')
+    await expectRejected(host.request('ping', undefined), (error) => expectCode(error, 'PROCESS_PROTOCOL_ERROR'))
     expect(adapter.spawns[0].child.killed).toBe(true)
   })
 })

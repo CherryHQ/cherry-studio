@@ -1,9 +1,8 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { eq } from 'drizzle-orm'
-import { afterEach, beforeEach, describe, expect, it, type Mock } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
-import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { miniAppLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { miniAppInstallationTable, miniAppTable } from '@data/db/schemas/miniApp'
@@ -24,16 +23,6 @@ function expectSite(app: MiniApp): SiteMiniApp {
 
 describe('MiniAppService', () => {
   const dbh = setupTestDatabase()
-
-  beforeEach(() => {
-    // Each test gets a fresh DB. better-sqlite3 is synchronous, so route
-    // withWriteTx through the real transaction: constraint violations then throw
-    // synchronously and reach withSqliteErrors. The default async mock would
-    // swallow such a throw into a rejected promise that withSqliteErrors'
-    // synchronous try/catch never sees.
-    const withWriteTx = application.get('DbService').withWriteTx as Mock
-    withWriteTx.mockImplementation((fn: (tx: unknown) => unknown) => dbh.db.transaction(fn as never))
-  })
 
   /** Insert a custom row directly. */
   async function seedCustom(overrides: Partial<typeof miniAppTable.$inferInsert> = {}) {

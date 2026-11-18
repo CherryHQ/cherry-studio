@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 
 import { useToolResult } from '@renderer/hooks/useToolResult'
-import { normalizeToolOutputResponse } from '@renderer/utils/message/toolOutput'
+import { extractOutputMetadata } from '@renderer/utils/message/toolOutput'
 import {
   type DeferredToolOutput,
   envelopeDisplayExcerpt,
@@ -39,7 +39,7 @@ export function useResolvedToolResponse(toolResponse: ToolResponseLike): ToolRes
       // spinner; the resolved full value replaces it when the fetch lands.
       if (deferredOutput.excerpt) {
         const { head, tail } = deferredOutput.excerpt
-        return { ...toolResponse, response: normalizeToolOutputResponse([head, '…', tail].filter(Boolean).join('\n')) }
+        return { ...toolResponse, response: [head, '…', tail].filter(Boolean).join('\n') }
       }
       return { ...toolResponse, status: 'invoking' as const, response: undefined }
     }
@@ -50,6 +50,7 @@ export function useResolvedToolResponse(toolResponse: ToolResponseLike): ToolRes
         response: normalizeToolErrorResponse(error instanceof Error ? error.message : String(error))
       }
     }
-    return { ...toolResponse, response: normalizeToolOutputResponse(output) }
+    const { response } = extractOutputMetadata(output)
+    return { ...toolResponse, response }
   }, [deferredOutput, error, isLoading, output, toolResponse])
 }

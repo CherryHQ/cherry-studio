@@ -94,13 +94,27 @@ const SKILL_ID_1 = '11111111-1111-4111-8111-111111111111'
 const SKILL_ID_2 = '22222222-2222-4222-8222-222222222222'
 const SKILL_ID_BUILTIN = '33333333-3333-4333-8333-333333333333'
 
-type SkillServicePrivate = {
-  installSkillDir: (
-    skillDir: string,
-    source: string,
-    sourceUrl: string | null,
-    provenance?: { namespace?: string | null }
-  ) => Promise<unknown>
+type SkillServicePrivate = { installSkillDir: SkillService['installSkillDir'] }
+
+function installedSkillFixture(): Awaited<ReturnType<SkillService['installSkillDir']>> {
+  return {
+    id: SKILL_ID_1,
+    name: 'Installed fixture',
+    description: null,
+    folderName: 'fixture',
+    source: 'local',
+    sourceUrl: null,
+    namespace: null,
+    author: null,
+    version: null,
+    sourceTags: [],
+    contentHash: 'fixture-hash',
+    isEnabled: false,
+    isGlobalEnabled: false,
+    mirrorEnabled: false,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z'
+  }
 }
 
 describe('SkillService', () => {
@@ -1364,7 +1378,7 @@ describe('SkillService', () => {
       if (options.realInstall) {
         installSpy.mockImplementation(installSkillDir)
       } else {
-        installSpy.mockResolvedValue({})
+        installSpy.mockResolvedValue(installedSkillFixture())
       }
       vi.mocked(findSkillMdPath).mockImplementation(async (dir: string) => path.join(dir, 'SKILL.md'))
       return { skillService, installSpy, gitCalls, workDir }
@@ -1712,7 +1726,7 @@ describe('SkillService', () => {
       const skillService = new SkillService()
       const installSpy = vi
         .spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
-        .mockResolvedValue({})
+        .mockResolvedValue(installedSkillFixture())
       vi.mocked(findSkillMdPath).mockImplementation(async (dir: string) => path.join(dir, 'SKILL.md'))
       return { skillService, installSpy, workDir }
     }
@@ -2030,6 +2044,9 @@ describe('SkillService', () => {
         author: null,
         sourceTags: [],
         contentHash: 'hash-code',
+        version: null,
+        isGlobalEnabled: false,
+        mirrorEnabled: false,
         isEnabled: false,
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z'
@@ -2196,7 +2213,7 @@ describe('SkillService', () => {
       vi.mocked(skillArchive.resolveSkillDirectory).mockResolvedValue(locatedSkillDir)
       const installSkillDirSpy = vi
         .spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
-        .mockResolvedValue({})
+        .mockResolvedValue(installedSkillFixture())
 
       await skillService.installFromZip({ zipFilePath: linkedZipPath })
 
@@ -2245,7 +2262,7 @@ describe('SkillService', () => {
       vi.mocked(skillArchive.resolveSkillDirectory).mockResolvedValue(skillDir)
       const installSkillDirSpy = vi
         .spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
-        .mockResolvedValue({})
+        .mockResolvedValue(installedSkillFixture())
 
       await skillService.installFromZip({ zipFilePath: zipPath })
 

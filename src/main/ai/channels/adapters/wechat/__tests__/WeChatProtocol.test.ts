@@ -45,6 +45,48 @@ afterEach(async () => {
   await rm(tokenDir, { recursive: true, force: true })
 })
 
+describe('WeixinBot API response validation', () => {
+  it.each([
+    {
+      body: 'unavailable',
+      status: 503,
+      message: '/ilink/bot/sendmessage returned non-JSON (HTTP 503)',
+      code: undefined
+    },
+    {
+      body: JSON.stringify({ errmsg: 'token expired', errcode: 401 }),
+      status: 401,
+      message: 'token expired',
+      code: 401
+    },
+    {
+      body: JSON.stringify({ ret: -14, errmsg: 'session expired' }),
+      status: 200,
+      message: 'session expired',
+      code: -14
+    }
+  ])('keeps protocol errors ahead of acknowledgement parsing: $message', async ({ body, status, message, code }) => {
+    netFetchMock.mockResolvedValueOnce(new Response(body, { status }))
+    const bot = new WeixinBot({ tokenPath })
+    await expect(bot.send('user-1', 'hello')).rejects.toMatchObject({ name: 'ApiError', status, message, code })
+  })
+
+  it.each([null, { ret: 0 }])('accepts a successful status-only acknowledgement: %j', async (body) => {
+    netFetchMock.mockResolvedValueOnce(jsonResponse(body))
+    const bot = new WeixinBot({ tokenPath })
+    await expect(bot.send('user-1', 'hello')).resolves.toBeUndefined()
+  })
+
+  it('rejects malformed QR response fields before starting login polling', async () => {
+    netFetchMock.mockResolvedValueOnce(jsonResponse({ qrcode: 42, qrcode_img_content: 'qr-image' }))
+    const bot = new WeixinBot({ tokenPath })
+    await expect(bot.login({ force: true })).rejects.toMatchObject({
+      name: 'ZodError',
+      issues: [expect.objectContaining({ path: ['qrcode'], expected: 'string' })]
+    })
+  })
+})
+
 describe('WeixinBot media protocol', () => {
   it('uploads and sends a document as a native FILE item', async () => {
     netFetchMock

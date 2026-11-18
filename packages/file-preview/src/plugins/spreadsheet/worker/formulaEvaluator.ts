@@ -102,9 +102,9 @@ export function createFormulaEvaluator(ctx: EvalContext, budgetMs: number): Form
           throw new Error(`range exceeds ${MAX_RANGE_CELLS} cells`)
         }
         let visited = 0
-        const rows: unknown[][] = []
+        const rows: Array<Array<ReturnType<EvalContext['getCellValue']>>> = []
         for (let row = ref.from.row; row <= ref.to.row; row++) {
-          const cols: unknown[] = []
+          const cols: Array<ReturnType<EvalContext['getCellValue']>> = []
           for (let col = ref.from.col; col <= ref.to.col; col++) {
             if (++visited % RANGE_DEADLINE_CHECK_INTERVAL === 0 && Date.now() >= deadline) {
               throw new Error('formula budget exhausted while reading range')

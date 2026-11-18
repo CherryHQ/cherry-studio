@@ -104,7 +104,7 @@ vi.mock('@main/ai/runtime/agentSessionWorkspace', () => ({
 vi.mock('@main/ai/agents/AgentWorkspaceStorageService', () => ({
   agentWorkspaceStorageService: {
     archiveWorkspace: vi.fn(),
-    restoreWorkspaces: (_workspaces: unknown[], activate: () => unknown) => activate(),
+    restoreWorkspaces: <TResult>(_workspaces: unknown[], activate: () => TResult) => activate(),
     reconcileWorkspace: vi.fn(),
     purgeWorkspace: mocks.purgeSystemWorkspace
   }

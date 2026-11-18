@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
 
+import type { dispatchStreamRequest } from '../context/dispatch'
 import type { AiStreamManagerConfig, StreamListener } from '../types'
 
 // ── Mocks ───────────────────────────────────────────────────────────
@@ -11,18 +12,16 @@ import type { AiStreamManagerConfig, StreamListener } from '../types'
 // and can observe whether a second dispatch on the same topic waits its turn.
 const dispatchEvents: string[] = []
 const dispatchResolvers: Array<() => void> = []
-const mockDispatchStreamRequest = vi.fn(
-  (_manager: unknown, _subscriber: unknown, req: { topicId: string }): Promise<unknown> => {
-    const seq = dispatchResolvers.length
-    dispatchEvents.push(`start:${req.topicId}:${seq}`)
-    return new Promise((resolve) => {
-      dispatchResolvers.push(() => {
-        dispatchEvents.push(`end:${req.topicId}:${seq}`)
-        resolve({ mode: 'started' })
-      })
+const mockDispatchStreamRequest = vi.fn<typeof dispatchStreamRequest>((_manager, _subscriber, req) => {
+  const seq = dispatchResolvers.length
+  dispatchEvents.push(`start:${req.topicId}:${seq}`)
+  return new Promise((resolve) => {
+    dispatchResolvers.push(() => {
+      dispatchEvents.push(`end:${req.topicId}:${seq}`)
+      resolve({ mode: 'started' })
     })
-  }
-)
+  })
+})
 
 vi.mock('../context/dispatch', () => ({
   dispatchStreamRequest: mockDispatchStreamRequest

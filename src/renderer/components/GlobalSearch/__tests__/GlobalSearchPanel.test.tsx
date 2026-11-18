@@ -7,11 +7,13 @@ import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUI from '@cherrystudio/ui'
+import type { CacheSetStateAction } from '@data/CacheService'
 import type {
   EntitySearchResponse,
   SessionMessageContentSearchItem,
   TopicMessageContentSearchItem
 } from '@shared/data/api/schemas/search'
+import type { RendererPersistCacheSchema } from '@shared/data/cache/cacheSchemas'
 import type { GlobalSearchRecentEntry, Tab } from '@shared/data/cache/cacheValueTypes'
 
 import { GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT } from '../globalSearchGroups'
@@ -34,6 +36,13 @@ async function typeSearchQuery(user: UserEvent, text: string) {
   await user.type(screen.getByLabelText(SEARCH_INPUT_LABEL), text)
   await screen.findByRole('radio', { name: 'Messages' })
 }
+
+type SearchPersistedState =
+  | RendererPersistCacheSchema[
+      | 'ui.global_search.recent_items'
+      | 'ui.chat.last_used_topic_id'
+      | 'ui.agent.last_used_session_id']
+  | undefined
 
 const mocks = vi.hoisted(() => ({
   openTab: vi.fn(),
@@ -74,7 +83,7 @@ const mocks = vi.hoisted(() => ({
   persistCacheValues: {
     'ui.chat.last_used_topic_id': undefined,
     'ui.agent.last_used_session_id': undefined
-  } as Record<string, unknown>,
+  } as Record<string, SearchPersistedState>,
   sortableOnSortEnd: undefined as undefined | ((event: { oldIndex: number; newIndex: number }) => void),
   setPreferences: vi.fn(),
   setActiveTab: vi.fn(),
@@ -332,10 +341,10 @@ vi.mock('@renderer/components/VirtualList', async () => {
 vi.mock('@data/hooks/useCache', () => ({
   usePersistCache: (key: string) => [
     key === 'ui.global_search.recent_items' ? mocks.recentItems : mocks.persistCacheValues[key],
-    (value: unknown) => {
+    (value: CacheSetStateAction<SearchPersistedState>) => {
       // Mirror the real hook: resolve a functional updater against the latest value.
       const current = key === 'ui.global_search.recent_items' ? mocks.recentItems : mocks.persistCacheValues[key]
-      const resolved = typeof value === 'function' ? (value as (prev: unknown) => unknown)(current) : value
+      const resolved = typeof value === 'function' ? value(current) : value
       if (key === 'ui.global_search.recent_items') {
         mocks.recentItems = resolved as typeof mocks.recentItems
       }

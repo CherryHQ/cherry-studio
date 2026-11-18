@@ -24,7 +24,7 @@ describe.each([
         errors.push(error)
       }
     })
-    type Info = { raw?: { ready?: () => Promise<unknown>; node?: { server?: Server } } }
+    type Info = { raw?: { ready?: () => Promise<NonNullable<Info['raw']>>; node?: { server?: Server } } }
     const info = await new Promise<Info>((resolve) => app.listen({ port: 0, hostname: '127.0.0.1' }, resolve))
     await info.raw?.ready?.()
     const http = info.raw!.node!.server!

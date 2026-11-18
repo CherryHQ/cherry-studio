@@ -302,8 +302,10 @@ describe('MessageService', () => {
     })
 
     type TrashedWriteCase = {
-      name: string
-      run: (fixture: Awaited<ReturnType<typeof seedTrashedTopic>>) => unknown
+      name: keyof typeof messageService
+      run: (
+        fixture: Awaited<ReturnType<typeof seedTrashedTopic>>
+      ) => ReturnType<(typeof messageService)[keyof typeof messageService]>
       missingResult?: false | null
     }
 

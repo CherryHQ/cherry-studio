@@ -18,6 +18,8 @@ import { application } from '@application'
 import { hashContent } from '@main/utils/file'
 import type { PersistedToolOutputEntitiesRef, PersistedToolOutputSingleRef } from '@shared/ai/transport'
 import type { FileEntry } from '@shared/data/types/file'
+import type { Serializable } from '@shared/types/serializable'
+import { SerializableSchema } from '@shared/utils/serializable'
 
 export interface PersistedBlob {
   entry: FileEntry
@@ -112,6 +114,13 @@ export function extractPersistableText(output: unknown): PersistableText | null 
   return { text: texts.join('\n'), shape: 'mcp-content', metadata: record.metadata }
 }
 
+export interface ReconstructedMcpTextOutput {
+  content: [{ type: 'text'; text: string }]
+  metadata?: PersistedToolOutputSingleRef['metadata']
+}
+
+export type ReconstructedToolOutput = Serializable | ReconstructedMcpTextOutput
+
 /**
  * Rebuild a tool output from its persisted envelope + the full text read back
  * from FileManager. `'mcp-content'` collapses the original text blocks into
@@ -119,7 +128,10 @@ export function extractPersistableText(output: unknown): PersistableText | null 
  * unchanged by that. Single-blob (v1) shapes only; entities inflate via
  * {@link inflateEntities}.
  */
-export function reconstructOutput(ref: PersistedToolOutputSingleRef, fullText: string): unknown {
+export function reconstructOutput(
+  ref: PersistedToolOutputSingleRef,
+  fullText: string
+): string | ReconstructedMcpTextOutput {
   if (ref.shape === 'text') return fullText
   return {
     content: [{ type: 'text', text: fullText }],
@@ -133,26 +145,26 @@ export function reconstructOutput(ref: PersistedToolOutputSingleRef, fullText: s
  * order. Generic on the key so stored envelopes inflate without the codec
  * that produced them; unknown keys leave the skeleton untouched.
  */
-export function spliceTextAtKey(skeleton: unknown, key: string, text: string): unknown {
+export function spliceTextAtKey(skeleton: Serializable, key: string, text: string): Serializable {
   const segments = key.split('/').filter((s) => s.length > 0)
   if (segments.length === 0) return skeleton
 
-  const replaceField = (record: Record<string, unknown>, field: string): Record<string, unknown> => {
+  const replaceField = (record: Record<string, Serializable>, field: string): Record<string, Serializable> => {
     if (!(field in record)) return record
-    const clone: Record<string, unknown> = {}
-    for (const k of Object.keys(record)) clone[k] = k === field ? text : record[k]
-    return clone
+    return Object.fromEntries(
+      Object.entries(record).map(([key, value]): [string, Serializable] => [key, key === field ? text : value])
+    )
   }
 
   if (segments.length === 1) {
     if (typeof skeleton !== 'object' || skeleton === null || Array.isArray(skeleton)) return skeleton
-    return replaceField(skeleton as Record<string, unknown>, segments[0])
+    return replaceField(skeleton, segments[0])
   }
   const index = Number(segments[0])
   if (!Array.isArray(skeleton) || !Number.isInteger(index) || index < 0 || index >= skeleton.length) return skeleton
   const item = skeleton[index]
   if (typeof item !== 'object' || item === null || Array.isArray(item)) return skeleton
-  const replaced = replaceField(item as Record<string, unknown>, segments[1])
+  const replaced = replaceField(item, segments[1])
   if (replaced === item) return skeleton
   const next = [...skeleton]
   next[index] = replaced
@@ -160,8 +172,8 @@ export function spliceTextAtKey(skeleton: unknown, key: string, text: string): u
 }
 
 /** Inflate an entities envelope: splice each blob's text into the skeleton. */
-export function inflateEntities(ref: PersistedToolOutputEntitiesRef, texts: Record<string, string>): unknown {
-  let value = ref.skeleton
+export function inflateEntities(ref: PersistedToolOutputEntitiesRef, texts: Record<string, string>): Serializable {
+  let value = SerializableSchema.parse(ref.skeleton)
   for (const blob of ref.blobRefs) {
     if (blob.key in texts) value = spliceTextAtKey(value, blob.key, texts[blob.key])
   }

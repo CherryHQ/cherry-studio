@@ -83,7 +83,7 @@ describe('remote ws route', () => {
     desktopIdentity.bytes = await createDeviceIdentity()
     service.current = new RemoteAccessService()
     const app = new Elysia({ adapter: node() }).use(remoteRoutes)
-    type Info = { raw?: { ready?: () => Promise<unknown>; node?: { server?: Server } } }
+    type Info = { raw?: { ready?: () => Promise<NonNullable<Info['raw']>>; node?: { server?: Server } } }
     const info = await new Promise<Info>((resolve) => app.listen({ port: 0, hostname: '127.0.0.1' }, resolve))
     // The listen callback fires before the socket is bound; `ready()` settles once it is.
     await info.raw?.ready?.()

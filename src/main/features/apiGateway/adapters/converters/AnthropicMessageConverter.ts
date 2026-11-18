@@ -1,13 +1,12 @@
+import { createHash } from 'node:crypto'
+
+import type { JSONSchema7 as JsonSchemaLike } from '@ai-sdk/provider'
 /**
  * Anthropic Message Converter
  *
  * Converts Anthropic Messages API format to AI SDK format.
  * Handles messages, tools, and special content types (images, thinking, tool results).
  */
-
-import { createHash } from 'node:crypto'
-
-import type { JSONSchema7 as JsonSchemaLike } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type {
   ImageBlockParam,
@@ -24,6 +23,8 @@ import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types
 import type { Provider } from '@shared/data/types/provider'
 import { isGemini3ModelId } from '@shared/utils/model'
 
+import type { ReasoningDetailUnion } from '../../openrouter'
+import type { IReasoningCache } from '../../reasoningCache'
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
 import { mapAnthropicThinkingToProviderOptions } from './providerOptionsMapper'
 
@@ -160,26 +161,21 @@ function systemMessages(content: MessageCreateParams['system'] | MessageParam['c
 type AgentInputMessage = MessageParam | { role: 'system'; content: MessageParam['content'] }
 
 /**
- * Reasoning cache interface for storing provider-specific reasoning state
- */
-export interface ReasoningCache {
-  get(key: string): unknown
-  set(key: string, value: unknown): void
-}
-
-/**
  * Anthropic Message Converter
  *
  * Converts Anthropic MessageCreateParams to AI SDK format for unified processing.
  */
 export class AnthropicMessageConverter implements IMessageConverter<MessageCreateParams> {
-  private googleReasoningCache?: ReasoningCache
-  private openRouterReasoningCache?: ReasoningCache
+  private googleReasoningCache?: IReasoningCache<string>
+  private openRouterReasoningCache?: IReasoningCache<ReasoningDetailUnion[]>
   private mappedTools?: MessageCreateParams['tools']
   private readonly providerToolNames = new Map<string, string>()
   private readonly clientToolNames = new Map<string, string>()
 
-  constructor(options?: { googleReasoningCache?: ReasoningCache; openRouterReasoningCache?: ReasoningCache }) {
+  constructor(options?: {
+    googleReasoningCache?: IReasoningCache<string>
+    openRouterReasoningCache?: IReasoningCache<ReasoningDetailUnion[]>
+  }) {
     this.googleReasoningCache = options?.googleReasoningCache
     this.openRouterReasoningCache = options?.openRouterReasoningCache
   }
@@ -325,7 +321,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       // Gemini 3 rejects a replayed functionCall whose signature is missing; the
       // Anthropic wire format has nowhere to carry it, so restore it from the cache.
       const thoughtSignature = this.googleReasoningCache?.get(`google-${toolCallId}`)
-      if (typeof thoughtSignature === 'string') {
+      if (thoughtSignature !== undefined) {
         options.google = { thoughtSignature }
       }
     }

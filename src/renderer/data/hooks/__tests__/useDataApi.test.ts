@@ -1144,10 +1144,9 @@ describe('useInfiniteQuery integration', () => {
 
     const mutationKeys: unknown[] = []
     scopedMutateWrapper.current = (mutate) => {
-      const invoke = mutate as unknown as (...args: unknown[]) => Promise<unknown>
-      return (async (...args: unknown[]) => {
+      return (async (...args: Parameters<ScopedMutator>) => {
         mutationKeys.push(args[0])
-        return invoke(...args)
+        return mutate(...args)
       }) as ScopedMutator
     }
 
@@ -1292,14 +1291,13 @@ describe('useInfiniteQuery integration', () => {
     })
     let deferNextFirstPageMutation = false
     scopedMutateWrapper.current = (mutate) => {
-      const invoke = mutate as unknown as (...args: unknown[]) => Promise<unknown>
-      return (async (...args: unknown[]) => {
+      return (async (...args: Parameters<ScopedMutator>) => {
         if (deferNextFirstPageMutation && Array.isArray(args[0]) && unstable_serialize(args[0]) === firstPageKey) {
           deferNextFirstPageMutation = false
           noteOlderCleanupStarted()
           await olderCleanupRelease
         }
-        return invoke(...args)
+        return mutate(...args)
       }) as ScopedMutator
     }
 

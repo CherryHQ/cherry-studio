@@ -2,13 +2,14 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { expect, it, vi } from 'vitest'
 
 import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { useAgentChildProjection } from '../useAgentChildProjection'
 
 // Catches lost updates during attach, duplicate replay, and stale delivery after changing children.
 it('joins snapshot and live patches, repairs a revision gap, and fences an old child', async () => {
   let deliver!: (event: unknown) => void
-  let resolve!: (value: unknown) => void
+  let resolve!: (value: IpcResult<unknown>) => void
   let subscriptionId = ''
   const view: AgentChildView = {
     kind: 'child',

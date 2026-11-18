@@ -261,9 +261,20 @@ describe('purity (AC7)', () => {
       }
     ]
   }
-  const cases: [string, unknown, () => unknown][] = []
-  const add = <T>(name: string, input: T, decide: (input: T) => unknown) =>
-    cases.push([name, input, () => decide(input)])
+  const cases: [string, () => void][] = []
+  const add = <T, TResult>(name: string, input: T, decide: (input: T) => TResult) => {
+    cases.push([
+      name,
+      () => {
+        deepFreeze(lockCollections(input))
+        const run = () => decide(input)
+        const first = withoutEnvironment(run)
+        expect(withoutEnvironment(run)).toEqual(first)
+        expect(JSON.parse(JSON.stringify(first))).toEqual(first)
+        expect(untraced(first, strings(input))).toEqual([])
+      }
+    ])
+  }
   add(
     'decideSpawn',
     { f: facts(asked), i: inputs({ args: { description: 'd', prompt: 'p', background: true, fork: true } }) },
@@ -375,15 +386,8 @@ describe('purity (AC7)', () => {
   )
   // Catches a rule that reads the clock or randomness, mutates its input, returns something memo cannot store, or
   // invents an id: each would make a rerun after a crash decide differently (design §11.10).
-  it.each(cases)(
-    '%s is deterministic, leaves its input alone, survives JSON and invents no ids',
-    (_name, input, decide) => {
-      deepFreeze(lockCollections(input))
-      const first = withoutEnvironment(decide)
-      expect(withoutEnvironment(decide)).toEqual(first)
-      expect(JSON.parse(JSON.stringify(first))).toEqual(first)
-      expect(untraced(first, strings(input))).toEqual([])
-    }
+  it.each(cases)('%s is deterministic, leaves its input alone, survives JSON and invents no ids', (_name, verify) =>
+    verify()
   )
 })
 

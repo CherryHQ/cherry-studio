@@ -4,6 +4,8 @@ import { gunzipSync } from 'node:zlib'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import type { Serializable } from '@shared/types/serializable'
+import { SerializableSchema } from '@shared/utils/serializable'
 
 import { observabilitySinks } from '../../sinks/ObservabilitySinkRegistry'
 import { ClaudeCodeOtlpAdapter, type ClaudeCodeTraceContext } from './ClaudeCodeOtlpAdapter'
@@ -201,14 +203,14 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
     }
   }
 
-  private ingestTraces(payload: unknown): void {
+  private ingestTraces(payload: Serializable): void {
     const spans = ClaudeCodeOtlpAdapter.spansFromPayload(payload, (traceId) => this.getTraceContext(traceId))
     for (const span of spans) {
       observabilitySinks.writeSpanEntity(span)
     }
   }
 
-  private ingestLogs(payload: unknown): void {
+  private ingestLogs(payload: Serializable): void {
     const logEvents = ClaudeCodeOtlpAdapter.logEventsFromPayload(payload)
     for (const logEvent of logEvents) {
       observabilitySinks.writeSpanEvent(logEvent.traceId, logEvent.spanId, logEvent.event)
@@ -255,7 +257,7 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
   }
 }
 
-async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+async function readJsonBody(req: IncomingMessage): Promise<Serializable> {
   const chunks: Buffer[] = []
   let size = 0
 
@@ -287,7 +289,7 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
 
   const text = body.toString('utf8')
   if (!text) return {}
-  return JSON.parse(text)
+  return SerializableSchema.parse(JSON.parse(text))
 }
 
 function isJsonContentType(req: IncomingMessage): boolean {

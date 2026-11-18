@@ -26,6 +26,7 @@ import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import type { ComposerSuggestionItem } from '../../quickPanel'
 import type { ComposerSerializedToken } from '../../tokens'
 import type { ComposerToolFooterAction } from '../../toolLauncher'
+import type { FollowupQueueController } from '../../useFollowupQueue'
 import ChatComposer, { ChatHomeComposer, ChatPlacementComposer } from '../ChatComposer'
 
 const mocks = vi.hoisted(() => ({
@@ -5534,7 +5535,7 @@ describe('ChatComposer', () => {
   })
 })
 
-type CapturedQueueDockProps = { items: { id: string }[]; onSteer(id: string): Promise<unknown> }
+type CapturedQueueDockProps = { items: { id: string }[]; onSteer: FollowupQueueController['sendId'] }
 function getCapturedQueueDock(): ReactElement<CapturedQueueDockProps> | undefined {
   const content = mocks.surfaceProps?.queueContent as ReactElement<{ children?: ReactNode }> | undefined
   return [content, ...Children.toArray(content?.props.children)].find(

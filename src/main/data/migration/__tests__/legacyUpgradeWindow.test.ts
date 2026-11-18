@@ -5,7 +5,7 @@ import type { AppUpdater } from 'electron-updater'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { validateSender } from '@main/core/security/validateSender'
-import { LegacyUpgradeChannels, type LegacyUpgradeScreen } from '@shared/types/legacyUpgrade'
+import { type LegacyInstallState, LegacyUpgradeChannels, type LegacyUpgradeScreen } from '@shared/types/legacyUpgrade'
 
 import * as bridge from '../legacyBridgeInstaller'
 import { findLegacyBridgeTarget } from '../legacyBridgeTarget'
@@ -40,7 +40,10 @@ function createWindow() {
   return window
 }
 let window: ReturnType<typeof createWindow>
-let handlers: Map<string, (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown>
+let handlers: Map<
+  string,
+  (event: IpcMainInvokeEvent, ...args: unknown[]) => LegacyUpgradeScreen | LegacyInstallState | void | Promise<void>
+>
 const event = () =>
   ({ sender: window.webContents, senderFrame: window.webContents.mainFrame }) as unknown as IpcMainInvokeEvent
 
@@ -93,7 +96,7 @@ describe('preboot upgrade window boundary', () => {
 
   it('closes without a download when the user quits', async () => {
     const closed = showLegacyUpgradeWindow(screen, downloads)
-    handlers.get(LegacyUpgradeChannels.Quit)!(event())
+    void handlers.get(LegacyUpgradeChannels.Quit)!(event())
     await closed
     expect(shell.openExternal).not.toHaveBeenCalled()
     expect(handlers.size).toBe(0)
@@ -111,7 +114,7 @@ describe('preboot upgrade window boundary', () => {
   it('rejects installation without an eligible target', async () => {
     const closed = showLegacyUpgradeWindow(screen, downloads)
     expect(() => handlers.get(LegacyUpgradeChannels.Install)!(event())).toThrow('unavailable')
-    handlers.get(LegacyUpgradeChannels.Quit)!(event())
+    void handlers.get(LegacyUpgradeChannels.Quit)!(event())
     await closed
   })
 
@@ -129,15 +132,15 @@ describe('preboot upgrade window boundary', () => {
       findLegacyBridgeTarget('global', 'darwin', 'arm64'),
       '/custom/profile'
     )
-    handlers.get(LegacyUpgradeChannels.GetScreen)!(event())
-    handlers.get(LegacyUpgradeChannels.Install)!(event())
+    void handlers.get(LegacyUpgradeChannels.GetScreen)!(event())
+    void handlers.get(LegacyUpgradeChannels.Install)!(event())
     await vi.waitFor(() =>
       expect(handlers.get(LegacyUpgradeChannels.GetState)!(event())).toEqual({ phase: 'installing' })
     )
     const ordinaryClose = { preventDefault: vi.fn() }
     window.emit('close', ordinaryClose)
     expect(ordinaryClose.preventDefault).toHaveBeenCalledOnce()
-    handlers.get(LegacyUpgradeChannels.Quit)!(event())
+    void handlers.get(LegacyUpgradeChannels.Quit)!(event())
     expect(window.isDestroyed()).toBe(false)
     const calls = vi.mocked(app.on).mock.calls as unknown as [string, (event: { preventDefault: () => void }) => void][]
     const beforeQuit = calls.find(([name]) => name === 'before-quit')![1]
@@ -151,7 +154,7 @@ describe('preboot upgrade window boundary', () => {
     expect(updateQuit.preventDefault).not.toHaveBeenCalled()
     updater.emit('error', new Error('Native install rejected'))
     expect(handlers.get(LegacyUpgradeChannels.GetState)!(event())).toEqual({ phase: 'failed' })
-    handlers.get(LegacyUpgradeChannels.Quit)!(event())
+    void handlers.get(LegacyUpgradeChannels.Quit)!(event())
     await closed
     expect(window.isDestroyed()).toBe(true)
     expect(handlers.size).toBe(0)

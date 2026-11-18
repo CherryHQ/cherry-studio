@@ -70,12 +70,13 @@ function makeResource(serverId: string, uri: string): McpResource {
   return { serverId, serverName: `${serverId}-name`, uri, name: uri, mimeType: 'text/plain' }
 }
 
-function callExecute(
-  entry: typeof listEntry,
-  args: Record<string, unknown>,
+function callExecute<TInput, TResult>(
+  entry: { tool: { execute?: (input: TInput, options: ToolExecutionOptions) => TResult } },
+  args: TInput,
   request: Record<string, unknown> = {}
-): Promise<unknown> {
-  const execute = entry.tool.execute as (args: unknown, options: ToolExecutionOptions) => Promise<unknown>
+) {
+  const execute = entry.tool.execute
+  if (!execute) throw new Error('Expected an executable MCP resource tool')
   return execute(args, {
     toolCallId: 'tc-1',
     messages: [],

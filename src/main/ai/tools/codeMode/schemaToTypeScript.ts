@@ -29,8 +29,13 @@ function schemaToTypeScript(schema: unknown, root: unknown, depth: number, resol
   if (typeof value.$ref === 'string') {
     const ref = value.$ref
     if (resolvingRefs.has(ref)) return 'unknown'
-    const resolved = resolveLocalRef(root, ref)
-    if (!resolved) return 'unknown'
+    if (!ref.startsWith('#/')) return 'unknown'
+    let resolved: unknown = root
+    for (const segment of ref.slice(2).split('/')) {
+      const key = segment.replaceAll('~1', '/').replaceAll('~0', '~')
+      if (!resolved || typeof resolved !== 'object' || !(key in resolved)) return 'unknown'
+      resolved = (resolved as Record<string, unknown>)[key]
+    }
     return schemaToTypeScript(resolved, root, depth + 1, new Set([...resolvingRefs, ref]))
   }
 
@@ -88,18 +93,6 @@ function schemaToTypeScript(schema: unknown, root: unknown, depth: number, resol
     default:
       return 'unknown'
   }
-}
-
-function resolveLocalRef(root: unknown, ref: string): unknown {
-  if (!ref.startsWith('#/')) return undefined
-  return ref
-    .slice(2)
-    .split('/')
-    .map((segment) => segment.replaceAll('~1', '/').replaceAll('~0', '~'))
-    .reduce<unknown>((value, segment) => {
-      if (!value || typeof value !== 'object' || !(segment in value)) return undefined
-      return (value as Record<string, unknown>)[segment]
-    }, root)
 }
 
 interface ToolTypeScriptInput {

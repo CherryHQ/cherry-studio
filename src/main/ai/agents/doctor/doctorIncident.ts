@@ -25,6 +25,7 @@ import type { Message } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { DoctorAgentIncident } from '@shared/types/doctorAgent'
 import type { Serializable } from '@shared/types/serializable'
+import { SerializableSchema } from '@shared/utils/serializable'
 
 import { redactForModel } from './doctorWrites'
 
@@ -121,19 +122,20 @@ function conversationKind(incident: DoctorAgentIncident): 'agent' | 'temporary' 
   return temporaryChatService.hasTopic(incident.topicId) ? 'temporary' : 'topic'
 }
 
-function compactPart(part: Parameters<typeof conversationPartEvidence>[0]): unknown {
+function compactPart(part: Parameters<typeof conversationPartEvidence>[0]): Record<string, string | undefined> | null {
   const evidence = conversationPartEvidence(part)
   if (!evidence) return null
   return Object.fromEntries(
-    Object.entries(evidence).map(([key, value]) => {
-      if (value === undefined || key === 'type' || key === 'state' || key === 'toolName') return [key, value]
+    Object.entries(evidence).map(([key, value]): [string, string | undefined] => {
+      if (key === 'type' || key === 'state' || key === 'toolName') return [key, evidence[key]]
+      if (value === undefined) return [key, undefined]
       const text = typeof value === 'string' ? value : JSON.stringify(value)
       return [key, truncateText(text, PART_TEXT_LIMIT)]
     })
   )
 }
 
-function compactMessage(message: IncidentMessage): unknown {
+function compactMessage(message: IncidentMessage) {
   return {
     id: message.id,
     role: message.role,
@@ -206,7 +208,7 @@ export function incidentMessages(incident: DoctorAgentIncident, before: number):
   return untrustedForModel({ messages, ...(messages.length === 0 ? { missing: true } : {}) })
 }
 
-function truncateStrings(value: unknown): unknown {
+function truncateStrings(value: Serializable): Serializable {
   if (typeof value === 'string') return truncateText(value, LOG_LINE_LIMIT)
   if (Array.isArray(value)) return value.map(truncateStrings)
   if (typeof value === 'object' && value !== null) {
@@ -230,19 +232,25 @@ export function incidentLogs(incident: DoctorAgentIncident, limit: number): Seri
         .sort((a, b) => b.mtime - a.mtime)
         .slice(0, LOG_FILES_SCANNED)
     : []
-  const matches: Record<string, unknown>[] = []
+  const matches: Record<string, Serializable>[] = []
   for (const file of files) {
     for (const line of fs.readFileSync(path.join(logsDir, file.name), 'utf-8').split('\n')) {
       if (!line.startsWith('{')) continue
-      let entry: Record<string, unknown>
+      let entry: Serializable
       try {
-        entry = JSON.parse(line)
+        entry = SerializableSchema.parse(JSON.parse(line))
       } catch {
         continue
       }
+      if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) continue
       if (![entry.topicId, entry.sessionId, entry.agentSessionId].some((id) => typeof id === 'string' && ids.has(id)))
         continue
-      matches.push({ file: file.name, ...(truncateStrings(entry) as Record<string, unknown>) })
+      matches.push({
+        file: file.name,
+        ...Object.fromEntries(
+          Object.entries(entry).map(([key, value]): [string, Serializable] => [key, truncateStrings(value)])
+        )
+      })
     }
   }
   matches.sort((a, b) => String(a.timestamp ?? '').localeCompare(String(b.timestamp ?? '')))
@@ -251,7 +259,7 @@ export function incidentLogs(incident: DoctorAgentIncident, limit: number): Seri
   return untrustedForModel({ count: matches.length, entries })
 }
 
-function requestShape(body: unknown): unknown {
+function requestShape(body: unknown): Record<string, unknown> | undefined {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) return undefined
   const shape: Record<string, unknown> = { keys: Object.keys(body) }
   const params: Record<string, unknown> = {}

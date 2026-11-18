@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { BaseService } from '@main/core/lifecycle'
+import { SerializableSchema } from '@shared/utils/serializable'
 
 const electronMocks = vi.hoisted(() => ({
   ipcMain: { handle: vi.fn(), removeHandler: vi.fn() },
@@ -157,8 +158,19 @@ describe('toolOutputStore', () => {
       const spliced = spliceTextAtKey(items, '/0/content', 'SPLICED') as Array<Record<string, unknown>>
 
       expect(spliced[0].content).toBe('SPLICED')
+      expect(Object.keys(spliced[0])).toEqual(['id', 'title', 'content'])
+      expect(spliced[1]).toBe(items[1])
 
       expect(items[0].content).toBe('alpha')
+    })
+
+    it('preserves an own __proto__ field without changing the reconstructed prototype', () => {
+      const skeleton = SerializableSchema.parse(JSON.parse('{"__proto__":{"id":"citation"},"text":"original"}'))
+      const spliced = spliceTextAtKey(skeleton, '/text', 'SPLICED')
+      expect(spliced).toEqual({ ['__proto__']: { id: 'citation' }, text: 'SPLICED' })
+      expect(Object.getOwnPropertyDescriptor(spliced, '__proto__')?.value).toEqual({ id: 'citation' })
+      expect(Object.getPrototypeOf(spliced)).toBe(Object.prototype)
+      expect(skeleton).toEqual({ ['__proto__']: { id: 'citation' }, text: 'original' })
     })
 
     it('replaces a top-level record field', () => {

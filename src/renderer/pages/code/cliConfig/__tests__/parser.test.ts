@@ -15,7 +15,9 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 /** Per-path DataApi.get mock (longest-prefix wins so `/api-keys` is not shadowed). */
-function mockGet(handlers: Record<string, () => unknown>) {
+function mockGet<TResponses extends Record<string, unknown>>(handlers: {
+  [Path in keyof TResponses]: () => TResponses[Path]
+}) {
   const prefixes = Object.keys(handlers).sort((a, b) => b.length - a.length)
   vi.mocked(dataApiService.get).mockImplementation(async (path: string) => {
     for (const prefix of prefixes) {

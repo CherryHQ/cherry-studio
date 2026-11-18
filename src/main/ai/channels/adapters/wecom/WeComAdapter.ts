@@ -397,7 +397,7 @@ export class WeComAdapter extends ChannelAdapter {
     }
   }
 
-  private async sendToChat(chatId: string, send: () => Promise<unknown>, intermediate = false): Promise<void> {
+  private async sendToChat<TResult>(chatId: string, send: () => Promise<TResult>, intermediate = false): Promise<void> {
     const signal = this.lifetime.signal
     signal.throwIfAborted()
     let delivery = this.deliveries.get(chatId)

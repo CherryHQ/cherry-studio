@@ -165,6 +165,8 @@ const GetConfigRespSchema = z.object({
   typing_ticket: z.string().optional()
 })
 
+const AcknowledgementSchema = z.unknown().transform(() => undefined)
+
 const CredentialsSchema = z.object({
   token: z.string(),
   baseUrl: z.string(),
@@ -360,7 +362,8 @@ async function cdnUploadMedia(
   const ciphertext = aesEcbEncrypt(data, aeskey)
 
   // Step 1: get upload URL
-  const raw = await apiFetch(
+  const resp = await apiFetch(
+    GetUploadUrlRespSchema,
     baseUrl,
     '/ilink/bot/getuploadurl',
     {
@@ -378,7 +381,6 @@ async function cdnUploadMedia(
     uin,
     15_000
   )
-  const resp = GetUploadUrlRespSchema.parse(raw)
   const uploadFullUrl = resp.upload_full_url?.trim()
   const uploadParam = resp.upload_param
   if (!uploadFullUrl && !uploadParam) {
@@ -430,7 +432,11 @@ function buildBaseInfo(): BaseInfo {
   return { channel_version: CHANNEL_VERSION }
 }
 
-async function parseJsonResponse(response: Response, label: string): Promise<unknown> {
+async function parseJsonResponse<TSchema extends z.ZodType>(
+  response: Response,
+  label: string,
+  schema: TSchema
+): Promise<z.output<TSchema>> {
   const text = await response.text()
   let raw: unknown
   try {
@@ -461,7 +467,7 @@ async function parseJsonResponse(response: Response, label: string): Promise<unk
     })
   }
 
-  return raw
+  return schema.parse(raw)
 }
 
 function buildHeaders(token: string, uin: string): Record<string, string> {
@@ -473,7 +479,8 @@ function buildHeaders(token: string, uin: string): Record<string, string> {
   }
 }
 
-async function apiFetch(
+async function apiFetch<TSchema extends z.ZodType>(
+  schema: TSchema,
   baseUrlOrigin: string,
   endpoint: string,
   body: unknown,
@@ -481,7 +488,7 @@ async function apiFetch(
   uin: string,
   timeoutMs = 40_000,
   signal?: AbortSignal
-): Promise<unknown> {
+): Promise<z.output<TSchema>> {
   const url = `${baseUrlOrigin}${endpoint}`
   const timeoutSignal = AbortSignal.timeout(timeoutMs)
   const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
@@ -492,13 +499,18 @@ async function apiFetch(
     signal: requestSignal
   })
 
-  return parseJsonResponse(response, endpoint)
+  return parseJsonResponse(response, endpoint, schema)
 }
 
-async function apiGet(baseUrlOrigin: string, urlPath: string, headers: Record<string, string> = {}): Promise<unknown> {
+async function apiGet<TSchema extends z.ZodType>(
+  schema: TSchema,
+  baseUrlOrigin: string,
+  urlPath: string,
+  headers: Record<string, string> = {}
+): Promise<z.output<TSchema>> {
   const url = `${baseUrlOrigin}${urlPath}`
   const response = await net.fetch(url, { method: 'GET', headers })
-  return parseJsonResponse(response, urlPath)
+  return parseJsonResponse(response, urlPath, schema)
 }
 
 async function getUpdates(
@@ -508,7 +520,8 @@ async function getUpdates(
   buf: string,
   signal?: AbortSignal
 ): Promise<{ msgs: WeixinMessage[]; get_updates_buf: string }> {
-  const raw = await apiFetch(
+  const parsed = await apiFetch(
+    GetUpdatesRespSchema,
     baseUrl,
     '/ilink/bot/getupdates',
     { get_updates_buf: buf, base_info: buildBaseInfo() },
@@ -517,7 +530,6 @@ async function getUpdates(
     40_000,
     signal
   )
-  const parsed = GetUpdatesRespSchema.parse(raw)
   return { msgs: parsed.msgs as WeixinMessage[], get_updates_buf: parsed.get_updates_buf }
 }
 
@@ -535,7 +547,15 @@ async function apiSendMessage(
     item_list: MessageItem[]
   }
 ): Promise<void> {
-  await apiFetch(baseUrl, '/ilink/bot/sendmessage', { msg, base_info: buildBaseInfo() }, token, uin, 15_000)
+  await apiFetch(
+    AcknowledgementSchema,
+    baseUrl,
+    '/ilink/bot/sendmessage',
+    { msg, base_info: buildBaseInfo() },
+    token,
+    uin,
+    15_000
+  )
 }
 
 async function apiGetConfig(
@@ -545,7 +565,8 @@ async function apiGetConfig(
   userId: string,
   contextToken: string
 ): Promise<GetConfigResp> {
-  const raw = await apiFetch(
+  return apiFetch(
+    GetConfigRespSchema,
     baseUrl,
     '/ilink/bot/getconfig',
     { ilink_user_id: userId, context_token: contextToken, base_info: buildBaseInfo() },
@@ -553,7 +574,6 @@ async function apiGetConfig(
     uin,
     15_000
   )
-  return GetConfigRespSchema.parse(raw)
 }
 
 async function apiSendTyping(
@@ -570,23 +590,29 @@ async function apiSendTyping(
     status,
     base_info: buildBaseInfo()
   }
-  await apiFetch(baseUrl, '/ilink/bot/sendtyping', body, token, uin, 15_000)
+  await apiFetch(AcknowledgementSchema, baseUrl, '/ilink/bot/sendtyping', body, token, uin, 15_000)
 }
 
 async function apiNotifyLifecycle(baseUrl: string, token: string, uin: string, event: 'start' | 'stop'): Promise<void> {
-  await apiFetch(baseUrl, `/ilink/bot/msg/notify${event}`, { base_info: buildBaseInfo() }, token, uin, 15_000)
+  await apiFetch(
+    AcknowledgementSchema,
+    baseUrl,
+    `/ilink/bot/msg/notify${event}`,
+    { base_info: buildBaseInfo() },
+    token,
+    uin,
+    15_000
+  )
 }
 
 async function fetchQrCode(baseUrl: string): Promise<QrCodeResponse> {
-  const raw = await apiGet(baseUrl, '/ilink/bot/get_bot_qrcode?bot_type=3')
-  return QrCodeResponseSchema.parse(raw)
+  return apiGet(QrCodeResponseSchema, baseUrl, '/ilink/bot/get_bot_qrcode?bot_type=3')
 }
 
 async function pollQrStatus(baseUrl: string, qrcode: string): Promise<QrStatusResponse> {
-  const raw = await apiGet(baseUrl, `/ilink/bot/get_qrcode_status?qrcode=${encodeURIComponent(qrcode)}`, {
+  return apiGet(QrStatusResponseSchema, baseUrl, `/ilink/bot/get_qrcode_status?qrcode=${encodeURIComponent(qrcode)}`, {
     'iLink-App-ClientVersion': '1'
   })
-  return QrStatusResponseSchema.parse(raw)
 }
 
 function buildTextMessage(

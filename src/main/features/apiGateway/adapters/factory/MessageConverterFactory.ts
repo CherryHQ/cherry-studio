@@ -1,13 +1,14 @@
+import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
+
+import type { ReasoningDetailUnion } from '../../openrouter'
 /**
  * Message Converter Factory
  *
  * Factory for creating message converters based on input format.
  * Uses generics for type-safe converter creation.
  */
-
-import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
-
-import { AnthropicMessageConverter, type ReasoningCache } from '../converters/AnthropicMessageConverter'
+import type { IReasoningCache } from '../../reasoningCache'
+import { AnthropicMessageConverter } from '../converters/AnthropicMessageConverter'
 import { type GeminiGenerateContentRequest, GeminiMessageConverter } from '../converters/GeminiMessageConverter'
 import { type ExtendedChatCompletionCreateParams, OpenAiMessageConverter } from '../converters/OpenAiMessageConverter'
 import {
@@ -30,8 +31,8 @@ export type InputParamsMap = {
  * Options for creating converters
  */
 export interface ConverterOptions {
-  googleReasoningCache?: ReasoningCache
-  openRouterReasoningCache?: ReasoningCache
+  googleReasoningCache?: IReasoningCache<string>
+  openRouterReasoningCache?: IReasoningCache<ReasoningDetailUnion[]>
 }
 
 /**

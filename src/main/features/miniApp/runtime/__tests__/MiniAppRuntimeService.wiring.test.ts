@@ -20,7 +20,7 @@ vi.mock('../events', () => ({ emitToApp: vi.fn() }))
 
 const { MiniAppRuntimeService } = await import('../MiniAppRuntimeService')
 
-type MiniAppRuntimeServicePrivate = Record<'ipcHandle' | 'ipcOn', (...args: never[]) => unknown>
+type MiniAppRuntimeServicePrivate = { ipcHandle: BaseService['ipcHandle']; ipcOn: BaseService['ipcOn'] }
 
 // `BaseService` throws on the second `new` of the same class, so without this reset the
 // file dies at case two — naming the singleton guard, not anything under test.
@@ -33,12 +33,14 @@ describe('MiniAppRuntimeService wiring', () => {
     const svc = new MiniAppRuntimeService()
     const handled: string[] = []
     const listened: string[] = []
-    vi.spyOn(svc as unknown as MiniAppRuntimeServicePrivate, 'ipcHandle').mockImplementation((c: string) =>
+    vi.spyOn(svc as unknown as MiniAppRuntimeServicePrivate, 'ipcHandle').mockImplementation((c: string) => {
       handled.push(c)
-    )
-    vi.spyOn(svc as unknown as MiniAppRuntimeServicePrivate, 'ipcOn').mockImplementation((c: string) =>
+      return { dispose() {} }
+    })
+    vi.spyOn(svc as unknown as MiniAppRuntimeServicePrivate, 'ipcOn').mockImplementation((c: string) => {
       listened.push(c)
-    )
+      return { dispose() {} }
+    })
     await (svc as unknown as { onReady: () => Promise<void> }).onReady()
 
     expect(handled).toEqual([MINI_APP_BRIDGE_CHANNEL])
@@ -58,8 +60,8 @@ describe('MiniAppRuntimeService wiring', () => {
       { appId: 'com.example.ok', action: 'rolled-back' }
     ])
     const svc = new MiniAppRuntimeService()
-    vi.spyOn(svc as unknown as MiniAppRuntimeServicePrivate, 'ipcHandle').mockImplementation(() => {})
-    vi.spyOn(svc as unknown as MiniAppRuntimeServicePrivate, 'ipcOn').mockImplementation(() => {})
+    vi.spyOn(svc as unknown as MiniAppRuntimeServicePrivate, 'ipcHandle').mockImplementation(() => ({ dispose() {} }))
+    vi.spyOn(svc as unknown as MiniAppRuntimeServicePrivate, 'ipcOn').mockImplementation(() => ({ dispose() {} }))
 
     await (svc as unknown as { onReady: () => Promise<void> }).onReady()
 
@@ -68,11 +70,11 @@ describe('MiniAppRuntimeService wiring', () => {
 
   it('pushes a locale change to every installed app', async () => {
     const svc = new MiniAppRuntimeService()
-    vi.spyOn(svc as unknown as MiniAppRuntimeServicePrivate, 'ipcHandle').mockImplementation(() => {})
-    vi.spyOn(svc as unknown as MiniAppRuntimeServicePrivate, 'ipcOn').mockImplementation(() => {})
+    vi.spyOn(svc as unknown as MiniAppRuntimeServicePrivate, 'ipcHandle').mockImplementation(() => ({ dispose() {} }))
+    vi.spyOn(svc as unknown as MiniAppRuntimeServicePrivate, 'ipcOn').mockImplementation(() => ({ dispose() {} }))
     // `onReady` also broadcasts the attention state, which this stub cannot serve.
     // Unstubbed, the case fails inside a feature it is not testing.
-    vi.spyOn(svc, 'broadcastAttentionState').mockImplementation(() => {})
+    vi.spyOn(svc, 'broadcastAttentionState').mockImplementation(() => ({ dispose() {} }))
     let onLanguage: ((locale: string | null) => void) | undefined
     vi.mocked(application.get).mockImplementation(((name: string) =>
       name === 'PreferenceService'
