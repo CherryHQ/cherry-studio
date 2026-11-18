@@ -206,15 +206,16 @@ export class MiniAppActivityLog {
     // `facetOf` describes the call — it has no error to look at and should not grow one.
     const called = facetOf(method, p, result)
     const facet = reason ? { ...called, reason } : called
-    this.append(appId, {
+    const entry: Extract<MiniAppActivityEntry, { kind: 'call' }> = {
       v: 1,
       ts: Date.now(),
       kind: 'call',
       name: method,
       outcome,
-      durationMs,
-      ...(facet ? { facet } : {})
-    })
+      durationMs
+    }
+    if (facet) entry.facet = facet
+    this.append(appId, entry)
   }
 
   recordGrant(appId: string, entry: Omit<MiniAppActivityGrant, 'v' | 'ts' | 'kind'>): void {

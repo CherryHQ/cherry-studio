@@ -233,7 +233,8 @@ export const aiCapability = {
       }
 
       try {
-        application.get('AiStreamManager').streamPrompt({
+        const streamManager = application.get('AiStreamManager')
+        const prompt: Omit<Parameters<typeof streamManager.streamPrompt>[0], 'source' | 'listener'> = {
           streamId,
           uniqueModelId,
           messages,
@@ -242,10 +243,12 @@ export const aiCapability = {
           contextOwner: 'caller',
           // No retry, no fallback: a cross-model fallback resolves its model WITHOUT the
           // usage plugin (`buildFallbackModels.ts:158`) — real money, and no ledger row.
-          maxRetries: 0,
-          // `off` asks for no thinking where the wire profile can switch it off; `on`
-          // sends nothing and leaves the model to its own default.
-          ...(parsed.reasoning === 'off' ? { reasoningEffort: 'none' as const } : {}),
+          maxRetries: 0
+        }
+        // `off` disables thinking where supported; `on` retains the model's default.
+        if (parsed.reasoning === 'off') prompt.reasoningEffort = 'none'
+        streamManager.streamPrompt({
+          ...prompt,
           // Attribution for the shared usage ledger. Without it the row lands
           // anonymous and Settings > Usage cannot tell which app spent the money.
           source: { type: 'mini-app', id: appId, name: runtime.displayNameOf(appId), icon: null },

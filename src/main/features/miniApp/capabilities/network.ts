@@ -182,18 +182,17 @@ export const networkCapability = {
           `Mini app "${appId}" may not fetch ${url}: the host resolves to a private address`
         )
       }
-      const response = await net.fetch(url, {
+      const fetchOptions: NonNullable<Parameters<typeof net.fetch>[1]> = {
         method,
-        headers,
-        ...(requestBody ? { body: requestBody } : {}),
-        // MANDATORY: Electron sends the session's auth data when this is unset, and the
-        // default session is Cherry's own (`electron.d.ts:20240`).
-        credentials: 'omit',
-        // Not per-hop adjudication: a redirect is refused outright, matching how the
-        // installer fetches packages.
-        redirect: 'error',
-        signal: abort.signal
-      })
+        headers
+      }
+      if (requestBody) fetchOptions.body = requestBody
+      // Electron would otherwise send Cherry's default-session credentials.
+      fetchOptions.credentials = 'omit'
+      // Redirects are refused rather than adjudicated per hop, as in the installer.
+      fetchOptions.redirect = 'error'
+      fetchOptions.signal = abort.signal
+      const response = await net.fetch(url, fetchOptions)
 
       const chunks: Uint8Array[] = []
       let total = 0
