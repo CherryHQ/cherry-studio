@@ -64,7 +64,7 @@ describe('PromptPopup', () => {
       vi.runOnlyPendingTimers()
     })
 
-    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
+    const textarea = screen.getByRole<HTMLTextAreaElement>('textbox')
     expect(textarea).toHaveFocus()
     expect(textarea).toHaveValue('Keep this text')
     expect(setSelectionRange).toHaveBeenCalledWith('Keep this text'.length, 'Keep this text'.length)
@@ -86,7 +86,7 @@ describe('PromptPopup', () => {
       })
     })
 
-    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
+    const textarea = screen.getByRole<HTMLTextAreaElement>('textbox')
     // Confirming a CJK candidate types Enter while the input still holds the raw pinyin.
     fireEvent.change(textarea, { target: { value: "dui'bi" } })
     fireEvent.keyDown(textarea, { key: 'Enter', isComposing: true })
