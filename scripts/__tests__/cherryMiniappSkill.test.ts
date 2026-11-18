@@ -72,7 +72,7 @@ describe('cherry-miniapp skill', () => {
 
   it('rejects an icon whose digest does not match its bytes', async () => {
     const dir = await copyTemplate()
-    await fs.writeFile(path.join(dir, 'icon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>')
+    await fs.writeFile(path.join(dir, 'icon.png'), 'bytes that do not match the declared digest')
     const result = await validateApp(dir)
     expect(result.ok).toBe(false)
     expect(result.issues.join('\n')).toMatch(/icon\.sha256: does not match/)
