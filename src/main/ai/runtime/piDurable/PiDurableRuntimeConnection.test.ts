@@ -226,6 +226,33 @@ describe('desktop Pi Durable connection', () => {
     for (const connection of connections.splice(0)) await connection.close()
     vi.restoreAllMocks()
   })
+  it('stops the admitted input when reference initialization is still pending', async () => {
+    holdResponse('continuation in progress')
+    const { connection, events, handle, nativeInputs } = await connect()
+    const initializing = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
+    const initialize = handle.durable.initializeContext.bind(handle.durable)
+    vi.spyOn(handle.durable, 'initializeContext').mockImplementationOnce(async (context) => {
+      initializing.resolve()
+      await release.promise
+      await initialize(context)
+    })
+    const user = message('Continue the earlier conversation')
+    const sending = connection.send({
+      message: user,
+      context: [{ type: 'text', text: 'Earlier conversation: remember mango' }]
+    })
+    await initializing.promise
+    const stopping = connection.interrupt()
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    release.resolve()
+    await Promise.all([sending, stopping])
+    await expect
+      .poll(() => nativeInputs.some((state) => state.inputId === user.id && state.outcome === 'aborted'))
+      .toBe(true)
+    await expect.poll(() => events.some((event) => event.type === 'stop-confirmed')).toBe(true)
+  })
+
   it('continues unbound history on separate native branches and retains it after reopening', async () => {
     const user = message('Remember mango')
     const selected = messages.saveMessage({

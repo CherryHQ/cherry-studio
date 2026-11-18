@@ -140,7 +140,7 @@ describe('subagent settlement wake (incident replay)', () => {
     const service = new AgentSessionRuntimeService()
     const handleRuntimeEvent = (event: unknown) => (service as any).handleRuntimeEvent(getEntry(service), event)
 
-    // Turn 1: the spawning user turn, streamed and settled normally.
+    // Turn 1: replay begins after the spawning input has been admitted.
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
     entry.runtimeState.connection = {
@@ -155,6 +155,7 @@ describe('subagent settlement wake (incident replay)', () => {
       occupancy: {}
     }
     const turn1 = currentTurn(entry)
+    entry.runtimeState.execution.reply.admission = 'admitted'
     const turn1Reader = openChunkStream(service, {
       sessionId: 'session-1',
       turnId: turn1.turnId,
