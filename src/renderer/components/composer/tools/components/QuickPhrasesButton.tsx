@@ -61,16 +61,14 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
       : { targetType: 'agent', targetId: bindingTarget.id, includeGlobal: true }
   }, [bindingTarget])
 
+  const queryOptions = { enabled: promptsEnabled, swrOptions: PROMPT_QUERY_SWR_OPTIONS }
+  if (promptQuery) Object.assign(queryOptions, { query: promptQuery })
   const {
     data: promptsRaw,
     isLoading: isPromptsLoading,
     error: promptsError,
     refetch: refetchPrompts
-  } = useQuery('/prompts', {
-    enabled: promptsEnabled,
-    swrOptions: PROMPT_QUERY_SWR_OPTIONS,
-    ...(promptQuery ? { query: promptQuery } : {})
-  })
+  } = useQuery('/prompts', queryOptions)
   useDataChange('/prompts', () => {
     if (promptsEnabled) void refetchPrompts()
   })
@@ -122,13 +120,14 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
   const handleAddModalSave = useCallback(
     async (data: { title: string; content: string; visibility: PromptVisibility }) => {
       try {
+        const body: NonNullable<Parameters<typeof createPrompt>[0]>['body'] = {
+          title: data.title,
+          content: data.content,
+          visibility: data.visibility
+        }
+        if (data.visibility === 'restricted' && bindingTarget) body.bindingTarget = bindingTarget
         await createPrompt({
-          body: {
-            title: data.title,
-            content: data.content,
-            visibility: data.visibility,
-            ...(data.visibility === 'restricted' && bindingTarget ? { bindingTarget } : {})
-          }
+          body
         })
         setIsAddModalOpen(false)
         restoreInputFocus()
