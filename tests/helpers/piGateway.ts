@@ -129,15 +129,16 @@ export async function createTestBinding({ port, model = MODEL }: { port: Gateway
   })
   const nativeStream = await loadPiApiStreamSimple('openai-completions')
   modelRuntime.registerProvider(providerId, {
-    streamSimple: (model, context, options) =>
-      nativeStream(model, context, {
-        ...options,
-        maxRetries: 0,
-        headers: { ...options?.headers, ...(options?.sessionId ? { 'x-fixture-session': options.sessionId } : {}) },
-        signal: port.signal
-          ? AbortSignal.any([...(options?.signal ? [options.signal] : []), port.signal])
-          : options?.signal
-      }),
+    streamSimple: (model, context, options) => {
+      const request = { ...options, maxRetries: 0 }
+      const headers = { ...options?.headers }
+      if (options?.sessionId) headers['x-fixture-session'] = options.sessionId
+      request.headers = headers
+      request.signal = port.signal
+        ? AbortSignal.any([...(options?.signal ? [options.signal] : []), port.signal])
+        : options?.signal
+      return nativeStream(model, context, request)
+    },
     api: 'openai-completions',
     apiKey: 'fixture',
     baseUrl: `http://127.0.0.1:${address.port}/v1`,
