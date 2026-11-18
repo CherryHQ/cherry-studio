@@ -48,10 +48,10 @@ export function createClaudeCodeQueryOptions({
     // The SDK requires this launch flag for a confirmed mid-turn switch to Full Access.
     allowDangerouslySkipPermissions: true,
     spawnClaudeCodeProcess,
-    model: modelId,
-    ...(abortController ? { abortController } : {}),
-    resume: effectiveResume ?? settings.resume
+    model: modelId
   }
+  if (abortController) opts.abortController = abortController
+  opts.resume = effectiveResume ?? settings.resume
 
   if (responseFormat?.type === 'json' && responseFormat.schema) {
     opts.outputFormat = {

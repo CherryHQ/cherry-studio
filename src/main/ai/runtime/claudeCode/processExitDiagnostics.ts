@@ -69,14 +69,15 @@ export function createClaudeCodeProcessExitError(
       : diagnostics.exitSignal
         ? `terminated by signal ${diagnostics.exitSignal}`
         : 'failed to start'
-  return Object.assign(new Error(`Claude Code process ${status}`), {
+  const error = Object.assign(new Error(`Claude Code process ${status}`), {
     name: 'ClaudeCodeProcessExitError',
     claudeCodeExitCategory:
       diagnostics.category ?? classifyClaudeCodeTerminalReason(diagnostics.terminalReason ?? originalError.message),
-    diagnosticReference: diagnostics.reference,
-    ...(diagnostics.exitCode !== undefined ? { processExitCode: diagnostics.exitCode } : {}),
-    ...(diagnostics.exitSignal ? { processExitSignal: diagnostics.exitSignal } : {})
+    diagnosticReference: diagnostics.reference
   })
+  if (diagnostics.exitCode !== undefined) Object.assign(error, { processExitCode: diagnostics.exitCode })
+  if (diagnostics.exitSignal) Object.assign(error, { processExitSignal: diagnostics.exitSignal })
+  return error
 }
 
 /** Preserve interrupted output only when native abortion or a truncated JSON frame proves the boundary. */
