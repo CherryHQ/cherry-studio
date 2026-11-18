@@ -28,6 +28,12 @@ export function ItemRenderer<T>({
   dragHandleProps,
   itemStyle
 }: ItemRendererProps<T>) {
+  const style: React.CSSProperties & { '--scale'?: number } = { ...itemStyle }
+  if (dragOverlay) {
+    style['--scale'] = 1.02
+    style.zIndex = 999
+    style.position = 'relative'
+  }
   return (
     <div
       ref={ref}
@@ -35,10 +41,7 @@ export function ItemRenderer<T>({
       role={dragDisabled ? 'group' : undefined}
       tabIndex={dragDisabled ? -1 : undefined}
       className="box-border origin-top-left touch-manipulation"
-      style={{
-        ...itemStyle,
-        ...(dragOverlay ? ({ '--scale': 1.02, zIndex: 999, position: 'relative' } as React.CSSProperties) : {})
-      }}>
+      style={style}>
       <div
         style={{
           position: 'relative',

@@ -65,11 +65,13 @@ function DrawerContent({
 }) {
   const direction = React.use(NonModalDirectionContext)
   const Content = direction ? DialogPrimitive.Content : DrawerPrimitive.Content
+  const directionProps = {}
+  if (direction) Object.assign(directionProps, { 'data-vaul-drawer-direction': direction })
   return (
     <DrawerPortal data-slot="drawer-portal" container={portalContainer}>
       {showOverlay && <DrawerOverlay />}
       <Content
-        {...(direction ? { 'data-vaul-drawer-direction': direction } : {})}
+        {...directionProps}
         data-slot="drawer-content"
         className={cn(
           'group/drawer-content fixed z-50 flex h-auto flex-col bg-background',
