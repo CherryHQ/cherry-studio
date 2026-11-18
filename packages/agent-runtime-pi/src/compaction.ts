@@ -57,6 +57,29 @@ export function compactionBudgetsFitModel(
   return compaction.reserveTokens + compaction.keepRecentTokens < model.contextWindow
 }
 
+/**
+ * Picks a session's effective compaction config. A child binding may carry its own config — its
+ * summarizer's model is registered in its own runtime — and then wins over the inherited (root)
+ * config. Budgets derived for a different (larger) model must not shrink this session model's
+ * threshold below zero, so an ill-fitting config falls back to the per-model native budgets while
+ * keeping the summarizer.
+ */
+export function resolveSessionCompaction<S extends { reserveTokens: number; keepRecentTokens: number }>(options: {
+  inherited?: AgentRuntimeCompaction
+  nativeBudgets: S
+  model: { contextWindow: number }
+}): S | (S & AgentRuntimeCompaction) {
+  const { inherited, nativeBudgets, model } = options
+  if (!inherited) return nativeBudgets
+  return {
+    ...nativeBudgets,
+    ...inherited,
+    ...(!compactionBudgetsFitModel(inherited, model)
+      ? { reserveTokens: nativeBudgets.reserveTokens, keepRecentTokens: nativeBudgets.keepRecentTokens }
+      : {})
+  }
+}
+
 /** The request the extension builds from Pi's compaction event; the session wrapper adds the metered stream. */
 export type CompactionSummaryEventRequest = Omit<CompactionSummaryRequest, 'stream'>
 

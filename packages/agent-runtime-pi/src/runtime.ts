@@ -27,7 +27,7 @@ import {
 
 import { createPiBehavior, type PiBehavior } from './behavior/harness'
 import { historyOf } from './behavior/history'
-import { compactionBudgetsFitModel } from './compaction'
+import { resolveSessionCompaction } from './compaction'
 import { readContextUsage } from './contextUsage'
 import { PiProjection, type PiObservation } from './runtimeProjection'
 import { createAgentRuntimeSession, type AgentRuntimeSession, type AgentRuntimeSessionOptions } from './session'
@@ -39,8 +39,8 @@ export interface PiRuntimeBehavior {
     readonly thread: Thread
     readonly modelKey: string
   }):
-    | Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime'>>
-    | Promise<Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime'>>>
+    | Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime' | 'compaction'>>
+    | Promise<Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime' | 'compaction'>>>
 }
 
 export interface PiRuntimeOptions {
@@ -192,15 +192,13 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
             model,
             sessionManager,
             settings: { ...config.settings, retry: { enabled: false }, cacheWarming: 'off' },
-            compaction: {
-              ...settings,
-              ...config.compaction,
-              // Budgets derived for a different (larger) model must not shrink this session model's
-              // threshold below zero; the per-model native budgets take over, the summarizer stays.
-              ...(config.compaction && !compactionBudgetsFitModel(config.compaction, model)
-                ? { reserveTokens: settings.reserveTokens, keepRecentTokens: settings.keepRecentTokens }
-                : {})
-            },
+            // A child binding may carry its own compaction: its summarizer's model is registered
+            // in this session's runtime, while the inherited (root) summarizer's may not be.
+            compaction: resolveSessionCompaction({
+              inherited: (child ? configured?.compaction : undefined) ?? config.compaction,
+              nativeBudgets: settings,
+              model
+            }),
             extensionFactories: [...(config.extensionFactories ?? []), extension],
             onEvent: (event) => {
               try {

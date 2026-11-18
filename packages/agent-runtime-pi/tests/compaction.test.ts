@@ -4,7 +4,7 @@ import { defineTool } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
 import { describe, expect, it } from 'vitest'
 
-import { compactionBudgetsFitModel, type CompactionSummarizer, type CompactionSummaryRequest } from '../src/compaction'
+import { compactionBudgetsFitModel, resolveSessionCompaction } from '../src/compaction'
 import { readContextUsage } from '../src/contextUsage'
 import type { ModelCall } from './sessionSupport'
 import { respondingModel } from './sessionSupport'
@@ -402,6 +402,34 @@ describe('host summarizer', () => {
         error: 'compression model unavailable',
         aborted: true
       })
+  })
+})
+
+describe('resolveSessionCompaction', () => {
+  const nativeBudgets = { reserveTokens: 100, keepRecentTokens: 50 }
+
+  it('returns the native budgets when nothing is inherited', () => {
+    expect(resolveSessionCompaction({ nativeBudgets, model: { contextWindow: 1000 } })).toBe(nativeBudgets)
+  })
+
+  it("prefers a child binding's own summarizer over the inherited root config", () => {
+    const childSummarize: CompactionSummarizer = async () => 'child summary'
+    const resolved = resolveSessionCompaction({
+      inherited: { enabled: true, reserveTokens: 10, keepRecentTokens: 5, summarize: childSummarize },
+      nativeBudgets,
+      model: { contextWindow: 1000 }
+    })
+    expect(resolved).toMatchObject({ reserveTokens: 10, keepRecentTokens: 5, summarize: childSummarize })
+  })
+
+  it('keeps the summarizer but falls back to native budgets when inherited budgets exceed the window', () => {
+    const summarize: CompactionSummarizer = async () => 'summary'
+    const resolved = resolveSessionCompaction({
+      inherited: { enabled: true, reserveTokens: 800, keepRecentTokens: 500, summarize },
+      nativeBudgets,
+      model: { contextWindow: 1000 }
+    })
+    expect(resolved).toMatchObject({ reserveTokens: 100, keepRecentTokens: 50, summarize })
   })
 })
 

@@ -6,6 +6,7 @@ import * as z from 'zod'
 import { application } from '@application'
 import type { ApprovalOutcome, CallRef, HostPorts, BehaviorEvent } from '@cherrystudio/agent-behavior'
 import type { JsonValue, ThreadId, Thread } from '@cherrystudio/agent-runtime'
+import type { AgentRuntimeCompaction } from '@cherrystudio/agent-runtime-pi'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
@@ -18,6 +19,8 @@ import { getRawModelId } from '@shared/utils/model'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { createPiGatewayModelBinding } from './gatewayModelBinding'
 import { readPiApprovalFacts, type PiApprovalContext } from './piApprovalFacts'
+import { resolvePiCompactionSettings } from './piCompactionSettings'
+import { createPiCompactionSummarizer } from './piCompactionSummarizer'
 import { PI_TRANSPORT } from './PiMessageMetadata'
 import { matchPiSubagentModel } from './piSubagentModelMatch'
 
@@ -45,9 +48,12 @@ const callSchema = z.object({ thread: z.string(), key: z.string() })
 const approvalId = (call: CallRef) => `behavior:${JSON.stringify(call)}`
 
 /** Desktop services for one root's behavior tree; no tool loop or policy decisions live here. */
+/** A child binding carries its own compaction so its summarizer's model resolves in its own runtime. */
+type ChildBinding = Binding & { compaction?: AgentRuntimeCompaction }
+
 export async function createPiBehaviorHost(options: HostOptions): Promise<{
   host: HostPorts
-  configureChild(child: { thread: Thread; modelKey: string }): Promise<Binding>
+  configureChild(child: { thread: Thread; modelKey: string }): Promise<ChildBinding>
 }> {
   const { DEFAULT_MAX_BACKGROUND } = await import('@cherrystudio/agent-behavior')
   const { input, approval, binding } = options
@@ -151,8 +157,24 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
       if (!model) throw new Error(`Unknown subagent model: ${modelKey}`)
       let child = bindings.get(modelKey)
       if (!child) {
-        child = await (options.bindModel?.(model) ??
+        const created = await (options.bindModel?.(model) ??
           createPiGatewayModelBinding(input, providerService.getByProviderId(model.providerId), model))
+        // A child session compacts with its own binding: the inherited root summarizer's model is
+        // not registered in this session's runtime ("Unknown provider"), which would cancel
+        // compaction and let child history grow unbounded. The summary continues in this session's
+        // context, and its usage is attributed to the child like any other child model call.
+        const usageSessionId = await options.usageSessionId(thread.id)
+        child = {
+          ...created,
+          compaction: {
+            ...resolvePiCompactionSettings(created.model.contextWindow, created.model.maxTokens),
+            summarize: createPiCompactionSummarizer({
+              binding: created,
+              usage: () =>
+                application.get('ApiGatewayService').captureAgentSessionUsage(input.sessionId, usageSessionId)
+            })
+          }
+        }
         bindings.set(modelKey, child)
       }
       threads.set(thread.id, modelKey)
