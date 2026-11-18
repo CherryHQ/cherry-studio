@@ -8,7 +8,7 @@ const { previewServiceStub } = vi.hoisted(() => ({
   previewServiceStub: {
     openPreview: vi.fn(),
     getPreview: vi.fn(),
-    listSessionPreviews: vi.fn(() => []),
+    listSessionPreviews: vi.fn((): unknown[] => []),
     closePreview: vi.fn(async () => undefined),
     closeSessionPreviews: vi.fn(async () => ({ closed: 0, tokensRevoked: 0 }))
   }
