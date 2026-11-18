@@ -23,7 +23,7 @@ import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
 import { mapReasoningEffortToProviderOptions } from './providerOptionsMapper'
-import { isBlankToolName } from './toolName'
+import { nonBlankToolNameSchema } from './toolName'
 
 const logger = loggerService.withContext('OpenAiMessageConverter')
 
@@ -208,7 +208,8 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
 
     for (const [index, toolDef] of tools.entries()) {
       if (toolDef.type !== 'function') continue
-      if (isBlankToolName(toolDef.function.name)) {
+      const name = nonBlankToolNameSchema.safeParse(toolDef.function.name)
+      if (!name.success) {
         droppedTools.push({
           index,
           path: `tools[${index}].function.name`,
@@ -227,7 +228,7 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
       })
       if (typeof toolDef.function.strict === 'boolean') aiTool.strict = toolDef.function.strict
 
-      aiSdkTools[toolDef.function.name] = aiTool
+      aiSdkTools[name.data] = aiTool
     }
 
     if (droppedTools.length > 0) {

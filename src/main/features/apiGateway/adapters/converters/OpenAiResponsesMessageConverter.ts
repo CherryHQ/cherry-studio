@@ -20,7 +20,7 @@ import { parseDataUrl } from '@shared/utils/dataUrl'
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
 import type { ReasoningEffort } from './providerOptionsMapper'
 import { mapReasoningEffortToProviderOptions } from './providerOptionsMapper'
-import { isBlankToolName } from './toolName'
+import { nonBlankToolNameSchema } from './toolName'
 
 const logger = loggerService.withContext('OpenAiResponsesMessageConverter')
 
@@ -286,7 +286,8 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
 
     for (const [index, toolDef] of tools.entries()) {
       if (toolDef.type !== 'function') continue
-      if (isBlankToolName(toolDef.name)) {
+      const name = nonBlankToolNameSchema.safeParse(toolDef.name)
+      if (!name.success) {
         droppedTools.push({
           index,
           path: `tools[${index}].name`,
@@ -306,7 +307,7 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
       })
       if (typeof funcTool.strict === 'boolean') aiTool.strict = funcTool.strict
 
-      aiSdkTools[funcTool.name] = aiTool
+      aiSdkTools[name.data] = aiTool
     }
 
     if (droppedTools.length > 0) {

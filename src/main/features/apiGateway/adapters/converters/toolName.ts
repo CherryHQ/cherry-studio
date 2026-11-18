@@ -1,3 +1,3 @@
-export function isBlankToolName(name: unknown): boolean {
-  return typeof name !== 'string' || name.trim().length === 0
-}
+import * as z from 'zod'
+
+export const nonBlankToolNameSchema = z.string().refine((name) => name.trim().length > 0)
