@@ -106,14 +106,17 @@ export function getReactStyleFromToken(
   options?: { isDarkTheme?: boolean; foreground?: string }
 ): Record<string, string> {
   const flags = token.fontStyle ?? 0
-  const style = token.htmlStyle ?? {
-    ...(token.color ? { color: token.color } : {}),
-    ...(token.bgColor ? { 'background-color': token.bgColor } : {}),
-    ...(flags & 1 ? { 'font-style': 'italic' } : {}),
-    ...(flags & 2 ? { 'font-weight': 'bold' } : {}),
-    ...(flags & 12
-      ? { 'text-decoration': [flags & 4 ? 'underline' : '', flags & 8 ? 'line-through' : ''].filter(Boolean).join(' ') }
-      : {})
+  const htmlStyle = token.htmlStyle
+  const style: NonNullable<ThemedToken['htmlStyle']> = htmlStyle ?? {}
+  if (htmlStyle == null) {
+    if (token.color) style.color = token.color
+    if (token.bgColor) style['background-color'] = token.bgColor
+    if (flags & 1) style['font-style'] = 'italic'
+    if (flags & 2) style['font-weight'] = 'bold'
+    if (flags & 12)
+      style['text-decoration'] = [flags & 4 ? 'underline' : '', flags & 8 ? 'line-through' : '']
+        .filter(Boolean)
+        .join(' ')
   }
   return Object.fromEntries(
     Object.entries(style).map(([key, value]) => [
