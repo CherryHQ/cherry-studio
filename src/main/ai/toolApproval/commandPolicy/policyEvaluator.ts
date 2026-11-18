@@ -398,18 +398,17 @@ export async function evaluateCommandPolicy(
           ? auto.incompleteAnalysisDecision
           : auto.defaultDecision
     const relevant = hits.filter((hit) => hit.effect === effect)
-    return {
+    const decision: CommandPolicyDecision = {
       effect,
       revision,
-      hits: relevant.map(({ ruleId, reasonCode, evidence, range }) => ({ ruleId, reasonCode, evidence, range })),
-      ...(effect !== 'allow'
-        ? {
-            reason: relevant.length
-              ? relevant.map(({ reasonCode }) => ruleReasons[reasonCode]()).join('; ')
-              : t('command_approval.incomplete')
-          }
-        : {})
+      hits: relevant.map(({ ruleId, reasonCode, evidence, range }) => ({ ruleId, reasonCode, evidence, range }))
     }
+    if (effect !== 'allow') {
+      decision.reason = relevant.length
+        ? relevant.map(({ reasonCode }) => ruleReasons[reasonCode]()).join('; ')
+        : t('command_approval.incomplete')
+    }
+    return decision
   } catch (error) {
     // A failure on one input is unsupported analysis, not a broken policy.
     logger.error('Command policy could not analyze an invocation', error as Error)

@@ -633,7 +633,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
 
   options.promptSuggestions = !headless && application.get('PreferenceService').get('agent.input.suggestions.enabled')
 
-  return {
+  const request: Omit<ClaudeCodeAgentSessionQueryRequest, 'usageCapture'> = {
     connectionConfig,
     key: settings.warmQueryKey ?? session.id,
     options,
@@ -642,12 +642,10 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     credentialsFingerprint: route.credentialsFingerprint,
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     settings,
-    sdkModelId,
-    ...(route.branch === 'gateway' && contextWindow
-      ? { contextWindow: { model: sdkModelId, tokens: contextWindow } }
-      : {}),
-    usageCapture: route.usageCapture
+    sdkModelId
   }
+  if (route.branch === 'gateway' && contextWindow) request.contextWindow = { model: sdkModelId, tokens: contextWindow }
+  return { ...request, usageCapture: route.usageCapture }
 }
 
 /** Encode reasoning for CLI subscriptions, whose requests bypass Cherry's provider execution. */

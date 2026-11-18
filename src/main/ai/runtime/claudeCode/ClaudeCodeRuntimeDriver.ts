@@ -203,18 +203,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       ...request.options,
       ...(request.options.resume || this.context.bindingState === 'bound'
         ? { resume: request.options.resume ?? this.context.nativeThreadId! }
-        : { sessionId: this.context.nativeThreadId! }),
-      ...(traceEnv
-        ? {
-            env: {
-              ...request.options.env,
-              ...traceEnv
-            }
-          }
-        : {}),
-      abortController: this.abortController,
-      spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(coldProcessDiagnostics)
+        : { sessionId: this.context.nativeThreadId! })
     }
+    if (traceEnv) options.env = { ...request.options.env, ...traceEnv }
+    options.abortController = this.abortController
+    options.spawnClaudeCodeProcess = createSpawnClaudeCodeProcess(coldProcessDiagnostics)
     // Env is part of the warm signature, so a traced turn asks with the OTEL vars merged in and can
     // never match a query parked without them: the mismatch cold-starts and disposes the stale park,
     // which is exactly what tracing needs (env is fixed at spawn). No trace branch required here.

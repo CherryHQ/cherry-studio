@@ -1077,7 +1077,7 @@ export class McpRuntimeService extends BaseService {
         payload,
         signal
       })
-    return {
+    const result: McpInteractionContext = {
       ...host,
       requestElicitation: async (request, signal) => {
         const response = await authorize('elicitation', request, signal)
@@ -1085,24 +1085,19 @@ export class McpRuntimeService extends BaseService {
         if (response.decision === 'accept' && request.params.mode !== 'url')
           Object.assign(result, { content: response.value ?? {} })
         return ElicitResultSchema.parse(result)
-      },
-      ...(host.model
-        ? ({
-            sample: async (request, signal) => {
-              const response = await authorize('sampling', request, signal)
-              if (response.decision !== 'accept') throw new Error(`MCP sampling ${response.decision}`)
-              return application
-                .get('AiService')
-                .generateMcpSampling(UniqueModelIdSchema.parse(host.model), request, signal)
-            }
-          } satisfies Partial<McpInteractionContext>)
-        : {}),
-      ...(host.roots
-        ? ({
-            requestRoots: async (roots, signal) => (await authorize('roots', { roots }, signal)).decision === 'accept'
-          } satisfies Partial<McpInteractionContext>)
-        : {})
+      }
     }
+    if (host.model) {
+      result.sample = async (request, signal) => {
+        const response = await authorize('sampling', request, signal)
+        if (response.decision !== 'accept') throw new Error(`MCP sampling ${response.decision}`)
+        return application.get('AiService').generateMcpSampling(UniqueModelIdSchema.parse(host.model), request, signal)
+      }
+    }
+    if (host.roots) {
+      result.requestRoots = async (roots, signal) => (await authorize('roots', { roots }, signal)).decision === 'accept'
+    }
+    return result
   }
 
   public requestInteraction({
