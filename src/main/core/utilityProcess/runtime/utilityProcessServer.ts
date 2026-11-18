@@ -240,7 +240,10 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
         request.hostReplies.set(callId, (outcome) => {
           cleanup()
           if ('error' in outcome) reject(Object.assign(new Error(outcome.error.message), outcome.error))
-          else resolve(outcome.value)
+          else {
+            // SAFETY: the reply is correlated to this host call; both sides share its declared result contract.
+            resolve(outcome.value as UtilityProcessHostCallFor<Contract>['output'])
+          }
         })
         controller.signal.addEventListener('abort', abort, { once: true })
         try {

@@ -549,7 +549,9 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
           try {
             pending.hostCalls.signal.throwIfAborted()
             if (!pending.onHostCall) throw new Error('Host calls are not available for this request')
-            outcome = { value: await pending.onHostCall(data.method, data.input, pending.hostCalls.signal) }
+            // SAFETY: identity and request checks bind this frame to the same-build contract's pending callback.
+            const input = data.input as UtilityProcessHostCallFor<Contract>['input']
+            outcome = { value: await pending.onHostCall(data.method, input, pending.hostCalls.signal) }
           } catch (error) {
             outcome = { error: toRemoteError(error) }
           }

@@ -37,7 +37,7 @@ beforeEach(async () => {
         let value: { ok: boolean } = { ok: true }
         for (const call of Array.isArray(calls) ? calls : [calls]) {
           const { domain = 'browser', ...input } = call
-          value = (await lastCall!(domain, input, options.signal!)) as { ok: boolean }
+          value = await lastCall!(domain, input, options.signal!)
           if (!value.ok) break
         }
         if (crashAfterDispatch) throw new Error('Kernel exited unexpectedly')

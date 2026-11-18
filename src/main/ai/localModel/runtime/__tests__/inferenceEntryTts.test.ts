@@ -40,7 +40,9 @@ describe('application-owned TTS JavaScript package', () => {
         },
         {
           signal: new AbortController().signal,
-          callHost: async () => null,
+          callHost: async () => {
+            throw new Error('Inference contract has no host capability')
+          },
           emit: () => {},
           logger: { debug() {}, info() {}, warn() {}, error() {} }
         }
@@ -70,7 +72,9 @@ describe('application-owned TTS JavaScript package', () => {
         },
         {
           signal: new AbortController().signal,
-          callHost: async () => null,
+          callHost: async () => {
+            throw new Error('Inference contract has no host capability')
+          },
           emit: () => {},
           logger: { debug() {}, info() {}, warn() {}, error() {} }
         }
@@ -112,7 +116,9 @@ describe('application-owned TTS JavaScript package', () => {
         },
         {
           signal: new AbortController().signal,
-          callHost: async () => null,
+          callHost: async () => {
+            throw new Error('Inference contract has no host capability')
+          },
           emit: () => {},
           logger: { debug() {}, info() {}, warn() {}, error() {} }
         }

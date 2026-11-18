@@ -33,7 +33,7 @@ describe('request-scoped host capabilities', () => {
     const { host } = hostWithCallbacks()
     const abort = new AbortController()
     let childSignal: AbortSignal | undefined
-    let release!: (value: unknown) => void
+    let release!: (value: string) => void
     const result = expectRejected(
       host.request('echo', null, {
         signal: abort.signal,
