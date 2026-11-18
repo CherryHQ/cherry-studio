@@ -25,6 +25,23 @@ vi.mock('i18next', () => ({ t: (key: string) => key }))
 
 describe('error', () => {
   describe('safe diagnostic text', () => {
+    it('keeps error notifications usable when a rejection cannot be formatted as JSON', () => {
+      expect(formatErrorMessage(1n)).toBe('error.unknown')
+      expect(formatErrorMessage(() => undefined)).toBe('error.unknown')
+    })
+
+    it('does not throw again when an Error has an unreadable message', () => {
+      const error = new Error('original failure')
+      Object.defineProperty(error, 'message', {
+        get() {
+          throw new Error('cannot read message')
+        }
+      })
+
+      expect(getErrorMessage(error)).toBe('error.unknown')
+      expect(serializeHealthCheckError(error)).toEqual({ name: null, message: '[Unserializable]', stack: null })
+    })
+
     it('returns text when a serialization hook omits the root value', () => {
       expect(safeToString({ toJSON: () => undefined })).toBe('null')
     })

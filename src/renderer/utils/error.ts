@@ -23,30 +23,41 @@ import { parseJSON } from './json'
 
 export { getErrorDetails } from './errorDetails'
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- UI catch handlers pass arbitrary rejections; Zod, Axios and AgentServer guards select known formats before the generic diagnostic formatter.
 export function formatErrorMessage(error: unknown): string {
-  if (error instanceof ZodError) {
-    return formatZodError(error)
-  }
-  if (isAxiosError(error)) {
-    return formatAxiosError(error)
-  }
-  const parseResult = AgentServerErrorSchema.safeParse(error)
-  if (parseResult.success) {
-    return formatAgentServerError(parseResult.data)
-  }
-  return formatErrorDetails(error)
-}
-
-export function getErrorMessage(error: unknown): string {
-  const actionableMessage = getActionableAiErrorMessage(error)
-  if (actionableMessage) return actionableMessage
-  if (error instanceof Error && error.message) {
-    return error.message
-  } else {
+  try {
+    if (error instanceof ZodError) {
+      return formatZodError(error)
+    }
+    if (isAxiosError(error)) {
+      return formatAxiosError(error)
+    }
+    const parseResult = AgentServerErrorSchema.safeParse(error)
+    if (parseResult.success) {
+      return formatAgentServerError(parseResult.data)
+    }
+    return formatErrorDetails(error)
+  } catch {
     return t('error.unknown')
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Catch handlers and PromiseSettledResult.reason can contain any value; IPC guards and Error checks select a user-facing message.
+export function getErrorMessage(error: unknown): string {
+  const actionableMessage = getActionableAiErrorMessage(error)
+  if (actionableMessage) return actionableMessage
+  if (error instanceof Error) {
+    try {
+      const message = error.message
+      if (typeof message === 'string' && message) return message
+    } catch {
+      return t('error.unknown')
+    }
+  }
+  return t('error.unknown')
+}
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Mutation catch handlers pass raw rejections; actionable IPC errors and getErrorMessage validate what can become notification text.
 export function formatErrorMessageWithPrefix(error: unknown, prefix: string): string {
   const actionableMessage = getActionableAiErrorMessage(error)
   if (actionableMessage) return actionableMessage
@@ -54,6 +65,7 @@ export function formatErrorMessageWithPrefix(error: unknown, prefix: string): st
   return `${prefix}: ${msg}`
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw mutation failures reach this helper; IPC error-code and reason guards select only recognized localized guidance.
 function getActionableAiErrorMessage(error: unknown): string | undefined {
   if (isAgentSessionArchiveBusyError(error)) return t('recycle_bin.move.blocked_generation')
   switch (aiStreamAdmissionReason(error)) {
@@ -351,6 +363,7 @@ export const formatAxiosError = (error: AxiosError) => {
  * Safely serialize an unknown error to SerializedError format.
  * Used specifically for health check error handling.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Model checks reject IPC errors, SDK errors or arbitrary values; guarded detail recovery and safeToString normalize them for diagnostics.
 export function serializeHealthCheckError(error: unknown): SerializedError {
   // The `ai.*` IpcApi routes wrap a provider failure as an IpcError carrying the
   // full SerializedError (statusCode, responseBody, AI SDK subtype) in `data` — main
@@ -366,10 +379,15 @@ export function serializeHealthCheckError(error: unknown): SerializedError {
   }
 
   if (error instanceof Error) {
-    return {
-      name: error.name || null,
-      message: error.message || null,
-      stack: error.stack || null
+    try {
+      const { name, message, stack } = error
+      return {
+        name: typeof name === 'string' ? name || null : null,
+        message: typeof message === 'string' ? message || null : null,
+        stack: typeof stack === 'string' ? stack || null : null
+      }
+    } catch {
+      return { name: null, message: '[Unserializable]', stack: null }
     }
   }
 
