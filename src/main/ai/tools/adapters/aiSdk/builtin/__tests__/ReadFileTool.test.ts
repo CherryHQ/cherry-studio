@@ -37,6 +37,7 @@ import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { ReadFileInput } from '@shared/ai/builtinTools'
+import type { UniqueModelId } from '@shared/data/types/model'
 
 import { createReadFileToolEntry, readFile, readFileModelOutput } from '../ReadFileTool'
 
@@ -158,6 +159,21 @@ describe('readFile — extracted content', () => {
 
     expect(first).toEqual({ text: '[00:00] alpha ', totalChars: 26, nextOffset: 14 })
     expect(second).toEqual({ text: '[00:10] beta', totalChars: 26 })
+  })
+
+  it("keeps each chat model's media pages on its own first page", async () => {
+    getByIdMock.mockResolvedValue({ ext: 'mp4' })
+    mediaAnalysisMock.mockResolvedValueOnce('[00:00] alpha [00:10] beta').mockResolvedValueOnce('[00:00] other model')
+    const asModel = (chatModelId: UniqueModelId) => ({ attachments: [att('clip.mp4')], chatModelId })
+
+    await readFile(input({ filename: 'clip.mp4', limit: 14 }), asModel('openai::gpt-4.1-mini'))
+    await readFile(input({ filename: 'clip.mp4', limit: 14 }), asModel('google::gemini-2.5-flash'))
+    const continued = await readFile(
+      input({ filename: 'clip.mp4', offset: 14, limit: 14 }),
+      asModel('openai::gpt-4.1-mini')
+    )
+
+    expect(continued).toEqual({ text: '[00:10] beta', totalChars: 26 })
   })
 
   it('re-analyzes when paging restarts from the first page', async () => {

@@ -53,7 +53,8 @@ async function readMediaAnalysis(
   signal?: AbortSignal
 ): Promise<string> {
   const cache = application.get('CacheService')
-  const key = `read-file:media:${entryId}`
+  // Without a Video Vision model each chat model analyzes frames itself, so pages follow its own snapshot.
+  const key = `read-file:media:${entryId}:${chatModelId ?? ''}`
   const snapshot = offset ? cache.get<unknown>(key) : undefined
   if (typeof snapshot === 'string') {
     signal?.throwIfAborted()
