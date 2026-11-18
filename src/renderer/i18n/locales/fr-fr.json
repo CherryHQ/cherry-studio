@@ -1623,6 +1623,8 @@
   "error.image_unreadable_for_non_vision_model": "Le modèle sélectionné n’est pas configuré pour accepter les images et Cherry Studio n’a pas pu extraire de texte lisible de la pièce jointe. Activez Image pour ce modèle dans les paramètres du fournisseur, choisissez un autre modèle compatible avec les images ou retirez l’image, puis réessayez.",
   "error.lastError": "Dernière erreur",
   "error.maxEmbeddingsPerCall": "Nombre maximal d'embeddings par appel",
+  "error.media_unreadable_need_speech_model": "Cherry Studio n’a pas pu convertir cette pièce jointe audio ou vidéo en texte, car la parole n’a pas pu être transcrite. Choisissez un modèle de reconnaissance vocale dans les paramètres Voix, ou retirez la pièce jointe puis réessayez.",
+  "error.media_unreadable_need_vision_model": "Cherry Studio n’a pas pu convertir cette vidéo en texte : elle n’a pas de son et aucun modèle n’est disponible pour décrire ses images. Choisissez un modèle de reconnaissance d'images dans les paramètres Modèle par défaut, passez à un modèle de chat qui prend en charge les images, ou retirez la pièce jointe puis réessayez.",
   "error.media_unreadable_without_preprocessing": "Cherry Studio n’a pas pu convertir cette pièce jointe audio ou vidéo en texte. Choisissez un modèle de reconnaissance vocale dans les paramètres Voix et un modèle de reconnaissance d'images dans les paramètres Modèle par défaut, ou retirez la pièce jointe puis réessayez.",
   "error.message": "Erreur message",
   "error.missing_finish_reason": "<provider>{{provider}}</provider> a interrompu la réponse sans indiquer de motif de fin. La réponse partielle a été conservée ; réessayez la requête.",

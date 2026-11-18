@@ -1643,6 +1643,8 @@
   "error.image_unreadable_for_non_vision_model": "Wybrany model nie jest skonfigurowany do obsługi obrazów, a program Cherry Studio nie mógł wyodrębnić czytelnego tekstu z załącznika. Włącz obsługę obrazów (Vision) dla tego modelu w Ustawieniach dostawcy, wybierz inny model obsługujący obrazy lub usuń obraz i spróbuj ponownie.",
   "error.lastError": "Ostatni błąd",
   "error.maxEmbeddingsPerCall": "Maksymalna liczba embeddingów na wywołanie",
+  "error.media_unreadable_need_speech_model": "Cherry Studio nie mogło przekształcić tego załącznika audio lub wideo w tekst, ponieważ nie udało się przepisać mowy. Wybierz model rozpoznawania mowy w ustawieniach Głos albo usuń załącznik i spróbuj ponownie.",
+  "error.media_unreadable_need_vision_model": "Cherry Studio nie mogło przekształcić tego wideo w tekst: nie ma dźwięku i nie jest dostępny żaden model, który opisałby jego klatki. Wybierz model rozpoznawania obrazów w ustawieniach Domyślny model, przełącz się na model czatu obsługujący obrazy albo usuń załącznik i spróbuj ponownie.",
   "error.media_unreadable_without_preprocessing": "Cherry Studio nie mogło przekształcić tego załącznika audio lub wideo w tekst. Wybierz model rozpoznawania mowy w ustawieniach Głos i model rozpoznawania obrazów w ustawieniach Domyślny model albo usuń załącznik i spróbuj ponownie.",
   "error.message": "Komunikat błędu",
   "error.missing_finish_reason": "Dostawca <provider>{{provider}}</provider> zakończył odpowiedź bez podania powodu zakończenia. Częściowa odpowiedź została zachowana; ponów żądanie.",

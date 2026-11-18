@@ -1623,6 +1623,8 @@
   "error.image_unreadable_for_non_vision_model": "Seçilen model görüntü girişi için yapılandırılmamış ve Cherry Studio ekteki dosyadan okunabilir metin çıkaramadı. Sağlayıcı Ayarları'nda bu model için Vision özelliğini etkinleştirin, görüntü işleyebilen başka bir model seçin veya görüntüyü kaldırıp tekrar deneyin.",
   "error.lastError": "Son Hata",
   "error.maxEmbeddingsPerCall": "Çağrı Başına Maksimum Gömme Sayısı",
+  "error.media_unreadable_need_speech_model": "Konuşma yazıya dökülemediği için Cherry Studio bu ses veya video ekini metne dönüştüremedi. Ses ayarlarından bir konuşma tanıma modeli seçin veya eki kaldırıp yeniden deneyin.",
+  "error.media_unreadable_need_vision_model": "Cherry Studio bu videoyu metne dönüştüremedi: videoda ses yok ve karelerini açıklayabilecek bir model yok. Varsayılan Model ayarlarından bir görüntü tanıma modeli seçin, görselleri destekleyen bir sohbet modeline geçin veya eki kaldırıp yeniden deneyin.",
   "error.media_unreadable_without_preprocessing": "Cherry Studio bu ses veya video ekini metne dönüştüremedi. Ses ayarlarından bir konuşma tanıma modeli, Varsayılan Model ayarlarından bir görüntü tanıma modeli seçin veya eki kaldırıp yeniden deneyin.",
   "error.message": "Hata Mesajı",
   "error.missing_finish_reason": "<provider>{{provider}}</provider> yanıtı bir bitiş nedeni döndürmeden sonlandırdı. Alınan kısmi yanıt korundu; isteği yeniden deneyin.",

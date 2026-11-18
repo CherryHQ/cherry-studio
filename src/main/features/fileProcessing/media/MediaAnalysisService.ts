@@ -6,6 +6,7 @@ import { application } from '@application'
 import { generateText as aiCoreGenerateText, type TranscriptionResult } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { createAiUsagePlugin } from '@main/ai/hooks/billingHook'
+import type { MediaAnalysisGaps } from '@main/ai/messages/mediaAnalysisRequestError'
 import type { AppProviderSettingsMap } from '@main/ai/types'
 import { startTranscription } from '@main/ai/voice/execution'
 import { VoiceRuntimeError } from '@main/ai/voice/VoiceRuntimeError'
@@ -55,7 +56,10 @@ const RECOVERABLE_ANALYSIS_WARNINGS = new Set<MediaAnalysisWarningCode>([
 ])
 
 export class MediaAnalysisError extends Error {
-  constructor(readonly code: 'unusable_media_analysis') {
+  constructor(
+    readonly code: 'unusable_media_analysis',
+    readonly gaps?: MediaAnalysisGaps
+  ) {
     super(code)
     this.name = 'MediaAnalysisError'
   }
@@ -160,7 +164,10 @@ export class MediaAnalysisService extends BaseService {
     const hasVisualContent = visual.frames.some((frame) => frame.summary?.trim() || frame.ocrText?.trim())
     const successfulSilence = audio.completed && probe.hasAudio && !hasSpeech
     if (!hasSpeech && !hasVisualContent && !successfulSilence) {
-      throw new MediaAnalysisError('unusable_media_analysis')
+      throw new MediaAnalysisError('unusable_media_analysis', {
+        vision: probe.hasVideo && !execution.vision,
+        speech: probe.hasAudio && !audio.completed
+      })
     }
     return analysis
   }

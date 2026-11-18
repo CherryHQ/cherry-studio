@@ -1623,6 +1623,8 @@
   "error.image_unreadable_for_non_vision_model": "当前模型未配置图片输入能力，且 Cherry Studio 未能从附件中识别出有效文字。请前往提供商设置，在该模型的输入模态中启用“视觉”，或选择其他视觉模型、移除图片后重试。",
   "error.lastError": "最后错误",
   "error.maxEmbeddingsPerCall": "每次调用的最大嵌入",
+  "error.media_unreadable_need_speech_model": "Cherry Studio 未能识别这个音频或视频附件里的语音，因此无法转成文本。请在语音设置中选择语音识别模型，或移除附件后重试。",
+  "error.media_unreadable_need_vision_model": "Cherry Studio 无法把这个视频转成文本：视频没有声音，也没有可用的模型来描述画面。请在默认模型设置中选择识图模型，或换用支持图片的聊天模型，或移除附件后重试。",
   "error.media_unreadable_without_preprocessing": "Cherry Studio 未能把这个音频或视频附件转成文本。请在语音设置中选择语音识别模型，并在默认模型设置中选择识图模型，或移除附件后重试。",
   "error.message": "错误信息",
   "error.missing_finish_reason": "<provider>{{provider}}</provider> 未返回结束原因便终止了响应。已保留收到的部分内容，请重试请求。",

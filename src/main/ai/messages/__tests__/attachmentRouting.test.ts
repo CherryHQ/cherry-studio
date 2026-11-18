@@ -341,6 +341,17 @@ describe('prepareChatMessages — routing', () => {
     }
   )
 
+  it('tells the user to pick a Vision Model when a silent video has nothing to describe its frames', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'mp4' })
+    mediaAnalysisMock.mockRejectedValueOnce(
+      Object.assign(new Error('unusable_media_analysis'), { gaps: { vision: true, speech: false } })
+    )
+
+    await expect(run([fileWithEntry('e1', 'silent.mp4', 'video/mp4')], NONE)).rejects.toMatchObject({
+      i18nKey: 'media_unreadable_need_vision_model'
+    })
+  })
+
   it('keeps a later turn sendable when media analysis fails for an earlier message', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'mp4' })
     mediaAnalysisMock.mockRejectedValueOnce(new Error('provider unavailable'))
@@ -553,7 +564,9 @@ describe('prepareChatMessages — routing', () => {
         const [out] = await run([fileWithEntry('e1', `clip.${ext}`, mediaType)], openAiChatAudio)
 
         expect(probeMock).not.toHaveBeenCalled()
-        expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined)
+        expect(mediaAnalysisMock).toHaveBeenCalledWith({ kind: 'entry', entryId: 'e1' }, undefined, {
+          fallbackVisionModelId: undefined
+        })
         expect(out.parts.some((part) => part.type === 'file')).toBe(false)
         expect(textOf(out.parts)[0]).toBe(`Attached file "clip.${ext}":\n${ext} transcript`)
         mediaAnalysisMock.mockClear()

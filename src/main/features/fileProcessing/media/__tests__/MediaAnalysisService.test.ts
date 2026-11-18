@@ -336,7 +336,30 @@ describe('MediaAnalysisService', () => {
 
   it('rejects audio-only media when no ASR model is configured', async () => {
     runtime.config = { ...runtime.config, asr: null }
-    await expect(service.analyze(file)).rejects.toMatchObject({ code: 'unusable_media_analysis' })
+    await expect(service.analyze(file)).rejects.toMatchObject({
+      code: 'unusable_media_analysis',
+      gaps: { vision: false, speech: true }
+    })
+  })
+
+  it('reports a missing vision model for a silent video whose frames have no text', async () => {
+    runtime.probe.mockResolvedValue({
+      durationMs: 6_000,
+      hasAudio: false,
+      hasVideo: true,
+      mime: 'video/mp4',
+      kind: 'video'
+    })
+    runtime.extractFrames.mockImplementation(async ({ outputDir }) => {
+      const path = join(outputDir, 'frame.jpg')
+      await writeFile(path, Buffer.from('jpeg'))
+      return { frames: [{ path, timestampMs: 0 }] }
+    })
+
+    await expect(service.analyze(file)).rejects.toMatchObject({
+      code: 'unusable_media_analysis',
+      gaps: { vision: true, speech: false }
+    })
   })
 
   it('treats no_speech as a successful empty transcription', async () => {

@@ -48,7 +48,7 @@ import { extractDocumentText, noExtractableTextNote } from './attachmentTextExtr
 import { runAttachmentWorker } from './attachmentWorkerClient'
 import { collectComposerFileTokenIds, isActiveManagedFilePart } from './composerFileParts'
 import { materializeNativeFilePart } from './fileProcessor'
-import { NonNativeMediaAnalysisError } from './mediaAnalysisRequestError'
+import { type MediaAnalysisGaps, NonNativeMediaAnalysisError } from './mediaAnalysisRequestError'
 
 const logger = loggerService.withContext('ai:attachmentRouting')
 
@@ -234,7 +234,7 @@ async function extractNonNativeText(
       if (signal?.aborted || isAbortError(error)) throw error
       logger.warn('Media analysis unavailable for a non-native attachment', { error, entryId, handle, fileType })
       // Only the turn being sent stops; an earlier message must not block every later turn.
-      if (stopOnMediaFailure) throw new NonNativeMediaAnalysisError()
+      if (stopOnMediaFailure) throw new NonNativeMediaAnalysisError((error as { gaps?: MediaAnalysisGaps }).gaps)
       return { text: `Could not analyze the attached ${fileType} file "${handle}".`, continuation: 'prefix' }
     }
   }
