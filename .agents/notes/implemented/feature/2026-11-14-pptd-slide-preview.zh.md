@@ -38,6 +38,17 @@ Issue #20452 要求在文件预览面板中可视化预览 PPTD 项目。目前 
 - AC7 — 源码/预览切换返回现有 YAML 文本视图，且插件从不写入项目文件（verification: renderer）
 - AC8 — 注册表测试确认 `.pptd` 解析到新插件，且 `.pptx` 仍解析到 powerpoint 插件（verification: unit）
 
+## Verification
+
+- AC1 — `loadPptdProject` 单元测试解析清单、保持 `pages` 顺序,并在页面缺失时标记而不中断整个演示文稿;画布按清单 `size` 渲染,注册表测试将 `.pptd` 解析到 pptd 插件而非 YAML 文本回退。`packages/file-preview` 全部 644 个测试通过。
+- AC2 — `packages/file-preview/src/plugins/pptd/__tests__/pptd.test.ts` 中的 30 个插件测试覆盖文本样式链(默认值 < 主题文本样式 < 内容字段)、富文本标签、遵循 adjustments 的形状路径、线条贝塞尔路径、图片裁剪/适配计算、图标名称解析与表格样式链;文本、图片、形状、线条、图标、表格与图表元素均通过画布按 `bounds` 渲染。
+- AC3 — `splitPptdMathSegments` 与 `renderPptdRichText` 测试断言 `\(...\)` 公式走 KaTeX,非法输入显示源码与错误标记而不抛错。
+- AC4 — 表格测试覆盖合并区域定位与类别样式链;`buildPptdChartOption` 测试覆盖柱状、折线、面积与饼图映射,并断言不支持的类型(sankey)返回 null,由画布显示命名占位。
+- AC5 — `loadPptdProject` 标记缺失页面及其路径;无法读取的媒体在 `usePptdMediaUrl` 中产生错误状态,图片渲染器显示命名元素与 `src` 的 `image_unavailable` 占位。
+- AC6 — 翻页、缩放、缩略图与手动刷新在 `PptdFilePreview` 中实现;刷新递增 reload nonce,通过 `readProjectFile` 重新读取清单、`.page` 文件与媒体。本环境未运行桌面端手动验证,已在 PR 中注明。
+- AC7 — 源码切换通过 `document.readRange` 重新读取清单字节并以只读视图展示;插件不提供任何项目文件写入路径。
+- AC8 — 注册表测试断言 `.pptd` 解析到 pptd 插件,`.pptx` 仍解析到 powerpoint 插件。
+
 ## Risks
 
 - 上游参考是第三方文档。其字段名与默认值按原样采用；若文档变化，插件跟随实现 PR 中记录的固定版本。

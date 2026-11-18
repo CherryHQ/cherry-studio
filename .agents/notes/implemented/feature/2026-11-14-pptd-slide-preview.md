@@ -38,6 +38,17 @@ The format is defined by the open-kimi-ppt-skill reference `skills/open-kimi-ppt
 - AC7 — Source/preview toggle returns the existing YAML text view, and the plugin never writes project files (verification: renderer)
 - AC8 — A registry test resolves `.pptd` to the new plugin, and `.pptx` still resolves to the powerpoint plugin (verification: unit)
 
+## Verification
+
+- AC1 — `loadPptdProject` unit tests parse the manifest, keep `pages` order and mark missing pages without failing the deck; the canvas renders at the manifest `size`, and the registry test resolves `.pptd` to the pptd plugin instead of the YAML text fallback. All 644 `packages/file-preview` tests pass.
+- AC2 — The 30 plugin tests in `packages/file-preview/src/plugins/pptd/__tests__/pptd.test.ts` cover the text style chain (defaults < theme text style < content fields), rich-text tag handling, shape paths honoring adjustments, line bezier paths, image crop/fit math, icon name parsing and table style chains; text, image, shape, line, icon, table and chart elements each render at their `bounds` through the canvas.
+- AC3 — `splitPptdMathSegments` and `renderPptdRichText` tests assert `\(...\)` formulas route through KaTeX and that invalid input shows the source text with an error marker instead of throwing.
+- AC4 — Table tests cover merged-region placement and the category style chain; `buildPptdChartOption` tests cover bar, line, area and pie mapping and assert unsupported types (sankey) return null so the canvas shows the named placeholder.
+- AC5 — `loadPptdProject` marks missing pages with their path; unreadable media surfaces an error state in `usePptdMediaUrl` and the image renderer shows the `image_unavailable` placeholder naming the element and `src`.
+- AC6 — Navigation, zoom, thumbnails and manual refresh are implemented in `PptdFilePreview`; refresh bumps the reload nonce so the manifest, `.page` files and media are re-read through `readProjectFile`. Manual Electron verification was not run in this environment and is called out in the PR.
+- AC7 — The source toggle reads the manifest bytes fresh through `document.readRange` and shows them in a read-only view; the plugin exposes no write path for project files.
+- AC8 — The registry test asserts `.pptd` resolves to the pptd plugin and `.pptx` still resolves to the powerpoint plugin.
+
 ## Risks
 
 - The upstream reference is a third-party document. Its field names and defaults are used as-is; if it changes, the plugin follows the pinned revision recorded in the implementation PR.
