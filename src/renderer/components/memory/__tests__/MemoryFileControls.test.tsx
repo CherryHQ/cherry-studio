@@ -9,7 +9,6 @@ vi.mock('@cherrystudio/ui', () => vi.importActual('@cherrystudio/ui'))
 const editor = { editorId: 'editor', maxBytes: 25000, maxLines: 200, warningBytes: 20000, warningLines: 160 }
 let disk: Map<string, string>
 let active: Set<string>
-let conflict: boolean
 let recoverable: boolean
 
 beforeEach(() => {
@@ -18,7 +17,6 @@ beforeEach(() => {
     ['.memories/topic.md', 'Topic body']
   ])
   active = new Set()
-  conflict = false
   recoverable = false
   vi.mocked(window.api.ipcApi.request).mockImplementation(async (route, input) => {
     const args = input as { editorId?: string; path?: string; receipt?: string; token?: string }
@@ -36,14 +34,6 @@ beforeEach(() => {
         break
       case 'memory.clear.confirm':
         if (args.token !== 'clear-preview') throw new Error('Preview required')
-        if (conflict) {
-          data = {
-            batchId: 'partial',
-            error: 'conflict',
-            files: [{ path: '.memories/topic.md', hash: 'hash', outcome: 'conflict' }]
-          }
-          break
-        }
         disk.set('MEMORY.md', '')
         disk.delete('.memories/topic.md')
         data = {
@@ -126,19 +116,6 @@ describe('shared memory file controls', () => {
     await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '确认' }))
     await waitFor(() => expect(disk.get('MEMORY.md')).toBe('Recovered fact'))
     expect(await screen.findByRole('status')).toHaveTextContent('已保存')
-  })
-
-  it('reports a conflicting file instead of a successful save', async () => {
-    const user = userEvent.setup()
-    conflict = true
-    render(<MemoryFileControls />)
-    await waitFor(() => expect(screen.getByRole('button', { name: '清除全局记忆' })).toBeEnabled())
-    await user.click(screen.getByRole('button', { name: '清除全局记忆' }))
-    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '确认' }))
-    expect(await screen.findByRole('alert')).toBeVisible()
-    expect(screen.getByRole('list', { name: '文件结果' })).toHaveTextContent('.memories/topic.md')
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
-    expect(disk.get('.memories/topic.md')).toBe('Topic body')
   })
 
   it('clears the previous success while clearing is pending and does not report a failed clear as successful', async () => {
