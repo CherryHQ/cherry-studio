@@ -283,11 +283,13 @@ function steer(
   owner: Pick<SubagentRunRecord, 'goalId' | 'goalRoundId'>
 ): Step<MessageDecision> {
   const key = keys.subagentSteer(call, run)
+  const ownership: Pick<SteerRecord, 'goalId' | 'goalRoundId'> = {}
+  if (owner.goalId !== undefined) Object.assign(ownership, { goalId: owner.goalId })
+  if (owner.goalRoundId !== undefined) Object.assign(ownership, { goalRoundId: owner.goalRoundId })
   const value: SteerRecord = {
     sessionId: child,
     run,
-    ...(owner.goalId === undefined ? {} : { goalId: owner.goalId }),
-    ...(owner.goalRoundId === undefined ? {} : { goalRoundId: owner.goalRoundId }),
+    ...ownership,
     digest: sha256Hex(message),
     withdrawn: false
   }
@@ -305,14 +307,16 @@ export function decideMessageStarted(facts: Facts, call: CallKey, run: number, t
   const ledger = readSubagents(facts.history).find(({ child }) => child === sent.sessionId)
   if (!ledger || ledger.runs.has(run)) return refuse(null)
   const { parentToolCallId, fork, description, modelKey } = ledger.latest
+  const ownership: Pick<SubagentRunRecord, 'goalId' | 'goalRoundId'> = {}
+  if (sent.goalId !== undefined) Object.assign(ownership, { goalId: sent.goalId })
+  if (sent.goalRoundId !== undefined) Object.assign(ownership, { goalRoundId: sent.goalRoundId })
   const record: SubagentRunRecord = {
     parentToolCallId,
     fork,
     description,
     modelKey,
     sessionId: sent.sessionId,
-    ...(sent.goalId === undefined ? {} : { goalId: sent.goalId }),
-    ...(sent.goalRoundId === undefined ? {} : { goalRoundId: sent.goalRoundId }),
+    ...ownership,
     background: true,
     run,
     status: 'running'
@@ -458,15 +462,18 @@ export function decideUserStopSubagent(
   child: ThreadId,
   requestKey: string
 ): Step<boolean> {
-  const request = (run?: number): TxOp => ({
-    type: 'append-record',
-    thread: facts.thread,
-    record: {
-      type: 'subagent-user-stop',
-      value: { sessionId: child, ...(run === undefined ? {} : { run }), at: inputs.now }
-    },
-    key: keys.subagentUserStop(requestKey)
-  })
+  const request = (run?: number): TxOp => {
+    const target: Pick<Extract<PolicyRecord, { type: 'subagent-user-stop' }>['value'], 'sessionId' | 'run'> = {
+      sessionId: child
+    }
+    if (run !== undefined) Object.assign(target, { run })
+    return {
+      type: 'append-record',
+      thread: facts.thread,
+      record: { type: 'subagent-user-stop', value: { ...target, at: inputs.now } },
+      key: keys.subagentUserStop(requestKey)
+    }
+  }
   const ledger = readSubagents(facts.history).find((candidate) => candidate.child === child)
   if (!ledger?.latest.background || !isLive(facts, ledger.latest))
     return { ops: [request()], effects: [], result: false }
