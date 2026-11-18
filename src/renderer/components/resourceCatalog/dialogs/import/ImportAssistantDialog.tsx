@@ -190,7 +190,9 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
     for (const draft of drafts) {
       try {
         const groupName = draft.groupName?.trim()
-        await importAssistant({ ...draft.dto, ...(groupName ? { groupName } : {}) })
+        const input: Parameters<typeof importAssistant>[0] = { ...draft.dto }
+        if (groupName) input.groupName = groupName
+        await importAssistant(input)
         outcomes.push({ kind: 'ok' })
       } catch (error) {
         outcomes.push({

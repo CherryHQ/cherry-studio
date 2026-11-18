@@ -299,9 +299,10 @@ export function ResourceCreateWizard({
     if (!values.modelId) return
     form.clearErrors('root')
     try {
+      const avatar: Pick<ResourceCreateWizardValues, 'avatar' | 'avatarImage'> = { avatar: values.avatar }
+      if (kind === 'agent' && values.avatarImage) avatar.avatarImage = values.avatarImage
       await onSubmit({
-        avatar: values.avatar,
-        ...(kind === 'agent' && values.avatarImage ? { avatarImage: values.avatarImage } : {}),
+        ...avatar,
         agentType: values.agentType,
         permissionMode: values.permissionMode,
         name: values.name.trim(),

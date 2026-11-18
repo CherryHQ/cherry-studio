@@ -1397,25 +1397,30 @@ const ChatComposerInner = ({
         fileTokenId: chatComposerTokenId.file,
         // Allow attachment-only sends (matches v1 Inputbar + the send-enabled condition above).
         requireText: false,
-        extra: () => ({
-          mentionedModels: submittedMentionedModels.length
-            ? submittedMentionedModels.map((currentModel) => currentModel.id)
-            : undefined,
-          reasoningEffort:
-            assistantId && speedControlModel
-              ? resolveSupportedReasoningEffort(speedControlModel, reasoningEffort)
-              : assistantId
-                ? reasoningEffort
-                : 'default',
-          serviceTier:
-            assistantId && speedControlModel
-              ? resolveSupportedServiceTier(speedControlModel, serviceTier)
-              : assistantId
-                ? serviceTier
-                : 'standard',
-          ...(fastMode && speedControlModel?.supportsFastMode === true ? { fastMode: true } : {}),
-          chatTarget
-        })
+        extra: () => {
+          const extra: Pick<
+            ComposerQueuedMessagePayload,
+            'mentionedModels' | 'reasoningEffort' | 'serviceTier' | 'fastMode'
+          > = {
+            mentionedModels: submittedMentionedModels.length
+              ? submittedMentionedModels.map((currentModel) => currentModel.id)
+              : undefined,
+            reasoningEffort:
+              assistantId && speedControlModel
+                ? resolveSupportedReasoningEffort(speedControlModel, reasoningEffort)
+                : assistantId
+                  ? reasoningEffort
+                  : 'default',
+            serviceTier:
+              assistantId && speedControlModel
+                ? resolveSupportedServiceTier(speedControlModel, serviceTier)
+                : assistantId
+                  ? serviceTier
+                  : 'standard'
+          }
+          if (fastMode && speedControlModel?.supportsFastMode === true) extra.fastMode = true
+          return { ...extra, chatTarget }
+        }
       })
       if (!payload) return null
 
@@ -1448,14 +1453,14 @@ const ChatComposerInner = ({
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
         const fileParts = await buildFilePartsForAttachments(attachments)
-        const sent = await onSend(payload.text, {
+        const options: NonNullable<Parameters<typeof onSend>[1]> = {
           mentionedModels: payload.mentionedModels,
           userMessageParts: [...payload.userMessageParts, ...fileParts],
           reasoningEffort: payload.reasoningEffort,
-          serviceTier: payload.serviceTier,
-          ...(payload.fastMode ? { fastMode: true } : {}),
-          chatTarget: payload.chatTarget
-        })
+          serviceTier: payload.serviceTier
+        }
+        if (payload.fastMode) options.fastMode = true
+        const sent = await onSend(payload.text, { ...options, chatTarget: payload.chatTarget })
         if (sent === false) return false
         saveHistory(getComposerHistoryText(payload.userMessageParts))
         return true

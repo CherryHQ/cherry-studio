@@ -115,10 +115,9 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
   const handleCreatePrompt = useCallback(
     async (data: { title: string; content: string; visibility: PromptVisibility }) => {
       try {
-        await createPrompt({
-          ...data,
-          ...(data.visibility === 'restricted' ? { bindingTarget } : {})
-        })
+        const input: Parameters<typeof createPrompt>[0] = { ...data }
+        if (data.visibility === 'restricted') input.bindingTarget = bindingTarget
+        await createPrompt(input)
         setIsCreatePromptOpen(false)
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('settings.prompts.errors.createFailed')))
