@@ -1059,6 +1059,7 @@
   "chat.settings.code_image_tools.tip": "mermaid 등 코드 블록에서 렌더링한 이미지의 미리보기 도구 활성화",
   "chat.settings.code_theme.cherry_default": "Cherry(기본값)",
   "chat.settings.code_wrappable": "코드 블록 자동 줄 바꿈",
+  "chat.settings.mermaid_auto_render": "Mermaid 다이어그램 자동 렌더링",
   "chat.settings.show_line_numbers": "코드 줄 번호 표시",
   "chat.settings.thought_auto_collapse.label": "사고 내용 접기",
   "chat.settings.thought_auto_collapse.tip": "사고가 끝나면 사고 내용을 자동으로 접습니다",
