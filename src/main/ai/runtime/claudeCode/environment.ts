@@ -167,9 +167,9 @@ export async function buildEnvironment(
     // `client-app/cherry-studio/<version>`) so gateways and analytics can
     // distinguish agent-mode traffic from a standalone Claude Code CLI.
     // Documented in the Agent SDK `Options.env` JSDoc.
-    CLAUDE_AGENT_SDK_CLIENT_APP: `cherry-studio/${app.getVersion()}`,
-    ...(customGitBashPath ? { CLAUDE_CODE_GIT_BASH_PATH: customGitBashPath } : {})
+    CLAUDE_AGENT_SDK_CLIENT_APP: `cherry-studio/${app.getVersion()}`
   }
+  if (customGitBashPath) env.CLAUDE_CODE_GIT_BASH_PATH = customGitBashPath
 
   // Merge user-defined env vars with blocked list
   const userEnvVars = agent.configuration?.env_vars
