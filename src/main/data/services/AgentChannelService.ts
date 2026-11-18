@@ -85,7 +85,7 @@ export class AgentChannelService {
   ): AgentChannelEntity {
     const isActive = data.isActive ?? true
 
-    const insertData: InsertChannelRow = {
+    const insertData = {
       type: data.type,
       name: data.name,
       agentId: data.agentId,
@@ -93,7 +93,7 @@ export class AgentChannelService {
       config: validateChannelConfig(data.type, data.config, isActive),
       isActive,
       permissionMode: data.permissionMode
-    }
+    } satisfies InsertChannelRow
 
     const result = application.get('DbService').withWriteTx((tx) => {
       this.validateStreamBot(tx, data.type, insertData.config, isActive)
@@ -286,10 +286,21 @@ export class AgentChannelService {
     return result.length > 0
   }
 
-  private validateStreamBot(tx: DbOrTx, type: AgentChannelType, config: unknown, active: boolean, id?: string): void {
+  private validateStreamBot(
+    tx: DbOrTx,
+    type: AgentChannelType,
+    config: AgentChannelEntity['config'],
+    active: boolean,
+    id?: string
+  ): void {
     if ((type !== 'wecom' && type !== 'dingtalk') || !active) return
     const key = type === 'wecom' ? 'bot_id' : 'client_id'
-    const botId = (config as Record<string, string>)[key]
+    const botId =
+      type === 'wecom' && 'bot_id' in config
+        ? config.bot_id
+        : type === 'dingtalk' && 'client_id' in config
+          ? config.client_id
+          : undefined
     const conflict = tx
       .select()
       .from(channelsTable)
