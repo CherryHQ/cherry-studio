@@ -1002,23 +1002,26 @@ describe('AddKnowledgeItemDialog', () => {
       ])
     })
 
-    it('shows all-invalid input immediately without enabling submit', async () => {
-      setPendingAddSource('url')
-      const onOpenChange = vi.fn()
-      const user = userEvent.setup()
-      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
-      await user.type(urlInput(), 'not-a-url')
-      expect(screen.getByText('第 1 行，第 1 项：not-a-url — 请输入完整 HTTP(S) URL。')).toBeInTheDocument()
-      expect(urlInput()).toHaveAttribute('aria-describedby', 'knowledge-source-url-help knowledge-source-url-errors')
-      expect(screen.getByRole('list')).toHaveAttribute('id', 'knowledge-source-url-errors')
-      expect(screen.getByRole('list')).toHaveAttribute('aria-live', 'polite')
-      expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
-      expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
-      expect(onOpenChange).not.toHaveBeenCalled()
-      await user.clear(urlInput())
-      expect(urlInput()).toHaveAttribute('aria-describedby', 'knowledge-source-url-help')
-      expect(screen.queryByRole('list')).not.toBeInTheDocument()
-    })
+    it.each(['not-a-url', 'localhost:3000/docs', 'file:///etc/passwd'])(
+      'shows all-invalid input immediately without enabling submit: %s',
+      async (value) => {
+        setPendingAddSource('url')
+        const onOpenChange = vi.fn()
+        const user = userEvent.setup()
+        render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+        await user.type(urlInput(), value)
+        expect(screen.getByText(`第 1 行，第 1 项：${value} — 请输入完整 HTTP(S) URL。`)).toBeInTheDocument()
+        expect(urlInput()).toHaveAttribute('aria-describedby', 'knowledge-source-url-help knowledge-source-url-errors')
+        expect(screen.getByRole('list')).toHaveAttribute('id', 'knowledge-source-url-errors')
+        expect(screen.getByRole('list')).toHaveAttribute('aria-live', 'polite')
+        expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
+        expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
+        expect(onOpenChange).not.toHaveBeenCalled()
+        await user.clear(urlInput())
+        expect(urlInput()).toHaveAttribute('aria-describedby', 'knowledge-source-url-help')
+        expect(screen.queryByRole('list')).not.toBeInTheDocument()
+      }
+    )
 
     it('bounds invalid feedback to 100 entries and reports the remainder', async () => {
       setPendingAddSource('url')
