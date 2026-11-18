@@ -59,12 +59,12 @@ export function getExtraHeaders(provider: Provider): Record<string, string> {
       delete headers[name]
     }
   }
-  return {
-    ...(isPerplexity && !hasPerplexityIntegration ? { 'X-Pplx-Integration': 'cherry-studio' } : {}),
-    ...headers,
-    ...(isTokenDance ? { 'X-App-URL': TOKEN_DANCE_APP_URL } : {}),
-    ...(isRadeonCloud ? { 'X-Source': 'cherry-studio' } : {})
-  }
+  const defaults: Record<string, string> = {}
+  if (isPerplexity && !hasPerplexityIntegration) defaults['X-Pplx-Integration'] = 'cherry-studio'
+  const extra = { ...defaults, ...headers }
+  if (isTokenDance) extra['X-App-URL'] = TOKEN_DANCE_APP_URL
+  if (isRadeonCloud) extra['X-Source'] = 'cherry-studio'
+  return extra
 }
 
 /**
