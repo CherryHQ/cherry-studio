@@ -449,10 +449,13 @@ export class DoctorAgentService extends BaseService {
 function toRun(state: Exclude<DoctorAgentState, { status: 'idle' }>): DoctorAgentRun {
   const { runId, scope, incident, reportRunId, sessionId, modelId, startedAt, text, toolCalls, proposals, changes } =
     state
-  return {
+  const origin: Pick<DoctorAgentRun, 'runId' | 'scope' | 'incident'> = {
     runId,
-    scope,
-    ...(incident ? { incident } : {}),
+    scope
+  }
+  if (incident) Object.assign(origin, { incident })
+  return {
+    ...origin,
     reportRunId,
     sessionId,
     modelId,

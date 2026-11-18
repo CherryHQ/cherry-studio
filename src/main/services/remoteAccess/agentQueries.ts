@@ -221,22 +221,22 @@ function toMessageMetadata(message: AgentSessionMessageEntity) {
   const usage = toMessageUsage(message.stats)
   const model = toMessageModel(message)
   const error = message.data.parts?.find((part) => part.type === 'data-error')
-  return {
-    messageId: message.id,
-    ...(usage ? { usage } : {}),
-    ...(model ? { model } : {}),
+  const identity: Pick<AgentMessage, 'messageId' | 'usage' | 'model'> = { messageId: message.id }
+  if (usage) Object.assign(identity, { usage })
+  if (model) Object.assign(identity, { model })
+  const state: Pick<AgentMessage, 'revision' | 'role' | 'status' | 'failure'> = {
     revision: revisionOf(message.updatedAt),
     role: message.role,
-    status: message.status,
-    ...(message.status === 'error'
-      ? {
-          failure: toExecutionFailure(
-            (error?.data as SerializedError) ?? { name: null, message: null, stack: null },
-            message.modelId ?? undefined
-          )
-        }
-      : {})
+    status: message.status
   }
+  if (message.status === 'error')
+    Object.assign(state, {
+      failure: toExecutionFailure(
+        (error?.data as SerializedError) ?? { name: null, message: null, stack: null },
+        message.modelId ?? undefined
+      )
+    })
+  return { ...identity, ...state }
 }
 
 export function toMessage(message: AgentSessionMessageEntity): AgentMessage {
