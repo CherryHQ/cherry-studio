@@ -2,6 +2,7 @@ import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { copyJson, type JsonRepresentation } from '@earendil-works/chord/json'
 import { createModels } from '@earendil-works/pi-ai'
 import {
+  GenerationTask,
   Harness,
   MemoryStorage,
   ToolTask,
@@ -146,7 +147,7 @@ it('advances a warm fold by only newer entries and reads the same facts as an em
 })
 
 // Catches a tool task folded after its assistant entry that leaves the call, or a result keyed through it, on the
-// placeholder key a rebuild would not give.
+// placeholder key a rebuild would not give, and a row folded twice.
 it('keys calls and their results the same whichever order tasks and entries fold in', () => {
   const owner = 1 as ConversationId
   const entry = (id: number, model: NonNullable<EntryRecord['model']>, byTaskId?: number) =>
@@ -201,6 +202,22 @@ it('keys calls and their results the same whichever order tasks and entries fold
   expect(keys(historyOf(entries, tasks, owner))).toEqual(expected)
   expect(late.history).toEqual(historyOf(entries, tasks, owner))
   expect(after.history).toEqual(historyOf(entries, tasks, owner))
+
+  // The runtime feeds one fold from its opening scan and from commit notifications, which can overlap.
+  const repeated = new HistoryFold(owner)
+  for (const value of [...entries, ...entries.slice(1)]) repeated.addEntry(value)
+  for (const value of [...tasks, tasks[0]]) repeated.addTask(value)
+  expect(repeated.history).toEqual(historyOf(entries, tasks, owner))
+  const generation = (id: number) =>
+    ({
+      id: id as TaskId,
+      conversationId: owner,
+      kind: GenerationTask.definition.name,
+      input: {},
+      state: { status: 'running' }
+    }) as unknown as TaskRecord<JsonValue, JsonValue, JsonValue>
+  for (const value of [generation(7), generation(9), generation(7)]) repeated.addTask(value)
+  expect(repeated.generation?.id).toBe(9)
 })
 
 // Catches a fold that is never released, or one rebuilt while still in use.

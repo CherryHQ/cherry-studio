@@ -9,7 +9,7 @@ import type {
 } from '@earendil-works/pi-durable'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
-import { runtimeId, type ObservationPayload } from '@cherrystudio/agent-runtime'
+import { runtimeId, ThreadFeed, type ObservationPayload } from '@cherrystudio/agent-runtime'
 
 import { DurableProjection, type DurableObservation } from '../src/projection'
 
@@ -329,4 +329,95 @@ it('gives a returning preview a fresh identity after its previous instance commi
   expect(resumed).not.toBe(interrupted)
   update(view([entry(10, 'interrupted partial'), entry(11, 'resumed final answer')]))
   expect(projection.aliases).toMatchObject({ 'entry:10:0': interrupted, 'entry:11:0': resumed })
+})
+
+/** The state an observer holds after applying its events in order. */
+function replayed(events: readonly ObservationPayload[]) {
+  const feed = new ThreadFeed(
+    { type: 'snapshot', messages: [], inputs: [], activity: { state: 'unknown' } },
+    (error) => {
+      throw error
+    }
+  )
+  for (const event of events) feed.publish(event)
+  return feed.snapshot
+}
+
+describe('Durable observation deltas', () => {
+  // Catches a delta stream that drops, reorders or duplicates a message, or keeps resending whole snapshots.
+  it('sends only changed messages within a run and replays to the same view as a rebuild', async () => {
+    const call = fauxAssistantMessage(fauxToolCall('echo', {}, { id: 'call' }), { stopReason: 'toolUse' })
+    const older = entry(5, 'older')
+    const assistant: EntryRecord = { ...entry(10, ''), model: [call] }
+    const result: EntryRecord = {
+      id: 11 as EntryId,
+      conversationId,
+      kind: 'pi.tool_result',
+      byTaskId: 8 as TaskId,
+      model: [{ role: 'toolResult', toolCallId: 'call', toolName: 'echo', content: [], isError: false, timestamp: 0 }]
+    }
+    const running = { run: { taskId, inputs: [], turns: 0 } }
+    const { projection, events, update } = setup(view([older], live()))
+    const generating = (text: string): LiveState => ({
+      ...running,
+      generation: { attempt: 1, message: JSON.parse(JSON.stringify(fauxAssistantMessage(text))) }
+    })
+    update(view([older], generating('same text, longer')))
+    update(view([older], { ...running, generation: { attempt: 1, message: JSON.parse(JSON.stringify(call)) } }))
+    update(view([older, assistant], running))
+    update(view([older, assistant, result], running))
+    await expect.poll(() => events.length).toBe(5)
+    expect(events.map((event) => event.type)).toEqual([
+      'snapshot',
+      'message.upsert',
+      'message.upsert',
+      'message.upsert',
+      'message.upsert'
+    ])
+    expect(events[3]).toMatchObject({
+      message: { id: 'entry:10:0' },
+      replaces: [{ id: events[2].type === 'message.upsert' && events[2].message.id }]
+    })
+    expect(replayed(events)).toEqual(projection.feed.snapshot)
+
+    update(view([older, assistant, result]))
+    await expect.poll(() => events.length).toBe(6)
+    expect(events.at(-1)?.type).toBe('snapshot')
+    const rebuilt = new DurableProjection({ backendId: runtimeId('backend'), id: runtimeId('1') }, (error) => {
+      throw error
+    })
+    onTestFinished(() => rebuilt.close())
+    rebuilt.update(view([older, assistant, result]))
+    expect(replayed(events).messages).toEqual(rebuilt.feed.snapshot.messages)
+  })
+
+  it('sends a snapshot right after a mapping reset', async () => {
+    const { update, events } = setup(view([], live()))
+    update(view([entry(10, 'same text'), entry(11, 'same text')], live(2)))
+    await expect.poll(() => events.some((event) => event.type === 'gap')).toBe(true)
+    const gap = events.findIndex((event) => event.type === 'gap')
+    expect(events[gap + 1]?.type).toBe('snapshot')
+  })
+
+  // Catches a completion lost with the snapshot that used to carry it, or delivered before the input it reports.
+  it('delivers completion on the last frame of its update', async () => {
+    const { projection } = setup(view([]))
+    const batches: DurableObservation[] = []
+    const observation = projection.observe((batch) => {
+      batches.push(batch)
+    })
+    const inputId = runtimeId<'input'>('quiet')
+    projection.update(view([]), 1, [{ inputId, facts: ['accepted', 'queued'] }])
+    projection.update(view([]), 2, [{ inputId, facts: ['accepted', 'placed'], outcome: 'completed' }])
+    projection.beginAdmission(runtimeId<'input'>('admitted'))
+    projection.endAdmission(runtimeId<'input'>('admitted'), true)
+    await observation.drain()
+    const completed = batches.filter((batch) => batch.completion)
+    expect(completed.map((batch) => batch.events.map((event) => event.type))).toEqual([
+      ['input.changed'],
+      ['activity.changed']
+    ])
+    expect(completed[0].completion?.inputs).toMatchObject([{ inputId, outcome: 'completed' }])
+    expect(batches.filter((batch) => batch.events.some((event) => event.type === 'snapshot'))).toHaveLength(1)
+  })
 })
