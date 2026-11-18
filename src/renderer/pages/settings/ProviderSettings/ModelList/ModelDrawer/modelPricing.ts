@@ -288,21 +288,21 @@ export function buildModelPricingFromDraft(
   const pricing: ModelPricing = {
     ...unmodifiedPricing,
     input: createPrice(baseTier.inputPrice, currency),
-    output: createPrice(baseTier.outputPrice, currency),
-    ...(baseTier.cacheReadPrice !== undefined ? { cacheRead: createPrice(baseTier.cacheReadPrice, currency) } : {}),
-    ...(baseTier.cacheWritePrice !== undefined ? { cacheWrite: createPrice(baseTier.cacheWritePrice, currency) } : {}),
-    ...(additionalTiers.length > 0
-      ? {
-          inputTokenTiers: additionalTiers.map((tier) => ({
-            minInputTokens: tier.minInputTokens,
-            input: createPrice(tier.inputPrice, currency),
-            output: createPrice(tier.outputPrice, currency),
-            ...(tier.cacheReadPrice !== undefined ? { cacheRead: createPrice(tier.cacheReadPrice, currency) } : {}),
-            ...(tier.cacheWritePrice !== undefined ? { cacheWrite: createPrice(tier.cacheWritePrice, currency) } : {})
-          }))
-        }
-      : {})
+    output: createPrice(baseTier.outputPrice, currency)
   }
+  if (baseTier.cacheReadPrice !== undefined) pricing.cacheRead = createPrice(baseTier.cacheReadPrice, currency)
+  if (baseTier.cacheWritePrice !== undefined) pricing.cacheWrite = createPrice(baseTier.cacheWritePrice, currency)
+  if (additionalTiers.length > 0)
+    pricing.inputTokenTiers = additionalTiers.map((tier) => {
+      const price: NonNullable<ModelPricing['inputTokenTiers']>[number] = {
+        minInputTokens: tier.minInputTokens,
+        input: createPrice(tier.inputPrice, currency),
+        output: createPrice(tier.outputPrice, currency)
+      }
+      if (tier.cacheReadPrice !== undefined) price.cacheRead = createPrice(tier.cacheReadPrice, currency)
+      if (tier.cacheWritePrice !== undefined) price.cacheWrite = createPrice(tier.cacheWritePrice, currency)
+      return price
+    })
 
   return { errors, pricing }
 }

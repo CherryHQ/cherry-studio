@@ -88,16 +88,14 @@ export default function ProviderBillingDrawer({ provider, onClose }: { provider:
     if (!parsed.success) return
     setSaving(true)
     try {
+      let billing: NonNullable<Parameters<typeof updateProvider>[0]['providerSettings']>['billing'] = null
+      if (!resetRequested) {
+        billing = { ...parsed.data }
+        if (provider.settings.billing?.calendar && !parsed.data.calendar) billing.calendar = null
+        if (provider.settings.billing?.source && !parsed.data.source) billing.source = null
+      }
       await updateProvider({
-        providerSettings: {
-          billing: resetRequested
-            ? null
-            : {
-                ...parsed.data,
-                ...(provider.settings.billing?.calendar && !parsed.data.calendar ? { calendar: null } : {}),
-                ...(provider.settings.billing?.source && !parsed.data.source ? { source: null } : {})
-              }
-        }
+        providerSettings: { billing }
       })
       onClose()
     } catch {
