@@ -1,4 +1,4 @@
-import type { LanguageModelV3StreamPart, LanguageModelV3Usage } from '@ai-sdk/provider'
+import type { JSONObject, LanguageModelV3StreamPart, LanguageModelV3Usage } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { isPlainObject } from 'es-toolkit'
 
@@ -92,21 +92,16 @@ function gatewayAnthropicCacheMiddleware(provider: Provider): LanguageModelMiddl
     transformParams: async ({ params }) => {
       const { providerOptions } = params
       const gateway = isPlainObject(providerOptions?.gateway) ? providerOptions.gateway : {}
+      // Gateway auto caching replaces the user's per-request caching selection.
+      const cacheOptions: JSONObject = { ...gateway, caching: 'auto' }
+      // The language-model route has no Anthropic Messages lifetime hint.
+      if (ttl === '1h' && !gateway.cache_ttl) cacheOptions.cache_ttl = ttl
 
       return {
         ...params,
         providerOptions: {
           ...providerOptions,
-          gateway: {
-            ...gateway,
-            // Intentionally overwrite any user-provided `caching` value: this feature
-            // exists to enable prompt caching for the gateway when the user turns it
-            // on in provider settings. Per-request disabling is not supported.
-            caching: 'auto',
-            // Anthropic reads a lifetime hint only from the Messages surface, which the
-            // gateway's language-model route does not expose.
-            ...(ttl === '1h' && !gateway.cache_ttl ? { cache_ttl: ttl } : {})
-          }
+          gateway: cacheOptions
         }
       }
     }
