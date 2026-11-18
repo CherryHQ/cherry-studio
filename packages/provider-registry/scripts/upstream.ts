@@ -89,6 +89,7 @@ const MdEntry = z
   })
   .loose()
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Cached or fetched models.dev entries pass only a container schema upstream; MdEntry validates each model and skips malformed entries.
 export function parseMdEntry(raw: unknown): CherryMeta | null {
   const p = MdEntry.safeParse(raw)
   if (!p.success) return null
@@ -177,6 +178,7 @@ const OrEntry = z
   .loose()
 
 /** Endpoint-specific reasoning controls published by OpenRouter's model catalog. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- OpenRouter's loaded catalog validates identity only; OrEntry validates the raw reasoning descriptor before deriving endpoint controls.
 export function parseOpenRouterReasoning(raw: unknown): ReasoningSupport | null {
   const parsed = OrEntry.safeParse(raw)
   if (!parsed.success || !parsed.data.reasoning) return null
@@ -229,6 +231,7 @@ export function mergeOpenRouterReasoningContracts(
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- OpenRouter text/image catalogs contain unvalidated model metadata; OrEntry checks each entry before mapping capabilities and pricing.
 export function parseOrEntry(raw: unknown): CherryMeta | null {
   const p = OrEntry.safeParse(raw)
   if (!p.success) return null
@@ -288,6 +291,7 @@ function toSupportSpec(key: keyof typeof OR_IMAGE_PARAM_KEYS, descriptor: OrPara
 }
 
 /** Convert `/images/models` parameter descriptors into OpenRouter-specific painting controls. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- OpenRouter image entries contain raw supported_parameters; OrEntry and OrParamDescriptor validate the envelope and each advertised control.
 export function parseOrImageGeneration(raw: unknown): ImageGenerationSupport | null {
   const p = OrEntry.safeParse(raw)
   if (!p.success || Array.isArray(p.data.supported_parameters) || !p.data.supported_parameters) return null
