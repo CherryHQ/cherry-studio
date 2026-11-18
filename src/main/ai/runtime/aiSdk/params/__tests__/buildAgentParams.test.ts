@@ -2603,8 +2603,10 @@ describe('assistant automation tool selection', () => {
     { name: 'caller with browser enabled', conversation: CONVERSATION, hasAssistant: true, caller: true, browser: true }
   ])('preserves admission gates: $name', async ({ conversation, hasAssistant, caller, browser }) => {
     setAccess(true, true)
+    const request: Parameters<typeof resolveTools>[0] = { conversation }
+    if (caller) request.contextOwner = 'caller'
     const { tools, deferredEntries } = await resolveTools(
-      { conversation, ...(caller ? { contextOwner: 'caller' as const } : {}) },
+      request,
       hasAssistant ? makeAssistant({ settings: { enableBrowser: browser } }) : undefined,
       makeModel(),
       false,
