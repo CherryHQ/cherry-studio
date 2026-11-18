@@ -23,8 +23,8 @@ vi.mock('@logger', () => ({
 
 vi.mock('@main/core/lifecycle', () => ({
   BaseService: class {},
-  Injectable: () => (target: unknown) => target,
-  ServicePhase: () => (target: unknown) => target,
+  Injectable: (): ClassDecorator => () => {},
+  ServicePhase: (): ClassDecorator => () => {},
   Phase: { WhenReady: 'whenReady' }
 }))
 
@@ -48,19 +48,6 @@ vi.mock('@main/data/services/utils/registryDataPaths', () => ({
 vi.mock('@main/services/providerRegistrySnapshot', () => ({
   writeProviderRegistrySnapshot: writeSnapshotMock
 }))
-// Keep the real manifest contract / remote file list / schema version;
-// stub only the heavy data-list schemas so catalog bodies validate trivially
-// (`.version` read straight off the parsed object).
-vi.mock('@cherrystudio/provider-registry/node', async () => {
-  const actual = await vi.importActual<Record<string, unknown>>('@cherrystudio/provider-registry/node')
-  const passthrough = { parse: (data: unknown) => data }
-  return {
-    ...actual,
-    ModelListSchema: passthrough,
-    ProviderListSchema: passthrough,
-    ProviderModelListSchema: passthrough
-  }
-})
 vi.mock('electron', () => ({
   app: { isPackaged: true, getVersion: () => '1.0.0' },
   net: { fetch: netFetchMock }
@@ -114,7 +101,10 @@ function mockRemote(
     if (url.endsWith('/manifest.json')) {
       return manifestBody === null ? response('', false) : response(manifestBody)
     }
-    return response(JSON.stringify({ version: dataVersion }), dataOk)
+    const body = url.endsWith('/models.json')
+      ? { version: dataVersion, models: [] }
+      : { version: dataVersion, overrides: [] }
+    return response(JSON.stringify(body), dataOk)
   })
 }
 
@@ -183,26 +173,29 @@ describe('ProviderRegistryUpdaterService.check', () => {
     expect(writeSnapshotMock).not.toHaveBeenCalled()
   })
 
-  it('does not apply when a payload is invalid (keeps current data)', async () => {
-    const files = { 'models.json': 'v2', 'providers.json': 'v2', 'provider-models.json': 'v2' }
-    netFetchMock.mockImplementation(async (url: string) =>
-      url.endsWith('/manifest.json')
-        ? response(
-            JSON.stringify({
-              minAppVersion: '1.0.0',
-              sourceAppVersion: '2.0.0',
-              revision: 2,
-              schemaVersion: REGISTRY_SCHEMA_VERSION,
-              files
-            })
-          )
-        : response('<<not json>>')
-    )
+  it.each(['<<not json>>', JSON.stringify({ version: 'v2' })])(
+    'does not apply an invalid catalog payload (%s)',
+    async (body) => {
+      const files = { 'models.json': 'v2', 'providers.json': 'v2', 'provider-models.json': 'v2' }
+      netFetchMock.mockImplementation(async (url: string) =>
+        url.endsWith('/manifest.json')
+          ? response(
+              JSON.stringify({
+                minAppVersion: '1.0.0',
+                sourceAppVersion: '2.0.0',
+                revision: 2,
+                schemaVersion: REGISTRY_SCHEMA_VERSION,
+                files
+              })
+            )
+          : response(body)
+      )
 
-    await service.check()
+      await service.check()
 
-    expect(writeSnapshotMock).not.toHaveBeenCalled()
-  })
+      expect(writeSnapshotMock).not.toHaveBeenCalled()
+    }
+  )
 
   it('rejects a cross-commit mixture (a file version does not match the manifest digest)', async () => {
     const files = { 'models.json': 'v2', 'providers.json': 'v2', 'provider-models.json': 'v2' }
@@ -218,8 +211,8 @@ describe('ProviderRegistryUpdaterService.check', () => {
           })
         )
       // Branch advanced mid-fetch: models.json now belongs to a newer commit.
-      if (url.endsWith('/models.json')) return response(JSON.stringify({ version: 'v3' }))
-      return response(JSON.stringify({ version: 'v2' }))
+      if (url.endsWith('/models.json')) return response(JSON.stringify({ version: 'v3', models: [] }))
+      return response(JSON.stringify({ version: 'v2', overrides: [] }))
     })
 
     await service.check()
