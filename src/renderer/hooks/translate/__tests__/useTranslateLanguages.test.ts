@@ -45,6 +45,23 @@ describe('useTranslateLanguages', () => {
     expect(toast.error).toHaveBeenCalledWith('t(translate.error.languages_load_failed)')
   })
 
+  it('reports each shared error object once across consumers and reports a new failure again', () => {
+    setLanguagesQuery(undefined, { error: new Error('IPC down') })
+    const first = renderHook(() => useTranslateLanguages())
+    const second = renderHook(() => useTranslateLanguages())
+
+    expect(first.result.current.status).toBe('error')
+    expect(second.result.current.status).toBe('error')
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith('t(translate.error.languages_load_failed)')
+
+    setLanguagesQuery(undefined, { error: new Error('Retry failed') })
+    first.rerender()
+    second.rerender()
+
+    expect(toast.error).toHaveBeenCalledTimes(2)
+    expect(toast.error).toHaveBeenNthCalledWith(2, 't(translate.error.languages_load_failed)')
+  })
+
   it('adds, updates, and removes languages through method calls', async () => {
     const addTrigger = vi.fn().mockResolvedValue({ langCode: 'xx-yy' })
     const updateTrigger = vi.fn().mockResolvedValue({ langCode: 'xx-yy' })

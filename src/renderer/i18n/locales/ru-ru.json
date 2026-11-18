@@ -6501,6 +6501,7 @@
   "translate.settings.model_placeholder": "Выберите модель перевода",
   "translate.settings.preview": "Markdown предпросмотр",
   "translate.settings.scroll_sync": "Настройки синхронизации прокрутки",
+  "translate.settings.selection_toolbar": "Показывать перевод на панели выделения текста",
   "translate.settings.title": "Настройки перевода",
   "translate.source_language": "Язык источника",
   "translate.stop": "Остановить перевод",

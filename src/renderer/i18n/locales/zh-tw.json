@@ -6501,6 +6501,7 @@
   "translate.settings.model_placeholder": "選擇翻譯模型",
   "translate.settings.preview": "Markdown 預覽",
   "translate.settings.scroll_sync": "滾動同步設定",
+  "translate.settings.selection_toolbar": "在選取文字工具列中顯示翻譯",
   "translate.settings.title": "翻譯設定",
   "translate.source_language": "來源語言",
   "translate.stop": "停止翻譯",

@@ -6501,6 +6501,7 @@
   "translate.settings.model_placeholder": "Chọn mô hình dịch",
   "translate.settings.preview": "Xem trước Markdown",
   "translate.settings.scroll_sync": "Cài đặt cuộn đồng bộ",
+  "translate.settings.selection_toolbar": "Hiển thị dịch trong thanh công cụ chọn văn bản",
   "translate.settings.title": "Cài đặt Dịch thuật",
   "translate.source_language": "Ngôn ngữ nguồn",
   "translate.stop": "Dừng Dịch",

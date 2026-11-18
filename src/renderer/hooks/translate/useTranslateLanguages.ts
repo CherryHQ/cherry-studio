@@ -13,6 +13,7 @@ import type { TranslateLanguage } from '@shared/data/types/translate'
 import { type MutationFeedbackOptions, useMutationFeedback } from './useMutationFeedback'
 
 const logger = loggerService.withContext('translate/useTranslateLanguages')
+const reportedFailures = new WeakSet<object>()
 
 export const useTranslateLanguages = (options?: {
   enabled?: boolean
@@ -23,14 +24,19 @@ export const useTranslateLanguages = (options?: {
   const { data, error, refetch } = useQuery('/translate/languages', { enabled: options?.enabled })
   const { t } = useTranslation()
 
-  const toastedRef = useRef(false)
+  const toastedPrimitiveRef = useRef(false)
   useEffect(() => {
-    if (error && !toastedRef.current) {
-      toastedRef.current = true
-      logger.error('Failed to load translate languages', error)
-      toast.error(t('translate.error.languages_load_failed'))
+    if (!error || options?.enabled === false) return
+    if (typeof error === 'object') {
+      if (reportedFailures.has(error)) return
+      reportedFailures.add(error)
+    } else {
+      if (toastedPrimitiveRef.current) return
+      toastedPrimitiveRef.current = true
     }
-  }, [error, t])
+    logger.error('Failed to load translate languages', error)
+    toast.error(t('translate.error.languages_load_failed'))
+  }, [error, options?.enabled, t])
 
   const languages = useMemo(() => {
     if (data !== undefined) {

@@ -6501,6 +6501,7 @@
   "translate.settings.model_placeholder": "Übersetzungsmodell auswählen",
   "translate.settings.preview": "Markdown-Vorschau",
   "translate.settings.scroll_sync": "Scroll-Synchronisierungs-Einstellungen",
+  "translate.settings.selection_toolbar": "Übersetzen in der Textauswahlleiste anzeigen",
   "translate.settings.title": "Übersetzungseinstellungen",
   "translate.source_language": "Quellsprache",
   "translate.stop": "Übersetzung stoppen",

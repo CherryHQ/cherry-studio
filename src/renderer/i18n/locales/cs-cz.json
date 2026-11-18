@@ -6501,6 +6501,7 @@
   "translate.settings.model_placeholder": "Vyberte model pro překlad",
   "translate.settings.preview": "Náhled Markdownu",
   "translate.settings.scroll_sync": "Nastavení synchronizace posouvání",
+  "translate.settings.selection_toolbar": "Zobrazit překlad na panelu výběru textu",
   "translate.settings.title": "Nastavení překladu",
   "translate.source_language": "Zdrojový jazyk",
   "translate.stop": "Zastavit překlad",

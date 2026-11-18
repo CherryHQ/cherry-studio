@@ -6501,6 +6501,7 @@
   "translate.settings.model_placeholder": "Select translation model",
   "translate.settings.preview": "Markdown Preview",
   "translate.settings.scroll_sync": "Scroll Sync Settings",
+  "translate.settings.selection_toolbar": "Translate in selection toolbar",
   "translate.settings.title": "Translation Settings",
   "translate.source_language": "Source Language",
   "translate.stop": "Stop Translation",

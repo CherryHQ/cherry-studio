@@ -63,6 +63,9 @@ const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
   const [autoCopy, setAutoCopy] = usePreference('feature.translate.page.auto_copy')
   const [autoDetectionMethod, setAutoDetectionMethod] = usePreference('feature.translate.auto_detection_method')
   const [isScrollSyncEnabled, setIsScrollSyncEnabled] = usePreference('feature.translate.page.scroll_sync')
+  const [selectionToolbarEnabled, setSelectionToolbarEnabled] = usePreference(
+    'feature.translate.selection_toolbar.enabled'
+  )
   const [isBidirectional, setIsBidirectional] = usePreference('feature.translate.page.bidirectional_enabled')
 
   const safePersist = useCallback(
@@ -100,6 +103,12 @@ const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
       label: t('translate.settings.autoCopy'),
       value: autoCopy,
       onChange: (next) => void safePersist(setAutoCopy(next), 'translate auto copy preference')
+    },
+    {
+      key: 'selectionToolbar',
+      label: t('translate.settings.selection_toolbar'),
+      value: selectionToolbarEnabled,
+      onChange: (next) => void safePersist(setSelectionToolbarEnabled(next), 'translate selection toolbar preference')
     },
     {
       key: 'scrollSync',

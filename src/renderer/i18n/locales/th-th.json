@@ -6501,6 +6501,7 @@
   "translate.settings.model_placeholder": "เลือกโมเดลแปลภาษา",
   "translate.settings.preview": "พรีวิว Markdown",
   "translate.settings.scroll_sync": "การตั้งค่าซิงค์การเลื่อน",
+  "translate.settings.selection_toolbar": "แสดงการแปลในแถบเครื่องมือเลือกข้อความ",
   "translate.settings.title": "การตั้งค่าการแปล",
   "translate.source_language": "ภาษาต้นทาง",
   "translate.stop": "หยุดการแปล",

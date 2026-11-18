@@ -6501,6 +6501,7 @@
   "translate.settings.model_placeholder": "Selectează modelul de traducere",
   "translate.settings.preview": "Previzualizare Markdown",
   "translate.settings.scroll_sync": "Setări sincronizare derulare",
+  "translate.settings.selection_toolbar": "Afișează traducerea în bara de selectare a textului",
   "translate.settings.title": "Setări traducere",
   "translate.source_language": "Limbă sursă",
   "translate.stop": "Oprește traducerea",

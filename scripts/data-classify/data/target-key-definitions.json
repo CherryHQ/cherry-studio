@@ -1574,6 +1574,13 @@
       ],
       "status": "classified",
       "description": "Ordered session details sections and their visibility"
+    },
+    {
+      "targetKey": "feature.translate.selection_toolbar.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Show a Translate action in the in-app text selection toolbar"
     }
   ]
 }
