@@ -12,7 +12,7 @@ const logger = loggerService.withContext('VoiceScratch')
 export async function withScratch<T>(
   operation: (directory: string) => Promise<T>,
   signal: AbortSignal | undefined,
-  mapFailure: (error: unknown, signal?: AbortSignal) => VoiceRuntimeError
+  mapFailure: (cause: unknown, signal?: AbortSignal) => VoiceRuntimeError
 ): Promise<T> {
   checkAbort(signal)
   const directory = join(application.getPath('feature.voice.temp'), randomUUID())

@@ -22,23 +22,23 @@ import { completeTranscriptionOperation } from './sdkOperations'
 const ASR_INFERENCE_TIMEOUT_MS = 120_000
 const logger = loggerService.withContext('Qwen3AsrAdapter')
 
-function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeError {
+function normalizeFailure(cause: unknown, signal?: AbortSignal): VoiceRuntimeError {
   if (signal?.aborted) return new VoiceRuntimeError('aborted')
-  if (error instanceof VoiceRuntimeError) return error
-  if (error instanceof UtilityProcessError && error.code === 'PROCESS_BLOCKED') return new VoiceRuntimeError('busy')
-  if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ASR_MODEL_LOAD_FAILED')
+  if (cause instanceof VoiceRuntimeError) return cause
+  if (cause instanceof UtilityProcessError && cause.code === 'PROCESS_BLOCKED') return new VoiceRuntimeError('busy')
+  if (typeof cause === 'object' && cause !== null && 'code' in cause && cause.code === 'ASR_MODEL_LOAD_FAILED')
     return new VoiceRuntimeError('model_load_failed')
   if (
-    error instanceof UtilityProcessError &&
-    typeof error.remote?.code === 'string' &&
-    ['VOICE_AUDIO_INVALID', 'VOICE_AUDIO_UNSUPPORTED', 'VOICE_AUDIO_LIMIT'].includes(error.remote.code)
+    cause instanceof UtilityProcessError &&
+    typeof cause.remote?.code === 'string' &&
+    ['VOICE_AUDIO_INVALID', 'VOICE_AUDIO_UNSUPPORTED', 'VOICE_AUDIO_LIMIT'].includes(cause.remote.code)
   )
     return new VoiceRuntimeError('invalid_audio')
-  if (error instanceof UtilityProcessError && error.remote?.code === 'ASR_MODEL_LOAD_FAILED')
+  if (cause instanceof UtilityProcessError && cause.remote?.code === 'ASR_MODEL_LOAD_FAILED')
     return new VoiceRuntimeError('model_load_failed')
   if (
-    error instanceof UtilityProcessError &&
-    ['PROCESS_START_FAILED', 'PROCESS_EXITED', 'PROCESS_PROTOCOL_ERROR', 'PROCESS_CIRCUIT_OPEN'].includes(error.code)
+    cause instanceof UtilityProcessError &&
+    ['PROCESS_START_FAILED', 'PROCESS_EXITED', 'PROCESS_PROTOCOL_ERROR', 'PROCESS_CIRCUIT_OPEN'].includes(cause.code)
   )
     return new VoiceRuntimeError('worker_crashed')
   return new VoiceRuntimeError('operation_failed')
@@ -98,9 +98,9 @@ export function createQwen3AsrTranscriptionModel(options: TranscriptionOptions):
         const transcript = await application
           .get('AsrInferenceService')
           .transcribe(QWEN3_ASR_BUNDLE_ID, { kind: 'samples', samples, sampleRate: 16_000 }, signal)
-          .catch((error: unknown) => {
+          .catch((cause: unknown) => {
             if (timeout.aborted && !input.abortSignal?.aborted) throw new VoiceRuntimeError('timeout')
-            throw error
+            throw cause
           })
         checkAbort(input.abortSignal)
         logger.debug('Local transcription completed', {
@@ -137,13 +137,13 @@ const streamingTranscription: TranscriptionOperation = {
         throw new VoiceRuntimeError('invalid_request')
       return application.get('AsrInferenceService').stream(QWEN3_ASR_BUNDLE_ID, input.format.sampleRate, lifetime)
     })
-    void opened.then((stream) => stream.completed).catch((error: unknown) => rejectReady(error))
+    void opened.then((stream) => stream.completed).catch((cause: unknown) => rejectReady(cause))
     const closed = opened.then(
       (stream) => stream.closed,
       () => undefined
     )
     let resolveReady!: () => void
-    let rejectReady!: (error: unknown) => void
+    let rejectReady!: (cause: unknown) => void
     const ready = new Promise<void>((resolve, reject) => {
       resolveReady = resolve
       rejectReady = reject
@@ -165,9 +165,9 @@ const streamingTranscription: TranscriptionOperation = {
         if (!result.text.trim()) throw new VoiceRuntimeError('no_speech')
         return { text: result.text, segments: [] }
       })
-      .catch(async (error: unknown) => {
+      .catch(async (cause: unknown) => {
         const failure =
-          lifetime.reason instanceof VoiceRuntimeError ? lifetime.reason : normalizeFailure(error, lifetime)
+          lifetime.reason instanceof VoiceRuntimeError ? lifetime.reason : normalizeFailure(cause, lifetime)
         rejectReady(failure)
         controller.abort(failure)
         await closed
@@ -175,7 +175,7 @@ const streamingTranscription: TranscriptionOperation = {
       })
       .finally(() => clearTimeout(loadingTimer))
     void completed.catch(() => undefined)
-    void pump.catch((error: unknown) => controller.abort(error))
+    void pump.catch((cause: unknown) => controller.abort(cause))
     void ready.catch(() => undefined)
     const updates = {
       async *[Symbol.asyncIterator]() {

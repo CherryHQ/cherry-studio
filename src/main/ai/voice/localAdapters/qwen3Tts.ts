@@ -73,18 +73,18 @@ export function getQwen3TtsStatus(signal?: AbortSignal): LocalVoiceStatus {
   }
 }
 
-function normalizeFailure(error: unknown, signal?: AbortSignal): VoiceRuntimeError {
+function normalizeFailure(cause: unknown, signal?: AbortSignal): VoiceRuntimeError {
   if (signal?.aborted) return new VoiceRuntimeError('aborted')
-  if (error instanceof VoiceRuntimeError) return error
-  if (error instanceof UtilityProcessError) {
-    if (error.code === 'PROCESS_BLOCKED') return new VoiceRuntimeError('busy')
-    if (error.remote?.code === 'TTS_MODEL_LOAD_FAILED') return new VoiceRuntimeError('model_load_failed')
+  if (cause instanceof VoiceRuntimeError) return cause
+  if (cause instanceof UtilityProcessError) {
+    if (cause.code === 'PROCESS_BLOCKED') return new VoiceRuntimeError('busy')
+    if (cause.remote?.code === 'TTS_MODEL_LOAD_FAILED') return new VoiceRuntimeError('model_load_failed')
     if (
-      ['PROCESS_START_FAILED', 'PROCESS_EXITED', 'PROCESS_PROTOCOL_ERROR', 'PROCESS_CIRCUIT_OPEN'].includes(error.code)
+      ['PROCESS_START_FAILED', 'PROCESS_EXITED', 'PROCESS_PROTOCOL_ERROR', 'PROCESS_CIRCUIT_OPEN'].includes(cause.code)
     )
       return new VoiceRuntimeError('worker_crashed')
   }
-  if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'TTS_MODEL_LOAD_FAILED')
+  if (typeof cause === 'object' && cause !== null && 'code' in cause && cause.code === 'TTS_MODEL_LOAD_FAILED')
     return new VoiceRuntimeError('model_load_failed')
   return new VoiceRuntimeError('operation_failed')
 }
