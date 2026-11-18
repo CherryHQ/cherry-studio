@@ -12,7 +12,7 @@ Text-only models cannot use attached audio or video, while models and endpoints 
 
 - Package checksum-verified FFmpeg and FFprobe for supported desktop platforms. Keep Linux LGPL libraries and license/source material with their runtime, and resolve the packaged files without depending on a mutable user tool installation.
 - Let one main-process media service probe files, extract bounded audio chunks and representative video frames, use an already available transcription asset and a caller-selected vision model, preserve source timestamps, cache reusable analysis, and propagate cancellation. Analysis must not install speech assets.
-- Persist a selectable Video Vision model; the media service applies its bounded analysis budget. Keep Chat's original attachment visible: send native audio/video only when the model and resolved endpoint accept its actual MIME, otherwise inline capped analysis text. Failed required analysis stops the turn with a settings-oriented error; a valid silent result remains a note.
+- Persist a selectable Video Vision model; when none is selected, Chat and `read_file` use the chat model if it is a selectable vision model. The media service applies its bounded analysis budget. Keep Chat's original attachment visible: send native audio/video only when the model and resolved endpoint accept its actual MIME, otherwise inline capped analysis text. Failed required analysis stops the turn with an error that names the missing setting; a valid silent result remains a note.
 - Expose full timestamped analysis through attachment-allowlisted `read_file`.
 
 ## Out of scope
@@ -30,7 +30,7 @@ Text-only models cannot use attached audio or video, while models and endpoints 
 - AC1 — Packaged FFmpeg and FFprobe can probe and extract media on supported macOS, Windows, and Linux builds; Linux carries its LGPL runtime dependencies and license/source material without loading mutable user binaries. (verification: unit + packaged artifact)
 - AC2 — Video analysis selects a bounded set of scene-aware, non-duplicate frames and preserves source timing when frames or audio streams are sparse. (verification: unit + packaged artifact)
 - AC3 — One media service returns bounded timestamped transcription and optional vision analysis, reuses valid cached results, reports unavailable analysis accurately, and cleans up on completion, failure, or cancellation. (verification: unit + Electron)
-- AC4 — A user can select and persist a Video Vision model, and subsequent analysis uses that selected model. (verification: renderer + Electron)
+- AC4 — A user can select and persist a Video Vision model, and subsequent analysis uses that selected model; with none selected, analysis uses the chat model when it is a selectable vision model. (verification: renderer + Electron)
 - AC5 — Chat accepts audio/video attachments, keeps native delivery for capable model-endpoint MIME combinations, and otherwise inlines bounded analysis; WebM and Ogg route by their actual media type, failed required analysis stops before the provider call, and the original attachment remains visible. (verification: unit + renderer + Electron)
 - AC6 — `read_file` pages only allowed attachments, pages full media analysis at stable offsets, and a stopped turn cannot receive late or cached analysis. (verification: unit + Electron)
 

@@ -12,7 +12,7 @@ Status: proposed
 
 - 为支持的桌面平台打包经过校验和验证的 FFmpeg 与 FFprobe。Linux 的 LGPL 库及许可和源码资料随运行时提供，定位打包文件时不依赖用户可变的工具安装。
 - 由一个主进程媒体服务探测文件、提取有界音频分块和代表性视频帧，使用已经可用的转录资源及调用方选定的视觉模型，保留源时间戳、缓存可复用分析并传递取消信号。分析过程不得安装语音资源。
-- 持久化可选的 Video Vision 模型；媒体服务应用自身的有界分析预算。Chat 保留原附件显示：仅当模型和实际端点接受文件的真实 MIME 时原生传递音视频，否则内联有长度上限的分析文本。必需的分析失败时以指向设置的错误终止本轮；有效的静音结果仍作为提示继续。
+- 持久化可选的 Video Vision 模型；未选择时，Chat 和 `read_file` 在聊天模型属于可选视觉模型时使用聊天模型。媒体服务应用自身的有界分析预算。Chat 保留原附件显示：仅当模型和实际端点接受文件的真实 MIME 时原生传递音视频，否则内联有长度上限的分析文本。必需的分析失败时以指明所缺设置的错误终止本轮；有效的静音结果仍作为提示继续。
 - 通过按附件授权的 `read_file` 提供完整的带时间戳分析。
 
 ## 不在范围内
@@ -30,7 +30,7 @@ Status: proposed
 - AC1 — 支持的 macOS、Windows 和 Linux 安装包中的 FFmpeg 与 FFprobe 能探测并提取媒体；Linux 携带 LGPL 运行依赖及许可和源码资料，不加载用户可变的二进制文件。 (verification: unit + packaged artifact)
 - AC2 — 视频分析选择数量有上限、感知场景且不重复的帧，并在帧或音频流稀疏时保留源时间。 (verification: unit + packaged artifact)
 - AC3 — 单一媒体服务返回有界且带时间戳的转录和可选视觉分析，复用有效缓存，准确报告分析不可用，并在完成、失败或取消时清理资源。 (verification: unit + Electron)
-- AC4 — 用户可以选择并持久化 Video Vision 模型，后续分析使用所选模型。 (verification: renderer + Electron)
+- AC4 — 用户可以选择并持久化 Video Vision 模型，后续分析使用所选模型；未选择时，若聊天模型属于可选视觉模型，分析使用聊天模型。 (verification: renderer + Electron)
 - AC5 — Chat 接受音视频附件，对模型和端点确实支持的 MIME 保留原生传递，否则内联有界分析；WebM 与 Ogg 按实际媒体类型路由，必需的分析失败时在调用服务商前终止，原附件仍可见。 (verification: unit + renderer + Electron)
 - AC6 — `read_file` 仅分页读取获准附件，以稳定的偏移量分页读取完整媒体分析，已停止的轮次不会收到迟到或缓存的分析结果。 (verification: unit + Electron)
 
