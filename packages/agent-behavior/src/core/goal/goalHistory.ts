@@ -152,8 +152,11 @@ function readBranch(history: readonly HistoryEntry[]): Branch {
       const { sessionId, run, background, goalId } = entry.record.value
       const owner = goalId === undefined ? callerGoal : ownerOf({ ...entry.record.value, goalId })
       const key = runKey(sessionId, run)
-      if (!branch.owners.has(key))
-        branch.owners.set(key, { child: sessionId, run, ...(owner ? { goalId: owner } : {}) })
+      if (!branch.owners.has(key)) {
+        const runOwner: NonNullable<ReturnType<Branch['owners']['get']>> = { child: sessionId, run }
+        if (owner) Object.assign(runOwner, { goalId: owner })
+        branch.owners.set(key, runOwner)
+      }
       if (background) branch.latestRuns.set(sessionId, Math.max(run, branch.latestRuns.get(sessionId) ?? 0))
       continue
     }
