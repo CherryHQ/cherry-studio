@@ -31,7 +31,8 @@ export function ResourceIdentityRow({
   const fallbackEmoji = kind === 'agent' ? DEFAULT_AGENT_CREATE_AVATAR : DEFAULT_ASSISTANT_CREATE_AVATAR
 
   return (
-    <div className="flex items-center gap-2.5">
+    // The name keeps a readable width; on a narrow card the trailing actions wrap below it instead.
+    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
       <AssistantAvatarImage
         src={avatarSrc}
         alt=""
@@ -46,7 +47,7 @@ export function ResourceIdentityRow({
           </EmojiAvatar>
         }
       />
-      <div className="min-w-0 flex-1">
+      <div className="min-w-40 flex-1">
         <div className="flex min-w-0 items-center gap-1.5">
           <span className="truncate font-medium text-[13px] text-foreground leading-5" title={name}>
             {name}

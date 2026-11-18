@@ -113,7 +113,7 @@ export function ResourceIdentityCard({ result }: { result: ResourceIdentityResul
             </span>
           )
         }>
-        <div className="ml-2 flex shrink-0 items-center gap-1">
+        <div className="ml-auto flex shrink-0 items-center gap-1">
           <Button
             type="button"
             variant="ghost"
