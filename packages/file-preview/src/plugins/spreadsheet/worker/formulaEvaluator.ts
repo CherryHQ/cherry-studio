@@ -13,7 +13,7 @@
  *   #NAME? may come from either a returned value or a wrapped throw in the library; both are classified as
  *   unevaluated here, matching the documented result.
  */
-import type { ParserCellRef, ParserRangeRef } from 'fast-formula-parser'
+import type { FormulaValue, ParserCellRef, ParserRangeRef } from 'fast-formula-parser'
 import FormulaParser from 'fast-formula-parser'
 
 import { CUSTOM_FORMULA_FUNCTIONS } from './formulaFunctions'
@@ -58,7 +58,7 @@ function makeKey(ref: FormulaCellRef): string {
 }
 
 /** Raw parse() result -> cell scalar value in EvalOutcome.value's range. */
-function normalizeValue(result: unknown): string | number | boolean | null {
+function normalizeValue(result: FormulaValue): string | number | boolean | null {
   if (result === null || result === undefined) return null
   if (typeof result === 'number' || typeof result === 'string' || typeof result === 'boolean') {
     return result
@@ -129,7 +129,7 @@ export function createFormulaEvaluator(ctx: EvalContext, budgetMs: number): Form
     }
   }
 
-  function classifyParseResult(result: unknown): EvalOutcome {
+  function classifyParseResult(result: FormulaValue): EvalOutcome {
     if (result instanceof FormulaParser.FormulaError) {
       if (UNEVALUATED_ERROR_CODES.has(result.error)) {
         return UNEVALUATED_OUTCOME

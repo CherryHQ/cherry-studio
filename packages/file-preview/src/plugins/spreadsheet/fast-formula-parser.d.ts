@@ -56,6 +56,14 @@ declare module 'fast-formula-parser' {
     refs: FormulaReference[]
   }
 
+  export interface FormulaArgumentInfo {
+    isLiteral: boolean
+    isCellRef?: boolean
+    isRangeRef?: boolean
+    isArray?: boolean
+    isUnion: boolean
+  }
+
   export type FormulaArgumentValue = FormulaValue | FormulaReference | FormulaCollection
 
   /**
@@ -83,7 +91,7 @@ declare module 'fast-formula-parser' {
       params: FunctionArg[],
       valueType: number | null,
       allowUnion: boolean,
-      hook: (item: unknown, info: unknown) => void,
+      hook: (item: FormulaArgumentValue | FunctionArg, info: FormulaArgumentInfo) => void,
       defValue?: FormulaValue,
       minSize?: number
     ): void
