@@ -28,9 +28,16 @@ import {
 
 import { createPiBehavior, type PiBehavior } from './behavior/harness'
 import { historyOf } from './behavior/history'
+import { summarizeBoundedContext } from './compactionSummary'
 import { readContextUsage } from './contextUsage'
 import { PiProjection, type PiObservation } from './runtimeProjection'
 import { createAgentRuntimeSession, type AgentRuntimeSession, type AgentRuntimeSessionOptions } from './session'
+import type { AgentRuntimeEvent } from './sessionEvents'
+
+type PiBehaviorChildOptions = Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime'>> & {
+  /** Override token budgets for this child's model; Pi still owns compaction. */
+  compaction?: PiSessionOptions['compaction']
+}
 
 export interface PiRuntimeBehavior {
   readonly host: HostPorts
@@ -38,9 +45,7 @@ export interface PiRuntimeBehavior {
   configureChild(child: {
     readonly thread: Thread
     readonly modelKey: string
-  }):
-    | Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime'>>
-    | Promise<Partial<Pick<AgentRuntimeSessionOptions, 'model' | 'modelRuntime'>>>
+  }): PiBehaviorChildOptions | Promise<PiBehaviorChildOptions>
 }
 
 interface PiRuntimeErrorContext {
@@ -95,6 +100,7 @@ interface Entry {
   projection: PiProjection
   session: AgentSession
   owner?: AgentRuntimeSession
+  onCompactionEnd?: (event: Extract<AgentRuntimeEvent, { type: 'compaction-end' }>) => void
   behavior: { harness: PiBehavior; entries: Entries }
   admission: Promise<void>
   pending: Set<Promise<void>>
@@ -199,9 +205,19 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
             model,
             sessionManager,
             settings: { ...config.settings, retry: { enabled: false }, cacheWarming: 'off' },
-            compaction: { ...settings, ...config.compaction },
+            compaction: {
+              ...settings,
+              ...config.compaction,
+              ...configured?.compaction,
+              // Use the live native stream so behavior still meters summaries and attributes their usage.
+              summarize:
+                model.contextWindow < 100_000
+                  ? (request) => summarizeBoundedContext(request, entry.session.agent.streamFunction)
+                  : undefined
+            },
             extensionFactories: [...(config.extensionFactories ?? []), extension],
             onEvent: (event) => {
+              if (event.type === 'compaction-end') entry.onCompactionEnd?.(event)
               try {
                 if (!child) config.onEvent?.(event)
               } catch (cause) {
@@ -381,15 +397,18 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
             if (entry.session.isStreaming) return rejected('compact', 'busy')
             let compacted = false
             let compactionFailure: PiRuntimeErrorContext['compactionFailure']
-            const unsubscribe = entry.session.subscribe((event) => {
-              if (event.type !== 'compaction_end' || event.reason !== 'manual') return
-              compacted = event.result !== undefined
-              if (!compacted && (event.aborted || event.errorMessage)) {
+            // The normalized event preserves a bounded summarizer's failure when Pi cancels its fallback.
+            entry.onCompactionEnd = (event) => {
+              if (event.reason !== 'manual') return
+              if (event.aborted || event.error) {
                 compactionFailure = {
                   aborted: event.aborted === true,
-                  ...(event.errorMessage && { errorMessage: event.errorMessage })
+                  ...(event.error && { errorMessage: event.error })
                 }
               }
+            }
+            const unsubscribe = entry.session.subscribe((event) => {
+              if (event.type === 'compaction_end' && event.reason === 'manual') compacted = event.result !== undefined
             })
             try {
               await entry.behavior.harness.compact(entry.ref.id, instructions)
@@ -403,6 +422,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
               })
               return { status: 'unknown', error: error('compact', 'native-error') }
             } finally {
+              entry.onCompactionEnd = undefined
               unsubscribe()
             }
           })

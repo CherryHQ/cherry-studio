@@ -4,7 +4,7 @@ import { defineTool, SessionManager } from '@earendil-works/pi-coding-agent'
 import { obj } from '@earendil-works/pi-schema'
 import { expect, it, onTestFinished, vi } from 'vitest'
 
-import { createScriptedHost } from '@cherrystudio/agent-behavior'
+import { createScriptedHost, ENTRY_KINDS } from '@cherrystudio/agent-behavior'
 import {
   runtimeId,
   type ObservationPayload,
@@ -14,6 +14,8 @@ import {
 
 import { createPiRuntime, type PiSessionOptions, type PiObservation } from '../src'
 import * as piHarness from '../src/behavior/harness'
+import { restoredRunUsage } from '../src/behavior/history'
+import type { AgentRuntimeEvent } from '../src/sessionEvents'
 import { assistantReply, createTestBinding, MODEL, respondingModel, tempDir, type TestStream } from './sessionSupport'
 import { gate, subagentCall, toolCallPart } from './subagentSupport'
 
@@ -513,6 +515,7 @@ it('uses native manual compaction and preserves identity on reopen', async () =>
 
 // Catches manual compaction surviving Stop or blocking shutdown before native cancellation.
 it.each(['interrupt', 'shutdown'] as const)('cancels a standalone manual compaction on %s', async (action) => {
+  const nativeEvents: AgentRuntimeEvent[] = []
   let started!: (signal: AbortSignal) => void
   const summaryStarted = new Promise<AbortSignal>((resolve) => {
     started = resolve
@@ -523,7 +526,9 @@ it.each(['interrupt', 'shutdown'] as const)('cancels a standalone manual compact
     started(call.signal!)
     return summary.wait(assistantReply('summary'))
   })
-  const { runtime, config } = await setup(provider.model)
+  const { runtime, config, errorReports } = await setup(provider.model, {
+    onEvent: (event) => nativeEvents.push(event)
+  })
   const root = confirmed(await runtime.create(config))
   const events = await observe(root)
   await root.input.submit(draft('question'))
@@ -536,6 +541,12 @@ it.each(['interrupt', 'shutdown'] as const)('cancels a standalone manual compact
     expect(await stopping).toMatchObject({ status: 'confirmed', value: undefined })
     expect((await compacting).status).not.toBe('confirmed')
     expect(root.pi.history().some((entry) => entry.type === 'compaction')).toBe(false)
+    expect(nativeEvents.filter((event) => event.type === 'compaction-end')).toEqual([
+      { type: 'compaction-end', reason: 'manual', aborted: true }
+    ])
+    expect(errorReports).toEqual([
+      [expect.any(Error), { operation: 'compact', thread: root.thread, compactionFailure: { aborted: true } }]
+    ])
   } finally {
     summary.open()
     await compacting
@@ -555,27 +566,43 @@ it('rejects an empty native summary without changing the compacted history', asy
   expect(provider.calls).toHaveLength(2)
 })
 
-it('associates a failed native compaction with its exact owner and original error', async () => {
-  const provider = respondingModel((_call, index) =>
-    index === 1 ? assistantReply('answer') : { ...assistantReply([], 'error'), errorMessage: 'insufficient balance' }
-  )
-  const { runtime, config, errorReports } = await setup(provider.model)
-  const root = confirmed(await runtime.create(config))
-  const events = await observe(root)
-  await root.input.submit(draft('question'))
-  await expect.poll(() => inputs(events, 'question').at(-1)?.outcome).toBe('completed')
-  expect((await root.pi.compact()).status).not.toBe('confirmed')
-  expect(errorReports).toHaveLength(1)
-  expect(errorReports[0]).toEqual([
-    expect.any(Error),
-    {
-      operation: 'compact',
-      thread: root.thread,
-      compactionFailure: { aborted: false, errorMessage: expect.stringContaining('insufficient balance') }
-    }
-  ])
-  expect(root.pi.history().some((entry) => entry.type === 'compaction')).toBe(false)
-})
+it.each([8_192, 128_000])(
+  'associates a failed %i-token compaction with its exact owner and original error',
+  async (contextWindow) => {
+    const nativeEvents: AgentRuntimeEvent[] = []
+    const provider = respondingModel((_call, index) =>
+      index === 1 ? assistantReply('answer') : { ...assistantReply([], 'error'), errorMessage: 'insufficient balance' }
+    )
+    const { runtime, config, errorReports } = await setup(provider.model, {
+      ...(await createTestBinding({ stream: provider.model, model: { ...MODEL, contextWindow } })),
+      onEvent: (event) => nativeEvents.push(event)
+    })
+    const root = confirmed(await runtime.create(config))
+    const events = await observe(root)
+    await root.input.submit(draft('question'))
+    await expect.poll(() => inputs(events, 'question').at(-1)?.outcome).toBe('completed')
+    expect((await root.pi.compact()).status).not.toBe('confirmed')
+    expect(errorReports).toHaveLength(1)
+    expect(errorReports[0]).toEqual([
+      expect.any(Error),
+      {
+        operation: 'compact',
+        thread: root.thread,
+        compactionFailure: { aborted: false, errorMessage: expect.stringContaining('insufficient balance') }
+      }
+    ])
+    expect(root.pi.history().some((entry) => entry.type === 'compaction')).toBe(false)
+    expect(nativeEvents.filter((event) => event.type === 'compaction-end')).toEqual([
+      {
+        type: 'compaction-end',
+        reason: 'manual',
+        aborted: false,
+        error: expect.stringContaining('insufficient balance')
+      }
+    ])
+    expect(provider.calls).toHaveLength(2)
+  }
+)
 
 it('keeps an unexpected onCompacted failure distinct from a failed native compaction', async () => {
   const failure = new TypeError('Unexpected post-compaction callback failure')
@@ -792,6 +819,146 @@ it('withdraws a pending child input and closes the native graph on shutdown', as
     error: { code: 'closed' }
   })
 })
+
+// Catches child budgets being lost, or a bounded summary bypassing native request and usage accounting.
+it('compacts a smaller child through one metered native request without changing the root budgets', async () => {
+  let rootId = ''
+  let childRequests = 0
+  const provider = respondingModel((call) => {
+    if (call.tools.length === 0) return assistantReply('CHILD-SUMMARY', 'stop', 73, 11)
+    if (call.sessionId !== rootId) {
+      childRequests += 1
+      return childRequests === 1
+        ? assistantReply([toolCallPart('page', 'fetch_page')], 'toolUse', 4_500, 20)
+        : assistantReply('child done')
+    }
+    if (JSON.stringify(call.messages.at(-1)).includes('delegate'))
+      return assistantReply([subagentCall('spawn', { description: 'scan', prompt: 'Read the page.' })], 'toolUse')
+    return assistantReply('parent done')
+  })
+  const childBinding = await createTestBinding({ stream: provider.model, model: { ...MODEL, contextWindow: 8_192 } })
+  const { runtime, config, errors } = await setup(provider.model, {
+    tools: [
+      defineTool({
+        name: 'fetch_page',
+        label: 'Fetch page',
+        description: 'Fetch one long page',
+        parameters: obj({}),
+        async execute() {
+          return { content: [{ type: 'text', text: `SOURCE-PAGE ${'x'.repeat(9_000)}` }], details: undefined }
+        }
+      })
+    ]
+  })
+  const root = confirmed(
+    await runtime.create({
+      ...config,
+      behavior: {
+        ...config.behavior,
+        configureChild: () => ({
+          ...childBinding,
+          compaction: { enabled: true, reserveTokens: 4_096, keepRecentTokens: 819 }
+        })
+      }
+    })
+  )
+  rootId = root.thread.id
+  const events = await observe(root)
+  await root.input.submit(draft('delegate'))
+  await expect.poll(() => inputs(events, 'delegate').at(-1)?.outcome).toBe('completed')
+  const { handle: child } = confirmed(await root.pi.openChild('spawn'))
+  const summaries = provider.calls.filter((call) => call.tools.length === 0)
+  expect(summaries).toHaveLength(1)
+  expect(summaries[0]).toMatchObject({ sessionId: child.thread.id, model: { contextWindow: 8_192 } })
+  const finalChildRequest = provider.calls.filter((call) => call.sessionId === child.thread.id).at(-1)!
+  expect(JSON.stringify(finalChildRequest.messages)).toContain('CHILD-SUMMARY')
+  expect(child.pi.history().filter((entry) => entry.type === 'compaction')).toHaveLength(1)
+  expect(
+    child.pi.history().filter((entry) => entry.type === 'custom' && entry.customType === ENTRY_KINDS.summaryUsage)
+  ).toHaveLength(1)
+  // The stored usage includes two normal requests and exactly one summary, even after history restoration.
+  expect(restoredRunUsage(child.pi.history(), child.thread.id)).toEqual([
+    expect.objectContaining({ input: 4_583, output: 36, cacheRead: 6, cacheWrite: 0, totalTokens: 4_625 })
+  ])
+  expect(root.pi.history().some((entry) => entry.type === 'compaction')).toBe(false)
+  expect(config.compaction).toEqual({ enabled: false, reserveTokens: 1, keepRecentTokens: 1 })
+  expect(errors).toEqual([])
+})
+
+// Catches a bounded summary bypassing the meter and allowing a 201st request in the same child run.
+it('counts the bounded summary toward the child request limit', async () => {
+  let rootId = ''
+  let childRequests = 0
+  const compacting: string[] = []
+  const provider = respondingModel((call) => {
+    if (call.sessionId !== rootId) {
+      if (call.tools.length === 0) return assistantReply('LAST-SUMMARY', 'stop', 1, 0)
+      childRequests += 1
+      return assistantReply(
+        [toolCallPart(`step-${childRequests}`, 'next_step')],
+        'toolUse',
+        childRequests === 199 ? 4_500 : 1,
+        0
+      )
+    }
+    if (JSON.stringify(call.messages.at(-1)).includes('delegate'))
+      return assistantReply(
+        [subagentCall('spawn', { description: 'scan', prompt: 'Work through the steps.' })],
+        'toolUse'
+      )
+    return assistantReply('parent done')
+  })
+  const childBinding = await createTestBinding({ stream: provider.model, model: { ...MODEL, contextWindow: 8_192 } })
+  const { runtime, config } = await setup(provider.model, {
+    extensionFactories: [
+      (pi) => {
+        pi.on('session_before_compact', (_event, ctx) => {
+          compacting.push(ctx.sessionManager.getSessionId())
+        })
+      }
+    ],
+    tools: [
+      defineTool({
+        name: 'next_step',
+        label: 'Next step',
+        description: 'Complete one step',
+        parameters: obj({}),
+        async execute() {
+          return {
+            content: [{ type: 'text', text: childRequests === 199 ? 'x'.repeat(9_000) : 'ok' }],
+            details: undefined
+          }
+        }
+      })
+    ]
+  })
+  const root = confirmed(
+    await runtime.create({
+      ...config,
+      behavior: {
+        ...config.behavior,
+        configureChild: () => ({
+          ...childBinding,
+          compaction: { enabled: true, reserveTokens: 4_096, keepRecentTokens: 819 }
+        })
+      }
+    })
+  )
+  rootId = root.thread.id
+  await root.input.submit(draft('delegate'))
+  await root.pi.settled()
+  const { handle: child } = confirmed(await root.pi.openChild('spawn'))
+  const calls = provider.calls.filter((call) => call.sessionId === child.thread.id)
+  expect(calls).toHaveLength(200)
+  expect(compacting).toEqual([child.thread.id])
+  expect(calls.filter((call) => call.tools.length > 0)).toHaveLength(199)
+  expect(calls.at(-1)!.tools).toHaveLength(0)
+  expect(child.pi.history().filter((entry) => entry.type === 'compaction')).toHaveLength(1)
+  expect(
+    child.pi.history().filter((entry) => entry.type === 'custom' && entry.customType === ENTRY_KINDS.summaryUsage)
+  ).toHaveLength(1)
+  expect(JSON.stringify(provider.calls.at(-1)!.messages)).toContain('200 model requests')
+}, 30_000)
 
 // Catches silently loading a persisted child as an independent root, losing its behavior ownership.
 it('restores child relations on reopen and refuses a child without its live owner', async () => {

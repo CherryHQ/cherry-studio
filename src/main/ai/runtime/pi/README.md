@@ -72,6 +72,13 @@ existing message parts; pending questions do not resume after restart. No new da
 Pi and Pi Durable generate compaction summaries using their native runtimes. Each native summary request is
 metered, and its reported usage is attributed to the initiating goal and child run. The gateway remains the sole
 writer of provider billing records. Goal completion calls the verifier through the gateway without a tool loop.
+
+Ordinary Pi receives model-specific compaction thresholds from its gateway binding, including child model
+overrides. Below a 100,000-token context, the Pi package bounds summary input/output through its native
+extension and cancels failed summaries without retry or fallback. Larger contexts keep native summary
+behavior. Pi Durable uses its own native compaction path and is outside this budget change. The package
+[compaction contract](../../../../../packages/agent-runtime-pi/README.md#compaction-and-shared-tools)
+owns summary execution details.
 `agent-behavior` provides `vcc_recall`; the old pi-vcc extension and build artifact are removed.
 Large tool output is saved under `feature.agents.outputs`, which read tools may access.
 
@@ -136,3 +143,71 @@ execution, provider selection, request options, cancellation and SQLite billing 
 `PiRuntimeConnection.test.ts` covers desktop connection ownership and native context associations
 with a native test provider substituted at the model-binding boundary.
 Live-provider and Electron acceptance remain separate checks.
+
+### Focused small-context regressions
+
+Run from the repository root:
+
+```bash
+pnpm exec vitest run --project agent-runtime-pi packages/agent-runtime-pi/tests/compactionSummary.test.ts packages/agent-runtime-pi/tests/behaviorRuntime.test.ts packages/agent-runtime-pi/tests/sessionEvents.test.ts
+pnpm exec vitest run --project main src/main/ai/runtime/pi/piCompactionRecovery.test.ts src/main/ai/runtime/pi/piCompactionBudget.test.ts src/main/ai/runtime/pi/gatewayModelBinding.test.ts src/main/ai/runtime/pi/PiRuntimeConnection.test.ts
+```
+
+These cover summary fitting and failure, child request limits and usage, per-model thresholds, post-compaction
+output estimates, gateway bindings and desktop manual compaction. They use scripted providers and a loopback
+upstream; the following live-provider check is separate.
+
+### Manual small-context Pi check
+
+Use an [isolated development profile](../../../../../docs/dev/contrib/development.md#start) and synthetic
+conversation text. The current New Agent wizard creates
+`pi-durable` agents and the edit dialog displays a read-only runtime. Creating an agent in that wizard does
+not exercise the ordinary Pi adapter. For this developer check, use the same supported `ai.agent.create`
+IPC command as `tests/e2e/smoke/piStoreOmission.test.ts`, with an explicit `type: 'pi'`.
+
+1. In Settings → Providers, configure an enabled test provider and a gateway-compatible text model with its
+   real upstream model ID. Give the model the display name `Pi compaction QA 8K`. In its model edit drawer,
+   type `8192` into Context Window and `1024` into Max Output Tokens; leave each field to commit the value.
+   The preset buttons start above 8K, so use the numeric inputs. This is a local catalog limit for the test;
+   it does not change the provider's real capacity. Do not use a CLI-only provider or change a production model.
+2. In that development window's DevTools console, create a dedicated Pi agent and system-workspace session:
+
+   ```javascript
+   await (async () => {
+     const listed = await window.api.dataApi.request({
+       id: 'pi-qa-models', method: 'GET', path: '/models', query: { enabled: true }
+     })
+     if (listed.status !== 200) throw new Error('Could not list test models')
+     const matches = listed.data.filter((model) => model.name === 'Pi compaction QA 8K')
+     if (matches.length !== 1) throw new Error('Create exactly one named test model')
+     const model = matches[0]
+     if (model.contextWindow !== 8192 || model.maxOutputTokens !== 1024)
+       throw new Error('Commit the 8K context and 1K output limits first')
+     const name = `Pi compaction QA ${Date.now()}`
+     const created = await window.api.ipcApi.request('ai.agent.create', {
+       type: 'pi', name, model: model.id,
+       instructions: 'Answer briefly without tools. Preserve the objective and progress markers.'
+     })
+     if (!created.ok || created.data.type !== 'pi') throw new Error('Ordinary Pi was not created')
+     const session = await window.api.dataApi.request({
+       id: 'pi-qa-session', method: 'POST', path: '/agent-sessions',
+       body: { agentId: created.data.id, name, workspace: { type: 'system' } }
+     })
+     if (session.status !== 201) throw new Error('Could not create test session')
+     return { name, runtime: created.data.type }
+   })()
+   ```
+
+3. Refresh the development window, open Work and select the returned agent/session name. Its runtime must
+   read Pi, not Pi Durable or Claude Code. Send synthetic turns with `ORIGINAL_TASK` near the beginning and
+   `LATEST_PROGRESS` at the end, then submit `/compact Keep ORIGINAL_TASK and LATEST_PROGRESS.` If the history
+   is too short to compact, add synthetic text and repeat. Record the actual native compaction completion
+   and the new compaction entry in this test session's JSONL; two successful chat turns alone are not acceptance.
+4. Ask for the two markers after compaction, then reopen the session and ask again. Inspect the captured test
+   summary request to confirm bounded input/output and complete focus instructions. Never attach provider
+   credentials or unrelated conversation content to the result. Manual `/compact` verifies the summary path;
+   automatic triggering requires a separate run that grows history past the configured threshold.
+5. Use the focused regressions for deterministic overflow, impossible instruction budgets, unsuccessful
+   responses and child-model budget changes. A provider may not produce those failures during a manual run.
+   Report the tested commit, runtime, configured limits and observed result; this procedure is not a claim
+   that a live-provider or packaged-app run has already passed.

@@ -984,6 +984,13 @@ summaries through Cherry's gateway for automatic compaction and `/compact`; text
 summary instructions, never another user turn. Each summary request is metered and its usage is attributed to
 the originating goal and child run. Empty or failed summaries cancel compaction.
 
+Ordinary Pi's gateway bindings set context-aware token budgets for root and child models. For contexts below
+100,000 tokens, the Pi adapter bounds summary input/output and makes at most one summary request; failure
+cancels compaction without retry or fallback. Larger contexts retain native summary behavior, which may use
+separate history and turn-prefix requests. Pi Durable's own native compaction path is unchanged. Developer
+steps for exercising ordinary Pi with an 8K test model are in the
+[desktop Pi README](../../../../src/main/ai/runtime/pi/README.md#manual-small-context-pi-check).
+
 Pi retains its native JSONL history and writes the compaction boundary. Product
 messages remain a display projection. The shared `vcc_recall` tool searches the
 current conversation history, including after reopening; it cannot select an
