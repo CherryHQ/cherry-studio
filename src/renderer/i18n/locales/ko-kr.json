@@ -1430,6 +1430,7 @@
   "common.search": "검색",
   "common.select": "선택",
   "common.select_all": "모두 선택",
+  "common.select_all_filtered": "필터링된 결과 모두 선택",
   "common.selected": "선택됨",
   "common.selectedItems": "항목 {{count}}개 선택됨",
   "common.selectedMessages": "메시지 {{count}}개 선택됨",
