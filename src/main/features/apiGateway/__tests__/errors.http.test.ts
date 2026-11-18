@@ -346,15 +346,14 @@ const vocabulary: Record<number, { anthropic: string; openai: string; code: stri
 }
 function expectedBody(format: OutputFormat, c: Case, sse = false) {
   const v = vocabulary[c.status]
-  if (format === 'anthropic')
-    return {
-      type: 'error',
-      error: {
-        type: c.providerType ?? v.anthropic,
-        message: c.message,
-        ...(c.requestId ? { requestId: c.requestId } : {})
-      }
+  if (format === 'anthropic') {
+    const error: Pick<Case, 'message' | 'requestId'> & { type: string } = {
+      type: c.providerType ?? v.anthropic,
+      message: c.message
     }
+    if (c.requestId) error.requestId = c.requestId
+    return { type: 'error', error }
+  }
   if (format === 'gemini') return { error: { code: c.status, message: c.message, status: v.google } }
   const openai = c.quota ? { type: 'insufficient_quota', code: 'insufficient_quota' } : { type: v.openai, code: v.code }
   if (format === 'openai-responses' && sse) return { type: 'error', code: openai.code, message: c.message }

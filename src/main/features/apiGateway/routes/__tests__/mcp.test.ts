@@ -416,13 +416,9 @@ describe('/v1/mcps', () => {
   // clients send no Origin and must stay unaffected.
   describe('Origin validation', () => {
     it.each(['POST', 'GET', 'DELETE'])('rejects a non-local Origin on %s', async (method) => {
-      const res = await app.handle(
-        new Request('http://localhost/v1/mcps/server-1/mcp', {
-          method,
-          headers: { ...MCP_HEADERS, origin: 'https://evil.example' },
-          ...(method === 'POST' ? { body: JSON.stringify(INITIALIZE) } : {})
-        })
-      )
+      const init: RequestInit = { method, headers: { ...MCP_HEADERS, origin: 'https://evil.example' } }
+      if (method === 'POST') init.body = JSON.stringify(INITIALIZE)
+      const res = await app.handle(new Request('http://localhost/v1/mcps/server-1/mcp', init))
       expect(res.status).toBe(403)
     })
 
