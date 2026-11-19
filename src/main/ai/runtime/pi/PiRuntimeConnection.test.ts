@@ -52,6 +52,8 @@ import { buildPiLoginPathPrefix } from './piShell'
 const modelId = 'test::test-model'
 /** An approval crosses the runtime boundary and starts a native tool, so the one-second default is a race on CI. */
 const APPROVAL_WAIT = { timeout: 10_000 } as const
+/** Native child scheduling and archive writes can exceed the default one-second poll on Windows CI. */
+const CHILD_WAIT = { timeout: 10_000 } as const
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -874,7 +876,7 @@ describe('desktop Pi root connection', () => {
     const { connection, events } = await connect()
     try {
       await connection.send({ message: message('delegate now') })
-      await done(events)
+      await done(events, CHILD_WAIT.timeout)
       const access = (await connection.childProjection('spawn'))!
       await connection.messageChild(access.snapshot().contextId, 'continue')
       await answering.reached
