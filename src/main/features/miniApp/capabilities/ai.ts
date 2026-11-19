@@ -197,6 +197,7 @@ export const aiCapability = {
   // out of a promise-returning method escapes every `.catch()` the bridge puts on it.
   async chat(
     appId: string,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Guest chat params are raw after bridge envelope parsing; ChatParams validates message roles, count, bytes, reasoning and model slot before starting work.
     params: unknown,
     emit: (chunk: string) => void,
     guestId: number,
@@ -286,6 +287,7 @@ export const aiCapability = {
    * Silent on an unknown id — the call may have finished a tick ago, and that is not
    * an error the app can do anything about.
    */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- CancelParams validates the guest call label before looking it up within the authenticated guest ID scope.
   async cancel(_appId: string, params: unknown, guestId: number) {
     const { callId } = CancelParams.parse(params)
     const streamId = cancellable.get(`${guestId}:${callId}`)
@@ -315,6 +317,7 @@ export const aiCapability = {
    * invites a branch that never works; add each field back with the feature that
    * makes it usable.
    */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Optional guest slot params need CapabilitiesParams parsing; an invalid label must reject rather than masquerade as an unavailable configured model.
   async getCapabilities(appId: string, params?: unknown): Promise<SlotCapabilities> {
     // Argument validation still THROWS: a slot the guest invented is the guest's own bug,
     // and `available: false` would hide that typo behind a perfectly plausible answer.

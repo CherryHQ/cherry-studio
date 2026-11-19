@@ -36,6 +36,7 @@ export async function pipeStreamLoop(
   let streamErrorText: string | undefined
   let threw: { error: unknown } | undefined
   let accumulationError: { error: unknown } | undefined
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- SDK accumulation and snapshot callbacks may fail with any thrown value, including undefined; preserve the first failure separately from broadcast.
   const onAccumulationError = (error: unknown) => {
     accumulationError ??= { error }
   }
@@ -60,6 +61,7 @@ export async function pipeStreamLoop(
       preventClose: true,
       signal: forwardingSignal
     })
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- ReadableStream.pipeTo rejects with arbitrary upstream errors; retain their identity while queued content drains normally.
     .catch((error: unknown) => {
       if (!forwardingSignal.aborted) threw ??= { error }
     })
@@ -103,6 +105,7 @@ async function runAccumulator(
   source: ReadableStream<UIMessageChunk>,
   seed: CherryUIMessage | undefined,
   onSnapshot: (message: CherryUIMessage) => void,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Matches readUIMessageStream.onError and forwards arbitrary reader/setup/snapshot failures without replacing the broadcast error channel.
   onError: (error: unknown) => void
 ): Promise<void> {
   // Provider error chunks are handled by broadcast; the SDK also calls onError for them.
