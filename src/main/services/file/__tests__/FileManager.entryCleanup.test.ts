@@ -220,7 +220,8 @@ describe('FileManager entry-cleanup wiring', () => {
     powerState.idleSeconds = 0
     const cleanup = vi.spyOn(fm, 'runEntryCleanup').mockResolvedValue(completedReport())
     // SAFETY: This view exposes the existing source-typed registration hooks for isolated initialization spies.
-    const hooks = fm as Omit<typeof fm, 'registerInterval' | 'registerIpcHandlers'> & {
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Spying on source-typed protected/private hooks requires a test-only accessibility bridge.
+    const hooks = fm as unknown as Omit<typeof fm, 'registerInterval' | 'registerIpcHandlers'> & {
       registerInterval: InstanceType<typeof FileManager>['registerInterval']
       registerIpcHandlers: InstanceType<typeof FileManager>['registerIpcHandlers']
     }

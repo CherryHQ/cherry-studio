@@ -300,7 +300,8 @@ const { messageService } = await import('@main/data/services/MessageService')
 function createService(): TestableAiService {
   BaseService.resetInstances()
   // SAFETY: The view only exposes existing source-typed methods for spies; the instance and public API stay intact.
-  return new AiService() as TestableAiService
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Vitest spies require public keys; TypeScript private declarations remain nominally incompatible.
+  return new AiService() as unknown as TestableAiService
 }
 
 describe('AiService', () => {
