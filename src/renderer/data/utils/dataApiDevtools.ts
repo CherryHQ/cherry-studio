@@ -178,6 +178,7 @@ function consumeClientDuration(requestId: string): number | undefined {
   return performance.now() - startTime
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- DevTools observes arbitrary endpoint query, body and response values; capture policy and depth, size and scalar checks bound the recorded preview.
 function sanitizeValue(value: unknown, depth = 0): CapturedPayload {
   if (!options.capturePayloads) return undefined
   if (value === null || value === undefined) return value
@@ -212,7 +213,9 @@ function sanitizeValue(value: unknown, depth = 0): CapturedPayload {
   return result
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Request error and retry observers receive unrestricted failures; check metadata fields and capture-gate the message inside safeRecord isolation.
 function serializeError(error: unknown): DataApiDevtoolsEvent['error'] {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Caught failures may expose nonstring messages; payload capture policy gates coercion, truncation bounds text and safeRecord isolates throwing hooks.
   const serializeMessage = (message: unknown): string => {
     if (!options.capturePayloads) return '<payload capture disabled>'
     const sanitized = sanitizeValue(typeof message === 'string' ? message : String(message))
