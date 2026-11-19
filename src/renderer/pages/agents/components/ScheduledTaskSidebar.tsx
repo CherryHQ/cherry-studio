@@ -63,7 +63,10 @@ function TaskRow({
   // Keep dialogs mounted after first use so they can finish their exit animations.
   const [editOpen, setEditOpen] = useState<boolean>()
   const [deleteOpen, setDeleteOpen] = useState<boolean>()
-  const [guardApproveOpen, setGuardApproveOpen] = useState(false)
+  // Snapshot the command when the dialog opens: the task prop refreshes live,
+  // and approving whatever happens to be rendered at click time could approve a
+  // command the user never read.
+  const [guardApproveCommand, setGuardApproveCommand] = useState<string | null>(null)
   const paused = task.status === 'paused'
   const perform = async (command: () => Promise<unknown>) => {
     if (busy) return
@@ -128,7 +131,7 @@ function TaskRow({
         </Tooltip>
         <DropdownMenuContent align="end">
           {guardCommand !== null && task.guardApproval === null && (
-            <DropdownMenuItem disabled={busy} onSelect={() => setGuardApproveOpen(true)}>
+            <DropdownMenuItem disabled={busy} onSelect={() => setGuardApproveCommand(guardCommand)}>
               {t('agent.tasks.guard.approve')}
             </DropdownMenuItem>
           )}
@@ -174,22 +177,24 @@ function TaskRow({
           />
         </Suspense>
       )}
-      {guardCommand !== null && (
+      {guardApproveCommand !== null && (
         <ConfirmDialog
-          open={guardApproveOpen}
-          onOpenChange={setGuardApproveOpen}
+          open
+          onOpenChange={(open) => {
+            if (!open) setGuardApproveCommand(null)
+          }}
           title={t('agent.tasks.guard.approveConfirmTitle')}
           description={t('agent.tasks.guard.approveConfirmBody')}
           content={
             <code className="block max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-2 text-xs">
-              {guardCommand}
+              {guardApproveCommand}
             </code>
           }
           confirmText={t('agent.tasks.guard.approve')}
           cancelText={t('agent.tasks.cancel')}
           confirmLoading={busy}
           cancelDisabled={busy}
-          onConfirm={() => perform(() => approveTaskGuard(task.agentId, task.id, guardCommand))}
+          onConfirm={() => perform(() => approveTaskGuard(task.agentId, task.id, guardApproveCommand))}
         />
       )}
       {deleteOpen !== undefined && (
