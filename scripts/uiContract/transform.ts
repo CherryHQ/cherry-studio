@@ -7,8 +7,10 @@ import {
   type JSXOpeningElement,
   type JSXSpreadAttribute,
   type MemberExpression,
+  type Node,
   parseSync,
-  type Span
+  type Span,
+  visitorKeys
 } from 'oxc-parser'
 
 import { inferHandlerAction, inferSemanticId } from './semanticId'
@@ -47,8 +49,6 @@ const RUNTIME_MERGE_DATA_UI = '__cherryUiContractMergeDataUi'
 const RUNTIME_MERGE_UI_PROPS = '__cherryUiContractMergeUiProps'
 const RUNTIME_SLOT = '__CherryUiContractSlot'
 
-type AstRecord = Record<string, unknown> & Partial<Span> & { type?: string }
-
 interface AttributeInfo {
   attribute?: JSXAttribute
   dynamic: boolean
@@ -86,10 +86,6 @@ function hasSemanticSignal(info: OpeningElementInfo): boolean {
 function hasStaticAttribute(attributes: Map<string, AttributeInfo>, name: string): boolean {
   const attribute = attributes.get(name)
   return Boolean(attribute && !attribute.dynamic && attribute.value)
-}
-
-function isRecord(value: unknown): value is AstRecord {
-  return typeof value === 'object' && value !== null
 }
 
 function jsxName(name: JSXElementName): string {
@@ -195,13 +191,13 @@ function explicitSemanticId(dataUi: AttributeInfo | undefined): string | undefin
   return dataUi.value.split(/\s+/).find((token) => token && !token.includes(':'))
 }
 
-function componentNameFromNode(node: AstRecord): string | undefined {
-  if ((node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') && isRecord(node.id)) {
-    return typeof node.id.name === 'string' ? node.id.name : undefined
+function componentNameFromNode(node: Node): string | undefined {
+  if (node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') {
+    return node.id?.name
   }
-  if (node.type === 'VariableDeclarator' && isRecord(node.id) && node.id.type === 'Identifier' && isRecord(node.init)) {
-    if (node.init.type === 'ArrowFunctionExpression' || node.init.type === 'FunctionExpression') {
-      return typeof node.id.name === 'string' ? node.id.name : undefined
+  if (node.type === 'VariableDeclarator' && node.id.type === 'Identifier') {
+    if (node.init?.type === 'ArrowFunctionExpression' || node.init?.type === 'FunctionExpression') {
+      return node.id.name
     }
   }
   return undefined
@@ -257,14 +253,6 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     return source.slice(spanToCharacter(span.start), spanToCharacter(span.end))
   }
 
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Closing elements also arrive through generic AST property traversal; require numeric offsets before passing them to source edits.
-  function requiredSpan(value: unknown, description: string): Span {
-    if (!isRecord(value) || typeof value.start !== 'number' || typeof value.end !== 'number') {
-      throw new Error(`Missing ${description} span`)
-    }
-    return { start: value.start, end: value.end }
-  }
-
   function injectDataUi(opening: JSXOpeningElement, existing: AttributeInfo | undefined, contract: string): void {
     const dynamicExpressions: string[] = []
     const attribute = existing?.attribute
@@ -273,14 +261,14 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
       attribute?.value?.type === 'JSXExpressionContainer' &&
       attribute.value.expression.type !== 'JSXEmptyExpression'
     ) {
-      dynamicExpressions.push(expressionSource(requiredSpan(attribute.value.expression, 'data-ui expression')))
+      dynamicExpressions.push(expressionSource(attribute.value.expression))
     }
 
     if (attribute) {
       magicString.remove(spanToCharacter(attribute.start), spanToCharacter(attribute.end))
     }
 
-    const nameSpan = requiredSpan(opening.name, `JSX element-name for ${jsxName(opening.name)}`)
+    const nameSpan = opening.name
     const dataUiValue =
       dynamicExpressions.length > 0
         ? `{${RUNTIME_MERGE_DATA_UI}(${JSON.stringify(contract)}, ${dynamicExpressions.join(', ')})}`
@@ -290,7 +278,7 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
 
     for (const spread of opening.attributes) {
       if (spread.type !== 'JSXSpreadAttribute') continue
-      const spreadSpan = requiredSpan(spread.argument, 'JSX spread expression')
+      const spreadSpan = spread.argument
       const spreadSource = expressionSource(spreadSpan)
       magicString.overwrite(
         spanToCharacter(spreadSpan.start),
@@ -394,8 +382,7 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
   }
 
   function walk(
-    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Recursive AST properties include nodes, arrays, scalar metadata and null; visit only record/array branches while preserving source spans.
-    value: unknown,
+    value: Node | (Node | null)[] | null | undefined,
     component: string,
     insideSvg = false,
     hasBoundaryAncestor = false,
@@ -405,15 +392,11 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
       for (const item of value) walk(item, component, insideSvg, hasBoundaryAncestor, nearestSemanticId)
       return
     }
-    if (!isRecord(value)) return
+    if (!value) return
 
     const nestedComponent = componentNameFromNode(value) ?? component
-    if (
-      value.type === 'JSXElement' &&
-      isRecord(value.openingElement) &&
-      value.openingElement.type === 'JSXOpeningElement'
-    ) {
-      const opening = value.openingElement as unknown as JSXOpeningElement
+    if (value.type === 'JSXElement') {
+      const opening = value.openingElement
       const element = jsxName(opening.name)
       const isIntrinsicElement = /^[a-z]/.test(element)
       const semanticId = processOpening(opening, nestedComponent, insideSvg, hasBoundaryAncestor, nearestSemanticId)
@@ -431,18 +414,15 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
         options.injectDataUi &&
         !/^[a-z]/.test(element) &&
         shouldWrapAsChildContent(opening) &&
-        Array.isArray(value.children) &&
         value.children.length > 0 &&
-        isRecord(value.closingElement)
+        value.closingElement
       ) {
-        const closingSpan = requiredSpan(value.closingElement, 'JSX closing element')
+        const closingSpan = value.closingElement
         magicString.appendLeft(spanToCharacter(opening.end), `<${RUNTIME_SLOT}>`)
         magicString.appendLeft(spanToCharacter(closingSpan.start), `</${RUNTIME_SLOT}>`)
         runtimeImports.add('UiDataSlot')
       }
-      if (Array.isArray(value.children)) {
-        walk(value.children, nestedComponent, childrenInsideSvg, childrenHaveBoundaryAncestor, childSemanticId)
-      }
+      walk(value.children, nestedComponent, childrenInsideSvg, childrenHaveBoundaryAncestor, childSemanticId)
       for (const attribute of opening.attributes) {
         if (attribute.type === 'JSXAttribute' && attribute.value?.type === 'JSXExpressionContainer') {
           walk(
@@ -457,9 +437,10 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
       return
     }
 
-    for (const [key, child] of Object.entries(value)) {
-      if (key === 'start' || key === 'end' || key === 'parent' || key === 'type') continue
-      walk(child, nestedComponent, insideSvg, hasBoundaryAncestor, nearestSemanticId)
+    // SAFETY: Oxc owns these nodes; only its visitor keys are indexed, each identifying a child node or node list.
+    const children = value as typeof value & Record<string, Node | (Node | null)[] | null | undefined>
+    for (const key of visitorKeys[value.type]) {
+      walk(children[key], nestedComponent, insideSvg, hasBoundaryAncestor, nearestSemanticId)
     }
   }
 
@@ -479,7 +460,6 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     for (const item of program.body) {
       if (
         item.type !== 'ExpressionStatement' ||
-        !isRecord(item.expression) ||
         item.expression.type !== 'Literal' ||
         typeof item.expression.value !== 'string'
       ) {

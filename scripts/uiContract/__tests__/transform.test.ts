@@ -130,6 +130,30 @@ class Message {
     expectParseable(result.code)
   })
 
+  it('preserves ownership and SVG boundaries across parameters, nested functions and siblings', () => {
+    const source = `function Outer({ fallback = <aside data-ui="chat.fallback" /> }) {
+  function Inner() {
+    return <svg data-ui="chat.figure"><path data-ui="chat.path" /><foreignObject><div data-ui="chat.html" /></foreignObject></svg>
+  }
+  return <main data-ui="chat.outer"><Inner /><section data-ui="chat.after" /></main>
+}
+const Sibling = () => <footer data-ui="chat.sibling" />`
+    const result = transformJsx(source, { ...options, injectDataUi: true })
+
+    expect(
+      result.descriptors.map(({ component, element, semanticId }) => ({ component, element, semanticId }))
+    ).toEqual([
+      { component: 'Outer', element: 'aside', semanticId: 'chat.fallback' },
+      { component: 'Inner', element: 'svg', semanticId: 'chat.figure' },
+      { component: 'Inner', element: 'path', semanticId: 'chat.path' },
+      { component: 'Inner', element: 'div', semanticId: 'chat.html' },
+      { component: 'Outer', element: 'main', semanticId: 'chat.outer' },
+      { component: 'Outer', element: 'section', semanticId: 'chat.after' },
+      { component: 'Sibling', element: 'footer', semanticId: 'chat.sibling' }
+    ])
+    expectParseable(result.code)
+  })
+
   it('inserts runtime imports after a directive prologue', () => {
     const result = transformJsx(`'use client'\nconst Message = ({ contract }) => <main data-ui={contract} />`, {
       ...options,
