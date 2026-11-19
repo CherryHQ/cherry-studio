@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useInfiniteFlatItems, useInfiniteQuery, useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import { toError } from '@renderer/utils/errorDetails'
 import type {
   KnowledgeItemListResponse,
   KnowledgeItemSort,
@@ -33,14 +34,6 @@ const chunkKnowledgeItemIds = (itemIds: string[]) => {
 const hasNonTerminalItem = (pages?: KnowledgeItemListResponse[]) =>
   pages?.some((page) => page.items.some((item) => !TERMINAL_STATUSES.has(item.status))) ?? false
 
-const normalizeKnowledgeError = (error: unknown): Error => {
-  if (error instanceof Error) {
-    return error
-  }
-
-  return new Error(String(error))
-}
-
 const addLogger = loggerService.withContext('useAddKnowledgeItems')
 const deleteLogger = loggerService.withContext('useDeleteKnowledgeItem')
 const reindexLogger = loggerService.withContext('useReindexKnowledgeItem')
@@ -57,7 +50,7 @@ const refreshKnowledgeItemsCaches = async (
   try {
     await invalidateCache([`/knowledge-bases/${baseId}/items`, '/knowledge-bases'])
   } catch (invalidateError) {
-    logger.error(message, normalizeKnowledgeError(invalidateError), context)
+    logger.error(message, toError(invalidateError), context)
   }
 }
 
@@ -184,7 +177,7 @@ export const useAddKnowledgeItems = (baseId: string) => {
       try {
         result = await ipcApi.request('knowledge.add_items', { baseId, items, conflictStrategy })
       } catch (error) {
-        submitError = normalizeKnowledgeError(error)
+        submitError = toError(error)
 
         addLogger.error('Failed to add knowledge sources', submitError, {
           baseId,
@@ -244,7 +237,7 @@ export const useDeleteKnowledgeItem = (baseId: string) => {
           await ipcApi.request('knowledge.delete_items', { baseId, itemIds: batchItemIds })
         }
       } catch (error) {
-        deleteError = normalizeKnowledgeError(error)
+        deleteError = toError(error)
 
         deleteLogger.error('Failed to delete knowledge source', deleteError, {
           baseId,
@@ -304,7 +297,7 @@ export const useReindexKnowledgeItem = (baseId: string) => {
           await ipcApi.request('knowledge.reindex_items', { baseId, itemIds: batchItemIds })
         }
       } catch (error) {
-        reindexError = normalizeKnowledgeError(error)
+        reindexError = toError(error)
 
         reindexLogger.error('Failed to reindex knowledge source', reindexError, {
           baseId,

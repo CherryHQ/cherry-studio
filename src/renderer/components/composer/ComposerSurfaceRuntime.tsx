@@ -454,12 +454,14 @@ function insertComposerPastedContent(editor: Editor, content: JSONContent[]) {
   editor.chain().focus().setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true).insertComposerLines(content).run()
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Serialized composer tokens have extension-owned payloads; file reconciliation reads only a verified nonarray object.
 function readComposerPayloadObject(payload: unknown): Record<string, unknown> | null {
   return typeof payload === 'object' && payload !== null && !Array.isArray(payload)
     ? (payload as Record<string, unknown>)
     : null
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted file-token payloads can drift; reconcile only an actual string path from the checked object.
 function readComposerPayloadPath(payload: unknown): string | undefined {
   const payloadObject = readComposerPayloadObject(payload)
   const path = payloadObject?.path

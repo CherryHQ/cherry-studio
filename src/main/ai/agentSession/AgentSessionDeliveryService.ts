@@ -3,6 +3,7 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { loggerService } from '@logger'
 import { isAgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { getErrorMessage } from '@main/utils/error'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -413,7 +414,9 @@ export class AgentSessionDeliveryService extends BaseService {
     return outcome
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Admission catches routing, workspace, and data failures; recognized errors determine delivery status before logging the original value.
   private failBeforeStart(message: AgentSessionMessageEntity, error: unknown): void {
+    const fallbackMessage = 'Internal Session delivery error'
     const deliveryError =
       error instanceof AgentSessionDeliveryRoutingError
         ? { code: error.code, message: error.message }
@@ -423,7 +426,7 @@ export class AgentSessionDeliveryService extends BaseService {
             ? { code: 'TARGET_UNAVAILABLE', message: error.message }
             : {
                 code: 'INTERNAL_ERROR',
-                message: error instanceof Error ? error.message : 'Internal Session delivery error'
+                message: error instanceof Error ? getErrorMessage(error, fallbackMessage) : fallbackMessage
               }
     const result = agentSessionMessageService.failSessionDelivery(message, deliveryError)
     logger.warn('Agent Session delivery admission failed', {

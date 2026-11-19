@@ -97,6 +97,7 @@ interface PopupEntryBase {
   /** True while shown; flips to false during the exit phase before removal. */
   open: boolean
   /** The promise resolver; settling the entry calls it exactly once. */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The store holds heterogeneous popups; createPopup retains each component's typed result/resolver pair before erasing it here.
   resolve: (result: unknown) => void
 }
 

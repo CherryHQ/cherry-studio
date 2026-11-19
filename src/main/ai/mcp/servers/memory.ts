@@ -341,8 +341,9 @@ export function createMemoryEndpoint(envPath = ''): BuiltinMcpEndpoint {
       ? envPath
       : path.resolve(envPath) // Use path.resolve for relative paths based on CWD
     : getDefaultMemoryPath()
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Graph loading and persistence can reject arbitrary values; log the failure before marking this manager unavailable.
   const manager = KnowledgeGraphManager.create(memoryPath).catch((error: unknown) => {
-    logger.error('Failed to initialize KnowledgeGraphManager:', error as Error)
+    logger.error('Failed to initialize KnowledgeGraphManager:', { error })
     return null
   })
   const getManager = async (): Promise<KnowledgeGraphManager> => {
@@ -362,6 +363,7 @@ export function createMemoryEndpoint(envPath = ''): BuiltinMcpEndpoint {
 }
 
 function registerMemoryTools(server: McpServer, getManager: () => Promise<KnowledgeGraphManager>): void {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Graph tools return different result shapes; this common encoder preserves their JSON fields and omission semantics.
   const json = (value: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }] })
   const text = (value: string) => ({ content: [{ type: 'text' as const, text: value }] })
 

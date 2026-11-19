@@ -1,14 +1,15 @@
-import type { JSONValue } from 'ai'
+import type { JSONObject, JSONValue } from '@ai-sdk/provider'
 
 import { wireName } from '@cherrystudio/provider-registry'
 
 import type { WireProfile, WireRegistration } from './wireProfile'
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Dynamic parameter bags can include callbacks; omit only the explicit empty sentinels before provider mapping.
 function skipValue(value: unknown): boolean {
   return value === undefined || value === '' || value === null || value === 'auto'
 }
 
-function isPlainObject(v: unknown): v is Record<string, JSONValue> {
+function isPlainObject(v: JSONValue | undefined): v is JSONObject {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
 
@@ -19,7 +20,7 @@ function isPlainObject(v: unknown): v is Record<string, JSONValue> {
  * mirroring the legacy `compact()` so an unset `aspectRatio` leaves no
  * `imageConfig.aspectRatio` and an all-empty block leaves no `imageConfig` key.
  */
-function mergeContribution(body: Record<string, JSONValue>, contribution: Record<string, JSONValue>): void {
+function mergeContribution(body: JSONObject, contribution: JSONObject): void {
   for (const [k, v] of Object.entries(contribution)) {
     if (isPlainObject(v)) {
       const target = isPlainObject(body[k]) ? body[k] : {}

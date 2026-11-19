@@ -55,13 +55,19 @@ export function createPaintingGenerateError(
   return new PaintingGenerateError(code, options)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Provider transports may reject with arbitrary values; classify them here without trusting native error metadata.
 export function normalizePaintingGenerateError(error: unknown): Error {
   if (error instanceof PaintingGenerateError) {
     return error
   }
 
   if (error instanceof Error) {
-    return createPaintingGenerateError('REMOTE_ERROR', { message: error.message })
+    try {
+      const message = error.message
+      return createPaintingGenerateError('REMOTE_ERROR', { message: typeof message === 'string' ? message : undefined })
+    } catch {
+      return createPaintingGenerateError('REMOTE_ERROR')
+    }
   }
 
   return createPaintingGenerateError('GENERATE_FAILED')

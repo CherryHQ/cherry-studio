@@ -72,6 +72,19 @@ describe('AnydocReader', () => {
     )
   })
 
+  it('still runs the fallback reader when native conversion rejects an unprintable value', async () => {
+    toMarkdownBytesMock.mockRejectedValueOnce({
+      toString() {
+        throw new Error('unprintable native failure')
+      }
+    })
+    fallbackLoadMock.mockResolvedValueOnce([new Document({ text: 'recovered document text' })])
+
+    const docs = await createReader().loadDataAsContent(new Uint8Array([1, 2, 3]), 'legacy.doc')
+
+    expect(docs.map((document) => document.text)).toEqual(['recovered document text'])
+  })
+
   it('falls back to the legacy reader when document conversion fails', async () => {
     const failure = new Error('Unsupported document')
     toMarkdownBytesMock.mockRejectedValue(failure)

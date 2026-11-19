@@ -51,6 +51,7 @@ export function translatePaintingGenerateError(error: Error): string {
   return i18n.t(keyMap[error.code])
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Generation and persistence may reject arbitrary values; normalizePaintingGenerateError owns category and presentation.
 export function presentPaintingGenerateError(error: unknown) {
   const normalized = normalizePaintingGenerateError(error)
   const message = translatePaintingGenerateError(normalized)

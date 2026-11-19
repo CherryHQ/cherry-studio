@@ -93,6 +93,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function getLegacyHomeConfigUpdate(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Historical home JSON is untrusted; verify the exact executable and migrated paths before allowing destructive cleanup.
   value: unknown,
   executablePath: string,
   migratedPath: string

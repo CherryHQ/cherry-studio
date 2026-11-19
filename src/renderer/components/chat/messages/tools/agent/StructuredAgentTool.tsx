@@ -12,7 +12,7 @@ type StructuredAgentToolProps = {
 
 const PRIMARY_PARAM_KEYS = ['description', 'subject', 'taskId', 'task_id', 'name', 'path', 'action', 'server', 'uri']
 
-function getPrimaryParam(value: unknown): ReactNode {
+function getPrimaryParam(value: StructuredAgentToolProps['input']): ReactNode {
   if (typeof value === 'string') return value
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
 

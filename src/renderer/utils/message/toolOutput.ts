@@ -32,6 +32,7 @@ function isMcpContentArray(value: unknown): value is unknown[] {
   return Array.isArray(value) && value.every(isMcpContentBlock)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted tool output may be raw or MCP-enveloped; recognize the envelope while preserving the opaque result payload.
 export function extractOutputMetadata(output: unknown): { response: unknown; metadata?: ToolMetadata } {
   if (!isRecord(output)) return { response: output }
 

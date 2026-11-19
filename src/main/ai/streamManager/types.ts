@@ -120,6 +120,7 @@ export interface StreamListener {
   onDone(result: StreamDoneResult): void | Promise<void>
   onPaused(result: StreamPausedResult): void | Promise<void>
   /** The original exception is available only to in-process prompt listeners. */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native listeners retain arbitrary rejection identity; renderer subscribers receive the separate serialized StreamErrorResult.
   onError(result: StreamErrorResult, originalError?: unknown): void | Promise<void>
   /** Returning `false` removes the listener immediately. */
   isAlive(): boolean

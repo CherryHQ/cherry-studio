@@ -48,6 +48,7 @@ const logger = loggerService.withContext('TrimToolOutputs')
  *  skeleton, and return the multi-blob envelope. `null` when the codec doesn't
  *  recognize the value or nothing crosses the threshold. */
 async function trimViaCodec(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool output types are erased by the registry; the selected codec recognizes and deflates its own output schema.
   output: unknown,
   codec: NonNullable<ToolEntry['codec']>,
   threshold: number
@@ -75,6 +76,7 @@ async function trimViaCodec(
 }
 
 /** Whole-text v1 trim: string / all-text MCP outputs move to a single blob. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Heterogeneous tool results are accepted only when extractPersistableText recognizes a persistable text shape.
 async function trimWholeText(output: unknown, threshold: number): Promise<PersistedToolOutputRef | null> {
   const extracted = extractPersistableText(output)
   if (!extracted) return null

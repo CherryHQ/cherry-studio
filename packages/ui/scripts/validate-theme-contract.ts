@@ -480,6 +480,7 @@ export async function validateThemeContract(stylesDir = DEFAULT_STYLES_DIR): Pro
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Theme graph and generated-asset checks may reject with any value; the terminal handler owns diagnostics and failure status.
   void validateThemeContract().catch((error: unknown) => {
     const message = error instanceof Error ? (error.stack ?? error.message) : String(error)
     process.stderr.write(`${message}\n`)

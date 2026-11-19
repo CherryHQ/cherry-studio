@@ -27,6 +27,29 @@ const encoder = new TextEncoder()
 const decoder = new TextDecoder('utf-8', { fatal: true })
 export const binaryRecordBytes = uploadTransferLimits.chunkBytes + uploadTransferLimits.headerBytes + 3
 
+// Preserve reserved keys and optional-field omission without rebuilding wire objects.
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Public outbound records are unvalidated JavaScript values; reject lossy values before JSON serialization.
+function validateControlInput(value: unknown, ancestors = new Set<object>()): void {
+  if (value === null || typeof value === 'boolean' || typeof value === 'string') return
+  if (typeof value === 'number' && Number.isFinite(value)) return
+  if (typeof value !== 'object' || value === null) throw new Error('Invalid JSON control record')
+  const array = Array.isArray(value)
+  const prototype = Object.getPrototypeOf(value)
+  if (
+    (!array && prototype !== Object.prototype && prototype !== null) ||
+    ('toJSON' in value && typeof value.toJSON === 'function') ||
+    ancestors.has(value)
+  )
+    throw new Error('Invalid JSON control record')
+  ancestors.add(value)
+  for (const child of array ? value : Object.values(value)) {
+    if (child === undefined && !array) continue
+    validateControlInput(child, ancestors)
+  }
+  ancestors.delete(value)
+}
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- A public send can contain binary uploads or control values; each branch validates its own wire representation.
 export function encodeRecord(value: unknown): Uint8Array {
   if (isUploadChunk(value)) {
     const { bytes, ...input } = value
@@ -44,7 +67,10 @@ export function encodeRecord(value: unknown): Uint8Array {
     record.set(bytes, 3 + header.length)
     return record
   }
-  const bytes = encoder.encode(JSON.stringify(value))
+  validateControlInput(value)
+  const json = JSON.stringify(value)
+  if (json === undefined) throw new Error('Invalid JSON control record')
+  const bytes = encoder.encode(json)
   if (bytes.length > remoteLimits.recordBytes) throw new Error('Remote record budget exceeded')
   return bytes
 }

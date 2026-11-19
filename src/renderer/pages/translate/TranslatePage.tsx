@@ -152,15 +152,17 @@ const OcrTaskWatcher: FC<{
   useEffect(() => {
     if (handledRef.current) return
 
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted OCR task errors can drift across versions; normalize readable error fields before presenting task failure.
     const normalizeError = (error: unknown, fallbackMessage: string) => {
       if (error instanceof Error) return error
       if (error && typeof error === 'object' && 'message' in error) {
-        const message = (error as { message?: unknown }).message
+        const message = error.message
         if (typeof message === 'string' && message) return new Error(message)
       }
       return new Error(fallbackMessage)
     }
 
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted OCR task errors can drift across versions; normalize readable error fields before presenting task failure.
     const rejectTask = (error: unknown, fallbackMessage: string) => {
       const normalizedError = normalizeError(error, fallbackMessage)
       const prefix = t('translate.files.error.ocr')

@@ -3,6 +3,7 @@ import type { FailureFacts } from '@shared/types/errorReporting'
 import { isCancellation } from '@shared/utils/errorReporting'
 
 export function classifyPiFailure(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Pi execution may reject arbitrary values; cancellation and verified provider failure evidence determine the category.
   error: unknown,
   options: { cancelled?: boolean; stopReason?: string; returnedFailure?: boolean; recovered?: boolean } = {}
 ): FailureFacts {

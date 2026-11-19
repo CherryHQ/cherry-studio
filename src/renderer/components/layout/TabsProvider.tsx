@@ -103,6 +103,7 @@ export function migratePinnedTabs(pinnedTabs: Tab[]): { tabs: Tab[]; changed: bo
 
 export type PinnedRepairResult = { tabs: Tab[]; changed: boolean }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Pinned-tab cache predates current tab fields; repair validates each stored entry and reconciles it with live tabs.
 export function repairPinnedTabs(raw: unknown, normalTabs: readonly Tab[]): PinnedRepairResult {
   if (raw === undefined) return { tabs: [], changed: false }
   if (!Array.isArray(raw)) return { tabs: [], changed: true }

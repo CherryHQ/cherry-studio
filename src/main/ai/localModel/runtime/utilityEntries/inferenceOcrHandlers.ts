@@ -17,7 +17,7 @@ function getPaddleService(modelPaths: OcrModelPaths, logger: { info: (m: string)
   return cacheResource(key, async () => {
     const { PaddleOcrService } = await getPpu()
     const profile = currentRuntimeProfile()
-    let sessionFallbackError: unknown = null
+    let sessionFallback: { error: unknown } | undefined
     const service = new PaddleOcrService({
       model: {
         detection: modelPaths.detection,
@@ -26,19 +26,20 @@ function getPaddleService(modelPaths: OcrModelPaths, logger: { info: (m: string)
       },
       session: {
         ...profile.sessionOptions,
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native session fallback is an event even when its rejection reason is falsy; retain the first original reason.
         onSessionFallback: (error: unknown) => {
-          sessionFallbackError = sessionFallbackError || error
+          sessionFallback ??= { error }
         }
       }
     })
     await service.initialize()
-    if (sessionFallbackError) {
+    if (sessionFallback) {
       try {
         await service.destroy()
       } catch (error) {
         logger.warn(`failed to dispose internally-fallen-back OCR service error=${describeError(error)}`)
       }
-      throw new Error('OCR hardware session fell back internally to CPU', { cause: sessionFallbackError })
+      throw new Error('OCR hardware session fell back internally to CPU', { cause: sessionFallback.error })
     }
     if (profile.id !== 'cpu') logger.info(`hardware provider active provider=${profile.id} runtime=ocr`)
     return service

@@ -24,6 +24,7 @@ import { collectPersistedOutputPaths } from '@main/ai/messages/persistedOutputRe
 import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/retainedContext'
 import { providerService } from '@main/data/services/ProviderService'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { getErrorMessage } from '@main/utils/error'
 import { compactionAnchorChunkId, type CompactionAnchorData, type CompactionSink } from '@shared/ai/compaction'
 import { aiStreamAdmissionReasons, applyApprovalDecisions } from '@shared/ai/transport'
 import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
@@ -169,8 +170,10 @@ function startTurnRootSpans(
  * (which take over ending them). Each `end()` is isolated so one failure
  * can't strand the rest.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Dispatch preparation can reject arbitrary values; best-effort span cleanup must not replace the original failure.
 function endTurnRootSpansWithError(spans: Array<{ span: Span }>, error: unknown): void {
-  const message = error instanceof Error ? error.message : 'prepareDispatch failed before stream launch'
+  const fallbackMessage = 'prepareDispatch failed before stream launch'
+  const message = error instanceof Error ? getErrorMessage(error, fallbackMessage) : fallbackMessage
   for (const { span } of spans) {
     try {
       span.setStatus({ code: SpanStatusCode.ERROR, message })

@@ -54,6 +54,7 @@ type OAuthFetchOptions<TContext extends OAuthRuntimeProviderContext = OAuthRunti
  * are retriable, so they must NOT clear the session and log the user out.
  */
 const TRANSIENT_4XX = new Set([408, 425, 429])
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Refresh can fail outside OAuth HTTP; only verified terminal OAuth 4xx errors revoke the stored session.
 function isTerminalRefreshError(error: unknown): boolean {
   return (
     error instanceof OAuthHttpError && error.status >= 400 && error.status < 500 && !TRANSIENT_4XX.has(error.status)

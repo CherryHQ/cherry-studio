@@ -248,6 +248,7 @@ export function countToolTokens(
  * `body.tools` — the exact definitions the provider tokenizes, not the AI SDK `ToolSet`
  * (whose zod schema is opaque). `input_schema` is already canonical JSONSchema.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Count the final raw Anthropic request body, including custom tool overrides; require an array and object entries before reading definitions.
 export function countToolDefs(rawTools: unknown, tokenizer: TextTokenizer): number {
   if (!Array.isArray(rawTools)) return 0
   let total = 0
@@ -317,6 +318,7 @@ function mediaKindOf(mediaType: string | undefined): MediaKind | undefined {
 }
 
 /** `JSON.stringify` that never throws and yields `''` for undefined/circular values. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool inputs, results and raw definitions contain heterogeneous values; token estimation intentionally uses an empty string when JSON serialization fails.
 function stringify(value: unknown): string {
   try {
     return JSON.stringify(value) ?? ''

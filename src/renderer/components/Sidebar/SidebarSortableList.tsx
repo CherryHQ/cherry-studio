@@ -10,7 +10,7 @@ import { Sortable, type SortableItemId } from '@cherrystudio/ui'
 const DRAG_CLICK_SUPPRESS_MS = 250
 
 /** Wrap a click handler so it is ignored right after that item was dragged. */
-export type SidebarClickGuard = <E = void>(item: unknown, handler?: (event: E) => void) => (event: E) => void
+export type SidebarClickGuard = <E = void>(item: SortableItemId, handler?: (event: E) => void) => (event: E) => void
 
 interface SidebarSortableListProps<T> {
   items: T[]

@@ -135,12 +135,14 @@ function formatByteLimit(bytes: number): string {
   return `${bytes} bytes`
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Different processors persist different remote-state shapes; inspect only the task id needed for resume eligibility.
 function hasPersistedProviderTask(remoteState: unknown): boolean {
   return (
     typeof remoteState === 'object' &&
     remoteState !== null &&
-    typeof (remoteState as { providerTaskId?: unknown }).providerTaskId === 'string' &&
-    (remoteState as { providerTaskId: string }).providerTaskId.length > 0
+    'providerTaskId' in remoteState &&
+    typeof remoteState.providerTaskId === 'string' &&
+    remoteState.providerTaskId.length > 0
   )
 }
 

@@ -39,33 +39,30 @@ function truncateLivePreview(text: string): string {
   return text.length > LIVE_PREVIEW_LENGTH ? `${text.substring(0, LIVE_PREVIEW_LENGTH)}...` : text
 }
 
-function getStringField(value: unknown, key: string): string | undefined {
-  if (!value || typeof value !== 'object') return undefined
-
-  const field = (value as Record<string, unknown>)[key]
-  return typeof field === 'string' ? field : undefined
-}
-
-function getObjectField(value: unknown, key: string): Record<string, unknown> | undefined {
-  if (!value || typeof value !== 'object') return undefined
-
-  const field = (value as Record<string, unknown>)[key]
-  return field && typeof field === 'object' ? (field as Record<string, unknown>) : undefined
-}
-
 function extractTopicMessageFlowLivePreview(parts: CherryMessagePart[]): string {
   for (const part of parts) {
-    const data = getObjectField(part, 'data')
-    const text =
-      part.type === 'text'
-        ? getStringField(part, 'text')
-        : ['data-code', 'data-translation'].includes(part.type)
-          ? getStringField(data, 'content')
-          : part.type === 'data-compact'
-            ? (getStringField(data, 'content') ?? getStringField(data, 'compactedContent'))
-            : part.type === 'data-error'
-              ? getStringField(data, 'message')
+    // Persisted part payloads may be malformed; display only verified string fields.
+    let text: string | undefined
+    switch (part.type) {
+      case 'text':
+        text = typeof part.text === 'string' ? part.text : undefined
+        break
+      case 'data-code':
+      case 'data-translation':
+        text = typeof part.data?.content === 'string' ? part.data.content : undefined
+        break
+      case 'data-compact':
+        text =
+          typeof part.data?.content === 'string'
+            ? part.data.content
+            : typeof part.data?.compactedContent === 'string'
+              ? part.data.compactedContent
               : undefined
+        break
+      case 'data-error':
+        text = typeof part.data?.message === 'string' ? part.data.message : undefined
+        break
+    }
 
     const preview = text?.trim()
     if (preview) return truncateLivePreview(preview)

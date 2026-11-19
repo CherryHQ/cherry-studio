@@ -12,6 +12,7 @@ const logger = loggerService.withContext('KnowledgeRerank')
 // wrong model) rather than a transient blip — these will keep failing every search.
 const PERSISTENT_RERANK_STATUS_CODES = new Set([401, 403, 404])
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Rerank providers can reject arbitrary values; only verified API failures with persistent configuration statuses disable reranking.
 function isPersistentRerankMisconfig(error: unknown): boolean {
   return APICallError.isInstance(error) && PERSISTENT_RERANK_STATUS_CODES.has(error.statusCode ?? 0)
 }

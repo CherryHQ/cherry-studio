@@ -25,6 +25,7 @@ async function reconcileNotFound<TResult, TRefresh>(
   run: () => Promise<TResult>,
   refresh: () => Promise<TRefresh>,
   activePath: ConcreteApiPaths,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Archive commands and active-resource reads expose arbitrary failures; the injected predicate owns not-found recovery.
   isNotFound: (error: unknown) => boolean = isDataApiNotFoundError
 ) {
   try {

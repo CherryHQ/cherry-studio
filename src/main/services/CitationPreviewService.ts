@@ -33,10 +33,20 @@ type PreviewJob = {
   readonly promise: Promise<string>
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Citation requests can reject arbitrary values; logs expose only the validated origin and an error name, not response bodies or full URLs.
 function createErrorLogContext(safeUrl: string, error: unknown): { origin: string; errorName: string } {
+  let errorName = 'UnknownError'
+  try {
+    if (error instanceof Error) {
+      const name = error.name
+      errorName = typeof name === 'string' ? name || 'Error' : 'Error'
+    }
+  } catch {
+    // Unreadable error metadata cannot supply a safe log name.
+  }
   return {
     origin: new URL(safeUrl).origin,
-    errorName: error instanceof Error ? error.name || 'Error' : 'UnknownError'
+    errorName
   }
 }
 

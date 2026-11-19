@@ -180,8 +180,18 @@ afterEach(() => {
 })
 
 describe('translateText (main-driven streaming)', () => {
+  it('settles and removes subscriptions when opening rejects with an unreadable non-Error', async () => {
+    mockTranslateOpen.mockRejectedValueOnce(Object.create(null))
+    await expect(translateText('source', TARGET)).rejects.toThrow('[Unserializable]')
+    expect(mockListeners).toEqual({ chunk: [], done: [], error: [] })
+  })
+
   describe('happy path', () => {
     it('passes a translate:-prefixed streamId + text + langCode to main and accumulates chunks', async () => {
+      mockTranslateOpen.mockImplementationOnce(async ({ streamId }: InputFor<'translate.open'>) => {
+        emitChunk(mockListeners, 'Hello ', streamId)
+        return { streamId }
+      })
       const promise = translateText('source', TARGET)
       await waitForOpen(mockRequest)
 
@@ -190,13 +200,7 @@ describe('translateText (main-driven streaming)', () => {
         text: 'source',
         targetLangCode: 'en-us'
       })
-      const openCallOrder = mockRequest.mock.invocationCallOrder[0]
-      for (const subscribe of [mockAi.onStreamChunk, mockAi.onStreamDone, mockAi.onStreamError]) {
-        expect(subscribe.mock.invocationCallOrder[0]).toBeLessThan(openCallOrder)
-      }
-
       const streamId = lastStreamId(mockRequest)
-      emitChunk(mockListeners, 'Hello ', streamId)
       emitChunk(mockListeners, 'world', streamId)
       emitDone(mockListeners, streamId)
 
@@ -281,8 +285,9 @@ describe('translateText (main-driven streaming)', () => {
 
   describe('main-side failure', () => {
     it('rejects with the main error when translate.open throws (e.g. not configured)', async () => {
-      mockTranslateOpen.mockRejectedValueOnce(new Error('t(translate.error.not_configured)'))
-      await expect(translateText('source', TARGET)).rejects.toThrow('t(translate.error.not_configured)')
+      const failure = new Error('t(translate.error.not_configured)')
+      mockTranslateOpen.mockRejectedValueOnce(failure)
+      await expect(translateText('source', TARGET)).rejects.toBe(failure)
       expect(mockListeners).toEqual({ chunk: [], done: [], error: [] })
     })
   })

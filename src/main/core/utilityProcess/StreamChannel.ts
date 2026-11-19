@@ -133,6 +133,7 @@ export class StreamChannel {
     return this.inputEnded
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stream cancellation rejects pending readers and writers with the original arbitrary reason, including falsy values.
   abort(reason: unknown): void {
     if (this.failure) return
     this.failure = { reason }

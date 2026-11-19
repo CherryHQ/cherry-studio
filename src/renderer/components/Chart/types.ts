@@ -1,3 +1,5 @@
+import type { TooltipComponentOption } from 'echarts'
+
 export type ChartValue = number | null
 
 interface ChartAxisOption {
@@ -21,7 +23,7 @@ interface ChartGridOption {
 
 interface ChartTooltipOptionExtension {
   tooltip?: {
-    valueFormatter?: (value: unknown) => string
+    valueFormatter?: TooltipComponentOption['valueFormatter']
   }
 }
 

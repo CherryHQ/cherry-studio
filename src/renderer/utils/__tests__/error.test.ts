@@ -25,6 +25,15 @@ vi.mock('i18next', () => ({ t: (key: string) => key }))
 
 describe('error', () => {
   describe('safe diagnostic text', () => {
+    it('preserves repeated values in separate branches while marking actual ancestor cycles', () => {
+      const shared: { label: string; self?: object } = { label: 'kept' }
+      shared.self = shared
+      expect(JSON.parse(safeToString({ first: shared, second: shared }, 2))).toEqual({
+        first: { label: 'kept', self: '[Circular]' },
+        second: { label: 'kept', self: '[Circular]' }
+      })
+    })
+
     it('keeps error notifications usable when a rejection cannot be formatted as JSON', () => {
       expect(formatErrorMessage(1n)).toBe('error.unknown')
       expect(formatErrorMessage(() => undefined)).toBe('error.unknown')

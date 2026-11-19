@@ -1,5 +1,7 @@
 import { isEqual } from 'es-toolkit/compat'
 
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
+
 export type PinnedTabFeedbackEpisode = { revisions: number; closed: boolean }
 
 const PINNED_FEEDBACK_BUDGET = 8
@@ -17,7 +19,8 @@ class PinnedTabFeedbackService {
     this.current = { revisions: 0, closed: false }
   }
 
-  observe(episode: PinnedTabFeedbackEpisode, value: unknown, preparedValue: unknown): 'accepted' | 'tripped' {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Observed pinned-tab cache values may be malformed; compare the raw observation with the provider's validated repair result.
+  observe(episode: PinnedTabFeedbackEpisode, value: unknown, preparedValue: readonly Tab[]): 'accepted' | 'tripped' {
     // Only reconciliation the provider still owes is feedback; a value already equal
     // to the prepared one was written by someone else and is not bounded here.
     const changed = !isEqual(value, preparedValue)

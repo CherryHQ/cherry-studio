@@ -14,6 +14,7 @@ export class SingleFlight<T> {
     if (this.active) return this.active
     const { promise, resolve, reject } = Promise.withResolvers<T>()
     this.active = promise
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Both synchronous task throws and Promise rejections must reject the shared flight with their original value.
     const fail = (error: unknown): void => {
       this.active = undefined
       reject(error)

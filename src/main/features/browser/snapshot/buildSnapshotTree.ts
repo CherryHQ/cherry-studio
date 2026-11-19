@@ -23,6 +23,7 @@ const interactiveRoles = new Set([
 ])
 const textRoles = new Set(['heading', 'text', 'statictext', 'img', 'image', 'listitem', 'cell', 'row'])
 const states = new Set(['disabled', 'checked', 'expanded', 'required', 'selected', 'pressed', 'level'])
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- CDP accessibility values are untyped; only actual strings enter the bounded whitespace-normalized snapshot.
 const text = (value: unknown, limit = 200) =>
   typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, limit) : ''
 

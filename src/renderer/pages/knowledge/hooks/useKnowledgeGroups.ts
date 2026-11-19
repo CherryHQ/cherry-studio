@@ -3,10 +3,9 @@ import { useCallback } from 'react'
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useGroups } from '@renderer/hooks/useGroups'
+import { toError } from '@renderer/utils/errorDetails'
 import type { UpdateGroupDto } from '@shared/data/api/schemas/groups'
 import type { Group } from '@shared/data/types/group'
-
-import { normalizeKnowledgeError } from '../utils/error'
 
 const logger = loggerService.withContext('useKnowledgeGroups')
 
@@ -37,7 +36,7 @@ export const useCreateKnowledgeGroup = () => {
           }
         })
       } catch (error) {
-        const normalizedError = normalizeKnowledgeError(error)
+        const normalizedError = toError(error)
         logger.error('Failed to create knowledge group', normalizedError, {
           name: normalizedName
         })
@@ -71,7 +70,7 @@ export const useUpdateKnowledgeGroup = () => {
           body: updates
         })
       } catch (error) {
-        const normalizedError = normalizeKnowledgeError(error)
+        const normalizedError = toError(error)
         logger.error('Failed to update knowledge group', normalizedError, {
           groupId,
           updates
@@ -105,7 +104,7 @@ export const useDeleteKnowledgeGroup = () => {
           params: { id: groupId }
         })
       } catch (error) {
-        const normalizedError = normalizeKnowledgeError(error)
+        const normalizedError = toError(error)
         logger.error('Failed to delete knowledge group', normalizedError, {
           groupId
         })

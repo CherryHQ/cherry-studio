@@ -91,6 +91,7 @@ function buildSearchPredicate(q: string | undefined): SQL | undefined {
   return or(nameMatch, descMatch)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Ordering catches arbitrary database failures; translate only the owned missing-assistant error and rethrow every other value unchanged.
 function rethrowAssistantOrderError(error: unknown): never {
   if (error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND && error.details?.resource === 'assistant') {
     throw DataApiErrorFactory.notFound('Assistant', error.details.id)

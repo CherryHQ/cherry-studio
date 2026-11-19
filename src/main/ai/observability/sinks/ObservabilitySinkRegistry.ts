@@ -50,6 +50,7 @@ class ObservabilitySinkRegistry {
 
   writeRawOtlpPayload(
     otlpPath: Parameters<NonNullable<ObservabilitySink['writeRawOtlpPayload']>>[0],
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Preserve raw OTLP payloads for each sink before adapter conversion; callSink isolates serialization failures.
     payload: unknown
   ): void {
     for (const sink of this.sinks.values()) {

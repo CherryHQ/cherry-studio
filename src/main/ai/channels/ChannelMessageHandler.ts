@@ -52,6 +52,7 @@ const MESSAGE_BATCH_MAX_DELAY_MS = 16000
 
 type BatchResolver = {
   resolve: () => void
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Debounced batch waiters reject with the original delivery or runtime failure, whose JavaScript rejection type is unrestricted.
   reject: (err: unknown) => void
 }
 
@@ -873,6 +874,7 @@ export class ChannelMessageHandler {
     }
 
     let resolveExecution!: (text: string) => void
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The stream listener forwards original runtime failures into this completion promise so the channel caller receives the same rejection value.
     let rejectExecution!: (err: unknown) => void
     const executionDone = new Promise<string>((resolve, reject) => {
       resolveExecution = resolve

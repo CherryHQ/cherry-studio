@@ -1,5 +1,6 @@
 import { ipcApi } from '@renderer/ipc'
 import type { FileMetadata } from '@renderer/types/file'
+import { readErrorMessage } from '@renderer/utils/errorDetails'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
@@ -50,14 +51,16 @@ export class KnowledgeFileNotAFileError extends KnowledgeFileResolveError {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Per-file resolution can reject arbitrary values; retain the original failure and classify only known path/type errors.
 const describeFailure = (index: number, source: string | undefined, error: unknown): KnowledgeFileResolveFailure => ({
   index,
   source,
-  reason: error instanceof Error ? error.message : String(error),
+  reason: readErrorMessage(error),
   error
 })
 
 /** Expected missing/bad-path/not-a-file, plus per-entry TypeError from malformed payloads. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Per-file resolution can reject arbitrary values; retain the original failure and classify only known path/type errors.
 export const isSkippableKnowledgeFileError = (error: unknown): boolean =>
   error instanceof KnowledgeFileResolveError || error instanceof TypeError
 

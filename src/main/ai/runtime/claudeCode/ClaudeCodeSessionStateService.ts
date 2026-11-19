@@ -112,6 +112,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
     return agentId ? `${sessionId} ${agentId}` : sessionId
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native hook payloads carry heterogeneous Bash successes and failures; fingerprint their original serialized bytes per agent.
   recordBashOutcome(sessionId: string, command: string, output: unknown, failed: boolean, agentId?: string): void {
     const normalized = normalizeBashCommand(command)
     if (!normalized) return

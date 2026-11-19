@@ -12,6 +12,7 @@ async function evaluate(socketUrl: string, expression: string): Promise<Serializ
   try {
     const result: unknown = await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('CDP_TIMEOUT')), 425_000)
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- CDP returnByValue carries raw renderer JSON; validate it with SerializableSchema after request completion.
       const finish = (value?: unknown, failed = false): void => {
         clearTimeout(timer)
         if (failed) reject(new Error('CDP_EVALUATION_FAILED'))

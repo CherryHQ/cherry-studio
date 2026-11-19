@@ -22,6 +22,21 @@ describe('isMcpCancellation', () => {
     expect(isMcpCancellation(new DOMException('aborted', 'AbortError'), controller.signal)).toBe(true)
   })
 
+  it('preserves reason identity without classifying an unrelated timeout from unprintable abort text', () => {
+    const reason = {
+      toString() {
+        throw new Error('cannot format abort reason')
+      }
+    }
+    const controller = new AbortController()
+    controller.abort(reason)
+
+    expect(isMcpCancellation(reason, controller.signal)).toBe(true)
+    expect(isMcpCancellation(new SdkError(SdkErrorCode.RequestTimeout, 'Request timed out'), controller.signal)).toBe(
+      false
+    )
+  })
+
   it('matches the MCP SDK abort wrapper (SdkError with the request-timeout code)', () => {
     const controller = new AbortController()
     controller.abort(new Error('user stopped'))

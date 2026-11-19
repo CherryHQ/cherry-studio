@@ -50,6 +50,7 @@ interface RestoreRecycleBinItemTarget<TRestore, TActive> {
   id: string
   restore: (id: string) => Promise<TRestore>
   getActive: (id: string) => Promise<TActive>
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Restore and active-item reads expose arbitrary rejections; the injected recognizer owns not-found reconciliation.
   isNotFound?: (error: unknown) => boolean
 }
 

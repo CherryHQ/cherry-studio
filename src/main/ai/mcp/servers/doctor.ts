@@ -3,12 +3,15 @@ import { type CallToolResult, fromJsonSchema, type JsonSchemaType, McpServer } f
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { DOCTOR_TOOLS, ToolError } from '@main/ai/agents/doctor/doctorTools'
+import { getErrorMessage } from '@main/utils/error'
 
 const logger = loggerService.withContext('DoctorServer')
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Doctor tools catch arbitrary failures; expose the owned ToolError code while safely formatting other rejection values.
 function formatToolError(error: unknown): string {
-  if (error instanceof ToolError && error.code !== undefined) return `MCP error ${error.code}: ${error.message}`
-  return error instanceof Error ? error.message : String(error)
+  const message = getErrorMessage(error, 'Tool execution failed')
+  if (error instanceof ToolError && error.code !== undefined) return `MCP error ${error.code}: ${message}`
+  return message
 }
 
 /** In-process MCP server mounted only for the doctor built-in Agent; see `agents/doctor/doctorTools`. */

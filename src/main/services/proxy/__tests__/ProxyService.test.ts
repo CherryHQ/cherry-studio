@@ -653,6 +653,20 @@ describe('ProxyService — connection test', () => {
     expect(JSON.stringify(result)).not.toContain('127.0.0.1')
   })
 
+  it('returns a controlled failure when native proxy error metadata cannot be read', async () => {
+    proxyTestFetchMock.mockRejectedValueOnce(
+      Object.defineProperty(new Error('proxy failed'), 'message', {
+        get() {
+          throw new Error('unreadable proxy diagnostic')
+        }
+      })
+    )
+
+    await expect(
+      new ProxyService().testConnection({ mode: 'custom', url: 'http://proxy.example:8080', bypassRules: '' })
+    ).resolves.toEqual({ target: PROXY_TEST_TARGET, route: 'proxy', success: false, error: 'connection_failed' })
+  })
+
   it('classifies unreachable proxies without exposing the rejected error', async () => {
     proxyTestFetchMock.mockRejectedValue(new Error('net::ERR_PROXY_CONNECTION_FAILED at 127.0.0.1:65535'))
 

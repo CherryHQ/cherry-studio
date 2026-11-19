@@ -171,9 +171,10 @@ export function artifactStagingDir(artifact: SharedArtifact): string {
 
 const WINDOWS_ARTIFACT_REMOVAL_RETRY_DELAYS_MS = [50, 100, 200, 400] as const
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Removal catches arbitrary filesystem failures; only Windows sharing/permission codes permit bounded retries.
 function isTransientWindowsRemovalError(error: unknown): boolean {
   if (process.platform !== 'win32' || typeof error !== 'object' || error === null) return false
-  const code = (error as NodeJS.ErrnoException).code
+  const code = 'code' in error ? error.code : undefined
   return code === 'EPERM' || code === 'EBUSY'
 }
 

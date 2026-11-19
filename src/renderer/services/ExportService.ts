@@ -1536,8 +1536,9 @@ const saveContentToNotes = async (title: string, content: string, folderPath: st
   })
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Note export can reject with arbitrary values; this terminal handler logs the failure and shows localized export guidance.
 const handleNotesExportError = (error: unknown): void => {
-  logger.error('导出到笔记失败:', error as Error)
+  logger.error('导出到笔记失败:', error instanceof Error ? error : { error })
   toast.error(i18n.t('message.error.notes.export'))
 }
 

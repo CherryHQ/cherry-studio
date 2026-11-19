@@ -528,16 +528,11 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
     return this.enteredCommit
   }
 
-  override _write(chunk: unknown, encoding: BufferEncoding, callback: (err?: Error | null) => void): void {
-    const bytes =
-      typeof chunk === 'string'
-        ? Buffer.from(chunk, encoding)
-        : Buffer.isBuffer(chunk)
-          ? chunk
-          : Buffer.from(chunk as Uint8Array)
-    this.hasher.update(bytes)
-    this.size += bytes.byteLength
-    this.underlying.write(bytes, callback)
+  // Writable's default decoding normalizes strings and ArrayBuffer views before this hook.
+  override _write(chunk: Buffer, _encoding: BufferEncoding, callback: (err?: Error | null) => void): void {
+    this.hasher.update(chunk)
+    this.size += chunk.byteLength
+    this.underlying.write(chunk, callback)
   }
 
   override _final(callback: (err?: Error | null) => void): void {

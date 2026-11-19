@@ -34,6 +34,7 @@ export function readArchive(configDir: string, cwd: string, sessionId: string): 
     })
     const archive: NativeArchive = { messages: [], children: [], entries: [] }
     let received = false
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Worker/deserialization failures must reject archive loading with the original reason before terminating the worker.
     const fail = (error: unknown) => {
       reject(error)
       void worker.terminate()

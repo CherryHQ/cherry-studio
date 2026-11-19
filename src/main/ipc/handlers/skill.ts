@@ -6,6 +6,7 @@ import { getMarketplaceSkill, listMarketplaceSkills } from '@main/ai/skills/cher
 import { SkillImportError } from '@main/ai/skills/SkillImportError'
 import { SkillRemoteUpdateError, skillService } from '@main/ai/skills/SkillService'
 import { t } from '@main/i18n'
+import { getErrorMessage } from '@main/utils/error'
 import { PluginError } from '@main/utils/markdownParser'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { skillRequestSchemas } from '@shared/ipc/schemas/skill'
@@ -21,6 +22,7 @@ interface LocalImportFailure {
   targetPath?: string
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- ZIP/directory import catches include filesystem and plugin failures; only recognized typed failures receive localized recovery guidance.
 function describeLocalImportFailure(error: unknown, kind: 'zip' | 'directory'): LocalImportFailure | null {
   if (error instanceof SkillImportError) {
     switch (error.code) {
@@ -54,6 +56,7 @@ function describeLocalImportFailure(error: unknown, kind: 'zip' | 'directory'): 
 async function toSkillResult<T>(
   op: () => Promise<T>,
   failMessage: string,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The operation can reject with any value; the optional mapper recognizes only its import-specific failures before the generic text fallback.
   describeFailure?: (error: unknown) => LocalImportFailure | null
 ): Promise<SkillResult<T>> {
   try {
@@ -71,7 +74,7 @@ async function toSkillResult<T>(
     }
     return {
       success: false,
-      error: failure ? failure.message : error instanceof Error ? error.message : String(error)
+      error: failure ? failure.message : getErrorMessage(error, failMessage)
     }
   }
 }

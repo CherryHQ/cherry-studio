@@ -10,6 +10,7 @@ const APPLICATION_IDS = {
   cn: 'com.cherryai.cherrystudio.cn'
 } as const satisfies Record<AppEdition, string>
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Packaged metadata comes from JSON and development input from the environment; validate the supported edition literals before caching.
 function parseAppEdition(value: unknown): AppEdition {
   if (value === undefined || value === 'global') {
     return 'global'

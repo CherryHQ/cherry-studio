@@ -1,6 +1,6 @@
 import { net } from 'electron'
 import WebSocket from 'ws'
-import type * as z from 'zod'
+import * as z from 'zod'
 
 import { t } from '@main/i18n'
 import {
@@ -48,24 +48,29 @@ const INTENTS = {
   MESSAGE_CONTENT: 1 << 15
 }
 
-type DiscordAttachment = {
-  id: string
-  filename: string
-  url: string
-  proxy_url: string
-  content_type?: string
-  size: number
-}
+const discordAttachmentSchema = z.object({
+  filename: z.string(),
+  url: z.string(),
+  content_type: z.string().optional(),
+  size: z.number()
+})
+const discordMessageSchema = z.object({
+  id: z.string(),
+  channel_id: z.string(),
+  guild_id: z.string().optional(),
+  author: z.object({ id: z.string(), username: z.string(), bot: z.boolean().optional() }),
+  content: z.string(),
+  attachments: z.array(discordAttachmentSchema).optional()
+})
+const discordReadySchema = z.object({
+  session_id: z.string(),
+  resume_gateway_url: z.string(),
+  user: z.object({ username: z.string() }),
+  application: z.object({ id: z.string() })
+})
 
-type DiscordMessage = {
-  id: string
-  channel_id: string
-  guild_id?: string
-  author: { id: string; username: string; bot?: boolean }
-  content: string
-  attachments?: DiscordAttachment[]
-  timestamp: string
-}
+type DiscordAttachment = z.infer<typeof discordAttachmentSchema>
+type DiscordMessage = z.infer<typeof discordMessageSchema>
 
 /**
  * Discord rate limit: 5 message operations per 5 seconds per channel.
@@ -205,22 +210,25 @@ class DiscordStreamingController {
 }
 
 // Discord Interaction types
-const INTERACTION_TYPE_PING = 1
 const INTERACTION_TYPE_APPLICATION_COMMAND = 2
 // Interaction callback response types
 const INTERACTION_CALLBACK_CHANNEL_MESSAGE = 4
 const INTERACTION_CALLBACK_DEFERRED_CHANNEL_MESSAGE = 5
 
-type DiscordInteraction = {
-  id: string
-  type: number
-  token: string
-  channel_id: string
-  guild_id?: string
-  member?: { user: { id: string; username: string } }
-  user?: { id: string; username: string }
-  data?: { name: string; options?: Array<{ name: string; value: unknown }> }
-}
+const discordInteractionTypeSchema = z.object({ type: z.number() })
+const discordInteractionUserSchema = z.object({ id: z.string(), username: z.string() })
+const discordInteractionSchema = z.object({
+  id: z.string(),
+  type: z.literal(INTERACTION_TYPE_APPLICATION_COMMAND),
+  token: z.string(),
+  channel_id: z.string(),
+  guild_id: z.string().optional(),
+  member: z.object({ user: discordInteractionUserSchema }).optional(),
+  user: discordInteractionUserSchema.optional(),
+  data: z.object({ name: z.enum(SLASH_COMMANDS.map(({ name }) => name)) })
+})
+
+type DiscordInteraction = z.infer<typeof discordInteractionSchema>
 
 class DiscordAdapter extends ChannelAdapter {
   private ws: WebSocket | null = null
@@ -471,15 +479,11 @@ class DiscordAdapter extends ChannelAdapter {
 
   // ─── Dispatch Event Handling ──────────────────────────────────
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Gateway event data is network JSON; validate the selected event's consumed fields before changing state or dispatching messages.
   private async handleDispatch(eventType: string, data: unknown): Promise<void> {
     switch (eventType) {
       case 'READY': {
-        const ready = data as {
-          session_id: string
-          resume_gateway_url: string
-          user: { id: string; username: string }
-          application: { id: string }
-        }
+        const ready = discordReadySchema.parse(data)
         this.sessionId = ready.session_id
         this.resumeGatewayUrl = ready.resume_gateway_url
         this.applicationId = ready.application.id
@@ -499,10 +503,12 @@ class DiscordAdapter extends ChannelAdapter {
         this.log.info('Discord session resumed')
         break
       case 'MESSAGE_CREATE':
-        await this.handleMessageCreate(data as DiscordMessage)
+        await this.handleMessageCreate(discordMessageSchema.parse(data))
         break
       case 'INTERACTION_CREATE':
-        await this.handleInteraction(data as DiscordInteraction)
+        if (discordInteractionTypeSchema.parse(data).type === INTERACTION_TYPE_APPLICATION_COMMAND) {
+          await this.handleInteraction(discordInteractionSchema.parse(data))
+        }
         break
     }
   }
@@ -632,11 +638,6 @@ class DiscordAdapter extends ChannelAdapter {
   }
 
   private async handleInteraction(interaction: DiscordInteraction): Promise<void> {
-    // Must always ACK a PING
-    if (interaction.type === INTERACTION_TYPE_PING) return
-
-    if (interaction.type !== INTERACTION_TYPE_APPLICATION_COMMAND || !interaction.data) return
-
     const commandName = interaction.data.name
     const user = interaction.member?.user ?? interaction.user
     const chatId = interaction.guild_id ? `channel:${interaction.channel_id}` : `dm:${interaction.channel_id}`
@@ -667,7 +668,7 @@ class DiscordAdapter extends ChannelAdapter {
       chatId,
       userId: user?.id ?? '',
       userName: user?.username ?? '',
-      command: commandName as 'new' | 'compact' | 'help'
+      command: commandName
     })
   }
 

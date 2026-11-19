@@ -3,6 +3,16 @@ import { describe, expect, it, vi } from 'vitest'
 import { getSelectionActionErrorMessage } from '../errorMessage'
 
 describe('getSelectionActionErrorMessage', () => {
+  it('keeps an unreadable native error message displayable without classifying malformed fields', () => {
+    const error = new Error('original')
+    Object.defineProperty(error, 'message', {
+      get() {
+        throw new Error('message unavailable')
+      }
+    })
+    expect(getSelectionActionErrorMessage(error, (key) => key)).toBe('[Unserializable]')
+  })
+
   it('localizes controlled translate error keys', () => {
     const translate = vi.fn(() => 'Translation model is not configured')
 

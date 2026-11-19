@@ -74,6 +74,24 @@ describe('PDF range transport', () => {
     expect(mocks.onDataRange).not.toHaveBeenCalled()
   })
 
+  it('notifies the document owner when a host rejects a read with an unprintable reason', async () => {
+    const onError = vi.fn()
+    mocks.readRange.mockRejectedValue(Object.create(null))
+    new PdfFileRangeTransport(document(100), onError).requestDataRange(0, 1)
+    await vi.waitFor(() => expect(onError).toHaveBeenCalledWith(new Error('PDF range could not be read')))
+    expect(mocks.onDataRange).not.toHaveBeenCalled()
+  })
+
+  it('preserves native read failure identity for the document owner', async () => {
+    const original = new Error('source changed')
+    const onError = vi.fn()
+    mocks.readRange.mockRejectedValue(original)
+    new PdfFileRangeTransport(document(100), onError).requestDataRange(0, 1)
+    await vi.waitFor(() => expect(onError).toHaveBeenCalledWith(original))
+    expect(onError.mock.lastCall?.[0]).toBe(original)
+    expect(mocks.onDataRange).not.toHaveBeenCalled()
+  })
+
   it('aborts pending reads and discards their late data', async () => {
     const onError = vi.fn()
     let resolve!: (bytes: Uint8Array) => void

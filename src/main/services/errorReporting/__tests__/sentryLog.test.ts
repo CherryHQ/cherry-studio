@@ -312,7 +312,7 @@ describe('Sentry log reporting', () => {
     }
   )
 
-  it.each(['missing', 'headerless', 'changed message'])(
+  it.each(['missing', 'headerless', 'changed message', 'unreadable stack', 'unreadable message'])(
     'reports classification without unverified frames when the stack is %s',
     async (kind) => {
       setConsent(true)
@@ -320,7 +320,14 @@ describe('Sentry log reporting', () => {
       const originalStack = error.stack
       if (kind === 'missing') error.stack = undefined
       else if (kind === 'headerless') error.stack = originalStack?.slice(originalStack.indexOf('\n') + 1)
-      else error.message = 'changed message'
+      else if (kind === 'changed message') error.message = 'changed message'
+      else {
+        Object.defineProperty(error, kind === 'unreadable stack' ? 'stack' : 'message', {
+          get() {
+            throw new Error('unreadable diagnostic')
+          }
+        })
+      }
 
       logFailure(
         loggerService.withContext('DataApi:Server'),

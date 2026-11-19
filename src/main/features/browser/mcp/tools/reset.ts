@@ -5,6 +5,7 @@ import type { BrowserController } from '../browserController'
 import { logger } from '../types'
 import { errorResponse, successResponse } from './utils'
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The MCP registry erases per-tool arguments; ResetSchema validates the exact tab/private-mode target before reset.
 export async function handleReset(controller: BrowserController, args: unknown) {
   try {
     const { privateMode, tabId } = ResetSchema.parse(args)

@@ -93,6 +93,28 @@ describe('MessageMcpTool', () => {
     vi.restoreAllMocks()
   })
 
+  it('keeps result preview and copying usable when native payload serialization fails', async () => {
+    const user = userEvent.setup()
+    const copyText = vi.fn()
+    mockActions.mockReturnValue({ copyText })
+    render(
+      <MessageMcpTool
+        toolResponse={createMcpToolResponse({
+          status: 'done',
+          response: {
+            toJSON() {
+              throw new Error('cannot serialize native payload')
+            }
+          }
+        })}
+      />
+    )
+    await user.click(screen.getByRole('button', { name: /CherryBrowser : execute/ }))
+    expect(await screen.findByText('[Unserializable]')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'common.copy' }))
+    await waitFor(() => expect(copyText).toHaveBeenCalledWith('[Unserializable]', { successMessage: 'message.copied' }))
+  })
+
   it('keeps a lightweight copy action for completed tool payloads', async () => {
     const copyText = vi.fn()
     mockActions.mockReturnValue({ copyText })

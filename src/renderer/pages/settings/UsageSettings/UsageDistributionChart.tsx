@@ -1,3 +1,4 @@
+import type { TooltipComponentOption } from 'echarts'
 import { CircleAlert } from 'lucide-react'
 import { lazy, Suspense, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -139,8 +140,8 @@ export function UsageDistributionChart({
     },
     [dateFormatter, monthFormatter, range.from, range.to, rollup]
   )
-  const tooltip = {
-    valueFormatter: (value: unknown) => formatChartValue(Number(value))
+  const tooltip: Pick<TooltipComponentOption, 'valueFormatter'> = {
+    valueFormatter: (value) => formatChartValue(Number(value))
   }
   const isEmpty = periodKeys.length === 0 || chartSeries.every((series) => series.total <= 0)
 

@@ -2,6 +2,7 @@ import { fileErrorCodes } from '@shared/ipc/errors/file'
 import type { FailureFacts } from '@shared/types/errorReporting'
 import { isCancellation } from '@shared/utils/errorReporting'
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- File operations can reject arbitrary values; cancellation, owned file errors, and verified filesystem codes determine domain classification.
 export function classifyFileFailure(error: unknown, externalPath = false): FailureFacts {
   if (isCancellation(error)) {
     return { source: 'application', kind: 'expected', reason: 'cancelled', outcome: 'cancelled' }

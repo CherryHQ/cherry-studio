@@ -109,6 +109,7 @@ function narrowCopySourcesJobPayload(rawInput: JobSnapshot['input']): KnowledgeC
   const basePayload = narrowItemJobPayload(rawInput)
   if (!basePayload) return null
   if (!Array.isArray(input.copies)) return null
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted copy entries may be historical or malformed; verify each entry's source and relative path before accepting the job input.
   const copiesAreValid = input.copies.every((copy: unknown) => {
     const entry = narrowJobInputObject(copy)
     return entry !== null && typeof entry.from === 'string' && typeof entry.relativePath === 'string'

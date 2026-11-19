@@ -49,6 +49,7 @@ export class LoopbackCallbackTransport {
         settled = true
         resolve(code)
       }
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Loopback server failures and cancellation reasons reject the waiting authorization with the original value.
       const settleReject = (error: unknown) => {
         if (settled) return
         settled = true

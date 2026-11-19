@@ -90,6 +90,7 @@ export class Signal<T> implements Disposable, PromiseLike<T> {
    */
   public then<TResult1 = T, TResult2 = never>(
     onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- PromiseLike rejection callbacks receive arbitrary JavaScript reasons from the owned Promise.
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
   ): Promise<TResult1 | TResult2> {
     return this._promise.then(onfulfilled, onrejected)

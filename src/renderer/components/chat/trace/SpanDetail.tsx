@@ -110,8 +110,9 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
     })
     const url = URL.createObjectURL(blob)
     const filename = `trace-${node.id}-${safeTab}.${contentLanguage === 'json' ? 'json' : 'txt'}`
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The download helper may throw or reject any value; cleanup and localized reporting must retain that failure.
     const fail = (error: unknown) => {
-      logger.error('Failed to download span detail content', error as Error)
+      logger.error('Failed to download span detail content', error instanceof Error ? error : { error })
       toast.error(t('common.save_failed'))
       URL.revokeObjectURL(url)
     }

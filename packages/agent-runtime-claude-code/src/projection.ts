@@ -69,6 +69,7 @@ export class ClaudeProjection {
 
   constructor(
     readonly thread: Thread,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Projection observers may reject with arbitrary values; ClaudeFeed forwards the original failure to its owning reporter.
     report: (error: unknown) => void
   ) {
     this.feed = new ClaudeFeed(report)

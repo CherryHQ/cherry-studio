@@ -274,6 +274,7 @@ ${sections}`
     expectedRoot = path.dirname(filePath),
     failOnError = false
   ): Promise<string | undefined> {
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Prompt reads can reject arbitrary values; required-file errors preserve the original cause and optional files remain absent.
     const fail = (error: unknown): undefined => {
       if (failOnError) {
         throw new Error(`Failed to read required agent prompt file: ${filePath}`, { cause: error })

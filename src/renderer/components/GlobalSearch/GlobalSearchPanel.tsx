@@ -223,13 +223,14 @@ function getOpenItemLogContext(item: GlobalSearchKeyboardItem) {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- DataApi and navigation may reject with arbitrary values; preserve the original failure alongside the selected target context.
 function logOpenFailure(error: unknown, context: Record<string, unknown>) {
-  logger.error('Failed to open global search result', error as Error, context)
+  logger.error('Failed to open global search result', error, context)
 }
 
-function emitGlobalSearchSelection(eventName: string, payload: unknown, context: Record<string, unknown>) {
-  void Promise.resolve(EventEmitter.emit(eventName, payload)).catch((error) => {
-    logger.error('Failed to emit global search selection event', error as Error, context)
+function reportGlobalSearchSelectionFailure(emission: Promise<void>, context: Record<string, unknown>) {
+  void emission.catch((error) => {
+    logger.error('Failed to emit global search selection event', error, context)
   })
 }
 
@@ -498,12 +499,11 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       }
       emitResourceListReveal({ source: 'assistants', tabId: targetTabId })
       window.requestAnimationFrame(() => {
-        emitGlobalSearchSelection(
-          EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC,
-          {
+        reportGlobalSearchSelectionFailure(
+          EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, {
             targetTabId,
             topic
-          } satisfies GlobalSearchTopicSelectionPayload,
+          } satisfies GlobalSearchTopicSelectionPayload),
           {
             eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC,
             targetTabId,
@@ -526,12 +526,11 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       }
       emitResourceListReveal({ source: 'agents', tabId: targetTabId })
       window.requestAnimationFrame(() => {
-        emitGlobalSearchSelection(
-          EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION,
-          {
+        reportGlobalSearchSelectionFailure(
+          EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, {
             sessionId,
             targetTabId
-          } satisfies GlobalSearchAgentSessionSelectionPayload,
+          } satisfies GlobalSearchAgentSessionSelectionPayload),
           {
             eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION,
             sessionId,
@@ -569,9 +568,12 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       }
       emitResourceListReveal({ source: 'assistants', tabId: targetTabId })
       window.requestAnimationFrame(() => {
-        emitGlobalSearchSelection(
-          EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE,
-          { messageId, targetTabId, topic } satisfies GlobalSearchTopicMessageSelectionPayload,
+        reportGlobalSearchSelectionFailure(
+          EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE, {
+            messageId,
+            targetTabId,
+            topic
+          } satisfies GlobalSearchTopicMessageSelectionPayload),
           {
             eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE,
             messageId,
@@ -604,9 +606,12 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       }
       emitResourceListReveal({ source: 'agents', tabId: targetTabId })
       window.requestAnimationFrame(() => {
-        emitGlobalSearchSelection(
-          EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE,
-          { messageId, sessionId, targetTabId } satisfies GlobalSearchAgentSessionMessageSelectionPayload,
+        reportGlobalSearchSelectionFailure(
+          EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE, {
+            messageId,
+            sessionId,
+            targetTabId
+          } satisfies GlobalSearchAgentSessionMessageSelectionPayload),
           {
             eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE,
             messageId,
@@ -624,10 +629,10 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     (knowledgeBaseId: string) => {
       openTab('/app/knowledge')
       window.requestAnimationFrame(() => {
-        emitGlobalSearchSelection(EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE, knowledgeBaseId, {
-          eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE,
-          knowledgeBaseId
-        })
+        reportGlobalSearchSelectionFailure(
+          EventEmitter.emit(EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE, knowledgeBaseId),
+          { eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE, knowledgeBaseId }
+        )
       })
       onClose()
     },

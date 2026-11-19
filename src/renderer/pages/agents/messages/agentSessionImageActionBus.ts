@@ -37,6 +37,7 @@ export function consumePendingAgentSessionImageActions(
   return agentSessionImageActionBus.consumePendingImageActions(sessionId, type)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Image capture loading may reject arbitrary values; forward the original failure to the pending session actions.
 export function rejectPendingAgentSessionImageActions(sessionId: string | undefined, reason: unknown): void {
   agentSessionImageActionBus.rejectPendingImageActions(sessionId, reason)
 }

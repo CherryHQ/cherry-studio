@@ -9,7 +9,7 @@ import type { ReadableSpan, TimedEvent } from '@opentelemetry/sdk-trace-base'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { Attributes, AttributeValue, SpanEntity } from '@shared/data/types/trace'
+import type { Attributes, SpanEntity } from '@shared/data/types/trace'
 import type { TraceDataCursor, TraceDataResult } from '@shared/data/types/trace'
 import { IpcChannel } from '@shared/IpcChannel'
 
@@ -447,7 +447,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
         return
       }
       if (key === 'attributes') {
-        this.mergeAttributes(savedEntity, value)
+        this.mergeAttributes(savedEntity, entity.attributes)
       } else {
         target[key] = value
       }
@@ -477,15 +477,15 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     return merged
   }
 
-  private mergeAttributes(savedEntity: SpanEntity, value: unknown): void {
+  private mergeAttributes(savedEntity: SpanEntity, value: SpanEntity['attributes']): void {
     const savedAttrs = savedEntity.attributes || {}
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      savedEntity.attributes = value as Attributes
+      savedEntity.attributes = value
       return
     }
 
     Object.keys(value).forEach((attrKey) => {
-      const rawValue = (value as Record<string, AttributeValue>)[attrKey]
+      const rawValue = value[attrKey]
       // A `{`-prefixed string is not guaranteed to be valid JSON; an unguarded parse would
       // throw and silently drop the whole span. Fall back to the raw value on parse failure.
       let jsonData: unknown = rawValue

@@ -35,9 +35,10 @@ export default function MermaidFilePreview({ filePath, refreshKey }: FilePreview
     let cancelled = false
     window.api.fs.readText(filePath).then(
       (source) => !cancelled && setLoadState({ status: 'ready', source }),
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Host text reads can reject arbitrary values; report the original failure only while this preview is current.
       (error: unknown) => {
         if (cancelled) return
-        logger.error(`Failed to read Mermaid file: ${filePath}`, error as Error)
+        logger.error(`Failed to read Mermaid file: ${filePath}`, error instanceof Error ? error : { error })
         setLoadState({ status: 'error' })
       }
     )

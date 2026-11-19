@@ -27,6 +27,7 @@ function paginationFromQuery(query: ListQuery) {
   return { page, limit, offset }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- DataApi query input remains untrusted until ListQuerySchema validates pagination and filter fields.
 function parseListQuery(query: unknown): ListQuery {
   const parsed = ListQuerySchema.safeParse(query ?? {})
   if (!parsed.success) throw toDataApiError(parsed.error)

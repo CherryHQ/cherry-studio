@@ -3,6 +3,8 @@ import { connect as tlsConnect } from 'node:tls'
 
 import { net } from 'electron'
 
+import { getErrorMessage } from '@main/utils/error'
+
 import { NETWORK_ERROR_CODES, type NetworkFailureKind, type NetworkLayerResult, type TlsPeerInfo } from './types'
 
 const CODE_TO_KIND: ReadonlyMap<string, NetworkFailureKind> = new Map(
@@ -17,6 +19,7 @@ const CODE_TO_KIND: ReadonlyMap<string, NetworkFailureKind> = new Map(
  * `TypeError: fetch failed` with the errno one level down.
  */
 export function classifyNetworkError(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- DNS, TLS and HTTP catches include arbitrary rejections and wrapped causes; classify recognized transport codes without asserting a single error class.
   error: unknown,
   httpStatus?: number
 ): { readonly kind: NetworkFailureKind; readonly code?: string } {
@@ -32,7 +35,7 @@ export function classifyNetworkError(
   const nodeCode = chain
     .map((e) => (e as { code?: unknown } | null)?.code)
     .find((code): code is string => typeof code === 'string')
-  const message = chain.map((e) => (e instanceof Error ? e.message : String(e))).join(' ')
+  const message = chain.map((value) => getErrorMessage(value, '')).join(' ')
   const chromiumCode = /(ERR_[A-Z_]+)/.exec(message)?.[1]
   for (const code of [nodeCode, chromiumCode]) {
     if (!code) continue
@@ -49,6 +52,7 @@ export function classifyNetworkError(
   return { kind: 'unknown', code: nodeCode ?? chromiumCode }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Probe operations reject without a typed error contract; retain timing/status and classify the original failure into the network result envelope.
 function failed<T>(started: number, error: unknown, httpStatus?: number): NetworkLayerResult<T> {
   return { status: 'failed', durationMs: performance.now() - started, ...classifyNetworkError(error, httpStatus) }
 }

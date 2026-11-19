@@ -34,6 +34,7 @@ let browser: Browser | undefined
 let embeddingMock: Awaited<ReturnType<typeof startEmbeddingMock>> | undefined
 
 const persist = () => saveResult(out, result, secrets)
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Controller, preparation and driver failures arrive as arbitrary rejections; classify them at the report boundary.
 function failure(error: unknown): void {
   const phase = result.failureStage ?? 'report'
   addFailure(

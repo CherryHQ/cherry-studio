@@ -224,6 +224,7 @@ function truncatePreview(text: string): string {
   return text.length > PREVIEW_LENGTH ? text.substring(0, PREVIEW_LENGTH) + '...' : text
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted message extensions have versioned payloads; preview only an actual string at the selected field.
 function getStringField(value: unknown, key: string): string | undefined {
   if (!value || typeof value !== 'object') return undefined
 
@@ -231,6 +232,7 @@ function getStringField(value: unknown, key: string): string | undefined {
   return typeof field === 'string' ? field : undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Historical message parts may lack extension data; check the container before projecting nested preview fields.
 function getObjectField(value: unknown, key: string): Record<string, unknown> | undefined {
   if (!value || typeof value !== 'object') return undefined
 

@@ -23,6 +23,7 @@ export interface ChannelRuntimeHooks {
   onDynamicChatId: (channelId: string, chatId: string) => void
   onLog: (entry: ChannelLogEntry) => void
   onStatus: (status: ChannelStatusEvent) => void
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Adapter startup, reconciliation, and teardown may reject arbitrary values; the owner receives the original failure.
   onError: (channelId: string, error: unknown) => void
 }
 

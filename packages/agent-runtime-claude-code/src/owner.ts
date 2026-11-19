@@ -100,6 +100,7 @@ export class ClaudeOwner {
     private readonly config: ClaudeSessionOptions,
     sessionId: string,
     private readonly fresh: boolean,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- SDK, archive and observer failures can be arbitrary rejection values; forward them unchanged to the runtime reporter.
     private readonly report: (error: unknown) => void,
     private readonly bind: (sessionId: string) => void
   ) {

@@ -93,6 +93,54 @@ describe('QqAdapter connection lifecycle', () => {
   })
 })
 
+describe('QqAdapter gateway payload validation', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('rejects malformed READY before marking the adapter connected', async () => {
+    const adapter = createAdapter()
+    await expect(adapter.handleDispatch('READY', { session_id: 'invalid-session', user: null })).rejects.toThrow()
+    expect(adapter.connected).toBe(false)
+    await adapter.handleDispatch('READY', { session_id: 'session', user: { username: 'bot' } })
+    expect(adapter.connected).toBe(true)
+    await adapter.disconnect()
+  })
+
+  it('rejects an invalid group locator without consuming its message id', async () => {
+    const adapter = createAdapter()
+    const messages: unknown[] = []
+    adapter.on('message', (message: unknown) => messages.push(message))
+    await expect(
+      adapter.handleDispatch('GROUP_AT_MESSAGE_CREATE', { ...groupMessage('same'), group_openid: 42 })
+    ).rejects.toThrow()
+    await adapter.handleDispatch('GROUP_AT_MESSAGE_CREATE', groupMessage('same'))
+    expect(messages).toMatchObject([{ chatId: 'group:g1', userId: 'm1', messageId: 'same', text: 'hi' }])
+  })
+
+  it('supports native openids without a guild user id and retains the legacy group id fallback', async () => {
+    const adapter = createAdapter()
+    const messages: unknown[] = []
+    adapter.on('message', (message: unknown) => messages.push(message))
+    await adapter.handleDispatch('C2C_MESSAGE_CREATE', {
+      id: 'c2c',
+      author: { user_openid: 'u1' },
+      content: 'private'
+    })
+    await adapter.handleDispatch('GROUP_AT_MESSAGE_CREATE', {
+      ...groupMessage('native-group'),
+      author: { member_openid: 'm1' }
+    })
+    await adapter.handleDispatch('GROUP_AT_MESSAGE_CREATE', {
+      ...groupMessage('legacy-group'),
+      author: { id: 'legacy' }
+    })
+    expect(messages).toMatchObject([
+      { chatId: 'c2c:u1', userId: 'u1', text: 'private' },
+      { chatId: 'group:g1', userId: 'm1', text: 'hi' },
+      { chatId: 'group:g1', userId: 'legacy', text: 'hi' }
+    ])
+  })
+})
+
 describe('QqAdapter.downloadAttachments', () => {
   beforeEach(() => mockNetFetch.mockReset())
   afterEach(() => vi.restoreAllMocks())

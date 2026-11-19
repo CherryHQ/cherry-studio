@@ -296,6 +296,7 @@ export interface AgentSessionRuntimeDriver {
   recoverSessions?(): Promise<void>
   fork?(input: RuntimeForkInput): Promise<RuntimeForkResult>
   /** Validate the opaque checkpoint and its claimed product binding when supplied. */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted checkpoints remain opaque until the selected driver validates its schema and native binding.
   isForkCheckpoint?(value: unknown, binding?: Pick<AgentSessionContextRow, 'backendId' | 'nativeThreadId'>): boolean
   /**
    * Per-driver session prerequisite check: throws if the session can't be

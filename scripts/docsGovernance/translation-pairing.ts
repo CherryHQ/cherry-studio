@@ -219,6 +219,7 @@ const firstDifference = (label: string, left: readonly unknown[], right: readonl
   return undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- YAML frontmatter has heterogeneous values; pairing compares their serialized representation without pretending a shared DTO exists.
 const deepEqual = (left: unknown, right: unknown): boolean => JSON.stringify(left) === JSON.stringify(right)
 
 const checkFrontmatter = (source: string, zh: string): string[] => {

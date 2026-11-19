@@ -5,8 +5,20 @@ import type { TtsInferenceContract } from '../../capabilities/tts/protocol'
 
 interface KokoroRuntime {
   OfflineTts: {
-    createAsync(config: unknown): Promise<{
-      generate(request: unknown): { samples: Float32Array; sampleRate: number }
+    createAsync(config: {
+      model: {
+        kokoro: { model: string; voices: string; tokens: string; dataDir: string; lexicon: string }
+        numThreads: number
+        provider: string
+        debug: boolean
+      }
+      ruleFsts: string
+      maxNumSentences: number
+    }): Promise<{
+      generate(request: { text: string; sid: number; speed: number; enableExternalBuffer: boolean }): {
+        samples: Float32Array
+        sampleRate: number
+      }
     }>
   }
   writeWave(filename: string, audio: { samples: Float32Array; sampleRate: number }): void

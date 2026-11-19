@@ -704,6 +704,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   })
   const handleOpenFileTarget = useCallback(
     (target: ExternalOpenTarget) => {
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Opening an external file target can reject with any value; the shared formatter owns localized failure text.
       void openFileTarget(target).catch((error: unknown) => {
         toast.error(formatErrorMessageWithPrefix(error, t('files.error.open_path', { path: fileTargetPath })))
       })

@@ -5,6 +5,7 @@ import type { ChartTheme } from '../useChartTheme'
 
 type OptionObject = Record<string, unknown>
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Nested chart options may be absent or nonrecord values; merge only nonarray objects and preserve formatter callbacks.
 export function toOptionObject(value: unknown): OptionObject {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
   return value as OptionObject

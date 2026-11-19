@@ -33,6 +33,7 @@ export function markTrustedLocalToolTerminalFailure<T>(output: T): T {
   return output
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Provider/MCP results are untrusted; require both the failure shape and process-local WeakSet provenance before stopping the loop.
 export function getTrustedLocalToolTerminalFailure(output: unknown): TerminalToolFailure | undefined {
   if (!isTerminalFailureOutput(output) || !trustedTerminalFailures.has(output)) return undefined
 

@@ -201,6 +201,20 @@ describe('assistant-files MCP server', () => {
     expect(result.content[0].text).toBe('database unavailable')
   })
 
+  it('returns a tool failure when the original rejection cannot be formatted', async () => {
+    mocks.readFile.mockRejectedValueOnce({
+      toString() {
+        throw new Error('cannot format file failure')
+      }
+    })
+    const server = await createServer()
+
+    const result = await callTool(server, 'read_file', { filename: 'report.txt' })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toBe('Tool execution failed')
+  })
+
   it('returns the protected-path reason for a refused trash move', async () => {
     mocks.moveWorkspaceItemToTrash.mockRejectedValue(
       new Error('Refusing to move protected path to trash (the session workspace root): .')

@@ -36,6 +36,7 @@ import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { readConversation, type ReadConversationInput } from '@main/ai/messages/readConversation'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
+import { getErrorMessage } from '@main/utils/error'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import {
   AgentSessionDeliveryStatusSchema,
@@ -773,8 +774,9 @@ async function sendNotification(ctx: AutonomyToolsContext, args: NotifyInput): P
   let filesSent = 0
   const errors: string[] = []
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Channel adapters can reject arbitrary values; retain the raw failure in logs and safely summarize each independent notification attempt.
   const recordError = (adapter: ChannelAdapter, chatId: string, what: string, err: unknown) => {
-    const errMsg = err instanceof Error ? err.message : String(err)
+    const errMsg = getErrorMessage(err, 'Unknown channel failure')
     errors.push(`${adapter.channelId}/${chatId} (${what}): ${errMsg}`)
     // Log the raw error, not just its message, so the SDK's cause chain and any
     // attached `response` payload survive to the logs for diagnosis.

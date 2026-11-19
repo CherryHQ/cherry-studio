@@ -139,6 +139,7 @@ export function isPrivateAddress(address: string): boolean {
 const inflight = new Map<number, Set<AbortController>>()
 
 export const networkCapability = {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Guest-controlled method parameters remain untrusted until FetchParams validates them; manifest host scope and capability grants remain separate checks.
   async fetch(appId: string, params: unknown, senderId: number) {
     const { url, method, headers, body } = FetchParams.parse(params)
     // The MANIFEST, not the grant table: hosts are the scope of `network.fetch`, not

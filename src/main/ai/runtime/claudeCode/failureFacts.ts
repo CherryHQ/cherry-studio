@@ -6,6 +6,7 @@ import { ClaudeCodeResultError } from './ClaudeRuntimeState'
 import { isClaudeCodeProcessFailure, type ClaudeCodeProcessDiagnostics } from './processExitDiagnostics'
 
 export function classifyClaudeFailure(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- CLI and SDK failures are untyped; owned result errors, process diagnostics, and cancellation evidence determine recovery.
   error: unknown,
   options: { cancelled?: boolean; recovered?: boolean; process?: ClaudeCodeProcessDiagnostics } = {}
 ): FailureFacts {

@@ -398,6 +398,34 @@ describe('parseCharts — doughnut/pie3D degrade to pie with a warning', () => {
 })
 
 describe('parseCharts — resilience to malformed chart parts', () => {
+  it('keeps cached sibling charts when a host range read throws an unprintable reason', async () => {
+    const chartXml = (cache: string) => `
+      <c:chartSpace ${CHART_NS}><c:chart><c:plotArea><c:lineChart>
+        <c:ser><c:idx val="0"/><c:val><c:numRef><c:f>Sheet1!$B$2:$B$3</c:f>${cache}</c:numRef></c:val></c:ser>
+      </c:lineChart></c:plotArea></c:chart></c:chartSpace>`
+    const zip = buildBaseZip()
+    zip.file('xl/drawings/drawing1.xml', wrapDrawing(twoCellAnchorXml('rId1') + twoCellAnchorXml('rId2')))
+    zip.file(
+      'xl/drawings/_rels/drawing1.xml.rels',
+      drawingRelsXml([
+        { id: 'rId1', target: '../charts/chart1.xml' },
+        { id: 'rId2', target: '../charts/chart2.xml' }
+      ])
+    )
+    zip.file('xl/charts/chart1.xml', chartXml(''))
+    zip.file(
+      'xl/charts/chart2.xml',
+      chartXml('<c:numCache><c:ptCount val="1"/><c:pt idx="0"><c:v>5</c:v></c:pt></c:numCache>')
+    )
+    const { charts, warnings } = await parseCharts(zip, 'Sheet1', DEFAULT_LAYOUT, {
+      readRange() {
+        throw Object.create(null)
+      }
+    })
+    expect(charts.flatMap((chart) => chart.series.flatMap((series) => series.values))).toContain(5)
+    expect(warnings.some((warning) => warning.includes('Chart data could not be read'))).toBe(true)
+  })
+
   it('drops only the chart whose part is malformed, keeping the others', async () => {
     const goodChartXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
       <c:chartSpace ${CHART_NS}>

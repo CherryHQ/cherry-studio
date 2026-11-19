@@ -22,7 +22,7 @@ const RESOURCE_ICON_TYPE_LABEL_KEYS: Record<AssistantIconType, string> = {
   none: 'settings.assistant.icon.type.none'
 }
 
-function buildModelAvatarModel(uniqueModelId: unknown, modelName: string | null | undefined) {
+function buildModelAvatarModel(uniqueModelId: string | null | undefined, modelName: string | null | undefined) {
   if (!isUniqueModelId(uniqueModelId)) return undefined
 
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)

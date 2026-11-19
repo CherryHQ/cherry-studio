@@ -105,6 +105,7 @@ export function createScriptedHost(options: ScriptedHostOptions): ScriptedHost {
             outcomes.set(outcomeId(call), outcomeOf(call, answer))
             return answer
           },
+          // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Pending approval waits reject with AbortSignal.reason; drop the pending outcome and rethrow that exact value.
           (error: unknown) => {
             outcomes.delete(outcomeId(call))
             throw error

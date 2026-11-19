@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, type Event, ipcMain, type IpcMainInvokeEvent } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -149,12 +149,11 @@ export function openUserDataRelocationWindow(options: OpenRelocationWindowOption
       resolve()
     }
     const didFinishLoad = () => finish(true)
-    const didFailLoad = (_event: unknown, code: number, description: string, _url: string, isMainFrame?: boolean) => {
+    const didFailLoad = (_event: Event, code: number, description: string, _url: string, isMainFrame?: boolean) => {
       if (isMainFrame === false) return
       finish(false, description || String(code))
     }
-    const didExit = (_event: unknown, details: { reason?: string }) =>
-      finish(false, details.reason ?? 'renderer exited')
+    const didExit = (_event: Event, details: { reason?: string }) => finish(false, details.reason ?? 'renderer exited')
 
     webContents.once('did-finish-load', didFinishLoad)
     webContents.once('did-fail-load', didFailLoad)

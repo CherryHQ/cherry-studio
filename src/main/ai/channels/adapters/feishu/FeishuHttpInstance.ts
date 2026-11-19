@@ -10,6 +10,7 @@ import type * as Lark from '@larksuiteoapi/node-sdk'
  * both of which Electron's net.fetch rejects.
  */
 export function createFeishuHttpInstance(): Lark.HttpInstance {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The Lark HTTP adapter encodes endpoint-specific JSON, strings and multipart Buffers; each SDK endpoint owns its request shape.
   async function doRequest(method: string, url: string, data?: unknown, opts?: Record<string, any>): Promise<any> {
     const headers: Record<string, string> = { ...opts?.headers }
     let body: string | FormData | undefined

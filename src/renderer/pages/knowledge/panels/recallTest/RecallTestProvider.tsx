@@ -5,9 +5,9 @@ import { useTranslation } from 'react-i18next'
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils/error'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { toError } from '@renderer/utils/errorDetails'
 
 import type { RecallQueryContextValue, RecallResultContextValue, RecallResultItem } from './types'
 import { mapRecallResult, prependHistoryQuery } from './utils'
@@ -105,7 +105,7 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
       }
       setResults(searchResults.map(mapRecallResult))
     } catch (error) {
-      const normalizedError = normalizeKnowledgeError(error)
+      const normalizedError = toError(error)
       logger.error('Knowledge recall search IPC failed', normalizedError, { baseId: searchBaseId, query: trimmedQuery })
       if (!isCurrentSearch()) {
         return

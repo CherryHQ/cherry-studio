@@ -2581,6 +2581,7 @@ export class BinaryManager extends BaseService {
    * drops every other field by rebuilding the object. Grammar is validated by the
    * caller. Returns null when the entry cannot be a definition at all.
    */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted custom-tool entries may be legacy or malformed; reconstruct only checked fields before the caller validates their grammar.
   private reconstructCustomDefinition(entry: unknown): CustomToolDefinition | null {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null
     const source = entry as Record<string, unknown>
@@ -2597,6 +2598,7 @@ export class BinaryManager extends BaseService {
   }
 
   /** A label for a skipped raw entry that never carried a usable name. */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Skipped registry entries have not passed reconstruction; use only a verified string name for their diagnostic label.
   private describeSkipped(entry: unknown): string {
     if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
       const name = (entry as Record<string, unknown>).name

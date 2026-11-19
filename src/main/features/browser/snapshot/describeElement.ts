@@ -53,6 +53,7 @@ export const createAccessibilityContext = (
   truncated: options.truncated ?? false
 })
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- CDP role, name, and description values are untyped; verify text before applying display limits.
 const normalizeAccessibilityText = (value: unknown): string | null => {
   if (typeof value !== 'string') return null
   const normalized = value.replace(/\s+/g, ' ').trim()

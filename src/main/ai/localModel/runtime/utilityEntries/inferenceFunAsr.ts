@@ -13,6 +13,7 @@ const VAD_WINDOW_SIZE = 512
 const ASR_NUM_THREADS = Math.min(4, availableParallelism())
 const COPY_NATIVE_SAMPLES = false
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native recognizer initialization can throw any value; the stable model-load error preserves it as the cause.
 function modelLoadFailure(error: unknown): Error & { code: string } {
   return Object.assign(new Error('ASR model initialization failed', { cause: error }), {
     code: 'ASR_MODEL_LOAD_FAILED'

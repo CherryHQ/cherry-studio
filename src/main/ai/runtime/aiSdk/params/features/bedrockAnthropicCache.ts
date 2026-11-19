@@ -21,16 +21,17 @@ import type { RequestFeature } from '../feature'
 
 type CacheMarker = { ttl?: string }
 
-function getAnthropicMarker(holder: unknown): CacheMarker | undefined {
-  const anthropic = (holder as { providerOptions?: { anthropic?: Record<string, unknown> } } | undefined)
-    ?.providerOptions?.anthropic
-  return (anthropic?.cacheControl ?? anthropic?.cache_control) as CacheMarker | undefined
+function getAnthropicMarker(holder: Pick<LanguageModelV3Message, 'providerOptions'>): CacheMarker | undefined {
+  const anthropic = holder.providerOptions?.anthropic
+  const marker = anthropic?.cacheControl ?? anthropic?.cache_control
+  if (typeof marker !== 'object' || marker === null || Array.isArray(marker)) return undefined
+  return typeof marker.ttl === 'string' ? { ttl: marker.ttl } : {}
 }
 
 // Reads the same holders `clampCacheMarkers` counts, so its four-breakpoint budget carries over.
 function collectMessageMarkers(message: LanguageModelV3Message): CacheMarker[] {
   const markers: CacheMarker[] = []
-  const add = (holder: unknown): boolean => {
+  const add = (holder: Pick<LanguageModelV3Message, 'providerOptions'>): boolean => {
     const marker = getAnthropicMarker(holder)
     if (marker) markers.push(marker)
     return marker !== undefined

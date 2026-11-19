@@ -1,4 +1,4 @@
-import type { SerializedError } from '@renderer/types/error'
+import type { SerializedAiSdkRetryError, SerializedError } from '@renderer/types/error'
 import { isSerializedAiSdkRetryError, isSerializedAiSdkToolCallRepairError } from '@renderer/types/error'
 import { classifyErrorCategory, type ErrorCategory, isErrorCategory } from '@shared/utils/errorCategory'
 
@@ -84,10 +84,9 @@ function unwrapNestedErrors(error: SerializedError): SerializedError[] {
 }
 
 /** `statusCode` or `status`, numeric or a numeric string. Unparseable values count as absent. */
-function readStructuredStatus(value: unknown): number | undefined {
+function readStructuredStatus(value: SerializedError | SerializedAiSdkRetryError['lastError']): number | undefined {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
-  const record = value as Record<string, unknown>
-  const status = record.statusCode ?? record.status
+  const status = value.statusCode ?? value.status
   const parsed = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
   return typeof parsed === 'number' && !Number.isNaN(parsed) ? parsed : undefined
 }

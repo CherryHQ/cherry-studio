@@ -262,6 +262,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   const startTimeMs = Date.now()
 
   let resolveExecution!: (text: string) => void
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- This native Promise reject forwards the original runtime failure to task completion without changing its identity.
   let rejectExecution!: (err: unknown) => void
   const executionDone = new Promise<string>((resolve, reject) => {
     resolveExecution = resolve

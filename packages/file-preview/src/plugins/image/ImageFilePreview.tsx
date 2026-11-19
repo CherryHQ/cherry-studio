@@ -66,6 +66,7 @@ export default function ImageFilePreview({ sourceId, fileName, document, mediaTy
         objectUrlRef.current = URL.createObjectURL(new Blob([bytes], { type: mime }))
         setUrl(objectUrlRef.current)
       })
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Host document reads can reject with arbitrary values; the owning document handles failure while this leaf selects the display status.
       .catch((error: unknown) => {
         if (controller.signal.aborted || isCurrentDocument?.() === false) return
         failDocument?.(error)

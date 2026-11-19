@@ -27,6 +27,7 @@ export function useUpgradeReleaseNotes(releaseInfo: UpdateInfo) {
       .then((history) => {
         if (active) setResult({ target, attempt, history })
       })
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Upgrade-note IPC may reject with any value; log it and clear only the current effect result.
       .catch((error: unknown) => {
         logger.warn('Failed to fetch upgrade release notes', { error })
         if (active) setResult({ target, attempt, history: null })

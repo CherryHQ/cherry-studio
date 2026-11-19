@@ -18,6 +18,7 @@ interface ExternalResource {
 
 const sameProcess = (a: ExternalProcess, b: ExternalProcess) => a.pid === b.pid && a.startedAt === b.startedAt
 const emptySnapshot = (): ExternalSnapshot => ({ processes: [], windows: [] })
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- External automation and ownership checks may reject with arbitrary values; this helper supplies controller diagnostics.
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 function diagnosticSnapshot(snapshot: ExternalSnapshot) {

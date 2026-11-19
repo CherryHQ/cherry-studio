@@ -18,6 +18,7 @@ export class ClaudeFeed {
   private legacy: NonNullable<ClaudeObservation['legacy']> = {}
   private controlState?: ClaudeControlState['snapshot']
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Captured-observation delivery forwards arbitrary subscriber failures without inventing an Error instance.
   constructor(private readonly report: (error: unknown) => void) {
     this.state = new ThreadFeed(
       {

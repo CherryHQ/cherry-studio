@@ -9,6 +9,7 @@ export function mcpToolResourceKey(serverId: string, uri: string): string {
 
 export function registerMcpToolResources(
   resources: Map<string, McpResource>,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Saved tool output is untrusted; EmbeddedResourceSchema validates each resource before granting access to its URI.
   output: unknown,
   source: { serverId: string; serverName: string }
 ): void {

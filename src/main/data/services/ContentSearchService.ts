@@ -45,6 +45,7 @@ function toSourceCursorError<TError>(sourceType: ContentSearchSourceType, error:
   return DataApiErrorFactory.validation({ [`cursors.${sourceType}`]: cursorErrors }, error.message)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Search adapters can reject arbitrary values; normalize at this boundary while retaining validated cursor details and DataApi request context.
 function withSourceContext(sourceType: ContentSearchSourceType, error: unknown) {
   const sourcedError = toSourceCursorError(sourceType, error)
   if (!isDataApiError(sourcedError)) {

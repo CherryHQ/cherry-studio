@@ -97,6 +97,7 @@ async function askUser(context: Context, call: ToolCall): Promise<ToolOutcome> {
     .remember(keys.askMemo(call.key), () =>
       context.host.questions.ask({ call: { thread: call.thread, key: call.key }, questions }, call.signal)
     )
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- A question wait can reject with any host reason; only cancellation withdraws it, while other values propagate unchanged.
     .catch((error: unknown) => {
       if (call.signal.aborted) return undefined
       throw error

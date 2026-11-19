@@ -22,6 +22,7 @@ export function resolveOptions(
 /** Resolve a persisted option value or fall back to the typed registry default. */
 export function resolveOptionValue(
   item: OptionsConfigItem,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted painting drafts contain dynamic fields; the catalog validates this value before matching a typed control option.
   value: unknown,
   painting: Record<string, unknown>,
   translate: (key: string) => string

@@ -10,6 +10,7 @@ function truncate(text: string): string {
   return text.length > TEXT_LIMIT ? `${text.slice(0, TEXT_LIMIT)}… [${text.length - TEXT_LIMIT} more chars]` : text
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native transcript JSON lines may contain strings or mixed blocks; extract only verified text fields.
 function textOf(content: unknown): string {
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''

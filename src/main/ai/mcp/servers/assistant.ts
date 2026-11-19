@@ -13,6 +13,7 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { createAgent as createAgentCommand } from '@main/ai/agents/createAgent'
 import { type AssistantToolName, DEFAULT_ASSISTANT_TOOL_NAMES } from '@main/ai/toolApproval/assistantToolNames'
+import { getErrorMessage } from '@main/utils/error'
 import { providerChatBaseUrl } from '@main/utils/providerEndpoint'
 import { ErrorCode as DataApiErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
@@ -102,6 +103,7 @@ const HEALTH_CACHE_TTL = 30_000 // 30 seconds
 const HEALTH_TIMEOUT_MS = 10_000
 const healthCacheKey = (providerId: string) => `assistant:health:${providerId}`
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Assistant routes construct different manifest, provider-health, diagnostic and settings payloads; this MCP text encoder preserves their JSON omission behavior.
 function jsonResult(value: unknown): CallToolResult {
   return { content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] }
 }
@@ -110,10 +112,6 @@ function textResult(text: string, isError?: true): CallToolResult {
   const result: CallToolResult = { content: [{ type: 'text', text }] }
   if (isError) result.isError = isError
   return result
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
 
 function readProductManifest(): Record<string, unknown> {
@@ -315,7 +313,7 @@ async function createAgent(
       structuredContent: output
     }
   } catch (error) {
-    const msg = errorMessage(error)
+    const msg = getErrorMessage(error, 'Unknown error')
     logger.error('create_agent failed', { error: msg, name })
     throw new Error(`Failed to create agent: ${msg}`)
   }
@@ -442,7 +440,7 @@ function diagnoseProviders(): CallToolResult {
 
     return jsonResult({ providerCount: summary.length, providers: summary })
   } catch (error) {
-    return textResult(`Failed to read provider config: ${errorMessage(error)}`, true)
+    return textResult(`Failed to read provider config: ${getErrorMessage(error, 'Unknown error')}`, true)
   }
 }
 
@@ -502,7 +500,7 @@ async function diagnoseHealth(providerId: string, signal: AbortSignal): Promise<
     cacheService.set(healthCacheKey(providerId), result, HEALTH_CACHE_TTL)
     return result
   } catch (error) {
-    return textResult(`Health check failed: ${errorMessage(error)}`, true)
+    return textResult(`Health check failed: ${getErrorMessage(error, 'Unknown error')}`, true)
   }
 }
 
@@ -541,7 +539,7 @@ function diagnoseLogs(requestedLines?: number): CallToolResult {
 
     return textResult(`=== ${latestLog.name} (last ${lines} lines) ===\n${tailLines}`)
   } catch (error) {
-    return textResult(`Failed to read logs: ${errorMessage(error)}`, true)
+    return textResult(`Failed to read logs: ${getErrorMessage(error, 'Unknown error')}`, true)
   }
 }
 
@@ -580,7 +578,7 @@ function diagnoseErrors(requestedLines?: number): CallToolResult {
 
     return textResult(`=== ${errorLines.length} error/warn entries ===\n${errorLines.reverse().join('\n')}`)
   } catch (error) {
-    return textResult(`Failed to read errors: ${errorMessage(error)}`, true)
+    return textResult(`Failed to read errors: ${getErrorMessage(error, 'Unknown error')}`, true)
   }
 }
 
@@ -599,7 +597,7 @@ function diagnoseMcpStatus(): CallToolResult {
 
     return jsonResult({ serverCount: summary.length, servers: summary })
   } catch (error) {
-    return textResult(`Failed to read MCP status: ${errorMessage(error)}`, true)
+    return textResult(`Failed to read MCP status: ${getErrorMessage(error, 'Unknown error')}`, true)
   }
 }
 
@@ -639,7 +637,7 @@ async function diagnoseConfig(): Promise<CallToolResult> {
 
     return jsonResult(settings)
   } catch (error) {
-    return textResult(`Failed to read config: ${errorMessage(error)}`, true)
+    return textResult(`Failed to read config: ${getErrorMessage(error, 'Unknown error')}`, true)
   }
 }
 
@@ -691,7 +689,7 @@ function readSource(filePath: string, requestedLines?: number): CallToolResult {
     }
     return textResult(`=== ${filePath} ===\n${content}`)
   } catch (error) {
-    return textResult(`Failed to read file: ${errorMessage(error)}`, true)
+    return textResult(`Failed to read file: ${getErrorMessage(error, 'Unknown error')}`, true)
   }
 }
 

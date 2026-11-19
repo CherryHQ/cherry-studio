@@ -40,6 +40,7 @@ export class Projection {
 
   constructor(
     readonly sessionId: string,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- ThreadFeed forwards arbitrary observer failures; this projection must not change their identity or classification.
     report: (error: unknown) => void
   ) {
     this.feed = new ThreadFeed({ type: 'snapshot', messages: [], inputs: [], activity: { state: 'unknown' } }, report)

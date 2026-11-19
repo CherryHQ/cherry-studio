@@ -246,6 +246,7 @@ export async function validateMigrationContract(repositoryRoot = DEFAULT_REPOSIT
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Filesystem and migration-contract checks may reject with any value; the CLI reports the failure and exits nonzero.
   void validateMigrationContract().catch((error: unknown) => {
     const message = error instanceof Error ? (error.stack ?? error.message) : String(error)
     process.stderr.write(`${message}\n`)

@@ -12,6 +12,7 @@ import { useScopedMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { DEFAULT_MCP_MODE } from '@shared/data/types/assistant'
+import type { OutputFor } from '@shared/ipc/types'
 import type { McpPrompt } from '@shared/types/mcp'
 
 import { collectMcpPromptArgs, McpPromptArgumentDialog, mcpPromptNeedsArgumentForm } from './mcpPromptArgumentDialog'
@@ -34,11 +35,9 @@ export function restoreMcpPromptConsumedQuery(options?: QuickPanelCallBackOption
 }
 
 /** Text parts of a `prompts/get` result, in order. Image / resource parts have no composer form. */
-export function flattenMcpPromptMessages(result: unknown): string {
-  const messages = (result as { messages?: Array<{ content?: { type?: string; text?: string } }> })?.messages
-  if (!Array.isArray(messages)) return ''
-  return messages
-    .map((message) => (message?.content?.type === 'text' ? (message.content.text ?? '') : ''))
+export function flattenMcpPromptMessages(result: OutputFor<'mcp.server.get_prompt'>): string {
+  return result.messages
+    .map((message) => (message.content.type === 'text' ? message.content.text : ''))
     .filter(Boolean)
     .join('\n\n')
 }

@@ -22,6 +22,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Historical MCP/native results may use structured or text envelopes; the result schema validates extracted agent fields.
 export function parseCreateAgentResult(value: unknown): CreateAgentResult | undefined {
   let candidate: unknown = value
 

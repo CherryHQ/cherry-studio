@@ -51,6 +51,7 @@ import { type JsonValue, type InputId, type ThreadId } from '@cherrystudio/agent
 import { conversationId, nativeSummaryUsage, pages, readFacts, threadId, runIds, taskRun } from './history'
 
 export interface PiDurableBehaviorOptions {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Behavior jobs and native callbacks can reject with arbitrary values; the owning host decides how to report them.
   readonly onError?: (error: unknown) => void
   readonly install: (ports: HarnessPorts) => void
   readonly owns?: (thread: ThreadId) => boolean

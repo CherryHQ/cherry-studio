@@ -45,6 +45,7 @@ export async function importBrowserData(
     category.reasons[reason] = (category.reasons[reason] ?? 0) + 1
     if (reason !== 'expired' && !failed) category.unsupported = true
   }
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Portable JSON and native cookie readers yield unvalidated entries; retain partition checks and ImportedCookieSchema validation before importing browser state.
   const applyCookie = async (raw: unknown) => {
     signal.throwIfAborted()
     if (raw && typeof raw === 'object' && 'partitionKey' in raw) {
@@ -93,6 +94,7 @@ export async function importBrowserData(
       result.cookies.failed++
     }
   }
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Imported localStorage entries come from external browser data; ImportedOriginSchema owns shape validation before an origin is opened.
   const applyOrigin = async (raw: unknown) => {
     signal.throwIfAborted()
     const parsed = ImportedOriginSchema.safeParse(raw)

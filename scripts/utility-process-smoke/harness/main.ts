@@ -47,6 +47,7 @@ async function waitFor(predicate: () => boolean, label: string, timeoutMs = 5_00
 
 async function inspectRejection<Result>(
   promise: Promise<unknown>,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The real utility-process promise can reject with any value; the inspector owns recognition of the expected failure contract.
   inspect: (error: unknown) => Result
 ): Promise<Result> {
   let value: unknown
@@ -60,6 +61,7 @@ async function inspectRejection<Result>(
 
 const errorLogCount = (): number => logger.entries.filter((entry) => entry.level === 'error').length
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Worker rejection payloads are untrusted until isUtilityProcessError verifies the intentional-exit contract.
 function assertIntentionalExit(error: unknown, label: string): void {
   assert(isUtilityProcessError(error, 'PROCESS_EXITED') && error.intentional, `${label} gave ${String(error)}`)
 }

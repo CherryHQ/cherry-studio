@@ -213,6 +213,7 @@ function findEditableFileToken(
   return unusedTokens.length === 1 ? unusedTokens[0] : undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored composer tokens have opaque payloads; this boundary selects objects before attachment fields are individually checked.
 function readFileTokenPayload(payload: unknown): ComposerMessageTokenPayload | undefined {
   return typeof payload === 'object' && payload !== null ? payload : undefined
 }

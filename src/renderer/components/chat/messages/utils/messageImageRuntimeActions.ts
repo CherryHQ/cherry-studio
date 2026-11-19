@@ -14,7 +14,7 @@ interface BindCaptureMessageImageRuntimeOptions<
   TRequest extends MessageImageActionRequest
 > extends FlushPendingMessageImageActionsOptions<TRequest> {
   cancelMessage: string
-  rejectPendingActions: (targetId: string, reason: unknown) => void
+  rejectPendingActions: (targetId: string, reason: Error) => void
 }
 
 export function runMessageImageAction(runtime: MessageListRuntime, type: ImageActionType): Promise<void> | void {

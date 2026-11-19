@@ -41,6 +41,7 @@ export interface SecureChannel {
   readonly protocolVersion: number
   readonly offeredVersions: readonly number[]
   read(signal?: AbortSignal): Promise<TransportRecord>
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Public sends accept raw JavaScript values; encodeRecord validates control serialization or binary-upload framing before transmission.
   write(value: unknown, signal?: AbortSignal): Promise<void>
   close(): Promise<void>
   abort(error: Error): void

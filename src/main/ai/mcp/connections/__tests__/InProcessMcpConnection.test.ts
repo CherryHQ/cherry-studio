@@ -78,6 +78,41 @@ describe('modern in-process MCP wire', () => {
     await fs.rm(tempDir, { recursive: true, force: true })
   })
 
+  it('rejects non-object tool arguments before execution and keeps nullish calls argument-free', async () => {
+    const received: Record<string, unknown>[] = []
+    const endpoint: BuiltinMcpEndpoint = {
+      createServer: () => {
+        const server = new McpServer({ name: 'argument-envelope-test', version: '1' })
+        server.registerTool('echo', { inputSchema: z.looseObject({}) }, async (args) => {
+          received.push(args)
+          return { content: [{ type: 'text', text: JSON.stringify(args) }] }
+        })
+        return server
+      },
+      close: async () => undefined
+    }
+    const connection = await createInProcessMcpConnection({
+      appVersion: 'test',
+      endpoint,
+      events,
+      connectTimeoutMs: 10_000
+    })
+    try {
+      for (const args of [false, 0, '', [], ['value']]) {
+        await expect(connection.callTool('echo', args, callOptions())).rejects.toThrow()
+      }
+      expect(received).toEqual([])
+
+      for (const args of [null, undefined, { enabled: false, count: 0, nested: { text: '' } }]) {
+        const result = await connection.callTool('echo', args, callOptions())
+        expect(result.content).toEqual([{ type: 'text', text: JSON.stringify(args ?? {}) }])
+      }
+      expect(received).toEqual([{}, {}, { enabled: false, count: 0, nested: { text: '' } }])
+    } finally {
+      await connection.close()
+    }
+  })
+
   it.each([false, true])('keeps a legacy stdio session usable when ping is unsupported: %s', async (rejectPing) => {
     const entry = path.join(tempDir, 'legacy.cjs')
     await fs.writeFile(

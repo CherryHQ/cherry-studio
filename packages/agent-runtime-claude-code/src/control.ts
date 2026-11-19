@@ -411,15 +411,18 @@ export class ClaudeControlState {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native task receipts live inside heterogeneous tool content; accept only readable text containing an object JSON root.
 function taskReceipt(content: unknown): Record<string, unknown> | undefined {
-  const text =
-    typeof content === 'string'
-      ? content
-      : Array.isArray(content)
-        ? content.map((block) => (block?.type === 'text' ? block.text : '')).join('\n')
-        : undefined
-  if (!text) return undefined
   try {
+    const text =
+      typeof content === 'string'
+        ? content
+        : Array.isArray(content)
+          ? content
+              .map((block) => (block?.type === 'text' && typeof block.text === 'string' ? block.text : ''))
+              .join('\n')
+          : undefined
+    if (!text) return undefined
     const value = JSON.parse(text)
     return value && typeof value === 'object' && !Array.isArray(value) ? value : undefined
   } catch {

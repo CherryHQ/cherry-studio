@@ -15,6 +15,7 @@ import { handleListWebTools, handleCallWebTool } from './webMcp'
 
 export const toolHandlers: Record<
   string,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- This heterogeneous dispatch table cannot correlate a runtime tool name with its schema; each selected handler validates its arguments.
   (controller: BrowserController, args: unknown, signal?: AbortSignal) => Promise<CallToolResult>
 > = {
   open: handleOpen,

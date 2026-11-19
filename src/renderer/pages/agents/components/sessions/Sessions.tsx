@@ -161,6 +161,7 @@ function isAgentSessionBusy(sessionId: string): boolean {
   return flags.isStreamLive || flags.isAwaitingApproval || (entry?.awaitingApprovalAnchors?.length ?? 0) > 0
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Permanent agent deletion may fail with arbitrary values; recognized not-found/busy codes select localized recovery text.
 function permanentAgentDeleteError(err: unknown, message: (key: string) => string): Error {
   if (isAgentNotFoundError(err)) return new Error(message('recycle_bin.delete.stale'))
   if (isAgentSessionArchiveBusyError(err)) return new Error(message('recycle_bin.delete.busy'))

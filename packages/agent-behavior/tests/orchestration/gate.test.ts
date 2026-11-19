@@ -129,4 +129,21 @@ describe('tool gate', () => {
     expect(read.text).toBe(LONG)
     expect(w.host.saved.map(({ name, key }) => [name, key])).toEqual([[offloadName(LONG), bash.callKey]])
   })
+
+  it('keeps an offload-failure marker readable when the output store rejects with an unprintable reason', async () => {
+    const w = world({
+      extra: register(tool('bash', LONG)),
+      settings: { offloadThreshold: 1000 },
+      patchHost: (host) => ({ ...host, outputStore: { save: () => Promise.reject(Object.create(null)) } })
+    })
+    const t = await w.fake.createThread()
+    w.fake.script(t, [callTool('bash', {}), reply('done')])
+    await w.fake.sendUser(t, 'go')
+    await w.fake.settle()
+    const [result] = toolResults(await w.read(t))
+    expect(result.isError).toBe(false)
+    expect(result.text).toContain('The full output could not be saved (Host operation failed)')
+    expect(result.text).toContain('<persisted-output>')
+    expect(result.text).toContain('output line')
+  })
 })

@@ -6,13 +6,13 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { toError } from '@renderer/utils/errorDetails'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { getKnowledgeItemDisplayTitle, type KnowledgeItem } from '@shared/data/types/knowledge'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
 
 import type { KnowledgeFilePreviewTarget } from '../types'
-import { normalizeKnowledgeError } from '../utils/error'
 
 const logger = loggerService.withContext('usePreviewKnowledgeSource')
 
@@ -77,7 +77,7 @@ export const usePreviewKnowledgeSource = (
         await ipcApi.request('system.shell.open_path', source)
       } catch (error) {
         if (!isCurrentRequest()) return
-        const previewError = normalizeKnowledgeError(error)
+        const previewError = toError(error)
 
         logger.error('Failed to preview knowledge source', previewError, {
           itemId: item.id,

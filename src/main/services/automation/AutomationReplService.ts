@@ -300,6 +300,7 @@ export class AutomationReplService extends BaseService {
           let failedAction = false
           const dispatch = async (
             domain: string,
+            // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Utility-process host calls carry untrusted action parameters; callSchema validates them before permission and target checks.
             input: unknown,
             rpcSignal: AbortSignal
           ): Promise<AutomationHostResult> => {

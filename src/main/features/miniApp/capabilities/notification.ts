@@ -33,6 +33,7 @@ export function resetNotificationRateForTest(): void {
 }
 
 export const notificationCapability = {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Guest-controlled method parameters are parsed by ShowParams; notification attribution comes from the authenticated app id.
   async show(appId: string, params: unknown) {
     // Non-strict on purpose: a forged `sourceAppId` is dropped rather than rejected,
     // and attribution comes from the authenticated caller below.

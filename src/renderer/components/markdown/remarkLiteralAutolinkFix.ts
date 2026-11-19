@@ -3,7 +3,7 @@ import remarkGfm from 'remark-gfm'
 import remarkParse from 'remark-parse'
 import type { Plugin } from 'unified'
 import { unified } from 'unified'
-import type { Parent } from 'unist'
+import type { Node, Parent } from 'unist'
 import { visit } from 'unist-util-visit'
 
 /**
@@ -120,7 +120,7 @@ function repairTailNodes(nodes: PhrasingContent[], tailSource: string, budget = 
   for (const node of nodes) {
     if (node.type === 'link' && isSwallowedLiteralAutolink(node)) {
       const prev = repaired[repaired.length - 1]
-      const opener = toTextNode(prev)
+      const opener = isTextNode(prev) ? prev : undefined
       const openerSource =
         opener?.position && tailSource.slice(opener.position.start.offset, opener.position.end.offset)
       if (
@@ -157,13 +157,8 @@ function repairTailNodes(nodes: PhrasingContent[], tailSource: string, budget = 
   return repaired
 }
 
-// An extractor instead of an assertion: tsgo and typescript-eslint resolve the mdast/unist
-// union differently, so a direct `as Text` at the call site trips one toolchain or the other.
-function toTextNode(node: unknown): Text | undefined {
-  if (typeof node === 'object' && node !== null && 'type' in node && (node as { type: string }).type === 'text') {
-    return node as Text
-  }
-  return undefined
+function isTextNode(node: Node | undefined): node is Text {
+  return node?.type === 'text' && 'value' in node && typeof node.value === 'string'
 }
 
 // True when the opener's trailing markers are literal, unescaped `*` characters in the raw
@@ -192,7 +187,7 @@ function buildFix(node: Link, index: number, parent: Parent, source: string): Fi
   // Without an opener hugging the link there is no evidence the stars were emphasis, and an
   // escaped run (`\**`) must not be consumed even when its rendered value looks like markers.
   const prev = parent.children[index - 1]
-  const opener = toTextNode(prev)
+  const opener = isTextNode(prev) ? prev : undefined
   if (!opener?.value.endsWith(CLOSER)) return undefined
   // Reject a run whose marker is escaped (`\**`, `\*\*`); a backslash or character reference
   // earlier in the span (`\\**`, `\q**`, `&amp;**`) must not disqualify real emphasis.

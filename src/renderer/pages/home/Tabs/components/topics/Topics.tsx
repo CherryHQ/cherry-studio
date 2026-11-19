@@ -85,6 +85,7 @@ import {
   type TopicDisplayMode
 } from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { readErrorMessage } from '@renderer/utils/errorDetails'
 import { applyOptimisticOrder, findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import {
   createSidebarShortcutTarget,
@@ -119,10 +120,12 @@ function isTopicPermanentDeleteBusy(topicId: string): boolean {
   return flags.isStreamLive || flags.isAwaitingApproval || (entry?.awaitingApprovalAnchors.length ?? 0) > 0
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Permanent topic deletion may fail with IPC or other values; known trash errors select localized stale/busy guidance.
 function permanentDeleteFailureMessage(err: unknown, translate: (key: string) => string): string {
   if (isTrashTargetNotFoundError(err)) return translate('recycle_bin.delete.stale')
   if (isTrashTopicBusyError(err)) return translate('recycle_bin.delete.busy')
-  if (err instanceof Error && err.message) return err.message
+  const detail = err instanceof Error ? readErrorMessage(err) : ''
+  if (detail) return detail
   return translate('chat.topics.manage.delete.error')
 }
 const ResourceEditDialogHost = lazy(() =>

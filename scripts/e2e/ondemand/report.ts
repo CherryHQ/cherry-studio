@@ -121,7 +121,7 @@ export function completeResult(result: Result): void {
   result.metadata.finishedAt = new Date().toISOString()
 }
 
-const cell = (value: unknown) =>
+const cell = (value: string | null | undefined) =>
   String(value ?? '')
     .replace(/[\r\n]/g, ' ')
     .replace(/\|/g, '\\|')

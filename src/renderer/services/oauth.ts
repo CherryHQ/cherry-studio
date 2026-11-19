@@ -31,6 +31,7 @@ interface PopupMessageOAuthOptions<T> {
   matches: (data: unknown) => data is T
   getKey: (data: T) => string | Promise<string>
   setKey: (key: string) => void | Promise<void>
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- OAuth key retrieval/storage callbacks can reject any value; the popup flow forwards the failure to its owner.
   onError?: (error: unknown) => void
 }
 

@@ -19,7 +19,7 @@ import {
   saveAttachmentInputSchema,
   saveAttachmentToWorkspace
 } from '@main/ai/tools/saveAttachment'
-import { isAbortError } from '@main/utils/error'
+import { getErrorMessage, isAbortError } from '@main/utils/error'
 import { READ_FILE_TOOL_NAME, readFileInputSchema } from '@shared/ai/builtinTools'
 import type { AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 
@@ -34,8 +34,9 @@ interface AssistantFileToolContext {
 const MAX_FAILURE_TEXT = 500
 
 /** Surface an actionable reason without control characters or unbounded log text. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- File tools catch arbitrary failures; safe conversion precedes control-character removal and model-visible length limits.
 function failureText(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error)
+  const message = getErrorMessage(error, 'Tool execution failed')
   const sanitized = Array.from(message, (char) => {
     const code = char.charCodeAt(0)
     return code < 0x20 || code === 0x7f ? ' ' : char
@@ -55,7 +56,7 @@ async function runTool<TResult>(
     return { content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }] }
   } catch (error) {
     if (signal.aborted || isAbortError(error)) throw error
-    logger.error(`Tool error: ${name}`, error instanceof Error ? error : { error: String(error) })
+    logger.error(`Tool error: ${name}`, { error })
     return { content: [{ type: 'text', text: failureText(error) }], isError: true }
   }
 }

@@ -75,6 +75,7 @@ export function stripWarmQueryOptions(options: Options): Options {
   return rest
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- SDK options include callbacks, symbols and cyclic live objects; this serializer defines their stable signature representation.
 function normalizeForSignature(value: unknown, seen = new WeakSet<object>()): Serializable | undefined {
   if (value === undefined || typeof value === 'symbol') return undefined
   if (typeof value === 'function') return '[function]'

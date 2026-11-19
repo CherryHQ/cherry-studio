@@ -23,6 +23,7 @@ const controller = new WebviewAnnotationController(
   }
 )
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Host IPC payloads are untyped at the guest bridge; validate commands before handing them to the annotation controller.
 ipcRenderer.on(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, (_event, value: unknown) => {
   const command = WebviewAnnotationHostCommandSchema.safeParse(value)
   if (command.success) controller.handleCommand(command.data)

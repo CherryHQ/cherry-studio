@@ -366,6 +366,7 @@ export class BootConfigService {
    * surface a validation_error instead of silently adopting corrupt data.
    * No deep merge needed — flat key-value map with direct assignment.
    */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Historical config.json may have a malformed root or individual values; validate each known key before merging defaults.
   private mergeDefaults(loaded: unknown): {
     config: BootConfigSchema
     invalidKeys: BootConfigKey[]

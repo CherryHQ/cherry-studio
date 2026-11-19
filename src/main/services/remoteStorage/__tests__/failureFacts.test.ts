@@ -29,4 +29,20 @@ describe('remote storage failure classification', () => {
       shouldReportFailure(classifyStorageFailure(Object.assign(new Error('network'), { code: 'ECONNRESET' })))
     ).toBe(false)
   })
+
+  it('keeps a failure reportable when its provider metadata cannot be read', () => {
+    const failure = {
+      get $metadata() {
+        throw new Error('unreadable provider metadata')
+      }
+    }
+
+    expect(classifyStorageFailure(failure)).toEqual({
+      source: 'application',
+      kind: 'unknown',
+      reason: 'storage_failed',
+      outcome: 'failed'
+    })
+    expect(shouldReportFailure(classifyStorageFailure(failure))).toBe(true)
+  })
 })

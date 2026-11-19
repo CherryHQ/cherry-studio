@@ -86,6 +86,7 @@ export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
  * those branches can fire normally; well-typed fields and unknown extras are
  * preserved.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored configuration JSON can drift across versions; validate known fields while preserving unrelated extension keys.
 export function sanitizeAgentConfiguration(raw: unknown): {
   data: AgentConfiguration | undefined
   invalidKeys: string[]

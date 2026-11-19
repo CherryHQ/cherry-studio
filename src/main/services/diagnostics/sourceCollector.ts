@@ -55,10 +55,14 @@ export class SourceChangedError extends Error {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Diagnostic snapshot/read/copy failures have no common thrown type; expose only a verified string errno code or UNKNOWN.
 function errorCode(error: unknown): string {
-  return (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN'
+  return error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
+    ? error.code
+    : 'UNKNOWN'
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Source collection catches forward original failures here; logging emits only the checked code, without paths or other error payloads.
 function logReadFailure(message: string, error: unknown): void {
   logger.warn(message, { code: errorCode(error) })
 }

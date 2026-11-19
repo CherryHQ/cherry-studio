@@ -75,6 +75,7 @@ async function assertClipboardTarget(path: AbsoluteFilePath): Promise<void> {
   await access(path, constants.R_OK)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Clipboard path probes catch arbitrary filesystem failures; only ENOENT/ENOTDIR prove a missing target.
 function clipboardFailureReason(error: unknown): 'missing' | 'inaccessible' {
   const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
   return code === 'ENOENT' || code === 'ENOTDIR' ? 'missing' : 'inaccessible'

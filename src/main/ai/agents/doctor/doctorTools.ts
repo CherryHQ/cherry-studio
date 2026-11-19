@@ -80,6 +80,7 @@ export function isDataApiGetPath(path: string): boolean {
   return DATA_API_GET_PATHS.some((pattern) => pattern.test(path))
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Diagnostic tools return heterogeneous results; this shared encoder preserves JSON omission semantics.
 function json(value: unknown): DoctorToolResult {
   return { content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] }
 }
@@ -287,6 +288,7 @@ const SESSION_TOOL: DoctorTool = {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Doctor tool arguments are untrusted; non-finite and non-number values use the documented limit defaults.
 function clampInt(value: unknown, fallback: number, min: number, max: number): number {
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.min(Math.max(Math.trunc(value), min), max)

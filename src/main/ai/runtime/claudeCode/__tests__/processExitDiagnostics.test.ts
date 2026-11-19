@@ -19,6 +19,30 @@ describe('Claude Code process exit diagnostics', () => {
   })
 
   it.each([
+    { error: null },
+    { error: false },
+    { error: 'SyntaxError' },
+    { error: { name: 123, message: 'Unexpected end of JSON input' } },
+    { error: { name: 'SyntaxError', message: ['Unexpected end of JSON input'] } }
+  ])('does not salvage output from malformed diagnostics %j', ({ error }) => {
+    expect(canSalvageClaudeOutput(error, 4096, false)).toBe(false)
+  })
+
+  it('keeps cancellation independent of unreadable error fields', () => {
+    const error = {
+      get name() {
+        throw new Error('unreadable diagnostic')
+      }
+    }
+
+    expect(canSalvageClaudeOutput(error, 4096, false)).toBe(false)
+    expect(canSalvageClaudeOutput(error, 0, true)).toBe(true)
+    expect(canSalvageClaudeOutput({ name: 'SyntaxError', message: 'Unexpected end of JSON input' }, 4096, false)).toBe(
+      true
+    )
+  })
+
+  it.each([
     ['Authentication failed', 'auth'],
     ['model claude-sonnet-4 was not found', 'model'],
     ['HTTP 402 billing quota exhausted', 'quota'],

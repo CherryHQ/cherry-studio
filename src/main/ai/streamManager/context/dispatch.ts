@@ -115,6 +115,7 @@ export async function dispatchStreamRequest(
       topicId: req.topicId
     })
   }
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Preparation failures remain unchanged unless the workspace-error guard identifies a blocked Session.
   const prepared = await provider.prepareDispatch(subscriber, req, { hasLiveStream }).catch((error: unknown) => {
     if (isAgentSessionWorkspaceError(error)) {
       return {

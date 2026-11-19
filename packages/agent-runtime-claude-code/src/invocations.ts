@@ -66,8 +66,8 @@ function pendingInvocationFromAssistant(message: SDKAssistantMessage, fallbackMo
   }
 }
 
-function resolveSdkInvocationModel(model: unknown, fallbackModel: string): string {
-  return typeof model === 'string' && model.trim() ? model : fallbackModel
+function resolveSdkInvocationModel(model: SDKAssistantMessage['message']['model'], fallbackModel: string): string {
+  return model.trim() ? model : fallbackModel
 }
 
 function selectAssistantUsage(

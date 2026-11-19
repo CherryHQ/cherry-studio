@@ -141,8 +141,9 @@ function canStartEditing({
   return !isTranslating && !!startEditingMessage && (actions.canEditMessage?.(message) ?? !!actions.editMessage)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Menu actions can throw or reject arbitrary values; centralized logging and notification formatting own presentation.
 function notifyCommandError(id: string, context: MessageMenuBarActionContext, error: unknown) {
-  logger.error(`Message menu action failed: ${id}`, error as Error)
+  logger.error(`Message menu action failed: ${id}`, error instanceof Error ? error : { error })
   context.actions.notifyError?.(formatErrorMessageWithPrefix(error, context.t('message.error.unknown')))
 }
 

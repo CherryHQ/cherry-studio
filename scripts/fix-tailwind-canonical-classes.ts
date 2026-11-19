@@ -385,6 +385,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === currentFile) {
     .then((exitCode) => {
       process.exitCode = exitCode
     })
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Parser, filesystem and formatting tasks can reject with any value; the CLI reports their failure and sets a nonzero exit status.
     .catch((error: unknown) => {
       process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
       process.exitCode = 1

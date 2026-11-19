@@ -81,6 +81,7 @@ function indexLines(entries: TextIndexEntry[]): string[] {
 export function slideExcerpt(
   presentation: PresentationData,
   slide: number,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Slide materialization can fail with any thrown value; forward its original diagnostic to the host warning callback.
   onWarning?: (message: string, detail?: unknown) => void
 ): string {
   const slideData = presentation.slides[slide - 1]

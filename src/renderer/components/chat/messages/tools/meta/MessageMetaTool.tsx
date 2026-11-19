@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
+import { safeToString } from '@renderer/utils/error'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, formatArgValue } from '../shared/ArgsTable'
@@ -46,7 +47,7 @@ const MessageMetaTool: FC<Props> = ({ toolResponse }) => {
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation()
-    const payload = JSON.stringify({ args: toolResponse.arguments, response: toolResponse.response }, null, 2)
+    const payload = safeToString({ args: toolResponse.arguments, response: toolResponse.response }, 2)
     if (!copyText) return
     Promise.resolve(copyText(payload, { successMessage: t('message.copied') }))
       .then(() => {
@@ -333,13 +334,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native and extension tool results have heterogeneous payloads; render them without trusting serialization hooks.
 function stringifyResponse(value: unknown): string {
-  if (typeof value === 'string') return value
-  try {
-    return JSON.stringify(value, null, 2)
-  } catch {
-    return String(value)
-  }
+  return safeToString(value, 2)
 }
 
 const Container = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (

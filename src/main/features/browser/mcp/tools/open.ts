@@ -4,6 +4,7 @@ import type { BrowserController } from '../browserController'
 import { logger } from '../types'
 import { errorResponse, successResponse } from './utils'
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The MCP registry erases per-tool arguments; OpenSchema validates the URL and navigation options before use.
 export async function handleOpen(controller: BrowserController, args: unknown, signal?: AbortSignal) {
   try {
     const { url, format, selector, maxChars, timeout, privateMode, newTab, showWindow } = OpenSchema.parse(args)

@@ -92,6 +92,20 @@ describe('Pi message display metadata', () => {
     expect(projected).toHaveProperty('value', Infinity)
   })
 
+  it.each([
+    { label: 'null block', content: [null] },
+    { label: 'non-string text', content: [{ type: 'text', text: 42 }] },
+    { label: 'missing text', content: [{ type: 'text' }] },
+    { label: 'future block', content: [{ type: 'audio', data: 'aGk=' }] }
+  ])('preserves $label without treating it as text', ({ content }) => {
+    expect(output(PI_TOOL_CALL_TOOL_NAME, { content }).output).toBe(content)
+  })
+
+  it('keeps native result metadata and identity when content requires no unwrapping', () => {
+    const result = { content: [{ type: 'image', data: 'aGk=', mimeType: 'image/png' }], details: { native: true } }
+    expect(output('native_tool', result).output).toBe(result)
+  })
+
   it('keeps valid deeply nested JSON decoded', () => {
     const depth = 4000
     const text = `${'['.repeat(depth)}0${']'.repeat(depth)}`

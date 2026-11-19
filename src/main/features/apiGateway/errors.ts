@@ -18,7 +18,6 @@ type ProviderDetails = {
   error: Record<string, unknown>
   headers: Record<string, string>
 }
-type InternalError = SerializedError & { [providerDetails]: ProviderDetails }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Provider error bodies and nested fields are untrusted JSON; this helper checks the object boundary before field extraction.
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -57,8 +56,11 @@ export function internalGatewayError(error: unknown, fallback: SerializedError):
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw gateway failures may omit the private metadata marker; its value is owned by internalGatewayError in this module.
 function detailsOf(error: unknown): ProviderDetails | undefined {
-  return error !== null && typeof error === 'object' ? (error as InternalError)[providerDetails] : undefined
+  if (error === null || typeof error !== 'object' || !(providerDetails in error)) return undefined
+  // SAFETY: Only internalGatewayError writes this module-private symbol, with a complete ProviderDetails value.
+  return error[providerDetails] as ProviderDetails
 }
 
 type GatewayErrorContext = Parameters<ErrorHandler<{ DATA_API: DataApiError }>>[0]
@@ -184,29 +186,44 @@ function safeMessage(status: number | undefined, message: string | undefined): s
   return isDev && message && message.length > 0 ? message : fallback
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- HTTP and SSE boundaries pass native or serialized failures; extract checked presentation fields once before dialect formatting.
 function normalizeProviderError(error: unknown): {
   statusCode: number
   message: string
   type?: string
   category?: string
+  details?: ProviderDetails
+  requestId?: string
 } {
   const extracted = extractError(error)
   const details = detailsOf(error)
   const { status, name, code, category } = extracted
   const message = typeof details?.error.message === 'string' ? details.error.message : extracted.message
   const type = typeof details?.error.type === 'string' ? details.error.type : extracted.type
+  let requestId: string | undefined
+  try {
+    const candidate = record(error)?.request_id
+    if (typeof candidate === 'string') requestId = candidate
+  } catch {
+    requestId = undefined
+  }
+  const presentation = { type, details, requestId }
   if (status !== undefined)
     return {
+      ...presentation,
       statusCode: status >= 200 && status < 300 ? 502 : status,
       message:
         !details && status === 400 && category === 'context_length'
           ? `context_length_exceeded: ${safeMessage(status, message)}`
           : safeMessage(status, message),
-      type,
       category
     }
   if (name === 'AI_InvalidArgumentError') {
-    return { statusCode: 400, message: getSafeProviderErrorMessage({ message }) || 'Invalid request parameters', type }
+    return {
+      ...presentation,
+      statusCode: 400,
+      message: getSafeProviderErrorMessage({ message }) || 'Invalid request parameters'
+    }
   }
   if (
     name === 'TimeoutError' ||
@@ -214,12 +231,12 @@ function normalizeProviderError(error: unknown): {
     message === 'Stream idle timeout exceeded' ||
     message === 'Idle timeout exceeded'
   ) {
-    return { statusCode: 504, message: 'Upstream request timed out', type }
+    return { ...presentation, statusCode: 504, message: 'Upstream request timed out' }
   }
   if (name === 'AbortError' || name === 'ResponseAborted' || code === 'ABORT_ERR') {
-    return { statusCode: 504, message: 'Upstream stream aborted', type }
+    return { ...presentation, statusCode: 504, message: 'Upstream stream aborted' }
   }
-  return { statusCode: 500, message: details && message ? message : safeMessage(undefined, message), type }
+  return { ...presentation, statusCode: 500, message: details && message ? message : safeMessage(undefined, message) }
 }
 
 /** Anthropic error `type` for a status (the Anthropic vocabulary uses `api_error` for 5xx). */
@@ -231,18 +248,11 @@ const anthropicTypeForStatus = (status: number): string => {
   return 'invalid_request_error'
 }
 
-/**
- * Shape an unknown provider/runtime error into the Anthropic error envelope.
- * Inlined from the former `MessagesService`. Status-driven so it correctly maps the
- * `SerializedError` plain objects `processMessage` now throws (which carry
- * `statusCode`, not `status`) instead of flattening every provider error to 500.
- */
-function transformAnthropicError(error: unknown): {
+function transformAnthropicError(error: ReturnType<typeof normalizeProviderError>): {
   statusCode: number
   errorResponse: { type: 'error'; error: { type: string; message: string; requestId?: string } }
 } {
-  const { statusCode, message, type, category } = normalizeProviderError(error)
-  const details = detailsOf(error)
+  const { statusCode, message, type, category, details, requestId } = error
   const errorType = type ?? anthropicTypeForStatus(statusCode)
   const clientMessage =
     details &&
@@ -251,10 +261,6 @@ function transformAnthropicError(error: unknown): {
     !message.toLowerCase().includes('prompt is too long')
       ? `Prompt is too long: ${message}`
       : message
-  const requestId =
-    error !== null && typeof error === 'object' && typeof (error as { request_id?: unknown }).request_id === 'string'
-      ? (error as { request_id: string }).request_id
-      : undefined
   return {
     statusCode,
     errorResponse: {
@@ -275,18 +281,11 @@ const openaiTypeAndCodeForStatus = (status: number): { type: string; code: strin
   return { type: 'invalid_request_error', code: 'bad_request' }
 }
 
-/**
- * Shape an unknown provider/runtime error into the OpenAI error envelope (used by
- * `/v1/chat` and `/v1/responses`). Replaces the former `ResponsesService.transformError`:
- * status-driven rather than `instanceof OpenAI.APIError` + message regex, so it
- * correctly maps the `SerializedError` plain objects `processMessage` now throws.
- */
-function transformOpenAiError(error: unknown): {
+function transformOpenAiError(error: ReturnType<typeof normalizeProviderError>): {
   statusCode: number
   errorResponse: { error: { message: string; type: string; code: string | null } }
 } {
-  const { statusCode, message, category } = normalizeProviderError(error)
-  const details = detailsOf(error)
+  const { statusCode, message, category, details } = error
   // OpenAI's own quota code: clients such as Pi treat it as final instead of retrying a rate limit.
   const { type, code } =
     category === 'quota'
@@ -308,18 +307,11 @@ function transformOpenAiError(error: unknown): {
   }
 }
 
-/**
- * Shape an unknown provider/runtime error into the Google (Gemini) error envelope
- * (used by `/v1beta`). Status-driven, mirroring the other transformers, so it maps
- * the `SerializedError` plain objects `processMessage` throws (which carry
- * `statusCode`, not `status`) correctly instead of flattening everything to 500.
- */
-function transformGoogleError(error: unknown): {
+function transformGoogleError(error: ReturnType<typeof normalizeProviderError>): {
   statusCode: number
   errorResponse: { error: { code: number; message: string; status: string } }
 } {
-  const { statusCode, message } = normalizeProviderError(error)
-  const details = detailsOf(error)
+  const { statusCode, message, details } = error
   return {
     statusCode,
     errorResponse: {
@@ -341,22 +333,23 @@ function transformGoogleError(error: unknown): {
  */
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Thrown and streamed failures include non-Error values and serialized error objects; normalize only checked fields before writing client envelopes.
 export function buildStreamErrorFrame(outputFormat: OutputFormat, error: unknown): string {
+  const normalized = normalizeProviderError(error)
   if (outputFormat === 'anthropic') {
-    const { errorResponse } = transformAnthropicError(error)
+    const { errorResponse } = transformAnthropicError(normalized)
     return `event: error\ndata: ${JSON.stringify(errorResponse)}\n\n`
   }
   if (outputFormat === 'gemini') {
     // Gemini SSE delivers a mid-stream error as a plain `data:` frame carrying the
     // standard error envelope (no named event).
-    const { errorResponse } = transformGoogleError(error)
+    const { errorResponse } = transformGoogleError(normalized)
     return `data: ${JSON.stringify(errorResponse)}\n\n`
   }
-  const { errorResponse } = transformOpenAiError(error)
+  const { errorResponse } = transformOpenAiError(normalized)
   if (outputFormat === 'openai-responses') {
     // Responses streams use named events; `type: 'error'` is the event discriminator,
     // distinct from the OpenAI error `type` (carried as part of the message envelope).
     const { message, code } = errorResponse.error
-    const details = detailsOf(error)
+    const details = normalized.details
     return `event: error\ndata: ${JSON.stringify({ ...details?.body, type: 'error', code, message, ...(details && { error: errorResponse.error }) })}\n\n`
   }
   return `data: ${JSON.stringify(errorResponse)}\n\n`
@@ -384,7 +377,7 @@ export function anthropicErrorHandler({ code, error, status }: GatewayErrorConte
   }
 
   logger.error('API gateway request error', { code, error })
-  const { statusCode, errorResponse } = transformAnthropicError(error)
+  const { statusCode, errorResponse } = transformAnthropicError(normalizeProviderError(error))
   return status(statusCode, errorResponse)
 }
 
@@ -411,7 +404,7 @@ export function openaiErrorHandler({ code, error, status }: GatewayErrorContext)
   }
 
   logger.error('API gateway request error', { code, error })
-  const { statusCode, errorResponse } = transformOpenAiError(error)
+  const { statusCode, errorResponse } = transformOpenAiError(normalizeProviderError(error))
   return status(statusCode, errorResponse)
 }
 
@@ -435,7 +428,7 @@ export function googleErrorHandler({ code, error, status }: GatewayErrorContext)
   }
 
   logger.error('API gateway request error', { code, error })
-  const { statusCode, errorResponse } = transformGoogleError(error)
+  const { statusCode, errorResponse } = transformGoogleError(normalizeProviderError(error))
   return status(statusCode, errorResponse)
 }
 

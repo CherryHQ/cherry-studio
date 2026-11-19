@@ -29,6 +29,7 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly workspaceRelocation = claudeWorkspaceRelocation
   readonly type = 'claude-code'
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted checkpoint JSON is accepted only after the Claude driver schema validates it.
   isForkCheckpoint(value: unknown): boolean {
     return ClaudeForkCheckpointSchema.safeParse(value).success
   }

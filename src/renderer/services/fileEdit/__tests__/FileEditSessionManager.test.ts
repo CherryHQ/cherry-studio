@@ -62,6 +62,22 @@ function snapshot(text: string): FileEditRead {
 }
 
 describe('file editing lifetime', () => {
+  it('publishes an unreadable write failure without losing the original rejection or pending draft', async () => {
+    const lease = await manager.acquire('notes', handle)
+    lease.acceptEdit('unsaved')
+    const failure = Object.create(null)
+    vi.mocked(ipcApi.request).mockRejectedValueOnce(failure)
+    await expect(lease.flush()).rejects.toBe(failure)
+    expect(lease.getSnapshot()).toMatchObject({
+      draft: 'unsaved',
+      isDirty: true,
+      saveError: expect.any(Error)
+    })
+    await lease.flush()
+    expect(new TextDecoder().decode(disk.data)).toBe('unsaved')
+    lease.release()
+  })
+
   it('retains a failed draft after release and rejects callbacks from the previous attachment', async () => {
     const first = await manager.acquire('notes', handle)
     failWrite = true

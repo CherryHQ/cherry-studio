@@ -82,6 +82,7 @@ async function downloadPdf(): Promise<Uint8Array> {
   return pdf
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Doc2X HTTP responses are raw JSON; validate the response envelope and selected endpoint payload before using either.
 function parseResponse<T extends z.ZodTypeAny>(schema: T, value: unknown): z.infer<T> {
   const parsed = responseSchema.parse(value)
   if (parsed.code !== 'success') throw new Error(parsed.msg ?? parsed.message ?? parsed.code)
@@ -224,6 +225,7 @@ async function main(): Promise<void> {
   console.log('\nDoc2X E2E passed')
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The network/document smoke can reject with arbitrary values; the terminal handler reports the original reason and fails the process.
 void main().catch((error: unknown) => {
   console.error(error)
   process.exitCode = 1

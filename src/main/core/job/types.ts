@@ -39,6 +39,7 @@ export interface JobContext<TPayload = unknown> {
    * Report progress (0-100) with optional free-shape detail. Reaches the
    * renderer via CacheService.subscribeSharedChange at jobs.progress.${jobId}.
    */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Job kinds own their progress-detail shapes; the scheduler transports those optional details without interpreting business fields.
   reportProgress(progress: number, detail?: unknown): void
   /** Logger pre-bound to { jobId, type }. */
   logger: LoggerService

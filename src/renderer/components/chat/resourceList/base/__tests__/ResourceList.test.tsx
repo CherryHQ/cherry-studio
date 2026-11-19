@@ -470,32 +470,34 @@ describe('ResourceList', () => {
     expect(onCollapsedStateChange).toHaveBeenCalledWith(['empty-topic'])
   })
 
-  it('ignores invalid controlled collapsed state from stale persisted cache', () => {
+  it.each([
+    { raw: '{"session":true}', collapsedGroups: [], visibleNames: ['Alpha'] },
+    { raw: '["session",false,null,7]', collapsedGroups: ['session'], visibleNames: [] }
+  ])('recovers valid collapsed IDs from stale persisted cache $raw', ({ raw, collapsedGroups, visibleNames }) => {
     const Provider = ResourceList.Provider<TestItem>
 
-    expect(() =>
-      render(
-        <Provider
-          items={[ITEMS[0]]}
-          groupBy={(item) => ({ id: item.kind, label: item.kind })}
-          collapsedState={{ session: true } as unknown as string[]}>
-          <ResourceList.Frame>
-            <Inspector />
-            <ResourceList.VirtualItems<TestItem>
-              renderItem={(item) => (
-                <ResourceList.Item item={item}>
-                  <span>{item.name}</span>
-                </ResourceList.Item>
-              )}
-            />
-          </ResourceList.Frame>
-        </Provider>
-      )
-    ).not.toThrow()
+    render(
+      <Provider
+        items={[ITEMS[0]]}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        collapsedState={JSON.parse(raw)}>
+        <ResourceList.Frame>
+          <Inspector />
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
 
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
       groups: ['session'],
-      visibleNames: ['Alpha']
+      collapsedGroups,
+      visibleNames
     })
   })
 

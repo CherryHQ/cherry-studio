@@ -46,6 +46,7 @@ export interface ErrorToastContext {
   isCurrent?: () => boolean
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- UI catch handlers pass SDK, provider and IPC failures; serialization and classification own their interpretation.
 function errorFromException(error: unknown, context: ErrorToastContext = {}): string {
   const serialized = serializeToastError(error)
   const classification = classifyError(serialized, context.provider?.id)

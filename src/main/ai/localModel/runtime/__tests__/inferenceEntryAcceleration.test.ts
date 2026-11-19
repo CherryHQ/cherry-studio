@@ -67,6 +67,12 @@ export class PaddleOcrService {
   }
 
   async initialize() {
+    const detection = this.options.model.detection
+    if (detection.startsWith('/initialize-falsy-') && this.device !== 'cpu') {
+      const reasons = { undefined: undefined, null: null, false: false, zero: 0, empty: '' }
+      this.device = 'cpu'
+      this.options.session.onSessionFallback?.(reasons[detection.slice('/initialize-falsy-'.length)])
+    }
     if (this.options.model.detection.includes('initialize-fallback') && this.device !== 'cpu') {
       this.device = 'cpu'
       this.options.session.onSessionFallback?.(new Error('OCR session hardware provider failed'))
@@ -75,6 +81,7 @@ export class PaddleOcrService {
 
   async recognize() {
     const detection = this.options.model.detection
+    if (detection.includes('unprintable-hardware') && this.device !== 'cpu') throw Object.create(null)
     if (detection.includes('runtime-fail') && this.device !== 'cpu') throw new Error('ocr hardware failed')
     if (detection.includes('both-fail')) throw new Error('ocr failed on ' + this.device)
     return { text: this.device === 'cpu' ? 'cpu result' : 'hardware result' }
@@ -200,6 +207,32 @@ describe('inference entry hardware acceleration', () => {
     expect(logs).not.toContain('info: hardware provider active provider=directml runtime=ocr')
     expect(logs.filter((message) => message.includes('falling back'))).toHaveLength(1)
     expect(logs.some((message) => message.includes('OCR session hardware provider failed'))).toBe(true)
+  })
+
+  it.each(['undefined', 'null', 'false', 'zero', 'empty'])(
+    'keeps CPU fallback sticky after a native session fallback with reason %s',
+    async (reason) => {
+      await expect(
+        ocr.recognize({ modelPaths: OCR_MODEL(`/initialize-falsy-${reason}`), source: IMAGE })
+      ).resolves.toMatchObject({ text: 'cpu result' })
+      await expect(
+        ocr.recognize({ modelPaths: OCR_MODEL('/hardware-ok-after-fallback'), source: IMAGE })
+      ).resolves.toMatchObject({ text: 'cpu result' })
+
+      expect(logs).not.toContain('info: hardware provider active provider=directml runtime=ocr')
+      expect(logs.filter((message) => message.includes('falling back'))).toHaveLength(1)
+    }
+  )
+
+  it('retries on CPU when a hardware rejection has no printable diagnostic text', async () => {
+    await expect(
+      ocr.recognize({ modelPaths: OCR_MODEL('/unprintable-hardware'), source: IMAGE })
+    ).resolves.toMatchObject({ text: 'cpu result' })
+    await expect(
+      ocr.recognize({ modelPaths: OCR_MODEL('/hardware-ok-after-fallback'), source: IMAGE })
+    ).resolves.toMatchObject({ text: 'cpu result' })
+
+    expect(logs.filter((message) => message.includes('falling back'))).toHaveLength(1)
   })
 
   it('reports unreadable OCR images without disabling hardware acceleration', async () => {

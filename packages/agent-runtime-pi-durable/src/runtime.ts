@@ -65,6 +65,7 @@ export interface PiDurableRuntimeOptions {
   readonly behavior?: PiDurableRuntimeBehavior
   /** Synchronous placement notification before the scheduler can issue the next model request. */
   readonly onInputPlaced?: (inputId: InputId | undefined, thread: ThreadId) => void
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native storage, execution and observers can fail with arbitrary reasons; report the original value without narrowing it.
   readonly onError?: (error: unknown) => void
 }
 export interface PiDurableRuntimeBehavior {

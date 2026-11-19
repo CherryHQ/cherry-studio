@@ -29,8 +29,10 @@ export class RemoteRpcServer<Context> {
   private readonly server: JSONRPCServer<Context>
   private readonly active = new Set<string>()
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The JSON-RPC library reports arbitrary handler rejections; forward their original diagnostics to the host logger.
   constructor(onError: (message: string, error: unknown) => void) {
     this.server = new JSONRPCServer({ errorListener: onError })
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Handlers may reject any value; only the library's explicit RPC exception may expose a typed protocol error.
     this.server.mapErrorToJSONRPCErrorResponse = (id, error: unknown) =>
       error instanceof JSONRPCErrorException
         ? createJSONRPCErrorResponse(id, error.code, error.message, error.data)
@@ -49,6 +51,7 @@ export class RemoteRpcServer<Context> {
     })
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Incoming control records are untrusted RPC payloads; each batch entry is validated independently before dispatch.
   async receive(input: unknown, context: Context): Promise<JSONRPCResponse | JSONRPCResponse[] | null> {
     if (!Array.isArray(input)) return this.receiveOne(input, context)
     if (!input.length || input.length > remoteLimits.batchEntries)
@@ -63,7 +66,9 @@ export class RemoteRpcServer<Context> {
    * Answers an input that admission control above the server refused to dispatch.
    * Notifications get no reply; batches answer per entry, mirroring `receive`.
    */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Admission can reject a raw record before dispatch; validate IDs and notification shape before producing per-entry refusals.
   refuse(input: unknown, failure: RemoteFailure): JSONRPCResponse | JSONRPCResponse[] | null {
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Rejected batch entries may be malformed values; request/notification schemas own the response-ID decision.
     const refuseOne = (value: unknown): JSONRPCResponse | null => {
       if (jsonRpcNotificationSchema.safeParse(value).success) return null
       const parsed = jsonRpcRequestSchema.safeParse(value)
@@ -77,6 +82,7 @@ export class RemoteRpcServer<Context> {
     return responses.length ? responses : null
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Each raw batch entry must pass request validation before handler parameters and duplicate-ID ownership are trusted.
   private async receiveOne(input: unknown, context: Context): Promise<JSONRPCResponse | null> {
     if (jsonRpcNotificationSchema.safeParse(input).success) return null
     const parsed = jsonRpcRequestSchema.safeParse(input)

@@ -834,6 +834,27 @@ describe('requestDataReset', () => {
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
+  it('still uses guarded relaunch when the committed marker directory-sync failure cannot be formatted', async () => {
+    if (process.platform === 'win32') return
+    stubAll(null)
+    const failure = {
+      toString() {
+        throw new Error('unprintable sync failure')
+      }
+    }
+    fsyncSyncMock.mockImplementation((fd: number) => {
+      if (fsCtl.fds.get(fd) === USER_DATA) throw failure
+    })
+
+    await expect(requestReset()).resolves.toBeUndefined()
+
+    expect(fsCtl.commits).toHaveLength(1)
+    expect(markerExists()).toBe(true)
+    expect(applicationMock.shutdown).toHaveBeenCalledTimes(1)
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
+  })
+
   it('clears both Chromium sessions after the marker is durable and before shutdown', async () => {
     stubAll(null)
 

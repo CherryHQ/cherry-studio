@@ -37,6 +37,7 @@ function credentialsPath(): string {
   return application.getPath('feature.cherry_account.credentials_file')
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Credential-file reads can reject arbitrary values; only a verified ENOENT is treated as an absent credential file.
 function isMissingFileError(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT'
 }

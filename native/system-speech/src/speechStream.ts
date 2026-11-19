@@ -22,7 +22,7 @@ export function openSpeechStream(
   let killTimer: ReturnType<typeof setTimeout> | undefined
   let readTimer: ReturnType<typeof setTimeout> | undefined
   let resolveCompleted!: () => void
-  let rejectCompleted!: (error: unknown) => void
+  let rejectCompleted!: (error: SystemSpeechError) => void
   const completed = new Promise<void>((resolve, reject) => {
     resolveCompleted = resolve
     rejectCompleted = reject
@@ -32,17 +32,18 @@ export function openSpeechStream(
     resolveClosed = resolve
   })
   const stop = (code: SystemSpeechErrorCode) => {
-    failure ??= new SystemSpeechError(code)
+    const error = (failure ??= new SystemSpeechError(code))
     clearTimeout(readTimer)
     if (exited) {
-      rejectCompleted(failure)
-      return
+      rejectCompleted(error)
+      return error
     }
-    if (killTimer) return
+    if (killTimer) return error
     child.stdout.destroy()
     child.kill('SIGTERM')
     killTimer = setTimeout(() => child.kill('SIGKILL'), options.killGraceMs ?? 2000)
     killTimer.unref()
+    return error
   }
   const abort = () => stop('cancelled')
   child.stderr.resume()
@@ -91,11 +92,12 @@ export function openSpeechStream(
       clearTimeout(readTimer)
     }
   }
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stream parsing can throw arbitrary values; expose only stable native error codes after joining helper closure.
   async function fail(error: unknown): Promise<never> {
-    stop(error instanceof SystemSpeechError ? error.code : 'native_helper_failed')
+    const terminalError = stop(error instanceof SystemSpeechError ? error.code : 'native_helper_failed')
     await closed
-    rejectCompleted(failure)
-    throw failure
+    rejectCompleted(terminalError)
+    throw terminalError
   }
   const output: NativeSpeechStream['output'] = (async () => {
     try {

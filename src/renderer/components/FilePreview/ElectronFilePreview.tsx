@@ -74,6 +74,7 @@ export default function ElectronFilePreview({
     [t]
   )
   const onRequestOpen = useCallback(() => {
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- External preview opening can reject arbitrary values; preserve native error reporting and show localized guidance.
     void safeOpen(createFilePathHandle(filePath)).catch((error: unknown) => {
       logger.error('Failed to open preview file externally', error instanceof Error ? error : { error })
       toast.error(t('file_preview.open_error'))

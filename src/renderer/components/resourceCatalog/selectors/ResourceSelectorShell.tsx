@@ -159,17 +159,13 @@ export type ResourceSelectorShellProps<T extends ResourceSelectorShellItem> =
  * Normalize value of any supported shape to an id list - used internally for selection display
  * and toolbar's initial state. Handles string, string[], item object, item[], and null.
  */
-function extractValueIds<T extends ResourceSelectorShellItem>(value: unknown): string[] {
-  if (value == null) return []
+function extractValueIds<T extends ResourceSelectorShellItem>(value: ResourceSelectorShellProps<T>['value']): string[] {
+  if (value === null) return []
   if (typeof value === 'string') return [value]
   if (Array.isArray(value)) {
-    if (value.length === 0) return []
-    return value.map((v) => (typeof v === 'string' ? v : (v as T).id))
+    return value.map((v) => (typeof v === 'string' ? v : v.id))
   }
-  if (typeof value === 'object' && 'id' in value) {
-    return [(value as T).id]
-  }
-  return []
+  return [value.id]
 }
 
 const DEFAULT_MIN_LIST_HEIGHT = 144

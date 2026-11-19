@@ -3,6 +3,7 @@ import { ProtocolMcpServerConfigSchema, type ProtocolMcpServerInstall } from '@s
 
 const logger = loggerService.withContext('ProtocolService:mcpInstall')
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Protocol URLs decode arbitrary JSON; normalize legacy URL/name fields, then apply the existing MCP install schema before returning an inactive untrusted server.
 function toProtocolMcpServerInstall(value: unknown, fallbackName?: string): ProtocolMcpServerInstall {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('MCP server config must be an object')
@@ -31,13 +32,14 @@ function toProtocolMcpServerInstall(value: unknown, fallbackName?: string): Prot
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Base64 protocol JSON supports single configs, arrays and mcpServers maps; identify the container before validating every server entry.
 function parseMcpServerDtos(value: unknown): ProtocolMcpServerInstall[] {
   if (Array.isArray(value)) {
     return value.map((server) => toProtocolMcpServerInstall(server))
   }
 
   if (value && typeof value === 'object' && 'mcpServers' in value) {
-    const servers = (value as { mcpServers?: unknown }).mcpServers
+    const servers = value.mcpServers
     if (Array.isArray(servers)) {
       return servers.map((server) => toProtocolMcpServerInstall(server))
     }

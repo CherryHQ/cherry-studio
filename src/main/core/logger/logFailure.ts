@@ -6,21 +6,27 @@ import { hasReportingOwner, markReportingHandled } from '@shared/utils/errorRepo
 export function logFailure(
   logger: Pick<LoggerService, 'error' | 'warn'>,
   message: string,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Operation failures are arbitrary rejections; only verified stack frames may cross the reporting boundary.
   error: unknown,
   operation: string,
   failure: FailureFacts,
   level: 'error' | 'warn' = 'error'
 ): void {
-  const stack = error instanceof Error ? error.stack : undefined
-  const header = error instanceof Error ? `${Error.prototype.toString.call(error)}\n` : undefined
-  // Multiline messages can contain pasted stack frames; only trust frames after the complete header.
-  const frames =
-    stack && header && stack.startsWith(header)
-      ? stack
-          .slice(header.length)
-          .split('\n')
-          .filter((line) => /^\s+at /.test(line))
-      : undefined
+  let frames: string[] | undefined
+  try {
+    const stack = error instanceof Error ? error.stack : undefined
+    const header = error instanceof Error ? `${Error.prototype.toString.call(error)}\n` : undefined
+    // Multiline messages can contain pasted stack frames; only trust frames after the complete header.
+    frames =
+      typeof stack === 'string' && header && stack.startsWith(header)
+        ? stack
+            .slice(header.length)
+            .split('\n')
+            .filter((line) => /^\s+at /.test(line))
+        : undefined
+  } catch {
+    // Unreadable diagnostics cannot establish trusted reporting frames.
+  }
   const context = {
     operation,
     failure,

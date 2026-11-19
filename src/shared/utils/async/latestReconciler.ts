@@ -34,6 +34,7 @@ export interface LatestReconcilerOptions<T> {
    * Invoked when `getSnapshot` or `apply` throws. The owner supplies error reporting.
    * `snap` is `undefined` when `getSnapshot` itself threw.
    */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Snapshot/apply callbacks may reject with any value; owners receive the original reason separately from the normalized last Error.
   onError: (error: unknown, snap: T | undefined) => void
 }
 

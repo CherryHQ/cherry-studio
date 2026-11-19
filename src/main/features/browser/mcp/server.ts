@@ -20,6 +20,7 @@ export class BrowserServer {
     this.control = new BrowserControlSession(() => {}, new CdpBrowserController(service), false)
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- MCP arguments are untrusted; resolve the allowed tool name and parse its input schema before entering browser control.
   callTool(name: string, args: unknown, signal: AbortSignal): Promise<CallToolResult> {
     if (this.closing) throw new BrowserSessionError('debugger_unavailable')
     const tool = toolDefinitions.find((tool) => tool.name === name)

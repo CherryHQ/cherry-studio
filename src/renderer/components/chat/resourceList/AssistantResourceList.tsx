@@ -189,6 +189,7 @@ export function AssistantResourceList({
     [onCreateTopic]
   )
   const handleActivationError = useCallback(
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Resource activation or reorder can reject arbitrary values; this owner logs the failure and formats localized guidance.
     (error: unknown) => {
       logger.error('Failed to activate assistant resource from classic-layout rail', { error })
       toast.error(formatErrorMessageWithPrefix(error, t('common.error')))
@@ -308,6 +309,7 @@ export function AssistantResourceList({
     [reorderAssistantOrder]
   )
   const handleReorderError = useCallback(
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Resource activation or reorder can reject arbitrary values; this owner logs the failure and formats localized guidance.
     (error: unknown) => {
       logger.error('Failed to reorder assistant classic-layout rail', { error })
       toast.error(formatErrorMessageWithPrefix(error, t('assistants.reorder.error.failed')))

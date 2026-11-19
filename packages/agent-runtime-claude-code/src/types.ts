@@ -46,6 +46,7 @@ export interface ClaudeCodeRuntimeOptions {
   readonly contextWindow?: { readonly model: string; readonly tokens: number }
   /** Resolve the configuration of this exact saved root, without starting execution. */
   readonly load?: (root: Thread) => Promise<ClaudeSessionOptions | undefined>
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native operations and observer callbacks may throw any value; the host owns reporting of the original failure.
   readonly onError?: (error: unknown) => void
 }
 

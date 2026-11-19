@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { safeToString } from '@renderer/utils/error'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
@@ -100,15 +101,15 @@ export async function ensureServerTrusted(
  * Pretty-print an MCP log entry's `data` payload: raw strings pass through,
  * structured data becomes pretty-printed JSON.
  */
-export const formatMcpLogData = (data: unknown): string =>
-  typeof data === 'string' ? data : JSON.stringify(data, null, 2)
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- MCP servers supply arbitrary log payloads; display and copying must remain usable when JSON serialization fails.
+export const formatMcpLogData = (data: unknown): string => safeToString(data, 2)
 
 /**
  * Format a single MCP log entry as `[HH:MM:SS] [LEVEL] message`, with any
  * `data` payload on the following lines.
  */
 const formatMcpLog = (log: McpServerLogEntry): string => {
-  const data = log.data ? `\n${formatMcpLogData(log.data)}` : ''
+  const data = log.data !== undefined ? `\n${formatMcpLogData(log.data)}` : ''
   return `[${new Date(log.timestamp).toLocaleTimeString()}] [${log.level.toUpperCase()}] ${log.message}${data}`
 }
 

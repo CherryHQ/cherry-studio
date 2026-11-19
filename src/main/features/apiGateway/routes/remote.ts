@@ -6,11 +6,37 @@ import type { RemoteSocket } from '@cherrystudio/remote-transport'
 
 export const REMOTE_CONNECT_PATH = remoteConnectPath
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native adapter sockets are opaque until every listener, binary, and backpressure capability required by RemoteSocket is verified.
+function isRemoteSocket(socket: unknown): socket is RemoteSocket {
+  return (
+    typeof socket === 'object' &&
+    socket !== null &&
+    'binaryType' in socket &&
+    typeof socket.binaryType === 'string' &&
+    'bufferedAmount' in socket &&
+    typeof socket.bufferedAmount === 'number' &&
+    'readyState' in socket &&
+    typeof socket.readyState === 'number' &&
+    'send' in socket &&
+    typeof socket.send === 'function' &&
+    'close' in socket &&
+    typeof socket.close === 'function' &&
+    'addEventListener' in socket &&
+    typeof socket.addEventListener === 'function' &&
+    'removeEventListener' in socket &&
+    typeof socket.removeEventListener === 'function'
+  )
+}
+
 /** RemoteSocketStream needs the underlying socket's EventTarget and backpressure APIs. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Elysia's Node adapter exposes a crossws peer behind its Bun-shaped raw type; verify the native socket's complete transport capabilities.
 function underlyingSocket(raw: unknown): RemoteSocket | undefined {
-  const peer = raw as { websocket?: unknown; _internal?: { ws?: unknown } }
-  const socket = peer.websocket ?? peer._internal?.ws
-  return socket && typeof (socket as RemoteSocket).send === 'function' ? (socket as RemoteSocket) : undefined
+  if (typeof raw !== 'object' || raw === null) return undefined
+  const exposedSocket = 'websocket' in raw ? raw.websocket : undefined
+  if (exposedSocket != null) return isRemoteSocket(exposedSocket) ? exposedSocket : undefined
+  const internal = '_internal' in raw ? raw._internal : undefined
+  const socket = typeof internal === 'object' && internal !== null && 'ws' in internal ? internal.ws : undefined
+  return isRemoteSocket(socket) ? socket : undefined
 }
 
 /**

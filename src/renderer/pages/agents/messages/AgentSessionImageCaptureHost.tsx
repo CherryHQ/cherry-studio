@@ -31,10 +31,15 @@ const AgentSessionImageCaptureHost = ({ activeAgent, modelFallback, session }: A
     [captureTarget]
   )
   const handleLoadError = useCallback(
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Agent export loading can reject any value; preserve the original failure when settling pending capture actions.
     (error: unknown) => {
-      logger.error('Failed to load agent session messages for image capture', error as Error, {
-        sessionId: captureTarget.session.id
-      })
+      logger.error(
+        'Failed to load agent session messages for image capture',
+        error instanceof Error ? error : { error },
+        {
+          sessionId: captureTarget.session.id
+        }
+      )
       rejectPendingAgentSessionImageActions(captureTarget.session.id, error)
     },
     [captureTarget.session.id]

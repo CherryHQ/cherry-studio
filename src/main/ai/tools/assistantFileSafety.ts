@@ -56,8 +56,9 @@ try {
 }
 `
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Filesystem rejections are untyped; only a matching code permits recovery.
 export function isErrno(error: unknown, code: string): boolean {
-  return (error as NodeJS.ErrnoException)?.code === code
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === code
 }
 
 export function relativeWorkspacePath(workspacePath: string, targetPath: string): string {
@@ -175,8 +176,15 @@ function sameStableFile(
   )
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Preserve arbitrary link rejections; only recognized filesystem codes allow an exclusive-copy fallback.
 function shouldFallbackFromHardLink(error: unknown): boolean {
-  return HARD_LINK_FALLBACK_CODES.has((error as NodeJS.ErrnoException).code ?? '')
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof error.code === 'string' &&
+    HARD_LINK_FALLBACK_CODES.has(error.code)
+  )
 }
 
 function runUnlinkOwnedPathChild(
