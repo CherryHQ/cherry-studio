@@ -13,13 +13,13 @@ export interface MemoryTarget {
 }
 
 /** Classify both the requested location and its real destination before exposing memory content. */
-export async function memoryTarget(absolutePath: string): Promise<MemoryTarget | undefined> {
+export async function memoryTarget(absolutePath: string, canonicalPath?: string): Promise<MemoryTarget | undefined> {
   const shared = application.getPath('feature.memory.data')
   const agents = application.getPath('feature.agents.data')
   const backups = application.getPath('feature.memory.backups')
   const roots = [shared, agents, backups, application.getPath('app.temp')]
   const realRoots = await Promise.all(roots.map((root) => canonicalizePathForContainment(root, { allowMissing: true })))
-  const realTarget = await canonicalizePathForContainment(absolutePath, { allowMissing: true })
+  const realTarget = canonicalPath ?? (await canonicalizePathForContainment(absolutePath, { allowMissing: true }))
   for (const candidate of [absolutePath, realTarget]) {
     if (!candidate) continue
     for (const [index, locations] of roots.map((root, index) => [root, realRoots[index]]).entries()) {
