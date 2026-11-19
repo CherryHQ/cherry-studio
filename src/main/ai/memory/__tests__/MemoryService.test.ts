@@ -225,13 +225,7 @@ describe('lifecycle memory owner', () => {
     }
   })
 
-  it.each([true, false])('allows a fresh assistant after clear with sharing=%s', async (enabled) => {
-    MockApplicationUtils.setService('MemoryService', service)
-    const editor = service.open(authority())
-    await editor.entry()
-    await fs.writeFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'OLD_HOME')
-    await editor.clear((await editor.previewClear()).token, approve)
-    editor.dispose()
+  function seedAssistantTopic(enabled?: boolean) {
     const assistantId = randomUUID()
     const topicId = randomUUID()
     dbh.db
@@ -268,6 +262,17 @@ describe('lifecycle memory owner', () => {
       .insert(messageTable)
       .values({ id: replyId, parentId: userId, topicId, role: 'assistant', status: 'pending', data: { parts: [] } })
       .run()
+    return { topicId, assistantId, userId, replyId }
+  }
+
+  it.each([true, false])('allows a fresh assistant after clear with sharing=%s', async (enabled) => {
+    MockApplicationUtils.setService('MemoryService', service)
+    const editor = service.open(authority())
+    await editor.entry()
+    await fs.writeFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'OLD_HOME')
+    await editor.clear((await editor.previewClear()).token, approve)
+    editor.dispose()
+    const { topicId, assistantId, userId, replyId } = seedAssistantTopic(enabled)
     const transport = memoryRuntimeFetch(
       async () => Response.json({ answer: 'OK' }),
       (signal) => runtimeMemoryAuthorities({ topicId, assistantId }, signal)
@@ -296,20 +301,8 @@ describe('lifecycle memory owner', () => {
     'baselines pre-rollout history only on a pre-feature database (preview=%s)',
     async (preview) => {
       MockApplicationUtils.setService('MemoryService', service)
-      const assistantId = randomUUID()
-      const topicId = randomUUID()
-      dbh.db
-        .insert(assistantTable)
-        .values({
-          id: assistantId,
-          name: 'A',
-          emoji: '',
-          prompt: '',
-          settings: DEFAULT_ASSISTANT_SETTINGS,
-          orderKey: 'a0'
-        })
-        .run()
-      dbh.db.insert(topicTable).values({ id: topicId, assistantId, orderKey: 'a0' }).run()
+      const { topicId, assistantId, replyId } = seedAssistantTopic()
+      dbh.db.update(messageTable).set({ status: 'success' }).where(eq(messageTable.id, replyId)).run()
       dbh.db
         .insert(appStateTable)
         .values({ key: 'seedRunner:bootstrapCompleted', value: { completedAt: 1 } })
@@ -319,22 +312,6 @@ describe('lifecycle memory owner', () => {
           .insert(appStateTable)
           .values({ key: 'memory:runtime:other', value: { version: 1, protection: null } })
           .run()
-      const rootId = randomUUID()
-      dbh.db
-        .insert(messageTable)
-        .values({ id: rootId, topicId, role: 'root', status: 'success', data: { parts: [] } })
-        .run()
-      dbh.db
-        .insert(messageTable)
-        .values({
-          id: randomUUID(),
-          parentId: rootId,
-          topicId,
-          role: 'assistant',
-          status: 'success',
-          data: { parts: [] }
-        })
-        .run()
       new SharedMemoryRolloutSeeder().run(dbh.db)
       const editor = service.open(authority())
       await editor.entry()

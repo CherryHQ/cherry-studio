@@ -15,7 +15,8 @@ export async function createDurableEnvironment(options: ConstructorParameters<ty
       if (!resolved.ok) throw resolved.error
       const target = resolved.value
       const canonical = await canonicalizePathForContainment(target, { allowMissing: true })
-      if (!canonical || (await memoryTarget(target))) throw new Error('Use the memory editor for managed memory files')
+      if (!canonical || (await memoryTarget(target, canonical)))
+        throw new Error('Use the memory editor for managed memory files')
       try {
         if ((await stat(canonical)).nlink > 1) throw new Error('A native file tool cannot verify a hard-linked file')
       } catch (error) {
