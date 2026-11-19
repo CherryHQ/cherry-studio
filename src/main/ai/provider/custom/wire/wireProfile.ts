@@ -29,10 +29,12 @@ export interface WireRule {
   /** Literal wire field name (overrides `wireName(key)`). Omit when using `contribute`. */
   to?: string
   /** Value transform for the `to` field; may read sibling params via `all`. */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Canonical parameter bags are dynamically keyed; each provider mapping interprets its field and produces a JSON wire value.
   map?: (value: unknown, all: Record<string, unknown>) => JSONValue
   /** One-to-many / nested escape hatch: return a partial body merged into the
    *  result (nested plain objects are deep-merged, e.g. google's `imageConfig`
    *  assembled from `aspectRatio` + `size`). Mutually exclusive with `to`/`map`. */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Nested/one-to-many mappings receive raw canonical values and sibling parameters; a single scalar domain would misrepresent the supported vendor fields.
   contribute?: (value: unknown, all: Record<string, unknown>) => Record<string, JSONValue>
 }
 

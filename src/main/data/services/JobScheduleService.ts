@@ -327,6 +327,7 @@ export class JobScheduleService {
    * silently default to `interval` with `ms: undefined` (its else branch).
    * The sentinel will fire immediately on next arm — visible.
    */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted trigger JSON may predate the current schema or be edited directly; parse it before returning a Trigger or the established sentinel.
   private validateTrigger(id: string, parsed: unknown): Trigger {
     const result = TriggerSchema.safeParse(parsed)
     if (result.success) return result.data
@@ -337,6 +338,7 @@ export class JobScheduleService {
     return { kind: 'once', at: 0 }
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored catch-up policies are not trusted as the current union; schema validation retains the skip-missed fallback for incompatible rows.
   private validateCatchUpPolicy(id: string, parsed: unknown): CatchUpPolicy {
     const result = CatchUpPolicySchema.safeParse(parsed)
     if (result.success) return result.data

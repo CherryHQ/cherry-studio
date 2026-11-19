@@ -23,6 +23,7 @@ interface ProviderListContentProps {
   scrollerRef?: (element: HTMLDivElement | null) => void
   onDragStateChange: (nextDragging: boolean) => void
   onReorder: (reorderedProviders: Provider[]) => void | Promise<void>
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Reordering can throw synchronously or reject asynchronously; the consumer owns presentation of the original failure.
   onReorderError?: (error: unknown) => void
   renderItem: (provider: Provider, index: number, state: ProviderListContentItemState) => ReactNode
 }
@@ -181,6 +182,7 @@ export default function ProviderListContent({
       }
 
       try {
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Async reorder failures have no declared rejection type; forward the original value to the shared reorder error callback.
         void Promise.resolve(onReorder(nextProviders)).catch((error: unknown) => {
           onReorderError?.(error)
         })

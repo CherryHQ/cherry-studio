@@ -30,6 +30,7 @@ const getToolDisplayName = (name: string) => {
  * blocks was carved out with the v2 renderer, so they are rendered here alongside the text.
  */
 function extractMcpContent(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Live or persisted fallback outputs may belong to any tool; validate CallToolResult before projecting MCP text, images and links.
   output: unknown
 ): { text: string | null; images: Array<{ data: string; mimeType: string }>; links: ToolResultLinkData[] } | null {
   const result = CallToolResultSchema.safeParse(output)
@@ -72,6 +73,7 @@ export function UnknownToolRenderer({ toolName, input, output }: UnknownToolProp
   }
 
   // Normalize input/output for table display
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Unknown tools have no shared input/output schema; retain objects and wrap primitive payloads for the generic argument table.
   const normalizeArgs = (value: unknown): Record<string, unknown> | unknown[] | null => {
     if (value === undefined || value === null) return null
     if (typeof value === 'object') return value as Record<string, unknown> | unknown[]

@@ -171,6 +171,7 @@ export class GuestSession implements Disposable {
     for (const reject of [...this.pending]) reject(error)
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Electron debugger events erase the method/params correlation; only allow-listed main-session methods enter the official CDP event union.
   private readonly onMessage = (_event: Electron.Event, method: string, params: unknown, sessionId?: string) => {
     if (sessionId || !cdpEventMethods.has(method)) return
     this.handleEvent({ method, params } as CdpEvent)
@@ -504,6 +505,7 @@ export class GuestSession implements Disposable {
     this.runtimeRecording = true
     const attempt = this.send('Runtime.enable', undefined, options).then(
       () => undefined,
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Runtime.enable can reject with any transport failure; release only this attempt's recording claim and rethrow its original value.
       (error: unknown) => {
         // Roll back only our own claim: a detach + new claim must not be cleared by this failure.
         if (this.runtimeEnableInFlight === attempt) this.runtimeRecording = false

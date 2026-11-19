@@ -37,6 +37,7 @@ const CONNECTION_STATE_CODES = new Set([
   SdkErrorCode.NotInitialized
 ])
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- MCP transport wrappers and arbitrary thrown values can carry nested causes; retain only a bounded, cycle-free object chain for classification.
 function errorCauses(error: unknown): object[] {
   const causes: object[] = []
   const seen = new Set<object>()
@@ -71,6 +72,7 @@ export function normalizeMcpTransportError<TError>(error: TError): TError | McpT
   return nodeTransport || chromiumTransport ? new McpTransportError(error) : error
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Request catches contain SDK, transport, server and local failures; classify their original cause chain while preserving cancellation and external-server provenance.
 export function classifyMcpFailure(error: unknown, external: boolean, cancelled = false): FailureFacts {
   const facts: FailureFacts = {
     source: 'application',

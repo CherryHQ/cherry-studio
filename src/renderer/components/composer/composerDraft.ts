@@ -36,10 +36,12 @@ function appendTextContent(nodes: JSONContent[], text: string) {
   })
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Draft tokens restore arbitrary serialized payloads; consume only a string restoredTextSuffix while preserving historical invalid-data fallback.
 function getRestoredTextSuffix(payload: unknown): string {
-  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return ''
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload) || !('restoredTextSuffix' in payload))
+    return ''
 
-  const restoredTextSuffix = (payload as Record<string, unknown>).restoredTextSuffix
+  const restoredTextSuffix = payload.restoredTextSuffix
   return typeof restoredTextSuffix === 'string' ? restoredTextSuffix : ''
 }
 
@@ -47,6 +49,7 @@ function getRestoredTextSuffix(payload: unknown): string {
 const composerTokenText = (token: ComposerDraftToken): string =>
   (token.promptText ?? '') + getRestoredTextSuffix(token.payload)
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Live and restored token payloads vary by token kind; require an object before validating individual display-file fields or merging restored suffixes.
 function readPayloadObject(payload: unknown): Record<string, unknown> | undefined {
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return undefined
   return payload as Record<string, unknown>

@@ -435,6 +435,7 @@ export class JobService {
     tx: DbOrTx,
     jobId: string,
     status: 'completed' | 'failed' | 'cancelled',
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Different registered job handlers produce different output domains; persist the returned value while keeping undefined as the explicit clear-output sentinel.
     output: unknown | undefined,
     error: JobError | null
   ): boolean {
@@ -788,6 +789,7 @@ export class JobService {
    * renderer code still receives a typed value rather than a structurally-
    * invalid object.
    */
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Historical error-column JSON can drift from JobErrorSchema; validate it on read and retain the corrupt-row sentinel on failure.
   private validateError(rowId: string, parsed: unknown): JobError | null {
     if (parsed == null) return null
     const result = JobErrorSchema.safeParse(parsed)

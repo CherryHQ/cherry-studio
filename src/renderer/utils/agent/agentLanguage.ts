@@ -19,6 +19,7 @@ export type AgentLanguageValidation = { ok: true; value: string } | { ok: false;
 // Mirrors AgentLanguageSchema: trimmed 1-50 chars, rejects CR LF U+2028 U+2029.
 const SINGLE_LINE_PATTERN = new RegExp('[\\r\\n\\u2028\\u2029]')
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- This renderer validator mirrors AgentLanguageSchema, including rejection of non-string inputs; only trimmed, bounded single-line labels are accepted.
 export function validateAgentLanguageInput(raw: unknown): AgentLanguageValidation {
   const value = typeof raw === 'string' ? raw.trim() : ''
   if (!value) return { ok: false, errorKey: 'settings.agent.language.error.empty' }
@@ -27,6 +28,7 @@ export function validateAgentLanguageInput(raw: unknown): AgentLanguageValidatio
   return { ok: true, value }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Normalize through the same language validator so invalid raw values retain the documented null result instead of being asserted as labels.
 export function normalizeAgentLanguageInput(raw: unknown): string | null {
   const result = validateAgentLanguageInput(raw)
   return result.ok ? result.value : null

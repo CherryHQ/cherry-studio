@@ -35,6 +35,7 @@ export interface McpConnectionEvents {
   promptsChanged(error: Error | null, prompts: Prompt[] | null): void
   resourcesChanged(error: Error | null, resources: Resource[] | null): void
   resourceUpdated(uri: string): void
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- MCP logging notifications deliberately allow arbitrary data, alongside local health diagnostics; log consumers own redaction and serialization.
   log(level: string, logger: string | undefined, data: unknown): void
 }
 
@@ -75,6 +76,7 @@ export interface McpConnection {
   readonly instructions: string | undefined
 
   listTools(cacheMode?: CacheMode): Promise<Tool[]>
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Desktop and agent dispatch supply heterogeneous tool inputs; the selected server/tool contract owns their validation rather than this connection interface.
   callTool(name: string, args: unknown, options: McpCallToolOptions): Promise<CallToolResult>
   forwardRequest(
     method: McpForwardMethod,
