@@ -20,10 +20,11 @@ import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import { SharedMemoryRolloutSeeder } from '@data/db/seeding/seeders/SharedMemoryRolloutSeeder'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
-import { ensureAgentSessionRootTx } from '@data/services/agentSessionMessageTree'
 import { agentSessionContextService } from '@data/services/AgentSessionContextService'
+import { ensureAgentSessionRootTx } from '@data/services/agentSessionMessageTree'
 import { assistantDataService } from '@data/services/AssistantService'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { createClaudeCodeIdentityHooks } from '@main/ai/runtime/claudeCode/identityHooks'
@@ -233,13 +234,7 @@ describe('lifecycle memory owner', () => {
     }
   })
 
-  it.each([true, false])('allows a fresh assistant after clear with sharing=%s', async (enabled) => {
-    MockApplicationUtils.setService('MemoryService', service)
-    const editor = service.open(authority())
-    await editor.entry()
-    await fs.writeFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'OLD_HOME')
-    await editor.clear((await editor.previewClear()).token, approve)
-    editor.dispose()
+  function seedAssistantTopic(enabled?: boolean) {
     const assistantId = randomUUID()
     const topicId = randomUUID()
     dbh.db
@@ -276,6 +271,17 @@ describe('lifecycle memory owner', () => {
       .insert(messageTable)
       .values({ id: replyId, parentId: userId, topicId, role: 'assistant', status: 'pending', data: { parts: [] } })
       .run()
+    return { topicId, assistantId, userId, replyId }
+  }
+
+  it.each([true, false])('allows a fresh assistant after clear with sharing=%s', async (enabled) => {
+    MockApplicationUtils.setService('MemoryService', service)
+    const editor = service.open(authority())
+    await editor.entry()
+    await fs.writeFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'OLD_HOME')
+    await editor.clear((await editor.previewClear()).token, approve)
+    editor.dispose()
+    const { topicId, assistantId, userId, replyId } = seedAssistantTopic(enabled)
     const transport = memoryRuntimeFetch(
       async () => Response.json({ answer: 'OK' }),
       (signal) => runtimeMemoryAuthorities({ topicId, assistantId }, signal)
@@ -299,6 +305,37 @@ describe('lifecycle memory owner', () => {
     dbh.db.update(messageTable).set({ compactionSummary: 'OLD_HOME' }).where(eq(messageTable.id, userId)).run()
     await expect(transport('https://test.invalid')).rejects.toThrow('isolation')
   })
+
+  it.each([false, true])(
+    'baselines pre-rollout history only on a pre-feature database (preview=%s)',
+    async (preview) => {
+      MockApplicationUtils.setService('MemoryService', service)
+      const { topicId, assistantId, replyId } = seedAssistantTopic()
+      dbh.db.update(messageTable).set({ status: 'success' }).where(eq(messageTable.id, replyId)).run()
+      dbh.db
+        .insert(appStateTable)
+        .values({ key: 'seedRunner:bootstrapCompleted', value: { completedAt: 1 } })
+        .run()
+      if (preview)
+        dbh.db
+          .insert(appStateTable)
+          .values({ key: 'memory:runtime:other', value: { version: 1, protection: null } })
+          .run()
+      new SharedMemoryRolloutSeeder().run(dbh.db)
+      const editor = service.open(authority())
+      await editor.entry()
+      await fs.writeFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'CLEARED')
+      await editor.clear((await editor.previewClear()).token, approve)
+      editor.dispose()
+      const run = memoryRuntimeFetch(
+        async () => Response.json({}),
+        (signal) => runtimeMemoryAuthorities({ topicId, assistantId }, signal)
+      )
+      const request = run('https://test.invalid')
+      if (preview) await expect(request).rejects.toThrow('isolation')
+      else expect((await request).ok).toBe(true)
+    }
+  )
 
   it.each(['reply', 'native', 'resume-token'] as const)('rejects unrecorded old Agent %s history', async (kind) => {
     const { sessionId } = await seedAgentSession()

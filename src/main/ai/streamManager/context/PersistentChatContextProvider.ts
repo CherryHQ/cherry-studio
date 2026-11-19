@@ -949,7 +949,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const { contextSettings, compressionModel } = await resolveRequestContextSettings(
       models[0],
       { id: topicId, topicId },
-      assistantContextOverride
+      assistantContextOverride,
+      assistantId ? { topicId, assistantId } : undefined
     )
     const on = contextSettings.enabled && contextSettings.compress.enabled && Boolean(compressionModel)
     const serve = (rows_: typeof effective) => ({ messages: rows_.map((r) => this.toServed(r)), retainedContext })
