@@ -133,7 +133,7 @@ export class MemoryStore {
       await assertMemoryPath(this.root, '')
       await mkdir(this.backupRoot, { recursive: true, mode: 0o700 })
       await assertMemoryPath(this.backupRoot, '')
-      const latest = await this.latestRecoverableBatch()
+      const latest = await this.latestRecoverableBatch(false)
       const deletedEntry = latest?.steps.some(
         (step) => step.path === MEMORY_ENTRY && step.afterHash === null && step.outcome !== 'unchanged'
       )
@@ -457,7 +457,7 @@ export class MemoryStore {
       access.assertAuthorized()
       validateApproval()
       this.assertGeneration(preview.generation)
-      if ((await latestMemoryBackup(this.backupRoot))?.id !== preview.batch.id) {
+      if ((await this.latestRecoverableBatch())?.id !== preview.batch.id) {
         throw new MemoryError('conflict', 'A newer memory operation requires a new recovery preview')
       }
       for (const [target, hash] of preview.hashes) {
@@ -472,7 +472,15 @@ export class MemoryStore {
       await saveMemoryBackup(this.backupRoot, preview.batch)
       let result: MemoryCommitResult
       try {
-        result = await this.apply(access, changes, 'recovery', validateApproval, preview.generation + 1)
+        result = await this.apply(
+          access,
+          changes,
+          'recovery',
+          validateApproval,
+          preview.generation + 1,
+          undefined,
+          preview.batch.id
+        )
       } catch (error) {
         preview.batch.status = previousStatus
         await saveMemoryBackup(this.backupRoot, preview.batch).catch(() => undefined)
@@ -501,7 +509,8 @@ export class MemoryStore {
     source: MemoryMutationSource,
     approval: () => undefined,
     generation: number,
-    legacy?: MemoryLegacyOriginal
+    legacy?: MemoryLegacyOriginal,
+    recoveryOf?: string
   ): Promise<MemoryCommitResult> {
     access.assertAuthorized()
     approval()
@@ -514,13 +523,35 @@ export class MemoryStore {
       }
     }
     const clearScopeHash =
-      source === 'clear' ? this.scopeHash(new Map(proposed.map(({ path, after }) => [path, after]))) : undefined
-    const batch = await createMemoryBackup(this.backupRoot, changes, source, legacy, clearScopeHash)
+      source === 'clear'
+        ? this.scopeHash(new Map(proposed.map(({ path, after }) => [path, memoryHash(after)])))
+        : undefined
+    const previous = recoveryOf ? await latestMemoryBackup(this.backupRoot) : undefined
+    const batch =
+      previous &&
+      previous.recoveryOf === recoveryOf &&
+      changes.every((change) =>
+        previous.steps.some(
+          (step) =>
+            step.path === change.path &&
+            step.beforeHash === memoryHash(change.before) &&
+            step.afterHash === memoryHash(change.after)
+        )
+      )
+        ? previous
+        : await createMemoryBackup(this.backupRoot, changes, source, legacy, clearScopeHash, recoveryOf)
+    const steps = new Map(batch.steps.map((step) => [step.path, step]))
+    if (batch === previous) {
+      for (const change of changes) steps.get(change.path)!.outcome = 'pending'
+      batch.status = 'pending'
+      await saveMemoryBackup(this.backupRoot, batch)
+    }
     const result: MemoryCommitResult = {
       batchId: batch.id,
       files: changes.map((change) => ({ path: change.path, hash: memoryHash(change.before), outcome: 'pending' }))
     }
     for (const [index, change] of changes.entries()) {
+      const step = steps.get(change.path)!
       try {
         access.assertAuthorized()
         approval()
@@ -534,7 +565,7 @@ export class MemoryStore {
         const actual = await readMemoryBytes(this.root, change.path)
         if (memoryHash(actual) !== memoryHash(change.after))
           throw new MemoryError('conflict', 'Memory save result changed')
-        batch.steps[index].outcome = 'applied'
+        step.outcome = 'applied'
         result.files[index] = { path: change.path, hash: memoryHash(actual), outcome: 'applied' }
       } catch (error) {
         result.error = error instanceof Error ? error.message : String(error)
@@ -546,18 +577,21 @@ export class MemoryStore {
               : actual === memoryHash(change.before)
                 ? 'unchanged'
                 : 'conflict'
-          batch.steps[index].outcome = outcome
+          step.outcome = outcome
           result.files[index] = { path: change.path, hash: actual, outcome }
         } catch {
           // Keep the pending manifest when the actual disk result cannot be read.
         }
-        for (const step of batch.steps.slice(index + 1)) step.outcome = 'unchanged'
+        for (const file of result.files.slice(index + 1)) {
+          steps.get(file.path)!.outcome = 'unchanged'
+          file.outcome = 'unchanged'
+        }
         batch.status = memoryBatchStatus(batch)
         await saveMemoryBackup(this.backupRoot, batch).catch(() => undefined)
         return result
       }
     }
-    batch.status = 'completed'
+    batch.status = memoryBatchStatus(batch)
     try {
       await saveMemoryBackup(this.backupRoot, batch)
     } catch (error) {
@@ -566,11 +600,30 @@ export class MemoryStore {
     return result
   }
 
-  private async latestRecoverableBatch(): Promise<MemoryBatch | undefined> {
+  private async latestRecoverableBatch(resume = true): Promise<MemoryBatch | undefined> {
     let batch = await latestMemoryBackup(this.backupRoot)
     while (batch) {
       batch = await reconcileMemoryBackup(this.backupRoot, this.root, batch)
-      if (batch.steps.some((step) => step.outcome !== 'unchanged')) return batch
+      if (batch.steps.some((step) => step.outcome !== 'unchanged')) {
+        if (resume && batch.recoveryOf) {
+          const original = await latestMemoryBackup(this.backupRoot, batch.recoveryOf)
+          if (original?.status === 'partial') {
+            for (const step of original.steps) {
+              if (step.outcome === 'unchanged') continue
+              const reverse = batch.steps.find((candidate) => candidate.path === step.path)
+              if (
+                reverse?.outcome === 'applied' ||
+                memoryHash(await readMemoryBytes(this.root, step.path)) === step.beforeHash
+              )
+                step.outcome = 'unchanged'
+            }
+            if (original.steps.some((step) => step.outcome !== 'unchanged')) return original
+            original.status = 'completed'
+            await saveMemoryBackup(this.backupRoot, original)
+          }
+        }
+        return batch
+      }
       batch = await latestMemoryBackup(this.backupRoot)
     }
     return undefined
@@ -606,22 +659,28 @@ export class MemoryStore {
   }
 
   private protectRecovery(batch: MemoryBatch, changes: MemoryFileChange[], scope: Map<string, Buffer | null>): void {
-    if (
-      batch.source === 'clear' &&
-      batch.steps.every((step) => memoryHash(scope.get(step.path) ?? null) === step.afterHash)
-    ) {
-      // Undo only the exact cleared scope. Older manifests identify changed files but omit untouched ones.
-      const exact = batch.clearScopeHash
-        ? this.scopeHash(scope) === batch.clearScopeHash
-        : [...scope].every(([target, bytes]) => !bytes?.length || batch.steps.some((step) => step.path === target))
-      if (exact) return
+    if (batch.source === 'clear') {
+      const hashes = new Map([...scope].map(([target, bytes]) => [target, memoryHash(bytes)]))
+      const matches = batch.steps.every((step) => {
+        const actual = hashes.get(step.path) ?? null
+        if (actual !== (step.outcome === 'unchanged' ? step.beforeHash : step.afterHash)) return false
+        hashes.set(step.path, step.afterHash)
+        return true
+      })
+      if (
+        matches &&
+        (batch.clearScopeHash
+          ? this.scopeHash(hashes) === batch.clearScopeHash
+          : [...scope].every(([target, bytes]) => !bytes?.length || batch.steps.some((step) => step.path === target)))
+      )
+        return
     }
     this.protectEntries(changes, scope, 'recovery')
   }
 
-  private scopeHash(scope: Map<string, Buffer | null>): string {
+  private scopeHash(scope: Map<string, string | null>): string {
     const files = [...scope.keys()].sort().filter((target) => scope.get(target) !== null)
-    return memoryHash(Buffer.from(JSON.stringify(files.map((target) => [target, memoryHash(scope.get(target)!)]))))
+    return memoryHash(Buffer.from(JSON.stringify(files.map((target) => [target, scope.get(target)]))))
   }
 
   private protectEntries(
