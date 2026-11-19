@@ -2812,6 +2812,7 @@ describe('Agent configuration memory', () => {
     const user = userEvent.setup()
     render(<Harness />)
     await user.click(screen.getByRole('button', { name: 'Memory' }))
+    await user.click(await screen.findByRole('button', { name: 'Persona' }))
     const editor = await screen.findByRole('textbox', { name: 'Edit SOUL.md' })
     await user.clear(editor)
     await user.type(editor, 'Updated persona')
@@ -2825,7 +2826,8 @@ describe('Agent configuration memory', () => {
       expectedVersion: 'v1'
     })
     expect(updateAgentMock).not.toHaveBeenCalled()
-    await user.click(screen.getByRole('tab', { name: 'Event log' }))
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+    await user.click(await screen.findByRole('button', { name: /^Event log/ }))
     expect(screen.queryByRole('textbox', { name: 'Edit JOURNAL.jsonl' })).not.toBeInTheDocument()
     expect(screen.getByText('{"event":"remembered"}')).toBeVisible()
   })
@@ -2885,7 +2887,7 @@ describe('Agent configuration memory', () => {
     const user = userEvent.setup()
     const writeClipboard = vi.spyOn(navigator.clipboard, 'writeText')
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="memory" />)
-    await screen.findByRole('tab', { name: 'Persona' })
+    await user.click(await screen.findByRole('button', { name: 'Persona' }))
     await user.click(screen.getByRole('button', { name: 'More' }))
     await user.click(screen.getByRole('menuitem', { name: 'Copy content' }))
     expect(writeClipboard).toHaveBeenCalledWith('Original persona')
@@ -2895,20 +2897,17 @@ describe('Agent configuration memory', () => {
     writeClipboard.mockRestore()
   })
 
-  // AC11: catches losing an unsaved memory draft when switching files, going back, or closing configuration.
-  it.each(['file', 'back', 'close'] as const)(
+  // AC11: catches losing an unsaved memory draft when going back to the file list or closing configuration.
+  it.each(['back', 'close'] as const)(
     'protects memory drafts on %s and leaves only after explicit discard',
     async (destination) => {
       const user = userEvent.setup()
       render(<Harness />)
       await user.click(screen.getByRole('button', { name: 'Memory' }))
+      await user.click(await screen.findByRole('button', { name: 'Persona' }))
       await user.type(await screen.findByRole('textbox', { name: 'Edit SOUL.md' }), ' unsaved')
       const leave = () =>
-        destination === 'file'
-          ? user.click(screen.getByRole('tab', { name: 'User profile' }))
-          : destination === 'back'
-            ? user.click(screen.getByRole('button', { name: 'Back' }))
-            : user.keyboard('{Escape}')
+        destination === 'back' ? user.click(screen.getByRole('button', { name: 'Back' })) : user.keyboard('{Escape}')
       await leave()
       const confirmation = await screen.findByRole('dialog', { name: 'Discard unsaved changes?' })
       await user.click(within(confirmation).getByRole('button', { name: 'Cancel' }))
@@ -2920,9 +2919,7 @@ describe('Agent configuration memory', () => {
         })
       )
       await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Edit SOUL.md' })).not.toBeInTheDocument())
-      if (destination === 'back') expect(screen.getByRole('heading', { name: 'Edit Agent' })).toBeInTheDocument()
-      else if (destination === 'file')
-        expect(screen.getByRole('tab', { name: 'User profile' })).toHaveAttribute('aria-selected', 'true')
+      if (destination === 'back') expect(screen.getByRole('button', { name: 'User profile' })).toBeInTheDocument()
       else expect(screen.queryByRole('dialog', { name: 'Edit Agent' })).not.toBeInTheDocument()
       expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'agent.memory.write')).toEqual([])
     }

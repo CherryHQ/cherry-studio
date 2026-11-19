@@ -1,4 +1,4 @@
-import { Copy, FolderOpen, LoaderCircle, MoreHorizontal, RefreshCw } from 'lucide-react'
+import { ChevronRight, Copy, FolderOpen, LoaderCircle, MoreHorizontal, RefreshCw } from 'lucide-react'
 import { type Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -10,9 +10,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   ScrollArea,
-  Tabs,
-  TabsList,
-  TabsTrigger,
   Tooltip
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
@@ -24,7 +21,7 @@ import type { AgentMemoryFile, AgentMemoryFileKey, AgentMemorySnapshot } from '@
 
 const FILE_ORDER: AgentMemoryFileKey[] = ['soul', 'user', 'fact', 'journal']
 
-const FILE_LABEL_KEYS: Record<AgentMemoryFileKey, string> = {
+export const MEMORY_FILE_LABEL_KEYS: Record<AgentMemoryFileKey, string> = {
   soul: 'agent.memory.file.soul',
   user: 'agent.memory.file.user',
   fact: 'agent.memory.file.fact',
@@ -64,43 +61,47 @@ export function useMemorySnapshot(agentId: string) {
   return { snapshot, loading, error, reload, replaceFile }
 }
 
-type DiscardRequest = { kind: 'switch'; key: AgentMemoryFileKey } | { kind: 'leave' }
-
 export type AgentMemoryPanelHandle = {
   confirmLeave: () => Promise<boolean>
 }
 
+/**
+ * The Memory page: a list of the Agent's memory files, each opening on its own page (`file`), where
+ * it is edited in the System Prompt editor and written only on Save.
+ */
 export function AgentMemoryPanel({
   agent,
+  file,
+  onFileChange,
   ref
 }: {
   agent: { id: string; name: string }
+  file: AgentMemoryFileKey | null
+  onFileChange: (file: AgentMemoryFileKey) => void
   ref?: Ref<AgentMemoryPanelHandle>
 }) {
   const { t, i18n } = useTranslation()
   const { snapshot, loading, error, reload, replaceFile } = useMemorySnapshot(agent.id)
-  const [selectedKey, setSelectedKey] = useState<AgentMemoryFileKey>('soul')
-  // The unsaved text of the selected file and the revision it was typed against.
+  // The unsaved text of the open file and the revision it was typed against.
   const [draft, setDraft] = useState<{ text: string; version: string } | null>(null)
   const [saving, setSaving] = useState(false)
-  const [discardRequest, setDiscardRequest] = useState<DiscardRequest | null>(null)
+  const [discardOpen, setDiscardOpen] = useState(false)
 
   const leaveRequest = useRef<{ promise: Promise<boolean>; resolve: (leave: boolean) => void } | null>(null)
 
   const files = snapshot?.files ?? []
-  const selected = files.find((file) => file.key === selectedKey) ?? files[0]
+  const selected = file ? files.find((item) => item.key === file) : undefined
   const isDirty = !!selected && draft !== null && draft.text !== selected.content
   const isMarkdown = selected?.key !== 'journal'
-  // JOURNAL is append-only and written by the running agent; truncated files only
-  // contain a slice, so replacing either from the editor would destroy data.
-  const readOnlyReason = !selected
-    ? null
-    : selected.key === 'journal'
-      ? 'agent.memory.journal_readonly'
-      : selected.truncated
-        ? 'agent.memory.truncated_readonly'
-        : null
+  const readOnlyReasonOf = (item: AgentMemoryFile) =>
+    // JOURNAL is append-only and written by the running agent; truncated files only
+    // contain a slice, so replacing either from the editor would destroy data.
+    item.key === 'journal' ? 'agent.memory.journal_readonly' : item.truncated ? 'agent.memory.truncated_readonly' : null
+  const readOnlyReason = selected ? readOnlyReasonOf(selected) : null
   const canEdit = !!selected && readOnlyReason === null
+
+  // A file page starts from the saved text; its draft never follows the user back to the list.
+  useEffect(() => setDraft(null), [file])
 
   const formatDate = (value: string | null) =>
     value
@@ -108,20 +109,6 @@ export function AgentMemoryPanel({
           new Date(value)
         )
       : ''
-
-  const applySelect = (key: AgentMemoryFileKey) => {
-    setSelectedKey(key)
-    setDraft(null)
-  }
-
-  const selectFile = (key: AgentMemoryFileKey) => {
-    if (saving || key === selectedKey) return
-    if (isDirty) {
-      setDiscardRequest({ kind: 'switch', key })
-      return
-    }
-    applySelect(key)
-  }
 
   const changeDraft = (text: string) => {
     if (!selected) return
@@ -181,7 +168,7 @@ export function AgentMemoryPanel({
       if (leaveRequest.current) return leaveRequest.current.promise
       const { promise, resolve } = Promise.withResolvers<boolean>()
       leaveRequest.current = { promise, resolve }
-      setDiscardRequest({ kind: 'leave' })
+      setDiscardOpen(true)
       return promise
     }
   }))
@@ -189,17 +176,14 @@ export function AgentMemoryPanel({
   const dismissDiscard = () => {
     leaveRequest.current?.resolve(false)
     leaveRequest.current = null
-    setDiscardRequest(null)
+    setDiscardOpen(false)
   }
 
   const confirmDiscard = () => {
-    if (discardRequest?.kind === 'switch') applySelect(discardRequest.key)
-    if (discardRequest?.kind === 'leave') {
-      cancelEdit()
-      leaveRequest.current?.resolve(true)
-      leaveRequest.current = null
-    }
-    setDiscardRequest(null)
+    cancelEdit()
+    leaveRequest.current?.resolve(true)
+    leaveRequest.current = null
+    setDiscardOpen(false)
   }
 
   const copyContent = async () => {
@@ -235,20 +219,6 @@ export function AgentMemoryPanel({
     </div>
   ) : null
 
-  const tabs = (
-    <TabsList aria-label={t('agent.memory.title')} className="flex-wrap gap-4">
-      {files.length === 0 && !error
-        ? FILE_ORDER.map((key) => (
-            <div key={key} className="h-8 w-16 animate-pulse rounded-md bg-muted" aria-hidden="true" />
-          ))
-        : files.map((file) => (
-            <TabsTrigger key={file.key} value={file.key} disabled={saving} className="px-0 text-xs transition-colors">
-              {t(FILE_LABEL_KEYS[file.key])}
-            </TabsTrigger>
-          ))}
-    </TabsList>
-  )
-
   const moreMenu = (
     <DropdownMenu>
       <Tooltip content={t('common.more')}>
@@ -259,10 +229,12 @@ export function AgentMemoryPanel({
         </DropdownMenuTrigger>
       </Tooltip>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem disabled={!selected?.exists || !selected.content} onSelect={() => void copyContent()}>
-          <Copy className="size-4" aria-hidden="true" />
-          {t('agent.memory.copy')}
-        </DropdownMenuItem>
+        {selected ? (
+          <DropdownMenuItem disabled={!selected.exists || !selected.content} onSelect={() => void copyContent()}>
+            <Copy className="size-4" aria-hidden="true" />
+            {t('agent.memory.copy')}
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem disabled={loading} onSelect={() => void reload()}>
           <RefreshCw className={cn('size-4', loading && 'motion-safe:animate-spin')} aria-hidden="true" />
           {t('agent.memory.refresh')}
@@ -275,12 +247,44 @@ export function AgentMemoryPanel({
     </DropdownMenu>
   )
 
-  // The same editor as the System Prompt, but a file is written only when Save is pressed.
-  const editor =
-    selected && canEdit ? (
+  const fileLabel = <span className="truncate text-muted-foreground text-xs">{selected?.name}</span>
+
+  const list = (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between px-1">
+        <span className="text-muted-foreground text-xs">{t('agent.memory.title')}</span>
+        {moreMenu}
+      </div>
+      <div className="flex flex-col rounded-xl border border-border-subtle p-1">
+        {(files.length > 0 ? files : FILE_ORDER.map((key) => ({ key }) as AgentMemoryFile)).map((item) => {
+          const label = t(MEMORY_FILE_LABEL_KEYS[item.key])
+          const note = item.name && readOnlyReasonOf(item) ? t('library.config.agent.prompt.read_only') : undefined
+          return (
+            <Button
+              key={item.key}
+              type="button"
+              variant="ghost"
+              disabled={files.length === 0}
+              aria-label={note ? `${label}: ${note}` : label}
+              onClick={() => onFileChange(item.key)}
+              className="h-9 justify-between gap-3 rounded-lg px-2.5 font-normal text-sm">
+              <span className="truncate text-foreground">{label}</span>
+              <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground text-xs">
+                {note}
+                <ChevronRight className="size-3.5" />
+              </span>
+            </Button>
+          )
+        })}
+      </div>
+    </div>
+  )
+
+  const filePage = selected ? (
+    canEdit ? (
+      // The same editor as the System Prompt, but the file is written only when Save is pressed.
       <PromptEditorField
-        key={selected.key}
-        label={tabs}
+        label={fileLabel}
         editorLabel={t('agent.memory.editor_label', { name: selected.name })}
         value={draft?.text ?? selected.content}
         onChange={changeDraft}
@@ -303,65 +307,56 @@ export function AgentMemoryPanel({
         fill
         disabled={saving}
       />
-    ) : null
+    ) : (
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+        <div className="flex items-center justify-between gap-3">
+          {fileLabel}
+          {moreMenu}
+        </div>
+        <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border bg-background">
+          <ScrollArea className="h-full">
+            {!selected.exists || !selected.content.trim() ? (
+              <p className="p-3 text-muted-foreground text-xs">
+                {t(selected.exists ? 'agent.memory.empty' : 'agent.memory.not_exists')}
+              </p>
+            ) : isMarkdown ? (
+              <div className="markdown p-3 text-xs">
+                <StaticMarkdown id={`agent-memory-${selected.key}`}>{selected.content}</StaticMarkdown>
+              </div>
+            ) : (
+              <pre className="whitespace-pre-wrap break-words p-3 font-mono text-xs leading-relaxed">
+                {selected.content}
+              </pre>
+            )}
+          </ScrollArea>
+        </div>
+      </div>
+    )
+  ) : null
 
   return (
     <>
-      <section className="flex min-h-0 flex-1 flex-col gap-4" aria-label={t('agent.memory.title')}>
-        <Tabs
-          value={selectedKey}
-          onValueChange={(key) => {
-            const file = files.find((item) => item.key === key)
-            if (file) selectFile(file.key)
-          }}
-          variant="underline"
-          className="min-h-0 flex-1 gap-0">
-          {editor ?? (
-            <>
-              <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4">
-                {tabs}
-                <div className="ms-auto flex shrink-0 items-center gap-1 py-1">{moreMenu}</div>
-              </div>
-              {status ??
-                (selected ? (
-                  <div className="mt-1.5 min-h-0 flex-1 overflow-hidden rounded-md border border-border bg-background">
-                    <ScrollArea className="h-full">
-                      {!selected.exists || !selected.content.trim() ? (
-                        <p className="p-3 text-muted-foreground text-xs">
-                          {t(selected.exists ? 'agent.memory.empty' : 'agent.memory.not_exists')}
-                        </p>
-                      ) : isMarkdown ? (
-                        <div className="markdown p-3 text-xs">
-                          <StaticMarkdown id={`agent-memory-${selected.key}`}>{selected.content}</StaticMarkdown>
-                        </div>
-                      ) : (
-                        <pre className="whitespace-pre-wrap break-words p-3 font-mono text-xs leading-relaxed">
-                          {selected.content}
-                        </pre>
-                      )}
-                    </ScrollArea>
-                  </div>
-                ) : null)}
-            </>
-          )}
+      <section className="flex min-h-0 flex-1 flex-col" aria-label={t('agent.memory.title')}>
+        {status ?? (file ? filePage : list)}
+        {selected ? (
           <footer className="flex shrink-0 flex-col gap-1 pt-3 text-muted-foreground text-xs">
             {readOnlyReason ? <p>{t(readOnlyReason)}</p> : null}
-            {selected?.truncated ? (
+            {selected.truncated ? (
               <p>
                 {t('agent.memory.truncated', {
                   part: t(selected.key === 'journal' ? 'agent.memory.truncated_tail' : 'agent.memory.truncated_head')
                 })}
               </p>
             ) : null}
-            {selected?.updatedAt ? (
+            {selected.updatedAt ? (
               <p>{t('agent.memory.updated_at', { date: formatDate(selected.updatedAt) })}</p>
             ) : null}
           </footer>
-        </Tabs>
+        ) : null}
       </section>
 
       <ConfirmDialog
-        open={discardRequest !== null}
+        open={discardOpen}
         onOpenChange={(next) => {
           if (!next) dismissDiscard()
         }}

@@ -43,6 +43,7 @@ import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import type { AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { AgentMemoryFileKey } from '@shared/ipc/schemas/agent'
 import type { InstalledSkill } from '@shared/types/skill'
 import { isBrowserMcpServer } from '@shared/utils/mcp'
 
@@ -75,7 +76,7 @@ import { PromptPolishActions } from '../components/PromptPolishActions'
 import { ReplyLanguageSelect } from '../components/ReplyLanguageSelect'
 import { AgentChannelsPage } from './AgentChannelsPage'
 import { AgentIdentityFiles } from './AgentIdentityFiles'
-import { AgentMemoryPanel, type AgentMemoryPanelHandle } from './AgentMemoryPanel'
+import { AgentMemoryPanel, type AgentMemoryPanelHandle, MEMORY_FILE_LABEL_KEYS } from './AgentMemoryPanel'
 import { AgentTasksPage } from './AgentTasksPage'
 import { countSummary, type EditPage, type EditSubPage, resolveInitialEditPage } from './editPages'
 import { HeartbeatTasksPage, type HeartbeatTasksPageHandle } from './HeartbeatTasksPage'
@@ -278,6 +279,7 @@ function AgentEditDialogContent({
   const [page, setPage] = useState<EditPage>(() => resolveInitialEditPage('agent', initialTab, subPages))
   // The System Prompt page opens one block of the prompt as a page of its own.
   const [promptSection, setPromptSection] = useState<string | null>(null)
+  const [memoryFile, setMemoryFile] = useState<AgentMemoryFileKey | null>(null)
   const memoryPanelRef = useRef<AgentMemoryPanelHandle>(null)
   const heartbeatPageRef = useRef<HeartbeatTasksPageHandle>(null)
   const [avatarSrc, setAvatarSrc] = useState(resource.avatarSrc)
@@ -342,6 +344,7 @@ function AgentEditDialogContent({
     form.clearErrors()
     setPage(resolveInitialEditPage('agent', initialTab, subPages))
     setPromptSection(null)
+    setMemoryFile(null)
     setAvatarSrc(resource.avatarSrc)
     setModelLabels(modelLabelsForAgent(resource))
     replaceFormBaseline(buildInitialAgentFormState(resource))
@@ -549,6 +552,7 @@ function AgentEditDialogContent({
     if (page === 'memory' && memoryPanelRef.current && !(await memoryPanelRef.current.confirmLeave())) return
     if (page === 'heartbeat' && heartbeatPageRef.current && !(await heartbeatPageRef.current.confirmLeave())) return
     setPromptSection(null)
+    setMemoryFile(null)
     setPage(next)
   }
   const promptSectionTitle = page === 'prompt' && promptSection ? getPromptBlockTitleKey(promptSection) : undefined
@@ -557,20 +561,27 @@ function AgentEditDialogContent({
     if (memoryPanelRef.current && !(await memoryPanelRef.current.confirmLeave())) return
     setPromptSection(null)
   }
+  const memoryFileTitle = page === 'memory' && memoryFile ? MEMORY_FILE_LABEL_KEYS[memoryFile] : undefined
+  const leaveMemoryFile = async () => {
+    if (memoryPanelRef.current && !(await memoryPanelRef.current.confirmLeave())) return
+    setMemoryFile(null)
+  }
 
   return (
     <EditDialogPageShell
       form={form}
       open={open}
       onOpenChange={handleOpenChange}
-      page={promptSectionTitle ? `prompt.${promptSection}` : page}
-      title={promptSectionTitle ? t(promptSectionTitle) : pageTitles[page]}
+      page={promptSectionTitle ? `prompt.${promptSection}` : memoryFileTitle ? `memory.${memoryFile}` : page}
+      title={promptSectionTitle ? t(promptSectionTitle) : memoryFileTitle ? t(memoryFileTitle) : pageTitles[page]}
       onBack={
         promptSectionTitle
           ? () => void leavePromptSection()
-          : page === 'settings'
-            ? undefined
-            : () => void goTo('settings')
+          : memoryFileTitle
+            ? () => void leaveMemoryFile()
+            : page === 'settings'
+              ? undefined
+              : () => void goTo('settings')
       }
       fill={page === 'prompt' || page === 'memory'}
       rootError={rootError}
@@ -711,7 +722,15 @@ function AgentEditDialogContent({
       {page === 'heartbeat' ? (
         <HeartbeatTasksPage ref={heartbeatPageRef} agentId={resource.id} enabled={values.heartbeatEnabled} />
       ) : null}
-      {open && page === 'memory' ? <AgentMemoryPanel key={resource.id} ref={memoryPanelRef} agent={resource} /> : null}
+      {open && page === 'memory' ? (
+        <AgentMemoryPanel
+          key={resource.id}
+          ref={memoryPanelRef}
+          agent={resource}
+          file={memoryFile}
+          onFileChange={setMemoryFile}
+        />
+      ) : null}
     </EditDialogPageShell>
   )
 }
