@@ -69,6 +69,7 @@ const AGENT_ENTITY_ARCHIVE_ACTION_ID = 'agent-entity.archive'
 const AGENT_ENTITY_PERMANENT_DELETE_ACTION_ID = 'agent-entity.delete-permanently'
 const AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID = 'agent-entity.toggle-sidebar'
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Permanent agent deletion rejects arbitrary IPC failures; recognized not-found/busy codes select recovery text while native Error identity is preserved.
 function permanentAgentDeleteError(err: unknown, message: (key: string) => string): Error {
   if (isAgentNotFoundError(err)) return new Error(message('recycle_bin.delete.stale'))
   if (isAgentSessionArchiveBusyError(err)) return new Error(message('recycle_bin.delete.busy'))
@@ -185,6 +186,7 @@ export function AgentResourceList({
     [onCreateSession]
   )
   const handleActivationError = useCallback(
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Agent rail load/create operations can reject any value; forward the original failure to central logging and the checked notification formatter.
     (error: unknown) => {
       logger.error('Failed to activate agent resource from classic-layout rail', { error })
       toast.error(formatErrorMessageWithPrefix(error, t('common.error')))
@@ -261,6 +263,7 @@ export function AgentResourceList({
     [reorderAgent]
   )
   const handleReorderError = useCallback(
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Agent reorder mutations reject arbitrary values; central logging and the notification formatter own interpretation of the failure.
     (error: unknown) => {
       logger.error('Failed to reorder agent classic-layout rail', { error })
       toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
