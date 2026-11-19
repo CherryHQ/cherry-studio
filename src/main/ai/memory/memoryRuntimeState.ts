@@ -63,8 +63,8 @@ function hasHistory(owner: MemoryRuntimeOwner): boolean {
 }
 
 function stateKey(owner: MemoryRuntimeOwner, scope: MemoryScope): string {
-  const identity =
-    'agentSessionId' in owner ? ['agent', owner.agentSessionId] : ['assistant', owner.assistantId, owner.topicId]
+  // Topic history survives Assistant reassignment. Its isolation boundary must follow that same history.
+  const identity = 'agentSessionId' in owner ? ['agent', owner.agentSessionId] : ['topic', owner.topicId]
   return `memory:runtime:${JSON.stringify([...identity, scope.kind, scope.kind === 'private' ? scope.agentId : ''])}`
 }
 
