@@ -73,7 +73,7 @@ const toModelPreview = (model: CloudCatalogModel) => ({
   display_name: model.display_name,
   capabilities: model.capabilities,
   available_features: model.available_features,
-  activation_endpoint: model.activation_endpoint
+  activation_endpoint: model.activation_endpoint ?? undefined
 })
 // Refusals that change what the account may use; AMD credential rejections are not sign-out signals.
 const SYNC_INVALIDATING_FORBIDDEN_CODES = new Set([

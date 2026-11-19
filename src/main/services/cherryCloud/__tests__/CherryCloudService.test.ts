@@ -1555,6 +1555,25 @@ describe('CherryCloudService', () => {
     expect(created).toEqual(['amd/linked'])
   })
 
+  it('reads a catalog that sends null for fields that do not apply to a model', async () => {
+    const service = await createSignedInService()
+    const nulls = {
+      provider: null,
+      activation_required: null,
+      activation_endpoint: null,
+      standalone: null,
+      requires_login: true
+    }
+    mockModelSync(accountSnapshot, { data: cloudModelCatalog.data.map((model) => ({ ...model, ...nulls })) })
+
+    const result = await service['syncEntitledModels']()
+
+    expect(result.entitledModelIds).toEqual([
+      'cherryai-subscription::deepseek-free',
+      'cherryai-subscription::deepseek-go'
+    ])
+  })
+
   it('rejects model protocols outside the Cherry Cloud contract', async () => {
     const service = await createSignedInService()
     mockModelSync(accountSnapshot, {

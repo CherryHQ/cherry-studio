@@ -129,13 +129,13 @@ export const cloudModelListSchema = z.looseObject({
       capabilities: cloudModelCapabilitiesSchema,
       available_features: z.array(cherryCloudModelFeatureSchema).min(1),
       /** `amd` marks AMD free models, served with the account's own AMD key instead of a plan entitlement. */
-      provider: z.string().optional(),
-      activation_required: z.boolean().optional(),
+      provider: z.string().nullish(),
+      activation_required: z.boolean().nullish(),
       /** Same-origin API path that issues the browser activation link; never a page to open directly. */
-      activation_endpoint: z.string().optional(),
+      activation_endpoint: z.string().nullish(),
       /** Served by a server-side key outside any plan; `requires_login: false` also admits signed-out callers. */
-      standalone: z.boolean().optional(),
-      requires_login: z.boolean().optional()
+      standalone: z.boolean().nullish(),
+      requires_login: z.boolean().nullish()
     })
   )
 })
