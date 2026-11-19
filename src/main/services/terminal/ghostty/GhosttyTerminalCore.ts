@@ -187,7 +187,6 @@ export class GhosttyTerminalCore {
     this.runtime.free(options, optionsSize)
     this.assertSuccess('ghostty_terminal_new', terminalResult)
     this.terminal = this.runtime.readPointer(this.terminalSlot)
-    this.applyDefaultCursorBlink()
     this.ptyWriterId = this.runtime.attachPtyWriter(this.terminal, onPtyData)
 
     this.renderStateSlot = this.runtime.allocOpaque()
@@ -287,14 +286,6 @@ export class GhosttyTerminalCore {
     )
   }
 
-  // Option 23 sets blink on startup and DECSCUSR reset; explicit DECSCUSR or DEC mode 12 still wins.
-  private applyDefaultCursorBlink(): void {
-    const blink = this.runtime.alloc(1)
-    this.runtime.bytes(blink, 1)[0] = 1
-    this.runtime.call('ghostty_terminal_set', this.terminal, 23, blink)
-    this.runtime.free(blink, 1)
-  }
-
   setTheme(theme: GhosttyTheme): void {
     this.ensureActive()
     const color = this.runtime.alloc(3)
@@ -307,6 +298,14 @@ export class GhosttyTerminalCore {
       this.runtime.call('ghostty_terminal_set', this.terminal, option, color)
     }
     this.runtime.free(color, 3)
+    // Native defaults update immediately unless a program has explicitly set its cursor.
+    const cursor = this.runtime.alloc(4)
+    const styles = { bar: 0, block: 1, underline: 2 } as const
+    this.runtime.view(cursor, 4).setUint32(0, styles[theme.cursorStyle ?? 'block'], true)
+    this.runtime.call('ghostty_terminal_set', this.terminal, 22, cursor)
+    this.runtime.bytes(cursor, 1)[0] = Number(theme.cursorBlink ?? true)
+    this.runtime.call('ghostty_terminal_set', this.terminal, 23, cursor)
+    this.runtime.free(cursor, 4)
     if (theme.palette) this.setPalette(theme.palette)
   }
 

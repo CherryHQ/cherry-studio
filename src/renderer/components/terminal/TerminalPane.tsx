@@ -7,6 +7,7 @@ import { ipcApi } from '@renderer/ipc'
 import type { TerminalResourceState } from '@shared/types/terminal'
 
 import { TerminalCanvas } from './TerminalCanvas'
+import { TerminalSettingsMenu } from './TerminalSettingsMenu'
 
 export function TerminalPane({ sessionId, active }: { sessionId: string; active: boolean }) {
   const { t } = useTranslation()
@@ -93,6 +94,7 @@ export function TerminalPane({ sessionId, active }: { sessionId: string; active:
         <Button size="sm" variant="ghost" disabled={creating} onClick={() => void create('powershell')}>
           {t('terminal.new_powershell')}
         </Button>
+        <TerminalSettingsMenu />
       </div>
       {error && (
         <div role="alert" className="px-3 py-2 text-xs text-destructive">

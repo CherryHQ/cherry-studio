@@ -101,6 +101,23 @@ describe('headless Ghostty engine', () => {
     expect(core.encodePaste('中文\nx')).toBe('\x1b[200~中文\nx\x1b[201~')
   })
 
+  it('updates cursor defaults live and restores them after an application resets its cursor', () => {
+    const core = terminal()
+    expect(core.snapshot()).toMatchObject({ cursorStyle: 1, cursorBlinking: true })
+    core.setTheme({ ...theme, cursorStyle: 'bar', cursorBlink: false })
+    expect(core.snapshot()).toMatchObject({ cursorStyle: 0, cursorBlinking: false })
+    core.write('\x1b[3 q')
+    expect(core.snapshot()).toMatchObject({ cursorStyle: 2, cursorBlinking: true })
+    core.setTheme({ ...theme, cursorStyle: 'block', cursorBlink: false })
+    expect(core.snapshot()).toMatchObject({ cursorStyle: 2, cursorBlinking: true })
+    core.write('\x1b[0 q')
+    expect(core.snapshot()).toMatchObject({ cursorStyle: 1, cursorBlinking: false })
+    core.setTheme({ ...theme, cursorStyle: 'underline', cursorBlink: true })
+    expect(core.snapshot()).toMatchObject({ cursorStyle: 2, cursorBlinking: true })
+    core.write('\x1b[?12l')
+    expect(core.snapshot()).toMatchObject({ cursorStyle: 2, cursorBlinking: false })
+  })
+
   it('preserves the primary screen across alternate-screen programs and resizing', () => {
     const core = terminal()
     core.write('primary\x1b[?1049h\x1b[HALT')

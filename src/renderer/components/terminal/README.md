@@ -6,6 +6,8 @@
 
 Viewport sizing preserves the observed content box's fractional CSS dimensions. Rounding the viewport up can create overflow and make automatic scrollbars repeatedly change the available size. Canvas pixel buffers resize only during painting; CSS sizes still update when a subpixel change leaves the pixel dimensions unchanged.
 
+The terminal menu saves cursor shape (block, bar or underline) and blinking as application preferences. Visible views send these defaults with their theme to the Host's native Ghostty core; changes apply live while the cursor uses defaults. Explicit application cursor sequences take precedence, and DECSCUSR reset restores the latest saved defaults. An unfocused cursor remains hollow.
+
 Each view has its own scroll position, selection and attachment identity. Only an explicitly controlling view can resize or send input. Creating a user terminal includes that explicit control intent; passive attach/reopen does not. Control revision and geometry epoch travel with queued input. Stale submissions fail without automatic replay. Composition commits once, and a control/view change rejects the old composition.
 
 Frames use compact style dictionaries, bounded chunks and an explicit baseline revision. Missing or stale frames reset presentation and request a baseline. Final screens can be served from Main after Host retirement; when unavailable, the pane shows the retained raw suffix. Visible viewport selection clears when its text changes rather than copying different output at stale coordinates. Links require an explicit modified click and resolve through the Host before the existing external-link policy.

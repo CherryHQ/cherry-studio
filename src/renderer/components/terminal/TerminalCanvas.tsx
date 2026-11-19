@@ -20,6 +20,7 @@ import {
   type GhosttyKeyboardLayoutMap
 } from './keyCodes'
 import { applyTerminalFrame } from './terminalFrames'
+import { useTerminalSettings } from './TerminalSettingsMenu'
 
 type WireAction = InputFor<'terminal.action'>['action']
 type LocalInput<T> = T extends { kind: 'key' | 'paste' } ? Omit<T, 'geometryEpoch'> : T
@@ -50,6 +51,9 @@ export function TerminalCanvas({
   onAttached?: () => void
 }) {
   const { t } = useTranslation()
+  const [settings] = useTerminalSettings()
+  const cursorSettings = useRef(settings)
+  cursorSettings.current = settings
   const root = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
   const overlay = useRef<HTMLCanvasElement>(null)
@@ -261,7 +265,7 @@ export function TerminalCanvas({
                 rowStart,
                 offset: viewportOffset,
                 revision: baseline?.revision ?? revision,
-                theme: theme.current
+                theme: theme.current && { ...theme.current, ...cursorSettings.current }
               })
               bytes += new TextEncoder().encode(JSON.stringify(frame)).byteLength
               if (frame.rowStart !== rowStart || (!frame.complete && !frame.rowIndices.length))

@@ -1283,6 +1283,20 @@
       "description": "Physical key codes for application-local toggle dictation; empty disables the shortcut"
     },
     {
+      "targetKey": "feature.agent.terminal.cursor_style",
+      "type": "PreferenceTypes.TerminalCursorStyle",
+      "defaultValue": "block",
+      "status": "classified",
+      "description": "Default terminal cursor shape; applications can override it with terminal control sequences"
+    },
+    {
+      "targetKey": "feature.agent.terminal.cursor_blink",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Default terminal cursor blinking; applications can override it with terminal control sequences"
+    },
+    {
       "targetKey": "feature.agent.file_pane.tree_position",
       "type": "PreferenceTypes.AgentFilePaneTreePosition",
       "defaultValue": "left",

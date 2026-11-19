@@ -1,3 +1,5 @@
+import type { TerminalCursorStyle } from '@shared/data/preference/preferenceTypes'
+
 export type TerminalResourceId = string & { readonly __terminalResource: unique symbol }
 export type TerminalGeneration = string & { readonly __terminalGeneration: unique symbol }
 export type TerminalConversationId = string & { readonly __terminalConversation: unique symbol }
@@ -97,6 +99,8 @@ export interface GhosttyTheme {
   readonly foreground: GhosttyColor
   readonly background: GhosttyColor
   readonly cursor: GhosttyColor
+  readonly cursorStyle?: TerminalCursorStyle
+  readonly cursorBlink?: boolean
   readonly palette?: readonly GhosttyColor[]
   readonly selectionBackground?: string
 }

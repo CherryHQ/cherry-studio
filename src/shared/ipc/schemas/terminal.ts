@@ -17,7 +17,15 @@ const text = z
   )
 const channel = z.number().int().min(0).max(255)
 const color = z.object({ r: channel, g: channel, b: channel }).strict()
-const theme = z.object({ foreground: color, background: color, cursor: color }).strict()
+const theme = z
+  .object({
+    foreground: color,
+    background: color,
+    cursor: color,
+    cursorStyle: z.enum(['block', 'bar', 'underline']).optional(),
+    cursorBlink: z.boolean().optional()
+  })
+  .strict()
 const key = z
   .object({
     key: z.number().int().min(0).max(512),
