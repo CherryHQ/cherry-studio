@@ -438,6 +438,26 @@ describe('useAgentChatRuntimeState', () => {
     }
   )
 
+  it('keeps edit failure guidance visible when an IPC reason cannot be coerced to a string', async () => {
+    const i18n = createInstance()
+    await i18n.init({ lng: 'en', resources: { en: { translation: en } }, keySeparator: false })
+    mocks.translate.mockImplementation(i18n.t)
+    mocks.toastError.mockImplementation(getToastUtilities().error)
+    mocks.editTarget.mockRejectedValueOnce(
+      new IpcError(aiErrorCodes.AI_AGENT_SESSION_EDIT_FAILED, 'Edit could not start', {
+        reason: { toString: null, valueOf: null }
+      })
+    )
+    render(<ToastViewport />)
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+
+    await act(() => result.current.startEditing('user-1'))
+
+    expect(within(screen.getByRole('alert')).getByText('Edit could not start')).toBeVisible()
+  })
+
   it('restores edit diagnostics and the copy action when clipboard access fails', async () => {
     const i18n = createInstance()
     await i18n.init({ lng: 'en', resources: { en: { translation: en } }, keySeparator: false })
