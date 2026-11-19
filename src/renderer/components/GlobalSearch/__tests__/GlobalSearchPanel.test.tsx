@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUI from '@cherrystudio/ui'
 import type { CacheSetStateAction } from '@data/CacheService'
+import type { EventEmitter } from '@renderer/services/EventService'
 import type {
   EntitySearchResponse,
   SessionMessageContentSearchItem,
@@ -94,7 +95,7 @@ const mocks = vi.hoisted(() => ({
   dataApiGet: vi.fn(),
   dataApiPut: vi.fn(),
   invalidateCache: vi.fn(),
-  eventEmit: vi.fn(),
+  eventEmit: vi.fn<typeof EventEmitter.emit>(),
   emitResourceListReveal: vi.fn(),
   virtualListScrollToIndex: vi.fn(),
   loggerError: vi.fn(),
@@ -621,6 +622,7 @@ afterEach(() => {
 
 describe('GlobalSearchPanel', () => {
   beforeEach(() => {
+    mocks.eventEmit.mockResolvedValue(undefined)
     mocks.casualCache.clear()
     // Conversation tabs open on the conversation's own URL (`/app/chat?topicId=…`), so match the
     // route prefix rather than the bare path.
