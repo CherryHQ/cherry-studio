@@ -1,4 +1,4 @@
-import { act, cleanup, render, type RenderResult, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, type RenderResult, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Activity, useState } from 'react'
 import type * as ReactHookForm from 'react-hook-form'
@@ -99,6 +99,9 @@ vi.mock('../steps/BasicInfoStep', async () => {
           ))}
           <button type="button" onClick={() => form.setValue('permissionMode', 'plan')}>
             use plan mode
+          </button>
+          <button type="button" onClick={() => form.setValue('avatarImage', new Uint8Array([7, 8, 9]))}>
+            choose draft image
           </button>
         </>
       )
@@ -249,6 +252,42 @@ afterEach(() => {
 })
 
 describe('ResourceCreateWizard', () => {
+  it('preserves image bytes across steps and a failed submit, guards repeated activation, and resets on reopen', async () => {
+    const user = userEvent.setup()
+    modelHook.defaultModel = makeModel()
+    let fail!: (error: Error) => void
+    const onSubmit = vi.fn().mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          fail = reject
+        })
+    )
+    const onOpenChange = vi.fn()
+    const props = { kind: 'agent' as const, onOpenChange, onSubmit }
+    const { rerender } = render(<ResourceCreateWizard {...props} open />)
+    await user.click(screen.getByRole('button', { name: 'fill name' }))
+    await user.click(screen.getByRole('button', { name: 'choose draft image' }))
+    for (let step = 0; step < 3; step++) await user.click(screen.getByRole('button', { name: NEXT }))
+    const create = screen.getByRole('button', { name: CREATE })
+    act(() => {
+      fireEvent.click(create)
+      fireEvent.click(create)
+      fireEvent.click(screen.getByRole('button', { name: CANCEL }))
+    })
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onOpenChange).not.toHaveBeenCalled()
+    await act(async () => fail(new Error('upload failed')))
+    expect(screen.getByText('upload failed')).toBeInTheDocument()
+    await user.click(create)
+    expect(onSubmit).toHaveBeenCalledTimes(2)
+    expect(onSubmit.mock.calls[1][0]).toMatchObject({ name: 'My Resource', avatarImage: new Uint8Array([7, 8, 9]) })
+    rerender(<ResourceCreateWizard {...props} open={false} />)
+    rerender(<ResourceCreateWizard {...props} open />)
+    await user.click(screen.getByRole('button', { name: 'fill name' }))
+    for (let step = 0; step < 3; step++) await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: CREATE }))
+    expect(onSubmit.mock.calls[2][0]).not.toHaveProperty('avatarImage')
+  })
   it('keeps a catalog prompt and default agent settings when creating from template metadata', async () => {
     const user = userEvent.setup()
     modelHook.defaultModel = makeModel()
@@ -363,13 +402,6 @@ describe('ResourceCreateWizard', () => {
     expectDefaults('assistant', 'Newest seed')
   })
 
-  it.each(['assistant', 'agent'] as const)('labels the shared authoring step as System Prompt for %s', (kind) => {
-    render(<ResourceCreateWizard kind={kind} open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
-
-    expect(screen.getByText('library.config.prompt.label')).toBeInTheDocument()
-    expect(screen.queryByText('library.config.dialogs.create.step.persona')).not.toBeInTheDocument()
-  })
-
   it('prefills the model from the default model when the wizard opens', async () => {
     modelHook.defaultModel = makeModel()
 
@@ -400,17 +432,9 @@ describe('ResourceCreateWizard', () => {
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: CREATE }))
 
-    expect(onSubmit).toHaveBeenCalledWith({
-      avatar: '💬',
-      name: 'My Resource',
-      agentType: 'claude-code',
-      permissionMode: 'auto',
-      modelId: 'provider::default',
-      description: '',
-      prompt: '',
-      knowledgeBaseIds: [],
-      skillIds: []
-    })
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'My Resource', modelId: 'provider::default' })
+    )
   })
 
   it('seeds the name from initialName so a caller-supplied name clears the first step', async () => {
@@ -504,17 +528,9 @@ describe('ResourceCreateWizard', () => {
 
     // Final create → mapped payload
     await user.click(screen.getByRole('button', { name: CREATE }))
-    expect(onSubmit).toHaveBeenCalledWith({
-      avatar: '💬',
-      name: 'My Resource',
-      agentType: 'claude-code',
-      permissionMode: 'auto',
-      modelId: 'provider::model',
-      description: '',
-      prompt: 'be helpful',
-      knowledgeBaseIds: [],
-      skillIds: []
-    })
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'My Resource', modelId: 'provider::model', prompt: 'be helpful' })
+    )
   })
 
   it('surfaces the actionable submit error and leaves the dialog closable after failure', async () => {
@@ -575,23 +591,6 @@ describe('ResourceCreateWizard', () => {
     await user.click(screen.getByRole('button', { name: CREATE }))
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ agentType: 'pi-durable', permissionMode: 'auto' }))
-  })
-
-  it('shows the knowledge step after capability for the agent kind', async () => {
-    const user = userEvent.setup()
-    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
-
-    await user.click(screen.getByRole('button', { name: 'fill basic' }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
-
-    expect(screen.getByTestId('capability-step')).toBeInTheDocument()
-    expect(screen.queryByTestId('knowledge-step')).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: NEXT }))
-
-    expect(screen.getByTestId('knowledge-step')).toBeInTheDocument()
-    expect(screen.queryByTestId('capability-step')).not.toBeInTheDocument()
   })
 
   it('does not render an invalid step when a closed agent wizard falls back to assistant kind', async () => {

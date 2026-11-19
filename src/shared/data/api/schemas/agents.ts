@@ -5,12 +5,12 @@
  * Entity schemas live here (Rule C/D: entity role wins when a type is both
  * a response payload and an entity). DTOs are derived via .pick().
  */
-
 import * as z from 'zod'
 
 import { MAX_HEARTBEAT_TIMEOUT_MINUTES } from '@shared/ai/agentHeartbeat'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
+import { FileEntryIdSchema } from '@shared/data/types/file'
 import { ServiceTierSelectionSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
@@ -160,6 +160,8 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
    * Human-readable primary model name resolved from the current runtime Model
    * at read time. Edits still go through the `model` UniqueModelId field.
    */
+  avatarFileId: FileEntryIdSchema.optional(),
+  avatarSrc: z.string().optional(),
   modelName: z.string().nullable()
 })
 
@@ -232,6 +234,8 @@ export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).pa
   planModel: UniqueModelIdSchema.nullable().optional(),
   smallModel: UniqueModelIdSchema.nullable().optional(),
   configuration: AgentConfigurationSchema.partial().optional(),
+  /** Validation basis for `configuration.reasoning_effort` normalization: the model the caller is actually steering (a session-level override when set). Omitted falls back to the agent's (possibly patched) model (cherry-pr-review inv_98911732422a84bf). */
+  reasoningValidationModelId: UniqueModelIdSchema.optional(),
   /**
    * Per-skill enablement changes for this agent. Omitted means "leave skills
    * unchanged"; an empty array is a no-op. The server applies each update

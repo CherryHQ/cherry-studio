@@ -9,7 +9,7 @@ const Nvidia = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const NvidiaIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Nvidia, {
   Avatar: NvidiaAvatar,
-  colorPrimary: '#74B71B'
+  colorPrimary: '#F2F9E4'
 })
 
 export default NvidiaIcon

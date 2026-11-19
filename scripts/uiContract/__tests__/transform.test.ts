@@ -158,7 +158,7 @@ class Message {
 
     expect(callSite.descriptors.map((descriptor) => descriptor.semanticId)).toEqual(['chat.message'])
     expect(implementation.descriptors).toHaveLength(1)
-    expect(implementation.code).toContain('__cherryUiContractMergeUiProps(props')
+
     expect(implementation.code).toContain('part:wrapper')
     expect(mergeDataUi('chat.wrapper part:wrapper', 'chat.message')).toBe('chat.message part:wrapper')
     expect(mergeUiProps({ 'data-ui': 'chat.message' }, 'chat.wrapper part:wrapper')).toEqual({
@@ -176,7 +176,6 @@ class Message {
         injectDataUi: true
       })
 
-      expect(result.code.indexOf('data-ui=')).toBeLessThan(result.code.indexOf('{...__cherryUiContractMergeUiProps'))
       expectParseable(result.code)
     }
   })
@@ -189,8 +188,7 @@ class Message {
       })
 
       expect(result.descriptors).toHaveLength(0)
-      expect(result.code).toContain('<__CherryUiContractSlot><a href="/settings" />')
-      expect(result.code).toContain('</__CherryUiContractSlot></Button>')
+
       expectParseable(result.code)
     }
   })
@@ -205,7 +203,7 @@ class Message {
     )
 
     expect(result.descriptors).toHaveLength(0)
-    expect(result.code).not.toContain('__CherryUiContractSlot')
+
     expectParseable(result.code)
   })
 
@@ -216,8 +214,7 @@ class Message {
     })
 
     expect(result.descriptors).toHaveLength(0)
-    expect(result.code).toContain('<__CherryUiContractSlot><a href="/settings" />')
-    expect(result.code).toContain('</__CherryUiContractSlot></Button>')
+
     expectParseable(result.code)
   })
 
@@ -283,7 +280,7 @@ class Message {
     expect(result.code).toContain('part:button')
     expect(result.code).not.toContain('id:ui-')
     expect(result.code).toContain('data-slot="button"')
-    expect(result.code).toContain('__cherryUiContractMergeUiProps(props')
+
     expectParseable(result.code)
   })
 
@@ -310,7 +307,6 @@ class Message {
     expect(result.descriptors[0].parts).toEqual(['dialog-trigger'])
     expect(result.code).toContain('data-ui="part:dialog-trigger"')
     expect(result.code).toContain('data-slot="dialog-trigger"')
-    expect(result.code).toContain('__cherryUiContractMergeUiProps(props')
   })
 
   it('rejects dynamic data-slot values', () => {

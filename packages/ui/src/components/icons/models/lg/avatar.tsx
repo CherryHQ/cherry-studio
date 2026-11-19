@@ -9,7 +9,7 @@ export function LgAvatar({ size = 32, shape = 'circle', className }: Omit<IconAv
     <Avatar
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
-      <AvatarFallback className="text-foreground bg-background">
+      <AvatarFallback className="text-foreground">
         <LgLight style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>

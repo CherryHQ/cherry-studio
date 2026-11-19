@@ -1,5 +1,8 @@
+import { mockUsePreference } from '@test-mocks/renderer/usePreference'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
+import type * as PreferenceServiceModule from '@renderer/data/PreferenceService'
+import { preferenceService } from '@renderer/data/PreferenceService'
 import { APPLE_ASR_MODEL_ID, FUNASR_MODEL_ID, TranscriptionLanguageSource } from '@shared/ai/localVoice'
 
 import { DictationService } from '../DictationService'
@@ -95,12 +98,12 @@ function createHarness(
       return () => interruptionListeners.delete(listener)
     },
     resolveTranscriptionPreferences: vi.fn<
-      (captured?: ResolvedTranscriptionPreferences) => Promise<ResolvedTranscriptionPreferences>
+      (captured?: ResolvedTranscriptionPreferences) => Promise<ResolvedTranscriptionPreferences | null>
     >(async () => ({
       modelId: APPLE_ASR_MODEL_ID,
       language: { source: TranscriptionLanguageSource.Explicit, locale: 'zh-CN' }
     })),
-    readTranscriptionPreferenceInput: vi.fn<() => Promise<ResolvedTranscriptionPreferences>>(async () => ({
+    readTranscriptionPreferenceInput: vi.fn<() => Promise<ResolvedTranscriptionPreferences | null>>(async () => ({
       modelId: APPLE_ASR_MODEL_ID,
       language: { source: TranscriptionLanguageSource.Explicit, locale: 'zh-CN' }
     })),
@@ -187,7 +190,8 @@ async function startAndStop(service: DictationService): Promise<void> {
   await service.stop()
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  await preferenceService.set('feature.voice.recognition.model_id', '')
   vi.useRealTimers()
 })
 
@@ -196,6 +200,360 @@ afterEach(() => {
 })
 
 describe('DictationService recording lifecycle', () => {
+  it.each([undefined, null, 'off', '', 'error', 'subscribe-error'] as const)(
+    'requires subscription then a defined On snapshot for admission: %s',
+    async (truth) => {
+      const real = await vi.importActual<typeof PreferenceServiceModule>('@renderer/data/PreferenceService')
+      const previousApi = window.api
+      let registered = false
+      const subscription = deferred<void>()
+      const get = vi.fn(async () => {
+        expect(registered).toBe(true)
+        if (truth === 'error') throw new Error('read unavailable')
+        return truth
+      })
+      const subscribe = vi.fn(async () => {
+        await subscription.promise
+        if (truth === 'subscribe-error') throw new Error('subscribe unavailable')
+        registered = true
+      })
+      window.api = {
+        preference: { get, subscribe, set: vi.fn(async () => undefined), onChanged: vi.fn(() => () => undefined) }
+      } as unknown as typeof window.api
+      const preferences = new real.PreferenceService()
+      await preferences.set('feature.voice.recognition.model_id', '')
+      const fresh = vi
+        .spyOn(preferenceService, 'ensureFreshSubscription')
+        .mockImplementation((key) => preferences.ensureFreshSubscription(key))
+      const h = createHarness()
+      const phases: string[] = []
+      h.service.subscribe(() => phases.push(h.service.getSnapshot().phase))
+      try {
+        const run = h.service.startScoped()
+        await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce())
+        expect(get).not.toHaveBeenCalled()
+        expect(h.getUserMedia).not.toHaveBeenCalled()
+        subscription.resolve()
+        await run.result
+        if (truth === '') {
+          expect(h.service.getSnapshot().phase).toBe('recording')
+          expect(h.getUserMedia).toHaveBeenCalledOnce()
+        } else {
+          expect(h.service.getSnapshot().phase).toBe('idle')
+          expect(phases).not.toContain('starting')
+          expect(phases).not.toContain('failed')
+          expect(h.voice.initialize).not.toHaveBeenCalled()
+          expect(h.voice.startRecording).not.toHaveBeenCalled()
+          expect(h.getUserMedia).not.toHaveBeenCalled()
+        }
+        if (truth === 'error') {
+          get.mockResolvedValue('')
+          await h.service.start()
+          expect(get).toHaveBeenCalledTimes(2)
+          expect(subscribe).toHaveBeenCalledOnce()
+          expect(h.service.getSnapshot().phase).toBe('recording')
+          expect(h.getUserMedia).toHaveBeenCalledOnce()
+        }
+      } finally {
+        await h.service.teardown()
+        fresh.mockRestore()
+        preferences.cleanup()
+        window.api = previousApi
+      }
+    }
+  )
+
+  it.each(['', undefined])('blocks Off after a push and optimistic rollback to %s', async (oldValue) => {
+    const real = await vi.importActual<typeof PreferenceServiceModule>('@renderer/data/PreferenceService')
+    const previousApi = window.api
+    const key = 'feature.voice.recognition.model_id' as const
+    const read = deferred<string>()
+    const write = deferred<void>()
+    let push!: (key: string, value: unknown) => void
+    const get = vi.fn().mockReturnValueOnce(read.promise).mockResolvedValue('off')
+    const set = vi.fn().mockResolvedValue(undefined)
+    window.api = {
+      preference: {
+        get,
+        set,
+        subscribe: vi.fn(async () => undefined),
+        onChanged: (listener: typeof push) => {
+          push = listener
+          return () => undefined
+        }
+      }
+    } as unknown as typeof window.api
+    const preferences = new real.PreferenceService()
+    const fresh = vi
+      .spyOn(preferenceService, 'ensureFreshSubscription')
+      .mockImplementation((k) => preferences.ensureFreshSubscription(k))
+    const h = createHarness()
+    const phases: string[] = []
+    h.service.subscribe(() => phases.push(h.service.getSnapshot().phase))
+    try {
+      if (oldValue !== undefined) await preferences.set(key, oldValue)
+      set.mockReturnValueOnce(write.promise)
+      const writing = preferences.set(key, APPLE_ASR_MODEL_ID)
+      const failedWrite = expect(writing).rejects.toThrow('write failed')
+      const alignment = preferences.ensureFreshSubscription(key)
+      await vi.waitFor(() => expect(get).toHaveBeenCalledOnce())
+      push(key, 'off')
+      write.reject(new Error('write failed'))
+      await failedWrite
+      expect(preferences.getCachedValue(key)).toBe(oldValue)
+      const run = h.service.startScoped()
+      await vi.waitFor(() => expect(fresh).toHaveBeenCalledOnce())
+      read.resolve('off')
+      await run.result
+      expect(h.service.getSnapshot().phase).toBe('idle')
+      expect(await alignment).toEqual({ ok: true, value: 'off' })
+      expect(get).toHaveBeenCalledTimes(2)
+      expect(preferences.getCachedValue(key)).toBe('off')
+      expect(phases).not.toContain('starting')
+      expect(phases).not.toContain('failed')
+      expect(h.voice.initialize).not.toHaveBeenCalled()
+      expect(h.getUserMedia).not.toHaveBeenCalled()
+    } finally {
+      await h.service.teardown()
+      fresh.mockRestore()
+      preferences.cleanup()
+      window.api = previousApi
+    }
+  })
+
+  it('silently cancels admission when all three snapshot attempts race with pushes', async () => {
+    const real = await vi.importActual<typeof PreferenceServiceModule>('@renderer/data/PreferenceService')
+    const previousApi = window.api
+    let push!: (key: string, value: unknown) => void
+    const get = vi.fn(async (key: string) => {
+      push(key, '')
+      return 'off'
+    })
+    window.api = {
+      preference: {
+        get,
+        subscribe: vi.fn(async () => undefined),
+        onChanged: (listener: typeof push) => {
+          push = listener
+          return () => undefined
+        }
+      }
+    } as unknown as typeof window.api
+    const preferences = new real.PreferenceService()
+    const fresh = vi
+      .spyOn(preferenceService, 'ensureFreshSubscription')
+      .mockImplementation((key) => preferences.ensureFreshSubscription(key))
+    const h = createHarness()
+    const phases: string[] = []
+    h.service.subscribe(() => phases.push(h.service.getSnapshot().phase))
+    try {
+      await h.service.start()
+      expect(await fresh.mock.results[0].value).toEqual({ ok: false })
+      expect(get).toHaveBeenCalledTimes(3)
+      expect(h.service.getSnapshot().phase).toBe('idle')
+      expect(phases).not.toContain('starting')
+      expect(phases).not.toContain('failed')
+      expect(h.voice.initialize).not.toHaveBeenCalled()
+      expect(h.voice.startRecording).not.toHaveBeenCalled()
+      expect(h.getUserMedia).not.toHaveBeenCalled()
+    } finally {
+      await h.service.teardown()
+      fresh.mockRestore()
+      preferences.cleanup()
+      window.api = previousApi
+    }
+  })
+
+  it('does not let an old Off snapshot cancel a newer On recording', async () => {
+    const oldRead = deferred<{ ok: true; value: string }>()
+    const fresh = vi
+      .spyOn(preferenceService, 'ensureFreshSubscription')
+      .mockReturnValueOnce(oldRead.promise)
+      .mockResolvedValue({ ok: true, value: '' })
+    const h = createHarness()
+    try {
+      const a = h.service.startScoped()
+      await vi.waitFor(() => expect(fresh).toHaveBeenCalledOnce())
+      await preferenceService.set('feature.voice.recognition.model_id', 'off')
+      await preferenceService.set('feature.voice.recognition.model_id', '')
+      const b = h.service.startScoped()
+      await b.result
+      expect(h.service.getSnapshot().phase).toBe('recording')
+      oldRead.resolve({ ok: true, value: 'off' })
+      await a.result
+      expect(h.service.getSnapshot().phase).toBe('recording')
+      expect(h.voice.discardSession).not.toHaveBeenCalled()
+      expect(h.tracks.every((track) => track.stop.mock.calls.length === 0)).toBe(true)
+    } finally {
+      await h.service.teardown()
+      fresh.mockRestore()
+    }
+  })
+
+  it('cancels recording when the settings hook writes Off through the shared mock', async () => {
+    const h = createHarness()
+    await h.service.start()
+    expect(h.service.getSnapshot().phase).toBe('recording')
+    const [, setModel] = mockUsePreference('feature.voice.recognition.model_id')
+    await setModel('off')
+    await vi.waitFor(() => expect(h.service.getSnapshot().phase).toBe('idle'))
+    expect(h.tracks.every((track) => track.stop.mock.calls.length === 1)).toBe(true)
+    await h.service.teardown()
+  })
+
+  it('keeps Off cancellation subscribed when an older initialization fails during a new preference read', async () => {
+    const h = createHarness()
+    const initialization = deferred<void>()
+    h.voice.initialize.mockReturnValueOnce(initialization.promise)
+    const a = h.service.startScoped()
+    await vi.waitFor(() => expect(h.voice.initialize).toHaveBeenCalledOnce())
+    await preferenceService.set('feature.voice.recognition.model_id', 'off')
+    await vi.waitFor(() => expect(h.service.getSnapshot().phase).toBe('idle'))
+    await preferenceService.set('feature.voice.recognition.model_id', '')
+    const preferences = deferred<ResolvedTranscriptionPreferences>()
+    h.voice.readTranscriptionPreferenceInput.mockReturnValueOnce(preferences.promise)
+    const b = h.service.startScoped()
+    await vi.waitFor(() => expect(h.voice.readTranscriptionPreferenceInput).toHaveBeenCalledTimes(2))
+    initialization.reject(new Error('old initialization failed'))
+    await a.result
+    await preferenceService.setMultiple({ 'feature.voice.recognition.model_id': 'off' })
+    await vi.waitFor(() => expect(h.service.getSnapshot().phase).toBe('idle'))
+    await preferenceService.set('feature.voice.recognition.model_id', '')
+    preferences.resolve({ modelId: APPLE_ASR_MODEL_ID })
+    await b.result
+    expect(h.voice.startRecording).not.toHaveBeenCalled()
+    expect(h.getUserMedia).not.toHaveBeenCalled()
+    expect(h.service.getSnapshot().phase).toBe('idle')
+    await h.service.teardown()
+  })
+
+  it('releases a cancelled session without waiting for permission and stops its late stream without disturbing a new run', async () => {
+    const permission = deferred<MediaStream>()
+    const lateTrack = { stop: vi.fn() }
+    const lateStream = { getTracks: () => [lateTrack] } as unknown as MediaStream
+    const nextStream = { getTracks: () => [{ stop: vi.fn() }] } as unknown as MediaStream
+    const getUserMedia = vi
+      .fn<() => Promise<MediaStream>>()
+      .mockReturnValueOnce(permission.promise)
+      .mockResolvedValueOnce(nextStream)
+    const h = createHarness({ getUserMedia })
+    const a = h.service.startScoped()
+    await vi.waitFor(() => expect(getUserMedia).toHaveBeenCalledOnce())
+    await preferenceService.setMultiple({ 'feature.voice.recognition.model_id': 'off' })
+    await vi.waitFor(() => expect(h.service.getSnapshot().phase).toBe('idle'))
+    expect(h.voice.discardSession.mock.calls).toEqual([['session-1']])
+    await preferenceService.set('feature.voice.recognition.model_id', '')
+    const b = h.service.startScoped()
+    await b.result
+    expect(h.service.getSnapshot().phase).toBe('recording')
+    permission.resolve(lateStream)
+    await a.result
+    expect(lateTrack.stop).toHaveBeenCalledOnce()
+    expect(h.voice.discardSession.mock.calls).toEqual([['session-1']])
+    expect(h.service.getSnapshot().phase).toBe('recording')
+    expect(h.createMediaRecorder).toHaveBeenCalledOnce()
+    await h.service.teardown()
+  })
+
+  it.each(['global', 'scoped'] as const)('keeps %s stop pending until microphone permission settles', async (scope) => {
+    const permission = deferred<MediaStream>()
+    const h = createHarness({ getUserMedia: vi.fn(() => permission.promise) })
+    const run = h.service.startScoped()
+    await vi.waitFor(() => expect(h.getUserMedia).toHaveBeenCalledOnce())
+    let stopped = false
+    const stop = (scope === 'scoped' ? run.stop() : h.service.stop()).then(() => {
+      stopped = true
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(stopped).toBe(false)
+    expect(h.voice.discardSession).not.toHaveBeenCalled()
+    expect(h.service.getSnapshot().phase).toBe('starting')
+    permission.resolve(h.stream)
+    await Promise.all([stop, run.result])
+    expect(stopped).toBe(true)
+    expect(h.service.getSnapshot().phase).toBe('idle')
+    h.tracks.forEach((track) => expect(track.stop).toHaveBeenCalledOnce())
+    expect(h.createMediaRecorder).not.toHaveBeenCalled()
+    await h.service.teardown()
+  })
+
+  it('clears a completed failure on Off so it cannot reappear on On', async () => {
+    const h = createHarness()
+    h.voice.readTranscriptionPreferenceInput.mockRejectedValueOnce({ reason: 'unsupported' })
+    await h.service.start()
+    expect(h.service.getSnapshot().phase).toBe('failed')
+    await preferenceService.set('feature.voice.recognition.model_id', 'off')
+    await vi.waitFor(() => expect(h.service.getSnapshot().phase).toBe('idle'))
+    await preferenceService.set('feature.voice.recognition.model_id', '')
+    expect(h.service.getSnapshot()).toEqual({ phase: 'idle', elapsedMs: 0, recoveryAvailable: false })
+    await h.service.teardown()
+  })
+
+  it('ignores a pending Off read after a newer On run starts', async () => {
+    const h = createHarness()
+    const oldRead = deferred<ResolvedTranscriptionPreferences | null>()
+    h.voice.readTranscriptionPreferenceInput.mockReturnValueOnce(oldRead.promise)
+    const old = h.service.startScoped()
+    await vi.waitFor(() => expect(h.voice.readTranscriptionPreferenceInput).toHaveBeenCalledOnce())
+    await preferenceService.set('feature.voice.recognition.model_id', 'off')
+    await preferenceService.set('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    const next = h.service.startScoped()
+    await next.result
+    oldRead.resolve(null)
+    await old.result
+    expect(h.service.getSnapshot().phase).toBe('recording')
+    expect(h.voice.startRecording).toHaveBeenCalledOnce()
+    expect(h.voice.discardSession).not.toHaveBeenCalled()
+    await h.service.teardown()
+    await preferenceService.set('feature.voice.recognition.model_id', '')
+  })
+
+  it('does not discard any session when Off is selected without local work', async () => {
+    const h = createHarness()
+    await h.service.initialize()
+    await preferenceService.set('feature.voice.recognition.model_id', 'off')
+    expect(h.service.getSnapshot().phase).toBe('idle')
+    expect(h.voice.abortTranscription).not.toHaveBeenCalled()
+    expect(h.voice.discardSession).not.toHaveBeenCalled()
+    await h.service.teardown()
+    await preferenceService.set('feature.voice.recognition.model_id', '')
+  })
+
+  it('does not admit or capture audio when recognition is Off', async () => {
+    const h = createHarness()
+    h.voice.readTranscriptionPreferenceInput.mockResolvedValueOnce(null)
+    await h.service.startScoped().result
+    expect(h.service.getSnapshot().phase).toBe('idle')
+    expect(h.voice.initialize).not.toHaveBeenCalled()
+    expect(h.voice.startRecording).not.toHaveBeenCalled()
+    expect(h.getUserMedia).not.toHaveBeenCalled()
+    expect(h.voice.discardSession).not.toHaveBeenCalled()
+    await h.service.teardown()
+  })
+
+  it('cancels recording on Off and preserves a new run after Off to On', async () => {
+    const h = createHarness()
+    await h.service.start()
+    const cleanup = deferred<void>()
+    h.voice.discardSession.mockReturnValueOnce(cleanup.promise)
+    await preferenceService.set('feature.voice.recognition.model_id', 'off')
+    expect(h.recorders[0].state).toBe('inactive')
+    h.tracks.forEach((track) => expect(track.stop).toHaveBeenCalled())
+    await preferenceService.set('feature.voice.recognition.model_id', APPLE_ASR_MODEL_ID)
+    const next = h.service.startScoped()
+    cleanup.resolve()
+    await next.result
+    expect(h.service.getSnapshot().phase).toBe('recording')
+    expect(h.voice.createRecording).not.toHaveBeenCalled()
+    expect(h.voice.transcribe).not.toHaveBeenCalled()
+    await preferenceService.set('feature.voice.recognition.model_id', 'off')
+    await vi.waitFor(() => expect(h.service.getSnapshot().phase).toBe('idle'))
+    expect(h.replaceRange).not.toHaveBeenCalled()
+    await preferenceService.set('feature.voice.recognition.model_id', '')
+    await h.service.teardown()
+  })
+
   it('does not let a released shortcut stop a newer dictation run', async () => {
     const harness = createHarness()
     const first = harness.service.startScoped()

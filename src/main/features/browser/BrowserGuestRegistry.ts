@@ -23,6 +23,7 @@ export interface BrowserGuestContext {
 
 export interface BrowserGuestTarget extends BrowserGuestContext {
   tabId: string
+  pageId: string
   guest: WebContents
   windowId: WindowId
   abort: AbortController
@@ -43,7 +44,7 @@ export class BrowserGuestRegistry implements Disposable {
     private readonly claims = new Map<WebContents, BrowserGuestTarget>()
   ) {}
 
-  attach(sessionId: string, webviewId: number, senderId: WindowId | null): { tabId: string } {
+  attach(sessionId: string, webviewId: number, senderId: WindowId | null, pageId = sessionId): { tabId: string } {
     const ownerId = this.getOwner(sessionId)
     const window = senderId ? application.get('WindowManager').getWindow(senderId) : undefined
     const guest = webContents.fromId(webviewId)
@@ -64,7 +65,10 @@ export class BrowserGuestRegistry implements Disposable {
     ) {
       throw new BrowserSessionError('not_allowed')
     }
-    const existing = this.targets.get(sessionId)
+    const existing = this.targets.get(pageId)
+    if (existing && existing.sessionId !== sessionId) throw new BrowserSessionError('not_allowed')
+    if ([...this.targets.values()].some((target) => target.sessionId === sessionId && target.windowId !== senderId))
+      throw new BrowserSessionError('not_allowed')
     if (existing?.guest === guest && existing.windowId === senderId && !existing.abort.signal.aborted)
       return { tabId: existing.tabId }
     const claim = this.claims.get(guest)
@@ -106,9 +110,21 @@ export class BrowserGuestRegistry implements Disposable {
     )
     let executions = 0
     let throttling = true
+    const reportExecution = (executing: boolean) => {
+      if (!window.isDestroyed())
+        application.get('IpcApiService').send(senderId, 'browser.page.execution', {
+          sessionId,
+          scope: this.scope,
+          pageId,
+          tabId,
+          executing,
+          webviewId: guest.id
+        })
+    }
     const restoreThrottling = () => {
       if (executions && !guest.isDestroyed()) guest.setBackgroundThrottling(throttling)
       executions = 0
+      reportExecution(false)
     }
     abort.signal.addEventListener('abort', restoreThrottling, { once: true })
     const beginExecution = (): Disposable => {
@@ -116,6 +132,7 @@ export class BrowserGuestRegistry implements Disposable {
       if (executions++ === 0) {
         throttling = guest.getBackgroundThrottling()
         guest.setBackgroundThrottling(false)
+        reportExecution(true)
       }
       let released = false
       return {
@@ -128,14 +145,15 @@ export class BrowserGuestRegistry implements Disposable {
       }
     }
     const dispose = () => {
-      if (this.targets.get(sessionId)?.tabId !== tabId) return
-      this.targets.delete(sessionId)
+      if (this.targets.get(pageId)?.tabId !== tabId) return
+      this.targets.delete(pageId)
       this.claims.delete(guest)
       guest.removeListener('destroyed', dispose)
       abort.abort(new BrowserSessionError('not_found'))
       this.changed.fire()
     }
-    this.targets.set(sessionId, {
+    this.targets.set(pageId, {
+      pageId,
       ownerId,
       sessionId,
       tabId,
@@ -146,21 +164,21 @@ export class BrowserGuestRegistry implements Disposable {
       beginExecution,
       dispose
     })
-    this.claims.set(guest, this.targets.get(sessionId)!)
+    this.claims.set(guest, this.targets.get(pageId)!)
     guest.once('destroyed', dispose)
     this.changed.fire()
     return { tabId }
   }
 
   getCursor(sessionId: string, tabId: string, senderId: WindowId | null): BrowserCursor | undefined {
-    const target = this.targets.get(sessionId)
+    const target = [...this.targets.values()].find((item) => item.sessionId === sessionId && item.tabId === tabId)
     if (!target || target.tabId !== tabId || target.abort.signal.aborted) return undefined
     if (target.windowId !== senderId) throw new BrowserSessionError('not_allowed')
     return target.cursor
   }
 
   async focusInput(context: BrowserGuestContext, target: BrowserGuestTarget, options: CommandOptions): Promise<void> {
-    if (this.get(context) !== target) throw new BrowserSessionError('not_found')
+    if (this.get(context, target.tabId) !== target) throw new BrowserSessionError('not_found')
     const expiresAt = Math.min(Date.now() + 2000, options.deadline ?? Infinity)
     if (expiresAt <= Date.now()) throw new BrowserSessionError('timeout')
     const signal = AbortSignal.any([
@@ -194,7 +212,7 @@ export class BrowserGuestRegistry implements Disposable {
       }
     })
     signal.throwIfAborted()
-    if (this.get(context) !== target) throw new BrowserSessionError('not_found')
+    if (this.get(context, target.tabId) !== target) throw new BrowserSessionError('not_found')
   }
 
   inputFocused(
@@ -205,7 +223,7 @@ export class BrowserGuestRegistry implements Disposable {
     senderId: WindowId | null
   ): void {
     const pending = this.pendingFocus.get(requestId)
-    if (!pending || pending.target !== this.targets.get(sessionId) || pending.target.tabId !== tabId) return
+    if (!pending || pending.target !== this.getPageTarget(sessionId, tabId) || pending.target.tabId !== tabId) return
     if (pending.target.windowId !== senderId) throw new BrowserSessionError('not_allowed')
     pending.finish(status === 'unavailable' ? new BrowserSessionError('not_found') : undefined)
   }
@@ -227,14 +245,19 @@ export class BrowserGuestRegistry implements Disposable {
       target.popupBlocked = true
       return true
     }
-    void guest.loadURL(url, { httpReferrer: details.referrer }).catch((error) => {
-      logger.warn('Failed to navigate browser popup in the Agent pane', { error })
+    application.get('IpcApiService').send(target.windowId, 'browser.guest.ensure_requested', {
+      sessionId: target.sessionId,
+      scope: this.scope,
+      pageId: randomUUID(),
+      url,
+      action: 'create',
+      activate: details.disposition !== 'background-tab'
     })
     return true
   }
 
   detach(sessionId: string, tabId: string, senderId: WindowId | null): void {
-    const target = this.targets.get(sessionId)
+    const target = [...this.targets.values()].find((item) => item.sessionId === sessionId && item.tabId === tabId)
     if (!target || target.tabId !== tabId) return
     if (target.windowId !== senderId) throw new BrowserSessionError('not_allowed')
     target.abort.abort(new BrowserSessionError('not_found'))
@@ -249,29 +272,49 @@ export class BrowserGuestRegistry implements Disposable {
     }
   }
 
-  get(context: BrowserGuestContext): BrowserGuestTarget | undefined {
-    const ownerId = this.getOwner(context.sessionId)
-    if (ownerId !== context.ownerId) throw new BrowserSessionError('not_allowed')
-    const target = this.targets.get(context.sessionId)
-    if (!target || target.guest.isDestroyed() || target.abort.signal.aborted) return undefined
-    target.ownerId = ownerId
-    return target
+  private getPageTarget(sessionId: string, tabId: string): BrowserGuestTarget | undefined {
+    return [...this.targets.values()].find((target) => target.sessionId === sessionId && target.tabId === tabId)
   }
 
-  async ensureGuest(context: BrowserGuestContext, signal: AbortSignal, url?: string): Promise<BrowserGuestTarget> {
+  list(context: BrowserGuestContext): BrowserGuestTarget[] {
+    const ownerId = this.getOwner(context.sessionId)
+    if (ownerId !== context.ownerId) throw new BrowserSessionError('not_allowed')
+    return [...this.targets.values()].filter((target) => {
+      if (target.sessionId !== context.sessionId || target.guest.isDestroyed() || target.abort.signal.aborted)
+        return false
+      target.ownerId = ownerId
+      return true
+    })
+  }
+
+  get(context: BrowserGuestContext, tabId?: string): BrowserGuestTarget | undefined {
+    const targets = this.list(context)
+    return tabId ? targets.find((target) => target.tabId === tabId) : targets[0]
+  }
+
+  async ensureGuest(
+    context: BrowserGuestContext,
+    signal: AbortSignal,
+    url?: string,
+    options: { pageId?: string; newTab?: boolean } = {}
+  ): Promise<BrowserGuestTarget> {
     signal.throwIfAborted()
-    const existing = this.get(context)
+    const targets = this.list(context)
+    const existing = options.newTab
+      ? undefined
+      : options.pageId
+        ? targets.find((target) => target.pageId === options.pageId)
+        : targets[0]
+    if (options.pageId && !existing && !options.newTab) throw new BrowserSessionError('not_found')
     const isFile = url?.startsWith('file:')
     const expectedSession = session.fromPartition(
       getWebviewPartition(isFile ? WebviewSecurityProfile.AgentHtmlArtifact : WebviewSecurityProfile.AgentBrowser)
     )
     const matches = (target: BrowserGuestTarget) =>
       !url || (target.guest.session === expectedSession && (!isFile || target.guest.getURL() === url))
-    if (existing && matches(existing)) {
-      return existing
-    }
-    const timeout = AbortSignal.timeout(10_000)
-    const abort = AbortSignal.any([signal, timeout])
+    if (existing && matches(existing)) return existing
+    const pageId = existing?.pageId ?? options.pageId ?? randomUUID()
+    const abort = AbortSignal.any([signal, AbortSignal.timeout(10_000)])
     return new Promise((resolve, reject) => {
       const cleanup = () => {
         subscription.dispose()
@@ -283,7 +326,7 @@ export class BrowserGuestRegistry implements Disposable {
       }
       const subscription = this.changed.event(() => {
         try {
-          const target = this.get(context)
+          const target = this.list(context).find((item) => item.pageId === pageId)
           if (target && matches(target)) {
             cleanup()
             resolve(target)
@@ -298,8 +341,11 @@ export class BrowserGuestRegistry implements Disposable {
         abort.throwIfAborted()
         application.get('IpcApiService').broadcast('browser.guest.ensure_requested', {
           sessionId: context.sessionId,
-          ...(this.scope === 'topic' ? { scope: this.scope } : {}),
-          url: isFile ? url : url ? 'about:blank' : undefined
+          scope: this.scope,
+          pageId,
+          action: existing ? 'navigate' : 'create',
+          url: isFile ? url : url ? 'about:blank' : undefined,
+          activate: false
         })
       } catch (error) {
         cleanup()

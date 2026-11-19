@@ -1,15 +1,13 @@
 import type { JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { BehaviorEvent } from '../core/decisions'
-import type { CallKey, ToolCallFact, UsageFact } from '../core/facts'
+import type { CallKey, ToolCallFact } from '../core/facts'
 import type {
   ApprovalAnswer,
   ApprovalHostFacts,
-  ApprovalOutcome,
   Attendance,
   Autonomy,
   CallRef,
-  CompactionReason,
   GoalDefaults,
   ModelFacts,
   PermissionMode,
@@ -24,26 +22,27 @@ export type ApprovalRequest = {
   readonly call: CallRef
   readonly tool: ToolCallFact
   readonly presentation: 'stream' | 'message'
+  readonly details?: JsonValue
 }
 /**
- * P1. Ask a person whether a call may run; tell the rules how people answered before.
+ * P1. Ask a person whether a call may run.
+ *
+ * Decisions never read answers back from the host: a denied or unanswerable call reaches them only as its blocked
+ * result in the thread's own history, and a parent never reads its children's calls.
  *
  * @harness coding-agent Cherry's tool approval registry and approval card, asked from the `tool_call` event; `Memory`
  * is H6's in-session store, since a restart drops the pending call.
  * @harness durable `beforeTool` waits before the intent and reruns after a crash; `Memory` is `api.memo`, and the host
  * deduplicates a repeated ask by `CallRef`.
- * @harness fake Scripted answers; an ask with none queued stays pending and shows as 'pending' in `outcomes`; `Memory`
- * is the fake's persistent memo table.
- * @keys `CallRef` (thread and call key) identifies a call to the host, which persists outcomes. The gate always records
- * each answer through `Memory.remember` under `cherry.approval:<callKey>`.
+ * @harness fake Scripted answers; an ask with none queued stays pending; `Memory` is the fake's persistent memo table.
+ * @keys `CallRef` (thread and call key) identifies a call to the host. The gate always records each answer through
+ * `Memory.remember` under `cherry.approval:<callKey>`.
  * @waits `ask` waits for a person until answered or `signal` aborts.
  */
 export interface Approvals {
   /** A child's call comes with the child's thread; answer it by the agent tool policy of its root conversation. */
   facts(call: CallRef, tool: ToolCallFact): Promise<ApprovalHostFacts>
   ask(request: ApprovalRequest, signal: AbortSignal): Promise<ApprovalAnswer>
-  /** [plan choice] Persisted outcomes of `calls` on `thread`; an empty list asks for every call the host knows there. */
-  outcomes(thread: ThreadId, calls: readonly CallRef[]): Promise<readonly ApprovalOutcome[]>
 }
 
 export type QuestionRequest = { readonly call: CallRef; readonly questions: readonly QuestionItem[] }
@@ -118,31 +117,6 @@ export interface OutputStore {
   save(file: OutputFile): Promise<string>
 }
 
-export type SummaryRequest = {
-  readonly reason: CompactionReason
-  readonly thread: ThreadId
-  readonly messages: readonly JsonValue[]
-  readonly previousSummary?: string
-  readonly instructions?: string
-}
-/**
- * P6. Write a compaction summary with the host's model.
- *
- * Its caller is `LifecycleHandlers.onCompacting`; adapters never call `Summarizer` or build the `cherry.summary:` memo
- * name themselves.
- *
- * @harness coding-agent Before each compaction; a rejection or an empty summary cancels it.
- * @harness durable `beforeCompact` returns `{ summary }` or `{ decline: true }`; the select phase reruns after a crash.
- * @harness fake Scripted summaries; with none queued it rejects.
- * @keys The summary is memoized under `cherry.summary:<compactionKey>`.
- */
-export interface Summarizer {
-  summarize(
-    request: SummaryRequest,
-    signal: AbortSignal
-  ): Promise<string | { readonly summary: string; readonly usage: UsageFact }>
-}
-
 /**
  * P7. Tell the host what happened, for display only; results never reach a parent through here.
  *
@@ -182,7 +156,6 @@ export interface HostPorts {
   readonly models: Models
   readonly verifier: Verifier
   readonly outputStore: OutputStore
-  readonly summarizer: Summarizer
   readonly observation: Observation
   readonly settings: Settings
 }

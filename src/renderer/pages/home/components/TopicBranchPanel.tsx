@@ -73,14 +73,81 @@ const TopicBranchPanel: FC<Props> = ({
   }, [open, topicId])
   const messagesCachePath = `/topics/${topicId}/messages` as const
   const treeCachePath = `/topics/${topicId}/tree` as const
-  const { data, error, isLoading, refetch } = useQuery('/topics/:topicId/tree', {
+  const { data, error, isLoading, isRefreshing, refetch } = useQuery('/topics/:topicId/tree', {
     enabled: open,
     params: { topicId }
   })
+  const refreshCycleRef = useRef<{
+    id: number
+    topicId: string
+    focusKey: Props['focusKey']
+    cached: boolean
+  } | null>(null)
+  const [cycleRefresh, setCycleRefresh] = useState<{
+    cycle: NonNullable<typeof refreshCycleRef.current>
+    settled: boolean
+    sawRevalidating: boolean
+    failed?: boolean
+    ready: boolean
+  } | null>(null)
+
+  const refreshTree = useCallback(async () => {
+    const cycle = refreshCycleRef.current
+    if (!cycle) return
+    let failed = false
+    try {
+      await refetch()
+    } catch {
+      failed = true
+    } finally {
+      if (refreshCycleRef.current === cycle) {
+        setCycleRefresh((previous) => {
+          if (!previous || previous.cycle !== cycle || previous.ready) return previous
+          return { ...previous, settled: true, failed }
+        })
+      }
+    }
+  }, [refetch])
+
+  useEffect(() => {
+    if (!open) return
+    if (refreshCycleRef.current?.topicId === topicId && refreshCycleRef.current.focusKey === focusKey) return
+    const cycle = { id: (refreshCycleRef.current?.id ?? 0) + 1, topicId, focusKey, cached: data !== undefined }
+    refreshCycleRef.current = cycle
+    setCycleRefresh({ cycle, settled: false, sawRevalidating: isRefreshing, ready: false })
+    if (data !== undefined) void refreshTree()
+  }, [open, topicId, focusKey, data, isRefreshing, refreshTree])
+
+  useEffect(() => {
+    if (!cycleRefresh || cycleRefresh.ready || cycleRefresh.cycle !== refreshCycleRef.current) return
+    if (isRefreshing) {
+      if (!cycleRefresh.sawRevalidating) setCycleRefresh({ ...cycleRefresh, sawRevalidating: true })
+      return
+    }
+    const hasResult = data !== undefined || !!error
+    const unobservedRevalidation =
+      !cycleRefresh.sawRevalidating && (cycleRefresh.settled || (!cycleRefresh.cycle.cached && !isLoading && hasResult))
+    if (
+      (cycleRefresh.sawRevalidating && hasResult) ||
+      (!cycleRefresh.sawRevalidating && (cycleRefresh.failed || error)) ||
+      unobservedRevalidation
+    ) {
+      setCycleRefresh({ ...cycleRefresh, ready: true })
+    }
+  }, [cycleRefresh, data, error, isLoading, isRefreshing])
+
+  const focusReady =
+    open &&
+    !isRefreshing &&
+    cycleRefresh?.cycle.topicId === topicId &&
+    cycleRefresh.cycle.focusKey === focusKey &&
+    cycleRefresh.cycle === refreshCycleRef.current &&
+    cycleRefresh.ready
+
   useDataChange(
     '/topics/:topicId/tree',
     () => {
-      if (open) void refetch()
+      if (open) void refreshTree()
     },
     { routeParams: { topicId } }
   )
@@ -290,11 +357,11 @@ const TopicBranchPanel: FC<Props> = ({
         </span>
       </div>
       <div className="min-h-0 flex-1">
-        {error ? (
+        {error && !data ? (
           <div className="flex h-full min-h-80 items-center justify-center text-destructive text-sm" role="alert">
             {t('common.error')}
           </div>
-        ) : isLoading ? (
+        ) : isLoading && !data ? (
           <div className="flex h-full min-h-80 items-center justify-center text-foreground-tertiary text-sm">
             {t('common.loading')}
           </div>
@@ -306,7 +373,8 @@ const TopicBranchPanel: FC<Props> = ({
             <div className="h-full min-h-0">
               <TopicMessageFlowCanvas
                 className="h-full min-h-0 rounded-none border-0"
-                focusKey={focusKey}
+                focusKey={cycleRefresh?.cycle.id}
+                focusReady={focusReady}
                 graph={graph}
                 layoutReady={layoutReady}
                 onNodeContextMenu={handleNodeContextMenu}

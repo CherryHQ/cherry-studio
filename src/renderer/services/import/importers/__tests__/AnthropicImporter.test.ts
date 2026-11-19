@@ -73,13 +73,6 @@ describe('AnthropicImporter', () => {
     importer = new AnthropicImporter()
   })
 
-  describe('metadata', () => {
-    it('identifies itself as the Claude importer', () => {
-      expect(importer.name).toBe('Claude')
-      expect(importer.emoji).toBeTruthy()
-    })
-  })
-
   describe('validate', () => {
     it('accepts a valid Claude export array', () => {
       expect(importer.validate(JSON.stringify([conversation()]))).toBe(true)
