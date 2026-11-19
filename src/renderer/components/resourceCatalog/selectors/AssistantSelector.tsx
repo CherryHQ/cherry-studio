@@ -1,4 +1,4 @@
-import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
+import { lazy, type ReactElement, Suspense, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
@@ -100,6 +100,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
+  const createdAssistantRef = useRef<Assistant | null>(null)
   const selectorOpen = open ?? internalOpen
   const handleSelectorOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -186,14 +187,18 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     [onDialogCloseAutoFocus]
   )
 
+  const autoSelectsCreated = autoSelectOnCreate && props.multi !== true
+  // Closing the wizard after a create closes the picker when it already picked the new Assistant.
   const handleCreateDialogOpenChange = useCallback(
     (nextOpen: boolean) => {
       setCreateDialogOpen(nextOpen)
-      if (!nextOpen) {
-        onDialogCloseAutoFocus?.()
-      }
+      if (nextOpen) return
+      onDialogCloseAutoFocus?.()
+      if (!createdAssistantRef.current) return
+      createdAssistantRef.current = null
+      handleSelectorOpenChange(!autoSelectsCreated)
     },
-    [onDialogCloseAutoFocus]
+    [autoSelectsCreated, handleSelectorOpenChange, onDialogCloseAutoFocus]
   )
 
   const handleSubmitCreate = useCallback(
@@ -208,15 +213,14 @@ export function AssistantSelector(props: AssistantSelectorProps) {
         throw error
       }
 
-      setCreateDialogOpen(false)
-      onDialogCloseAutoFocus?.()
+      createdAssistantRef.current = created
       try {
         await refetch()
       } catch (error) {
         logger.warn('Failed to refresh assistants after selector create', { error })
         toast.error(t('selector.create_dialog.refresh_failed'))
       }
-      if (autoSelectOnCreate && props.multi !== true) {
+      if (autoSelectsCreated) {
         if (props.selectionType === 'item') {
           props.onChange({
             id: created.id,
@@ -227,12 +231,10 @@ export function AssistantSelector(props: AssistantSelectorProps) {
         } else {
           props.onChange(created.id)
         }
-        handleSelectorOpenChange(false)
-        return
       }
-      handleSelectorOpenChange(true)
+      return created.id
     },
-    [autoSelectOnCreate, createAssistant, handleSelectorOpenChange, onDialogCloseAutoFocus, props, refetch, t]
+    [autoSelectsCreated, createAssistant, props, refetch, t]
   )
 
   const createDialog = (

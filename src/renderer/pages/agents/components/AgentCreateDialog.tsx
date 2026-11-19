@@ -13,24 +13,24 @@ const logger = loggerService.withContext('AgentCreateDialog')
 type AgentCreateDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreated: (agentId: string) => void | Promise<void>
+  /** The result page's "Start conversation"; the Agent already exists when it runs. */
+  onStartConversation: (agentId: string) => void | Promise<void>
 }
 
-export function AgentCreateDialog({ open, onOpenChange, onCreated }: AgentCreateDialogProps) {
+export function AgentCreateDialog({ open, onOpenChange, onStartConversation }: AgentCreateDialogProps) {
   const { createAgent, isCreatingAgent } = useAgentMutations()
 
   const handleSubmitCreate = useCallback(
     async (values: ResourceCreateWizardValues) => {
       try {
         const created = await createAgent(buildCreateAgentCommand(values))
-        onOpenChange(false)
-        await onCreated(created.id)
+        return created.id
       } catch (error) {
         logger.error('Failed to create agent', error as Error)
         throw error
       }
     },
-    [createAgent, onCreated, onOpenChange]
+    [createAgent]
   )
 
   return (
@@ -40,6 +40,7 @@ export function AgentCreateDialog({ open, onOpenChange, onCreated }: AgentCreate
       isSubmitting={isCreatingAgent}
       onOpenChange={onOpenChange}
       onSubmit={handleSubmitCreate}
+      onStartConversation={(agentId) => void onStartConversation(agentId)}
     />
   )
 }
