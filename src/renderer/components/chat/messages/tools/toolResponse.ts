@@ -1,5 +1,5 @@
 import { CallToolResultSchema } from '@modelcontextprotocol/core'
-import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
+import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UITools } from 'ai'
 import { getToolName, isToolUIPart } from 'ai'
 import type * as z from 'zod'
 
@@ -60,8 +60,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * `AgentToolsType` name; all other parts keep their wire name.
  */
 export function getCanonicalToolName(part: CherryMessagePart): string | undefined {
-  if (!isToolUIPart(part as UIMessagePart<UIDataTypes, UITools>)) return undefined
-  const toolPart = part as unknown as ToolResponsePart
+  if (!isToolUIPart(part)) return undefined
+  const toolPart = part
   const toolName = getToolName(toolPart).trim()
   if (!toolName) return undefined
   if (
@@ -235,9 +235,9 @@ function normalizePiFileInput(name: string, input: Record<string, unknown>): Rec
 }
 
 export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: string): ToolResponseLike | null {
-  if (!isToolUIPart(part as UIMessagePart<UIDataTypes, UITools>)) return null
+  if (!isToolUIPart(part)) return null
 
-  const toolPart = part as unknown as ToolResponsePart
+  const toolPart = part
   const toolCallId = toolPart.toolCallId || fallbackId
   if (!toolCallId) return null
   const toolName = normalizeToolName(toolPart)
@@ -332,8 +332,8 @@ export function findToolPartByCallId(
   if (!partsMap || !toolCallId) return null
   for (const [messageId, parts] of Object.entries(partsMap)) {
     for (const part of parts) {
-      if (!isToolUIPart(part as UIMessagePart<UIDataTypes, UITools>)) continue
-      const p = part as unknown as ToolResponsePart
+      if (!isToolUIPart(part)) continue
+      const p = part
       if (p.toolCallId !== toolCallId) continue
       const approvalId = p.approval?.id
       if (!approvalId) continue

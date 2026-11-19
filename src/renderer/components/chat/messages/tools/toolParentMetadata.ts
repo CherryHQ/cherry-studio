@@ -27,7 +27,7 @@ function getParentMetadata(part: CherryMessagePart): Record<string, unknown> | u
 }
 
 export function getPartParentToolCallId(part: CherryMessagePart): string | undefined {
-  const direct = (part as unknown as { parentToolUseId?: unknown }).parentToolUseId
+  const direct = 'parentToolUseId' in part ? part.parentToolUseId : undefined
   if (typeof direct === 'string' && direct) return direct
 
   const parent = getParentMetadata(part)
