@@ -106,6 +106,7 @@ import {
 } from '../../../messages/topicImageActionBus'
 import TopicImageCaptureHost from '../../../messages/TopicImageCaptureHost'
 import type { AddNewTopicPayload } from '../../../types'
+import { assignTopicToNewGroup } from './assignTopicToNewGroup'
 import {
   type AssistantGroupActionContext,
   executeAssistantGroupAction,
@@ -379,10 +380,14 @@ export function Topics({
         await updateTopicGroup(topicSubjectNameDialog.groupId, { name })
         return
       }
-      const group = await createTopicGroup(name)
-      await patchTopic(topicSubjectNameDialog.topic.id, { groupId: group.id })
+      const topicId = topicSubjectNameDialog.topic.id
+      await assignTopicToNewGroup({
+        createGroup: () => createTopicGroup(name),
+        deleteGroup: deleteTopicGroup,
+        assign: (groupId) => patchTopic(topicId, { groupId })
+      })
     },
-    [createTopicGroup, patchTopic, topicSubjectNameDialog, updateTopicGroup]
+    [createTopicGroup, deleteTopicGroup, patchTopic, topicSubjectNameDialog, updateTopicGroup]
   )
   const handleDeleteTopicSubject = useCallback(
     async (groupId: string) => {
