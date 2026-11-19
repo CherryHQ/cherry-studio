@@ -1,11 +1,24 @@
-import { and, count, desc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
+import { statSync } from 'node:fs'
+import path from 'node:path'
+
+import { and, count, desc, eq, inArray, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { artifactTable } from '@data/db/schemas/artifact'
 import { fileEntryTable } from '@data/db/schemas/file'
+import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import type { DbOrTx } from '@data/db/types'
+import {
+  GENERATE_IMAGE_TOOL_NAME,
+  generateImageOutputItemSchema,
+  REPORT_ARTIFACTS_TOOL_NAME,
+  reportArtifactsInputSchema
+} from '@shared/ai/builtinTools'
 import {
   ARTIFACT_LIST_LIMIT,
   type ArtifactKind,
@@ -27,6 +40,23 @@ export interface ReportedAgentArtifact {
 
 export type ArtifactOwner = { agentId: string } | { assistantId: string }
 
+/** A deliverable an Agent session reported before outputs were indexed. */
+type PastAgentReport = Omit<ReportedAgentArtifact, 'size'> & {
+  agentId: string
+  sessionId: string
+  /** When the reporting message was created. */
+  reportedAt: number
+}
+
+function fileSizeSync(filePath: string): number | null {
+  try {
+    const stats = statSync(filePath)
+    return stats.isFile() ? stats.size : null
+  } catch {
+    return null
+  }
+}
+
 const PAGE_EXTENSIONS = new Set(['html', 'htm', 'md', 'markdown'])
 const MEDIA_TYPES = new Set<string>([FILE_TYPE.IMAGE, FILE_TYPE.AUDIO, FILE_TYPE.VIDEO])
 
@@ -38,6 +68,23 @@ export function getArtifactKind(fileName: string): ArtifactKind {
   if (PAGE_EXTENSIONS.has(extension)) return 'page'
   return MEDIA_TYPES.has(getFileTypeByExt(extension)) ? 'media' : 'file'
 }
+
+type StoredToolCall = { input?: unknown; output?: unknown }
+
+/** The successful calls of a tool in a stored message's parts; malformed parts are skipped. */
+function successfulToolCalls(data: unknown, isTool: (name: string) => boolean): StoredToolCall[] {
+  const parts = (data as { parts?: unknown } | null)?.parts
+  if (!Array.isArray(parts)) return []
+  return parts.filter((part) => {
+    const type = part?.type
+    if (typeof type !== 'string' || part.state !== 'output-available') return false
+    const name = type === 'dynamic-tool' ? part.toolName : type.startsWith('tool-') ? type.slice(5) : undefined
+    return typeof name === 'string' && isTool(name)
+  })
+}
+
+const isReportArtifactsTool = (name: string) =>
+  name === REPORT_ARTIFACTS_TOOL_NAME || name.endsWith(`__${REPORT_ARTIFACTS_TOOL_NAME}`)
 
 export class ArtifactService {
   private get db() {
@@ -100,6 +147,136 @@ export class ArtifactService {
       notifyDataApiDataChange([
         { endpoint: '/assistants/:id/artifacts', kind: 'membership', routeParams: { id: assistantId } }
       ])
+  }
+
+  /**
+   * Index outputs made before this index existed: deliverables reported in live Agent sessions (the
+   * newest report per session and path, sized from the file still on disk) and the images
+   * `generate_image` made in live Assistant topics. Idempotent; `PastOutputsBackfillSeeder` runs it.
+   */
+  backfillPastOutputsTx(tx: DbOrTx): void {
+    for (const report of this.findPastAgentReportsTx(tx)) {
+      const { agentId, sessionId, path: filePath, title, reportedAt } = report
+      const values = { title, kind: getArtifactKind(filePath), size: fileSizeSync(filePath), reportedAt }
+      tx.insert(artifactTable)
+        .values({ agentId, sessionId, path: filePath, ...values })
+        .onConflictDoUpdate({
+          target: [artifactTable.sessionId, artifactTable.path],
+          set: values,
+          setWhere: sql`excluded.reported_at > ${artifactTable.reportedAt}`
+        })
+        .run()
+    }
+    this.backfillAssistantImagesTx(tx)
+  }
+
+  /** Deliverables reported in live Agent sessions; paths resolve against the session workspace. */
+  private findPastAgentReportsTx(tx: DbOrTx): PastAgentReport[] {
+    const messages = tx
+      .select({
+        agentId: agentSessionTable.agentId,
+        sessionId: agentSessionTable.id,
+        workspacePath: agentWorkspaceTable.path,
+        data: agentSessionMessageTable.data,
+        createdAt: agentSessionMessageTable.createdAt
+      })
+      .from(agentSessionMessageTable)
+      .innerJoin(agentSessionTable, eq(agentSessionTable.id, agentSessionMessageTable.sessionId))
+      .innerJoin(agentWorkspaceTable, eq(agentWorkspaceTable.id, agentSessionTable.workspaceId))
+      .where(
+        and(
+          isNotNull(agentSessionTable.agentId),
+          isNull(agentSessionTable.deletedAt),
+          sql`${agentSessionMessageTable.data} LIKE ${`%${REPORT_ARTIFACTS_TOOL_NAME}%`}`
+        )
+      )
+      .all()
+
+    const reports = new Map<string, PastAgentReport>()
+    for (const message of messages) {
+      for (const call of successfulToolCalls(message.data, isReportArtifactsTool)) {
+        const input = reportArtifactsInputSchema.safeParse(call.input)
+        if (!input.success) continue
+        for (const artifact of input.data.artifacts) {
+          const filePath = path.resolve(message.workspacePath, artifact.path)
+          const key = `${message.sessionId}\n${filePath}`
+          if ((reports.get(key)?.reportedAt ?? -1) > message.createdAt) continue
+          reports.set(key, {
+            agentId: message.agentId!,
+            sessionId: message.sessionId,
+            path: filePath,
+            title: artifact.description ?? path.basename(filePath),
+            reportedAt: message.createdAt
+          })
+        }
+      }
+    }
+    return [...reports.values()]
+  }
+
+  /** Images `generate_image` made in live Assistant topics that are not indexed yet. */
+  private backfillAssistantImagesTx(tx: DbOrTx): void {
+    const messages = tx
+      .select({
+        topicId: topicTable.id,
+        assistantId: topicTable.assistantId,
+        data: messageTable.data,
+        createdAt: messageTable.createdAt
+      })
+      .from(messageTable)
+      .innerJoin(topicTable, eq(topicTable.id, messageTable.topicId))
+      .where(
+        and(
+          isNotNull(topicTable.assistantId),
+          isNull(topicTable.deletedAt),
+          isNull(messageTable.deletedAt),
+          sql`${messageTable.data} LIKE ${`%${GENERATE_IMAGE_TOOL_NAME}%`}`
+        )
+      )
+      .all()
+    const indexed = new Set(
+      tx
+        .select({ topicId: artifactTable.topicId, fileEntryId: artifactTable.fileEntryId })
+        .from(artifactTable)
+        .where(isNotNull(artifactTable.topicId))
+        .all()
+        .map((row) => `${row.topicId}\n${row.fileEntryId}`)
+    )
+    const images = new Map<string, { topicId: string; assistantId: string; reportedAt: number }>()
+    for (const message of messages) {
+      for (const call of successfulToolCalls(message.data, (name) => name === GENERATE_IMAGE_TOOL_NAME)) {
+        const output = Array.isArray(call.output) ? call.output : (call.output as { content?: unknown })?.content
+        if (!Array.isArray(output)) continue
+        for (const item of output) {
+          const image = generateImageOutputItemSchema.safeParse(item)
+          if (!image.success || indexed.has(`${message.topicId}\n${image.data.id}`)) continue
+          images.set(image.data.id, {
+            topicId: message.topicId,
+            assistantId: message.assistantId!,
+            reportedAt: message.createdAt
+          })
+        }
+      }
+    }
+    if (images.size) {
+      const files = tx
+        .select({
+          id: fileEntryTable.id,
+          name: fileEntryTable.name,
+          ext: fileEntryTable.ext,
+          size: fileEntryTable.size
+        })
+        .from(fileEntryTable)
+        .where(inArray(fileEntryTable.id, [...images.keys()]))
+        .all()
+      for (const file of files) {
+        const owner = images.get(file.id)!
+        const title = file.ext ? `${file.name}.${file.ext}` : file.name
+        tx.insert(artifactTable)
+          .values({ ...owner, fileEntryId: file.id, title, kind: getArtifactKind(title), size: file.size })
+          .run()
+      }
+    }
   }
 
   /** Outputs from the owner's live sessions or topics, newest first, with the totals of every kind. */

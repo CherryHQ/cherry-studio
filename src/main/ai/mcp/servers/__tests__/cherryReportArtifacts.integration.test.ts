@@ -2,10 +2,12 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { setupTestDatabase } from '@test-helpers/db'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { seedSessionRoot, setupTestDatabase } from '@test-helpers/db'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { PastOutputsBackfillSeeder } from '@data/db/seeding/seeders/PastOutputsBackfillSeeder'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { artifactService } from '@data/services/ArtifactService'
@@ -46,6 +48,7 @@ describe('report_artifacts indexes the Agent outputs', () => {
   })
 
   afterEach(async () => {
+    vi.restoreAllMocks()
     await rm(workspacePath, { recursive: true, force: true })
   })
 
@@ -85,5 +88,44 @@ describe('report_artifacts indexes the Agent outputs', () => {
 
     expect(result.isError, toolText(result)).not.toBe(true)
     expect(toolText(result)).toContain('Recorded 1 artifact')
+  })
+
+  describe('past reports', () => {
+    function pastReport(artifacts: { path: string; description?: string }[]) {
+      dbh.db
+        .insert(agentSessionMessageTable)
+        .values({
+          sessionId,
+          parentId: seedSessionRoot(dbh.db, sessionId),
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              {
+                type: 'dynamic-tool',
+                toolName: 'mcp__cherry-tools__report_artifacts',
+                toolCallId: 'call-1',
+                state: 'output-available',
+                input: { artifacts },
+                output: { content: 'Recorded' }
+              }
+            ]
+          } as never
+        })
+        .run()
+    }
+
+    it('indexes deliverables reported before outputs were indexed, sized from the files still on disk', async () => {
+      await writeFile(path.join(workspacePath, 'summary.md'), '# Summary')
+      pastReport([{ path: 'summary.md', description: 'Summary' }, { path: 'deleted.pdf' }])
+
+      new PastOutputsBackfillSeeder().run(dbh.db)
+
+      const byTitle = Object.fromEntries(
+        artifactService.list({ agentId: 'reporter' }).items.map((item) => [item.title, item])
+      )
+      expect(byTitle.Summary).toMatchObject({ path: path.join(workspacePath, 'summary.md'), kind: 'page', size: 9 })
+      expect(byTitle['deleted.pdf']).toMatchObject({ kind: 'file', size: undefined })
+    })
   })
 })

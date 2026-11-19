@@ -1,8 +1,9 @@
 import { Film, Globe, ImageIcon, Music } from 'lucide-react'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
+import { Button, Skeleton } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useDataChange, useQuery } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
@@ -42,7 +43,7 @@ const GROUPS: readonly { value: OutputsGroup; label: string }[] = [
 /** Everything the Agent reported as a deliverable; a click opens it in the Files pane. */
 export function AgentOutputs({ agentId, onOpen }: { agentId: string; onOpen?: (path: string) => void }) {
   const [filter, setFilter] = useState<OutputsFilter>('all')
-  const { data, refetch } = useQuery('/agents/:agentId/artifacts', {
+  const { data, error, refetch } = useQuery('/agents/:agentId/artifacts', {
     params: { agentId },
     query: filter === 'all' ? {} : { kind: filter },
     // Keeps the list in place while another kind loads.
@@ -53,6 +54,8 @@ export function AgentOutputs({ agentId, onOpen }: { agentId: string; onOpen?: (p
   return (
     <OutputsList
       list={data}
+      failed={Boolean(error) && !data}
+      onRetry={() => void refetch()}
       filter={filter}
       onFilterChange={setFilter}
       emptyHint="chat.profile_pane.outputs.empty.agent"
@@ -65,7 +68,7 @@ export function AgentOutputs({ agentId, onOpen }: { agentId: string; onOpen?: (p
 /** Images the Assistant generated in its topics; a click previews the image. */
 export function AssistantOutputs({ assistantId }: { assistantId: string }) {
   const [filter, setFilter] = useState<OutputsFilter>('all')
-  const { data, refetch } = useQuery('/assistants/:id/artifacts', {
+  const { data, error, refetch } = useQuery('/assistants/:id/artifacts', {
     params: { id: assistantId },
     query: filter === 'all' ? {} : { kind: filter },
     // Keeps the list in place while another kind loads.
@@ -76,6 +79,8 @@ export function AssistantOutputs({ assistantId }: { assistantId: string }) {
   return (
     <OutputsList
       list={data}
+      failed={Boolean(error) && !data}
+      onRetry={() => void refetch()}
       filter={filter}
       onFilterChange={setFilter}
       emptyHint="chat.profile_pane.outputs.empty.assistant"
@@ -99,6 +104,8 @@ async function previewImage(item: ArtifactEntity) {
 
 function OutputsList({
   list,
+  failed,
+  onRetry,
   filter,
   onFilterChange,
   emptyHint,
@@ -106,6 +113,8 @@ function OutputsList({
   onOpen
 }: {
   list?: ArtifactList
+  failed: boolean
+  onRetry: () => void
   filter: OutputsFilter
   onFilterChange: (filter: OutputsFilter) => void
   emptyHint: string
@@ -115,16 +124,35 @@ function OutputsList({
 }) {
   const { t, i18n } = useTranslation()
   const missing = useMissingOutputs(list?.items ?? [])
-  if (!list) return null
-
-  if (!list.counts.all) {
+  if (failed) {
     return (
-      <div className="flex flex-col items-center gap-1 px-4 py-10 text-center">
-        <span className="text-foreground text-sm">{t('chat.profile_pane.outputs.empty.title')}</span>
-        <span className="text-muted-foreground text-xs">{t(emptyHint)}</span>
+      <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
+        <span className="text-muted-foreground text-xs">{t('chat.profile_pane.outputs.load_failed')}</span>
+        <Button size="sm" variant="outline" onClick={onRetry}>
+          {t('common.retry')}
+        </Button>
       </div>
     )
   }
+
+  if (!list) {
+    return (
+      <div className="flex flex-col gap-2" aria-busy>
+        <span className="sr-only">{t('common.loading')}</span>
+        {[0, 1, 2].map((row) => (
+          <div key={row} className="flex items-center gap-3 rounded-xl border border-border-subtle px-3 py-2.5">
+            <Skeleton className="size-7 shrink-0 rounded-md" />
+            <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+              <Skeleton className="h-3.5 w-2/3 rounded-sm" />
+              <Skeleton className="h-3 w-1/3 rounded-sm" />
+            </span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  if (!list.counts.all) return <OutputsEmpty hint={t(emptyHint)} />
 
   const now = new Date()
   const firstDayOfWeek = getLocaleFirstDayOfWeek(i18n.language)
@@ -281,4 +309,226 @@ function formatTime(date: Date, group: OutputsGroup, now: Date, language: string
         ? { weekday: 'short' }
         : { month: 'short', day: 'numeric', ...(date.getFullYear() !== now.getFullYear() && { year: 'numeric' }) }
   return new Intl.DateTimeFormat(language, options).format(date)
+}
+
+type Sprite = { x: number; y: number; tilt: number; fill: string; cells: readonly (readonly [number, number])[] }
+
+/** Pixel sprites around the cards, each on a 4-unit grid. */
+const SPRITES: readonly Sprite[] = [
+  {
+    x: 26,
+    y: 94,
+    tilt: -12,
+    fill: 'fill-orange-500',
+    cells: [
+      [1, 0],
+      [3, 0],
+      [0, 1],
+      [2, 1],
+      [1, 2],
+      [3, 2],
+      [0, 3],
+      [2, 3]
+    ]
+  },
+  {
+    x: 54,
+    y: 34,
+    tilt: 14,
+    fill: 'fill-sky-500',
+    cells: [
+      [0, 0],
+      [1, 0],
+      [2, 0],
+      [3, 0],
+      [0, 1],
+      [0, 2],
+      [2, 3],
+      [3, 3]
+    ]
+  },
+  {
+    x: 110,
+    y: 10,
+    tilt: 18,
+    fill: 'fill-amber-400',
+    cells: [
+      [0, 0],
+      [3, 0],
+      [1, 1],
+      [2, 1],
+      [1, 2],
+      [0, 3],
+      [3, 3]
+    ]
+  },
+  {
+    x: 166,
+    y: 28,
+    tilt: -16,
+    fill: 'fill-emerald-500',
+    cells: [
+      [1, 0],
+      [3, 0],
+      [0, 1],
+      [1, 1],
+      [2, 1],
+      [3, 1],
+      [4, 1],
+      [1, 2],
+      [3, 2],
+      [0, 3],
+      [2, 3],
+      [4, 3]
+    ]
+  },
+  {
+    x: 196,
+    y: 82,
+    tilt: 10,
+    fill: 'fill-pink-500',
+    cells: [
+      [0, 0],
+      [3, 0],
+      [1, 1],
+      [2, 1],
+      [1, 2],
+      [2, 2],
+      [0, 3],
+      [3, 3]
+    ]
+  }
+]
+
+const CARDS = [
+  { x: 52, y: 66, rotate: -8, tint: 8 },
+  { x: 86, y: 44, rotate: 4, tint: 6 },
+  { x: 106, y: 72, rotate: -3, tint: 3 }
+] as const
+
+/** What each window holds, in card coordinates: a picture, a file of code, and a page being written. */
+function CardContent({
+  index,
+  x,
+  y,
+  quiet,
+  strong,
+  lineClass
+}: {
+  index: number
+  x: number
+  y: number
+  quiet: string
+  strong: string
+  /** Animates a line as if it were being written. */
+  lineClass: string
+}) {
+  if (index === 0) {
+    return (
+      <>
+        <rect x={x + 6} y={y + 18} width="28" height="36" rx="3" stroke={quiet} strokeWidth="1.5" />
+        <circle cx={x + 26} cy={y + 26} r="3" className="fill-amber-400" />
+        <path d={`m${x + 8} ${y + 50} 8-10 6 6 4-4 6 8`} stroke={quiet} strokeWidth="1.5" strokeLinejoin="round" />
+      </>
+    )
+  }
+  if (index === 1) {
+    return (
+      <g stroke={quiet} strokeWidth="2" strokeLinecap="round">
+        <path d={`M${x + 8} ${y + 20}h14M${x + 26} ${y + 20}h20`} />
+        <path d={`M${x + 14} ${y + 26}h24`} />
+      </g>
+    )
+  }
+  return (
+    <g strokeLinecap="round">
+      {PAGE_LINES.map((line, row) => (
+        <path
+          key={line.dy}
+          className={lineClass}
+          style={{ animationDelay: `${row * 0.3}s` }}
+          pathLength={1}
+          d={`M${x + 10} ${y + line.dy}h${line.width}`}
+          stroke={line.heading ? strong : quiet}
+          strokeWidth={line.heading ? 3 : 2}
+        />
+      ))}
+    </g>
+  )
+}
+
+const PAGE_LINES: readonly { dy: number; width: number; heading?: boolean }[] = [
+  { dy: 22, width: 34, heading: true },
+  { dy: 32, width: 64 },
+  { dy: 39, width: 56 },
+  { dy: 46, width: 60 },
+  { dy: 53, width: 36 }
+]
+
+/** Empty windows waiting for their first output, with pixel sprites drifting around them. */
+function OutputsIllustration() {
+  const id = useId().replace(/:/g, '')
+  const edge = 'color-mix(in oklab, var(--foreground) 12%, transparent)'
+  const dot = 'color-mix(in oklab, var(--muted-foreground) 45%, transparent)'
+  const quiet = 'color-mix(in oklab, var(--muted-foreground) 35%, transparent)'
+  const strong = 'color-mix(in oklab, var(--muted-foreground) 60%, transparent)'
+
+  return (
+    <svg width="220" height="150" viewBox="0 0 240 164" fill="none" aria-hidden="true">
+      <style>{`
+        .${id}-sprite { transform-box: fill-box; transform-origin: center; animation: ${id}-float 3.6s ease-in-out infinite }
+        .${id}-front { animation: ${id}-drift 6s ease-in-out infinite }
+        @keyframes ${id}-float {
+          0%, 100% { transform: translateY(0) rotate(0deg) }
+          50% { transform: translateY(-7px) rotate(10deg) }
+        }
+        .${id}-line { stroke-dasharray: 1; animation: ${id}-write 5s ease-out infinite }
+        @keyframes ${id}-drift { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-3px) } }
+        @keyframes ${id}-write { 0% { stroke-dashoffset: 1 } 30%, 88% { stroke-dashoffset: 0 } 100% { stroke-dashoffset: 1 } }
+        @media (prefers-reduced-motion: reduce) { .${id}-sprite, .${id}-front, .${id}-line { animation: none } }
+      `}</style>
+
+      {CARDS.map((card, index) => (
+        <g key={index} className={index === CARDS.length - 1 ? `${id}-front` : undefined}>
+          <g transform={`rotate(${card.rotate} ${card.x + 42} ${card.y + 31})`}>
+            <rect
+              x={card.x}
+              y={card.y}
+              width="84"
+              height="62"
+              rx="6"
+              fill={`color-mix(in oklab, var(--muted-foreground) ${card.tint}%, var(--card))`}
+              stroke={edge}
+            />
+            <path d={`M${card.x} ${card.y + 12}h84`} stroke={edge} />
+            {[8, 14, 20].map((dx) => (
+              <circle key={dx} cx={card.x + dx} cy={card.y + 6} r="1.6" fill={dot} />
+            ))}
+            <CardContent index={index} x={card.x} y={card.y} quiet={quiet} strong={strong} lineClass={`${id}-line`} />
+          </g>
+        </g>
+      ))}
+
+      {SPRITES.map((sprite, index) => (
+        <g key={sprite.fill} transform={`rotate(${sprite.tilt} ${sprite.x + 8} ${sprite.y + 8})`}>
+          <g className={cn(`${id}-sprite`, sprite.fill)} style={{ animationDelay: `${index * -0.7}s` }}>
+            {sprite.cells.map(([cx, cy]) => (
+              <rect key={`${cx}-${cy}`} x={sprite.x + cx * 4} y={sprite.y + cy * 4} width="4" height="4" />
+            ))}
+          </g>
+        </g>
+      ))}
+    </svg>
+  )
+}
+
+function OutputsEmpty({ hint }: { hint: string }) {
+  const { t } = useTranslation()
+  return (
+    <div className="flex flex-col items-center px-6 pt-8 pb-12 text-center">
+      <OutputsIllustration />
+      <span className="mt-4 text-foreground text-sm">{t('chat.profile_pane.outputs.empty.title')}</span>
+      <span className="mt-1.5 max-w-60 text-muted-foreground text-xs leading-relaxed">{hint}</span>
+    </div>
+  )
 }
