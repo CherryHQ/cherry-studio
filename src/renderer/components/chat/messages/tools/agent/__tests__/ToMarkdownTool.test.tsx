@@ -72,6 +72,25 @@ describe('ToMarkdownTool', () => {
     expect(screen.getByTestId('stats')).toBeEmptyDOMElement()
   })
 
+  it('renders a valid receipt for an empty converted file', () => {
+    render(<Harness output={receipt('/tmp/empty.md', 0)} />)
+
+    expect(screen.getByTestId('file-path')).toHaveAttribute('data-path', '/tmp/empty.md')
+    expect(screen.getByTestId('stats')).toHaveTextContent('message.tools.units.char:0')
+  })
+
+  it.each(['-1', '0.5', '1e400'])('omits a receipt with invalid character count %s', (chars) => {
+    render(
+      <Harness
+        input={{ path: '/tmp/source.pdf' }}
+        output={{ content: [{ type: 'text', text: `{"path":"/tmp/result.md","chars":${chars}}` }] }}
+      />
+    )
+
+    expect(screen.getAllByTestId('file-path')).toHaveLength(1)
+    expect(screen.getByTestId('stats')).toBeEmptyDOMElement()
+  })
+
   it('survives a partial streaming input with no path yet', () => {
     render(<Harness input={{}} />)
     expect(screen.queryByTestId('file-path')).toBeNull()
