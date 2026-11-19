@@ -36,7 +36,7 @@ const PORT_MAX = 65535
 const ApiGatewayPanel: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const [apiKeyVisible, setApiKeyVisible] = useState(false)
+  const [visibility, setVisibility] = useState<{ key: string; visible: boolean }>({ key: '', visible: false })
 
   // API Gateway state from useApiGateway hook
   const {
@@ -56,6 +56,8 @@ const ApiGatewayPanel: FC = () => {
   const serverPort = apiGatewayConfig.port || API_SERVER_DEFAULTS.PORT
   const serverUrl = gatewayClientOrigin(serverHost, serverPort)
   const apiKey = apiGatewayConfig.apiKey || ''
+  const apiKeyVisible = visibility.key === apiKey && visibility.visible
+  if (visibility.key !== apiKey) setVisibility({ key: apiKey, visible: false })
   const authorizationHeader = `Authorization: Bearer ${apiKey || 'your-api-key'}`
 
   const handleApiGatewayToggle = async (enabled: boolean) => {
@@ -154,32 +156,32 @@ const ApiGatewayPanel: FC = () => {
         </StatusActions>
       </StatusCard>
       <Sections>
-        {!apiGatewayRunning && (
-          <SettingGroup theme={theme} className="mt-0 overflow-hidden p-0">
-            <ConnectionFields>
-              <Field className="min-w-0">
-                <SettingRowTitle>{t('apiGateway.fields.url.label')}</SettingRowTitle>
-                <InputGroup className="mt-2 min-w-0">
-                  <InputGroupInput
-                    className="font-mono text-xs"
-                    aria-label={t('apiGateway.fields.url.label')}
-                    value={serverUrl}
-                    readOnly
-                  />
-                  <InputGroupAddon align="inline-end">
-                    <Tooltip content={t('apiGateway.fields.url.copyTooltip')}>
-                      <InputGroupButton size="icon-xs" asChild>
-                        <CopyButton
-                          textToCopy={serverUrl}
-                          size={16}
-                          aria-label={t('apiGateway.fields.url.copyTooltip')}
-                          successFeedback="icon"
-                        />
-                      </InputGroupButton>
-                    </Tooltip>
-                  </InputGroupAddon>
-                </InputGroup>
-              </Field>
+        <SettingGroup theme={theme} className="mt-0 overflow-hidden p-0">
+          <ConnectionFields className={apiGatewayRunning ? 'grid-cols-1' : undefined}>
+            <Field className="min-w-0">
+              <SettingRowTitle>{t('apiGateway.fields.url.label')}</SettingRowTitle>
+              <InputGroup className="mt-2 min-w-0">
+                <InputGroupInput
+                  className="font-mono text-xs"
+                  aria-label={t('apiGateway.fields.url.label')}
+                  value={serverUrl}
+                  readOnly
+                />
+                <InputGroupAddon align="inline-end">
+                  <Tooltip content={t('apiGateway.fields.url.copyTooltip')}>
+                    <InputGroupButton size="icon-xs" asChild>
+                      <CopyButton
+                        textToCopy={serverUrl}
+                        size={16}
+                        aria-label={t('apiGateway.fields.url.copyTooltip')}
+                        successFeedback="icon"
+                      />
+                    </InputGroupButton>
+                  </Tooltip>
+                </InputGroupAddon>
+              </InputGroup>
+            </Field>
+            {!apiGatewayRunning && (
               <Field>
                 <SettingRowTitle>{t('apiGateway.fields.port.label')}</SettingRowTitle>
                 <InputNumber
@@ -190,9 +192,9 @@ const ApiGatewayPanel: FC = () => {
                   onBlur={handlePortChange}
                 />
               </Field>
-            </ConnectionFields>
-          </SettingGroup>
-        )}
+            )}
+          </ConnectionFields>
+        </SettingGroup>
 
         <SettingGroup theme={theme} className="mt-0 overflow-hidden p-0">
           <CredentialFields>
@@ -227,7 +229,7 @@ const ApiGatewayPanel: FC = () => {
                       aria-label={t(
                         apiKeyVisible ? 'settings.provider.api_key.hide_key' : 'settings.provider.api_key.show_key'
                       )}
-                      onClick={() => setApiKeyVisible((visible) => !visible)}
+                      onClick={() => setVisibility({ key: apiKey, visible: !apiKeyVisible })}
                       disabled={!apiKey}>
                       {apiKeyVisible ? <EyeOff /> : <Eye />}
                     </InputGroupButton>
@@ -294,7 +296,7 @@ const StatusCard = ({
 )
 
 const StatusSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex min-w-0 flex-1 items-center gap-3', className)} {...props} />
+  <div className={cn('flex min-w-[min(100%,15rem)] flex-1 items-center gap-3', className)} {...props} />
 )
 
 const StatusIcon = ({

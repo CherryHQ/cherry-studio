@@ -119,17 +119,34 @@ describe('ApiGatewayPanel', () => {
     rerender(<ApiGatewayPanel />)
     expect(screen.getByText(en['apiGateway.status.running'])).toBeInTheDocument()
     expect(screen.getByText('http://127.0.0.1:23333')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: en['apiGateway.fields.url.copyTooltip'] })).toHaveAttribute(
+      'data-copy-text',
+      'http://127.0.0.1:23333'
+    )
     fireEvent.click(screen.getByRole('button', { name: en['apiGateway.actions.stop'] }))
     expect(stopApiGateway).toHaveBeenCalledOnce()
   })
 
-  it('masks the API key until the user reveals it', () => {
-    render(<ApiGatewayPanel />)
+  it('remasks both fields when a revealed credential changes in another panel', () => {
+    const state = gatewayState()
+    const { rerender } = render(<ApiGatewayPanel />)
     const key = screen.getByLabelText(en['apiGateway.fields.apiKey.label'])
+    const header = screen.getByLabelText(en['apiGateway.authHeader.title'])
     expect(key).toHaveAttribute('type', 'password')
-    expect(screen.queryByDisplayValue('Authorization: Bearer cs-sk-test-key')).not.toBeInTheDocument()
+    expect(header).not.toHaveValue('Authorization: Bearer cs-sk-test-key')
     fireEvent.click(screen.getByRole('button', { name: en['settings.provider.api_key.show_key'] }))
     expect(key).toHaveAttribute('type', 'text')
-    expect(screen.getByDisplayValue('Authorization: Bearer cs-sk-test-key')).toBeInTheDocument()
+    expect(header).toHaveValue('Authorization: Bearer cs-sk-test-key')
+    useApiGatewayMock.mockReturnValue({
+      ...state,
+      apiGatewayConfig: { ...state.apiGatewayConfig, apiKey: 'cs-sk-new-key' }
+    })
+    rerender(<ApiGatewayPanel />)
+    expect(key).toHaveAttribute('type', 'password')
+    expect(header).not.toHaveValue('Authorization: Bearer cs-sk-new-key')
+    fireEvent.click(screen.getByRole('button', { name: en['settings.provider.api_key.show_key'] }))
+    expect(key).toHaveAttribute('type', 'text')
+    expect(key).toHaveValue('cs-sk-new-key')
+    expect(header).toHaveValue('Authorization: Bearer cs-sk-new-key')
   })
 })

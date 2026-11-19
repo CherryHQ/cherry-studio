@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { Citation } from '@renderer/types/message'
+import { isKnownNavigationPath } from '@shared/utils/navigationPath'
 
 import type * as CitationTooltipModule from '../CitationTooltip'
 import Link from '../Link'
@@ -142,6 +143,19 @@ describe('Link', () => {
       path: '/app/paintings',
       query: { source: 'assistant' }
     })
+  })
+
+  it('navigates a gateway route instead of opening it as a file', async () => {
+    const openFilePath = vi.fn()
+    expect(isKnownNavigationPath('/app/api-gateway')).toBe(true)
+    render(
+      <Link href="/app/api-gateway" openFilePath={openFilePath}>
+        Gateway
+      </Link>
+    )
+    await userEvent.click(screen.getByRole('button'))
+    expect(mocks.navigateToRoute).toHaveBeenCalledWith({ path: '/app/api-gateway' })
+    expect(openFilePath).not.toHaveBeenCalled()
   })
 
   it('uses trusted registry data when the opaque id and href agree', () => {
