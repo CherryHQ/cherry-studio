@@ -37,7 +37,8 @@ export type {
 } from './contracts'
 export { runtimeId } from './contracts'
 export { cloneHistoryData } from './cloneHistoryData'
-export { HistoryRetention, type CapturedHistory } from './historyRetention'
+export { HistoryRetention } from './historyRetention'
+export { immutable } from './immutable'
 export { ThreadFeed } from './observation'
 export { RuntimeMessageStream } from './messageStream'
 

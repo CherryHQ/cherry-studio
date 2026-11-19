@@ -1,18 +1,3 @@
-import { cloneHistoryData } from './cloneHistoryData'
-
-export interface CapturedHistory<T> {
-  read(): T
-}
-
-const capturedValues = new WeakMap<object, unknown>()
-
-/** Capture an already-owned immutable revision; expose only isolated reads. */
-export function captureOwnedHistory<T>(value: T, copy: (value: T) => T = cloneHistoryData): CapturedHistory<T> {
-  const captured = { read: () => copy(value) }
-  capturedValues.set(captured, value)
-  return captured
-}
-
 /** Counts queued owned graphs once, excluding the authoritative current baseline. */
 export class HistoryRetention {
   private readonly shapes = new WeakMap<object, { bytes: number; children: object[] }>()
@@ -39,8 +24,7 @@ export class HistoryRetention {
       if (child !== null && typeof child === 'object') shape.children.push(child)
       else shape.bytes += typeof child === 'string' ? child.length * 2 + 16 : 8
     }
-    if (capturedValues.has(value)) add(capturedValues.get(value))
-    else if (ArrayBuffer.isView(value)) add(value.buffer)
+    if (ArrayBuffer.isView(value)) add(value.buffer)
     else if (value instanceof ArrayBuffer) shape.bytes += value.byteLength
     else if (value instanceof Map) {
       for (const [key, child] of value) {

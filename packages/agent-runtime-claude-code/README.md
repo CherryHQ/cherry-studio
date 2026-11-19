@@ -102,7 +102,7 @@ shell calls and ambient notifications do not become root reply results. Main reu
 assistant message for background generation instead of creating a standalone continuation message.
 Overflow recovery retains unseen control
 and invocation facts after their matching body; an unrecoverable backlog reports a gap and closes.
-Recovery pins owned publication-time revisions and copies containers only for delivery. The paired
+Recovery shares frozen publication-time revisions with observers. The paired
 Claude queue limits additional retained graphs to an estimated 16 MiB, excluding its current
 authoritative baseline and counting shared objects once. One complete oversized frame is allowed.
 Unrecoverable critical pressure closes that native owner and reports `onObservationError` immediately,
@@ -164,8 +164,10 @@ The adapter preserves signatures, files, citations and raw tool outputs in SDK p
 The desktop adds display metadata and persists source mappings/retractions with its checkpoint.
 `legacy` maps prior UUID/block identities to proven whole-message part positions.
 Baseline and recovery batches always include the full map. Live batches include it only
-when bindings change; omission means retain the previous map. Each observer receives
-an isolated batch, so consumers cannot mutate the feed or another observer's metadata.
+when bindings change; omission means retain the previous map. Batches, retained native messages
+and recovery baselines are frozen and shared by every observer, so a consumer that mutates them fails
+instead of changing the feed or another observer's metadata, and pending recovery frames do not copy
+native history.
 
 Live content uses SDK discriminated unions; block, stream-delta and message-event
 handling is checked exhaustively against the pinned SDK. Archive `SessionMessage.message`

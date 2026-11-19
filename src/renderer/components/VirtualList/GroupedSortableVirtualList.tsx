@@ -593,6 +593,8 @@ function SortableItemRow<TGroup, TItem>({
   })
   const setSortableNodeRef = useCombinedRefs(setNodeRef, setActivatorNodeRef)
 
+  // Disabling dragging must not disable row interaction.
+  // AT/Playwright inherit aria-disabled from ancestors.
   return (
     <div
       ref={setSortableNodeRef}
@@ -604,7 +606,7 @@ function SortableItemRow<TGroup, TItem>({
         transform: dropTargetRowState.isBlocked || freezeTransform ? undefined : CSS.Transform.toString(transform),
         transition: dropTargetRowState.isBlocked || freezeTransform ? undefined : transition
       }}
-      {...attributes}
+      {...(draggableDisabled ? {} : attributes)}
       {...listeners}>
       {dropIndicatorPosition ? <DropIndicator position={dropIndicatorPosition} /> : null}
       {children}

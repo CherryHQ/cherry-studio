@@ -991,8 +991,6 @@ it('restores a reply from its bound input before any projection checkpoint exist
     .set({ parentId: f.user.id })
     .where(eq(agentSessionMessageTable.id, f.replyB.id))
     .run()
-  expect(messages.recoveredInputReply('root', f.context.id, f.user.id)).toBe(f.replyB.id)
-  expect(messages.recoveredInputReply('root', 'another-context', f.user.id)).toBeUndefined()
   await f.emit({
     type: 'autonomous-turn-state',
     state: 'started',

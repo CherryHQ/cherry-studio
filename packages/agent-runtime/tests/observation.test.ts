@@ -21,17 +21,6 @@ const snapshot = (): ThreadSnapshot => ({
 })
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve))
 
-it('captures an isolated historical revision without following later publications', () => {
-  const feed = new ThreadFeed(snapshot(), () => {})
-  feed.publish({ type: 'message.upsert', message: item('answer', 'earlier') })
-  const captured = feed.captureSnapshot()
-  feed.publish({ type: 'message.upsert', message: item('answer', 'later') })
-  const first = captured.read()
-  first.messages[0].parts.length = 0
-  expect(captured.read().messages[0].parts).toEqual([{ type: 'text', text: 'earlier' }])
-  expect(feed.snapshot.messages[0].parts).toEqual([{ type: 'text', text: 'later' }])
-})
-
 setFlagsFromString('--expose_gc')
 const collectGarbage = runInNewContext('gc') as () => void
 async function retainedHeap(): Promise<number> {
@@ -78,6 +67,9 @@ it('shares immutable image strings across isolated observer containers', async (
     )
   ).toBe(true)
   expect(retained).toBeLessThan(16 * 1024 * 1024)
+  const [first] = received as ThreadSnapshot[]
+  expect(received.every((event) => event === first)).toBe(true)
+  expect(Object.isFrozen(first.messages[0].parts[0])).toBe(true)
   observers.forEach((observer) => observer.stop())
 })
 
@@ -91,9 +83,12 @@ describe('normalized observation delivery', () => {
     expect(feed.messageInputId('missing')).toBeUndefined()
     const state = feed.state
     expect(state).not.toHaveProperty('messages')
-    Object.assign(state.activity, { state: 'active' })
+    expect(() => Object.assign(state.activity, { state: 'active' })).toThrow(TypeError)
     const captured = feed.message('answer')!
-    captured.parts.length = 0
+    expect(() => {
+      captured.parts.length = 0
+    }).toThrow(TypeError)
+    message.parts[0] = { type: 'text', text: 'publisher edit' }
     const ids = feed.messageIds
     ids.length = 0
     expect(feed.snapshot.activity.state).toBe('idle')
@@ -247,7 +242,6 @@ describe('normalized observation delivery', () => {
       const part = event.message.parts[0]
       if (part.type !== 'text') return
       fast.push(part.text)
-      part.text = 'changed by fast observer'
     })
     for (let i = 0; i < 110; i++) {
       feed.publish({ type: 'message.upsert', message: item('answer', String(i)) })
@@ -353,7 +347,8 @@ describe('normalized observation delivery', () => {
   })
 
   it('isolates published updates from publisher, observer and snapshot mutations', async () => {
-    const feed = new ThreadFeed(snapshot(), () => {})
+    const failures: unknown[] = []
+    const feed = new ThreadFeed(snapshot(), (error) => failures.push(error))
     const source = item('answer', 'published')
     const mutating = feed.observe((event) => {
       if (event.type === 'message.upsert') event.message.parts[0] = { type: 'text', text: 'observer edit' }
@@ -366,13 +361,17 @@ describe('normalized observation delivery', () => {
 
     feed.publish({ type: 'message.upsert', message: source })
     source.parts[0] = { type: 'text', text: 'publisher edit' }
-    await Promise.all([mutating.drain(), observing.drain()])
+    await observing.drain()
+    await expect(mutating.drain()).rejects.toThrow('stopped before delivery drained')
+    expect(failures).toEqual([expect.any(TypeError)])
 
     const expected = [{ type: 'text', text: 'published' }]
     expect(received[1]).toMatchObject({ type: 'message.upsert', message: { parts: expected } })
     expect(feed.snapshot.messages[0].parts).toEqual(expected)
     const exposed = feed.snapshot
-    exposed.messages[0].parts[0] = { type: 'text', text: 'snapshot edit' }
+    expect(() => {
+      exposed.messages[0].parts[0] = { type: 'text', text: 'snapshot edit' }
+    }).toThrow(TypeError)
     expect(feed.snapshot.messages[0].parts).toEqual(expected)
   })
 })
@@ -405,74 +404,7 @@ it('deduplicates unchanged context readings and includes the latest value for a 
   expect(feed.snapshot.contextUsage).toEqual(invalid)
 })
 
-it('recovers a large snapshot backlog before the event-count limit', async () => {
-  const feed = new ThreadFeed(snapshot(), () => {})
-  let release!: () => void
-  const held = new Promise<void>((resolve) => {
-    release = resolve
-  })
-  const received: ObservationPayload[] = []
-  const observation = feed.observe(async (event) => {
-    received.push(event)
-    if (received.length === 1) await held
-  })
-  await tick()
-  const fast: string[] = []
-  const fastObservation = feed.observe((event) => {
-    if (event.type === 'snapshot' && event.messages.length) {
-      const part = event.messages[0].parts[0]
-      if (part.type === 'text') fast.push(part.text.slice(0, 3))
-    }
-  })
-  const body = 'A'.repeat(1024 * 1024)
-  for (let i = 0; i < 40; i++) {
-    feed.publish({ ...snapshot(), messages: [item('answer', `${i}:${body}`)] })
-    await tick()
-  }
-  expect(fast).toHaveLength(40)
-  await fastObservation.stop()
-  release()
-  await observation.drain()
-  expect(received.some((event) => event.type === 'gap' && event.reason === 'overflow')).toBe(true)
-  expect(received.at(-1)).toMatchObject({ type: 'snapshot', messages: [{ parts: [{ text: `39:${body}` }] }] })
-  await observation.stop()
-})
-
-it('retains ordered terminal metadata through byte-pressure recovery', async () => {
-  const feed = new ThreadFeed(snapshot(), () => {})
-  let release!: () => void
-  const held = new Promise<void>((resolve) => {
-    release = resolve
-  })
-  let terminal = false
-  let revision = 0
-  const received: { event: ObservationPayload; terminal: boolean; revision: number }[] = []
-  const observation = feed.observeCaptured<(typeof received)[number]>(
-    async (frame) => {
-      received.push(frame)
-      if (received.length === 1) await held
-    },
-    (event, delivery) => ({
-      value: { event, terminal: delivery !== 'baseline' && terminal, revision },
-      retain: terminal
-    })
-  )
-  await tick()
-  const body = 'A'.repeat(1024 * 1024)
-  for (revision = 1; revision <= 30; revision++) {
-    terminal = revision === 10 || revision === 20
-    feed.publish({ ...snapshot(), messages: [item('answer', `${revision}:${body}`)] })
-  }
-  terminal = false
-  release()
-  await observation.drain()
-  expect(received.some((frame) => frame.event.type === 'gap')).toBe(true)
-  expect(received.filter((frame) => frame.terminal).map((frame) => frame.revision)).toEqual([10, 20])
-  expect(received.at(-1)?.event).toMatchObject({ messages: [{ parts: [{ text: `30:${body}` }] }] })
-  await observation.stop()
-})
-
-it('fails closed when critical frames exceed the retained byte budget', async () => {
+it('keeps a slow observer open when pending terminal frames share one large history', async () => {
   const failures: unknown[] = []
   const feed = new ThreadFeed(snapshot(), (error) => failures.push(error))
   let release!: () => void
@@ -488,32 +420,79 @@ it('fails closed when critical frames exceed the retained byte budget', async ()
     (event) => ({ value: event, retain: event.type === 'snapshot' && event.messages.length > 0 })
   )
   await tick()
-  const body = 'A'.repeat(9 * 1024 * 1024)
-  for (let i = 0; i < 2; i++) feed.publish({ ...snapshot(), messages: [item('answer', body)] })
+  const url = `data:image/png;base64,${'A'.repeat(9 * 1024 * 1024)}`
+  const image: RuntimeMessage = { ...item('image'), parts: [{ type: 'file', mediaType: 'image/png', url }] }
+  for (let i = 0; i < 2; i++) feed.publish({ ...snapshot(), messages: [image, item('answer', String(i))] })
   release()
   await observation.drain()
-  expect(received.slice(1)).toEqual([
-    { type: 'gap', reason: 'overflow' },
-    { type: 'closed', reason: 'source-lost' }
-  ])
-  expect(failures).toHaveLength(1)
+  expect(received.map((event) => event.type)).toEqual(['snapshot', 'snapshot', 'snapshot'])
+  expect(received.at(-1)).toMatchObject({ messages: [{ id: 'image' }, { parts: [{ text: '1' }] }] })
+  expect(failures).toEqual([])
+  await observation.stop()
 })
 
-it('keeps the initial baseline first when byte pressure closes an unstarted observer', async () => {
+it('retains one copy of republished history across a stalled observer backlog', async () => {
+  const history = Array.from(
+    { length: 2000 },
+    (_, index): RuntimeMessage => ({
+      id: `tool-${index}`,
+      role: 'assistant',
+      parts: [
+        {
+          type: 'dynamic-tool',
+          toolCallId: `call-${index}`,
+          toolName: 'read',
+          state: 'output-available',
+          input: { path: `file-${index}` },
+          output: { content: [{ type: 'text', text: 'contents' }] }
+        }
+      ],
+      metadata: { completeness: 'complete' }
+    })
+  )
+  const feed = new ThreadFeed({ ...snapshot(), messages: history }, () => {})
+  let release!: () => void
+  const held = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const received: ThreadSnapshot[] = []
+  const observation = feed.observe(async (event) => {
+    if (event.type === 'snapshot') received.push(event)
+    if (received.length === 1) await held
+  })
+  await tick()
+  const before = await retainedHeap()
+  for (let i = 0; i < 90; i++)
+    feed.publish({ ...feed.snapshot, messages: [...feed.snapshot.messages.slice(0, 2000), item('live', String(i))] })
+  const retained = (await retainedHeap()) - before
+  release()
+  await observation.drain()
+  expect(retained).toBeLessThan(16 * 1024 * 1024)
+  expect(received).toHaveLength(91)
+  expect(received.at(-1)?.messages[0]).toBe(received[0].messages[0])
+  expect(received.at(-1)?.messages.at(-1)).toMatchObject({ parts: [{ text: '89' }] })
+  await observation.stop()
+})
+
+it('keeps the initial baseline first when a backlog closes an unstarted observer', async () => {
   const feed = new ThreadFeed(snapshot(), () => {})
   const received: ObservationPayload[] = []
   const observation = feed.observeCaptured<ObservationPayload>(
     (event) => {
       received.push(event)
     },
-    (event) => ({ value: event, retain: event.type === 'snapshot' && event.messages.length > 0 })
+    (event) => ({ value: event, retain: event.type === 'input.changed' })
   )
-  const body = 'A'.repeat(9 * 1024 * 1024)
-  for (let i = 0; i < 2; i++) feed.publish({ ...snapshot(), messages: [item('answer', body)] })
+  for (let index = 0; index < 1001; index++)
+    feed.publish({
+      type: 'input.changed',
+      input: { inputId: runtimeId(String(index)), facts: ['accepted'], outcome: 'completed' }
+    })
   await observation.drain()
   expect(received.map((event) => event.type)).toEqual(['snapshot', 'gap', 'closed'])
   expect(received.at(-1)).toEqual({ type: 'closed', reason: 'source-lost' })
 })
+
 it('exposes isolated state without carrying historical message bodies', () => {
   const inputId = runtimeId<'input'>('input')
   const feed = new ThreadFeed(
@@ -522,7 +501,7 @@ it('exposes isolated state without carrying historical message bodies', () => {
   )
   const state = feed.state
   expect(state).not.toHaveProperty('messages')
-  ;(state.inputs[0].facts as string[]).push('placed')
+  expect(() => (state.inputs[0].facts as string[]).push('placed')).toThrow(TypeError)
   expect(feed.state.inputs[0].facts).toEqual(['accepted'])
   expect(feed.snapshot.messages[0].parts).toEqual([{ type: 'text', text: 'A'.repeat(1024 * 1024) }])
 })

@@ -22,7 +22,7 @@ One complete oversized frame is allowed, and an unstarted observer keeps its fir
 
 Expose an isolated state-only view on ThreadFeed and use it for Durable input lookup and publication state. It excludes messages; complete snapshot reads and model history remain unchanged. No task is resubmitted or compacted by this repair.
 
-For Claude, pin the owned normalized revision and native metadata at publication, then copy containers for delivery. Budget the paired queue's additional retained graph, excluding its authoritative current baseline and counting shared object identities once. Keep the 16 MiB limit and single complete oversized-frame allowance. Cache immutable object shapes without retaining discarded graphs. Do not repeatedly charge unchanged history or substitute the latest state for an older control fact.
+For Claude, share the frozen normalized revision and native metadata captured at publication with observers. Budget the paired queue's additional retained graph, excluding its authoritative current baseline and counting shared object identities once. Keep the 16 MiB limit and single complete oversized-frame allowance. Cache immutable object shapes without retaining discarded graphs. Do not repeatedly charge unchanged history or substitute the latest state for an older control fact.
 
 On unrecoverable Claude control pressure, close only that native owner and notify the desktop outside the blocked observer. The desktop clears queued input, fails the reply and uses its existing session-close barrier. Unconfirmed native exit or undrained writes retain failure state and block replacement. Other owners remain usable; ordinary observer stop and callback errors do not cancel execution.
 
