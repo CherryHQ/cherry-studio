@@ -1,6 +1,7 @@
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { DynamicToolUIPart } from 'ai'
 import type {
   ButtonHTMLAttributes,
   ComponentProps,
@@ -518,14 +519,18 @@ let browserOpenListener: (payload: EventPayload<'browser.pane.open_requested'>) 
 
 type TestAgentRightPaneProps = ComponentProps<typeof AgentRightPane.Scope>
 
-function createTaskPart(sequence: number, subject: string, activeForm?: string): CherryMessagePart {
+function createTaskPart(
+  sequence: number,
+  subject: string,
+  activeForm?: string
+): Extract<DynamicToolUIPart, { state: 'input-available' }> {
   return {
     type: 'dynamic-tool',
     toolCallId: `task-create-${sequence}`,
     toolName: 'TaskCreate',
     state: 'input-available',
     input: { subject, activeForm }
-  } as unknown as CherryMessagePart
+  }
 }
 
 function updateTaskPart(
@@ -533,18 +538,18 @@ function updateTaskPart(
   taskId: string,
   status: 'completed' | 'in_progress',
   activeForm?: string
-): CherryMessagePart {
+): Extract<DynamicToolUIPart, { state: 'input-available' }> {
   return {
     type: 'dynamic-tool',
     toolCallId: `task-update-${sequence}`,
     toolName: 'TaskUpdate',
     state: 'input-available',
     input: { taskId, status, activeForm }
-  } as unknown as CherryMessagePart
+  }
 }
 
 function createTaskMessages(parts: CherryMessagePart[], status: 'pending' | 'success'): CherryUIMessage[] {
-  return [{ id: 'm1', role: 'assistant', parts, metadata: { status } }] as CherryUIMessage[]
+  return [{ id: 'm1', role: 'assistant', parts, metadata: { status } }]
 }
 
 function TestAgentRightPane({
@@ -643,21 +648,18 @@ type StatusTaskFixture = {
 }
 
 function renderStatusTasks(tasks: StatusTaskFixture[], { openPanel = true }: { openPanel?: boolean } = {}) {
-  const parts = tasks.map(
-    (task) =>
-      ({
-        type: 'data-agent-task-event',
-        data: {
-          event: 'notification',
-          taskId: task.id,
-          status: task.status,
-          title: task.title,
-          taskType: task.taskType ?? 'subagent',
-          toolUseId: task.toolUseId
-        }
-      }) as unknown as CherryMessagePart
-  )
-  const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'pending' } }] as CherryUIMessage[]
+  const parts = tasks.map<CherryMessagePart>((task) => ({
+    type: 'data-agent-task-event',
+    data: {
+      event: 'notification',
+      taskId: task.id,
+      status: task.status,
+      title: task.title,
+      taskType: task.taskType ?? 'subagent',
+      toolUseId: task.toolUseId
+    }
+  }))
+  const messages: CherryUIMessage[] = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'pending' } }]
 
   render(
     <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
@@ -676,18 +678,19 @@ function createPreviewToolPart(
   toolCallId: string,
   toolName: 'Bash' | 'BashOutput' | 'TaskOutput',
   output: unknown
-): CherryMessagePart {
+): Extract<DynamicToolUIPart, { state: 'output-available' }> {
   return {
     type: 'dynamic-tool',
     toolCallId,
     toolName,
     state: 'output-available',
+    input: undefined,
     output
-  } as unknown as CherryMessagePart
+  }
 }
 
 function createPreviewMessage(id: string, parts: CherryMessagePart[], createdAt?: string): CherryUIMessage {
-  return { id, role: 'assistant', parts, metadata: { status: 'success', createdAt } } as unknown as CherryUIMessage
+  return { id, role: 'assistant', parts, metadata: { status: 'success', createdAt } }
 }
 
 /** Wait until a repeated preview of the same attachment has been accepted. The overlay text does not change. */
@@ -1380,7 +1383,7 @@ describe('AgentRightPane', () => {
     'keeps a directly opened artifact when older $kind preview history is prepended',
     async ({ kind }) => {
       const sessionId = `session-${kind}-history`
-      const currentPart = { type: 'text', text: 'Current conversation' } as unknown as CherryMessagePart
+      const currentPart = { type: 'text', text: 'Current conversation' } satisfies CherryMessagePart
       const currentMessage = createPreviewMessage(`m-current-${kind}-history`, [currentPart])
       const deferredToolResult = {
         topicId: `agent-session:${sessionId}`,
@@ -1434,7 +1437,7 @@ describe('AgentRightPane', () => {
     'applies a newer preview by $caseName after the artifact frontier message is deleted',
     async ({ createdAt, suffix }) => {
       const sessionId = `session-deleted-frontier-newer-${suffix}`
-      const currentPart = { type: 'text', text: 'Current conversation' } as unknown as CherryMessagePart
+      const currentPart = { type: 'text', text: 'Current conversation' } satisfies CherryMessagePart
       const currentMessage = createPreviewMessage(
         '00000000-0000-7000-8000-000000000002',
         [currentPart],
@@ -1491,7 +1494,7 @@ describe('AgentRightPane', () => {
     'keeps an artifact when $caseName loads after the frontier message is deleted',
     async ({ frontierCreatedAt, kind, suffix }) => {
       const sessionId = `session-deleted-frontier-older-${suffix}`
-      const currentPart = { type: 'text', text: 'Current conversation' } as unknown as CherryMessagePart
+      const currentPart = { type: 'text', text: 'Current conversation' } satisfies CherryMessagePart
       const currentMessage = createPreviewMessage(
         '00000000-0000-7000-8000-000000000002',
         [currentPart],
@@ -1586,11 +1589,9 @@ describe('AgentRightPane', () => {
         state: 'output-available',
         input: { command: 'pnpm dev' },
         output: 'Local: http://localhost:5173/'
-      } as unknown as CherryMessagePart
+      } satisfies CherryMessagePart
     ]
-    const messages = [
-      { id: 'm1', role: 'assistant', parts, metadata: { status: 'success' } } as unknown as CherryUIMessage
-    ]
+    const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'success' } } satisfies CherryUIMessage]
 
     const view = render(
       <TestAgentRightPane
@@ -1614,7 +1615,7 @@ describe('AgentRightPane', () => {
       {
         ...parts[0],
         output: { $deferredToolResult: { topicId: 'agent-session:session-a', messageId: 'm1', toolCallId: 'bash-1' } }
-      } as unknown as CherryMessagePart
+      } satisfies CherryMessagePart
     ]
     ipcRequestMock.mockReturnValue(new Promise(() => {}))
     const deferredMessages = [
@@ -1623,7 +1624,7 @@ describe('AgentRightPane', () => {
         role: 'assistant',
         parts: deferredParts,
         metadata: { status: 'success' }
-      } as unknown as CherryUIMessage
+      } satisfies CherryUIMessage
     ]
     view.rerender(
       <TestAgentRightPane
@@ -2271,7 +2272,7 @@ describe('AgentRightPane', () => {
       state: 'output-available',
       input: { prompt: 'Inspect the workspace' },
       output: { $deferredToolResult: deferredToolResult }
-    } as unknown as CherryMessagePart
+    } satisfies CherryMessagePart
     const messages = [{ id: 'm1', role: 'assistant', parts: [flowPart], metadata: {} }] as CherryUIMessage[]
 
     render(
@@ -2298,7 +2299,7 @@ describe('AgentRightPane', () => {
       state: 'output-available',
       input: { description: 'Review architecture' },
       output: 'Started'
-    } as unknown as CherryMessagePart
+    } satisfies CherryMessagePart
     const child = {
       type: 'dynamic-tool',
       toolCallId: 'child',
@@ -2307,7 +2308,7 @@ describe('AgentRightPane', () => {
       input: { description: 'Inspect imports' },
       output: 'Done',
       callProviderMetadata: { 'claude-code': { parentToolCallId: 'parent' } }
-    } as unknown as CherryMessagePart
+    } satisfies CherryMessagePart
     const messages = [{ id: 'm1', role: 'assistant', parts: [parent, child], metadata: {} }] as CherryUIMessage[]
     render(
       <TestAgentRightPane
@@ -2329,7 +2330,7 @@ describe('AgentRightPane', () => {
     )
   })
 
-  it('opens tool-flow website links in the current session browser pane', async () => {
+  it('routes tool-flow browser requests to the current session pane', async () => {
     const flowPart = {
       type: 'dynamic-tool',
       toolCallId: 'flow-1',
@@ -2337,7 +2338,7 @@ describe('AgentRightPane', () => {
       state: 'output-available',
       input: { prompt: 'Inspect the workspace' },
       output: 'Inspection complete'
-    } as unknown as CherryMessagePart
+    } satisfies CherryMessagePart
     const messages = [{ id: 'm1', role: 'assistant', parts: [flowPart], metadata: {} }] as CherryUIMessage[]
 
     render(
@@ -2369,7 +2370,7 @@ describe('AgentRightPane', () => {
       state: 'output-available',
       input: { prompt: 'Inspect the workspace' },
       output: 'Inspection complete'
-    } as unknown as CherryMessagePart
+    } satisfies CherryMessagePart
     const messages = [{ id: 'm1', role: 'assistant', parts: [flowPart], metadata: {} }] as CherryUIMessage[]
 
     render(
@@ -2672,10 +2673,11 @@ describe('AgentRightPane', () => {
           { content: 'Verify the right pane', status: 'in_progress' }
         ]
       },
+      output: undefined,
       callProviderMetadata: {
         cherry: { transport: 'dsh-agent', tool: { type: 'builtin', name: 'todo_write' } }
       }
-    } as unknown as CherryMessagePart
+    } satisfies CherryMessagePart
     const messages = [
       { id: 'm1', role: 'assistant', parts: [todoPart], metadata: { status: 'pending' } }
     ] as CherryUIMessage[]
@@ -2691,7 +2693,7 @@ describe('AgentRightPane', () => {
     expect(within(details).getByText('Verify the right pane')).toBeInTheDocument()
   })
 
-  it('renders local Workflow progress separately without offering a root FlowTab fallback', () => {
+  it('shows local Workflow progress and details', () => {
     const parts = [
       {
         type: 'data-agent-task-event',
@@ -2719,7 +2721,7 @@ describe('AgentRightPane', () => {
           usage: { totalTokens: 1200, toolUses: 4, durationMs: 9000 }
         }
       }
-    ] as unknown as CherryMessagePart[]
+    ] satisfies CherryMessagePart[]
     const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'pending' } }] as CherryUIMessage[]
 
     render(
@@ -2736,14 +2738,15 @@ describe('AgentRightPane', () => {
     expect(screen.getByText('Checking citation rendering')).toBeInTheDocument()
   })
 
-  it('opens declared artifacts from task details', () => {
+  it('lists declared artifacts in task details', () => {
     const parts = [
       {
         type: 'dynamic-tool',
         toolCallId: 'artifacts-1',
         toolName: 'report_artifacts',
         state: 'output-available',
-        input: { artifacts: [{ path: 'docs/index.html' }] }
+        input: { artifacts: [{ path: 'docs/index.html' }] },
+        output: undefined
       },
       {
         type: 'data-agent-task-event',
@@ -2755,7 +2758,7 @@ describe('AgentRightPane', () => {
           title: 'Screenshot each page'
         }
       }
-    ] as unknown as CherryMessagePart[]
+    ] satisfies CherryMessagePart[]
     const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'pending' } }] as CherryUIMessage[]
 
     render(
