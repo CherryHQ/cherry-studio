@@ -17,7 +17,7 @@ import {
 import { useSharedCacheValue } from '@data/hooks/useCache'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
 import { ErrorDetailLink } from '@renderer/components/ErrorDetailLink'
-import { ErrorNotice } from '@renderer/components/ErrorNotice'
+import { ErrorNotice, type ErrorNoticeAction } from '@renderer/components/ErrorNotice'
 import { StaticMarkdown } from '@renderer/components/markdown'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -61,7 +61,7 @@ const PROPOSAL_STATUS_KEYS = {
 type ModelCheckState =
   | { status: 'idle' }
   | { status: 'checking'; key: string }
-  | { status: 'failed'; key: string; message: string; settingsPath: SettingsPath }
+  | { status: 'failed'; key: string; message: string; raw?: string; settingsPath: SettingsPath }
 
 export interface DoctorAgentDialogProps {
   readonly subject: DoctorSubjectRef
@@ -216,15 +216,14 @@ function ModelPicker({
 
       const serializedError = serializeHealthCheckError(error)
       const classification = classifyError(serializedError, providerId)
-      const message =
-        classification.category !== 'unknown'
-          ? t(classification.i18nKey)
-          : t('settings.doctor.agent.model_picker.check_failed')
+      const unclassified = classification.category === 'unknown'
+      const message = unclassified ? t('settings.doctor.agent.model_picker.check_failed') : t(classification.i18nKey)
+      const raw = unclassified ? serializedError.message || undefined : undefined
       const settingsPath = normalizeSettingsPath(
         classification.navTarget ??
           (providerId ? `/settings/provider?id=${encodeURIComponent(providerId)}` : '/settings/provider')
       )
-      setCheckState({ status: 'failed', key, message, settingsPath })
+      setCheckState({ status: 'failed', key, message, raw, settingsPath })
     }
   }
 
@@ -248,10 +247,10 @@ function ModelPicker({
         />
       </div>
       {currentCheckState.status === 'failed' ? (
-        <ErrorNotice
-          variant="inline"
+        <FailureNotice
           className="mt-3"
           title={currentCheckState.message}
+          raw={currentCheckState.raw}
           action={{
             label: t('common.go_to_settings'),
             icon: <Settings2 className="size-3.5" aria-hidden />,
@@ -422,19 +421,24 @@ function ProposalFailure({ proposal }: { readonly proposal: DoctorAgentProposal 
 function FailureNotice({
   title,
   raw,
-  role
+  role,
+  action,
+  className
 }: {
   readonly title: ReactNode
   readonly raw?: string
   readonly role?: string
+  readonly action?: ErrorNoticeAction
+  readonly className?: string
 }) {
   const [expanded, setExpanded] = useState(false)
   return (
-    <div>
+    <div className={className}>
       <ErrorNotice
         variant="inline"
         role={role}
         title={title}
+        action={action}
         detail={raw ? <ErrorDetailLink onClick={() => setExpanded((open) => !open)} /> : undefined}
       />
       {expanded && raw ? (

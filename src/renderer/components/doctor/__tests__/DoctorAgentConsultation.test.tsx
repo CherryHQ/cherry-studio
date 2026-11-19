@@ -201,7 +201,7 @@ describe('DoctorAgentConsultation', () => {
     expect(mocks.openSettings).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
 
-  it('shows the generic check failure instead of an unclassified raw provider message', async () => {
+  it('summarizes an unclassified provider failure and keeps its explanation behind Details', async () => {
     const user = userEvent.setup()
     mocks.checkDoctorAgentModel.mockRejectedValueOnce(new Error('upstream said: teapot overflow 418x'))
     render(<DoctorAgentConsultation subject={{ kind: 'global' }} open onOpenChange={vi.fn()} />)
@@ -209,8 +209,11 @@ describe('DoctorAgentConsultation', () => {
     await user.click(screen.getByRole('button', { name: 'settings.doctor.agent.actions.start' }))
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('settings.doctor.agent.model_picker.check_failed')
-    expect(alert).not.toHaveTextContent('teapot overflow')
+    expect(screen.queryByText(/teapot overflow/)).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'common.go_to_settings' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
+    expect(screen.getByText('upstream said: teapot overflow 418x')).toBeInTheDocument()
   })
 
   it('retries a failed check and starts immediately after it passes', async () => {
