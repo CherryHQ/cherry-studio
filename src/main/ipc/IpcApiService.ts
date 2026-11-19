@@ -44,6 +44,7 @@ export class IpcApiService extends BaseService {
     // Native ipcMain.handle (not BaseService.ipcHandle sugar — that is deprecated, see ipc-migration-guide.md),
     // cleaned up via registerDisposable, mirroring DataApi's IpcAdapter.
     // Preload also forwards an optional trace `meta` 4th arg; it is ignored here until tracing is wired.
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Electron forwards unparsed renderer payloads; the shared transport checks sender trust before route-specific validation.
     ipcMain.handle(IpcChannel.IpcApi_Request, (event, route: string, input: unknown) =>
       this.handleRequest(event, route, input)
     )
@@ -51,6 +52,7 @@ export class IpcApiService extends BaseService {
     logger.debug('IpcApi request channel registered')
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Every route shares this raw input channel; IpcRouter parses the selected input schema only after the sender-trust gate.
   private async handleRequest(event: IpcMainInvokeEvent, route: string, input: unknown): Promise<IpcResult<unknown>> {
     // Source-trust gate first: one channel funnels every capability, so verify the caller before the input.
     if (!validateSender(event)) {

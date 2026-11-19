@@ -357,7 +357,11 @@ function getBaselineField(
   return model[field]
 }
 
-function matchesBaseline(value: unknown, baseline: unknown, field: PresetDeltaField): boolean {
+function matchesBaseline(
+  value: UpdateModelDto[keyof UpdateModelDto],
+  baseline: ReturnType<typeof getBaselineField>,
+  field: PresetDeltaField
+): boolean {
   if (field === 'pricing') {
     return matchesModelPricingBaseline(value, baseline)
   }

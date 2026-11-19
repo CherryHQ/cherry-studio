@@ -1694,6 +1694,7 @@ export class AiStreamManager extends BaseService {
     modelId: UniqueModelId,
     error: SerializedError,
     expectedExecution?: StreamExecution,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Provider setup and stream catches retain arbitrary rejection values beside serialized UI errors; prompt listeners need the original failure.
     originalError?: unknown
   ): Promise<void> {
     const stream = this.activeStreams.get(topicId)
@@ -2473,6 +2474,7 @@ export class AiStreamManager extends BaseService {
     stream: ActiveStream,
     exec: StreamExecution,
     result: StreamDoneResult | StreamPausedResult | StreamErrorResult,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Forward the unmodified provider rejection only to prompt-stream error listeners while persistence and cleanup keep their established ordering.
     originalError?: unknown
   ): Promise<void> {
     const dead: string[] = []
