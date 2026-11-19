@@ -2218,6 +2218,8 @@
   "library.config.basic.field.context_management.hint": "このアシスタントのグローバルなコンテキスト管理設定を上書きします。offに設定するとグローバル設定を継承します",
   "library.config.basic.field.context_truncate_threshold.hint": "この文字数を超えるツール出力はオフロードされて切り捨てられます",
   "library.config.basic.field.custom_params.hint": "リクエストと共に送信される追加プロバイダーパラメータ",
+  "library.config.basic.field.default_models": "デフォルトモデル",
+  "library.config.basic.field.default_models.placeholder": "デフォルトモデルを選択",
   "library.config.basic.field.description.hint": "このアシスタントの用途を区別するのに役立ちます",
   "library.config.basic.field.description.placeholder": "このアシスタントの用途は…",
   "library.config.basic.field.max_tokens.hint": "有効にした場合のCaps応答の長さ",

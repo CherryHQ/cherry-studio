@@ -2218,6 +2218,8 @@
   "library.config.basic.field.context_management.hint": "Substituir as configurações globais de gestão de contexto para este assistente; desativado herda as configurações globais",
   "library.config.basic.field.context_truncate_threshold.hint": "Saídas da ferramenta além deste número de caracteres são descarregadas e truncadas",
   "library.config.basic.field.custom_params.hint": "Parâmetros extras do fornecedor enviados com os pedidos",
+  "library.config.basic.field.default_models": "Modelos predefinidos",
+  "library.config.basic.field.default_models.placeholder": "Selecionar modelos predefinidos",
   "library.config.basic.field.description.hint": "Ajuda a distinguir para que serve este assistente",
   "library.config.basic.field.description.placeholder": "Para que serve este assistente...",
   "library.config.basic.field.max_tokens.hint": "Comprimento da resposta do Caps quando ativado",

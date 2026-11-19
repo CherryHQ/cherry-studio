@@ -57,18 +57,35 @@ function createEmptyRelations(): AssistantRelationIds {
   }
 }
 
+/** Effective default list: `modelId` first, then the extra defaults, deduplicated. */
+function getDefaultModelIds(row: Pick<AssistantRow, 'modelId' | 'additionalModelIds'>): UniqueModelId[] {
+  const ids = [row.modelId, ...row.additionalModelIds].filter((id): id is UniqueModelId => !!id)
+  return [...new Set(ids)]
+}
+
+/** Inverse of {@link getDefaultModelIds}: first entry becomes `modelId`, the rest are stored extras. */
+function splitDefaultModelIds(ids: readonly UniqueModelId[]): {
+  modelId: UniqueModelId | null
+  additionalModelIds: UniqueModelId[]
+} {
+  const [modelId = null, ...rest] = [...new Set(ids)]
+  return { modelId, additionalModelIds: rest }
+}
+
 function rowToAssistant(
   row: AssistantRow,
   relations: AssistantRelationIds = createEmptyRelations(),
   modelName: string | null = null,
   avatarFileId?: FileEntryId
 ): Assistant {
-  const clean = nullsToUndefined(row)
+  const columns = nullsToUndefined(row)
+  delete (columns as Partial<AssistantRow>).additionalModelIds
   return {
-    ...clean,
+    ...columns,
     ...(avatarFileId ? { avatarFileId, avatarSrc: application.get('FileManager').getUrl(avatarFileId) } : {}),
     // Preserve the T | null contract: `modelId` is legitimately nullable (R3 exception).
     modelId: row.modelId as UniqueModelId | null,
+    defaultModelIds: getDefaultModelIds(row),
     groupId: row.groupId,
     mcpServerIds: relations.mcpServerIds,
     knowledgeBaseIds: relations.knowledgeBaseIds,
@@ -197,6 +214,21 @@ export class AssistantDataService {
       return null
     }
     return preferred
+  }
+
+  private resolveDefaultModelIdsTx(
+    tx: Pick<DbType, 'select'>,
+    ids: readonly UniqueModelId[]
+  ): { modelId: UniqueModelId | null; additionalModelIds: UniqueModelId[] } {
+    for (const id of ids) {
+      if (!modelService.existsByIdTx(tx, id)) {
+        throw DataApiErrorFactory.validation(
+          { defaultModelIds: [`Model '${id}' is unavailable in this edition or not registered in user_model`] },
+          `Assistant default model '${id}' is unavailable in this edition or not registered — add the model first or remove it`
+        )
+      }
+    }
+    return splitDefaultModelIds(ids)
   }
 
   private validateAssistantGroupTx(tx: Pick<DbType, 'select'>, groupId: string | null | undefined): void {
@@ -425,7 +457,10 @@ export class AssistantDataService {
     // Resolve modelId: explicit values strictly validated; omission falls
     // back to `chat.default_model_id` preference (stale → null with a
     // logger.warn).
-    const modelId = this.resolveCreateModelId(tx, dto.modelId)
+    const { modelId, additionalModelIds } =
+      dto.defaultModelIds !== undefined
+        ? this.resolveDefaultModelIdsTx(tx, dto.defaultModelIds)
+        : { modelId: this.resolveCreateModelId(tx, dto.modelId), additionalModelIds: [] }
     this.validateAssistantGroupTx(tx, dto.groupId)
 
     // Split relation fields from columns. Service owns emoji/settings
@@ -433,9 +468,11 @@ export class AssistantDataService {
     // orderKey is omitted — `insertWithOrderKey` computes the next fractional
     // key from the existing max and injects it before the DB write.
     const { mcpServerIds, knowledgeBaseIds, ...columnDto } = dto
+    delete columnDto.defaultModelIds
     const insertValues = {
       ...columnDto,
       modelId,
+      additionalModelIds,
       emoji: dto.emoji ?? '🌟',
       settings: dto.settings ?? DEFAULT_ASSISTANT_SETTINGS
     } satisfies Omit<typeof assistantTable.$inferInsert, 'orderKey'>
@@ -491,7 +528,7 @@ export class AssistantDataService {
         emoji: source.emoji,
         description: source.description,
         settings: source.settings,
-        modelId: source.modelId as UniqueModelId | null,
+        defaultModelIds: getDefaultModelIds(source),
         groupId: source.groupId,
         ...relations
       })
@@ -564,12 +601,18 @@ export class AssistantDataService {
     }
 
     // Strip relation fields — these are synced to junction tables, not assistant columns
-    const { mcpServerIds, knowledgeBaseIds, settings: settingsPatch, ...columnFields } = dto
+    const { mcpServerIds, knowledgeBaseIds, settings: settingsPatch, defaultModelIds, ...columnFields } = dto
     const updates = Object.fromEntries(Object.entries(columnFields).filter(([, v]) => v !== undefined)) as Partial<
       typeof assistantTable.$inferInsert
     >
     if (settingsPatch !== undefined) {
       updates.settings = { ...current.settings, ...settingsPatch }
+    }
+    if (defaultModelIds !== undefined) {
+      Object.assign(updates, splitDefaultModelIds(defaultModelIds))
+    } else if (dto.modelId !== undefined) {
+      const extras = current.defaultModelIds.filter((id) => id !== dto.modelId)
+      updates.additionalModelIds = extras
     }
     const hasColumnUpdates = Object.keys(updates).length > 0
     const hasRelationUpdates = mcpServerIds !== undefined || knowledgeBaseIds !== undefined
@@ -594,6 +637,9 @@ export class AssistantDataService {
           { modelId: [`Model '${dto.modelId}' is unavailable in this edition or not registered in user_model`] },
           `Assistant modelId '${dto.modelId}' is unavailable in this edition or not registered — add the model first or pass null`
         )
+      }
+      if (defaultModelIds !== undefined) {
+        this.resolveDefaultModelIdsTx(tx, defaultModelIds)
       }
       if (dto.groupId !== undefined) {
         this.validateAssistantGroupTx(tx, dto.groupId)
@@ -623,9 +669,7 @@ export class AssistantDataService {
       this.syncRelationsTx(tx, id, { mcpServerIds, knowledgeBaseIds })
 
       const nextModelName =
-        dto.modelId !== undefined && dto.modelId !== current.modelId
-          ? this.getModelNameById(tx, next.modelId)
-          : current.modelName
+        next.modelId !== current.modelId ? this.getModelNameById(tx, next.modelId) : current.modelName
 
       return { row: next, modelName: nextModelName }
     })

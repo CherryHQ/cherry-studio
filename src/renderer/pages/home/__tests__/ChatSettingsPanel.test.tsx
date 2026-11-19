@@ -229,6 +229,7 @@ describe('Chat panels', () => {
       description: '',
       settings: { ...DEFAULT_ASSISTANT_SETTINGS },
       modelId: null,
+      defaultModelIds: [],
       modelName: null,
       groupId: null,
       orderKey: 'a0',

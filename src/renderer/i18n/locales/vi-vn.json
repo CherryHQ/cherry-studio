@@ -2218,6 +2218,8 @@
   "library.config.basic.field.context_management.hint": "Ghi đè cài đặt quản lý ngữ cảnh toàn cục cho trợ lý này; tắt sẽ kế thừa cài đặt toàn cục",
   "library.config.basic.field.context_truncate_threshold.hint": "Đầu ra của công cụ vượt quá số ký tự này sẽ được tải xuống và cắt bớt",
   "library.config.basic.field.custom_params.hint": "Các tham số bổ sung của nhà cung cấp được gửi kèm theo yêu cầu",
+  "library.config.basic.field.default_models": "Mô hình mặc định",
+  "library.config.basic.field.default_models.placeholder": "Chọn mô hình mặc định",
   "library.config.basic.field.description.hint": "Giúp phân biệt chức năng của trợ lý này",
   "library.config.basic.field.description.placeholder": "Mục đích của trợ lý này...",
   "library.config.basic.field.max_tokens.hint": "Giới hạn độ dài phản hồi của Caps khi được bật",

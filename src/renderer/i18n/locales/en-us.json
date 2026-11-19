@@ -2218,6 +2218,8 @@
   "library.config.basic.field.context_management.hint": "Use this assistant’s own context-management settings; off follows the global settings",
   "library.config.basic.field.context_truncate_threshold.hint": "Tool outputs beyond this many characters are offloaded and truncated",
   "library.config.basic.field.custom_params.hint": "Extra provider parameters sent with requests",
+  "library.config.basic.field.default_models": "Default models",
+  "library.config.basic.field.default_models.placeholder": "Select default models",
   "library.config.basic.field.description.hint": "Helps distinguish what this assistant is for",
   "library.config.basic.field.description.placeholder": "What this assistant is for...",
   "library.config.basic.field.max_tokens.hint": "Caps response length when enabled",

@@ -2218,6 +2218,8 @@
   "library.config.basic.field.context_management.hint": "此助手使用独立的上下文管理设置，关闭时跟随全局设置",
   "library.config.basic.field.context_truncate_threshold.hint": "超过该字符数的工具输出会被转存并截断",
   "library.config.basic.field.custom_params.hint": "随请求发送给模型服务商的额外参数",
+  "library.config.basic.field.default_models": "默认模型",
+  "library.config.basic.field.default_models.placeholder": "选择默认模型",
   "library.config.basic.field.description.hint": "帮助快速区分这个助手的用途",
   "library.config.basic.field.description.placeholder": "这个助手的用途...",
   "library.config.basic.field.max_tokens.hint": "启用后限制回复长度",

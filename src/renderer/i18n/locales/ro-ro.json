@@ -2219,6 +2219,8 @@
   "library.config.basic.field.context_management.hint": "Suprascrie setările globale de gestionare a contextului pentru acest asistent; dezactivat moștenește setările globale",
   "library.config.basic.field.context_truncate_threshold.hint": "Ieșirile instrumentelor care depășesc acest număr de caractere sunt descărcate și trunchiate",
   "library.config.basic.field.custom_params.hint": "Parametri suplimentari ai furnizorului trimiși împreună cu cererile",
+  "library.config.basic.field.default_models": "Modele implicite",
+  "library.config.basic.field.default_models.placeholder": "Selectați modelele implicite",
   "library.config.basic.field.description.hint": "Ajută la distingerea scopului acestui asistent",
   "library.config.basic.field.description.placeholder": "Pentru ce este acest asistent...",
   "library.config.basic.field.max_tokens.hint": "Lungimea răspunsului Caps când este activată",

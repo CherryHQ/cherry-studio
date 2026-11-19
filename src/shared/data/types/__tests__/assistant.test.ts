@@ -32,6 +32,7 @@ describe('AssistantSchema', () => {
     description: '',
     settings: DEFAULT_ASSISTANT_SETTINGS,
     modelId: null,
+    defaultModelIds: [],
     groupId: null,
     orderKey: 'a0',
     mcpServerIds: [],

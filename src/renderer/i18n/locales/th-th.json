@@ -2218,6 +2218,8 @@
   "library.config.basic.field.context_management.hint": "ใช้การจัดการคอนเท็กซ์ของผู้ช่วยนี้เอง ปิดเพื่อติดตามการตั้งค่าสากล",
   "library.config.basic.field.context_truncate_threshold.hint": "เอาต์พุตเครื่องมือที่เกินจำนวนตัวอักษรนี้จะถูกโหลดออกและตัดทอน",
   "library.config.basic.field.custom_params.hint": "พารามิเตอร์ผู้ให้บริการพิเศษที่ส่งไปพร้อมกับคำขอ",
+  "library.config.basic.field.default_models": "โมเดลเริ่มต้น",
+  "library.config.basic.field.default_models.placeholder": "เลือกโมเดลเริ่มต้น",
   "library.config.basic.field.description.hint": "ช่วยแยกแยะว่าผู้ช่วยนี้ใช้ทำอะไร",
   "library.config.basic.field.description.placeholder": "ผู้ช่วยนี้ใช้ทำอะไร...",
   "library.config.basic.field.max_tokens.hint": "จำกัดความยาวคำตอบเมื่อเปิดใช้",

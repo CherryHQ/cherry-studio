@@ -2218,6 +2218,8 @@
   "library.config.basic.field.context_management.hint": "Anular la configuración global de gestión de contexto para este asistente; desactivado hereda la configuración global",
   "library.config.basic.field.context_truncate_threshold.hint": "Las salidas de la herramienta que superen esta cantidad de caracteres se descargan y se truncan",
   "library.config.basic.field.custom_params.hint": "Parámetros adicionales del proveedor enviados con las solicitudes",
+  "library.config.basic.field.default_models": "Modelos predeterminados",
+  "library.config.basic.field.default_models.placeholder": "Selecciona los modelos predeterminados",
   "library.config.basic.field.description.hint": "Ayuda a distinguir para qué sirve este asistente",
   "library.config.basic.field.description.placeholder": "Para qué sirve este asistente...",
   "library.config.basic.field.max_tokens.hint": "Longitud de respuesta de las mayúsculas cuando está habilitada",

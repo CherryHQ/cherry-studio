@@ -34,6 +34,7 @@ const ASSISTANT_MUTABLE_FIELDS = {
   description: true,
   settings: true,
   modelId: true,
+  defaultModelIds: true,
   groupId: true,
   mcpServerIds: true,
   knowledgeBaseIds: true
@@ -85,6 +86,9 @@ export type ImportAssistantDto = z.infer<typeof ImportAssistantSchema>
  * the partial onto the persisted settings object before writing back. This
  * keeps a corrupt-but-historically-tolerated field (e.g. `maxTokens: 0`)
  * from blocking unrelated updates.
+ *
+ * `defaultModelIds`, if provided, replaces the whole default list and sets
+ * `modelId` to its first entry; it takes precedence over `modelId`.
  *
  * Relation arrays (`mcpServerIds`, `knowledgeBaseIds`), if provided,
  * replace existing junction table rows. Update picks directly from the entity,

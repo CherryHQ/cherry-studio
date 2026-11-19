@@ -480,6 +480,15 @@ const ChatComposerInner = ({
     { enabled: true },
     { fetchEnabled: shouldHydrateMentionedModelDraft && initialDraft.mentionedModelIds.length > 0 }
   )
+  const assistantDefaultIds = assistant?.defaultModelIds ?? []
+  const { models: assistantModelCatalog, isLoading: isAssistantModelCatalogLoading } = useModels(
+    { enabled: true },
+    { fetchEnabled: Boolean(useMentionedModelSelector) && assistantDefaultIds.length > 1 }
+  )
+  const assistantDefaultModels = useMemo(() => {
+    const byId = new Map(assistantModelCatalog.map((model) => [model.id, model]))
+    return assistantDefaultIds.flatMap((id) => byId.get(id) ?? [])
+  }, [assistantDefaultIds, assistantModelCatalog])
   const quickPanel = useOptionalQuickPanel()
   const rootPanelVisible = Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
   const knowledgeBasePanelVisible = Boolean(
@@ -655,6 +664,9 @@ const ChatComposerInner = ({
     enabled: useMentionedModelSelector,
     runtimeModel,
     runtimeModelPending,
+    assistantDefaultModels,
+    assistantDefaultModelsPending: isAssistantModelCatalogLoading,
+    seedAssistantDefaults: initialDraft.mentionedModelIds.length === 0 && !initialDraft.modelMultiSelectMode,
     selectedAssistantId,
     topicId: scopeKey,
     mentionedModels,

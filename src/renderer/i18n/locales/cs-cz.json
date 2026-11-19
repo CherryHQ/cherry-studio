@@ -2219,6 +2219,8 @@
   "library.config.basic.field.context_management.hint": "Použije vlastní nastavení správy kontextu tohoto asistenta; když je vypnuto, řídí se globálním nastavením",
   "library.config.basic.field.context_truncate_threshold.hint": "Výstupy nástrojů delší než tento počet znaků budou přesunuty a zkráceny",
   "library.config.basic.field.custom_params.hint": "Dodatečné parametry odesílané s požadavky poskytovateli modelu",
+  "library.config.basic.field.default_models": "Výchozí modely",
+  "library.config.basic.field.default_models.placeholder": "Vyberte výchozí modely",
   "library.config.basic.field.description.hint": "Pomáhá rozlišit, k čemu tento asistent slouží",
   "library.config.basic.field.description.placeholder": "K čemu tento asistent slouží...",
   "library.config.basic.field.max_tokens.hint": "Po zapnutí omezuje délku odpovědi",

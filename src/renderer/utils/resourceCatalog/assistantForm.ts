@@ -30,6 +30,8 @@ export interface AssistantFormState {
   emoji: string
   description: string
   modelId: Assistant['modelId'] | undefined
+  /** Full default list; `modelId` is always its first entry. */
+  defaultModelIds: Assistant['defaultModelIds']
   prompt: string
   // settings (flattened from assistant.settings)
   temperature: number
@@ -81,6 +83,7 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     emoji: assistant.emoji,
     description: assistant.description,
     modelId: assistant.modelId,
+    defaultModelIds: [...assistant.defaultModelIds],
     prompt: assistant.prompt ?? '',
     temperature: settings.temperature ?? UI_DEFAULT_TEMPERATURE,
     enableTemperature: settings.enableTemperature ?? false,
@@ -201,6 +204,7 @@ export function diffAssistantUpdate(
   const emojiChanged = baseline.emoji !== form.emoji
   const descriptionChanged = baseline.description !== form.description
   const modelIdChanged = baseline.modelId !== form.modelId
+  const defaultModelIdsChanged = !sameIdSet(baseline.defaultModelIds, form.defaultModelIds)
   const promptChanged = baseline.prompt !== form.prompt
   const settingsChanged = Object.keys(settings).length > 0
 
@@ -213,6 +217,7 @@ export function diffAssistantUpdate(
     !emojiChanged &&
     !descriptionChanged &&
     !modelIdChanged &&
+    !defaultModelIdsChanged &&
     !promptChanged &&
     !settingsChanged &&
     !groupChanged &&
@@ -226,7 +231,7 @@ export function diffAssistantUpdate(
     ...(nameChanged ? { name: form.name.trim() || assistant.name } : {}),
     ...(emojiChanged ? { emoji: form.emoji } : {}),
     ...(descriptionChanged ? { description: form.description } : {}),
-    ...(modelIdChanged ? { modelId: form.modelId } : {}),
+    ...(defaultModelIdsChanged ? { defaultModelIds: form.defaultModelIds } : modelIdChanged ? { modelId: form.modelId } : {}),
     ...(promptChanged ? { prompt: form.prompt } : {}),
     ...(settingsChanged ? { settings } : {}),
     ...(knowledgeBaseIdsChanged ? { knowledgeBaseIds: form.knowledgeBaseIds } : {}),

@@ -2218,6 +2218,8 @@
   "library.config.basic.field.context_management.hint": "Globale Kontextverwaltungseinstellungen für diesen Assistenten überschreiben; aus übernimmt die globalen Einstellungen",
   "library.config.basic.field.context_truncate_threshold.hint": "Tool-Ausgaben, die diese Zeichenanzahl überschreiten, werden ausgelagert und abgeschnitten",
   "library.config.basic.field.custom_params.hint": "Zusätzliche Provider-Parameter, die mit Anfragen gesendet werden",
+  "library.config.basic.field.default_models": "Standardmodelle",
+  "library.config.basic.field.default_models.placeholder": "Standardmodelle auswählen",
   "library.config.basic.field.description.hint": "Hilft dabei zu erkennen, wofür dieser Assistent gedacht ist",
   "library.config.basic.field.description.placeholder": "Wofür dieser Assistent gedacht ist...",
   "library.config.basic.field.max_tokens.hint": "Antwortlänge von Caps, wenn aktiviert",

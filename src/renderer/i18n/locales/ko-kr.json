@@ -2218,6 +2218,8 @@
   "library.config.basic.field.context_management.hint": "이 어시스턴트의 자체 컨텍스트 관리 설정을 사용합니다. 끄면 전역 설정을 따릅니다",
   "library.config.basic.field.context_truncate_threshold.hint": "이 문자 수를 초과하는 도구 출력은 오프로딩되고 잘립니다",
   "library.config.basic.field.custom_params.hint": "요청과 함께 보내는 추가 제공자 매개변수",
+  "library.config.basic.field.default_models": "기본 모델",
+  "library.config.basic.field.default_models.placeholder": "기본 모델 선택",
   "library.config.basic.field.description.hint": "어시스턴트의 용도를 구분하는 데 도움이 됩니다",
   "library.config.basic.field.description.placeholder": "어시스턴트의 용도...",
   "library.config.basic.field.max_tokens.hint": "활성화하면 응답 길이를 제한합니다",

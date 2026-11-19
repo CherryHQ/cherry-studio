@@ -15,6 +15,7 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
     description: '',
     settings: { ...DEFAULT_ASSISTANT_SETTINGS },
     modelId: null,
+    defaultModelIds: [],
     groupId: null,
     orderKey: 'a0',
     mcpServerIds: [],

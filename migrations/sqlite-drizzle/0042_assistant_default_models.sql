@@ -1,0 +1,1 @@
+ALTER TABLE `assistant` ADD `additional_model_ids` text DEFAULT '[]' NOT NULL;

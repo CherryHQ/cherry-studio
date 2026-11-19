@@ -2218,6 +2218,8 @@
   "library.config.basic.field.context_management.hint": "Απενεργοποίηση των καθολικών ρυθμίσεων διαχείρισης περιβάλλοντος για αυτόν τον βοηθό· το off κληρονομεί τις καθολικές ρυθμίσεις",
   "library.config.basic.field.context_truncate_threshold.hint": "Τα αποτελέσματα εργαλείων πέρα από αυτούς τους χαρακτήρες εκφορτώνονται και περικόπτονται",
   "library.config.basic.field.custom_params.hint": "Επιπλέον παράμετροι παρόχου που αποστέλλονται με τα αιτήματα",
+  "library.config.basic.field.default_models": "Προεπιλεγμένα μοντέλα",
+  "library.config.basic.field.default_models.placeholder": "Επιλέξτε προεπιλεγμένα μοντέλα",
   "library.config.basic.field.description.hint": "Βοηθάει να διακρίνει για ποιο σκοπό προορίζεται αυτός ο βοηθός",
   "library.config.basic.field.description.placeholder": "Για τι είναι αυτός ο βοηθός...",
   "library.config.basic.field.max_tokens.hint": "Μήκος απάντησης του Caps όταν είναι ενεργοποιημένο",

@@ -2218,6 +2218,8 @@
   "library.config.basic.field.context_management.hint": "Usa le impostazioni di gestione del contesto di questo assistente; se disattivato, usa quelle globali",
   "library.config.basic.field.context_truncate_threshold.hint": "Gli output degli strumenti oltre questo numero di caratteri vengono trasferiti su file e troncati",
   "library.config.basic.field.custom_params.hint": "Parametri aggiuntivi del fornitore inviati con le richieste",
+  "library.config.basic.field.default_models": "Modelli predefiniti",
+  "library.config.basic.field.default_models.placeholder": "Seleziona i modelli predefiniti",
   "library.config.basic.field.description.hint": "Aiuta a distinguere lo scopo di questo assistente",
   "library.config.basic.field.description.placeholder": "A cosa serve questo assistente...",
   "library.config.basic.field.max_tokens.hint": "Limita la lunghezza delle risposte se attivato",

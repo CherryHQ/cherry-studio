@@ -2218,6 +2218,8 @@
   "library.config.basic.field.context_management.hint": "Bu asistanın kendi bağlam yönetimi ayarlarını kullanır; kapalı olduğunda genel ayarları izler",
   "library.config.basic.field.context_truncate_threshold.hint": "Bu karakter sayısını aşan araç çıktıları aktarılır ve kırpılır",
   "library.config.basic.field.custom_params.hint": "İsteklerle gönderilen ek sağlayıcı parametreleri",
+  "library.config.basic.field.default_models": "Varsayılan modeller",
+  "library.config.basic.field.default_models.placeholder": "Varsayılan modelleri seçin",
   "library.config.basic.field.description.hint": "Bu asistanın amacını ayırt etmeye yardımcı olur",
   "library.config.basic.field.description.placeholder": "Bu asistanın amacı...",
   "library.config.basic.field.max_tokens.hint": "Etkinleştirildiğinde yanıt uzunluğunu sınırlar",

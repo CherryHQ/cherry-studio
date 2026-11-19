@@ -1034,6 +1034,39 @@ describe('AssistantDataService', () => {
       expect(result.modelName).toBe('Claude 3')
     })
 
+    it('stores the default list with the first entry as modelId and reads it back', async () => {
+      await seedAssistantRow({ id: 'ast-1', name: 'test', modelId: 'openai::gpt-4' })
+
+      const result = assistantDataService.update('ast-1', {
+        defaultModelIds: ['anthropic::claude-3', 'openai::gpt-4']
+      })
+
+      expect(result.modelId).toBe('anthropic::claude-3')
+      expect(result.defaultModelIds).toEqual(['anthropic::claude-3', 'openai::gpt-4'])
+      expect(assistantDataService.getById('ast-1').defaultModelIds).toEqual([
+        'anthropic::claude-3',
+        'openai::gpt-4'
+      ])
+    })
+
+    it('rejects an unregistered id in the default list without writing', async () => {
+      await seedAssistantRow({ id: 'ast-1', name: 'test', modelId: 'openai::gpt-4' })
+
+      expect(() =>
+        assistantDataService.update('ast-1', { defaultModelIds: ['openai::gpt-4', 'cherryai::qwen'] })
+      ).toThrow(/unavailable in this edition/)
+      expect(assistantDataService.getById('ast-1').defaultModelIds).toEqual(['openai::gpt-4'])
+    })
+
+    it('drops the new primary from the extra defaults when only modelId changes', async () => {
+      await seedAssistantRow({ id: 'ast-1', name: 'test', modelId: 'openai::gpt-4' })
+      assistantDataService.update('ast-1', { defaultModelIds: ['openai::gpt-4', 'anthropic::claude-3'] })
+
+      const result = assistantDataService.update('ast-1', { modelId: 'anthropic::claude-3' })
+
+      expect(result.defaultModelIds).toEqual(['anthropic::claude-3', 'openai::gpt-4'])
+    })
+
     it('should return changed modelName from the update transaction snapshot', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'test', modelId: 'openai::gpt-4' })
       const realTransaction = dbh.db.transaction.bind(dbh.db)

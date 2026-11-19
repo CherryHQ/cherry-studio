@@ -150,6 +150,8 @@ export const AssistantSchema = z.strictObject({
   settings: AssistantSettingsSchema,
   /** Default/primary model ID in UniqueModelId format ("providerId::modelId") */
   modelId: UniqueModelIdSchema.nullable(),
+  /** All default models, in order: `modelId` first, then the extra defaults. Empty when unset. */
+  defaultModelIds: z.array(UniqueModelIdSchema),
   /** Optional group used to organize assistants */
   groupId: GroupIdSchema.nullable(),
   /** Persistent ordering key. Read-only; modified only through order endpoints. */

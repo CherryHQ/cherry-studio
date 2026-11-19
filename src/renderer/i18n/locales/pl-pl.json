@@ -2242,6 +2242,8 @@
   "library.config.basic.field.context_management.hint": "Użyj własnych ustawień zarządzania kontekstem tego asystenta; wyłączenie powoduje zastosowanie ustawień globalnych",
   "library.config.basic.field.context_truncate_threshold.hint": "Dane wyjściowe narzędzi przekraczające tę liczbę znaków są odciążane i obcinane",
   "library.config.basic.field.custom_params.hint": "Dodatkowe parametry dostawcy wysyłane z żądaniami",
+  "library.config.basic.field.default_models": "Domyślne modele",
+  "library.config.basic.field.default_models.placeholder": "Wybierz domyślne modele",
   "library.config.basic.field.description.hint": "Pomaga rozróżnić przeznaczenie tego asystenta",
   "library.config.basic.field.description.placeholder": "Do czego służy ten asystent...",
   "library.config.basic.field.max_tokens.hint": "Ogranicza długość odpowiedzi po włączeniu",

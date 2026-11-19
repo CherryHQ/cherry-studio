@@ -1,6 +1,6 @@
 import { Sparkles, Trash2 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { useForm, type UseFormReturn } from 'react-hook-form'
+import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -30,10 +30,12 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CreateGroupDialog } from '@renderer/components/CreateGroupDialog'
+import { ModelSelector } from '@renderer/components/ModelSelector'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
+import { useModels } from '@renderer/hooks/useModel'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
@@ -87,6 +89,7 @@ type AssistantEditFormValues = {
   name: string
   description: string
   modelId: UniqueModelId | null
+  defaultModelIds: UniqueModelId[]
   groupId: string | null
   prompt: string
   temperature: number
@@ -128,6 +131,7 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     name: form.name,
     description: form.description,
     modelId: form.modelId ?? null,
+    defaultModelIds: [...form.defaultModelIds],
     groupId: form.groupId,
     prompt: form.prompt,
     temperature: form.temperature,
@@ -168,6 +172,7 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     name: values.name,
     description: values.description,
     modelId: values.modelId,
+    defaultModelIds: values.defaultModelIds,
     groupId: values.groupId,
     prompt: values.prompt,
     temperature: values.temperature,
@@ -515,8 +520,18 @@ function AssistantBasicFields({
   onSettingsNavigate?: (navigate: () => void) => void
 }) {
   const { t } = useTranslation()
+  const { models: allModels } = useModels({ enabled: open })
+  const defaultModelIds = useWatch({ control: form.control, name: 'defaultModelIds' })
+  const defaultModelNames = useMemo(() => {
+    const byId = new Map(allModels.map((model) => [model.id, model.name]))
+    return defaultModelIds.map((id) => byId.get(id) ?? id).join(', ')
+  }, [allModels, defaultModelIds])
   const handleAssistantModelChange = (modelId: UniqueModelId | null, model?: Model) => {
-    const patch: Partial<AssistantEditFormValues> = { modelId }
+    const rest = form.getValues('defaultModelIds').filter((id) => id !== modelId)
+    const patch: Partial<AssistantEditFormValues> = {
+      modelId,
+      defaultModelIds: modelId ? [modelId, ...rest] : rest
+    }
     const nameLower = model?.name.toLowerCase() ?? ''
     if (nameLower.includes('kimi-k2')) {
       patch.temperature = 0.6
@@ -524,6 +539,9 @@ function AssistantBasicFields({
       patch.temperature = 0.3
     }
     setFormValues(form, patch)
+  }
+  const handleDefaultModelsSelect = (ids: UniqueModelId[]) => {
+    setFormValues(form, { defaultModelIds: ids, modelId: ids[0] ?? null })
   }
 
   return (
@@ -570,6 +588,25 @@ function AssistantBasicFields({
         layout="row"
         triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50"
       />
+      <div className={editDialogFormRowClassName}>
+        <span className={editDialogFormRowLabelClassName}>{t('library.config.basic.field.default_models')}</span>
+        <ModelSelector
+          multiple
+          selectionType="id"
+          value={defaultModelIds}
+          onSelect={handleDefaultModelsSelect}
+          filter={modelFilter}
+          isModelDisabled={isModelDisabled}
+          portalContainer={portalContainer}
+          mountStrategy="lazy-keep"
+          onSettingsNavigate={onSettingsNavigate}
+          trigger={
+            <Button variant="outline" className="h-9 w-full justify-start truncate font-normal">
+              {defaultModelNames || t('library.config.basic.field.default_models.placeholder')}
+            </Button>
+          }
+        />
+      </div>
       <FormField
         control={form.control}
         name="groupId"

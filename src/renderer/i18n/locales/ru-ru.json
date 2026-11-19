@@ -2220,6 +2220,8 @@
   "library.config.basic.field.context_management.hint": "Переопределить глобальные настройки управления контекстом для этого ассистента; off наследует глобальные настройки",
   "library.config.basic.field.context_truncate_threshold.hint": "Выводы инструмента, превышающие это количество символов, выгружаются и обрезаются",
   "library.config.basic.field.custom_params.hint": "Дополнительные параметры провайдера, отправляемые с запросами",
+  "library.config.basic.field.default_models": "Модели по умолчанию",
+  "library.config.basic.field.default_models.placeholder": "Выберите модели по умолчанию",
   "library.config.basic.field.description.hint": "Помогает понять, для чего предназначен этот ассистент",
   "library.config.basic.field.description.placeholder": "Для чего нужен этот помощник...",
   "library.config.basic.field.max_tokens.hint": "Длина ответа Caps при включении",

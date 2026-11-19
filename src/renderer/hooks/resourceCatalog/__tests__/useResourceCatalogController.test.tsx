@@ -131,6 +131,7 @@ function exportAssistant(id: string, overrides: Partial<Assistant> = {}): Assist
     emoji: '🤖',
     groupId: null,
     modelId: 'openai::gpt',
+    defaultModelIds: ['openai::gpt'],
     modelName: null,
     orderKey: 'a0',
     settings: DEFAULT_ASSISTANT_SETTINGS,

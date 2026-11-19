@@ -144,21 +144,27 @@ const GENERATE_PROMPT_BUTTON = 'Generate prompt · GPT-4o'
 vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({
     trigger,
+    multiple,
     onSelect,
     onSettingsNavigate
   }: {
     trigger: ReactNode
+    multiple?: boolean
     onSelect: (modelId: string | undefined) => void
     onSettingsNavigate?: (navigate: () => void) => void
   }) => (
     <div>
       {trigger}
-      <button type="button" onClick={() => onSelect(MODEL.id)}>
-        Pick model
-      </button>
-      <button type="button" onClick={() => onSettingsNavigate?.(settingsNavigateMock)}>
-        Open model settings
-      </button>
+      {multiple ? null : (
+        <>
+          <button type="button" onClick={() => onSelect(MODEL.id)}>
+            Pick model
+          </button>
+          <button type="button" onClick={() => onSettingsNavigate?.(settingsNavigateMock)}>
+            Open model settings
+          </button>
+        </>
+      )}
     </div>
   )
 }))
@@ -328,7 +334,8 @@ vi.mock('@renderer/hooks/useModel', async (importOriginal) => {
   const actual = await importOriginal<typeof UseModelModule>()
   return {
     ...actual,
-    useDefaultModel: () => ({ defaultModel: DEFAULT_PROMPT_MODEL })
+    useDefaultModel: () => ({ defaultModel: DEFAULT_PROMPT_MODEL }),
+    useModels: () => ({ models: [], isLoading: false })
   }
 })
 
@@ -623,7 +630,7 @@ const ASSISTANT: Assistant = {
     customParameters: []
   },
   modelId: 'provider::old-model',
-  orderKey: 'a0',
+  defaultModelIds: ['provider::old-model'],  orderKey: 'a0',
   mcpServerIds: [],
   knowledgeBaseIds: [],
   groupId: 'group-work',
@@ -1398,7 +1405,7 @@ describe('edit dialogs', () => {
         body: expect.objectContaining({
           name: 'Updated Assistant',
           description: 'Updated assistant description',
-          modelId: MODEL.id
+          defaultModelIds: [MODEL.id, 'provider::old-model']
         })
       })
     )

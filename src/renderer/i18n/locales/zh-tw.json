@@ -2218,6 +2218,8 @@
   "library.config.basic.field.context_management.hint": "覆寫此助理的全域上下文管理設定；停用時會繼承全域設定",
   "library.config.basic.field.context_truncate_threshold.hint": "工具輸出超過此字元數後，會自上下文移除並截斷",
   "library.config.basic.field.custom_params.hint": "與請求一同傳送的額外供應商參數",
+  "library.config.basic.field.default_models": "預設模型",
+  "library.config.basic.field.default_models.placeholder": "選擇預設模型",
   "library.config.basic.field.description.hint": "有助於區分此助理的用途",
   "library.config.basic.field.description.placeholder": "這個助理的用途...",
   "library.config.basic.field.max_tokens.hint": "啟用時限制回覆長度",

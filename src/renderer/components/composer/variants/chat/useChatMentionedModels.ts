@@ -7,6 +7,11 @@ interface UseMentionedModelSelectorParams {
   enabled: boolean | undefined
   runtimeModel: Model | undefined
   runtimeModelPending: boolean
+  /** Assistant default models (more than one) activated when entering a topic/assistant scope. */
+  assistantDefaultModels: Model[]
+  assistantDefaultModelsPending: boolean
+  /** False when the topic already has a saved multi-model selection that must win over the defaults. */
+  seedAssistantDefaults: boolean
   selectedAssistantId: string | null
   topicId: string
   mentionedModels: Model[]
@@ -35,6 +40,9 @@ export function useChatMentionedModels({
   enabled,
   runtimeModel,
   runtimeModelPending,
+  assistantDefaultModels,
+  assistantDefaultModelsPending,
+  seedAssistantDefaults,
   selectedAssistantId,
   topicId,
   mentionedModels,
@@ -54,7 +62,19 @@ export function useChatMentionedModels({
   mentionedModelsRef.current = mentionedModels
 
   const initializeMentionedModelSelector = useEffectEvent(
-    (isInitialSelection: boolean, preserveExplicitSelection: boolean, selectedModel?: Model) => {
+    (
+      isInitialSelection: boolean,
+      preserveExplicitSelection: boolean,
+      selectedModel?: Model,
+      seededModels?: Model[]
+    ) => {
+      if (seededModels) {
+        setMentionedModelSelectorValue(seededModels)
+        setMentionedModelMultiSelectMode(true)
+        setMentionedModels(seededModels)
+        return
+      }
+
       const currentMentionedModels = mentionedModelsRef.current
       const keepCurrentSelection = preserveExplicitSelection && currentMentionedModels.length > 0
       setMentionedModelSelectorValue(
@@ -84,6 +104,7 @@ export function useChatMentionedModels({
     if (!runtimeModel && runtimeModelPending) {
       return
     }
+    if (assistantDefaultModelsPending) return
 
     const selectorScopeKey = `${topicId}:${selectedAssistantId ?? 'no-assistant'}`
     const initializationKey = `${selectorScopeKey}:${runtimeModel?.id ?? 'no-model'}`
@@ -91,16 +112,24 @@ export function useChatMentionedModels({
 
     const isInitialSelection = mentionedModelSelectorInitKeyRef.current === null
     const isSameSelectorScope = selectorScopeKeyRef.current === selectorScopeKey
+    const seededModels =
+      !isSameSelectorScope && seedAssistantDefaults && assistantDefaultModels.length > 1
+        ? assistantDefaultModels
+        : undefined
     mentionedModelSelectorInitKeyRef.current = initializationKey
     selectorScopeKeyRef.current = selectorScopeKey
     initializeMentionedModelSelector(
       isInitialSelection,
       Boolean(preserveExplicitSelectionOnRuntimeChange && isSameSelectorScope),
-      runtimeModel
+      runtimeModel,
+      seededModels
     )
   }, [
     runtimeModel,
     runtimeModelPending,
+    assistantDefaultModels,
+    assistantDefaultModelsPending,
+    seedAssistantDefaults,
     selectedAssistantId,
     topicId,
     enabled,

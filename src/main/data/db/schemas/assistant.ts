@@ -1,6 +1,7 @@
 import { index, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import type { AssistantSettings } from '@shared/data/types/assistant'
+import type { UniqueModelId } from '@shared/data/types/model'
 
 import { createUpdateDeleteTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 import { groupTable } from './group'
@@ -26,6 +27,8 @@ export const assistantTable = sqliteTable(
     // Default/primary model: FK to user_model(id) — UniqueModelId "providerId::modelId"
     // Legitimately nullable (R1): NULL = "no model selected yet"
     modelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
+    // Extra default models beyond `modelId`; the effective list is [modelId, ...additionalModelIds].
+    additionalModelIds: text({ mode: 'json' }).$type<UniqueModelId[]>().notNull().default([]),
     // Optional assistant group. The v1 migrator preserves legacy tag groups here,
     // and runtime assistant grouping reads/writes this same canonical reference.
     groupId: text().references(() => groupTable.id, { onDelete: 'set null' }),
