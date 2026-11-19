@@ -13,6 +13,8 @@ export const DEFAULT_ASSISTANT_TOOL_NAMES = [
   'product_info',
   'apply_setting',
   'create_agent',
+  'create_assistant',
+  'update_agent',
   'prepare_diagnostic_report'
 ] as const
 

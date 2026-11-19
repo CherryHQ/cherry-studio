@@ -47,7 +47,26 @@ deliberately selects an empty custom base. Each driver maps the common
 Pi uses system/append overrides. Runtime-
 native workspace context can still load according to that driver's trust
 boundary. Cherry-owned persona, memory, workspace-path, security, citation,
-artifact, and language guidance is appended independently of the base.
+artifact, create-tool, and language guidance is appended independently of the
+base. The create-tool guidance (`configToolsGuidance.ts`) names only the Agent
+and Assistant create and settings tools the session mounts, so a channel-linked
+Cherry Assistant session gets none. It also lists each tool's argument names
+from its input schema, with optional ones marked, because Pi Durable's
+`codemode` shows no tool signatures and models otherwise guess the names. The artifact guidance and the create-tool
+guidance both name tools in the call form each runtime adapter passes: Claude Code calls `mcp__cherry-tools__…` directly, Pi loads
+`mcp__cherry_tools__…` with `tool_search`, and Pi Durable calls
+`tools.mcp__cherry_tools__…()` inside `codemode`, because it registers MCP tools
+for scripts only and its `tool_search` loads model tools.
+
+A Pi Durable Agent may replace any block of its System Prompt except identity
+with its own text, stored in `configuration.prompt_overrides` and keyed by
+`EDITABLE_PROMPT_SECTIONS`: the Cherry-written guidance and the blocks that
+follow data or settings (workspace instructions, skills, MCP instructions,
+workspace `system.md`, reply language). `buildAgentRuntimePrompt` and
+`buildDurablePrompt` substitute an override only for a block the current
+settings generate, and a replaced live block no longer follows its data until
+the override is removed. Claude Code and Pi ignore overrides. Identity is edited
+through the `SOUL.md`, `USER.md`, and `FACT.md` files themselves.
 
 ## Persona and onboarding
 

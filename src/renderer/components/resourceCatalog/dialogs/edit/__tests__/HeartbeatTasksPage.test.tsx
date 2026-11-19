@@ -1,6 +1,7 @@
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import en from '@renderer/i18n/locales/en-us.json'
@@ -12,12 +13,48 @@ import type { HeartbeatDocument } from '@shared/ipc/schemas/ai'
 
 vi.unmock('@cherrystudio/ui')
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
+vi.mock('@renderer/components/PromptEditorField', () => ({
+  PromptEditorIconButton: ({ label, onClick }: { label: string; onClick: () => void }) => (
+    <button type="button" onClick={onClick}>
+      {label}
+    </button>
+  ),
+  default: ({
+    label,
+    actions,
+    value,
+    onChange,
+    placeholder,
+    disabled,
+    editorLabel
+  }: {
+    label?: ReactNode
+    actions?: ReactNode
+    value: string
+    onChange: (value: string) => void
+    placeholder?: string
+    disabled?: boolean
+    editorLabel?: string
+  }) => (
+    <div>
+      {label}
+      {actions}
+      <textarea
+        aria-label={editorLabel}
+        placeholder={placeholder}
+        disabled={disabled}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </div>
+  )
+}))
 vi.mock('react-i18next', () => {
   const t = (key: string) => en[key as keyof typeof en] ?? key
   return { useTranslation: () => ({ t }) }
 })
 
-import { HeartbeatEditorDialog } from '../HeartbeatEditorDialog'
+import { HeartbeatTasksPage } from '../HeartbeatTasksPage'
 
 const original: HeartbeatDocument = {
   content: '',
@@ -25,7 +62,7 @@ const original: HeartbeatDocument = {
   contentHash: ContentHashSchema.parse('xxh3:0000000000000000')
 }
 
-describe('HeartbeatEditorDialog', () => {
+describe('HeartbeatTasksPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockUseDataApiUtils.resetMocks()
@@ -50,7 +87,7 @@ describe('HeartbeatEditorDialog', () => {
       expect(persisted).toEqual(['Check the inbox'])
       return 'started'
     }) as typeof ipcApi.request)
-    render(<HeartbeatEditorDialog agentId="a1" enabled onOpenChange={vi.fn()} />)
+    render(<HeartbeatTasksPage agentId="a1" enabled />)
     const editor = await screen.findByRole('textbox', { name: 'Heartbeat tasks' })
     await waitFor(() => expect(editor).toBeEnabled())
     await user.type(editor, 'Check the inbox')
@@ -67,7 +104,7 @@ describe('HeartbeatEditorDialog', () => {
       if (route.endsWith('.read')) return original
       throw new IpcError(fileErrorCodes.STALE_VERSION, 'Changed externally')
     }) as typeof ipcApi.request)
-    render(<HeartbeatEditorDialog agentId="a1" enabled onOpenChange={vi.fn()} />)
+    render(<HeartbeatTasksPage agentId="a1" enabled />)
     const editor = await screen.findByRole('textbox', { name: 'Heartbeat tasks' })
     await waitFor(() => expect(editor).toBeEnabled())
     await user.type(editor, 'Keep this draft')
@@ -77,32 +114,32 @@ describe('HeartbeatEditorDialog', () => {
     expect(ipcApi.request).not.toHaveBeenCalledWith('ai.agent.heartbeat.run', expect.anything())
   })
 
+  it('explains a failed last run instead of showing the raw provider error', async () => {
+    const raw =
+      'cherryin API error (401): {"error":{"code":"","message":"无效的令牌 (request id: 20261119104456)","type":"new_api_error"}}'
+    MockUseDataApiUtils.mockQueryData('/agents/:agentId/heartbeat', {
+      scheduleEnabled: true,
+      latestRun: {
+        status: 'failed',
+        createdAt: '2026-11-19T02:44:54.000Z',
+        output: null,
+        error: { code: 'HANDLER_THREW', message: raw, retryable: true }
+      } as never
+    })
+    render(<HeartbeatTasksPage agentId="a1" enabled />)
+    expect(await screen.findByText(en['error.diagnosis.auth'])).toBeVisible()
+    expect(screen.getByText(/无效的令牌/)).toBeVisible()
+    expect(screen.queryByText(/new_api_error|\{"error"/)).not.toBeInTheDocument()
+  })
+
   it('allows editing a disabled heartbeat but prevents execution', async () => {
     const user = userEvent.setup()
-    render(<HeartbeatEditorDialog agentId="a1" enabled={false} onOpenChange={vi.fn()} />)
+    render(<HeartbeatTasksPage agentId="a1" enabled={false} />)
     const editor = await screen.findByRole('textbox', { name: 'Heartbeat tasks' })
     await waitFor(() => expect(editor).toBeEnabled())
     await user.type(editor, 'Check status')
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Save and run once' })).toBeDisabled()
     expect(screen.getByText(en['agent.heartbeat.enable_first'])).toBeVisible()
-  })
-
-  it('reloads the saved tasks when reopened before the discarded editor unmounts', async () => {
-    const user = userEvent.setup()
-    const saved = { ...original, content: 'Saved heartbeat tasks' }
-    vi.mocked(ipcApi.request).mockResolvedValue(saved)
-    const onOpenChange = vi.fn()
-    const { rerender } = render(<HeartbeatEditorDialog agentId="a1" enabled open onOpenChange={onOpenChange} />)
-    const editor = await screen.findByRole('textbox', { name: 'Heartbeat tasks' })
-    await waitFor(() => expect(editor).toHaveValue(saved.content))
-    await user.clear(editor)
-    await user.type(editor, 'Discarded draft')
-
-    rerender(<HeartbeatEditorDialog agentId="a1" enabled open={false} onOpenChange={onOpenChange} />)
-    rerender(<HeartbeatEditorDialog agentId="a1" enabled open onOpenChange={onOpenChange} />)
-
-    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Heartbeat tasks' })).toHaveValue(saved.content))
-    expect(ipcApi.request).not.toHaveBeenCalledWith('ai.agent.heartbeat.write', expect.anything())
   })
 })

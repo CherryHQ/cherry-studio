@@ -1,5 +1,6 @@
 import type { ChannelDraftItem } from '@renderer/components/channel/channelDraft'
-import type { AgentCreateSettings, ResourceCreateValues } from '@renderer/types/resourceCatalog'
+import type { ResourceCreateValues } from '@renderer/types/resourceCatalog'
+import type { AgentCreateSettings } from '@shared/ai/agentForm'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'

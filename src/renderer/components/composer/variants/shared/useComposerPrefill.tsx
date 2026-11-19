@@ -18,8 +18,12 @@ type PrefillActions = Pick<ComposerSurfaceActions, 'getDraft' | 'replaceDraft' |
  * not to be asked again.
  */
 export function requestComposerPrefill(topicId: string, text: string) {
+  pendingPrefills.set(topicId, text)
   void EventEmitter.emit(EVENT_NAMES.PREFILL_COMPOSER, { topicId, text })
 }
+
+// A conversation opened just to receive the text has no composer yet; it takes the text once it mounts.
+const pendingPrefills = new Map<string, string>()
 
 /**
  * Applies {@link requestComposerPrefill} requests addressed to this composer. `EventEmitter` is
@@ -62,9 +66,15 @@ export function useComposerPrefill<T extends PrefillActions>(actionsRef: RefObje
 
   useEffect(() => {
     if (!layerActive) return
+    const pending = pendingPrefills.get(topicId)
+    if (pending !== undefined) {
+      pendingPrefills.delete(topicId)
+      void prefill(pending)
+    }
     return EventEmitter.on(EVENT_NAMES.PREFILL_COMPOSER, (payload) => {
       const request = payload as { topicId?: string; text?: string } | undefined
       if (typeof request?.text !== 'string' || request.topicId !== topicId) return
+      pendingPrefills.delete(topicId)
       void prefill(request.text)
     })
   }, [layerActive, topicId])

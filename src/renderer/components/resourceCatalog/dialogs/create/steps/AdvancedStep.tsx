@@ -1,11 +1,13 @@
 import { type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
-import { FormControl, FormField, FormItem, FormLabel, Label, Textarea } from '@cherrystudio/ui'
+import { FormControl, FormField, FormItem, FormLabel, Textarea } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { settingsPillClassName } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogPages'
 import { HeartbeatCard } from '@renderer/components/resourceCatalog/dialogs/components/HeartbeatCard'
 import { PiPromptField } from '@renderer/components/resourceCatalog/dialogs/components/PiPromptField'
 import { ReplyLanguageSelect } from '@renderer/components/resourceCatalog/dialogs/components/ReplyLanguageSelect'
-import type { AgentCreateSettings } from '@renderer/types/resourceCatalog'
+import type { AgentCreateSettings } from '@shared/ai/agentForm'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 
 import type { ResourceCreateWizardFormValues } from '../types'
@@ -60,6 +62,14 @@ export function AdvancedStep({ form, portalContainer }: AdvancedStepProps) {
           value={prompt}
           onChange={(value) => form.setValue('prompt', value, { shouldDirty: true })}
           draft={{ skillIds, disabledTools, knowledgeBaseIds, mcpServerIds, languageMode, languageCustom }}
+          heading={
+            <h3 className="-mb-2 flex items-baseline gap-1.5 font-medium text-foreground text-sm">
+              {t('library.config.prompt.label')}
+              <span className="font-normal text-muted-foreground text-xs">
+                {t('library.config.agent.prompt.row_hint')}
+              </span>
+            </h3>
+          }
         />
       ) : (
         <SystemPromptStep
@@ -69,12 +79,14 @@ export function AdvancedStep({ form, portalContainer }: AdvancedStepProps) {
           placeholder={t('library.config.agent.prompt.editor_placeholder')}
         />
       )}
-      <div className="grid gap-2">
-        <Label>{t('library.config.agent.field.language.label')}</Label>
+      {/* Same row as the edit window: name left, compact select right, "Other language…" input below. */}
+      <div className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-xl border border-border-subtle px-3 py-2.5 [&>input]:col-span-2 [&>input]:mt-2">
+        <span className="text-foreground text-sm">{t('library.config.agent.field.language.label')}</span>
         <ReplyLanguageSelect
           value={{ languageMode, languageCustom }}
           onChange={patch}
           portalContainer={portalContainer}
+          triggerClassName={cn(settingsPillClassName, 'w-auto')}
         />
       </div>
       {AGENT_RUNTIME_CAPABILITIES[agentType].heartbeat ? (

@@ -8,7 +8,6 @@
  * the renderer against the tool results of the message and earlier turns.
  */
 
-import { toCherryBuiltinRuntimeName } from '@main/ai/toolApproval/builtinToolPolicy'
 import {
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
@@ -16,23 +15,21 @@ import {
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 
-// The agent calls these tools under their cherry-tools runtime names, so that is what the prompt
-// must quote — the bare `web_search` would not match anything it can invoke.
-const CHERRY_WEB_SEARCH_RUNTIME_NAME = toCherryBuiltinRuntimeName(WEB_SEARCH_TOOL_NAME)
-const CHERRY_WEB_FETCH_RUNTIME_NAME = toCherryBuiltinRuntimeName(WEB_FETCH_TOOL_NAME)
-const CHERRY_KB_SEARCH_RUNTIME_NAME = toCherryBuiltinRuntimeName(KB_SEARCH_TOOL_NAME)
-const CHERRY_KB_READ_RUNTIME_NAME = toCherryBuiltinRuntimeName(KB_READ_TOOL_NAME)
+import type { ToolCallForm } from './configToolsGuidance'
 
 export interface CitationsGuidanceOptions {
   web: boolean
   kb: boolean
+  /** Quotes each lookup the way this runtime calls it; a bare `web_search` matches nothing it can invoke. */
+  ref: ToolCallForm['ref']
 }
 
-export function buildCitationsGuidance({ web, kb }: CitationsGuidanceOptions): string | undefined {
+export function buildCitationsGuidance({ web, kb, ref }: CitationsGuidanceOptions): string | undefined {
   if (!web && !kb) return undefined
+  const lookup = (search: string, read: string) => `${ref('cherry-tools', search)} / ${ref('cherry-tools', read)}`
   const tools = [
-    ...(web ? [`\`${CHERRY_WEB_SEARCH_RUNTIME_NAME}\` / \`${CHERRY_WEB_FETCH_RUNTIME_NAME}\``] : []),
-    ...(kb ? [`\`${CHERRY_KB_SEARCH_RUNTIME_NAME}\` / \`${CHERRY_KB_READ_RUNTIME_NAME}\``] : [])
+    ...(web ? [lookup(WEB_SEARCH_TOOL_NAME, WEB_FETCH_TOOL_NAME)] : []),
+    ...(kb ? [lookup(KB_SEARCH_TOOL_NAME, KB_READ_TOOL_NAME)] : [])
   ].join(' and ')
   return `## Citations
 

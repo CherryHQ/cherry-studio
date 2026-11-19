@@ -8,6 +8,7 @@ export type EditPage =
   | 'mcp'
   | 'channels'
   | 'tasks'
+  | 'heartbeat'
   | 'memory'
   | 'context'
   | 'parameters'

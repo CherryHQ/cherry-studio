@@ -69,8 +69,9 @@ export function EditDialogPageShell<TValues extends FieldValues>({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         ref={setDialogContentElement}
+        size="xl"
         className={cn(
-          'flex max-h-[min(720px,88vh)] flex-col gap-0 p-0 sm:max-w-120',
+          'flex max-h-[min(720px,88vh)] flex-col gap-0 p-0',
           fill && 'h-[min(720px,88vh)]',
           resourceDialogCloseButtonClassName
         )}>

@@ -69,7 +69,7 @@ beforeEach(() => {
 describe('AgentTasksPage', () => {
   it("lists this Agent's tasks and pauses or resumes them", async () => {
     const user = userEvent.setup()
-    render(<AgentTasksPage agentId="agent-1" agentName="Reviewer" />)
+    render(<AgentTasksPage agentId="agent-1" agentName="Reviewer" onCreateWithAgent={vi.fn()} />)
 
     expect(screen.getByText('Daily review')).toBeInTheDocument()
     expect(within(screen.getByRole('button', { name: /Weekly report/ })).getByText('已暂停')).toBeInTheDocument()
@@ -84,11 +84,24 @@ describe('AgentTasksPage', () => {
     )
   })
 
-  it('opens a new task with this Agent fixed', async () => {
+  // The new-task button asks the Agent by default; the form is the menu's manual option.
+  it('hands a new task to the Agent without opening the form', async () => {
     const user = userEvent.setup()
-    render(<AgentTasksPage agentId="agent-1" agentName="Reviewer" />)
+    const onCreateWithAgent = vi.fn()
+    render(<AgentTasksPage agentId="agent-1" agentName="Reviewer" onCreateWithAgent={onCreateWithAgent} />)
+
+    await user.click(screen.getByRole('button', { name: '智能体创建' }))
+
+    expect(onCreateWithAgent).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('opens a manual new task with this Agent fixed', async () => {
+    const user = userEvent.setup()
+    render(<AgentTasksPage agentId="agent-1" agentName="Reviewer" onCreateWithAgent={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: '新建任务' }))
+    await user.click(await screen.findByRole('menuitem', { name: '手动创建' }))
 
     const agentPicker = await screen.findByRole('button', { name: '绑定智能体' })
     expect(agentPicker).toHaveTextContent('Reviewer')
@@ -97,7 +110,7 @@ describe('AgentTasksPage', () => {
 
   it('offers run history, Run now, and Delete when editing a task', async () => {
     const user = userEvent.setup()
-    render(<AgentTasksPage agentId="agent-1" agentName="Reviewer" />)
+    render(<AgentTasksPage agentId="agent-1" agentName="Reviewer" onCreateWithAgent={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: /Daily review/ }))
     const form = await screen.findByRole('dialog')

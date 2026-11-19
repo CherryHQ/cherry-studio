@@ -44,7 +44,7 @@ import { serializeError } from '@main/ai/utils/serializeError'
 import { getShellEnv } from '@main/utils/shellEnv'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { McpServerSchema } from '@shared/data/types/mcpServer'
-import { ModelSchema } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
 import type { SpanEntity } from '@shared/data/types/trace'
 
@@ -217,7 +217,7 @@ describe('desktop Pi Durable connection', () => {
     mocks.capture.mockImplementation(async () => snapshot)
     mocks.mcpServers.mockReset().mockReturnValue({})
     mocks.catalog.mockReset().mockReturnValue([])
-    mocks.prompt.mockReset().mockResolvedValue({ base: { kind: 'custom', content: 'You are Cherry.' } })
+    mocks.prompt.mockReset().mockResolvedValue({ base: { kind: 'custom', content: 'You are Cherry.' }, blocks: [] })
     setScript([assistantReply('Hello world')])
     mocks.binding.mockImplementation(async () => createTestBinding({ model: MODEL, stream: script.model }))
   })
@@ -344,6 +344,21 @@ describe('desktop Pi Durable connection', () => {
       .set({ model: 'test::later-selection' })
       .where(eq(agentSessionTable.id, input.sessionId))
       .run()
+    // A created Agent runs on Pi Durable, so the captured model must be one it can route.
+    dbh.db
+      .update(userProviderTable)
+      .set({
+        isEnabled: true,
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://openai.test/v1' } },
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      })
+      .where(eq(userProviderTable.providerId, 'test'))
+      .run()
+    dbh.db
+      .update(userModelTable)
+      .set({ endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+      .where(eq(userModelTable.id, modelId))
+      .run()
     snapshot.agent.configuration = { ...snapshot.agent.configuration, builtin_role: BUILTIN_AGENT_ROLE.ASSISTANT }
     input.headless = headless
     const { buildAgentMcpServers } = await vi.importActual<typeof AgentMcpServers>('../agentMcpServers')
@@ -360,7 +375,7 @@ describe('desktop Pi Durable connection', () => {
         BACKGROUND_CONTEXT
       )
       expect(result.isError).toBe(false)
-      expect(result.details).toMatchObject({ ok: true, model: modelId })
+      expect(result.details).toMatchObject({ ok: true, kind: 'agent', name: 'Created Agent' })
       const created = dbh.db
         .select()
         .from(agentTable)

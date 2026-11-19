@@ -1305,6 +1305,9 @@ importers:
       react-dom:
         specifier: ^19.3.1
         version: 19.3.1(react@19.3.1)
+      react-easy-crop:
+        specifier: ^6.2.5
+        version: 6.2.5(@types/react@19.2.7)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       react-error-boundary:
         specifier: ^6.0.0
         version: 6.0.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -13465,6 +13468,9 @@ packages:
     resolution: {integrity: sha512-DlL+XwOy3NxAQ8xuC0okPgK46iuVNAK01YN7RueYBqqFeGsBjV9XmCAzAdgt+667bCl5kPh9EqKKDwnaPG1I7A==}
     engines: {node: '>=10'}
 
+  normalize-wheel@1.0.1:
+    resolution: {integrity: sha512-1OnlAPZ3zgrk8B91HyRj+eVv+kS5u+Z0SCsak6Xil/kmgEia50ga7zfkumayonZrImffAxPU/5WcyGhzetHNPA==}
+
   notion-helper@1.3.29:
     resolution: {integrity: sha512-fchHqofYNPxXBTdRj8r3KIll1zG4dughZS5CV7X5JxykvguFEgmAQi0Ao+CHBA3XxGwxR5TyrRCe5AD3NjAYSQ==}
     engines: {node: '>=18.0.0'}
@@ -14193,6 +14199,16 @@ packages:
     engines: {node: '>= 10.13'}
     peerDependencies:
       react: '>= 16.8 || 18.0.0'
+
+  react-easy-crop@6.2.5:
+    resolution: {integrity: sha512-NoJ+mtq7vNu6b77VDT1g4D3GXrhp5N4zKR0r63yUbQzbUkr6/aPibFXAOEzxZcHfUB2/R4KwxOU8g3eB7hnKjQ==}
+    peerDependencies:
+      '@types/react': '*'
+      react: '>=16.4.0'
+      react-dom: '>=16.4.0'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
 
   react-error-boundary@6.0.1:
     resolution: {integrity: sha512-zArgQpjJUN1ZLMEKWtifxQweW3yfvwL5j2nh3Pesze1qG6r5oCDMy/TA97bUF01wy4xCeeL4/pd8GHmvEsP3Bg==}
@@ -28864,6 +28880,8 @@ snapshots:
 
   normalize-url@6.1.0: {}
 
+  normalize-wheel@1.0.1: {}
+
   notion-helper@1.3.29: {}
 
   npm-run-path@6.0.0:
@@ -29747,6 +29765,14 @@ snapshots:
       file-selector: 2.1.2
       prop-types: 15.8.1
       react: 19.3.1
+
+  react-easy-crop@6.2.5(@types/react@19.2.7)(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
+    dependencies:
+      normalize-wheel: 1.0.1
+      react: 19.3.1
+      react-dom: 19.3.1(react@19.3.1)
+    optionalDependencies:
+      '@types/react': 19.2.7
 
   react-error-boundary@6.0.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
     dependencies:

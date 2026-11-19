@@ -1,8 +1,18 @@
-import { Clock, Play, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, Clock, Play, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge, Button, ConfirmDialog, Switch } from '@cherrystudio/ui'
+import {
+  Badge,
+  Button,
+  ButtonGroup,
+  ConfirmDialog,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Switch
+} from '@cherrystudio/ui'
 import { getTriggerSummary } from '@renderer/components/ScheduledTask/scheduleForm'
 import { TaskFormDialog } from '@renderer/components/ScheduledTask/TaskFormDialog'
 import { formatTaskCardTime } from '@renderer/components/ScheduledTask/TaskRunSummaryLine'
@@ -20,11 +30,23 @@ import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 
 type Editing = { task?: ScheduledTaskEntity }
 
+const ADD_BUTTON_CLASS =
+  'h-7 min-h-0 rounded-md border border-border bg-transparent font-normal text-muted-foreground text-xs shadow-none hover:bg-accent/50 hover:text-foreground'
+
 /**
- * One Agent's scheduled tasks: pause switch, schedule, and last run per row. New and existing
- * tasks open the shared task form with this Agent fixed; editing adds history, Run now, and Delete.
+ * One Agent's scheduled tasks: pause switch, schedule, and last run per row. A new task is asked
+ * of the Agent in a conversation by default, or made in the shared task form from the menu; existing
+ * tasks open that form with this Agent fixed, where editing adds history, Run now, and Delete.
  */
-export function AgentTasksPage({ agentId, agentName }: { agentId: string; agentName: string }) {
+export function AgentTasksPage({
+  agentId,
+  agentName,
+  onCreateWithAgent
+}: {
+  agentId: string
+  agentName: string
+  onCreateWithAgent: () => void
+}) {
   const { t } = useTranslation()
   const { tasks, isLoading } = useAgentTasks(agentId)
   const { setTaskEnabled } = useSetTaskEnabled()
@@ -90,15 +112,34 @@ export function AgentTasksPage({ agentId, agentName }: { agentId: string; agentN
           )
         })
       )}
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={() => open({})}
-        className="h-7 min-h-0 w-fit gap-1 rounded-md border border-border bg-transparent px-2 font-normal text-muted-foreground text-xs shadow-none hover:bg-accent/50 hover:text-foreground">
-        <Plus size={12} />
-        {t('library.config.dialogs.edit.tasks.add')}
-      </Button>
+      <ButtonGroup className="w-fit">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onCreateWithAgent}
+          className={cn(ADD_BUTTON_CLASS, 'gap-1 px-2')}>
+          <Plus size={12} />
+          {t('library.config.dialogs.edit.tasks.add_with_agent')}
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-label={t('library.config.dialogs.edit.tasks.add')}
+              className={cn(ADD_BUTTON_CLASS, 'w-6 px-0')}>
+              <ChevronDown size={12} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onSelect={() => open({})}>
+              {t('library.config.dialogs.edit.tasks.add_manually')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </ButtonGroup>
 
       {editing?.task ? (
         <TaskFormDialog

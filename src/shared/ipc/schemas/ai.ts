@@ -3,6 +3,7 @@ import * as z from 'zod'
 
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import type { AgentAttachmentSelection } from '@cherrystudio/remote-protocol/agent'
+import { AgentConfigChangePreviewSchema } from '@shared/ai/agentConfigToolOutput'
 import { agentImportSnapshotSchema, type AgentImportSnapshot } from '@shared/ai/agentImport'
 import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
 import type { MessageProjectionUpdate, MessageProjectionView, ProjectionTarget } from '@shared/ai/messageProjection'
@@ -405,6 +406,11 @@ export const aiRequestSchemas = {
   'ai.agent.create': defineRoute({
     input: CreateAgentCommandSchema,
     output: AgentEntitySchema
+  }),
+  /** What a pending Agent or Assistant create or settings call would do, for its approval card. */
+  'ai.agent.preview_config_change': defineRoute({
+    input: z.strictObject({ approvalId: z.string().min(1) }),
+    output: AgentConfigChangePreviewSchema
   }),
   'ai.agent.restore': defineRoute({
     input: z.object({ agentId: z.string() }),

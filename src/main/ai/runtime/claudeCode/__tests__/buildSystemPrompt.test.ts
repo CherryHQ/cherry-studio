@@ -1,7 +1,7 @@
 /**
  * The `cherry-tools` MCP server (injected into every Claude Code session by buildMcpServers)
- * exposes `report_artifacts`. buildSystemPrompt MUST append REPORT_ARTIFACTS_PROMPT so the model
- * is told to call that tool at task completion — otherwise it is a dangling, never-invoked tool.
+ * exposes `report_artifacts`. buildSystemPrompt MUST tell the model to call it, by its Claude Code
+ * name, at task completion — otherwise it is a dangling, never-invoked tool.
  */
 
 import type * as NodeFs from 'node:fs'
@@ -34,7 +34,7 @@ const {
   mockProvisionBuiltinAgent: vi.fn(),
   mockBuildMemoriesSection: vi.fn(),
   mockGetAppLanguage: vi.fn(() => 'en-US'),
-  mockBuildPrompt: vi.fn().mockResolvedValue({ base: { kind: 'native' }, context: 'SOUL_PROMPT' }),
+  mockBuildPrompt: vi.fn().mockResolvedValue({ base: { kind: 'native' }, memories: 'SOUL_PROMPT' }),
   mockReplacePromptVariables: vi.fn(async (prompt: string) => prompt)
 }))
 
@@ -102,13 +102,13 @@ beforeEach(() => {
   mockLoadBuiltinAgentDefinition.mockReset()
   mockProvisionBuiltinAgent.mockReset()
   mockBuildMemoriesSection.mockReset().mockResolvedValue(undefined)
-  mockBuildPrompt.mockReset().mockResolvedValue({ base: { kind: 'native' }, context: 'SOUL_PROMPT' })
+  mockBuildPrompt.mockReset().mockResolvedValue({ base: { kind: 'native' }, memories: 'SOUL_PROMPT' })
   mockReplacePromptVariables.mockReset().mockImplementation(async (prompt: string) => prompt)
   mockGetAppLanguage.mockReturnValue('en-US')
 })
 
 function makeAgent(overrides: Partial<AgentEntity> = {}): AgentEntity {
-  return { id: 'agent-1', mcps: [], configuration: {}, ...overrides } as unknown as AgentEntity
+  return { id: 'agent-1', type: 'claude-code', mcps: [], configuration: {}, ...overrides } as unknown as AgentEntity
 }
 
 function promptText(prompt: Awaited<ReturnType<typeof buildSystemPrompt>>): string {
@@ -128,7 +128,7 @@ describe('buildSystemPrompt — current workspace', () => {
     const agent = makeAgent()
     mockBuildPrompt.mockResolvedValue({
       base: { kind: 'custom', content: 'CUSTOM SYSTEM PROMPT' },
-      context: 'SOUL_PROMPT'
+      memories: 'SOUL_PROMPT'
     })
 
     const first = await buildSystemPrompt(agent, '/workspace/project-a')
@@ -143,7 +143,7 @@ describe('buildSystemPrompt — current workspace', () => {
   it('replaces only the Claude Code base with system.md and retains Cherry context', async () => {
     mockBuildPrompt.mockResolvedValueOnce({
       base: { kind: 'custom', content: 'CUSTOM SYSTEM PROMPT' },
-      context: 'SOUL_PROMPT'
+      memories: 'SOUL_PROMPT'
     })
 
     const result = await buildSystemPrompt(makeAgent({ instructions: 'Agent instructions.' }), '/tmp/cwd')
@@ -155,7 +155,7 @@ describe('buildSystemPrompt — current workspace', () => {
   })
 
   it('treats an empty system.md as a custom base and still retains Cherry context', async () => {
-    mockBuildPrompt.mockResolvedValueOnce({ base: { kind: 'custom', content: '' }, context: 'SOUL_PROMPT' })
+    mockBuildPrompt.mockResolvedValueOnce({ base: { kind: 'custom', content: '' }, memories: 'SOUL_PROMPT' })
 
     const result = await buildSystemPrompt(makeAgent({ instructions: 'Agent instructions.' }), '/tmp/cwd')
 
@@ -172,7 +172,7 @@ describe('buildSystemPrompt — Agent System Prompt authority', () => {
     async ({ instructions }) => {
       mockBuildPrompt.mockResolvedValueOnce({
         base: { kind: 'native' },
-        context: '## Memories\n\n<soul>\nSOUL_ROLE: You are the friendly historian.\n</soul>'
+        memories: '## Memories\n\n<soul>\nSOUL_ROLE: You are the friendly historian.\n</soul>'
       })
 
       const text = promptText(await buildSystemPrompt(makeAgent({ instructions }), '/tmp/cwd'))
@@ -210,7 +210,7 @@ describe('buildSystemPrompt — Agent System Prompt authority', () => {
   it('preserves agent instructions, workspace instructions, and persona as distinct sources', async () => {
     mockBuildPrompt.mockResolvedValueOnce({
       base: { kind: 'custom', content: 'WORKSPACE_ROLE: You are the workspace reviewer.' },
-      context: '## Memories\n\n<soul>\nSOUL_ROLE: You are the friendly historian.\n</soul>'
+      memories: '## Memories\n\n<soul>\nSOUL_ROLE: You are the friendly historian.\n</soul>'
     })
 
     const text = promptText(
@@ -231,8 +231,22 @@ describe('buildSystemPrompt — report_artifacts prompt', () => {
   it('appends the report_artifacts prompt to the Claude Code preset with user instructions', async () => {
     const result = await buildSystemPrompt(makeAgent({ instructions: 'Do the task.' }), '/tmp/cwd')
     const text = expectClaudeCodePreset(result)
+    expect(text).toContain('`mcp__cherry-tools__report_artifacts`')
     expect(text).toContain('SOUL_PROMPT')
     expect(text).toContain('Do the task.')
+  })
+
+  // Overrides are a Pi Durable feature; a Claude Code Agent keeps the generated guidance.
+  it('ignores prompt overrides saved on the Agent', async () => {
+    const agent = makeAgent({
+      instructions: 'Do the task.',
+      configuration: { prompt_overrides: { report_artifacts: 'OVERRIDDEN' } }
+    })
+
+    const text = promptText(await buildSystemPrompt(agent, '/tmp/cwd'))
+
+    expect(text).toContain('`mcp__cherry-tools__report_artifacts`')
+    expect(text).not.toContain('OVERRIDDEN')
   })
 })
 

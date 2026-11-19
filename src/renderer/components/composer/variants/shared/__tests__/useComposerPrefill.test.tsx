@@ -100,6 +100,15 @@ describe('useComposerPrefill', () => {
     expect(screen.getByRole('textbox', { name: 'Draft' })).toHaveValue('Find skills for me')
   })
 
+  // A conversation opened to receive the text mounts its composer after the request.
+  it('fills a composer that mounts after the request', async () => {
+    await prefill('topic-new', 'Create a scheduled task for me:')
+
+    render(<Composer topicId="topic-new" />)
+
+    expect(await screen.findByDisplayValue('Create a scheduled task for me:')).toBeInTheDocument()
+  })
+
   it('ignores text addressed to another conversation in the same window', async () => {
     render(<Composer initialText="" />)
 

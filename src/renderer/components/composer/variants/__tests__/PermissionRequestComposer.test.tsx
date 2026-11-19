@@ -464,4 +464,116 @@ describe('PermissionRequestComposer', () => {
     expect(screen.getByRole('button', { name: 'Allow' })).not.toBeDisabled()
     expect(screen.getByRole('button', { name: 'Deny' })).not.toBeDisabled()
   })
+
+  describe('Agent settings changes', () => {
+    // Each test uses its own approval, as the preview is fetched once per approval.
+    function agentConfigRequest(approvalId: string, serverId: string, name: string, args: Record<string, unknown>) {
+      return makeRequest({
+        approvalId,
+        title: name,
+        toolResponse: {
+          id: 'call-1',
+          toolCallId: 'call-1',
+          status: 'pending',
+          arguments: args,
+          tool: {
+            id: `${serverId}__${name}`,
+            name,
+            type: 'mcp',
+            serverId,
+            serverName: serverId,
+            inputSchema: { type: 'object', properties: {}, required: [] }
+          }
+        }
+      })
+    }
+
+    it.each([
+      ['update_agent', 'assistant', 'update_agent'],
+      ['config_update', 'cherry_tools', 'config_update']
+    ])(
+      "shows %s as each changed field's current and new value, read for that approval",
+      async (_tool, serverId, name) => {
+        const approvalId = `approval-${name}`
+        vi.mocked(window.api.ipcApi.request).mockResolvedValueOnce({
+          ok: true,
+          data: { ok: true, summary: ['Model: Default Model → Other Model'] }
+        })
+        render(
+          <PermissionRequestComposer
+            request={agentConfigRequest(approvalId, serverId, name, { model: 'wire::other' })}
+            onRespond={vi.fn()}
+          />
+        )
+
+        expect(await screen.findByText('Model: Default Model → Other Model')).toBeInTheDocument()
+        expect(window.api.ipcApi.request).toHaveBeenCalledWith('ai.agent.preview_config_change', { approvalId })
+      }
+    )
+
+    // A create's arguments carry the whole system prompt; the card shows the new resource instead.
+    it('shows a create as the new resource with its raw arguments folded away', async () => {
+      const user = userEvent.setup()
+      vi.mocked(window.api.ipcApi.request).mockResolvedValueOnce({
+        ok: true,
+        data: {
+          ok: true,
+          resource: {
+            kind: 'agent',
+            name: 'Reviewer',
+            emoji: '🧐',
+            description: 'Reviews pull requests',
+            highlights: ['Other Model']
+          }
+        }
+      })
+      render(
+        <PermissionRequestComposer
+          request={agentConfigRequest('approval-create', 'cherry_tools', 'agent_create', {
+            name: 'Reviewer',
+            instructions: 'LONG_SYSTEM_PROMPT'
+          })}
+          onRespond={vi.fn()}
+        />
+      )
+
+      // Wait for the preview: the raw arguments also name the Agent while it loads.
+      expect(await screen.findByText('Reviews pull requests · Other Model')).toBeInTheDocument()
+      expect(screen.getByText('Reviewer')).toBeInTheDocument()
+      expect(screen.getByText('agent.toolPermission.agent_config.title.create_agent')).toBeInTheDocument()
+      expect(screen.queryByText('LONG_SYSTEM_PROMPT')).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Input' }))
+
+      expect(screen.getByText('LONG_SYSTEM_PROMPT')).toBeInTheDocument()
+    })
+
+    it('keeps the raw arguments on screen while the preview loads', () => {
+      vi.mocked(window.api.ipcApi.request).mockReturnValueOnce(new Promise(() => {}))
+      render(
+        <PermissionRequestComposer
+          request={agentConfigRequest('approval-loading', 'assistant', 'update_agent', { model: 'wire::other' })}
+          onRespond={vi.fn()}
+        />
+      )
+
+      expect(screen.getByText('agent.toolPermission.agent_config.loading')).toBeInTheDocument()
+      expect(screen.getByText('wire::other')).toBeInTheDocument()
+    })
+
+    it('falls back to the raw arguments when main cannot preview the change', async () => {
+      vi.mocked(window.api.ipcApi.request).mockResolvedValueOnce({ ok: true, data: { ok: false } })
+      render(
+        <PermissionRequestComposer
+          request={agentConfigRequest('approval-refused', 'assistant', 'update_agent', {
+            permissionMode: 'bypassPermissions'
+          })}
+          onRespond={vi.fn()}
+        />
+      )
+
+      expect(await screen.findByText('agent.toolPermission.agent_config.error')).toBeInTheDocument()
+      expect(screen.getByText('bypassPermissions')).toBeInTheDocument()
+    })
+  })
 })

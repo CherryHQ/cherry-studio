@@ -76,6 +76,8 @@ describe('EditDialogShared', () => {
 
       expect(screen.queryByRole('button', { name: 'Copy {{date}}' })).not.toBeInTheDocument()
 
+      // The trigger names the variables in visible text, not only for screen readers.
+      expect(screen.getByRole('button', { name: 'System variables' })).toHaveTextContent('System variables')
       screen.getByRole('button', { name: 'System variables' }).focus()
       await userEvent.keyboard('{Enter}')
 

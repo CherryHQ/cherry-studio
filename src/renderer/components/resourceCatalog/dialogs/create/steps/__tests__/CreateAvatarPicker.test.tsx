@@ -30,6 +30,8 @@ vi.mock('@renderer/utils/image', async (original) => ({
   checkEntityImageSize: vi.fn(),
   prepareEntityImageBytes: vi.fn()
 }))
+const cropAvatar = vi.hoisted(() => vi.fn())
+vi.mock('@renderer/components/Avatar/AvatarCropPopup', () => ({ AvatarCropPopup: { show: cropAvatar } }))
 vi.mock('@renderer/components/EmojiPicker', () => ({
   EmojiPicker: ({ onEmojiClick }: { onEmojiClick: (emoji: string) => void }) => (
     <button type="button" onClick={() => onEmojiClick('🎓')}>
@@ -40,6 +42,7 @@ vi.mock('@renderer/components/EmojiPicker', () => ({
 
 const file = new File(['image'], 'avatar.png', { type: 'image/png' })
 const bytes = new Uint8Array([1, 2, 3])
+const framed = { x: 10, y: 20, width: 64, height: 64 }
 
 function Harness() {
   const form = useForm<ResourceCreateWizardFormValues>({
@@ -66,6 +69,7 @@ async function upload(user: ReturnType<typeof userEvent.setup>) {
 
 beforeEach(() => {
   vi.mocked(checkEntityImageSize).mockReset().mockReturnValue(null)
+  cropAvatar.mockReset().mockResolvedValue(framed)
   vi.mocked(prepareEntityImageBytes).mockReset().mockResolvedValue(bytes)
 })
 afterEach(() => {
@@ -81,7 +85,7 @@ describe('CreateAvatarPicker', () => {
     await upload(user)
 
     await waitFor(() => expect(screen.getByTestId('image-bytes')).toHaveTextContent('1,2,3'))
-    expect(prepareEntityImageBytes).toHaveBeenCalledWith(file)
+    expect(prepareEntityImageBytes).toHaveBeenCalledWith(file, framed)
     expect(screen.getByTestId('image-dirty')).toHaveTextContent('true')
     expect(screen.getByRole('img', { name: 'Choose avatar' })).toHaveAttribute(
       'src',

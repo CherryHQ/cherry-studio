@@ -8,6 +8,7 @@
 import * as z from 'zod'
 
 import { MAX_HEARTBEAT_TIMEOUT_MINUTES } from '@shared/ai/agentHeartbeat'
+import { AgentPromptOverridesSchema } from '@shared/ai/agentPromptSections'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 import { FileEntryIdSchema } from '@shared/data/types/file'
@@ -68,7 +69,9 @@ export const AgentConfigurationSchema = z
     builtin_role: z
       .enum([BUILTIN_AGENT_ROLE.ASSISTANT, BUILTIN_AGENT_ROLE.SUPPORT, BUILTIN_AGENT_ROLE.DOCTOR])
       .optional(),
-    language: AgentLanguageSchema.nullable().optional()
+    language: AgentLanguageSchema.nullable().optional(),
+    /** Pi Durable only: the Agent's own text for guidance blocks of its System Prompt. */
+    prompt_overrides: AgentPromptOverridesSchema.optional()
   })
   // .loose() (passthrough) is intentional: the configuration object is stored as a JSON blob
   // and may contain keys written by older or newer versions of the app. Unknown fields must

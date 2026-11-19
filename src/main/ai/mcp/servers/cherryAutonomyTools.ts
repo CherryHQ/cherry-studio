@@ -18,6 +18,17 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
+import {
+  CREATE_AGENT_TOOL_DESCRIPTION,
+  CREATE_ASSISTANT_TOOL_DESCRIPTION,
+  createAgentFromTool,
+  CreateAgentToolInputSchema,
+  createAssistantFromTool,
+  CreateAssistantToolInputSchema,
+  SelfUpdateToolInputSchema,
+  toolOutput,
+  updateAgentFromTool
+} from '@main/ai/agents/agentConfigTool'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import {
   createAgentChannel,
@@ -36,6 +47,7 @@ import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { readConversation, type ReadConversationInput } from '@main/ai/messages/readConversation'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
+import { AgentConfigToolOutputSchema, AssistantCreateToolOutputSchema } from '@shared/ai/agentConfigToolOutput'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import {
   AgentSessionDeliveryStatusSchema,
@@ -47,7 +59,15 @@ import {
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
-import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import {
+  AGENT_CREATE_TOOL_NAME,
+  ASSISTANT_CREATE_TOOL_NAME,
+  CONFIG_TOOL_NAME,
+  CONFIG_UPDATE_TOOL_NAME,
+  CRON_TOOL_NAME,
+  NOTIFY_TOOL_NAME
+} from '@shared/ai/builtinTools'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { JOB_ERROR_CODES, type Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
@@ -67,6 +87,10 @@ export interface AutonomyToolsContext {
   trustedNotifyChannels: readonly NotifyChannel[]
   /** Source-channel turns may explicitly select another live channel owned by this Agent. */
   allowAnyOwnedNotifyChannel: boolean
+  /** Offer `agent_create` and `assistant_create`; see the `createResources` Agent capability. */
+  resourceCreateEnabled?: boolean
+  /** Offer `config_update`; built-in Agents cannot change these settings. */
+  selfConfigEnabled?: boolean
 }
 
 /**
@@ -90,7 +114,7 @@ function parseDurationToMinutes(duration: string): number {
 }
 
 const CRON_DESCRIPTION =
-  "Manage scheduled jobs: add, update, list, remove. Prefer update over recreating; one-time jobs use an RFC3339 'at'."
+  "Manage your scheduled jobs: add, update, list, remove. Use it whenever the user asks for a scheduled, recurring or timed task (定时任务); it runs as you, so it needs no new Agent. Prefer update over recreating; one-time jobs use an RFC3339 'at'."
 
 const CronInputSchema = z.object({
   action: z.enum(['add', 'update', 'list', 'remove']).describe('The action to perform'),
@@ -384,7 +408,11 @@ function listAgents(): CallToolResult {
   const agents = agentService.listAgents().agents.map((agent) => ({
     id: agent.id,
     name: agent.name,
+    emoji: agent.configuration?.avatar ?? '',
     description: agent.description ?? '',
+    model: agent.model,
+    // Built-in Agents cannot be changed from a conversation.
+    readOnly: isProtectedBuiltinAgentRole(agent.configuration?.builtin_role),
     runtime: {
       type: agent.type,
       available: runtimeDriverRegistry.getAgentSessionDriver(agent.type) !== undefined
@@ -1171,9 +1199,58 @@ export function registerAutonomyTools(server: McpServer, ctx: AutonomyToolsConte
       (args) => sendNotification(ctx, args)
     )
   }
-  server.registerTool(CONFIG_TOOL_NAME, { description: CONFIG_DESCRIPTION, inputSchema: ConfigInputSchema }, (args) =>
-    runConfig(ctx, args)
+  server.registerTool(
+    CONFIG_TOOL_NAME,
+    {
+      description: ctx.selfConfigEnabled
+        ? `${CONFIG_DESCRIPTION} Use ${CONFIG_UPDATE_TOOL_NAME} for other settings.`
+        : CONFIG_DESCRIPTION,
+      inputSchema: ConfigInputSchema
+    },
+    (args) => runConfig(ctx, args)
   )
+  if (ctx.selfConfigEnabled) {
+    server.registerTool(
+      CONFIG_UPDATE_TOOL_NAME,
+      {
+        description:
+          'Change your own settings: avatar, description, instructions, model, permission mode, skills, knowledge bases, MCP servers, built-in tools, reply language, heartbeat. Pass only the fields to change; the user approves every call.',
+        inputSchema: SelfUpdateToolInputSchema,
+        outputSchema: AgentConfigToolOutputSchema
+      },
+      (args) => {
+        assertConfigMutationAuthorized(ctx)
+        return toolOutput(updateAgentFromTool(ctx.agentId, args, { self: true }))
+      }
+    )
+  }
+  if (ctx.resourceCreateEnabled) {
+    const fallbackModel = () => agentService.getAgent(ctx.agentId)?.model ?? undefined
+    server.registerTool(
+      AGENT_CREATE_TOOL_NAME,
+      {
+        description: CREATE_AGENT_TOOL_DESCRIPTION,
+        inputSchema: CreateAgentToolInputSchema,
+        outputSchema: AgentConfigToolOutputSchema
+      },
+      async (args) => {
+        assertConfigMutationAuthorized(ctx)
+        return toolOutput(await createAgentFromTool(args, { fallbackModel: fallbackModel() }))
+      }
+    )
+    server.registerTool(
+      ASSISTANT_CREATE_TOOL_NAME,
+      {
+        description: CREATE_ASSISTANT_TOOL_DESCRIPTION,
+        inputSchema: CreateAssistantToolInputSchema,
+        outputSchema: AssistantCreateToolOutputSchema
+      },
+      (args) => {
+        assertConfigMutationAuthorized(ctx)
+        return toolOutput(createAssistantFromTool(args, { fallbackModel: fallbackModel() }))
+      }
+    )
+  }
   server.registerTool(
     SESSION_LIST_TOOL_NAME,
     {
