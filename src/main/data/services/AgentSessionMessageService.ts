@@ -23,14 +23,15 @@ import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
-import { McpSkillContextSchema, type McpSkillContext } from '@data/db/mcpSkillContext'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable as sessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import {
   type AgentSessionMessageRow as SessionMessageRow,
   agentSessionMessageTable as sessionMessagesTable,
-  type InsertAgentSessionMessageRow as InsertSessionMessageRow
+  type InsertAgentSessionMessageRow as InsertSessionMessageRow,
+  McpSkillContextSchema,
+  type McpSkillContext
 } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'

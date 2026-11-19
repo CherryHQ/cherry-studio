@@ -4,7 +4,7 @@ import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
 import type { InputState } from '@cherrystudio/agent-runtime'
-import type { McpSkillContext } from '@data/db/mcpSkillContext'
+import type { McpSkillContext } from '@data/db/schemas/agentSessionMessage'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as childContexts } from '@data/services/AgentSessionContextService'
