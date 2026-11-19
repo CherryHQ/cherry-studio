@@ -17,10 +17,12 @@ const logger = loggerService.withContext('useChannels')
 
 const EMPTY_CHANNELS: readonly AgentChannelEntity[] = Object.freeze([])
 
-export const useChannels = (type?: AgentChannelType) => {
+/** Channels, optionally only one platform's or one Agent's. */
+export const useChannels = (filter: { type?: AgentChannelType; agentId?: string } = {}) => {
   const { t } = useTranslation()
+  const { type, agentId } = filter
   const { data, error, isLoading, refetch, mutate } = useQuery('/agent-channels', {
-    query: type ? { type } : undefined,
+    query: type || agentId ? { type, agentId } : undefined,
     swrOptions: { keepPreviousData: false }
   })
   useDataChange('/agent-channels', () => void refetch())

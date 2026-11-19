@@ -1,3 +1,4 @@
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 export type AvailableChannel = {
@@ -104,3 +105,15 @@ export type ChannelData = {
 }
 
 export type ChannelUpdates = Partial<ChannelData> & { configPatch?: Record<string, unknown> }
+
+/** Props every per-platform channel form takes. */
+export type ChannelFormProps = {
+  channel: ChannelData
+  onConfigChange: (updates: ChannelUpdates) => void
+  /** Not saved yet (the create wizard): flows that need a saved channel, such as QR login, are left out. */
+  draft?: boolean
+  /** The owning Agent's mode, named in the inherit option. */
+  agentPermissionMode?: AgentPermissionMode
+  /** Modes the owning Agent's runtime supports; every mode when omitted. */
+  permissionModes?: readonly AgentPermissionMode[]
+}

@@ -53,6 +53,21 @@ function validateChannelConfig(
   return parsed.data
 }
 
+type CreateChannelInput =
+  | CreateAgentChannelDto
+  | {
+      type: ChannelConfig['type']
+      name: string
+      agentId?: string | null
+      workspace: AgentSessionWorkspaceSource
+      config: ChannelConfig | Record<string, unknown>
+      isActive?: boolean
+      // Narrow, not `string`: with the DB CHECK constraint gone this parameter type is
+      // what stops an internal caller (one that bypasses the DataApi zod boundary) from
+      // persisting a mode the SDK will reject at run time.
+      permissionMode?: AgentPermissionMode | null
+    }
+
 export class AgentChannelService {
   private rowToEntity(row: ChannelRow): AgentChannelEntity {
     const clean = nullsToUndefined(row)
@@ -67,22 +82,14 @@ export class AgentChannelService {
     } as AgentChannelEntity
   }
 
-  createChannel(
-    data:
-      | CreateAgentChannelDto
-      | {
-          type: ChannelConfig['type']
-          name: string
-          agentId?: string | null
-          workspace: AgentSessionWorkspaceSource
-          config: ChannelConfig | Record<string, unknown>
-          isActive?: boolean
-          // Narrow, not `string`: with the DB CHECK constraint gone this parameter type is
-          // what stops an internal caller (one that bypasses the DataApi zod boundary) from
-          // persisting a mode the SDK will reject at run time.
-          permissionMode?: AgentPermissionMode | null
-        }
-  ): AgentChannelEntity {
+  createChannel(data: CreateChannelInput): AgentChannelEntity {
+    const channel = application.get('DbService').withWriteTx((tx) => this.createChannelTx(tx, data))
+    this.notifyReadModelChange(channel.id, 'membership')
+    return channel
+  }
+
+  /** Validates and inserts a channel inside the caller's write transaction; the caller notifies. */
+  createChannelTx(tx: DbOrTx, data: CreateChannelInput): AgentChannelEntity {
     const isActive = data.isActive ?? true
 
     const insertData: InsertChannelRow = {
@@ -95,19 +102,14 @@ export class AgentChannelService {
       permissionMode: data.permissionMode
     }
 
-    const result = application.get('DbService').withWriteTx((tx) => {
-      this.validateStreamBot(tx, data.type, insertData.config, isActive)
-      return tx.insert(channelsTable).values(insertData).returning().all()
-    })
-
-    if (!result[0]) {
+    this.validateStreamBot(tx, data.type, insertData.config, isActive)
+    const [row] = tx.insert(channelsTable).values(insertData).returning().all()
+    if (!row) {
       throw DataApiErrorFactory.invalidOperation('create channel', 'database insert returned no row')
     }
 
-    logger.info('Channel created', { channelId: result[0].id, type: data.type })
-    const channel = this.rowToEntity(result[0])
-    this.notifyReadModelChange(channel.id, 'membership')
-    return channel
+    logger.info('Channel created', { channelId: row.id, type: data.type })
+    return this.rowToEntity(row)
   }
 
   getChannel(id: string): AgentChannelEntity | null {
@@ -305,7 +307,7 @@ export class AgentChannelService {
       )
   }
 
-  private notifyReadModelChange(id: string, kind: 'membership' | 'projection'): void {
+  notifyReadModelChange(id: string, kind: 'membership' | 'projection'): void {
     notifyDataApiDataChange([
       { endpoint: '/agent-workspaces', kind: 'membership' },
       { endpoint: '/agent-channels', kind, entityIds: [id] },
