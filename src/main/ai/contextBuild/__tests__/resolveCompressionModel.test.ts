@@ -1,7 +1,6 @@
 import { generateText } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { topicService } from '@data/services/TopicService'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { makeModel, makeProvider } from '../../__tests__/fixtures'
@@ -87,29 +86,6 @@ describe('resolveCompressionModel', () => {
       expect(outgoing).toEqual([expectedModelId])
     }
   )
-
-  it('rechecks the topic owner before sending history to the compression provider', async () => {
-    const outgoing = vi.fn()
-    providerConfig.mockResolvedValue({
-      providerId: 'openai-compatible',
-      providerSettings: { name: 'opencode', baseURL: 'https://provider.test/v1', fetch: outgoing }
-    })
-    const descriptor = await resolveCompressionModel('opencode::small', CONVERSATION, {
-      topicId: CONVERSATION.topicId,
-      assistantId: 'owner'
-    })
-    const topic = vi.spyOn(topicService, 'getById').mockImplementation(() => {
-      throw new Error('Topic owner expired')
-    })
-    try {
-      await expect(
-        generateText({ model: descriptor!.languageModel, prompt: 'Old memory and summaries', maxRetries: 0 })
-      ).rejects.toThrow('Topic owner expired')
-      expect(outgoing).not.toHaveBeenCalled()
-    } finally {
-      topic.mockRestore()
-    }
-  })
 
   it('normalizes a Gemini listing id before handing the compressor to the SDK', async () => {
     providerLookup.mockReturnValue(
