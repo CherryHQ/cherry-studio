@@ -57,7 +57,7 @@ const baseTrigger: Trigger = { kind: 'interval', ms: 60_000 }
 const altTrigger: Trigger = { kind: 'interval', ms: 30_000 }
 
 function clearScheduleDisposables(jobManager: JobManager) {
-  const map = (jobManager as unknown as { scheduleDisposables: Map<string, Disposable> }).scheduleDisposables
+  const map = jobManager['scheduleDisposables']
   for (const disp of map.values()) disp.dispose()
   map.clear()
 }
@@ -109,7 +109,7 @@ describe('JobManager schedule control APIs', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     void jobManager._doAllReady()
     await vi.advanceTimersByTimeAsync(60_000)
-    await (jobManager as unknown as { _recoveryDone?: Promise<void> })._recoveryDone
+    await jobManager['_recoveryDone']
     vi.useRealTimers()
   })
 
@@ -389,7 +389,7 @@ describe('JobManager schedule control APIs', () => {
 
   describe('updateJobSchedule', () => {
     function getScheduleDisposables(): Map<string, Disposable> {
-      return (jobManager as unknown as { scheduleDisposables: Map<string, Disposable> }).scheduleDisposables
+      return jobManager['scheduleDisposables']
     }
 
     it('(a) trigger-only + enabled stays true: re-arms once', async () => {
@@ -400,15 +400,15 @@ describe('JobManager schedule control APIs', () => {
         jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
-      const armSpy = vi.spyOn(jobManager as unknown as { armSchedule: (s: unknown) => void }, 'armSchedule')
+      const registrationSpy = vi.spyOn(scheduler, 'registerSchedule')
 
       const updated = jobManager.updateJobSchedule(snap.id, { trigger: altTrigger })
 
       expect(updated?.enabled).toBe(true)
-      expect(armSpy).toHaveBeenCalledTimes(1)
+      expect(registrationSpy).toHaveBeenCalledTimes(1)
       expect(updated?.nextRun).not.toBeNull()
       expect(Date.parse(updated?.nextRun ?? '')).toBeLessThanOrEqual(Date.now() + 30_000)
-      armSpy.mockRestore()
+      registrationSpy.mockRestore()
     })
 
     it('(b) trigger + enabled false: disposes and does not re-arm', async () => {
@@ -419,14 +419,14 @@ describe('JobManager schedule control APIs', () => {
         jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
-      const armSpy = vi.spyOn(jobManager as unknown as { armSchedule: (s: unknown) => void }, 'armSchedule')
+      const registrationSpy = vi.spyOn(scheduler, 'registerSchedule')
 
       const updated = jobManager.updateJobSchedule(snap.id, { trigger: altTrigger, enabled: false })
 
       expect(updated?.enabled).toBe(false)
-      expect(armSpy).not.toHaveBeenCalled()
+      expect(registrationSpy).not.toHaveBeenCalled()
       expect(getScheduleDisposables().has(snap.id)).toBe(false)
-      armSpy.mockRestore()
+      registrationSpy.mockRestore()
     })
 
     it('(c) enabled-only false→true: re-arms', async () => {
@@ -441,12 +441,12 @@ describe('JobManager schedule control APIs', () => {
       jobManager.updateJobSchedule(snap.id, { enabled: false })
       expect(getScheduleDisposables().has(snap.id)).toBe(false)
 
-      const armSpy = vi.spyOn(jobManager as unknown as { armSchedule: (s: unknown) => void }, 'armSchedule')
+      const registrationSpy = vi.spyOn(scheduler, 'registerSchedule')
       const updated = jobManager.updateJobSchedule(snap.id, { enabled: true })
 
       expect(updated?.enabled).toBe(true)
-      expect(armSpy).toHaveBeenCalledTimes(1)
-      armSpy.mockRestore()
+      expect(registrationSpy).toHaveBeenCalledTimes(1)
+      registrationSpy.mockRestore()
     })
 
     it('(d) enabled-only true→false: disposes', async () => {
@@ -474,18 +474,18 @@ describe('JobManager schedule control APIs', () => {
         catchUpPolicy: { kind: 'skip-missed' }
       })
       const originalDisp = getScheduleDisposables().get(snap.id)
-      const armSpy = vi.spyOn(jobManager as unknown as { armSchedule: (s: unknown) => void }, 'armSchedule')
+      const registrationSpy = vi.spyOn(scheduler, 'registerSchedule')
 
       const latestTemplate = { prompt: 'new prompt', workspace: 'new workspace' }
       const updated = jobManager.updateJobSchedule(snap.id, { jobInputTemplate: latestTemplate })
 
       expect(updated?.jobInputTemplate).toEqual(latestTemplate)
-      expect(armSpy).not.toHaveBeenCalled()
+      expect(registrationSpy).not.toHaveBeenCalled()
       expect(getScheduleDisposables().get(snap.id)).toBe(originalDisp)
 
       expect(await jobManager.triggerJobScheduleNowById(snap.id)).toBe(true)
       expect(jobService.list({ scheduleId: snap.id })).toEqual([expect.objectContaining({ input: latestTemplate })])
-      armSpy.mockRestore()
+      registrationSpy.mockRestore()
     })
 
     it('keeps an interval timer armed while its next automatic fire reads the latest template', async () => {
@@ -496,11 +496,7 @@ describe('JobManager schedule control APIs', () => {
         jobInputTemplate: { prompt: 'old prompt' },
         catchUpPolicy: { kind: 'skip-missed' }
       })
-      const intervalHandles = (
-        scheduler as unknown as {
-          intervalHandles: Map<string, { callback: () => void | Promise<void> }>
-        }
-      ).intervalHandles
+      const intervalHandles = scheduler['intervalHandles']
       const scheduleKey = `schedule:${snap.id}`
       const originalEntry = intervalHandles.get(scheduleKey)
 
@@ -537,13 +533,13 @@ describe('JobManager schedule control APIs', () => {
     })
 
     it('returns null when the id does not exist (no re-arm side effects)', async () => {
-      const armSpy = vi.spyOn(jobManager as unknown as { armSchedule: (s: unknown) => void }, 'armSchedule')
+      const registrationSpy = vi.spyOn(scheduler, 'registerSchedule')
 
       const result = jobManager.updateJobSchedule('does-not-exist', { trigger: altTrigger })
 
       expect(result).toBeNull()
-      expect(armSpy).not.toHaveBeenCalled()
-      armSpy.mockRestore()
+      expect(registrationSpy).not.toHaveBeenCalled()
+      registrationSpy.mockRestore()
     })
   })
 
@@ -555,14 +551,14 @@ describe('JobManager schedule control APIs', () => {
 
   describe('transactional schedule primitives', () => {
     function getScheduleDisposables(): Map<string, Disposable> {
-      return (jobManager as unknown as { scheduleDisposables: Map<string, Disposable> }).scheduleDisposables
+      return jobManager['scheduleDisposables']
     }
     function getIntervalEntry(scheduleId: string) {
       const handles = scheduler['intervalHandles']
       return handles.get(`schedule:${scheduleId}`)
     }
-    function spyArm() {
-      return vi.spyOn(jobManager as unknown as { armSchedule: (s: unknown) => void }, 'armSchedule')
+    function spyRegisterSchedule() {
+      return vi.spyOn(scheduler, 'registerSchedule')
     }
     const baseInput = {
       type: DUMMY_TYPE,
@@ -572,36 +568,36 @@ describe('JobManager schedule control APIs', () => {
     }
 
     it('registerJobScheduleTx writes the row but never touches the timer', () => {
-      const armSpy = spyArm()
+      const registrationSpy = spyRegisterSchedule()
 
       const { id } = dbh.db.transaction((tx) => jobManager.registerJobScheduleTx(tx, { ...baseInput, name: 'tx-a' }))
 
       expect(jobScheduleService.getById(id)).toMatchObject({ name: 'tx-a', enabled: true })
-      expect(armSpy).not.toHaveBeenCalled()
+      expect(registrationSpy).not.toHaveBeenCalled()
       expect(getScheduleDisposables().has(id)).toBe(false)
       expect(scheduler.has(`schedule:${id}`)).toBe(false)
-      armSpy.mockRestore()
+      registrationSpy.mockRestore()
     })
 
     it('updateJobScheduleTx writes the row but leaves the armed timer (and its phase) untouched', () => {
       const snap = jobManager.registerJobSchedule({ ...baseInput, name: 'tx-b' })
       const originalEntry = getIntervalEntry(snap.id)
       expect(originalEntry).toBeDefined()
-      const armSpy = spyArm()
+      const registrationSpy = spyRegisterSchedule()
 
       const updated = dbh.db.transaction((tx) => jobManager.updateJobScheduleTx(tx, snap.id, { trigger: altTrigger }))
 
       expect(updated?.trigger).toEqual(altTrigger)
       expect(jobScheduleService.getById(snap.id)?.trigger).toEqual(altTrigger)
-      expect(armSpy).not.toHaveBeenCalled()
+      expect(registrationSpy).not.toHaveBeenCalled()
       // Negative control: the interval entry is the SAME object — no re-arm, no phase reset.
       expect(getIntervalEntry(snap.id)).toBe(originalEntry)
-      armSpy.mockRestore()
+      registrationSpy.mockRestore()
     })
 
     it('a rolled-back registerJobScheduleTx leaves zero rows and zero timer side effects', () => {
       const before = jobScheduleService.listAll({ type: DUMMY_TYPE }).length
-      const armSpy = spyArm()
+      const registrationSpy = spyRegisterSchedule()
 
       expect(() =>
         dbh.db.transaction((tx) => {
@@ -611,8 +607,8 @@ describe('JobManager schedule control APIs', () => {
       ).toThrow('business write failed')
 
       expect(jobScheduleService.listAll({ type: DUMMY_TYPE })).toHaveLength(before)
-      expect(armSpy).not.toHaveBeenCalled()
-      armSpy.mockRestore()
+      expect(registrationSpy).not.toHaveBeenCalled()
+      registrationSpy.mockRestore()
     })
 
     it('a rolled-back updateJobScheduleTx leaves the old row AND the armed timer untouched', () => {
@@ -633,14 +629,14 @@ describe('JobManager schedule control APIs', () => {
 
     it('syncJobScheduleTimerById arms an enabled row exactly once', () => {
       const { id } = dbh.db.transaction((tx) => jobManager.registerJobScheduleTx(tx, { ...baseInput, name: 'tx-d' }))
-      const armSpy = spyArm()
+      const registrationSpy = spyRegisterSchedule()
 
       jobManager.syncJobScheduleTimerById(id)
 
-      expect(armSpy).toHaveBeenCalledTimes(1)
+      expect(registrationSpy).toHaveBeenCalledTimes(1)
       expect(scheduler.has(`schedule:${id}`)).toBe(true)
       expect(getScheduleDisposables().has(id)).toBe(true)
-      armSpy.mockRestore()
+      registrationSpy.mockRestore()
     })
 
     it('syncJobScheduleTimerById disposes the timer for a disabled row', () => {
@@ -661,14 +657,14 @@ describe('JobManager schedule control APIs', () => {
       const { id } = dbh.db.transaction((tx) =>
         jobManager.registerJobScheduleTx(tx, { ...baseInput, name: 'tx-arm-fail' })
       )
-      const armSpy = spyArm().mockImplementation(() => {
+      const registrationSpy = spyRegisterSchedule().mockImplementation(() => {
         throw new Error('arm exploded')
       })
 
       expect(() => jobManager.syncJobScheduleTimerById(id)).not.toThrow()
 
       expect(jobScheduleService.getById(id)).not.toBeNull()
-      armSpy.mockRestore()
+      registrationSpy.mockRestore()
     })
 
     it('syncJobScheduleTimerById disposes a stale timer when the row is gone', () => {
