@@ -1,5 +1,3 @@
-import { AsyncLocalStorage } from 'node:async_hooks'
-
 /**
  * Builds the `wrapModel` closure that wraps a resolved chat model with
  * ai-retry: same-provider API-key failover on 401/429 first, same-model
@@ -19,6 +17,9 @@ import { AsyncLocalStorage } from 'node:async_hooks'
  * resumed by `withStreamContinuation` (same retry budget); other mid-stream
  * errors surface as stream errors.
  */
+
+import { AsyncLocalStorage } from 'node:async_hooks'
+
 import type { LanguageModelV3 } from '@ai-sdk/provider'
 import { APICallError, RetryError, type ToolCallRepairFunction, type ToolSet, wrapLanguageModel } from 'ai'
 import {
