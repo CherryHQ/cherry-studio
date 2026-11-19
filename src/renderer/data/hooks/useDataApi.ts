@@ -263,14 +263,14 @@ type InfiniteQueryKeyGetter = (
 
 function createInfiniteQueryKeyGetter(
   resolvedPath: string,
-  query: unknown,
+  query: InfiniteQueryKey[1] | undefined,
   limit: number,
   enabled = true
 ): InfiniteQueryKeyGetter {
   return (_pageIndex, previousPageData) => {
     if (!enabled || (previousPageData && !previousPageData.nextCursor)) return null
 
-    const params: InfiniteQueryKey[1] = { ...(query as Record<string, unknown> | undefined), limit }
+    const params: InfiniteQueryKey[1] = { ...query, limit }
     if (previousPageData?.nextCursor) params.cursor = previousPageData.nextCursor
     return [resolvedPath, params]
   }
@@ -1357,6 +1357,7 @@ function assertValidPattern(pattern: string): void {
  * @param pattern - Path pattern; trailing `/*` enables prefix matching
  * @returns Filter function for use with SWR's mutate
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- SWR global mutation visits keys owned by unrelated cache users; match only array keys with the selected DataApi path.
 function createKeyMatcher(pattern: string): (key: unknown) => boolean {
   assertValidPattern(pattern)
   if (pattern.endsWith('/*')) {
@@ -1376,6 +1377,7 @@ function createKeyMatcher(pattern: string): (key: unknown) => boolean {
  * @param patterns - Array of API paths; each may end with `/*` for prefix matching
  * @returns Filter function for use with SWR's mutate
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- SWR supplies keys from a heterogeneous shared cache; validate the array and leading string before exact or prefix path matching.
 function createMultiKeyMatcher(patterns: string[]): (key: unknown) => boolean {
   patterns.forEach(assertValidPattern)
   const exact = patterns.filter((p) => !p.endsWith('/*'))
