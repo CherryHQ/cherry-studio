@@ -22,7 +22,11 @@ vi.mock('axios', () => {
 describe('formatErrorDetails', () => {
   it('keeps readable failure text when unrelated details cannot be encoded as JSON', () => {
     expect(formatErrorDetails({ message: 'Request failed', count: 1n })).toBe('Request failed')
-    expect(formatErrorDetails(1n)).toBe('Error Details:\n  1')
+  })
+
+  it('keeps diagnostic panels displayable when a rejection cannot be encoded as JSON', () => {
+    expect(formatErrorDetails(1n)).toBe('[Unserializable]')
+    expect(formatErrorDetails(() => undefined)).toBe('[Unserializable]')
   })
 
   it('returns detail text instead of a malformed object-valued message', () => {

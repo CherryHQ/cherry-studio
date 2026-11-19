@@ -38,7 +38,7 @@ export function getErrorDetails(err: any, seen = new WeakSet()): any {
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Error boundaries receive arbitrary thrown values; detail formatting must remove sensitive metadata and always return display text.
-export function formatErrorDetails(error: unknown): string {
+export function formatErrorDetails(error: unknown, fallback: string = '[Unserializable]'): string {
   try {
     const detailedError = getErrorDetails(error)
     delete detailedError?.headers
@@ -47,13 +47,15 @@ export function formatErrorDetails(error: unknown): string {
     if (!detailedError) return ''
     const message = typeof detailedError.message === 'string' ? detailedError.message : undefined
     if (message) return message
-    const formattedJson = safeToString(detailedError, 2)
+    const json = JSON.stringify(detailedError, null, 2)
+    if (json === undefined) return fallback
+    const formattedJson = json
       .split('\n')
       .map((line) => `  ${line}`)
       .join('\n')
     return `Error Details:\n${formattedJson}`
   } catch {
-    return '[Unserializable]'
+    return fallback
   }
 }
 

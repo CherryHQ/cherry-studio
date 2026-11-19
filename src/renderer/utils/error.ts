@@ -36,7 +36,7 @@ export function formatErrorMessage(error: unknown): string {
     if (parseResult.success) {
       return formatAgentServerError(parseResult.data)
     }
-    return formatErrorDetails(error)
+    return formatErrorDetails(error, t('error.unknown'))
   } catch {
     return t('error.unknown')
   }
