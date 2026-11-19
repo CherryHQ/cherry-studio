@@ -489,8 +489,8 @@ const GridContainer = ({
       style={style}
       type="hover"
       orientation="horizontal"
-      viewportProps={{ ref, onWheel, className: 'pb-1', style: { overflowX: 'auto', overflowY: 'hidden' } }}
-      contentProps={{ className: gridClassName, style: { display: 'grid', gridTemplateColumns } }}>
+      viewportProps={{ ref, onWheel, style: { overflowX: 'auto', overflowY: 'hidden' } }}
+      contentProps={{ className: classNames(gridClassName, 'pb-1'), style: { display: 'grid', gridTemplateColumns } }}>
       {children}
     </ScrollArea>
   )

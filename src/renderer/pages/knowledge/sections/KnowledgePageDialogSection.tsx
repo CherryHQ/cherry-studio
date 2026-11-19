@@ -1,5 +1,7 @@
 import { lazy, Suspense } from 'react'
 
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
+
 import { useKnowledgePage } from '../KnowledgePageProvider'
 
 // Management dialogs are loaded on first open instead of with the page.
@@ -41,13 +43,20 @@ const KnowledgePageDialogSection = () => {
     submitRenameGroup
   } = useKnowledgePage()
 
+  const addSource = useExitPresence(isAddSourceDialogOpen ? true : null)
+  const createBaseDialog = useExitPresence(isCreateBaseDialogOpen ? true : null)
+  const createGroupDialog = useExitPresence(isCreateGroupDialogOpen ? true : null)
+  const renameGroup = useExitPresence(editingGroup)
+  const renameBase = useExitPresence(editingBase)
+  const restoreBaseDialog = useExitPresence(restoringBase)
+
   return (
     <Suspense fallback={null}>
-      {isAddSourceDialogOpen ? (
+      {addSource.isPresent ? (
         <AddKnowledgeItemDialog open={isAddSourceDialogOpen} onOpenChange={handleAddSourceDialogOpenChange} />
       ) : null}
 
-      {isCreateGroupDialogOpen ? (
+      {createGroupDialog.isPresent ? (
         <CreateKnowledgeGroupDialog
           open={isCreateGroupDialogOpen}
           isSubmitting={isCreatingGroup}
@@ -56,30 +65,30 @@ const KnowledgePageDialogSection = () => {
         />
       ) : null}
 
-      {editingGroup ? (
+      {renameGroup.value ? (
         <RenameKnowledgeGroupDialog
-          open
-          initialName={editingGroup.name}
+          open={editingGroup !== null}
+          initialName={renameGroup.value.name}
           isSubmitting={isUpdatingGroup}
           onSubmit={submitRenameGroup}
           onOpenChange={handleRenameGroupDialogOpenChange}
         />
       ) : null}
 
-      {editingBase ? (
+      {renameBase.value ? (
         <KnowledgeBaseNameDialog
-          open
-          initialName={editingBase.name}
+          open={editingBase !== null}
+          initialName={renameBase.value.name}
           isSubmitting={isUpdatingBase}
           onSubmit={submitRenameBase}
           onOpenChange={handleRenameBaseDialogOpenChange}
         />
       ) : null}
 
-      {restoringBase ? (
+      {restoreBaseDialog.value ? (
         <RestoreKnowledgeBaseDialog
-          open
-          base={restoringBase}
+          open={restoringBase !== null}
+          base={restoreBaseDialog.value}
           initialEmbeddingModelId={restoreBaseInitialValues?.embeddingModelId}
           isRestoring={isRestoringBase}
           restoreBase={restoreBase}
@@ -88,7 +97,7 @@ const KnowledgePageDialogSection = () => {
         />
       ) : null}
 
-      {isCreateBaseDialogOpen ? (
+      {createBaseDialog.isPresent ? (
         <CreateKnowledgeBaseDialog
           open={isCreateBaseDialogOpen}
           groups={groups}

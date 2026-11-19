@@ -52,9 +52,13 @@ import {
   toCherryBuiltinRuntimeName,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
+import { checkCommand, commandContextChangedReason } from '@main/ai/toolApproval/commandPolicy'
+import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { t } from '@main/i18n'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import {
   KB_READ_TOOL_NAME,
@@ -65,6 +69,7 @@ import {
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import { isExternalCliProvider } from '@shared/utils/provider'
@@ -77,10 +82,14 @@ import {
   resolveClaudeExecutablePath,
   resolveRequestedOutputTokens
 } from './environment'
+import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
 import {
   approvalRequiredRuntimeNames,
   ASK_USER_QUESTION_TOOL_NAME,
-  HEADLESS_INTERACTIVE_TOOL_DENIAL
+  GLOBAL_INSTALL_PLAN_DENIAL,
+  GLOBAL_INSTALL_UNATTENDED_DENIAL,
+  HEADLESS_INTERACTIVE_TOOL_DENIAL,
+  shellToolDialect
 } from './guardRules'
 import { buildClaudeCodeHooks, surfaceExitPlanModeInput } from './hooks'
 import { buildMcpServers, buildMcpToolMetadata, warmAgentMcpToolCaches } from './mcpCatalog'
@@ -144,6 +153,10 @@ export interface ClaudeCodeSessionOptions {
   }
   /** Claude Code SDK-native Fast mode. */
   fastMode?: boolean
+  /** Effective turn model display name for `{{model_name}}`; defaults to `agent.modelName`. */
+  promptModelName?: string | null
+  /** Effective connection model; defaults to `session.model ?? agent.model`. */
+  effectiveModelId?: UniqueModelId
 }
 
 export type { LinkedChannelSnapshot, McpServerSnapshotMap } from '@main/ai/runtime/agentMcpServers'
@@ -190,6 +203,7 @@ export async function buildClaudeCodeSessionSettings(
   const cwd = session.workspace.path
   await prepareClaudeCodeWorkspaceDirectory(session)
   const mcpWarmPromise = warmAgentMcpToolCaches(agent)
+  const effectiveModelId = options?.effectiveModelId ?? session.model ?? agent.model ?? undefined
   const [agentDataPath, env, workspacePlugins] = await Promise.all([
     ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id),
     buildEnvironment(provider, agent),
@@ -238,7 +252,8 @@ export async function buildClaudeCodeSessionSettings(
     agentDataPath,
     knowledgeBaseScope,
     disallowedTools,
-    options?.effectiveLanguage
+    options?.effectiveLanguage,
+    options?.promptModelName
   )
 
   // 6. MCP servers (session + built-in)
@@ -250,7 +265,8 @@ export async function buildClaudeCodeSessionSettings(
     linkedChannelSnapshot,
     agentDataPath,
     options?.knowledgeBaseIds,
-    notificationContext
+    notificationContext,
+    effectiveModelId ?? null
   )
   let mcpToolMetadata = await buildMcpToolMetadata(agent)
   if (agent.mcps?.length) mcpToolMetadata ??= {}
@@ -525,11 +541,40 @@ async function buildToolPermissions(
       return { behavior: 'deny', message: 'Tool policy not ready' }
     }
 
+    const permissionMode = snapshot.getPermissionMode()
+    const dialect = shellToolDialect(toolName)
+    const checkShell = (command: string, mode: typeof permissionMode) =>
+      checkCommand({ command, dialect: dialect ?? 'bash', cwd, builtinRole, permissionMode: mode })
+    const commandPolicy =
+      dialect && typeof input.command === 'string' ? await checkShell(input.command, permissionMode) : undefined
+    const globalInstall =
+      toolName === 'Bash' && typeof input.command === 'string' && detectGlobalInstall(input.command) !== null
+    if (globalInstall && permissionMode === 'plan') {
+      return { behavior: 'deny', message: GLOBAL_INSTALL_PLAN_DENIAL }
+    }
+    const installApprovalHolds = globalInstall && permissionMode !== 'bypassPermissions'
+
     // Busy-session enqueue/steer cannot rebuild a connection's baked policy, so enforce the per-turn
     // no-responder denial at fire time too. It mirrors the guard table's headless rules — Full Access
     // lifts it for `bypassApproval: 'lift'` tools — instead of relying on the SDK skipping
     // `canUseTool` under bypassPermissions.
     const interactionState = application.get('AgentSessionRuntimeService').getInteractionState(session.id)
+    const shellGuard = commandPolicy
+      ? await evaluateToolGuards(CLAUDE_TOOL_GUARD_RULES, {
+          toolName,
+          input,
+          permissionMode,
+          builtinRole,
+          mountedServers,
+          pluginDirectories,
+          cwd,
+          agentDataPath,
+          interaction: interactionState,
+          isDisabled: (name) => snapshot.isDisabled(name)
+        })
+      : undefined
+    if (shellGuard?.effect === 'deny') return { behavior: 'deny', message: shellGuard.reason }
+    const commandRequiresApproval = shellGuard?.effect === 'ask'
     const policy = findBuiltinToolPolicy(toolName, mountedServers)
     const delegationApproval =
       policy?.approval === 'delegation'
@@ -541,15 +586,20 @@ async function buildToolPermissions(
     // Ordinary delegation is approved by PreToolUse. Reaching this callback means the SDK still
     // requires a user decision, even when matchedAskRule is absent.
     const approvalHoldsInThisMode =
+      commandRequiresApproval ||
+      installApprovalHolds ||
       policy?.approval === 'delegation' ||
       (policy?.approval === 'required' &&
         !(snapshot.getPermissionMode() === 'bypassPermissions' && policy.bypassApproval === 'lift'))
     const requiresInteractiveResponder = claudeToolRequiresUserInteraction(toolName) || approvalHoldsInThisMode
     if (requiresInteractiveResponder && interactionState.userResponse === 'unavailable') {
-      return { behavior: 'deny', message: HEADLESS_INTERACTIVE_TOOL_DENIAL }
+      return {
+        behavior: 'deny',
+        message: installApprovalHolds ? GLOBAL_INSTALL_UNATTENDED_DENIAL : HEADLESS_INTERACTIVE_TOOL_DENIAL
+      }
     }
 
-    const access = snapshot.resolve(toolName, input)
+    const access = snapshot.resolve(toolName)
     // AskUserQuestion produces user-authored tool input; it is not an operation that a permission
     // mode can meaningfully approve on the user's behalf. Keep it on the response path even when
     // bypassPermissions marks every ordinary tool as auto-approved.
@@ -566,12 +616,12 @@ async function buildToolPermissions(
     // Resolved per turn, so an interactive turn on a channel-linked session still prompts.
     const isBackgroundAgent =
       (typeof opts.agentID === 'string' && opts.agentID.length > 0) || interactionState.currentTurn === 'headless'
-    const requiresUserResponse = requiresInteractiveResponder || opts.matchedAskRule !== undefined
+    const requiresUserResponse =
+      requiresInteractiveResponder ||
+      opts.matchedAskRule !== undefined ||
+      (commandPolicy !== undefined && permissionMode !== 'auto' && permissionMode !== 'bypassPermissions')
 
-    // Background agents do not inherit the parent permission mode. Let ordinary requests proceed
-    // without multiplying approval clicks; explicit PreToolUse deny hooks still run before this
-    // callback and remain authoritative. A user-configured ask rule and tools that need actual
-    // user-authored input stay on the interaction path below.
+    // Shell consent follows the root's current mode, including background children.
     if (isBackgroundAgent && !requiresUserResponse) {
       return { behavior: 'allow', updatedInput: input }
     }
@@ -594,6 +644,7 @@ async function buildToolPermissions(
     }
 
     const presentation = !hasLiveTurnStream || isBackgroundAgent ? 'message' : 'stream'
+    const originalInput = JSON.stringify(input)
     const approvalId = randomUUID()
     const emit = sessionState().peekToolApprovalEmitter(session.id)?.emit
     if (!emit) {
@@ -609,7 +660,30 @@ async function buildToolPermissions(
         originalInput: input,
         presentation,
         signal: opts.signal,
-        resolve: (decision) => resolve(decisionToPermissionResult(decision, input))
+        resolve: (decision) => {
+          if (!decision.approved || !commandPolicy) {
+            resolve(decisionToPermissionResult(decision, input))
+            return
+          }
+          const updated = decision.updatedInput ?? input
+          void checkShell(
+            typeof updated.command === 'string' ? updated.command : '',
+            sessionState().getToolPolicySnapshot(session.id)?.getPermissionMode()
+          )
+            .then((checked) => {
+              if (checked.effect === 'deny')
+                resolve({ behavior: 'deny', message: checked.reason ?? t('command_approval.configuration_error') })
+              else if (
+                opts.signal.aborted ||
+                checked.context !== commandPolicy.context ||
+                snapshot.isDisabled(toolName) ||
+                JSON.stringify(input) !== originalInput
+              )
+                resolve({ behavior: 'deny', message: commandContextChangedReason() })
+              else resolve(decisionToPermissionResult(decision, input))
+            })
+            .catch(() => resolve({ behavior: 'deny', message: t('command_approval.configuration_error') }))
+        }
       })
       if (!pending) return
       emit({
@@ -619,7 +693,22 @@ async function buildToolPermissions(
         input,
         presentation,
         providerMetadata: {
-          cherry: { transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport, toolName } satisfies CherryToolMeta
+          cherry: {
+            transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport,
+            toolName,
+            ...(commandPolicy
+              ? {
+                  commandPolicy: {
+                    ...commandPolicy.evidence,
+                    reason:
+                      shellGuard?.reason ??
+                      commandPolicy.reason ??
+                      opts.decisionReason ??
+                      t('command_approval.permission_required')
+                  }
+                }
+              : {})
+          } satisfies CherryToolMeta
         }
       })
     })
@@ -652,7 +741,9 @@ export async function buildSystemPrompt(
   /** Final SDK visibility after declarative exposure, runtime gates, and dependency propagation. */
   disallowedTools: readonly string[] = resolveDisallowedTools({ disabledTools: agent.disabledTools }, { cwd }),
   /** Materialized effective language; when omitted the preference is read live. */
-  effectiveLanguage?: string | null
+  effectiveLanguage?: string | null,
+  /** Effective turn model display name for `{{model_name}}`; defaults to `agent.modelName`. */
+  promptModelName?: string | null
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const canReadAllKnowledgeBases = resolveAgentCapabilities(agent).allKnowledgeBases
   const unavailableTools = new Set(disallowedTools)
@@ -674,7 +765,8 @@ export async function buildSystemPrompt(
     agent,
     citationsGuidance,
     customBaseContext,
-    effectiveLanguage
+    effectiveLanguage,
+    modelName: promptModelName
   })
 
   // Rebuilding and resuming must apply changed Cherry instructions without waiting for compaction.

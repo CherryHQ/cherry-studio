@@ -2,9 +2,10 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, CHERRY_SERVICE_TIER_HEADER } from '@main/ai/constants'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
-import { ENDPOINT_TYPE, ServiceTierSelectionSchema } from '@shared/data/types/model'
+import type { InProcessUsageContext } from '@main/ai/types'
+import { ENDPOINT_TYPE, type ServiceTierSelection, ServiceTierSelectionSchema } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
+import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
 import type { InputFormat, InputParamsMap, OutputFormat } from './adapters'
 import { resolveGatewayModelAddress } from './utils/models'
@@ -13,6 +14,15 @@ const logger = loggerService.withContext('GatewayRequest')
 
 /** Union of all supported input params. */
 type InputParams = InputParamsMap[InputFormat]
+
+/** Trusted object-call state; HTTP routes never populate this field. */
+export interface AgentGatewayContext {
+  agentSessionId: string
+  reasoningEffort: ReasoningEffortOption
+  serviceTier?: ServiceTierSelection
+  fastMode: boolean
+  resolveUsage(responseId: string): InProcessUsageContext | undefined
+}
 
 /**
  * Configuration for a gateway message request (streaming or non-streaming).
@@ -48,6 +58,7 @@ export interface MessageConfig {
   signal?: AbortSignal
   /** Raw request headers used only to validate Cherry-internal usage correlation. */
   requestHeaders?: Headers
+  agentContext?: AgentGatewayContext
   onError?: (error: unknown) => void
   onComplete?: () => void
 }
@@ -75,11 +86,19 @@ export async function resolveGatewayRequest(config: MessageConfig) {
   if (!modelString || typeof modelString !== 'string') {
     throw asClientError(new Error('Request is missing a "model" field'))
   }
-  const isInternalRequest = config.requestHeaders
-    ? application.get('ApiGatewayService').isInternalRequest(config.requestHeaders)
-    : false
-  const reasoningHeader = isInternalRequest ? config.requestHeaders?.get(CHERRY_REASONING_EFFORT_HEADER) : null
-  const tierHeader = isInternalRequest ? config.requestHeaders?.get(CHERRY_SERVICE_TIER_HEADER) : null
+  const isInternalRequest =
+    config.agentContext !== undefined ||
+    (config.requestHeaders ? application.get('ApiGatewayService').isInternalRequest(config.requestHeaders) : false)
+  const reasoningHeader = config.agentContext
+    ? config.agentContext.reasoningEffort
+    : isInternalRequest
+      ? config.requestHeaders?.get(CHERRY_REASONING_EFFORT_HEADER)
+      : null
+  const tierHeader = config.agentContext
+    ? config.agentContext.serviceTier
+    : isInternalRequest
+      ? config.requestHeaders?.get(CHERRY_SERVICE_TIER_HEADER)
+      : null
   const reasoning = ReasoningEffortOptionSchema.safeParse(reasoningHeader ?? undefined)
   const tier = ServiceTierSelectionSchema.safeParse(tierHeader ?? undefined)
   if ((reasoningHeader && !reasoning.success) || (tierHeader && !tier.success))
@@ -88,13 +107,15 @@ export async function resolveGatewayRequest(config: MessageConfig) {
     ...(reasoning.success ? { reasoningEffort: reasoning.data } : {}),
     ...(tier.success ? { serviceTier: tier.data } : {}),
     fastMode:
-      config.fastMode === true || (isInternalRequest && config.requestHeaders?.get(CHERRY_FAST_MODE_HEADER) === 'true')
+      config.agentContext?.fastMode ??
+      (config.fastMode === true ||
+        (isInternalRequest && config.requestHeaders?.get(CHERRY_FAST_MODE_HEADER) === 'true'))
   }
   const resolvedAddress = await resolveGatewayModelAddress(modelString, isInternalRequest)
   const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider } = resolvedAddress
-  const agentSessionId = config.requestHeaders
-    ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders)
-    : undefined
+  const agentSessionId =
+    config.agentContext?.agentSessionId ??
+    (config.requestHeaders ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders) : undefined)
   // agentSessionId lets System Doctor attribute this upstream hop to the Agent session that made it.
   const logContext = { providerId, modelId, ...(agentSessionId ? { agentSessionId } : {}) }
 
@@ -127,6 +148,7 @@ export async function resolveGatewayRequest(config: MessageConfig) {
     resolvedModel,
     endpoint,
     isInternalAnthropicAgentRequest,
+    isInternalRequest,
     isStreaming,
     agentSessionId,
     turnOptions,

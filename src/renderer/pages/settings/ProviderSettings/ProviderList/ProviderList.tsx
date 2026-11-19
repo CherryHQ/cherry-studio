@@ -150,7 +150,7 @@ export default function ProviderList({
 
   const filteredProviders = useMemo(() => {
     const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
-    return providers.filter((provider) => {
+    const matched = providers.filter((provider) => {
       if (!isProviderSettingsListVisibleProvider(provider)) {
         return false
       }
@@ -165,6 +165,8 @@ export default function ProviderList({
       }
       return matchKeywordsInProvider(keywords, provider, providerModelsIndex?.get(provider.id))
     })
+    // Stable partition: enabled providers first, preserving relative order.
+    return [...matched.filter((p) => p.isEnabled), ...matched.filter((p) => !p.isEnabled)]
   }, [filterMode, isOvmsSupported, providers, providerModelsIndex, searchText])
 
   const providerCounts = useMemo(

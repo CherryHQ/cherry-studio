@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import { trimComposerDraftBoundaryBlankLines } from '@renderer/components/composer/composerDraft'
 import type { ComposerSerializedDraft } from '@renderer/components/composer/tokens'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
@@ -91,7 +92,6 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
       try {
         const sessionId = await createSelectionAgentSession(target)
         setStage({ kind: 'conversation', sessionId, firstMessage })
-        void ipcApi.request('selection.resize_agent_window', { mode: 'conversation' })
         return null
       } catch (error) {
         logger.error('Failed to create the selection agent session', error as Error)
@@ -160,6 +160,13 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
     return () => observer.disconnect()
   }, [isCompose])
 
+  // Driven by the rendered stage, so a session that resolves after a pooled window moved on to the next open
+  // never resizes that open's window.
+  const isConversation = stage.kind === 'conversation'
+  useLayoutEffect(() => {
+    if (isConversation) void ipcApi.request('selection.resize_agent_window', { mode: 'conversation' })
+  }, [isConversation])
+
   const togglePin = () => {
     setIsPinned(!isPinned)
     void ipcApi.request('selection.pin_action_window', !isPinned)
@@ -200,7 +207,17 @@ const SelectionAgentContent: FC<{ action: AgentSelectionAction }> = ({ action })
       {(stage.kind === 'starting' || stage.kind === 'failed') && (
         <div className="flex h-full flex-col">
           <SelectionAgentHeader
-            avatar={boundAgent ? getAgentAvatarFromConfiguration(boundAgent.configuration) : undefined}
+            avatar={
+              boundAgent ? (
+                <AssistantAvatarImage
+                  src={boundAgent.avatarSrc}
+                  alt=""
+                  size={22}
+                  className="rounded-sm object-cover"
+                  fallback={getAgentAvatarFromConfiguration(boundAgent.configuration)}
+                />
+              ) : undefined
+            }
             title={boundAgent?.name ?? actionName}
             subtitle={boundAgent ? actionName : undefined}
             isPinned={isPinned}

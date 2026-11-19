@@ -67,7 +67,7 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
     if (!editorElement || !compactRowElement) return
 
     const scrollViewport = editorElement.closest<HTMLElement>('[data-slot="scroll-area-viewport"]')
-    const hasExplicitHardBreak = editorElement.querySelector(':scope > p > br:not(.ProseMirror-trailingBreak)') !== null
+    const hasMultipleLines = editorElement.querySelector(':scope > p + p') !== null
     const hasEditorOverflow = editorElement.scrollHeight > editorElement.clientHeight + COMPOSER_OVERFLOW_TOLERANCE_PX
     const hasViewportOverflow =
       scrollViewport && scrollViewport.scrollHeight > scrollViewport.clientHeight + COMPOSER_OVERFLOW_TOLERANCE_PX
@@ -76,9 +76,7 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
 
     setMeasurement({
       presentation:
-        hasExplicitHardBreak || hasEditorOverflow || hasViewportOverflow || hasCompactRowOverflow
-          ? 'regular'
-          : 'compact',
+        hasMultipleLines || hasEditorOverflow || hasViewportOverflow || hasCompactRowOverflow ? 'regular' : 'compact',
       revision: requestedRevision
     })
   }, [enabled, frameRef, isComposing, measurement.revision, requestMeasurement, requestedRevision])

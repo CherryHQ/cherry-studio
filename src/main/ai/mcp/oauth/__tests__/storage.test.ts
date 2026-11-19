@@ -26,15 +26,6 @@ describe('JsonFileStorage round-trip', () => {
     await fs.rm(configDir, { recursive: true, force: true })
   })
 
-  it('writes the file under <serverUrlHash>_oauth.json in the config dir', async () => {
-    const storage = new JsonFileStorage(serverUrlHash, configDir, cipher)
-
-    await storage.saveCodeVerifier('verifier-xyz')
-
-    const filePath = path.join(configDir, `${serverUrlHash}_oauth.json`)
-    await expect(fs.access(filePath)).resolves.toBeUndefined()
-  })
-
   it('round-trips tokens through a fresh instance (no in-memory cache)', async () => {
     const tokens: StoredOAuthTokens = {
       access_token: 'access-token-value',

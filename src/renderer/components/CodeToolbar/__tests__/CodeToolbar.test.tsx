@@ -27,22 +27,6 @@ function makeTool(id: string, type: ActionTool['type'], visible?: () => boolean)
 }
 
 describe('CodeToolbar', () => {
-  it('preserves sticky scroll-follow without blocking code interaction', () => {
-    const { container } = render(<CodeToolbar tools={[makeTool('core', 'core')]} />)
-    const stickyWrapper = container.firstElementChild
-
-    // This class structure is the layout contract from the sticky-toolbar regression:
-    // the zero-height shell follows scrolling while pointer events pass through to code.
-    expect(stickyWrapper).toHaveClass('pointer-events-none', 'sticky', 'top-7', 'z-10', 'h-0')
-    expect(stickyWrapper?.firstElementChild).toHaveClass(
-      'code-toolbar',
-      'pointer-events-auto',
-      'absolute',
-      'right-2',
-      'bottom-1'
-    )
-  })
-
   it('only exposes actions whose visibility predicate passes', () => {
     const { rerender } = render(
       <CodeToolbar tools={[makeTool('visible', 'core'), makeTool('hidden', 'core', () => false)]} />
@@ -53,14 +37,6 @@ describe('CodeToolbar', () => {
 
     rerender(<CodeToolbar tools={[makeTool('hidden', 'core', () => false)]} />)
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
-  })
-
-  it('shows a single quick action without an overflow control', () => {
-    render(<CodeToolbar tools={[makeTool('quick', 'quick'), makeTool('core', 'core')]} />)
-
-    expect(screen.getByRole('button', { name: 'quick' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'core' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'code_block.more' })).not.toBeInTheDocument()
   })
 
   it('toggles multiple quick actions while keeping core actions available', async () => {

@@ -1,4 +1,5 @@
 import { ConfirmDialog } from '@cherrystudio/ui'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 
 import type { ResolvedActionConfirm } from './actionTypes'
 
@@ -19,7 +20,8 @@ export function ActionConfirmDialog({
   onConfirm,
   onOpenChange
 }: ActionConfirmDialogProps) {
-  if (!confirm) return null
+  const { value: retainedConfirm } = useExitPresence(confirm ?? null)
+  if (!retainedConfirm) return null
 
   return (
     <ConfirmDialog
@@ -27,12 +29,12 @@ export function ActionConfirmDialog({
       onOpenChange={onOpenChange}
       contentClassName={contentClassName}
       overlayClassName={overlayClassName}
-      title={confirm.title}
-      description={confirm.description}
-      content={confirm.content}
-      confirmText={confirm.confirmText}
-      cancelText={confirm.cancelText}
-      destructive={confirm.destructive}
+      title={retainedConfirm.title}
+      description={retainedConfirm.description}
+      content={retainedConfirm.content}
+      confirmText={retainedConfirm.confirmText}
+      cancelText={retainedConfirm.cancelText}
+      destructive={retainedConfirm.destructive}
       onConfirm={onConfirm}
     />
   )
