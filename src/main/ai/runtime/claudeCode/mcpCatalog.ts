@@ -55,7 +55,8 @@ export function buildMcpServers(
       {
         type: 'sdk',
         name,
-        // The SDK only calls `connect` on its own 2025-era transport; v2 serves that era.
+        // SAFETY: SDK 0.3.311 only calls connect; serveStdio handles its 2025-era transport.
+        // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- SDK types require an unused full v1 server instance.
         instance: { connect } as unknown as McpSdkServerConfigWithInstance['instance']
       } satisfies McpServerConfig
     ])
