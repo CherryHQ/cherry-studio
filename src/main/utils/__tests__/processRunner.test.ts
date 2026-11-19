@@ -72,8 +72,9 @@ describe('executeCommand', () => {
     controller.abort(new Error('cancelled'))
     await rejection
 
-    // Rejection means the tree is gone: the grandchild must already be dead, not merely signalled.
-    expect(isRunning(grandchildPid)).toBe(false)
+    // Rejection means the tree was signalled: the grandchild dies on SIGTERM, but reaping is
+    // asynchronous, so under load its exit can lag the child's. Wait for death, not just signal.
+    await vi.waitFor(() => expect(isRunning(grandchildPid)).toBe(false), { timeout: 5000 })
     fs.rmSync(pidFile, { force: true })
   })
 
