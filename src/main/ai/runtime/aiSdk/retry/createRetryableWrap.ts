@@ -91,6 +91,7 @@ export interface CreateRetryableWrapOptions {
 }
 
 const RETRY_BASE_DELAY_MS = 1_000
+const BUFFERED_ACTIVITY_INTERVAL_MS = 5_000
 
 function lazyFallbackRetryable(
   resolveFallback: FallbackResolver,
@@ -235,6 +236,8 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
         })
       : base
     let retryActive = false
+    let lastRetryEvent: RetryPartData | undefined
+    let lastActivityEmit = 0
     const settleRetryStatus = () => {
       if (!retryActive) return
       retryActive = false
@@ -379,11 +382,20 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
               backoffEnabled,
               onRetry: ({ attempt, reason }) => {
                 const event = { state: 'retrying' as const, modelId: base.modelId, attempt: attempt + 1, reason }
+                lastRetryEvent = event
                 logger.info('resuming interrupted stream', { ...options.diagnosticContext, ...event })
                 retryActive = true
                 options.onRetryEvent?.(event)
               },
-              onSettled: settleRetryStatus
+              onSettled: settleRetryStatus,
+              // Re-emit the live retry status (idempotent, same part id) so the stream manager's
+              // idle-chunk timer sees activity while the resumed attempt is buffered.
+              onBufferedActivity: () => {
+                const now = Date.now()
+                if (!lastRetryEvent || now - lastActivityEmit < BUFFERED_ACTIVITY_INTERVAL_MS) return
+                lastActivityEmit = now
+                options.onRetryEvent?.(lastRetryEvent)
+              }
             })
             return operation.doStream(callOptions)
           }

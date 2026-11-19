@@ -27,6 +27,11 @@ export interface StreamContinuationOptions {
   onRetry?: (info: { attempt: number; reason: string }) => void
   /** Called once a continuation attempt produced output or the stream settled. */
   onSettled?: () => void
+  /**
+   * Called when a buffered (invisible) resumed attempt receives a part. Buffered output never
+   * reaches the consumer, so a consumer-side idle timer would otherwise see a silent stream.
+   */
+  onBufferedActivity?: () => void
 }
 
 function isResumableError(error: unknown, signal?: AbortSignal): boolean {
@@ -207,6 +212,7 @@ export function withStreamContinuation(model: LanguageModelV3, options: StreamCo
             // pull looping instead of resolving it without enqueueing (that stalls
             // the stream - pull is only re-driven when a read request is pending).
             buffer.push(chunk)
+            options.onBufferedActivity?.()
             continue
           }
           if (chunk.type !== 'raw') settle()

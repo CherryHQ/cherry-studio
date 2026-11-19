@@ -225,6 +225,34 @@ describe('withStreamContinuation', () => {
     expect(doStream).toHaveBeenCalledTimes(2)
   })
 
+  it('reports activity for each part of a buffered resumed attempt', async () => {
+    const { model } = scripted([
+      {
+        parts: [
+          { type: 'stream-start', warnings: [] },
+          { type: 'text-start', id: 'a' },
+          { type: 'text-delta', id: 'a', delta: 'Hello ' }
+        ],
+        readError: new Error('socket hang up')
+      },
+      {
+        parts: [
+          { type: 'stream-start', warnings: [] },
+          { type: 'text-start', id: 'b' },
+          { type: 'text-delta', id: 'b', delta: 'world' },
+          { type: 'text-end', id: 'b' },
+          finish
+        ]
+      }
+    ])
+    const onBufferedActivity = vi.fn()
+    const result = await withStreamContinuation(model, { ...opts, onBufferedActivity }).doStream(callOptions)
+    const parts = await collect(result.stream)
+    expect(parts.some((p) => p.type === 'text-delta' && p.delta === 'world')).toBe(true)
+    // text-start (adopted, not buffered) is skipped; delta, text-end and finish are buffered.
+    expect(onBufferedActivity).toHaveBeenCalled()
+  })
+
   it('does not resume non-retryable API errors', async () => {
     const apiError = new APICallError({
       message: 'bad',
