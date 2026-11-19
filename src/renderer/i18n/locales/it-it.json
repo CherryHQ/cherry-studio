@@ -5389,7 +5389,7 @@
   "settings.models.retry.fallback_models_description": "Modelli da provare in ordine quando il modello principale non riesce",
   "settings.models.retry.fallback_models_unavailable": "Nessun modello di fallback valido ({{count}} non disponibili)",
   "settings.models.retry.max_attempts": "Numero massimo di nuovi tentativi",
-  "settings.models.retry.tooltip": "Gli errori che consentono nuovi tentativi riprovano il modello attuale fino al limite configurato. Se continua a non riuscire, o l'errore non consente nuovi tentativi, i modelli di riserva vengono provati una volta ciascuno, in ordine. Con più chiavi API per lo stesso modello, gli errori 401/429 fanno prima passare alla chiave successiva. I nuovi tentativi e i modelli di riserva si applicano solo prima dell'inizio dello streaming dei contenuti.",
+  "settings.models.retry.tooltip": "Gli errori che consentono nuovi tentativi riprovano il modello attuale fino al limite configurato. Se continua a non riuscire, o l'errore non consente nuovi tentativi, i modelli di riserva vengono provati una volta ciascuno, in ordine. Con più chiavi API per lo stesso modello, gli errori 401/429 fanno prima passare alla chiave successiva. I nuovi tentativi e i modelli di riserva si applicano prima dell'inizio dello streaming dei contenuti; una risposta di solo testo interrotta riprende inoltre a metà dello streaming entro il limite di tentativi.",
   "settings.models.toolbar.pull_short": "Sincronizza modelli",
   "settings.models.topic_naming.auto": "Denominazione automatica delle conversazioni",
   "settings.models.topic_naming.label": "Denominazione delle conversazioni",

@@ -88,6 +88,75 @@ describe('withStreamContinuation', () => {
     expect(resumedPrompt.at(-1)).toEqual({ role: 'assistant', content: [{ type: 'text', text: 'Hello ' }] })
   })
 
+  it("drops a failed resume attempt's text instead of splicing or prefilling it", async () => {
+    const { model, doStream } = scripted([
+      {
+        parts: [
+          { type: 'stream-start', warnings: [] },
+          { type: 'text-start', id: 'a' },
+          { type: 'text-delta', id: 'a', delta: 'Hello ' }
+        ],
+        readError: new Error('socket hang up')
+      },
+      // Provider ignores the prefill and restarts, then dies mid-reply.
+      {
+        parts: [
+          { type: 'stream-start', warnings: [] },
+          { type: 'text-start', id: 'b' },
+          { type: 'text-delta', id: 'b', delta: 'Hello w' }
+        ],
+        readError: new Error('connection reset')
+      },
+      {
+        parts: [
+          { type: 'stream-start', warnings: [] },
+          { type: 'text-start', id: 'c' },
+          { type: 'text-delta', id: 'c', delta: 'world!' },
+          { type: 'text-end', id: 'c' },
+          finish
+        ]
+      }
+    ])
+    const result = await withStreamContinuation(model, { ...opts, maxAttempts: 3 }).doStream(callOptions)
+    const parts = await collect(result.stream)
+
+    const deltas = parts.filter((p) => p.type === 'text-delta').map((p) => (p as { delta: string }).delta)
+    // The failed attempt's restart never reaches the reader: no repeated partial text.
+    expect(deltas).toEqual(['Hello ', 'world!'])
+    expect(parts.filter((p) => 'id' in p).every((p) => (p as { id: string }).id === 'a')).toBe(true)
+    // The failed attempt's text is also excluded from the next prefill.
+    const thirdPrompt = (doStream.mock.calls[2] as unknown as [{ prompt: unknown[] }])[0].prompt
+    expect(thirdPrompt.at(-1)).toEqual({ role: 'assistant', content: [{ type: 'text', text: 'Hello ' }] })
+  })
+
+  it("emits only the original attempt's text when every resume attempt fails", async () => {
+    const cut = (id: string, delta: string) => ({
+      parts: [
+        { type: 'stream-start', warnings: [] },
+        { type: 'text-start', id },
+        { type: 'text-delta', id, delta }
+      ] as LanguageModelV3StreamPart[],
+      readError: new Error('reset')
+    })
+    const { model } = scripted([cut('a', 'x'), cut('b', 'xy'), cut('c', 'xyz')])
+    const result = await withStreamContinuation(model, opts).doStream(callOptions)
+    const emitted: LanguageModelV3StreamPart[] = []
+    const reader = result.stream.getReader()
+    await expect(
+      (async () => {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) return
+          emitted.push(value)
+        }
+      })()
+    ).rejects.toThrow('reset')
+
+    // Only the original (live-streamed) attempt's delta reached the reader.
+    const deltas = emitted.filter((p) => p.type === 'text-delta').map((p) => (p as { delta: string }).delta)
+    expect(deltas).toEqual(['x'])
+  })
+
   it('surfaces the error once attempts are exhausted', async () => {
     const boom = () => ({
       parts: [

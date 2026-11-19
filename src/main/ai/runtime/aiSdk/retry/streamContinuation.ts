@@ -75,6 +75,22 @@ export function withStreamContinuation(model: LanguageModelV3, options: StreamCo
     // Resumed text-part id -> the original part id the UI already has open.
     const idMap = new Map<string, string>()
     let adoptNextTextStart = false
+    // A resumed attempt buffers its parts until it completes: a failed attempt's
+    // output is dropped instead of spliced in, so a provider that ignores the
+    // prefill and restarts cannot leave repeated partial text behind.
+    let buffer: LanguageModelV3StreamPart[] | null = null
+    let snapshot: { text: string; openTextId: string | undefined; resumable: boolean } | null = null
+
+    const dropAttempt = () => {
+      if (!buffer) return
+      buffer = null
+      if (snapshot) {
+        text = snapshot.text
+        openTextId = snapshot.openTextId
+        resumable = snapshot.resumable
+        snapshot = null
+      }
+    }
 
     const settle = () => {
       if (!resuming) return
@@ -90,6 +106,11 @@ export function withStreamContinuation(model: LanguageModelV3, options: StreamCo
           try {
             const next = await reader.read()
             if (next.done) {
+              if (buffer) {
+                for (const buffered of buffer) controller.enqueue(buffered)
+                buffer = null
+                snapshot = null
+              }
               settle()
               controller.close()
               return
@@ -101,6 +122,7 @@ export function withStreamContinuation(model: LanguageModelV3, options: StreamCo
           }
 
           if (failure) {
+            dropAttempt()
             const canResume =
               resumable &&
               text.length > 0 &&
@@ -116,6 +138,8 @@ export function withStreamContinuation(model: LanguageModelV3, options: StreamCo
             }
             attempts += 1
             resuming = true
+            snapshot = { text, openTextId, resumable }
+            buffer = []
             options.onRetry?.({
               attempt: attempts,
               reason: failure.error instanceof Error ? failure.error.message : String(failure.error)
@@ -172,6 +196,13 @@ export function withStreamContinuation(model: LanguageModelV3, options: StreamCo
             chunk.type !== 'response-metadata'
           ) {
             resumable = false
+          }
+          if (buffer) {
+            // Buffered parts stay invisible until the attempt completes: keep this
+            // pull looping instead of resolving it without enqueueing (that stalls
+            // the stream - pull is only re-driven when a read request is pending).
+            buffer.push(chunk)
+            continue
           }
           if (chunk.type !== 'raw') settle()
           controller.enqueue(chunk)
