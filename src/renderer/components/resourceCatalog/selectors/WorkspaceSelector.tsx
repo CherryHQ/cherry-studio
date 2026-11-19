@@ -209,7 +209,6 @@ export function WorkspaceSelector({
   const workspaceListContent = isLoading ? null : filteredWorkspaces.length === 0 ? (
     <EmptyState
       compact
-      preset="no-result"
       description={t('agent.session.workspace_selector.empty_text')}
       className="min-h-full px-3 py-4"
     />

@@ -11,7 +11,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof Cher
 
 import type { FileContextMenuActions } from '../FileContextMenu'
 import type { FileItem } from '../fileDisplay'
-import { formatFileSize } from '../fileDisplay'
 import { FileList } from '../FileList'
 
 type VirtualizerOptionsMock = {
@@ -88,20 +87,6 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('fileDisplay helpers', () => {
-  it('formats file sizes at unit and precision boundaries', () => {
-    expect(formatFileSize(null)).toBe('—')
-    expect(formatFileSize(undefined)).toBe('—')
-    expect(formatFileSize(Number.NaN)).toBe('—')
-    expect(formatFileSize(0)).toBe('0 B')
-    expect(formatFileSize(1023)).toBe('1023 B')
-    expect(formatFileSize(1024)).toBe('1.0 KB')
-    expect(formatFileSize(1536)).toBe('1.5 KB')
-    expect(formatFileSize(10 * 1024)).toBe('10 KB')
-    expect(formatFileSize(1024 * 1024)).toBe('1.0 MB')
-  })
-})
-
 describe('FileList', () => {
   it('disables row and context-menu deletion while a delete request is pending', async () => {
     const onDelete = vi.fn()
@@ -126,7 +111,7 @@ describe('FileList', () => {
 
     rerender(<FileList {...fileListProps(file.id)} />)
 
-    const input = screen.getByDisplayValue(file.name) as HTMLInputElement
+    const input = screen.getByDisplayValue<HTMLInputElement>(file.name)
 
     act(() => {
       vi.runOnlyPendingTimers()

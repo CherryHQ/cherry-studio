@@ -1,8 +1,10 @@
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as Ui from '@cherrystudio/ui'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -65,17 +67,58 @@ async function openPicker() {
 }
 
 describe('AgentAvatarPicker persistence', () => {
-  it('uploads the selected image through the agent avatar command', async () => {
-    render(<AgentAvatarPicker {...props} />)
+  it('applies an image selected after the avatar popover is dismissed', async () => {
+    function Harness() {
+      const [avatar, setAvatar] = useState<{ avatarSrc?: string; emoji: string }>({
+        avatarSrc: props.avatarSrc,
+        emoji: props.emoji
+      })
+      return (
+        <>
+          <InputGroup>
+            <InputGroupAddon>
+              <AgentAvatarPicker {...props} {...avatar} onChanged={setAvatar} />
+            </InputGroupAddon>
+            <InputGroupInput aria-label="Agent name" defaultValue="Agent" />
+          </InputGroup>
+          <button type="button" onClick={() => setAvatar({ avatarSrc: props.avatarSrc, emoji: props.emoji })}>
+            Restore preview
+          </button>
+        </>
+      )
+    }
+    render(<Harness />)
     const user = await openPicker()
-    const input = screen.getByLabelText(uploadLabel)
-    const openFileDialog = vi.spyOn(input, 'click')
     await user.click(screen.getByRole('button', { name: uploadLabel }))
-    expect(openFileDialog).toHaveBeenCalledOnce()
-    await user.upload(input, file)
-    expect(ipcApi.request).toHaveBeenCalledWith('agent.set_avatar', {
-      agentId: 'agent-1',
-      avatar: { kind: 'image', data: bytes }
+    expect(screen.getByRole('textbox', { name: 'Agent name' })).not.toHaveFocus()
+    expect(screen.getByLabelText(uploadLabel)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText(uploadLabel), { target: { files: [file] } })
+    await waitFor(() => {
+      expect(ipcApi.request).toHaveBeenCalledExactlyOnceWith('agent.set_avatar', {
+        agentId: 'agent-1',
+        avatar: { kind: 'image', data: bytes }
+      })
+      expect(screen.getByRole('img', { name: 'Avatar' })).toHaveAttribute('src', 'file:///new.webp')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Restore preview' }))
+    expect(screen.getByRole('img', { name: 'Avatar' })).toHaveAttribute('src', props.avatarSrc)
+    await user.click(screen.getByRole('button', { name: 'Avatar' }))
+    await user.click(screen.getByRole('button', { name: uploadLabel }))
+    const input = screen.getByLabelText(uploadLabel)
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('button', { name: uploadLabel })).not.toBeInTheDocument())
+
+    fireEvent.change(input, { target: { files: [file] } })
+    await waitFor(() => {
+      expect({
+        requests: vi.mocked(ipcApi.request).mock.calls.length,
+        preview: screen.getByRole('img', { name: 'Avatar' }).getAttribute('src')
+      }).toEqual({ requests: 2, preview: 'file:///new.webp' })
+      expect(ipcApi.request).toHaveBeenNthCalledWith(2, 'agent.set_avatar', {
+        agentId: 'agent-1',
+        avatar: { kind: 'image', data: bytes }
+      })
     })
   })
 

@@ -1,5 +1,3 @@
-import { isToolUIPart } from 'ai'
-
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Model } from '@renderer/types/model'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
@@ -161,11 +159,6 @@ export function getMessageListItemModelName(message: MessageListItem): string {
 
 export function isMessageListItemProcessing(message: Pick<MessageListItem, 'status'>): boolean {
   return message.status === 'pending'
-}
-
-export function isMessageListItemAwaitingApproval(message: MessageListItem, parts: CherryMessagePart[]): boolean {
-  if (message.status !== 'paused') return false
-  return parts.some((part) => isToolUIPart(part) && part.state === 'approval-requested')
 }
 
 export function createMessageExportView(

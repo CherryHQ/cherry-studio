@@ -1,8 +1,3 @@
-import { pathToFileURL } from 'node:url'
-
-import { ipcMain } from 'electron'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
 /**
  * IpcAdapter source-trust gate tests.
  *
@@ -12,6 +7,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * covered in core/security/__tests__/validateSender.test.ts — here we verify the
  * wiring: rejection short-circuits, trusted requests pass through.
  */
+import { pathToFileURL } from 'node:url'
+
+import { ipcMain } from 'electron'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { IpcChannel } from '@shared/IpcChannel'
 
 import type { ApiServer } from '../../ApiServer'

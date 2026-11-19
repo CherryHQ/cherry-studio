@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from 'node:util'
 import { v4 as uuid } from 'uuid'
 
 import { application } from '@application'
-import type { RuntimeMessage, Observation, Thread, ThreadHandle } from '@cherrystudio/agent-runtime'
+import type { InputState, RuntimeMessage, Observation, Thread, ThreadHandle } from '@cherrystudio/agent-runtime'
 import type { AgentSessionCheckpoints, AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
@@ -28,7 +28,19 @@ type CommittedHistory = {
 }
 type Composition = NonNullable<NonNullable<AgentSessionCheckpoints['child']>['composition']>
 
-export function savedChildView(context: AgentSessionContextRow): AgentChildView {
+function savedMessages(sessionId: string): CherryUIMessage[] {
+  return readAgentSessionPath(application.get('DbService').getDb(), sessionId).map((row) => ({
+    id: row.id,
+    role: row.role as CherryUIMessage['role'],
+    metadata: { status: row.status as MessageStatus },
+    parts: row.data.parts ?? []
+  }))
+}
+
+export function savedChildView(
+  context: AgentSessionContextRow,
+  saved: readonly CherryUIMessage[] = savedMessages(context.sessionId)
+): AgentChildView {
   return {
     kind: 'child',
     contextId: context.id,
@@ -38,15 +50,7 @@ export function savedChildView(context: AgentSessionContextRow): AgentChildView 
     available: false,
     canSubmit: false,
     diagnostic: context.checkpointMapping?.child?.gap,
-    messages: compose(
-      readAgentSessionPath(application.get('DbService').getDb(), context.sessionId).map((row) => ({
-        id: row.id,
-        role: row.role as CherryUIMessage['role'],
-        metadata: { status: row.status as MessageStatus },
-        parts: row.data.parts ?? []
-      })),
-      context.checkpointMapping?.child?.composition ?? {}
-    )
+    messages: compose(saved, context.checkpointMapping?.child?.composition ?? {})
   }
 }
 
@@ -74,6 +78,13 @@ export class ChildThreadProjection {
   private canonicalIds = new Map<string, string>()
   private readonly composition: Composition
   private readonly sourceRows = new Map<string, Composition[string]>()
+  /** Committed history stays projected between rereads, so a reread redecorates only changed sources. */
+  private committed?: ThreadMessageProjection
+  private committedRefresh: Set<string> | true = new Set()
+  /** Input IDs changed since the last binding pass. */
+  private readonly changedInputs = new Set<string>()
+  private savedCheckpoint: ReturnType<typeof checkpointOf>
+  private readonly reportedResponses = new Map<string, string>()
 
   constructor(
     readonly context: AgentSessionContextRow,
@@ -86,20 +97,16 @@ export class ChildThreadProjection {
     this.removed = new Set(context.checkpointMapping?.child?.removed)
     this.nativeIds = { ...context.checkpointMapping?.child?.sources }
     this.composition = { ...context.checkpointMapping?.child?.composition }
-    this.view = savedChildView(context)
+    this.savedCheckpoint = checkpointOf(context.checkpointMapping?.child ?? {})
+    const saved = savedMessages(context.sessionId)
+    this.view = savedChildView(context, saved)
     this.delivery = new MessageProjection<ChildProjectionState>(this.view)
     this.archiveGap = this.view.diagnostic
-    for (const row of readAgentSessionPath(application.get('DbService').getDb(), context.sessionId))
-      this.saved.set(row.id, {
-        id: row.id,
-        role: row.role as CherryUIMessage['role'],
-        parts: row.data.parts ?? [],
-        metadata: { status: row.status as MessageStatus }
-      })
+    for (const message of saved) this.saved.set(message.id, message)
   }
 
   snapshot(): AgentChildView {
-    return this.view
+    return this.delivery.snapshot()
   }
 
   subscribe(listener: (update: AgentChildUpdate) => void): () => void {
@@ -135,6 +142,8 @@ export class ChildThreadProjection {
           .get('CacheService')
           .setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(this.context.sessionId), { result: event.contextUsage })
       }
+      if (event.type === 'snapshot') for (const input of event.inputs) this.noteInput(input)
+      if (event.type === 'input.changed') this.noteInput(event.input)
       if (event.type === 'message.remove') this.removed.add(event.ref.id)
       if (event.type === 'message.upsert') {
         for (const ref of event.replaces ?? []) {
@@ -179,7 +188,13 @@ export class ChildThreadProjection {
     await this.flush()
   }
 
+  private noteInput(input: InputState): void {
+    if (input.inputId) this.changedInputs.add(input.inputId)
+    if (input.nativeInput) this.changedInputs.add(input.nativeInput.id)
+  }
+
   async refresh(): Promise<void> {
+    this.committedRefresh = true
     this.reloadSaved = true
     this.needsHistory = true
     await this.flush()
@@ -195,6 +210,8 @@ export class ChildThreadProjection {
   async refreshDecoration(ids: readonly string[] | true = true): Promise<void> {
     if (this.stopped) return
     await this.projection.accept([], ids)
+    if (ids === true) this.committedRefresh = true
+    else if (this.committedRefresh !== true) for (const id of ids) this.committedRefresh.add(id)
     this.needsHistory = true
     this.schedule()
   }
@@ -226,17 +243,17 @@ export class ChildThreadProjection {
   private async reduce(): Promise<void> {
     await this.projection.drain()
     if (this.reloadSaved) {
-      for (const row of readAgentSessionPath(application.get('DbService').getDb(), this.context.sessionId))
-        this.saved.set(row.id, {
-          id: row.id,
-          role: row.role as CherryUIMessage['role'],
-          parts: row.data.parts ?? [],
-          metadata: { status: row.status as MessageStatus }
-        })
+      for (const message of savedMessages(this.context.sessionId)) this.saved.set(message.id, message)
       this.reloadSaved = false
     }
     const current = this.projection.snapshot()
-    for (const input of current.inputs) bindNativeInput(this.context.sessionId, this.context.id, input)
+    for (const input of current.inputs)
+      if (
+        (input.inputId && this.changedInputs.has(input.inputId)) ||
+        (input.nativeInput && this.changedInputs.has(input.nativeInput.id))
+      )
+        bindNativeInput(this.context.sessionId, this.context.id, input)
+    this.changedInputs.clear()
     const history = this.needsHistory
     this.needsHistory = false
     const archive = history ? await this.readCommitted() : undefined
@@ -246,7 +263,6 @@ export class ChildThreadProjection {
       for (const [id, live] of Object.entries(archive.aliases))
         if (!this.canonicalIds.has(live)) this.canonicalIds.set(live, id)
     }
-    const beforeComposition = structuredClone(this.composition)
     for (const id of archive?.removed ?? []) this.removed.add(id)
     for (const [old, source] of Object.entries(this.history?.legacy ?? {}))
       if (this.removed.has(source.messageId)) this.removed.add(old)
@@ -255,6 +271,7 @@ export class ChildThreadProjection {
     for (const item of archive?.messages ?? [])
       if (
         item.metadata?.inputId &&
+        this.nativeIds[item.id] !== item.metadata.inputId &&
         messages.inputBinding(this.context.sessionId, item.metadata.inputId)?.contextId === this.context.id
       )
         this.nativeIds[item.id] = item.metadata.inputId
@@ -267,38 +284,45 @@ export class ChildThreadProjection {
     let next = new Map(this.saved)
     const committed = new Set<string>()
     if (archive) {
-      const recovered = new ThreadMessageProjection(this.handle.thread, this.decorate)
+      const recovered = (this.committed ??= new ThreadMessageProjection(this.handle.thread, this.decorate))
+      const refresh = this.committedRefresh
+      this.committedRefresh = new Set()
       try {
-        await recovered.accept({
-          type: 'snapshot',
-          messages: archive.messages.filter((item) => !this.removed.has(item.id)),
-          inputs: [],
-          activity: current.activity
-        })
-        for (const message of recovered.snapshot().messages) {
-          const id = (this.nativeIds[message.id] ??= uuid())
-          const rows = this.materialize(message, id)
-          for (const row of rows) {
-            committed.add(row.id)
-            if (
-              row.role === 'user' &&
-              next.has(row.id) &&
-              messages.inputBinding(this.context.sessionId, row.id)?.contextId === this.context.id
-            )
-              continue
-            const saved = next.get(row.id)
-            next.set(row.id, {
-              ...row,
-              parts: row.parts.length
-                ? row.parts.map((part, index) =>
-                    Object.assign({}, saved?.parts[index]?.type === part.type ? saved.parts[index] : undefined, part)
-                  )
-                : (saved?.parts ?? [])
-            })
-          }
+        await recovered.accept(
+          {
+            type: 'snapshot',
+            messages: archive.messages.filter((item) => !this.removed.has(item.id)),
+            inputs: [],
+            activity: current.activity
+          },
+          refresh === true ? true : [...refresh].flatMap((id) => [id, this.canonical(id)])
+        )
+      } catch (error) {
+        // A failed projection is rebuilt from the next archive read.
+        this.committed = undefined
+        throw error
+      }
+      for (const message of recovered.snapshot().messages) {
+        const id = (this.nativeIds[message.id] ??= uuid())
+        const rows = this.materialize(message, id)
+        for (const row of rows) {
+          committed.add(row.id)
+          if (
+            row.role === 'user' &&
+            next.has(row.id) &&
+            messages.inputBinding(this.context.sessionId, row.id)?.contextId === this.context.id
+          )
+            continue
+          const saved = next.get(row.id)
+          next.set(row.id, {
+            ...row,
+            parts: row.parts.length
+              ? row.parts.map((part, index) =>
+                  Object.assign({}, saved?.parts[index]?.type === part.type ? saved.parts[index] : undefined, part)
+                )
+              : (saved?.parts ?? [])
+          })
         }
-      } finally {
-        await recovered.close()
       }
     }
     for (const message of current.messages) {
@@ -332,13 +356,18 @@ export class ChildThreadProjection {
     const order = [...next.keys()].map((id) => (sourceOrder.has(id) ? ordered.next().value! : id))
     next = new Map(order.map((id) => [id, next.get(id)!]))
     this.composeSources(current.messages)
-    const changed = [...next.values()].filter((message) => !isDeepStrictEqual(message, this.saved.get(message.id)))
-    if (
-      changed.length ||
-      history ||
-      next.size !== this.saved.size ||
-      !isDeepStrictEqual(beforeComposition, this.composition)
-    ) {
+    const changed = [...next.values()].filter((message) => !storedEqual(message, this.saved.get(message.id)))
+    const reordered = !isDeepStrictEqual(order, [...this.saved.keys()])
+    const durable = new Set(Object.values(this.nativeIds))
+    const uncommitted = [...this.productIds.values()].some((id) => !durable.has(id))
+    const checkpoint = {
+      sources: this.nativeIds,
+      gap: this.archiveGap ?? current.gap ?? (uncommitted ? 'mapping-reset' : undefined),
+      removed: [...this.removed],
+      composition: this.composition
+    }
+    const checkpointChanged = !isDeepStrictEqual(checkpoint, this.savedCheckpoint)
+    if (changed.length || reordered || checkpointChanged) {
       const positions = new Map(order.map((id, index) => [id, index]))
       application.get('DbService').withWriteTx((tx) => {
         for (const message of changed) {
@@ -356,30 +385,32 @@ export class ChildThreadProjection {
             ]
           })
         }
-        if (!isDeepStrictEqual(order, [...this.saved.keys()]))
+        if (reordered)
           messages.orderChildArchiveTx(
             tx,
             this.context.sessionId,
             order,
             [...this.saved.keys()].filter((id) => !next.has(id))
           )
-        const durable = new Set(Object.values(this.nativeIds))
-        const uncommitted = [...this.productIds.values()].some((id) => !durable.has(id))
-        contexts.saveProjectionTx(
-          tx,
-          this.context.id,
-          this.nativeIds,
-          this.archiveGap ?? current.gap ?? (uncommitted ? 'mapping-reset' : undefined),
-          [...this.removed],
-          this.composition
-        )
+        if (checkpointChanged)
+          contexts.saveProjectionTx(
+            tx,
+            this.context.id,
+            checkpoint.sources,
+            checkpoint.gap,
+            checkpoint.removed,
+            checkpoint.composition
+          )
       })
-      for (const [responseId, nativeId] of Object.entries(archive?.responseIds ?? {})) {
-        const messageId = this.nativeIds[nativeId]
-        if (messageId) this.onResponse?.(responseId, messageId)
-      }
+      if (checkpointChanged) this.savedCheckpoint = checkpointOf(checkpoint)
       this.saved.clear()
       for (const [id, message] of next) this.saved.set(id, message)
+    }
+    for (const [responseId, nativeId] of Object.entries(archive?.responseIds ?? {})) {
+      const messageId = this.nativeIds[nativeId]
+      if (!messageId || this.reportedResponses.get(responseId) === messageId) continue
+      this.reportedResponses.set(responseId, messageId)
+      this.onResponse?.(responseId, messageId)
     }
     this.publish({
       ...this.view,
@@ -446,8 +477,8 @@ export class ChildThreadProjection {
   }
 
   private publish(next: AgentChildView): void {
-    this.delivery.update(next, true)
-    this.view = this.delivery.snapshot()
+    this.view = next
+    this.delivery.update(next, this.delivery.observed)
   }
 
   async stop(): Promise<void> {
@@ -461,12 +492,43 @@ export class ChildThreadProjection {
     await this.flush()
     await this.projection.close()
     this.publish({ ...this.view, available: false, canSubmit: false, active: false })
+    this.delivery.flush()
     this.delivery.dispose()
   }
 
   get thread(): Thread {
     return this.handle.thread
   }
+}
+
+/** A saved checkpoint copy; composition fragment lists are replaced, never mutated, so shallow copies suffice. */
+function checkpointOf(child: Partial<NonNullable<AgentSessionCheckpoints['child']>>) {
+  return {
+    sources: { ...child.sources },
+    gap: child.gap,
+    removed: [...(child.removed ?? [])],
+    composition: { ...child.composition }
+  }
+}
+
+/** Saved rows are JSON, which drops undefined fields, so compare the way a reopened row reads back. */
+function storedEqual(left: unknown, right: unknown): boolean {
+  if (left === right) return true
+  if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false
+  if (Array.isArray(left) || Array.isArray(right))
+    return (
+      Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((item, index) => storedEqual(item, right[index]))
+    )
+  let fields = 0
+  for (const [key, item] of Object.entries(left)) {
+    if (item === undefined) continue
+    fields++
+    if (!storedEqual(item, (right as Record<string, unknown>)[key])) return false
+  }
+  return fields === Object.values(right).filter((item) => item !== undefined).length
 }
 
 function compose(messages: readonly CherryUIMessage[], composition: Composition): CherryUIMessage[] {

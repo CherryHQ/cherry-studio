@@ -6,11 +6,25 @@
   },
   "definitions": [
     {
+      "targetKey": "agent.input.suggestions.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Predict a next prompt after Agent replies and let Tab fill it into the draft"
+    },
+    {
       "targetKey": "assistant.archive.related_topics",
       "type": "boolean",
       "defaultValue": false,
       "status": "classified",
       "description": "Remember whether archiving an assistant also archives its related topics"
+    },
+    {
+      "targetKey": "chat.message.scroll_to_bottom_on_send",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Scroll to the latest message after successfully sending a message"
     },
     {
       "targetKey": "chat.message.user_content.default_expanded",
@@ -22,9 +36,23 @@
     {
       "targetKey": "app.computer_use.agent_control.enabled",
       "type": "boolean",
-      "defaultValue": false,
+      "defaultValue": true,
       "status": "classified",
       "description": "Allow local agents to observe and control desktop applications through the Computer Use SDK"
+    },
+    {
+      "targetKey": "app.computer_use.approved_apps",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Stable native application identities explicitly allowed for Computer Use on this installation"
+    },
+    {
+      "targetKey": "app.computer_use.agent_control.global_input",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Allow agent actions to use the shared pointer and system keyboard (required for pointer and keyboard control on Linux)"
     },
     {
       "targetKey": "agent.commit_attribution.enabled",
@@ -1546,6 +1574,26 @@
       ],
       "status": "classified",
       "description": "Ordered session details sections and their visibility"
+    },
+    {
+      "targetKey": "chat.topics.sort",
+      "type": "PreferenceTypes.ConversationListSort",
+      "defaultValue": {
+        "by": "lastActivityAt",
+        "direction": "desc"
+      },
+      "status": "classified",
+      "description": "Independent conversation list sorting"
+    },
+    {
+      "targetKey": "agent.session.sort",
+      "type": "PreferenceTypes.ConversationListSort",
+      "defaultValue": {
+        "by": "lastActivityAt",
+        "direction": "desc"
+      },
+      "status": "classified",
+      "description": "Independent conversation list sorting"
     }
   ]
 }

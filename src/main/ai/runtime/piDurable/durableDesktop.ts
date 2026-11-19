@@ -71,6 +71,7 @@ export async function prepareDurableDesktop(
     workspacePath: cwd,
     agentDataPath,
     effectiveLanguage: snapshot.effectiveLanguage,
+    modelName: snapshot.model.name ?? snapshot.model.id,
     citationsGuidance: buildCitationsGuidance({
       web: enabled(WEB_SEARCH_TOOL_NAME) || enabled(WEB_FETCH_TOOL_NAME),
       kb:
@@ -107,7 +108,9 @@ export async function prepareDurableDesktop(
       snapshot.mcpServerSnapshots,
       snapshot.linkedChannel,
       agentDataPath,
-      input.knowledgeBaseIds
+      input.knowledgeBaseIds,
+      undefined,
+      input.modelId
     )
   )
   try {
@@ -239,6 +242,7 @@ export async function prepareDurableDesktop(
         emit,
         getInteractionState: () => application.get('AgentSessionRuntimeService').getInteractionState(input.sessionId),
         getPermissionMode: () => permissionMode,
+        builtinRole: agent.configuration?.builtin_role,
         isDisabled,
         additionalReadOnlyRoots: [...snapshot.additionalSkillPaths, application.getPath('feature.agents.outputs')],
         autoApprovedTools: policies('auto'),

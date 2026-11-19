@@ -30,6 +30,25 @@ describe('dictation shortcut settings', () => {
     MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.toggle_shortcut', 'AltLeft+ControlLeft')
     MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.mouse_hold_enabled', true)
   })
+  it('disables controls and cancels temporary editing without clearing saved values', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.voice.dictation.mouse_hold_enabled', true)
+    const view = render(<DictationShortcutSettings />)
+    const hold = screen.getByRole('button', { name: 'Long press' })
+    await user.click(hold)
+    fireEvent.keyDown(hold, { code: 'AltRight', key: 'Alt' })
+    view.rerender(<DictationShortcutSettings disabled />)
+    expect(hold).toBeDisabled()
+    expect(hold).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'Short press' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Clear Long press' })).toBeDisabled()
+    expect(screen.getByRole('switch')).toBeDisabled()
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.dictation.mouse_hold_enabled')).toBe(true)
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.dictation.hold_shortcut')).toBe('AltLeft')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.voice.dictation.toggle_shortcut')).toBe(
+      'AltLeft+ControlLeft'
+    )
+  })
+
   it('shows mouse hold enabled and saves the toggle', async () => {
     render(<DictationShortcutSettings />)
     const toggle = screen.getByRole('switch', { name: 'Press and hold the mouse to dictate' })

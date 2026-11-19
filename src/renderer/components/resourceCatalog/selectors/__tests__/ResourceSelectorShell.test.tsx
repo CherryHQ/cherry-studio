@@ -197,7 +197,6 @@ describe('ResourceSelectorShell', () => {
           items={[]}
           pinnedIds={[]}
           onTogglePin={vi.fn()}
-          emptyState={{ preset: 'no-agent' }}
           labels={LABELS}
           value={null}
           onChange={vi.fn()}
@@ -206,7 +205,6 @@ describe('ResourceSelectorShell', () => {
       openPopover()
 
       expect(screen.getByText('Nothing')).toBeInTheDocument()
-      // Presets render the unified empty illustration (an inline SVG), not per-preset lucide icons.
     })
 
     it('lazy keeps content mounted after the first open', async () => {

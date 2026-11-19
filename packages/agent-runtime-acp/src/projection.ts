@@ -46,6 +46,7 @@ export class Projection {
   }
 
   state(): AcpSessionState {
+    // oxlint-disable-next-line no-restricted-globals -- Capture full ACP recovery state for observers; desktop does not use this adapter yet.
     return structuredClone({
       configuration: this.configuration,
       turns: this.turns,
@@ -93,6 +94,7 @@ export class Projection {
   }
 
   rememberPrompt(inputId: InputId, response: PromptResponse): void {
+    // oxlint-disable-next-line no-restricted-globals -- Own one completed prompt response before retaining it in ACP recovery state.
     this.turns.push(structuredClone({ inputId, response }))
   }
 

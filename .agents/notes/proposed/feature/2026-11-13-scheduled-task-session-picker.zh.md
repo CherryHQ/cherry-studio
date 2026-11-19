@@ -53,6 +53,10 @@ Status: proposed
 - AC5 — 选择会话时显示上下文增长警告（verification: renderer）
 - AC6 — 关闭续用会清除绑定，下次执行创建新会话（verification: unit）
 
+- AC7 — 复用会话的任务在下次执行时读取通用设置中的压缩触发阈值，已有连接也应生效。选择支持该阈值的模型，将 80% 改为 60% 后，在原会话内触发原生压缩。运行时可以提前执行保护。（verification: runtime integration, Electron）
+- AC8 — 模型容量未知时使用运行时原生回退。用量缺失或过期本身不会触发轮换。（verification: runtime integration）
+- AC9 — 历史上下文超限且原生恢复失败后，下次执行可对同一自动绑定目标轮换一次。旧记录仍能打开原会话，已完成的工具调用不重放。用户手选的会话保留绑定并报告失败。（verification: scheduler integration, restart）
+
 ## Risks
 
 - 把已删除绑定的行为从"重新绑定新会话"改为"失败"，会改变一条现有且有测试覆盖的路径（`runAgentTask.test.ts` 中的 "rebinds when the constrained relation no longer has a session"）。应有意识地更新这些测试，而不是让它们因偶然而保持通过。

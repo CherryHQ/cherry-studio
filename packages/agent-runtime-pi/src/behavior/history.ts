@@ -18,7 +18,7 @@ export type ContextMessage = ReturnType<typeof buildSessionContext>['messages'][
 type AssistantStop = Extract<HistoryEntry, { kind: 'assistant' }>['stop']
 type ToolCallPart = Extract<AssistantMessage['content'][number], { type: 'toolCall' }>
 
-/** How a blocked call's result reads, as Durable stores it (README "History projection"). */
+/** How a blocked call's result reads (README "History projection"); the projection reads `blocked` back from it. */
 export const BLOCKED_PREFIX = 'Tool call blocked: '
 export const ZERO_USAGE: UsageFact = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, costUsd: 0 }
 const STOPS: ReadonlySet<string> = new Set<AssistantStop>(['stop', 'length', 'toolUse', 'error', 'aborted'])
@@ -151,7 +151,10 @@ function projectMessage(id: ItemId, message: ContextMessage, thread: ThreadId): 
       }
       return message.errorMessage === undefined ? reply : { ...reply, error: message.errorMessage }
     }
-    case 'toolResult':
+    case 'toolResult': {
+      const text = textOf(message.content)
+      // The extension wrote this prefix when the gate blocked the call; coding-agent keeps no other record of it.
+      const blocked = message.isError && text.startsWith(BLOCKED_PREFIX) ? text.slice(BLOCKED_PREFIX.length) : undefined
       return {
         kind: 'tool-result',
         id,
@@ -159,9 +162,11 @@ function projectMessage(id: ItemId, message: ContextMessage, thread: ThreadId): 
         callKey: callKeyFor(thread, message.toolCallId),
         tool: message.toolName,
         isError: message.isError,
-        text: textOf(message.content),
-        ...(message.details === undefined ? {} : { details: message.details })
+        text,
+        ...(message.details === undefined ? {} : { details: message.details }),
+        ...(blocked === undefined ? {} : { blocked })
       }
+    }
     default:
       return undefined
   }

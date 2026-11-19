@@ -255,6 +255,35 @@ it('serializes asynchronous archives with live completion and retains the previe
   ])
 })
 
+it('archives unobserved child updates without building delivery copies until a baseline is requested', async () => {
+  const f = fixture()
+  await f.projection.attach()
+  // oxlint-disable-next-line no-restricted-properties -- Measure real clone work without replacing the copy or isolation behavior.
+  const clone = globalThis.structuredClone
+  let copies = 0
+  const measured = vi.spyOn(globalThis, 'structuredClone').mockImplementation((value, options) => {
+    copies++
+    return clone(value, options)
+  })
+  try {
+    for (const text of ['A', 'AB', 'ABC']) {
+      await f.send({ type: 'message.upsert', message: f.item('preview', text, 'partial') })
+      await f.projection.flush()
+    }
+    expect(copies).toBe(0)
+  } finally {
+    measured.mockRestore()
+  }
+  const baseline = f.projection.snapshot()
+  expect(baseline.messages[0].parts[0]).toMatchObject({ text: 'ABC' })
+  const updates: AgentChildUpdate[] = []
+  f.projection.subscribe((update) => updates.push(update))
+  await f.send({ type: 'message.upsert', message: f.item('preview', 'ABCD', 'partial') })
+  await f.projection.flush()
+  expect(updates).toMatchObject([{ revision: baseline.revision + 1, patches: [{ type: 'append', text: 'D' }] }])
+  expect(baseline.messages[0].parts[0]).toMatchObject({ text: 'ABC' })
+})
+
 // Catches a mutable SDK snapshot erasing the previous text before the transport computes a delta.
 it('publishes incremental text before completion and keeps previously delivered views stable', async () => {
   const f = fixture()
@@ -716,4 +745,124 @@ it('keeps a child observation newer than its pending context read without writin
   expect(f.projection.snapshot().revision).toBe(revision)
   await f.projection.stop()
   expect(application.get('CacheService').getShared(key)).toBeUndefined()
+})
+
+// Catches archive rereads that redecorate or rewrite unchanged history, and incremental state a reopen would not rebuild.
+it('decorates and saves only changed committed history and matches a reopened projection', async () => {
+  const decorated: string[] = []
+  const decorate: MessageDecorator = (message) => {
+    decorated.push(message.id)
+    return message
+  }
+  const f = fixture(undefined, decorate)
+  await f.projection.attach()
+  f.archive.messages = ['one', 'two', 'three'].map((text) => f.item(`entry-${text}`, text))
+  await f.projection.drain()
+  const saves = vi.spyOn(contexts, 'saveProjectionTx')
+  decorated.length = 0
+  await f.projection.drain()
+  expect(decorated).toEqual([])
+  expect(saves).not.toHaveBeenCalled()
+
+  f.archive.messages = [...f.archive.messages, f.item('entry-four', 'four')]
+  await f.projection.drain()
+  expect(decorated).toEqual(['entry-four'])
+  expect(saves).toHaveBeenCalledTimes(1)
+  decorated.length = 0
+  await f.projection.refreshDecoration(['entry-two'])
+  await f.projection.drain()
+  expect(decorated).toEqual(['entry-two'])
+
+  const warm = f.projection.snapshot().messages
+  expect(warm.map((message) => message.parts)).toEqual(
+    ['one', 'two', 'three', 'four'].map((text) => [{ type: 'text', text, state: 'done' }])
+  )
+  saves.mockClear()
+  const reopened = new ChildThreadProjection(contexts.context(f.context.id), f.handle, async () => f.archive, decorate)
+  projections.push(reopened)
+  await reopened.attach()
+  await reopened.drain()
+  expect(reopened.snapshot().messages).toEqual(warm)
+  expect(saves).not.toHaveBeenCalled()
+})
+
+// Catches every reopen rewriting saved tool messages whose parts hold undefined fields, which JSON storage drops.
+it('does not rewrite saved messages when a reopened archive has undefined part fields', async () => {
+  const f = fixture()
+  await f.projection.attach()
+  f.archive.messages = [
+    {
+      id: 'entry-tool',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'call-read',
+          toolName: 'read',
+          state: 'output-available',
+          input: { path: 'image.png' },
+          output: { content: [{ type: 'text', text: 'read' }], nestedCalls: undefined, isError: false }
+        }
+      ],
+      metadata: { completeness: 'complete' }
+    }
+  ]
+  await f.projection.drain()
+  const writes = vi.spyOn(messages, 'saveMessagesTx')
+  const reopened = new ChildThreadProjection(contexts.context(f.context.id), f.handle, async () => f.archive)
+  projections.push(reopened)
+  await reopened.attach()
+  await reopened.drain()
+  expect(reopened.snapshot().messages).toMatchObject([{ parts: [{ type: 'dynamic-tool', toolCallId: 'call-read' }] }])
+  expect(writes).not.toHaveBeenCalled()
+})
+
+// Catches flushes that re-read the context checkpoint for every input instead of binding inputs as they change.
+it('binds a changed input once instead of on every flush', async () => {
+  const f = fixture()
+  const user = messages.saveMessage({
+    sessionId: f.context.sessionId,
+    message: { role: 'user', data: { parts: [{ type: 'text', text: 'question' }] } }
+  })
+  prepareNativeSubmission(f.context.sessionId, user.id, f.context.id, 'steer')
+  await f.projection.attach()
+  await f.projection.refresh()
+  await f.send({
+    type: 'input.changed',
+    input: {
+      inputId: runtimeId(user.id),
+      nativeInput: { session: f.handle.thread, id: runtimeId('native-question') },
+      facts: ['placed']
+    }
+  })
+  await f.projection.flush()
+  expect(messages.inputBinding(f.context.sessionId, user.id)?.nativeInputId).toBe('native-question')
+  const reads = vi.spyOn(contexts, 'context')
+  for (const text of ['A', 'AB', 'ABC']) {
+    await f.send({ type: 'message.upsert', message: f.item('preview', text, 'partial') })
+    await f.projection.flush()
+  }
+  expect(reads).not.toHaveBeenCalled()
+})
+
+// Catches every archive read announcing all response owners again.
+it('reports each response owner once', async () => {
+  const f = fixture()
+  projections.splice(projections.indexOf(f.projection), 1)
+  const reported: [string, string][] = []
+  const projection = new ChildThreadProjection(
+    f.context,
+    f.handle,
+    async () => ({ ...f.archive, responseIds: { 'response-one': 'entry-one' } }),
+    undefined,
+    (responseId, messageId) => reported.push([responseId, messageId])
+  )
+  projections.push(projection)
+  await projection.attach()
+  f.archive.messages = [f.item('entry-one', 'one')]
+  await projection.drain()
+  f.archive.messages = [...f.archive.messages, f.item('entry-two', 'two')]
+  await projection.drain()
+  await projection.drain()
+  expect(reported).toEqual([['response-one', projection.snapshot().messages[0].id]])
 })
