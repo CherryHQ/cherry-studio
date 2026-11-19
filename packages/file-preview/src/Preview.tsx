@@ -39,9 +39,11 @@ export interface PreviewProps {
   onDiagnostic?: (diagnostic: PreviewDiagnostic) => void
   onError?: (error: PreviewError) => void
   onRequestOpen?: (reason: 'unsupported' | 'too_large') => void
+  /** Host content shown under the load-error message, such as a link to error details. */
+  errorDetail?: ReactNode
 }
 
-function PreviewState({ kind }: { kind: 'loading' | 'error' | 'unsupported' }) {
+function PreviewState({ kind, detail }: { kind: 'loading' | 'error' | 'unsupported'; detail?: ReactNode }) {
   const { t } = useTranslation()
   const { onRequestOpen } = usePreviewHost()
   const canOpen = kind === 'unsupported' && onRequestOpen !== undefined
@@ -62,6 +64,7 @@ function PreviewState({ kind }: { kind: 'loading' | 'error' | 'unsupported' }) {
             )}
             actionLabel={canOpen ? t('file_preview.unsupported.action') : undefined}
             onAction={canOpen ? () => onRequestOpen('unsupported') : undefined}
+            detail={kind === 'error' ? detail : undefined}
             className="h-full"
           />
         )}
@@ -90,7 +93,8 @@ function PreviewSession({
   onSelection,
   onDiagnostic,
   onError,
-  onRequestOpen
+  onRequestOpen,
+  errorDetail
 }: Omit<PreviewProps, 'locale'>) {
   const [root, setRoot] = useState<HTMLDivElement | null>(null)
   const [session, setSession] = useState<{
@@ -228,14 +232,14 @@ function PreviewSession({
   const content = !Plugin ? (
     <PreviewState kind="unsupported" />
   ) : failed ? (
-    <PreviewState kind="error" />
+    <PreviewState kind="error" detail={errorDetail} />
   ) : !ready ? (
     <PreviewState kind="loading" />
   ) : (
     <ErrorBoundary
       key={`${source.id}:${plugin?.id}`}
       resetKeys={[ready.document]}
-      fallback={<PreviewState kind="error" />}
+      fallback={<PreviewState kind="error" detail={errorDetail} />}
       onError={failDocument}>
       <Suspense fallback={<PreviewState kind="loading" />}>
         <Plugin

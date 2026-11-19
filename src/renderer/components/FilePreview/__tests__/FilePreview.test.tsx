@@ -2,7 +2,7 @@ import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ComponentType } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { safeOpen } from '@renderer/utils/file/safeOpen'
@@ -26,13 +26,15 @@ vi.mock('@cherrystudio/ui', () => ({
     title,
     description,
     actionLabel,
-    onAction
+    onAction,
+    detail
   }: {
     icon?: ComponentType<{ size?: number }>
     title?: string
     description?: string
     actionLabel?: string
     onAction?: () => void
+    detail?: ReactNode
   }) => (
     <div data-testid="empty-state">
       {Icon ? <Icon /> : null}
@@ -43,8 +45,10 @@ vi.mock('@cherrystudio/ui', () => ({
           {actionLabel}
         </button>
       ) : null}
+      {detail}
     </div>
   ),
+  Button: MockCherrystudioUI.Button,
   ScrollArea: MockCherrystudioUI.ScrollArea
 }))
 

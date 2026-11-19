@@ -18,6 +18,7 @@ import { renderSvgInShadowHost } from './utils'
 const MermaidPreview = ({
   children,
   enableToolbar = false,
+  onErrorChange,
   className,
   fit = 'width',
   ref
@@ -40,13 +41,15 @@ const MermaidPreview = ({
     [diagramId, fit, theme]
   )
 
-  const { containerRef, error, isLoading } = useDebouncedRender(children, renderMermaid, { debounceDelay: 300 })
+  const { containerRef, error, cause, isLoading } = useDebouncedRender(children, renderMermaid, { debounceDelay: 300 })
 
   return (
     <ImagePreviewLayout
       loading={isLoading}
       error={error}
+      cause={cause}
       enableToolbar={enableToolbar}
+      onErrorChange={onErrorChange}
       ref={ref}
       imageRef={containerRef}
       source="mermaid"

@@ -33,7 +33,7 @@ source change
   → format-specific renderer
   → renderSvgInShadowHost
   → ImagePreviewLayout
-    ├─ loading overlay or error
+    ├─ loading overlay or failure placeholder
     ├─ sanitized SVG in Shadow DOM
     └─ optional ImageToolbar
 ```
@@ -72,6 +72,12 @@ its preview ref so `CodeBlockView` tools and the RichEditor code block toolbar
 can operate on the same SVG. The Notes editor keeps zoom and pan in the
 expanded dialog, because an inline diagram scrolls with the note.
 
+A render failure covers the preview area with a neutral placeholder (a localized
+title and a Details link) instead of collapsing it, so the area keeps its size.
+The layout reports the failure through the optional `onErrorChange` prop.
+`CodeBlockView` uses it to drop its copy-image and image-download actions until
+a render succeeds.
+
 SVG, Graphviz, PlantUML, and Mermaid diagrams are centered in their host.
 
 ## Format-specific behavior
@@ -105,8 +111,8 @@ changes.
 Merman's `interactive` resource profile is used with only its layout-work limit
 raised, because the default already rejects a 200-node flowchart. Time is bounded
 by the worker deadline instead.
-When a newer source fails to render, the previous diagram stays in place under
-the error.
+When a newer source fails to render, the previous diagram stays mounted under
+the failure placeholder.
 
 ### PlantUML
 

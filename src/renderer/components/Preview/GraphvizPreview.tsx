@@ -24,6 +24,7 @@ const vizInitializer = new AsyncInitializer(async () => {
 const GraphvizPreview = ({
   children,
   enableToolbar = false,
+  onErrorChange,
   ref
 }: BasicPreviewProps & { ref?: React.RefObject<BasicPreviewHandles | null> }) => {
   const { theme } = useTheme()
@@ -49,7 +50,7 @@ const GraphvizPreview = ({
   )
 
   // 使用预览渲染器 hook
-  const { containerRef, error, isLoading } = useDebouncedRender(children, renderGraphviz, {
+  const { containerRef, error, cause, isLoading } = useDebouncedRender(children, renderGraphviz, {
     debounceDelay: 300
   })
 
@@ -57,7 +58,9 @@ const GraphvizPreview = ({
     <ImagePreviewLayout
       loading={isLoading}
       error={error}
+      cause={cause}
       enableToolbar={enableToolbar}
+      onErrorChange={onErrorChange}
       ref={ref}
       imageRef={containerRef}
       source="graphviz">

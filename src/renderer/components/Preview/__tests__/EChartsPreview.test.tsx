@@ -137,22 +137,23 @@ describe('EChartsPreview', () => {
     expect(mocks.init).toHaveBeenCalledWith(expect.any(HTMLElement), 'dark', { renderer: 'svg' })
   })
 
-  it('surfaces JSON parse errors in PreviewError', async () => {
+  it('reports a JSON parse error as a render failure without drawing a chart', async () => {
     render(<EChartsPreview>{'{invalid'}</EChartsPreview>)
     await advanceDebounce()
 
-    expect(screen.getByText('Invalid JSON configuration')).toBeInTheDocument()
+    expect(screen.getByText('preview.render.failed')).toBeInTheDocument()
     expect(mocks.init).not.toHaveBeenCalled()
   })
 
-  it('surfaces ECharts setOption errors', async () => {
+  it('reports an ECharts setOption error as a render failure without the library text', async () => {
     mocks.chart.setOption.mockImplementation(() => {
       throw new Error('Invalid option')
     })
     render(<EChartsPreview>{validOption}</EChartsPreview>)
     await advanceDebounce()
 
-    expect(screen.getByText('Invalid option')).toBeInTheDocument()
+    expect(screen.getByText('preview.render.failed')).toBeInTheDocument()
+    expect(screen.queryByText('Invalid option')).not.toBeInTheDocument()
   })
 
   it('reuses the existing instance when children changes', async () => {
@@ -268,7 +269,7 @@ describe('EChartsPreview', () => {
     rerender(<EChartsPreview enableToolbar>{'{invalid'}</EChartsPreview>)
     await advanceDebounce()
 
-    expect(screen.getByText('Invalid JSON configuration')).toBeInTheDocument()
+    expect(screen.getByText('preview.render.failed')).toBeInTheDocument()
 
     // Becoming visible again must not resurrect the previous valid option.
     fireResize(640, 256)
@@ -281,7 +282,7 @@ describe('EChartsPreview', () => {
 
     await advanceDebounce()
 
-    expect(screen.queryByText('Invalid JSON configuration')).not.toBeInTheDocument()
+    expect(screen.queryByText('preview.render.failed')).not.toBeInTheDocument()
     expect(mocks.init).not.toHaveBeenCalled()
   })
 
@@ -303,7 +304,7 @@ describe('EChartsPreview', () => {
       await vi.advanceTimersByTimeAsync(500)
     })
 
-    expect(screen.queryByText('Invalid JSON configuration')).not.toBeInTheDocument()
+    expect(screen.queryByText('preview.render.failed')).not.toBeInTheDocument()
     expect(mocks.init).not.toHaveBeenCalled()
 
     rerender(<EChartsPreview>{validOption}</EChartsPreview>)
@@ -328,7 +329,7 @@ describe('EChartsPreview', () => {
     expect(mocks.chart.setOption).toHaveBeenCalledWith(expect.objectContaining(JSON.parse(validOption)), true)
   })
 
-  it('surfaces invalid JSON after streaming completes', async () => {
+  it('reports invalid JSON as a render failure after streaming completes', async () => {
     const { rerender } = render(<EChartsPreview isStreaming>{'{invalid'}</EChartsPreview>)
     await advanceDebounce()
 
@@ -336,7 +337,7 @@ describe('EChartsPreview', () => {
 
     await act(async () => {})
 
-    expect(screen.getByText('Invalid JSON configuration')).toBeInTheDocument()
+    expect(screen.getByText('preview.render.failed')).toBeInTheDocument()
     expect(mocks.init).not.toHaveBeenCalled()
   })
 

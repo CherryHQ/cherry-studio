@@ -417,6 +417,30 @@ describe('preview sessions', () => {
     )
   })
 
+  it('shows the host error detail with a load failure but not for an unsupported format', async () => {
+    const detail = <a href="#detail">Details</a>
+    const view = render(
+      <Preview
+        source={source('failed', async () => {
+          throw new PreviewError('load_error', 'Broken file')
+        })}
+        errorDetail={detail}
+      />
+    )
+    await screen.findByRole('heading', { name: 'Preview failed' })
+    expect(screen.getByRole('link', { name: 'Details' })).toBeInTheDocument()
+
+    view.rerender(
+      <Preview
+        source={{ id: 'unsupported', name: 'file.unsupported', open: vi.fn() }}
+        errorDetail={detail}
+        onRequestOpen={vi.fn()}
+      />
+    )
+    await screen.findByRole('button', { name: 'Open with default app' })
+    expect(screen.queryByRole('link', { name: 'Details' })).not.toBeInTheDocument()
+  })
+
   it('contains render failures, closes the document and reports one diagnostic and error', async () => {
     const opened = document()
     const onError = vi.fn()

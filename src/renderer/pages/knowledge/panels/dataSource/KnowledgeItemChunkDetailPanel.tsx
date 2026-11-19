@@ -7,6 +7,8 @@ import { Button, EmptyState, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { ipcApi } from '@renderer/ipc'
 import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils/error'
@@ -163,9 +165,35 @@ const KnowledgeItemChunkDetailPanel = ({
           type="auto"
           className="min-h-0 flex-1">
           {isItemLoading || isLoading ? <KnowledgeItemChunkState>{t('common.loading')}</KnowledgeItemChunkState> : null}
-          {!isItemLoading && itemError ? <KnowledgeItemChunkState>{itemError.message}</KnowledgeItemChunkState> : null}
+          {!isItemLoading && itemError ? (
+            <ErrorNotice
+              variant="inline"
+              title={t('knowledge.data_source.chunks_load_failed')}
+              detail={
+                <ErrorDetailAction
+                  error={itemError}
+                  message={t('knowledge.data_source.chunks_load_failed')}
+                  source="knowledge"
+                  operation="knowledge.item"
+                  recordId={itemId}
+                />
+              }
+            />
+          ) : null}
           {!isItemLoading && !isLoading && !itemError && error ? (
-            <KnowledgeItemChunkState>{error.message}</KnowledgeItemChunkState>
+            <ErrorNotice
+              variant="inline"
+              title={t('knowledge.data_source.chunks_load_failed')}
+              detail={
+                <ErrorDetailAction
+                  error={error}
+                  message={t('knowledge.data_source.chunks_load_failed')}
+                  source="knowledge"
+                  operation="knowledge.list_item_chunks"
+                  recordId={itemId}
+                />
+              }
+            />
           ) : null}
           {!isItemLoading && !isLoading && !itemError && !error && chunks.length === 0 ? (
             <EmptyState title={t('knowledge.data_source.empty_description')} compact className="h-full" />

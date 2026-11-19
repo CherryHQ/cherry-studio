@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 
 import { Button } from '@cherrystudio/ui/components/primitives/button'
 import { cn } from '@cherrystudio/ui/lib/utils'
@@ -72,6 +72,8 @@ export interface EmptyStateProps {
   onAction?: () => void
   secondaryLabel?: string
   onSecondary?: () => void
+  /** Rendered directly under the message and actions, e.g. an error-details link. */
+  detail?: ReactNode
   compact?: boolean
   className?: string
 }
@@ -85,6 +87,7 @@ export function EmptyState({
   onAction,
   secondaryLabel,
   onSecondary,
+  detail,
   compact = false,
   className
 }: EmptyStateProps) {
@@ -142,6 +145,11 @@ export function EmptyState({
               {secondaryLabel}
             </Button>
           )}
+        </div>
+      )}
+      {detail && (
+        <div className={cn((actionLabel || secondaryLabel || !description) && (compact ? 'mt-2' : 'mt-3'))}>
+          {detail}
         </div>
       )}
     </div>

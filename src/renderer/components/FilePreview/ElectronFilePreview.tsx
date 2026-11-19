@@ -1,12 +1,13 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { PreviewSelection } from '@cherrystudio/file-preview/core'
+import { type PreviewError, type PreviewSelection } from '@cherrystudio/file-preview/core'
 import { Preview } from '@cherrystudio/file-preview/react'
 import type { PreviewDiagnostic, PreviewOptions, PreviewResources } from '@cherrystudio/file-preview/react'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
 import { ipcApi } from '@renderer/ipc'
-import { toast } from '@renderer/services/toast'
+import { toastInlineError } from '@renderer/services/toast'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
@@ -87,6 +88,17 @@ export default function ElectronFilePreview({
     }),
     [filePath]
   )
+  const previewRefreshKey = metadataRequest ? undefined : refreshKey
+  // Keyed like Preview's own failure, so a reload of the same file drops the stale action.
+  const [previewError, setPreviewError] = useState<{
+    error: PreviewError
+    source: typeof source
+    refreshKey: number | undefined
+  } | null>(null)
+  const currentError =
+    previewError?.source === source && previewError.refreshKey === previewRefreshKey ? previewError.error : null
+  // A size limit is a preview policy, not a fault for Doctor.
+  const faultError = currentError?.code === 'too_large' ? null : currentError
   const onSelection = useCallback(
     (selection: PreviewSelection | null) => {
       if (!selection) {
@@ -114,28 +126,55 @@ export default function ElectronFilePreview({
         diagnostic.detail instanceof Error ? diagnostic.detail : { detail: diagnostic.detail }
       )
       if (diagnostic.code === 'navigation_error') {
-        toast.error(t('file_preview.pdf.navigation_error'))
+        const cause = diagnostic.detail instanceof Error ? diagnostic.detail : new Error(diagnostic.message)
+        void import('@renderer/services/AppErrorDetailService')
+          .then(({ toastAppError }) => {
+            toastAppError(t('file_preview.pdf.navigation_error'), cause, {
+              source: 'file.preview',
+              operation: 'file.preview.navigation'
+            })
+          })
+          .catch(() => toastInlineError(t('file_preview.pdf.navigation_error')))
       }
     },
     [t]
   )
   const onRequestOpen = useCallback(() => {
     void safeOpen(createFilePathHandle(filePath)).catch((error: unknown) => {
-      logger.error('Failed to open preview file externally', error instanceof Error ? error : { error })
-      toast.error(t('file_preview.open_error'))
+      const normalized = error instanceof Error ? error : new Error(String(error))
+      logger.error('Failed to open preview file externally', normalized)
+      void import('@renderer/services/AppErrorDetailService')
+        .then(({ toastAppError }) => {
+          toastAppError(t('file_preview.open_error'), normalized, {
+            source: 'file.preview',
+            operation: 'file.preview.open'
+          })
+        })
+        .catch(() => toastInlineError(t('file_preview.open_error')))
     })
   }, [filePath, t])
 
   return (
     <Preview
       source={source}
-      refreshKey={metadataRequest ? undefined : refreshKey}
+      refreshKey={previewRefreshKey}
       locale={i18n.language}
       resources={resources}
       options={previewOptions}
       onSelection={onSelectionReference ? onSelection : undefined}
       onDiagnostic={onDiagnostic}
+      onError={(error) => setPreviewError({ error, source, refreshKey: previewRefreshKey })}
       onRequestOpen={onRequestOpen}
+      errorDetail={
+        faultError ? (
+          <ErrorDetailAction
+            error={faultError}
+            message={t('file_preview.load_error.description')}
+            source="file.preview"
+            operation={`file.preview.${faultError.code}`}
+          />
+        ) : undefined
+      }
     />
   )
 }

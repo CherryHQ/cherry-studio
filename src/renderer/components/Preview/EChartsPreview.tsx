@@ -15,6 +15,7 @@ const logger = loggerService.withContext('EChartsPreview')
 const EChartsPreview = ({
   children,
   enableToolbar = false,
+  onErrorChange,
   isStreaming = false,
   ref
 }: BasicPreviewProps & { ref?: React.RefObject<BasicPreviewHandles | null> }) => {
@@ -70,7 +71,7 @@ const EChartsPreview = ({
     [isStreaming, t, renderChartOption]
   )
 
-  const { containerRef, error, isLoading, triggerImmediateRender } = useDebouncedRender(children, renderChart, {
+  const { containerRef, error, cause, isLoading, triggerImmediateRender } = useDebouncedRender(children, renderChart, {
     debounceDelay: 300
   })
 
@@ -155,7 +156,9 @@ const EChartsPreview = ({
     <ImagePreviewLayout
       loading={isLoading || isStreaming}
       error={error}
+      cause={cause}
       enableToolbar={enableToolbar}
+      onErrorChange={onErrorChange}
       // ECharts owns interactions inside the chart; generic image pan/zoom would break its coordinate model.
       enableDrag={false}
       enableWheelZoom={false}

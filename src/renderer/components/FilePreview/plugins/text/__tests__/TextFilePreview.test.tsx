@@ -1,6 +1,7 @@
 import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, render, screen, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -16,10 +17,24 @@ vi.mock('@renderer/components/FileEditor', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  EmptyState: ({ title, description }: { title: string; description?: string }) => (
+  Button: ({
+    children,
+    onClick,
+    type
+  }: {
+    children?: string
+    onClick?: () => void
+    type?: 'button' | 'reset' | 'submit'
+  }) => (
+    <button type={type ?? 'button'} onClick={onClick}>
+      {children}
+    </button>
+  ),
+  EmptyState: ({ title, description, detail }: { title: string; description?: string; detail?: ReactNode }) => (
     <div>
       <span>{title}</span>
       <span>{description}</span>
+      {detail}
     </div>
   ),
   ScrollArea: MockCherrystudioUI.ScrollArea
