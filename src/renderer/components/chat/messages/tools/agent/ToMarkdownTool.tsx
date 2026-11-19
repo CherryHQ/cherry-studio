@@ -2,29 +2,31 @@ import { CallToolResultSchema } from '@modelcontextprotocol/core'
 import { useTranslation } from 'react-i18next'
 
 import { getFilePreviewFileName } from '@renderer/utils/filePreview'
+import { type ToMarkdownOutput, toMarkdownOutputSchema } from '@shared/ai/builtinTools'
 
 import { TO_MARKDOWN_RUNTIME_TOOL_NAME } from '../shared/agentToolTypes'
 import { ClickableFilePath } from '../shared/ClickableFilePath'
 import { SkeletonValue, ToolHeader } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Partial streamed arguments and historical tool inputs are unparsed; display a path only after checking its nonblank string field.
 function readSourcePath(input: unknown): string | undefined {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) return undefined
-  const value = (input as Record<string, unknown>).path
+  if (!input || typeof input !== 'object' || Array.isArray(input) || !('path' in input)) return undefined
+  const value = input.path
   return typeof value === 'string' && value.trim() ? value : undefined
 }
 
 /** The tool answers with a JSON receipt — the converted Markdown stays on disk, out of context. */
-function parseReceipt(output: unknown): { path: string; chars: number } | null {
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Runtime and stored results first need MCP envelope validation; validate the JSON text against the tool-owned receipt schema before rendering statistics.
+function parseReceipt(output: unknown): ToMarkdownOutput | null {
   const result = CallToolResultSchema.safeParse(output)
   if (!result.success || result.data.isError) return null
 
   const text = result.data.content.find((item) => item.type === 'text')?.text
   if (typeof text !== 'string') return null
   try {
-    const parsed = JSON.parse(text) as { path?: unknown; chars?: unknown }
-    if (typeof parsed.path !== 'string' || typeof parsed.chars !== 'number') return null
-    return { path: parsed.path, chars: parsed.chars }
+    const parsed = toMarkdownOutputSchema.safeParse(JSON.parse(text))
+    return parsed.success ? parsed.data : null
   } catch {
     return null
   }
