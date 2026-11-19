@@ -103,7 +103,9 @@ export async function resolveCompressionModel(
                   fallbackModel: model,
                   fallbackEndpointType: endpoint.endpointType,
                   fallbackRuntimeProviderId: sdkConfig.providerId,
-                  fallbackOllamaNumCtx: ollamaNumCtx
+                  fallbackOllamaNumCtx: ollamaNumCtx,
+                  // An accepted summary replaces history durably; reject chunks the heuristic may under-count.
+                  digitAware: true
                 }))
               ) {
                 throw new Error(

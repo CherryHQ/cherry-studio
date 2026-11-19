@@ -37,7 +37,7 @@ vi.mock('../attachmentTextExtraction', () => ({
   noExtractableTextNote: (name: string) => `No text in ${name}`
 }))
 
-import { collectFileAttachments, prepareChatMessages } from '../attachmentRouting'
+import { collectFileAttachments, inlineFramingTokens, prepareChatMessages } from '../attachmentRouting'
 
 const NONE: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
 const ALL: NativeFileSupport = { image: true, pdf: true, audio: true, video: true }
@@ -82,14 +82,14 @@ const composerText = (text: string, ...fileTokenSourceIds: string[]): CherryMess
 const run = (
   parts: CherryMessagePart[],
   ns: NativeFileSupport,
-  opts: { isToolCapable?: boolean; cap?: number } = {}
+  opts: { isToolCapable?: boolean; cap?: number; framing?: number } = {}
 ) => {
   const messages = [userMessage(parts)] as UIMessage[]
   return prepareChatMessages(messages, {
     attachments: collectFileAttachments(messages),
     nativeSupport: ns,
     isToolCapable: opts.isToolCapable ?? true,
-    budget: opts.cap === undefined ? undefined : { tokens: opts.cap }
+    budget: opts.cap === undefined ? undefined : { tokens: opts.cap + (opts.framing ?? 0) }
   })
 }
 
@@ -273,7 +273,11 @@ describe('prepareChatMessages — routing', () => {
   it('caps long text with a read_file pointer for tool models', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'txt' })
     extractMock.mockResolvedValueOnce('0123456789')
-    const [out] = await run([fileWithEntry('e1', 'a.txt', 'text/plain')], NONE, { isToolCapable: true, cap: 5 })
+    const [out] = await run([fileWithEntry('e1', 'a.txt', 'text/plain')], NONE, {
+      isToolCapable: true,
+      cap: 5,
+      framing: inlineFramingTokens('a.txt', 10, true)
+    })
     const text = textOf(out.parts)[0]
     expect(text).toContain('01234')
     expect(text).toContain('read_file("a.txt", offset=5)')
@@ -282,7 +286,11 @@ describe('prepareChatMessages — routing', () => {
   it('caps long text without a read_file pointer for non-tool models', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'txt' })
     extractMock.mockResolvedValueOnce('0123456789')
-    const [out] = await run([fileWithEntry('e1', 'a.txt', 'text/plain')], NONE, { isToolCapable: false, cap: 5 })
+    const [out] = await run([fileWithEntry('e1', 'a.txt', 'text/plain')], NONE, {
+      isToolCapable: false,
+      cap: 5,
+      framing: inlineFramingTokens('a.txt', 10, false)
+    })
     const text = textOf(out.parts)[0]
     expect(text).toContain('[Truncated 5/10 chars.]')
     expect(text).not.toContain('read_file')
@@ -296,7 +304,7 @@ describe('prepareChatMessages — routing', () => {
     const [out] = await run(
       [fileWithEntry('e1', 'a.txt', 'text/plain'), fileWithEntry('e2', 'b.txt', 'text/plain')],
       NONE,
-      { cap: 60 }
+      { cap: 60, framing: inlineFramingTokens('a.txt', 100, true) + inlineFramingTokens('b.txt', 100, true) }
     )
 
     expect(textOf(out.parts)).toEqual([
@@ -319,12 +327,26 @@ describe('prepareChatMessages — routing', () => {
       attachments: collectFileAttachments(messages),
       nativeSupport: NONE,
       isToolCapable: true,
-      budget: { tokens: 60 }
+      budget: { tokens: 60 + inlineFramingTokens('a.txt', 100, true) + inlineFramingTokens('b.txt', 20, true) }
     })
 
     // b.txt fits whole, so a.txt takes the 40 it leaves behind rather than half.
     expect(textOf(out[0].parts)[0]).toContain('[Truncated 40/100 chars')
     expect(textOf(out[1].parts)[0]).toBe(`Attached file "b.txt":\n${'b'.repeat(20)}`)
+  })
+
+  it('reserves the label and truncation notice so the wrapped text stays within the budget', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'txt' })
+    extractMock.mockResolvedValueOnce('x'.repeat(5000))
+    const budget = 400
+    const messages = [userMessage([fileWithEntry('e1', 'notes.txt', 'text/plain')])] as UIMessage[]
+    const [out] = await prepareChatMessages(messages, {
+      attachments: collectFileAttachments(messages),
+      nativeSupport: NONE,
+      isToolCapable: true,
+      budget: { tokens: budget }
+    })
+    expect(Buffer.byteLength(textOf(out.parts)[0], 'utf8')).toBeLessThanOrEqual(budget)
   })
 
   it('rethrows on abort instead of degrading', async () => {

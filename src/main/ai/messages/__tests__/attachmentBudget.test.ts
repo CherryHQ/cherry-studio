@@ -509,6 +509,26 @@ describe('actual SDK fallback capacity', () => {
     )
   })
 
+  it('rejects a digit-heavy compression chunk when digits are priced one token each', async () => {
+    // Qwen2-style tokenizers split every digit; a BPE or heuristic count can treat a long run as a few
+    // tokens and admit a chunk Ollama then truncates silently.
+    const provider = makeProvider({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT,
+      endpointConfigs: { [ENDPOINT_TYPE.OLLAMA_CHAT]: { adapterFamily: 'ollama' } }
+    })
+    const model = makeModel({ id: 'ollama::qwen', providerId: 'ollama', contextWindow: 4096 })
+    const callOf = (text: string) =>
+      ({
+        prompt: [{ role: 'user', content: [{ type: 'text', text }] }],
+        maxOutputTokens: 512
+      }) as LanguageModelV3CallOptions
+    const base = { fallbackProvider: provider, fallbackModel: model, digitAware: true }
+    expect(await isFallbackCallWithinWindow({ ...base, call: callOf('1234567890'.repeat(596)) })).toBe(false)
+    expect(await isFallbackCallWithinWindow({ ...base, call: callOf('1234567890'.repeat(20)) })).toBe(true)
+  })
+
   it('prices prompt-only calls, system, later tool results, retained schemas and output reservation', async () => {
     const provider = makeProvider({ id: 'openai' })
     const model = makeModel({ id: 'openai::small', providerId: 'openai', contextWindow: 1000 })

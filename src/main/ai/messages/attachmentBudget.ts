@@ -253,7 +253,8 @@ async function priceCallCapacity(
   provider: Provider,
   model: Model,
   window: number | undefined,
-  conservativeText = false
+  conservativeText = false,
+  digitAware = false
 ): Promise<CallCapacity | null> {
   if (window == null) return null
   const dialect = resolveModelTokenDialect(provider, model)
@@ -267,7 +268,19 @@ async function priceCallCapacity(
         id: 'conservative-utf8',
         count: (text) => Math.max(estimatedTokenizer.count(text), Buffer.byteLength(text, 'utf8'))
       }
-    : estimatedTokenizer
+    : digitAware
+      ? {
+          // Models such as Qwen2 tokenize every digit separately; a heuristic can price a
+          // long digit run as one token. Count digits individually, everything else as estimated.
+          id: 'digit-aware',
+          count: (text) => {
+            const digits = text.match(/\p{Nd}/gu)?.length ?? 0
+            return digits === 0
+              ? estimatedTokenizer.count(text)
+              : digits + estimatedTokenizer.count(text.replace(/\p{Nd}+/gu, ' '))
+          }
+        }
+      : estimatedTokenizer
   // SDK v3 prompt content shares the footprint walker's text/media/tool-result
   // structure. Tools here are already JSON schemas, not the original ToolSet.
   const tokens =
@@ -302,6 +315,8 @@ export async function isFallbackCallWithinWindow(input: {
   fallbackEndpointType?: EndpointType
   fallbackRuntimeProviderId?: string
   fallbackOllamaNumCtx?: OllamaNumCtxRequestSnapshot | null
+  /** Price digits one token each, so oversized digit-heavy input is rejected, not silently truncated. */
+  digitAware?: boolean
 }): Promise<boolean> {
   try {
     const capacity = await priceCallCapacity(
@@ -314,7 +329,9 @@ export async function isFallbackCallWithinWindow(input: {
         input.fallbackEndpointType,
         input.fallbackRuntimeProviderId,
         input.fallbackOllamaNumCtx ?? null
-      )
+      ),
+      false,
+      input.digitAware
     )
     return capacity === null || capacity.tokens <= capacity.usable
   } catch {

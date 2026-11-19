@@ -355,12 +355,36 @@ function defer(parts: UIMessage['parts'], pending: PendingInline[], handle: stri
   parts.push({ type: 'text', text: '' })
 }
 
+/**
+ * Worst-case text the inline wrapper adds around a body: the `Attached file` label plus the
+ * truncation notice. Priced at one token per UTF-8 byte (an upper bound, matching the allocator) so the allocator leaves
+ * room for it and the dispatch guard, which counts the final prompt, does not reject a fit.
+ */
+export function inlineFramingTokens(handle: string, bodyLength: number, isToolCapable: boolean): number {
+  const label = `Attached file "${handle}":\n`
+  const count = '9'.repeat(String(bodyLength).length)
+  const notice = isToolCapable
+    ? `\n\n[Truncated ${count}/${count} chars — call read_file("${handle}", offset=${count}) for the rest.]`
+    : `\n\n[Truncated ${count}/${count} chars.]`
+  return Buffer.byteLength(label, 'utf8') + Buffer.byteLength(notice, 'utf8')
+}
+
 async function applyInlineCaps(pending: PendingInline[], ctx: PrepareChatContext): Promise<void> {
   if (pending.length === 0) return
   const caps = ctx.budget
     ? await runAttachmentWorker(
         'allocate',
-        { bodies: pending.map((entry) => entry.body), tokens: ctx.budget.tokens },
+        {
+          bodies: pending.map((entry) => entry.body),
+          tokens: Math.max(
+            0,
+            ctx.budget.tokens -
+              pending.reduce(
+                (sum, entry) => sum + inlineFramingTokens(entry.handle, entry.body.length, ctx.isToolCapable),
+                0
+              )
+          )
+        },
         ctx.signal
       )
     : pending.map(() => READ_FILE_PAGE_SIZE)
