@@ -34,6 +34,8 @@ export class BlurCancelPointerSensor extends PointerSensor {
       }
     })
 
+    // SAFETY: dnd-kit 6.3.1's private handleCancel detaches the sensor and notifies DndContext.
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- The private SDK declaration erases its signature; indexed access would become any.
     blurListener.current = () => (this as unknown as PointerSensorCancel).handleCancel()
     view.addEventListener('blur', blurListener.current)
   }
