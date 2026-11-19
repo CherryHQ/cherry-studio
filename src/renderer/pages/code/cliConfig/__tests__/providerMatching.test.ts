@@ -5,54 +5,67 @@ import { CodeCli } from '@shared/types/codeCli'
 
 import { cliConfigConnectionMatchesProvider } from '../providerMatching'
 
+const apiKeys: ApiKeyEntry[] = [{ id: 'k1', key: 'sk-secret', isEnabled: true }]
+
+function makeProvider(definition: Pick<Provider, 'id' | 'name' | 'endpointConfigs' | 'defaultChatEndpoint'>): Provider {
+  return {
+    ...definition,
+    reportsActualCost: false,
+    apiKeys: apiKeys.map(({ id, label, isEnabled }) => ({ id, label, isEnabled })),
+    authType: 'api-key',
+    settings: {},
+    isEnabled: true
+  }
+}
+
 // Mirrors the provider-registry seed: chat endpoint at https://aihubmix.com/v1,
 // no dedicated google-generate-content endpoint.
-const aihubmixProvider = {
+const aihubmixProvider = makeProvider({
   id: 'aihubmix',
   name: 'AiHubMix',
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'openai-chat-completions': { baseUrl: 'https://aihubmix.com/v1' }
   }
-} as unknown as Provider
+})
 
-const openAIProvider = {
+const openAIProvider = makeProvider({
   id: 'deepseek',
   name: 'DeepSeek',
   endpointConfigs: {
     'openai-chat-completions': { baseUrl: 'https://express-ent-admin.cherryin.ai' },
     'openai-responses': { baseUrl: 'https://responses.example.com' }
   }
-} as unknown as Provider
+})
 
-const openAIChatProvider = {
+const openAIChatProvider = makeProvider({
   id: 'deepseek-chat',
   name: 'DeepSeek Chat',
   endpointConfigs: {
     'openai-chat-completions': { baseUrl: 'https://express-ent-admin.cherryin.ai' }
   }
-} as unknown as Provider
+})
 
-const anthropicProvider = {
+const anthropicProvider = makeProvider({
   id: 'anthropic',
   name: 'Anthropic',
   endpointConfigs: {
     'anthropic-messages': { baseUrl: 'https://api.anthropic.com' }
   }
-} as unknown as Provider
+})
 
-const geminiProvider = {
+const geminiProvider = makeProvider({
   id: 'gemini',
   name: 'Gemini',
   endpointConfigs: {
     'google-generate-content': { baseUrl: 'https://generativelanguage.googleapis.com' }
   }
-} as unknown as Provider
+})
 
 /** CherryIN/DMXAPI: aggregators allow-listed for Gemini CLI with no dedicated
  * google-generate-content endpoint and no GEMINI_AGGREGATOR_BASE_URLS entry —
  * they proxy every protocol off their default chat endpoint's host. */
-const cherryinProvider = {
+const cherryinProvider = makeProvider({
   id: 'cherryin',
   name: 'CherryIN',
   defaultChatEndpoint: 'openai-chat-completions',
@@ -60,9 +73,7 @@ const cherryinProvider = {
     'anthropic-messages': { baseUrl: 'https://open.cherryin.net' },
     'openai-chat-completions': { baseUrl: 'https://open.cherryin.net' }
   }
-} as unknown as Provider
-
-const apiKeys: ApiKeyEntry[] = [{ id: 'k1', key: 'sk-secret', isEnabled: true }]
+})
 
 describe('cliConfigConnectionMatchesProvider', () => {
   it('matches Qwen and Kimi against the formatted OpenAI endpoint', () => {
@@ -167,9 +178,9 @@ describe('cliConfigConnectionMatchesProvider', () => {
 
   it('follows a custom-configured aihubmix host instead of the static aihubmix.com default', () => {
     const customHostProvider = {
-      ...(aihubmixProvider as unknown as Record<string, unknown>),
+      ...aihubmixProvider,
       endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://custom.example.com/v1' } }
-    } as unknown as Provider
+    } satisfies Provider
     expect(
       cliConfigConnectionMatchesProvider(
         CodeCli.GEMINI_CLI,
