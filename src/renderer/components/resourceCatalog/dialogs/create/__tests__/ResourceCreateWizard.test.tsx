@@ -1,7 +1,7 @@
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, cleanup, fireEvent, render, type RenderResult, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Activity, type ComponentProps, useState } from 'react'
+import { Activity, type ComponentProps, type ReactNode, useState } from 'react'
 import type * as ReactHookForm from 'react-hook-form'
 import { useWatch } from 'react-hook-form'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -104,6 +104,32 @@ vi.mock('@renderer/hooks/resourceCatalog', () => ({
     generate: autoConfigure.generate,
     installFeaturedMcpServers: autoConfigure.installFeaturedMcpServers
   })
+}))
+vi.mock('@renderer/components/PromptEditorField', () => ({
+  PromptEditorIconButton: ({ label, onClick }: { label: string; onClick: () => void }) => (
+    <button type="button" onClick={onClick}>
+      {label}
+    </button>
+  ),
+  default: ({
+    label,
+    actions,
+    value,
+    onChange,
+    editorLabel
+  }: {
+    label?: ReactNode
+    actions?: ReactNode
+    value: string
+    onChange: (value: string) => void
+    editorLabel?: string
+  }) => (
+    <div>
+      {label}
+      {actions}
+      <textarea aria-label={editorLabel} value={value} onChange={(event) => onChange(event.target.value)} />
+    </div>
+  )
 }))
 vi.mock('../steps/SystemPromptStep', () => ({
   SystemPromptStep: ({ form }: { form: ReactHookForm.UseFormReturn<ResourceCreateWizardFormValues> }) => (

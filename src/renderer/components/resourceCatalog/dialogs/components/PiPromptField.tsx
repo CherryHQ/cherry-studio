@@ -3,9 +3,9 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { estimateTokenCount } from 'tokenx'
 
-import { Button, Textarea, Tooltip } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { PromptEditorIconButton } from '@renderer/components/PromptEditorField'
+import PromptEditorField, { PromptEditorIconButton } from '@renderer/components/PromptEditorField'
 import { ipcApi } from '@renderer/ipc'
 import { RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import { type AgentLanguageMode, normalizeAgentLanguageInput } from '@shared/ai/agentForm'
@@ -25,8 +25,6 @@ import { PromptPolishActions } from './PromptPolishActions'
 const logger = loggerService.withContext('PiPromptField')
 const PREVIEW_DEBOUNCE_MS = 300
 const fixedTextClassName = 'whitespace-pre-wrap break-words font-mono text-[11px] text-muted-foreground leading-5'
-const editorClassName =
-  'min-h-24 border-0 bg-transparent px-0 font-mono text-[12px] leading-5 shadow-none focus-visible:ring-0 dark:bg-transparent'
 
 const BLOCK_TITLES: Record<string, string> = {
   agent_identity: 'library.config.agent.prompt.block.agent_identity',
@@ -339,10 +337,13 @@ function BlockEditor({
           block.kind === 'guidance' ? 'library.config.agent.prompt.edited' : 'library.config.agent.prompt.edited_frozen'
         )
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <div className="flex min-h-6 items-center justify-between gap-2">
-        <span className="truncate text-muted-foreground text-xs">{status}</span>
-        <span className="flex shrink-0 items-center gap-1">
+    <PromptEditorField
+      label={<span className="truncate text-muted-foreground text-xs">{status}</span>}
+      editorLabel={label}
+      value={text}
+      onChange={onChange}
+      actions={
+        <>
           <PromptPolishActions
             value={text}
             fallbackSource={block.text}
@@ -355,17 +356,10 @@ function BlockEditor({
             disabled={override === undefined}
             onClick={onRestore}
           />
-        </span>
-      </div>
-      <div className="flex min-h-0 flex-1 rounded-xl border border-border px-3 py-1">
-        <Textarea.Input
-          value={text}
-          aria-label={label}
-          onValueChange={onChange}
-          className={`${editorClassName} h-full flex-1 resize-none`}
-        />
-      </div>
-    </div>
+        </>
+      }
+      fill
+    />
   )
 }
 
@@ -383,10 +377,14 @@ function InstructionsEditor({
 }) {
   const { t } = useTranslation()
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex min-h-6 items-center justify-between gap-2">
-        <span className="font-medium text-foreground text-sm">{t(BLOCK_TITLES[block.key] ?? '')}</span>
-        <span className="flex items-center gap-1">
+    <PromptEditorField
+      label={<span className="font-medium text-foreground text-sm">{t(BLOCK_TITLES[block.key] ?? '')}</span>}
+      editorLabel={t('library.config.agent.prompt.instructions_label')}
+      value={value}
+      onChange={onChange}
+      placeholder={t('library.config.agent.prompt.placeholder')}
+      actions={
+        <>
           <PromptPolishActions
             value={value}
             emptyValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
@@ -400,18 +398,11 @@ function InstructionsEditor({
               onClick={() => onChange('')}
             />
           ) : null}
-        </span>
-      </div>
-      <div className="rounded-xl border border-border px-3 py-1">
-        <Textarea.Input
-          value={value}
-          aria-label={t('library.config.agent.prompt.instructions_label')}
-          placeholder={t('library.config.agent.prompt.placeholder')}
-          onValueChange={onChange}
-          // Capped so the blocks below stay in reach on the same page.
-          className={`${editorClassName} max-h-72`}
-        />
-      </div>
-    </div>
+        </>
+      }
+      // Capped so the blocks below stay in reach on the same page.
+      minHeight="6rem"
+      maxHeight="18rem"
+    />
   )
 }

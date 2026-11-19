@@ -1,8 +1,9 @@
-import { type Ref, useEffect, useId, useImperativeHandle, useState } from 'react'
+import { type Ref, useEffect, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Label, Textarea } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import PromptEditorField from '@renderer/components/PromptEditorField'
 import { formatTaskCardTime } from '@renderer/components/ScheduledTask/TaskRunSummaryLine'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
@@ -57,7 +58,6 @@ export function HeartbeatTasksPage({
   ref?: Ref<HeartbeatTasksPageHandle>
 }) {
   const { t } = useTranslation()
-  const inputId = useId()
   const [document, setDocument] = useState<HeartbeatDocument | null>(null)
   const [content, setContent] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -149,16 +149,14 @@ export function HeartbeatTasksPage({
     <div className="flex flex-col gap-3">
       <p className="text-muted-foreground text-xs">{t('agent.heartbeat.description')}</p>
       {/* The page title already names the field. */}
-      <Label htmlFor={inputId} className="sr-only">
-        {t('agent.heartbeat.tasks')}
-      </Label>
-      <Textarea.Input
-        id={inputId}
+      <PromptEditorField
+        label={null}
+        editorLabel={t('agent.heartbeat.tasks')}
         value={content}
         disabled={!document || busy}
-        onChange={(event) => setContent(event.target.value)}
+        onChange={setContent}
         placeholder={t('agent.heartbeat.placeholder')}
-        className="min-h-48 resize-y font-mono"
+        minHeight="12rem"
       />
       <p className="text-muted-foreground text-xs">
         {!enabled

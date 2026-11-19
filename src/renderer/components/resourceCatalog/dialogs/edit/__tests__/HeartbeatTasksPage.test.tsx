@@ -1,6 +1,7 @@
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import en from '@renderer/i18n/locales/en-us.json'
@@ -12,6 +13,42 @@ import type { HeartbeatDocument } from '@shared/ipc/schemas/ai'
 
 vi.unmock('@cherrystudio/ui')
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
+vi.mock('@renderer/components/PromptEditorField', () => ({
+  PromptEditorIconButton: ({ label, onClick }: { label: string; onClick: () => void }) => (
+    <button type="button" onClick={onClick}>
+      {label}
+    </button>
+  ),
+  default: ({
+    label,
+    actions,
+    value,
+    onChange,
+    placeholder,
+    disabled,
+    editorLabel
+  }: {
+    label?: ReactNode
+    actions?: ReactNode
+    value: string
+    onChange: (value: string) => void
+    placeholder?: string
+    disabled?: boolean
+    editorLabel?: string
+  }) => (
+    <div>
+      {label}
+      {actions}
+      <textarea
+        aria-label={editorLabel}
+        placeholder={placeholder}
+        disabled={disabled}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </div>
+  )
+}))
 vi.mock('react-i18next', () => {
   const t = (key: string) => en[key as keyof typeof en] ?? key
   return { useTranslation: () => ({ t }) }

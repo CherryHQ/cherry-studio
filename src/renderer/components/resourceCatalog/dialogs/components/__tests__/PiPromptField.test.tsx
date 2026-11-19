@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
@@ -14,6 +14,42 @@ import { PiPromptField, type PiPromptDraft } from '../PiPromptField'
 const request = vi.hoisted(() => vi.fn())
 const fetchGenerate = vi.hoisted(() => vi.fn())
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request } }))
+vi.mock('@renderer/components/PromptEditorField', () => ({
+  PromptEditorIconButton: ({ label, onClick }: { label: string; onClick: () => void }) => (
+    <button type="button" onClick={onClick}>
+      {label}
+    </button>
+  ),
+  default: ({
+    label,
+    actions,
+    value,
+    onChange,
+    placeholder,
+    disabled,
+    editorLabel
+  }: {
+    label?: ReactNode
+    actions?: ReactNode
+    value: string
+    onChange: (value: string) => void
+    placeholder?: string
+    disabled?: boolean
+    editorLabel?: string
+  }) => (
+    <div>
+      {label}
+      {actions}
+      <textarea
+        aria-label={editorLabel}
+        placeholder={placeholder}
+        disabled={disabled}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </div>
+  )
+}))
 vi.mock('@cherrystudio/ui', async (importOriginal) => await importOriginal<typeof CherryStudioUi>())
 vi.mock('@renderer/utils/aiGeneration', () => ({ fetchGenerate }))
 vi.mock('@renderer/hooks/useModel', () => ({
