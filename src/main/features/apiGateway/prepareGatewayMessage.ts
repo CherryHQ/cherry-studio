@@ -134,9 +134,11 @@ export async function prepareGatewayMessage(config: MessageConfig) {
 
 export function gatewayPromptOptions(
   request: Awaited<ReturnType<typeof prepareGatewayMessage>>,
-  usageContext: InProcessUsageContext | undefined,
+  capturedUsage: InProcessUsageContext | undefined,
   idleTimeoutMs = GATEWAY_STREAM_IDLE_TIMEOUT_MS
 ) {
+  const usageContext =
+    capturedUsage ?? (request.agentSessionId ? { agentSessionId: request.agentSessionId, source: null } : undefined)
   return {
     ...request.turnOptions,
     uniqueModelId: request.uniqueModelId,
