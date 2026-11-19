@@ -7,35 +7,43 @@
  * The function is pure, so it is tested directly with no mocks.
  */
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, assert, describe, expect, it, vi } from 'vitest'
 
-import type { CherryMessagePart } from '@shared/data/types/message'
+import { MessageDataSchema, type CherryMessagePart } from '@shared/data/types/message'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 
 import { dropEmptyContentParts, finalizeInterruptedParts, stripTransientStatusParts } from '../PersistenceBackend'
 
 // AI SDK tool-call UIMessagePart shapes. The non-terminal states the helper
 // targets are anything NOT in {output-available, output-error, output-denied}.
-function inProgressToolPart(state: 'input-streaming' | 'input-available'): CherryMessagePart {
+function inProgressToolPart(state: 'input-streaming' | 'input-available') {
   return {
     type: 'tool-search',
     toolCallId: 'tc-1',
     toolName: 'search',
     state,
     input: { q: 'hello' }
-  } as unknown as CherryMessagePart
+  } satisfies CherryMessagePart & { toolName: string }
 }
 
-function inProgressDynamicToolPart(): CherryMessagePart {
+function inProgressDynamicToolPart() {
   return {
     type: 'dynamic-tool',
     toolCallId: 'tc-dyn',
     toolName: 'mcp_tool',
     state: 'input-available',
     input: { foo: 'bar' }
-  } as unknown as CherryMessagePart
+  } satisfies CherryMessagePart
 }
 
-const textPart = (text: string): CherryMessagePart => ({ type: 'text', text }) as unknown as CherryMessagePart
+const textPart = (text: string) => ({ type: 'text', text }) satisfies CherryMessagePart
+
+function storedParts(parts: unknown[]): CherryMessagePart[] {
+  // Storage admits parts opaquely, including historical missing or transitional SDK fields.
+  const stored = MessageDataSchema.parse({ parts }).parts
+  assert.isDefined(stored, 'Expected stored message parts')
+  return stored
+}
 
 describe('finalizeInterruptedParts', () => {
   afterEach(() => {
@@ -83,7 +91,7 @@ describe('finalizeInterruptedParts', () => {
       const original = inProgressToolPart('input-available')
       const parts: CherryMessagePart[] = [original]
       finalizeInterruptedParts(parts, 'paused')
-      expect((original as { state: string }).state).toBe('input-available')
+      expect(original.state).toBe('input-available')
     })
   })
 
@@ -100,47 +108,50 @@ describe('finalizeInterruptedParts', () => {
     })
   })
 
-  it('leaves terminal tool parts untouched on paused/error', () => {
+  it('preserves historical terminal tool parts missing input or approval fields', () => {
     const completed = {
       type: 'tool-search',
       toolCallId: 'done',
       toolName: 'search',
       state: 'output-available',
       output: { hits: 3 }
-    } as unknown as CherryMessagePart
+    }
     const errored = {
       type: 'tool-search',
       toolCallId: 'err',
       toolName: 'search',
       state: 'output-error',
       errorText: 'tool blew up'
-    } as unknown as CherryMessagePart
+    }
     const denied = {
       type: 'tool-fs',
       toolCallId: 'denied',
       toolName: 'fs',
       state: 'output-denied'
-    } as unknown as CherryMessagePart
+    }
 
-    const parts: CherryMessagePart[] = [completed, errored, denied]
+    const parts = storedParts([completed, errored, denied])
     const result = finalizeInterruptedParts(parts, 'paused')
 
-    // identical objects returned by reference — no rewrite of terminal states.
+    // Terminal outcomes and historical fields survive interruption.
     expect(result[0]).toEqual(completed)
     expect(result[1]).toEqual(errored)
     expect(result[2]).toEqual(denied)
+    expect(completed).toMatchObject({ state: 'output-available', output: { hits: 3 } })
+    expect(errored).toMatchObject({ state: 'output-error', errorText: 'tool blew up' })
+    expect(denied).toMatchObject({ state: 'output-denied' })
   })
 
-  it('preserves an existing errorText instead of overwriting with the generic reason', () => {
-    const parts: CherryMessagePart[] = [
+  it('preserves an earlier errorText on a historical in-progress tool record', () => {
+    const parts = storedParts([
       {
         type: 'tool-search',
         toolCallId: 'x',
         toolName: 'search',
         state: 'input-available',
         errorText: 'earlier diagnostic'
-      } as unknown as CherryMessagePart
-    ]
+      }
+    ])
 
     const result = finalizeInterruptedParts(parts, 'paused')
 
@@ -149,7 +160,7 @@ describe('finalizeInterruptedParts', () => {
 
   it('leaves non-tool parts (text/reasoning) untouched while rewriting the tool part', () => {
     const text = textPart('partial answer')
-    const reasoning = { type: 'reasoning', text: 'thinking…' } as unknown as CherryMessagePart
+    const reasoning = { type: 'reasoning', text: 'thinking…' } satisfies CherryMessagePart
     const parts: CherryMessagePart[] = [text, reasoning, inProgressToolPart('input-available')]
 
     const result = finalizeInterruptedParts(parts, 'error')
@@ -170,7 +181,7 @@ describe('finalizeInterruptedParts', () => {
         status: 'in_progress',
         title: 'Implementing TTS adapters'
       }
-    } as unknown as CherryMessagePart
+    } satisfies CherryMessagePart
 
     const result = finalizeInterruptedParts([taskEvent], 'error')
 
@@ -189,11 +200,11 @@ describe('finalizeInterruptedParts', () => {
     const completed = {
       type: 'data-agent-task-event',
       data: { event: 'notification', taskId: 'task-1', status: 'completed' }
-    } as unknown as CherryMessagePart
+    } satisfies CherryMessagePart
     const pending = {
       type: 'data-agent-task-event',
       data: { event: 'started', taskId: 'task-2', status: 'pending' }
-    } as unknown as CherryMessagePart
+    } satisfies CherryMessagePart
 
     const result = finalizeInterruptedParts([completed, pending], 'error')
 
@@ -214,7 +225,7 @@ describe('finalizeInterruptedParts', () => {
           startedAt
         }
       }
-    } as unknown as CherryMessagePart
+    } satisfies CherryMessagePart
 
     const result = finalizeInterruptedParts([streamingReasoning], 'paused')
 
@@ -222,7 +233,7 @@ describe('finalizeInterruptedParts', () => {
       type: 'reasoning',
       state: 'done'
     })
-    const cherryMeta = (result[0] as any).providerMetadata?.cherry
+    const cherryMeta = readCherryMeta(result[0])
     expect(cherryMeta?.thinkingMs).toBe(5000)
   })
 
@@ -231,7 +242,7 @@ describe('finalizeInterruptedParts', () => {
       type: 'reasoning',
       text: 'thinking...',
       state: 'streaming'
-    } as unknown as CherryMessagePart
+    } satisfies CherryMessagePart
 
     const result = finalizeInterruptedParts([streamingReasoning], 'paused')
 
@@ -239,18 +250,18 @@ describe('finalizeInterruptedParts', () => {
       type: 'reasoning',
       state: 'done'
     })
-    const cherryMeta = (result[0] as any).providerMetadata?.cherry
+    const cherryMeta = readCherryMeta(result[0])
     expect(cherryMeta?.thinkingMs).toBeUndefined()
   })
 })
 
 describe('stripTransientStatusParts', () => {
-  const retryPart = (): CherryMessagePart =>
+  const retryPart = () =>
     ({
       type: 'data-retry',
       id: 'retry',
       data: { state: 'retrying', modelId: 'gpt-4', attempt: 2, reason: 'http 429' }
-    }) as unknown as CherryMessagePart
+    }) satisfies CherryMessagePart
 
   it('removes data-retry parts, preserving order of the rest', () => {
     const text = textPart('answer')
@@ -260,8 +271,7 @@ describe('stripTransientStatusParts', () => {
   })
 })
 
-const reasoningPart = (text: string): CherryMessagePart =>
-  ({ type: 'reasoning', text, state: 'done' }) as unknown as CherryMessagePart
+const reasoningPart = (text: string) => ({ type: 'reasoning', text, state: 'done' }) satisfies CherryMessagePart
 
 describe('dropEmptyContentParts', () => {
   it('drops empty and whitespace-only text parts', () => {
@@ -278,17 +288,17 @@ describe('dropEmptyContentParts', () => {
     expect(result).toEqual([keep])
   })
 
-  it('keeps non-text/reasoning parts even when they look empty', () => {
-    const parts: CherryMessagePart[] = [
-      { type: 'data-translation', data: { content: '' } } as unknown as CherryMessagePart,
+  it('keeps historical non-text parts even when their payloads look empty or incomplete', () => {
+    const parts = storedParts([
+      { type: 'data-translation', data: { content: '' } },
       {
         type: 'tool-search',
         toolCallId: 't',
         toolName: 'search',
         state: 'output-available',
         output: {}
-      } as unknown as CherryMessagePart
-    ]
+      }
+    ])
 
     const result = dropEmptyContentParts(parts)
 
