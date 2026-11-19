@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { SpanStatusCode } from '@opentelemetry/api'
-import type { ReadableSpan, TimedEvent } from '@opentelemetry/sdk-trace-base'
+import type { TimedEvent } from '@opentelemetry/sdk-trace-base'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,7 +12,7 @@ import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 import type { SpanEntity } from '@shared/data/types/trace'
 
-import { convertSpanToSpanEntity } from '../../core/spanConvert'
+import { convertSpanToSpanEntity, type TraceSpanSnapshot } from '../../core/spanConvert'
 import { TraceSpanStore } from '../TraceSpanStore'
 import { TraceStorageService } from '../TraceStorageService'
 
@@ -34,13 +34,12 @@ function span(overrides: Partial<SpanEntity>): SpanEntity {
   }
 }
 
-// Minimal ReadableSpan shaped for the fields convertSpanToSpanEntity / createSpan / endSpan read.
-function readableSpan(overrides: {
+function spanSnapshot(overrides: {
   spanId: string
   traceId: string
   ended: boolean
   events?: TimedEvent[]
-}): ReadableSpan {
+}): TraceSpanSnapshot {
   return {
     name: 'otel-span',
     kind: 0,
@@ -53,7 +52,7 @@ function readableSpan(overrides: {
     attributes: {},
     events: overrides.events ?? [],
     links: []
-  } as unknown as ReadableSpan
+  }
 }
 
 // Reading history is the expensive path (whole trace parsed into the heap + IPC payload), so the
@@ -196,11 +195,11 @@ describe('TraceStorageService', () => {
     await service._doInit()
 
     // 1. In-flight span from createSpan must not be ended.
-    service.createSpan(readableSpan({ spanId: 'live', traceId: 'trace-live', ended: false }))
+    service.createSpan(spanSnapshot({ spanId: 'live', traceId: 'trace-live', ended: false }))
     expect(service['store'].getSpan('live')?.isEnd).toBe(false)
 
     // 2. endSpan must mark the entity ended.
-    service.endSpan(readableSpan({ spanId: 'live', traceId: 'trace-live', ended: true }))
+    service.endSpan(spanSnapshot({ spanId: 'live', traceId: 'trace-live', ended: true }))
     expect(service['store'].getSpan('live')?.isEnd).toBe(true)
 
     // 3. Feed the real pipeline-produced entity into a small-cap store and confirm the
@@ -224,9 +223,9 @@ describe('TraceStorageService', () => {
     await service._doInit()
 
     // Converter sets isEnd from the OTel `ended` flag — true for an ended span, false in-flight.
-    const endedEntity = convertSpanToSpanEntity(readableSpan({ spanId: 'turn-root', traceId: 'trace-x', ended: true }))
+    const endedEntity = convertSpanToSpanEntity(spanSnapshot({ spanId: 'turn-root', traceId: 'trace-x', ended: true }))
     expect(endedEntity.isEnd).toBe(true)
-    expect(convertSpanToSpanEntity(readableSpan({ spanId: 'live2', traceId: 'trace-y', ended: false })).isEnd).toBe(
+    expect(convertSpanToSpanEntity(spanSnapshot({ spanId: 'live2', traceId: 'trace-y', ended: false })).isEnd).toBe(
       false
     )
 
@@ -285,7 +284,7 @@ describe('TraceStorageService', () => {
     await service._doInit()
 
     service.addSpanEvent('trace-live', 'live', timedEvent('e'))
-    service.createSpan(readableSpan({ spanId: 'live', traceId: 'trace-live', ended: false }))
+    service.createSpan(spanSnapshot({ spanId: 'live', traceId: 'trace-live', ended: false }))
 
     expect(service['store'].getSpan('live')?.events?.map((e) => e.name)).toEqual(['e'])
     expect(service['pendingEvents'].size).toBe(0)
