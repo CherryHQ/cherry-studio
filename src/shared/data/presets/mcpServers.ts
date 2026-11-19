@@ -157,7 +157,7 @@ export const PRESET_MCP_SERVERS = freezePresets([
     type: 'streamableHttp',
     baseUrl: 'https://tcb-api.cloud.tencent.com/mcp/v1',
     isActive: false,
-    provider: 'CherryAI',
+    provider: 'CloudBase',
     installSource: 'builtin',
     isTrusted: true
   },
