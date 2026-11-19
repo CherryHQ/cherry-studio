@@ -140,7 +140,7 @@ export async function createMemoryBackup(
     status: 'pending',
     clearScopeHash,
     ...(legacy
-      ? { legacy: { path: legacy.path, content: legacy.content.toString('base64'), hash: memoryHash(legacy.content)! } }
+      ? { legacy: { path: legacy.path, content: legacy.content.toString('base64'), hash: memoryHash(legacy.content) } }
       : {}),
     steps: changes.map((change) => ({
       path: change.path,
