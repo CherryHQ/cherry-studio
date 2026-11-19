@@ -84,7 +84,7 @@ Shared-memory settings show the latest run result and provide **Restore backup**
 Clearing nonempty memory retains forgetting markers. Conversations that may contain old memory remain blocked after restart or disabling shared access. You can start a new conversation to continue chatting with filtered memory. Ordinary corrections do not trigger forgetting protection; legacy protected or invalid states still require verification. If clearing was the latest operation and the shared memory still matches its version immediately after the clear, choose **Restore backup** to undo it. Content forgotten before the clear stays protected. If a file has a version conflict, recovery preserves its current contents.
 {% endhint %}
 
-The Agent's **Memory** tab shows the identity files `SOUL.md` and `USER.md`, legacy `memory/FACT.md`, and read-only `memory/JOURNAL.jsonl`. Active memory uses `MEMORY.md` and `.memories/` topics. After FACT migration succeeds, edits in the legacy tab affect only the retained FACT file. JOURNAL is kept as history.
+The Agent's **Memory** tab shows the identity files `SOUL.md` and `USER.md`, legacy `memory/FACT.md`, and read-only `memory/JOURNAL.jsonl`. Active memory uses `MEMORY.md` and `.memories/` topics. After migration, the retained FACT file is read-only in this tab. JOURNAL is kept as history.
 
 ### Sub-agents, Workflows, and Background Commands
 
