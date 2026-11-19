@@ -269,6 +269,8 @@ logger.LEVEL(message, CONTEXT, MORE_CONTEXT)
 Inside structured context written to JSON file logs, `undefined` and non-finite
 numbers become `null`; `bigint`, function, and symbol values become `<redacted>`.
 Circular references and excessive nesting use `[Circular]` and `[Truncated]` placeholders.
+Unreadable error fields or context values, including throwing getters, are replaced
+with redacted placeholders so JSON file logging can retain the operation record.
 
 #### Recording non-`object` type context information
 

@@ -153,6 +153,36 @@ describe('LoggerService file output', () => {
     expect(lines[1]).not.toContain('sk-secret123')
   })
 
+  it.each(['name', 'message', 'stack'])('redacts unreadable Error.%s without interrupting logging', async (field) => {
+    const { loggerService, lines, readLine } = await loadLogger()
+    const error = Object.defineProperty(new Error('private message'), field, {
+      get() {
+        throw new Error('private getter failure')
+      }
+    })
+
+    expect(() => loggerService.withContext('UnreadableTest').error('operation failed', error)).not.toThrow()
+
+    const line = await readLine()
+    expect(line).toMatchObject({ name: 'Error', errorMessage: '<redacted>' })
+    expect(line.message).toContain('operation failed')
+    expect(lines[0]).not.toContain('private')
+  })
+
+  it('redacts metadata with throwing getters while retaining the log record', async () => {
+    const { loggerService, lines, readLine } = await loadLogger()
+    const metadata = {
+      get payload() {
+        throw new Error('private metadata failure')
+      }
+    }
+
+    expect(() => loggerService.withContext('UnreadableTest').info('metadata', metadata)).not.toThrow()
+
+    expect(await readLine()).toMatchObject({ message: 'metadata', data: ['<redacted>'], module: 'UnreadableTest' })
+    expect(lines[0]).not.toContain('private')
+  })
+
   it('keeps diagnostic tags from real APICallError while stripping fat fields', async () => {
     const { loggerService, lines, readLine } = await loadLogger()
     const error = new APICallError({
