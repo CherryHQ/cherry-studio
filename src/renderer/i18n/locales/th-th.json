@@ -1538,6 +1538,7 @@
   "endpoint_type.openai-response": "OpenAI-Response",
   "error.agent_image_limit_detail": "ขีดจำกัดของโมเดล: {{limit}} รูป แนบมา: {{count}} รูป",
   "error.agent_image_limit_exceeded": "รูปภาพที่แนบเกินกว่าที่เอเจนต์โมเดลที่เลือกไว้รับได้ในหนึ่งพรอมต์ โปรดลบรูปภาพบางส่วนแล้วลองอีกครั้ง — ยังไม่มีการส่งคำขอ",
+  "error.agent_image_limit_exceeded_after_send": "รูปภาพที่แนบเกินกว่าที่เอเจนต์โมเดลที่เลือกไว้รับได้ในหนึ่งพรอมต์ โปรดลบรูปภาพบางส่วนแล้วลองอีกครั้ง — คำขอถูกส่งไปแล้ว",
   "error.api_gateway_required": "โมเดลนี้ต้องเชื่อมต่อผ่าน API Gateway ในเครื่องของ Cherry Studio ซึ่งถูกปิดอยู่ เปิดใช้เพื่อรันเอเจนต์นี้",
   "error.availableProviders": "ผู้ให้บริการที่ใช้ได้",
   "error.availableTools": "เครื่องมือที่ใช้ได้",

@@ -1538,6 +1538,7 @@
   "endpoint_type.openai-response": "OpenAI-Response",
   "error.agent_image_limit_detail": "Limit modelu: {{limit}} obrázků; přiloženo: {{count}}.",
   "error.agent_image_limit_exceeded": "Přiložené obrázky překračují limit, který vybraný model agenta přijme v jednom promptu. Odeberte některé obrázky a zkuste to znovu — nic nebylo odesláno.",
+  "error.agent_image_limit_exceeded_after_send": "Přiložené obrázky překračují limit, který vybraný model agenta přijme v jednom promptu. Odeberte některé obrázky a zkuste to znovu — požadavek již byl odeslán.",
   "error.api_gateway_required": "Tento model musí být propojen přes místní API bránu Cherry Studio, která je aktuálně vypnutá. Pro spuštění tohoto agenta ji zapněte.",
   "error.availableProviders": "Dostupní poskytovatelé",
   "error.availableTools": "Dostupné nástroje",

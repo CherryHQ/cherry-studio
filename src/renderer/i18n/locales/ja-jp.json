@@ -1538,6 +1538,7 @@
   "endpoint_type.openai-response": "OpenAI-Response",
   "error.agent_image_limit_detail": "モデルの上限: {{limit}}枚、添付: {{count}}枚。",
   "error.agent_image_limit_exceeded": "添付画像の数が、選択したエージェントモデルが1回のプロンプトで受け付け可能な上限を超えています。画像を減らして再試行してください — リクエストは送信されていません。",
+  "error.agent_image_limit_exceeded_after_send": "添付画像の数が、選択したエージェントモデルが1回のプロンプトで受け付け可能な上限を超えています。画像を減らして再試行してください — リクエストは既に送信されました。",
   "error.api_gateway_required": "このモデルはCherry StudioのローカルAPIサーバーを通してブリッジする必要がありますが、現在は無効です。このエージェントを実行するには有効化してください。",
   "error.availableProviders": "利用可能なプロバイダー",
   "error.availableTools": "利用可能なツール",

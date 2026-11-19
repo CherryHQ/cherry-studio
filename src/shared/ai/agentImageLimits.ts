@@ -16,17 +16,19 @@
  *   `countAgentImageAttachments` — one image definition for message parts,
  *   runtime payloads and composer attachments, so ordering and counts agree
  *   on every surface.
- * - `resolveMaxAgentImages` — the capability-driven limit: explicit per-model
- *   declarations win, vision models without one are unlimited, and non-vision
- *   models defer to the existing graceful fallbacks (OCR text, path
- *   references, Read guards) instead of a new upfront block.
+ * - `resolveMaxAgentImages` — the capability-driven limit from the production
+ *   `Model` contract (`Model.maxAgentImages`): explicit per-model declarations
+ *   win, vision models without one are unlimited, and non-vision models defer
+ *   to the existing graceful fallbacks (OCR text, path references, Read
+ *   guards) instead of a new upfront block.
  * - `assertAgentImageLimit` — throws `AgentImageLimitError` (carrying the
  *   actual limit and count) before the provider call. Callers keep the draft
  *   and history intact so retry preserves attachments and instructions.
  * - `parseUpstreamImageLimit` / `normalizeAgentImageLimitFailure` — turn a
  *   provider rejection that already happened into the same error shape, so
  *   mid-turn tool-read images (which Pi only discovers lazily) still surface
- *   the actual limit instead of a raw wire message.
+ *   the actual limit instead of a raw wire message. Result-boundary failures
+ *   normalize with `sent: true` so surfaces show the request was already sent.
  */
 
 import type { Model } from '@shared/data/types/model'
@@ -117,48 +119,57 @@ export interface AgentImageLimitDetails {
   count: number
   /** Runtime that enforced the limit (`pi`, `pi-durable`, `claude-code`). */
   runtime?: string
+  /** True when the provider already received the request (result boundary). */
+  sent?: boolean
 }
 
 /**
- * Thrown before a paid provider request when the attached images exceed what
- * the turn's model accepts. Carries the actual limit so surfaces can show it;
- * the throwing call sites keep drafts and history so retry preserves
- * attachments and instructions.
+ * Thrown when the attached images exceed what the turn's model accepts.
+ * Pre-send guards throw with `sent: false` (nothing was sent, drafts stay
+ * intact); provider result failures normalize with `sent: true` so surfaces
+ * show that the request was already sent.
  */
 export class AgentImageLimitError extends Error {
   readonly limit: number
   readonly count: number
   readonly runtime?: string
-  /** ErrorBlock renders `error.agent_image_limit_exceeded` + the detail line. */
-  readonly i18nKey = 'agent_image_limit_exceeded' as const
+  readonly sent: boolean
+  /** ErrorBlock renders `error.agent_image_limit_exceeded(_after_send)` + the detail line. */
+  readonly i18nKey: 'agent_image_limit_exceeded' | 'agent_image_limit_exceeded_after_send'
   readonly detailI18nKey = 'agent_image_limit_detail' as const
   readonly detailI18nValues: Record<string, string>
   /** Classifier ownership: a count-limit rejection is never auth/quota/mcp. */
   readonly providerErrorCategory = 'bad_request' as const
 
   constructor(details: AgentImageLimitDetails, message?: string) {
+    const sent = details.sent === true
     super(
       message ??
-        `This Agent request attaches ${details.count} image(s), but the selected model accepts at most ${details.limit} image(s) in one prompt.`
+        (sent
+          ? `This Agent request sent ${details.count} image(s), but the provider allows at most ${details.limit} image(s) in one prompt.`
+          : `This Agent request attaches ${details.count} image(s), but the selected model accepts at most ${details.limit} image(s) in one prompt.`)
     )
     this.name = 'AgentImageLimitError'
     this.limit = details.limit
     this.count = details.count
     this.runtime = details.runtime
+    this.sent = sent
+    this.i18nKey = sent ? 'agent_image_limit_exceeded_after_send' : 'agent_image_limit_exceeded'
     this.detailI18nValues = { limit: String(details.limit), count: String(details.count) }
   }
 }
 
 /**
  * Capability-driven limit for one Agent request. Explicit per-model
- * declarations (`maxAgentImages`) win. Vision models without one are
- * unlimited — supported models receive every image in the user's order.
- * Non-vision models return `undefined` (no upfront block): their graceful
- * fallbacks (OCR text, path references, Read guards) already apply.
+ * declarations (`maxAgentImages` on the production `Model` contract) win.
+ * Vision models without one are unlimited — supported models receive every
+ * image in the user's order. Non-vision models return `undefined` (no upfront
+ * block): their graceful fallbacks (OCR text, path references, Read guards)
+ * already apply.
  */
 export function resolveMaxAgentImages(model: Model | undefined | null): number | undefined {
   if (!model || !isVisionModel(model)) return undefined
-  const declared = (model as { maxAgentImages?: unknown }).maxAgentImages
+  const declared = model.maxAgentImages
   if (typeof declared === 'number' && Number.isFinite(declared) && declared >= 0) {
     return Math.floor(declared)
   }
@@ -194,15 +205,22 @@ export function parseUpstreamImageLimit(message: string | undefined | null): num
 /**
  * Convert a provider rejection into `AgentImageLimitError` when its text
  * names an image limit the attached count exceeds. Returns `undefined` for
- * anything else so unrelated failures keep their own presentation.
+ * anything else so unrelated failures keep their own presentation. Pass
+ * `sent: true` at the provider result boundary (the request was already
+ * sent); pre-send admission rejections keep the default unsent wording.
  */
 export function normalizeAgentImageLimitFailure(
   error: unknown,
   count: number,
-  opts?: { runtime?: string }
+  opts?: { runtime?: string; sent?: boolean }
 ): AgentImageLimitError | undefined {
   const message = error instanceof Error ? error.message : typeof error === 'string' ? error : undefined
   const limit = parseUpstreamImageLimit(message)
   if (limit === undefined || count <= limit) return undefined
+  const sent = opts?.sent === true
+  // Preserve the upstream text for unsent admission rejections; for sent
+  // result failures use the sent-aware default so surfaces do not claim
+  // that nothing was sent.
+  if (sent) return new AgentImageLimitError({ limit, count, runtime: opts?.runtime, sent: true })
   return new AgentImageLimitError({ limit, count, runtime: opts?.runtime }, message ?? undefined)
 }

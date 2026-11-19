@@ -3368,9 +3368,11 @@ export class AgentSessionRuntimeService extends BaseService {
       this.currentConnection(entry) !== connection
     )
       return
-    // Last gate before the paid provider call: the model may have changed since
-    // enqueue, so re-check the image count here.
-    this.assertTurnImageLimit(entry.modelId, turn.userMessage.data.parts, entry.agentType)
+    // Last gate before the paid provider call: validate against the turn's
+    // captured model, not the entry's latest default. The connection targets
+    // `turn.modelId` while live (see `connectionTarget`), so an agent-default
+    // change during connection opening must not re-gate the opening turn.
+    this.assertTurnImageLimit(turn.modelId, turn.userMessage.data.parts, entry.agentType)
     await connection.send({
       message: turn.userMessage,
       systemReminder: turn.systemReminder === true,

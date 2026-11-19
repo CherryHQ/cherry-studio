@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { Model } from '@shared/data/types/model'
+import { ModelSchema, type Model } from '@shared/data/types/model'
 
 import {
   AgentImageLimitError,
@@ -106,18 +106,26 @@ describe('resolveMaxAgentImages', () => {
   })
 
   it('honours an explicit per-model declaration', () => {
-    expect(resolveMaxAgentImages(visionModel({ maxAgentImages: 1 } as Partial<Model>))).toBe(1)
-    expect(resolveMaxAgentImages(visionModel({ maxAgentImages: 0 } as Partial<Model>))).toBe(0)
+    expect(resolveMaxAgentImages(visionModel({ maxAgentImages: 1 }))).toBe(1)
+    expect(resolveMaxAgentImages(visionModel({ maxAgentImages: 0 }))).toBe(0)
   })
 
   it('ignores invalid declarations', () => {
-    expect(resolveMaxAgentImages(visionModel({ maxAgentImages: -1 } as Partial<Model>))).toBeUndefined()
-    expect(resolveMaxAgentImages(visionModel({ maxAgentImages: 'many' } as Partial<Model>))).toBeUndefined()
+    expect(resolveMaxAgentImages(visionModel({ maxAgentImages: -1 }))).toBeUndefined()
+    expect(resolveMaxAgentImages(visionModel({ maxAgentImages: 'many' } as unknown as Partial<Model>))).toBeUndefined()
+  })
+
+  it('exposes the limit through the production Model contract', () => {
+    const parsed = ModelSchema.safeParse(visionModel({ id: 'test::single-image', name: 'Single', maxAgentImages: 1 }))
+    expect(parsed.success).toBe(true)
+    if (!parsed.success) return
+    expect(parsed.data.maxAgentImages).toBe(1)
+    expect(resolveMaxAgentImages(parsed.data)).toBe(1)
   })
 })
 
 describe('assertAgentImageLimit', () => {
-  const singleImageModel = visionModel({ maxAgentImages: 1 } as Partial<Model>)
+  const singleImageModel = visionModel({ maxAgentImages: 1 })
 
   it('passes one image against a single-image limit', () => {
     expect(() =>
@@ -150,6 +158,31 @@ describe('assertAgentImageLimit', () => {
     expect(limitError.count).toBe(2)
     expect(limitError.runtime).toBe('claude-code')
     expect(limitError.i18nKey).toBe('agent_image_limit_exceeded')
+    expect(limitError.sent).toBe(false)
+  })
+
+  it('marks result-boundary failures as sent with sent-aware wording', () => {
+    const parts = [
+      { type: 'file', mediaType: 'image/png', filename: 'a.png' },
+      { type: 'file', mediaType: 'image/jpeg', filename: 'b.jpg' }
+    ]
+    let error: unknown
+    try {
+      const normalized = normalizeAgentImageLimitFailure(
+        new Error('At most 1 image(s) may be provided in one prompt'),
+        2,
+        { runtime: 'claude-code', sent: true }
+      )
+      if (normalized) throw normalized
+    } catch (thrown) {
+      error = thrown
+    }
+    expect(error).toBeInstanceOf(AgentImageLimitError)
+    const limitError = error as AgentImageLimitError
+    expect(limitError.sent).toBe(true)
+    expect(limitError.i18nKey).toBe('agent_image_limit_exceeded_after_send')
+    expect(limitError.message).toMatch(/already sent|sent .*2 image/i)
+    void parts
   })
 
   it('honours an explicit override limit', () => {
@@ -187,6 +220,20 @@ describe('normalizeAgentImageLimitFailure', () => {
     expect(error).toBeInstanceOf(AgentImageLimitError)
     expect(error?.limit).toBe(1)
     expect(error?.count).toBe(2)
+    expect(error?.sent).toBe(false)
+    expect(error?.i18nKey).toBe('agent_image_limit_exceeded')
+  })
+
+  it('normalizes result-boundary failures with sent-aware wording', () => {
+    const error = normalizeAgentImageLimitFailure(new Error('At most 1 image(s) may be provided in one prompt'), 2, {
+      runtime: 'claude-code',
+      sent: true
+    })
+    expect(error).toBeInstanceOf(AgentImageLimitError)
+    expect(error?.limit).toBe(1)
+    expect(error?.count).toBe(2)
+    expect(error?.sent).toBe(true)
+    expect(error?.i18nKey).toBe('agent_image_limit_exceeded_after_send')
   })
 
   it('returns undefined when the count fits the parsed limit', () => {

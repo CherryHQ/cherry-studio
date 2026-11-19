@@ -162,6 +162,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private approvalEmitter?: ToolApprovalEmitterHolder
   private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
   private resumeToken?: string
+  /** Last submitted image count for provider result-boundary normalization. */
+  private lastImageCount?: number
   private readonly currentSources = new Set<string>()
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private assistantFileToolsEnabled = false
@@ -326,6 +328,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         maxImages: resolveModelImageLimit(this.input.modelId)
       }
     )
+    // Remember for the provider result boundary: a later `result` failure
+    // names only the limit, so the count must come from the submitted turn.
+    this.lastImageCount = countAgentImageFileParts(input.message.data.parts)
     const contextId = this.context!.id
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'follow-up', {
       text: JSON.stringify(sdkMessage.message.content),
@@ -364,6 +369,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         maxImages: resolveModelImageLimit(this.input.modelId)
       }
     )
+    this.lastImageCount = countAgentImageFileParts(input.message.data.parts)
     const contextId = this.context!.id
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'steer', {
       text: JSON.stringify(sdkMessage.message.content),
@@ -747,7 +753,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     } else if (control.type === 'result') {
       if (control.sessionId !== this.handle?.claude.sessionId) return
       if (control.failure) {
-        const error = new ClaudeCodeResultError(control.failure)
+        // Provider result failures bypass the admission normalizer: the
+        // workspace owner already acknowledged `submit` before yielding the
+        // input to the SDK, so an image-limit rejection surfaces here as a
+        // `ClaudeCodeResultError`. Normalize to the typed limit error with
+        // sent-aware wording (the request was already sent).
+        const normalized = normalizeResultImageLimitFailure(control.failure, this.lastImageCount)
+        const error = normalized ?? new ClaudeCodeResultError(control.failure)
         logAiFailure(logger, 'Claude Code result failed', error, 'agent.claude.prompt', classifyClaudeFailure(error))
         return { type: 'error', error }
       }
@@ -1074,6 +1086,37 @@ function normalizeImageLimitRejection(message: string | undefined, parts: readon
   return (
     normalizeAgentImageLimitFailure(failure, countAgentImageFileParts(parts), { runtime: 'claude-code' }) ?? failure
   )
+}
+
+/**
+ * Convert a provider `result` failure into the typed image-limit error when
+ * its text names an upstream cap. The result payload carries only the limit,
+ * so the attached count comes from the last submitted turn. Returns
+ * `undefined` for unrelated failures. Uses sent-aware wording because the
+ * request was already sent.
+ *
+ * Exported for regression coverage: a provider result event carrying an image
+ * cap must arrive as a typed `AgentImageLimitError`, not a generic
+ * `ClaudeCodeResultError`.
+ */
+export function normalizeResultImageLimitFailure(
+  failure: { message?: unknown } | string | unknown,
+  lastImageCount: number | undefined
+): AgentImageLimitError | undefined {
+  if (lastImageCount === undefined) return undefined
+  const message =
+    typeof failure === 'string'
+      ? failure
+      : failure instanceof Error
+        ? failure.message
+        : typeof (failure as { message?: unknown }).message === 'string'
+          ? ((failure as { message?: string }).message as string)
+          : undefined
+  if (!message) return undefined
+  return normalizeAgentImageLimitFailure(new Error(message), lastImageCount, {
+    runtime: 'claude-code',
+    sent: true
+  })
 }
 
 async function toSdkUserMessage(

@@ -1538,6 +1538,7 @@
   "endpoint_type.openai-response": "Respuesta de OpenAI",
   "error.agent_image_limit_detail": "Límite del modelo: {{limit}} imagen(es); adjuntas: {{count}} imagen(es).",
   "error.agent_image_limit_exceeded": "Las imágenes adjuntas superan lo que el modelo de agente seleccionado acepta en una instrucción. Quita algunas imágenes e inténtalo de nuevo; no se ha enviado nada.",
+  "error.agent_image_limit_exceeded_after_send": "Las imágenes adjuntas superan lo que el modelo de agente seleccionado acepta en una instrucción. Quita algunas imágenes e inténtalo de nuevo; la solicitud ya fue enviada.",
   "error.api_gateway_required": "Este modelo debe ser puenteado a través de la API Gateway local de Cherry Studio, que actualmente está deshabilitada. Habilítela para ejecutar este agente.",
   "error.availableProviders": "Proveedores disponibles",
   "error.availableTools": "Herramientas disponibles",

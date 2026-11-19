@@ -1538,6 +1538,7 @@
   "endpoint_type.openai-response": "Resposta OpenAI",
   "error.agent_image_limit_detail": "Limite do modelo: {{limit}} imagem(ns); anexadas: {{count}} imagem(ns).",
   "error.agent_image_limit_exceeded": "As imagens anexadas excedem o que o modelo de agente selecionado aceita num único pedido. Remova algumas imagens e tente novamente — nada foi enviado.",
+  "error.agent_image_limit_exceeded_after_send": "As imagens anexadas excedem o que o modelo de agente selecionado aceita num único pedido. Remova algumas imagens e tente novamente — o pedido já foi enviado.",
   "error.api_gateway_required": "Este modelo deve ser ligado através da API Gateway local do Cherry Studio, que atualmente está desativada. Ative-a para executar este agente.",
   "error.availableProviders": "Fornecedores disponíveis",
   "error.availableTools": "Ferramentas disponíveis",

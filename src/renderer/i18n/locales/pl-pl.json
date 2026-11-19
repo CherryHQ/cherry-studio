@@ -1558,6 +1558,7 @@
   "endpoint_type.openai-response": "OpenAI-Response",
   "error.agent_image_limit_detail": "Limit modelu: {{limit}} obrazów; załączono: {{count}}.",
   "error.agent_image_limit_exceeded": "Załączone obrazy przekraczają limit wybranego modelu agenta dla jednego zapytania. Usuń część obrazów i spróbuj ponownie — nic nie zostało wysłane.",
+  "error.agent_image_limit_exceeded_after_send": "Załączone obrazy przekraczają limit wybranego modelu agenta dla jednego zapytania. Usuń część obrazów i spróbuj ponownie — żądanie zostało już wysłane.",
   "error.api_gateway_required": "Ten model musi być połączony przez lokalną bramę API Gateway programu Cherry Studio, która jest obecnie wyłączona. Włącz ją, aby uruchomić tego agenta.",
   "error.availableProviders": "Dostępni dostawcy",
   "error.availableTools": "Dostępne narzędzia",

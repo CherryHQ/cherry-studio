@@ -503,6 +503,16 @@ export function mergePresetModel(
   const resolvedCapabilities = reasoningSupport
     ? Array.from(new Set([...capabilities, MODEL_CAPABILITY.REASONING]))
     : capabilities
+  // Capability-driven Agent image limit (#20030): the registry does not declare
+  // it today, so read defensively — a future catalog/override can seed real
+  // per-model limits without touching these call sites.
+  const presetLimit = (presetModel as { maxAgentImages?: unknown }).maxAgentImages
+  const overrideLimit = (catalogOverride as { maxAgentImages?: unknown } | null)?.maxAgentImages
+  const declaredLimit = overrideLimit ?? presetLimit
+  const maxAgentImages =
+    typeof declaredLimit === 'number' && Number.isFinite(declaredLimit) && declaredLimit >= 0
+      ? Math.floor(declaredLimit)
+      : undefined
 
   return {
     id: createUniqueModelId(providerId, presetModel.id),
@@ -524,6 +534,7 @@ export function mergePresetModel(
     ...(catalogOverride?.supportsFastMode ? { supportsFastMode: true } : {}),
     ...(serviceTierControl ? { requestControls: { serviceTier: projectServiceTierControl(serviceTierControl) } } : {}),
     parameterSupport: projectModelParameterSupport(parameterSupport),
+    ...(maxAgentImages !== undefined ? { maxAgentImages } : {}),
     pricing,
     isEnabled: !(catalogOverride?.disabled ?? false),
     isHidden: false,

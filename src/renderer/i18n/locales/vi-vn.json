@@ -1538,6 +1538,7 @@
   "endpoint_type.openai-response": "Phản hồi của OpenAI",
   "error.agent_image_limit_detail": "Giới hạn mô hình: {{limit}} ảnh; đã đính kèm: {{count}} ảnh.",
   "error.agent_image_limit_exceeded": "Số ảnh đính kèm vượt quá giới hạn mà mô hình agent đã chọn chấp nhận trong một prompt. Hãy gỡ bớt ảnh rồi thử lại — chưa có gì được gửi đi.",
+  "error.agent_image_limit_exceeded_after_send": "Số ảnh đính kèm vượt quá giới hạn mà mô hình agent đã chọn chấp nhận trong một prompt. Hãy gỡ bớt ảnh rồi thử lại — yêu cầu đã được gửi đi.",
   "error.api_gateway_required": "Mô hình này phải được cầu nối qua Máy chủ API cục bộ của Cherry Studio, nhưng máy chủ hiện đang bị tắt. Bật nó lên để chạy Agent này.",
   "error.availableProviders": "Nhà cung cấp có sẵn",
   "error.availableTools": "Công cụ có sẵn",

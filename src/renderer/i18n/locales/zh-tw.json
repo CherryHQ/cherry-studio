@@ -1538,6 +1538,7 @@
   "endpoint_type.openai-response": "OpenAI-Response",
   "error.agent_image_limit_detail": "模型上限為 {{limit}} 張圖片，已附加 {{count}} 張。",
   "error.agent_image_limit_exceeded": "附件圖片數量超過了所選智能體模型單次請求可接受的上限。請移除部分圖片後重試——本次請求尚未傳送。",
+  "error.agent_image_limit_exceeded_after_send": "附件圖片數量超過了所選智能體模型單次請求可接受的上限。請移除部分圖片後重試——本次請求已經傳送。",
   "error.api_gateway_required": "此模型必須透過 Cherry Studio 的本機 API Gateway 橋接，但閘道目前為停用狀態。請啟用它才能執行此智能體。",
   "error.availableProviders": "可用供應商",
   "error.availableTools": "可用工具",

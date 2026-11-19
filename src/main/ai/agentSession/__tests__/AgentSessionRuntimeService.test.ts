@@ -28,6 +28,7 @@ import { MessageRuntimeTimingCollector } from '@main/ai/streamManager/MessageRun
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { AgentImageLimitError } from '@shared/ai/agentImageLimits'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
+import { ModelSchema } from '@shared/data/types/model'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeUserInput } from '../../runtime/types'
 import type * as ForkResourcesModule from '../fork/resources'
@@ -662,13 +663,19 @@ describe('AgentSessionRuntimeService', () => {
       providerId: 'test',
       name: 'Single Image Model',
       capabilities: ['image-recognition'],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false,
       maxAgentImages: 1
     }
     const unlimitedVisionModel = {
       id: 'test::vision',
       providerId: 'test',
       name: 'Vision Model',
-      capabilities: ['image-recognition']
+      capabilities: ['image-recognition'],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
     }
 
     beforeEach(() => {
@@ -743,6 +750,98 @@ describe('AgentSessionRuntimeService', () => {
       }
       expect(() => service.enqueueUserMessage('session-1', message)).toThrow(AgentImageLimitError)
       expect(getEntry(service).runtimeState.queue).toEqual([])
+    })
+
+    it('blocks a second image through the production model contract before the provider call', () => {
+      // The cap travels on the runtime `Model` (ModelSchema-validated), so a
+      // mocked `getByKey` returning a schema-valid model proves the normal
+      // dispatch path stops before invoking the provider.
+      const parsed = ModelSchema.safeParse(singleImageModel)
+      expect(parsed.success).toBe(true)
+      vi.mocked(modelService.getByKey).mockReturnValue((parsed.success ? parsed.data : singleImageModel) as never)
+      const service = new AgentSessionRuntimeService()
+      let error: unknown
+      try {
+        service.beginTurn({
+          ...baseTurnInput,
+          userMessage: {
+            ...userMessage('user-2'),
+            data: { parts: [imagePart('a.png'), imagePart('b.png')] }
+          }
+        })
+      } catch (thrown) {
+        error = thrown
+      }
+      expect(error).toBeInstanceOf(AgentImageLimitError)
+      expect(error).toMatchObject({ limit: 1, count: 2 })
+      expect(getEntry(service)).toBeUndefined()
+    })
+
+    it('uses the opening turn model for admission when the default changes mid-open', async () => {
+      const unlimitedId = baseTurnInput.modelId
+      const cappedId = switchedModelId
+      const unlimitedModel = {
+        id: unlimitedId,
+        providerId: 'test',
+        name: 'Unlimited',
+        capabilities: ['image-recognition'],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      }
+      const cappedModel = {
+        id: cappedId,
+        providerId: 'test',
+        name: 'Capped',
+        capabilities: ['image-recognition'],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
+        maxAgentImages: 1
+      }
+      vi.mocked(modelService.getByKey).mockImplementation((providerId: string, modelId: string) => {
+        const full = `${providerId}::${modelId}`
+        if (full === String(cappedId)) return cappedModel as never
+        return unlimitedModel as never
+      })
+
+      const connection = {
+        ...createAsyncQueue<any>(),
+        send: vi.fn().mockResolvedValue(undefined),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      const connect = vi.fn().mockResolvedValue(connection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        connect,
+        validateSession: vi.fn()
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({
+        ...baseTurnInput,
+        userMessage: {
+          ...userMessage('user-1'),
+          data: { parts: [imagePart('a.png'), imagePart('b.png')] }
+        }
+      })
+      // Agent default changes while the turn is opening: the entry tracks the
+      // new default, but the live turn (and its connection) still targets the
+      // original model.
+      await (service as any).handleAgentUpdated('agent-1', { model: cappedId }, { id: 'agent-1', model: cappedId })
+      expect(getEntry(service).modelId).toBe(cappedId)
+
+      const stream = openChunkStream(service, {
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      })
+      const reader = stream.getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalled())
+      // Admission used the opening turn's unlimited model, not the new
+      // single-image default — the two-image turn dispatches.
+      expect(connect).toHaveBeenCalledWith(expect.objectContaining({ modelId: unlimitedId }))
+      await reader.cancel().catch(() => undefined)
     })
   })
 

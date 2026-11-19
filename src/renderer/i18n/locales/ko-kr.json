@@ -1538,6 +1538,7 @@
   "endpoint_type.openai-response": "OpenAI-Response",
   "error.agent_image_limit_detail": "모델 상한: 이미지 {{limit}}개, 첨부됨: {{count}}개.",
   "error.agent_image_limit_exceeded": "첨부된 이미지가 선택한 에이전트 모델이 한 번의 프롬프트에서 받을 수 있는 상한을 초과했습니다. 이미지를 줄여 다시 시도하세요 — 요청이 전송되지 않았습니다.",
+  "error.agent_image_limit_exceeded_after_send": "첨부된 이미지가 선택한 에이전트 모델이 한 번의 프롬프트에서 받을 수 있는 상한을 초과했습니다. 이미지를 줄여 다시 시도하세요 — 요청이 이미 전송되었습니다.",
   "error.api_gateway_required": "이 모델은 현재 비활성화된 Cherry Studio 로컬 API 게이트웨이를 통해 연결해야 합니다. 이 에이전트를 실행하려면 게이트웨이를 활성화하세요.",
   "error.availableProviders": "사용 가능한 제공자",
   "error.availableTools": "사용 가능한 도구",

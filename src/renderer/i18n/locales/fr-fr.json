@@ -1538,6 +1538,7 @@
   "endpoint_type.openai-response": "Réponse OpenAI",
   "error.agent_image_limit_detail": "Limite du modèle : {{limit}} image(s) ; jointes : {{count}} image(s).",
   "error.agent_image_limit_exceeded": "Les images jointes dépassent ce que le modèle d’agent sélectionné accepte dans une invite. Retirez des images et réessayez — rien n’a été envoyé.",
+  "error.agent_image_limit_exceeded_after_send": "Les images jointes dépassent ce que le modèle d’agent sélectionné accepte dans une invite. Retirez des images et réessayez — la requête a déjà été envoyée.",
   "error.api_gateway_required": "Ce modèle doit être relayé par le Serveur API local de Cherry Studio, qui est actuellement désactivé. Activez-le pour exécuter cet agent.",
   "error.availableProviders": "Fournisseurs disponibles",
   "error.availableTools": "Outils disponibles",

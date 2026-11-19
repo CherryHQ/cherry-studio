@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-19-agent-multi-image-limits.md
-2026-11-19-agent-multi-image-limits.md: 01d193fdac32fd10d9ab8f7ba07856a8baa58e2a
-2026-11-19-agent-multi-image-limits.zh.md: e5147528309e6726704b7480437878fdf1815370
+2026-11-19-agent-multi-image-limits.md: 800d3078508b5ef53ecbdee2f2794318fc87e64f
+2026-11-19-agent-multi-image-limits.zh.md: 3e42034f681d4a1d447da124b440cb4708ee511c

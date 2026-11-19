@@ -433,6 +433,8 @@ export const ModelSchema = z.object({
     .optional(),
   /** Parameter support */
   parameterSupport: RuntimeParameterSupportSchema.optional(),
+  /** Maximum Agent images accepted in one request (capability-driven multi-image limit, #20030). */
+  maxAgentImages: z.number().int().nonnegative().optional(),
 
   pricing: RuntimeModelPricingSchema.optional(),
   /** Runtime provenance; never inferred by comparing prices with the catalog. */

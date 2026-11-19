@@ -1538,6 +1538,7 @@
   "endpoint_type.openai-response": "OpenAI-Response",
   "error.agent_image_limit_detail": "Model sınırı: {{limit}} görsel; ekli: {{count}} görsel.",
   "error.agent_image_limit_exceeded": "Ekli görseller, seçili ajan modelinin tek komutta kabul ettiği sınırı aşıyor. Bazı görselleri kaldırıp tekrar deneyin — hiçbir şey gönderilmedi.",
+  "error.agent_image_limit_exceeded_after_send": "Ekli görseller, seçili ajan modelinin tek komutta kabul ettiği sınırı aşıyor. Bazı görselleri kaldırıp tekrar deneyin — istek zaten gönderildi.",
   "error.api_gateway_required": "Bu model, şu anda devre dışı olan Cherry Studio'nun yerel API Ağ Geçidi'ni kullanarak köprülenmelidir. Bu ajanı çalıştırmak için etkinleştirin.",
   "error.availableProviders": "Kullanılabilir Sağlayıcılar",
   "error.availableTools": "Kullanılabilir Araçlar",
