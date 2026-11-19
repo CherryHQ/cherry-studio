@@ -4,6 +4,7 @@ import { application } from '@application'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { PromptBuilder } from '@main/ai/agents/prompt'
+import { agentMemoryReference } from '@main/ai/memory/memoryPrompt'
 import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
@@ -31,7 +32,8 @@ import { withDurableShellTimeout } from './durableShellTimeout'
 export async function prepareDurableDesktop(
   input: AgentRuntimeConnectInput,
   emit: (event: AgentRuntimeEvent) => void,
-  namespace?: string
+  namespace?: string,
+  isRoot?: (id: number) => boolean
 ) {
   const discovery = await capturePiConnectionSnapshot(
     input.sessionId,
@@ -153,6 +155,27 @@ export async function prepareDurableDesktop(
     registry.install(
       native.defineExtension({
         name: 'cherry.desktop',
+        hooks: [
+          native.hook(native.GenerationTask, {
+            async beforeRequest(request, api, context) {
+              if (!isRoot?.(api.conversationId)) return undefined
+              const memory = await agentMemoryReference(
+                input.sessionId,
+                () => application.get('AgentSessionRuntimeService').getInteractionState(input.sessionId),
+                context.abortSignal
+              )
+              const [first, ...rest] = request.messages
+              if (first?.role === 'system')
+                return { messages: [{ ...first, sections: { ...first.sections, cherry_memory: memory } }, ...rest] }
+              return {
+                messages: [
+                  { role: 'system', content: '', sections: { cherry_memory: memory }, timestamp: Date.now() },
+                  ...request.messages
+                ]
+              }
+            }
+          })
+        ],
         sections: [
           {
             key: 'agent_identity',
@@ -242,6 +265,7 @@ export async function prepareDurableDesktop(
         emit,
         getInteractionState: () => application.get('AgentSessionRuntimeService').getInteractionState(input.sessionId),
         getPermissionMode: () => permissionMode,
+        builtinRole: agent.configuration?.builtin_role,
         isDisabled,
         additionalReadOnlyRoots: [...snapshot.additionalSkillPaths, application.getPath('feature.agents.outputs')],
         autoApprovedTools: policies('auto'),

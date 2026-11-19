@@ -149,15 +149,20 @@ describe('Claude native memory file adapter', () => {
       hookSpecificOutput: { updatedToolOutput: { file: { filePath: file, content: 'INITIAL\n' } } }
     })
     for (const content of ['FIRST\n', 'SECOND\n']) {
+      const baseline = content === 'FIRST\n' ? first : await read()
       const call = await begin('Edit', { old_string: 'old', new_string: 'new' })
-      expect(call.updated.file_path).toBe(first.updated.file_path)
+      expect(call.updated.file_path).toBe(baseline.updated.file_path)
       const result = await finishWrite(call, content)
       expect(result).toMatchObject({ hookSpecificOutput: { updatedToolOutput: { filePath: file } } })
       expect(await readFile(file, 'utf8')).toBe(content)
       tools.release(call.input.tool_use_id)
     }
     expect(authorizationInputs.filter((input) => 'memoryPreview' in input)).toHaveLength(2)
-    expect(authorizationInputs.at(-1)).toMatchObject({ file_path: file, memoryPreview: [{ content: 'SECOND\n' }] })
+    expect(authorizationInputs.at(-1)).toMatchObject({
+      file_path: file,
+      path: file,
+      memoryPreview: [{ content: 'SECOND\n' }]
+    })
     expect((await readdir(application.getPath('feature.memory.backups'))).length).toBeGreaterThan(0)
   })
 
@@ -185,6 +190,10 @@ describe('Claude native memory file adapter', () => {
     const first = await read()
     expect(JSON.stringify(first.result)).not.toContain('INITIAL')
     for (const text of ['First edit', 'Second edit']) {
+      if (text === 'Second edit') {
+        await expect(begin('Edit')).rejects.toThrow('complete, writable memory read')
+        await read()
+      }
       const call = await begin('Edit', { old_string: 'CURRENT', new_string: text })
       const result = await finishWrite(call, `- "CURRENT"\n- "${text}"\n`)
       expect(result).toMatchObject({ hookSpecificOutput: { updatedToolOutput: { filePath: file } } })

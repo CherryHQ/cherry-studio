@@ -26,9 +26,11 @@ import {
   resolveDelegationApproval,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
+import { type CommandCheck, checkCommand, type CommandDialect } from '@main/ai/toolApproval/commandPolicy'
 import { detectGlobalInstall, detectMiseMutation } from '@main/ai/toolApproval/dependencyGuard'
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
 import { evaluateUserDataSqliteGuard, USER_DATA_SQLITE_GUARD_REASON } from '@main/ai/toolApproval/userDataSqliteGuard'
+import { t } from '@main/i18n'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import { imageExts } from '@shared/utils/file'
 
@@ -165,6 +167,24 @@ const matchesRequiredApproval = (ctx: ToolGuardContext, bypassApproval: 'lift' |
   return policy?.approval === 'required' && policy.bypassApproval === bypassApproval ? {} : null
 }
 
+/** Claude Code's shell tools; on Windows it may run PowerShell instead of Git Bash. */
+export function shellToolDialect(toolName: string): CommandDialect | undefined {
+  return toolName === 'Bash' ? 'bash' : toolName === 'PowerShell' ? 'powershell' : undefined
+}
+
+function commandDecision(ctx: ToolGuardContext): Promise<CommandCheck> | undefined {
+  const command = bashCommand(ctx)
+  const dialect = shellToolDialect(ctx.toolName)
+  if (!dialect || !command) return undefined
+  return checkCommand({
+    command,
+    dialect,
+    cwd: ctx.cwd,
+    builtinRole: ctx.builtinRole,
+    permissionMode: ctx.permissionMode
+  })
+}
+
 const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   {
     id: 'memory-controlled-files-required',
@@ -173,6 +193,31 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     effect: 'deny',
     reason:
       'This native file operation cannot exclude or safely modify protected memory. Use the memory editor or a supported controlled memory tool; narrow unrelated searches to their own directory.'
+  },
+  {
+    id: 'command-policy-deny',
+    bypassBehavior: 'enforce',
+    match: {
+      when: async (ctx) => {
+        const decision = await commandDecision(ctx)
+        return decision?.effect === 'deny' ? { evidence: decision.reason } : null
+      }
+    },
+    effect: 'deny',
+    reason: (hit) => hit.evidence ?? t('command_approval.configuration_error')
+  },
+  {
+    id: 'command-policy-ask',
+    bypassBehavior: 'skipInteractiveEffect',
+    match: {
+      when: async (ctx) => {
+        const decision = await commandDecision(ctx)
+        return decision?.effect === 'ask' ? { evidence: decision.reason } : null
+      }
+    },
+    effect: 'ask',
+    reason: (hit) => hit.evidence ?? t('command_approval.incomplete'),
+    headless: { predicate: 'responder-unavailable', reason: HEADLESS_INTERACTIVE_TOOL_DENIAL }
   },
   {
     id: 'browser-tool-disabled',

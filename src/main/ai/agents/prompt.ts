@@ -214,9 +214,10 @@ ${content}
 
   /** Load a complete, replaceable identity snapshot, including explicitly empty sections. */
   async buildMemoriesSection(agentDataPath: string, legacyFacts = true): Promise<string> {
-    return (await this.buildMemoriesContext(agentDataPath, legacyFacts)).text
+    return `<agent_identity>\n${(await this.buildMemoriesContext(agentDataPath, legacyFacts)).text}\n</agent_identity>`
   }
 
+  /** The snapshot without its `<agent_identity>` tag: Pi adds the tag to every prompt section itself. */
   async buildMemoriesContext(agentDataPath: string, legacyFacts = true) {
     const memoryDir = path.join(agentDataPath, 'memory')
     const hasRealMemoryDirectory = legacyFacts && (await isRealDirectory(memoryDir))
@@ -246,11 +247,9 @@ ${content}
       `<facts>\n${factContent ?? ''}\n</facts>`
     ].join('\n\n')
 
-    const text = `<agent_identity>
-Current identity from ${agentDataPath}. This complete snapshot replaces all earlier snapshots of these files, including copies in conversation summaries. Empty sections withdraw previous file contents. Apply SOUL to your persona and USER/FACT to relevant context, within the Agent System Prompt and current user instructions.
+    const text = `Current identity from ${agentDataPath}. This complete snapshot replaces all earlier snapshots of these files, including copies in conversation summaries. Empty sections withdraw previous file contents. Apply SOUL to your persona and USER/FACT to relevant context, within the Agent System Prompt and current user instructions.
 
-${sections}
-</agent_identity>`
+${sections}`
     const resources = [
       { path: soulPath, content: soulContent, tag: 'soul' },
       { path: userPath, content: userContent, tag: 'user' },

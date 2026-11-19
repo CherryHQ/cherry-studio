@@ -27,6 +27,7 @@ import {
   applyNativeSubmissionResult
 } from '@main/ai/agentSession/nativeSubmission'
 import { ThreadProjection } from '@main/ai/agentSession/ThreadProjection'
+import { logAiFailure } from '@main/ai/errorReporting'
 import { openRuntimeMemoryGuard } from '@main/ai/memory/memoryRuntime'
 import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
@@ -54,8 +55,9 @@ import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { AsyncEventQueue } from '@shared/utils/async'
+import { markReportingHandled } from '@shared/utils/errorReporting'
 
-import { resolveApiGatewayRuntime } from '../agentApiGateway'
+import { PROMPT_SUGGESTION_INSTRUCTION } from '../promptSuggestion'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -66,6 +68,7 @@ import type {
   AgentSessionUsageCapture
 } from '../types'
 import { childTaskStatus } from './childTaskStatus'
+import { classifyPiFailure } from './failureFacts'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
 import { createPiGatewayModelBinding } from './gatewayModelBinding'
 import { createPiIdentityExtension } from './identityExtension'
@@ -158,7 +161,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.input.modelId,
       this.input.knowledgeBaseIds
     )
-    await resolveApiGatewayRuntime(this.input.sessionId)
     await warmAgentMcpToolCatalogs(discovery.agent.mcps ?? [])
     const initialSnapshot = await capturePiConnectionSnapshot(
       this.input.sessionId,
@@ -213,6 +215,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       getInteractionState: () =>
         application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
       getPermissionMode: () => this.permissionMode,
+      builtinRole: agent.configuration?.builtin_role,
       isDisabled: (toolName: string) => this.isToolDisabled(toolName),
       executionOwnedTools: PI_MEMORY_FILE_TOOLS,
       additionalReadOnlyRoots: [
@@ -318,13 +321,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           ]
         : [])
     ].map(withPiShellTimeout) as ToolDefinition[]
-    const toolCallId = async (call: CallRef) => {
+    const toolCallIdentity = async (call: CallRef) => {
       const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: call.thread })
       if (opened.status !== 'confirmed') throw new Error(opened.error.message)
       try {
         const id = opened.value.pi.toolCallId(call)
         if (!id) throw new Error('Behavior call has no native tool identity')
-        return id
+        return { toolCallId: id, parentToolCallId: opened.value.pi.relation()?.origin?.toolCallId }
       } finally {
         await opened.value.release()
       }
@@ -337,7 +340,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       approval: approvalContext,
       emit: (event) => this.eventQueue.push(event),
       observe: (event) => this.handleBehaviorEvent(event),
-      toolCallId,
+      toolCallIdentity,
       usageSessionId: async (thread) => {
         if (thread === nativeId) return this.input.sessionId
         const child = await this.observeChild(thread)
@@ -349,6 +352,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.memoryTools = memoryTools
     const options = {
       ...binding,
+      compactionPercent: initialSnapshot.model.contextWindow ? initialSnapshot.compactionPercent : undefined,
       cwd: workspacePath,
       agentDir,
       sessionManager: manager,
@@ -379,9 +383,27 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         if (thread.id !== nativeId) return undefined
         return options
       },
-      onError: (error) => {
+      onError: (error, context) => {
         this.failure ??= error
-        logger.error('Pi Runtime operation failed', { error })
+        const compactionFailure = context?.operation === 'compact' ? context.compactionFailure : undefined
+        if (
+          compactionFailure &&
+          context?.thread.id === nativeId &&
+          context.thread.backendId === this.context!.backendId
+        ) {
+          // The matching root compaction-end already classified this occurrence.
+          markReportingHandled(error)
+        }
+        logAiFailure(
+          logger,
+          'Pi Runtime operation failed',
+          error,
+          'agent.pi.runtime',
+          classifyPiFailure(error, {
+            returnedFailure: compactionFailure !== undefined,
+            cancelled: compactionFailure?.aborted
+          })
+        )
       }
     })
     if (created.status !== 'confirmed') throw new Error(created.error.message)
@@ -405,6 +427,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  async predictPrompt(signal: AbortSignal): Promise<string> {
+    if (!this.handle || this.closing) return ''
+    return this.handle.pi.predictPrompt(PROMPT_SUGGESTION_INSTRUCTION, signal)
+  }
+
   async send(input: AgentRuntimeCommand): Promise<void> {
     if (!this.handle || !this.context || this.closing) throw new Error('Pi Runtime is unavailable')
     if (this.sending) throw new Error('Pi already has an active submission')
@@ -422,10 +449,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       return
     }
     try {
-      await this.submit(input, input.systemReminder ? wrapSteerReminder(content) : content, 'reject')
+      const prompt = input.context ? buildAgentUserContent(input.message, input.context) : content
+      await this.submit(input, input.systemReminder ? wrapSteerReminder(prompt) : prompt, 'reject')
     } catch (error) {
       this.sending = false
       this.failure = error
+      logAiFailure(logger, 'Pi input submission failed', error, 'agent.pi.prompt', classifyPiFailure(error))
       throw error
     }
   }
@@ -437,11 +466,14 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   redirect(input: AgentRuntimeCommand): boolean {
     if (!this.active || this.closing) return false
     this.pendingSteers.add(input.message.id)
-    void this.submit(input, wrapSteerReminder(buildAgentUserContent(input.message)), 'steer').catch((error) => {
-      this.pendingSteers.delete(input.message.id)
-      this.failure = error
-      this.eventQueue.push({ type: 'error', error })
-    })
+    void this.submit(input, wrapSteerReminder(buildAgentUserContent(input.message, input.context)), 'steer').catch(
+      (error) => {
+        this.pendingSteers.delete(input.message.id)
+        this.failure = error
+        logAiFailure(logger, 'Pi steer failed', error, 'agent.pi.steer', classifyPiFailure(error))
+        this.eventQueue.push({ type: 'error', error })
+      }
+    )
     return true
   }
 
@@ -515,8 +547,23 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         else if (event.type === 'closed' && event.reason !== 'shutdown' && !this.closing)
           throw new Error(`Pi observation ended: ${event.reason}`)
       }
-      for (const input of batch.outcomes)
-        if (input.outcome !== 'completed') this.failure ??= new Error(input.error?.message ?? input.outcome)
+      for (const input of batch.outcomes) {
+        if (input.outcome !== 'completed' && !this.failure) {
+          const error = new Error(input.error?.message ?? input.outcome)
+          logAiFailure(
+            logger,
+            'Pi input failed',
+            error,
+            'agent.pi.prompt',
+            classifyPiFailure(error, {
+              returnedFailure: true,
+              cancelled: input.outcome === 'aborted',
+              stopReason: input.error?.code === 'output-truncated' ? 'length' : undefined
+            })
+          )
+          this.failure = error
+        }
+      }
       await this.projection.accept(batch)
       if (batch.backgroundResults) {
         const result = batch.backgroundResults
@@ -537,6 +584,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     } catch (error) {
       this.failure = error
       this.sending = false
+      logAiFailure(logger, 'Pi projection failed', error, 'agent.pi.adapt', {
+        source: 'application',
+        kind: 'defect',
+        reason: 'stream_adapter_failed',
+        outcome: 'failed',
+        runtime: 'pi'
+      })
       this.eventQueue.push({ type: 'error', error })
       void this.close().catch((closeError) =>
         logger.error('Failed to retire Pi after observation error', { error: closeError })
@@ -764,7 +818,18 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     else if (event.type === 'compaction-end') {
       if (event.error || event.aborted) {
         const error = event.error ?? 'pi compaction aborted'
-        if (this.manualCompactInFlight) this.failure = new Error(error)
+        const failure = new Error(error)
+        logAiFailure(
+          logger,
+          'Pi compaction failed',
+          failure,
+          'agent.pi.compact',
+          classifyPiFailure(failure, {
+            returnedFailure: true,
+            cancelled: event.aborted
+          })
+        )
+        if (this.manualCompactInFlight) this.failure = failure
         else this.eventQueue.push({ type: 'compaction-error', error, aborted: event.aborted })
       } else {
         this.checkpoint = this.handle?.pi.history().at(-1)?.id
@@ -787,8 +852,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.cancelQueuedInputs()
     this.flushInputs()
     this.sending = false
-    if (this.failure) this.eventQueue.push({ type: 'error', error: this.failure })
-    else {
+    if (this.failure) {
+      logAiFailure(logger, 'Pi prompt failed', this.failure, 'agent.pi.prompt', classifyPiFailure(this.failure))
+      this.eventQueue.push({ type: 'error', error: this.failure })
+    } else {
       const checkpoint = PiForkCheckpointSchema.safeParse({
         runtime: 'pi',
         runtimeSessionId: this.handle?.thread.id,

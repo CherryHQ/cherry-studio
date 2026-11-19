@@ -19,7 +19,7 @@ import { BUDGET_REFUSAL, budgetExceeded } from '../goal/goalState'
 import type { CallInputs, SubagentModelCandidate } from '../hostFacts'
 import { type Key, keys, nextRun } from '../keys'
 import { turnStopping } from '../turns'
-import { awaitingApproval, isLive, readSubagents, resolveChild, runningBackground, runStarted } from './subagentLedger'
+import { isLive, readSubagents, resolveChild, runningBackground, runStarted } from './subagentLedger'
 import {
   capText,
   FORK_WITH_MODEL,
@@ -204,7 +204,7 @@ export function decideMessage(
       : steer(facts, call, sent.sessionId, sent.run, message, sent)
   if (cancelled) return refuse({ kind: 'refused', text: TURN_STOPPED })
   const target = resolveChild(readSubagents(facts.history), id)
-  if (!target) return refuse({ kind: 'refused', text: unknownIdText(id, listed(facts, inputs)) })
+  if (!target) return refuse({ kind: 'refused', text: unknownIdText(id, listed(facts)) })
   const { child, latest } = target
   if (isLive(facts, latest) && !latest.stoppedBy) {
     // The report job owns the first input; a message must not overtake it.
@@ -350,13 +350,10 @@ export function decideSteerWithdrawn(facts: Facts, call: CallKey): Step<null> {
   }
 }
 
-function listed(facts: Facts, inputs: CallInputs): string[] {
+function listed(facts: Facts): string[] {
   return readSubagents(facts.history)
     .reverse()
-    .map(({ child, latest }) => {
-      const status = statusText(latest, isLive(facts, latest), awaitingApproval(inputs.approvals, child))
-      return `${child} — ${latest.description} — ${status}`
-    })
+    .map(({ child, latest }) => `${child} — ${latest.description} — ${statusText(latest, isLive(facts, latest))}`)
 }
 
 /**
@@ -416,10 +413,10 @@ export function decideStop(facts: Facts, inputs: CallInputs): Step<StopDecision>
   if (facts.lineage.kind === 'subagent') return refuse({ kind: 'refused', text: IN_SUBAGENT })
   const id = (stringField(fieldsOf(inputs.args), 'id') ?? '').trim()
   const target = resolveChild(readSubagents(facts.history), id)
-  if (!target) return refuse({ kind: 'refused', text: unknownIdText(id, listed(facts, inputs)) })
+  if (!target) return refuse({ kind: 'refused', text: unknownIdText(id, listed(facts)) })
   const { child, latest } = target
   if (!isLive(facts, latest)) {
-    const status = statusText(latest, false, false)
+    const status = statusText(latest, false)
     return refuse({
       kind: 'not-running',
       result: {

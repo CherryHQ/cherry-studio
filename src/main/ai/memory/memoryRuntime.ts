@@ -6,7 +6,7 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
 
 import { agentMemoryAuthority, type MemoryAuthority } from './memoryAuthority'
-import { assertMemoryRuntimeState, type MemoryRuntimeOwner } from './memoryRuntimeState'
+import { assertMemoryRuntimeState, hasUnexposedAssistantHistory, type MemoryRuntimeOwner } from './memoryRuntimeState'
 
 type RuntimeMemoryAuthority = MemoryAuthority & { runtimeOwner?: MemoryRuntimeOwner }
 
@@ -53,6 +53,11 @@ export function runtimeMemoryAuthorities(
     return undefined
   }
   assertAuthorized()
+  if (
+    assistantDataService.getById(owner.assistantId).settings.enableSharedMemory !== true &&
+    hasUnexposedAssistantHistory(owner)
+  )
+    return []
   return [
     {
       scope: { kind: 'shared' },

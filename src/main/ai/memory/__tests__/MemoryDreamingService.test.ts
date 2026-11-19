@@ -162,6 +162,7 @@ describe('memory organization lifecycle and commit fences', () => {
     extraction.dispose()
     dreaming.request(scope)
     generate.mockImplementationOnce(async (input) => {
+      expect(input.callOverrides?.maxOutputTokens).toBe(2048)
       const file = JSON.parse(input.prompt).files[0]
       return {
         text: JSON.stringify({

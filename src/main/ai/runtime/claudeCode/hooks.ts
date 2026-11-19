@@ -144,6 +144,8 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
           }
         }
       }
+      if (toolName === 'Bash' && snapshot?.getPermissionMode() === 'auto')
+        return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow' } }
       return {}
     }
     if (decision.effect === 'deny') {

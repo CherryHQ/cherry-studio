@@ -788,16 +788,23 @@ export default function ComposerSurfaceRuntime({
     [onTextChange]
   )
 
+  const insertFolderToken = useCallback((path: string) => {
+    const editor = editorRef.current
+    if (!editor || editor.isDestroyed) return
+    insertComposerTokenAtCursor(editor, createComposerFolderToken(path))
+  }, [])
+
   const pasteHandlerOptions = useMemo(
     () => ({
       supportedExts,
       setFiles,
       onResize: undefined,
+      onFolderPathPasted: insertFolderToken,
       pasteLongTextAsFile,
       pasteLongTextThreshold,
       t
     }),
-    [supportedExts, setFiles, pasteLongTextAsFile, pasteLongTextThreshold, t]
+    [supportedExts, setFiles, insertFolderToken, pasteLongTextAsFile, pasteLongTextThreshold, t]
   )
 
   const { handlePaste } = usePasteHandler(pasteHandlerOptions)
@@ -805,11 +812,7 @@ export default function ComposerSurfaceRuntime({
   const { handleDragEnter, handleDragLeave, handleDragOver, handleDrop, isDragging } = useFileDragDrop({
     supportedExts,
     setFiles,
-    onFolderPathDropped: (path) => {
-      const editor = editorRef.current
-      if (!editor || editor.isDestroyed) return
-      insertComposerTokenAtCursor(editor, createComposerFolderToken(path))
-    },
+    onFolderPathDropped: insertFolderToken,
     onTextDropped: (droppedText) => {
       const editor = editorRef.current
       if (!editor) return
@@ -1664,7 +1667,14 @@ export default function ComposerSurfaceRuntime({
             event.stopPropagation()
             return true
           }
-          if (event.key === 'Tab' && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+          if (
+            (event.key === 'Tab' ||
+              event.key === (getComputedStyle(view.dom).direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight')) &&
+            !event.shiftKey &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            !event.altKey
+          ) {
             event.preventDefault()
             event.stopPropagation()
             if (!event.repeat) editorRef.current?.commands.insertContent({ type: 'text', text: suggestion.text })

@@ -16,6 +16,8 @@ import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { Emitter } from '@main/core/lifecycle'
+import { getAppLanguage } from '@main/i18n'
+import { parseJsonSortKey, selectNamePage } from '@main/utils/listOrdering'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
@@ -32,10 +34,12 @@ import type {
 } from '@shared/data/api/schemas/topics'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { Topic } from '@shared/data/types/topic'
+import { createNameComparator } from '@shared/utils/nameOrdering'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
+import { decodeListCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {
   decodePinnedListCursor,
@@ -711,16 +715,28 @@ export class TopicService {
 
   /**
    * Two-section page: pinned topics (via `pin` JOIN, ordered by `pin.orderKey`)
-   * then unpinned (ordered by `topic.orderKey ASC, id ASC` — manual/creation
+   * then unpinned (query-selected sort, default `topic.orderKey ASC, id ASC` — manual/creation
    * drag order). A partial pin page spills into the unpinned section to fill
    * `limit`. This mirrors `AgentSessionService.listByCursor` so both rails share
-   * one pagination contract (pinned-first, then manual order); recency ordering
-   * for the time-grouped view is applied by the renderer over the loaded list.
+   * one pagination contract; each selected sort applies before reading a page.
    */
   listByCursor(query: ListTopicsQuery = {}): CursorPaginationResponse<Topic> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'topic')
+    const sortBy = query.sortBy ?? 'orderKey'
+    const direction = query.sortOrder ?? (sortBy === 'orderKey' ? 'asc' : 'desc')
+    const ordering = keysetOrdering(topicTable[sortBy], topicTable.id, { major: direction, tie: 'asc' })
+    const boundary =
+      cursor.section === 'entity' && cursor.orderKey !== null
+        ? sortBy === 'orderKey'
+          ? { key: cursor.orderKey, id: cursor.id }
+          : decodeListCursor(
+              `${cursor.orderKey}:${cursor.id}`,
+              (key) => parseJsonSortKey(key, sortBy === 'name' ? 'string' : 'number'),
+              'topic'
+            )
+        : null
     const search = buildSearchPredicate(query.q)
     const idFilter = query.ids ? inArray(topicTable.id, query.ids) : undefined
     const inTrash = query.inTrash === true
@@ -771,8 +787,7 @@ export class TopicService {
       }
     }
 
-    // Tuple cursor `(orderKey, id)` over `ORDER BY orderKey ASC, id ASC`: the id
-    // tiebreaker prevents dedup/skip across pages when two rows share an orderKey.
+    // The id tiebreak keeps equal sort keys distinct across pages.
     const remaining = limit - items.length
     const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'topic'))
 
@@ -783,29 +798,46 @@ export class TopicService {
             lt(topicTable.updatedAt, Number(cursor.orderKey)),
             and(eq(topicTable.updatedAt, Number(cursor.orderKey)), gt(topicTable.id, cursor.id))
           )
-        : or(
-            gt(topicTable.orderKey, cursor.orderKey),
-            and(eq(topicTable.orderKey, cursor.orderKey), gt(topicTable.id, cursor.id))
-          )
+        : boundary
+          ? ordering.where(boundary)
+          : undefined
     }
 
+    const topicFilter = and(
+      inTrash ? isNotNull(topicTable.deletedAt) : isNull(topicTable.deletedAt),
+      idFilter,
+      notInArray(topicTable.id, pinnedSubquery),
+      search
+    )
+    const compareNames =
+      sortBy === 'name' && !inTrash ? createNameComparator(query.sortLocale ?? getAppLanguage(), direction) : undefined
+    const namePage = compareNames
+      ? selectNamePage({
+          names: db.select({ id: topicTable.id, name: topicTable.name }).from(topicTable).where(topicFilter).all(),
+          after: boundary && typeof boundary.key === 'string' ? { name: boundary.key, id: boundary.id } : undefined,
+          compare: compareNames,
+          limit: remaining + 1
+        })
+      : undefined
     const topicRows = db
       .select()
       .from(topicTable)
       .where(
         and(
-          inTrash ? isNotNull(topicTable.deletedAt) : isNull(topicTable.deletedAt),
-          idFilter,
-          notInArray(topicTable.id, pinnedSubquery),
-          topicAfter,
-          search
+          topicFilter,
+          namePage
+            ? inArray(
+                topicTable.id,
+                namePage.map((row) => row.id)
+              )
+            : topicAfter
         )
       )
-      .orderBy(
-        ...(inTrash ? [desc(topicTable.updatedAt), asc(topicTable.id)] : [asc(topicTable.orderKey), asc(topicTable.id)])
-      )
+      .orderBy(...(inTrash ? [desc(topicTable.updatedAt), asc(topicTable.id)] : ordering.orderBy))
       .limit(remaining + 1)
       .all()
+
+    if (compareNames) topicRows.sort(compareNames)
 
     const hasMoreInTopic = topicRows.length > remaining
     for (const row of topicRows.slice(0, remaining)) {
@@ -815,7 +847,12 @@ export class TopicService {
     let nextCursor: string | undefined
     if (hasMoreInTopic) {
       const last = topicRows[remaining - 1]
-      nextCursor = encodeEntityCursor(inTrash ? String(last.updatedAt) : last.orderKey, last.id)
+      nextCursor = inTrash
+        ? encodeEntityCursor(String(last.updatedAt), last.id)
+        : encodeEntityCursor(
+            sortBy === 'orderKey' ? last.orderKey : encodeURIComponent(JSON.stringify(last[sortBy])),
+            last.id
+          )
     }
 
     return { items: items.map((i) => i.topic), nextCursor }
