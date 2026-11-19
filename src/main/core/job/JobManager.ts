@@ -2075,6 +2075,22 @@ export class JobManager extends BaseService {
     const dbService = application.get('DbService')
     try {
       jobService.setDelayedRetryTx(dbService.getDb(), jobId, nextAttempt, scheduledAt, error)
+      const row = jobService.getById(jobId)
+      const handler = row ? this.handlers.get(row.type) : undefined
+      if (row && handler?.onRetryScheduled) {
+        try {
+          handler.onRetryScheduled({
+            jobId,
+            type: row.type,
+            scheduleId: row.scheduleId,
+            nextAttempt,
+            scheduledAt,
+            error
+          })
+        } catch (hookErr) {
+          logger.warn('handler.onRetryScheduled threw — ignoring', { jobId, type: row.type, err: hookErr })
+        }
+      }
     } catch (retryWriteErr) {
       // The single-statement write commits on the one better-sqlite3
       // connection; this fallback defends against persistent failures
@@ -2296,7 +2312,11 @@ export class JobManager extends BaseService {
       this.suppressedPromotionFires.set(scheduleId, { jobId, queue })
       return
     }
+    // Promotion is global: wake every queue it promoted, not only this
+    // timer's queue — a recovered retry in another queue has no timer and
+    // would otherwise wait for an unrelated dispatch trigger.
     jobService.promoteDelayedDue(Date.now())
+    const promotedQueues = jobService.takeLastPromotedQueues()
     const row = jobService.getById(jobId)
     if (row?.status === 'delayed' && !this._isShuttingDown) {
       logger.debug('once-fire preceded wall-clock scheduledAt — re-arming', { jobId, scheduleId })
@@ -2306,7 +2326,9 @@ export class JobManager extends BaseService {
       })
       return
     }
-    void this.dispatch(queue)
+    for (const promotedQueue of new Set([queue, ...promotedQueues])) {
+      void this.dispatch(promotedQueue)
+    }
   }
 
   /**

@@ -52,6 +52,17 @@ export interface JobMissEvent {
   lastFireAt: number | null
 }
 
+export interface JobRetryScheduledEvent {
+  jobId: string
+  type: string
+  scheduleId: string | null
+  /** The attempt the delayed row will run next (1-based). */
+  nextAttempt: number
+  /** Wall-clock ms when the row becomes due. */
+  scheduledAt: number
+  error: JobError
+}
+
 export interface JobSettledEvent<TPayload = unknown> {
   jobId: string
   type: string
@@ -100,6 +111,13 @@ export interface JobHandler<TPayload = unknown> {
   onEnqueued?(snapshot: Readonly<JobSnapshot>): void
   /** Optional. Called when a schedule fire was missed. */
   onMissed?(event: JobMissEvent): void | Promise<void>
+  /**
+   * Optional synchronous observer, called after a failed attempt's row is
+   * committed as `delayed` for retry. The terminal `onSettled` does not fire
+   * for intermediate attempts, so projections that read run state need this
+   * to leave "running" during the backoff. Errors are caught and logged.
+   */
+  onRetryScheduled?(event: JobRetryScheduledEvent): void
   /**
    * Optional. Called when the job reaches a terminal state. Errors are caught + logged.
    * MUST stay a method-shorthand declaration (like `execute`): methods are bivariant

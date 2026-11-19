@@ -224,6 +224,13 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     effectivePrompt = frameScheduledTrigger({ kind: 'task', taskName, instruction: prompt })
   }
 
+  // Attempt-local: an interrupted/cancelled attempt leaves `taskResultStatus`
+  // on the shared row; a later attempt must not inherit it, or the terminal
+  // notification reports the stale status over the final failure.
+  if (ctx.attempt > 0 && ctx.metadata.taskResultStatus !== undefined) {
+    await ctx.patchMetadata({ taskResultStatus: null })
+  }
+
   const expectedReuseRevision = normalizeTaskSessionReuseRevision(ctx.input.reuseRevision)
   const currentReuse = readTaskSessionReuse(scheduleSnapshot?.metadata)
   // A queued job captures the reuse epoch at enqueue time. It must not attach
@@ -367,6 +374,12 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       }
       if (started.reason === 'busy') {
         completionActive = false
+        if (ctx.attempt > 0 && resolved.reused) {
+          // A timed-out previous attempt can still own the session while it
+          // tears down. Completing as a skip would consume this retry and clear
+          // the original error; fail retryably so a later attempt admits cleanly.
+          throw new Error('Agent session still busy from the previous attempt')
+        }
         return { kind: 'skipped', result: 'Skipped (session busy)' }
       }
       if (rebound) throw new Error(`Agent session ${session.id} became invalid while starting task`)

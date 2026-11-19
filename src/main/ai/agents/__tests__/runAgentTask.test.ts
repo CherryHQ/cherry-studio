@@ -549,6 +549,27 @@ describe('runAgentTask', () => {
       ).resolves.toMatchObject({ kind: 'skipped', result: 'Skipped (session busy)' })
     })
 
+    it('fails retryably instead of skipping when a retry finds the reused session busy', async () => {
+      const bound = { ...makeSession('/ws/a'), id: 'sess-sticky' }
+      vi.mocked(agentSessionService.getByTaskScheduleId).mockReturnValueOnce(bound)
+      mockStartRun.mockResolvedValueOnce({ mode: 'not-started', reason: 'busy' } as never)
+
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary', REUSE_ON))
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+
+      // A retry must not settle as a completed skip while the previous attempt
+      // still owns the session: that would clear the original timeout error.
+      await expect(
+        runAgentTask(
+          makeCtx({
+            attempt: 1,
+            input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } }
+          })
+        )
+      ).rejects.toThrow('Agent session still busy from the previous attempt')
+    })
+
     it('starts a freshly created session through the locked require-idle path', async () => {
       vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
       await runToCompletion(REUSE_ON)

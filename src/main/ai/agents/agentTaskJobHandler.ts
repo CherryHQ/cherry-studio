@@ -73,6 +73,14 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
     }
   },
 
+  onRetryScheduled(event) {
+    // The row is `delayed` now; publish so open task details leave "running"
+    // for the backoff instead of waiting for the next terminal onSettled.
+    if (event.scheduleId) {
+      agentTaskService.notifyRunChange(event.scheduleId, event.jobId, 'projection')
+    }
+  },
+
   async execute(ctx) {
     // The row is already `running` here; publish so open task lists leave the
     // previous run's state. JobContext carries no scheduleId — resolve the row.
