@@ -7,6 +7,7 @@ import {
   type ReactNode,
   type ReactPortal,
   type Ref,
+  type RefAttributes,
   useMemo,
   useRef
 } from 'react'
@@ -64,15 +65,15 @@ function mergeSlotProps<Result>(slotProps: SlotProps<Result>, childProps: SlotPr
 }
 
 /** Verbatim Radix Slot semantics (@radix-ui/react-slot getElementRef). */
-function getElementRef(element: ReactElement): RefTarget {
+function getElementRef(element: ReactElement & RefAttributes<unknown>): RefTarget {
   const props = element.props as AnyProps
   let getter = Object.getOwnPropertyDescriptor(props, 'ref')?.get
   let mayWarn = getter && 'isReactWarning' in getter && getter.isReactWarning
-  if (mayWarn) return (element as unknown as { ref?: RefTarget }).ref
+  if (mayWarn) return element.ref
   getter = Object.getOwnPropertyDescriptor(element, 'ref')?.get
   mayWarn = getter && 'isReactWarning' in getter && getter.isReactWarning
   if (mayWarn) return props.ref as RefTarget
-  return (props.ref as RefTarget) || (element as unknown as { ref?: RefTarget }).ref
+  return (props.ref as RefTarget) || element.ref
 }
 
 /**
