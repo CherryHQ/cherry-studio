@@ -14,7 +14,7 @@ Pi 和 Pi Durable 在主进程运行，却通过 Cherry 内部 HTTP 网关调用
 
 扩展现有固定版本 Pi AI 补丁，为 Anthropic Messages、OpenAI Chat Completions、OpenAI Responses 和 Gemini 增加可选的对象 transport。原生 provider 继续构建既有协议请求、消费既有协议事件；transport 交换这些对象，不将 Pi 上下文翻译为 AI SDK 消息。默认原生 HTTP 执行保持可用。
 
-HTTP 与对象交付共享网关准备和协议适配器。HTTP 路由保留鉴权、JSON 解析、响应提交与 SSE 格式化。桌面绑定传入带类型的可信上下文，携带会话归属、trace 父级和请求选择，不再伪造 bearer 鉴权。root 绑定发起脱离父调用的请求时，显式 child capture 保留自身归属和 trace 父级。两条路径共享模型准入、转换器、AI SDK 执行、凭据、provider 兼容、tracing 和唯一计费写入者。客户端工具在网关内没有执行器；原生 runtime 保留重试归属。
+HTTP 与对象交付共享网关准备和协议适配器。HTTP 路由保留鉴权、JSON 解析、响应提交与 SSE 格式化。桌面绑定传入带类型的可信上下文，携带会话归属、trace 父级和请求选择，不再伪造 bearer 鉴权。root 绑定发起脱离父调用的请求时，显式 child capture 保留自身归属和 trace 父级。两条路径共享模型准入、转换器、AI SDK 执行、凭据、provider 兼容、tracing 和唯一计费写入者。客户端工具在网关内没有执行器。[子任务重试决策](../bug-fix/2026-11-19-subagent-retry-error-projection.md)将桌面对象调用的重试交给共享模型包装器，并关闭原生重试；原生执行归属不变。
 
 对象交付在 accumulator/listener 分流之前设置容量门，并使用有界的协议事件队列。可交付的工具错误调用在适配器接受后提交启动，使无文本批次能在队列填满前开始消费。取消、提前关闭迭代器和失败须释放等待中的消费者并中止上游执行。原生 `timeoutMs` 限制启动和上游空闲等待；等待消费者容量时暂停空闲计时。原生 provider 在 `finally` 中释放对象响应，包括迭代前 hook 抛错的路径。慢消费不得产生无界队列。保留 provider 错误和终止结果；不得将部分消费的调用通过 HTTP 重试。
 
