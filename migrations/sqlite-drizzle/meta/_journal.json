@@ -294,6 +294,13 @@
       "when": 1795002061126,
       "tag": "0041_agent_session_reply_link",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "6",
+      "when": 1795057686976,
+      "tag": "0042_solid_master_chief",
+      "breakpoints": true
     }
   ],
   "version": "7"
