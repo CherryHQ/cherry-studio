@@ -16,6 +16,7 @@ import {
 
 let seq = 0
 const streams = new Map<string, (chunk: string) => void>()
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Main pushes event-specific IPC payloads; this registry forwards them unchanged to guest handlers without claiming a shared domain shape.
 const listeners = new Map<string, Set<(payload: unknown) => void | Promise<void>>>()
 
 ipcRenderer.on(MINI_APP_STREAM_CHANNEL, (_e, { requestId, chunk }) => streams.get(requestId)?.(chunk))
@@ -44,6 +45,7 @@ ipcRenderer.on(MINI_APP_EVENT_CHANNEL, (_e, { event, payload }) => {
  * it there still pays the memory cost the limit exists to avoid. Refusing here keeps
  * the allocation inside the guest's own (sandboxed, disposable) renderer.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Untrusted guest JavaScript can bypass declared string types; coerce and bound the exact value forwarded before IPC copies it into main.
 const assertPayloadSize = (value: unknown, cap: number, what: string): string => {
   // COERCED before it is measured, and the coerced string is what the caller forwards.
   // The parameter types are not a gate — the guest is untrusted JS — and an `ArrayBuffer`
@@ -68,7 +70,9 @@ const gateCallId = (id?: string) =>
  * carries into the main process in full before Zod drops it — the exact allocation
  * these gates exist to prevent. Main still validates; this only bounds.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw guest fields can be arbitrary values; convert once while preserving undefined for main's required-field validation.
 const str = (value: unknown) => (value === undefined ? undefined : String(value))
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Guest chat arguments are untrusted; rebuild only bounded fields here and leave role/model/content validity to the main capability parser.
 const gateChat = (params: unknown) => {
   const raw = (params ?? {}) as { messages?: unknown; reasoning?: unknown; model?: unknown }
   const messages = Array.isArray(raw.messages) ? raw.messages : undefined
@@ -146,9 +150,11 @@ const unwrap = (result: BridgeResult) => {
   throw cherryError(result.error)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Bounded guest method payloads still require main's capability-specific schemas; this transport only invokes and unwraps the shared reply envelope.
 const call = async (method: string, params?: unknown) =>
   unwrap(await ipcRenderer.invoke(MINI_APP_BRIDGE_CHANNEL, { method, params }))
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- gateChat bounds allocation without proving the chat schema; main validates params while this transport owns stream registration and cleanup.
 const callStreaming = async (method: string, params: unknown, onChunk: (chunk: string) => void, callId?: string) => {
   const requestId = `r${++seq}`
   streams.set(requestId, onChunk)
@@ -177,6 +183,8 @@ contextBridge.exposeInMainWorld('cherry', {
   ai: {
     // The APP's own label. Attaching an id to the returned promise would depend on
     // contextBridge preserving custom properties across worlds — unverified.
+
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- contextBridge exposes this directly to guest JavaScript; gateChat must bound and rebuild arbitrary arguments before main validates them.
     chat: async (params: unknown, opts?: { onChunk?: (c: string) => void; callId?: string } | null) => {
       const { onChunk, callId } = opts ?? {}
       return callStreaming('ai.chat', gateChat(params), onChunk ?? (() => {}), gateCallId(callId))
@@ -247,6 +255,7 @@ contextBridge.exposeInMainWorld('cherry', {
   },
   // NOT async: it returns the unsubscribe function itself, and `cherry.d.ts` types it
   // that way. An author writes `const off = cherry.on(...)`, not `await`.
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Guest handlers subscribe by event name and receive its raw main-process payload; the bridge only registers and isolates handler failures.
   on: (event: string, handler: (payload: unknown) => void | Promise<void>) => {
     const set = listeners.get(event) ?? new Set()
     set.add(handler)
