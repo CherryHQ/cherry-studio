@@ -225,7 +225,7 @@ function getOpenItemLogContext(item: GlobalSearchKeyboardItem) {
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- DataApi and navigation may reject with arbitrary values; preserve the original failure alongside the selected target context.
 function logOpenFailure(error: unknown, context: Record<string, unknown>) {
-  logger.error('Failed to open global search result', error, context)
+  logger.error('Failed to open global search result', error instanceof Error ? error : { error }, context)
 }
 
 function reportGlobalSearchSelectionFailure(emission: Promise<void>, context: Record<string, unknown>) {
