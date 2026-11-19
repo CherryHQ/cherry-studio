@@ -50,8 +50,7 @@ const SESSION = 'session-1'
 const hookInput: BaseHookInput = { session_id: SESSION, transcript_path: '/data/session-1.jsonl', cwd: '/ws' }
 const hookOptions: Parameters<HookCallback>[2] = { signal: new AbortController().signal }
 
-const bashOutcomesOf = (svc: ClaudeCodeSessionStateService, sessionId: string) =>
-  (svc as unknown as { bashOutcomes: Map<string, unknown[]> }).bashOutcomes.get(sessionId)
+const bashOutcomesOf = (svc: ClaudeCodeSessionStateService, sessionId: string) => svc['bashOutcomes'].get(sessionId)
 
 describe('ClaudeCodeSessionStateService bash outcome recording', () => {
   let svc: ClaudeCodeSessionStateService
@@ -148,7 +147,7 @@ describe('ClaudeCodeSessionStateService bash outcome recording', () => {
 
     expect(svc.getBashNoProgressRun(SESSION, 'curl x')).toBeUndefined()
     expect(svc.getBashNoProgressRun(SESSION, 'curl x', 'agent-1')).toBeUndefined()
-    expect((svc as unknown as { bashOutcomes: Map<string, unknown[]> }).bashOutcomes.size).toBe(0)
+    expect(svc['bashOutcomes'].size).toBe(0)
   })
 })
 
@@ -285,8 +284,7 @@ describe('bashOutcomeHook', () => {
   const recordedCommands = () =>
     (bashOutcomesOf(svc, SESSION) as { command: string }[] | undefined)?.map((e) => e.command)
 
-  const pendingOrigins = () =>
-    (svc as unknown as { bashRewriteOrigins: Map<string, Map<string, string>> }).bashRewriteOrigins
+  const pendingOrigins = () => svc['bashRewriteOrigins']
 
   const finishBatch = (toolUseId: string, agentId?: string) =>
     Promise.all(
@@ -359,7 +357,8 @@ describe('bashOutcomeHook', () => {
       )
 
       if (cleanup === 'dispose') svc.disposeToolPolicySnapshot(SESSION)
-      else await (svc as unknown as Record<'onStop' | 'onDestroy', () => Promise<void>>)[cleanup]()
+      else if (cleanup === 'onStop') await svc['onStop']()
+      else await svc['onDestroy']()
       expect(pendingOrigins().size).toBe(0)
 
       rewrite.resolve('rtk git status')
@@ -418,16 +417,16 @@ describe('bashOutcomeHook', () => {
     svc.disposeToolPolicySnapshot(SESSION)
 
     expect(svc.takeBashRewriteOrigin(SESSION, 'tu-denied')).toBeUndefined()
-    expect((svc as unknown as { bashRewriteOrigins: Map<string, unknown> }).bashRewriteOrigins.size).toBe(0)
+    expect(svc['bashRewriteOrigins'].size).toBe(0)
   })
 
   it('the shutdown sweep drops rewrite origins with every other session map', async () => {
     await rewriteViaRtk('git status', 'rtk git status', 'tu-denied')
 
-    await (svc as unknown as { onStop(): Promise<void> }).onStop()
+    await svc['onStop']()
 
     expect(svc.takeBashRewriteOrigin(SESSION, 'tu-denied')).toBeUndefined()
-    expect((svc as unknown as { bashRewriteOrigins: Map<string, unknown> }).bashRewriteOrigins.size).toBe(0)
+    expect(svc['bashRewriteOrigins'].size).toBe(0)
   })
 
   it('breaks the run when a mutating tool completes between verifier runs', async () => {
@@ -496,10 +495,7 @@ describe('bashOutcomeHook', () => {
     await preToolUse('agent-1')
     await preToolUse()
 
-    const ctxOf = (call: number) =>
-      vi.mocked(evaluateToolGuards).mock.calls[call][1] as unknown as {
-        bashNoProgressRun?: (command: string) => number | undefined
-      }
+    const ctxOf = (call: number) => vi.mocked(evaluateToolGuards).mock.calls[call][1]
     expect(ctxOf(0).bashNoProgressRun?.('npx tsc --noEmit')).toBe(BASH_NO_PROGRESS_THRESHOLD)
     expect(ctxOf(1).bashNoProgressRun?.('npx tsc --noEmit')).toBeUndefined()
   })
