@@ -313,11 +313,12 @@ describe('mainWindowNavigation', () => {
       message: 'boom'
     }
 
-    it('does not deliver an error while only tab readiness is set', () => {
+    it('does not deliver an error or update while only tab readiness is set', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([focusedWindow])
       markMainRendererReadyForTabAttach('main-1')
 
       expect(deliverToReadyMain('app.error.open', fault)).toBe(false)
+      expect(deliverToReadyMain('app.updater.run_check', undefined)).toBe(false)
       expect(ipcApiServiceMock.send).not.toHaveBeenCalled()
       expect(focusedWindow.show).not.toHaveBeenCalled()
     })
@@ -326,11 +327,14 @@ describe('mainWindowNavigation', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([focusedWindow])
       markMainRendererReadyForTabAttach('main-1')
       setMainSurfaceReceiver('error', true)
+      setMainSurfaceReceiver('update', true)
 
       expect(deliverToReadyMain('app.error.open', fault)).toBe(true)
+      expect(deliverToReadyMain('app.updater.run_check', undefined)).toBe(true)
       expect(focusedWindow.show).toHaveBeenCalled()
       expect(focusedWindow.focus).toHaveBeenCalled()
       expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'app.error.open', fault)
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'app.updater.run_check', undefined)
     })
 
     it('presents a queued renderer crash when the error receiver becomes ready', () => {

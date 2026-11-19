@@ -1,4 +1,5 @@
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
@@ -98,6 +99,7 @@ const chatSubject = { kind: 'chat' as const, providerId: 'deepseek', modelId: 'd
 
 const mocks = vi.hoisted(() => ({
   agentState: undefined as unknown,
+  appUpdateState: undefined as Record<string, unknown> | undefined,
   cacheReady: true,
   diagnoseError: vi.fn(),
   doctorState: { status: 'idle' } as DoctorState,
@@ -182,10 +184,23 @@ const translations: Record<string, string> = {
   'settings.doctor.status.pending': 'Pending',
   'settings.doctor.status.skip': 'Skipped',
   'settings.doctor.status.warn': 'Warning',
+  'chat.artifacts.preview.openExternal.error.content': 'Error opening the external browser.',
+  'settings.about.checkUpdate.label': 'Check Update',
+  'error.update_check.hint': 'A newer version may already fix this error.',
+  'error.update_banner.failed':
+    "Couldn't check for updates. You can download the latest version from the official website.",
+  'error.update_banner.open_releases': 'Open download page',
+  'error.update_banner.available': 'New version {{version}} is available and may fix this error.',
+  'notification.center.update_now': 'Update now',
+  'settings.about.updateError': 'Update error',
+  'settings.about.updateNotAvailable': 'You are using the latest version',
+  'settings.about.updateNotPublished': 'No published update is available yet. Please try again later.',
   'settings.doctor.summary.progress': '{{completed}} of {{total}} completed',
   'settings.doctor.stale.description': 'This diagnostic result is out of date.',
   'settings.doctor.title': 'System diagnostics'
 }
+
+const UPDATE_CHECK_FAILED = translations['error.update_banner.failed']
 
 await i18next.use(initReactI18next).init({
   lng: 'en-US',
@@ -223,8 +238,8 @@ vi.mock('@renderer/hooks/useAppUpdateState', () => ({
       downloadProgress: 0,
       available: false,
       ignore: false,
-      manualCheck: false,
-      lastErrorKey: null
+      lastErrorKey: null,
+      ...mocks.appUpdateState
     },
     updateAppUpdateState: vi.fn()
   })
@@ -255,8 +270,11 @@ vi.mock('@renderer/components/CodeViewer', () => ({
 }))
 
 import { cacheService } from '@data/CacheService'
+import { preferenceService } from '@data/PreferenceService'
 import { PopupHost } from '@renderer/components/PopupHost'
+import { appUpdateCheckService } from '@renderer/services/AppUpdateCheckService'
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { DiagnosticAiDiagnosis } from '@shared/types/diagnosticAi'
 import type { DoctorScopeKey } from '@shared/types/doctor'
 import type { DoctorAgentIncident, DoctorAgentState } from '@shared/types/doctorAgent'
@@ -387,7 +405,7 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(screen.queryByRole('region', { name: 'Diagnostic result' })).not.toBeInTheDocument()
     expect(screen.getByText('error.diagnostics.context_unavailable')).toBeVisible()
     expect(screen.getByRole('button', { name: 'View Details' })).toBeEnabled()
-    expect(mocks.request).not.toHaveBeenCalled()
+    expect(mocks.request.mock.calls.filter(([route]) => String(route).startsWith('diagnostics.'))).toHaveLength(0)
   })
 
   beforeEach(() => {
@@ -401,6 +419,8 @@ describe('ErrorDetailContent diagnostics', () => {
   })
 
   afterEach(async () => {
+    appUpdateCheckService.endManualUpdateCheck()
+    appUpdateCheckService.setUpdateNotice(null)
     cleanup()
     vi.useFakeTimers()
     await act(async () => {
@@ -889,7 +909,7 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(onOpenDiagnosticReport.mock.calls[0][0]).toContain('Location: Home conversation')
   })
 
-  it('hides the direct report for a 5xx error context and keeps detail and AI actions', async () => {
+  it('hides the direct report for a 5xx error context and keeps detail, update, and AI actions', async () => {
     const user = userEvent.setup()
     const onOpenDiagnosticReport = vi.fn()
     MockUseDataApiUtils.mockQueryData('/models', [])
@@ -923,6 +943,7 @@ describe('ErrorDetailContent diagnostics', () => {
 
     expect(screen.queryByRole('button', { name: 'Report a problem' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'View Details' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Check Update' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'AI consultation' })).toBeEnabled()
 
     await user.click(screen.getByRole('button', { name: 'AI consultation' }))
@@ -1208,5 +1229,273 @@ describe('ErrorDetailContent diagnostics', () => {
 
     await user.click(screen.getByRole('button', { name: 'View Details' }))
     expect(screen.getByText(/Widget\.tsx:4/)).toBeInTheDocument()
+  })
+
+  it('does not show an update notice left by a check made before this dialog opened', () => {
+    appUpdateCheckService.setUpdateNotice('settings.about.updateError')
+
+    renderErrorDetailContent({ error: providerError })
+
+    expect(screen.queryByText(UPDATE_CHECK_FAILED)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open download page' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Check Update' })).toBeEnabled()
+  })
+
+  it('keeps check-again and opens the official releases page only when a failed manual check asks for it', async () => {
+    const user = userEvent.setup()
+    let meta = document.querySelector('meta[name="logger-window-source"]')
+    if (!meta) {
+      meta = document.createElement('meta')
+      meta.setAttribute('name', 'logger-window-source')
+      document.head.appendChild(meta)
+    }
+    meta.setAttribute('content', 'mainWindow')
+    renderErrorDetailContent({ error: providerError })
+
+    expect(screen.queryByRole('button', { name: 'Open download page' })).not.toBeInTheDocument()
+    expect(mocks.request).not.toHaveBeenCalledWith(
+      'system.shell.open_external_website',
+      'https://cherryai.com/download'
+    )
+
+    act(() => {
+      appUpdateCheckService.setUpdateNotice('settings.about.updateNotPublished')
+    })
+    const unpublished = screen.getByText('No published update is available yet. Please try again later.')
+    expect(unpublished).toHaveAttribute('role', 'alert')
+    expect(screen.getByRole('button', { name: 'Open download page' })).toBeEnabled()
+    expect(mocks.request).not.toHaveBeenCalledWith(
+      'system.shell.open_external_website',
+      'https://cherryai.com/download'
+    )
+
+    act(() => {
+      appUpdateCheckService.setUpdateNotice('settings.about.updateError')
+    })
+    expect(screen.getByText(UPDATE_CHECK_FAILED)).toHaveAttribute('role', 'alert')
+    expect(screen.getByRole('button', { name: 'Check Update' })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: 'Open download page' }))
+    expect(mocks.request).toHaveBeenCalledWith('system.shell.open_external_website', 'https://cherryai.com/download')
+    expect(mocks.request.mock.calls.filter(([channel]) => channel === 'app.updater.check_for_update')).toHaveLength(0)
+
+    const banner = screen.getByText(UPDATE_CHECK_FAILED).parentElement!
+    await user.click(within(banner).getByRole('button', { name: 'Retry' }))
+    await waitFor(() => {
+      expect(mocks.request.mock.calls.filter(([channel]) => channel === 'app.updater.check_for_update')).toHaveLength(1)
+    })
+
+    act(() => {
+      appUpdateCheckService.setUpdateNotice('settings.about.updateNotAvailable')
+    })
+    expect(screen.queryByRole('button', { name: 'Open download page' })).not.toBeInTheDocument()
+    expect(screen.getByText('You are using the latest version')).toHaveAttribute('role', 'status')
+  })
+
+  it('shows a local releases-open failure and still allows another open and another update check', async () => {
+    const user = userEvent.setup()
+    const unhandled: unknown[] = []
+    const onWindowRejection = (event: PromiseRejectionEvent) => {
+      event.preventDefault()
+      unhandled.push(event.reason)
+    }
+    const onProcessRejection = (reason: unknown) => {
+      unhandled.push(reason)
+    }
+    window.addEventListener('unhandledrejection', onWindowRejection)
+    process.on('unhandledRejection', onProcessRejection)
+    let meta = document.querySelector('meta[name="logger-window-source"]')
+    if (!meta) {
+      meta = document.createElement('meta')
+      meta.setAttribute('name', 'logger-window-source')
+      document.head.appendChild(meta)
+    }
+    meta.setAttribute('content', 'mainWindow')
+    let failOpen = true
+    mocks.request.mockImplementation((channel: string) => {
+      if (channel === 'system.shell.open_external_website') {
+        return failOpen ? Promise.reject(new Error('shell failed')) : Promise.resolve(undefined)
+      }
+      return Promise.resolve({ status: 'completed', isPortable: false })
+    })
+
+    try {
+      renderErrorDetailContent({ error: providerError })
+      act(() => {
+        appUpdateCheckService.setUpdateNotice('settings.about.updateError')
+      })
+
+      await user.click(screen.getByRole('button', { name: 'Open download page' }))
+      expect(await screen.findByText('Error opening the external browser.')).toHaveAttribute('role', 'alert')
+      expect(screen.getByRole('button', { name: 'Open download page' })).toBeEnabled()
+      expect(screen.getByRole('button', { name: 'Check Update' })).toBeEnabled()
+      expect(screen.getByText(UPDATE_CHECK_FAILED)).toBeInTheDocument()
+      expect(vi.mocked(toast.error)).not.toHaveBeenCalled()
+      await waitFor(() => expect(unhandled).toEqual([]))
+
+      failOpen = false
+      await user.click(screen.getByRole('button', { name: 'Open download page' }))
+      await waitFor(() => {
+        expect(screen.queryByText('Error opening the external browser.')).not.toBeInTheDocument()
+      })
+      expect(screen.getByRole('button', { name: 'Open download page' })).toBeEnabled()
+      expect(unhandled).toEqual([])
+
+      await user.click(screen.getByRole('button', { name: 'Check Update' }))
+      await waitFor(() => {
+        expect(mocks.request.mock.calls.filter(([channel]) => channel === 'app.updater.check_for_update')).toHaveLength(
+          1
+        )
+      })
+      expect(unhandled).toEqual([])
+    } finally {
+      window.removeEventListener('unhandledrejection', onWindowRejection)
+      process.off('unhandledRejection', onProcessRejection)
+    }
+  })
+  it('drops a releases-open failure once a different update notice replaces it', async () => {
+    const user = userEvent.setup()
+    mocks.request.mockImplementation((channel: string) =>
+      channel === 'system.shell.open_external_website'
+        ? Promise.reject(new Error('shell failed'))
+        : Promise.resolve({ status: 'completed' })
+    )
+    renderErrorDetailContent({ error: providerError })
+    act(() => {
+      appUpdateCheckService.setUpdateNotice('settings.about.updateError')
+    })
+    await user.click(screen.getByRole('button', { name: 'Open download page' }))
+    expect(await screen.findByText('Error opening the external browser.')).toBeInTheDocument()
+
+    act(() => {
+      appUpdateCheckService.setUpdateNotice('settings.about.updateNotPublished')
+    })
+
+    expect(screen.getByText('No published update is available yet. Please try again later.')).toBeInTheDocument()
+    expect(screen.queryByText('Error opening the external browser.')).not.toBeInTheDocument()
+  })
+})
+
+describe('ErrorDetailContent update check', () => {
+  it('explains on hover why checking for updates can help with this error', async () => {
+    const user = userEvent.setup()
+    renderErrorDetailContent({ error: providerError })
+
+    await user.hover(screen.getByRole('button', { name: 'Check Update' }))
+
+    // Another control's tooltip can still be closing, so look among all open tooltips.
+    await waitFor(() =>
+      expect(screen.getAllByRole('tooltip').map((tooltip) => tooltip.textContent)).toContain(
+        'A newer version may already fix this error.'
+      )
+    )
+  })
+})
+
+describe('ErrorDetailContent automatic update check', () => {
+  const UPDATE_AVAILABLE = 'New version 2.1.0 is available and may fix this error.'
+  const updateRouteCalls = (route: string) => mocks.request.mock.calls.filter(([name]) => name === route)
+  const answerQuery = (query: () => Promise<unknown>) => {
+    mocks.request.mockImplementation((route: string) =>
+      route === 'app.updater.query_availability' ? query() : Promise.resolve({})
+    )
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    MockUsePreferenceUtils.resetMocks()
+    // The preference mock has no app defaults; Auto Update ships enabled.
+    MockUsePreferenceUtils.setPreferenceValue('app.dist.auto_update.enabled', true)
+    mocks.appUpdateState = undefined
+    // A channel switch drops the reused availability result, so every test asks the feed again.
+    appUpdateCheckService.resumeSharedUpdateSession(appUpdateCheckService.invalidateSharedUpdateCheck())
+    let meta = document.querySelector('meta[name="logger-window-source"]')
+    if (!meta) {
+      meta = document.createElement('meta')
+      meta.setAttribute('name', 'logger-window-source')
+      document.head.appendChild(meta)
+    }
+    meta.setAttribute('content', 'mainWindow')
+  })
+
+  afterEach(() => {
+    vi.mocked(preferenceService.isCached).mockRestore()
+    appUpdateCheckService.endManualUpdateCheck()
+    appUpdateCheckService.setUpdateNotice(null)
+    cleanup()
+  })
+
+  it('does not ask the feed before the stored Auto Update setting has loaded', async () => {
+    // Until then the hook reports the shipped default (on), which may not be the user's choice.
+    vi.mocked(preferenceService.isCached).mockImplementation((key) => key !== 'app.dist.auto_update.enabled')
+    answerQuery(() => Promise.resolve({ status: 'available', currentVersion: '2.0.0', version: '2.1.0' }))
+    renderErrorDetailContent({ error: providerError })
+    await act(async () => {})
+
+    expect(updateRouteCalls('app.updater.query_availability')).toHaveLength(0)
+    expect(screen.queryByText(UPDATE_AVAILABLE)).not.toBeInTheDocument()
+  })
+
+  it('offers a newer version when the dialog opens but downloads only after the user agrees', async () => {
+    answerQuery(() => Promise.resolve({ status: 'available', currentVersion: '2.0.0', version: '2.1.0' }))
+    const user = userEvent.setup()
+    renderErrorDetailContent({ error: providerError })
+
+    expect(await screen.findByText(UPDATE_AVAILABLE)).toBeVisible()
+    expect(updateRouteCalls('app.updater.check_for_update')).toHaveLength(0)
+
+    await user.click(screen.getByRole('button', { name: 'Update now' }))
+    await waitFor(() => expect(updateRouteCalls('app.updater.check_for_update')).toHaveLength(1))
+  })
+
+  it.each([
+    ['the app is current', () => Promise.resolve({ status: 'current', currentVersion: '2.1.0' })],
+    ['this build cannot self-update', () => Promise.resolve({ status: 'unsupported' })],
+    ['the feed cannot be reached', () => Promise.reject(new Error('offline'))]
+  ])('stays quiet when %s', async (_, query) => {
+    answerQuery(query)
+    renderErrorDetailContent({ error: providerError })
+
+    await waitFor(() => expect(updateRouteCalls('app.updater.query_availability')).toHaveLength(1))
+    await act(async () => {})
+    expect(screen.queryByRole('button', { name: 'Update now' })).not.toBeInTheDocument()
+    expect(screen.queryByText(UPDATE_CHECK_FAILED)).not.toBeInTheDocument()
+  })
+
+  it('leaves the feed alone on open when automatic updates are off, yet still checks on request', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.dist.auto_update.enabled', false)
+    answerQuery(() => Promise.resolve({ status: 'available', currentVersion: '2.0.0', version: '2.1.0' }))
+    const user = userEvent.setup()
+    renderErrorDetailContent({ error: providerError })
+    await act(async () => {})
+
+    expect(updateRouteCalls('app.updater.query_availability')).toHaveLength(0)
+    expect(screen.queryByText(UPDATE_AVAILABLE)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Check Update' }))
+    await waitFor(() => expect(updateRouteCalls('app.updater.check_for_update')).toHaveLength(1))
+  })
+
+  it('does not query the feed while an update is already downloading', () => {
+    mocks.appUpdateState = { downloading: true }
+    answerQuery(() => Promise.resolve({ status: 'available', currentVersion: '2.0.0', version: '2.1.0' }))
+    renderErrorDetailContent({ error: providerError })
+
+    expect(updateRouteCalls('app.updater.query_availability')).toHaveLength(0)
+  })
+
+  it('offers to install an update that already downloaded in the background', async () => {
+    const showInstallDialog = vi.fn().mockResolvedValue(undefined)
+    appUpdateCheckService.registerUpdateDialog(async () => ({ show: showInstallDialog }))
+    mocks.appUpdateState = { downloaded: true, available: true, info: { version: '2.1.0' } }
+    const user = userEvent.setup()
+    renderErrorDetailContent({ error: providerError })
+
+    expect(screen.getByText(UPDATE_AVAILABLE)).toBeVisible()
+    expect(updateRouteCalls('app.updater.query_availability')).toHaveLength(0)
+    await user.click(screen.getByRole('button', { name: 'Update now' }))
+    await waitFor(() =>
+      expect(showInstallDialog).toHaveBeenCalledWith({ releaseInfo: expect.objectContaining({ version: '2.1.0' }) })
+    )
+    expect(updateRouteCalls('app.updater.check_for_update')).toHaveLength(0)
   })
 })

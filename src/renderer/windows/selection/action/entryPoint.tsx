@@ -9,6 +9,9 @@ import SelectionActionApp from './SelectionActionApp'
 await prepareWindow({
   preference: [
     'app.language',
+    'app.dist.auto_update.enabled',
+    'app.dist.test_plan.channel',
+    'app.dist.test_plan.enabled',
     'ui.custom_css',
     'ui.theme_mode',
     'ui.theme_user.color_primary',
