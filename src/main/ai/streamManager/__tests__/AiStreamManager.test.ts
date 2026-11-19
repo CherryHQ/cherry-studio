@@ -76,6 +76,17 @@ class FakeListener implements StreamListener {
   }
 }
 
+function rendererSender() {
+  const sender = Object.assign(new EventEmitter(), {
+    id: 1,
+    isDestroyed: vi.fn<Electron.WebContents['isDestroyed']>(() => false),
+    send: vi.fn<Electron.WebContents['send']>()
+  }) satisfies Pick<Electron.WebContents, 'id' | 'isDestroyed' | 'send'>
+  // SAFETY: Real emitter events and typed send/liveness members cover these tests; native window lookup is mocked centrally.
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Node unit tests cannot construct Electron's native WebContents.
+  return sender as unknown as Electron.WebContents & typeof sender
+}
+
 // ── Mocks ───────────────────────────────────────────────────────────
 
 const mockAbortPendingTurn = vi.fn<(sessionId: string, reason: string) => boolean>(() => false)
@@ -310,7 +321,7 @@ describe('AiStreamManager', () => {
   it.each([false, true])('publishes SDK snapshots and respects persistence failure=%s', async (failWrite) => {
     const feed = controlledStream()
     mockStreamText.mockResolvedValueOnce(feed.stream)
-    const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
+    const sender = rendererSender()
     let view: MessageProjectionView | null = null
     view = await mgr.attachProjection(sender, 'projection-topic', 'subscription', (update) => {
       if (view) view = applyMessageProjectionUpdate(view, update)!
@@ -361,7 +372,7 @@ describe('AiStreamManager', () => {
     const feed = controlledStream()
     mockStreamText.mockResolvedValueOnce(feed.stream)
     const listener = new FakeListener('denial-result')
-    const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
+    const sender = rendererSender()
     let view: MessageProjectionView | null = null
     view = await mgr.attachProjection(sender, 'denied-projection', 'subscription', (update) => {
       if (view) view = applyMessageProjectionUpdate(view, update)!
@@ -401,7 +412,7 @@ describe('AiStreamManager', () => {
         }
       })
     })
-    const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
+    const sender = rendererSender()
     let view: MessageProjectionView | null = null
     view = await mgr.attachProjection(sender, 'native-topic', 'native-subscription', (update) => {
       if (view) view = applyMessageProjectionUpdate(view, update)!
@@ -432,7 +443,7 @@ describe('AiStreamManager', () => {
   it('projects a resolved approval immediately and keeps it resolved on later SDK snapshots', async () => {
     const feed = controlledStream()
     mockStreamText.mockResolvedValueOnce(feed.stream)
-    const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
+    const sender = rendererSender()
     let view: MessageProjectionView | null = null
     view = await mgr.attachProjection(sender, 'approval-projection', 'subscription', (update) => {
       if (view) view = applyMessageProjectionUpdate(view, update)!
@@ -735,12 +746,12 @@ describe('AiStreamManager', () => {
       async (outcome) => {
         const topicId = 'agent-session:s1'
         const modelId = 'provider-a::model-a'
-        const wc = { id: 1, isDestroyed: () => false, send: vi.fn() }
+        const wc = rendererSender()
         const old = mgr.startRuntimeTurn({
           topicId,
           modelId,
           request: req(topicId),
-          listeners: [new WebContentsListener(wc as unknown as Electron.WebContents, topicId)]
+          listeners: [new WebContentsListener(wc, topicId)]
         })
         const current = mgr.startRuntimeTurn({
           topicId,
@@ -2538,10 +2549,8 @@ describe('AiStreamManager', () => {
       mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'lo' })
       mgr.onChunk('a', 'provider-a::model-a', { type: 'text-end', id: 'p1' })
 
-      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
-      // `attach` is the public IPC-facing method; tests pass a minimal
-      // WebContents-shaped stub.
-      const response = mgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      const sender = rendererSender()
+      const response = mgr.attach(sender, { topicId: 'a' })
       const attemptId = mgr.inspect('a')?.executions[0].attemptId
 
       expect(response).toEqual({
@@ -2589,8 +2598,8 @@ describe('AiStreamManager', () => {
       ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'ab' })
       ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'cd' })
       ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'ef' })
-      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
-      const attach = () => ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      const sender = rendererSender()
+      const attach = () => ringMgr.attach(sender, { topicId: 'a' })
       expect(attach()).toMatchObject({ replayFrom: { [attemptId]: 2 }, replayThrough: { [attemptId]: 4 } })
       ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'ghijklmnopqr' })
       expect(attach()).toMatchObject({ replayFrom: { [attemptId]: 5 }, replayThrough: { [attemptId]: 5 } })
@@ -2598,14 +2607,10 @@ describe('AiStreamManager', () => {
 
     it('cuts replay between coalesced deltas without dropping output for an existing consumer', () => {
       const sent: StreamChunkPayload[] = []
-      const sender = {
-        id: 1,
-        isDestroyed: () => false,
-        send: (_channel: string, event: string, payload: StreamChunkPayload) => {
-          if (event === 'ai.stream.chunk') sent.push(payload)
-        }
-      }
-      const wc = sender as unknown as Electron.WebContents
+      const wc = rendererSender()
+      wc.send.mockImplementation((_channel, ...args) => {
+        if (args[0] === 'ai.stream.chunk') sent.push(args[1])
+      })
       const {
         executions: [{ attemptId }]
       } = startSingle(mgr, {
@@ -2659,8 +2664,8 @@ describe('AiStreamManager', () => {
       expect(snap.executions[0].bufferedChunkCount).toBe(2)
       expect(snap.executions[0].droppedChunks).toBe(0)
 
-      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
-      const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      const sender = rendererSender()
+      const response = ringMgr.attach(sender, { topicId: 'a' })
       expect(response.status).toBe('attached')
       if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
       expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual(['text-start', 'text-delta'])
@@ -2701,8 +2706,8 @@ describe('AiStreamManager', () => {
       // Ordinary overflow without a pending approval remains attachable, and
       // the replay stays protocol-coherent: each surviving orphaned delta gets
       // its evicted start synthesized back.
-      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
-      const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      const sender = rendererSender()
+      const response = ringMgr.attach(sender, { topicId: 'a' })
       expect(response.status).toBe('attached')
       if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
       expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual([
@@ -2741,8 +2746,8 @@ describe('AiStreamManager', () => {
       const snap = ringMgr.inspect('a')!
       expect(snap.executions[0].droppedChunks).toBe(1)
 
-      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
-      const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      const sender = rendererSender()
+      const response = ringMgr.attach(sender, { topicId: 'a' })
       expect(response.status).toBe('attached')
       if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
 
@@ -2789,8 +2794,8 @@ describe('AiStreamManager', () => {
       expect(snap.executions[0].bufferedChunkCount).toBe(2)
       expect(snap.executions[0].droppedChunks).toBe(2)
 
-      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
-      const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      const sender = rendererSender()
+      const response = ringMgr.attach(sender, { topicId: 'a' })
       expect(response.status).toBe('attached')
       if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
       // Attach preserves the same ceiling instead of reassembling the retained
@@ -2829,8 +2834,8 @@ describe('AiStreamManager', () => {
         toolCallId: 'call-1'
       })
 
-      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
-      const response = approvalMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      const sender = rendererSender()
+      const response = approvalMgr.attach(sender, { topicId: 'a' })
 
       expect(response.status).toBe('attached')
       if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
@@ -2885,8 +2890,8 @@ describe('AiStreamManager', () => {
       expect(snap.executions[0].bufferedChunkCount).toBe(4)
       expect(snap.executions[0].droppedChunks).toBe(0)
 
-      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
-      const response = approvalMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      const sender = rendererSender()
+      const response = approvalMgr.attach(sender, { topicId: 'a' })
 
       expect(response.status).toBe('attached')
       if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
@@ -2975,8 +2980,9 @@ describe('AiStreamManager', () => {
 
       mgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-approval-request',
+        approvalId: 'approval-1',
         toolCallId: 'tc-1'
-      } as unknown as UIMessageChunk)
+      })
       const paused = sharedCacheStore.get('topic.stream.statuses.a') as any
       expect(paused?.status).toBe('streaming')
       expect(paused?.awaitingApprovalAnchors).toHaveLength(1)
@@ -2989,8 +2995,9 @@ describe('AiStreamManager', () => {
 
       mgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-output-available',
-        toolCallId: 'tc-1'
-      } as unknown as UIMessageChunk)
+        toolCallId: 'tc-1',
+        output: { ok: true }
+      })
       const resumed = sharedCacheStore.get('topic.stream.statuses.a') as any
       expect(resumed?.status).toBe('streaming')
       expect(resumed?.awaitingApprovalAnchors).toHaveLength(0)
@@ -3314,7 +3321,11 @@ describe('AiStreamManager', () => {
       const listener = new FakeListener('wc:1')
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
       // Drive the execution into awaiting-approval, then complete it.
-      mgr.onChunk('a', 'provider-a::model-a', { type: 'tool-approval-request' } as unknown as UIMessageChunk)
+      mgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-approval-request',
+        approvalId: 'approval-1',
+        toolCallId: 'tc-1'
+      })
       mgr.enqueuePendingSteer('a', 'u1')
       await mgr.onExecutionDone('a', 'provider-a::model-a')
 
@@ -3353,7 +3364,11 @@ describe('AiStreamManager', () => {
         request: req('a'),
         listeners: [new FakeListener('wc:1')]
       })
-      mgr.onChunk('a', 'provider-a::model-a', { type: 'tool-approval-request' } as unknown as UIMessageChunk)
+      mgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-approval-request',
+        approvalId: 'approval-1',
+        toolCallId: 'tc-1'
+      })
       await mgr.onExecutionDone('a', 'provider-a::model-a') // parks → 'awaiting-approval', no steer queued yet
       mgr.enqueuePendingSteer('a', 's1') // lands after the park
 
@@ -4054,9 +4069,7 @@ describe('AiStreamManager', () => {
             throw new Error(error.message ?? 'Persistence failed')
           }
         })
-        const sender = Object.assign(new EventEmitter(), {
-          isDestroyed: () => false
-        }) as unknown as Electron.WebContents
+        const sender = rendererSender()
         let view: MessageProjectionView | null = null
         view = await mgr.attachProjection(sender, 'a', 'subscription', (update) => {
           if (view) view = applyMessageProjectionUpdate(view, update)!
@@ -4508,7 +4521,7 @@ describe('AiStreamManager', () => {
             input: { q: 'x' }
           }
         ]
-      } as unknown as CherryUIMessage
+      } satisfies CherryUIMessage
 
       const listener = new FakeListener('l:a')
       const request = { ...req('a'), messages: [resumedAssistant] }
