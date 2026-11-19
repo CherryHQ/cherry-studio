@@ -16,14 +16,24 @@ describe('resolveSummarizeBudget', () => {
     expect(maxInputTokens + maxOutputTokens).toBeLessThanOrEqual(90_000)
   })
 
-  // Below the minimum the budget collapses to whatever room the output
-  // reservation leaves instead of forcing the floor past the window.
-  it('collapses to the remaining room when it falls below the minimum input budget', () => {
+  // On small windows the output floor (4096) would leave less input than the
+  // mandatory instructions need; rebalance output down so the input floor holds
+  // and the summarize call reaches the model.
+  it('rebalances the output reservation so small windows keep the minimum input budget', () => {
     const { maxInputTokens, maxOutputTokens } = resolveSummarizeBudget(5_000)
 
-    expect(maxOutputTokens).toBeGreaterThan(0)
-    expect(maxInputTokens).toBe(5_000 - maxOutputTokens)
-    expect(maxInputTokens).toBeLessThan(COMPACTION_MIN_INPUT_BUDGET)
+    expect(maxInputTokens).toBe(COMPACTION_MIN_INPUT_BUDGET)
+    expect(maxOutputTokens).toBe(5_000 - COMPACTION_MIN_INPUT_BUDGET)
     expect(maxInputTokens + maxOutputTokens).toBeLessThanOrEqual(5_000)
+  })
+
+  // The bot-flagged case: a 5,000-token configured compressor margined to 4,500
+  // previously reserved 4,096 for output and threw on a 404-token input.
+  it('keeps the input floor on the margined 4,500-token compressor window', () => {
+    const { maxInputTokens, maxOutputTokens } = resolveSummarizeBudget(4_500)
+
+    expect(maxInputTokens).toBe(COMPACTION_MIN_INPUT_BUDGET)
+    expect(maxOutputTokens).toBe(2_500)
+    expect(maxInputTokens + maxOutputTokens).toBeLessThanOrEqual(4_500)
   })
 })

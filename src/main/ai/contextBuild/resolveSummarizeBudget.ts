@@ -15,13 +15,18 @@ export function resolveSummarizeBudget(compressionWindow: number): {
   maxOutputTokens: number
   maxInputTokens: number
 } {
-  const maxOutputTokens = resolveCompressionOutputTokens(compressionWindow)
+  // Reserve the minimum viable input before sizing output: on small compressor
+  // windows the output floor would otherwise starve the input below the
+  // mandatory instructions, and the summarize call throws before reaching the
+  // model (the caller then runs unprotected, compaction disabled).
+  const maxOutputTokens = Math.min(
+    resolveCompressionOutputTokens(compressionWindow),
+    Math.max(1, compressionWindow - COMPACTION_MIN_INPUT_BUDGET)
+  )
+  const availableInput = Math.max(0, compressionWindow - maxOutputTokens)
   const maxInputTokens = Math.min(
-    Math.max(0, compressionWindow - maxOutputTokens),
-    Math.max(
-      COMPACTION_MIN_INPUT_BUDGET,
-      Math.floor((compressionWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
-    )
+    availableInput,
+    Math.max(COMPACTION_MIN_INPUT_BUDGET, Math.floor(availableInput * COMPACTION_INPUT_SAFETY_RATIO))
   )
   return { maxOutputTokens, maxInputTokens }
 }
