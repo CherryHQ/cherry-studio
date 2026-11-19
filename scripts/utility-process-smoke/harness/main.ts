@@ -17,6 +17,7 @@ import {
   smokeTerminateProcess
 } from './smokeContract'
 import { measureStreams, checkDuplexStream, checkStreamCancel, checkStreamCrash, checkStreamStop } from './streamChecks'
+import { checkTerminalHost } from './terminalChecks'
 
 const FOUR_MIB = 4 * 1024 * 1024
 const WATCHDOG_MS = 90_000
@@ -90,6 +91,7 @@ async function withHost(
 }
 
 async function runChecks(): Promise<void> {
+  await check('terminal-production-pipe-pty-and-headless-reply', checkTerminalHost)
   await check('independent-single-generation-instances', async () => {
     const first = hostFor(
       { ...smokeEchoProcess, createInitData: () => ({ label: 'conversation-a' }) },

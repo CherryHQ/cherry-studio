@@ -44,6 +44,7 @@ The harness covers transport and process behavior. Stream checks exercise real M
 | Check | What only a real process proves |
 | --- | --- |
 | `independent-single-generation-instances` | Distinct processes receive their own init data; stopping one leaves its sibling alive; stopped/crashed handles cannot spawn another generation |
+| `terminal-production-pipe-pty-and-headless-reply` | The production terminal entry preserves a real pipe exit code and, on POSIX, answers a PTY query without a renderer; native dependencies and the scope helper load in both layouts |
 | `headless-ghostty-assets-and-replies` | The child reads pinned WASM from each app layout and produces Unicode cells, replies, mode-aware input, alternate-screen restoration, resize, and sibling core isolation without a renderer |
 | `stream-duplex-slow-consumer` | Ordered bidirectional data and EOF under delayed consumption; measured outstanding byte/frame peaks in each direction |
 | `stream-cooperative-cancel` | A blocked producer cleans up and acknowledges cancellation over the real port |
@@ -60,9 +61,9 @@ The harness covers transport and process behavior. Stream checks exercise real M
 
 `stream-capacity` evidence records measure unconsumed metadata/payload bytes and frame counts, including the current iterator frame. They are queue measurements, not process RSS. Audio-model production and renderer playback require separate consumer integration evidence.
 
-The Ghostty fixture does not establish conversation admission, PTY or pipe execution, aggregate Host budgets, independent view projection, Windows process-scope cleanup, or final-installer compatibility. Those remain terminal-consumer checks.
+The Ghostty fixture alone does not establish execution. The separate terminal check exercises pipe and POSIX PTY execution; conversation admission, aggregate Host budgets, independent view projection, Windows process-scope cleanup, and final-installer compatibility remain terminal-consumer checks.
 
-The build assertions matter as much as the checks: the runner rejects any `require()` in an entry bundle that is not relative, `electron`, or a Node builtin, and greps both trees for `LoggerService` / `winston` / `ServiceContainer`.
+The runner allows only relative imports, `electron`, Node builtins and the explicitly copied terminal dependencies (`node-pty` and `zod`). It rejects other entry `require()` calls and greps both trees for `LoggerService` / `winston` / `ServiceContainer`.
 
 `process.abort()` exit codes are platform-specific, so `crash-recovery` only asserts a non-zero code. Anything that reads a pipe rather than the message port (stdout/stderr) is polled with a deadline instead of asserted immediately — the pipe is not synchronised with the port, and asserting an order that does not exist would only produce a flaky gate.
 

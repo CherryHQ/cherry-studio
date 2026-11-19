@@ -13,6 +13,10 @@ export default {
       outDir: path.join(smokeAppDir(), 'out', 'utility-process'),
       lib: {
         entry: {
+          'terminal-host': path.resolve(
+            __dirname,
+            '../../src/main/services/terminal/utilityEntries/terminalHostEntry.ts'
+          ),
           // Keys become `<entry>.js`, which is what a definition's `entry` resolves to.
           'smoke-echo': path.resolve(__dirname, 'harness/utilityEntries/smokeEcho.ts'),
           'smoke-echo-terminate': path.resolve(__dirname, 'harness/utilityEntries/smokeEchoTerminate.ts')
