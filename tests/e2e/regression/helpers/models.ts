@@ -78,5 +78,22 @@ export async function ensureCustomChatProvider(app: RegressionApp, page: Page): 
   if (!providerTestId?.startsWith(providerTestIdPrefix)) {
     throw new Error('Custom chat provider ID is unavailable')
   }
-  return providerTestId.slice(providerTestIdPrefix.length)
+  const providerId = providerTestId.slice(providerTestIdPrefix.length)
+  const updated = await page.evaluate(
+    ({ providerId, baseUrl, anthropicBaseUrl }) =>
+      window.api.dataApi.request({
+        id: 'chat-mock-endpoint',
+        method: 'PATCH',
+        path: `/providers/${providerId}`,
+        body: {
+          endpointConfigs: {
+            'openai-chat-completions': { baseUrl },
+            'anthropic-messages': { baseUrl: anthropicBaseUrl }
+          }
+        }
+      }),
+    { providerId, baseUrl, anthropicBaseUrl }
+  )
+  expect(updated.status).toBe(200)
+  return providerId
 }

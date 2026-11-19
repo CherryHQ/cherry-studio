@@ -209,6 +209,7 @@ const getNativeModuleFilters = (platform, arch) => {
   const keptPackages = keepPackages(platform, arch)
   return [
     ...packages.filter((name) => !keptPackages.includes(name)).map((name) => `!**/node_modules/${name}/**`),
+    `!**/node_modules/better-sqlite3/prebuilds/!(${platform}-${arch}.node)`,
     `!**/node_modules/selection-hook/prebuilds/!(${platform}-${arch})/**`
   ]
 }

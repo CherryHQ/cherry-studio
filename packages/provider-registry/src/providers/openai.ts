@@ -40,7 +40,15 @@ export default defineProvider({
       id: 'web-search',
       modelScope: 'model-dependent',
       modelIdPrefixes: webSearchModels,
-      modelIds: ['gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna', 'gpt-6-1-sol', 'gpt-6-1-terra']
+      modelIds: [
+        'gpt-6-2-astra',
+        'gpt-6-2-sol',
+        'gpt-6-astra',
+        'gpt-6-sol',
+        'gpt-6-luna',
+        'gpt-6-1-sol',
+        'gpt-6-1-terra'
+      ]
     }
   ],
   metadata: {

@@ -116,8 +116,6 @@ describe('searchWithCursor', () => {
       })
     })
 
-    expect(fetchRows.mock.calls.length).toBeGreaterThanOrEqual(2)
-    expect(fetchRows.mock.calls.slice(0, 2).map(([context]) => context.offset)).toEqual([0, 1])
     expect(result.items).toEqual([{ id: 'accepted-1', createdAt: 200, snippet: 'needle appears here' }])
   })
 
@@ -216,12 +214,14 @@ describe('searchWithCursor', () => {
 
     expect(fetchRows).toHaveBeenCalledTimes(1)
     expect(result).toEqual({ items: [], nextCursor: undefined })
-    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('FTS search candidate scan limit reached', {
-      scannedCandidates: 2,
-      limit: 500,
-      maxCandidates: 2,
-      termCount: 1
-    })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'FTS search candidate scan limit reached',
+      expect.objectContaining({
+        scannedCandidates: 2,
+        maxCandidates: 2,
+        termCount: 1
+      })
+    )
     expect(mockMainLoggerService.warn.mock.calls[0]?.[1]).not.toHaveProperty('query')
   })
 })

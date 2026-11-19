@@ -9,7 +9,7 @@ const GptOss120b = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const GptOss120bIcon: CompoundIcon = /*#__PURE__*/ Object.assign(GptOss120b, {
   Avatar: GptOss120bAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#019dfc'
 })
 
 export default GptOss120bIcon

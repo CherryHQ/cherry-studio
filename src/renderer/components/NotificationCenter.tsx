@@ -444,7 +444,7 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
               {t('notification.center.mark_all_read')}
             </Button>
           </div>
-          <ScrollArea className="min-h-0 flex-1 px-4">
+          <ScrollArea contentProps={{ className: 'px-4' }} className="min-h-0 flex-1">
             <NotificationList
               requestedId={requestedId}
               onNavigate={() => changeOpen(false)}

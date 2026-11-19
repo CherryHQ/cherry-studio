@@ -3,7 +3,20 @@ import type { FC, FocusEvent } from 'react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Flex, InfoTooltip, Input, InputNumber, Switch } from '@cherrystudio/ui'
+import {
+  Button,
+  Flex,
+  InfoTooltip,
+  Input,
+  InputNumber,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+  HelpTooltip
+} from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
@@ -27,7 +40,10 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { appLanguageOptions, isAppLanguage } from '@renderer/i18n/languages'
+import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { settingsControlClasses } from '@renderer/pages/settings/settingsStyles'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -35,6 +51,7 @@ import { isValidProxyUrl } from '@renderer/utils/url'
 import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { OutputFor } from '@shared/ipc/types'
+import { defaultLanguage } from '@shared/utils/languages'
 import { isNonChatModel } from '@shared/utils/model'
 
 import { ContextManagementSettings } from './ContextManagementSettings'
@@ -79,6 +96,7 @@ const GeneralSettings: FC = () => {
   const { theme } = useTheme()
   const { setTimeoutTimer } = useTimer()
 
+  const [language, setLanguage] = usePreference('app.language')
   const [disableHardwareAcceleration, setDisableHardwareAcceleration] = usePreference(
     'BootConfig.app.disable_hardware_acceleration'
   )
@@ -104,6 +122,12 @@ const GeneralSettings: FC = () => {
   const [retryBackoffEnabled, setRetryBackoffEnabled] = usePreference('chat.retry.backoff_enabled')
   const [retryFallbackModelIds, setRetryFallbackModelIds] = usePreference('chat.retry.fallback_model_ids')
   const [agentLanguage, setAgentLanguage] = usePreference('agent.language')
+  const resolvedLanguage = i18n.resolvedLanguage ?? i18n.language
+  const displayLanguage = isAppLanguage(language)
+    ? language
+    : isAppLanguage(resolvedLanguage)
+      ? resolvedLanguage
+      : defaultLanguage
   const [proxyUrl, setProxyUrl] = useState<string>(storeProxyUrl)
   const [proxyBypassRules, setProxyBypassRules] = useState<string>(storeProxyBypassRules)
   const [isSavingDeveloperSettings, setIsSavingDeveloperSettings] = useState(false)
@@ -345,8 +369,44 @@ const GeneralSettings: FC = () => {
     }
   }
 
+  const onSelectLanguage = (value: string) => {
+    if (!isAppLanguage(value)) return
+
+    void i18n.changeLanguage(value)
+    void setLanguage(value)
+  }
+
   return (
     <SettingsContentColumn theme={theme}>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('common.language')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow id="setting-general-display-language" className="scroll-mt-6">
+          <SettingRowTitle>{t('settings.general.interface_language')}</SettingRowTitle>
+          <div className="w-full max-w-60 min-w-0">
+            <Select value={displayLanguage} onValueChange={onSelectLanguage}>
+              <SelectTrigger
+                size="sm"
+                className="w-full text-sm"
+                aria-label={appLanguageOptions.find((lang) => lang.value === displayLanguage)?.label}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="text-sm">
+                {appLanguageOptions.map((lang) => (
+                  <SelectItem className="text-sm" key={lang.value} value={lang.value}>
+                    <Flex className="items-center gap-2">
+                      <span role="img" aria-label={lang.flag}>
+                        {lang.flag}
+                      </span>
+                      {lang.label}
+                    </Flex>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </SettingRow>
+      </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.sections.startup')}</SettingTitle>
         <SettingDivider />
@@ -370,7 +430,6 @@ const GeneralSettings: FC = () => {
           <Switch checked={trayOnClose} onCheckedChange={(checked) => updateTrayOnClose(checked)} />
         </SettingRow>
       </SettingGroup>
-
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.sections.network')}</SettingTitle>
         <SettingDivider />
@@ -464,7 +523,6 @@ const GeneralSettings: FC = () => {
           />
         </SettingRow>
       </SettingGroup>
-
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.sections.runtime')}</SettingTitle>
         <SettingDivider />
@@ -478,12 +536,11 @@ const GeneralSettings: FC = () => {
           <Switch checked={preventSleepWhenBusy} onCheckedChange={(checked) => void setPreventSleepWhenBusy(checked)} />
         </SettingRow>
       </SettingGroup>
-
       <ContextManagementSettings />
-
       <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.general.sections.retry')}</SettingTitle>
-        <SettingDescription>{t('settings.models.retry.description')}</SettingDescription>
+        <SettingTitle className="justify-start gap-1.5">
+          {t('settings.general.sections.retry')} <HelpTooltip content={t('settings.models.retry.description')} />
+        </SettingTitle>
         <SettingDivider />
         <SettingRow id="setting-general-retry-enabled" className="scroll-mt-6">
           <SettingRowTitle className="gap-1">
@@ -501,7 +558,7 @@ const GeneralSettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.models.retry.max_attempts')}</SettingRowTitle>
-              <div className="w-[220px] shrink-0">
+              <div className={settingsControlClasses.field}>
                 <InputNumber
                   min={1}
                   max={10}
@@ -523,14 +580,14 @@ const GeneralSettings: FC = () => {
               />
             </SettingRow>
             <SettingDivider />
-            <SettingRow className="items-start gap-6">
+            <SettingRow className="gap-6">
               <div className="min-w-0 flex-1">
-                <SettingRowTitle>{t('settings.models.retry.fallback_models')}</SettingRowTitle>
-                <SettingDescription className="mt-1.5 leading-5">
-                  {t('settings.models.retry.fallback_models_description')}
-                </SettingDescription>
+                <SettingRowTitle className="flex items-center gap-1.5">
+                  {t('settings.models.retry.fallback_models')}{' '}
+                  <HelpTooltip content={t('settings.models.retry.fallback_models_description')} />
+                </SettingRowTitle>
               </div>
-              <div className="flex w-[220px] min-w-0 shrink-0 items-center">
+              <div className={`flex min-w-0 items-center ${settingsControlClasses.model}`}>
                 <ModelSelector
                   multiple={true}
                   selectionType="id"
@@ -557,7 +614,6 @@ const GeneralSettings: FC = () => {
           </>
         )}
       </SettingGroup>
-
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.sections.agent')}</SettingTitle>
         <SettingDivider />
@@ -581,10 +637,10 @@ const GeneralSettings: FC = () => {
         <SettingDivider />
         <SettingRow id="setting-general-commit-attribution" className="scroll-mt-6 flex-nowrap">
           <div className="min-w-0 flex-1">
-            <SettingRowTitle id="commit-attribution-title">
-              {t('settings.general.commit_attribution.title')}
+            <SettingRowTitle className="flex items-center gap-1.5">
+              <span id="commit-attribution-title">{t('settings.general.commit_attribution.title')}</span>
+              <HelpTooltip content={t('settings.general.commit_attribution.description')} />
             </SettingRowTitle>
-            <SettingDescription>{t('settings.general.commit_attribution.description')}</SettingDescription>
           </div>
           <Switch
             checked={commitAttribution}
@@ -593,7 +649,6 @@ const GeneralSettings: FC = () => {
           />
         </SettingRow>
       </SettingGroup>
-
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.sections.developer')}</SettingTitle>
         <SettingDivider />

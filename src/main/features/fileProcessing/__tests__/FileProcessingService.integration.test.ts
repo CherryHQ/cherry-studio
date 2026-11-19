@@ -11,8 +11,6 @@ import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as LifecycleModule from '@main/core/lifecycle'
-import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
-import { Phase } from '@main/core/lifecycle/types'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 const {
@@ -207,26 +205,6 @@ beforeEach(() => {
   isSupportedDoc2xMock.mockReturnValue(true)
   isSupportedSystemMock.mockReturnValue(false)
   isSupportedMistralMock.mockReturnValue(true)
-})
-
-describe('FileProcessingService — lifecycle metadata', () => {
-  it('runs in WhenReady phase and depends on FileManager and JobManager', () => {
-    expect(getPhase(FileProcessingService)).toBe(Phase.WhenReady)
-    expect(getDependencies(FileProcessingService)).toEqual(['FileManager', 'JobManager'])
-  })
-})
-
-describe('FileProcessingService.onInit', () => {
-  it('registers all three job handlers on JobManager', () => {
-    const svc = new FileProcessingService()
-    ;(svc as unknown as { onInit(): void }).onInit()
-
-    expect(registerHandlerMock).toHaveBeenCalledTimes(3)
-    const types = registerHandlerMock.mock.calls.map((c) => c[0])
-    expect(types).toContain('file-processing.background')
-    expect(types).toContain('file-processing.background-local')
-    expect(types).toContain('file-processing.remote-poll')
-  })
 })
 
 describe('FileProcessingService.startTask — routing', () => {

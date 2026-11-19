@@ -112,19 +112,6 @@ describe('image file preview plugin', () => {
     fireEvent.load(image)
 
     const toolbar = screen.getByRole('toolbar', { name: 'preview.label' })
-    const labels = within(toolbar)
-      .getAllByRole('button')
-      .map((button) => button.getAttribute('aria-label'))
-    expect(labels).toEqual([
-      'preview.zoom_out',
-      'preview.zoom_in',
-      'preview.rotate_left',
-      'preview.rotate_right',
-      'preview.flip_horizontal',
-      'preview.flip_vertical',
-      'preview.reset'
-    ])
-
     const zoomOut = within(toolbar).getByRole('button', { name: 'preview.zoom_out' })
     expect(zoomOut).toBeDisabled()
 

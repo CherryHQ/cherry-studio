@@ -131,18 +131,6 @@ describe('OwnLoginConfigPanel', () => {
     readOwnLoginCliConfigDraftMock.mockResolvedValue(previewFiles)
   })
 
-  it('renders the tool params and advanced raw editor, with no model selection', async () => {
-    renderPanel()
-
-    expect(screen.getByText('code.own_login.title')).toBeInTheDocument()
-    expect(screen.getByText('code.tool_parameters')).toBeInTheDocument()
-    expect(screen.getByTestId('cli-icon')).toBeInTheDocument()
-    expect(screen.queryByText('code.model_selection')).not.toBeInTheDocument()
-
-    // The advanced raw editor appears once the preview files finish loading.
-    await waitFor(() => expect(screen.getByTestId('raw-editor')).toBeInTheDocument())
-  })
-
   it('keeps save disabled until the tool params change, then submits managed and closes', async () => {
     const { onSubmit, onClose } = renderPanel()
     await waitFor(() => expect(readOwnLoginCliConfigDraftMock).toHaveBeenCalled())

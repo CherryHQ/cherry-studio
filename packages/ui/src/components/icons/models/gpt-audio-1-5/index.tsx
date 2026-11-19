@@ -9,7 +9,7 @@ const GptAudio15 = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const GptAudio15Icon: CompoundIcon = /*#__PURE__*/ Object.assign(GptAudio15, {
   Avatar: GptAudio15Avatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#a3afc8'
 })
 
 export default GptAudio15Icon
