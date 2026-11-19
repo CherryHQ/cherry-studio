@@ -26,6 +26,7 @@ import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { t } from '@main/i18n'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
+import type { RetryPartData } from '@shared/data/types/uiParts'
 import { AsyncEventQueue } from '@shared/utils/async'
 
 import { buildAgentUserContent } from '../agentUserContent'
@@ -130,6 +131,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     (event) => this.events.push(event)
   )
   private readonly adapter = new PiMessageMetadata((name) => this.desktop?.mcp.metadata.get(name))
+  private retryUpdates: Promise<void> = Promise.resolve()
   private projection?: ThreadProjection
 
   constructor(
@@ -157,6 +159,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
             this.recordUsage(usage)
           }
         },
+        retry: (event, sessionId) => this.onModelRetry(event, sessionId),
         placed: (inputId) => {
           if (inputId && this.steers.has(inputId)) this.input.onSteerInjected?.([inputId])
         }
@@ -516,6 +519,24 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     const child = this.children.get(this.childKey(id))
     if (child?.state === 'releasing') return undefined
     return child?.state === 'opening' ? child.pending : child?.resource
+  }
+
+  private onModelRetry(event: RetryPartData, sessionId: string): void {
+    this.retryUpdates = this.retryUpdates
+      .then(async () => {
+        if (this.closing) return
+        if (sessionId === this.providerSessionId) {
+          this.events.push({ type: 'chunk', chunk: { type: 'data-retry', id: 'retry', data: event } })
+        } else {
+          for (const child of await this.childResources()) {
+            if ((await child.handle.durable.providerSessionId()) === sessionId) {
+              child.projection.retry(event)
+              break
+            }
+          }
+        }
+      })
+      .catch((error) => logger.warn('Failed to project model retry status', { error }))
   }
 
   private async childResources(): Promise<DurableChildResource[]> {
