@@ -3287,6 +3287,8 @@ describe('AgentSessionRuntimeService', () => {
           event: 'notification',
           taskId: 'bg-1',
           status: 'completed',
+          title: undefined,
+          taskType: undefined,
           summary: 'long prose…',
           outputFile: '/tmp/o'
         }
