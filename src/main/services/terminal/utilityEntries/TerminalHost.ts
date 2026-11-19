@@ -34,6 +34,7 @@ interface Resource {
   deadline?: ReturnType<typeof setTimeout>
   writes: number
   writeBytes: number
+  replies: string
 }
 interface Operation {
   signature: string
@@ -295,6 +296,7 @@ export class TerminalHost {
       capture,
       writes: 0,
       writeBytes: 0,
+      replies: '',
       backend: new ManagedProcess({
         id: command.id,
         helperFile: this.init.helperFile,
@@ -349,14 +351,12 @@ export class TerminalHost {
             cursor: { r: 255, g: 255, b: 255 }
           },
           onPtyData: (data) => {
-            void this.write(resource, data).then(
-              (written) => {
-                if (!written) void this.stop(resource, 'host_stopped')
-              },
-              () => {
-                void this.stop(resource, 'host_stopped')
-              }
-            )
+            if (Buffer.byteLength(resource.replies) + Buffer.byteLength(data) > 64 * 1024) {
+              void this.stop(resource, 'host_stopped')
+              return
+            }
+            resource.replies += data
+            queueMicrotask(() => this.flushReplies(resource))
           }
         })
       }
@@ -388,6 +388,13 @@ export class TerminalHost {
     return this.result(resource)
   }
 
+  private flushReplies(resource: Resource): void {
+    if (!resource.replies || resource.writes >= 2 || resource.state.cleanup !== 'none') return
+    const data = resource.replies
+    resource.replies = ''
+    void this.write(resource, data).catch(() => this.stop(resource, 'host_stopped'))
+  }
+
   private async write(resource: Resource, data: string): Promise<boolean> {
     const bytes = Buffer.byteLength(data)
     if (bytes > 64 * 1024 || resource.writes >= 2 || resource.writeBytes + bytes > 128 * 1024) return false
@@ -399,6 +406,7 @@ export class TerminalHost {
     } finally {
       resource.writes--
       resource.writeBytes -= bytes
+      this.flushReplies(resource)
     }
   }
 

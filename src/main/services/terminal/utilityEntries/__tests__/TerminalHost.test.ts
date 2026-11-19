@@ -92,6 +92,42 @@ describe('TerminalCapture', () => {
 describe.skipIf(process.platform === 'win32')('TerminalHost real executions', () => {
   beforeAll(() => execFileSync('node', ['native/terminal-scope/build.cjs'], { cwd: root }))
 
+  it('answers a burst of terminal queries without closing the PTY', async () => {
+    const item = createHost()
+    const id = terminalResourceId.parse(randomUUID())
+    try {
+      await item.run({ kind: 'bind', context })
+      await item.run({
+        kind: 'start',
+        id,
+        context,
+        retention: { kind: 'session' },
+        launch: {
+          kind: 'pty',
+          shell: 'bash',
+          file: '/bin/bash',
+          args: [
+            '--noprofile',
+            '--norc',
+            '-c',
+            "stty raw -echo; printf '\\033[6n%.0s' {1..50}; IFS= read -r -n 300 reply; [[ ${#reply} == 300 ]] && printf REPLIES_RECEIVED"
+          ],
+          cwd: root,
+          env: { PATH: '/usr/bin:/bin' },
+          cols: 80,
+          rows: 24
+        }
+      })
+      await expect
+        .poll(() => Buffer.from(item.host.read(item.host.init.host, id, 0, 4096).data).toString())
+        .toContain('REPLIES_RECEIVED')
+      await expect.poll(() => item.states.get(id)?.cleanup).toBe('confirmed')
+      expect(item.states.get(id)?.process).toMatchObject({ kind: 'exited', exitCode: 0 })
+    } finally {
+      await item.dispose()
+    }
+  })
+
   it('deduplicates a lost acknowledgement and rejects changed payload under the same identity', async () => {
     const item = createHost()
     try {
