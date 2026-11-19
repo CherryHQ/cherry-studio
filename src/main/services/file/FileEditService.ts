@@ -192,6 +192,7 @@ export class FileEditService extends BaseService {
     return new IpcError(fileErrorCodes.EDIT_LEASE_CLOSED, 'File edit lease is unavailable')
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Open/read/write catches include filesystem and metadata-commit failures; log the original value before returning its stable IPC error.
   private reportFailure(error: unknown, operation: string, externalPath: boolean): IpcError {
     const failure = this.normalize(error)
     const classifiedError =
@@ -201,6 +202,7 @@ export class FileEditService extends BaseService {
     return failure
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Filesystem and atomic-write failures have no common thrown type; recognize stale-version and I/O codes without exposing paths in IPC messages.
   private normalize(error: unknown): IpcError {
     if (error instanceof IpcError) return error
     if (error instanceof PathStaleVersionError || error instanceof StaleVersionError) {

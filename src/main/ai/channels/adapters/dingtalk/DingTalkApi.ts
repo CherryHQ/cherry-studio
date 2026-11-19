@@ -14,11 +14,11 @@ const API = 'https://api.dingtalk.com'
 export const DINGTALK_FILE_BYTES = 20 * 1024 * 1024
 export type DingTalkWebhook = { url: string; expiresAt: number }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- DingTalk response JSON has endpoint-specific nested results; inspect failure flags recursively before each endpoint validates its own response fields.
 function failedResult(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
   if (Array.isArray(value)) return value.some(failedResult)
-  const data = value as Record<string, unknown>
-  return data.success === false || Object.values(data).some(failedResult)
+  return ('success' in value && value.success === false) || Object.values(value).some(failedResult)
 }
 
 export class DingTalkApi {
@@ -30,6 +30,7 @@ export class DingTalkApi {
     private readonly signal: AbortSignal
   ) {}
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- This transport serializes endpoint-owned payloads, including optional config fields, or sends upload FormData without changing its bytes.
   private async request(url: string, body: unknown, token?: string, method = 'POST'): Promise<Record<string, unknown>> {
     this.signal.throwIfAborted()
     try {
@@ -100,6 +101,7 @@ export class DingTalkApi {
     })
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Authenticated endpoints provide different JSON payload shapes; forward them unchanged to the common serializer after acquiring the token.
   private async call(path: string, body: unknown, method = 'POST') {
     return this.request(`${API}${path}`, body, await this.accessToken(), method)
   }

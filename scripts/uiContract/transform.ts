@@ -3,8 +3,10 @@ import MagicString from 'magic-string'
 import {
   type JSXAttribute,
   type JSXElementName,
+  type JSXExpression,
   type JSXOpeningElement,
   type JSXSpreadAttribute,
+  type MemberExpression,
   parseSync,
   type Span
 } from 'oxc-parser'
@@ -96,15 +98,10 @@ function jsxName(name: JSXElementName): string {
   return `${jsxName(name.object)}.${name.property.name}`
 }
 
-function directHandlerIdentifier(value: unknown): string | undefined {
-  if (!isRecord(value)) return undefined
-  if (value.type === 'Identifier' && typeof value.name === 'string') return value.name
-  if ((value.type === 'MemberExpression' || value.type === 'OptionalMemberExpression') && isRecord(value.property)) {
-    return directHandlerIdentifier(value.property)
-  }
-  if (value.type === 'ChainExpression' && isRecord(value.expression)) {
-    return directHandlerIdentifier(value.expression)
-  }
+function directHandlerIdentifier(value: JSXExpression | MemberExpression['property']): string | undefined {
+  if (value.type === 'Identifier') return value.name
+  if (value.type === 'MemberExpression') return directHandlerIdentifier(value.property)
+  if (value.type === 'ChainExpression') return directHandlerIdentifier(value.expression)
   return undefined
 }
 
@@ -260,6 +257,7 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     return source.slice(spanToCharacter(span.start), spanToCharacter(span.end))
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Closing elements also arrive through generic AST property traversal; require numeric offsets before passing them to source edits.
   function requiredSpan(value: unknown, description: string): Span {
     if (!isRecord(value) || typeof value.start !== 'number' || typeof value.end !== 'number') {
       throw new Error(`Missing ${description} span`)
@@ -396,6 +394,7 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
   }
 
   function walk(
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Recursive AST properties include nodes, arrays, scalar metadata and null; visit only record/array branches while preserving source spans.
     value: unknown,
     component: string,
     insideSvg = false,

@@ -2,23 +2,24 @@ import { type DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { FailureFacts } from '@shared/types/errorReporting'
 import { isCancellation } from '@shared/utils/errorReporting'
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Database calls and wrapped storage failures can throw any value; inspect bounded cause chains for recognized SQLite codes without changing the failure.
 export function classifyDatabaseFailure(error: unknown): FailureFacts {
   let cause = error
   for (let depth = 0; depth < 5 && cause && typeof cause === 'object'; depth++) {
-    const value = cause as { code?: unknown; cause?: unknown }
-    if (typeof value.code === 'string' && /^SQLITE_[A-Z_]+$/.test(value.code)) {
+    if ('code' in cause && typeof cause.code === 'string' && /^SQLITE_[A-Z_]+$/.test(cause.code)) {
       return {
         source: 'application',
-        kind: value.code.startsWith('SQLITE_CONSTRAINT') ? 'defect' : 'reliability',
-        reason: value.code.toLowerCase(),
+        kind: cause.code.startsWith('SQLITE_CONSTRAINT') ? 'defect' : 'reliability',
+        reason: cause.code.toLowerCase(),
         outcome: 'failed'
       }
     }
-    cause = value.cause
+    cause = 'cause' in cause ? cause.cause : undefined
   }
   return { source: 'application', kind: 'reliability', reason: 'database_failed', outcome: 'failed' }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- ApiServer and middleware catches retain the original rejection beside its normalized DataApiError so cancellation and driver causes remain classifiable.
 export function classifyDataApiFailure(error: unknown, apiError: DataApiError): FailureFacts {
   if (isCancellation(error)) {
     return { source: 'application', kind: 'expected', reason: 'cancelled', outcome: 'cancelled' }

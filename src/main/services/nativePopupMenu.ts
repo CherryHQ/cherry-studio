@@ -145,7 +145,9 @@ const toNativeMenuItems = (
 
 export function showNativePopupMenu(
   event: IpcMainInvokeEvent,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- CommandService forwards the raw renderer menu; validate its allowed location and every item before building an Electron menu.
   model: unknown,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Renderer popup coordinates are unparsed IPC data; accept only the optional numeric anchor recognized below.
   anchor: unknown,
   executeCommand: ExecuteCommand
 ): Promise<NativePopupMenuResult<CommandId> | undefined> {
