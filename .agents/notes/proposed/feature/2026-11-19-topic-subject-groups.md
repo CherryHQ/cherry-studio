@@ -8,7 +8,7 @@ English | [中文](2026-11-19-topic-subject-groups.zh.md)
 
 Topics can only be browsed by time or by assistant. The assistant is the last-used configuration, not the subject of a conversation, so one "study" assistant spans unrelated subjects (English, Python, fitness). Issue CherryHQ/cherry-studio#18237 asks for user-created subject groups that are independent of assistants.
 
-## Decision
+## Proposal
 
 Add a nullable `topic.group_id` column referencing the shared `group` table (`entityType: 'topic'`, `ON DELETE SET NULL`). A topic belongs to at most one subject group. The sidebar gains a `subject` display mode next to `time` and `assistant`.
 
@@ -31,15 +31,21 @@ Add a nullable `topic.group_id` column referencing the shared `group` table (`en
 
 ## Acceptance criteria
 
-- AC1: Users create, rename, reorder, and delete topic groups.
-- AC2: A topic can be assigned to a group and moved between groups.
-- AC3: Membership persists across restarts and backup/restore.
-- AC4: Grouping is independent of the topic's assistant.
-- AC5: Ungrouped topics appear in an "Ungrouped" section.
-- AC6: Deleting a group does not delete its topics.
-- AC7: The topic sidebar offers a subject display mode next to time and assistant.
+- AC1 — Users create, rename, reorder, and delete topic groups (verification: implementation)
+- AC2 — A topic can be assigned to a group and moved between groups (verification: implementation)
+- AC3 — Membership persists across restarts and backup/restore (verification: implementation)
+- AC4 — Grouping is independent of the topic's assistant (verification: implementation)
+- AC5 — Ungrouped topics appear in an "Ungrouped" section (verification: implementation)
+- AC6 — Deleting a group does not delete its topics (verification: implementation)
+- AC7 — The topic sidebar offers a subject display mode next to time and assistant (verification: implementation)
 
 Reordering of groups (AC1) is not in the current implementation; it is an open item.
+
+## Risks
+
+- Group reorder (AC1) is not yet implemented; shipping without it leaves an acceptance gap.
+- The hand-corrected migration SQL (`ON DELETE SET NULL`) can drift from Drizzle's generated DDL on regeneration.
+- One group per topic may not fit multi-subject conversations; migration to tag-based membership would need a data move.
 
 ## Verification
 
