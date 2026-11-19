@@ -1,3 +1,4 @@
+import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode, Ref } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -155,6 +156,38 @@ describe('ModelSelectorDetailCard', () => {
     mockHoverCardContentProps.length = 0
     mockHoverCardProps.length = 0
     mockHoverCardOpenChange.current = undefined
+  })
+
+  it('renders the Codex account identity in the detail card', () => {
+    mockUseQuery.mockImplementation(
+      (path, options) =>
+        ({
+          data:
+            path === '/providers/:providerId/auth-config'
+              ? {
+                  accountId:
+                    (options as { params?: { providerId?: string } } | undefined)?.params?.providerId === 'first'
+                      ? 'account-a'
+                      : 'account-b'
+                }
+              : null
+        }) as never
+    )
+    const item = makeItem(makeModel())
+    const first = { ...provider, id: 'first', name: 'Shared', presetProviderId: 'openai-codex' }
+    const second = { ...first, id: 'second' }
+    const { rerender } = render(
+      <ModelSelectorDetailCard item={{ ...item, provider: first }} provider={first}>
+        <span>row</span>
+      </ModelSelectorDetailCard>
+    )
+    expect(screen.getByText('Shared · account-a')).toBeInTheDocument()
+    rerender(
+      <ModelSelectorDetailCard item={{ ...item, provider: second }} provider={second}>
+        <span>row</span>
+      </ModelSelectorDetailCard>
+    )
+    expect(screen.getByText('Shared · account-b')).toBeInTheDocument()
   })
 
   it('renders a caller-provided model description', () => {

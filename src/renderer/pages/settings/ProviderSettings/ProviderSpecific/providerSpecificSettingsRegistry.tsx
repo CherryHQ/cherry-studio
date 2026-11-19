@@ -1,7 +1,7 @@
 import { lazy, type ReactNode } from 'react'
 
 import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
-import { isCodexProviderId } from '@shared/data/presets/codex'
+import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import { isGrokCliProviderId } from '@shared/data/presets/grokCli'
 import type { Provider } from '@shared/data/types/provider'
 import {
@@ -74,7 +74,7 @@ export const PROVIDER_SPECIFIC_SETTINGS_REGISTRY: Record<ProviderSpecificPlaceme
     },
     {
       key: 'codex-oauth',
-      when: ({ provider }) => isCodexProviderId(provider.id),
+      when: ({ provider }) => matchesPreset(provider, OPENAI_CODEX_PROVIDER_ID),
       render: (providerId) => <LoginOauthPanel providerId={providerId} i18nNs="codex" showAccountId />
     },
     {

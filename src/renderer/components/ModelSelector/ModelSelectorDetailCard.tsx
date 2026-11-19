@@ -9,8 +9,8 @@ import { deriveThinkingOptions } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
+import { ProviderIdentity } from './ProviderIdentity'
 import type { ModelSelectorModelItem } from './types'
-import { getProviderDisplayName } from './utils'
 
 type HoverCardPortalContainer = ComponentPropsWithoutRef<typeof HoverCardContent>['portalContainer']
 type HoverCardSide = NonNullable<ComponentPropsWithoutRef<typeof HoverCardContent>['side']>
@@ -135,7 +135,7 @@ export function ModelSelectorDetailCardContent({
 }: {
   name: string
   modelIdentifier: string
-  providerName: string
+  providerName: ReactNode
   tags: readonly ModelDisplayTag[]
   model?: Model
   description?: ReactNode
@@ -222,7 +222,7 @@ export const ModelSelectorDetailCard = memo(function ModelSelectorDetailCard({
         <ModelSelectorDetailCardContent
           name={item.model.name}
           modelIdentifier={item.modelIdentifier}
-          providerName={getProviderDisplayName(provider)}
+          providerName={<ProviderIdentity provider={provider} />}
           tags={resolvedTags}
           model={item.model}
           description={description}

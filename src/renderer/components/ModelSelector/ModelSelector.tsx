@@ -36,6 +36,7 @@ import { SelectorShell } from '../SelectorShell'
 import type { ModelSelectorTag } from './filters'
 import { ModelSelectorDetailCard, ModelSelectorHoverCard } from './ModelSelectorDetailCard'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
+import { ProviderIdentity, useProviderIdentityLabel } from './ProviderIdentity'
 import { computeCollapsedSelection, computeToggledSelection } from './selection'
 import type {
   FlatListItem,
@@ -47,7 +48,6 @@ import type {
 } from './types'
 import { useModelListKeyboardNav } from './useModelListKeyboardNav'
 import { useModelSelectorData } from './useModelSelectorData'
-import { getProviderDisplayName } from './utils'
 
 const logger = loggerService.withContext('ModelSelector')
 
@@ -225,14 +225,15 @@ function ModelRow({
 }) {
   const icon = useIcon(getModelLogoRef(item.model, item.provider.id))
   const [nameRef, isNameOverflowing] = useTextOverflow<HTMLSpanElement>()
-  const providerName = getProviderDisplayName(item.provider)
-  const disambiguationLabel = item.showIdentifier
-    ? item.groupKind === 'pinned'
-      ? `${providerName} · ${item.modelIdentifier}`
-      : item.modelIdentifier
-    : item.groupKind === 'pinned'
-      ? providerName
-      : undefined
+  const providerLabel = useProviderIdentityLabel(item.provider)
+  const disambiguationLabel =
+    item.groupKind === 'pinned'
+      ? item.showIdentifier
+        ? `${providerLabel} · ${item.modelIdentifier}`
+        : providerLabel
+      : item.showIdentifier
+        ? item.modelIdentifier
+        : undefined
   const hasDescription = description != null && description !== '' && typeof description !== 'boolean'
   const descriptionId = hasDescription ? `${optionId}-description` : undefined
 
@@ -919,7 +920,13 @@ export function ModelSelector(props: ModelSelectorProps) {
     (item: FlatListItem, detailPortalContainer?: SelectorShellLayout['portalContainer']) => {
       if (item.type === 'group') {
         const groupTitle =
-          item.groupKind === 'pinned' ? t('models.pinned') : item.provider ? getProviderDisplayName(item.provider) : ''
+          item.groupKind === 'pinned' ? (
+            t('models.pinned')
+          ) : item.provider ? (
+            <ProviderIdentity provider={item.provider} />
+          ) : (
+            ''
+          )
         // Ends where the row tags end: rows keep a pin slot plus gap (20px) inside 6px of padding.
         const groupActionInset = showPinActions && 'mr-2.5'
 
