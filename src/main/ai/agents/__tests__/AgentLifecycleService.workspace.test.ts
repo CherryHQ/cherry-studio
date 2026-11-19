@@ -859,20 +859,49 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     expect(existsSync(pending)).toBe(false)
   })
 
-  it('commits the business archive and the archive task atomically', async () => {
-    // AC2: the trash write and the task enqueue share one transaction — a
-    // rollback drops both.
-    expect(() =>
-      dbh.db.transaction((tx) => {
-        agentSessionService.trashByIdsTx(tx, ['system'])
-        throw new Error('roll back the archive')
-      })
-    ).toThrow('roll back the archive')
-    expect(
-      dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
-    ).toBeNull()
-    expect(mocks.enqueueTx).toHaveBeenCalledTimes(1)
+  /** Make the JobManager stub write a real job row through the caller's transaction. */
+  const insertJobThroughTx = (observed: { visibleInTx?: boolean } = {}) =>
+    mocks.enqueueTx.mockImplementation((tx: typeof dbh.db, type: string, input: { sessionId: string }) => {
+      tx.insert(jobTable)
+        .values({
+          type,
+          status: 'pending',
+          queue: 'agent.workspace-archive',
+          idempotencyKey: 'archive-system-workspace:' + input.sessionId,
+          scheduledAt: 0,
+          input,
+          metadata: {}
+        })
+        .run()
+      observed.visibleInTx = tx.select().from(jobTable).all().length === 1
+    })
+
+  const sessionDeletedAt = () =>
+    dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
+
+  it('rolls the business archive and the job row back together', async () => {
+    // AC2: the lifecycle layer enqueues through the trash transaction, so a
+    // failure after the job row is written reverts both.
+    const observed: { visibleInTx?: boolean } = {}
+    insertJobThroughTx(observed)
+    const original = mocks.enqueueTx.getMockImplementation()!
+    mocks.enqueueTx.mockImplementation((...args: Parameters<typeof original>) => {
+      original(...args)
+      throw new Error('roll back the archive')
+    })
+    await expect(lifecycle.archiveSessions(['system'])).rejects.toThrow('roll back the archive')
+    expect(observed.visibleInTx).toBe(true)
+    expect(sessionDeletedAt()).toBeNull()
     expect(dbh.db.select().from(jobTable).all()).toHaveLength(0)
+  })
+
+  it('persists the business archive and the job row together on commit', async () => {
+    const observed: { visibleInTx?: boolean } = {}
+    insertJobThroughTx(observed)
+    await lifecycle.archiveSessions(['system'])
+    expect(observed.visibleInTx).toBe(true)
+    expect(sessionDeletedAt()).not.toBeNull()
+    expect(dbh.db.select().from(jobTable).all()).toHaveLength(1)
   })
 
   const seedArchiveJob = (status: 'pending' | 'running') => {
@@ -928,6 +957,29 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     expect(
       dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'system')).get()?.deletedAt
     ).toBeNull()
+  })
+
+  it('cancels an archive task that falls back to a retry wait while undo is waiting', async () => {
+    // A failed pack re-queues the same task as delayed; it no longer holds the
+    // workspace, so undo cancels it instead of waiting out the full timeout.
+    await lifecycle.archiveSessions(['system'])
+    seedArchiveJob('running')
+    const timer = setTimeout(() => {
+      dbh.db
+        .update(jobTable)
+        .set({ status: 'delayed' })
+        .where(eq(jobTable.idempotencyKey, 'archive-system-workspace:system'))
+        .run()
+    }, 200)
+    const started = Date.now()
+    try {
+      await lifecycle.restoreSession('system')
+    } finally {
+      clearTimeout(timer)
+    }
+    expect(Date.now() - started).toBeLessThan(2_000)
+    expect(mocks.cancelJob).toHaveBeenCalledTimes(1)
+    expect(sessionDeletedAt()).toBeNull()
   })
 
   it('cancels a queued archive task before purging a permanently deleted session', async () => {

@@ -2,7 +2,7 @@
  * Job handler for `agent.archive-system-workspace` — background compression of
  * an archived (trashed) root session's system workspace.
  *
- * Enqueued transactionally with the business archive state (`trashByIdsTx` via
+ * Enqueued transactionally with the business archive state (`AgentLifecycleService` via
  * `JobManager.enqueueTx`), so the archive request resolves without waiting for
  * the `tar.gz` pack and the task survives a crash after commit. The handler
  * re-reads the workspace business state and delegates every storage detail
