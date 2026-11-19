@@ -28,8 +28,7 @@ vi.mock('../shellEnv', () => ({ getShellEnv: vi.fn() }))
 
 const { killProcessTree } = await import('../processRunner')
 
-type FakeChild = { pid?: number; kill: ReturnType<typeof vi.fn> }
-const makeChild = (pid?: number): ChildProcess => ({ pid, kill: vi.fn() }) as unknown as ChildProcess
+const makeChild = (pid?: number) => ({ pid, kill: vi.fn<ChildProcess['kill']>().mockReturnValue(true) })
 
 // Stub process.kill so tests never signal a real process group; default succeeds.
 const mockProcessKill = () => vi.spyOn(process, 'kill').mockReturnValue(true)
@@ -51,7 +50,7 @@ describe('killProcessTree', () => {
     const child = makeChild(4242)
     killProcessTree(child)
     expect(processKillSpy).toHaveBeenCalledWith(-4242, 'SIGTERM')
-    expect((child as unknown as FakeChild).kill).not.toHaveBeenCalled()
+    expect(child.kill).not.toHaveBeenCalled()
     expect(execFileMock).not.toHaveBeenCalled()
   })
 
@@ -62,14 +61,14 @@ describe('killProcessTree', () => {
     const child = makeChild(4242)
     killProcessTree(child)
     expect(processKillSpy).toHaveBeenCalledWith(-4242, 'SIGTERM')
-    expect((child as unknown as FakeChild).kill).toHaveBeenCalledTimes(1)
+    expect(child.kill).toHaveBeenCalledTimes(1)
   })
 
   it('kills directly when a non-Windows child has no pid', () => {
     const child = makeChild(undefined)
     killProcessTree(child)
     expect(processKillSpy).not.toHaveBeenCalled()
-    expect((child as unknown as FakeChild).kill).toHaveBeenCalledTimes(1)
+    expect(child.kill).toHaveBeenCalledTimes(1)
   })
 
   it('force-kills the whole tree via taskkill /T /F on Windows', () => {
@@ -77,7 +76,7 @@ describe('killProcessTree', () => {
     const child = makeChild(4242)
     killProcessTree(child)
     expect(execFileMock).toHaveBeenCalledWith('taskkill', ['/PID', '4242', '/T', '/F'], expect.any(Function))
-    expect((child as unknown as FakeChild).kill).not.toHaveBeenCalled()
+    expect(child.kill).not.toHaveBeenCalled()
   })
 
   it('falls back to child.kill() when taskkill reports an error on Windows', () => {
@@ -86,7 +85,7 @@ describe('killProcessTree', () => {
     killProcessTree(child)
     const callback = execFileMock.mock.calls[0][2] as (error: Error | null) => void
     callback(new Error('ERROR: The process 4242 not found.'))
-    expect((child as unknown as FakeChild).kill).toHaveBeenCalledTimes(1)
+    expect(child.kill).toHaveBeenCalledTimes(1)
   })
 
   it('kills directly when a Windows child has no pid', () => {
@@ -94,6 +93,6 @@ describe('killProcessTree', () => {
     const child = makeChild(undefined)
     killProcessTree(child)
     expect(execFileMock).not.toHaveBeenCalled()
-    expect((child as unknown as FakeChild).kill).toHaveBeenCalledTimes(1)
+    expect(child.kill).toHaveBeenCalledTimes(1)
   })
 })

@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import type { Readable } from 'node:stream'
 import { StringDecoder } from 'node:string_decoder'
@@ -144,7 +144,7 @@ class ManagedClaudeCodeProcess implements SpawnedProcess {
   kill(signal: NodeJS.Signals): boolean {
     // Windows has no signal-driven process-group cleanup, so a plain kill orphans the CLI's descendants.
     if (process.platform === 'win32' && this.child.pid !== undefined) {
-      killProcessTree(this.child as unknown as ChildProcess)
+      killProcessTree({ pid: this.child.pid, kill: () => this.child.kill('SIGTERM') })
       return true
     }
     return this.child.kill(signal)
