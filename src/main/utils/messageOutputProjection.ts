@@ -83,6 +83,7 @@ function toCitationGrepMatches(matches: KbGrepMatch[]): KbGrepMatch[] {
 
 /** Keep only the schema-valid fields and bounded snippets needed to render citations. */
 function toCitationPayloadSkeleton(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Live and stored tool outputs have tool-specific shapes; only the matching citation schema may supply a bounded preview.
   output: unknown
 ): WebSearchOutput | KbSearchOutput | KbReadOutput | KbGrepOutput | undefined {
   const web = webSearchOutputSchema.safeParse(output)
@@ -115,6 +116,7 @@ function toCitationPayloadSkeleton(
  * Extract a citation skeleton from schema-valid builtin output or an MCP envelope
  * attributed to Cherry Tools by its server id or user-visible server name.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Historical MCP envelopes and builtin outputs differ; check attribution fields and validate their payload before retaining citation content.
 function toCitationSkeleton(output: unknown) {
   if (!isRecord(output) || !isRecord(output.metadata)) return toCitationPayloadSkeleton(output)
 
@@ -139,6 +141,7 @@ function toCitationSkeleton(output: unknown) {
 }
 
 /** Serialize an oversized payload for reuse in transport checks and revision hashing. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- SDK outputs may contain cycles or custom serializers; measure the actual serialized payload and leave nonserializable values inline.
 function serializeOversizedToolOutput(output: unknown): string | undefined {
   if (output === undefined || output === null) return undefined
   try {
@@ -152,11 +155,13 @@ function serializeOversizedToolOutput(output: unknown): string | undefined {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- UIMessageChunk carries arbitrary tool output; inspect deferred envelopes and serialized size before choosing transport.
 export function shouldDeferToolOutput(output: unknown): boolean {
   if (output === undefined || output === null || isDeferredToolOutput(output)) return false
   return serializeOversizedToolOutput(output) !== undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw outputs and persisted skeletons reach this projection; citation schemas and the transport byte budget govern what may be retained.
 function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): DeferredToolOutput {
   const skeleton = toCitationSkeleton(output)
   if (skeleton === undefined) return deferred
@@ -183,6 +188,7 @@ function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): De
   return deferred
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored message parts and live SDK chunks expose opaque outputs; recognize persisted/deferred envelopes before serializing and hashing a reference.
 function createDeferredToolOutput(output: unknown, ref: DeferredToolResultRef): DeferredToolOutput | undefined {
   const isPersisted = isPersistedToolOutput(output)
   if (!isPersisted && isDeferredToolOutput(output)) return undefined
