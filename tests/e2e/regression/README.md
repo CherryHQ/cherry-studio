@@ -51,6 +51,13 @@ module task also includes the implemented knowledge case-library scenarios.
 - `MP-39` checks the `Estimated` label and the exact USD amount separately in the matching Usage row, alongside the token count, time to first token, and generation speed.
 - `MP-79` exports a real note, waits for BM25 indexing, and checks retrieval through both the knowledge API and Chat. The mock model recognizes the recall prompt with the composer’s appended knowledge-base context, searches the case-owned base, and quotes the marker and citation ID from the retrieved note. Re-exporting the note must create a second ready source while preserving the first.
 
+### Code preview, settings, and file library
+
+- `MP-10` and `MP-40` reopen the conversation sidebar after reload when needed and reveal their assistant in the virtualized list. `MP-40` then positions the code preview inside the message list and measures wheel scrolling in the list and preview separately.
+- `MP-107` opens Settings through the sidebar account trigger, which can display a profile name. The case verifies the keyboard bindings, long-paste attachment, delete confirmation, and persisted preferences.
+- `MP-68` reconnects to the controller-owned profile for file cleanup if a restart closes the original page. See the [controller shutdown contract](../../../scripts/e2e/regression/README.md#responsibilities) for the Windows CDP release check. `MP-70` uses case-specific file names so its open and reveal actions resolve to the files it imported.
+- `CODE-03` reports an OpenClaw launch error displayed by the app while waiting for the gateway. It still requires the real gateway and dashboard to start.
+
 ## Adding or selecting a case
 
 1. Add the case to `scripts/e2e/regression/cases.ts`, including its phase, module and focused `tasks`, and required capabilities. Task IDs remain English kebab-case and are independent of phase IDs.

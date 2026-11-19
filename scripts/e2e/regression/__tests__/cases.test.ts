@@ -149,6 +149,13 @@ describe('regression execution plan', () => {
     ['marketplace-smoke', ['MARKET-01']],
     ['scheduled-tasks', ['MP-58']],
     ['chat-error-recovery', ['MP-17']],
+    ['chat-web-tools', ['MP-10', 'MP-35']],
+    ['message-token-details', ['MP-39']],
+    ['code-block-toolbar', ['MP-40']],
+    ['note-knowledge-export', ['MP-79']],
+    ['message-input-settings', ['MP-107']],
+    ['file-library-upload', ['MP-68']],
+    ['file-library-preview', ['MP-70']],
     ['native-recovery', ['MP-110', 'MP-116']],
     ['native-notifications', ['MP-110']],
     ['cherryin-chat', ['M-01']]

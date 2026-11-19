@@ -340,7 +340,7 @@ export const REGRESSION_CASES = [
     phase: 'chatCore',
     capabilities: ['desktopAutomation', 'screenCapture']
   },
-  { id: 'MP-10', title: 'Web search', tasks: ['chat-core'], phase: 'chatCore', capabilities: [] },
+  { id: 'MP-10', title: 'Web search', tasks: ['chat-core', 'chat-web-tools'], phase: 'chatCore', capabilities: [] },
   {
     id: 'MP-16',
     title: 'Polish prompts',
@@ -404,7 +404,13 @@ export const REGRESSION_CASES = [
     phase: 'chatCore',
     capabilities: []
   },
-  { id: 'MP-35', title: 'Web search and URL fetching', tasks: ['chat-core'], phase: 'chatCore', capabilities: [] },
+  {
+    id: 'MP-35',
+    title: 'Web search and URL fetching',
+    tasks: ['chat-core', 'chat-web-tools'],
+    phase: 'chatCore',
+    capabilities: []
+  },
   {
     id: 'MP-36',
     title: 'Reference MCP prompts and resources',
@@ -417,14 +423,14 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-39',
     title: 'Message token and timing details',
-    tasks: ['chat-core'],
+    tasks: ['chat-core', 'message-token-details'],
     phase: 'chatCore',
     capabilities: []
   },
   {
     id: 'MP-40',
     title: 'Code block toolbar',
-    tasks: ['chat-core'],
+    tasks: ['chat-core', 'code-block-toolbar'],
     phase: 'chatCore',
     capabilities: ['desktopAutomation']
   },
@@ -458,7 +464,13 @@ export const REGRESSION_CASES = [
     phase: 'notes',
     capabilities: []
   },
-  { id: 'MP-79', title: 'Export notes to a knowledge base', tasks: ['notes'], phase: 'notes', capabilities: [] },
+  {
+    id: 'MP-79',
+    title: 'Export notes to a knowledge base',
+    tasks: ['notes', 'note-knowledge-export'],
+    phase: 'notes',
+    capabilities: []
+  },
   {
     id: 'MP-81',
     title: 'Translation history (favorite, reuse, delete, clear)',
@@ -525,7 +537,7 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-107',
     title: 'Message and input settings',
-    tasks: ['settings'],
+    tasks: ['settings', 'message-input-settings'],
     phase: 'settings',
     capabilities: []
   },
@@ -610,7 +622,7 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-68',
     title: 'Upload files to the library',
-    tasks: ['files'],
+    tasks: ['files', 'file-library-upload'],
     phase: 'files',
     capabilities: ['desktopAutomation']
   },
@@ -618,7 +630,7 @@ export const REGRESSION_CASES = [
   {
     id: 'MP-70',
     title: 'Preview files and open their location',
-    tasks: ['files'],
+    tasks: ['files', 'file-library-preview'],
     phase: 'files',
     capabilities: ['desktopAutomation']
   },

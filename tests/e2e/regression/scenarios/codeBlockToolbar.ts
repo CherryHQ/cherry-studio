@@ -14,6 +14,7 @@ import { saveNativeFileKeepingName } from '../../../../scripts/e2e/regression/sy
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { sendChatMarker } from '../helpers/chat'
 import { selectSidebarApp } from '../helpers/navigation'
+import { revealVirtualized } from '../helpers/virtualList'
 import type { RegressionApp } from '../RegressionApp'
 
 export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
@@ -119,8 +120,11 @@ export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo:
     await page.reload()
     await selectSidebarApp(page, 'Chat')
     const chat = page.locator('[data-ui~="chat.view"]:visible')
-    await expect(chat).toBeVisible({ timeout: 30_000 })
+    const topics = chat.locator('[data-ui~="chat.topic-list"]:visible')
+    if (!(await topics.isVisible())) await chat.getByRole('button', { name: 'Show Sidebar', exact: true }).click()
+    await expect(topics).toBeVisible()
     const assistantRow = chat.locator('[data-ui~="chat.group-header"]').filter({ hasText: assistantName }).first()
+    await revealVirtualized(page, chat.locator('[data-virtual-scrolling]').first(), assistantRow)
     await expect(assistantRow).toBeVisible({ timeout: 30_000 })
     await assistantRow.hover()
     const expandButton = assistantRow.getByRole('button', { name: 'Expand', exact: true })
@@ -200,14 +204,27 @@ export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo:
     await block.getByRole('button', { name: 'Preview', exact: true }).click()
     await expect(viewer).toBeVisible()
     expect(await viewer.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
-    const previewBox = await viewer.boundingBox()
-    if (!previewBox) throw new Error('MP-40 could not measure the code preview viewport')
-    await page.mouse.move(previewBox.x + previewBox.width / 2, previewBox.y + previewBox.height / 2)
-    await page.mouse.wheel(0, 600)
-    await expect.poll(() => viewer.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
-    await attachScreenshot('MP-40 scrollable Python preview')
-
     // #24842: the preview must stay hittable while the outer list scrolls.
+    const outerStart = await viewer.evaluate((preview) => {
+      const list = preview.closest<HTMLElement>('[data-message-virtual-list-scroller]')!
+      const viewport = list.getBoundingClientRect()
+      const x = viewport.left + 8
+      const y = viewport.top + viewport.height / 2
+      const target = document.elementFromPoint(x, y)
+      if (target?.closest('[data-message-virtual-list-scroller]') !== list || target.closest('.shiki-scroller'))
+        throw new Error('MP-40 message-list gutter is unavailable')
+      return { x, y, delta: preview.getBoundingClientRect().top - viewport.top - 32 }
+    })
+    await page.mouse.move(outerStart.x, outerStart.y)
+    await page.mouse.wheel(0, outerStart.delta)
+    await expect
+      .poll(() =>
+        viewer.evaluate((preview) => {
+          const viewport = preview.closest('[data-message-virtual-list-scroller]')!.getBoundingClientRect()
+          return Math.abs(preview.getBoundingClientRect().top - viewport.top - 32)
+        })
+      )
+      .toBeLessThan(8)
     const recorder = await viewer.evaluateHandle((preview) => {
       const list = preview.closest<HTMLElement>('[data-message-virtual-list-scroller]')!
       preview.scrollTop = 0
@@ -217,10 +234,6 @@ export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo:
         .map((offset) => ({ x: rect.left + rect.width / 2, y: rect.top + offset }))
         .find(({ x, y }) => document.elementFromPoint(x, y)?.closest('.shiki-scroller') === preview)
       if (!point) throw new Error(`MP-40 preview point unavailable: ${JSON.stringify({ rect, viewport })}`)
-      const outerPoint = { x: viewport.left + viewport.width / 2, y: viewport.bottom - 24 }
-      const target = document.elementFromPoint(outerPoint.x, outerPoint.y)
-      if (target?.closest('[data-message-virtual-list-scroller]') !== list || target.closest('.shiki-scroller'))
-        throw new Error(`MP-40 outer point unavailable: ${JSON.stringify({ outerPoint, rect, viewport })}`)
       const frames: { t: number; listTop: number; hitPreview: boolean }[] = []
       let frame: number
       const sample = () => {
@@ -232,22 +245,27 @@ export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo:
         frame = requestAnimationFrame(sample)
       }
       sample()
-      return { point, outerPoint, startListTop: list.scrollTop, frames, stop: () => cancelAnimationFrame(frame) }
+      return { point, startListTop: list.scrollTop, frames, stop: () => cancelAnimationFrame(frame) }
     })
     const list = page.locator('[data-message-virtual-list-scroller]:visible')
-    const { point, outerPoint, startListTop, frames } = await recorder.evaluate((r) => ({ ...r, stop: undefined }))
+    const { point, startListTop, frames } = await recorder.evaluate((r) => ({ ...r, stop: undefined }))
     let scrollingFrames = frames
     const deltas = { outer: 0, preview: 0, list: 0 }
     try {
-      await page.mouse.move(outerPoint.x, outerPoint.y)
-      await page.mouse.wheel(0, 40)
-      await page.waitForTimeout(15)
-      await page.mouse.wheel(0, 40)
-      await page.waitForTimeout(250)
-      const samples = await recorder.evaluate(({ frames }) => frames)
-      scrollingFrames = samples.filter((f, i) => i > 0 && f.listTop !== samples[i - 1].listTop)
+      await page.mouse.move(outerStart.x, outerStart.y)
+      for (let step = 0; step < 3; step++) {
+        const previous = await list.evaluate((element) => element.scrollTop)
+        await page.mouse.wheel(0, 24)
+        await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBeGreaterThan(previous)
+      }
+      await expect
+        .poll(async () => {
+          const samples = await recorder.evaluate(({ frames }) => frames)
+          scrollingFrames = samples.filter((frame, index) => index > 0 && frame.listTop !== samples[index - 1].listTop)
+          return scrollingFrames.length
+        })
+        .toBeGreaterThanOrEqual(3)
       deltas.outer = (await list.evaluate((element) => element.scrollTop)) - startListTop
-      expect(scrollingFrames.length, JSON.stringify(samples)).toBeGreaterThanOrEqual(3)
       expect(
         scrollingFrames.some((f) => f.hitPreview),
         '#24842 preview hit test'
@@ -261,6 +279,7 @@ export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo:
       deltas.list = (await list.evaluate((element) => element.scrollTop)) - startListTop - deltas.outer
       expect(deltas.preview).toBeGreaterThan(0)
       expect(Math.abs(deltas.list)).toBeLessThanOrEqual(2)
+      await attachScreenshot('MP-40 scrollable Python preview')
     } finally {
       await recorder.evaluate(({ stop }) => stop())
       const samples = scrollingFrames.length < 3 ? await recorder.evaluate(({ frames }) => frames) : undefined

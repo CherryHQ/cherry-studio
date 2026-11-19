@@ -116,9 +116,19 @@ test(...caseDefinition('CODE-03'), async ({ app, mainWindow: page }) => {
     await openCodeTool(page, 'OpenClaw')
     await configureTool(page, app.config.customProvider.chatModel, CUSTOM_CHAT_PROVIDER)
     const codeView = page.locator('[data-ui~="code.view"]:visible').first()
+    const launchError = page.locator('[data-sonner-toast][data-type="error"]:visible').last()
+    await expect(launchError).toBeHidden()
     await codeView.getByRole('button', { name: 'Launch', exact: true }).click()
     // The CLI also spawns config probes; only the running gateway and opened dashboard complete launch.
-    await expect.poll(gatewayStatus, { timeout: 2 * 60_000 }).toBe('running')
+    await expect
+      .poll(
+        async () => {
+          if (await launchError.isVisible()) throw new Error(`OpenClaw launch failed: ${await launchError.innerText()}`)
+          return gatewayStatus()
+        },
+        { timeout: 2 * 60_000 }
+      )
+      .toBe('running')
     await expect(dashboardTab).toHaveAttribute('data-active', 'true')
     const guest = page.locator('webview[data-mini-app-id="openclaw-dashboard"]:visible')
     await expect(guest).toBeVisible()

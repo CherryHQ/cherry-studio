@@ -454,6 +454,7 @@ test(...caseDefinition('MP-68'), async ({ app, mainWindow }, testInfo) => {
     }
   }
   const originalIds = new Set((await entries()).map(({ id }) => id))
+  let primaryFailure: unknown
   try {
     const chooseFiles = async (path: string, multiple: boolean) => {
       await view().getByRole('button', { name: 'Upload files', exact: true }).click()
@@ -524,8 +525,12 @@ test(...caseDefinition('MP-68'), async ({ app, mainWindow }, testInfo) => {
     for (const fixture of fixtures) await expect(row(fixture.name)).toHaveCount(fixture.name === 'sample.pdf' ? 2 : 1)
     expect((await entries()).filter((entry) => before.some(({ id }) => id === entry.id))).toEqual(before)
     await screenshot('MP-68 files persist after restart')
+  } catch (error) {
+    primaryFailure = error
+    throw error
   } finally {
     try {
+      if (page.isClosed()) page = await app.useProfile('authenticated')
       const ids = (await entries()).filter(({ id }) => !originalIds.has(id)).map(({ id }) => id)
       if (ids.length) {
         // Uploads here are internal entries, which only leave through trash and permanent deletion.
@@ -542,6 +547,12 @@ test(...caseDefinition('MP-68'), async ({ app, mainWindow }, testInfo) => {
         if (!purged.ok) throw new Error(purged.error.message)
         expect(purged.data.failed, 'Permanent deletion must not fail for any uploaded entry').toEqual([])
       }
+    } catch (cleanupFailure) {
+      if (primaryFailure) {
+        const errors = [primaryFailure, cleanupFailure]
+        throw new AggregateError(errors, errors.map(String).join('\n'))
+      }
+      throw cleanupFailure
     } finally {
       await rm(root, { recursive: true, force: true })
     }
@@ -699,11 +710,11 @@ test(...caseDefinition('MP-70'), async ({ app, mainWindow: page }, testInfo) => 
   for (const number of [1, 2]) {
     pdf.addPage([612, 792]).drawText(`MP70 searchable page ${number}`, { x: 72, y: 700, font, size: 20 })
   }
-  await writeFile(join(directory, 'sample.pdf'), await pdf.save())
+  await writeFile(join(directory, 'mp70-preview.pdf'), await pdf.save())
   await sharp({ create: { width: 320, height: 180, channels: 3, background: '#b53035' } })
     .png()
-    .toFile(join(directory, 'sample.png'))
-  await copyFile(app.fixturesPath('media', 'sample-5s.mp4'), join(directory, 'sample-5s.mp4'))
+    .toFile(join(directory, 'mp70-preview.png'))
+  await copyFile(app.fixturesPath('media', 'sample-5s.mp4'), join(directory, 'mp70-preview.mp4'))
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(
     workbook,
@@ -713,8 +724,8 @@ test(...caseDefinition('MP-70'), async ({ app, mainWindow: page }, testInfo) => 
     ]),
     'MP70 sheet'
   )
-  XLSX.writeFile(workbook, join(directory, 'sample.xlsx'))
-  const paths = ['sample.pdf', 'sample.png', 'sample-5s.mp4', 'sample.xlsx'].map((name) =>
+  XLSX.writeFile(workbook, join(directory, 'mp70-preview.xlsx'))
+  const paths = ['mp70-preview.pdf', 'mp70-preview.png', 'mp70-preview.mp4', 'mp70-preview.xlsx'].map((name) =>
     AbsoluteFilePathSchema.parse(join(directory, name))
   )
   const importResult = await page.evaluate(
@@ -734,7 +745,7 @@ test(...caseDefinition('MP-70'), async ({ app, mainWindow: page }, testInfo) => 
     await selectSidebarApp(page, 'Files')
     const files = page.locator('[data-ui~="files.view"]')
     const back = files.getByRole('button', { name: 'Back', exact: true })
-    await files.getByText('sample.pdf', { exact: true }).click()
+    await files.getByText('mp70-preview.pdf', { exact: true }).click()
     const pdfPreview = files.getByTestId('pdf-file-preview')
     await expect(pdfPreview).toBeVisible()
     await expect(pdfPreview.locator('.textLayer').getByText('MP70 searchable page 1', { exact: true })).toBeVisible()
@@ -746,7 +757,7 @@ test(...caseDefinition('MP-70'), async ({ app, mainWindow: page }, testInfo) => 
     await attachScreenshot('MP-70 PDF page 2 text layer')
     await back.click()
 
-    await files.getByText('sample.png', { exact: true }).click()
+    await files.getByText('mp70-preview.png', { exact: true }).click()
     const imageDialog = page.getByTestId('image-preview-dialog')
     const image = imageDialog.getByTestId('image-preview-viewport').locator('img')
     await expect(image).toBeVisible()
@@ -762,7 +773,7 @@ test(...caseDefinition('MP-70'), async ({ app, mainWindow: page }, testInfo) => 
     await imageDialog.getByRole('button', { name: 'Close Preview', exact: true }).click()
     await expect(imageDialog).toBeHidden()
 
-    await files.getByText('sample-5s.mp4', { exact: true }).click()
+    await files.getByText('mp70-preview.mp4', { exact: true }).click()
     const video = files.locator('video')
     await expect.soft(video, 'MP4 must offer native video playback').toBeVisible({ timeout: 10_000 })
     if (await video.isVisible()) {
@@ -790,7 +801,7 @@ test(...caseDefinition('MP-70'), async ({ app, mainWindow: page }, testInfo) => 
     if (!physicalResult.ok) throw new Error(JSON.stringify(physicalResult.error))
     const pdfPath = physicalResult.data[pdfId]
     expect(pdfPath).toBeTruthy()
-    await files.getByText('sample.pdf', { exact: true }).click({ button: 'right' })
+    await files.getByText('mp70-preview.pdf', { exact: true }).click({ button: 'right' })
     const folderResource = registerExternalResource(app.paths, app.record.platform, { kind: 'folder', path: pdfPath! })
     await page.getByRole('menuitem', { name: 'Show in folder', exact: true }).click()
     if (app.record.platform === 'macos') {
@@ -854,7 +865,7 @@ test(...caseDefinition('MP-70'), async ({ app, mainWindow: page }, testInfo) => 
     await page.bringToFront()
     await attachScreenshot('MP-70 PDF reveal action completed')
 
-    await files.getByText('sample.xlsx', { exact: true }).click()
+    await files.getByText('mp70-preview.xlsx', { exact: true }).click()
     const spreadsheet = files.getByTestId('spreadsheet-file-preview')
     const unsupported = files.getByText('This file type cannot be previewed yet.', { exact: true })
     await expect(spreadsheet.or(unsupported)).toBeVisible()

@@ -371,7 +371,8 @@ test(...caseDefinition('MP-107'), async ({ app, mainWindow }, testInfo) => {
     'chat.input.show_estimated_tokens',
     'chat.message.confirm_delete',
     'topic.naming.enabled',
-    'menu.presentation_mode'
+    'menu.presentation_mode',
+    'app.user.name'
   ] as const
   const previous = await page.evaluate(async (keys) => {
     const values = await Promise.all(keys.map((key) => window.api.preference.get(key)))
@@ -401,7 +402,8 @@ test(...caseDefinition('MP-107'), async ({ app, mainWindow }, testInfo) => {
       window.api.preference.setMultiple({
         'chat.input.send_message_shortcut': ['Enter'],
         'chat.input.newline_shortcut': ['Shift', 'Enter'],
-        'chat.input.steer_shortcut': ['CommandOrControl', 'Enter']
+        'chat.input.steer_shortcut': ['CommandOrControl', 'Enter'],
+        'app.user.name': 'MP-107 Settings Profile'
       })
     )
     await selectSidebarApp(page, 'Settings')

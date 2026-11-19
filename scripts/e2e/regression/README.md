@@ -45,6 +45,7 @@ rechecking ownership. A surviving unknown process still blocks termination.
 Before each new CDP connection, including scenario reconnections, the controller prepares Windows targets by closing non-main windows. Both branch and installer launches enable the main-process inspector for this compatibility step.
 Pre-main restart dialogs can use that verified inspector owner before CDP is ready; command and
 runner ancestry checks still apply. Electron termination continues to require CDP ownership.
+After verified Windows processes exit, the controller waits up to 60 seconds for the CDP listener to disappear. If it remains, the error reports the listener PID.
 Windows native dialogs can expose their controls as UIA panes. The adapters match
 native classes and control IDs inside owned windows, and verify address-bar focus
 with Win32 `GetGUIThreadInfo` before sending the directory-navigation key.
