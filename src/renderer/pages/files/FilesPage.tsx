@@ -23,6 +23,7 @@ import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { popup } from '@renderer/services/popup'
 import { showRecycleBinBatchUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
+import { safeToString } from '@renderer/utils/error'
 import { formatFileSize } from '@renderer/utils/file'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { isMac } from '@renderer/utils/platform'
@@ -437,8 +438,9 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
           if (!filePath) throw new Error(`Physical path is unavailable for file ${file.id}`)
           const normalizedPath = normalizeFilePreviewPath(filePath)
           if (file.type === 'image') {
+            // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Image preview can reject any value; normalize only for logging while the user receives the generic localized preview error.
             void ImagePreviewService.show(toSafeFileUrl(normalizedPath, file.format)).catch((error: unknown) => {
-              const normalized = error instanceof Error ? error : new Error(String(error))
+              const normalized = error instanceof Error ? error : new Error(safeToString(error))
               logger.error('Failed to open image preview', normalized)
               toast.error(t('files.preview.error'))
             })
@@ -450,9 +452,10 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
             refreshKey: current?.filePath === normalizedPath ? current.refreshKey + 1 : 0
           }))
         })
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Physical-path lookup can reject any value; the request token rejects stale failures before safe logging and localized preview feedback.
         .catch((error: unknown) => {
           if (requestRef.current !== requestToken) return
-          const normalized = error instanceof Error ? error : new Error(String(error))
+          const normalized = error instanceof Error ? error : new Error(safeToString(error))
           logger.error('Failed to open file preview', normalized)
           toast.error(t('files.preview.error'))
         })
@@ -481,9 +484,10 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
           refreshKey: 0
         })
       })
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Route-targeted entry lookup or path resolution may reject any value; ignore stale requests before logging and clearing the failed reveal.
       .catch((error: unknown) => {
         if (openRequestTokenRef.current !== requestToken) return
-        const normalized = error instanceof Error ? error : new Error(String(error))
+        const normalized = error instanceof Error ? error : new Error(safeToString(error))
         logger.error('Failed to reveal file entry', normalized)
         toast.error(previewErrorMessage)
         onEntryIdChange?.()
