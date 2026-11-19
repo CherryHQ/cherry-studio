@@ -1055,6 +1055,8 @@
   "chat.profile_pane.tasks.new_prompt": "예약 작업을 만들어 줘: ",
   "chat.profile_pane.tasks.title": "예약 작업",
   "chat.profile_pane.title": "프로필",
+  "chat.profile_pane.try_asking.hide": "숨기기",
+  "chat.profile_pane.try_asking.title": "이렇게 물어보세요",
   "chat.profile_pane.workspace.idle": "대기 중",
   "chat.profile_pane.workspace.running": "실행 중",
   "chat.profile_pane.workspace.title": "워크스페이스",
