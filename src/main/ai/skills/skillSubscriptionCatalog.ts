@@ -15,10 +15,14 @@ import { normalizeSubscriptionUrl, skillInstallIdentity } from '@shared/utils/sk
 import { readGithubSkillCatalog, resolveGithubSkillSourceUrl } from './skillRemoteSource'
 
 const MAX_FEED_BYTES = 16 * 1024 * 1024
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- JSON Feed entries and parsed RSS nodes are untyped; accept only object records before reading optional feed fields.
 const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Optional feed fields may have arbitrary JSON/XML shapes; only actual strings may become labels, URLs or MIME values.
 const text = (value: unknown): string => (typeof value === 'string' ? value : '')
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- RSS uses singleton-or-array nodes while JSON Feed optional arrays remain unvalidated; normalize their containers before per-entry decoding.
 const array = (value: unknown): unknown[] => (Array.isArray(value) ? value : value ? [value] : [])
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Feed titles, descriptions and categories can be non-string values; text rejects those before stripping markup for display.
 const plainText = (value: unknown) =>
   text(value)
     .replace(/<[^>]*>/g, '')
@@ -52,6 +56,7 @@ function skillItem(sourceId: string, url: string, kind: 'github' | 'zip', name: 
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Feed links and attachment URLs are unvalidated; require text and normalize the resolved URL before accepting a GitHub or ZIP installation target.
 function installTarget(value: unknown, base: string, mime = '') {
   try {
     const url = normalizeSubscriptionUrl(new URL(text(value), base).href)
