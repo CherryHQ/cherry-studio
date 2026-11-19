@@ -26,6 +26,7 @@ import { buildPiMcpToolName } from '../pi/piMcpExtension'
 import { loadPiSdk } from '../pi/piSdk'
 import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from '../pi/piShell'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
+import { createDurableEnvironment } from './durableEnvironment'
 import { createDurableMcp } from './durableMcp'
 import { withDurableShellTimeout } from './durableShellTimeout'
 
@@ -84,7 +85,6 @@ export async function prepareDurableDesktop(
   const [
     native,
     tools,
-    { NodeExecutionEnv },
     { createCodemodeExtension },
     { createToolSearchExtension },
     { CodemodeSandbox },
@@ -94,7 +94,6 @@ export async function prepareDurableDesktop(
   ] = await Promise.all([
     import('@earendil-works/pi-durable'),
     import('@earendil-works/pi-durable/tools'),
-    import('@earendil-works/pi-durable/env/node'),
     import('@earendil-works/pi-durable/codemode'),
     import('@earendil-works/pi-durable/tool-search'),
     import('@earendil-works/pi-codemode'),
@@ -232,7 +231,7 @@ export async function prepareDurableDesktop(
         registry.install(native.defineExtension({ ...extension, name: `${namespace}/${extension.name}` }))
       }
     }
-    const environment = new NodeExecutionEnv({
+    const environment = await createDurableEnvironment({
       cwd,
       shellPath: resolvePiShellPath(),
       // Per-call PATH overrides the SDK's inherited environment. Merge the complete PATH here.

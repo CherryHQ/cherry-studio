@@ -629,9 +629,42 @@ describe('limits, access, and recovery', () => {
       'dreaming',
       approve
     )
-    expect(result.files.map((file) => file.outcome)).toEqual(['applied', 'unchanged', 'pending'])
+    expect(result.files.map((file) => file.outcome)).toEqual(['applied', 'unchanged', 'unchanged'])
     expect(await readFile(path.join(root, '.memories', 'source.md'), 'utf8')).toBe(source.content)
     expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
+  })
+
+  it.each(['clear', 'recover'] as const)('resumes the original clear after an interrupted %s', async (operation) => {
+    await save('MEMORY.md', 'Entry')
+    await save('.memories/topic.md', 'Topic')
+    const clear = await store.previewClear(caller)
+    const write = memoryFiles.writeMemoryBytes
+    const failEntry = () =>
+      vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (...args) => {
+        if (args[0] === root && args[1] === 'MEMORY.md') throw new Error('Interrupted')
+        return write(...args)
+      })
+    let failure = operation === 'clear' ? failEntry() : undefined
+    const cleared = await store.clear(caller, clear.token, approve)
+    if (operation === 'recover') {
+      const recovery = await store.previewRecovery(caller)
+      failure = failEntry()
+      expect((await store.recover(caller, recovery!.token, approve)).files.map((file) => file.outcome)).toEqual([
+        'applied',
+        'unchanged'
+      ])
+    }
+    failure!.mockRestore()
+    store = new MemoryStore(root, backups)
+    await store.initialize()
+    const remaining = await store.previewRecovery(caller)
+    expect(remaining).toMatchObject({
+      batchId: cleared.batchId,
+      files: [{ path: operation === 'clear' ? '.memories/topic.md' : 'MEMORY.md', conflict: false }]
+    })
+    expect((await store.recover(caller, remaining!.token, approve)).error).toBeUndefined()
+    expect((await store.read(caller, '.memories/topic.md')).content).toBe('Topic')
+    expect((await store.read(caller, 'MEMORY.md')).content).toBe('Entry')
   })
 
   it('recovers a confirmed disk write after its manifest update failed and the owner restarted', async () => {
