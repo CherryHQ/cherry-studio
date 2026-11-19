@@ -48,3 +48,61 @@ describe('markdown table styles', () => {
     })
   })
 })
+
+describe('markdown code styles', () => {
+  it('disables programming ligatures while preserving the code font', () => {
+    let codeRule: Rule | undefined
+
+    postcss.parse(markdownStyles).walkRules((rule) => {
+      if (rule.selectors.includes('.markdown code')) {
+        codeRule = rule
+      }
+    })
+
+    expect(codeRule).toBeDefined()
+
+    const declarations = Object.fromEntries(
+      codeRule?.nodes
+        .filter((node) => node.type === 'decl')
+        .map((declaration) => [declaration.prop, declaration.value]) ?? []
+    )
+
+    // font-variant-ligatures alone leaves calt on, which is what draws <= / != / -> in Cascadia Code.
+    expect(declarations).toMatchObject({
+      'font-family': 'var(--code-font-family)',
+      'font-variant-ligatures': 'none'
+    })
+    const features = postcss.list
+      .comma(declarations['font-feature-settings'] ?? '')
+      .map((feature) => feature.replace(/['"]/g, '').replace(/\s+/g, ' ').trim())
+    expect(new Set(features)).toEqual(new Set(['liga 0', 'clig 0', 'calt 0']))
+  })
+
+  // Code blocks render as div.code-viewer.shiki token spans, so .markdown code does not reach them.
+  it('disables programming ligatures in shiki blocks while preserving the code font', () => {
+    let shikiRule: Rule | undefined
+
+    postcss.parse(markdownStyles).walkRules((rule) => {
+      if (rule.selectors.includes('.shiki')) {
+        shikiRule = rule
+      }
+    })
+
+    expect(shikiRule).toBeDefined()
+
+    const declarations = Object.fromEntries(
+      shikiRule?.nodes
+        .filter((node) => node.type === 'decl')
+        .map((declaration) => [declaration.prop, declaration.value]) ?? []
+    )
+
+    expect(declarations).toMatchObject({
+      'font-family': 'var(--code-font-family)',
+      'font-variant-ligatures': 'none'
+    })
+    const features = postcss.list
+      .comma(declarations['font-feature-settings'] ?? '')
+      .map((feature) => feature.replace(/['"]/g, '').replace(/\s+/g, ' ').trim())
+    expect(new Set(features)).toEqual(new Set(['liga 0', 'clig 0', 'calt 0']))
+  })
+})

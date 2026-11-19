@@ -265,6 +265,11 @@
 .markdown code {
   font-family: var(--code-font-family);
   font-variant-ligatures: none;
+  /* Cascadia Code and Fira Code build operator ligatures as contextual alternates (calt). */
+  font-feature-settings:
+    'liga' 0,
+    'clig' 0,
+    'calt' 0;
 }
 
 .markdown :not(pre) > code,
@@ -849,6 +854,12 @@
 /* Shiki 相关样式 */
 .shiki {
   font-family: var(--code-font-family);
+  /* Blocks use Shiki token spans, not <code>; calt draws <= / != / -> in Cascadia Code / Fira Code. */
+  font-variant-ligatures: none;
+  font-feature-settings:
+    'liga' 0,
+    'clig' 0,
+    'calt' 0;
   /* 保持行高为初始值，在 shiki 代码块中处理 */
   line-height: initial;
 }
