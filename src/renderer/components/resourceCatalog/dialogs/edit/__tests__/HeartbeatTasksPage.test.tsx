@@ -17,7 +17,7 @@ vi.mock('react-i18next', () => {
   return { useTranslation: () => ({ t }) }
 })
 
-import { HeartbeatEditorDialog } from '../HeartbeatEditorDialog'
+import { HeartbeatTasksPage } from '../HeartbeatTasksPage'
 
 const original: HeartbeatDocument = {
   content: '',
@@ -25,7 +25,7 @@ const original: HeartbeatDocument = {
   contentHash: ContentHashSchema.parse('xxh3:0000000000000000')
 }
 
-describe('HeartbeatEditorDialog', () => {
+describe('HeartbeatTasksPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockUseDataApiUtils.resetMocks()
@@ -50,7 +50,7 @@ describe('HeartbeatEditorDialog', () => {
       expect(persisted).toEqual(['Check the inbox'])
       return 'started'
     }) as typeof ipcApi.request)
-    render(<HeartbeatEditorDialog agentId="a1" enabled onOpenChange={vi.fn()} />)
+    render(<HeartbeatTasksPage agentId="a1" enabled />)
     const editor = await screen.findByRole('textbox', { name: 'Heartbeat tasks' })
     await waitFor(() => expect(editor).toBeEnabled())
     await user.type(editor, 'Check the inbox')
@@ -67,7 +67,7 @@ describe('HeartbeatEditorDialog', () => {
       if (route.endsWith('.read')) return original
       throw new IpcError(fileErrorCodes.STALE_VERSION, 'Changed externally')
     }) as typeof ipcApi.request)
-    render(<HeartbeatEditorDialog agentId="a1" enabled onOpenChange={vi.fn()} />)
+    render(<HeartbeatTasksPage agentId="a1" enabled />)
     const editor = await screen.findByRole('textbox', { name: 'Heartbeat tasks' })
     await waitFor(() => expect(editor).toBeEnabled())
     await user.type(editor, 'Keep this draft')
@@ -79,30 +79,12 @@ describe('HeartbeatEditorDialog', () => {
 
   it('allows editing a disabled heartbeat but prevents execution', async () => {
     const user = userEvent.setup()
-    render(<HeartbeatEditorDialog agentId="a1" enabled={false} onOpenChange={vi.fn()} />)
+    render(<HeartbeatTasksPage agentId="a1" enabled={false} />)
     const editor = await screen.findByRole('textbox', { name: 'Heartbeat tasks' })
     await waitFor(() => expect(editor).toBeEnabled())
     await user.type(editor, 'Check status')
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Save and run once' })).toBeDisabled()
     expect(screen.getByText(en['agent.heartbeat.enable_first'])).toBeVisible()
-  })
-
-  it('reloads the saved tasks when reopened before the discarded editor unmounts', async () => {
-    const user = userEvent.setup()
-    const saved = { ...original, content: 'Saved heartbeat tasks' }
-    vi.mocked(ipcApi.request).mockResolvedValue(saved)
-    const onOpenChange = vi.fn()
-    const { rerender } = render(<HeartbeatEditorDialog agentId="a1" enabled open onOpenChange={onOpenChange} />)
-    const editor = await screen.findByRole('textbox', { name: 'Heartbeat tasks' })
-    await waitFor(() => expect(editor).toHaveValue(saved.content))
-    await user.clear(editor)
-    await user.type(editor, 'Discarded draft')
-
-    rerender(<HeartbeatEditorDialog agentId="a1" enabled open={false} onOpenChange={onOpenChange} />)
-    rerender(<HeartbeatEditorDialog agentId="a1" enabled open onOpenChange={onOpenChange} />)
-
-    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Heartbeat tasks' })).toHaveValue(saved.content))
-    expect(ipcApi.request).not.toHaveBeenCalledWith('ai.agent.heartbeat.write', expect.anything())
   })
 })

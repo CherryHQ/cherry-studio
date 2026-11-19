@@ -13,7 +13,6 @@ import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { useAgentTasks } from '@renderer/hooks/agent/useTasks'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
-import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { useModelById } from '@renderer/hooks/useModel'
@@ -73,7 +72,7 @@ import { AgentIdentityFiles } from './AgentIdentityFiles'
 import { AgentMemoryPanel, type AgentMemoryPanelHandle } from './AgentMemoryPanel'
 import { AgentTasksPage } from './AgentTasksPage'
 import { countSummary, type EditPage, type EditSubPage, resolveInitialEditPage } from './editPages'
-import { HeartbeatEditorDialog } from './HeartbeatEditorDialog'
+import { HeartbeatTasksPage, type HeartbeatTasksPageHandle } from './HeartbeatTasksPage'
 
 export type AgentEditDialogProps = EditDialogBaseProps & {
   resource: AgentDetail | null
@@ -114,6 +113,7 @@ function agentSubPages(resource: AgentDetail): Set<EditSubPage> {
     'memory',
     'channels',
     'tasks',
+    ...(caps.heartbeat ? (['heartbeat'] as const) : []),
     ...(caps.skills && !sealedSkills ? (['skills'] as const) : []),
     ...(caps.knowledgeBases ? (['knowledge'] as const) : []),
     ...(caps.mcp ? (['mcp'] as const) : [])
@@ -273,6 +273,7 @@ function AgentEditDialogContent({
   // The System Prompt page opens one block of the prompt as a page of its own.
   const [promptSection, setPromptSection] = useState<string | null>(null)
   const memoryPanelRef = useRef<AgentMemoryPanelHandle>(null)
+  const heartbeatPageRef = useRef<HeartbeatTasksPageHandle>(null)
   const [avatarSrc, setAvatarSrc] = useState(resource.avatarSrc)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
@@ -470,6 +471,7 @@ function AgentEditDialogContent({
       return true
     }
     if (memoryPanelRef.current && !(await memoryPanelRef.current.confirmLeave())) return false
+    if (heartbeatPageRef.current && !(await heartbeatPageRef.current.confirmLeave())) return false
     const valuesBeforeSave = JSON.stringify(form.getValues())
     const pendingSave = getPendingSave()
     if (pendingSave) await pendingSave
@@ -509,14 +511,16 @@ function AgentEditDialogContent({
     mcp: t('library.config.dialogs.edit.page.mcp'),
     channels: t('library.config.dialogs.edit.page.channels'),
     tasks: t('settings.scheduledTasks.title'),
+    heartbeat: t('agent.heartbeat.tasks'),
     memory: t('agent.memory.button'),
     context: '',
     parameters: ''
   }
 
-  // Leaving Memory with an unsaved file edit asks first, as switching tabs did.
+  // Leaving Memory or the heartbeat tasks with an unsaved edit asks first, as switching tabs did.
   const goTo = async (next: EditPage) => {
     if (page === 'memory' && memoryPanelRef.current && !(await memoryPanelRef.current.confirmLeave())) return
+    if (page === 'heartbeat' && heartbeatPageRef.current && !(await heartbeatPageRef.current.confirmLeave())) return
     setPromptSection(null)
     setPage(next)
   }
@@ -673,6 +677,9 @@ function AgentEditDialogContent({
       {page === 'tasks' ? (
         <AgentTasksPage agentId={resource.id} agentName={values.name.trim() || resource.name} />
       ) : null}
+      {page === 'heartbeat' ? (
+        <HeartbeatTasksPage ref={heartbeatPageRef} agentId={resource.id} enabled={values.heartbeatEnabled} />
+      ) : null}
       {open && page === 'memory' ? <AgentMemoryPanel key={resource.id} ref={memoryPanelRef} agent={resource} /> : null}
     </EditDialogPageShell>
   )
@@ -790,7 +797,9 @@ function AgentSettingsCards({
           agentId={agent.id}
           form={form}
           patchAgentForm={patchAgentForm}
-          beforeHeartbeatOpen={beforeHeartbeatOpen}
+          onEdit={async () => {
+            if (await beforeHeartbeatOpen()) onOpen('heartbeat')
+          }}
         />
       ) : null}
 
@@ -885,29 +894,26 @@ function ReplyLanguageRow({
   )
 }
 
-/** Heartbeat switch, interval and run time, plus the heartbeat document's task count and editor. */
+/** Heartbeat switch, interval and run time, plus the heartbeat document's task count and its page. */
 function HeartbeatSection({
   agentId,
   form,
   patchAgentForm,
-  beforeHeartbeatOpen
+  onEdit
 }: {
   agentId: string
   form: UseFormReturn<AgentEditFormValues>
   patchAgentForm: (patch: Partial<AgentFormState>) => void
-  beforeHeartbeatOpen: () => Promise<boolean>
+  onEdit: () => void
 }) {
   const { t } = useTranslation()
   const [heartbeatEnabled, heartbeatInterval, heartbeatTimeoutMinutes] = useWatch({
     control: form.control,
     name: ['heartbeatEnabled', 'heartbeatInterval', 'heartbeatTimeoutMinutes']
   })
-  const [editorOpen, setEditorOpen] = useState(false)
-  const { isPresent: editorPresent } = useExitPresence(editorOpen ? true : null)
   const [taskCount, setTaskCount] = useState<number | null>(null)
 
   useEffect(() => {
-    if (editorOpen) return
     let cancelled = false
     ipcApi
       .request('ai.agent.heartbeat.read', { agentId })
@@ -918,7 +924,7 @@ function HeartbeatSection({
     return () => {
       cancelled = true
     }
-  }, [agentId, editorOpen])
+  }, [agentId])
 
   return (
     <section aria-label={t('library.config.dialogs.edit.section.heartbeat')}>
@@ -935,25 +941,11 @@ function HeartbeatSection({
                 ? t('library.config.dialogs.edit.heartbeat_tasks_count', { count: taskCount })
                 : t('library.config.dialogs.edit.heartbeat_tasks_none')
           }>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={async () => {
-              if (await beforeHeartbeatOpen()) setEditorOpen(true)
-            }}>
+          <Button type="button" variant="outline" size="sm" onClick={onEdit}>
             {t('agent.heartbeat.edit')}
           </Button>
         </SettingsRow>
       </HeartbeatCard>
-      {editorPresent ? (
-        <HeartbeatEditorDialog
-          agentId={agentId}
-          enabled={heartbeatEnabled}
-          open={editorOpen}
-          onOpenChange={setEditorOpen}
-        />
-      ) : null}
     </section>
   )
 }

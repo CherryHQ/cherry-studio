@@ -14,6 +14,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as UseModelModule from '@renderer/hooks/useModel'
+import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
@@ -1373,6 +1374,26 @@ describe('edit dialogs', () => {
       'placeholder',
       'library.config.agent.prompt.editor_placeholder'
     )
+  })
+
+  // The heartbeat tasks opened as a second, wider modal stacked on this dialog.
+  it('edits the heartbeat tasks on a sub-page, and Back with an unsaved draft asks before leaving', async () => {
+    const user = userEvent.setup()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'agent.heartbeat.edit' }))
+    const editor = await screen.findByRole('textbox', { name: 'agent.heartbeat.tasks' })
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    await waitFor(() => expect(editor).toBeEnabled())
+    await user.type(editor, 'Check the inbox')
+
+    vi.mocked(popup.confirm).mockResolvedValueOnce(false)
+    await back(user)
+    expect(editor).toHaveValue('Check the inbox')
+
+    await back(user)
+    expect(await screen.findByRole('button', { name: 'agent.heartbeat.edit' })).toBeVisible()
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('ai.agent.heartbeat.write', expect.anything())
   })
 
   it('persists a heartbeat timeout edit independently of the interval', async () => {

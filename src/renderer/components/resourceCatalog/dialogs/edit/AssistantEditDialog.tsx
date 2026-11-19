@@ -401,6 +401,7 @@ function AssistantEditDialogContent({
     skills: '',
     channels: '',
     tasks: '',
+    heartbeat: '',
     memory: ''
   }
 
