@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-19-agent-file-write-snapshots.md
+2026-11-19-agent-file-write-snapshots.md: c7fec34f5ebfb7d5d5827365bff4558922cf72e2
+2026-11-19-agent-file-write-snapshots.zh.md: 4b5ec6c328993d477041da80b115a8a71133d3fa
