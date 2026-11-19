@@ -30,7 +30,6 @@ export type {
   AiToolResultResponse,
   ApprovalDecision,
   ComposerChatTarget,
-  ComposerQueuedMessagePayload,
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload,

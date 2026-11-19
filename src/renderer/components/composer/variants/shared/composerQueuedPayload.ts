@@ -1,6 +1,6 @@
+import type { ComposerQueuedMessagePayload } from '@renderer/types/composer'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
-import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../../composerDraft'
@@ -44,7 +44,7 @@ export function buildComposerQueuedPayload(
 
   return {
     text,
-    attachments: attachedFiles.length ? (attachedFiles as unknown as Array<Record<string, unknown>>) : undefined,
+    attachments: attachedFiles.length ? attachedFiles : undefined,
     userMessageParts,
     ...extra?.(tokenIds, attachedFiles)
   }

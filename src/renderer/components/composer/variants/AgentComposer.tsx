@@ -67,6 +67,7 @@ import { ipcApi } from '@renderer/ipc'
 import { subscribeAgentDraftHandoff, takeAgentDraftHandoffs } from '@renderer/services/agentDraftHandoff'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
+import type { ComposerQueuedMessagePayload } from '@renderer/types/composer'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
 import { getPermissionModeCards } from '@renderer/utils/agent'
@@ -79,7 +80,6 @@ import {
 } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
-import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart, CherryUIMessage, FileUIPart } from '@shared/data/types/message'
@@ -1293,7 +1293,7 @@ const AgentComposerInner = ({
     async (payload: ComposerQueuedMessagePayload) => {
       if (sendDisabled) return false
       try {
-        const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
+        const attachments = payload.attachments ?? []
         const originals = launchOptions?.initialParts?.filter((part): part is FileUIPart => part.type === 'file') ?? []
         const retainedParts = attachments.map((attachment) => {
           const index = initialDraft.files.findIndex((file) => file.fileTokenSourceId === attachment.fileTokenSourceId)
@@ -1431,7 +1431,7 @@ const AgentComposerInner = ({
       setDraftTokens(nextDraftTokens)
       draftTokensRef.current = nextDraftTokens
       setText(item.draft.text)
-      setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
+      setFiles(item.payload.attachments ?? [])
       setSelectedSkills(getCachedSkillTokens(nextDraftTokens).map(getSkillFromCachedToken))
       restoreKnowledgeBaseSelection(getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? [])
       handleReasoningEffortChange(item.payload.reasoningEffort ?? 'default')
