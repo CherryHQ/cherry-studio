@@ -12,8 +12,17 @@ import { webContents } from 'electron'
 import { application } from '@application'
 import { MINI_APP_EVENT_CHANNEL, type MiniAppEvent } from '@shared/ipc/schemas/miniAppBridge'
 
+interface MiniAppEventPayloads {
+  'app.localeChange': { locale: string }
+  'app.visibilityChange': { visible: boolean }
+}
+
 /** @returns how many live guests received it — 0 is normal, not an error. */
-export function emitToApp(appId: string, event: MiniAppEvent, payload?: unknown): number {
+export function emitToApp<Event extends MiniAppEvent>(
+  appId: string,
+  event: Event,
+  payload: MiniAppEventPayloads[Event]
+): number {
   let delivered = 0
   for (const id of application.get('MiniAppRuntimeService').guestsOf(appId)) {
     if (emitToGuest(id, event, payload)) delivered += 1
@@ -22,7 +31,11 @@ export function emitToApp(appId: string, event: MiniAppEvent, payload?: unknown)
 }
 
 /** ONE instance, for what is a property of a pane rather than of the app — visibility. */
-export function emitToGuest(webContentsId: number, event: MiniAppEvent, payload?: unknown): boolean {
+export function emitToGuest<Event extends MiniAppEvent>(
+  webContentsId: number,
+  event: Event,
+  payload: MiniAppEventPayloads[Event]
+): boolean {
   // `fromId` returns undefined for a webContents that died since registration.
   // Under this execution model that is the common case, not an anomaly.
   const contents = webContents.fromId(webContentsId)
