@@ -127,6 +127,12 @@ export const entries: SettingsSearchEntry[] = [
     groupKey: messagesGroup
   },
   {
+    anchorId: 'scroll-to-bottom-on-send',
+    titleKey: 'settings.messages.scroll_to_bottom_on_send.label',
+    descriptionKey: 'settings.messages.scroll_to_bottom_on_send.hint',
+    groupKey: messagesGroup
+  },
+  {
     anchorId: 'show-message-outline',
     titleKey: 'settings.messages.show_message_outline',
     groupKey: messagesGroup

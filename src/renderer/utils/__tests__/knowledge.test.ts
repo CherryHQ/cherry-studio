@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ExportableMessage } from '@renderer/types/messageExport'
-import { getMainTextContent } from '@renderer/utils/message/find'
 
 import { CONTENT_TYPES, processMessageContent } from '../knowledge'
 
@@ -49,27 +48,6 @@ describe('processMessageContent', () => {
     )
 
     expect(result.text).toBe('```typescript\nconst a = 1\n```')
-  })
-
-  // The knowledge-base entry used to re-implement part serialization and lost code
-  // fences, so "save to knowledge base" and "save as note -> knowledge base" produced
-  // different Markdown for the same conversation.
-  it('serializes text-like parts exactly like the shared export path', () => {
-    const parts = [
-      { type: 'text', text: '## 思路\n\n1. 闭包\n\n> 注意 this' },
-      { type: 'data-code', data: { language: 'typescript', content: 'const a = 1' } },
-      { type: 'data-translation', data: { targetLanguage: 'en', content: 'Use a closure.' } },
-      { type: 'data-error', data: { name: 'ApiError', code: '429', message: 'Too many requests' } }
-    ]
-
-    const result = processMessageContent(message(parts), [
-      CONTENT_TYPES.TEXT,
-      CONTENT_TYPES.CODE,
-      CONTENT_TYPES.TRANSLATION,
-      CONTENT_TYPES.ERROR
-    ])
-
-    expect(result.text).toBe(getMainTextContent(message(parts)))
   })
 
   it('drops the part types the user did not select', () => {

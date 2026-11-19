@@ -11,9 +11,16 @@ interface MessageGroupModelListProps {
   messages: MessageListItem[]
   selectMessageId: string
   setSelectedMessage: (message: MessageListItem) => void
+  displayMode: 'expanded' | 'compact'
 }
 
-const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selectMessageId, setSelectedMessage }) => {
+const MessageGroupModelList: FC<MessageGroupModelListProps> = ({
+  messages,
+  selectMessageId,
+  setSelectedMessage,
+  displayMode
+}) => {
+  const isCompact = displayMode === 'compact'
   const renderLabel = useCallback(
     (message: MessageListItem) => {
       const isProcessing = isMessageListItemProcessing(message)
@@ -21,21 +28,22 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
       const model = getMessageListItemModel(message)
       const modelName = model?.name || model?.id
       const avatar = <ModelAvatar className={isProcessing ? 'animation-pulse' : ''} model={model} size={20} />
+      const showName = !isCompact || isSelected
 
       return (
         <SegmentedLabel>
-          {isSelected || !modelName ? (
+          {showName || !modelName ? (
             avatar
           ) : (
             <Tooltip content={modelName} delay={600}>
               {avatar}
             </Tooltip>
           )}
-          {isSelected && <ModelName>{modelName}</ModelName>}
+          {showName && <ModelName>{modelName}</ModelName>}
         </SegmentedLabel>
       )
     },
-    [selectMessageId]
+    [isCompact, selectMessageId]
   )
 
   return (

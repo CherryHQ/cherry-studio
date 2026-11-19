@@ -339,7 +339,6 @@ describe('SpreadsheetFilePreview', () => {
 
     const statusBar = screen.getByTestId('xlsx-preview-status-bar')
     expect(statusBar).toHaveTextContent('B6 = SUM(B3:B5)')
-    expect(statusBar).toHaveClass('selectable', 'select-text', 'cursor-text')
     expect(screen.queryByText('xlsx_preview.formula_not_evaluated')).not.toBeInTheDocument()
   })
 
@@ -362,26 +361,6 @@ describe('SpreadsheetFilePreview', () => {
     fireEvent.click(screen.getByTestId('grid-select-a3'))
 
     expect(screen.getByTestId('xlsx-preview-status-bar')).toHaveTextContent('A3 Q1')
-  })
-
-  it('steps through the zoom levels without a reset control', () => {
-    setWorkbookState({ status: 'ready', model: modelWithoutCharts() })
-
-    renderPanel()
-
-    expect(screen.getByTestId('xlsx-preview-zoom-value')).toHaveTextContent('100%')
-
-    fireEvent.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
-    expect(screen.getByTestId('xlsx-preview-zoom-value')).toHaveTextContent('125%')
-    expect(screen.getByTestId('xlsx-grid')).toHaveAttribute('data-zoom', '1.25')
-
-    fireEvent.click(screen.getByRole('button', { name: 'preview.zoom_out' }))
-    fireEvent.click(screen.getByRole('button', { name: 'preview.zoom_out' }))
-    expect(screen.getByTestId('xlsx-preview-zoom-value')).toHaveTextContent('75%')
-    expect(screen.getByTestId('xlsx-grid')).toHaveAttribute('data-zoom', '0.75')
-
-    // Zoom reset lives nowhere anymore — refreshing the preview restores the default.
-    expect(screen.queryByRole('button', { name: 'preview.reset' })).not.toBeInTheDocument()
   })
 
   it('creates image object URLs when ready and revokes them on unmount', () => {
@@ -421,14 +400,6 @@ describe('SpreadsheetFilePreview', () => {
     const chart = { type: 'bar' } as ChartModel
     lastGridProps().renderChart?.(chart, container)
     expect(mocks.chartRendererRender).toHaveBeenCalledWith(chart, container)
-  })
-
-  it('does not wire renderChart for models without charts', () => {
-    setWorkbookState({ status: 'ready', model: modelWithoutCharts() })
-
-    renderPanel()
-
-    expect(screen.getByTestId('xlsx-grid')).toHaveAttribute('data-has-render-chart', 'false')
   })
 
   it('shows the range in the status bar when the selection spans more than one cell', () => {

@@ -543,8 +543,10 @@ export function EditDialogShell<TValues extends FieldValues>({
 
               <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                 <ScrollArea
-                  viewportProps={{ ref: scrollContainerRef, className: 'px-6 pt-5 pb-3' }}
-                  contentProps={{ className: activeTab === 'prompt' || activeTab === 'memory' ? 'h-full' : undefined }}
+                  viewportProps={{ ref: scrollContainerRef }}
+                  contentProps={{
+                    className: cn('px-6 pt-5 pb-3', (activeTab === 'prompt' || activeTab === 'memory') && 'h-full')
+                  }}
                   className="min-h-0 min-w-0 flex-1">
                   {children}
                 </ScrollArea>

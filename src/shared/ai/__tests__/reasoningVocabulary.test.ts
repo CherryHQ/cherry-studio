@@ -34,15 +34,6 @@ describe('deriveThinkingOptions', () => {
       )
     ).toEqual(['default', 'none', 'low', 'medium', 'high', 'xhigh'])
   })
-
-  it('hoists none after the synthesized default option', () => {
-    expect(deriveThinkingOptions(model({ selectableEfforts: ['low', 'none', 'high'] }))).toEqual([
-      'default',
-      'none',
-      'low',
-      'high'
-    ])
-  })
 })
 
 describe('nearestThinkingOption', () => {

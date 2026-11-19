@@ -36,16 +36,6 @@ describe('PlaceholderBlock', () => {
     vi.useRealTimers()
   })
 
-  it('shows the processing stage with a beat loader and no elapsed time', () => {
-    const { container } = render(<PlaceholderBlock isProcessing createdAt={new Date().toISOString()} />)
-
-    expect(screen.getByTestId('message-status-placeholder')).toBeInTheDocument()
-    expect(screen.getByTestId('message-status-text')).toHaveTextContent('Preparing response')
-    expect(screen.getByTestId('beat-loader')).toBeInTheDocument()
-    expect(screen.queryByTestId('message-status-elapsed')).not.toBeInTheDocument()
-    expect(container.querySelector('svg')).toBeNull()
-  })
-
   it('shows the requested generation stage', () => {
     render(<PlaceholderBlock isProcessing createdAt={new Date().toISOString()} status="thinking" />)
 

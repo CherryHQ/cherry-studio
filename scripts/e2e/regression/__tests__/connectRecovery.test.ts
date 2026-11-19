@@ -10,15 +10,17 @@ import type * as DebugBridge from '../debugBridge'
 import type * as Lifecycle from '../lifecycle'
 import { ensureRunDirectories, getRunPaths } from '../paths'
 
-const { assertIsolationMock, connectOverCdpMock, restartAppMock } = vi.hoisted(() => ({
+const { assertIsolationMock, connectOverCdpMock, prepareCdpMock, restartAppMock } = vi.hoisted(() => ({
   assertIsolationMock: vi.fn(),
   connectOverCdpMock: vi.fn(),
+  prepareCdpMock: vi.fn(),
   restartAppMock: vi.fn()
 }))
 
 vi.mock('../debugBridge', async (importOriginal) => ({
   ...(await importOriginal<typeof DebugBridge>()),
-  assertOwnedAppIsolation: assertIsolationMock
+  assertOwnedAppIsolation: assertIsolationMock,
+  prepareWindowsCdpConnection: prepareCdpMock
 }))
 vi.mock('../lifecycle', async (importOriginal) => ({
   ...(await importOriginal<typeof Lifecycle>()),
@@ -29,6 +31,7 @@ const directories: string[] = []
 afterEach(() => {
   assertIsolationMock.mockReset()
   connectOverCdpMock.mockReset()
+  prepareCdpMock.mockReset()
   restartAppMock.mockReset()
   vi.restoreAllMocks()
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
@@ -150,4 +153,24 @@ it('recovers at most once per app instance', async () => {
 
   expect(restartAppMock).toHaveBeenCalledTimes(1)
   expect(connectOverCdpMock).toHaveBeenCalledTimes(2)
+})
+
+it('prepares each disconnected Windows target set before reconnecting without restarting the app', async () => {
+  const { app, record } = staleRegressionApp()
+  writeFileSync(app.paths.appRecord, JSON.stringify({ ...record, platform: 'windows' }))
+  assertIsolationMock.mockResolvedValue(undefined)
+  let prepared = false
+  prepareCdpMock.mockImplementation(async () => {
+    prepared = true
+  })
+  const browser = await connectOverCdpMock.getMockImplementation()!()
+  connectOverCdpMock.mockImplementation(async () => {
+    if (!prepared) throw new Error('Hidden Windows targets block CDP initialization')
+    prepared = false
+    return browser
+  })
+
+  await expect(app.window('/windows/main/index.html')).resolves.toBeDefined()
+  await expect(app.window('/windows/main/index.html')).resolves.toBeDefined()
+  expect(restartAppMock).not.toHaveBeenCalled()
 })

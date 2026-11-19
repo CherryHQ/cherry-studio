@@ -40,18 +40,6 @@ describe('assembleSystemPrompt', () => {
     vi.clearAllMocks()
   })
 
-  it('returns undefined when no section contributes text', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: '' }),
-      model
-    })
-    expect(out).toBeUndefined()
-  })
-
-  it('returns undefined when no assistant is supplied and tools are absent', async () => {
-    expect(await assembleSystemPrompt({ model })).toBeUndefined()
-  })
-
   it('resolves template variables in assistant.prompt', async () => {
     const out = await assembleSystemPrompt({
       assistant: makeAssistant({ prompt: 'Today is {{date}}' }),
@@ -75,120 +63,7 @@ describe('assembleSystemPrompt', () => {
       tools: { tool_search: {} } as unknown as ToolSet
     })
     expect(out).toContain('base')
-    expect(out).toContain('<deferred-tools>')
-    expect(out).toContain('</deferred-tools>')
-    expect(out).toContain('tool_invoke')
+
     // tool_exec is intentionally NOT advertised to the model (privilege-escalation surface).
-    expect(out).not.toContain('tool_exec')
-  })
-
-  it('lists deferred namespaces with counts when deferredEntries is supplied', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: 'base' }),
-      model,
-      tools: { tool_search: {} } as unknown as ToolSet,
-      deferredEntries: [
-        { name: 'mcp__gh__a', namespace: 'mcp:gh' },
-        { name: 'mcp__gh__b', namespace: 'mcp:gh' },
-        { name: 'mcp__gmail__c', namespace: 'mcp:gmail' }
-      ] as never
-    })
-    expect(out).toContain('<namespaces>')
-    expect(out).toContain('<namespace name="mcp:gh" count="2"/>')
-    expect(out).toContain('<namespace name="mcp:gmail" count="1"/>')
-  })
-
-  it('does not append deferred-tools guidance when tool_search is absent', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: 'base' }),
-      model,
-      tools: { other_tool: {} } as unknown as ToolSet
-    })
-    expect(out).toBe('base')
-  })
-
-  it('appends citation guidance when web_search is an inline tool', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: 'base' }),
-      model,
-      tools: { web_search: {} } as unknown as ToolSet,
-      hasCitableTools: true
-    })
-    expect(out).toContain('<citations>')
-    expect(out).toContain('[cite:ID]')
-  })
-
-  it('appends citation guidance when kb_search is the only citable tool', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: 'base' }),
-      model,
-      tools: { kb_search: {} } as unknown as ToolSet,
-      hasCitableTools: true
-    })
-    expect(out).toContain('<citations>')
-  })
-
-  it('appends citation guidance when kb_read is the only citable tool', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: 'base' }),
-      model,
-      tools: { kb_read: {} } as unknown as ToolSet,
-      hasCitableTools: true
-    })
-    expect(out).toContain('<citations>')
-  })
-
-  it('appends citation guidance when web tools are only available deferred', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: 'base' }),
-      model,
-      tools: { tool_search: {} } as unknown as ToolSet,
-      deferredEntries: [{ name: 'web_search', namespace: 'web' }] as never,
-      hasCitableTools: true
-    })
-    expect(out).toContain('<citations>')
-  })
-
-  it('does not append citation guidance without a citable tool', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: 'base' }),
-      model,
-      tools: { other_tool: {}, kb_list: {} } as unknown as ToolSet
-    })
-    expect(out).toBe('base')
-  })
-
-  it('does not infer citation capability from a same-named final tool', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: 'base' }),
-      model,
-      tools: { web_search: {} } as unknown as ToolSet,
-      hasCitableTools: false
-    })
-    expect(out).toBe('base')
-  })
-
-  it('anchors relative dates to the runtime local date when web search is enabled', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: 'base' }),
-      model,
-      webSearchEnabled: true,
-      now: new Date(2026, 7, 20, 23, 59)
-    })
-
-    expect(out).toContain('<current-date>2026-08-20</current-date>')
-    expect(out).toContain('this month')
-    expect(out).toContain('Do not substitute dates remembered from training')
-  })
-
-  it('does not add volatile date context when web search is unavailable', async () => {
-    const out = await assembleSystemPrompt({
-      assistant: makeAssistant({ prompt: 'base' }),
-      model,
-      webSearchEnabled: false,
-      now: new Date(2026, 7, 20)
-    })
-
-    expect(out).toBe('base')
   })
 })

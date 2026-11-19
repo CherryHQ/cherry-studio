@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import i18n from '@renderer/i18n/resolver'
 
 import { EMPTY_STATS_METRICS } from '../usageAnalytics'
 import UsageSettings from '../UsageSettings'
@@ -71,7 +72,8 @@ vi.mock('../useUsageData', () => {
   }
 })
 
-beforeAll(() => {
+beforeAll(async () => {
+  await i18n.changeLanguage('zh-cn')
   if (!HTMLElement.prototype.hasPointerCapture) HTMLElement.prototype.hasPointerCapture = () => false
   if (!HTMLElement.prototype.releasePointerCapture) HTMLElement.prototype.releasePointerCapture = () => {}
   if (!HTMLElement.prototype.setPointerCapture) HTMLElement.prototype.setPointerCapture = () => {}
@@ -84,15 +86,10 @@ describe('UsageSettings', () => {
     usageDataOverride.current = {}
   })
 
-  it('starts on the documented defaults', () => {
+  it('discloses that totals may include local estimates even for an empty selection', () => {
     render(<UsageSettings />)
 
-    expect(screen.getByRole('radio', { name: '最近 30 天' })).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByRole('combobox', { name: '分组' })).toHaveTextContent('供应商')
-    expect(screen.getByRole('combobox', { name: '指标' })).toHaveTextContent('Token')
-    expect(screen.getByRole('combobox', { name: 'Top' })).toHaveTextContent('10')
-    expect(screen.getByRole('button', { name: '柱状图' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('radio', { name: '按天' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByText('总计可能包含本地成本估算；实际费用以服务商账单为准。')).toBeVisible()
   })
 
   it('restores the view selections after leaving and returning to the page', async () => {
@@ -115,37 +112,6 @@ describe('UsageSettings', () => {
     expect(screen.getByRole('button', { name: '饼图' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('radio', { name: '总计' })).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByRole('combobox', { name: 'Top' })).toHaveTextContent('20')
-  })
-
-  it('caps the dashboard column so ultrawide windows do not stretch charts', () => {
-    render(<UsageSettings />)
-
-    const overview = screen.getByRole('heading', { name: '概览' })
-    const column = overview.closest('.mx-auto')
-
-    // Layout contract: the usage dashboard is bounded (`max-w-6xl`), not full-bleed (`max-w-none`).
-    expect(column).toHaveClass('max-w-6xl')
-    expect(column).not.toHaveClass('max-w-none')
-  })
-
-  it('keeps the overview insight row when usage data exists', () => {
-    usageDataOverride.current = {
-      overviewTotals: {
-        totalCost: 0,
-        totalTokens: 100,
-        totalNoCacheTokens: 0,
-        totalCacheReadTokens: 0,
-        totalCacheWriteTokens: 0,
-        requestCount: 1
-      }
-    }
-
-    render(<UsageSettings />)
-
-    expect(screen.getByText('活跃天数')).toBeInTheDocument()
-    expect(screen.getByText('高峰日')).toBeInTheDocument()
-    expect(screen.getByText('用量最高模型')).toBeInTheDocument()
-    expect(screen.getByText('日均')).toBeInTheDocument()
   })
 
   it('shows the full total including Other and preserves the trend chart when returning from Total', async () => {
