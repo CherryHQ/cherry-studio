@@ -17,6 +17,7 @@ export class ThreadFeed {
 
   constructor(
     private value: ThreadSnapshot,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Adapter hosts receive original observer callback failures and feed backlog errors; this transport cannot assume thrown values are Error instances.
     private readonly report: (error: unknown) => void,
     // oxlint-disable-next-line no-restricted-globals -- Isolate caller-owned snapshots by default.
     private readonly copy: <T extends ObservationPayload>(value: T) => T = (value) => structuredClone(value)
@@ -129,6 +130,7 @@ export class ThreadFeed {
         else barrier.reject(new Error('Observation stopped before delivery drained'))
       }
     }
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Observer sinks may throw or reject with arbitrary values; forward the original failure while isolating the host reporter from delivery.
     const report = (error: unknown) => {
       try {
         this.report(error)
