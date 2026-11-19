@@ -100,6 +100,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private compacting = false
   private autonomous = false
   private failure?: unknown
+  private stopGeneration = 0
   private admission: Promise<unknown> = Promise.resolve()
   private runEnded?: PromiseWithResolvers<void>
   private nextOrigin: AutonomousTurnOrigin = { kind: 'background-work' }
@@ -194,8 +195,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   async send(input: AgentRuntimeCommand): Promise<void> {
     if (!this.handle || !this.context || this.closing) throw new Error('Durable runtime is unavailable')
     const text = buildAgentUserContent(input.message)
-    const compact = !input.systemReminder && isCompactCommand(text)
-    if (compact && this.sending) throw new Error('Durable cannot compact while native work is running')
+    const manual = !input.systemReminder && isCompactCommand(text)
+    if (manual && this.sending) throw new Error('Durable cannot compact while native work is running')
     // Compaction is not an input run; the host holds input behind its compaction occupancy.
     if (this.compacting) throw new Error('Durable is compacting')
     // Input that arrives while native work runs waits in Durable's queue and joins the running turn.
@@ -209,13 +210,30 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       this.failure = undefined
       this.turnUsage.reset()
     }
-    if (compact) {
+    const stopGeneration = this.stopGeneration
+    const snapshot = this.desktop?.snapshot
+    let thresholdReached = false
+    if (!running && !manual && snapshot?.compactionPercent !== undefined && snapshot.model.contextWindow) {
       this.compacting = true
-      this.events.push({ type: 'compaction-start', trigger: 'manual' })
+      const usage = await this.handle.contextUsage().catch(() => undefined)
+      this.compacting = false
+      thresholdReached =
+        usage?.status === 'confirmed' &&
+        !!usage.value.used &&
+        usage.value.contextWindow > 0 &&
+        usage.value.used.tokens >= (usage.value.contextWindow * snapshot.compactionPercent) / 100
+    }
+    if (manual || (thresholdReached && stopGeneration === this.stopGeneration && !this.closing)) {
+      const trigger = manual ? 'manual' : 'auto'
+      this.compacting = true
+      this.events.push({ type: 'compaction-start', trigger })
       try {
-        const compacted = await this.handle.durable.compact(text.trim().slice('/compact'.length).trim() || undefined)
+        const compacted = await this.handle.durable.compact(
+          manual ? text.trim().slice('/compact'.length).trim() || undefined : undefined
+        )
         if (compacted.status !== 'confirmed') throw new Error(compacted.error.message)
-        if (!this.closing && !compacted.value.compacted) this.projection?.notice(t('common.agent_compaction_unchanged'))
+        if (manual && !this.closing && !compacted.value.compacted)
+          this.projection?.notice(t('common.agent_compaction_unchanged'))
         if (!this.closing)
           this.events.push({
             type: 'compaction-complete',
@@ -223,7 +241,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
               anchor: {
                 status: 'done',
                 phase: 'agent-session',
-                trigger: 'manual',
+                trigger,
                 completedAt: new Date().toISOString()
               }
             })
@@ -233,7 +251,15 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       } finally {
         this.compacting = false
       }
-      this.finishTurn()
+      if (manual || this.failure || this.closing) {
+        this.finishTurn()
+        return
+      }
+    }
+    // Stop can finish its native interrupt before this input reaches native admission.
+    if (stopGeneration !== this.stopGeneration || this.closing) {
+      this.placed.delete(input.message.id)
+      this.finishTurn(undefined, true)
       return
     }
     try {
@@ -750,6 +776,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async interrupt(): Promise<void> {
+    this.stopGeneration++
     // The stop must name the turn of a submission that is still being admitted.
     await this.admission
     const ended = this.sending ? (this.runEnded ??= Promise.withResolvers<void>()).promise : undefined
