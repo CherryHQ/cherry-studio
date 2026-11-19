@@ -2673,12 +2673,12 @@ export class AgentSessionMessageService {
 
       const parked = this.rowToEntity(parkedRow)
       const updatedAt = Date.now()
-      // The part keeps every field it was parked with; only its state leaves the approval machine.
       const parts = (parked.data.parts ?? []).map((part): CherryMessagePart => {
-        const parkedApprovalId = (part as { approval?: { id?: string } }).approval?.id
-        if (!isToolUIPart(part) || part.state !== 'approval-requested' || parkedApprovalId !== approvalId) {
+        if (!isToolUIPart(part) || part.state !== 'approval-requested' || part.approval?.id !== approvalId) {
           return part
         }
+        // SAFETY: Retired cards retain undecided approval metadata so a late answer can still settle them.
+        // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- SDK output-error permits only approved metadata; this archived state deliberately differs.
         return { ...part, state: 'output-error', errorText } as unknown as CherryMessagePart
       })
       tx.update(sessionMessagesTable)

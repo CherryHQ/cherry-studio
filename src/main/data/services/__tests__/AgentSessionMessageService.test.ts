@@ -1325,7 +1325,11 @@ describe('AgentSessionMessageService', () => {
     expect(agentSessionMessageService.retireAbandonedApproval(SESSION_ID, 'approval-1', 'connection closed')).toBe(true)
 
     const saved = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
-    expect(saved.data.parts?.[0]).toMatchObject({ state: 'output-error', errorText: 'connection closed' })
+    expect(saved.data.parts?.[0]).toMatchObject({
+      state: 'output-error',
+      errorText: 'connection closed',
+      approval: { id: 'approval-1' }
+    })
     // A second sweep (another abort, or shutdown after the same teardown) must not rewrite the row.
     expect(agentSessionMessageService.retireAbandonedApproval(SESSION_ID, 'approval-1', 'connection closed')).toBe(
       false
