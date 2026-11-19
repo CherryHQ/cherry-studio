@@ -2836,7 +2836,7 @@ describe('Agent configuration memory', () => {
     expect(screen.getByText('{"event":"remembered"}')).toBeVisible()
   })
 
-  // Catches the identity page of a Pi Durable System Prompt showing its files read-only or losing a draft on Back.
+  // Catches the identity page of a Pi Durable System Prompt offering the journal, showing its files read-only, or losing a draft on Back.
   it('edits SOUL.md from the identity page of the System Prompt and guards an unsaved draft on Back', async () => {
     ipcRequestMock.mockImplementation(async (route: string, input: { key?: string; content?: string }) => {
       if (route === 'agent.system_prompt.preview')
@@ -2859,10 +2859,9 @@ describe('Agent configuration memory', () => {
       await screen.findByRole('button', { name: /^library\.config\.agent\.prompt\.block\.agent_identity$/ })
     )
 
-    // Editable at once, one draft per file: a USER.md draft survives switching back to SOUL.md.
-    await user.click(await screen.findByRole('tab', { name: 'User profile' }))
-    await user.type(screen.getByRole('textbox', { name: 'Edit USER.md' }), ' and more')
-    await user.click(screen.getByRole('tab', { name: 'Persona' }))
+    await screen.findByRole('button', { name: 'Persona' })
+    expect(screen.queryByRole('button', { name: /^Event log/ })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Persona' }))
     const editor = screen.getByRole('textbox', { name: 'Edit SOUL.md' })
     await user.clear(editor)
     await user.type(editor, 'Updated persona')

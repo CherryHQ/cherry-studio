@@ -75,7 +75,6 @@ import { getPromptBlockTitleKey, PiPromptField } from '../components/PiPromptFie
 import { PromptPolishActions } from '../components/PromptPolishActions'
 import { ReplyLanguageSelect } from '../components/ReplyLanguageSelect'
 import { AgentChannelsPage } from './AgentChannelsPage'
-import { AgentIdentityFiles } from './AgentIdentityFiles'
 import { AgentMemoryPanel, type AgentMemoryPanelHandle, MEMORY_FILE_LABEL_KEYS } from './AgentMemoryPanel'
 import { AgentTasksPage } from './AgentTasksPage'
 import { countSummary, type EditPage, type EditSubPage, resolveInitialEditPage } from './editPages'
@@ -107,6 +106,9 @@ type AgentEditFormValues = {
   languageCustom: string
   promptOverrides: AgentPromptOverrides
 }
+
+// The memory files the System Prompt's identity block is built from.
+const IDENTITY_FILE_KEYS = ['soul', 'user', 'fact'] as const satisfies AgentMemoryFileKey[]
 
 const logger = loggerService.withContext('AgentEditDialog')
 
@@ -561,7 +563,9 @@ function AgentEditDialogContent({
     if (memoryPanelRef.current && !(await memoryPanelRef.current.confirmLeave())) return
     setPromptSection(null)
   }
-  const memoryFileTitle = page === 'memory' && memoryFile ? MEMORY_FILE_LABEL_KEYS[memoryFile] : undefined
+  const identityPage = page === 'prompt' && promptSection === 'agent_identity'
+  const memoryFileTitle =
+    (page === 'memory' || identityPage) && memoryFile ? MEMORY_FILE_LABEL_KEYS[memoryFile] : undefined
   const leaveMemoryFile = async () => {
     if (memoryPanelRef.current && !(await memoryPanelRef.current.confirmLeave())) return
     setMemoryFile(null)
@@ -572,13 +576,19 @@ function AgentEditDialogContent({
       form={form}
       open={open}
       onOpenChange={handleOpenChange}
-      page={promptSectionTitle ? `prompt.${promptSection}` : memoryFileTitle ? `memory.${memoryFile}` : page}
-      title={promptSectionTitle ? t(promptSectionTitle) : memoryFileTitle ? t(memoryFileTitle) : pageTitles[page]}
+      page={
+        memoryFileTitle
+          ? `${identityPage ? 'prompt.agent_identity' : 'memory'}.${memoryFile}`
+          : promptSectionTitle
+            ? `prompt.${promptSection}`
+            : page
+      }
+      title={memoryFileTitle ? t(memoryFileTitle) : promptSectionTitle ? t(promptSectionTitle) : pageTitles[page]}
       onBack={
-        promptSectionTitle
-          ? () => void leavePromptSection()
-          : memoryFileTitle
-            ? () => void leaveMemoryFile()
+        memoryFileTitle
+          ? () => void leaveMemoryFile()
+          : promptSectionTitle
+            ? () => void leavePromptSection()
             : page === 'settings'
               ? undefined
               : () => void goTo('settings')
@@ -652,7 +662,16 @@ function AgentEditDialogContent({
           section={promptSection}
           onSectionChange={setPromptSection}
           identityEditor={
-            open ? <AgentIdentityFiles key={resource.id} ref={memoryPanelRef} agentId={resource.id} /> : undefined
+            open ? (
+              <AgentMemoryPanel
+                key={resource.id}
+                ref={memoryPanelRef}
+                agent={resource}
+                file={memoryFile}
+                onFileChange={setMemoryFile}
+                fileKeys={IDENTITY_FILE_KEYS}
+              />
+            ) : undefined
           }
           draft={{
             agentId: resource.id,

@@ -19,7 +19,7 @@ export const MEMORY_FILE_LABEL_KEYS: Record<AgentMemoryFileKey, string> = {
   journal: 'agent.memory.file.journal'
 }
 
-export function useMemorySnapshot(agentId: string) {
+function useMemorySnapshot(agentId: string) {
   const [snapshot, setSnapshot] = useState<AgentMemorySnapshot | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
@@ -64,11 +64,14 @@ export function AgentMemoryPanel({
   agent,
   file,
   onFileChange,
+  fileKeys = FILE_ORDER,
   ref
 }: {
   agent: { id: string; name: string }
   file: AgentMemoryFileKey | null
   onFileChange: (file: AgentMemoryFileKey) => void
+  /** The files the list offers; the System Prompt's identity page lists only the identity files. */
+  fileKeys?: readonly AgentMemoryFileKey[]
   ref?: Ref<AgentMemoryPanelHandle>
 }) {
   const { t, i18n } = useTranslation()
@@ -249,26 +252,28 @@ export function AgentMemoryPanel({
         {folderActions}
       </div>
       <div className="flex flex-col rounded-xl border border-border-subtle p-1">
-        {(files.length > 0 ? files : FILE_ORDER.map((key) => ({ key }) as AgentMemoryFile)).map((item) => {
-          const label = t(MEMORY_FILE_LABEL_KEYS[item.key])
-          const note = item.name && readOnlyReasonOf(item) ? t('library.config.agent.prompt.read_only') : undefined
-          return (
-            <Button
-              key={item.key}
-              type="button"
-              variant="ghost"
-              disabled={files.length === 0}
-              aria-label={note ? `${label}: ${note}` : label}
-              onClick={() => onFileChange(item.key)}
-              className="h-9 justify-between gap-3 rounded-lg px-2.5 font-normal text-sm">
-              <span className="truncate text-foreground">{label}</span>
-              <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground text-xs">
-                {note}
-                <ChevronRight className="size-3.5" />
-              </span>
-            </Button>
-          )
-        })}
+        {(files.length > 0 ? files : FILE_ORDER.map((key) => ({ key }) as AgentMemoryFile))
+          .filter((item) => fileKeys.includes(item.key))
+          .map((item) => {
+            const label = t(MEMORY_FILE_LABEL_KEYS[item.key])
+            const note = item.name && readOnlyReasonOf(item) ? t('library.config.agent.prompt.read_only') : undefined
+            return (
+              <Button
+                key={item.key}
+                type="button"
+                variant="ghost"
+                disabled={files.length === 0}
+                aria-label={note ? `${label}: ${note}` : label}
+                onClick={() => onFileChange(item.key)}
+                className="h-9 justify-between gap-3 rounded-lg px-2.5 font-normal text-sm">
+                <span className="truncate text-foreground">{label}</span>
+                <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground text-xs">
+                  {note}
+                  <ChevronRight className="size-3.5" />
+                </span>
+              </Button>
+            )
+          })}
       </div>
     </div>
   )
