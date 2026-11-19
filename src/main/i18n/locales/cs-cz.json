@@ -71,6 +71,7 @@
   "appMenu.zoomOut": "Oddálit",
   "backup.restore.failed": "Obnovení selhalo",
   "backup.restore.retry": "Záloha nebyla obnovena. Předchozí data byla zachována. Zkuste obnovení znovu.",
+  "chat.cherryai.sign_in_required": "Pro použití tohoto modelu se přihlaste k Cherry AI",
   "chat.conversation.new": "Nový chat",
   "command_approval.builtin-destructive-command": "Tento vestavěný agent nemůže provádět destruktivní operace. K potvrzenému smazání souborů použijte nástroj koše. (mcp__assistant-files__move_to_trash)",
   "command_approval.configuration_error": "Zásady příkazů se nepodařilo načíst. Spuštění bylo zablokováno.",
