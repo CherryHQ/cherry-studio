@@ -1,4 +1,4 @@
-import type { MessageCountTokensParams, MessageCreateParams } from '@anthropic-ai/sdk/resources'
+import type { MessageCountTokensParams } from '@anthropic-ai/sdk/resources'
 
 import { loggerService } from '@logger'
 import {
@@ -36,7 +36,7 @@ const logger = loggerService.withContext('GatewayTokenEstimate')
  * degrades further to a bounded raw-body estimate — count_tokens must not 500 a client.
  */
 export async function estimateAnthropicRequestTokens(
-  body: MessageCreateParams,
+  body: MessageCountTokensParams,
   signal?: AbortSignal,
   internal = false
 ): Promise<number> {
@@ -51,7 +51,7 @@ export async function estimateAnthropicRequestTokens(
 }
 
 async function estimateConvertedRequest(
-  body: MessageCreateParams,
+  body: MessageCountTokensParams,
   signal: AbortSignal | undefined,
   internal: boolean
 ): Promise<number> {
@@ -101,9 +101,9 @@ async function estimateConvertedRequest(
 
 /** Rewrite historical `tool_use.name`s to the same wire-safe names the tool definitions use. */
 function renameToolUses(
-  messages: MessageCreateParams['messages'],
+  messages: MessageCountTokensParams['messages'],
   rename: (toolName: string) => string
-): MessageCreateParams['messages'] {
+): MessageCountTokensParams['messages'] {
   return messages.map((msg) => {
     if (!Array.isArray(msg.content)) return msg
     let changed = false

@@ -1,4 +1,4 @@
-import type { MessageCreateParams } from '@anthropic-ai/sdk/resources'
+import type { MessageCountTokensParams } from '@anthropic-ai/sdk/resources'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeModel } from '@main/ai/__tests__/fixtures/model'
@@ -40,8 +40,8 @@ const resolveTo = (model: ReturnType<typeof makeModel>, provider = anthropicProv
 const bigImage = 'A'.repeat(100_000)
 const imageBlock = { type: 'image', source: { type: 'base64', media_type: 'image/png', data: bigImage } } as const
 
-const body = (messages: unknown, tools?: unknown) =>
-  ({ model: 'p:m', messages, tools }) as unknown as MessageCreateParams
+// SAFETY: Malformed block/tool fixtures must reach the estimator's bounded fallback rather than fail fixture creation.
+const body = (messages: unknown, tools?: unknown) => ({ model: 'p:m', messages, tools }) as MessageCountTokensParams
 
 const visionModel = makeModel({ capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] })
 const textModel = makeModel({ capabilities: [] })
