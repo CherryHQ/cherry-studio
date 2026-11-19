@@ -40,7 +40,7 @@ import { needsDreaming, observeMemory, readDreamingState, writeDreamingState } f
 import { parseMemoryEntries, serializeMemoryEntries } from '../memoryEntries'
 import { extractContextCandidates, readExtractionRange } from '../memoryExtraction'
 import { readExtractionState, nextExtractionDaily, writeExtractionState } from '../memoryExtractionState'
-import { memoryHash } from '../memoryFiles'
+import * as memoryFiles from '../memoryFiles'
 import { MemoryService, type MemorySession } from '../MemoryService'
 
 describe('memory organization lifecycle and commit fences', () => {
@@ -236,7 +236,7 @@ describe('memory organization lifecycle and commit fences', () => {
     })
     await expect(dreaming.execute(job())).rejects.toMatchObject({ name: 'AbortError' })
     expect(readDreamingState(scope).files['MEMORY.md']).toMatchObject({
-      observedHash: memoryHash(Buffer.from('New fact')),
+      observedHash: memoryFiles.memoryHash(Buffer.from('New fact')),
       attempts: 0,
       retryAt: 0
     })
@@ -636,6 +636,17 @@ describe('memory organization lifecycle and commit fences', () => {
     const preview = await session.previewClear()
     await save('Concurrent edit')
     await expect(session.clear(preview.token, approve)).rejects.toThrow()
+    expect(readExtractionState(batch.key)?.pending).toHaveLength(8)
+    await save('Another file', '.memories/topic.md')
+    const clear = await session.previewClear()
+    const write = memoryFiles.writeMemoryBytes
+    const fail = vi.spyOn(memoryFiles, 'writeMemoryBytes').mockImplementation(async (...args) => {
+      if (args[0] === application.getPath('feature.memory.data')) throw new Error('Write failed')
+      return write(...args)
+    })
+    const result = await session.clear(clear.token, approve)
+    fail.mockRestore()
+    expect(result.files.map((file) => file.outcome)).toEqual(['unchanged', 'unchanged'])
     expect(readExtractionState(batch.key)?.pending).toHaveLength(8)
     const stateBeforeStaging = dbh.db.select().from(appStateTable).all()
     const hold = memory.pause('backup restore')
@@ -1982,7 +1993,7 @@ describe('memory organization lifecycle and commit fences', () => {
 
     await dreaming.execute(job())
     expect(readDreamingState(privateScope).files['MEMORY.md'].observedHash).toBe(
-      memoryHash(Buffer.from('Private fact'))
+      memoryFiles.memoryHash(Buffer.from('Private fact'))
     )
     expect((await session.read('MEMORY.md')).content).toBe(original)
     expect(readDreamingState(scope).files['.memories/topic.md'].changes).toBe(10)
@@ -2206,11 +2217,15 @@ describe('memory organization lifecycle and commit fences', () => {
 
   it('preserves the seven-day deadline when external content changes without inventing edits', () => {
     const state = readDreamingState(scope)
-    const original = { path: 'MEMORY.md', content: 'First', hash: memoryHash(Buffer.from('First')) }
+    const original = { path: 'MEMORY.md', content: 'First', hash: memoryFiles.memoryHash(Buffer.from('First')) }
     observeMemory(state, original, 1000)
     writeDreamingState(state)
     const restored = readDreamingState(scope)
-    observeMemory(restored, { ...original, content: 'Second', hash: memoryHash(Buffer.from('Second')) }, 2000)
+    observeMemory(
+      restored,
+      { ...original, content: 'Second', hash: memoryFiles.memoryHash(Buffer.from('Second')) },
+      2000
+    )
     expect(restored.files['MEMORY.md']).toMatchObject({ changes: 0, pendingSince: 1000 })
     expect(needsDreaming(restored.files['MEMORY.md'], 1000 + 7 * 24 * 60 * 60_000)).toBe(true)
   })
