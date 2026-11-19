@@ -15,7 +15,7 @@ import { detectLanguageOrUnknown, useDetectLang, useLanguages, useTranslate } fr
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { cn } from '@renderer/utils/style'
 import { pickBidirectionalTarget, UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
-import type { SelectionActionItem, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type { PersistedLangCode, SelectionActionItem, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
@@ -66,15 +66,10 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
       .then(setSavedLangCodes)
   }, [])
 
-  const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(
-    BUILTIN_LANGUAGE.zhCN as unknown as TranslateLanguage
-  )
-
-  const [alterLanguage, setAlterLanguage] = useState<TranslateLanguage>(
-    BUILTIN_LANGUAGE.enUS as unknown as TranslateLanguage
-  )
+  const [targetLanguage, setTargetLanguage] = useState<PersistedLangCode>(BUILTIN_LANGUAGE.zhCN.langCode)
+  const [alterLanguage, setAlterLanguage] = useState<PersistedLangCode>(BUILTIN_LANGUAGE.enUS.langCode)
   const [detectedLanguage, setDetectedLanguage] = useState<TranslateLanguage | null>(null)
-  const [actualTargetLanguage, setActualTargetLanguage] = useState<TranslateLanguage>(targetLanguage)
+  const [actualTargetLanguage, setActualTargetLanguage] = useState<PersistedLangCode>(targetLanguage)
 
   const [showOriginal, setShowOriginal] = useState(false)
   const [initialized, setInitialized] = useState(false)
@@ -100,16 +95,16 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
 
     const targetLang = getLanguage(preferredLangCode)
     if (targetLang) {
-      setTargetLanguage(targetLang)
-      setActualTargetLanguage(targetLang)
-      targetLangRef.current = targetLang
+      setTargetLanguage(targetLang.langCode)
+      setActualTargetLanguage(targetLang.langCode)
+      targetLangRef.current = targetLang.langCode
     } else {
       logger.warn('[updateLanguagePair] Unknown target language; fallback to zh-CN')
     }
 
     const alterLang = getLanguage(savedLangCodes.alter)
     if (alterLang) {
-      setAlterLanguage(alterLang)
+      setAlterLanguage(alterLang.langCode)
     }
   }, [getLanguage, isLanguagesLoaded, savedLangCodes, language])
 
@@ -250,10 +245,10 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
   })
   useEffect(() => {
     translateSelection()
-  }, [selectedText, initialized, targetLanguage.langCode, alterLanguage.langCode, detectionModelId])
+  }, [selectedText, initialized, targetLanguage, alterLanguage, detectionModelId])
 
   const handleChangeLanguage = useCallback(
-    (newTargetLanguage: TranslateLanguage, newAlterLanguage: TranslateLanguage) => {
+    (newTargetLanguage: PersistedLangCode, newAlterLanguage: PersistedLangCode) => {
       if (!initialized) {
         return
       }
@@ -261,8 +256,8 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
       targetLangRef.current = newTargetLanguage
       setAlterLanguage(newAlterLanguage)
 
-      void preferenceService.set('feature.translate.action.preferred_lang', newTargetLanguage.langCode)
-      void preferenceService.set('feature.translate.action.alter_lang', newAlterLanguage.langCode)
+      void preferenceService.set('feature.translate.action.preferred_lang', newTargetLanguage)
+      void preferenceService.set('feature.translate.action.alter_lang', newAlterLanguage)
     },
     [initialized]
   )
@@ -273,18 +268,18 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
       if (!initialized) return
       const newLang = getLanguage(langCode)
       if (!newLang) return
-      setActualTargetLanguage(newLang)
+      setActualTargetLanguage(newLang.langCode)
 
       // Update settings: if new target equals current target, keep as is
       // Otherwise, swap if needed or just update target
-      if (newLang.langCode !== targetLanguage.langCode && newLang.langCode !== alterLanguage.langCode) {
+      if (newLang.langCode !== targetLanguage && newLang.langCode !== alterLanguage) {
         // New language is different from both, update target
-        setTargetLanguage(newLang)
-        targetLangRef.current = newLang
+        setTargetLanguage(newLang.langCode)
+        targetLangRef.current = newLang.langCode
         void preferenceService.set('feature.translate.action.preferred_lang', newLang.langCode)
       }
     },
-    [initialized, getLanguage, targetLanguage.langCode, alterLanguage.langCode]
+    [initialized, getLanguage, targetLanguage, alterLanguage]
   )
 
   // Settings popover content
@@ -294,13 +289,13 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
         <div className="flex min-w-[180px] cursor-default flex-col gap-1.5 py-1">
           <span className="text-muted-foreground text-xs">{t('translate.preferred_target')}</span>
           <LanguageSelect
-            value={targetLanguage.langCode}
+            value={targetLanguage}
             className="w-full [&>div]:w-full"
             listHeight={160}
             size="small"
             onChange={(value) => {
               const next = getLanguage(value)
-              if (next) handleChangeLanguage(next, alterLanguage)
+              if (next) handleChangeLanguage(next.langCode, alterLanguage)
               setSettingsOpen(false)
             }}
             disabled={isTranslating}
@@ -309,13 +304,13 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
         <div className="flex min-w-[180px] cursor-default flex-col gap-1.5 py-1">
           <span className="text-muted-foreground text-xs">{t('translate.alter_language')}</span>
           <LanguageSelect
-            value={alterLanguage.langCode}
+            value={alterLanguage}
             className="w-full [&>div]:w-full"
             listHeight={160}
             size="small"
             onChange={(value) => {
               const next = getLanguage(value)
-              if (next) handleChangeLanguage(targetLanguage, next)
+              if (next) handleChangeLanguage(targetLanguage, next.langCode)
               setSettingsOpen(false)
             }}
             disabled={isTranslating}
@@ -363,7 +358,7 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
 
             {/* Target language selector */}
             <LanguageSelect
-              value={actualTargetLanguage.langCode}
+              value={actualTargetLanguage}
               className="min-w-[100px] max-w-[160px]"
               listHeight={160}
               size="small"
