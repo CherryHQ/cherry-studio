@@ -1,7 +1,7 @@
 import { hostname, networkInterfaces } from 'node:os'
 
 import type { ProviderHeaders } from '@earendil-works/pi-ai'
-import { Mutex, Semaphore } from 'async-mutex'
+import { E_CANCELED, Mutex } from 'async-mutex'
 import { retry } from 'es-toolkit'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -51,7 +51,12 @@ function presentedToken(headers: Headers): string | undefined {
 export class ApiGatewayService extends BaseService implements Activatable {
   private apiGateway: ApiGateway | null = null
   private readonly lanMutex = new Mutex()
-  private readonly internalRequestBudget = new Semaphore(INTERNAL_REQUEST_BUDGET)
+  private availableInternalRequestUnits = INTERNAL_REQUEST_BUDGET
+  private readonly pendingInternalRequests = new Set<{
+    units: number
+    grant: (release: () => void) => void
+    cancel: (reason: unknown) => void
+  }>()
   /** Never persisted or shown to the user; unrestricted on the internal listener. */
   private readonly internalApiKey = `cs-internal-${uuidv4()}`
   /** Live scoped credentials; each authorizes only its own scope until disposed. */
@@ -158,7 +163,8 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   protected async onStop(): Promise<void> {
-    this.internalRequestBudget.cancel()
+    for (const request of this.pendingInternalRequests) request.cancel(E_CANCELED)
+    this.pendingInternalRequests.clear()
     const internalGateway = this.internalGateway
     this.internalGateway = null
     this.internalOrigin = undefined
@@ -431,22 +437,47 @@ export class ApiGatewayService extends BaseService implements Activatable {
       Number.isSafeInteger(length) && length > 0
         ? Math.min(INTERNAL_REQUEST_BUDGET, Math.ceil(length / REQUEST_UNIT_BYTES))
         : INTERNAL_REQUEST_BUDGET
-    const acquired = this.internalRequestBudget.acquire(units)
-    return new Promise((resolve, reject) => {
-      const abort = () => reject(signal.reason)
-      signal.addEventListener('abort', abort, { once: true })
-      void acquired.then(
-        ([, release]) => {
+    const release = await new Promise<() => void>((resolve, reject) => {
+      const request = {
+        units,
+        grant: (release: () => void) => {
           signal.removeEventListener('abort', abort)
-          if (signal.aborted) release()
-          else resolve(release)
+          resolve(release)
         },
-        (error) => {
+        cancel: (reason: unknown) => {
           signal.removeEventListener('abort', abort)
-          reject(error)
+          reject(reason)
         }
-      )
+      }
+      const abort = () => {
+        this.pendingInternalRequests.delete(request)
+        request.cancel(signal.reason)
+        this.grantInternalRequestBudget()
+      }
+      signal.addEventListener('abort', abort, { once: true })
+      this.pendingInternalRequests.add(request)
+      this.grantInternalRequestBudget()
     })
+    if (signal.aborted) {
+      release()
+      signal.throwIfAborted()
+    }
+    return release
+  }
+
+  private grantInternalRequestBudget(): void {
+    for (const request of this.pendingInternalRequests) {
+      if (request.units > this.availableInternalRequestUnits) break
+      this.pendingInternalRequests.delete(request)
+      this.availableInternalRequestUnits -= request.units
+      let released = false
+      request.grant(() => {
+        if (released) return
+        released = true
+        this.availableInternalRequestUnits += request.units
+        this.grantInternalRequestBudget()
+      })
+    }
   }
 
   /** The scope of a live scoped credential; undefined for every other request. */

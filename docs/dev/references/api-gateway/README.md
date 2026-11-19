@@ -44,7 +44,8 @@ external callers cannot override these through internal headers.
 Internal Agent calls to `POST /v1/messages` share a request-size-weighted allowance
 before conversion and outbound encoding. Larger image-heavy calls may wait for a
 previous response to finish, fail, or disconnect. The queued call retains its full
-model history and can be cancelled.
+model history. Cancelling a queued call lets the next request proceed as soon as
+the available allowance can cover it.
 
 Responses reasoning preserves provider-issued item IDs and encrypted content in both streaming and
 non-streaming output and on subsequent input, including items with no readable summary. The gateway

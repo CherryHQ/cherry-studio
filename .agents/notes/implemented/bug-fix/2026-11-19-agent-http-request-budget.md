@@ -10,7 +10,7 @@ Parallel Claude Agent requests can exhaust the Electron main process V8 heap. Ov
 
 ## Decision
 
-Internal Agent session requests to `POST /v1/messages` share 32 one-MiB units before conversion. Charge by HTTP content length, rounded up and capped at the full budget. Requests of unknown length reserve the full budget. Release the reservation on completion, failure, or disconnect. A cancelled waiter returns any later grant without forwarding the request.
+Internal Agent session requests to `POST /v1/messages` share 32 one-MiB units before conversion. Charge by HTTP content length, rounded up and capped at the full budget. Requests of unknown length reserve the full budget. Release the reservation on completion, failure, or disconnect. Remove cancelled waiters immediately and reconsider the next request against the available budget.
 
 ## Alternatives considered
 
