@@ -8,7 +8,11 @@ import {
   removeSidebarShortcut,
   reorderSidebarShortcuts
 } from '@renderer/utils/sidebar'
-import type { SidebarShortcutItem, SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
+import type {
+  SidebarShortcutItem,
+  SidebarShortcutTarget,
+  SidebarStoredItem
+} from '@shared/data/preference/preferenceTypes'
 import { Sequencer } from '@shared/utils/async'
 
 type SidebarPreferenceClient = Pick<typeof preferenceService, 'get' | 'set'>
@@ -18,7 +22,7 @@ export class SidebarShortcutService {
 
   constructor(private readonly preferences: SidebarPreferenceClient = preferenceService) {}
 
-  private enqueue(transform: (current: readonly unknown[]) => SidebarShortcutItem[]): Promise<void> {
+  private enqueue(transform: (current: readonly unknown[]) => SidebarStoredItem[]): Promise<void> {
     return this.mutationQueue.queue(async () => {
       const stored = await this.preferences.get('ui.sidebar_shortcut')
       const current = Array.isArray(stored) ? stored : []

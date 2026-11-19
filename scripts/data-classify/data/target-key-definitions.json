@@ -363,7 +363,7 @@
     },
     {
       "targetKey": "ui.sidebar_shortcut",
-      "type": "PreferenceTypes.SidebarShortcutItem[]",
+      "type": "PreferenceTypes.SidebarStoredItem[]",
       "defaultValue": [
         {
           "id": "sidebar-shortcut:core.app:agents",
@@ -397,7 +397,7 @@
         }
       ],
       "status": "classified",
-      "description": "Left sidebar shortcuts, an ordered list of generic resource targets with provider-owned activation"
+      "description": "Left sidebar storage, an ordered list of resource shortcuts preserving future item variants"
     },
     {
       "targetKey": "ui.launchpad.app_order",

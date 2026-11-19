@@ -3,7 +3,8 @@ import {
   createSidebarShortcutId,
   type SidebarFavorite,
   type SidebarShortcutItem,
-  type SidebarShortcutTarget
+  type SidebarShortcutTarget,
+  type SidebarStoredItem
 } from '@shared/data/preference/preferenceTypes'
 import { CONVERSATION_ROUTES, conversationRouteUrl } from '@shared/utils/conversationRoute'
 
@@ -189,9 +190,9 @@ const LEGACY_PROVIDER_BY_TYPE = {
   assistant: SIDEBAR_SHORTCUT_PROVIDER_IDS.ASSISTANT
 } as const
 
-type StoredSidebarItem = Record<string, unknown>
+type SidebarCandidate = Record<string, unknown>
 
-function isRecord(value: unknown): value is StoredSidebarItem {
+function isRecord(value: unknown): value is SidebarCandidate {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -211,7 +212,7 @@ export function isSidebarShortcutItem(value: unknown): value is SidebarShortcutI
   return isRecord(value) && value.type === 'shortcut' && isSidebarShortcutTarget(value.target)
 }
 
-function normalizeKnownSidebarShortcut(value: StoredSidebarItem): SidebarShortcutItem | undefined {
+function normalizeKnownSidebarShortcut(value: SidebarCandidate): SidebarShortcutItem | undefined {
   if (value.type === 'shortcut') {
     if (!isSidebarShortcutTarget(value.target)) return undefined
     if (RETIRED_SIDEBAR_SHORTCUT_PROVIDER_IDS.has(value.target.locator.providerId)) return undefined
@@ -241,7 +242,7 @@ function normalizeKnownSidebarShortcut(value: StoredSidebarItem): SidebarShortcu
   return item
 }
 
-function isForwardCompatibleSidebarItem(value: StoredSidebarItem): boolean {
+function isForwardCompatibleSidebarItem(value: SidebarCandidate): value is SidebarCandidate & SidebarStoredItem {
   return (
     typeof value.type === 'string' &&
     value.type !== 'shortcut' &&
@@ -252,8 +253,8 @@ function isForwardCompatibleSidebarItem(value: StoredSidebarItem): boolean {
 }
 
 /** Normalize storage, migrate legacy leaves, and preserve future items. */
-export function normalizeSidebarShortcutItems(values: readonly unknown[] | undefined): SidebarShortcutItem[] {
-  const items: SidebarShortcutItem[] = []
+export function normalizeSidebarShortcutItems(values: readonly unknown[] | undefined): SidebarStoredItem[] {
+  const items: SidebarStoredItem[] = []
   const seen = new Set<string>()
 
   for (const value of values ?? []) {
@@ -270,7 +271,7 @@ export function normalizeSidebarShortcutItems(values: readonly unknown[] | undef
     const futureKey = `${String(value.type)}:${String(value.id)}`
     if (seen.has(futureKey)) continue
     seen.add(futureKey)
-    items.push(value as unknown as SidebarShortcutItem)
+    items.push(value)
   }
 
   return items
@@ -309,7 +310,7 @@ export function addSidebarShortcut(
   values: readonly unknown[] | undefined,
   target: SidebarShortcutTarget,
   fallbackLabel?: string
-): SidebarShortcutItem[] {
+): SidebarStoredItem[] {
   const items = normalizeSidebarShortcutItems(values)
   const id = createSidebarShortcutId(target)
   if (items.some((item) => isSidebarShortcutItem(item) && item.id === id)) return items
@@ -331,7 +332,7 @@ export function addSidebarShortcut(
 export function removeSidebarShortcut(
   values: readonly unknown[] | undefined,
   target: SidebarShortcutTarget
-): SidebarShortcutItem[] {
+): SidebarStoredItem[] {
   const id = createSidebarShortcutId(target)
   const items = normalizeSidebarShortcutItems(values)
   return items.filter((item) => !isSidebarShortcutItem(item) || item.id !== id)
@@ -340,7 +341,7 @@ export function removeSidebarShortcut(
 export function reorderSidebarShortcuts(
   values: readonly unknown[] | undefined,
   orderedItems: readonly SidebarShortcutItem[]
-): SidebarShortcutItem[] {
+): SidebarStoredItem[] {
   const items = normalizeSidebarShortcutItems(values)
   const shortcuts = items.filter(isSidebarShortcutItem)
   const byId = new Map(shortcuts.map((item) => [item.id, item]))
