@@ -15,6 +15,7 @@ const SCHEMAS = {
 
 export const schemaVersion = REGISTRY_SCHEMA_VERSION
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Directory validation catches filesystem, JSON parsing and Zod failures; inspect issues or Error before formatting the rejected catalog's diagnostic.
 function formatValidationError(error: unknown): string {
   if (error && typeof error === 'object' && 'issues' in error) {
     return JSON.stringify(error.issues)
@@ -22,6 +23,7 @@ function formatValidationError(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Catalog files arrive directly from JSON.parse; the selected registry schema is this validator's authoritative input boundary.
 export function validateCatalogFile(file: RegistryFileName, data: unknown): void {
   SCHEMAS[file].parse(data)
 }
