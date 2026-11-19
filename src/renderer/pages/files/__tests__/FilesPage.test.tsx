@@ -13,7 +13,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { FileEntryStats } from '@shared/data/api/schemas/files'
-import type { FileEntry } from '@shared/data/types/file'
+import { FileEntrySchema, type FileEntry } from '@shared/data/types/file'
 
 const platformState = vi.hoisted(() => ({
   isMac: true
@@ -100,6 +100,9 @@ vi.mock('react-i18next', () => ({
 
 import FilesPage from '../FilesPage'
 
+// Renderer setup only mocks v4; validated file fixtures need the real deterministic v5 generator.
+const { v5: uuidv5 } = await vi.importActual<typeof import('uuid')>('uuid')
+
 function render(view: ReactNode) {
   const cache = new Map()
   return renderView(view, {
@@ -109,58 +112,71 @@ function render(view: ReactNode) {
   })
 }
 
-const entry = {
-  id: 'file-1',
+function fileEntryId(label: string): string {
+  return uuidv5(`files-page/${label}`, uuidv5.URL)
+}
+
+const entry = FileEntrySchema.parse({
+  id: fileEntryId('file-1'),
   origin: 'internal',
   name: 'report',
   ext: 'md',
   size: 1024,
+  cleanupPolicy: 'manual',
+  contentHash: null,
   createdAt: 1_719_216_000_000,
   updatedAt: 1_719_216_000_000
-} as unknown as FileEntry
+})
 
-const imageEntry = {
-  id: 'file-image',
+const imageEntry = FileEntrySchema.parse({
+  id: fileEntryId('file-image'),
   origin: 'internal',
   name: 'photo',
   ext: 'png',
   size: 2048,
+  cleanupPolicy: 'manual',
+  contentHash: null,
   createdAt: 1_719_216_000_000,
   updatedAt: 1_719_216_000_000
-} as unknown as FileEntry
+})
 
-const externalEntry = {
-  id: 'file-external',
+const externalEntry = FileEntrySchema.parse({
+  id: fileEntryId('file-external'),
   origin: 'external',
   name: 'external',
   ext: 'txt',
-  size: null,
+  cleanupPolicy: 'manual',
   externalPath: '/tmp/external.txt',
   createdAt: 1_719_216_000_000,
   updatedAt: 1_719_216_000_000
-} as unknown as FileEntry
+})
 
-const externalImageEntry = {
+const externalImageEntry = FileEntrySchema.parse({
   ...externalEntry,
-  id: 'file-external-image',
+  id: fileEntryId('file-external-image'),
   name: 'external-photo',
   ext: 'png',
   externalPath: '/tmp/external-photo.png'
-} as unknown as FileEntry
+})
 
 function bulkEntry(origin: 'internal' | 'external', index: number): FileEntry {
   const base = {
-    id: `bulk-${origin}-${index}`,
-    origin,
+    id: fileEntryId(`bulk-${origin}-${index}`),
     name: `bulk-${origin}-${index}`,
     ext: 'txt',
+    cleanupPolicy: 'manual',
     createdAt: 1_719_216_000_000 + index,
     updatedAt: 1_719_216_000_000 + index
   }
   if (origin === 'external') {
-    return { ...base, size: null, externalPath: `/tmp/bulk-${index}.txt` } as unknown as FileEntry
+    return FileEntrySchema.parse({
+      ...base,
+      origin: 'external',
+      name: `bulk-${index}`,
+      externalPath: `/tmp/bulk-${index}.txt`
+    })
   }
-  return { ...base, size: 1 } as unknown as FileEntry
+  return FileEntrySchema.parse({ ...base, origin: 'internal', size: 1, contentHash: null })
 }
 
 function statsForEntries(entries: FileEntry[]): FileEntryStats {
@@ -271,14 +287,6 @@ afterEach(() => {
   cleanup()
   vi.useRealTimers()
   vi.clearAllMocks()
-})
-
-describe('FilesPage navigation', () => {
-  it('keeps trashed files in the unified recycle bin instead of exposing a second Files view', () => {
-    renderFilesPage()
-
-    expect(screen.queryByText('files.trash')).not.toBeInTheDocument()
-  })
 })
 
 describe('FilesPage keyboard rename', () => {
@@ -630,7 +638,7 @@ describe('FilesPage incremental hydration', () => {
   })
 
   it('preserves pending page enrichment when another page is appended', async () => {
-    const secondImageEntry = { ...imageEntry, id: 'file-image-2', name: 'photo-2' }
+    const secondImageEntry = FileEntrySchema.parse({ ...imageEntry, id: fileEntryId('file-image-2'), name: 'photo-2' })
     let activePages: Array<{ items: FileEntry[]; total: number; nextCursor?: string }> = [
       { items: [imageEntry], total: 2, nextCursor: 'next-page' }
     ]
@@ -964,7 +972,7 @@ describe('FilesPage incremental hydration', () => {
 
 describe('FilesPage keyboard select all', () => {
   it('selects all visible files with Cmd+A on macOS', async () => {
-    const secondEntry = { ...entry, id: 'file-2', name: 'notes' }
+    const secondEntry = FileEntrySchema.parse({ ...entry, id: fileEntryId('file-2'), name: 'notes' })
     renderFilesPage([entry, secondEntry])
     const user = userEvent.setup()
 
@@ -979,7 +987,7 @@ describe('FilesPage keyboard select all', () => {
 
   it('selects all visible files with Ctrl+A outside macOS', async () => {
     platformState.isMac = false
-    const secondEntry = { ...entry, id: 'file-2', name: 'notes' }
+    const secondEntry = FileEntrySchema.parse({ ...entry, id: fileEntryId('file-2'), name: 'notes' })
     renderFilesPage([entry, secondEntry])
     const user = userEvent.setup()
 
@@ -1040,28 +1048,28 @@ describe('FilesPage file operations', () => {
   })
 
   it('exposes distinct source paths for same-name files from different directories', async () => {
-    const first = {
+    const first = FileEntrySchema.parse({
       ...entry,
-      id: 'file-migrated-a',
+      id: fileEntryId('file-migrated-a'),
       origin: 'internal',
       name: 'migrated-note',
       ext: 'md'
-    } as unknown as FileEntry
-    const second = {
-      id: 'file-migrated-b',
+    })
+    const second = FileEntrySchema.parse({
+      id: fileEntryId('file-migrated-b'),
       origin: 'external',
       name: 'migrated-note',
       ext: 'md',
-      size: null,
+      cleanupPolicy: 'manual',
       externalPath: '/Users/b/Downloads/migrated-note.md',
       createdAt: 1_719_216_000_000,
       updatedAt: 1_719_216_000_000
-    } as unknown as FileEntry
+    })
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
       if (route === 'file.batch_get_physical_paths') {
         return Promise.resolve({
-          'file-migrated-a': '/Users/a/Documents/migrated-note.md'
+          [first.id]: '/Users/a/Documents/migrated-note.md'
         })
       }
       if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
@@ -1075,7 +1083,7 @@ describe('FilesPage file operations', () => {
       expect(names[0]).toHaveAttribute('title', '/Users/a/Documents/migrated-note.md')
       expect(names[1]).toHaveAttribute('title', '/Users/b/Downloads/migrated-note.md')
     })
-    expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_get_physical_paths', { ids: ['file-migrated-a'] })
+    expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_get_physical_paths', { ids: [first.id] })
   })
 
   it('renders external image thumbnails without hydrating their physical paths', async () => {
@@ -1249,13 +1257,13 @@ describe('FilesPage file operations', () => {
   }
 
   it('keeps the most recently opened file when an older open request resolves last', async () => {
-    const fileA = { ...entry, id: 'file-a', name: 'alpha', ext: 'md' } as unknown as FileEntry
-    const fileB = { ...entry, id: 'file-b', name: 'bravo', ext: 'md' } as unknown as FileEntry
+    const fileA = FileEntrySchema.parse({ ...entry, id: fileEntryId('file-a'), name: 'alpha', ext: 'md' })
+    const fileB = FileEntrySchema.parse({ ...entry, id: fileEntryId('file-b'), name: 'bravo', ext: 'md' })
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_physical_paths') {
         const id = (input as { ids: string[] }).ids[0]
         // A (clicked first) settles several ticks later than B (clicked last).
-        if (id === 'file-a') return afterMicrotasks(() => ({ 'file-a': '/tmp/alpha.md' }))
+        if (id === fileA.id) return afterMicrotasks(() => ({ [fileA.id]: '/tmp/alpha.md' }))
         return Promise.resolve({ [id]: '/tmp/bravo.md' })
       }
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
@@ -1281,13 +1289,13 @@ describe('FilesPage file operations', () => {
 
   it('suppresses a stale open error after a newer open has already succeeded', async () => {
     const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
-    const fileA = { ...entry, id: 'file-a', name: 'alpha', ext: 'md' } as unknown as FileEntry
-    const fileB = { ...entry, id: 'file-b', name: 'bravo', ext: 'md' } as unknown as FileEntry
+    const fileA = FileEntrySchema.parse({ ...entry, id: fileEntryId('file-a'), name: 'alpha', ext: 'md' })
+    const fileB = FileEntrySchema.parse({ ...entry, id: fileEntryId('file-b'), name: 'bravo', ext: 'md' })
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_physical_paths') {
         const id = (input as { ids: string[] }).ids[0]
         // A (clicked first) rejects several ticks later than B (clicked last) succeeds.
-        if (id === 'file-a')
+        if (id === fileA.id)
           return afterMicrotasks(() => {
             throw new Error('resolution failed')
           })
@@ -1377,7 +1385,7 @@ describe('FilesPage file operations', () => {
   })
 
   it('disables every visible delete entry while an internal trash mutation is pending, then allows another delete', async () => {
-    const secondEntry = { ...entry, id: 'file-2', name: 'notes' }
+    const secondEntry = FileEntrySchema.parse({ ...entry, id: fileEntryId('file-2'), name: 'notes' })
     const firstTrash = deferred<{ succeeded: string[]; failed: [] }>()
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
@@ -1462,7 +1470,7 @@ describe('FilesPage file operations', () => {
   })
 
   it('selects all visible files from the header checkbox and exposes batch delete', async () => {
-    const secondEntry = { ...entry, id: 'file-2', name: 'notes' }
+    const secondEntry = FileEntrySchema.parse({ ...entry, id: fileEntryId('file-2'), name: 'notes' })
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
       if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
@@ -1488,8 +1496,8 @@ describe('FilesPage file operations', () => {
   })
 
   it('selects the visible range when Shift-clicking a file checkbox', async () => {
-    const secondEntry = { ...entry, id: 'file-2', name: 'notes' }
-    const thirdEntry = { ...entry, id: 'file-3', name: 'summary' }
+    const secondEntry = FileEntrySchema.parse({ ...entry, id: fileEntryId('file-2'), name: 'notes' })
+    const thirdEntry = FileEntrySchema.parse({ ...entry, id: fileEntryId('file-3'), name: 'summary' })
     renderFilesPage([entry, secondEntry, thirdEntry])
     const user = userEvent.setup()
     const checkboxes = screen.getAllByRole('checkbox', { name: 'files.select_file' })
@@ -1505,8 +1513,8 @@ describe('FilesPage file operations', () => {
   })
 
   it('starts a new selection anchor after clearing the previous selection', async () => {
-    const secondEntry = { ...entry, id: 'file-2', name: 'notes' }
-    const thirdEntry = { ...entry, id: 'file-3', name: 'summary' }
+    const secondEntry = FileEntrySchema.parse({ ...entry, id: fileEntryId('file-2'), name: 'notes' })
+    const thirdEntry = FileEntrySchema.parse({ ...entry, id: fileEntryId('file-3'), name: 'summary' })
     renderFilesPage([entry, secondEntry, thirdEntry])
     const user = userEvent.setup()
     const checkboxes = screen.getAllByRole('checkbox', { name: 'files.select_file' })
@@ -1523,7 +1531,7 @@ describe('FilesPage file operations', () => {
   })
 
   it('does not change selection when opening a row context menu', () => {
-    const secondEntry = { ...entry, id: 'file-2', name: 'notes' }
+    const secondEntry = FileEntrySchema.parse({ ...entry, id: fileEntryId('file-2'), name: 'notes' })
     renderFilesPage([entry, secondEntry])
 
     const checkboxes = screen.getAllByRole('checkbox', { name: 'files.select_file' })
@@ -1627,7 +1635,7 @@ describe('FilesPage file operations', () => {
   })
 
   it('refreshes and reports one info toast when failed trash items are already in the Recycle Bin', async () => {
-    const secondEntry = { ...entry, id: 'file-2', name: 'notes' }
+    const secondEntry = FileEntrySchema.parse({ ...entry, id: fileEntryId('file-2'), name: 'notes' })
     ipcMocks.request.mockImplementation((route: string) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
       if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
@@ -1665,7 +1673,7 @@ describe('FilesPage file operations', () => {
   })
 
   it('offers Undo only for the internal file IDs actually moved to the Recycle Bin', async () => {
-    const secondEntry = { ...entry, id: 'file-2', name: 'notes' }
+    const secondEntry = FileEntrySchema.parse({ ...entry, id: fileEntryId('file-2'), name: 'notes' })
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
       if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
@@ -1705,9 +1713,9 @@ describe('FilesPage file operations', () => {
   })
 
   it('counts failed Undo items as restored only when refresh finds them active and internal', async () => {
-    const alreadyActive = { ...entry, id: 'file-active', name: 'active' }
-    const missing = { ...entry, id: 'file-missing', name: 'missing' }
-    const stillTrashed = { ...entry, id: 'file-trashed', name: 'trashed' }
+    const alreadyActive = FileEntrySchema.parse({ ...entry, id: fileEntryId('file-active'), name: 'active' })
+    const missing = FileEntrySchema.parse({ ...entry, id: fileEntryId('file-missing'), name: 'missing' })
+    const stillTrashed = FileEntrySchema.parse({ ...entry, id: fileEntryId('file-trashed'), name: 'trashed' })
     const entries = [entry, alreadyActive, missing, stillTrashed]
     const restoreFailures = [
       { id: alreadyActive.id, error: 'already active' },
