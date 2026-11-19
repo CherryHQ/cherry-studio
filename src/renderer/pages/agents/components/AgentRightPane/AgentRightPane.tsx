@@ -166,9 +166,8 @@ function findDeferredToolResult(partsByMessageId: Record<string, CherryMessagePa
 
   for (const parts of Object.values(partsByMessageId)) {
     for (const part of parts) {
-      const source = part as unknown as { toolCallId?: unknown; output?: unknown }
-      if (source.toolCallId !== toolCallId) continue
-      return isDeferredToolOutput(source.output) ? source.output.$deferredToolResult : undefined
+      if (!('toolCallId' in part) || part.toolCallId !== toolCallId) continue
+      return 'output' in part && isDeferredToolOutput(part.output) ? part.output.$deferredToolResult : undefined
     }
   }
 
