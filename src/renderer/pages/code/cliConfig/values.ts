@@ -36,6 +36,7 @@ export function firstApiKey(keys: ApiKeyEntry[] | undefined): string {
   return keys?.find((k) => k.isEnabled)?.key ?? ''
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- CLI adapters read user-edited JSON and TOML sections; accept object tables before preserving foreign configuration keys.
 export function asRecord(value: unknown): Record<string, any> {
   return value && typeof value === 'object' ? (value as Record<string, any>) : {}
 }
@@ -46,12 +47,14 @@ export function omitKeysByPrefix<T>(record: Record<string, T>, prefix: string): 
 }
 
 /** True when a model entry was injected by Cherry Studio (its `envKey` starts with `CHERRY_`). */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Existing CLI model arrays contain user-authored entries; check a string envKey before deciding which Cherry-managed entries may be replaced.
 export function isCherryManagedModel(item: unknown): boolean {
   return Boolean(
     item &&
     typeof item === 'object' &&
-    typeof (item as any).envKey === 'string' &&
-    (item as any).envKey.startsWith('CHERRY_')
+    'envKey' in item &&
+    typeof item.envKey === 'string' &&
+    item.envKey.startsWith('CHERRY_')
   )
 }
 
@@ -83,10 +86,12 @@ export function dropSecurityAuthSelectedTypeIfEmpty(target: Record<string, any>)
   else target.security = security
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- CLI env, model and provider fields come from user-edited config; only nonblank strings may become normalized settings.
 export function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- CLI numeric fields come from user-edited config; reject non-numbers and nonfinite values before producing typed settings.
 export function numberValue(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
