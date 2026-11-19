@@ -1,7 +1,10 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ImgHTMLAttributes } from 'react'
+import { useEffect, useRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { TabIdContext } from '@renderer/hooks/tab'
 
 import type * as ArtboardModule from '../components/Artboard'
 import type { ArtboardProps } from '../components/Artboard'
@@ -9,6 +12,7 @@ import type { PaintingData } from '../model/types/paintingData'
 
 const mocks = vi.hoisted(() => ({
   cancel: vi.fn(),
+  activeTab: false,
   files: [] as PaintingData['files'],
   generate: vi.fn(),
   generating: false,
@@ -21,6 +25,11 @@ const mocks = vi.hoisted(() => ({
   saveCurrent: vi.fn(),
   submitting: false,
   templates: [] as { id: string; imageUrl: string; label: string; prompt: string }[]
+}))
+
+vi.mock('@renderer/hooks/tab/useTabsContext', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useOptionalTabsContext: () => ({ activeTabId: mocks.activeTab ? 'paintings-tab' : 'other-tab', tabs: [] })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -95,31 +104,46 @@ vi.mock('../components/PaintingTemplateShowcase', () => ({
 }))
 
 vi.mock('../components/PaintingComposer', () => ({
-  default: ({
+  default: function MockPaintingComposer({
     painting,
     submitting,
     onGenerate,
-    onModelSelect
+    onModelSelect,
+    onFocusTargetChange
   }: {
     painting: { model?: string; prompt?: string; providerId: string }
     submitting: boolean
     onGenerate: () => void
     onModelSelect: (selection: { providerId: string; modelId: string }) => void
-  }) => (
-    <div
-      data-testid="painting-composer"
-      data-model-id={painting.model}
-      data-provider-id={painting.providerId}
-      style={{ height: painting.prompt ? 180 : 64 }}>
-      <textarea aria-label="painting prompt" value={painting.prompt ?? ''} readOnly />
-      <button type="button" disabled={submitting} onClick={onGenerate}>
-        generate
-      </button>
-      <button type="button" onClick={() => onModelSelect({ providerId: 'provider-1', modelId: 'model-b' })}>
-        select model B
-      </button>
-    </div>
-  )
+    onFocusTargetChange?: (focus: (() => boolean) | undefined) => void
+  }) {
+    const promptRef = useRef<HTMLTextAreaElement>(null)
+    useEffect(() => {
+      const prompt = promptRef.current
+      if (!onFocusTargetChange || !prompt) return
+      onFocusTargetChange(() => {
+        prompt.focus()
+        return document.activeElement === prompt
+      })
+      return () => onFocusTargetChange(undefined)
+    }, [onFocusTargetChange])
+
+    return (
+      <div
+        data-testid="painting-composer"
+        data-model-id={painting.model}
+        data-provider-id={painting.providerId}
+        style={{ height: painting.prompt ? 180 : 64 }}>
+        <textarea ref={promptRef} aria-label="painting prompt" value={painting.prompt ?? ''} readOnly />
+        <button type="button" disabled={submitting} onClick={onGenerate}>
+          generate
+        </button>
+        <button type="button" onClick={() => onModelSelect({ providerId: 'provider-1', modelId: 'model-b' })}>
+          select model B
+        </button>
+      </div>
+    )
+  }
 }))
 
 vi.mock('../components/PaintingStrip', () => ({
@@ -229,6 +253,7 @@ function loadDisplayedImage(width: number, height: number) {
 
 describe('PaintingPage showcase', () => {
   beforeEach(() => {
+    mocks.activeTab = false
     mocks.cancel.mockReset()
     mocks.files = []
     mocks.generate.mockReset()
@@ -348,6 +373,24 @@ describe('PaintingPage showcase', () => {
 
     expect(screen.getByTestId('painting-prompt-dock-collapsed')).toBeInTheDocument()
     expect(screen.queryByTestId('painting-composer')).not.toBeInTheDocument()
+  })
+
+  it('restores and focuses the prompt dock when returning to the paintings tab', () => {
+    mocks.files = [generatedFile]
+    const page = () => (
+      <TabIdContext value="paintings-tab">
+        <PaintingPage />
+      </TabIdContext>
+    )
+    const view = render(page())
+    expect(screen.getByRole('button', { name: 'paintings.prompt_dock.expand' })).toBeVisible()
+
+    mocks.activeTab = true
+    view.rerender(page())
+    expect(screen.getByRole('textbox', { name: 'painting prompt' })).toHaveFocus()
+
+    fireEvent.click(screen.getByRole('button', { name: 'paintings.prompt_dock.minimize' }))
+    expect(screen.getByRole('button', { name: 'paintings.prompt_dock.expand' })).toBeVisible()
   })
 
   it('keeps the prompt dock expanded on a blank draft without generated images', () => {

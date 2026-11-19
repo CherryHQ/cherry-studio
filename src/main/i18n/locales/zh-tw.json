@@ -71,6 +71,7 @@
   "appMenu.zoomOut": "縮小",
   "backup.restore.failed": "還原失敗",
   "backup.restore.retry": "備份未能還原。已保留原有資料。請重新嘗試還原。",
+  "chat.cherryai.sign_in_required": "登入 CherryAI 後才能使用此模型",
   "chat.conversation.new": "新對話",
   "command_approval.builtin-destructive-command": "此內建智慧體不能執行破壞性操作。確認刪除檔案時請使用移到垃圾桶工具。 (mcp__assistant-files__move_to_trash)",
   "command_approval.configuration_error": "無法載入命令策略，已阻止執行。",

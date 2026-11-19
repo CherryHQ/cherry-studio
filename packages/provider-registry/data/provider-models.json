@@ -10944,6 +10944,10 @@
       }
     },
     {
+      "modelId": "doubao-seedream-5-5",
+      "providerId": "doubao"
+    },
+    {
       "apiModelId": "glm-4-7-251222",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "glm-4-7",
@@ -45320,5 +45324,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "dc92ad54f58ff9da"
+  "version": "4610ad89a9f9685d"
 }
