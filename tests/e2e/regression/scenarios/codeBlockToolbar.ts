@@ -252,7 +252,17 @@ export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo:
     let scrollingFrames = frames
     const deltas = { outer: 0, preview: 0, list: 0 }
     try {
-      await list.evaluate((element) => element.scrollBy({ top: 80, behavior: 'smooth' }))
+      await list.evaluate(async (element) => {
+        // Some runners complete native smooth scrolling in a single frame.
+        for (let step = 0; step < 4; step++) {
+          await new Promise<void>((resolve) => {
+            requestAnimationFrame(() => {
+              element.scrollBy({ top: 20, behavior: 'instant' })
+              resolve()
+            })
+          })
+        }
+      })
       await expect
         .poll(
           async () => {
