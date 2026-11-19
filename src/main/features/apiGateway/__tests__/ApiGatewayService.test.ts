@@ -168,6 +168,43 @@ async function startInternalGateway(service: ApiGatewayService) {
 
 const CHAT_SCOPE = { path: '/v1/chat/completions', model: 'openai:gpt-4o' }
 
+describe('internal request budget', () => {
+  it('allows a small request alongside a large one and queues a second large request', async () => {
+    const service = new ApiGatewayService()
+    const signal = new AbortController().signal
+    const large = new Headers({ 'content-length': String(20 * 1024 * 1024) })
+    const first = await service.acquireInternalRequestBudget(large, signal)
+    const small = await service.acquireInternalRequestBudget(new Headers({ 'content-length': '1024' }), signal)
+    small()
+
+    let admitted = false
+    const second = service.acquireInternalRequestBudget(large, signal).then((release) => {
+      admitted = true
+      return release
+    })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(admitted).toBe(false)
+    first()
+    const release = await second
+    release()
+  })
+
+  it('rejects a cancelled waiter and returns its capacity to the next request', async () => {
+    const service = new ApiGatewayService()
+    const active = new AbortController().signal
+    const waiting = new AbortController()
+    const first = await service.acquireInternalRequestBudget(new Headers(), active)
+    const cancelled = service.acquireInternalRequestBudget(new Headers(), waiting.signal)
+    const next = service.acquireInternalRequestBudget(new Headers(), active)
+
+    waiting.abort()
+    await expect(cancelled).rejects.toMatchObject({ name: 'AbortError' })
+    first()
+    const release = await next
+    release()
+  })
+})
+
 describe('ApiGatewayService internal gateway', () => {
   it('shares bounded permission retries across consumers and returns usable credentials after recovery', async () => {
     const service = new ApiGatewayService()
