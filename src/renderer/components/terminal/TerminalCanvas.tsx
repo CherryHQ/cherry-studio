@@ -54,6 +54,7 @@ export function TerminalCanvas({
   const canvas = useRef<HTMLCanvasElement>(null)
   const overlay = useRef<HTMLCanvasElement>(null)
   const input = useRef<HTMLTextAreaElement>(null)
+  const viewport = useRef<DOMRectReadOnly | null>(null)
   const current = useRef(resource)
   if (resource.id !== current.current.id || resource.revision >= current.current.revision) current.current = resource
   const callback = useRef(onResource)
@@ -101,9 +102,10 @@ export function TerminalCanvas({
     const screen = snapshot.current
     const content = canvas.current?.getContext('2d')
     const cursor = overlay.current?.getContext('2d')
-    if (!screen || !content || !cursor || !root.current) return
-    const width = Math.max(root.current.clientWidth, screen.cols * metrics.current.width + 16)
-    const height = Math.max(root.current.clientHeight, screen.rows * metrics.current.height + 16)
+    const bounds = viewport.current
+    if (!screen || !content || !cursor || !bounds) return
+    const width = Math.max(bounds.width, screen.cols * metrics.current.width + 16)
+    const height = Math.max(bounds.height, screen.rows * metrics.current.height + 16)
     const ratio = devicePixelRatio || 1
     for (const surface of [content.canvas, cursor.canvas]) {
       const pixels = Math.round(width * ratio)
@@ -111,11 +113,11 @@ export function TerminalCanvas({
       if (surface.width !== pixels || surface.height !== pixelHeight) {
         surface.width = pixels
         surface.height = pixelHeight
-        surface.style.width = `${width}px`
-        surface.style.height = `${height}px`
         surface.getContext('2d')?.setTransform(ratio, 0, 0, ratio, 0, 0)
         force.current = true
       }
+      surface.style.width = `${width}px`
+      surface.style.height = `${height}px`
     }
     renderGhosttySnapshot({
       context: content,
@@ -351,7 +353,8 @@ export function TerminalCanvas({
     const measure = () => {
       const element = root.current
       const context = canvas.current?.getContext('2d')
-      if (!element || !context) return
+      const rect = viewport.current
+      if (!element || !context || !rect) return
       const style = getComputedStyle(element)
       font.current = style.fontFamily
       metrics.current = measureGhosttyCell(context, 14, font.current)
@@ -368,7 +371,6 @@ export function TerminalCanvas({
         background: color(style.backgroundColor),
         cursor: color(style.color)
       }
-      const rect = element.getBoundingClientRect()
       force.current = true
       schedule()
       if (controlling && current.current.control.kind === 'user' && view.current) {
@@ -392,7 +394,10 @@ export function TerminalCanvas({
         }
       }
     }
-    const observer = new ResizeObserver(measure)
+    const observer = new ResizeObserver(([entry]) => {
+      viewport.current = entry.contentRect
+      measure()
+    })
     observer.observe(root.current)
     const themeObserver = new MutationObserver(measure)
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style'] })
@@ -404,6 +409,7 @@ export function TerminalCanvas({
     measure()
     return () => {
       observer.disconnect()
+      viewport.current = null
       themeObserver.disconnect()
       window.removeEventListener('resize', measure)
     }

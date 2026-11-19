@@ -33,6 +33,7 @@ let controlling: boolean
 let rejectInput: boolean
 let current: TerminalResourceState
 const fonts = Object.getOwnPropertyDescriptor(document, 'fonts')
+const resizeObserver = globalThis.ResizeObserver
 beforeEach(() => {
   controlling = true
   rejectInput = false
@@ -96,6 +97,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  globalThis.ResizeObserver = resizeObserver
   Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
   Reflect.deleteProperty(HTMLElement.prototype, 'hasPointerCapture')
   if (fonts) Object.defineProperty(document, 'fonts', fonts)
@@ -106,6 +108,51 @@ async function input() {
   await waitFor(() => expect(area).not.toHaveAttribute('readonly'))
   return area
 }
+
+it('fits an observing canvas inside fractional viewport bounds without creating overflow', async () => {
+  controlling = false
+  let resize: (width: number, height: number) => void = () => {}
+  vi.stubGlobal(
+    'ResizeObserver',
+    class implements ResizeObserver {
+      constructor(private callback: ResizeObserverCallback) {}
+      observe(target: Element) {
+        resize = (width, height) =>
+          this.callback([{ target, contentRect: { width, height } } as ResizeObserverEntry], this)
+        resize(675.6, 734.6)
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+  )
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(676)
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(735)
+  vi.mocked(HTMLCanvasElement.prototype.getContext).mockImplementation(function (this: HTMLCanvasElement) {
+    return {
+      canvas: this,
+      measureText: () => ({ width: 8, actualBoundingBoxAscent: 11, actualBoundingBoxDescent: 3 }),
+      getImageData: () => ({ data: new Uint8ClampedArray([0, 0, 0, 255]) }),
+      getTransform: () => ({ a: 1, d: 1 }),
+      save() {},
+      restore() {},
+      resetTransform() {},
+      setTransform() {},
+      fillRect() {},
+      clearRect() {},
+      strokeRect() {}
+    } as unknown as CanvasRenderingContext2D
+  })
+  const { container } = render(<TerminalCanvas resource={current} active onResource={() => {}} />)
+  await screen.findByRole('log')
+  // Canvas layers have no accessible role; their CSS bounds must fit the actual content box.
+  const surfaces = Array.from(container.querySelectorAll('canvas'))
+  await waitFor(() => expect(surfaces.map((surface) => surface.style.width)).toEqual(['675.6px', '675.6px']))
+  act(() => resize(675.5, 734.5))
+  await waitFor(() => {
+    expect(surfaces.map((surface) => surface.style.width)).toEqual(['675.5px', '675.5px'])
+    expect(surfaces.map((surface) => surface.style.height)).toEqual(['734.5px', '734.5px'])
+  })
+})
 
 it('keeps keyboard focus after clicking the terminal surface', async () => {
   const user = userEvent.setup()
