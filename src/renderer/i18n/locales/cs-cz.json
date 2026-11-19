@@ -2273,6 +2273,7 @@
   "library.config.agent.prompt.edited": "Upraveno",
   "library.config.agent.prompt.edited_frozen": "Upraveno; už se neaktualizuje automaticky",
   "library.config.agent.prompt.editor_placeholder": "Napište systémový prompt agenta: kdo je, co dělá a jaké má hranice.",
+  "library.config.agent.prompt.instructions_caption": "Kdo je agent a co dělá",
   "library.config.agent.prompt.instructions_label": "Prompt agenta",
   "library.config.agent.prompt.load_failed": "Úplný systémový prompt se nepodařilo sestavit",
   "library.config.agent.prompt.loading": "Sestavuji úplný systémový prompt…",

@@ -2270,6 +2270,7 @@
   "library.config.agent.prompt.edited": "已修改",
   "library.config.agent.prompt.edited_frozen": "已修改，不再自动更新",
   "library.config.agent.prompt.editor_placeholder": "写智能体的系统提示词：它是谁、要做什么、有哪些限制。",
+  "library.config.agent.prompt.instructions_caption": "智能体的角色与任务",
   "library.config.agent.prompt.instructions_label": "智能体提示词",
   "library.config.agent.prompt.load_failed": "无法生成完整的系统提示词",
   "library.config.agent.prompt.loading": "正在生成完整的系统提示词…",

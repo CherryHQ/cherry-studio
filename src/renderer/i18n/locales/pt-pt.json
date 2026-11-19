@@ -2270,6 +2270,7 @@
   "library.config.agent.prompt.edited": "Editado",
   "library.config.agent.prompt.edited_frozen": "Editado; já não se atualiza automaticamente",
   "library.config.agent.prompt.editor_placeholder": "Escreva o prompt de sistema do agente: quem é, o que faz e quais são os seus limites.",
+  "library.config.agent.prompt.instructions_caption": "Quem é o agente e o que faz",
   "library.config.agent.prompt.instructions_label": "Prompt do agente",
   "library.config.agent.prompt.load_failed": "Não foi possível gerar o prompt de sistema completo",
   "library.config.agent.prompt.loading": "A gerar o prompt de sistema completo…",

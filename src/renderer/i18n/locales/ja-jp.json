@@ -2270,6 +2270,7 @@
   "library.config.agent.prompt.edited": "編集済み",
   "library.config.agent.prompt.edited_frozen": "編集済み。自動では更新されません",
   "library.config.agent.prompt.editor_placeholder": "エージェントのシステムプロンプトを書きます：誰なのか、何をするのか、どんな制限があるのか。",
+  "library.config.agent.prompt.instructions_caption": "エージェントの役割と仕事",
   "library.config.agent.prompt.instructions_label": "エージェントプロンプト",
   "library.config.agent.prompt.load_failed": "完全なシステムプロンプトを生成できませんでした",
   "library.config.agent.prompt.loading": "完全なシステムプロンプトを生成しています…",

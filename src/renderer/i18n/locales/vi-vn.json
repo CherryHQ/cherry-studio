@@ -2270,6 +2270,7 @@
   "library.config.agent.prompt.edited": "Đã sửa",
   "library.config.agent.prompt.edited_frozen": "Đã chỉnh sửa; không còn tự động cập nhật",
   "library.config.agent.prompt.editor_placeholder": "Viết lời nhắc hệ thống của tác tử: nó là ai, làm gì và có những giới hạn nào.",
+  "library.config.agent.prompt.instructions_caption": "Tác nhân là ai và làm gì",
   "library.config.agent.prompt.instructions_label": "Lời nhắc của tác nhân",
   "library.config.agent.prompt.load_failed": "Không thể tạo lời nhắc hệ thống đầy đủ",
   "library.config.agent.prompt.loading": "Đang tạo lời nhắc hệ thống đầy đủ…",

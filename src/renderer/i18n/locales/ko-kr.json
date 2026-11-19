@@ -2270,6 +2270,7 @@
   "library.config.agent.prompt.edited": "수정됨",
   "library.config.agent.prompt.edited_frozen": "수정됨. 더 이상 자동으로 업데이트되지 않습니다",
   "library.config.agent.prompt.editor_placeholder": "에이전트의 시스템 프롬프트를 작성하세요: 어떤 존재인지, 무엇을 하는지, 어떤 제한이 있는지.",
+  "library.config.agent.prompt.instructions_caption": "에이전트의 역할과 할 일",
   "library.config.agent.prompt.instructions_label": "에이전트 프롬프트",
   "library.config.agent.prompt.load_failed": "전체 시스템 프롬프트를 구성하지 못했습니다",
   "library.config.agent.prompt.loading": "전체 시스템 프롬프트를 구성하는 중…",

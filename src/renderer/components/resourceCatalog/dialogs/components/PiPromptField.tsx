@@ -188,7 +188,7 @@ export function PiPromptField({
           label={
             backButton(t(BLOCK_TITLES.instructions)) ?? (
               <span className="truncate text-muted-foreground text-xs">
-                {t('library.config.agent.prompt.editor_placeholder')}
+                {t('library.config.agent.prompt.instructions_caption')}
               </span>
             )
           }

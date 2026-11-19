@@ -2272,6 +2272,7 @@
   "library.config.agent.prompt.edited": "Изменено",
   "library.config.agent.prompt.edited_frozen": "Изменено; больше не обновляется автоматически",
   "library.config.agent.prompt.editor_placeholder": "Напишите системный промпт агента: кто он, что делает и какие у него ограничения.",
+  "library.config.agent.prompt.instructions_caption": "Кто такой агент и что он делает",
   "library.config.agent.prompt.instructions_label": "Промпт агента",
   "library.config.agent.prompt.load_failed": "Не удалось собрать полный системный промпт",
   "library.config.agent.prompt.loading": "Сборка полного системного промпта…",

@@ -2270,6 +2270,7 @@
   "library.config.agent.prompt.edited": "Düzenlendi",
   "library.config.agent.prompt.edited_frozen": "Düzenlendi; artık otomatik güncellenmiyor",
   "library.config.agent.prompt.editor_placeholder": "Ajanın sistem istemini yazın: kim olduğu, ne yaptığı ve sınırları.",
+  "library.config.agent.prompt.instructions_caption": "Ajanın kim olduğu ve ne yaptığı",
   "library.config.agent.prompt.instructions_label": "Ajan istemi",
   "library.config.agent.prompt.load_failed": "Tam sistem istemi oluşturulamadı",
   "library.config.agent.prompt.loading": "Tam sistem istemi oluşturuluyor…",
