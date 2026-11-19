@@ -877,8 +877,8 @@
     }
   ],
   "providers": {
-    "version": "a6291a3a00ded246",
-    "count": 68,
+    "version": "db30890177583a58",
+    "count": 69,
     "entries": [
       {
         "id": "cherryin",
@@ -959,6 +959,10 @@
       {
         "id": "radeon-cloud",
         "name": "AMD GPU Cloud"
+      },
+      {
+        "id": "worldrouter",
+        "name": "WorldRouter"
       },
       {
         "id": "tokendance",
