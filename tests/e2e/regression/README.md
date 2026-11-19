@@ -56,7 +56,7 @@ module task also includes the implemented knowledge case-library scenarios.
 - `MP-10` and `MP-40` reopen the conversation sidebar after reload when needed and reveal their assistant in the virtualized list. `MP-40` then positions the code preview inside the message list and measures wheel scrolling in the list and preview separately.
 - `MP-107` opens Settings through the sidebar account trigger, which can display a profile name. The case verifies the keyboard bindings, long-paste attachment, delete confirmation, and persisted preferences.
 - `MP-68` reconnects to the controller-owned profile for file cleanup if a restart closes the original page. See the [controller shutdown contract](../../../scripts/e2e/regression/README.md#responsibilities) for the Windows CDP release check. `MP-70` uses case-specific file names so its open and reveal actions resolve to the files it imported.
-- `CODE-03` reports an OpenClaw launch error displayed by the app while waiting for the gateway. It still requires the real gateway and dashboard to start.
+- `CODE-03` waits for the configured provider to become active before launching OpenClaw. A failure reports launch alerts and, in branch runs, redacted OpenClaw entries from the run-owned application log. The case verifies the real gateway and dashboard.
 
 ## Adding or selecting a case
 
