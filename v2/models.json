@@ -9225,6 +9225,110 @@
     },
     {
       "capabilities": [
+        "image-generation"
+      ],
+      "id": "doubao-seedream-5-5",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 10,
+            "supports": {
+              "addWatermark": {
+                "default": true,
+                "type": "switch"
+              },
+              "background": {
+                "default": "auto",
+                "options": [
+                  "auto",
+                  "transparent",
+                  "opaque"
+                ],
+                "type": "enum"
+              },
+              "customSize": {
+                "maxSide": 8601,
+                "minSide": 240,
+                "pairedEnumKey": "imageResolution",
+                "type": "size"
+              },
+              "imageResolution": {
+                "default": "1K",
+                "options": [
+                  "1K",
+                  "1.5K",
+                  "2K"
+                ],
+                "render": "chips",
+                "type": "enum"
+              },
+              "outputFormat": {
+                "default": "jpeg",
+                "options": [
+                  "jpeg",
+                  "png"
+                ],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "maxInputImages": 10,
+            "supports": {
+              "addWatermark": {
+                "default": true,
+                "type": "switch"
+              },
+              "background": {
+                "default": "auto",
+                "options": [
+                  "auto",
+                  "transparent",
+                  "opaque"
+                ],
+                "type": "enum"
+              },
+              "customSize": {
+                "maxSide": 8601,
+                "minSide": 240,
+                "pairedEnumKey": "imageResolution",
+                "type": "size"
+              },
+              "imageResolution": {
+                "default": "1K",
+                "options": [
+                  "1K",
+                  "1.5K",
+                  "2K"
+                ],
+                "render": "chips",
+                "type": "enum"
+              },
+              "outputFormat": {
+                "default": "jpeg",
+                "options": [
+                  "jpeg",
+                  "png"
+                ],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": [
+        "text",
+        "image"
+      ],
+      "metadata": {},
+      "name": "Doubao Seedream 5.5",
+      "outputModalities": [
+        "image"
+      ],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": [
         "function-call",
         "reasoning",
         "image-recognition",
@@ -33372,5 +33476,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "fb97c9c5f55e43ff"
+  "version": "ccce61b547d0d5ae"
 }
