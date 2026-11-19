@@ -40,6 +40,7 @@ export class AgentSessionArchiveBusyError extends Error {
 @ServicePhase(Phase.WhenReady)
 @DependsOn([
   'AgentJobsService',
+  'AgentImportService',
   'AgentSessionDeliveryService',
   'AgentSessionRuntimeService',
   'AiStreamManager',
@@ -234,9 +235,11 @@ export class AgentLifecycleService extends BaseService {
     const token = Symbol(reason)
     this.ingressHolds.add(token)
     const channelHold = application.get('ChannelManager').pause(reason)
+    const importHold = application.get('AgentImportService').pause(reason)
     return {
       dispose: () => {
         if (!this.ingressHolds.delete(token)) return
+        importHold.dispose()
         channelHold.dispose()
       }
     }
@@ -256,6 +259,7 @@ export class AgentLifecycleService extends BaseService {
   async drainIngress(options: { timeoutMs: number }): Promise<{ stragglerIds: string[] }> {
     const verdicts = await Promise.all([
       application.get('ChannelManager').drainInFlight(options),
+      application.get('AgentImportService').drainInFlight(options),
       this.drainOperations(options)
     ])
     return { stragglerIds: verdicts.flatMap((verdict) => verdict.stragglerIds) }
@@ -274,6 +278,7 @@ export class AgentLifecycleService extends BaseService {
     return [
       ...[...this.inFlight.values()].map((id) => ({ id, summary: 'Agent lifecycle operation' })),
       ...application.get('ChannelManager').listActiveWork(),
+      ...application.get('AgentImportService').listActiveWork(),
       ...application.get('AgentSessionDeliveryService').listActiveWork(),
       ...application.get('AgentSessionRuntimeService').listActiveWork()
     ]

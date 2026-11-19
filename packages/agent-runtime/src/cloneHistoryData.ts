@@ -3,7 +3,7 @@ export function cloneHistoryData<T>(value: T): T
 export function cloneHistoryData(value: unknown): unknown {
   const copies = new WeakMap<object, unknown>()
   const copy = (source: unknown): unknown => {
-    if (typeof source === 'function') {
+    if (typeof source === 'function' || typeof source === 'symbol') {
       // oxlint-disable-next-line no-restricted-globals -- Preserve the native clone error for unsupported payloads.
       return structuredClone(source)
     }

@@ -27393,6 +27393,26 @@
       }
     },
     {
+      "apiModelId": "google/gemini-4-neon",
+      "modelId": "gemini-4-neon",
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["xhigh", "high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["xhigh", "high", "medium", "low"]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "~google/gemini-flash-latest",
       "modelId": "gemini-flash-latest",
       "pricing": {
@@ -32594,6 +32614,44 @@
       "providerId": "openrouter"
     },
     {
+      "apiModelId": "mistralai/mistral-large-4-0",
+      "modelId": "mistral-large-4-0",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.07
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.7
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.1
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["high", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ],
+            "defaultEffort": "high",
+            "supportedEfforts": ["high", "none"]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "mistralai/mistral-medium-3",
       "modelId": "mistral-medium-3",
       "pricing": {
@@ -37642,44 +37700,6 @@
       },
       "modelId": "glm-image",
       "providerId": "ppio"
-    },
-    {
-      "apiModelId": "mistralai/mistral-large-4-0",
-      "modelId": "mistral-large-4-0",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.07
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.7
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 2.1
-        }
-      },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "high",
-                "kind": "effort",
-                "values": ["high", "none"]
-              },
-              {
-                "default": true,
-                "kind": "toggle"
-              }
-            ],
-            "defaultEffort": "high",
-            "supportedEfforts": ["high", "none"]
-          }
-        }
-      }
     },
     {
       "apiModelId": "hunyuan-image-3",
@@ -45584,5 +45604,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "b16d7761d4de6de8"
+  "version": "72d0fa7dd0248410"
 }
