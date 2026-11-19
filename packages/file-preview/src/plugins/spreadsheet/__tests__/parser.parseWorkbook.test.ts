@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer'
+
 import ExcelJS from 'exceljs'
 import JSZip from 'jszip'
 import { beforeAll, describe, expect, it } from 'vitest'
@@ -7,19 +9,9 @@ import { OFFICE_ZIP_LIMITS } from '../../../officeZipPreflight'
 import { MAX_COLS, MAX_MERGED_RANGES, MAX_ROWS } from '../gridLayout'
 import type { CellStyle, WorkbookRenderModel } from '../renderModel'
 import { loadExcelJsWorkbook, parseWorkbook } from '../worker/parseWorkbook'
-import { buildChartWorkbookArrayBuffer } from './xlsxTestPackages'
+import { buildChartWorkbookArrayBuffer, toArrayBuffer } from './xlsxTestPackages'
 
-async function toArrayBuffer(workbook: ExcelJS.Workbook): Promise<ArrayBuffer> {
-  const buf = await workbook.xlsx.writeBuffer()
-  // writeBuffer() returns Buffer (a Uint8Array subclass) in Node; copy it into an independent ArrayBuffer.
-  const view = buf as unknown as Uint8Array
-  const arrayBuffer = new ArrayBuffer(view.byteLength)
-  new Uint8Array(arrayBuffer).set(view)
-  return arrayBuffer
-}
-
-const excelColor = (color: { theme?: number; tint?: number; indexed?: number }): ExcelJS.Color =>
-  color as unknown as ExcelJS.Color
+const excelColor = (color: Partial<ExcelJS.Color> & { tint?: number; indexed?: number }) => color
 
 describe('parseWorkbook — sheets, values, hidden', () => {
   let model: WorkbookRenderModel
@@ -612,7 +604,7 @@ describe('parseWorkbook — floating images', () => {
       ext: { width: 20, height: 10 }
     })
     // twoCellAnchor: tl + br
-    ws.addImage(imgId, { tl: { col: 3, row: 3 }, br: { col: 5, row: 5 } } as unknown as ExcelJS.ImageRange)
+    ws.addImage(imgId, 'D4:E5')
 
     const buffer = await toArrayBuffer(wb)
     model = await parseWorkbook(buffer, 'images.xlsx')
@@ -622,7 +614,7 @@ describe('parseWorkbook — floating images', () => {
     expect(Object.keys(model.images).length).toBeGreaterThan(0)
     const first = Object.values(model.images)[0]
     expect(first.mime).toBe('image/png')
-    expect(first.data.byteLength).toBeGreaterThan(0)
+    expect(new Uint8Array(first.data)).toEqual(new Uint8Array(Buffer.from(PNG_BASE64.split(',')[1], 'base64')))
   })
 
   it('oneCellAnchor (tl+ext): PxRect uses the px extent ExcelJS already converted', () => {
@@ -644,7 +636,7 @@ describe('parseWorkbook — floating images', () => {
     const wb = new ExcelJS.Workbook()
     const ws = wb.addWorksheet('S1')
     const imgId = wb.addImage({ base64: PNG_BASE64, extension: 'png' })
-    ws.addImage(imgId, { tl: { col: 0, row: 0 }, br: { col: 20, row: 40 } } as unknown as ExcelJS.ImageRange)
+    ws.addImage(imgId, 'A1:T40')
 
     const parsed = await parseWorkbook(await toArrayBuffer(wb), 'image-range.xlsx')
     const sheet = parsed.sheets[0]

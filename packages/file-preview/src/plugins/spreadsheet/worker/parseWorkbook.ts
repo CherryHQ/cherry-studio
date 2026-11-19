@@ -555,7 +555,8 @@ const MERGE_CELL_REF_PATTERN = /<mergeCell\b[^>]*?\sref\s*=\s*(["'])(.*?)\1/g
 // preview reads merges itself and uses neither of the others; ignoreNodes cannot reach workbook.xml's defined names.
 export async function loadExcelJsWorkbook(data: ArrayBuffer): Promise<ExcelJS.Workbook> {
   const workbook = new ExcelJS.Workbook()
-  const xlsx = workbook.xlsx as unknown as XlsxWorkbookPartParser
+  // SAFETY: ExcelJS exposes parseWorkbook internally but omits it from the XLSX declarations.
+  const xlsx = workbook.xlsx as ExcelJS.Xlsx & XlsxWorkbookPartParser
   const parseWorkbookPart = xlsx.parseWorkbook.bind(xlsx)
   xlsx.parseWorkbook = async (stream) => ({ ...(await parseWorkbookPart(stream)), definedNames: [] })
   await workbook.xlsx.load(data, { ignoreNodes: ['mergeCells', 'dataValidations'] })
@@ -788,7 +789,8 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
     const colWidthsPx: Record<number, number> = {}
     const worksheetModel = worksheet.model as ExcelJS.WorksheetModel & WorksheetModelWithLayout
 
-    const internalRows = (worksheet as unknown as WorksheetWithInternalRows)._rows
+    // SAFETY: ExcelJS retains Row instances in _rows; public models omit empty hidden rows.
+    const internalRows = (worksheet as ExcelJS.Worksheet & WorksheetWithInternalRows)._rows
     internalRows?.forEach((row) => {
       if (!row) return
       if (row.hidden) {
@@ -840,9 +842,12 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
             warnings.add('image-format-unsupported')
             continue
           }
-          const nodeBuffer = stored.buffer as unknown as Uint8Array
-          const copy = new ArrayBuffer(nodeBuffer.byteLength)
-          new Uint8Array(copy).set(nodeBuffer)
+          const source = stored.buffer
+          const bytes = ArrayBuffer.isView(source)
+            ? new Uint8Array(source.buffer, source.byteOffset, source.byteLength)
+            : new Uint8Array(source)
+          const copy = new ArrayBuffer(bytes.byteLength)
+          new Uint8Array(copy).set(bytes)
           renderImageId = nextImageId++
           images[renderImageId] = { mime, data: copy }
           imageIdCache.set(excelImageId, renderImageId)
