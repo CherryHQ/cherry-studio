@@ -81,6 +81,9 @@ export async function selectSidebarApp(page: Page, name: string): Promise<void> 
     // a detached item and leave the menu closed; retry the whole open-then-click sequence.
     await expect(async () => {
       if (await settings.isVisible()) return
+      if (await page.locator('[data-slot="dialog-overlay"]:visible').first().isVisible()) {
+        await dismissTransientDialogs(page)
+      }
       const accountMenu = await openAccountMenu(page)
       await accountMenu.getByRole('button', { name: 'Settings', exact: true }).click({ timeout: 5_000 })
       await expect(settings).toBeVisible({ timeout: 5_000 })

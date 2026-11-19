@@ -31,11 +31,17 @@ test(...caseDefinition('M-01'), async ({ app, mainWindow: page }, testInfo) => {
     await test.step('Sign in and authorize in the CherryIN browser', async () => {
       const authUrl = await captureCherryInAuthorizationUrl(app.record, () => authorize.click())
       const login = await browser.newPage({ locale: 'en-US' })
-      await login.goto(authUrl, { waitUntil: 'domcontentloaded' })
+      await login.goto(authUrl, { waitUntil: 'commit', timeout: 60_000 })
+      await login.waitForURL(
+        (url) => url.origin === CHERRYIN_ORIGIN && ['/register', '/oauth/login'].includes(url.pathname),
+        { waitUntil: 'commit', timeout: 60_000 }
+      )
       if (new URL(login.url()).pathname === '/register') {
         await login.getByText('Sign in', { exact: true }).last().click()
       }
-      await expect(login).toHaveURL((url) => url.origin === CHERRYIN_ORIGIN && url.pathname === '/oauth/login')
+      await login.waitForURL((url) => url.origin === CHERRYIN_ORIGIN && url.pathname === '/oauth/login', {
+        waitUntil: 'commit'
+      })
       await login.getByPlaceholder('Please enter your username or email address').fill(account)
       await login.getByPlaceholder('Please enter your password').fill(password)
       await login.getByRole('button', { name: 'Sign in', exact: true }).last().click()
