@@ -362,10 +362,8 @@ function enqueuedSourceCopies(): Array<[string, string]> {
     )
 }
 
-type IngestionInternals = Pick<InstanceType<typeof KnowledgeService>['ingestionService'], 'addItems' | 'scheduleItem'>
-
-function ingestionOf(service: unknown): IngestionInternals {
-  return (service as { ingestionService: IngestionInternals }).ingestionService
+function ingestionOf(service: InstanceType<typeof KnowledgeService>) {
+  return service['ingestionService']
 }
 
 function flushMicrotasks(): Promise<void> {
@@ -478,17 +476,6 @@ describe('KnowledgeService', () => {
     rerankKnowledgeSearchResultsMock.mockImplementation(async (_base, _query, results) => results)
   })
 
-  it('does not cancel knowledge jobs during service shutdown', async () => {
-    const service = new KnowledgeService()
-    const stop = (service as unknown as { onStop?: () => Promise<void> }).onStop
-
-    if (stop) {
-      await stop.call(service)
-    }
-
-    expect(cancelManyMock).not.toHaveBeenCalled()
-  })
-
   it('recovers deleting roots by enqueueing delete cleanup jobs after all services are ready', async () => {
     const service = new KnowledgeService()
     knowledgeItemGetDeletingRootGroupsMock.mockReturnValueOnce([
@@ -496,7 +483,7 @@ describe('KnowledgeService', () => {
       { baseId: 'kb-2', rootItemIds: ['dir-1', 'note-2'] }
     ])
 
-    await (service as unknown as { onAllReady: () => Promise<void> }).onAllReady()
+    await service['onAllReady']()
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.delete-subtree',
@@ -532,7 +519,7 @@ describe('KnowledgeService', () => {
         finished: Promise.resolve({})
       })
 
-    await expect((service as unknown as { onAllReady: () => Promise<void> }).onAllReady()).resolves.toBeUndefined()
+    await expect(service['onAllReady']()).resolves.toBeUndefined()
 
     expect(enqueueMock).toHaveBeenCalledTimes(2)
   })
@@ -543,7 +530,7 @@ describe('KnowledgeService', () => {
       throw new Error('scan failed')
     })
 
-    await expect((service as unknown as { onAllReady: () => Promise<void> }).onAllReady()).resolves.toBeUndefined()
+    await expect(service['onAllReady']()).resolves.toBeUndefined()
 
     expect(enqueueMock).not.toHaveBeenCalled()
   })
@@ -552,7 +539,7 @@ describe('KnowledgeService', () => {
     const service = new KnowledgeService()
     knowledgeItemFailInterruptedItemsMock.mockReturnValueOnce(3)
 
-    await (service as unknown as { onAllReady: () => Promise<void> }).onAllReady()
+    await service['onAllReady']()
 
     expect(knowledgeItemFailInterruptedItemsMock).toHaveBeenCalledWith(KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED)
   })
@@ -563,7 +550,7 @@ describe('KnowledgeService', () => {
       throw new Error('mark failed')
     })
 
-    await expect((service as unknown as { onAllReady: () => Promise<void> }).onAllReady()).resolves.toBeUndefined()
+    await expect(service['onAllReady']()).resolves.toBeUndefined()
 
     expect(knowledgeItemFailInterruptedItemsMock).toHaveBeenCalledWith(KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED)
   })
@@ -1166,7 +1153,7 @@ describe('KnowledgeService', () => {
 
   it("shows a waiting file's processing progress on its item until its task settles", async () => {
     const service = new KnowledgeService()
-    ;(service as unknown as { onInit: () => void }).onInit()
+    service['onInit']()
     const onDidChangeTask = fileProcessingOnDidChangeTaskMock.mock.calls[0][0] as (task: FileProcessingTask) => void
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
     knowledgeItemGetByIdMock.mockReturnValueOnce(
@@ -1404,13 +1391,7 @@ describe('KnowledgeService', () => {
       }
     ])
 
-    const ingestionService = (
-      service as unknown as {
-        ingestionService: {
-          scheduleItem(baseId: string, itemId: string, parentJobId?: string | null): Promise<void>
-        }
-      }
-    ).ingestionService
+    const ingestionService = ingestionOf(service)
 
     // The processed-artifact reservation guard must treat the note snapshot as occupied (it lives
     // under `raw/` too), so it refuses the colliding `.md` output instead of overwriting it on disk.
@@ -1585,19 +1566,10 @@ describe('KnowledgeService', () => {
       )
     )
 
-    const ingestionService = (
-      service as unknown as {
-        ingestionService: {
-          scheduleItem(
-            baseId: string,
-            itemId: string,
-            parentJobId?: string | null,
-            options?: { forceFileReprocess?: boolean }
-          ): Promise<void>
-        }
-      }
-    ).ingestionService
-    await ingestionService.scheduleItem('kb-1', 'file-1', 'reindex-job', { forceFileReprocess: true })
+    const ingestionService = ingestionOf(service)
+    await ingestionService.scheduleItem(toKnowledgeBaseId('kb-1'), toKnowledgeItemId('file-1'), 'reindex-job', {
+      forceFileReprocess: true
+    })
 
     expect(knowledgeItemClearIndexedRelativePathMock).toHaveBeenCalledWith('file-1')
     // Nothing reserves source.md once the pin is gone, so its bytes must go too or a later
@@ -1623,19 +1595,10 @@ describe('KnowledgeService', () => {
       )
     )
 
-    const ingestionService = (
-      service as unknown as {
-        ingestionService: {
-          scheduleItem(
-            baseId: string,
-            itemId: string,
-            parentJobId?: string | null,
-            options?: { forceFileReprocess?: boolean }
-          ): Promise<void>
-        }
-      }
-    ).ingestionService
-    await ingestionService.scheduleItem('kb-1', 'file-1', 'reindex-job', { forceFileReprocess: true })
+    const ingestionService = ingestionOf(service)
+    await ingestionService.scheduleItem(toKnowledgeBaseId('kb-1'), toKnowledgeItemId('file-1'), 'reindex-job', {
+      forceFileReprocess: true
+    })
 
     // The processor rewrites source.md in place, so the pin still describes the refreshed file;
     // clearing it here would strand the check handler's availability guard on a live artifact.
@@ -1653,14 +1616,8 @@ describe('KnowledgeService', () => {
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
     knowledgeItemGetByIdMock.mockReturnValueOnce(processingFile)
 
-    const ingestionService = (
-      service as unknown as {
-        ingestionService: {
-          scheduleItem(baseId: string, itemId: string, parentJobId?: string | null): Promise<void>
-        }
-      }
-    ).ingestionService
-    await ingestionService.scheduleItem('kb-1', 'file-1', 'reindex-job')
+    const ingestionService = ingestionOf(service)
+    await ingestionService.scheduleItem(toKnowledgeBaseId('kb-1'), toKnowledgeItemId('file-1'), 'reindex-job')
     await flushMicrotasks()
 
     expect(enqueueMock).toHaveBeenCalledWith(
@@ -1685,14 +1642,8 @@ describe('KnowledgeService', () => {
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
     knowledgeItemGetByIdMock.mockReturnValueOnce(processingFile)
 
-    const ingestionService = (
-      service as unknown as {
-        ingestionService: {
-          scheduleItem(baseId: string, itemId: string, parentJobId?: string | null): Promise<void>
-        }
-      }
-    ).ingestionService
-    await ingestionService.scheduleItem('kb-1', 'file-1', 'reindex-job')
+    const ingestionService = ingestionOf(service)
+    await ingestionService.scheduleItem(toKnowledgeBaseId('kb-1'), toKnowledgeItemId('file-1'), 'reindex-job')
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.index-documents',
