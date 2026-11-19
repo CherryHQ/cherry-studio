@@ -78,39 +78,40 @@ vi.mock('fs', async (importOriginal) => {
   const actual = await importOriginal<typeof FsModule>()
   return { ...actual, default: actual, existsSync: () => true }
 })
-vi.mock('electron', () => ({
-  app: {
-    on: vi.fn(),
-    removeListener: vi.fn(),
-    commandLine: {
-      hasSwitch: vi.fn(() => false),
-      getSwitchValue: vi.fn(() => '')
-    }
-  },
-  dialog: { showSaveDialog: vi.fn() },
-  session: {
-    fromPartition: vi.fn((partition: string) => {
-      if (partition === 'persist:webview') return siteSession
-      // Agent browser partitions are annotation-capable and must stay distinct
-      // from the local mini app session the non-site rejection cases use.
-      if (partition.startsWith('agent-') || partition === 'persist:agent-browser') {
-        let agentSession = agentSessions.get(partition)
-        if (!agentSession) {
-          agentSession = { setSpellCheckerEnabled: vi.fn() }
-          agentSessions.set(partition, agentSession)
-        }
-        return agentSession
+vi.mock('electron', async () => {
+  const { EventEmitter } = await import('node:events')
+  return {
+    app: Object.assign(new EventEmitter(), {
+      commandLine: {
+        hasSwitch: vi.fn(() => false),
+        getSwitchValue: vi.fn(() => '')
       }
-      return localSession
-    })
-  },
-  shell: { openExternal: vi.fn() },
-  webContents: {
-    fromId: (id: number) => guestById.get(id),
-    fromDevToolsTargetId: (id: string) => guestByTarget.get(id),
-    getAllWebContents
+    }),
+    dialog: { showSaveDialog: vi.fn() },
+    session: {
+      fromPartition: vi.fn((partition: string) => {
+        if (partition === 'persist:webview') return siteSession
+        // Agent browser partitions are annotation-capable and must stay distinct
+        // from the local mini app session the non-site rejection cases use.
+        if (partition.startsWith('agent-') || partition === 'persist:agent-browser') {
+          let agentSession = agentSessions.get(partition)
+          if (!agentSession) {
+            agentSession = { setSpellCheckerEnabled: vi.fn() }
+            agentSessions.set(partition, agentSession)
+          }
+          return agentSession
+        }
+        return localSession
+      })
+    },
+    shell: { openExternal: vi.fn() },
+    webContents: {
+      fromId: (id: number) => guestById.get(id),
+      fromDevToolsTargetId: (id: string) => guestByTarget.get(id),
+      getAllWebContents
+    }
   }
-}))
+})
 
 import { BrowserSessionService } from '@main/features/browser'
 
@@ -118,11 +119,12 @@ import { WebviewService } from '../WebviewService'
 
 let browserService: BrowserSessionService
 beforeEach(() => {
+  app.removeAllListeners()
   browserService = new BrowserSessionService()
   getBrowserService.mockReturnValue(browserService)
 })
 afterEach(async () => {
-  await (browserService as unknown as { onStop(): Promise<void> }).onStop()
+  await browserService['onStop']()
 })
 
 interface MockContents extends EventEmitter {
@@ -203,7 +205,9 @@ const annotation = {
 }
 
 const initializeReady = (service: WebviewService, guest: MockContents) => {
-  ;(service as unknown as { initializeWebview: (contents: Electron.WebContents) => void }).initializeWebview(
+  service['initializeWebview'](
+    // SAFETY: This fixture supplies annotation lifecycle members; native CDP and session operations are stubbed.
+    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Electron's native WebContents is unavailable in Node unit tests.
     guest as unknown as Electron.WebContents
   )
   guest.emit('dom-ready')
@@ -247,7 +251,7 @@ describe('WebviewService request identity', () => {
     ['https://accounts.google.com@example.com/', 'Browser/1.0']
   ])('preserves sign-in compatibility and browser identity for %s', (url, userAgent) => {
     const service = new WebviewService()
-    ;(service as unknown as { initSessionUserAgent: () => void }).initSessionUserAgent()
+    service['initSessionUserAgent']()
     const handleRequest = siteSession.webRequest.onBeforeSendHeaders.mock.calls.at(-1)![0]
     let headers: Record<string, string> = {}
     handleRequest(
@@ -312,7 +316,7 @@ describe('WebviewService webview ownership', () => {
     vi.mocked(app.commandLine.getSwitchValue).mockReturnValue(String(port))
     const broadcast = vi.mocked(application.get('IpcApiService').broadcast)
     try {
-      await (service as unknown as { onInit(): Promise<void> }).onInit()
+      await service['onInit']()
       await vi.waitFor(() => expect(service.getDebuggingState(7, 'owner').attached).toBe(true))
       notify('Target.targetInfoChanged', { targetInfo: { targetId: 'child', attached: true } })
       await vi.waitFor(() =>
@@ -332,7 +336,7 @@ describe('WebviewService webview ownership', () => {
         expect.objectContaining({ webviewId: 7, attached: false })
       )
     } finally {
-      await (service as unknown as { onStop(): Promise<void> }).onStop()
+      await service['onStop']()
       for (const socket of sockets.clients) socket.terminate()
       await new Promise<void>((resolve) => sockets.close(() => resolve()))
       await new Promise<void>((resolve) => server.close(() => resolve()))
@@ -349,7 +353,7 @@ describe('WebviewService webview ownership', () => {
     destroyed.isDestroyed.mockReturnValue(true)
     getAllWebContents.mockReturnValue([site, browser, popup, local, other, destroyed])
 
-    await (service as unknown as { onInit: () => Promise<void> }).onInit()
+    await service['onInit']()
 
     for (const guest of [site, browser, popup]) {
       expect(guest.getWebRTCIPHandlingPolicy()).toBe('disable_non_proxied_udp')
@@ -357,27 +361,24 @@ describe('WebviewService webview ownership', () => {
     for (const guest of [local, other, destroyed]) {
       expect(guest.getWebRTCIPHandlingPolicy()).toBe('default')
     }
-    await (service as unknown as { onStop: () => Promise<void> }).onStop()
+    await service['onStop']()
   })
 
   it('protects new guests and browser-session popup windows before dom-ready', async () => {
-    await (service as unknown as { onInit: () => Promise<void> }).onInit()
-    const onCreated = (
-      vi.mocked(app.on).mock.calls as unknown as Array<[string, (event: unknown, contents: unknown) => void]>
-    ).find(([event]) => event === 'web-contents-created')![1]
+    await service['onInit']()
     const site = createContents(7, host, { loadingMainFrame: true })
     const browserPopup = createContents(8, null, {
       type: 'window',
       session: session.fromPartition('persist:agent-browser')
     })
 
-    onCreated({}, site)
-    onCreated({}, browserPopup)
+    app.emit('web-contents-created', {}, site)
+    app.emit('web-contents-created', {}, browserPopup)
 
     expect(site.getWebRTCIPHandlingPolicy()).toBe('disable_non_proxied_udp')
     expect(browserPopup.getWebRTCIPHandlingPolicy()).toBe('disable_non_proxied_udp')
     expect(site.send).not.toHaveBeenCalled()
-    await (service as unknown as { onStop: () => Promise<void> }).onStop()
+    await service['onStop']()
   })
 
   it('owns preload and annotation listeners outside BaseService disposables and cleans them on stop', async () => {
@@ -388,7 +389,7 @@ describe('WebviewService webview ownership', () => {
     expect(hostContents.listenerCount('will-attach-webview')).toBe(1)
     expect(guest.listenerCount('did-start-navigation')).toBe(1)
 
-    await (service as unknown as { onStop: () => Promise<void> }).onStop()
+    await service['onStop']()
 
     expect(hostContents.listenerCount('will-attach-webview')).toBe(0)
     expect(guest.listenerCount('did-start-navigation')).toBe(0)
@@ -415,13 +416,13 @@ describe('WebviewService webview ownership', () => {
     guestById.set(7, guest)
     getAllWebContents.mockReturnValue([guest])
 
-    await (service as unknown as { onInit: () => Promise<void> }).onInit()
+    await service['onInit']()
     const firstSessionId = guest.send.mock.calls.at(-1)?.[1].sessionId as string
     expect(guest.send).toHaveBeenCalledOnce()
 
-    await (service as unknown as { onStop: () => Promise<void> }).onStop()
+    await service['onStop']()
     expect(guest.listenerCount('dom-ready')).toBe(0)
-    await (service as unknown as { onInit: () => Promise<void> }).onInit()
+    await service['onInit']()
 
     const secondSessionId = guest.send.mock.calls.at(-1)?.[1].sessionId as string
     expect(guest.send).toHaveBeenCalledTimes(2)
@@ -450,13 +451,13 @@ describe('WebviewService webview ownership', () => {
     )
     await vi.waitFor(() => expect(guest.debugger.attach).toHaveBeenCalledOnce())
 
-    const stop = (service as unknown as { onStop: () => Promise<void> }).onStop()
+    const stop = service['onStop']()
 
     await vi.waitFor(() => expect(guest.debugger.detach).toHaveBeenCalledOnce(), { timeout: 200, interval: 5 })
     await stop
     await expect(firstOutcome).resolves.toBe('Annotation document session is stale')
 
-    await (service as unknown as { onInit: () => Promise<void> }).onInit()
+    await service['onInit']()
     const secondSessionId = guest.send.mock.calls.at(-1)?.[1].sessionId as string
     guest.debugger.sendCommand.mockImplementation(async (method: string) => {
       if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main-frame' } } }
@@ -471,7 +472,7 @@ describe('WebviewService webview ownership', () => {
     const guest = createContents(7, host, { loadingMainFrame: true })
     getAllWebContents.mockReturnValue([guest])
 
-    await (service as unknown as { onInit: () => Promise<void> }).onInit()
+    await service['onInit']()
     expect(guest.send).not.toHaveBeenCalled()
 
     guest.emit('dom-ready')
