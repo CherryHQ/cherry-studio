@@ -22,6 +22,11 @@ import type { Assistant } from '@shared/data/types/assistant'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 vi.mock('@renderer/utils/image', () => ({ checkEntityImageSize: vi.fn(() => null), prepareEntityImageBytes: vi.fn() }))
+// An upload now opens the crop dialog; the test confirms it with a fixed frame.
+const FRAMED = { x: 10, y: 20, width: 64, height: 64 }
+vi.mock('@renderer/components/Avatar/AvatarCropPopup', () => ({
+  AvatarCropPopup: { show: vi.fn(async () => FRAMED) }
+}))
 // The real picker's `:has()` styles break jsdom's selector engine for later pointer checks.
 vi.mock('@renderer/components/EmojiPicker', () => ({
   EmojiPicker: ({ onEmojiClick }: { onEmojiClick: (emoji: string) => void }) => (
@@ -1140,6 +1145,7 @@ describe('edit dialogs', () => {
       })
     )
     expect(checkEntityImageSize).toHaveBeenCalledWith(file)
+    expect(prepareEntityImageBytes).toHaveBeenCalledWith(file, FRAMED)
     expect(updateAssistantMock).toHaveBeenCalledTimes(1)
     await user.click(screen.getByRole('button', { name: 'Close' }))
     rerender(<AssistantEditDialog open={false} resource={ASSISTANT} onOpenChange={onOpenChange} />)
