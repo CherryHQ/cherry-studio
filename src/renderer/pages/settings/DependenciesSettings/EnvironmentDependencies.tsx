@@ -50,12 +50,12 @@ import {
   type BinaryOperationError
 } from '@renderer/components/BinaryInstallErrorDialog'
 import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { SettingsPageHeader } from '@renderer/components/SettingsPrimitives'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
 import { interpretBinarySnapshot } from '@renderer/utils/binarySnapshot'
-import { formatErrorMessage } from '@renderer/utils/error'
 import { formatFileSize } from '@renderer/utils/file'
 import { cn } from '@renderer/utils/style'
 import type { BinaryInstallSettings, CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
@@ -210,7 +210,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       } catch (error) {
         logger.error('Failed to fetch latest versions', error as Error)
         if (force && mountedRef.current && requestId === latestRequestIdRef.current) {
-          toast.error(`${t('settings.dependencies.updateCheckFailed')}: ${formatErrorMessage(error)}`)
+          toast.error({ title: t('settings.dependencies.updateCheckFailed'), cause: error })
         }
         return null
       } finally {
@@ -260,12 +260,12 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     }
   }
 
-  const handleAddCustomTool = async (tool: CustomToolDefinition) => {
+  const handleAddCustomTool = async (tool: CustomToolDefinition): Promise<boolean> => {
     try {
       validateBinaryToolDefinition(tool)
     } catch {
       toast.error(t('settings.dependencies.invalidTool'))
-      throw new Error('invalid')
+      return false
     }
 
     const allNames = [
@@ -275,7 +275,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     ]
     if (allNames.includes(tool.name)) {
       toast.error(t('settings.dependencies.duplicateName'))
-      throw new Error('duplicate')
+      return false
     }
 
     try {
@@ -284,9 +284,10 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       // and recipe collisions, so the recipe is sent exactly as entered — no
       // discovered-runtime version pin is grafted on.
       await ipcApi.request('binary.add_custom_tool', tool)
+      return true
     } catch (error) {
+      // Install failures resolve onto the card; a rejection means nothing was added.
       logger.error('Failed to add custom tool', error as Error)
-      setInstallError({ name: tool.name, message: formatErrorMessage(error), action: 'install' })
       throw error
     } finally {
       await refreshState()
@@ -314,7 +315,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       }
     } catch (error) {
       logger.error('Failed to remove tool', error as Error)
-      toast.error(formatErrorMessage(error))
+      toast.error({ title: t('settings.dependencies.removeError'), cause: error })
     } finally {
       setDeleteTarget(null)
       await refreshState()
@@ -327,7 +328,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       await ipcApi.request('binary.remove_tool', { name, definitionOnly: true })
     } catch (error) {
       logger.error('Failed to remove tool definition', error as Error)
-      toast.error(formatErrorMessage(error))
+      toast.error({ title: t('settings.dependencies.removeError'), cause: error })
     } finally {
       setDefinitionFallback(null)
       await refreshState()
@@ -505,7 +506,11 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       </div>
       <AddToolDialog open={showAddDialog} onOpenChange={setShowAddDialog} onAdd={handleAddCustomTool} />
       <InstallSettingsDialog open={showInstallSettings} onOpenChange={setShowInstallSettings} />
-      <BinaryInstallErrorDialog error={installError} onOpenChange={(open) => !open && setInstallError(null)} />
+      <BinaryInstallErrorDialog
+        error={installError}
+        onOpenChange={(open) => !open && setInstallError(null)}
+        source="settings.dependencies"
+      />
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
@@ -715,7 +720,10 @@ const BinaryToolPresetCard: FC<{
         )}
       </div>
       {(failedInstall || failedRemove) && !busy && (
-        <BinaryInstallFailureRow error={operation.error} onShowError={() => onShowError(operation.error)} />
+        <BinaryInstallFailureRow
+          action={failedRemove ? 'remove' : 'install'}
+          onShowError={() => onShowError(operation.error)}
+        />
       )}
 
       {canInstall && !failedRemove && (
@@ -881,7 +889,10 @@ const CustomToolCard: FC<{
         </div>
       </div>
       {(failedInstall || failedRemove) && !busy && (
-        <BinaryInstallFailureRow error={operation.error} onShowError={() => onShowError(operation.error)} />
+        <BinaryInstallFailureRow
+          action={failedRemove ? 'remove' : 'install'}
+          onShowError={() => onShowError(operation.error)}
+        />
       )}
 
       {canInstall && !failedRemove && (
@@ -914,7 +925,7 @@ function AddToolDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onAdd: (tool: CustomToolDefinition) => Promise<void>
+  onAdd: (tool: CustomToolDefinition) => Promise<boolean>
 }) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
@@ -925,7 +936,12 @@ function AddToolDialog({
   const [selectedTool, setSelectedTool] = useState('')
   const [version, setVersion] = useState('')
   const [adding, setAdding] = useState(false)
+  const [addError, setAddError] = useState<unknown>(null)
   const searchIdRef = useRef(0)
+
+  useEffect(() => {
+    if (!open) setAddError(null)
+  }, [open])
 
   const reset = () => {
     // Invalidate any in-flight search so its late response cannot repopulate
@@ -974,6 +990,7 @@ function AddToolDialog({
   const selectResult = (r: { name: string; tool: string }) => {
     setSelectedName(r.name)
     setSelectedTool(r.tool)
+    setAddError(null)
     setQuery('')
     setResults([])
   }
@@ -981,16 +998,18 @@ function AddToolDialog({
   const handleSubmit = async () => {
     if (!selectedName.trim() || !selectedTool.trim()) return
     setAdding(true)
+    setAddError(null)
     try {
-      await onAdd({
+      const added = await onAdd({
         name: selectedName.trim(),
         tool: selectedTool.trim(),
         requestedVersion: version.trim() || undefined
       })
+      if (!added) return
       reset()
       onOpenChange(false)
-    } catch {
-      // keep dialog open on failure
+    } catch (error) {
+      setAddError(error)
     } finally {
       setAdding(false)
     }
@@ -1034,15 +1053,19 @@ function AddToolDialog({
               </div>
             )}
             {searchError != null && (
-              <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-destructive">
-                <span>{t('settings.dependencies.searchFailed')}</span>
-                <ErrorDetailAction
-                  error={searchError}
-                  message={t('settings.dependencies.searchFailed')}
-                  operation="binary.search_registry"
-                  source="settings.dependencies"
-                />
-              </p>
+              <ErrorNotice
+                variant="inline"
+                className="mt-1"
+                title={t('settings.dependencies.searchFailed')}
+                detail={
+                  <ErrorDetailAction
+                    error={searchError}
+                    message={t('settings.dependencies.searchFailed')}
+                    operation="binary.search_registry"
+                    source="settings.dependencies"
+                  />
+                }
+              />
             )}
           </div>
           {selectedName && (
@@ -1058,6 +1081,21 @@ function AddToolDialog({
             value={version}
             onChange={(e) => setVersion(e.target.value)}
           />
+          {addError != null && (
+            <ErrorNotice
+              variant="inline"
+              title={t('settings.dependencies.addFailed')}
+              detail={
+                <ErrorDetailAction
+                  error={addError}
+                  message={t('settings.dependencies.addFailed')}
+                  operation="binary.add_custom_tool"
+                  recordId={selectedName}
+                  source="settings.dependencies"
+                />
+              }
+            />
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -1200,7 +1238,7 @@ const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) =
     commitQueueRef.current = commitQueueRef.current
       .then(() => setSettings(next))
       .catch((error) => {
-        toast.error(formatErrorMessage(error))
+        toast.error({ title: t('common.save_failed'), cause: error })
       })
   }
   const commitUrl = (key: 'githubMirror' | 'npmRegistry' | 'pipIndexUrl', value: string) => {

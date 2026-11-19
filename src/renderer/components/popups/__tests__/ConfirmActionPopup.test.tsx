@@ -3,8 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
-import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { appErrorContextService } from '@renderer/services/AppErrorContextService'
+import { createPopup, POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 
 const { toastError } = vi.hoisted(() => ({ toastError: vi.fn() }))
 const dialogMock = vi.hoisted(() => ({
@@ -28,13 +28,21 @@ vi.mock('@cherrystudio/ui', () => {
       dialogMock.onOpenChange = onOpenChange
       return open ? React.createElement(React.Fragment, null, children) : null
     },
-    DialogContent: ({ children, ...props }) => {
+    DialogContent: ({ children, overlayClassName, ...props }) => {
       delete props.showCloseButton
-      delete props.overlayClassName
       delete props.closeOnOverlayClick
       delete props.onInteractOutside
 
-      return React.createElement('div', { role: 'dialog', ...props }, children)
+      return React.createElement(
+        React.Fragment,
+        null,
+        React.createElement('button', {
+          type: 'button',
+          'data-testid': 'dialog-overlay',
+          className: overlayClassName
+        }),
+        React.createElement('div', { role: 'dialog', ...props }, children)
+      )
     },
     DialogDescription: ({ children }) => React.createElement('div', null, children),
     DialogFooter: ({ children, ...props }) => React.createElement('div', props, children),
@@ -96,19 +104,51 @@ describe('ConfirmActionPopup', () => {
     const error = new Error('boom')
     const action = vi.fn().mockRejectedValueOnce(error).mockResolvedValueOnce(undefined)
     let result!: Promise<boolean>
+    let settled = false
     act(() => {
       result = ConfirmActionPopup.show({ title: 'Delete item', okText: 'Delete', action })
+      void result.then(() => {
+        settled = true
+      })
     })
 
     await screen.findByText('Delete item')
+    const confirmDialog = screen.getByRole('dialog')
+    expect(confirmDialog.className).not.toContain('z-[90]')
+    expect(screen.getByTestId('dialog-overlay').className).not.toContain('z-[90]')
 
     await user.click(screen.getByRole('button', { name: 'Delete' }))
     await act(async () => {})
 
-    // Pre-regression feedback: title=common.error, description=formatErrorMessage(error).
-    expect(toastError).toHaveBeenCalledWith({ title: i18n.t('common.error'), description: formatErrorMessage(error) })
-    // Dialog stays open for a retry.
-    expect(screen.getByText('Delete item')).toBeInTheDocument()
+    const payload = toastError.mock.calls[0]?.[0]
+    expect(payload).toMatchObject({ title: i18n.t('common.error'), description: 'boom' })
+    expect(appErrorContextService.contextForHostError('confirm-action-failed', payload)).toMatchObject({
+      message: 'boom',
+      operation: 'confirm_action.run',
+      source: 'popup.confirm_action'
+    })
+    expect(settled).toBe(false)
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeEnabled()
+
+    const DetailPopup = createPopup<{ label: string }, void>(
+      ({ label, open, resolve }) =>
+        open ? (
+          <div aria-label={label} role="dialog">
+            <button type="button" onClick={() => resolve()}>
+              Close details
+            </button>
+          </div>
+        ) : null,
+      { dismissResult: undefined }
+    )
+    act(() => {
+      void DetailPopup.show({ label: 'Error details' })
+    })
+    const detailDialog = screen.getByRole('dialog', { name: 'Error details' })
+    expect(confirmDialog.compareDocumentPosition(detailDialog) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    )
+    expect(settled).toBe(false)
 
     await user.click(screen.getByRole('button', { name: 'Delete' }))
     await act(async () => {})

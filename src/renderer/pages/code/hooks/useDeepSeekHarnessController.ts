@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { ipcApi } from '@renderer/ipc'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
@@ -88,13 +89,22 @@ export function useDeepSeekHarnessController({
         ...settings
       })
       if (!result.success) {
-        toast.error(result.message)
+        const detail = result.message?.trim()
+        toast.error({
+          title: t('code.launch.error'),
+          description: detail,
+          cause: detail ? { message: detail } : undefined,
+          data: { source: 'code.deepseek', operation: 'deepseek_harness.start' }
+        })
         return
       }
       openWebUi(result.url)
     } catch (error) {
       logger.error('Failed to launch DeepSeek Harness', error as Error)
-      toast.error(t('code.launch.error'))
+      toastAppError(t('code.launch.error'), error, {
+        source: 'code.deepseek',
+        operation: 'deepseek_harness.start'
+      })
     } finally {
       setLaunching(false)
     }
@@ -105,13 +115,22 @@ export function useDeepSeekHarnessController({
       setStopping(true)
       const result = await ipcApi.request('deepseek_harness.stop')
       if (!result.success) {
-        toast.error(result.message)
+        const detail = result.message?.trim()
+        toast.error({
+          title: t('code.stop_failed'),
+          description: detail,
+          cause: detail ? { message: detail } : undefined,
+          data: { source: 'code.deepseek', operation: 'deepseek_harness.stop' }
+        })
         return false
       }
       return true
     } catch (error) {
       logger.error('Failed to stop DeepSeek Harness', error as Error)
-      toast.error(t('code.launch.error'))
+      toastAppError(t('code.stop_failed'), error, {
+        source: 'code.deepseek',
+        operation: 'deepseek_harness.stop'
+      })
       return false
     } finally {
       setStopping(false)
@@ -127,7 +146,10 @@ export function useDeepSeekHarnessController({
       throw new Error('DeepSeek Harness Web UI is not running')
     } catch (error) {
       logger.error('Failed to open DeepSeek Harness Web UI', error as Error)
-      toast.error(t('code.launch.error'))
+      toastAppError(t('code.launch.error'), error, {
+        source: 'code.deepseek',
+        operation: 'deepseek_harness.open_web_ui'
+      })
     }
   }, [openWebUi, t, url])
 

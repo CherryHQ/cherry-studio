@@ -41,7 +41,8 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
     try {
       onChange(files.map((file) => (file.target === activeFile.target ? formatCliConfigDraftFile(file) : file)))
     } catch {
-      toast.error(t('code.cli_config.format_failed'))
+      // The user's own draft failed to parse; its text may hold tokens and is not a reportable fault.
+      toast.error({ title: t('code.cli_config.format_failed'), data: { suppressDetail: true } })
     }
   }
 

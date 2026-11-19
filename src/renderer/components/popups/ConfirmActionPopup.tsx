@@ -62,9 +62,13 @@ const PopupContainer: React.FC<Props> = ({
     try {
       await action()
     } catch (error) {
-      // Pre-regression feedback (was AppModal's onOk catch): toast the failure and keep
-      // the dialog open + interactive so the user can retry or cancel.
-      toast.error({ title: t('common.error'), description: formatErrorMessage(error) })
+      // Keep the dialog open for retry; the thrown value stays the cause for Details.
+      toast.error({
+        title: t('common.error'),
+        description: formatErrorMessage(error),
+        cause: error,
+        data: { source: 'popup.confirm_action', operation: 'confirm_action.run' }
+      })
       setLoading(false)
       return
     }

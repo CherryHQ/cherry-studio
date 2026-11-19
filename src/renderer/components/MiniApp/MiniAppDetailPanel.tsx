@@ -22,6 +22,8 @@ import {
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
 import { InstallConsentDialog } from '@renderer/components/MiniApp/InstallConsentDialog'
 import { PermissionChecklist } from '@renderer/components/MiniApp/PermissionChecklist'
@@ -33,6 +35,7 @@ import { useMiniAppUpdate } from '@renderer/hooks/useMiniAppUpdate'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { toast } from '@renderer/services/toast'
 import { formatFileSize } from '@renderer/utils/file'
 import { permissionLabel } from '@renderer/utils/miniAppPermission'
@@ -104,8 +107,6 @@ interface Props {
 
 const logger = loggerService.withContext('MiniAppDetailPanel')
 
-const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
-
 const asUniqueModelId = (id: string | null | undefined): UniqueModelId | null => (id && isUniqueModelId(id) ? id : null)
 
 const hostOf = (url: string): string => {
@@ -149,7 +150,7 @@ const Usage: FC<{ label: string; usage: QuotaUsageWithLimits; testId: string }> 
 const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
   const { t, i18n } = useTranslation()
   const [detail, setDetail] = useState<MiniAppDetail | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<{ message: string; cause: unknown; operation: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [pendingAction, setPendingAction] = useState<DestructiveAction | null>(null)
   const { providers } = useProviders()
@@ -170,7 +171,11 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
       logger.error('Failed to load mini app activity', e as Error)
       // Not a silent empty list: this panel is where a user goes to find out what an app
       // did, and "nothing recorded" is the one answer a failed read must never give.
-      setError(t('miniApp.activity.load_error', { message: errorMessage(e) }))
+      setError({
+        message: t('miniApp.activity.load_error'),
+        cause: e,
+        operation: 'miniapp.activity'
+      })
     }
   }, [appId, deniedOnly, t])
   // Pulled on open, on the filter, and on the user's refresh — never pushed: a log that
@@ -199,7 +204,11 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
       setDetail(await ipcApi.request('mini_app.detail', { appId }))
     } catch (e) {
       logger.error('Failed to load mini app detail', e as Error)
-      setError(t('miniApp.detail.load_error', { message: errorMessage(e) }))
+      setError({
+        message: t('miniApp.detail.load_error'),
+        cause: e,
+        operation: 'miniapp.detail'
+      })
     }
   }, [appId, t])
 
@@ -217,7 +226,11 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
       return true
     } catch (e) {
       logger.error('Mini app action failed', e as Error)
-      setError(t('miniApp.detail.action_error', { message: errorMessage(e) }))
+      setError({
+        message: t('miniApp.detail.action_failed'),
+        cause: e,
+        operation: 'miniapp.action'
+      })
       return false
     } finally {
       setBusy(false)
@@ -246,10 +259,19 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
   const { value: replacePreview } = useExitPresence(replace.preview)
   const replaceError = replace.error
   useEffect(() => {
-    if (replaceError) toast.error(t(replaceError.key, replaceError.params))
-  }, [replaceError, t])
+    if (!replaceError) return
+    toastAppError(t(replaceError.key, replaceError.params), replaceError.cause, {
+      source: 'miniapp',
+      operation: replaceError.operation,
+      recordId: appId
+    })
+  }, [appId, replaceError, t])
   const handlePickReplacement = () =>
-    replace.settle(() => ipcApi.request('mini_app.install.pick_and_preview'), 'miniApp.install.preview_error')
+    replace.settle(
+      () => ipcApi.request('mini_app.install.pick_and_preview'),
+      'miniApp.install.preview_error',
+      'miniapp.install.pick_and_preview'
+    )
 
   const handleConfirmDestructive = async () => {
     if (!pendingAction) return
@@ -308,7 +330,21 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, open = true, onClose }) => {
               </div>
             </div>
             {/* In the pinned header, not the scrolling body: a refused action must stay in view. */}
-            {error && <Alert type="error" message={error} />}
+            {error && (
+              <ErrorNotice
+                variant="inline"
+                title={error.message}
+                detail={
+                  <ErrorDetailAction
+                    error={error.cause}
+                    message={error.message}
+                    source="miniapp"
+                    operation={error.operation}
+                    recordId={appId}
+                  />
+                }
+              />
+            )}
           </DialogHeader>
 
           {detail && (

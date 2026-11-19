@@ -14,7 +14,7 @@ import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { useMiniAppInstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
-import { toast } from '@renderer/services/toast'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { isDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
@@ -136,7 +136,10 @@ const MiniAppsPage: FC = () => {
 
   useEffect(() => {
     if (droppedInstall.error) {
-      toast.error(t(droppedInstall.error.key, droppedInstall.error.params))
+      toastAppError(t(droppedInstall.error.key, droppedInstall.error.params), droppedInstall.error.cause, {
+        source: 'miniapp',
+        operation: droppedInstall.error.operation
+      })
     }
   }, [droppedInstall.error, t])
 

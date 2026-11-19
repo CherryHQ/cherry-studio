@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { usePreference } from '@data/hooks/usePreference'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { ipcApi } from '@renderer/ipc'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
@@ -78,6 +79,7 @@ export function useOpenClawGatewayController({
     })
     if (!parsedModelId) return
 
+    let step = 'openclaw.sync_config'
     try {
       setLaunching(true)
       const syncResult = await ipcApi.request('openclaw.sync_config', {
@@ -85,20 +87,34 @@ export function useOpenClawGatewayController({
         port: gatewayPort
       })
       if (!syncResult.success) {
-        toast.error(syncResult.message)
+        const detail = syncResult.message?.trim()
+        toast.error({
+          title: t('code.apply_failed'),
+          description: detail,
+          cause: detail ? { message: detail } : undefined,
+          data: { source: 'code.openclaw', operation: 'openclaw.sync_config' }
+        })
         return
       }
 
+      step = 'openclaw.start_gateway'
       const startResult = await ipcApi.request('openclaw.start_gateway', { port: gatewayPort })
       if (!startResult.success) {
-        toast.error(startResult.message)
+        const detail = startResult.message?.trim()
+        toast.error({
+          title: t('code.launch.error'),
+          description: detail,
+          cause: detail ? { message: detail } : undefined,
+          data: { source: 'code.openclaw', operation: 'openclaw.start_gateway' }
+        })
         return
       }
 
+      step = 'openclaw.open_dashboard'
       await openDashboard()
     } catch (err) {
       logger.error('Failed to launch OpenClaw dashboard:', err as Error)
-      toast.error(t('code.launch.error'))
+      toastAppError(t('code.launch.error'), err, { source: 'code.openclaw', operation: step })
     } finally {
       setLaunching(false)
     }
@@ -109,12 +125,21 @@ export function useOpenClawGatewayController({
       setStopping(true)
       const result = await ipcApi.request('openclaw.stop_gateway')
       if (!result.success) {
-        toast.error(result.message)
+        const detail = result.message?.trim()
+        toast.error({
+          title: t('code.stop_failed'),
+          description: detail,
+          cause: detail ? { message: detail } : undefined,
+          data: { source: 'code.openclaw', operation: 'openclaw.stop_gateway' }
+        })
         return
       }
     } catch (err) {
       logger.error('Failed to stop OpenClaw gateway:', err as Error)
-      toast.error(t('code.launch.error'))
+      toastAppError(t('code.stop_failed'), err, {
+        source: 'code.openclaw',
+        operation: 'openclaw.stop_gateway'
+      })
     } finally {
       setStopping(false)
     }
@@ -125,7 +150,10 @@ export function useOpenClawGatewayController({
       await openDashboard()
     } catch (err) {
       logger.error('Failed to open OpenClaw dashboard:', err as Error)
-      toast.error(t('code.launch.error'))
+      toastAppError(t('code.launch.error'), err, {
+        source: 'code.openclaw',
+        operation: 'openclaw.open_dashboard'
+      })
     }
   }, [openDashboard, t])
 
