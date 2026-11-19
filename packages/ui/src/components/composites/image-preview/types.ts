@@ -48,6 +48,7 @@ export interface ImagePreviewAction {
 }
 
 export type ImagePreviewActionErrorHandler = (
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Toolbar and context-menu actions forward onSelect throws and rejections unchanged, together with the action and item that failed.
   error: unknown,
   action: ImagePreviewAction,
   item: ImagePreviewItem

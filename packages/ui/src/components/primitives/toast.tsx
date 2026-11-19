@@ -31,6 +31,7 @@ export interface ToastConfig {
 }
 
 export interface LoadingToastConfig<T = unknown> extends ToastConfig {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The caller's loading promise can reject with any value; preserve the original rejection for its toast failure callback.
   onError?: (error: unknown) => void
   promise?: Promise<T>
 }
