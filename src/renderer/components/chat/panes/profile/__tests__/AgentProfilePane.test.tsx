@@ -279,6 +279,18 @@ describe('AgentProfilePane', () => {
         })
       })
 
+      // In Chinese the model called the Agent 助手, the UI's word for an Assistant.
+      it("tells the model this is an Agent in the UI's own word", async () => {
+        await i18n.changeLanguage('zh-CN')
+        fetchGenerate.mockResolvedValue(reply(GENERATED))
+        renderPane()
+
+        await waitFor(() => expect(fetchGenerate).toHaveBeenCalledTimes(1))
+        const { prompt, content } = fetchGenerate.mock.calls[0][0]
+        expect(content).toContain('Kind: 智能体')
+        expect(prompt).toContain('never call an Agent an Assistant')
+      })
+
       it.each([
         ['there is no default model', () => MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', null)],
         ['generation fails', () => fetchGenerate.mockRejectedValue(new Error('Provider is disabled'))],

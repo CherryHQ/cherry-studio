@@ -28,6 +28,8 @@ const STARTER_KINDS = [
 ] as const satisfies readonly ProfileStarterKind[]
 
 const JSON_ONLY = 'Reply with exactly one JSON object and nothing else — no Markdown, no code fences, no commentary.'
+// In Chinese the model translated "Agent" as 助手 (Assistant), the UI's word for the other kind.
+const KIND_RULE = '- When you name it, use only the given "Kind" word; never call an Agent an Assistant or the reverse.'
 
 const SYSTEM_PROMPTS = {
   agent: [
@@ -42,7 +44,8 @@ const SYSTEM_PROMPTS = {
     '- "title": a short action, at most 30 characters.',
     '- "hint": one short line on what it brings.',
     '- "prompt": the complete message the user sends to the Agent to do it, written as the user.',
-    '- Write "title", "hint" and "prompt" in the language of the given locale.'
+    '- Write "title", "hint" and "prompt" in the language of the given locale.',
+    KIND_RULE
   ].join('\n'),
   assistant: [
     'You write opening questions a user could ask a Cherry Studio Assistant. They appear as "Try asking" cards in its profile.',
@@ -54,7 +57,8 @@ const SYSTEM_PROMPTS = {
     '- "title": a short question or request, at most 24 characters.',
     '- "hint": one short line on what the answer gives.',
     '- "prompt": the complete message the user sends; end it with a colon when the user should add their own content.',
-    '- Write "title", "hint" and "prompt" in the language of the given locale.'
+    '- Write "title", "hint" and "prompt" in the language of the given locale.',
+    KIND_RULE
   ].join('\n')
 } as const
 
@@ -127,14 +131,17 @@ export function useProfileStarters({
   /** False when the starters cannot be used, e.g. there is no composer to fill. */
   enabled?: boolean
 }): ProfileStarters {
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [hiddenIds, setHiddenIds] = usePersistCache('ui.chat.profile_pane.hidden_starters')
   const hidden = hiddenIds.includes(ownerId)
   const active = enabled && !hidden
   const { defaultModel, isDefaultModelLoading } = useDefaultModel({ enabled: active })
   const [cache, setCache] = usePersistCache('ui.chat.profile_pane.starters')
   const locale = i18n.language
-  const hash = hashText(JSON.stringify([identity.name, identity.description ?? '', identity.prompt ?? '', locale]))
+  const kind = t(mode === 'agent' ? 'library.type.agent' : 'library.type.assistant')
+  const hash = hashText(
+    JSON.stringify([identity.name, identity.description ?? '', identity.prompt ?? '', locale, kind])
+  )
   const entry = cache[ownerId]
   const cached = entry?.hash === hash ? entry.items : undefined
   const requestKey = `${ownerId}:${hash}`
@@ -145,6 +152,7 @@ export function useProfileStarters({
 
   const buildInput = useEffectEvent(() =>
     [
+      `Kind: ${kind}`,
       `Name: ${identity.name.trim()}`,
       `Description: ${identity.description?.trim() || '(none)'}`,
       `${mode === 'agent' ? 'Instructions' : 'Prompt'}:\n${identity.prompt?.trim().slice(0, MAX_PROMPT_CHARS) || '(none)'}`,
