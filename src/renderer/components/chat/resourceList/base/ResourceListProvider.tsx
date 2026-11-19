@@ -1051,15 +1051,12 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   return (
     <ResourceListUiStoreContext value={uiStore}>
       <ResourceListActionsContext value={actions}>
-        <ResourceListItemAccessorsContext
-          value={itemAccessors as unknown as ResourceListItemAccessors<ResourceListItemBase>}>
-          <ResourceListMetaContext value={meta as unknown as ResourceListMeta<ResourceListItemBase>}>
+        <ResourceListItemAccessorsContext value={itemAccessors}>
+          <ResourceListMetaContext value={meta}>
             <ResourceListSourceItemsContext value={items}>
               <ResourceListViewContext value={view}>
                 <ResourceListControlsContext value={controlsState}>
-                  <ResourceListContext value={context as unknown as ResourceListContextValue<ResourceListItemBase>}>
-                    {children}
-                  </ResourceListContext>
+                  <ResourceListContext value={context}>{children}</ResourceListContext>
                 </ResourceListControlsContext>
               </ResourceListViewContext>
             </ResourceListSourceItemsContext>

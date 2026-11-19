@@ -239,13 +239,14 @@ export function getResourceListOptionDomId(itemId: string) {
   return `resource-list-option-${encodeURIComponent(itemId)}`
 }
 
-export const ResourceListContext = createContext<ResourceListContextValue<ResourceListItemBase> | null>(null)
+// Shared contexts retain Base item data; never prevents calling item-specific callbacks before recovering T.
+export const ResourceListContext = createContext<
+  (Omit<ResourceListContextValue<ResourceListItemBase>, 'meta'> & Pick<ResourceListContextValue<never>, 'meta'>) | null
+>(null)
 export const ResourceListActionsContext = createContext<ResourceListActionMap | null>(null)
 export const ResourceListControlsContext = createContext<ResourceListControlsState | null>(null)
-export const ResourceListItemAccessorsContext = createContext<ResourceListItemAccessors<ResourceListItemBase> | null>(
-  null
-)
-export const ResourceListMetaContext = createContext<ResourceListMeta<ResourceListItemBase> | null>(null)
+export const ResourceListItemAccessorsContext = createContext<ResourceListItemAccessors<never> | null>(null)
+export const ResourceListMetaContext = createContext<ResourceListMeta<never> | null>(null)
 export const ResourceListSourceItemsContext = createContext<readonly ResourceListItemBase[] | null>(null)
 export const ResourceListUiStoreContext = createContext<ResourceListUiService | null>(null)
 export const ResourceListViewContext = createContext<ResourceListView<ResourceListItemBase> | null>(null)
@@ -255,7 +256,8 @@ export function useResourceList<T extends ResourceListItemBase = ResourceListIte
   if (!context) {
     throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
   }
-  return context as unknown as ResourceListContextValue<T>
+  // SAFETY: T must match the nearest ResourceList.Provider, which constructs this value with that item type.
+  return context as ResourceListContextValue<T>
 }
 
 export function useResourceListActions() {
@@ -279,7 +281,8 @@ export function useResourceListItemAccessors<T extends ResourceListItemBase = Re
   if (!accessors) {
     throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
   }
-  return accessors as unknown as ResourceListItemAccessors<T>
+  // SAFETY: T must match the nearest ResourceList.Provider, which constructs these accessors with that item type.
+  return accessors as ResourceListItemAccessors<T>
 }
 
 export function useResourceListMeta<T extends ResourceListItemBase = ResourceListItemBase>() {
@@ -287,7 +290,8 @@ export function useResourceListMeta<T extends ResourceListItemBase = ResourceLis
   if (!meta) {
     throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
   }
-  return meta as unknown as ResourceListMeta<T>
+  // SAFETY: T must match the nearest ResourceList.Provider, which constructs this metadata with that item type.
+  return meta as ResourceListMeta<T>
 }
 
 export function useResourceListSourceItems<T extends ResourceListItemBase = ResourceListItemBase>() {
@@ -295,6 +299,7 @@ export function useResourceListSourceItems<T extends ResourceListItemBase = Reso
   if (!sourceItems) {
     throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
   }
+  // SAFETY: T must match the nearest ResourceList.Provider; these are its original T items.
   return sourceItems as readonly T[]
 }
 
@@ -311,7 +316,8 @@ export function useResourceListView<T extends ResourceListItemBase = ResourceLis
   if (!view) {
     throw new Error('ResourceList compound components must be rendered inside ResourceList.Provider')
   }
-  return view as unknown as ResourceListView<T>
+  // SAFETY: T must match the nearest ResourceList.Provider; this view is derived from its T items.
+  return view as ResourceListView<T>
 }
 
 export function useResourceListRowState(itemId: string): ResourceListRowStateSnapshot {
