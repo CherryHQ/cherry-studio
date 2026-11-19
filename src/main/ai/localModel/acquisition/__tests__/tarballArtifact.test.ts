@@ -60,18 +60,17 @@ const { localModelStorageService } = await import('../../installation/LocalModel
 const { artifactEntryPath, artifactRegistryOrder, installArtifact, isArtifactSupported, removeArtifact } =
   await import('../tarballArtifact')
 
-/** A `net.fetch` Response shell streaming `content`. */
+/** A `net.fetch` response streaming `content`. */
 function tarballResponse(content: Buffer) {
-  return {
-    ok: true,
-    headers: { get: (h: string) => (h === 'content-length' ? String(content.length) : null) },
-    body: new ReadableStream<Uint8Array>({
+  return new Response(
+    new ReadableStream<Uint8Array>({
       start(controller) {
         controller.enqueue(content)
         controller.close()
       }
-    })
-  }
+    }),
+    { headers: { 'content-length': String(content.length) } }
+  )
 }
 
 const ensure = (
@@ -89,8 +88,7 @@ describe('shared artifact acquisition', () => {
     toolchainDir = mkdtempSync(path.join(tmpdir(), 'onnxruntime-binary-test-'))
     Object.defineProperty(process, 'platform', { value: FAKE_PLATFORM, writable: true })
     Object.defineProperty(process, 'arch', { value: FAKE_ARCH, writable: true })
-    vi.mocked(net.fetch).mockImplementation((async () =>
-      tarballResponse(FAKE_TARBALL_CONTENT)) as unknown as typeof net.fetch)
+    vi.mocked(net.fetch).mockImplementation(async () => tarballResponse(FAKE_TARBALL_CONTENT))
     // Simulate a successful extraction: write the files a real `tar.extract` would.
     extractMock.mockImplementation(async ({ cwd }: { cwd: string }) => {
       const fs = await import('node:fs/promises')
@@ -211,7 +209,7 @@ describe('shared artifact acquisition', () => {
       .mockImplementationOnce(async () => {
         throw new Error('network down')
       })
-      .mockImplementationOnce((async () => tarballResponse(FAKE_TARBALL_CONTENT)) as unknown as typeof net.fetch)
+      .mockImplementationOnce(async () => tarballResponse(FAKE_TARBALL_CONTENT))
 
     await ensure()
 
@@ -223,9 +221,8 @@ describe('shared artifact acquisition', () => {
     // A reachable-but-wrong mirror (stale cache, error page, interception) must not be
     // terminal — the checksum is part of the attempt, so the next mirror still gets its turn.
     vi.mocked(net.fetch)
-      .mockImplementationOnce((async () =>
-        tarballResponse(Buffer.from('tampered content'))) as unknown as typeof net.fetch)
-      .mockImplementationOnce((async () => tarballResponse(FAKE_TARBALL_CONTENT)) as unknown as typeof net.fetch)
+      .mockImplementationOnce(async () => tarballResponse(Buffer.from('tampered content')))
+      .mockImplementationOnce(async () => tarballResponse(FAKE_TARBALL_CONTENT))
 
     await ensure()
 
@@ -235,8 +232,7 @@ describe('shared artifact acquisition', () => {
   })
 
   it('rejects and installs nothing when every mirror fails the checksum', async () => {
-    vi.mocked(net.fetch).mockImplementation((async () =>
-      tarballResponse(Buffer.from('tampered content'))) as unknown as typeof net.fetch)
+    vi.mocked(net.fetch).mockImplementation(async () => tarballResponse(Buffer.from('tampered content')))
 
     await expect(ensure()).rejects.toThrow('sha256 mismatch')
 
