@@ -20,7 +20,7 @@ The design rationale, ownership boundaries, and historical experiment evidence l
 
 ## What V1 is not
 
-No pooling, no keyed instances, no reverse RPC (child → main), no raw byte channel, no runtime schema validation, and no automatic restart. One live process per definition, spawned on the first request. Three processes are registered today — `inference.embedding`, `inference.ocr`, and `inference.asr` (local embedding, OCR, and speech recognition).
+No keyed pooling, eager restart, automatic request replay, runtime payload validation, or OS security sandbox. Cached clients own one live process per definition; independently owned instances have separate processes. Both start lazily on the first request or stream.
 
 ## Declaring a process
 
