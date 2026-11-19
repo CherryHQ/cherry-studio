@@ -13,7 +13,8 @@ import type {
   UtilityProcessClient,
   UtilityProcessContract,
   UtilityProcessDefinition,
-  UtilityProcessInstance
+  UtilityProcessInstance,
+  UtilityProcessInstanceOptions
 } from './types'
 import { UtilityProcessError } from './UtilityProcessError'
 
@@ -102,14 +103,17 @@ export class UtilityProcessManager extends BaseService {
 
   /** Creates an independently owned process; disposing it permanently closes this client. */
   createInstance<Contract extends UtilityProcessContract, InitData>(
-    definition: UtilityProcessDefinition<Contract, InitData>
+    definition: UtilityProcessDefinition<Contract, InitData>,
+    options: UtilityProcessInstanceOptions<InitData> = {}
   ): UtilityProcessInstance<Contract> {
     if (this.definitions.get(definition.id) !== definition || !this.accepting) {
       throw new Error('Utility process definition is not registered or manager is stopped')
     }
     const id = randomUUID()
     const key = `${definition.id}:${id}`
-    const host = new ProcessHost(definition, this.deps, id)
+    const instanceDefinition =
+      options.createInitData === undefined ? definition : { ...definition, createInitData: options.createInitData }
+    const host = new ProcessHost(instanceDefinition, this.deps, id, options.restart)
     this.hosts.set(key, host)
     let disposed = false
     return {

@@ -1,6 +1,6 @@
 # Utility Process
 
-Runs trusted but crash-prone work in an Electron utility process — a crash and native-library isolation boundary, not a security sandbox: registration, typed clients, wire protocol, and the child-side runtime. Cached clients share one live process per definition. `createInstance(definition)` returns an independently owned process client with `dispose()`; both spawn on the first request.
+Runs trusted but crash-prone work in an Electron utility process — a crash and native-library isolation boundary, not a security sandbox: registration, typed clients, wire protocol, and the child-side runtime. Cached clients share one live process per definition. `createInstance(definition, options?)` returns an independently owned process client with `dispose()`; both spawn on the first request. Instance options can supply per-instance `createInitData` and `restart: 'never'`, which prevents an old resource handle from starting another generation after stop, crash, or startup failure. Replacement then requires an explicit new instance.
 
 **For the full guide, see [docs/dev/references/utility-process/](../../../../docs/dev/references/utility-process/).**
 

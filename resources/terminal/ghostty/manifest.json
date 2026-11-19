@@ -1,0 +1,9 @@
+{
+  "ghosttyRevision": "9f62873bf195e4d8a762d768a1405a5f2f7b1697",
+  "t3Revision": "0a8aaa3ccb944dadb70054ae4ef2e29897b0db03",
+  "zigVersion": "0.15.2",
+  "sha256": {
+    "ghostty-vt.wasm": "51b016a6aa3c29ead71c7c8acf8c01d43b064bae19957a9c9f9e2bf469267629",
+    "ghostty-write-pty.wasm": "75cb147e98ede3f85f3cd6236a30f6d12565b0b237e1d8db941f5f3e8ad3d903"
+  }
+}

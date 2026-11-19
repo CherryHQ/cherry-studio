@@ -23,7 +23,7 @@ V1 ships the narrowest layer that lets the first consumer stop hand-rolling proc
 
 **Runtime payload validation** — main and child ship in the same signed build, so V1 validates the envelope, not the payload. If a future consumer loads third-party entry code, that assumption breaks and the contract needs a schema.
 
-**Automatic restart and retry** — the layer restarts the process, not the work; consumers decide. A future `restart: 'eager'` could keep a warm process alive for latency, but "who retries the request" must stay the consumer's call.
+**Automatic restart and retry** — ordinary clients lazily restart the process, not the work; consumers decide. Independent instances can disable successor generations with `restart: 'never'`. A future `restart: 'eager'` could keep a warm process alive for latency, but "who retries the request" must stay the consumer's call.
 
 **CI smoke gate** — see the [testing doc](./utility-process-testing.md): worth wiring up when the first consumer lands, path-gated on this module.
 

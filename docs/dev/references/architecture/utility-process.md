@@ -41,7 +41,7 @@ A utility process isolates crashes and native-library state. It is a full Node c
 | Owner | Responsibilities |
 | --- | --- |
 | Consumer service | Definition and entry source, business handlers, model loading, request concurrency/queueing, request deadlines, retries, UI error handling |
-| `UtilityProcessManager` | Definition registration, stable clients, one host per definition, lifecycle shutdown, retaining maintenance ownership across restart |
+| `UtilityProcessManager` | Definition registration, cached hosts per definition, independent owned instances, lifecycle shutdown, retaining maintenance ownership across restart |
 | `ProcessHost` | Generations, request settlement, startup/stop deadlines, circuit breaker, idle TTL, the serialized maintenance queue |
 | Electron adapter | Fork, private message channel, wrapper exit events, stdout/stderr relay |
 | Child runtime | Envelope validation, handler dispatch, abort signals, error normalization, tracking handlers through shutdown |
@@ -51,7 +51,7 @@ flowchart LR
   DOMAIN["Consumer service"] -->|register definition| MANAGER["UtilityProcessManager"]
   DOMAIN --> CLIENT["Stable typed client"]
   CLIENT --> MANAGER
-  MANAGER --> HOST["ProcessHost per definition"]
+  MANAGER --> HOST["Cached or independently owned ProcessHost"]
   HOST --> ADAPTER["Electron adapter"]
   ADAPTER <-->|private MessagePort| RUNTIME["Child runtime"]
   RUNTIME --> HANDLERS["Domain handlers"]
@@ -73,6 +73,8 @@ in `main.ts` is required.
 The public client exposes `request`, `openStream`, `stop`, and `withStopped`. It does not expose forks,
 pids, ports, generation counters, or status events. The first request starts the process;
 concurrent cold-start callers share the readiness barrier.
+
+Consumers that own persistent resources use `createInstance()` instead of the cached client. Per-instance initialization and the optional single-generation policy keep resource identity with that owner; the [consumer guide](../utility-process/README.md#independently-owned-instances) defines the API. Core does not choose conversation keys, resource quotas, or replacement policy.
 
 The canonical [type declarations](../../../../src/main/core/utilityProcess/types.ts) constrain
 contracts with `UtilityProcessContract`, carry them through the definition's `__contract`
