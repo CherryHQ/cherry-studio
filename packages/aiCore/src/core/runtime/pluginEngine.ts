@@ -178,8 +178,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     // ✅ 创建类型化的 manager（逆变安全）
     const manager = this.createManager<TParams, TResult>(requestPlugins)
 
-    // ✅ 递归调用泛型化，增加深度限制
-    context.recursiveCall = async <R = TResult>(newParams: Partial<TParams>): Promise<R> => {
+    context.recursiveCall = async (newParams: Partial<TParams>): Promise<TResult> => {
       if (context.recursiveDepth >= context.maxRecursiveDepth) {
         throw new RecursiveDepthError(context.requestId, context.recursiveDepth, context.maxRecursiveDepth)
       }
@@ -191,13 +190,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
         context.recursiveDepth = previousDepth + 1
         context.isRecursiveCall = true
 
-        return (await this.executeWithPlugins(
-          methodName,
-          { ...params, ...newParams },
-          executor,
-          context,
-          requestPlugins
-        )) as unknown as R
+        return await this.executeWithPlugins(methodName, { ...params, ...newParams }, executor, context, requestPlugins)
       } finally {
         // ✅ finally 确保状态恢复
         context.recursiveDepth = previousDepth
@@ -287,8 +280,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     // ✅ 创建类型化的 manager（逆变安全）
     const manager = this.createManager<TParams, TResult>(requestPlugins)
 
-    // ✅ 递归调用泛型化，增加深度限制
-    context.recursiveCall = async <R = TResult>(newParams: Partial<TParams>): Promise<R> => {
+    context.recursiveCall = async (newParams: Partial<TParams>): Promise<TResult> => {
       if (context.recursiveDepth >= context.maxRecursiveDepth) {
         throw new RecursiveDepthError(context.requestId, context.recursiveDepth, context.maxRecursiveDepth)
       }
@@ -300,13 +292,13 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
         context.recursiveDepth = previousDepth + 1
         context.isRecursiveCall = true
 
-        return (await this.executeImageWithPlugins(
+        return await this.executeImageWithPlugins(
           methodName,
           { ...params, ...newParams },
           executor,
           context,
           requestPlugins
-        )) as unknown as R
+        )
       } finally {
         // ✅ finally 确保状态恢复
         context.recursiveDepth = previousDepth
@@ -385,8 +377,7 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
     // ✅ 创建类型化的 manager（逆变安全）
     const manager = this.createManager<TParams, TResult>(requestPlugins)
 
-    // ✅ 递归调用泛型化，增加深度限制
-    context.recursiveCall = async <R = TResult>(newParams: Partial<TParams>): Promise<R> => {
+    context.recursiveCall = async (newParams: Partial<TParams>): Promise<TResult> => {
       if (context.recursiveDepth >= context.maxRecursiveDepth) {
         throw new RecursiveDepthError(context.requestId, context.recursiveDepth, context.maxRecursiveDepth)
       }
@@ -398,13 +389,13 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
         context.recursiveDepth = previousDepth + 1
         context.isRecursiveCall = true
 
-        return (await this.executeStreamWithPlugins(
+        return await this.executeStreamWithPlugins(
           methodName,
           { ...params, ...newParams },
           executor,
           context,
           requestPlugins
-        )) as unknown as R
+        )
       } finally {
         // ✅ finally 确保状态恢复
         context.recursiveDepth = previousDepth
