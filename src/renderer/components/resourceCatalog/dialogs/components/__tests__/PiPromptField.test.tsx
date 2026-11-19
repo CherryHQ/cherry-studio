@@ -121,6 +121,9 @@ afterEach(() => {
   cleanup()
 })
 
+const openInstructions = (user: ReturnType<typeof userEvent.setup>) =>
+  user.click(screen.getByRole('button', INSTRUCTIONS))
+
 const openSection = (user: ReturnType<typeof userEvent.setup>, name: string) =>
   user.click(screen.getByRole('button', { name: new RegExp(`^${name}(:|$)`) }))
 
@@ -132,8 +135,29 @@ describe('PiPromptField', () => {
     expect(await screen.findByRole('button', { name: REPORT })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '技能' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '回复语言' })).toBeInTheDocument()
-    expect(screen.getAllByRole('textbox')).toEqual([screen.getByRole('textbox', INSTRUCTIONS)])
-    expect(screen.getByRole('textbox', INSTRUCTIONS)).toHaveValue('Review code.')
+    expect(screen.getByRole('button', INSTRUCTIONS)).toHaveTextContent('Review code.')
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+  })
+
+  // Catches the Agent prompt editor squeezed onto the list page, or an edit lost on the way back.
+  it('edits the Agent prompt on its own page and shows the new first line in the list', async () => {
+    answerWithDraft()
+    const user = userEvent.setup()
+    render(<Harness initial="Review code." />)
+    await screen.findByRole('button', { name: '技能: 只读' })
+
+    await openInstructions(user)
+    expect(screen.queryByRole('button', { name: '技能: 只读' })).not.toBeInTheDocument()
+    const editor = screen.getByRole('textbox', INSTRUCTIONS)
+    await user.clear(editor)
+    await user.type(editor, 'Triage issues.{Enter}Be brief.')
+    expect(screen.getByText(/^saved: Triage issues\./)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', INSTRUCTIONS))
+
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', INSTRUCTIONS)).toHaveTextContent('Triage issues.')
+    expect(screen.getByRole('button', INSTRUCTIONS)).not.toHaveTextContent('Be brief.')
   })
 
   it('opens a live block read-only with what keeps it current, and goes back', async () => {
@@ -149,7 +173,7 @@ describe('PiPromptField', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '技能' }))
-    expect(screen.getByRole('textbox', INSTRUCTIONS)).toBeInTheDocument()
+    expect(screen.getByRole('button', INSTRUCTIONS)).toBeInTheDocument()
   })
 
   // The create wizard has no Agent to save overrides on, so guidance stays read-only there.
@@ -221,7 +245,9 @@ describe('PiPromptField', () => {
     answerWithDraft('You are Cherry Assistant.')
     const user = userEvent.setup()
     render(<Harness />)
-    await waitFor(() => expect(screen.getByRole('textbox', INSTRUCTIONS)).toHaveValue('You are Cherry Assistant.'))
+    await waitFor(() => expect(screen.getByRole('button', INSTRUCTIONS)).toHaveTextContent('You are Cherry Assistant.'))
+    await openInstructions(user)
+    expect(screen.getByRole('textbox', INSTRUCTIONS)).toHaveValue('You are Cherry Assistant.')
     expect(screen.getByRole('button', { name: '恢复内置提示词' })).toHaveAttribute('aria-disabled', 'true')
 
     await user.type(screen.getByRole('textbox', INSTRUCTIONS), ' Be brief.')
@@ -289,7 +315,9 @@ describe('PiPromptField', () => {
     render(<Harness initial="Review code." />)
 
     expect(await screen.findByText(LOAD_FAILED)).toBeInTheDocument()
+    await openInstructions(user)
     expect(screen.getByRole('textbox', INSTRUCTIONS)).toHaveValue('Review code.')
+    await user.click(screen.getByRole('button', INSTRUCTIONS))
 
     answerWithDraft()
     await user.click(screen.getByRole('button', { name: '重试' }))

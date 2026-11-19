@@ -51,12 +51,6 @@ const BLOCK_CAPTIONS: Record<string, string> = {
   language: 'library.config.agent.prompt.caption.language'
 }
 
-const STANDALONE_INSTRUCTIONS: AgentPromptBlockPreview = {
-  key: 'instructions',
-  kind: 'instructions',
-  text: AGENT_INSTRUCTIONS_SLOT
-}
-
 /** Everything besides the instructions that changes the assembled prompt. */
 export type PiPromptDraft = Omit<AgentSystemPromptDraft, 'instructions' | 'language'> & {
   languageMode: AgentLanguageMode
@@ -171,22 +165,39 @@ export function PiPromptField({
     onOverridesChange(next === undefined ? rest : { ...rest, [key]: next })
   }
 
+  const backButton = (title: string) =>
+    onSectionChange ? null : (
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-6 self-start px-1.5 text-xs"
+        onClick={() => setSection(null)}>
+        <ChevronLeft className="size-3.5" />
+        {title}
+      </Button>
+    )
+
+  if (section === 'instructions') {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
+        {backButton(t(BLOCK_TITLES.instructions))}
+        <InstructionsEditor
+          value={instructions}
+          builtin={preview?.builtinInstructions}
+          onChange={onChange}
+          fill={Boolean(onSectionChange)}
+        />
+      </div>
+    )
+  }
+
   const opened = preview?.blocks.find((block) => block.key === section && block.kind !== 'instructions')
   if (opened) {
     const editable = Boolean(overrides) && isEditablePromptSection(opened.key)
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-3">
-        {onSectionChange ? null : (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-6 self-start px-1.5 text-xs"
-            onClick={() => setSection(null)}>
-            <ChevronLeft className="size-3.5" />
-            {t(BLOCK_TITLES[opened.key] ?? '') || opened.key}
-          </Button>
-        )}
+        {backButton(t(BLOCK_TITLES[opened.key] ?? '') || opened.key)}
         {editable ? (
           <BlockEditor
             block={opened}
@@ -213,17 +224,29 @@ export function PiPromptField({
     )
   }
 
-  const instructionsBlock = preview?.blocks.find((block) => block.kind === 'instructions') ?? STANDALONE_INSTRUCTIONS
   const others = preview?.blocks.filter((block) => block.kind !== 'instructions') ?? []
+  const instructionsTitle = t(BLOCK_TITLES.instructions)
+  const firstLine = instructions
+    .split('\n')
+    .find((line) => line.trim())
+    ?.trim()
 
   return (
     <div className="flex flex-col gap-5">
-      <InstructionsEditor
-        block={instructionsBlock}
-        value={instructions}
-        builtin={preview?.builtinInstructions}
-        onChange={onChange}
-      />
+      <div className="flex flex-col rounded-xl border border-border-subtle p-1">
+        <Button
+          type="button"
+          variant="ghost"
+          aria-label={instructionsTitle}
+          onClick={() => setSection('instructions')}
+          className="h-9 justify-between gap-3 rounded-lg px-2.5 font-normal text-sm">
+          <span className="shrink-0 font-medium text-foreground">{instructionsTitle}</span>
+          <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">
+            <span className="truncate">{firstLine}</span>
+            <ChevronRight className="size-3.5 shrink-0" />
+          </span>
+        </Button>
+      </div>
       {preview ? (
         <section aria-label={t('library.config.agent.prompt.runtime_sections')} className="flex flex-col gap-1.5">
           <div className="px-1 text-muted-foreground text-xs">{t('library.config.agent.prompt.runtime_sections')}</div>
@@ -365,20 +388,21 @@ function BlockEditor({
 
 /** The Agent's own prompt; a built-in Agent shows its built-in prompt until it is edited. */
 function InstructionsEditor({
-  block,
   value,
   builtin,
-  onChange
+  onChange,
+  fill
 }: {
-  block: AgentPromptBlockPreview
   value: string
   builtin: string | undefined
   onChange: (next: string) => void
+  /** Fills a dialog page; in a scrolling step it takes a fixed tall height instead. */
+  fill: boolean
 }) {
   const { t } = useTranslation()
   return (
     <PromptEditorField
-      label={<span className="font-medium text-foreground text-sm">{t(BLOCK_TITLES[block.key] ?? '')}</span>}
+      label={null}
       editorLabel={t('library.config.agent.prompt.instructions_label')}
       value={value}
       onChange={onChange}
@@ -400,9 +424,9 @@ function InstructionsEditor({
           ) : null}
         </>
       }
-      // Capped so the blocks below stay in reach on the same page.
-      minHeight="6rem"
-      maxHeight="18rem"
+      fill={fill}
+      minHeight="24rem"
+      maxHeight="60vh"
     />
   )
 }

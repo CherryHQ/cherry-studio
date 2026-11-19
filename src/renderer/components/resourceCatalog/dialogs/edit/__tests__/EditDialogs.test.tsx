@@ -1336,6 +1336,9 @@ describe('edit dialogs', () => {
       expect.objectContaining({ agentId: AGENT.id, instructions: 'Original instructions' })
     )
 
+    // The Agent's own prompt opens on its own page too, titled in the dialog header.
+    fireEvent.click(screen.getByRole('button', { name: 'library.config.agent.prompt.block.instructions' }))
+    expect(screen.getByRole('heading', { name: 'library.config.agent.prompt.block.instructions' })).toBeInTheDocument()
     fireEvent.change(screen.getByRole('textbox', { name: 'library.config.agent.prompt.instructions_label' }), {
       target: { value: 'Review pull requests.' }
     })
@@ -1347,6 +1350,7 @@ describe('edit dialogs', () => {
     )
 
     // Guidance opens on its own page, titled with the block, inside the dialog.
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
     fireEvent.click(screen.getByRole('button', { name: /^library\.config\.agent\.prompt\.block\.report_artifacts$/ }))
     expect(
       screen.getByRole('heading', { name: 'library.config.agent.prompt.block.report_artifacts' })

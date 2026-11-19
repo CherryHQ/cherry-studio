@@ -194,6 +194,7 @@ const START = 'library.config.dialogs.create.result.start'
 const ADJUST = 'library.config.dialogs.create.result.adjust'
 const PROMPT_ROW = 'library.config.prompt.label'
 const AGENT_PROMPT = 'library.config.agent.prompt.instructions_label'
+const AGENT_PROMPT_ROW = 'library.config.agent.prompt.block.instructions'
 const PERMISSION_ROW = 'library.config.agent.section.permission.title'
 const TOOLS_ROW = 'library.config.agent.section.tools.tab.tools'
 const SKILLS_ROW = 'library.config.agent.section.tools.tab.skills'
@@ -366,8 +367,10 @@ async function fillDraftToKnowledge(user: ReturnType<typeof userEvent.setup>, ki
   await user.click(screen.getByRole('button', { name: NEXT }))
   await user.click(screen.getByRole('button', { name: 'select knowledge base' }))
   await walkToLastStep(user)
-  // Pi Durable shows the full prompt field; other runtimes keep the plain editor.
-  await replacePrompt(user, screen.queryByRole('textbox', { name: AGENT_PROMPT }) ? AGENT_PROMPT : 'draft prompt')
+  // Pi Durable edits its prompt on a page opened from the full prompt; other runtimes keep the plain editor.
+  const piPromptRow = screen.queryByRole('button', { name: AGENT_PROMPT_ROW })
+  if (piPromptRow) await user.click(piPromptRow)
+  await replacePrompt(user, piPromptRow ? AGENT_PROMPT : 'draft prompt')
   await user.click(screen.getByRole('button', { name: KNOWLEDGE }))
 }
 
@@ -967,6 +970,7 @@ describe('ResourceCreateWizard agent steps', () => {
     await user.click(screen.getByRole('button', { name: 'select MCP server' }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: AGENT_PROMPT_ROW }))
     await user.clear(screen.getByRole('textbox', { name: AGENT_PROMPT }))
     await user.type(screen.getByRole('textbox', { name: AGENT_PROMPT }), 'Review carefully')
     await user.click(screen.getByRole('button', { name: 'reply in Japanese' }))
