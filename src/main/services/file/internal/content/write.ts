@@ -15,10 +15,10 @@
 import { realpath } from 'node:fs/promises'
 
 import { loggerService } from '@logger'
+import { logFailure } from '@main/core/logger/logFailure'
 import type { AtomicWriteStream } from '@main/utils/file'
 import {
   assertPathVersionUnchanged,
-  atomicWriteFile,
   atomicWriteIfUnchanged,
   createPreparedAtomicWriteStream,
   PathStaleVersionError,
@@ -30,6 +30,7 @@ import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { AbsoluteFilePathSchema, type AbsoluteFilePath } from '@shared/types/file'
 
+import { classifyFileFailure } from '../../failureFacts'
 import { ContentCommittedMetadataPendingError, type FileVersion, StaleVersionError } from '../../FileManager'
 import { runPathMutationExclusive } from '../../pathMutationLock'
 import { resolvePhysicalPath } from '../../utils/pathResolver'
@@ -116,22 +117,35 @@ export async function writeIfUnchanged(
 ): Promise<FileVersion> {
   return deps.contentWriteLock.runExclusive(id, async () => {
     const entry = deps.fileEntryService.getById(id)
-    const address = resolvePhysicalPath(entry)
-    const physical = expectedPath === undefined ? address : AbsoluteFilePathSchema.parse(await realpath(address))
-    const prepared = await prepareAtomicWrite(physical, data)
     try {
-      return await runPathMutationExclusive(async () => {
-        const currentAddress = resolvePhysicalPath(deps.fileEntryService.getById(id))
-        const currentPath = expectedPath === undefined ? currentAddress : await realpath(currentAddress)
-        if (currentPath !== physical || (expectedPath !== undefined && currentPath !== expectedPath)) {
-          throw new IpcError(fileErrorCodes.EDIT_TARGET_CHANGED, 'Editing target changed')
-        }
-        await assertPathVersionUnchanged(physical, expected, expectedContentHash)
-        return commitPreparedForEntry(deps, id, entry.origin, prepared)
-      })
+      const address = resolvePhysicalPath(entry)
+      const physical = expectedPath === undefined ? address : AbsoluteFilePathSchema.parse(await realpath(address))
+      const prepared = await prepareAtomicWrite(physical, data)
+      try {
+        return await runPathMutationExclusive(async () => {
+          const currentAddress = resolvePhysicalPath(deps.fileEntryService.getById(id))
+          const currentPath = expectedPath === undefined ? currentAddress : await realpath(currentAddress)
+          if (currentPath !== physical || (expectedPath !== undefined && currentPath !== expectedPath)) {
+            throw new IpcError(fileErrorCodes.EDIT_TARGET_CHANGED, 'Editing target changed')
+          }
+          await assertPathVersionUnchanged(physical, expected, expectedContentHash)
+          return commitPreparedForEntry(deps, id, entry.origin, prepared)
+        })
+      } catch (error) {
+        await prepared.abort()
+        if (error instanceof PathStaleVersionError) throw new StaleVersionError(id, expected, error.current)
+        throw error
+      }
     } catch (error) {
-      await prepared.abort()
-      if (error instanceof PathStaleVersionError) throw new StaleVersionError(id, expected, error.current)
+      if (!(error instanceof StaleVersionError) && !(error instanceof ContentCommittedMetadataPendingError)) {
+        logFailure(
+          logger,
+          'File conditional write failed',
+          error,
+          'file.write_if_unchanged',
+          classifyFileFailure(error, entry.origin === 'external')
+        )
+      }
       throw error
     }
   })
@@ -159,14 +173,6 @@ export async function createWriteStream(deps: FileManagerDeps, id: FileEntryId):
     release()
     throw error
   }
-}
-
-export async function writeByPath(
-  _deps: FileManagerDeps,
-  target: AbsoluteFilePath,
-  data: string | Uint8Array
-): Promise<void> {
-  await runPathMutationExclusive(() => atomicWriteFile(target, data))
 }
 
 export async function writeIfUnchangedByPath(

@@ -60,7 +60,7 @@ export async function workspaceLifecycle(app: RegressionApp, page: Page, testInf
     expect(await readdir(emptyPath)).toEqual([])
     const original = await register(originalPath, originalName)
     const empty = await register(emptyPath, emptyName)
-    // A real provider and runtime execute the relative-path write; no successful tool result is injected.
+    // The runtime executes the relative-path write requested by the model fixture.
     const providerId = await ensureCustomChatProvider(app, page)
     await closeSettings(page)
     await selectSidebarApp(page, 'Work')

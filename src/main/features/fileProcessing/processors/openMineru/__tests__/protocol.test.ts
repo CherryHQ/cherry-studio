@@ -11,6 +11,29 @@ const health = { status: 'ok', version: '4.0.6', features: { sources: ['file_id'
 beforeEach(() => fetchMock.mockReset())
 
 describe('Open MinerU protocol detection', () => {
+  it('recognizes the 4.1 Tasks contract without requiring legacy endpoints', async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({
+        status: 'ok',
+        version: '4.1.3',
+        features: {
+          sources: ['upload', 'url'],
+          task_output_formats: ['default', 'docx', 'html', 'latex']
+        }
+      })
+    )
+    expect(await probeOpenMineru(connection)).toEqual({ kind: 'supported', protocol: 'tasks' })
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([`${connection.apiHost}/v1/health`])
+  })
+
+  it.each([
+    { sources: ['url'], task_output_formats: ['default'] },
+    { sources: ['upload'], task_output_formats: ['docx'] }
+  ])('rejects Tasks capabilities that cannot parse local files into Markdown', async (features) => {
+    fetchMock.mockResolvedValueOnce(Response.json({ status: 'ok', version: '4.1.3', features }))
+    expect(await probeOpenMineru(connection)).toEqual({ kind: 'invalid-response' })
+  })
+
   it('recognizes V1 without calling the legacy endpoint', async () => {
     fetchMock.mockResolvedValueOnce(Response.json(health))
     expect(await probeOpenMineru(connection)).toEqual({ kind: 'supported', protocol: 'v1' })

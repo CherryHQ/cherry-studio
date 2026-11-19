@@ -1,4 +1,5 @@
-import { resolve } from 'node:path'
+import { createRequire } from 'node:module'
+import { dirname, resolve } from 'node:path'
 
 import { vi } from 'vitest'
 
@@ -67,7 +68,9 @@ const mockWindowManager = {
   onWindowCreated: vi.fn(() => ({ dispose: vi.fn() })),
   onWindowDestroyed: vi.fn(() => ({ dispose: vi.fn() })),
   onWindowCreatedByType: vi.fn(() => ({ dispose: vi.fn() })),
-  onWindowDestroyedByType: vi.fn(() => ({ dispose: vi.fn() }))
+  onWindowDestroyedByType: vi.fn(() => ({ dispose: vi.fn() })),
+  onWindowReleasedToPool: vi.fn(() => ({ dispose: vi.fn() })),
+  onWindowReleasedToPoolByType: vi.fn(() => ({ dispose: vi.fn() }))
 }
 
 /**
@@ -122,6 +125,11 @@ export const defaultServiceInstances = {
   NotificationService: mockNotificationService,
   JobManager: mockJobManager,
   MemoryService: mockMemoryService,
+  AgentImportService: {
+    pause: vi.fn(() => ({ dispose: vi.fn() })),
+    drainInFlight: vi.fn(async () => ({ stragglerIds: [] })),
+    listActiveWork: vi.fn(() => [])
+  },
   PowerService: {
     preventSleep: vi.fn(() => ({ dispose: vi.fn() })),
     onResume: vi.fn(() => ({ dispose: vi.fn() }))
@@ -182,7 +190,11 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
     getContainer: vi.fn(() => container),
     // Keep registry paths absolute on every host, including a drive on Windows.
     // Override per-test with vi.spyOn when a fixture needs a specific location.
-    getPath: vi.fn((key: string, filename?: string) => resolve('/mock', key, filename ?? '')),
+    getPath: vi.fn((key: string, filename?: string) =>
+      key === 'feature.agents.command_parser_assets'
+        ? resolve(dirname(createRequire(import.meta.url).resolve('@vscode/tree-sitter-wasm')), filename ?? '')
+        : resolve('/mock', key, filename ?? '')
+    ),
     registerAll: vi.fn(),
     initPathRegistry: vi.fn(),
     bootstrap: vi.fn().mockResolvedValue(undefined),

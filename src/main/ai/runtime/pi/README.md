@@ -13,7 +13,7 @@ dependencies outside the bundled CommonJS Main entry; a static import fails duri
 ## Model requests
 
 ```text
-Pi session → native Pi provider → internal gateway → Cherry provider execution
+Pi session → native Pi provider → protocol objects → Cherry gateway → AI SDK execution
 ```
 
 Pi owns context, streaming, reasoning replay, tools and compaction. Cherry's gateway owns provider
@@ -21,7 +21,7 @@ selection, upstream credentials and billing. Pi's native transcript remains the 
 product messages are a display projection. Tools advertised to the gateway have no executor there.
 
 Pi and Pi Durable use one gateway compatibility predicate for model selection, child catalogs and
-native binding. The desktop binding receives only an internal gateway credential; upstream API keys,
+native binding. The desktop binding injects native protocol object transports; upstream API keys,
 OAuth refresh and provider request patches stay in Cherry's provider execution. There is no desktop
 direct-provider route or Pi-specific OAuth stream wrapper.
 
@@ -29,13 +29,13 @@ Executable child candidates require both the model and its provider to be enable
 still validates availability for each request after selection.
 
 The binding preserves the model's native protocol when the gateway supports it. The model route
-uses `providerId:apiModelId`; the gateway resolves the configured Cherry model. Internal usage
-headers capture the Agent session; native response IDs associate completed calls with root or child messages. The internal listener works independently
-of the externally exposed gateway setting. Its origin participates in the connection signature, so
-a listener restart retires warm connections. Trusted headers carry reasoning, tier and Fast selections
+uses `providerId:apiModelId`; the gateway resolves the configured Cherry model. A typed in-process context
+captures the Agent session; native response IDs associate completed calls with root or child messages.
+No internal HTTP listener, request JSON codec or SSE formatter is used. Restarting an HTTP listener
+does not retire these connections. The same context carries reasoning, tier and Fast settings
 to the same Cherry parameter builder used by other requests.
 
-The behavior adapter disables native retries; the native HTTP client and gateway do not add retries.
+The behavior adapter disables native retries; the object transport and gateway do not add retries.
 Native usage is for context and display; it must not create another billing record. Only root model
 calls emit native usage updates on the root stream; child, summary and verifier calls still contribute
 to gateway billing. Desktop-owned summaries freeze their initiating owner before the gateway hop. Product message totals use the gateway's aggregated provider calls.
@@ -44,18 +44,27 @@ Model metadata, native errors and tool validation follow Pi's provider implement
 
 ## Telemetry
 
-Model traces come from the gateway's AI SDK and HTTP instrumentation. The binding forwards
-an explicit native Durable phase parent using the gateway's internal usage capture; it creates
+Model traces come from the gateway's AI SDK and upstream HTTP instrumentation. The binding forwards
+an explicit native Durable phase parent in that context; an explicit child capture keeps its own
+owner and parent when a root binding makes a detached call. The binding creates
 no model span and writes no billing record. Ordinary Pi 1.5.0 has no native tool-span API,
 so tool details remain in its transcript. The host does not reconstruct tool spans from message events.
+
+The desktop connection classifies native input outcomes before forwarding failures. Cancellation,
+output limits and known provider failures remain local; unexpected runtime and projection failures
+remain eligible for error reporting. Capture ownership follows the original error through the
+terminal event, so the outer session boundary cannot report it again.
+Manual compaction's original thrown error inherits capture ownership only when the runtime
+identifies the matching root's failed compaction event. Post-compaction callback failures and
+unrelated background errors remain separate reporting candidates.
 
 ## Host ports
 
 `piBehaviorHost.ts` connects shared behavior to the existing approval registry, question cards, model
 catalog, native Pi model binding and output files. `piApprovalFacts.ts` collects tool, workspace and
 interaction facts; `agent-behavior` decides permission policy. Cross-session delegation still requires
-an interactive user turn. Child threads default to `bypassPermissions`; root threads use the live agent permission mode.
-Child tools retain the root's disabled-tool and non-bypassable approval restrictions.
+an interactive user turn. Root and child threads use the root's live agent permission mode,
+interaction state and tool restrictions; delegation never grants `bypassPermissions`.
 
 Approval and question identities use `CallRef`. The Pi facet resolves these opaque keys to native
 `toolCallId` values for cards, including nested calls. Persisted approval outcomes are read from the
@@ -94,8 +103,11 @@ A root opens only the native identity bound to its captured product branch. Conf
 submitted contexts require one existing, identity-checked file. Only a never-submitted creation intent
 may have no file yet; Pi flushes lazily, except that locally handled commands explicitly persist
 their native state before acknowledgement. Cherry publishes its resume token after native persistence.
-There is no reconstruction from product messages. The connection stays owned while idle until explicit
-retirement or application shutdown; stopping cancels native execution and manual compaction before
+There is no reconstruction of native files from product messages. For a branch without prior
+native input, the Session host can include product history as model-only reference context in the
+first submission, using ordinary attachment paths. Fresh bindings capture the selected product
+position so siblings do not share an unrelated native conversation.
+The connection stays owned while idle until explicit retirement or application shutdown; stopping cancels native execution and manual compaction before
 waiting for admission to finish. Queued inputs Pi never placed are marked aborted in the live projection
 and are not automatically resent after a stop/error. Startup terminalizes Pi's abandoned product
 placeholders while preserving native bindings and history; delivery recovery owns persisted delivery turns.
@@ -124,9 +136,12 @@ committed child history while its access remains readable, and releases access a
 Native session, goal and subagent tests live in `packages/agent-runtime-pi/tests/`. They use Pi
 providers directly, including scripted native streams with fixed usage for budget assertions.
 `gatewayIntegration.test.ts` exercises real gateway
-execution, provider selection, request options, cancellation and SQLite billing against a loopback upstream.
+execution, provider selection, request options, cancellation, object delivery and SQLite billing against a loopback upstream.
+It also rejects internal request JSON encoding and SSE formatting for all four native protocols.
 `PiRuntimeConnection.test.ts` covers desktop connection ownership and native context associations
 with a native test provider substituted at the model-binding boundary.
+The integration uses the real `ApiGatewayService` object-call and capture methods. Native request
+timeouts and hook-failure cleanup are covered separately from upstream idle detection.
 Live-provider and Electron acceptance remain separate checks.
 
 Memory protection also runs at connection admission and the authenticated gateway's provider transport.

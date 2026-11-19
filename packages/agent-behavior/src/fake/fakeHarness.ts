@@ -359,6 +359,10 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
       epoch.dead = true
       // A dead process waits for no answer: aborting its runs' signals withdraws the host asks they hold.
       for (const loop of epoch.loops.values()) loop.abort.abort()
+      // Only the runs the crash cut resume; input sent while the conversations reopen starts its own.
+      const cut = [...state.threads.values()].flatMap((thread) =>
+        thread.active ? [{ thread, run: thread.active }] : []
+      )
       epoch = createEpoch()
       installed = installPorts(epoch)
       options.install?.(installed)
@@ -369,7 +373,7 @@ export function createFakeHarness(options: FakeHarnessOptions = {}): FakeHarness
       for (const thread of [...state.threads.values()])
         await lifecycle((handlers, ports) => handlers.onOpen(thread.id, { reopened: true }, ports), jobs)
       for (const job of jobs) startJob(job)
-      for (const thread of [...state.threads.values()]) if (thread.active) resumeRun(host, thread)
+      for (const { thread, run } of cut) if (thread.active === run) resumeRun(host, thread)
     },
     async close() {
       assertOpen()

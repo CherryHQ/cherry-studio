@@ -21,12 +21,15 @@ vi.mock('@renderer/components/command', () => ({
 }))
 
 vi.mock('@renderer/components/FileTree', () => ({
-  FileTree: ({ nodes, renderRowDetail }: FileTreeProps) =>
-    nodes.map((node: FileTreeNode) => (
-      <div key={node.id} data-testid={`row-${node.id}`}>
-        {renderRowDetail?.(node)}
-      </div>
-    ))
+  // Mirrors TreeView: the empty slot replaces the rows when there are none.
+  FileTree: ({ nodes, renderRowDetail, emptyState }: FileTreeProps) =>
+    nodes.length === 0
+      ? emptyState
+      : nodes.map((node: FileTreeNode) => (
+          <div key={node.id} data-testid={`row-${node.id}`}>
+            {renderRowDetail?.(node)}
+          </div>
+        ))
 }))
 
 vi.mock('@renderer/hooks/useNotesQuery', () => ({
@@ -36,12 +39,17 @@ vi.mock('@renderer/hooks/useNotesQuery', () => ({
 vi.mock('@renderer/pages/notes/NotesSidebarHeader', () => ({
   default: ({
     onToggleSearchView,
+    onToggleStarredView,
     onSetSearchKeyword
   }: {
     onToggleSearchView: () => void
+    onToggleStarredView: () => void
     onSetSearchKeyword: (keyword: string) => void
   }) => (
     <>
+      <button type="button" onClick={onToggleStarredView}>
+        toggle starred
+      </button>
       <button type="button" onClick={onToggleSearchView}>
         toggle search
       </button>
@@ -166,5 +174,28 @@ describe('NotesSidebar', () => {
 
     expect(mocks.handleSelectFiles).toHaveBeenCalledOnce()
     expect(mocks.handleSelectFolder).not.toHaveBeenCalled()
+  })
+
+  it('explains an empty note tree instead of rendering a blank sidebar', () => {
+    renderSidebar()
+
+    expect(screen.getByText('notes.empty')).toBeInTheDocument()
+  })
+
+  it('says when there are no favorite notes', () => {
+    renderSidebar()
+    fireEvent.click(screen.getByRole('button', { name: 'toggle starred' }))
+
+    expect(screen.getByText('notes.favorites_empty')).toBeInTheDocument()
+  })
+
+  it('reports a search with no matches, but stays quiet before a keyword is typed', () => {
+    renderSidebar()
+    fireEvent.click(screen.getByRole('button', { name: 'toggle search' }))
+    expect(screen.queryByText('common.no_results')).toBeNull()
+    expect(screen.queryByText('notes.empty')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'type keyword' }))
+    expect(screen.getByText('common.no_results')).toBeInTheDocument()
   })
 })
