@@ -228,21 +228,20 @@ export function createMiniAppProtocolHandler(
       release()
     }
 
-    const body = handle.readableWebStream()
-    return new Response(
-      body.pipeThrough(
-        new TransformStream<Uint8Array, Uint8Array>({
-          flush: finalize,
-          cancel: finalize
-        })
-      ),
-      {
-        headers: {
-          ...BASE_HEADERS,
-          'content-type': CONTENT_TYPES[path.extname(real).toLowerCase()] ?? 'application/octet-stream',
-          'content-length': String(stat.size)
-        }
-      }
+    const body = handle.readableWebStream().pipeThrough(
+      new TransformStream<Uint8Array, Uint8Array>({
+        flush: finalize,
+        cancel: finalize
+      })
     )
+    // SAFETY: Node and global web streams share the implementation; DOM typings require a value key
+    // on completed reads, which Node supplies.
+    return new Response(body as typeof body & ReadableStream<Uint8Array>, {
+      headers: {
+        ...BASE_HEADERS,
+        'content-type': CONTENT_TYPES[path.extname(real).toLowerCase()] ?? 'application/octet-stream',
+        'content-length': String(stat.size)
+      }
+    })
   }
 }
