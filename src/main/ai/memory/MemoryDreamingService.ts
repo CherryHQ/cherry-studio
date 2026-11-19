@@ -317,7 +317,8 @@ export class MemoryDreamingService extends BaseService {
               conversationId: ticket.input.kind === 'assistant' ? ticket.input.topicId : ticket.input.sessionId,
               messageId: message.id,
               sourceVersion: message.version
-            }))
+            })),
+            Math.min(...source.messages.map((message) => message.createdAt))
           )
           const paths = await session.list()
           if (paths.length > 40) throw new DreamingError('budget')
@@ -493,11 +494,6 @@ export class MemoryDreamingService extends BaseService {
         )
       )
         return
-      try {
-        source.contextHash = this.readRecentContext(source).hash
-      } catch (error) {
-        if (!(error instanceof DreamingError && error.reason === 'budget')) throw error
-      }
       const firstPending = readExtractionState(source.key)?.pending[0]?.messageId ?? source.messageId
       if (!enqueueExtraction(source, this.extractionBoundary, extractionBranch(input, firstPending))) return
       this.wake()
@@ -506,9 +502,14 @@ export class MemoryDreamingService extends BaseService {
     }
   }
 
-  private readRecentContext(ticket: ExtractionTicket, admittedTurns?: ReadonlySet<string>) {
-    const state = readExtractionState(ticket.key)
-    return readExtractionRange(
+  private readBatch(state: ExtractionState) {
+    const end = state.pending.findIndex((item) => item.messageId === state.batchEnd)
+    if (end < 0) throw new DreamingError('conflict')
+    const ticket = state.pending[end]
+    const admissions = new Map(
+      [...state.recent, ...state.pending.slice(0, end + 1)].map((item) => [item.input.responseId, item])
+    )
+    const source = readExtractionRange(
       { source: ticket.input, fromMessageId: '' },
       Math.max(
         this.extractionBoundary,
@@ -516,24 +517,12 @@ export class MemoryDreamingService extends BaseService {
         this.sourceBoundaries.get(ticket.key) ?? 0,
         extractionBoundary(ticket.key),
         extractionBoundary(ticket.entityKey),
-        state?.boundary ?? 0
+        state.boundary
       ),
       true,
-      state?.excludedThrough,
-      new Set(state?.editedTurns),
-      admittedTurns
+      state.excludedThrough,
+      admissions
     )
-  }
-
-  private readBatch(state: ExtractionState) {
-    const end = state.pending.findIndex((item) => item.messageId === state.batchEnd)
-    if (end < 0) throw new DreamingError('conflict')
-    const ticket = state.pending[end]
-    const context = this.readRecentContext(ticket)
-    const source =
-      context.hash === ticket.contextHash
-        ? context
-        : this.readRecentContext(ticket, new Set(state.pending.slice(0, end + 1).map((item) => item.messageId)))
     const included = new Set(source.messages.filter((message) => message.role === 'user').map((message) => message.id))
     const skippedBudget = state.pending.slice(0, end + 1).filter((item) => !included.has(item.messageId)).length
     return { source, ticket, skippedBudget }
@@ -557,17 +546,13 @@ export class MemoryDreamingService extends BaseService {
           continue
         }
         try {
-          if (readExtractionSource(ticket.input, true).hash !== ticket.hash) {
-            invalid.push(ticket.messageId)
-            if (!pending.state.editedTurns.includes(ticket.messageId)) pending.state.editedTurns.push(ticket.messageId)
-          }
+          if (readExtractionSource(ticket.input, true).hash !== ticket.hash) invalid.push(ticket.messageId)
         } catch (error) {
           if (!(error instanceof InvalidExtractionSource)) throw error
           invalid.push(ticket.messageId)
         }
       }
       if (invalid.length) {
-        writeExtractionState(pending.key, pending.state)
         const skippedSource = skipExtractionTurns(pending.key, invalid, 'source')
         pending.state = readExtractionState(pending.key)!
         if (!pending.state.batchEnd) return { saved: 0, skippedSource }
@@ -586,7 +571,12 @@ export class MemoryDreamingService extends BaseService {
         skipExtractionTurn(pending.key, pending.state.batchEnd)
         return { saved: 0, skippedBudget: 1 }
       }
-      deferExtraction(pending.key, false, error instanceof DreamingError ? error.reason : 'unavailable')
+      deferExtraction(
+        pending.key,
+        pending.state.generation,
+        false,
+        error instanceof DreamingError ? error.reason : 'unavailable'
+      )
       throw error
     }
     const { ticket, source } = batch
@@ -609,6 +599,7 @@ export class MemoryDreamingService extends BaseService {
       const current = readExtractionState(ticket.key)
       if (
         !current?.pending.some((item) => item.messageId === ticket.messageId) ||
+        current.generation !== pending.state.generation ||
         current.batchEnd !== pending.state.batchEnd ||
         current.pending[0].messageId !== pending.state.pending[0].messageId ||
         this.readBatch(current).source.hash !== source.hash ||
@@ -628,7 +619,8 @@ export class MemoryDreamingService extends BaseService {
           conversationId: ticket.input.kind === 'assistant' ? ticket.input.topicId : ticket.input.sessionId,
           messageId: message.id,
           sourceVersion: message.version
-        }))
+        })),
+        Math.min(...source.messages.map((message) => message.createdAt))
       )
       const paths = await session.list()
       if (paths.length > 40) throw new DreamingError('budget')
@@ -656,7 +648,7 @@ export class MemoryDreamingService extends BaseService {
         const expected = prepared.files ?? [{ path: MEMORY_ENTRY, before: prepared.before, after: prepared.after }]
         const allAfter = expected.every((item) => files.find((file) => file.path === item.path)?.hash === item.after)
         if (sameSource && allAfter) {
-          completeExtraction(ticket.key, ticket.messageId, 'completed', batch.skippedBudget)
+          completeExtraction(ticket.key, ticket.messageId, 'completed', batch.skippedBudget, pending.state.generation)
           start.status = 'idle'
           start.lastResult = { outcome: 'completed', finishedAt: Date.now() }
           writeDreamingState(start)
@@ -777,7 +769,11 @@ export class MemoryDreamingService extends BaseService {
       writeExtractionState(ticket.key, progress)
       const clearPrepared = () => {
         const current = readExtractionState(ticket.key)
-        if (current?.prepared?.end === ticket.messageId && current.prepared.sourceHash === source.hash) {
+        if (
+          current?.generation === pending.state.generation &&
+          current.prepared?.end === ticket.messageId &&
+          current.prepared.sourceHash === source.hash
+        ) {
           current.prepared = undefined
           writeExtractionState(ticket.key, current)
         }
@@ -814,7 +810,8 @@ export class MemoryDreamingService extends BaseService {
         ticket.key,
         ticket.messageId,
         proposal.batches.map(({ outcome }) => outcome).join(','),
-        batch.skippedBudget
+        batch.skippedBudget,
+        pending.state.generation
       )
       const latest = readDreamingState(scope)
       if (latest.generation === generation) {
@@ -842,7 +839,12 @@ export class MemoryDreamingService extends BaseService {
         (controller.signal.aborted ||
           ctx.signal.aborted ||
           (error instanceof DOMException && error.name === 'AbortError'))
-      deferExtraction(ticket.key, cancelled, error instanceof DreamingError ? error.reason : 'unavailable')
+      deferExtraction(
+        ticket.key,
+        pending.state.generation,
+        cancelled,
+        error instanceof DreamingError ? error.reason : 'unavailable'
+      )
       const latest = readDreamingState(scope)
       if (latest.generation === generation) {
         latest.status = cancelled ? 'cancelled' : 'failed'

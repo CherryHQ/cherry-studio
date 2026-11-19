@@ -96,7 +96,8 @@ export class MemoryService extends BaseService {
   open(
     authority: MemoryAuthority,
     source: 'controlled' | 'dreaming' | 'migration' | 'extraction' = 'controlled',
-    extractionSources?: readonly MemoryEntry['sources'][number][]
+    extractionSources?: readonly MemoryEntry['sources'][number][],
+    earliestSourceAt?: number
   ): MemorySession {
     authority.assertAuthorized()
     const scope = Object.freeze({ ...authority.scope })
@@ -154,7 +155,8 @@ export class MemoryService extends BaseService {
           target,
           source === 'controlled' ? purpose : 'extraction',
           extractionSources,
-          source !== 'controlled'
+          source !== 'controlled',
+          earliestSourceAt
         )
         if (source === 'dreaming' && !view.receipt) throw new Error('Structured memory organization is not available')
         validations.push(view.validate)

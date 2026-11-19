@@ -1,5 +1,9 @@
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { appStateTable } from '@data/db/schemas/appState'
 
 import type { ExtractionTicket } from '../memoryExtraction'
 import {
@@ -57,12 +61,41 @@ describe('durable extraction scheduling', () => {
     const ids = Array.from({ length: 8 }, (_, i) => String(i))
     for (const id of ids) enqueueExtraction(ticket(id), 0, new Set(ids))
     expect(readyExtraction()?.state.batchEnd).toBe('7')
-    deferExtraction(key, true)
+    deferExtraction(key, 0, true)
     expect(readExtractionState(key)).toMatchObject({ attempts: 0, retryAt: now + 60_000 })
     now += 60_000
     expect(readyExtraction()?.state.batchEnd).toBe('7')
-    deferExtraction(key, false)
+    deferExtraction(key, 0, false)
     expect(readExtractionState(key)).toMatchObject({ attempts: 1, retryAt: now + 600_000 })
+  })
+
+  it('starts a fresh batch after revocation despite a delayed failure from the old worker', () => {
+    const old = ticket('old')
+    enqueueExtraction(old, 0, new Set(['old']))
+    deferExtraction(key, 0, false)
+    invalidateExtractions(key)
+    now += 100
+    const ids = Array.from({ length: 8 }, (_, i) => String(i))
+    for (const id of ids) enqueueExtraction(ticket(id), 0, new Set(ids))
+    deferExtraction(key, 0, false)
+    expect(readyExtraction()?.state).toMatchObject({ generation: 1, attempts: 0, retryAt: 0, batchEnd: '7' })
+  })
+
+  it('reads old v2 admissions and clears backoff left on an old empty queue', () => {
+    const old = ticket('old')
+    enqueueExtraction(old, 0, new Set(['old']))
+    const state = readExtractionState(key)!
+    const { recent: _recent, generation: _generation, ...legacy } = state
+    const db = application.get('DbService').getDb()
+    db.update(appStateTable).set({ value: legacy }).where(eq(appStateTable.key, key)).run()
+    expect(readExtractionState(key)).toMatchObject({ recent: [], generation: 0, pending: [{ hash: old.hash }] })
+    db.update(appStateTable)
+      .set({ value: { ...legacy, pending: [], outcome: 'cancelled', retryAt: now + 3600000, attempts: 2 } })
+      .where(eq(appStateTable.key, key))
+      .run()
+    const ids = Array.from({ length: 8 }, (_, i) => String(i))
+    for (const id of ids) enqueueExtraction(ticket(id), 0, new Set(ids))
+    expect(readyExtraction()?.state).toMatchObject({ attempts: 0, retryAt: 0, batchEnd: '7' })
   })
 
   it('freezes the overdue daily batch before turns received after the cutoff', () => {
@@ -109,7 +142,14 @@ describe('durable extraction scheduling', () => {
     now += 100
     enqueueExtraction(ticket('oversized'), 0, new Set(['first', 'oversized']))
     skipExtractionTurn(key, 'oversized')
-    expect(enqueueExtraction({ ...first, hash: 'edited' }, 0, new Set(['first']))).toBe(true)
+    expect(enqueueExtraction({ ...first, hash: 'edited' }, 0, new Set(['first']))).toBe(false)
+    expect(
+      enqueueExtraction(
+        { ...first, input: { ...first.input, responseId: 'new-reply' }, hash: 'edited' },
+        0,
+        new Set(['first'])
+      )
+    ).toBe(true)
     expect(readExtractionState(key)?.pending).toMatchObject([{ messageId: 'first', hash: 'edited' }])
     expect(readExtractionState(key)?.skippedBudget).toBe(1)
   })

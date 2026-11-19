@@ -928,6 +928,35 @@ describe('memory organization lifecycle and commit fences', () => {
     expect(readExtractionState(batch.key)?.skippedSource).toBe(1)
   })
 
+  it.each(['unchanged', 'edited', 'disabled'] as const)(
+    'includes only admitted versions as context after a turn is %s',
+    async (scenario) => {
+      const batch = batchConversation(1)
+      generate.mockImplementation(async () => ({ text: automaticReply(), finishReason: 'stop' }))
+      await flushExtraction()
+      if (scenario === 'edited') {
+        dbh.db
+          .update(messageTable)
+          .set({ data: { parts: [{ type: 'text', text: 'Edited private fact' }] } })
+          .where(eq(messageTable.id, batch.users[0]))
+          .run()
+      } else if (scenario === 'disabled') {
+        assistantDataService.update(batch.chat.assistantId, { settings: { enableSharedMemory: false } })
+        batch.append(1)
+        assistantDataService.update(batch.chat.assistantId, { settings: { enableSharedMemory: true } })
+      }
+      batch.append(1)
+      generate.mockClear()
+      await flushExtraction()
+      const prompt = JSON.parse(generate.mock.calls[0][0].prompt!)
+      expect(
+        prompt.messages.filter((m: { role: string }) => m.role === 'user').map((m: { id: string }) => m.id)
+      ).toEqual(scenario === 'unchanged' ? batch.users : [batch.users.at(-1)])
+      if (scenario !== 'unchanged')
+        expect(prompt.contextGaps.length + Number(prompt.leftContextIncomplete)).toBeGreaterThan(0)
+    }
+  )
+
   it('charges a timed-out model request against the extraction retry budget', async () => {
     const batch = batchConversation(8)
     const controller = new AbortController()
@@ -1441,6 +1470,12 @@ describe('memory organization lifecycle and commit fences', () => {
         .set({ data: { parts: [{ type: 'text', text: '这个安排从三月开始，出差时暂停。' }] } })
         .where(eq(messageTable.id, lastUserId))
         .run()
+      chat.emit()
+      dbh.db
+        .update(topicTable)
+        .set({ activeNodeId: range.source.responseId })
+        .where(eq(topicTable.id, chat.topicId))
+        .run()
       await save(scenario === 'capacity' ? 'x'.repeat(24990) : 'Existing entry.\n')
       await save('Related old fact.', '.memories/facts.md')
       const original = (await session.read('MEMORY.md')).content
@@ -1745,6 +1780,7 @@ describe('memory organization lifecycle and commit fences', () => {
     conversation(false).emit()
     const pending = conversation()
     pending.emit()
+    await save('Old private fact')
     await session.clear((await session.previewClear()).token, approve)
     pending.emit()
     expect(await flushExtraction()).toEqual({ idle: true })

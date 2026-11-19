@@ -62,6 +62,7 @@ interface ReadBaseline {
   path: string
   hash: string | null
   generation: number
+  afterClear?: boolean
   projected?: boolean
   revisionContent?: string
 }
@@ -180,17 +181,23 @@ export class MemoryStore {
     target: string,
     purpose: MemoryUse = 'current',
     extractionSources?: readonly MemoryEntry['sources'][number][],
-    maintenance = false
+    maintenance = false,
+    earliestSourceAt?: number
   ) {
     assertMemoryTarget(target)
     access.assertAuthorized()
     const generation = this.generation
     const snapshot = await this.entrySnapshot()
     const files = new Map([...snapshot].map(([name, bytes]) => [name, bytes ? this.decode(bytes) : '']))
-    const content = memoryModelView(files, target, purpose, extractionSources)
-    const structured = [...files.values()].some((text) =>
-      entriesIn(parseMemoryEntries(text)).some((entry) => !isMemoryRevision(entry))
-    )
+    const content = memoryModelView(files, target, purpose, extractionSources, earliestSourceAt)
+    const structured = [...files.values()]
+      .flatMap((text) => entriesIn(parseMemoryEntries(text)))
+      .filter((entry) => !isMemoryRevision(entry))
+    const afterClear =
+      purpose === 'extraction' &&
+      maintenance &&
+      structured.length > 0 &&
+      structured.every((entry) => entry.clearedAt !== undefined)
     const validate = async () => {
       access.assertAuthorized()
       this.assertGeneration(generation)
@@ -199,7 +206,8 @@ export class MemoryStore {
       this.assertGeneration(generation)
     }
     await validate()
-    const raw = structured ? undefined : await this.read(access, target)
+    const raw = !structured.length || afterClear ? await this.read(access, target) : undefined
+    if (afterClear && raw) this.baseline(access, raw.receipt).afterClear = true
     const hash = memoryHash(snapshot.get(target) ?? null)
     if (raw && raw.hash !== hash) throw new MemoryError('conflict', 'Memory target does not match the listed file')
     if (raw && !maintenance && purpose === 'current' && raw.content !== content)
@@ -308,9 +316,11 @@ export class MemoryStore {
     const clearTargets = conditions.clearTargets ? [...conditions.clearTargets] : undefined
     const changes: MemoryFileChange[] = []
     const revised = new Set<string>()
+    const afterClear = new Set<string>()
     for (const mutation of intent) {
       const baseline = this.baseline(access, mutation.receipt)
       const before = await this.readMatching(baseline)
+      if (source === 'extraction' && baseline.afterClear) afterClear.add(baseline.path)
       if (baseline.revisionContent !== undefined) {
         if (source !== 'extraction' || mutation.kind !== 'write' || mutation.content !== baseline.revisionContent)
           invalidEntries()
@@ -332,7 +342,7 @@ export class MemoryStore {
     }
     await this.assertDistinctTargets(changes)
     const scope = await this.entrySnapshot()
-    this.protectEntries(changes, scope, clearing ? 'clear' : 'ordinary', revised)
+    this.protectEntries(changes, scope, clearing ? 'clear' : 'ordinary', revised, afterClear)
     this.assertGeneration(generation)
     access.assertAuthorized()
     const approval = await approve(this.preview(changes))
@@ -694,7 +704,8 @@ export class MemoryStore {
     changes: MemoryFileChange[],
     scope: Map<string, Buffer | null>,
     mode: 'ordinary' | 'clear' | 'recovery',
-    revised: ReadonlySet<string> = new Set()
+    revised: ReadonlySet<string> = new Set(),
+    afterClear: ReadonlySet<string> = new Set()
   ): void {
     const parse = (bytes: Buffer | null) => parseMemoryEntries(bytes === null ? '' : this.decode(bytes))
     const protectedEntries = [...scope.values()]
@@ -730,12 +741,21 @@ export class MemoryStore {
         if (facts.some((text) => retiredFacts.has(text))) invalidEntries()
       }
       if (mode === 'clear') {
-        after = oldEntries.flatMap((entry) => [forgottenEntry(entry), '\n'])
+        after = oldEntries.flatMap((entry) => [
+          entry.status === 'forgotten'
+            ? entry
+            : {
+                ...forgottenEntry(entry),
+                ...(entry.status === 'active' || isMemoryRevision(entry) ? { clearedAt: Date.now() } : {})
+              },
+          '\n'
+        ])
         if (before.some((part) => typeof part === 'string' && part.trim())) {
           after.push({
             schemaVersion: 1,
             id: randomUUID(),
             status: 'forgotten',
+            clearedAt: Date.now(),
             sources: [],
             text: '',
             derivedFrom: []
@@ -757,6 +777,7 @@ export class MemoryStore {
         }
         if (
           protectedEntries.length &&
+          (!afterClear.has(change.path) || protectedEntries.some((entry) => entry.clearedAt === undefined)) &&
           JSON.stringify(before.filter((part) => typeof part === 'string')) !==
             JSON.stringify(after.filter((part) => typeof part === 'string'))
         )

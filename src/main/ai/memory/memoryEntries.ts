@@ -22,6 +22,7 @@ const entrySchema = z
     derivedFrom: z.array(identifier),
     validFrom: z.iso.datetime().optional(),
     validTo: z.iso.datetime().optional(),
+    clearedAt: z.number().int().nonnegative().optional(),
     supersededBy: identifier.optional(),
     retirement: z
       .strictObject({
@@ -33,6 +34,7 @@ const entrySchema = z
       .optional()
   })
   .refine((entry) => entry.status !== 'forgotten' || entry.text === '')
+  .refine((entry) => entry.clearedAt === undefined || entry.status === 'forgotten')
   .refine(
     (entry) => !entry.retirement || (entry.status === 'expired' && !entry.sources.length && !entry.derivedFrom.length)
   )
@@ -79,7 +81,7 @@ export function reviseMemory(
   additions: readonly string[] = []
 ): string {
   const parts = parseMemoryEntries(content)
-  if (entriesIn(parts).some((entry) => !isMemoryRevision(entry))) invalidEntries()
+  if (entriesIn(parts).some((entry) => !isMemoryRevision(entry) && entry.clearedAt === undefined)) invalidEntries()
   const retired: MemoryEntry[] = []
   for (const revision of revisions) {
     if (!revision.quote.trim() || !revision.text.trim() || revision.quote === revision.text) invalidEntries()
@@ -192,7 +194,8 @@ export function memoryModelView(
   files: ReadonlyMap<string, string>,
   target: string,
   purpose: MemoryUse,
-  extractionSources?: readonly MemoryEntry['sources'][number][]
+  extractionSources?: readonly MemoryEntry['sources'][number][],
+  earliestSourceAt?: number
 ): string | null {
   const parsed = new Map([...files].map(([name, text]) => [name, parseMemoryEntries(text)]))
   const entries = [...parsed.values()].flatMap(entriesIn)
@@ -206,7 +209,12 @@ export function memoryModelView(
   if (
     purpose === 'extraction' &&
     protectedEntries.length &&
-    (!extractionSources || protectedEntries.some((entry) => !entry.sources.length))
+    (!extractionSources?.length ||
+      protectedEntries.some((entry) =>
+        entry.clearedAt !== undefined
+          ? earliestSourceAt === undefined || earliestSourceAt <= entry.clearedAt
+          : !entry.sources.length
+      ))
   )
     invalidEntries()
   const excluded = new Set(
@@ -236,7 +244,11 @@ export function memoryModelView(
     invalidEntries()
   const parts = parsed.get(target)
   if (!parts) return null
-  if (protectedEntries.length && parts.some((part) => typeof part === 'string' && part.trim())) invalidEntries()
+  if (
+    protectedEntries.some((entry) => entry.clearedAt === undefined) &&
+    parts.some((part) => typeof part === 'string' && part.trim())
+  )
+    invalidEntries()
   return parts
     .map((part) => {
       if (typeof part === 'string')
