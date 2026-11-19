@@ -46,6 +46,7 @@ const MAX_SESSIONS = 16
 const READ_OPERATIONS = new Set([
   'documentation',
   'getTab',
+  'listTabs',
   'getAXState',
   'getScreenshot',
   'getAXStateAndScreenshot',
@@ -326,7 +327,9 @@ export class AutomationReplService extends BaseService {
               }
               if (
                 !documentedInCell.has(domain) &&
-                (name === 'documentation' || ((name === 'getTab' || name === 'getApp') && !state.documents.has(domain)))
+                (name === 'documentation' ||
+                  ((name === 'getTab' || name === 'newTab' || name === 'listTabs' || name === 'getApp') &&
+                    !state.documents.has(domain)))
               ) {
                 documents.push({
                   type: 'text',

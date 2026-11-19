@@ -23,8 +23,6 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
-import { gatewayCredentialsFingerprint } from '../agentApiGateway'
-
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue)
   if (!value || typeof value !== 'object') return value
@@ -71,11 +69,13 @@ export async function capturePiConnectionSnapshot(
 ): Promise<PiConnectionSnapshot> {
   const session = agentSessionService.getById(sessionId)
   const agent = agentService.getAgent(agentId)
-  if (!session?.agentId || session.agentId !== agentId || !agent?.model) {
+  // A cleared agent default still routes when the caller passes the session's
+  // own override — only a session with no effective model is unroutable.
+  const modelId = requestedModelId ?? agent?.model
+  if (!session?.agentId || session.agentId !== agentId || !agent || !modelId) {
     throw new PiInvalidConnectionSnapshotError(`Invalid Pi session snapshot: ${sessionId}`)
   }
 
-  const modelId = requestedModelId ?? agent.model
   const parsed = parseUniqueModelId(modelId)
   const provider = providerService.getByProviderId(parsed.providerId)
   const model = modelService.getByKey(parsed.providerId, parsed.modelId)
@@ -128,7 +128,7 @@ export async function capturePiConnectionSnapshot(
           computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
           effectiveLanguage,
-          gateway: gatewayCredentialsFingerprint()
+          modelTransport: 'gateway-objects'
         })
       )
     )

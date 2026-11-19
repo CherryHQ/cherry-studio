@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { ResourceEntityRailItem } from '@renderer/components/chat/resourceList/ResourceEntityRail'
 import type { AgentSessionsSource, AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
@@ -13,6 +14,7 @@ import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
+import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { trashErrorCodes } from '@shared/ipc/errors/trash'
@@ -141,7 +143,8 @@ vi.mock('@renderer/components/chat/DeleteConversationOwnerConfirmDialog', () => 
   permanentDeletePopup: permanentDeletePopupMocks
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof CherryStudioUi>()),
   BlurCancelPointerSensor: class BlurCancelPointerSensor {},
   Button: ({ children, onClick, ...props }: { children?: ReactNode; onClick?: () => void }) => (
     <button {...props} type="button" onClick={onClick}>
@@ -554,6 +557,8 @@ describe('classic layout entity resource list actions', () => {
     agentDataMocks.isLoading = false
     preferenceMocks.sortType = 'list'
     preferenceMocks.values.clear()
+    preferenceMocks.values.set('chat.topics.sort', getDefaultValue('chat.topics.sort'))
+    preferenceMocks.values.set('agent.session.sort', getDefaultValue('agent.session.sort'))
     preferenceMocks.setPreference.mockClear()
     preferenceMocks.setSortType.mockClear()
     assistantDataMocks.assistants = [
@@ -1570,14 +1575,17 @@ describe('classic layout entity resource list actions', () => {
       <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.topics.display.time' }))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'chat.list.options' }))
+    await user.click(screen.getByRole('menuitem', { name: /^chat.topics.display.title/ }))
+    await user.keyboard('{ArrowRight}{Enter}')
 
     await waitFor(() => {
       expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.tab.display_mode', 'time')
     })
   })
 
-  it('keeps classic assistant rail history in the shared display menu', () => {
+  it('opens history from the classic assistant rail list menu', async () => {
     const onOpenHistoryRecords = vi.fn()
 
     render(
@@ -1589,12 +1597,14 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'history.records.shortTitle' }))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'chat.list.options' }))
+    await user.click(screen.getByRole('menuitem', { name: 'history.records.shortTitle' }))
 
     expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps assistant management in the shared display menu without adding a classic rail entry', () => {
+  it('opens assistant management from the classic rail list menu', async () => {
     const onManageAssistants = vi.fn()
 
     render(
@@ -1607,7 +1617,9 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'chat.list.options' }))
+    await user.click(screen.getByRole('menuitem', { name: 'assistants.presets.manage.title' }))
 
     expect(onManageAssistants).toHaveBeenCalledTimes(1)
   })
@@ -2454,14 +2466,17 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.session.display.workdir' }))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'chat.list.options' }))
+    await user.click(screen.getByRole('menuitem', { name: /^agent.session.display.title/ }))
+    await user.keyboard('{ArrowRight}{ArrowDown}{Enter}')
 
     await waitFor(() => {
       expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'workdir')
     })
   })
 
-  it('keeps classic agent rail history in the shared display menu without section toggles', () => {
+  it('opens history from the classic agent rail list menu', async () => {
     const onOpenHistoryRecords = vi.fn()
 
     render(
@@ -2475,7 +2490,9 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'history.records.shortTitle' }))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'chat.list.options' }))
+    await user.click(screen.getByRole('menuitem', { name: 'history.records.shortTitle' }))
 
     expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
   })

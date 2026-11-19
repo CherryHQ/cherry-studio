@@ -1171,6 +1171,11 @@
       "label": "English"
     },
     {
+      "value": "cs-CZ",
+      "flag": "🇨🇿",
+      "label": "Čeština"
+    },
+    {
       "value": "de-DE",
       "flag": "🇩🇪",
       "label": "Deutsch"
@@ -1179,6 +1184,11 @@
       "value": "ja-JP",
       "flag": "🇯🇵",
       "label": "日本語"
+    },
+    {
+      "value": "ko-KR",
+      "flag": "🇰🇷",
+      "label": "한국어"
     },
     {
       "value": "ru-RU",

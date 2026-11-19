@@ -104,6 +104,7 @@ const AgentSessionMessages = ({
     () =>
       activeAgent
         ? {
+            id: activeAgent.id,
             name: activeAgent.name,
             avatar: getAgentAvatarFromConfiguration(activeAgent.configuration, activeAgent.avatarSrc)
           }

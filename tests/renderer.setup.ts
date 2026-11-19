@@ -104,6 +104,7 @@ vi.mock('uuid', () => ({
 vi.mock('@iconify/react', () => {
   const React = require('react')
   return {
+    addCollection: vi.fn(),
     Icon: ({ icon, ...props }: { icon?: string }) =>
       React.createElement('span', { ...props, 'data-icon': icon, 'data-testid': 'iconify-icon' })
   }
@@ -167,6 +168,7 @@ vi.mock('@cherrystudio/ui', async () => {
   const { KeyboardLayerProvider } = await import('@cherrystudio/ui/components/primitives/keyboard-layer')
   const { InputNumber } = await import('@cherrystudio/ui/components/primitives/input-number')
   const { BarVisualizer } = await import('@cherrystudio/ui/components/primitives/bar-visualizer')
+  const { Progress } = await import('@cherrystudio/ui/components/primitives/progress')
   const { InputGroupInputNumber } = await import('@cherrystudio/ui/components/primitives/input-group')
   const { createCodeHighlightPlugin } =
     await import('@cherrystudio/ui/components/composites/markdown/plugins/code-highlight')
@@ -853,6 +855,7 @@ vi.mock('@cherrystudio/ui', async () => {
         tooltipText ? React.createElement('div', { 'data-testid': 'tooltip-content' }, tooltipText) : null
       )
     },
+    Progress,
     CircularProgress: ({ value, renderLabel, showLabel, ...props }) =>
       React.createElement(
         'div',
