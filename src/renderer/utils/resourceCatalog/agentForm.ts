@@ -136,6 +136,11 @@ export function applyAgentFormPatch(current: AgentFormState, patch: Partial<Agen
   if (Object.prototype.hasOwnProperty.call(patch, 'permissionMode')) {
     next.permissionMode = normalizePermissionMode(patch.permissionMode)
   }
+  // Plan and small models are no longer edited, so they follow the main model.
+  if (patch.model !== undefined && patch.model !== current.model) {
+    next.planModel = ''
+    next.smallModel = ''
+  }
 
   return next
 }

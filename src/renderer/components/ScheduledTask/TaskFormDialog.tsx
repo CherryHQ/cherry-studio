@@ -420,6 +420,12 @@ type TaskFormDialogProps = {
   open: boolean
   agents: AgentInfo[]
   onOpenChange: (open: boolean) => void
+  /** Keeps the owning Agent fixed to `agents[0]`, e.g. when opened from that Agent's settings. */
+  agentLocked?: boolean
+  /** Extra content below the fields, such as run history. */
+  children?: ReactNode
+  /** Actions at the start of the footer, such as Delete and Run now. */
+  footerStart?: ReactNode
 } & (
   | {
       task: ScheduledTaskEntity
@@ -434,7 +440,7 @@ type TaskFormDialogProps = {
 )
 
 export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
-  const { open, task, agents, onOpenChange } = props
+  const { open, task, agents, onOpenChange, agentLocked = false } = props
   const { t } = useTranslation()
   const { channels: rawChannels, error: channelsError, isLoading: channelsLoading } = useChannels()
   const channelsReady = !channelsLoading && !channelsError
@@ -621,7 +627,7 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={saving || isEditing}
+                      disabled={saving || isEditing || agentLocked}
                       aria-label={t('agent.channels.bindAgent')}
                       aria-invalid={(submitted && !agentId) || undefined}
                       aria-busy={saving || undefined}>
@@ -670,9 +676,11 @@ export const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
               disabled={saving}
               onChange={setChannelIds}
             />
+            {props.children}
           </FieldGroup>
         </ScrollArea>
         <DialogFooter>
+          {props.footerStart}
           <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
             {t('common.cancel')}
           </Button>

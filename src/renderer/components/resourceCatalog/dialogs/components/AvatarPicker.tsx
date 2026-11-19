@@ -109,6 +109,7 @@ export function AvatarPicker({
   // 'md' matches the h-8 Input the avatar sits beside in the edit dialogs.
   const avatarSize = size === 'lg' ? 84 : size === 'sm' ? 36 : 32
   const fontSize = avatarFontSize ?? (size === 'lg' ? 42 : size === 'sm' ? 18 : 16)
+  const radius = size === 'lg' ? 'rounded-[28%]' : 'rounded-lg'
   const uploadLabel = t('library.config.dialogs.create.avatar_upload')
 
   return (
@@ -127,13 +128,13 @@ export function AvatarPicker({
             src={imageSrc}
             alt={ariaLabel}
             size={avatarSize}
-            className={cn('rounded-lg object-cover', avatarClassName)}
+            className={cn(radius, 'object-cover', avatarClassName)}
             fallback={
               // Match the adjacent Input's rounded-lg + hairline border.
               <EmojiAvatar
                 size={avatarSize}
                 fontSize={fontSize}
-                className={cn('rounded-lg border border-border', avatarClassName)}>
+                className={cn(radius, 'border border-border', avatarClassName)}>
                 {emoji}
               </EmojiAvatar>
             }
