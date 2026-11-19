@@ -24,8 +24,8 @@ owns outgoing serialization and transport, including same-protocol requests.
 This preserves supported semantics, not arbitrary wire fields or byte identity.
 There is no separate raw HTTP branch. Desktop Pi and Pi Durable inject native protocol object
 transports into this same conversion and execution path. They exchange request/event objects
-without an internal HTTP listener, request JSON encoding or SSE formatting. Native replay,
-tools and retry ownership remain in Pi; external clients, including Claude Code, keep HTTP.
+without an internal HTTP listener, request JSON encoding or SSE formatting. Native replay and
+tools remain in Pi; external clients, including Claude Code, keep HTTP.
 Object calls carry a typed trusted context for session ownership, request selections and usage.
 They do not authenticate through synthetic bearer headers. Explicit child captures take precedence
 over a root binding's defaults and ambient trace parent.
@@ -661,7 +661,9 @@ Public gateway clients continue to receive the sanitized errors above.
   and Responses system-message removal apply only to Cherry-owned context.
 - **Caller-owned loop.** Gateway requests use single-step SDK `streamText` /
   `generateText`, without `ToolLoopAgent`, local tool execution, AI tool repair,
-  generation retry, or model fallback. Application chat retains its loop.
+  or model fallback. HTTP gateway requests disable SDK request retries. Internal Pi object
+  requests use [ai-retry before content](../../../../src/main/ai/runtime/pi/README.md#model-requests).
+  Application chat retains its loop.
 - **Assistant-agnostic.** No assistant/topic context. Sampling, client tools,
   and provider options ride as per-request `CallOverrides`.
 - **Main owns running state.** `feature.api_gateway.running` in the Shared Cache is
