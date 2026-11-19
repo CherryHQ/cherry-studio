@@ -280,6 +280,7 @@ describe('MainNetworkDevtoolsService helpers', () => {
       expect(service['events'][0]).toMatchObject({
         state: 'success',
         status: 200,
+        statusText: 'OK',
         requestBody: { text: 'part-body' },
         responseBody: { contentType: 'text/plain', note: expect.any(String) }
       })
