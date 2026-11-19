@@ -679,9 +679,10 @@ export class JobService {
 
   promoteDelayedDueTx(tx: DbOrTx, now: number): number {
     this.lastPromotedQueues = tx
-      .selectDistinct({ queue: jobTable.queue })
+      .select({ queue: jobTable.queue })
       .from(jobTable)
       .where(and(eq(jobTable.status, 'delayed'), lte(jobTable.scheduledAt, now)))
+      .groupBy(jobTable.queue)
       .all()
       .map((row) => row.queue)
     const result = tx
