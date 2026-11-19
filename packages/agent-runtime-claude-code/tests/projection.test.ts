@@ -26,7 +26,7 @@ it('publishes legacy bindings only when changed and retains an isolated complete
   await observed.drain()
   const key = `${committed.uuid}:0`
   expect(batches.at(-1)?.legacy?.[key]).toEqual({ messageId: committed.uuid, parts: [0] })
-  batches.at(-1)!.legacy![key].parts[0] = 99
+  expect(() => (batches.at(-1)!.legacy![key].parts[0] = 99)).toThrow(TypeError)
   projection.publish([{ type: 'activity.changed', activity: { state: 'active' } }])
   await observed.drain()
   expect(batches.at(-1)?.legacy).toBeUndefined()

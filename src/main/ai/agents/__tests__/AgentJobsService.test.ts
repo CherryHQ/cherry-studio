@@ -978,6 +978,14 @@ describe('AgentJobsService', () => {
         unrelated: 'keep-me'
       })
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+
+      const binding = { scheduleId: task.id, reuseRevision: 0 }
+      service.releaseOverflowedTaskSession({ ...binding, reuseRevision: 1 }, session.id)
+      service.releaseOverflowedTaskSession(binding, 'stale-session')
+      expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(session.id)
+      service.releaseOverflowedTaskSession(binding, session.id)
+      expect(agentSessionService.getByTaskScheduleId(task.id)).toBeNull()
+      expect(agentSessionService.listTaskSessionIds(task.id)).toContain(session.id)
     })
   })
 

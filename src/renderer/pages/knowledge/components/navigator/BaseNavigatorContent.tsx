@@ -1,35 +1,19 @@
-import {
-  closestCenter,
-  DndContext,
-  DragOverlay,
-  KeyboardSensor,
-  pointerWithin,
-  useSensor,
-  useSensors,
-  type CollisionDetection,
-  type DragEndEvent,
-  type DragOverEvent
-} from '@dnd-kit/core'
-import {
-  hasSortableData,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy
-} from '@dnd-kit/sortable'
-import { isKeyboardEvent } from '@dnd-kit/utilities'
+import { type DragEndEvent, DragOverlay, type DragStartEvent } from '@dnd-kit/react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Accordion, BlurCancelPointerSensor, EmptyState, ScrollArea } from '@cherrystudio/ui'
+import { Accordion, DragDropRoot, EmptyState, ScrollArea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { toast } from '@renderer/services/toast'
+import { getInsertionSide } from '@renderer/utils/dragDrop'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 
 import BaseNavigatorGroupSection from './BaseNavigatorGroupSection'
+import { getNavigatorDragData } from './navigatorDrag'
 import SortableKnowledgeBaseRow from './SortableKnowledgeBaseRow'
 import type { BaseNavigatorContentProps } from './types'
 import { UNGROUPED_SECTION_VALUE } from './types'
@@ -57,54 +41,8 @@ const BaseNavigatorContent = ({
 }: BaseNavigatorContentProps) => {
   const { t } = useTranslation()
   const [activeLabel, setActiveLabel] = useState<string | null>(null)
-  const [indicator, setIndicator] = useState<{ id: string; position: 'before' | 'after' } | null>(null)
   const savingRef = useRef(false)
   const dragDisabled = !onReorderBase || !onReorderGroup || isReordering
-  const sensors = useSensors(
-    useSensor(BlurCancelPointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-      keyboardCodes: { start: ['Space'], cancel: ['Escape'], end: ['Space'] }
-    })
-  )
-  const collisionDetection = useCallback<CollisionDetection>((args) => {
-    const draggingGroup = args.active.data.current?.type === 'group'
-    const droppableContainers = args.droppableContainers.filter(
-      (container) =>
-        !draggingGroup || (container.data.current?.type === 'group' && container.data.current.groupId !== null)
-    )
-    const candidates = { ...args, droppableContainers }
-    const hits = pointerWithin(candidates)
-    if (!draggingGroup && hits.length > 0) {
-      const baseHits = hits.filter(({ id }) => String(id).startsWith('base:'))
-      if (baseHits.length) return baseHits
-    }
-    return hits.length ? hits : closestCenter(candidates)
-  }, [])
-  const getIndicator = useCallback(({ active, over, activatorEvent }: DragOverEvent) => {
-    if (!over || active.id === over.id) return null
-    if (
-      isKeyboardEvent(activatorEvent) &&
-      hasSortableData(active) &&
-      hasSortableData(over) &&
-      active.data.current.sortable.containerId === over.data.current.sortable.containerId
-    ) {
-      return {
-        id: String(over.id),
-        position:
-          active.data.current.sortable.index < over.data.current.sortable.index
-            ? ('after' as const)
-            : ('before' as const)
-      }
-    }
-    const top = active.rect.current.translated?.top ?? 0
-    const height = active.rect.current.translated?.height ?? 0
-    return {
-      id: String(over.id),
-      position: top + height / 2 < over.rect.top + over.rect.height / 2 ? ('before' as const) : ('after' as const)
-    }
-  }, [])
-
   const {
     shortcuts: sidebarShortcuts,
     setPinned: setSidebarShortcutPinned,
@@ -148,30 +86,28 @@ const BaseNavigatorContent = ({
     [sectionValues]
   )
 
-  const clearDrag = () => {
+  const handleDragEnd = async ({ canceled, operation }: DragEndEvent) => {
+    const side = getInsertionSide(operation)
     setActiveLabel(null)
-    setIndicator(null)
-  }
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const target = getIndicator(event)
-    clearDrag()
-    if (!target || savingRef.current || !onReorderBase || !onReorderGroup) return
-    const active = event.active.data.current
-    const over = event.over?.data.current
+    if (canceled || !side || savingRef.current || !onReorderBase || !onReorderGroup) return
+    const active = getNavigatorDragData(operation.source)
+    const over = getNavigatorDragData(operation.target)
     if (!active || !over) return
     let persist: () => Promise<void>
     if (active.type === 'group') {
-      if (!active.groupId || !over.groupId || over.type !== 'group') return
-      const from = sections.findIndex((section) => section.groupId === active.groupId)
-      const to = sections.findIndex((section) => section.groupId === over.groupId)
+      const activeGroupId = active.groupId
+      const overGroupId = over.groupId
+      if (!activeGroupId || !overGroupId || over.type !== 'group') return
+      const from = sections.findIndex((section) => section.groupId === activeGroupId)
+      const to = sections.findIndex((section) => section.groupId === overGroupId)
       if (from < 0 || to < 0 || from === to) return
-      persist = () => onReorderGroup(active.groupId, from < to ? { after: over.groupId } : { before: over.groupId })
+      persist = () => onReorderGroup(activeGroupId, from < to ? { after: overGroupId } : { before: overGroupId })
     } else {
-      const base = active.base as KnowledgeBaseListItem
-      const targetGroupId = over.groupId as string | null
+      const base = active.base
+      const targetGroupId = over.groupId
       const anchor: OrderRequest =
         over.type === 'base'
-          ? target.position === 'before'
+          ? side === 'before'
             ? { before: over.base.id }
             : { after: over.base.id }
           : { position: 'last' }
@@ -200,19 +136,11 @@ const BaseNavigatorContent = ({
   // `pt-1 pb-3` mirrors the assistant and agent rails' list padding — the top inset is
   // what separates the first row from the create action above it.
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={collisionDetection}
-      onDragStart={({ active }) =>
-        setActiveLabel(
-          active.data.current?.type === 'base'
-            ? active.data.current.base.name
-            : getGroupLabel(active.data.current?.groupId ?? null)
-        )
-      }
-      onDragMove={(event) => setIndicator(getIndicator(event))}
-      onDragOver={(event) => setIndicator(getIndicator(event))}
-      onDragCancel={clearDrag}
+    <DragDropRoot
+      onDragStart={({ operation }: DragStartEvent) => {
+        const active = getNavigatorDragData(operation.source)
+        setActiveLabel(active?.type === 'base' ? active.base.name : getGroupLabel(active?.groupId ?? null))
+      }}
       onDragEnd={handleDragEnd}>
       <ScrollArea
         contentProps={{ className: 'pt-1 pb-3' }}
@@ -227,63 +155,56 @@ const BaseNavigatorContent = ({
           // for a transient empty collection while navigator data changes.
           <EmptyState title={t('common.no_results')} compact className="h-full" />
         ) : flatSection ? (
-          <SortableContext
-            items={flatSection.items.map((base) => `base:${base.id}`)}
-            strategy={verticalListSortingStrategy}>
-            <div className="space-y-1">
-              {flatSection.items.map((base) => (
-                <SortableKnowledgeBaseRow
-                  key={base.id}
-                  disabled={dragDisabled}
-                  indicator={indicator?.id === `base:${base.id}` ? indicator.position : undefined}
-                  base={base}
+          <div className="space-y-1">
+            {flatSection.items.map((base, index) => (
+              <SortableKnowledgeBaseRow
+                key={base.id}
+                index={index}
+                sectionValue={UNGROUPED_SECTION_VALUE}
+                disabled={dragDisabled}
+                base={base}
+                groups={groups}
+                selected={base.id === selectedBaseId}
+                onSelectBase={onSelectBase}
+                onMoveBase={onMoveBase}
+                onRenameBase={onRenameBase}
+                onCreateGroup={onCreateGroup}
+                onDeleteBase={onDeleteBase}
+                onToggleSidebar={handleToggleSidebar}
+                sidebarPinned={sidebarPinnedBaseIds.has(base.id)}
+              />
+            ))}
+          </div>
+        ) : (
+          <Accordion type="multiple" value={openValues} onValueChange={handleValueChange} className="space-y-3">
+            {sections.map((section, index) => {
+              const groupValue = section.groupId ?? UNGROUPED_SECTION_VALUE
+              const group = section.groupId ? groupById.get(section.groupId) : undefined
+
+              return (
+                <BaseNavigatorGroupSection
+                  key={groupValue}
+                  index={index}
+                  dragDisabled={dragDisabled}
+                  section={section}
+                  group={group}
+                  groupLabel={group?.name ?? getGroupLabel(section.groupId)}
                   groups={groups}
-                  selected={base.id === selectedBaseId}
+                  selectedBaseId={selectedBaseId}
                   onSelectBase={onSelectBase}
                   onMoveBase={onMoveBase}
                   onRenameBase={onRenameBase}
+                  onRenameGroup={onRenameGroup}
+                  onCreateBaseInGroup={onCreateBaseInGroup}
                   onCreateGroup={onCreateGroup}
+                  onDeleteGroup={onDeleteGroup}
                   onDeleteBase={onDeleteBase}
                   onToggleSidebar={handleToggleSidebar}
-                  sidebarPinned={sidebarPinnedBaseIds.has(base.id)}
+                  sidebarPinnedBaseIds={sidebarPinnedBaseIds}
                 />
-              ))}
-            </div>
-          </SortableContext>
-        ) : (
-          <SortableContext
-            items={sections.map((section) => `group:${section.groupId ?? UNGROUPED_SECTION_VALUE}`)}
-            strategy={verticalListSortingStrategy}>
-            <Accordion type="multiple" value={openValues} onValueChange={handleValueChange} className="space-y-3">
-              {sections.map((section) => {
-                const groupValue = section.groupId ?? UNGROUPED_SECTION_VALUE
-                const group = section.groupId ? groupById.get(section.groupId) : undefined
-
-                return (
-                  <BaseNavigatorGroupSection
-                    key={groupValue}
-                    dragDisabled={dragDisabled}
-                    indicator={indicator}
-                    section={section}
-                    group={group}
-                    groupLabel={group?.name ?? getGroupLabel(section.groupId)}
-                    groups={groups}
-                    selectedBaseId={selectedBaseId}
-                    onSelectBase={onSelectBase}
-                    onMoveBase={onMoveBase}
-                    onRenameBase={onRenameBase}
-                    onRenameGroup={onRenameGroup}
-                    onCreateBaseInGroup={onCreateBaseInGroup}
-                    onCreateGroup={onCreateGroup}
-                    onDeleteGroup={onDeleteGroup}
-                    onDeleteBase={onDeleteBase}
-                    onToggleSidebar={handleToggleSidebar}
-                    sidebarPinnedBaseIds={sidebarPinnedBaseIds}
-                  />
-                )
-              })}
-            </Accordion>
-          </SortableContext>
+              )
+            })}
+          </Accordion>
         )}
       </ScrollArea>
       <DragOverlay dropAnimation={null}>
@@ -293,7 +214,7 @@ const BaseNavigatorContent = ({
           </div>
         ) : null}
       </DragOverlay>
-    </DndContext>
+    </DragDropRoot>
   )
 }
 

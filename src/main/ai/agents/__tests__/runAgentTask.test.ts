@@ -28,6 +28,7 @@ const {
   mockBindTaskSessionReuse,
   mockRecordTaskExecutionStart,
   mockPersistRecoveredTaskBaseline,
+  mockReleaseOverflowed,
   mockIsSessionBusy,
   mockUpdateJobScheduleTx,
   mockSyncJobScheduleTimerById,
@@ -44,6 +45,7 @@ const {
       captured.listeners = opts.listeners
       return { mode: 'started' as const }
     }),
+    mockReleaseOverflowed: vi.fn(),
     mockBindTaskSessionReuse: vi.fn(() => true),
     mockRecordTaskExecutionStart: vi.fn(),
     mockPersistRecoveredTaskBaseline: vi.fn(),
@@ -63,6 +65,7 @@ vi.mock('@application', async () => {
     ChannelManager: { getAdapter: mockGetAdapter },
     AiStreamManager: { abort: mockAbort, abortAndDrain: mockAbortAndDrain, removeListener: mockRemoveListener },
     AgentJobsService: {
+      releaseOverflowedTaskSession: mockReleaseOverflowed,
       bindTaskSessionReuse: mockBindTaskSessionReuse,
       syncHeartbeat: syncHeartbeatScheduleMock,
       recordTaskExecutionStart: mockRecordTaskExecutionStart,
@@ -787,6 +790,24 @@ describe('runAgentTask', () => {
       expect(agentSessionService.create).not.toHaveBeenCalled()
       // Already bound — no pointer rewrite.
       expect(mockBindTaskSessionReuse).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['context_length_exceeded', undefined, 1],
+      ['Claude Code process exited with code 1', 'context_length', 1],
+      ['network timeout', undefined, 0]
+    ] as const)('handles a terminal %s on a reused session', async (message, claudeCodeExitCategory, releases) => {
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary', REUSE_ON))
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+      vi.mocked(agentSessionService.getByTaskScheduleId).mockReturnValueOnce(makeSession('/ws/a'))
+      const run = runAgentTask(
+        makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
+      )
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onError({ error: { message, claudeCodeExitCategory } })
+      await expect(run).rejects.toThrow(message)
+      expect(mockReleaseOverflowed).toHaveBeenCalledTimes(releases)
     })
 
     it('runs one-off when a queued job has a stale reuse revision', async () => {

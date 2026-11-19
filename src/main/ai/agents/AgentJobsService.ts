@@ -720,6 +720,17 @@ export class AgentJobsService extends BaseService {
     return this.getActiveTask(agentId, taskId)
   }
 
+  releaseOverflowedTaskSession(binding: { scheduleId: string; reuseRevision: number }, sessionId: string): void {
+    const cleared = application.get('DbService').withWriteTx((tx) => {
+      const schedule = jobScheduleService.getByIdTx(tx, binding.scheduleId)
+      const reuse = readTaskSessionReuse(schedule?.metadata)
+      if (!reuse.enabled || reuse.revision !== binding.reuseRevision) return false
+      if (agentSessionService.getByTaskScheduleIdTx(tx, binding.scheduleId)?.id !== sessionId) return false
+      return agentSessionService.clearTaskScheduleTx(tx, binding.scheduleId)
+    })
+    if (cleared) agentTaskService.notifyReadModelChange([binding.scheduleId])
+  }
+
   // Plain Errors on purpose: no renderer branch consumes an agent/channel
   // not-found code (the message reaches the toast through INTERNAL either
   // way), so no AI-domain IpcError code is minted for them — unlike trigger

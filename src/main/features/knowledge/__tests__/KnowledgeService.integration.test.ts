@@ -397,6 +397,32 @@ describe('KnowledgeService integration', () => {
     const baseRows = () =>
       dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.baseId, COMPLETED_BASE_ID))
 
+    it('adds ten URLs as distinct processing rows in one batch', async () => {
+      await seedCompletedBaseWithNote()
+      dbh.db.delete(knowledgeItemTable).where(eq(knowledgeItemTable.id, EXISTING_NOTE_ID)).run()
+      const urls = Array.from({ length: 10 }, (_, i) => `https://example.com/source-${i}`)
+      const service = new KnowledgeService()
+
+      const result = await service.addItems(
+        COMPLETED_BASE_ID,
+        urls.map((url) => ({ type: 'url' as const, data: { source: url, url } })),
+        'detect'
+      )
+
+      expect(result).toEqual({ status: 'added' })
+      const rows = await baseRows()
+      expect(rows).toHaveLength(10)
+      expect(new Set(rows.map((row) => row.id)).size).toBe(10)
+      expect(rows.map((row) => (row.data as { url: string }).url).sort()).toEqual([...urls].sort())
+      expect(rows.map((row) => row.data).sort((a, b) => a.source.localeCompare(b.source))).toEqual(
+        urls.map((url) => ({ source: url, url })).sort((a, b) => a.source.localeCompare(b.source))
+      )
+      for (const row of rows) {
+        expect(row.type).toBe('url')
+        expect(row.status).toBe('processing')
+      }
+    })
+
     it('detect reports a same-name conflict and adds nothing', async () => {
       await seedCompletedBaseWithNote()
       const service = new KnowledgeService()

@@ -1,4 +1,3 @@
-import * as z from 'zod'
 /**
  * Agents domain API Schema definitions
  *
@@ -6,6 +5,7 @@ import * as z from 'zod'
  * Entity schemas live here (Rule C/D: entity role wins when a type is both
  * a response payload and an entity). DTOs are derived via .pick().
  */
+import * as z from 'zod'
 
 import { MAX_HEARTBEAT_TIMEOUT_MINUTES } from '@shared/ai/agentHeartbeat'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'

@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
+import { dialog } from 'electron'
+
 import { application } from '@application'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkService'
@@ -114,6 +116,18 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.session.predict_prompt': (input) => application.get('AgentSessionRuntimeService').predictPrompt(input),
   'ai.agent.session.abort_prediction': async ({ sessionId, requestId }) =>
     application.get('AgentSessionRuntimeService').abortPromptPrediction(sessionId, requestId),
+  'ai.agent.import.prepare': async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'DeepSeek', extensions: ['zip'] }]
+    })
+    if (result.canceled || !result.filePaths[0]) return null
+    return application.get('AgentImportService').prepare(result.filePaths[0])
+  },
+  'ai.agent.import.status': async () => application.get('AgentImportService').status(),
+  'ai.agent.import.start': async ({ id }) => application.get('AgentImportService').start(id),
+  'ai.agent.import.cancel': async ({ id }) => application.get('AgentImportService').cancel(id),
+
   'ai.projection.attach': ({ target, subscriptionId }, { senderId }) => {
     const sender = senderWebContents(senderId)
     if (!sender || senderId === null) throw new Error('Projection subscription requires a window')
