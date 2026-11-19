@@ -74,11 +74,11 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
 
   const { agent } = useAgent(dataRequested && scope === TopicType.Session ? (session?.agentId ?? null) : null)
   const boundServerIds = useMemo<readonly string[] | 'all' | null>(() => {
-    if (scope === TopicType.Session) return agent?.mcps ?? []
+    if (scope === TopicType.Session) return agent?.type === 'local' && !agent.mcps?.length ? 'all' : (agent?.mcps ?? [])
     const mode = assistant ? (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) : 'disabled'
     if (mode === 'disabled') return null
     return mode === 'auto' ? 'all' : (assistant?.mcpServerIds ?? [])
-  }, [agent?.mcps, assistant, scope])
+  }, [agent?.mcps, agent?.type, assistant, scope])
   const { servers } = useScopedMcpServers(boundServerIds, { enabled: dataRequested })
 
   useEffect(() => {
@@ -283,7 +283,6 @@ export const McpResourceComposerRuntime = ({ context }: { context: McpResourceTo
  */
 const mcpResourceTool = defineTool({
   key: 'mcp_resources',
-  condition: ({ session }) => session?.agentType !== 'local',
   label: (t) => t('chat.input.mcp_resources.title'),
   visibleInScopes: [TopicType.Chat, TopicType.Session],
 

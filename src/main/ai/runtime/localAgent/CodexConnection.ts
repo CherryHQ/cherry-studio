@@ -4,12 +4,61 @@ import { createInterface, type Interface } from 'node:readline'
 import * as z from 'zod'
 
 import { crossPlatformSpawn } from '@main/utils/processRunner'
+import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import { LocalAgentTurnUsageSchema } from '@shared/ai/localAgentUsage'
 
 import type { AgentRuntimeUserInput } from '../types'
 import { resolveLocalAgentLaunch } from './launch'
 import { LocalConnection } from './LocalConnection'
 import { localContent } from './localContent'
+
+const CODEX_SUPPORTED_COMMANDS: AgentSessionSlashCommand[] = [
+  { name: 'clear', description: 'Start a new conversation with empty context', argumentHint: '', builtin: true },
+  {
+    name: 'compact',
+    description: 'Free up context by summarizing the conversation so far',
+    argumentHint: '',
+    builtin: true
+  },
+  {
+    name: 'usage',
+    description: 'Show session cost, plan usage limits, and activity stats',
+    argumentHint: '',
+    builtin: true
+  },
+  { name: 'status', description: 'Show current session configuration and token usage', argumentHint: '' },
+  { name: 'review', description: 'Review current changes and find issues', argumentHint: '[instructions]' },
+  { name: 'diff', description: 'Show git diff (including untracked files)', argumentHint: '' },
+  { name: 'init', description: 'Create an AGENTS.md file with instructions for Codex', argumentHint: '' },
+  { name: 'mcp', description: 'List MCP tools and server status', argumentHint: '' },
+  { name: 'skills', description: 'List skills available to Codex in this workspace', argumentHint: '' },
+  { name: 'plan', description: 'Switch to Plan mode or outline a plan for a task', argumentHint: '[task]' },
+  { name: 'fork', description: 'Fork the current chat into a new thread', argumentHint: '' },
+  { name: 'undo', description: 'Undo the last turn in the current thread', argumentHint: '' },
+  { name: 'rename', description: 'Rename the current thread', argumentHint: '<name>' },
+  {
+    name: 'goal',
+    description: 'Set a goal to work toward until it is completed',
+    argumentHint: '<goal>',
+    builtin: true
+  }
+]
+
+const CodexSkillsListSchema = z.object({
+  data: z.array(
+    z.object({
+      skills: z.array(
+        z.object({
+          name: z.string(),
+          description: z.string().optional(),
+          shortDescription: z.string().optional(),
+          path: z.string(),
+          enabled: z.boolean().optional()
+        })
+      )
+    })
+  )
+})
 
 const RpcSchema = z.object({
   id: z.union([z.string(), z.number()]).optional(),
@@ -36,16 +85,56 @@ export class CodexConnection extends LocalConnection {
   private process?: ChildProcess
   private lines?: Interface
   private nextId = 0
+  private cwd = ''
   private threadId?: string
   private turnId?: string
+  private compacting = false
+  private readonly turnHistory: string[] = []
   private usageBaseline?: z.infer<typeof TokenUsageSchema>
+  private lastTokenUsage?: z.infer<typeof TokenUsageSchema>
+  private skillsLoaded = false
+  private readonly skillByName = new Map<string, { name: string; path: string; description: string }>()
   private readonly approvalItems = new Map<string, z.infer<typeof ItemSchema>>()
   private readonly pending = new Map<
     number,
     { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
   >()
 
+  override async getSupportedCommands(): Promise<AgentSessionSlashCommand[] | null> {
+    if (!this.skillsLoaded && !this.closed && this.threadId) {
+      this.skillsLoaded = true
+      try {
+        const parsed = CodexSkillsListSchema.safeParse(
+          await this.request('skills/list', { cwds: this.cwd ? [this.cwd] : [] })
+        )
+        if (parsed.success) {
+          const seen = new Set(CODEX_SUPPORTED_COMMANDS.map((cmd) => cmd.name))
+          const dynamicSkillCommands: AgentSessionSlashCommand[] = []
+          for (const entry of parsed.data.data) {
+            for (const skill of entry.skills) {
+              if (skill.enabled === false) continue
+              const description = (skill.shortDescription || skill.description || '').trim()
+              this.skillByName.set(skill.name, { name: skill.name, path: skill.path, description })
+              if (seen.has(skill.name)) continue
+              seen.add(skill.name)
+              dynamicSkillCommands.push({
+                name: skill.name,
+                description,
+                argumentHint: ''
+              })
+            }
+          }
+          this.supportedCommands = [...CODEX_SUPPORTED_COMMANDS, ...dynamicSkillCommands]
+        }
+      } catch {
+        // Keep built-in Codex commands if skills/list is unsupported by an older binary.
+      }
+    }
+    return this.supportedCommands
+  }
+
   async start(cwd: string, resume?: string, probe: boolean | 'models' = false): Promise<this> {
+    this.cwd = cwd
     const launch = await resolveLocalAgentLaunch(this.config, this.abort.signal)
     this.abort.signal.throwIfAborted()
     const child = crossPlatformSpawn(launch.executable, launch.args, {
@@ -93,16 +182,24 @@ export class CodexConnection extends LocalConnection {
     } while (cursor)
     this.localSessionInfo.models = models.map((model) => ({ id: model.model ?? model.id, name: model.displayName }))
     if (probe === 'models') return this
-    const response = await this.request(resume ? 'thread/resume' : 'thread/start', {
-      ...(resume ? { threadId: resume } : {}),
+    const threadParams = {
       cwd,
       ...(this.config.nativeModel ? { model: this.config.nativeModel } : {})
-    })
+    }
+    const response = resume
+      ? await this.request('thread/resume', { threadId: resume, ...threadParams }).catch(async (error: unknown) => {
+          if (error instanceof Error && /no rollout found/i.test(error.message)) {
+            return await this.request('thread/start', threadParams)
+          }
+          throw error
+        })
+      : await this.request('thread/start', threadParams)
     const nativeModel = z.object({ model: z.string().optional() }).parse(response).model
     if (nativeModel) this.localSessionInfo.activeModel = { id: nativeModel }
     const selected = models.find((model) => (model.model ?? model.id) === nativeModel)
     this.localSessionInfo.images = selected ? (selected.inputModalities ?? ['text', 'image']).includes('image') : false
     this.threadId = ThreadSchema.parse(response).thread.id
+    this.supportedCommands = CODEX_SUPPORTED_COMMANDS
     this.events.push({ type: 'resume-token', token: this.threadId })
     return this
   }
@@ -225,6 +322,7 @@ export class CodexConnection extends LocalConnection {
       const parsed = TokenUsageUpdateSchema.safeParse(params.tokenUsage)
       if (!parsed.success || !this.threadId) return
       const { total, last } = parsed.data
+      this.lastTokenUsage = total
       // Codex totals span the thread; last covers only the latest model request.
       this.usageBaseline ??= Object.fromEntries(
         Object.entries(total).map(([key, value]) => [key, value - (last[key as keyof typeof last] ?? 0)])
@@ -254,6 +352,18 @@ export class CodexConnection extends LocalConnection {
     }
     if (message.method === 'item/started' || message.method === 'item/completed') {
       const item = ItemSchema.parse(params.item)
+      if (item.type === 'contextCompaction') {
+        if (message.method === 'item/started' && !this.compacting) {
+          this.compacting = true
+          this.events.push({ type: 'compaction-start' })
+        } else if (message.method === 'item/completed') {
+          if (this.compacting) {
+            this.compacting = false
+            this.events.push({ type: 'compaction-complete' })
+          }
+          this.content('Conversation context compacted.')
+        }
+      }
       if (message.method === 'item/completed') this.approvalItems.delete(item.id)
       else if (item.type === 'commandExecution' || item.type === 'fileChange') this.approvalItems.set(item.id, item)
       if (
@@ -267,11 +377,27 @@ export class CodexConnection extends LocalConnection {
           this.result(item.id, item, item.status === 'failed' || item.status === 'declined')
       }
     }
+    if (message.method === 'thread/compacted') {
+      if (this.compacting) {
+        this.compacting = false
+        this.events.push({ type: 'compaction-complete' })
+      }
+    }
     if (message.method === 'turn/completed') {
       const turn = z
-        .object({ status: z.string(), error: z.object({ message: z.string() }).nullish() })
+        .object({ id: z.string().optional(), status: z.string(), error: z.object({ message: z.string() }).nullish() })
         .parse(params.turn)
+      const finishedTurnId = turn.id ?? this.turnId
+      if (finishedTurnId && turn.status === 'completed') this.turnHistory.push(finishedTurnId)
       this.turnId = undefined
+      if (this.compacting) {
+        this.compacting = false
+        this.events.push(
+          turn.status === 'failed'
+            ? { type: 'compaction-error', error: turn.error?.message ?? 'Codex compaction failed' }
+            : { type: 'compaction-complete' }
+        )
+      }
       this.finish(
         turn.status === 'failed' ? new Error(turn.error?.message ?? 'Codex turn failed') : undefined,
         turn.status === 'interrupted' ? 'cancelled' : 'stop'
@@ -282,17 +408,192 @@ export class CodexConnection extends LocalConnection {
   }
   async send(input: AgentRuntimeUserInput) {
     const content = await localContent(input, this.localSessionInfo.images)
+    const textOnly = content.length === 1 && content[0]?.type === 'text' ? content[0].text.trim() : undefined
     this.approvalItems.clear()
     this.usageBaseline = undefined
     this.begin()
     try {
+      if (textOnly === '/clear' || textOnly === '/new') {
+        const response = await this.request('thread/start', {
+          cwd: this.cwd,
+          ...(this.config.nativeModel ? { model: this.config.nativeModel } : {})
+        })
+        this.threadId = ThreadSchema.parse(response).thread.id
+        this.lastTokenUsage = undefined
+        this.turnHistory.length = 0
+        this.events.push({ type: 'resume-token', token: this.threadId })
+        this.content('Started a new conversation with empty context.')
+        this.finish()
+        return
+      }
+      if (textOnly && /^\/compact(?:\s|$)/i.test(textOnly)) {
+        this.compacting = true
+        this.events.push({ type: 'compaction-start' })
+        try {
+          await this.request('thread/compact/start', { threadId: this.threadId })
+        } catch (error) {
+          this.compacting = false
+          if (error instanceof Error && /no rollout found/i.test(error.message)) {
+            this.events.push({ type: 'compaction-complete' })
+            this.content('Nothing to compact yet — send a message first.')
+            this.finish()
+            return
+          }
+          this.events.push({
+            type: 'compaction-error',
+            error: error instanceof Error ? error.message : String(error)
+          })
+          this.finish(error)
+        }
+        return
+      }
+      if (textOnly === '/usage' || textOnly === '/status') {
+        const usageResult = await this.request('account/usage/read', { threadId: this.threadId }).catch(() => null)
+        const lines: string[] = []
+        if (textOnly === '/status') {
+          lines.push(`Thread ID: ${this.threadId ?? 'unknown'}`)
+          lines.push(`Working directory: ${this.cwd || 'unknown'}`)
+        }
+        if (this.localSessionInfo.activeModel?.id) lines.push(`Model: ${this.localSessionInfo.activeModel.id}`)
+        if (this.lastTokenUsage) {
+          lines.push(
+            `Thread tokens: ${this.lastTokenUsage.totalTokens} total (${this.lastTokenUsage.inputTokens} input, ${this.lastTokenUsage.outputTokens} output, ${this.lastTokenUsage.cachedInputTokens} cached)`
+          )
+        } else if (usageResult && typeof usageResult === 'object') {
+          lines.push(`Usage: ${JSON.stringify(usageResult)}`)
+        } else {
+          lines.push('No token usage recorded for this session yet.')
+        }
+        this.content(lines.join('\n'))
+        this.finish()
+        return
+      }
+      if (textOnly && /^\/review(?:\s|$)/i.test(textOnly)) {
+        const instructions = textOnly.slice('/review'.length).trim()
+        await this.request('review/start', {
+          threadId: this.threadId,
+          target: instructions ? { type: 'custom', instructions } : { type: 'uncommittedChanges' }
+        })
+        return
+      }
+      if (textOnly === '/diff') {
+        const diffResult = await this.request('gitDiffToRemote', { cwd: this.cwd }).catch(() => null)
+        let diff =
+          diffResult && typeof diffResult === 'object' && 'diff' in diffResult && typeof diffResult.diff === 'string'
+            ? diffResult.diff.trim()
+            : ''
+        if (!diff) {
+          const execResult = await this.request('command/exec', {
+            command: ['git', 'status', '--short'],
+            cwd: this.cwd
+          }).catch(() => null)
+          if (
+            execResult &&
+            typeof execResult === 'object' &&
+            'stdout' in execResult &&
+            typeof execResult.stdout === 'string'
+          ) {
+            diff = execResult.stdout.trim()
+          }
+        }
+        this.content(diff ? `\`\`\`diff\n${diff}\n\`\`\`` : 'No git diff reported.')
+        this.finish()
+        return
+      }
+      if (textOnly === '/mcp') {
+        const mcpResult = await this.request('mcpServerStatus/list', {}).catch(() => null)
+        const servers =
+          mcpResult && typeof mcpResult === 'object' && 'data' in mcpResult && Array.isArray(mcpResult.data)
+            ? (mcpResult.data as Array<{ name?: string; tools?: Record<string, unknown>; authStatus?: string }>)
+            : []
+        this.content(
+          servers.length > 0
+            ? servers
+                .map(
+                  (s) =>
+                    `- **${s.name ?? 'server'}**: ${Object.keys(s.tools ?? {}).length} tools (${s.authStatus ?? 'ready'})`
+                )
+                .join('\n')
+            : 'No MCP servers configured in Codex.'
+        )
+        this.finish()
+        return
+      }
+      if (textOnly === '/skills') {
+        await this.getSupportedCommands()
+        this.content(
+          this.skillByName.size > 0
+            ? [...this.skillByName.values()]
+                .map((s) => `- **/${s.name}**${s.description ? `: ${s.description}` : ''}`)
+                .join('\n')
+            : 'No Codex skills discovered in this workspace.'
+        )
+        this.finish()
+        return
+      }
+      if (textOnly && /^\/rename(?:\s|$)/i.test(textOnly)) {
+        const name = textOnly.slice('/rename'.length).trim()
+        if (name && this.threadId) {
+          await this.request('thread/name/set', { threadId: this.threadId, name }).catch((error: unknown) => {
+            if (error instanceof Error && /no rollout found/i.test(error.message)) return null
+            throw error
+          })
+          this.events.push({ type: 'session-title', title: name })
+          this.content(`Renamed thread to "${name}".`)
+        } else {
+          this.content('Usage: /rename <name>')
+        }
+        this.finish()
+        return
+      }
+      if (textOnly === '/fork' && this.threadId) {
+        try {
+          const response = await this.request('thread/fork', { threadId: this.threadId })
+          this.threadId = ThreadSchema.parse(response).thread.id
+          this.events.push({ type: 'resume-token', token: this.threadId })
+          this.content(`Forked into thread ${this.threadId}.`)
+        } catch (error) {
+          if (error instanceof Error && /no rollout found/i.test(error.message)) {
+            this.content('Send at least one message before forking this conversation.')
+          } else {
+            throw error
+          }
+        }
+        this.finish()
+        return
+      }
+      if (textOnly === '/undo' && this.threadId) {
+        const beforeTurnId = this.turnHistory.pop()
+        if (!beforeTurnId) {
+          this.content('No previous turn to undo in this session.')
+        } else {
+          await this.request('thread/revert', { threadId: this.threadId, beforeTurnId })
+          this.content('Reverted the last turn.')
+        }
+        this.finish()
+        return
+      }
+      const skillMatch = textOnly?.match(/^\/([^\s]+)(?:\s+([\s\S]*))?$/)
+      const matchedSkill = skillMatch ? this.skillByName.get(skillMatch[1]) : undefined
+      const rewrittenText =
+        textOnly && /^\/init(?:\s|$)/i.test(textOnly)
+          ? `Create or update an AGENTS.md file with project architecture, build/test commands, and conventions. ${textOnly.slice('/init'.length).trim()}`.trim()
+          : textOnly && /^\/plan(?:\s|$)/i.test(textOnly)
+            ? `First outline a clear step-by-step plan before making changes: ${textOnly.slice('/plan'.length).trim()}`.trim()
+            : matchedSkill
+              ? skillMatch?.[2]?.trim() || `Use the ${matchedSkill.name} skill.`
+              : undefined
+
       await this.request('turn/start', {
         threadId: this.threadId,
-        input: content.map((part) =>
-          part.type === 'image'
-            ? { type: 'image', url: `data:${part.mimeType};base64,${part.data}` }
-            : { type: 'text', text: part.text, text_elements: [] }
-        )
+        input: [
+          ...(matchedSkill ? [{ type: 'skill', name: matchedSkill.name, path: matchedSkill.path }] : []),
+          ...content.map((part) =>
+            part.type === 'image'
+              ? { type: 'image', url: `data:${part.mimeType};base64,${part.data}` }
+              : { type: 'text', text: rewrittenText ?? part.text, text_elements: [] }
+          )
+        ]
       })
     } catch (error) {
       this.finish(error)

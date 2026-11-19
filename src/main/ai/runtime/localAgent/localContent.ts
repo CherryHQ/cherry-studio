@@ -18,7 +18,10 @@ type LocalContent = { type: 'text'; text: string } | { type: 'image'; mimeType: 
 
 export async function localContent(input: AgentRuntimeUserInput, images: boolean): Promise<LocalContent[]> {
   const content: LocalContent[] = []
-  for (const part of input.message.data.parts ?? []) content.push(await localPartContent(part, images))
+  for (const part of input.message.data.parts ?? []) {
+    if (part.type === 'data-cherry-knowledge-scope') continue
+    content.push(await localPartContent(part, images))
+  }
   return content
 }
 
@@ -57,6 +60,7 @@ export async function acpContent(
 ): Promise<ContentBlock[]> {
   const content: ContentBlock[] = []
   for (const [index, part] of (input.message.data.parts ?? []).entries()) {
+    if (part.type === 'data-cherry-knowledge-scope') continue
     if (part.type === 'file' && part.mediaType.startsWith('audio/')) {
       if (capabilities.audio !== true) throw new Error(t('agent.session.attachment.audio_unsupported'))
       content.push({ type: 'audio', ...(await inlineFileContent(part)) })

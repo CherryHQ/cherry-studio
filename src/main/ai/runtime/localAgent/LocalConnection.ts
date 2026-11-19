@@ -7,6 +7,7 @@ import type { FinishReason, UIMessageChunk } from 'ai'
 import { agentService } from '@data/services/AgentService'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
+import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { LocalAgentConfiguration, LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import { AsyncEventQueue } from '@shared/utils/async'
 
@@ -21,6 +22,7 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
   readonly sessionCostScope = 'native-session' as const
   readonly events = new AsyncEventQueue<AgentRuntimeEvent>()
   readonly localSessionInfo: LocalAgentSessionInfo = { models: [], images: false, resume: false }
+  protected supportedCommands: AgentSessionSlashCommand[] | null = null
   protected readonly abort = new AbortController()
   protected turnAbort = new AbortController()
   private contentPart?: { type: 'text' | 'reasoning'; id: string }
@@ -39,6 +41,15 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
 
   abstract send(input: AgentRuntimeUserInput): Promise<void>
   protected abstract stop(): Promise<void>
+
+  async getSupportedCommands(): Promise<AgentSessionSlashCommand[] | null> {
+    return this.supportedCommands
+  }
+
+  protected publishCommands(commands: AgentSessionSlashCommand[]) {
+    this.supportedCommands = commands
+    this.events.push({ type: 'supported-commands', commands })
+  }
 
   close(): Promise<void> {
     this.closed = true

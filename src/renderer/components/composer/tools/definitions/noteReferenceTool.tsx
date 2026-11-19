@@ -181,7 +181,6 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
 
 const noteReferenceTool = defineTool({
   key: NOTE_REFERENCE_LAUNCHER_ID,
-  condition: ({ session }) => session?.agentType !== 'local',
   label: (t) => t('chat.input.note_reference.title'),
   visibleInScopes: [TopicType.Chat, TopicType.Session],
   dependencies: {

@@ -43,14 +43,18 @@ vi.mock('@renderer/hooks/useMcpServer', () => ({
 }))
 
 describe('composer tool visibility', () => {
-  it('offers local attachments and native commands without exposing Cherry resource injection', () => {
+  it('offers local attachments, native commands, and Cherry composer operations for local sessions', () => {
     const tools = getToolsForScope(TopicType.Session, { session: { agentId: 'local', agentType: 'local' } }).map(
       (tool) => tool.key
     )
     expect(tools).toContain('attachment')
     expect(tools).toContain('dictation')
-    expect(tools).not.toContain('knowledge_base')
-    expect(tools).not.toContain('mcp_status')
-    expect(tools).not.toContain('permission_mode')
+    expect(tools).toContain('knowledge_base')
+    expect(tools).toContain('mcp_status')
+    expect(tools).toContain('mcp_prompts')
+    expect(tools).toContain('mcp_resources')
+    expect(tools).toContain('note-reference')
+    expect(tools).toContain('permission_mode')
+    expect(tools).toContain('slash_commands')
   })
 })

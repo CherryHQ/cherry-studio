@@ -164,7 +164,10 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
   )
 
   const availableTools = useMemo(() => {
-    return getToolsForScope(scope, { assistant, model, session }).filter((tool) => model || tool.availableWithoutModel)
+    const hasRuntimeModel = Boolean(model || session?.agentType === 'local')
+    return getToolsForScope(scope, { assistant, model, session }).filter(
+      (tool) => hasRuntimeModel || tool.availableWithoutModel
+    )
   }, [assistant, model, scope, session])
 
   const getLauncherApiForTool = useCallback(

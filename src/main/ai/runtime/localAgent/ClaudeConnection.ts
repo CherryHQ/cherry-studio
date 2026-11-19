@@ -4,6 +4,7 @@ import { query, type Query, type SDKUserMessage } from '@anthropic-ai/claude-age
 import type { FinishReason } from 'ai'
 
 import { crossPlatformSpawn } from '@main/utils/processRunner'
+import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import { AsyncEventQueue } from '@shared/utils/async'
 
 import { ClaudeCodeStreamAdapter } from '../claudeCode'
@@ -12,12 +13,78 @@ import { resolveLocalAgentLaunch } from './launch'
 import { LocalConnection } from './LocalConnection'
 import { localContent } from './localContent'
 
+const CLAUDE_DEFAULT_COMMANDS: AgentSessionSlashCommand[] = [
+  { name: 'clear', description: 'Start a new conversation with empty context', argumentHint: '', builtin: true },
+  {
+    name: 'compact',
+    description: 'Free up context by summarizing the conversation so far',
+    argumentHint: '',
+    builtin: true
+  },
+  {
+    name: 'context',
+    description: 'Visualize current context usage as a colored grid',
+    argumentHint: '',
+    builtin: true
+  },
+  {
+    name: 'usage',
+    description: 'Show session cost, plan usage limits, and activity stats',
+    argumentHint: '',
+    builtin: true
+  },
+  {
+    name: 'goal',
+    description: 'Set a goal to work toward until it is completed',
+    argumentHint: '<goal>',
+    builtin: true
+  }
+]
+
+const UNSUPPORTED_CLAUDE_SLASH_COMMANDS = new Set([
+  '__remote-workflow',
+  'workflow-launch-exec',
+  'auto-mode-setup',
+  'color',
+  'design-consent',
+  'design-revoke',
+  'effort',
+  'fast',
+  'focus',
+  'heapdump',
+  'ultraplan',
+  'voice'
+])
+
+function filterClaudeSlashCommands(commands: AgentSessionSlashCommand[]): AgentSessionSlashCommand[] {
+  return commands.filter((command) => !UNSUPPORTED_CLAUDE_SLASH_COMMANDS.has(command.name))
+}
+
 export class ClaudeConnection extends LocalConnection {
   private readonly processes = new Set<ChildProcess>()
   private query?: Query
   private resume?: string
   private cwd = ''
   private launch?: Awaited<ReturnType<typeof resolveLocalAgentLaunch>>
+  private dynamicCommandsLoaded = false
+
+  override async getSupportedCommands(): Promise<AgentSessionSlashCommand[] | null> {
+    if (!this.dynamicCommandsLoaded && !this.closed && this.launch) {
+      this.dynamicCommandsLoaded = true
+      const input = new AsyncEventQueue<SDKUserMessage>()
+      const stream = this.createQuery(input)
+      try {
+        const commands = filterClaudeSlashCommands(await stream.supportedCommands())
+        if (commands.length > 0) this.supportedCommands = commands
+      } catch {
+        // Fall back to default built-in commands if the probe query fails.
+      } finally {
+        input.close()
+        stream.close()
+      }
+    }
+    return this.supportedCommands
+  }
 
   async start(cwd: string, resume?: string, probe: boolean | 'models' = false): Promise<this> {
     this.cwd = cwd
@@ -38,6 +105,8 @@ export class ClaudeConnection extends LocalConnection {
         input.close()
         stream.close()
       }
+    } else {
+      this.supportedCommands = CLAUDE_DEFAULT_COMMANDS
     }
     this.localSessionInfo.resume = true
     this.localSessionInfo.images = true
@@ -136,11 +205,35 @@ export class ClaudeConnection extends LocalConnection {
     try {
       stream = this.createQuery(messages)
       this.query = stream
-      this.events.push({ type: 'supported-commands', commands: await stream.supportedCommands() })
+      const commands = filterClaudeSlashCommands(await stream.supportedCommands())
+      if (commands.length > 0) this.publishCommands(commands)
       this.localSessionInfo.models = (await stream.supportedModels()).map((m) => ({ id: m.value, name: m.displayName }))
       for await (const message of stream) {
-        if (message.type === 'assistant' && !message.parent_tool_use_id)
+        if (
+          message.type === 'assistant' &&
+          !message.parent_tool_use_id &&
+          message.message.model &&
+          message.message.model !== '<synthetic>'
+        ) {
           this.localSessionInfo.activeModel = { id: message.message.model }
+        }
+        if (
+          message.type === 'system' &&
+          'subtype' in message &&
+          (message as { subtype?: string }).subtype === 'session_title_changed' &&
+          'title' in message &&
+          typeof (message as { title?: unknown }).title === 'string'
+        ) {
+          this.events.push({ type: 'session-title', title: (message as { title: string }).title })
+          continue
+        }
+        if (
+          message.type === 'result' &&
+          'local_command' in message &&
+          (message as { local_command?: string }).local_command === 'clear'
+        ) {
+          this.content('Started a new conversation with empty context.')
+        }
         if (adapter.handleMessage(message).type === 'result') {
           completed = true
           break

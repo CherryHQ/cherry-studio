@@ -218,4 +218,19 @@ describe('native Claude protocol mapping', () => {
     expect(chunks.some((chunk) => chunk.type === 'finish')).toBe(false)
     expect(events.some((event) => event.type === 'turn-complete')).toBe(false)
   })
+
+  it('exposes builtin slash commands on start before the first turn', async () => {
+    const connection = new ClaudeConnection('session', 'agent', {
+      protocol: 'claude',
+      enabled: true,
+      args: [],
+      env: {}
+    })
+    await connection.start('/tmp')
+    const commands = await connection.getSupportedCommands()
+    expect(commands?.map((cmd) => cmd.name)).toEqual(
+      expect.arrayContaining(['clear', 'compact', 'context', 'usage', 'goal'])
+    )
+    await connection.close()
+  })
 })

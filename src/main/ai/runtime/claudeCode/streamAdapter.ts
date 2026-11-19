@@ -683,6 +683,12 @@ export class ClaudeCodeStreamAdapter {
       case 'user':
         this.handleUserMessage(message, this.ctx)
         return { type: 'continue' }
+      case 'conversation_reset':
+        this.setSessionId(message.new_conversation_id || message.session_id)
+        if (!this.ctx.accumulatedText && !this.ctx.textPartId) {
+          this.ctx.accumulatedText = 'Started a new conversation with empty context.'
+        }
+        return { type: 'continue' }
       case 'result':
         this.handleResultMessage(message, this.ctx)
         this.detachFlowContexts()
@@ -1366,11 +1372,15 @@ export class ClaudeCodeStreamAdapter {
       case 'api_retry':
         this.handleApiRetrySystemMessage(message)
         return
+      case 'local_command_output':
+        if (this.turnActive && message.content.trim()) {
+          ctx.accumulatedText = ctx.accumulatedText ? `${ctx.accumulatedText}\n${message.content}` : message.content
+        }
+        return
       case 'hook_started':
       case 'hook_progress':
       case 'hook_response':
       case 'memory_recall':
-      case 'local_command_output':
       case 'elicitation_complete':
       case 'files_persisted':
       case 'mirror_error':

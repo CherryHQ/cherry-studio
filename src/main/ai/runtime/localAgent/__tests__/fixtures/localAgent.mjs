@@ -443,8 +443,61 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   } else if (method === 'model/list') {
     reply(id, { data: [{ id: 'fixture-model', displayName: 'Fixture model' }], nextCursor: null })
   } else if (method === 'thread/start' || method === 'thread/resume') {
+    if (method === 'thread/resume' && scenario === 'no-rollout') {
+      return emit({ id, error: { code: -32600, message: `no rollout found for thread id ${message.params.threadId}` } })
+    }
     cwd = message.params.cwd
     reply(id, { thread: { id: 'native-session' }, model: 'fixture-model' })
+  } else if (method === 'thread/name/set' || method === 'thread/fork') {
+    if (scenario === 'no-rollout' && turn === 0) {
+      return emit({ id, error: { code: -32600, message: `no rollout found for thread id ${message.params.threadId}` } })
+    }
+    reply(id, method === 'thread/fork' ? { thread: { id: 'forked-session' } } : {})
+  } else if (method === 'thread/compact/start') {
+    if (scenario === 'no-rollout' && turn === 0) {
+      return emit({ id, error: { code: -32600, message: `no rollout found for thread id ${message.params.threadId}` } })
+    }
+    promptId = id
+    turn++
+    reply(id, {})
+    emit({ method: 'turn/started', params: { threadId: 'native-session', turn: { id: 'compact-turn' } } })
+    emit({
+      method: 'item/started',
+      params: {
+        threadId: 'native-session',
+        turnId: 'compact-turn',
+        item: { id: 'compact-item', type: 'contextCompaction' }
+      }
+    })
+    emit({
+      method: 'item/completed',
+      params: {
+        threadId: 'native-session',
+        turnId: 'compact-turn',
+        item: { id: 'compact-item', type: 'contextCompaction' }
+      }
+    })
+    finish()
+  } else if (method === 'skills/list') {
+    reply(id, {
+      data: [
+        {
+          cwd: cwd ?? '/tmp',
+          skills: [
+            { name: 'repo-skill', description: 'Repository skill from Codex', path: '/tmp/SKILL.md', enabled: true }
+          ]
+        }
+      ]
+    })
+  } else if (method === 'account/usage/read') {
+    reply(id, { summary: { totalTokens: 500 } })
+  } else if (method === 'review/start') {
+    promptId = id
+    turn++
+    reply(id, {})
+    emit({ method: 'turn/started', params: { threadId: 'native-session', turn: { id: 'turn' } } })
+    text(`review: ${JSON.stringify(message.params.target)}`)
+    finish()
   } else if (method === 'session/prompt' || method === 'turn/start') {
     if (thoughtPending)
       return emit({ id, error: { code: -32603, message: 'Prompt arrived before configuration settled' } })

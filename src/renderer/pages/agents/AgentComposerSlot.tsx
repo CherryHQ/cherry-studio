@@ -72,12 +72,15 @@ function AgentComposerSlot({
   steerWhileBusy
 }: AgentComposerSlotProps) {
   const binary = useClaudeCodeBinary(activeAgent?.type === 'claude-code')
+  const isReadyToPrewarm =
+    (activeAgent?.type === 'claude-code' && binary.status?.phase === 'ready') ||
+    (activeAgent?.type === 'local' && Boolean(activeAgent.configuration?.localRuntime?.enabled))
   useEffect(() => {
-    if (activeAgent?.type !== 'claude-code' || binary.status?.phase !== 'ready') return
+    if (!isReadyToPrewarm) return
     void ipcApi.request('ai.agent.session.prewarm', { sessionId }).catch((error) => {
-      logger.warn('Failed to warm installed Claude runtime', { error })
+      logger.warn('Failed to warm installed agent runtime', { error })
     })
-  }, [activeAgent?.type, binary.status?.phase, sessionId])
+  }, [isReadyToPrewarm, sessionId])
   const compactWhenSingleLine = useRightPanelPresentationMaximized()
   const rightPaneActions = useOptionalAgentRightPaneActions()
   const { t } = useTranslation()

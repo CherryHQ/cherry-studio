@@ -777,14 +777,13 @@ export class AcpConnection extends LocalConnection {
       this.publishTool(update.toolCallId, tool)
     }
     if (update.sessionUpdate === 'available_commands_update')
-      this.events.push({
-        type: 'supported-commands',
-        commands: update.availableCommands.map((c) => ({
+      this.publishCommands(
+        update.availableCommands.map((c) => ({
           name: c.name,
           description: c.description,
           argumentHint: c.input?.hint ?? ''
         }))
-      })
+      )
   }
   private publishTool(id: string, tool: LocalAcpTool) {
     if (!this.active) return

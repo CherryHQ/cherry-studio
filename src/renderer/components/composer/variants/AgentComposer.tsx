@@ -707,13 +707,13 @@ const AgentComposerInner = ({
     loading: isAvailableSkillsLoading,
     error: availableSkillsError,
     refresh: refreshAvailableSkills
-  } = useAvailableSkills(agentId, userWorkspacePath, { enabled: skillsDataEnabled && agent?.type !== 'local' })
+  } = useAvailableSkills(agentId, userWorkspacePath, { enabled: skillsDataEnabled })
   const skillByFilename = useMemo(
     () => new Map(availableSkills.map((skill) => [skill.filename, skill])),
     [availableSkills]
   )
   const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases({
-    enabled: knowledgeBasesDataEnabled && agent?.type !== 'local'
+    enabled: knowledgeBasesDataEnabled
   })
 
   const fileCapabilities = useComposerFileCapabilities(model)
@@ -1042,11 +1042,8 @@ const AgentComposerInner = ({
   }, [refreshAvailableSkills, skillItems, skillLabel])
 
   useEffect(
-    () =>
-      agent?.type === 'local'
-        ? undefined
-        : toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher], [skillManageFooterAction]),
-    [agent?.type, skillManageFooterAction, skillsLauncher, toolsRegistry]
+    () => toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher], [skillManageFooterAction]),
+    [skillManageFooterAction, skillsLauncher, toolsRegistry]
   )
 
   // Keep an already-open skills submenu in sync once a refresh resolves — the launcher action opens
@@ -1064,11 +1061,10 @@ const AgentComposerInner = ({
   )
 
   const handleRootPanelOpen = useCallback(() => {
-    if (agent?.type === 'local') return
     void refreshAvailableSkills().catch((error) => {
       logger.warn('Failed to refresh available skills when opening root panel', { error })
     })
-  }, [agent?.type, refreshAvailableSkills])
+  }, [refreshAvailableSkills])
 
   useComposerQuoteInsertion(actionsRef)
   useComposerSelectionReferenceInsertion(actionsRef, sessionTopicId)
@@ -1591,64 +1587,54 @@ const AgentComposerInner = ({
     const newSessionLabel = t('agent.session.new')
     const skillLabel = t('plugins.skills')
     const slashCommandsLabel = t('chat.input.slash_commands.title')
-    return (
-      [
-        ...(screenshotEnabled
-          ? [
-              {
-                id: 'composer:screenshot',
-                label: t('settings.shortcuts.screenshot_capture'),
-                icon: <ScanLine size={18} />,
-                requiresPanel: false,
-                availableWithoutModel: true,
-                onSelect: startScreenshot
-              }
-            ]
-          : []),
-        ...(hasNewSessionAction
-          ? [
-              {
-                id: AGENT_NEW_SESSION_TOOL_ID,
-                label: newSessionLabel,
-                icon: <NewConversationIcon size={18} aria-hidden />,
-                customizePlacement: 'leading' as const,
-                requiresPanel: false,
-                onSelect: () => handleCreateEmptySession()
-              }
-            ]
-          : []),
-        {
-          id: 'skills',
-          label: skillLabel,
-          icon: <ToolCase size={18} aria-hidden />,
-          onSelect: ({ unifiedPanelControl }) =>
-            unifiedPanelControl?.open({ launcherId: AGENT_SKILLS_LAUNCHER_ID, searchText: skillLabel })
-        },
-        {
-          id: 'slash-commands',
-          label: slashCommandsLabel,
-          icon: <Terminal size={18} aria-hidden />,
-          onSelect: ({ unifiedPanelControl }) => unifiedPanelControl?.open({ searchText: slashCommandsLabel })
-        },
-        {
-          id: ComposerPanelSymbol.McpStatus,
-          label: 'MCP',
-          icon: <McpLogo width={18} height={18} aria-hidden />,
-          active: mcpToolbarActive,
-          onSelect: ({ unifiedPanelControl }) =>
-            unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
-        }
-      ] satisfies ComposerToolbarCustomTool[]
-    ).filter((tool) => agent?.type !== 'local' || !['skills', ComposerPanelSymbol.McpStatus].includes(tool.id))
-  }, [
-    agent?.type,
-    handleCreateEmptySession,
-    hasNewSessionAction,
-    mcpToolbarActive,
-    screenshotEnabled,
-    startScreenshot,
-    t
-  ])
+    return [
+      ...(screenshotEnabled
+        ? [
+            {
+              id: 'composer:screenshot',
+              label: t('settings.shortcuts.screenshot_capture'),
+              icon: <ScanLine size={18} />,
+              requiresPanel: false,
+              availableWithoutModel: true,
+              onSelect: startScreenshot
+            }
+          ]
+        : []),
+      ...(hasNewSessionAction
+        ? [
+            {
+              id: AGENT_NEW_SESSION_TOOL_ID,
+              label: newSessionLabel,
+              icon: <NewConversationIcon size={18} aria-hidden />,
+              customizePlacement: 'leading' as const,
+              requiresPanel: false,
+              onSelect: () => handleCreateEmptySession()
+            }
+          ]
+        : []),
+      {
+        id: 'skills',
+        label: skillLabel,
+        icon: <ToolCase size={18} aria-hidden />,
+        onSelect: ({ unifiedPanelControl }) =>
+          unifiedPanelControl?.open({ launcherId: AGENT_SKILLS_LAUNCHER_ID, searchText: skillLabel })
+      },
+      {
+        id: 'slash-commands',
+        label: slashCommandsLabel,
+        icon: <Terminal size={18} aria-hidden />,
+        onSelect: ({ unifiedPanelControl }) => unifiedPanelControl?.open({ searchText: slashCommandsLabel })
+      },
+      {
+        id: ComposerPanelSymbol.McpStatus,
+        label: 'MCP',
+        icon: <McpLogo width={18} height={18} aria-hidden />,
+        active: mcpToolbarActive,
+        onSelect: ({ unifiedPanelControl }) =>
+          unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
+      }
+    ] satisfies ComposerToolbarCustomTool[]
+  }, [handleCreateEmptySession, hasNewSessionAction, mcpToolbarActive, screenshotEnabled, startScreenshot, t])
 
   const renderQuickPanelShortcuts = useCallback(
     ({
@@ -1665,7 +1651,6 @@ const AgentComposerInner = ({
         onResetPinnedIds={resetPinnedToolIds}
         isDefault={pinnedToolsAtDefault}
         customTools={toolbarCustomTools}
-        hiddenIds={agent?.type === 'local' ? ['knowledge-base', 'permission-mode'] : undefined}
         customizeOpen={customizeToolbarOpen}
         onCustomizeOpenChange={setCustomizeToolbarOpen}
         isModelUnavailable={isModelUnavailable}
@@ -1674,7 +1659,6 @@ const AgentComposerInner = ({
       />
     ),
     [
-      agent?.type,
       customizeToolbarOpen,
       isModelUnavailable,
       pinnedToolIds,

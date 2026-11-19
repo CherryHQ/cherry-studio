@@ -1680,4 +1680,89 @@ describe('local protocol processes', () => {
     const unsupported = create('acp', 'no-resume').connection
     await expect(unsupported.start(cwd, 'native-session')).rejects.toThrow('cannot restore')
   })
+
+  it('exposes and executes Codex native slash commands (/compact, /usage, /clear, /review)', async () => {
+    const { connection, events, text, drained } = create('codex')
+    await connection.start(cwd)
+    const commands = await connection.getSupportedCommands()
+    expect(commands?.map((cmd) => cmd.name)).toEqual(
+      expect.arrayContaining([
+        'clear',
+        'compact',
+        'usage',
+        'status',
+        'review',
+        'diff',
+        'init',
+        'mcp',
+        'skills',
+        'plan',
+        'fork',
+        'undo',
+        'rename',
+        'goal',
+        'repo-skill'
+      ])
+    )
+
+    await connection.send({
+      message: {
+        data: {
+          parts: [
+            { type: 'data-cherry-knowledge-scope', data: { knowledgeBaseIds: ['kb-1'] } },
+            { type: 'text', text: '/compact' }
+          ]
+        }
+      }
+    } as unknown as AgentRuntimeUserInput)
+    await vi.waitFor(() => expect(events).toContainEqual({ type: 'compaction-complete' }))
+    expect(events).toContainEqual({ type: 'compaction-start' })
+    await vi.waitFor(() => expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1))
+
+    await connection.send({
+      message: { data: { parts: [{ type: 'text', text: '/usage' }] } }
+    } as AgentRuntimeUserInput)
+    await vi.waitFor(() => expect(text()).toContain('totalTokens'))
+
+    await connection.send({
+      message: { data: { parts: [{ type: 'text', text: '/clear' }] } }
+    } as AgentRuntimeUserInput)
+
+    await connection.send({
+      message: { data: { parts: [{ type: 'text', text: '/review check security' }] } }
+    } as AgentRuntimeUserInput)
+    await vi.waitFor(() => expect(text()).toContain('check security'))
+
+    await connection.close()
+    await drained
+    const wire = await readWire()
+    expect(wire.map((msg) => msg.method)).toEqual(
+      expect.arrayContaining(['thread/compact/start', 'account/usage/read', 'review/start'])
+    )
+  })
+
+  it('recovers when Codex thread has no rollout file yet on resume, rename, compact, or fork', async () => {
+    const { connection, events, text, drained } = create('codex', 'no-rollout')
+    await connection.start(cwd, 'stale-prewarm-thread')
+    await vi.waitFor(() => expect(events).toContainEqual({ type: 'resume-token', token: 'native-session' }))
+
+    await connection.send({
+      message: { data: { parts: [{ type: 'text', text: '/rename Fresh Thread' }] } }
+    } as AgentRuntimeUserInput)
+    await vi.waitFor(() => expect(events).toContainEqual({ type: 'session-title', title: 'Fresh Thread' }))
+    await vi.waitFor(() => expect(text()).toContain('Renamed thread to "Fresh Thread"'))
+
+    await connection.send({
+      message: { data: { parts: [{ type: 'text', text: '/compact' }] } }
+    } as AgentRuntimeUserInput)
+    await vi.waitFor(() => expect(text()).toContain('Nothing to compact yet'))
+
+    await connection.send({
+      message: { data: { parts: [{ type: 'text', text: '/fork' }] } }
+    } as AgentRuntimeUserInput)
+    await vi.waitFor(() => expect(text()).toContain('Send at least one message before forking'))
+
+    await connection.close()
+    await drained
+  })
 })
