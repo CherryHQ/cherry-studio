@@ -4,7 +4,6 @@ import {
   Circle,
   CircleStop,
   Gauge,
-  FileText,
   FolderOpen,
   ListChecks,
   Loader2,
@@ -20,6 +19,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Button, T
 import { loggerService } from '@logger'
 import { CommandShortcut } from '@renderer/components/command'
 import { ComputerUseAppIcon } from '@renderer/components/ComputerUseAppIcon'
+import { FileIcon } from '@renderer/components/icons/FileIcon'
 import { OpenTargetButton } from '@renderer/components/OpenTarget'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
@@ -468,7 +468,7 @@ export function AgentSessionDetailsSections({
                 className="w-full min-w-0 justify-start text-xs"
                 title={artifact.path}
                 onClick={() => onOpenArtifact(artifact.path)}>
-                <FileText className="size-4 shrink-0" />
+                <FileIcon path={artifact.path} className="size-4 shrink-0" />
                 <span className="truncate">{artifact.name}</span>
               </Button>
             </li>

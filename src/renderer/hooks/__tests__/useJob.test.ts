@@ -1,7 +1,3 @@
-import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
-import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
 /**
  * Tests for useJob / useJobProgress after migrating to the read-only
  * useSharedCacheValue observer (issue #17050).
@@ -13,6 +9,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  *  - useJobProgress falls back to a reference-stable local EMPTY progress
  *    object instead of writing `{ progress: 0 }` back into the cache.
  */
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { act, renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { cacheService } from '@data/CacheService'
 
 import { useJob, useJobProgress } from '../useJob'

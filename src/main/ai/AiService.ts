@@ -46,6 +46,12 @@ import { t } from '@main/i18n'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CompactionSink } from '@shared/ai/compaction'
+import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
+import {
+  isSeedream5xTargetModel,
+  sanitizeSeedreamImageParams,
+  validateSeedreamImageParams
+} from '@shared/ai/seedreamImageContract'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
@@ -191,6 +197,23 @@ function resolveTextRetryPolicy(
     return configured
   }
   return { ...configured, enabled: true, maxAttempts: Math.max(1, Math.trunc(requestMaxRetries)), fallbackModelIds: [] }
+}
+
+function createCallerRetryWrap(
+  maxRetries: number | undefined,
+  onRetryEvent?: Parameters<typeof createRetryableWrap>[0]['onRetryEvent']
+): ReturnType<typeof createRetryableWrap> {
+  if (maxRetries === undefined || maxRetries <= 0) return undefined
+  return createRetryableWrap({
+    retryPolicy: {
+      ...readRetryPolicy(),
+      enabled: true,
+      maxAttempts: Math.max(1, Math.trunc(maxRetries)),
+      fallbackModelIds: []
+    },
+    fallbacks: [],
+    onRetryEvent
+  })
 }
 
 function createCaptureContext(input: {
@@ -751,7 +774,12 @@ export class AiService extends BaseService {
       ? (repairOptions: Parameters<NonNullable<typeof options.repairToolCall>>[0]) =>
           activeRepairToolCall!(repairOptions)
       : undefined
-    let wrapModel: ReturnType<typeof createRetryableWrap>
+    let wrapModel =
+      request.contextOwner === 'caller'
+        ? createCallerRetryWrap(request.requestOptions?.maxRetries, (event) =>
+            agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
+          )
+        : undefined
     if (!retryDisabledForRequest) {
       const apiKeyFallbacks = buildApiKeyFallbackModels({
         request,
@@ -938,7 +966,8 @@ export class AiService extends BaseService {
       : undefined
 
     // An explicit per-request `maxRetries: 0` disables retry for this request.
-    let wrapModel: ReturnType<typeof createRetryableWrap>
+    let wrapModel =
+      request.contextOwner === 'caller' ? createCallerRetryWrap(request.requestOptions?.maxRetries) : undefined
     if (request.contextOwner !== 'caller' && request.requestOptions?.maxRetries !== 0) {
       const apiKeyFallbacks = buildApiKeyFallbackModels({
         request,
@@ -1089,6 +1118,31 @@ export class AiService extends BaseService {
     )
   }
 
+  #applySeedream5xGate(params: ParamValues, model: Model, provider: Provider): ParamValues {
+    // Callers can bypass renderer validation, and numImages makes the SDK fan out requests.
+    if (isSeedream5xTargetModel(model.presetModelId ?? parseUniqueModelId(model.id).modelId)) {
+      if ((provider.presetProviderId ?? provider.id) === 'dmxapi') {
+        throw createPaintingGenerateError('REMOTE_ERROR', {
+          message: 'Seedream 5.5 is not supported through DMXAPI pending protocol verification'
+        })
+      }
+      const issue = validateSeedreamImageParams(params)
+      if (issue === 'size') {
+        throw createPaintingGenerateError('REMOTE_ERROR', {
+          message:
+            'Seedream 5.5 size must be 1K, 1.5K, or 2K, or positive integer WxH dimensions with 921600–4624220 pixels and an aspect ratio between 1:16 and 16:1; use only one size source'
+        })
+      }
+      if (issue === 'background-format') {
+        throw createPaintingGenerateError('REMOTE_ERROR', {
+          message: 'Seedream 5.5 transparent background requires PNG output'
+        })
+      }
+      return sanitizeSeedreamImageParams(params)
+    }
+    return params
+  }
+
   async generateImage(request: AsInProcess<AiImageRequest>): Promise<AiImageResult> {
     logger.info('generateImage started', { assistantId: request.assistantId, uniqueModelId: request.uniqueModelId })
     const signal = request.requestOptions?.signal
@@ -1102,7 +1156,7 @@ export class AiService extends BaseService {
     // fields the AI SDK call consumes (n/size/seed/aspectRatio → imageParams
     // below) vs the leftover vendor bag (cfg, the diffusion/openai knobs, …) the
     // WireProfile engine forwards.
-    const params = request.paramValues
+    const params = this.#applySeedream5xGate(request.paramValues, model, provider)
     const { structured, vendorBag } = splitParamValues(params)
     const inputImages = request.inputImages ? await normalizeImageEditInputs(request.inputImages, signal) : undefined
 
@@ -1590,6 +1644,7 @@ export class AiService extends BaseService {
             probeParams[key] = spec.default
           }
         }
+        const gatedProbeParams = this.#applySeedream5xGate(probeParams, model, provider)
         const transportProviderId = provider.presetProviderId ?? provider.id
         if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
           // Transport models run their submit/poll loop on the job system, whose
@@ -1624,7 +1679,7 @@ export class AiService extends BaseService {
                     mode: probeMode
                   }
                 : undefined,
-              providerParams: probeParams,
+              providerParams: gatedProbeParams,
               signal
             })
             // A successful submission proves connectivity; cancel to avoid a full probe generation.
@@ -1637,7 +1692,7 @@ export class AiService extends BaseService {
             ...probeRequest,
             prompt: 'a red circle',
             ...(editOnly && { mode: probeMode, inputImages: [PROBE_INPUT_IMAGE_DATA_URL] }),
-            paramValues: probeParams,
+            paramValues: gatedProbeParams,
             cleanupPolicy: 'delete_when_unreferenced'
           })
         }
