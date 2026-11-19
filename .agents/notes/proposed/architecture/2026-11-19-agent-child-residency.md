@@ -15,12 +15,9 @@ The [runtime contract](2026-10-17-agent-runtime-contract.md) ("Coordinate access
 ## Proposal
 
 - `src/main/ai/agentSession/ChildResidency.ts` owns child attachment for the Claude Code, Pi and Pi Durable connections. It covers the opening, attached, releasing and closing states, joined concurrent opens, pins for viewers and commands, views that follow a release and reopen, drain, and close.
-- A connection reports whether a child's native work finished. The residency then flushes, releases and records any finished child that no viewer or command pins. The finished evidence stays runtime-specific:
-  - Pi Durable: native facts report an idle run with a run end, and every input has an outcome.
-  - Pi: the native child task status is completed, stopped or error, and every input has an outcome. Pi child activity can read idle while a background child's request is still running.
-  - Claude Code: the child's task activity is idle. A child whose context row existed before this attachment also counts as finished when the owner reports no task state (`unknown`), because Claude background tasks end with their CLI process.
+- A connection hands every `Subagent` relationship it observes to the residency. A child is finished when its latest relationship reports `work: 'idle'`, a field that the [subagent work state](2026-11-19-agent-subagent-work-state.md) proposal adds to the runtime contract. The residency then flushes, releases and records any finished child that no viewer, command or loaded nested child pins.
 - Releasing writes `checkpointMapping.child.settled` on the child's context row after the final flush. Close writes it for the finished children it stops. Attaching a settled child clears it.
-- A reopen records settled descendants as released, and discovery skips them: root and child snapshots in every runtime, and Claude's archive relation replays. Claude restores only unsettled saved children, one at a time. A released child is reloaded by a viewer (`childProjection`), a command (`messageChild`), a Pi child completion or usage attribution, or a Pi or Pi Durable relation upsert.
+- A reopen records settled descendants as released. Relationship replays leave them released and restore unsettled idle children one at a time. A released child is reloaded by a viewer (`childProjection`), a command (`messageChild`), a Pi child completion or usage attribution, or a relationship that reports it running.
 - No schema migration is needed: `checkpointMapping` is JSON, and the child projection merges its writes into the existing child checkpoint.
 
 ## Alternatives considered
@@ -40,7 +37,6 @@ The [runtime contract](2026-10-17-agent-runtime-contract.md) ("Coordinate access
 
 ## Risks
 
-- If a parent resumes a released Claude child (for example through `SendMessage`), the host does not observe it until a viewer opens it. Archive reads replay every relation, so a replay cannot be told apart from a live start. The child's saved rows reconcile from the archive when it opens.
-- Children of sessions saved before this change have no marker. Claude Code and Pi Durable restore them once and settle them; Pi keeps them loaded, as before, until they complete again.
+- Children of sessions saved before this change have no marker. Every runtime restores them once and settles them.
 - Content that a native owner delivers for a child after its release stays in the native archive until the child is opened again.
 - The native Claude owner still holds every child's parsed transcript until its root connection closes, and its root archive read parses every child. In the reproduction this is about 276 MB of images after a live run and 122 MB after a settled reopen. Per-thread eviction there needs the native contract that the runtime contract defers.
