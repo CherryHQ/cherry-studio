@@ -513,8 +513,15 @@ function getDisplayProjection(
   const isHoistedEntry = (entry: PartEntry) => hoistAttachments && isHoistableFilePart(entry.part, hoistNonImageFiles)
 
   if (message.role !== 'user' || visibleComposerFileTokens.length === 0) {
+    // Claude Code also writes its terminal error into the reply text; the error card already shows it.
+    const errorTexts = new Set(
+      entries.flatMap(({ part }) =>
+        part.type === 'data-error' && part.data?.message?.trim() ? [part.data.message.trim()] : []
+      )
+    )
+    const duplicatesError = ({ part }: PartEntry) => part.type === 'text' && errorTexts.has(part.text?.trim() ?? '')
     return {
-      entries: entries.filter((entry) => !isHoistedEntry(entry)),
+      entries: entries.filter((entry) => !isHoistedEntry(entry) && !duplicatesError(entry)),
       hiddenImageTokens: EMPTY_HIDDEN_COMPOSER_TOKENS,
       associatedReadOnlyFilePreviews: EMPTY_ASSOCIATED_READ_ONLY_FILE_PREVIEWS
     }

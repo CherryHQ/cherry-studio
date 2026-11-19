@@ -495,8 +495,13 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      await user.click(screen.getByRole('button'))
+      const disclosure = screen.getByRole('button', { expanded: false })
+      const details = screen.getByRole('button', { name: 'common.detail' })
+      expect(disclosure).not.toContainElement(details)
+      await user.click(disclosure)
+      expect(disclosure).toHaveAttribute('aria-expanded', 'true')
       expect(await screen.findByText(errorText)).toBeVisible()
+      expect(details).toBeEnabled()
     })
 
     it('renders the Write target path as a clickable link once the write completes', () => {
@@ -1140,12 +1145,17 @@ describe('AgentToolRenderer', () => {
       })
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
-      await user.click(screen.getByRole('button'))
+      const disclosure = screen.getByRole('button', { expanded: false })
+      const details = screen.getByRole('button', { name: 'common.detail' })
+      expect(disclosure).not.toContainElement(details)
+      await user.click(disclosure)
+      expect(disclosure).toHaveAttribute('aria-expanded', 'true')
 
       const content = screen.getByTestId('collapse-content-Bash')
       expect(content).toHaveTextContent('Error')
       expect(content).toHaveTextContent(errorText)
       expect(content).not.toHaveTextContent('Output')
+      expect(details).toBeEnabled()
     })
   })
 

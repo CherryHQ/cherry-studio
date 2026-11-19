@@ -13,7 +13,7 @@ const diagnosticAiIdentifierSchema = z.string().min(1).max(DIAGNOSTIC_AI_ID_MAX)
  */
 export const diagnosticAiDiagnosisSchema = z
   .object({
-    source: z.enum(['doctor-agent', 'error-summary']),
+    source: z.enum(['doctor-agent']),
     text: z.string().min(1).max(DIAGNOSTIC_AI_TEXT_MAX),
     status: z.enum(['completed', 'failed', 'canceled']),
     truncated: z.literal(true).optional(),

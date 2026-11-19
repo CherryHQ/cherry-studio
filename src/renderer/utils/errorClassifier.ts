@@ -69,6 +69,14 @@ export function getClaudeCodeExitInfo(error?: SerializedError): ClaudeCodeExitIn
 }
 
 /**
+ * Claude Code's own "Not logged in · Please run /login" result. It still classifies as `auth`,
+ * but the fix is signing in to Claude Code (its settings page), not replacing an API key.
+ */
+export function isClaudeCodeNotLoggedIn(error?: SerializedError): boolean {
+  return error?.name === 'ClaudeCodeResultError' && /\bnot logged in\b/i.test(error.message ?? '')
+}
+
+/**
  * Errors nested inside a serialized AI SDK wrapper may be partial. Readers tolerate absent
  * `message`/`stack` while preserving normalized provider facts when present.
  */
@@ -168,6 +176,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
 
   const claudeCodeExitCategory = getClaudeCodeExitCategory(error)
   if (claudeCodeExitCategory) return classify(claudeCodeExitCategory)
+  if (isClaudeCodeNotLoggedIn(error)) return { ...classify('auth'), navTarget: '/settings/provider?id=claude-code' }
 
   const errorBag = error as Record<string, unknown>
   if (isErrorCategory(errorBag.providerErrorCategory) && errorBag.providerErrorCategory !== 'unknown') {
