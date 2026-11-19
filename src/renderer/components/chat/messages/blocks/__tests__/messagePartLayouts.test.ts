@@ -564,3 +564,32 @@ describe('projectCompletedMessageParts', () => {
     expect(indexes(layout.reportEntries)).toEqual([2])
   })
 })
+
+// Imported tools must remain between the reasoning steps that surround them.
+it('preserves imported reasoning and tool chronology outside the answer lane', () => {
+  const parts = entries([
+    { type: 'reasoning', text: 'First thought', state: 'done' },
+    {
+      type: 'dynamic-tool',
+      toolName: 'deepseek_search',
+      toolCallId: 'search',
+      state: 'output-available',
+      input: { queries: ['question'] },
+      output: { results: [], status: 'FINISHED' }
+    },
+    { type: 'reasoning', text: 'Second thought', state: 'done' },
+    {
+      type: 'dynamic-tool',
+      toolName: 'deepseek_open',
+      toolCallId: 'open',
+      state: 'output-available',
+      input: { url: 'https://example.com' },
+      output: { status: 'FINISHED' }
+    },
+    { type: 'text', text: 'Final answer' },
+    { type: 'data-imported-status', data: { status: 'INCOMPLETE' } }
+  ])
+  const layout = projectCompletedMessageParts(parts, { keepIntermediateAssistantText: true })
+  expect(indexes(layout.historyEntries)).toEqual([0, 1, 2, 3])
+  expect(indexes(layout.resultEntries)).toEqual([4, 5])
+})

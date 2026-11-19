@@ -25,6 +25,20 @@ import type { OutputFormat } from '../adapters'
 import { buildStreamErrorFrame, gatewayErrorHandler, internalGatewayError } from '../errors'
 import { CountTokensBodySchema, MessagesBodySchema } from '../routes/schemas'
 
+it('reports a status-only 413 as request_too_large to Anthropic streaming clients', () => {
+  const frame = buildStreamErrorFrame('anthropic', {
+    name: 'AI_APICallError',
+    message: 'Request body exceeds the upstream limit',
+    statusCode: 413,
+    isRetryable: false
+  })
+
+  expect(JSON.parse(frame.split('data: ')[1])).toEqual({
+    type: 'error',
+    error: { type: 'request_too_large', message: 'Request body exceeds the upstream limit' }
+  })
+})
+
 const timeoutMessage = 'Upstream request timed out'
 const abortMessage = 'Upstream stream aborted'
 const genericMessage = 'Internal server error'
@@ -860,6 +874,61 @@ it.each([
     status: 400,
     overflow: true
   },
+  // Claude Code reads `N tokens > M` to size the overflow; without it, it reports an uncompactable exchange.
+  {
+    message:
+      "This model's maximum context length is 32768 tokens. However, your messages resulted in 41234 tokens. Please reduce the length of the messages.",
+    code: 'context_length_exceeded',
+    status: 400,
+    overflow: true,
+    counts: '41234 tokens > 32768 maximum'
+  },
+  {
+    message:
+      "This model's maximum context length is 32768 tokens. However, you requested 45000 tokens (40904 in the messages, 4096 in the completion). Please reduce the length of the messages or completion.",
+    code: 'invalid_request_error',
+    status: 400,
+    overflow: true,
+    counts: '45000 tokens > 32768 maximum'
+  },
+  {
+    message:
+      "This model's maximum context length is 8192 tokens. However, your prompt contains at least 9000 input tokens, which exceeds this limit even without any output tokens. Please reduce the length of the input prompt.",
+    code: 'invalid_request_error',
+    status: 400,
+    overflow: true,
+    counts: '9000 tokens > 8192 maximum'
+  },
+  {
+    message: "This model's maximum context length is 1,048,576 tokens. However, you requested 1,065,651 tokens.",
+    code: 'invalid_request_error',
+    status: 400,
+    overflow: true,
+    counts: '1065651 tokens > 1048576 maximum'
+  },
+  // A character count is not a token count, so it must not be reported as one.
+  {
+    message:
+      "This model's maximum context length is 8192 tokens. However, your prompt contains 50000 characters (more than 40000 characters, which is the upper bound for 8192 input tokens). Please reduce the length of the input prompt.",
+    code: 'invalid_request_error',
+    status: 400,
+    overflow: true
+  },
+  // Input fits; only the output budget overflows, so there is no truthful `N > M` to report.
+  {
+    message:
+      "This model's maximum context length is 196608 tokens and your request has 175808 input tokens (21333 > 196608 - 175808).",
+    code: 'invalid_request_error',
+    status: 400,
+    overflow: true
+  },
+  {
+    message: 'request (41234 tokens) exceeds the available context size (32768 tokens), try increasing it',
+    code: 'exceed_context_size_error',
+    status: 400,
+    overflow: true,
+    counts: '41234 tokens > 32768 maximum'
+  },
   { message: 'The request cannot be processed.', code: 'context_length_exceeded', status: 400, overflow: true },
   {
     message: 'prompt is too long: 100 tokens > 90 maximum',
@@ -921,7 +990,8 @@ it.each([
             .slice(6)
         : content
     const result = JSON.parse(frame)
-    expect(result.error.message).toBe(sample.overflow ? `Prompt is too long: ${sample.message}` : sample.message)
+    const prefix = 'counts' in sample ? `Prompt is too long: ${sample.counts}. ` : 'Prompt is too long: '
+    expect(result.error.message).toBe(sample.overflow ? `${prefix}${sample.message}` : sample.message)
     expect(result.error).toMatchObject({ type: 'invalid_request_error', code: sample.code, param: 'messages' })
     expect(result.request_id).toBe('provider-request-id')
     expect(content).not.toContain('request-secret')

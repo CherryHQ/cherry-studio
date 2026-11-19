@@ -950,6 +950,7 @@ describe('Sessions', () => {
     preferenceMocks.values.clear()
     cacheMocks.values.clear()
     imageCaptureTargetsMock.targets = undefined
+    preferenceMocks.values.set('agent.session.sort', { by: 'orderKey' })
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     preferenceMocks.values.set('agent.icon_type', 'emoji')
     preferenceMocks.values.set('agent.session.position', 'left')

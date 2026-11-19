@@ -3,6 +3,7 @@ import * as z from 'zod'
 
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import type { AgentAttachmentSelection } from '@cherrystudio/remote-protocol/agent'
+import { agentImportSnapshotSchema, type AgentImportSnapshot } from '@shared/ai/agentImport'
 import type { AgentDelegationSnapshot } from '@shared/ai/agentSessionDelivery'
 import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
 import {
@@ -265,6 +266,16 @@ export const aiRequestSchemas = {
     input: z.strictObject({ sessionId: z.string().min(1), requestId: z.uuid() }),
     output: z.void()
   }),
+  'ai.agent.import.prepare': defineRoute({
+    input: z.strictObject({}),
+    output: agentImportSnapshotSchema.nullable()
+  }),
+  'ai.agent.import.status': defineRoute({
+    input: z.strictObject({}),
+    output: agentImportSnapshotSchema.nullable()
+  }),
+  'ai.agent.import.start': defineRoute({ input: z.strictObject({ id: z.uuid() }), output: agentImportSnapshotSchema }),
+  'ai.agent.import.cancel': defineRoute({ input: z.strictObject({ id: z.uuid() }), output: z.void() }),
   'ai.projection.attach': defineRoute({
     input: z.strictObject({ target: projectionTargetSchema, subscriptionId: z.uuid() }),
     output: z.custom<MessageProjectionView | null>()
@@ -362,7 +373,8 @@ export const aiRequestSchemas = {
           appendToLiveGroupMessageId: z.never().optional(),
           reasoningEffort: ReasoningEffortOptionSchema.optional(),
           serviceTier: ServiceTierSelectionSchema.optional(),
-          fastMode: z.boolean().optional()
+          fastMode: z.boolean().optional(),
+          followUp: z.boolean().optional()
         }),
         z.object({
           ...aiStreamRegenerateShape,
@@ -692,6 +704,7 @@ export const aiRequestSchemas = {
 export type AiEventSchemas = {
   'ai.local_agents.notice': { sessionId: string; notice: LocalAgentNotice }
   'ai.local_agents.session_updated': { sessionId: string; info: LocalAgentSessionInfo | null }
+  'ai.agent.import.progress': AgentImportSnapshot
   'ai.projection.changed': { subscriptionId: string; update: MessageProjectionUpdate }
   'ai.claude_code.binary.changed': ClaudeCodeBinaryStatus
   'ai.agent.attachment_selections.changed': { sessionId: string }

@@ -745,7 +745,7 @@ describe('local protocol processes', () => {
     )
     expect(finishes).toEqual(finishReason ? [finishReason] : [])
     expect(events.filter((event) => event.type === 'turn-complete')).toEqual([
-      { type: 'turn-complete', ...(reason === 'cancelled' ? { cancelled: true } : {}) }
+      { type: 'turn-complete', ...(reason === 'cancelled' ? { status: 'paused' } : {}) }
     ])
   })
 
@@ -1218,7 +1218,7 @@ describe('local protocol processes', () => {
     const { connection, events } = create('codex', 'interrupted')
     await connection.start(cwd)
     await connection.send(input)
-    await vi.waitFor(() => expect(events).toContainEqual({ type: 'turn-complete', cancelled: true }))
+    await vi.waitFor(() => expect(events).toContainEqual({ type: 'turn-complete', status: 'paused' }))
     expect(events.some((event) => event.type === 'chunk' && event.chunk.type === 'finish')).toBe(false)
   })
 

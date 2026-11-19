@@ -111,7 +111,7 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
     if (error) this.events.push({ type: 'error', error })
     else {
       if (finishReason !== 'cancelled') this.chunk({ type: 'finish', finishReason })
-      this.events.push({ type: 'turn-complete', ...(finishReason === 'cancelled' ? { cancelled: true } : {}) })
+      this.events.push({ type: 'turn-complete', ...(finishReason === 'cancelled' ? { status: 'paused' } : {}) })
     }
   }
   protected tool(id: string, name: string, input: unknown, update = false) {

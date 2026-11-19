@@ -398,6 +398,19 @@ describe('AgentChatContextProvider', () => {
     )
   })
 
+  // Without it, a busy Enter in a Pi Durable session would steer the running turn.
+  it('forwards the follow-up intent when busy dispatch enqueues a message', async () => {
+    mocks.runtimeIsSessionBusy.mockReturnValue(true)
+
+    await provider.prepareDispatch(makeSubscriber(), openReq({ followUp: true }))
+
+    expect(mocks.runtimeEnqueueUserMessage).toHaveBeenCalledWith(
+      'session-1',
+      expect.anything(),
+      expect.objectContaining({ followUp: true })
+    )
+  })
+
   it.each([
     ['an explicit empty recipient set', [] as const, []],
     ['an explicit recipient set', [{ id: 'ch1', type: 'telegram' }] as const, [{ id: 'ch1', type: 'telegram' }]],

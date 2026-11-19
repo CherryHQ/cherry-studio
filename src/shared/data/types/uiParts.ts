@@ -141,6 +141,7 @@ export type RetryPartData =
 export type CherryDataPartTypes = {
   'acp-content': { content: unknown; reasoning: boolean; messageId?: string }
   'agent-plan': LocalAgentPlan
+  'imported-status': { status: string }
   error: ErrorPartData
   translation: TranslationPartData
   video: VideoPartData

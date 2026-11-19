@@ -1,4 +1,3 @@
-import { Icon } from '@iconify/react'
 import { Copy, FileText, Save } from 'lucide-react'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,10 +16,10 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { useOptionalOpenFilePreviewTab } from '@renderer/components/FilePreview'
+import { FileIcon } from '@renderer/components/icons/FileIcon'
 import { getOpenTargetBadge, getOpenTargetLabel, OpenTargetIcon } from '@renderer/components/OpenTarget'
 import { useExternalOpenTargets } from '@renderer/hooks/useExternalOpenTargets'
 import { ipcApi } from '@renderer/ipc'
-import { getFileIconName } from '@renderer/utils/fileIconName'
 import { normalizeInlineFilePath, parseInlineFileTarget } from '@renderer/utils/filePath'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { openFileTarget } from '@renderer/utils/openFileTarget'
@@ -57,7 +56,6 @@ export const ClickableFilePath = memo(function ClickableFilePath({
     [path, preserveWrappingPunctuation]
   )
   const unresolvedTargetPath = target.path
-  const iconName = useMemo(() => getFileIconName(displayPath), [displayPath])
   const actions = useOptionalMessageListActions()
   const resolvePath = actions?.resolvePath
   const targetPath = useMemo(
@@ -197,11 +195,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({
             className={`break-all [table_&]:break-normal ${
               canOpen ? 'cursor-pointer text-link hover:underline' : 'cursor-default text-muted-foreground'
             }`}>
-            <Icon
-              icon={`material-icon-theme:${iconName}`}
-              className="mr-1 inline-block align-text-top"
-              style={{ fontSize: '1.1em' }}
-            />
+            <FileIcon path={displayPath} className="mr-1 inline-block align-text-top" style={{ fontSize: '1.1em' }} />
             {displayName ?? displayPath}
             {line != null && !target.location && <span className="text-muted-foreground">:{line}</span>}
           </span>

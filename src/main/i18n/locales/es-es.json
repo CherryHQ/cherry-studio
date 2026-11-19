@@ -2,6 +2,7 @@
   "agent.builtin.cherry_assistant.description": "Asesor integrado de Cherry Studio. Diagnostica problemas, guía las operaciones, recopila preguntas frecuentes, envía errores o solicitudes de funciones y busca o crea habilidades",
   "agent.builtin.cherry_doctor.description": "Analista integrado del diagnóstico del sistema. Lee el informe de diagnóstico y el estado en tiempo de ejecución, explica la causa raíz y propone correcciones acotadas",
   "agent.builtin.cherry_support.description": "Agente de soporte oficial de Cherry Studio para configuración, diagnóstico, preguntas frecuentes y comentarios",
+  "agent.import.missing_file": "Archivo adjunto no disponible en la exportación: {{name}}",
   "agent.session.attachment.audio_unsupported": "Este agente no admite entradas de audio. Elimina el audio o elige otro agente.",
   "agent.session.attachment.image_unsupported": "Este agente no admite imágenes. Elimine la imagen o elija otro agente.",
   "agent.session.attachment.unavailable": "No se puede leer el archivo adjunto: {{name}}. Vuelva a adjuntarlo.",

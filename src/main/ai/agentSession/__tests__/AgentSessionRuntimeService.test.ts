@@ -31,7 +31,9 @@ import type { AgentRuntimeConnectInput, AgentRuntimeUserInput } from '../../runt
 import type * as ForkResourcesModule from '../fork/resources'
 import { RootMessageProjection } from '../RootMessageProjection'
 
-vi.mock('../recoverSessionDeliveries', () => ({ recoverSessionDeliveries: vi.fn(() => new Set()) }))
+vi.mock('../recoverSessionDeliveries', () => ({
+  recoverSessionDeliveries: vi.fn(() => ({ affected: new Set(), resumable: new Set() }))
+}))
 
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
@@ -135,6 +137,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     getNativeSessionId: vi.fn(),
     captureHead: () => 'branch-head',
     branchTip: (_sessionId: string, messageId: string) => messageId,
+    linkReply: vi.fn(),
     sharesBranch: mocks.sharesBranch,
     findCrashOrphanedAssistantMessages: mocks.findCrashOrphanedAssistantMessages,
     resolveCrashOrphanedMessages: mocks.resolveCrashOrphanedMessages,
@@ -7184,13 +7187,13 @@ describe('AgentSessionRuntimeService', () => {
     const asSender = (fake: FakeWebContents) => fake as unknown as Electron.WebContents
 
     let service: InstanceType<typeof AgentSessionRuntimeService>
-    let prime: MockInstance<(sessionId: string) => Promise<void>>
+    let prime: MockInstance<(sessionId: string) => Promise<boolean>>
     let releaseIdle: MockInstance<(sessionId: string) => void>
 
     beforeEach(() => {
       vi.useFakeTimers()
       service = new AgentSessionRuntimeService()
-      prime = vi.spyOn(service, 'primeConnection').mockResolvedValue(undefined)
+      prime = vi.spyOn(service, 'primeConnection').mockResolvedValue(true)
       releaseIdle = vi.spyOn(service, 'releaseIdleConnection').mockImplementation(() => undefined)
     })
 

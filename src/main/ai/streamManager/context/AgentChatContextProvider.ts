@@ -453,7 +453,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
         messageSnapshot: validated.messageSnapshot,
         reasoningEffort: validated.reasoningEffort,
         serviceTier: validated.serviceTier,
-        fastMode: validated.fastMode
+        fastMode: validated.fastMode,
+        followUp: req.trigger === 'submit-message' ? req.followUp : undefined
       })
 
       return {

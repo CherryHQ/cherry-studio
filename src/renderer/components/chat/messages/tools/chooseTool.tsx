@@ -1,7 +1,6 @@
 import React, { Suspense } from 'react'
 
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
-import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import {
   AGENT_DELEGATE_TOOL_NAME,
   SESSION_CREATE_TOOL_NAME,
@@ -49,10 +48,6 @@ const CHERRY_AGENT_TOOL_NAMES = new Set([
   MCP_RESOURCE_READ_TOOL_NAME,
   'memory'
 ])
-const CHERRY_RUNTIME_BUILTIN_TOOL_NAMES = new Set(
-  Object.values(AGENT_RUNTIME_CAPABILITIES).flatMap((caps) => caps.builtinTools().map((tool) => tool.id))
-)
-
 const isAgentTool = (toolName: string) => {
   if (agentTools.has(toolName) || toolName.startsWith(agentMcpToolsPrefix) || toolName.startsWith('ACP: ')) {
     return true
@@ -108,10 +103,7 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
     }
   }
 
-  if (
-    isAgentTool(toolName) ||
-    (toolResponse.tool.type === 'provider' && CHERRY_RUNTIME_BUILTIN_TOOL_NAMES.has(toolName))
-  ) {
+  if (isAgentTool(toolName) || toolResponse.tool.type === 'provider') {
     return (
       <Suspense fallback={null}>
         <AgentExecutionTimeline toolResponse={toolResponse} />

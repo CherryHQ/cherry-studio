@@ -44,6 +44,16 @@ const SERVICE_TIER_LABEL_KEYS: Record<ServiceTierSelection, string> = {
   flex: 'agent.speed.service_tier.flex'
 }
 
+const SERVICE_TIER_DESCRIPTION_KEYS: Record<ServiceTierSelection, string> = {
+  standard: 'agent.speed.service_tier.standard.description',
+  auto: 'agent.speed.service_tier.auto.description',
+  fast: 'agent.speed.service_tier.fast.description',
+  flex: 'agent.speed.service_tier.flex.description'
+}
+
+// Canonical tier order, used only to slot a stored-but-unsupported tier among the declared options.
+const SERVICE_TIER_ORDER: readonly ServiceTierSelection[] = ['standard', 'auto', 'fast', 'flex']
+
 const WHEEL_STEP_THRESHOLD = 40
 const WHEEL_IDLE_RESET_MS = 120
 
@@ -176,6 +186,13 @@ export function ModelSpeedControl({
   const supportsFast = onFastModeChange !== undefined && model.supportsFastMode === true
   const serviceTierOptions = onServiceTierChange ? (model.requestControls?.serviceTier?.options ?? []) : []
   const supportsServiceTier = serviceTierOptions.length > 0
+  // The saved tier stays visible (disabled) when the active model does not declare it.
+  const storedServiceTier = serviceTier
+  const serviceTierValues = onServiceTierChange ? model.requestControls?.serviceTier?.values : undefined
+  const displayedServiceTiers = serviceTierOptions.includes(storedServiceTier)
+    ? serviceTierOptions
+    : SERVICE_TIER_ORDER.filter((tier) => serviceTierOptions.includes(tier) || tier === storedServiceTier)
+  const [showServiceTierDetails, setShowServiceTierDetails] = useState(false)
   // Only endpoints whose wire carries a summary knob project these; the wire's own default is 'auto'.
   const summaryOptions = onReasoningSummaryChange ? (model.reasoning?.summaryOptions ?? []) : []
   const selectedSummary: ReasoningSummary = reasoningSummary ?? 'auto'
@@ -205,7 +222,10 @@ export function ModelSpeedControl({
   const effortControlLabel = t('agent.speed.effort')
   const serviceTierControlLabel = t('agent.speed.service_tier.label')
   const effectiveServiceTier = resolveSupportedServiceTier(model, serviceTier)
-  const serviceTierLabel = t(SERVICE_TIER_LABEL_KEYS[effectiveServiceTier])
+  const serviceTierDiffers = storedServiceTier !== effectiveServiceTier
+  const serviceTierLabel = serviceTierDiffers
+    ? `${t(SERVICE_TIER_LABEL_KEYS[storedServiceTier])} → ${t(SERVICE_TIER_LABEL_KEYS[effectiveServiceTier])}`
+    : t(SERVICE_TIER_LABEL_KEYS[effectiveServiceTier])
   const triggerLabel = fastMode ? t('agent.speed.fast') : t('agent.speed.label')
   const handleSliderValueChange = (index: number) => {
     const effort = sliderEfforts[index]
@@ -397,22 +417,59 @@ export function ModelSpeedControl({
             className={cn(
               (supportsReasoning || summaryOptions.length > 0) && 'mt-3 border-frame-border border-t pt-3'
             )}>
-            <div className="mb-2 font-medium text-[11px] text-muted-foreground leading-none">
-              {serviceTierControlLabel}
+            <div className="mb-2 flex items-center justify-between leading-none">
+              <span className="font-medium text-[11px] text-muted-foreground">{serviceTierControlLabel}</span>
+              {serviceTierValues && Object.values(serviceTierValues).some(Boolean) ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-expanded={showServiceTierDetails}
+                  className="h-5 px-1 text-[11px] text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowServiceTierDetails((shown) => !shown)}>
+                  {t('agent.speed.service_tier.details')}
+                </Button>
+              ) : null}
             </div>
             <RadioGroup
-              value={effectiveServiceTier}
+              value={storedServiceTier}
               aria-label={serviceTierControlLabel}
               className="gap-0"
               onValueChange={(tier) => onServiceTierChange?.(tier as ServiceTierSelection)}>
-              {serviceTierOptions.map((tier) => (
-                <label
-                  key={tier}
-                  className="flex min-h-8 cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs transition-colors hover:bg-accent">
-                  <RadioGroupItem value={tier} size="sm" aria-label={t(SERVICE_TIER_LABEL_KEYS[tier])} />
-                  <span>{t(SERVICE_TIER_LABEL_KEYS[tier])}</span>
-                </label>
-              ))}
+              {displayedServiceTiers.map((tier) => {
+                const isUnsupportedStoredTier = tier === storedServiceTier && serviceTierDiffers
+                return (
+                  <label
+                    key={tier}
+                    className={cn(
+                      'flex min-h-8 items-center gap-2 rounded-md px-2 py-1 text-xs transition-colors',
+                      isUnsupportedStoredTier ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-accent'
+                    )}>
+                    <RadioGroupItem
+                      value={tier}
+                      size="sm"
+                      disabled={isUnsupportedStoredTier}
+                      aria-label={t(SERVICE_TIER_LABEL_KEYS[tier])}
+                    />
+                    <span className="flex min-w-0 flex-col">
+                      <span>{t(SERVICE_TIER_LABEL_KEYS[tier])}</span>
+                      <span className="text-muted-foreground">{t(SERVICE_TIER_DESCRIPTION_KEYS[tier])}</span>
+                      {isUnsupportedStoredTier ? (
+                        <span className="text-muted-foreground">
+                          {t('agent.speed.service_tier.unsupported', {
+                            effective: t(SERVICE_TIER_LABEL_KEYS[effectiveServiceTier])
+                          })}
+                        </span>
+                      ) : null}
+                      {showServiceTierDetails && serviceTierValues?.[tier] ? (
+                        <span className="text-muted-foreground">
+                          {t('agent.speed.service_tier.provider_value', { value: serviceTierValues[tier] })}
+                        </span>
+                      ) : null}
+                    </span>
+                  </label>
+                )
+              })}
             </RadioGroup>
           </div>
         ) : null}

@@ -7,6 +7,7 @@ import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
 import { AgentDelegationService } from '@main/ai/agentSession/AgentDelegationService'
 import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionDeliveryService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
+import { AgentImportService } from '@main/ai/agentSession/import/AgentImportService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels'
 import { TtsInferenceService } from '@main/ai/localModel'
@@ -207,6 +208,7 @@ export const services = {
   ClaudeCodeProcessManager,
   AgentSessionRuntimeService,
   AgentDelegationService,
+  AgentImportService,
   AgentSessionDeliveryService,
   AgentJobsService,
   AgentLifecycleService,

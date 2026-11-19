@@ -104,6 +104,7 @@ vi.mock('uuid', () => ({
 vi.mock('@iconify/react', () => {
   const React = require('react')
   return {
+    addCollection: vi.fn(),
     Icon: ({ icon, ...props }: { icon?: string }) =>
       React.createElement('span', { ...props, 'data-icon': icon, 'data-testid': 'iconify-icon' })
   }

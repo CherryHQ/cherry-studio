@@ -128,6 +128,11 @@ export const defaultServiceInstances = {
   AgentDelegationService: { cancelOwnedBy: vi.fn(async () => {}) },
   AgentSessionRuntimeService: { closeIdleSessions: vi.fn(async () => true) },
   BinaryManager: { getToolSnapshots: vi.fn(async () => ({})) },
+  AgentImportService: {
+    pause: vi.fn(() => ({ dispose: vi.fn() })),
+    drainInFlight: vi.fn(async () => ({ stragglerIds: [] })),
+    listActiveWork: vi.fn(() => [])
+  },
   PowerService: {
     preventSleep: vi.fn(() => ({ dispose: vi.fn() })),
     onResume: vi.fn(() => ({ dispose: vi.fn() }))

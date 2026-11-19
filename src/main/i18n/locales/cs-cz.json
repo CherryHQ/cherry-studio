@@ -2,6 +2,7 @@
   "agent.builtin.cherry_assistant.description": "Vestavěný poradce Cherry Studio. Diagnostikuje problémy, provádí po krocích, shromažďuje FAQ, odesílá chyby a žádosti o funkce a vyhledává a vytváří Skills",
   "agent.builtin.cherry_doctor.description": "Vestavěný analytik systémové diagnostiky. Čte diagnostickou zprávu a stav běhu, vysvětluje hlavní příčinu a navrhuje omezené opravy",
   "agent.builtin.cherry_support.description": "Oficiální podpora agenta Cherry Studio pro nastavení, řešení problémů, FAQ a zpětnou vazbu",
+  "agent.import.missing_file": "Příloha v exportu není dostupná: {{name}}",
   "agent.session.attachment.audio_unsupported": "Tento agent nepodporuje zvukový vstup. Odstraňte zvuk nebo vyberte jiného agenta.",
   "agent.session.attachment.image_unsupported": "Tento agent nepodporuje obrazový vstup. Odstraňte obrázek nebo vyberte jiného agenta.",
   "agent.session.attachment.unavailable": "Nelze přečíst přílohu: {{name}}. Přiložte soubor znovu.",
