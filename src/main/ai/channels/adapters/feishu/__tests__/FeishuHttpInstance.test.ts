@@ -3,14 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createFeishuHttpInstance } from '../FeishuHttpInstance'
 
 function okResponse(payload: unknown = { code: 0 }) {
-  return {
-    ok: true,
-    status: 200,
-    statusText: 'OK',
-    headers: new Headers(),
-    body: null,
-    text: async () => JSON.stringify(payload)
-  } as unknown as Response
+  return Response.json(payload, { status: 200, statusText: 'OK' })
 }
 
 describe('createFeishuHttpInstance', () => {
@@ -25,12 +18,13 @@ describe('createFeishuHttpInstance', () => {
     vi.unstubAllGlobals()
   })
 
-  it('builds a multipart FormData from a plain object with a Buffer field', async () => {
+  it('uploads only the Buffer slice and preserves its bytes after the source changes', async () => {
     const http = createFeishuHttpInstance()
+    const image = Buffer.from('xxPNGDATAyy').subarray(2, 9)
 
     await http.post(
       'https://open.feishu.cn/open-apis/im/v1/images',
-      { image_type: 'message', image: Buffer.from('PNGDATA') },
+      { image_type: 'message', image },
       { headers: { 'Content-Type': 'multipart/form-data' } }
     )
 
@@ -42,6 +36,8 @@ describe('createFeishuHttpInstance', () => {
 
     const filePart = form.get('image')
     expect(filePart).toBeInstanceOf(Blob)
+    image.fill(0)
+    expect(filePart).toHaveProperty('size', 7)
     expect(await (filePart as Blob).text()).toBe('PNGDATA')
 
     // The boundary-less Content-Type must be dropped so fetch can set one with a boundary.
@@ -70,14 +66,7 @@ describe('createFeishuHttpInstance', () => {
   })
 
   it('throws with status detail on non-ok responses', async () => {
-    fetchMock.mockResolvedValue({
-      ok: false,
-      status: 400,
-      statusText: 'Bad Request',
-      headers: new Headers(),
-      body: null,
-      text: async () => JSON.stringify({ msg: 'invalid file' })
-    })
+    fetchMock.mockResolvedValue(Response.json({ msg: 'invalid file' }, { status: 400, statusText: 'Bad Request' }))
 
     const http = createFeishuHttpInstance()
 
