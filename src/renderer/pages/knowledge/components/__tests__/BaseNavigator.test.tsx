@@ -35,7 +35,6 @@ vi.mock('@cherrystudio/ui', async () => {
   const AccordionItemContext = React.createContext<string | null>(null)
 
   return {
-    BlurCancelPointerSensor: require('@dnd-kit/core').PointerSensor,
     BUTTON_HANDLE_DRAG_SENSORS: dragDropRoot.BUTTON_HANDLE_DRAG_SENSORS,
     DragDropRoot: dragDropRoot.DragDropRoot,
     Accordion: ({
