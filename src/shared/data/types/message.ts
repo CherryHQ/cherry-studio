@@ -18,6 +18,7 @@ import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
+import { FileEntryIdSchema } from './file'
 import { type ServiceTierSelection, ServiceTierSelectionSchema } from './model'
 import type { CherryDataPartTypes } from './uiParts'
 
@@ -155,6 +156,13 @@ export interface AssistantTurnOptions {
  * they need Cherry-specific data part type safety.
  */
 export interface MessageData {
+  importedHistory?: {
+    insertedAt?: string
+    source: 'deepseek'
+    messageId: string
+    status: string
+    missingFiles?: Array<{ id: string; name: string; size: number; isImage: boolean }>
+  }
   parts?: CherryMessagePart[]
   /** Explicit multi-model or per-reply selection; default for ordinary single-model turns, absent on old replies. */
   modelSelection?: 'default' | 'explicit'
@@ -180,6 +188,7 @@ export interface MessageData {
  * omitted buckets from earlier steps, producing a mixed and invalid total.
  */
 export interface CherryUIMessageMetadata {
+  importedHistory?: MessageData['importedHistory']
   // ── DB-backed tree/ownership (populated by `toUIMessage` from the branch
   //    response, or seeded locally when pushing a placeholder before the
   //    first refresh completes). Keeping these on the message itself means
@@ -300,7 +309,6 @@ export interface WebCitationReference extends BaseCitationReference {
 
 /**
  * Knowledge base citation reference
- * Data structure compatible with KnowledgeReference[] from renderer
  */
 export interface KnowledgeCitationReference extends BaseCitationReference {
   citationType: CitationType.KNOWLEDGE
@@ -318,7 +326,6 @@ export interface KnowledgeCitationReference extends BaseCitationReference {
 
 /**
  * Memory citation reference
- * Data structure compatible with MemoryItem[] from renderer
  */
 export interface MemoryCitationReference extends BaseCitationReference {
   citationType: CitationType.MEMORY
@@ -456,6 +463,7 @@ export type ModelSnapshot = z.infer<typeof ModelSnapshotSchema>
  * here (and the two are converging), keeping this a single flat author shape.
  */
 export const MessageSnapshotSchema = z.strictObject({
+  avatarFileId: z.lazy(() => FileEntryIdSchema).optional(),
   id: z.string(),
   name: z.string(),
   emoji: z.string().optional(),
@@ -474,7 +482,7 @@ export type MessageSnapshot = z.infer<typeof MessageSnapshotSchema>
  * - `root` — the per-topic content-less virtual root sentinel (one per topic,
  *   `parentId IS NULL`). Self-identifying so role-filtered content queries
  *   (`WHERE role = 'system'`) exclude it for free; never rendered or sent to a
- *   model. See `docs/references/chat/message-tree.md`.
+ *   model. See `docs/dev/references/chat/message-tree.md`.
  */
 export const MessageRoleSchema = z.enum(['user', 'assistant', 'system', 'root'])
 export type MessageRole = z.infer<typeof MessageRoleSchema>

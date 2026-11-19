@@ -60,12 +60,12 @@ import type {
   Model,
   ReasoningSummary,
   RuntimeModelPricing,
-  RuntimeParameterSupport,
   RuntimeReasoning,
   ServiceTierSelection
 } from '@shared/data/types/model'
 import { createUniqueModelId, CURRENCY, ReasoningSummarySchema } from '@shared/data/types/model'
 import type { EndpointConfig, Provider, ProviderWebsites } from '@shared/data/types/provider'
+import { projectModelParameterSupport } from '@shared/utils/model'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { resolveRegistryPaths } from './utils/registryDataPaths'
@@ -141,10 +141,12 @@ export interface ResolvedServiceTierControl {
   wire: ServiceTierRequestControl['wire']
 }
 
-type RuntimeServiceTierControl = Omit<ResolvedServiceTierControl, 'wire'>
+type RuntimeServiceTierControl = Omit<ResolvedServiceTierControl, 'wire'> & {
+  values?: ResolvedServiceTierControl['wire']['values']
+}
 
-function projectServiceTierControl(control: RuntimeServiceTierControl): RuntimeServiceTierControl {
-  return { default: control.default, options: control.options }
+function projectServiceTierControl(control: ResolvedServiceTierControl): RuntimeServiceTierControl {
+  return { default: control.default, options: control.options, values: control.wire.values }
 }
 
 export interface ReasoningProviderContext {
@@ -419,7 +421,7 @@ export function createCustomModel(
   providerId: string,
   modelId: string,
   profile: ReasoningWireProfile = REASONING_FORMAT_PROFILES['openai-chat'].wire,
-  serviceTierControl?: RuntimeServiceTierControl
+  serviceTierControl?: ResolvedServiceTierControl
 ): Model {
   // Ingest-time heuristics: an unmatched model still gets its reasoning
   // descriptor when the id is recognizably a reasoning SKU, so custom rows
@@ -480,7 +482,7 @@ export function mergePresetModel(
   providerId: string,
   profile: ReasoningWireProfile = REASONING_FORMAT_PROFILES['openai-chat'].wire,
   reasoningSupport?: ProtoReasoningSupport,
-  serviceTierControl?: RuntimeServiceTierControl
+  serviceTierControl?: ResolvedServiceTierControl
 ): Model {
   const {
     capabilities,
@@ -521,7 +523,7 @@ export function mergePresetModel(
     reasoning,
     ...(catalogOverride?.supportsFastMode ? { supportsFastMode: true } : {}),
     ...(serviceTierControl ? { requestControls: { serviceTier: projectServiceTierControl(serviceTierControl) } } : {}),
-    parameterSupport: parameterSupport as RuntimeParameterSupport | undefined,
+    parameterSupport: projectModelParameterSupport(parameterSupport),
     pricing,
     isEnabled: !(catalogOverride?.disabled ?? false),
     isHidden: false,
@@ -694,6 +696,36 @@ export function projectRuntimeReasoning(
     thinkingTokenLimits: reasoning.thinkingTokenLimits,
     defaultEffort: reasoning.defaultEffort
   }
+}
+
+/** Narrow official image metadata to the selected Desktop adapter's executable options. */
+function projectImageGenerationSupport(
+  support: ImageGenerationSupport | null,
+  endpointConfigs: Provider['endpointConfigs']
+): ImageGenerationSupport | null {
+  if (!support) return null
+  const modes = { ...support.modes }
+  for (const mode of ['generate', 'edit'] as const) {
+    const endpoint = mode === 'generate' ? 'openai-image-generation' : 'openai-image-edit'
+    const descriptor = modes[mode]
+    if (endpointConfigs?.[endpoint]?.adapterFamily !== 'openai' || !descriptor?.supports) continue
+    const supports = { ...descriptor.supports }
+    if (mode === 'edit') {
+      const format = supports.outputFormat
+      if (format?.type === 'enum') {
+        supports.outputFormat = { ...format, options: format.options.filter((option) => option !== 'gif') }
+      }
+      delete supports.frameCount
+      delete supports.frameDurationMs
+    } else if (supports.frameDurationMs?.type === 'range') {
+      supports.frameDurationMs = {
+        ...supports.frameDurationMs,
+        max: Math.min(supports.frameDurationMs.max ?? 2000, 2000)
+      }
+    }
+    modes[mode] = { ...descriptor, supports }
+  }
+  return { ...support, modes }
 }
 
 /**
@@ -1005,6 +1037,9 @@ class ProviderRegistryService {
 
     const presetReasoning = this.getLoader().findModel(matchedOverride?.modelId ?? model.presetModelId ?? '')?.reasoning
     const support = mergeReasoningSupport(presetReasoning ?? model.reasoning, contract?.support)
+    if (support && model.userDefaultReasoningEffort !== undefined) {
+      support.defaultEffort = model.userDefaultReasoningEffort
+    }
 
     // The dialect is a CATALOG fact that is deliberately not persisted on the
     // row (`projectRuntimeReasoning` drops it), so a catalog-backed CUSTOM row —
@@ -1329,13 +1364,18 @@ class ProviderRegistryService {
    */
   getImageGenerationSupport(providerId: string, modelId: string): ImageGenerationSupport | null {
     getDataService('ProviderService').assertAvailable(providerId)
-    const { providerModel, presetModel, registryOverride } = this.lookupModel(providerId, modelId)
-    if (providerModel) return providerModel.imageGeneration ?? null
-    // Override wins — lets vendor-exclusive overrides declare their own
-    // imageGeneration block without polluting the global models.json.
-    if (registryOverride?.imageGeneration) return registryOverride.imageGeneration
-    if (presetModel?.imageGeneration) return presetModel.imageGeneration
-    return null
+    const context = this.getEffectiveProviderContext(providerId)
+    const { providerModel, presetModel, registryOverride } = this.resolveModel(context, modelId)
+    const support = providerModel
+      ? providerModel.imageGeneration
+      : (registryOverride?.imageGeneration ?? presetModel?.imageGeneration)
+    const preset = this.resolveProviderPreset(context.id, context.presetProviderId)
+    return projectImageGenerationSupport(
+      support ?? null,
+      context.endpointConfigs ??
+        (preset ? buildPersistedEndpointConfigs(preset.endpointConfigs) : undefined) ??
+        undefined
+    )
   }
 }
 

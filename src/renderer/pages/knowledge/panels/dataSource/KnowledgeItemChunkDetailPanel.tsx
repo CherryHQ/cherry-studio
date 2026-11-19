@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, EmptyState, Scrollbar } from '@cherrystudio/ui'
+import { Button, EmptyState, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
@@ -152,25 +152,25 @@ const KnowledgeItemChunkDetailPanel = ({
           estimateSize={estimateChunkSize}
           itemContainerStyle={CHUNK_ITEM_CONTAINER_STYLE}
           autoHideScrollbar={false}
-          className="min-h-0 flex-1 px-4 py-3">
+          className="min-h-0 flex-1"
+          contentProps={{ className: 'px-4 py-3' }}>
           {renderChunk}
         </DynamicVirtualList>
       ) : (
-        <Scrollbar autoHideScrollbar={false} className="min-h-0 flex-1 px-4 py-3">
+        <ScrollArea
+          contentProps={{ className: 'px-4 py-3' }}
+
+          type="auto"
+          className="min-h-0 flex-1">
           {isItemLoading || isLoading ? <KnowledgeItemChunkState>{t('common.loading')}</KnowledgeItemChunkState> : null}
           {!isItemLoading && itemError ? <KnowledgeItemChunkState>{itemError.message}</KnowledgeItemChunkState> : null}
           {!isItemLoading && !isLoading && !itemError && error ? (
             <KnowledgeItemChunkState>{error.message}</KnowledgeItemChunkState>
           ) : null}
           {!isItemLoading && !isLoading && !itemError && !error && chunks.length === 0 ? (
-            <EmptyState
-              preset="no-file"
-              title={t('knowledge.data_source.empty_description')}
-              compact
-              className="h-full"
-            />
+            <EmptyState title={t('knowledge.data_source.empty_description')} compact className="h-full" />
           ) : null}
-        </Scrollbar>
+        </ScrollArea>
       )}
     </div>
   )

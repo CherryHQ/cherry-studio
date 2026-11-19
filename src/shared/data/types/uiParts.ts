@@ -115,19 +115,19 @@ export interface CodePartData {
  * is being retried or failed over to a fallback model, and stripped before the
  * assistant message is persisted (see PersistenceListener). Never written to DB.
  */
-export type RetryPartData =
-  | {
-      state: 'retrying'
-      /** Model id that will handle the upcoming attempt. */
-      modelId: string
-      /** 1-based number of the upcoming attempt, including the original call. */
-      attempt: number
-      /** Short human reason, e.g. "http 429: rate limit exceeded". */
-      reason: string
-    }
-  | {
-      state: 'settled'
-    }
+export const RetryPartDataSchema = z.discriminatedUnion('state', [
+  z.object({
+    state: z.literal('retrying'),
+    /** Model id that will handle the upcoming attempt. */
+    modelId: z.string(),
+    /** 1-based number of the upcoming attempt, including the original call. */
+    attempt: z.number(),
+    /** Short human reason, e.g. http 429: rate limit exceeded. */
+    reason: z.string()
+  }),
+  z.object({ state: z.literal('settled') })
+])
+export type RetryPartData = z.infer<typeof RetryPartDataSchema>
 
 // ============================================================================
 // Cherry DataUIPart type map (for useChat dataPartSchemas)
@@ -138,6 +138,7 @@ export type RetryPartData =
  * Used with `useChat({ dataPartSchemas })` to enable type-safe custom parts.
  */
 export type CherryDataPartTypes = {
+  'imported-status': { status: string }
   error: ErrorPartData
   translation: TranslationPartData
   video: VideoPartData
@@ -174,6 +175,8 @@ export interface CherryReasoningMeta {
 
 /** Cherry metadata on a ToolUIPart / DynamicToolUIPart. */
 export interface CherryToolMeta {
+  /** Host-computed command policy evidence; presentation only, never an authorization source. */
+  commandPolicy?: CommandApprovalDetails
   /** Approval bridge transport. */
   transport?: string
   /** Tool name (used by approval bridge before the part has been finalized). */
@@ -186,6 +189,13 @@ export interface CherryToolMeta {
     serverName?: string
     type?: 'mcp' | 'builtin' | 'provider'
   }
+}
+
+export interface CommandApprovalDetails {
+  cwd?: string
+  revision: string
+  reason: string
+  rules: { ruleId: string; reasonCode: string; evidence: string }[]
 }
 
 /** A single actionable step in an AI error diagnosis. */
@@ -263,7 +273,7 @@ const ComposerMessageFileTokenPayloadSchema: z.ZodType<ComposerMessageFileTokenP
   size: z.number().optional()
 })
 
-const ComposerMessageTokenKindSchema = z.enum([
+export const ComposerMessageTokenKindSchema = z.enum([
   'skill',
   'link',
   'file',

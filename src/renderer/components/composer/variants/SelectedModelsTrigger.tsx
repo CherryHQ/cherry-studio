@@ -12,7 +12,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Popover, PopoverAnchor, PopoverContent, Scrollbar } from '@cherrystudio/ui'
+import { Button, Popover, PopoverAnchor, PopoverContent, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { getModelDisplayTags, type ModelDisplayTag, ModelTag } from '@renderer/components/tags/Model'
@@ -192,7 +192,9 @@ export const SelectedModelsTrigger = ({
     <div className="w-82 max-w-[calc(100vw-2rem)] text-popover-foreground" data-testid="selected-models-popover">
       <div className="px-3 pt-2 pb-1 font-medium text-[11px] text-muted-foreground">{selectedModelsLabel}</div>
       {models.length > 0 ? (
-        <Scrollbar className="max-h-64 overflow-x-hidden" data-testid="selected-models-list">
+        <ScrollArea
+          viewportProps={{ className: 'overflow-x-hidden', 'data-testid': 'selected-models-list' }}
+          className="max-h-64">
           {models.map((model) => {
             const providerName = modelProviderNames.get(model.id) ?? model.providerId
             const tags = getModelDisplayTags(model, undefined, providerById.get(model.providerId))
@@ -245,7 +247,7 @@ export const SelectedModelsTrigger = ({
               </div>
             )
           })}
-        </Scrollbar>
+        </ScrollArea>
       ) : null}
       <div className="mt-1 border-border border-t px-1.5 pt-1 pb-1">
         <Button

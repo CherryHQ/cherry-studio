@@ -11,14 +11,34 @@
  * @see https://ai.google.dev/api/generate-content#method:-models.streamgeneratecontent
  */
 
-import type { FinishReason, UIMessageChunk } from 'ai'
+import type { FinishReason, ProviderMetadata, UIMessageChunk } from 'ai'
+import * as z from 'zod'
 
 import { loggerService } from '@logger'
+import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import type { GatewayUsageMetadata, StreamAdapterOptions } from '../interfaces'
 import { BaseStreamAdapter } from './BaseStreamAdapter'
 
 const logger = loggerService.withContext('AiSdkToGeminiSse')
+
+const safetyRatingSchema = z.object({
+  category: z.string().nullish(),
+  probability: z.string().nullish(),
+  probabilityScore: z.number().nullish(),
+  severity: z.string().nullish(),
+  severityScore: z.number().nullish(),
+  blocked: z.boolean().nullish()
+})
+const finishMetadataSchema = z.object({
+  promptFeedback: z
+    .object({ blockReason: z.string().nullish(), safetyRatings: z.array(safetyRatingSchema).nullish() })
+    .nullish(),
+  safetyRatings: z.array(safetyRatingSchema).nullish(),
+  finishMessage: z.string().nullish(),
+  continuationToken: z.string().nullish(),
+  serviceTier: z.string().nullish()
+})
 
 /** A response `part` (subset of Gemini's Part used by the gateway). */
 interface GeminiResponsePart {
@@ -27,6 +47,7 @@ interface GeminiResponsePart {
   /** Gemini 3 opaque reasoning signature the client must echo back next turn. */
   thoughtSignature?: string
   functionCall?: { name: string; args: unknown }
+  inlineData?: { mimeType: string; data: string }
 }
 
 interface GeminiResponseContent {
@@ -40,11 +61,15 @@ interface GeminiUsageMetadata {
   totalTokenCount: number
   thoughtsTokenCount?: number
   cachedContentTokenCount?: number
+  serviceTier?: string
 }
 
 interface GeminiCandidate {
   content: GeminiResponseContent
   finishReason?: string
+  finishMessage?: string
+  continuationToken?: string
+  safetyRatings?: z.infer<typeof finishMetadataSchema>['safetyRatings']
   index: number
 }
 
@@ -54,6 +79,7 @@ export interface GeminiGenerateContentResponse {
   usageMetadata?: GeminiUsageMetadata
   modelVersion?: string
   responseId?: string
+  promptFeedback?: z.infer<typeof finishMetadataSchema>['promptFeedback']
 }
 
 /** Map an AI SDK finish reason to the Gemini `FinishReason` enum. */
@@ -66,6 +92,10 @@ function toGeminiFinishReason(reason: FinishReason | undefined): string {
     // Gemini reports STOP even when the turn ends on a function call.
     case 'stop':
     case 'tool-calls':
+      return 'STOP'
+    // An unrecognised/abnormal upstream termination must not be reported as a normal STOP (#24438).
+    case 'other':
+      return 'OTHER'
     default:
       return 'STOP'
   }
@@ -76,6 +106,8 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
   private accumulatedParts: GeminiResponsePart[] = []
   private thoughtsTokens = 0
   private finishReason = 'STOP'
+  private rawFinishReason?: string
+  private finishMetadata: z.infer<typeof finishMetadataSchema> = {}
 
   constructor(options: StreamAdapterOptions) {
     super(options)
@@ -90,21 +122,34 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
     logger.silly('AiSdkToGeminiSse - Processing chunk', { type: chunk.type })
     switch (chunk.type) {
       case 'text-delta':
-        this.appendText(chunk.delta || '', false)
+        this.appendText(chunk.delta || '', false, chunk.providerMetadata)
         break
 
       case 'reasoning-delta':
-        this.appendText(chunk.delta || '', true)
+        this.appendText(chunk.delta || '', true, chunk.providerMetadata)
         break
 
+      case 'tool-input-error':
       case 'tool-input-available': {
         // Gemini 3 requires the model's thought signature echoed back on the next
         // function-calling turn; the Google provider surfaces it on the tool call's
         // provider metadata, so carry it out on the emitted functionCall part.
-        const meta = chunk.providerMetadata as Record<string, any> | undefined
-        const thoughtSignature =
-          typeof meta?.google?.thoughtSignature === 'string' ? meta.google.thoughtSignature : undefined
+        const signature = (chunk.providerMetadata?.google ?? chunk.providerMetadata?.vertex)?.thoughtSignature
+        const thoughtSignature = typeof signature === 'string' ? signature : undefined
         this.appendFunctionCall(chunk.toolName, chunk.input, thoughtSignature)
+        break
+      }
+
+      case 'file': {
+        const data = parseDataUrl(chunk.url)
+        if (!data?.isBase64) throw new Error('Generated Gemini file must contain base64 data')
+        const signature = (chunk.providerMetadata?.google ?? chunk.providerMetadata?.vertex)?.thoughtSignature
+        const part: GeminiResponsePart = {
+          inlineData: { mimeType: chunk.mediaType, data: data.data },
+          ...(typeof signature === 'string' && { thoughtSignature: signature })
+        }
+        this.accumulatedParts.push(part)
+        this.emitParts([part])
         break
       }
 
@@ -122,22 +167,30 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
 
       default:
         // start / start-step / finish-step / text-start|end / reasoning-start|end /
-        // tool-input-start|delta / tool-output-available / source / file / abort —
+        // tool-input-start|delta / tool-output-available / source / abort —
         // no Gemini response equivalent, ignore safely.
         break
     }
   }
 
   /** Accumulate a text/thought delta (merged into the trailing like-kind part) and stream it. */
-  private appendText(text: string, thought: boolean): void {
-    if (!text) return
-    const last = this.accumulatedParts[this.accumulatedParts.length - 1]
-    if (last && last.functionCall === undefined && (last.thought ?? false) === thought) {
-      last.text = (last.text ?? '') + text
-    } else {
-      this.accumulatedParts.push(thought ? { text, thought: true } : { text })
+  private appendText(text: string, thought: boolean, metadata?: ProviderMetadata): void {
+    const signature = (metadata?.google ?? metadata?.vertex)?.thoughtSignature
+    const thoughtSignature = typeof signature === 'string' ? signature : undefined
+    if (!text && thoughtSignature === undefined) return
+    const part: GeminiResponsePart = {
+      text,
+      ...(thought && { thought: true }),
+      ...(thoughtSignature !== undefined && { thoughtSignature })
     }
-    this.emitParts([thought ? { text, thought: true } : { text }])
+    const last = this.accumulatedParts[this.accumulatedParts.length - 1]
+    if (last && last.text !== undefined && (last.thought ?? false) === thought) {
+      last.text = (last.text ?? '') + text
+      if (thoughtSignature !== undefined) last.thoughtSignature = thoughtSignature
+    } else {
+      this.accumulatedParts.push({ ...part })
+    }
+    this.emitParts([part])
   }
 
   private appendFunctionCall(name: string, args: unknown, thoughtSignature?: string): void {
@@ -157,6 +210,12 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
   /** Track cumulative usage from the `message-metadata` projection. */
   private applyUsageMetadata(metadata: GatewayUsageMetadata | undefined): void {
     if (!metadata) return
+    const native = metadata.providerMetadata?.google ?? metadata.providerMetadata?.vertex
+    if (native) {
+      const parsed = finishMetadataSchema.safeParse(native)
+      if (parsed.success) this.finishMetadata = parsed.data
+      if (metadata.rawFinishReason) this.rawFinishReason = metadata.rawFinishReason
+    }
     if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
     if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
     if (metadata.stats?.inputTokenDetails?.cacheReadTokens !== undefined) {
@@ -187,29 +246,36 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
     if (this.state.cacheReadTokens !== undefined && this.state.cacheReadTokens > 0) {
       usage.cachedContentTokenCount = this.state.cacheReadTokens
     }
+    if (this.finishMetadata.serviceTier != null) usage.serviceTier = this.finishMetadata.serviceTier
     return usage
   }
 
-  /** Emit the terminal frame carrying `finishReason` + `usageMetadata`. */
+  /** Emit the terminal frame carrying the native outcome and cumulative usage. */
   protected finalize(): void {
-    this.emit({
-      candidates: [{ content: { role: 'model', parts: [] }, finishReason: this.finishReason, index: 0 }],
-      usageMetadata: this.buildUsageMetadata(),
-      modelVersion: this.state.model
-    })
+    this.emit(this.buildResponse([]))
   }
 
   buildNonStreamingResponse(): GeminiGenerateContentResponse {
+    return this.buildResponse(this.accumulatedParts)
+  }
+
+  private buildResponse(parts: GeminiResponsePart[]): GeminiGenerateContentResponse {
+    const { finishMessage, continuationToken, safetyRatings, promptFeedback } = this.finishMetadata
     return {
       candidates: [
         {
-          content: { role: 'model', parts: this.accumulatedParts },
-          finishReason: this.finishReason,
-          index: 0
+          content: { role: 'model', parts },
+          finishReason: this.rawFinishReason ?? this.finishReason,
+          index: 0,
+          ...(finishMessage != null && { finishMessage }),
+          ...(continuationToken != null && { continuationToken }),
+          ...(safetyRatings != null && { safetyRatings })
         }
       ],
       usageMetadata: this.buildUsageMetadata(),
-      modelVersion: this.state.model
+      modelVersion: this.state.model,
+      responseId: this.state.messageId,
+      ...(promptFeedback != null && { promptFeedback })
     }
   }
 }

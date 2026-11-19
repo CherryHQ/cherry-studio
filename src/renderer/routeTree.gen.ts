@@ -19,8 +19,10 @@ import { Route as AppFilePreviewRouteImport } from './routes/app/file-preview'
 import { Route as AppFilesRouteImport } from './routes/app/files'
 import { Route as AppKnowledgeRouteImport } from './routes/app/knowledge'
 import { Route as AppLaunchpadRouteImport } from './routes/app/launchpad'
+import { Route as AppMarketplaceRouteImport } from './routes/app/marketplace'
 import { Route as AppNotesRouteImport } from './routes/app/notes'
 import { Route as AppReleaseNotesRouteImport } from './routes/app/release-notes'
+import { Route as AppScheduledTasksRouteImport } from './routes/app/scheduled-tasks'
 import { Route as AppTranslateRouteImport } from './routes/app/translate'
 import { Route as SettingsIndexRouteImport } from './routes/settings.index'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
@@ -123,6 +125,11 @@ const AppLaunchpadRoute = AppLaunchpadRouteImport.update({
   path: '/launchpad',
   getParentRoute: () => AppRoute,
 } as any)
+const AppMarketplaceRoute = AppMarketplaceRouteImport.update({
+  id: '/marketplace',
+  path: '/marketplace',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppNotesRoute = AppNotesRouteImport.update({
   id: '/notes',
   path: '/notes',
@@ -131,6 +138,11 @@ const AppNotesRoute = AppNotesRouteImport.update({
 const AppReleaseNotesRoute = AppReleaseNotesRouteImport.update({
   id: '/release-notes',
   path: '/release-notes',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppScheduledTasksRoute = AppScheduledTasksRouteImport.update({
+  id: '/scheduled-tasks',
+  path: '/scheduled-tasks',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTranslateRoute = AppTranslateRouteImport.update({
@@ -405,8 +417,10 @@ export interface FileRoutesByFullPath {
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
   '/app/launchpad': typeof AppLaunchpadRoute
+  '/app/marketplace': typeof AppMarketplaceRoute
   '/app/notes': typeof AppNotesRoute
   '/app/release-notes': typeof AppReleaseNotesRoute
+  '/app/scheduled-tasks': typeof AppScheduledTasksRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
@@ -469,8 +483,10 @@ export interface FileRoutesByTo {
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
   '/app/launchpad': typeof AppLaunchpadRoute
+  '/app/marketplace': typeof AppMarketplaceRoute
   '/app/notes': typeof AppNotesRoute
   '/app/release-notes': typeof AppReleaseNotesRoute
+  '/app/scheduled-tasks': typeof AppScheduledTasksRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
@@ -532,8 +548,10 @@ export interface FileRoutesById {
   '/app/files': typeof AppFilesRoute
   '/app/knowledge': typeof AppKnowledgeRoute
   '/app/launchpad': typeof AppLaunchpadRoute
+  '/app/marketplace': typeof AppMarketplaceRoute
   '/app/notes': typeof AppNotesRoute
   '/app/release-notes': typeof AppReleaseNotesRoute
+  '/app/scheduled-tasks': typeof AppScheduledTasksRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/api-gateway': typeof SettingsApiGatewayRoute
@@ -599,8 +617,10 @@ export interface FileRouteTypes {
     | '/app/files'
     | '/app/knowledge'
     | '/app/launchpad'
+    | '/app/marketplace'
     | '/app/notes'
     | '/app/release-notes'
+    | '/app/scheduled-tasks'
     | '/app/translate'
     | '/settings/about'
     | '/settings/api-gateway'
@@ -663,8 +683,10 @@ export interface FileRouteTypes {
     | '/app/files'
     | '/app/knowledge'
     | '/app/launchpad'
+    | '/app/marketplace'
     | '/app/notes'
     | '/app/release-notes'
+    | '/app/scheduled-tasks'
     | '/app/translate'
     | '/settings/about'
     | '/settings/api-gateway'
@@ -725,8 +747,10 @@ export interface FileRouteTypes {
     | '/app/files'
     | '/app/knowledge'
     | '/app/launchpad'
+    | '/app/marketplace'
     | '/app/notes'
     | '/app/release-notes'
+    | '/app/scheduled-tasks'
     | '/app/translate'
     | '/settings/about'
     | '/settings/api-gateway'
@@ -857,6 +881,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppLaunchpadRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/marketplace': {
+      id: '/app/marketplace'
+      path: '/marketplace'
+      fullPath: '/app/marketplace'
+      preLoaderRoute: typeof AppMarketplaceRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/notes': {
       id: '/app/notes'
       path: '/notes'
@@ -869,6 +900,13 @@ declare module '@tanstack/react-router' {
       path: '/release-notes'
       fullPath: '/app/release-notes'
       preLoaderRoute: typeof AppReleaseNotesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/scheduled-tasks': {
+      id: '/app/scheduled-tasks'
+      path: '/scheduled-tasks'
+      fullPath: '/app/scheduled-tasks'
+      preLoaderRoute: typeof AppScheduledTasksRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/translate': {
@@ -1240,8 +1278,10 @@ interface AppRouteChildren {
   AppFilesRoute: typeof AppFilesRoute
   AppKnowledgeRoute: typeof AppKnowledgeRoute
   AppLaunchpadRoute: typeof AppLaunchpadRoute
+  AppMarketplaceRoute: typeof AppMarketplaceRoute
   AppNotesRoute: typeof AppNotesRoute
   AppReleaseNotesRoute: typeof AppReleaseNotesRoute
+  AppScheduledTasksRoute: typeof AppScheduledTasksRoute
   AppTranslateRoute: typeof AppTranslateRoute
   AppMiniAppAppIdRoute: typeof AppMiniAppAppIdRoute
   AppPaintingsSplatRoute: typeof AppPaintingsSplatRoute
@@ -1258,8 +1298,10 @@ const AppRouteChildren: AppRouteChildren = {
   AppFilesRoute: AppFilesRoute,
   AppKnowledgeRoute: AppKnowledgeRoute,
   AppLaunchpadRoute: AppLaunchpadRoute,
+  AppMarketplaceRoute: AppMarketplaceRoute,
   AppNotesRoute: AppNotesRoute,
   AppReleaseNotesRoute: AppReleaseNotesRoute,
+  AppScheduledTasksRoute: AppScheduledTasksRoute,
   AppTranslateRoute: AppTranslateRoute,
   AppMiniAppAppIdRoute: AppMiniAppAppIdRoute,
   AppPaintingsSplatRoute: AppPaintingsSplatRoute,

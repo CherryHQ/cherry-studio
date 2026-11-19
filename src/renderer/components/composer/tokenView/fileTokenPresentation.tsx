@@ -1,10 +1,9 @@
-import { Icon } from '@iconify/react'
 import { FileText } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { loggerService } from '@logger'
+import { FileIcon } from '@renderer/components/icons/FileIcon'
 import { FILE_TYPE } from '@renderer/types/file'
-import { getFileIconName } from '@renderer/utils/fileIconName'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { fileUrlToPath, toSafeFileUrl } from '@shared/utils/file'
@@ -15,14 +14,7 @@ const logger = loggerService.withContext('fileTokenPresentation')
 // path/URL so a bad attachment can't flood the log across rerenders.
 const warnedPreviewKeys = new Set<string>()
 
-const MATERIAL_ICON_PREFIX = 'material-icon-theme:'
-
-/**
- * The glyph comes from the app-wide file-icon convention — `getFileIconName` + material-icon-theme,
- * the same mapping the file tree, clickable file paths and agent file mentions use — so every file
- * surface names a `.ts` a TypeScript icon instead of a token-local "code" bucket. The chip owns the
- * slot size (`composerChipIconBoxClassName` is em-based), so the icon just fills it.
- */
+// The chip owns an em-based icon slot, so its file icon fills the slot.
 const fileTokenIconClassName = 'size-full shrink-0'
 const fileTokenPreviewIconClassName = 'size-7'
 
@@ -38,15 +30,15 @@ const fileTokenVisualPresetByVariant = {
   },
   word: {
     defaultTypeLabel: 'WORD',
-    displayExtensions: ['doc', 'docx']
+    displayExtensions: ['doc', 'docx', 'odt', 'rtf']
   },
   excel: {
     defaultTypeLabel: 'EXCEL',
-    displayExtensions: ['csv', 'xls', 'xlsx']
+    displayExtensions: ['csv', 'ods', 'tsv', 'xls', 'xlsx']
   },
   powerpoint: {
     defaultTypeLabel: 'PPT',
-    displayExtensions: ['ppt', 'pptx']
+    displayExtensions: ['odp', 'ppt', 'pptx']
   },
   pdf: {
     defaultTypeLabel: 'PDF',
@@ -65,7 +57,8 @@ const fileTokenVisualPresetByVariant = {
     displayExtensions: ['css', 'go', 'html', 'java', 'js', 'jsx', 'py', 'rs', 'ts', 'tsx', 'xml', 'yaml', 'yml']
   },
   document: {
-    defaultTypeLabel: 'DOCUMENT'
+    defaultTypeLabel: 'DOCUMENT',
+    displayExtensions: ['epub']
   },
   text: {
     defaultTypeLabel: 'TEXT',
@@ -158,10 +151,9 @@ function getFileTokenVariant(file: ComposerAttachment | undefined, fallbackLabel
  * carries the extension (and the path, when the attachment was unknown) either way.
  */
 function getFileTokenIcon(file: ComposerAttachment | undefined, fallbackLabel: string, className: string) {
-  const iconName = getFileIconName(file?.origin_name || file?.name || fallbackLabel || file?.path || '')
   return (
-    <Icon
-      icon={`${MATERIAL_ICON_PREFIX}${iconName}`}
+    <FileIcon
+      path={file?.origin_name || file?.name || fallbackLabel || file?.path || ''}
       className={className}
       aria-hidden
       fallback={<FileText className={className} aria-hidden />}

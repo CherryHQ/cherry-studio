@@ -1,5 +1,5 @@
 import { claudeUserFacingTools } from '@shared/ai/claudecode/toolRegistry'
-import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
+import { PI_BUILTIN_TOOLS, PI_TOOL_RECALL_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
@@ -28,6 +28,9 @@ export interface AgentRuntimeCapabilities {
    *  and are not access-controlled ClaudeToolDescriptors, so pi sets this false. */
   claudeRegistryTools: boolean
   slashCommands: readonly SlashCommand[]
+  /** Input sent while the agent works waits in the runtime's own durable queue, so the composer
+   *  sends it at once instead of holding it in the follow-up dock. */
+  nativeFollowUp: boolean
   createDefaults: { permissionMode: AgentPermissionMode }
   /** Extra restriction on top of the base agent-friendly filter; null = none. `provider` is
    *  undefined for orphan models — each runtime decides fail-open vs fail-closed there. */
@@ -35,7 +38,7 @@ export interface AgentRuntimeCapabilities {
   /** providerMetadata.cherry.transport tag stamped by the runtime's stream adapter. */
   transport: string
   /** Edit-dialog catalog rows. */
-  builtinTools: () => readonly {
+  builtinTools: (platform?: string) => readonly {
     id: string
     labelKey: string
     descriptionKey: string
@@ -64,8 +67,44 @@ const CLAUDE_CODE_BUILTIN_COMMANDS = [
 ] as const satisfies readonly SlashCommand[]
 
 const PI_BUILTIN_COMMANDS = [
-  { command: '/compact', description: 'Compact conversation with optional focus instructions' }
+  { command: '/compact', description: 'Compact conversation with optional focus instructions' },
+  { command: '/goal', description: 'Set a goal to work toward until it is completed' }
 ] as const satisfies readonly SlashCommand[]
+
+const PI_CAPABILITIES = {
+  labelKey: 'library.config.agent.field.runtime.option.pi',
+  labelFallback: 'Pi',
+  // Pi has no plan mode. Its `auto` is Cherry's own rule-based gate in the pi approval extension,
+  // not Claude's model-side classifier — same user-facing promise, different mechanism.
+  permissionModes: ALL_PERMISSION_MODES.filter((mode) => mode !== 'plan'),
+  modelTiers: false,
+  heartbeat: true,
+  knowledgeBases: true,
+  // Native Pi MCP tools retain Cherry's approval gate.
+  mcp: true,
+  skills: true,
+  claudeRegistryTools: false,
+  slashCommands: PI_BUILTIN_COMMANDS,
+  nativeFollowUp: false,
+  createDefaults: { permissionMode: 'auto' },
+  // Orphan models are rejected (pre-descriptor behavior): pi needs the provider's endpoint
+  // config to resolve a wire protocol, so no provider ⇒ not drivable. The managed CherryAI
+  // free-quota default is barred too — like claude, pi must not drive it directly.
+  isModelCompatible: (provider, model) =>
+    !!provider &&
+    isPiCompatibleModel(provider, model) &&
+    !isManagedCherryAiDefaultModel(model.providerId, model.apiModelId ?? parseUniqueModelId(model.id).modelId),
+  transport: 'pi-agent',
+  builtinTools: (platform?: string) =>
+    PI_BUILTIN_TOOLS.filter(
+      (tool) => platform === undefined || !('platform' in tool) || tool.platform === platform
+    ).map((tool) => ({
+      id: tool.name,
+      labelKey: `agent.tools.builtin.${tool.name}.label`,
+      descriptionKey: `agent.tools.builtin.${tool.name}.description`,
+      category: tool.category
+    }))
+} as const satisfies AgentRuntimeCapabilities
 
 export const AGENT_RUNTIME_CAPABILITIES = {
   'claude-code': {
@@ -79,6 +118,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     skills: true,
     claudeRegistryTools: true,
     slashCommands: CLAUDE_CODE_BUILTIN_COMMANDS,
+    nativeFollowUp: false,
     createDefaults: { permissionMode: 'auto' },
     // Claude Code reaches non-native providers through the local API Gateway, so its picker must use
     // the same routability rule as the gateway model catalog.
@@ -94,35 +134,13 @@ export const AGENT_RUNTIME_CAPABILITIES = {
         category: tool.category
       }))
   },
-  pi: {
-    labelKey: 'library.config.agent.field.runtime.option.pi',
-    labelFallback: 'Pi',
-    // Pi has no plan mode. Its `auto` is Cherry's own rule-based gate in the pi approval extension,
-    // not Claude's model-side classifier — same user-facing promise, different mechanism.
-    permissionModes: ALL_PERMISSION_MODES.filter((mode) => mode !== 'plan'),
-    modelTiers: false,
-    heartbeat: true,
-    knowledgeBases: true,
-    // Native Pi MCP tools retain Cherry's approval gate.
-    mcp: true,
-    skills: true,
-    claudeRegistryTools: false,
-    slashCommands: PI_BUILTIN_COMMANDS,
-    createDefaults: { permissionMode: 'auto' },
-    // Orphan models are rejected (pre-descriptor behavior): pi needs the provider's endpoint
-    // config to resolve a wire protocol, so no provider ⇒ not drivable. The managed CherryAI
-    // free-quota default is barred too — like claude, pi must not drive it directly.
-    isModelCompatible: (provider, model) =>
-      !!provider &&
-      isPiCompatibleModel(provider, model) &&
-      !isManagedCherryAiDefaultModel(model.providerId, model.apiModelId ?? parseUniqueModelId(model.id).modelId),
-    transport: 'pi-agent',
-    builtinTools: () =>
-      PI_BUILTIN_TOOLS.map((tool) => ({
-        id: tool.name,
-        labelKey: `agent.tools.builtin.${tool.name}.label`,
-        descriptionKey: `agent.tools.builtin.${tool.name}.description`,
-        category: tool.category
-      }))
+  pi: PI_CAPABILITIES,
+  'pi-durable': {
+    ...PI_CAPABILITIES,
+    labelKey: 'library.config.agent.field.runtime.option.pi_durable',
+    labelFallback: 'Pi Durable',
+    nativeFollowUp: true,
+    builtinTools: (platform?: string) =>
+      PI_CAPABILITIES.builtinTools(platform).filter((tool) => tool.id !== PI_TOOL_RECALL_TOOL_NAME)
   }
 } as const satisfies Record<AgentType, AgentRuntimeCapabilities>

@@ -3,7 +3,7 @@ import path from 'path'
 
 import { optimizer } from '@electron-toolkit/utils'
 import type { BrowserWindow } from 'electron'
-import { app, dialog, nativeImage, nativeTheme, session, shell } from 'electron'
+import { app, dialog, nativeImage, nativeTheme, screen, session, shell } from 'electron'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -16,6 +16,7 @@ import { WindowType } from '@main/core/window/types'
 import { isMiniAppPartition } from '@main/features/miniApp/runtime/partition'
 import { t } from '@main/i18n'
 import { openRequestPath } from '@main/services/file'
+import { fitMainWindowBounds, resolveMainWindowOptions } from '@main/services/mainWindowBounds'
 import { openTabInMainWindow, resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
 import {
   AgentDevPreviewRequestPolicy,
@@ -214,17 +215,26 @@ export class MainWindowService extends BaseService {
 
   /** Set the main window's minimum size (window.main.set_minimum_size). */
   public setMainWindowMinimumSize(width: number, height: number): void {
-    this.requireMainWindow().setMinimumSize(width, height)
+    const mainWindow = this.requireMainWindow()
+    const bounds = mainWindow.getBounds()
+    const { workArea } = screen.getDisplayMatching(bounds)
+    mainWindow.setMinimumSize(Math.min(width, workArea.width), Math.min(height, workArea.height))
+    if (mainWindow.isMaximized() || mainWindow.isFullScreen() || mainWindow.isMinimized()) return
+
+    const placed = fitMainWindowBounds(bounds, workArea, width, height)
+    if (
+      bounds.x !== placed.x ||
+      bounds.y !== placed.y ||
+      bounds.width !== placed.width ||
+      bounds.height !== placed.height
+    ) {
+      mainWindow.setBounds(placed)
+    }
   }
 
   /** Reset the main window's minimum size, growing it back if it shrank below the floor. */
   public resetMainWindowMinimumSize(): void {
-    const mainWindow = this.requireMainWindow()
-    mainWindow.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
-    const [width, height] = mainWindow.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
-    if (width < MIN_WINDOW_WIDTH) {
-      mainWindow.setSize(MIN_WINDOW_WIDTH, height)
-    }
+    this.setMainWindowMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
   }
 
   /** Reload the main window if present (read at call time for singleton-reopen safety). */
@@ -265,6 +275,7 @@ export class MainWindowService extends BaseService {
     // and does nothing on singleton reuse (where this.mainWindow is already set).
     windowManager.open(WindowType.Main, {
       initData,
+      configureOptions: resolveMainWindowOptions,
       options: {
         darkTheme: nativeTheme.shouldUseDarkColors,
         ...(isLinux && { icon: linuxIcon }),
@@ -331,7 +342,16 @@ export class MainWindowService extends BaseService {
 
   private setupMainWindowMonitor(mainWindow: BrowserWindow) {
     mainWindow.webContents.on('render-process-gone', (_, details) => {
-      logger.error(`Renderer process crashed with: ${JSON.stringify(details)}`)
+      logger.error('Renderer process exited', {
+        operation: 'window.renderer.exit',
+        failure: {
+          source: 'application',
+          kind: ['clean-exit', 'killed'].includes(details.reason) ? 'expected' : 'reliability',
+          reason: details.reason,
+          outcome: 'failed'
+        },
+        exitCode: details.exitCode
+      })
       // A window being torn down can report its renderer gone after the webContents is
       // destroyed, where reload() throws and hides the real crash behind a dialog.
       if (mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return
@@ -543,11 +563,7 @@ export class MainWindowService extends BaseService {
       // onReady, consumed once); runtime rebuilds must always become visible.
       const suppressShow = this.suppressInitialLaunchShow
       this.suppressInitialLaunchShow = false
-      if (!suppressShow) {
-        //[mac]hacky-fix: quickAssistant set visibleOnFullScreen:true will cause dock icon disappeared
-        void app.dock?.show()
-        mainWindow.show()
-      }
+      if (!suppressShow) mainWindow.show()
     })
 
     // Workaround for electron#10572: zoom factor resets to the cached value when
@@ -562,7 +578,7 @@ export class MainWindowService extends BaseService {
       mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
     })
 
-    // Windows: opacity is zeroed by minimize-to-tray; restore on show/restore for taskbar/Alt-Tab paths bypassing showMainWindow.
+    // Repair Windows tray appearance on show/restore paths that bypass showMainWindow.
     if (isWin) {
       const restoreOpacity = () => {
         if (!mainWindow.isDestroyed()) {
@@ -676,23 +692,33 @@ export class MainWindowService extends BaseService {
       const { url } = details
 
       const oauthProviderUrls = [
-        'https://account.siliconflow.cn/oauth',
-        'https://cloud.siliconflow.cn/bills',
-        'https://cloud.siliconflow.cn/expensebill',
         'https://console.inferera.com/token',
-        'https://console.inferera.com/topup',
-        'https://console.inferera.com/statistics',
         'https://dash.302.ai/sso/login',
-        'https://dash.302.ai/charge',
         'https://maas.aiionly.com/login'
       ]
+      const billingUrls = [
+        'https://cloud.siliconflow.cn/bills',
+        'https://cloud.siliconflow.cn/expensebill',
+        'https://console.inferera.com/topup',
+        'https://console.inferera.com/statistics',
+        'https://dash.302.ai/charge'
+      ]
+      const matchesEntry = (entry: string) =>
+        url === entry || ['/', '?', '#'].some((separator) => url.startsWith(entry + separator))
+      const isOAuthPopup = oauthProviderUrls.some(matchesEntry)
 
-      if (oauthProviderUrls.some((link) => url.startsWith(link))) {
+      if (isOAuthPopup || billingUrls.some(matchesEntry)) {
         return {
           action: 'allow',
           overrideBrowserWindowOptions: {
             webPreferences: {
-              partition: getWebviewPartition(WebviewSecurityProfile.MiniApp)
+              partition: getWebviewPartition(WebviewSecurityProfile.MiniApp),
+              // Electron 45 needs the opener's sandbox mode to preserve postMessage callbacks.
+              sandbox: !isOAuthPopup,
+              nodeIntegration: false,
+              contextIsolation: true,
+              preload: undefined,
+              webviewTag: false
             }
           }
         }
@@ -764,9 +790,8 @@ export class MainWindowService extends BaseService {
         application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
       }
 
-      // Windows: minimize() refocuses previous window unlike hide(); opacity 0 suppresses animation.
       if (isWin) {
-        this.minimizeToTrayOnWindows(mainWindow)
+        this.hideToTrayOnWindows(mainWindow)
         return
       }
 
@@ -783,14 +808,16 @@ export class MainWindowService extends BaseService {
 
     const mainWindow = this.mainWindow
     if (mainWindow && !mainWindow.isDestroyed()) {
+      // Repair tray appearance before exposing the window; listeners cover out-of-band restores.
+      if (isWin) {
+        mainWindow.setOpacity(1)
+        mainWindow.setSkipTaskbar(false)
+      }
       if (mainWindow.isMinimized()) {
-        // Windows: restore opacity before restore() to avoid flash; listeners cover out-of-band restores.
-        if (isWin) {
-          mainWindow.setOpacity(1)
-          mainWindow.setSkipTaskbar(false)
-        }
         mainWindow.restore()
+        if (isWin) mainWindow.show()
         mainWindow.focus()
+        if (isMac) app.focus({ steal: true })
         this.pushMainWindowInitData(initData)
         return
       }
@@ -837,6 +864,7 @@ export class MainWindowService extends BaseService {
 
       mainWindow.show()
       mainWindow.focus()
+      if (isMac) app.focus({ steal: true })
       if (isWin) {
         mainWindow.setVisibleOnAllWorkspaces(false)
       }
@@ -872,9 +900,8 @@ export class MainWindowService extends BaseService {
           application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
         }
 
-        // Windows: minimize() refocuses previous window; opacity 0 suppresses animation.
         if (isWin) {
-          this.minimizeToTrayOnWindows(mainWindow)
+          this.hideToTrayOnWindows(mainWindow)
         } else {
           mainWindow.hide()
         }
@@ -887,18 +914,21 @@ export class MainWindowService extends BaseService {
     this.showMainWindow()
   }
 
-  private minimizeToTrayOnWindows(win: BrowserWindow) {
+  private hideToTrayOnWindows(win: BrowserWindow) {
+    // Retain the minimize step used for Windows focus handoff (#14370).
+    // Hide afterward to remove native window visibility in tray mode.
     win.setOpacity(0)
     win.setSkipTaskbar(true)
     win.minimize()
+    win.hide()
   }
 
   /**
-   * 引用文本到发起窗口（子窗口）或主窗口
-   * @param text 原始文本（未格式化）
-   * @param sourceWebContents 发起引用的 webContents（IPC 调用方）。当它属于一个
-   *   detached SubWindow（独立标签窗口）时，引用插入该子窗口自己的输入框，避免
-   *   内容总是落到主窗口；其余情况（主窗口、selection toolbar 等）保持发往主窗口。
+   * Quote text into the window that asked for it, or into the main window.
+   * @param text Raw, unformatted text
+   * @param sourceWebContents The IPC caller. When it belongs to a window with its own composer
+   *   (a detached SubWindow or a selection agent window), the quote lands in that composer;
+   *   every other caller (main window, selection toolbar, …) quotes into the main window.
    */
   public quoteToMainWindow(text: string, sourceWebContents?: Electron.WebContents): void {
     // Track the intended landing spot so a failure log names the right window:
@@ -908,9 +938,9 @@ export class MainWindowService extends BaseService {
     try {
       const sourceWindow = this.resolveQuoteSourceWindow(sourceWebContents)
       if (sourceWindow) {
-        quoteTarget = `sub window ${sourceWindow.id}`
-        // SubWindow already has a composer mounted with the same App_QuoteToMain
-        // listener, so sending here inserts the quote into the detached window.
+        quoteTarget = `source window ${sourceWindow.id}`
+        // The source window already has a composer mounted with the same App_QuoteToMain
+        // listener, so sending here inserts the quote into that window.
         // Deliberately no Dock-visibility side effects: quoting into a detached
         // window must not undo the user's close-to-tray choice (macOS keeps the
         // Dock icon hidden while Main stays hidden; the tray still shows the app).
@@ -937,16 +967,17 @@ export class MainWindowService extends BaseService {
   }
 
   /**
-   * Resolve the BrowserWindow that hosts a quote IPC sender, when it is a detached
-   * SubWindow. Returns null otherwise — including when that window is already
-   * destroyed — so callers need no further liveness check on the result.
+   * Resolve the BrowserWindow that hosts a quote IPC sender, when it is a window with its own
+   * composer. Returns null otherwise — including when that window is already destroyed — so
+   * callers need no further liveness check on the result.
    */
   private resolveQuoteSourceWindow(sourceWebContents?: Electron.WebContents): BrowserWindow | null {
     if (!sourceWebContents) return null
     const windowManager = application.get('WindowManager')
     const sourceWindowId = windowManager.getWindowIdByWebContents(sourceWebContents)
     if (!sourceWindowId) return null
-    if (windowManager.getWindowType(sourceWindowId) !== WindowType.SubWindow) return null
+    const sourceWindowType = windowManager.getWindowType(sourceWindowId)
+    if (sourceWindowType !== WindowType.SubWindow && sourceWindowType !== WindowType.SelectionAgent) return null
     const sourceWindow = windowManager.getWindow(sourceWindowId)
     return sourceWindow && !sourceWindow.isDestroyed() ? sourceWindow : null
   }

@@ -21,6 +21,8 @@ export const InstalledSkillSchema = z.strictObject({
   isGlobalEnabled: z.boolean(),
   /** Effective per-agent state. False when no agentId is requested. */
   isEnabled: z.boolean(),
+  /** Whether the skill is projected into ~/.agents/skills for external agents. */
+  mirrorEnabled: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string()
 })

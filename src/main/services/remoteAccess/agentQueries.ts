@@ -19,6 +19,7 @@ import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
@@ -107,9 +108,18 @@ function dataPart(partId: string, revision: string, name: string, value: unknown
 
 /** Persisted parts get index-based IDs; live parts use stream IDs and are tombstoned once history commits. */
 export function projectPersistedParts(message: AgentSessionMessageEntity): ProjectedPart[] {
-  const revision = revisionOf(message.updatedAt)
+  return projectMessageParts(
+    { id: message.id, parts: message.data.parts ?? [], modelId: message.modelId },
+    revisionOf(message.updatedAt)
+  )
+}
+
+export function projectMessageParts(
+  message: { id: string; parts: CherryMessagePart[]; modelId?: string | null },
+  revision: string
+): ProjectedPart[] {
   const projected: ProjectedPart[] = []
-  ;(message.data.parts ?? []).forEach((part: CherryMessagePart, index) => {
+  message.parts.forEach((part: CherryMessagePart, index) => {
     const partId = `${message.id}:${index}`
     if (part.type === 'text' || part.type === 'reasoning') {
       projected.push({
@@ -355,17 +365,20 @@ export function listWorkspaces(agentId: string, cursor?: string, limit?: number)
   }
 }
 
-export function listSessions(query: { agentId?: string; workspaceId?: string; cursor?: string; limit?: number }): {
+export function listSessions(query: AgentParams<'agent.sessions.list'>): {
   items: AgentSessionEntity[]
   nextCursor: string | null
 } {
+  const options = {
+    agentId: query.agentId,
+    workspaceId: query.workspaceId,
+    cursor: query.cursor,
+    limit: query.limit ?? DEFAULT_PAGE
+  }
   const page = notFound(() =>
-    agentSessionService.listByCursor({
-      agentId: query.agentId,
-      workspaceId: query.workspaceId,
-      cursor: query.cursor,
-      limit: query.limit ?? DEFAULT_PAGE
-    })
+    query.taskId
+      ? agentTaskService.listTaskSessions(query.taskId, options)
+      : agentSessionService.listByCursor({ ...options, scope: 'all-conversations' })
   )
   return {
     items: page.items,

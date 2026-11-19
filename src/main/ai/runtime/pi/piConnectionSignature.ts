@@ -8,7 +8,6 @@ import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { resolveAutomationAccess } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { buildMcpInstructionsContext } from '@main/ai/mcp/serverInstructions'
-import { gatewayCredentialsFingerprint } from '@main/ai/runtime/agentApiGateway'
 import {
   type McpServerSnapshotMap,
   type NotifyChannel,
@@ -22,9 +21,9 @@ import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
+import type { Provider } from '@shared/data/types/provider'
 
-import { usesPiGateway } from './modelInjection'
+import { taskCompactionPercent } from '../taskCompaction'
 
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue)
@@ -42,12 +41,12 @@ export interface PiConnectionSnapshot {
   session: AgentSessionEntity
   provider: Provider
   model: Model
-  enabledApiKeys: readonly ApiKeyEntry[]
   additionalSkillPaths: readonly string[]
   mcpServerSnapshots: McpServerSnapshotMap
   linkedChannel: NotifyChannel | null
   effectiveLanguage: string | null
   mcpInstructions?: string
+  compactionPercent?: number
   signature: string
 }
 
@@ -71,13 +70,15 @@ export async function capturePiConnectionSnapshot(
   requestedModelId?: UniqueModelId,
   selectedKnowledgeBaseIds?: readonly string[]
 ): Promise<PiConnectionSnapshot> {
-  const session = agentSessionService.getById(sessionId)
+  const session = agentSessionService.getById(sessionId, { includeTaskReuse: true })
   const agent = agentService.getAgent(agentId)
-  if (!session?.agentId || session.agentId !== agentId || !agent?.model) {
+  // A cleared agent default still routes when the caller passes the session's
+  // own override — only a session with no effective model is unroutable.
+  const modelId = requestedModelId ?? agent?.model
+  if (!session?.agentId || session.agentId !== agentId || !agent || !modelId) {
     throw new PiInvalidConnectionSnapshotError(`Invalid Pi session snapshot: ${sessionId}`)
   }
 
-  const modelId = requestedModelId ?? agent.model
   const parsed = parseUniqueModelId(modelId)
   const provider = providerService.getByProviderId(parsed.providerId)
   const model = modelService.getByKey(parsed.providerId, parsed.modelId)
@@ -108,14 +109,15 @@ export async function capturePiConnectionSnapshot(
   const notificationContext = resolveAgentNotificationContext(sessionId, agent.id, linkedChannel)
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
-  const gatewayCredentials = usesPiGateway(provider, model) ? gatewayCredentialsFingerprint() : null
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
+  const compactionPercent = taskCompactionPercent(session)
   const signature = createHash('sha256')
     .update(
       JSON.stringify(
         stableValue({
           agent: { ...agent, updatedAt: undefined, configuration },
           session: { workspaceId: session.workspaceId, workspace: session.workspace },
+          compactionPercent,
           modelId,
           provider,
           model,
@@ -131,7 +133,7 @@ export async function capturePiConnectionSnapshot(
           computerUseEnabled: application.get('PreferenceService').get('app.computer_use.agent_control.enabled'),
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
           effectiveLanguage,
-          gatewayCredentials
+          modelTransport: 'gateway-objects'
         })
       )
     )
@@ -139,10 +141,10 @@ export async function capturePiConnectionSnapshot(
 
   return {
     agent,
+    compactionPercent,
     session,
     provider,
     model,
-    enabledApiKeys: apiKeys,
     effectiveLanguage,
     mcpInstructions,
     additionalSkillPaths: [

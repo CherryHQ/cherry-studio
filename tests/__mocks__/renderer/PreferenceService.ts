@@ -1,5 +1,7 @@
 import { vi } from 'vitest'
 
+import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
+
 /**
  * Mock PreferenceService for testing
  * Provides common preference defaults used across the application
@@ -19,6 +21,8 @@ export const mockPreferenceDefaults: Record<string, any> = {
   'ui.theme': 'light',
   'ui.font_size': 14,
 
+  'agent.skills.external_export.enabled': false,
+
   // AI preferences
   'ai.default_model': 'gpt-4',
   'ai.temperature': 0.7,
@@ -35,6 +39,8 @@ export const mockPreferenceDefaults: Record<string, any> = {
   // App preferences
   'app.user.name': 'MockUser',
   'app.language': 'zh-CN',
+  'app.browser.start_page.mode': getDefaultValue('app.browser.start_page.mode'),
+  'app.browser.start_page.custom_url': getDefaultValue('app.browser.start_page.custom_url'),
 
   // Mirrors the generated schema defaults — without them the hook returns
   // null and UI gated on the master switch renders its disabled state.
@@ -52,7 +58,10 @@ export const mockPreferenceDefaults: Record<string, any> = {
   'feature.agent.file_pane.indent_guides': true,
   'feature.agent.file_pane.show_whitespace': false,
   'feature.agent.file_pane.scroll_past_end': false,
-  'feature.agent.file_pane.tab_size': 2
+  'feature.agent.file_pane.tab_size': 2,
+  'chat.topics.sort': getDefaultValue('chat.topics.sort'),
+  'agent.session.sort': getDefaultValue('agent.session.sort'),
+  'agent.details.sections': getDefaultValue('agent.details.sections')
 
   // Add more defaults as needed
 }
@@ -69,16 +78,49 @@ export const createMockPreferenceService = (
   customDefaults: Record<string, any> = {},
   state = createMockPreferenceState(customDefaults)
 ) => {
+  const listeners = new Map<string, Set<() => void>>()
+  const subscriptions = new Map<string, Promise<boolean>>()
+  const alignedValues = new Map<string, any>(state)
   const resetState = () => {
+    subscriptions.clear()
+    alignedValues.clear()
     state.clear()
-    Object.entries({ ...mockPreferenceDefaults, ...customDefaults }).forEach(([key, value]) => state.set(key, value))
+    listeners.clear()
+    Object.entries({ ...mockPreferenceDefaults, ...customDefaults }).forEach(([key, value]) => {
+      state.set(key, value)
+      alignedValues.set(key, value)
+    })
   }
+
+  const getAuthoritative = vi.fn(async (key: string) => state.get(key) ?? undefined)
+  const ensureSubscription = vi.fn(async (key: string): Promise<boolean> => {
+    if (!subscriptions.has(key)) subscriptions.set(key, Promise.resolve(true))
+    return subscriptions.get(key)!
+  })
+  const ensureFreshSubscription = vi.fn(async (key: string) => {
+    try {
+      if (!(await ensureSubscription(key))) return { ok: false } as const
+      const value = await getAuthoritative(key)
+      if (value === undefined || value === null) return { ok: false } as const
+      const changed = alignedValues.get(key) !== value
+      alignedValues.set(key, value)
+      state.set(key, value)
+      if (changed) listeners.get(key)?.forEach((listener) => listener())
+      return { ok: true, value } as const
+    } catch {
+      return { ok: false } as const
+    }
+  })
 
   return {
     get: vi.fn((key: string) => {
       const value = state.get(key)
       return Promise.resolve(value !== undefined ? value : null)
     }),
+
+    getAuthoritative,
+    ensureSubscription,
+    ensureFreshSubscription,
 
     getMultiple: vi.fn((keys: Record<string, string>) => {
       const result: Record<string, any> = {}
@@ -90,18 +132,35 @@ export const createMockPreferenceService = (
     }),
 
     set: vi.fn((key: string, value: any) => {
+      alignedValues.set(key, value)
       state.set(key, value)
+      listeners.get(key)?.forEach((listener) => listener())
       return Promise.resolve()
     }),
 
     setMultiple: vi.fn((values: Record<string, any>) => {
-      Object.entries(values).forEach(([key, value]) => state.set(key, value))
+      Object.entries(values).forEach(([key, value]) => {
+        alignedValues.set(key, value)
+        state.set(key, value)
+        listeners.get(key)?.forEach((listener) => listener())
+      })
       return Promise.resolve()
     }),
 
     preload: vi.fn(() => Promise.resolve()),
 
     preloadAll: vi.fn(() => Promise.resolve()),
+
+    subscribeChange: (key: string) => (listener: () => void) => {
+      if (!listeners.has(key)) listeners.set(key, new Set())
+      listeners.get(key)!.add(listener)
+      void Promise.resolve()
+        .then(() => ensureSubscription(key))
+        .catch(() => undefined)
+      return () => {
+        listeners.get(key)?.delete(listener)
+      }
+    },
 
     getCachedValue: vi.fn((key: string) => {
       return state.get(key)
@@ -120,6 +179,8 @@ export const createMockPreferenceService = (
       state.clear()
       return Promise.resolve()
     }),
+
+    _getSubscriberCount: (key: string) => listeners.get(key)?.size ?? 0,
 
     // Internal state access for testing
     _getMockState: () => Object.fromEntries(state),

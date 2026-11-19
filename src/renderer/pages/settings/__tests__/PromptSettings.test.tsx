@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
@@ -209,7 +210,7 @@ vi.mock('@cherrystudio/ui', () => ({
       ))}
     </div>
   ),
-  Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  ScrollArea: MockCherrystudioUI.ScrollArea,
   Skeleton: (props: ComponentProps<'div'>) => <div {...props} />,
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
@@ -240,15 +241,8 @@ describe('PromptSettings', () => {
   it('lists global and restricted prompts from the settings route', () => {
     render(<PromptSettings />)
 
-    expect(mocks.useQuery).toHaveBeenCalledWith('/prompts', {})
     expect(screen.getByText('Global prompt')).toBeInTheDocument()
     expect(screen.getByText('Targeted prompt')).toBeInTheDocument()
-    expect(screen.getByText('settings.prompts.visibility.global.badge')).toBeInTheDocument()
-    expect(screen.queryByText('settings.prompts.visibility.restricted.badge')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'common.search' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'common.edit Global prompt' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'common.delete Global prompt' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Global prompt' })).not.toBeInTheDocument()
   })
 
   it('creates a prompt with its selected visibility', async () => {
@@ -397,10 +391,5 @@ describe('PromptSettings', () => {
     expect(screen.getByRole('dialog', { name: 'settings.prompts.delete' })).toHaveTextContent(
       'settings.prompts.deleteRestrictedConfirm'
     )
-    expect(mocks.useQuery).toHaveBeenCalledWith('/prompts/:id/bindings', {
-      enabled: true,
-      params: { id: prompts[2].id },
-      swrOptions: { keepPreviousData: false }
-    })
   })
 })

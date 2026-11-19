@@ -13,6 +13,11 @@ export const entries: SettingsSearchEntry[] = [
     titleKey: 'settings.browser.openLinks',
     descriptionKey: 'settings.browser.openLinksHelp'
   },
+  {
+    anchorId: 'start-page',
+    titleKey: 'settings.browser.startPage',
+    descriptionKey: 'settings.browser.startPageHelp'
+  },
   { anchorId: 'import', titleKey: 'settings.browser.import', descriptionKey: 'settings.browser.importHelp' },
   { anchorId: 'history', titleKey: 'settings.browser.history', descriptionKey: 'settings.browser.historyHelp' },
   { anchorId: 'clear', titleKey: 'settings.browser.clear', descriptionKey: 'settings.browser.clearHelp' }

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogTrigger, Tooltip } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
+import { useExitPresence } from '@renderer/hooks/useExitPresence'
 
 const BrowserImportDialog = lazy(() =>
   import('./BrowserImportDialog').then((module) => ({ default: module.BrowserImportDialog }))
@@ -13,6 +14,7 @@ export function WebviewImportBanner() {
   const { t } = useTranslation()
   const [hidden, setHidden] = usePersistCache('ui.browser.import_prompt_hidden')
   const [open, setOpen] = useState(false)
+  const { isPresent } = useExitPresence(open ? true : null)
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -39,7 +41,7 @@ export function WebviewImportBanner() {
           </Tooltip>
         </div>
       )}
-      {open && (
+      {isPresent && (
         <Suspense fallback={null}>
           <BrowserImportDialog onDone={() => setOpen(false)} />
         </Suspense>

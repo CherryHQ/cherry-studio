@@ -2,11 +2,13 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
+import { agentHandlers } from '@data/api/handlers/agents'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
-import { jobTable } from '@data/db/schemas/job'
+import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
+import { jobService } from '@data/services/JobService'
 
 describe('AgentTaskService active-Agent read contract', () => {
   const dbh = setupTestDatabase()
@@ -32,6 +34,143 @@ describe('AgentTaskService active-Agent read contract', () => {
       catchUpPolicy: { kind: 'skip-missed' }
     }).id
   }
+
+  it('retains actual execution facts through queueing, cancellation request and terminal settlement', () => {
+    seedAgent('owner')
+    const taskId = seedTask('task', 'owner')
+    dbh.db
+      .insert(jobTable)
+      .values({
+        id: 'run',
+        type: 'agent.task',
+        scheduleId: taskId,
+        queue: 'agent:owner',
+        status: 'pending',
+        scheduledAt: 1000,
+        input: {},
+        createdAt: 1000
+      })
+      .run()
+    expect(agentTaskService.getTaskRun(taskId, 'run')).toMatchObject({
+      status: 'pending',
+      startedAt: null,
+      finishedAt: null,
+      outcome: 'unknown',
+      resultLocation: { kind: 'none' }
+    })
+    dbh.db
+      .update(jobTable)
+      .set({ status: 'running', startedAt: 2000, cancelRequested: true, cancelRequestedAt: 3000 })
+      .where(eq(jobTable.id, 'run'))
+      .run()
+    expect(agentTaskService.getTaskRun(taskId, 'run')).toMatchObject({
+      status: 'running',
+      cancelRequested: true,
+      startedAt: new Date(2000).toISOString(),
+      finishedAt: null
+    })
+    expect(agentTaskService.getTaskLogs(taskId).logs[0].status).toBe('cancelled')
+    dbh.db.update(jobTable).set({ status: 'cancelled', finishedAt: 4000 }).where(eq(jobTable.id, 'run')).run()
+    expect(agentTaskService.getTaskRun(taskId, 'run')).toMatchObject({
+      status: 'cancelled',
+      finishedAt: new Date(4000).toISOString()
+    })
+  })
+
+  it('orders equal-time run pages by identity and enforces task ownership and job type', () => {
+    seedAgent('owner')
+    const taskId = seedTask('task', 'owner')
+    const otherTask = seedTask('other', 'owner')
+    for (const id of ['a', 'c', 'b'])
+      dbh.db
+        .insert(jobTable)
+        .values({
+          id,
+          type: 'agent.task',
+          scheduleId: taskId,
+          queue: 'agent:owner',
+          status: 'completed',
+          scheduledAt: 1000,
+          createdAt: 1000,
+          input: {},
+          output: { kind: 'skipped' },
+          finishedAt: 2000
+        })
+        .run()
+    dbh.db
+      .insert(jobTable)
+      .values({
+        id: 'foreign',
+        type: 'other.job',
+        status: 'pending',
+        scheduleId: taskId,
+        queue: 'other',
+        scheduledAt: 1000,
+        input: {}
+      })
+      .run()
+    expect(agentTaskService.listTaskRuns(taskId, { limit: 2 })).toMatchObject({
+      total: 3,
+      runs: [{ id: 'c', outcome: 'skipped', startedAt: null }, { id: 'b' }]
+    })
+    expect(agentTaskService.listTaskRuns(taskId, { limit: 2, offset: 2 }).runs.map((run) => run.id)).toEqual(['a'])
+    expect(jobService.list({ type: 'agent.task', scheduleId: taskId, limit: 3 }).map((job) => job.id)).toEqual([
+      'c',
+      'b',
+      'a'
+    ])
+    expect(() => agentTaskService.getTaskRun(otherTask, 'a')).toThrow()
+    expect(() => agentTaskService.getTaskRun(taskId, 'foreign')).toThrow()
+    dbh.db.update(agentTable).set({ deletedAt: Date.now() }).where(eq(agentTable.id, 'owner')).run()
+    expect(() => agentTaskService.listTaskRuns(taskId, { limit: 2 })).toThrow()
+    expect(() => agentTaskService.getTaskRun(taskId, 'a')).toThrow()
+  })
+
+  it('validates the public status query and returns only the requested group', async () => {
+    seedAgent('owner')
+    seedTask('active', 'owner')
+    const paused = seedTask('paused', 'owner')
+    jobScheduleService.update(paused, { enabled: false })
+    const response = await agentHandlers['/agent-tasks'].GET({
+      query: { status: 'paused', page: 1, limit: 50 }
+    } as never)
+    expect(response).toMatchObject({ total: 1, page: 1, items: [{ id: paused, status: 'paused' }] })
+    await expect(agentHandlers['/agent-tasks'].GET({ query: { status: 'unknown' } } as never)).rejects.toThrow()
+  })
+
+  it('paginates the paused and missed union with one ordering and total', async () => {
+    seedAgent('owner')
+    const ids: string[] = []
+    for (let i = 0; i < 55; i++) {
+      const id = seedTask(`stopped-${i}`, 'owner')
+      jobScheduleService.update(id, {
+        enabled: false,
+        ...(i % 2 ? { trigger: { kind: 'once', at: 1 }, metadata: { missed: { reason: 'agent_archived' } } } : {})
+      })
+      dbh.db
+        .update(jobScheduleTable)
+        .set({ createdAt: 1000 + i })
+        .where(eq(jobScheduleTable.id, id))
+        .run()
+      ids.unshift(id)
+    }
+    seedTask('active', 'owner')
+    const first = await agentHandlers['/agent-tasks'].GET({ query: { status: ['paused', 'missed'], limit: 50 } })
+    const second = await agentHandlers['/agent-tasks'].GET({
+      query: { status: ['paused', 'missed'], limit: 50, page: 2 }
+    })
+    expect(first).toMatchObject({ total: 55, page: 1 })
+    expect(second).toMatchObject({ total: 55, page: 2 })
+    expect(first).toHaveProperty('items.length', 50)
+    expect(second).toHaveProperty('items.length', 5)
+    expect('items' in first && 'items' in second && [...first.items, ...second.items].map((item) => item.id)).toEqual(
+      ids
+    )
+    await expect(agentHandlers['/agent-tasks'].GET({ query: { status: [] } })).rejects.toThrow()
+    await expect(
+      agentHandlers['/agent-tasks'].GET({ query: { status: ['paused', 'unknown'] } } as never)
+    ).rejects.toThrow()
+  })
 
   it('hides tasks owned by trashed or missing Agents from every normal read and shows them after restore', () => {
     seedAgent('agent-active')
@@ -128,6 +267,76 @@ describe('AgentTaskService active-Agent read contract', () => {
       ])
       .run()
     expect(agentTaskService.getTaskDetail(taskId)?.runSummary).toEqual({ status: 'running' })
+  })
+
+  it('filters before pagination and keeps consumed once schedules out of paused tasks', () => {
+    seedAgent('owner')
+    const active = new Set<string>()
+    const paused = new Set<string>()
+    for (let i = 0; i < 55; i++) {
+      active.add(seedTask(`active-${i}`, 'owner'))
+      const id = seedTask(`paused-${i}`, 'owner')
+      jobScheduleService.update(id, { enabled: false })
+      paused.add(id)
+    }
+    const once = seedTask('once', 'owner')
+    jobScheduleService.update(once, { trigger: { kind: 'once', at: 1000 }, enabled: false })
+    jobScheduleService.markFiredTx(dbh.db, once, 2000, null)
+    const missed = seedTask('missed', 'owner')
+    jobScheduleService.update(missed, { enabled: false, metadata: { missed: { reason: 'agent_archived' } } })
+    for (const [status, ids] of [
+      ['active', active],
+      ['paused', paused]
+    ] as const) {
+      const first = agentTaskService.listAllTasks({ status, limit: 50 })
+      const second = agentTaskService.listAllTasks({ status, limit: 50, offset: 50 })
+      expect(first.total).toBe(55)
+      expect(second.total).toBe(55)
+      expect(first.tasks).toHaveLength(50)
+      expect(second.tasks).toHaveLength(5)
+      expect(new Set([...first.tasks, ...second.tasks].map((task) => task.id))).toEqual(ids)
+    }
+    expect(agentTaskService.listAllTasks({ status: 'completed' }).tasks.map((task) => task.id)).toEqual([once])
+    expect(agentTaskService.listAllTasks({ status: 'missed' }).tasks.map((task) => task.id)).toEqual([missed])
+    expect(agentTaskService.listAllTasks().total).toBe(112)
+  })
+
+  it('returns later execution pages with the full total and task isolation', () => {
+    seedAgent('owner')
+    const taskId = seedTask('history', 'owner')
+    const other = seedTask('other', 'owner')
+    for (let i = 0; i < 105; i++) {
+      dbh.db
+        .insert(jobTable)
+        .values({
+          id: `run-${i}`,
+          type: 'agent.task',
+          queue: 'agent:owner',
+          scheduleId: taskId,
+          status: 'completed',
+          scheduledAt: i,
+          createdAt: i,
+          input: {},
+          metadata: { sessionId: `session-${i}` }
+        })
+        .run()
+    }
+    dbh.db
+      .insert(jobTable)
+      .values({
+        id: 'other-run',
+        type: 'agent.task',
+        queue: 'agent:owner',
+        scheduleId: other,
+        status: 'completed',
+        scheduledAt: 1000,
+        input: {}
+      })
+      .run()
+    const page = agentTaskService.getTaskLogs(taskId, { limit: 50, offset: 100 })
+    expect(page.total).toBe(105)
+    expect(page.logs.map((log) => log.id)).toEqual(['run-4', 'run-3', 'run-2', 'run-1', 'run-0'])
+    expect(page.logs[0].sessionId).toBe('session-4')
   })
 })
 

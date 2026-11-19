@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { Button, type RenderRowArgs } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { CommandContextMenu, type CommandContextMenuExtraItem, type MaybePromise } from '@renderer/components/command'
-import { getFileIconName } from '@renderer/utils/fileIconName'
+import { FileIcon } from '@renderer/components/icons/FileIcon'
 
 import type { FileTreeAnimationSlot, FileTreeNode, FileTreeRenameSlot } from './types'
 
@@ -15,6 +15,7 @@ interface FileTreeRowProps {
   renameSlot?: FileTreeRenameSlot
   animationSlot?: FileTreeAnimationSlot
   renderRowExtras?: (node: FileTreeNode) => React.ReactNode
+  renderRowDetail?: (node: FileTreeNode) => React.ReactNode
   getMenuItems?: (node: FileTreeNode) => MaybePromise<readonly CommandContextMenuExtraItem[]>
   fileIcon?: (node: FileTreeNode) => React.ReactNode
   folderIcon?: (node: FileTreeNode, expanded: boolean) => React.ReactNode
@@ -33,6 +34,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
     renameSlot,
     animationSlot,
     renderRowExtras,
+    renderRowDetail,
     getMenuItems,
     fileIcon,
     folderIcon,
@@ -60,7 +62,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
         folderIcon(node, isExpanded)
       ) : (
         <Icon
-          icon={`${MATERIAL_ICON_PREFIX}${isExpanded ? 'folder-open' : 'folder'}`}
+          icon={`${MATERIAL_ICON_PREFIX}${isExpanded ? 'folder-base-open' : 'folder-base'}`}
           className="shrink-0"
           width={ICON_SIZE_PX}
           height={ICON_SIZE_PX}
@@ -70,12 +72,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
     return fileIcon ? (
       fileIcon(node)
     ) : (
-      <Icon
-        icon={`${MATERIAL_ICON_PREFIX}${getFileIconName(node.name)}`}
-        className="shrink-0"
-        width={ICON_SIZE_PX}
-        height={ICON_SIZE_PX}
-      />
+      <FileIcon path={node.name} className="shrink-0" width={ICON_SIZE_PX} height={ICON_SIZE_PX} />
     )
   }
 
@@ -170,16 +167,25 @@ export function FileTreeRow(props: FileTreeRowProps) {
     </div>
   )
 
-  if (!getMenuItems) {
-    return row
-  }
-
-  return (
+  const rowWithMenu = getMenuItems ? (
     <CommandContextMenu
       location="webcontents.context"
       getExtraItems={() => getMenuItems(node)}
       onOpenChange={setMenuOpen}>
       {row}
     </CommandContextMenu>
+  ) : (
+    row
+  )
+
+  if (!renderRowDetail) {
+    return rowWithMenu
+  }
+
+  return (
+    <>
+      {rowWithMenu}
+      {renderRowDetail(node)}
+    </>
   )
 }

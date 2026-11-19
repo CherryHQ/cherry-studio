@@ -2492,6 +2492,74 @@
       }
     },
     {
+      "apiModelId": "global.anthropic.claude-opus-5-5",
+      "modelId": "claude-opus-5-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 20
+        }
+      },
+      "providerId": "aws-bedrock",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "wire": {
+            "auto": {
+              "operations": [
+                {
+                  "target": "reasoningConfig.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "adaptive"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningConfig.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "adaptive"
+                  }
+                },
+                {
+                  "target": "reasoningConfig.maxReasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningConfig.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
       "modelId": "claude-sonnet-4-5",
       "pricing": {
@@ -3936,6 +4004,25 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 3.75
+        }
+      },
+      "providerId": "copilot"
+    },
+    {
+      "apiModelId": "gemini-4-carbon",
+      "modelId": "gemini-4-carbon",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
         }
       },
       "providerId": "copilot"
@@ -8942,6 +9029,20 @@
     {
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "deepseek-v4-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.006
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
       "providerId": "deepseek",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -9055,6 +9156,24 @@
           }
         }
       }
+    },
+    {
+      "modelId": "deepseek-v4-flash-vision-exp",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.006
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
+      "providerId": "deepseek"
     },
     {
       "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
@@ -10823,6 +10942,10 @@
           }
         }
       }
+    },
+    {
+      "modelId": "doubao-seedream-5-5",
+      "providerId": "doubao"
     },
     {
       "apiModelId": "glm-4-7-251222",
@@ -12936,6 +13059,44 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "google/gemini-4-carbon",
+      "modelId": "gemini-4-carbon",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "google/gemini-4-hydrogen",
+      "modelId": "gemini-4-hydrogen",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 7.5
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "google/gemini-nano-banana-2.1",
       "modelId": "gemini-nano-banana-2-1",
       "pricing": {
@@ -14954,15 +15115,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0028
+          "perMillionTokens": 0.0025
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.119
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.28
+          "perMillionTokens": 0.238
         }
       },
       "providerId": "gateway"
@@ -14973,15 +15134,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0036
+          "perMillionTokens": 0.0028
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.435
+          "perMillionTokens": 0.3045
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.87
+          "perMillionTokens": 0.609
         }
       },
       "providerId": "gateway"
@@ -18243,6 +18404,30 @@
       "providerId": "longcat"
     },
     {
+      "apiModelId": "LongCat-2.5",
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages", "openai-responses"],
+      "modelId": "longcat-2-5",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        }
+      },
+      "providerId": "longcat",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "mimo-v2.5",
       "modelId": "mimo-v2-5",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -18342,6 +18527,7 @@
       }
     },
     {
+      "apiModelId": "mimo-v2.5-pro",
       "modelId": "mimo-v2-5-pro",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -18441,6 +18627,7 @@
       }
     },
     {
+      "apiModelId": "mimo-v2.5-pro-ultraspeed",
       "modelId": "mimo-v2-5-pro-ultraspeed",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -18471,6 +18658,7 @@
       }
     },
     {
+      "apiModelId": "mimo-v2.6-flash",
       "modelId": "mimo-v2-6-flash",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -18570,6 +18758,7 @@
       }
     },
     {
+      "apiModelId": "mimo-v2.6-pro",
       "modelId": "mimo-v2-6-pro",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -18669,6 +18858,7 @@
       }
     },
     {
+      "apiModelId": "mimo-v2.6-pro-ultraspeed",
       "modelId": "mimo-v2-6-pro-ultraspeed",
       "providerId": "mimo",
       "reasoningContracts": {
@@ -22075,6 +22265,38 @@
       "providerId": "ollama"
     },
     {
+      "apiModelId": "gpt-image-2.6-flare",
+      "endpointTypes": ["openai-image-generation", "openai-image-edit"],
+      "modelId": "gpt-image-2-6-flare",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        }
+      },
+      "providerId": "openai"
+    },
+    {
+      "apiModelId": "gpt-image-2.6-sunburst",
+      "endpointTypes": ["openai-image-generation", "openai-image-edit"],
+      "modelId": "gpt-image-2-6-sunburst",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        }
+      },
+      "providerId": "openai"
+    },
+    {
       "apiModelId": "gpt-5.3-codex-spark",
       "endpointTypes": ["openai-responses"],
       "modelId": "gpt-5-3-codex-spark",
@@ -22247,6 +22469,56 @@
         "maxInputTokens": 372000
       },
       "modelId": "gpt-6-1-terra",
+      "providerId": "openai-codex",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "low",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "low"
+          }
+        }
+      },
+      "supportsFastMode": true
+    },
+    {
+      "apiModelId": "gpt-6.2-astra",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 272000,
+        "maxInputTokens": 144000
+      },
+      "modelId": "gpt-6-2-astra",
+      "providerId": "openai-codex",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "low",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "low"
+          }
+        }
+      },
+      "supportsFastMode": true
+    },
+    {
+      "apiModelId": "gpt-6.2-sol",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 500000,
+        "maxInputTokens": 372000
+      },
+      "modelId": "gpt-6-2-sol",
       "providerId": "openai-codex",
       "reasoningContracts": {
         "openai-responses": {
@@ -26765,6 +27037,102 @@
       }
     },
     {
+      "apiModelId": "google/gemini-4-carbon",
+      "modelId": "gemini-4-carbon",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.1875
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["high", "medium", "low"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "google/gemini-4-hydrogen",
+      "modelId": "gemini-4-hydrogen",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.083333
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 7.5
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["xhigh", "high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["xhigh", "high", "medium", "low"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "google/gemini-4-neon",
+      "modelId": "gemini-4-neon",
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["xhigh", "high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["xhigh", "high", "medium", "low"]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "~google/gemini-flash-latest",
       "modelId": "gemini-flash-latest",
       "pricing": {
@@ -28960,6 +29328,64 @@
             ],
             "defaultEffort": "medium",
             "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "openai/gpt-6.2-astra",
+      "modelId": "gpt-6-2-astra",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.4
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 8
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 40
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["max", "xhigh", "high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "openai/gpt-6.2-sol",
+      "modelId": "gpt-6-2-sol",
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["max", "xhigh", "high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
           }
         }
       }
@@ -31460,15 +31886,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0028
+          "perMillionTokens": 0.08
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.4
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.28
+          "perMillionTokens": 2
         }
       },
       "providerId": "openrouter",
@@ -31491,15 +31917,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0036
+          "perMillionTokens": 0.096
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.435
+          "perMillionTokens": 0.48
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.87
+          "perMillionTokens": 1.8
         }
       },
       "providerId": "openrouter",
@@ -31906,6 +32332,44 @@
         }
       },
       "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "mistralai/mistral-large-4-0",
+      "modelId": "mistral-large-4-0",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.07
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.7
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.1
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["high", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ],
+            "defaultEffort": "high",
+            "supportedEfforts": ["high", "none"]
+          }
+        }
+      }
     },
     {
       "apiModelId": "mistralai/mistral-medium-3",
@@ -43210,6 +43674,16 @@
       "providerId": "tokenhub"
     },
     {
+      "apiModelId": "hy4",
+      "modelId": "hy4",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "hy4-flash",
+      "modelId": "hy4-flash",
+      "providerId": "tokenhub"
+    },
+    {
       "apiModelId": "hy4-preview",
       "modelId": "hy4-preview",
       "providerId": "tokenhub"
@@ -44038,6 +44512,44 @@
       "providerId": "vertexai"
     },
     {
+      "apiModelId": "gemini-4-carbon",
+      "modelId": "gemini-4-carbon",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "providerId": "vertexai"
+    },
+    {
+      "apiModelId": "gemini-4-hydrogen",
+      "modelId": "gemini-4-hydrogen",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 7.5
+        }
+      },
+      "providerId": "vertexai"
+    },
+    {
       "apiModelId": "gemini-embedding-001",
       "modelId": "gemini-embedding-001",
       "pricing": {
@@ -44346,6 +44858,131 @@
       "providerId": "voyageai"
     },
     {
+      "modelId": "glm-5",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
+      "providerId": "zai"
+    },
+    {
+      "apiModelId": "glm-5.1",
+      "modelId": "glm-5-1",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
+      "providerId": "zai"
+    },
+    {
+      "apiModelId": "glm-5.2",
+      "modelId": "glm-5-2",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
+      "providerId": "zai"
+    },
+    {
+      "apiModelId": "glm-5.2-fast",
+      "modelId": "glm-5-2-fast",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
+      "providerId": "zai"
+    },
+    {
+      "apiModelId": "glm-5.3",
+      "modelId": "glm-5-3",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
+      "providerId": "zai"
+    },
+    {
+      "apiModelId": "glm-5.3-flash",
+      "modelId": "glm-5-3-flash",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
+      "providerId": "zai"
+    },
+    {
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -44383,8 +45020,65 @@
       "providerId": "zhipu"
     },
     {
+      "modelId": "glm-5",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
+      "providerId": "zhipu"
+    },
+    {
+      "apiModelId": "glm-5.1",
+      "modelId": "glm-5-1",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
+      "providerId": "zhipu"
+    },
+    {
       "apiModelId": "glm-5.2",
       "modelId": "glm-5-2",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
       "providerId": "zhipu",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -44435,6 +45129,22 @@
     {
       "apiModelId": "glm-5.2-fast",
       "modelId": "glm-5-2-fast",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
       "providerId": "zhipu",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -44485,6 +45195,22 @@
     {
       "apiModelId": "glm-5.3",
       "modelId": "glm-5-3",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
       "providerId": "zhipu",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -44516,6 +45242,22 @@
     {
       "apiModelId": "glm-5.3-flash",
       "modelId": "glm-5-3-flash",
+      "parameterSupport": {
+        "temperature": {
+          "range": {
+            "max": 1,
+            "min": 0
+          },
+          "supported": true
+        },
+        "topP": {
+          "range": {
+            "max": 1,
+            "min": 0.01
+          },
+          "supported": true
+        }
+      },
       "providerId": "zhipu",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -44582,5 +45324,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "d5c315bd1da2fbdb"
+  "version": "4610ad89a9f9685d"
 }

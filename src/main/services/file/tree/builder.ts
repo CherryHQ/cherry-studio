@@ -1,25 +1,4 @@
-/**
- * DirectoryTreeBuilder — implementation. SoT:
- * `docs/references/file/directory-tree.md`.
- *
- * Owns:
- *   - one `TreeDirRoot` mirror of the filesystem subtree rooted at `rootPath`
- *   - a `Map<absPath, TreeNode>` reverse index (O(1) lookup for watcher
- *     events, which arrive keyed by path)
- *   - a `DirectoryWatcher` subscription that translates raw FS events into
- *     `TreeMutationEvent`s and keeps the tree coherent
- *
- * Strict scope (directory-tree.md §2.2):
- *   - No `@main/data/**` imports — the tree is a runtime / render-layer
- *     primitive, not a persistence concern. Enforcement is the import-graph
- *     regex test in `__tests__/builder.test.ts`.
- *   - No `noteTable` / `fileEntry` knowledge — Notes joins this primitive
- *     to its sparse state table renderer-side.
- *
- * Backpressure: `initialScanPromise` serializes early watcher events behind
- * the initial scan so a watcher event for a path the scan is about to
- * insert never lands first.
- */
+/** Directory membership projection maintained from a leased filesystem observation. */
 
 import { stat as nodeStat } from 'node:fs/promises'
 import path from 'node:path'
@@ -38,7 +17,8 @@ import {
   type TreeNodeStats
 } from '@shared/utils/file'
 
-import { createDirectoryWatcher, type DirectoryWatcher, type WatcherEvent } from '../watcher'
+import type { FileObservationService } from '../observation/FileObservationService'
+import type { ObservationEvent, ObservationLease } from '../observation/WatchScope'
 import { type GitignorePredicate, loadGitignorePredicate } from './gitignore'
 import { listDirectory as searchListDirectory } from './search'
 
@@ -145,7 +125,7 @@ export interface DirectoryTreeBuilder extends Disposable {
   dispose(): void
   /**
    * Async dispose — same teardown sequence as `dispose()` but awaits
-   * `watcher.close()` so the caller can be sure FDs are released before
+   * `watcher.disposeAsync()` so the caller can be sure FDs are released before
    * proceeding. Use this from `onStop()` and other shutdown paths that
    * may race with process exit; sync `dispose()`'s dangling promise can
    * lose its error log if the process exits first.
@@ -158,8 +138,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   private readonly map = new Map<string, TreeNode>()
   private readonly emitter = new Emitter<TreeMutationEvent>()
   public readonly onMutation = this.emitter.event
-  private watcher: DirectoryWatcher | null = null
-  private watcherSubscription: Disposable | null = null
+  private watcher: ObservationLease | null = null
   private watcherClosePromise: Promise<void> | null = null
   private readonly options: ResolvedTreeOptions
   private readonly rootPath: string
@@ -171,7 +150,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   // that consults it before `init()` resolves is safe.
   private ignorePredicate: GitignorePredicate | null = null
   private disposed = false
-  private initialScanPromise: Promise<void> | null = null
+  private initialEvents: ObservationEvent[] | null = []
   private rootMissingAtInit = false
   private readonly pendingAdds = new Map<string, symbol>()
   // Paths recently affected by an explicit `rename()` — used to suppress the
@@ -182,7 +161,11 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   private readonly recentlyRenamed = new Map<string, number>()
   private static readonly RENAME_DEDUP_MS = 1000
 
-  constructor(rootPath: string, options: ResolvedTreeOptions) {
+  constructor(
+    rootPath: string,
+    options: ResolvedTreeOptions,
+    private readonly observations: Pick<FileObservationService, 'acquire'>
+  ) {
     this.rootPath = normalizePath(rootPath)
     this.watcherRootPath = this.rootPath
     this.options = options
@@ -220,16 +203,13 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
         this.watcherRootPath = await findNearestExistingDirectory(this.rootPath)
       }
     }
-    // Start the watcher *before* the initial scan completes so we don't
-    // miss events for paths created during the scan window. The events are
-    // queued behind the scan promise and applied after it resolves.
-    this.initialScanPromise = this.runInitialScan()
-    const watcherReadyPromise = this.attachWatcher()
-    await Promise.all([this.initialScanPromise, watcherReadyPromise])
-    // Clear once the scan is done so subsequent watcher events take the
-    // synchronous fast path in the dispatcher instead of attaching another
-    // `.then()` continuation to a settled promise per event.
-    this.initialScanPromise = null
+    await this.attachWatcher()
+    await this.runInitialScan()
+    if (this.initialEvents) {
+      for (const event of this.initialEvents) await this.handleWatcherEvent(event)
+    }
+    this.initialEvents = null
+    if (this.disposed) throw new Error('Directory observation interrupted during initial scan')
   }
 
   private async runInitialScan(): Promise<void> {
@@ -331,7 +311,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
         ? undefined
         : Math.max(0, this.options.maxDepth + rootDepthOffset)
 
-    const watcher = createDirectoryWatcher(this.watcherRootPath as AbsoluteFilePath, {
+    const watchOptions = {
       recursive: true,
       maxDepth: watcherMaxDepth,
       stabilityThresholdMs: 200,
@@ -340,47 +320,33 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
       // files created in the same burst as the root.
       emitInitial: this.rootMissingAtInit,
       ignore: watcherIgnore
-    })
-    this.watcher = watcher
-    let ready = false
-    const watcherReadyPromise = new Promise<void>((resolve, reject) => {
-      this.watcherSubscription = {
-        dispose: watcher.onEvent((ev) => {
-          if (ev.kind === 'ready') {
-            ready = true
-            resolve()
-            return
-          }
-          if (ev.kind === 'error' && !ready) {
-            reject(ev.error)
-          }
-          // Queue events behind the scan. The factory reports scan failures,
-          // so discard queued events when initialization fails.
-          if (this.initialScanPromise) {
-            void this.initialScanPromise.then(
-              () => this.handleWatcherEvent(ev),
-              () => undefined
-            )
-          } else {
-            void this.handleWatcherEvent(ev)
-          }
-        })
+    }
+    const key = JSON.stringify([
+      'tree',
+      this.watcherRootPath,
+      this.rootPath,
+      {
+        ...this.options,
+        extensions: undefined,
+        withStats: undefined
+      }
+    ])
+    const watcher = this.observations.acquire(key, this.watcherRootPath as AbsoluteFilePath, watchOptions, (ev) => {
+      if (this.initialEvents) {
+        this.initialEvents.push(ev)
+      } else {
+        void this.handleWatcherEvent(ev)
       }
     })
-    return watcherReadyPromise
+    this.watcher = watcher
+    return watcher.ready
   }
 
-  private async handleWatcherEvent(ev: WatcherEvent): Promise<void> {
+  private async handleWatcherEvent(ev: ObservationEvent): Promise<void> {
     if (this.disposed) return
     if (ev.kind === 'ready') return
-    if (ev.kind === 'error') {
-      // Watcher-fatal: chokidar surfaces EMFILE / ENOSPC / remote-share
-      // disconnect here. The mirror after this point is stale by
-      // definition — drop the watcher so we stop pretending mutations are
-      // still tracked. The renderer keeps its last-known snapshot until it
-      // remounts; a future change can synthesise a terminal mutation event
-      // so consumers surface a stale-data banner.
-      logger.error(`Watcher reported fatal error on ${this.rootPath} — disposing builder`, ev.error)
+    if (ev.kind === 'error' || ev.kind === 'stale') {
+      this.emitter.fire({ type: 'status', coverage: ev.kind === 'error' ? 'unavailable' : 'stale' })
       this.dispose()
       return
     }
@@ -625,14 +591,14 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     if (this.disposed) return
     this.disposed = true
     this.pendingAdds.clear()
-    this.watcherSubscription?.dispose()
-    this.watcherSubscription = null
     const watcher = this.watcher
     this.watcher = null
     this.emitter.dispose()
     this.map.clear()
     if (watcher) {
-      this.watcherClosePromise = watcher.close().catch((err) => logger.error('Watcher close failed', err as Error))
+      this.watcherClosePromise = watcher
+        .disposeAsync()
+        .catch((err) => logger.error('Watcher close failed', err as Error))
     }
   }
 
@@ -643,8 +609,6 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     }
     this.disposed = true
     this.pendingAdds.clear()
-    this.watcherSubscription?.dispose()
-    this.watcherSubscription = null
     // Capture the watcher before nulling so we can await its close. The
     // close() promise may take real time on slow / unmounted FS — that's
     // exactly the case sync `dispose()` punts on by leaving a dangling
@@ -654,7 +618,9 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     this.emitter.dispose()
     this.map.clear()
     if (watcher) {
-      this.watcherClosePromise = watcher.close().catch((err) => logger.error('Watcher close failed', err as Error))
+      this.watcherClosePromise = watcher
+        .disposeAsync()
+        .catch((err) => logger.error('Watcher close failed', err as Error))
       await this.watcherClosePromise
     }
   }
@@ -666,10 +632,11 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
  */
 export async function createDirectoryTree(
   rootPath: string,
-  options?: DirectoryTreeOptions
+  options: DirectoryTreeOptions | undefined,
+  observations: Pick<FileObservationService, 'acquire'>
 ): Promise<DirectoryTreeBuilder> {
   const resolved = resolveOptions(options)
-  const builder = new DirectoryTreeBuilderImpl(rootPath, resolved)
+  const builder = new DirectoryTreeBuilderImpl(rootPath, resolved, observations)
   try {
     await builder.init()
     return builder

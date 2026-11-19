@@ -1,10 +1,13 @@
 import { buildParamsSchema } from '@cherrystudio/provider-registry'
 import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
+import { isSeedream5xTargetModel, sanitizeSeedreamImageParams } from '@shared/ai/seedreamImageContract'
 import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
 import { getFileTypeByExt } from '@shared/utils/file'
 
 import { checkProviderEnabled } from '../utils/checkProviderEnabled'
+import { validateSeedreamPaintingParams } from '../utils/validateSeedreamPaintingParams'
+import { validateSeedreamPaintingProvider } from '../utils/validateSeedreamPaintingProvider'
 import { generatePainting } from './generatePainting'
 import type { GenerateInput } from './types/generateInput'
 import type { PaintingData } from './types/paintingData'
@@ -53,13 +56,16 @@ export interface CanonicalGenerateOptions<T extends PaintingData> {
  * mapping — the renderer stays vendor-agnostic.
  *
  * Empty / undefined / empty-string entries are dropped here (and again in main)
- * so the server applies its own default; no client-side defaults.
+ * so the server applies its own default, except for explicit Seedream 5.5 defaults.
  */
 export async function canonicalGenerate<T extends PaintingData>(
   input: GenerateInput<T>,
   options: CanonicalGenerateOptions<T> = {}
 ): Promise<FileMetadata[]> {
   const { painting, provider, abortController } = input
+
+  validateSeedreamPaintingProvider(painting.model, provider)
+  validateSeedreamPaintingParams(painting)
 
   // Vendor-specific cross-field errors first so they take precedence over
   // the generic MISSING_REQUIRED_FIELDS / PROMPT_REQUIRED throws below.
@@ -93,8 +99,15 @@ export async function canonicalGenerate<T extends PaintingData>(
 
   // 1. Validate / coerce raw form params through the central catalog. Soft-fail:
   //    a bad / legacy value must never break submit, so fall back to raw params.
-  const rawParams = painting.params ?? {}
-  const validated = buildParamsSchema(options.support, options.mode).safeParse(rawParams)
+  const rawParams = { ...painting.params }
+  const outputFormat = options.support?.modes?.[mode]?.supports?.outputFormat
+  // A generation draft can retain GIF after references select a static-only edit adapter.
+  if (rawParams.outputFormat === 'gif' && outputFormat?.type === 'enum' && !outputFormat.options.includes('gif')) {
+    delete rawParams.outputFormat
+    delete rawParams.frameCount
+    delete rawParams.frameDurationMs
+  }
+  const validated = buildParamsSchema(options.support, mode).safeParse(rawParams)
   const source: Record<string, unknown> = validated.success ? validated.data : rawParams
 
   // 2. Build the canonical `paramValues` bag: drop blanks (mirrors main's
@@ -107,11 +120,18 @@ export async function canonicalGenerate<T extends PaintingData>(
     paramValues[key] = value
   }
 
-  // 3. Custom size: the customSize widget pairs `size: 'custom'` with
-  //    `customSize_width`/`customSize_height` (zhipu CogView's free WxH range).
-  //    Compose them into `size`; drop the sentinel when the pair is incomplete
-  //    so the server applies its default.
-  if (paramValues.size === 'custom') {
+  // GIF sheets have a shared pixel budget; let the API fit frame dimensions automatically.
+  if (paramValues.outputFormat === 'gif' && options.support?.modes?.[mode]?.supports?.frameCount) {
+    paramValues.size = 'auto'
+  }
+
+  // Tier enums must never carry WxH: only canonical size accepts dimensions.
+  // Legacy callers without a support block still pair with size.
+  const modeDef = options.support?.modes?.[mode] ?? Object.values(options.support?.modes ?? {})[0]
+  const customSizeSpec = modeDef?.supports?.customSize
+  const pairedKey = customSizeSpec?.type === 'size' ? (customSizeSpec.pairedEnumKey ?? 'size') : 'size'
+  if (paramValues[pairedKey] === 'custom') {
+    delete paramValues[pairedKey]
     const width = source.customSize_width
     const height = source.customSize_height
     if (typeof width === 'number' && typeof height === 'number') {
@@ -141,7 +161,7 @@ export async function canonicalGenerate<T extends PaintingData>(
     modelId,
     prompt,
     ...(options.mode && { mode: options.mode }),
-    paramValues,
+    paramValues: isSeedream5xTargetModel(modelId) ? sanitizeSeedreamImageParams(paramValues) : paramValues,
     ...(painting.requestTimeoutMs && { requestTimeoutMs: painting.requestTimeoutMs }),
     ...(inputImages && { inputImages })
   })

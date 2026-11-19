@@ -1,5 +1,3 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
 /**
  * notifyDataApiDataChange unit tests (unified application mock).
  *
@@ -10,6 +8,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * separately in dataApiDataChange.container.test.ts — the unified mock also
  * mirrors them, but a mock cannot prove them.
  */
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { IpcChannel } from '@shared/IpcChannel'

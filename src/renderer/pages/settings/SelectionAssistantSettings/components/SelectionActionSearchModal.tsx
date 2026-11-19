@@ -28,7 +28,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { openExternalWebsite } from '@renderer/services/website'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import type { SearchSelectionAction } from '@shared/types/selection'
 
 const logger = loggerService.withContext('SelectionActionSearchModal')
 const SEARCH_ENGINE_ICON_COLOR = 'var(--muted-foreground)'
@@ -105,7 +105,7 @@ interface SelectionActionSearchModalProps {
   isModalOpen: boolean
   onOk: (searchEngine: string) => void
   onCancel: () => void
-  currentAction?: SelectionActionItem
+  currentAction?: SearchSelectionAction
 }
 
 const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({

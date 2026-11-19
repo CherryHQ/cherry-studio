@@ -38,7 +38,7 @@ export async function resolveAgentEntrySessionId(): Promise<string | null> {
   const lastUsedSessionId = cacheService.getPersist('ui.agent.last_used_session_id')
   if (lastUsedSessionId) {
     try {
-      await dataApiService.get(`/agent-sessions/${lastUsedSessionId}`)
+      await dataApiService.get(`/agent-sessions/${lastUsedSessionId}`, { query: { excludeTaskSessions: true } })
       return lastUsedSessionId
     } catch (error) {
       if (!isDataApiNotFoundError(error)) throw error

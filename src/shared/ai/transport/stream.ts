@@ -31,6 +31,8 @@ export interface AiChatRequestBody extends AssistantTurnOptions {
   userMessageParts?: CherryMessagePart[]
   /** Uploaded file metadata. */
   files?: Array<{ id: string; name: string; type: string; size: number; url: string }>
+  /** Agent sessions: a busy session answers this input after its current work instead of steering it. */
+  followUp?: boolean
 }
 
 // ── Push payloads (Main → Renderer) ─────────────────────────────────
@@ -214,6 +216,8 @@ export type AiStreamOpenRequest = {
       serviceTier?: ServiceTierSelection
       /** Whether to request Fast processing for this turn. */
       fastMode?: boolean
+      /** Agent sessions: a busy session answers this input after its current work instead of steering it. */
+      followUp?: boolean
     }
   | ({
       /** Re-run the assistant under an existing user msg. */
@@ -249,9 +253,7 @@ export interface AiToolApprovalRespondRequest extends ApprovalDecision {
   anchorId?: string
 }
 
-export interface AiToolApprovalRespondResponse {
-  ok: boolean
-}
+export type AiToolApprovalRespondResponse = { ok: true } | { ok: false; reason: 'undelivered' | 'rejected' }
 
 /** Subscribe to a topic's stream state. */
 export interface AiStreamAttachRequest {

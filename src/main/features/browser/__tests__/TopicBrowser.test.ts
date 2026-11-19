@@ -46,7 +46,11 @@ describe('topic browser ownership and cancellation', () => {
     vi.restoreAllMocks()
   })
 
-  function attachTopicGuest(profile: WebviewSecurityProfile = WebviewSecurityProfile.AgentBrowser, guestId = 71) {
+  function attachTopicGuest(
+    profile: WebviewSecurityProfile = WebviewSecurityProfile.AgentBrowser,
+    guestId = 71,
+    pageId = topicId
+  ) {
     const host = { getZoomFactor: () => 1 } as Electron.WebContents
     vi.mocked(application.get('WindowManager').getWindow).mockReturnValue({
       webContents: host,
@@ -64,7 +68,7 @@ describe('topic browser ownership and cancellation', () => {
       session: session.fromPartition(getWebviewPartition(profile))
     })
     vi.mocked(webContents.fromId).mockReturnValue(fixture.guest)
-    const { tabId } = service.topicBrowser.attach(topicId, guestId, windowId)
+    const { tabId } = service.topicBrowser.attach(topicId, guestId, windowId, pageId)
     return { fixture, tabId }
   }
 
@@ -239,6 +243,53 @@ describe('topic browser ownership and cancellation', () => {
         code: 'not_found'
       })
       expect(navigatedUrl).toBe('https://example.com/')
+    } finally {
+      await control.close()
+    }
+  })
+
+  it('creates an independent page through the conversation REPL without replacing its existing guest', async () => {
+    const first = attachTopicGuest()
+    const control = topicControl()
+    let created: ReturnType<typeof attachTopicGuest> | undefined
+    let currentUrl = 'about:blank'
+    vi.mocked(application.get('IpcApiService').broadcast).mockImplementation((event, payload) => {
+      if (event !== 'browser.guest.ensure_requested') return
+      const request = payload as EventPayload<'browser.guest.ensure_requested'>
+      created = attachTopicGuest(WebviewSecurityProfile.AgentBrowser, 73, request.pageId)
+      created.fixture.mock.getURL.mockImplementation(() => currentUrl)
+      const page = created.fixture.mock
+      const send = page.debugger.sendCommand.getMockImplementation()!
+      page.debugger.sendCommand.mockImplementation(async (method, params) => {
+        if (method === 'Page.navigate') {
+          currentUrl = (params as { url: string }).url
+          page.debugger.emit('message', {}, 'Page.frameStartedLoading', { frameId: 'main' })
+          page.debugger.emit('message', {}, 'Page.loadEventFired', {})
+        }
+        return send(method, params)
+      })
+    })
+    try {
+      await control.run((controller) => controller.getSession(false, first.tabId), new AbortController().signal)
+      const result = await control.execute(
+        'newTab',
+        { url: 'https://example.org/report' },
+        undefined,
+        new AbortController().signal
+      )
+      expect(result.value).toMatchObject({ tabId: created?.tabId, currentUrl: 'https://example.org/report' })
+      expect(first.fixture.guest.getURL()).toBe('https://example.com')
+      const pages = await control.execute('listTabs', {}, undefined, new AbortController().signal)
+      expect(pages.value.tabs).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ tabId: first.tabId }),
+          expect.objectContaining({ tabId: created?.tabId })
+        ])
+      )
+      expect(service.topicBrowser.list({ sessionId: topicId, ownerId: assistantId })).toHaveLength(2)
+      await expect(
+        control.run((controller) => controller.getSession(false, first.tabId), new AbortController().signal)
+      ).resolves.toMatchObject({ tabId: first.tabId })
     } finally {
       await control.close()
     }

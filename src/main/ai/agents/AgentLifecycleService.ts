@@ -40,6 +40,7 @@ export class AgentSessionArchiveBusyError extends Error {
 @ServicePhase(Phase.WhenReady)
 @DependsOn([
   'AgentJobsService',
+  'AgentImportService',
   'AgentSessionDeliveryService',
   'AgentSessionRuntimeService',
   'AiStreamManager',
@@ -108,6 +109,32 @@ export class AgentLifecycleService extends BaseService {
           agentService.notifyReadModelChange([agentId], 'membership')
           return agent
         })
+      )
+    )
+  }
+
+  deleteTaskWithSessions(taskId: string) {
+    return this.runOperation('delete-task:' + taskId, () =>
+      this.withStableSessions(
+        () => agentSessionService.listTaskSessionIds(taskId),
+        async () => {
+          await Promise.all(
+            agentSessionService
+              .listTaskSessionIds(taskId)
+              .map((id) => application.get('AgentSessionRuntimeService').closeSessionForArchive(id))
+          )
+          const result = application.get('DbService').withWriteTx((tx) => {
+            const ids = agentSessionService.listTaskSessionIds(taskId)
+            const trashed = agentSessionService.trashByIdsTx(tx, ids)
+            const deleted = agentTaskService.deleteScheduleTx(tx, taskId)
+            return { ...trashed, deleted }
+          })
+          this.syncSchedules([taskId])
+          agentSessionService.notifyReadModelChange(result.trashedIds, 'membership')
+          await this.finishDeletion(result.trashedIds, result.deliveryResults)
+          return result.deleted
+        },
+        true
       )
     )
   }
@@ -208,9 +235,11 @@ export class AgentLifecycleService extends BaseService {
     const token = Symbol(reason)
     this.ingressHolds.add(token)
     const channelHold = application.get('ChannelManager').pause(reason)
+    const importHold = application.get('AgentImportService').pause(reason)
     return {
       dispose: () => {
         if (!this.ingressHolds.delete(token)) return
+        importHold.dispose()
         channelHold.dispose()
       }
     }
@@ -230,6 +259,7 @@ export class AgentLifecycleService extends BaseService {
   async drainIngress(options: { timeoutMs: number }): Promise<{ stragglerIds: string[] }> {
     const verdicts = await Promise.all([
       application.get('ChannelManager').drainInFlight(options),
+      application.get('AgentImportService').drainInFlight(options),
       this.drainOperations(options)
     ])
     return { stragglerIds: verdicts.flatMap((verdict) => verdict.stragglerIds) }
@@ -248,6 +278,7 @@ export class AgentLifecycleService extends BaseService {
     return [
       ...[...this.inFlight.values()].map((id) => ({ id, summary: 'Agent lifecycle operation' })),
       ...application.get('ChannelManager').listActiveWork(),
+      ...application.get('AgentImportService').listActiveWork(),
       ...application.get('AgentSessionDeliveryService').listActiveWork(),
       ...application.get('AgentSessionRuntimeService').listActiveWork()
     ]

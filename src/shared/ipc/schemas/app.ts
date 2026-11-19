@@ -8,6 +8,7 @@ import {
   CACHE_CLEANUP_SIZE_COMPLETENESS
 } from '../../types/cacheCleanup'
 import { USER_DATA_RELOCATION_VALIDATION_REASONS } from '../../types/userDataRelocation'
+import { isStableReleaseVersion } from '../../utils/releaseNotes'
 import { defineRoute } from '../define'
 
 const relocationInspectionSchema = z.discriminatedUnion('valid', [
@@ -88,7 +89,6 @@ export const appRequestSchemas = {
     output: z.number()
   }),
   'app.data_reset.request': defineRoute({ input: z.void(), output: z.void() }),
-  'app.migration_v2.rerun': defineRoute({ input: z.void(), output: z.void() }),
   'app.updater.check_for_update': defineRoute({ input: z.void(), output: z.void() }),
   'app.updater.release_notes.get': defineRoute({
     input: z.void(),
@@ -96,6 +96,15 @@ export const appRequestSchemas = {
       .array(z.object({ releaseNotes: z.string().min(1), version: z.string().min(1) }))
       .min(1)
       .nullable()
+  }),
+  'app.updater.upgrade_notes.get': defineRoute({
+    input: z.object({ targetVersion: z.string().refine(isStableReleaseVersion) }),
+    output: z.object({
+      fromVersion: z.string(),
+      toVersion: z.string(),
+      historyStatus: z.enum(['available', 'unavailable']),
+      releases: z.array(z.object({ version: z.string(), releaseNotes: z.string() }))
+    })
   }),
   'app.updater.quit_and_install': defineRoute({ input: z.void(), output: z.void() })
 }

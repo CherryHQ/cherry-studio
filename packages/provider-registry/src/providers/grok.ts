@@ -35,7 +35,7 @@ export default defineProvider({
   },
   overrides: [
     {
-      modelId: 'grok-imagine-image',
+      apiModelId: 'grok-imagine-image',
       endpointTypes: ['openai-image-generation'],
       imageGeneration: {
         modes: {
@@ -158,7 +158,7 @@ export default defineProvider({
       }
     },
     {
-      modelId: 'grok-imagine-image-quality',
+      apiModelId: 'grok-imagine-image-quality',
       endpointTypes: ['openai-image-generation'],
       imageGeneration: {
         modes: {

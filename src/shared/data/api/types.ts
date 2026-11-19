@@ -2,6 +2,9 @@
  * Core types for the Data API system
  * Provides type definitions for request/response handling across renderer-main IPC communication
  */
+import type { SerializedDataApiError } from './errors'
+import type { BodyForPath, ConcreteApiPaths, QueryParamsForPath, ResponseForPath, TemplateApiPaths } from './paths'
+import type { ApiSchemas } from './schemas/apiSchemas'
 
 /**
  * Standard HTTP methods supported by the Data API
@@ -174,7 +177,6 @@ export interface DataResponse<T = any> {
 
 // Note: Error types have been moved to errors.ts
 // Import from there: ErrorCode, DataApiError, SerializedDataApiError, DataApiErrorFactory
-import type { SerializedDataApiError } from './errors'
 
 // Re-export for backwards compatibility in DataResponse
 export type { SerializedDataApiError } from './errors'
@@ -348,9 +350,6 @@ export interface ServiceOptions {
 // API Schema Type Utilities
 // ============================================================================
 
-import type { BodyForPath, ConcreteApiPaths, QueryParamsForPath, ResponseForPath, TemplateApiPaths } from './paths'
-import type { ApiSchemas } from './schemas/apiSchemas'
-
 // Re-export for external use
 export type { ConcreteApiPaths } from './paths'
 export type { ApiSchemas } from './schemas/apiSchemas'
@@ -392,7 +391,7 @@ export type ApiParams<TPath extends ApiPaths, TMethod extends string> = TPath ex
  */
 export type ApiQuery<TPath extends ApiPaths, TMethod extends string> = TPath extends keyof ApiSchemas
   ? TMethod extends keyof ApiSchemas[TPath]
-    ? ApiSchemas[TPath][TMethod] extends { query: infer Q }
+    ? ApiSchemas[TPath][TMethod] extends { query?: infer Q }
       ? Q
       : never
     : never

@@ -6,8 +6,9 @@
  * survives.
  */
 
+import './ModelSpeedControl.css'
 import { ChevronDown, Gauge, Zap } from 'lucide-react'
-import { type ComponentProps, type ReactNode, useCallback, useMemo, useRef } from 'react'
+import { type ComponentProps, type ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Popover, PopoverContent, PopoverTrigger, RadioGroup, RadioGroupItem, Slider } from '@cherrystudio/ui'
@@ -54,6 +55,16 @@ const SERVICE_TIER_LABEL_KEYS: Record<ServiceTierSelection, string> = {
   fast: 'agent.speed.service_tier.fast',
   flex: 'agent.speed.service_tier.flex'
 }
+
+const SERVICE_TIER_DESCRIPTION_KEYS: Record<ServiceTierSelection, string> = {
+  standard: 'agent.speed.service_tier.standard.description',
+  auto: 'agent.speed.service_tier.auto.description',
+  fast: 'agent.speed.service_tier.fast.description',
+  flex: 'agent.speed.service_tier.flex.description'
+}
+
+// Canonical tier order, used only to slot a stored-but-unsupported tier among the declared options.
+const SERVICE_TIER_ORDER: readonly ServiceTierSelection[] = ['standard', 'auto', 'fast', 'flex']
 
 const WHEEL_STEP_THRESHOLD = 40
 const WHEEL_IDLE_RESET_MS = 120
@@ -178,6 +189,7 @@ export function ModelSpeedControl({
   onFastModeChange
 }: ModelSpeedControlProps) {
   const { t } = useTranslation()
+  const [peakBurst, setPeakBurst] = useState(0)
   const reasoningOptions = useMemo(() => {
     const declaredEfforts = new Set(deriveThinkingOptions(model) ?? [])
     return SLIDER_EFFORT_ORDER.filter((effort) => declaredEfforts.has(effort))
@@ -186,6 +198,13 @@ export function ModelSpeedControl({
   const supportsFast = onFastModeChange !== undefined && model.supportsFastMode === true
   const serviceTierOptions = onServiceTierChange ? (model.requestControls?.serviceTier?.options ?? []) : []
   const supportsServiceTier = serviceTierOptions.length > 0
+  // The saved tier stays visible (disabled) when the active model does not declare it.
+  const storedServiceTier = serviceTier
+  const serviceTierValues = onServiceTierChange ? model.requestControls?.serviceTier?.values : undefined
+  const displayedServiceTiers = serviceTierOptions.includes(storedServiceTier)
+    ? serviceTierOptions
+    : SERVICE_TIER_ORDER.filter((tier) => serviceTierOptions.includes(tier) || tier === storedServiceTier)
+  const [showServiceTierDetails, setShowServiceTierDetails] = useState(false)
   // Only endpoints whose wire carries a summary knob project these; the wire's own default is 'auto'.
   const summaryOptions = onReasoningSummaryChange ? (model.reasoning?.summaryOptions ?? []) : []
   const selectedSummary: ReasoningSummary = reasoningSummary ?? 'auto'
@@ -209,26 +228,33 @@ export function ModelSpeedControl({
       : effectiveReasoningEffort
   const selectedIndex = sliderSelection === 'default' ? -1 : sliderEfforts.indexOf(sliderSelection)
   const currentIndex = selectedIndex >= 0 ? selectedIndex : 0
+  const isPeakEffort = effectiveReasoningEffort !== 'default' && currentIndex === sliderEfforts.length - 1
   const displayedEffort = showEffortSlider ? effectiveReasoningEffort : selectedOption
   const effortLabel = displayedEffort ? t(EFFORT_LABEL_KEYS[displayedEffort]) : ''
   const effortControlLabel = t('agent.speed.effort')
   const serviceTierControlLabel = t('agent.speed.service_tier.label')
   const effectiveServiceTier = resolveSupportedServiceTier(model, serviceTier)
-  const serviceTierLabel = t(SERVICE_TIER_LABEL_KEYS[effectiveServiceTier])
+  const serviceTierDiffers = storedServiceTier !== effectiveServiceTier
+  const serviceTierLabel = serviceTierDiffers
+    ? `${t(SERVICE_TIER_LABEL_KEYS[storedServiceTier])} → ${t(SERVICE_TIER_LABEL_KEYS[effectiveServiceTier])}`
+    : t(SERVICE_TIER_LABEL_KEYS[effectiveServiceTier])
   const triggerLabel = fastMode ? t('agent.speed.fast') : t('agent.speed.label')
   const handleSliderValueChange = (index: number) => {
     const effort = sliderEfforts[index]
-    if (effort) onReasoningEffortChange(effort)
+    if (effort) {
+      if (index === sliderEfforts.length - 1 && !isPeakEffort) setPeakBurst((burst) => burst + 1)
+      onReasoningEffortChange(effort)
+    }
   }
 
   return (
-    <Popover>
+    <Popover onOpenChange={() => setPeakBurst(0)}>
       <PopoverTrigger asChild>
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          className="h-8 gap-1 rounded-md px-2.5 text-muted-foreground text-xs hover:text-foreground focus-visible:text-foreground dark:text-foreground dark:hover:text-foreground dark:focus-visible:text-foreground"
+          className="h-7 gap-1 rounded-md px-1.5 text-muted-foreground text-xs hover:text-foreground focus-visible:text-foreground dark:text-foreground dark:hover:text-foreground dark:focus-visible:text-foreground"
           aria-label={t('agent.speed.title')}>
           <Gauge size={14} className="shrink-0" />
           <span>{supportsReasoning ? effortLabel : supportsServiceTier ? serviceTierLabel : triggerLabel}</span>
@@ -313,31 +339,43 @@ export function ModelSpeedControl({
                 min={0}
                 max={sliderEfforts.length - 1}
                 step={1}
+                snapOnRelease
                 size="lg"
                 getThumbAriaLabel={() => effortControlLabel}
                 getThumbAriaValueText={() => effortLabel}
                 className={cn(
-                  'h-7',
-                  '[&_[data-slot=slider-track]]:h-1.5 [&_[data-slot=slider-track]]:bg-muted [&_[data-slot=slider-track]]:shadow-inner',
+                  'model-speed-effort-slider h-7',
+                  isPeakEffort && 'model-speed-effort-slider-peak',
+                  'cursor-pointer [&_[data-slot=slider-track]]:h-4 [&_[data-slot=slider-track]]:bg-muted',
                   '[&_[data-slot=slider-range]]:bg-primary',
                   '[&_[data-slot=slider-thumb]]:z-20 [&_[data-slot=slider-thumb]]:size-[18px] [&_[data-slot=slider-thumb]]:rounded-full',
-                  '[&_[data-slot=slider-thumb]]:border-border [&_[data-slot=slider-thumb]]:bg-popover! [&_[data-slot=slider-thumb]]:shadow-sm',
+                  '[&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-popover! [&_[data-slot=slider-thumb]]:shadow-xs',
                   '[&_[data-slot=slider-thumb]:hover]:ring-0'
                 )}
                 onValueChange={([index]) => handleSliderValueChange(index)}
               />
-              <div className="pointer-events-none absolute inset-x-3 top-1/2 z-10 h-0">
-                {sliderEfforts.map((effort, index) =>
-                  index === currentIndex ? null : (
-                    <span
-                      key={effort}
-                      data-slot="model-speed-effort-step"
-                      data-index={index}
-                      className="-translate-x-1/2 -translate-y-1/2 absolute size-1 rounded-full bg-background"
-                      style={{ left: `${(index / (sliderEfforts.length - 1)) * 100}%` }}
-                    />
-                  )
-                )}
+              {isPeakEffort && peakBurst > 0 ? (
+                <span key={peakBurst} aria-hidden="true" className="model-speed-effort-splash">
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                </span>
+              ) : null}
+              <div className="pointer-events-none absolute inset-x-[9px] top-1/2 z-10 h-0">
+                {sliderEfforts.map((effort, index) => (
+                  <span
+                    key={effort}
+                    data-slot="model-speed-effort-step"
+                    data-index={index}
+                    className={cn(
+                      '-translate-x-1/2 -translate-y-1/2 absolute size-0.5 rounded-full bg-background transition-opacity duration-100 motion-reduce:transition-none',
+                      index === currentIndex && 'opacity-0'
+                    )}
+                    style={{ left: `${(index / (sliderEfforts.length - 1)) * 100}%` }}
+                  />
+                ))}
               </div>
             </WheelStepControl>
           </div>
@@ -391,22 +429,59 @@ export function ModelSpeedControl({
             className={cn(
               (supportsReasoning || summaryOptions.length > 0) && 'mt-3 border-frame-border border-t pt-3'
             )}>
-            <div className="mb-2 font-medium text-[11px] text-muted-foreground leading-none">
-              {serviceTierControlLabel}
+            <div className="mb-2 flex items-center justify-between leading-none">
+              <span className="font-medium text-[11px] text-muted-foreground">{serviceTierControlLabel}</span>
+              {serviceTierValues && Object.values(serviceTierValues).some(Boolean) ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-expanded={showServiceTierDetails}
+                  className="h-5 px-1 text-[11px] text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowServiceTierDetails((shown) => !shown)}>
+                  {t('agent.speed.service_tier.details')}
+                </Button>
+              ) : null}
             </div>
             <RadioGroup
-              value={effectiveServiceTier}
+              value={storedServiceTier}
               aria-label={serviceTierControlLabel}
               className="gap-0"
               onValueChange={(tier) => onServiceTierChange?.(tier as ServiceTierSelection)}>
-              {serviceTierOptions.map((tier) => (
-                <label
-                  key={tier}
-                  className="flex min-h-8 cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs transition-colors hover:bg-accent">
-                  <RadioGroupItem value={tier} size="sm" aria-label={t(SERVICE_TIER_LABEL_KEYS[tier])} />
-                  <span>{t(SERVICE_TIER_LABEL_KEYS[tier])}</span>
-                </label>
-              ))}
+              {displayedServiceTiers.map((tier) => {
+                const isUnsupportedStoredTier = tier === storedServiceTier && serviceTierDiffers
+                return (
+                  <label
+                    key={tier}
+                    className={cn(
+                      'flex min-h-8 items-center gap-2 rounded-md px-2 py-1 text-xs transition-colors',
+                      isUnsupportedStoredTier ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-accent'
+                    )}>
+                    <RadioGroupItem
+                      value={tier}
+                      size="sm"
+                      disabled={isUnsupportedStoredTier}
+                      aria-label={t(SERVICE_TIER_LABEL_KEYS[tier])}
+                    />
+                    <span className="flex min-w-0 flex-col">
+                      <span>{t(SERVICE_TIER_LABEL_KEYS[tier])}</span>
+                      <span className="text-muted-foreground">{t(SERVICE_TIER_DESCRIPTION_KEYS[tier])}</span>
+                      {isUnsupportedStoredTier ? (
+                        <span className="text-muted-foreground">
+                          {t('agent.speed.service_tier.unsupported', {
+                            effective: t(SERVICE_TIER_LABEL_KEYS[effectiveServiceTier])
+                          })}
+                        </span>
+                      ) : null}
+                      {showServiceTierDetails && serviceTierValues?.[tier] ? (
+                        <span className="text-muted-foreground">
+                          {t('agent.speed.service_tier.provider_value', { value: serviceTierValues[tier] })}
+                        </span>
+                      ) : null}
+                    </span>
+                  </label>
+                )
+              })}
             </RadioGroup>
           </div>
         ) : null}

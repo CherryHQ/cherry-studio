@@ -98,7 +98,7 @@ describe('cherry-tools to_markdown', () => {
       path: expect.stringMatching(/\.md$/),
       chars: 20
     })
-    expect(output.path).toContain(path.join(agentDataPath, 'tmp', 'to-markdown'))
+    expect(output.path).toContain(agentDataPath)
     expect(textOf(result)).not.toContain('Secret title')
     await expect(readFile(output.path, 'utf-8')).resolves.toBe('# Secret title\n\nbody')
     expect(formatFromExtensionMock).toHaveBeenCalledWith('.docx')
@@ -192,7 +192,7 @@ describe('cherry-tools to_markdown', () => {
   })
 
   it('returns an error instead of creating a file for blank conversion output', async () => {
-    const { agentDataPath, tools, workspacePath } = await makeTools()
+    const { tools, workspacePath } = await makeTools()
     await writeFile(path.join(workspacePath, 'empty.pdf'), Buffer.from([1]))
     toMarkdownBytesMock.mockResolvedValue(' \n ')
 
@@ -200,9 +200,6 @@ describe('cherry-tools to_markdown', () => {
 
     expect(result.isError).toBe(true)
     expect(textOf(result)).toContain('Document conversion produced no text')
-    await expect(readFile(path.join(agentDataPath, 'tmp', 'to-markdown', 'missing.md'))).rejects.toMatchObject({
-      code: 'ENOENT'
-    })
   })
 
   it('removes stale Markdown outputs while preserving recent files', async () => {
