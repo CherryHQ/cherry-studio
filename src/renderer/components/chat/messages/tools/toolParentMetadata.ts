@@ -5,7 +5,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function getMetadataRecord(part: CherryMessagePart, field: string): Record<string, unknown> | undefined {
-  const value = (part as unknown as Record<string, unknown>)[field]
+  // SAFETY: Historical parts carry metadata outside the SDK union; each value is checked before use.
+  const value = (part as typeof part & Record<string, unknown>)[field]
   return isRecord(value) ? value : undefined
 }
 
@@ -53,8 +54,9 @@ function stripParentFields(metadata: Record<string, unknown>): Record<string, un
 }
 
 export function stripPartParentToolMetadata(part: CherryMessagePart): CherryMessagePart {
-  const source = part as unknown as Record<string, unknown>
-  let next: Record<string, unknown> | undefined
+  // SAFETY: Only legacy parent metadata is edited; required SDK part fields and opaque extensions are retained.
+  const source = part as typeof part & Record<string, unknown>
+  let next: typeof source | undefined
 
   if ('parentToolUseId' in source) {
     next = { ...source }
@@ -68,5 +70,5 @@ export function stripPartParentToolMetadata(part: CherryMessagePart): CherryMess
     next[field] = stripParentFields(metadata)
   }
 
-  return (next ?? source) as unknown as CherryMessagePart
+  return next ?? source
 }
