@@ -52,7 +52,11 @@ export async function launchpadPinning(app: RegressionApp, page: Page, testInfo:
   const isPinned = () =>
     page.evaluate(async () =>
       (await window.api.preference.get('ui.sidebar_shortcut')).some(
-        ({ target }) => target.locator.providerId === 'core.mini-app' && target.locator.resourceId === 'deepseek'
+        (item) =>
+          item.type === 'shortcut' &&
+          'target' in item &&
+          item.target.locator.providerId === 'core.mini-app' &&
+          item.target.locator.resourceId === 'deepseek'
       )
     )
   const toggleSidebar = async (pin: boolean) => {
@@ -69,7 +73,13 @@ export async function launchpadPinning(app: RegressionApp, page: Page, testInfo:
       await window.api.preference.setMultiple({
         'menu.presentation_mode': 'cherry',
         'ui.sidebar_shortcut': shortcuts.filter(
-          ({ target }) => !(target.locator.providerId === 'core.mini-app' && target.locator.resourceId === 'deepseek')
+          (item) =>
+            !(
+              item.type === 'shortcut' &&
+              'target' in item &&
+              item.target.locator.providerId === 'core.mini-app' &&
+              item.target.locator.resourceId === 'deepseek'
+            )
         )
       })
     }, previous.shortcuts)
