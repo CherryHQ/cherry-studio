@@ -45,21 +45,15 @@ export function mergeUsage(a: LanguageModelUsage, b: LanguageModelUsage): Langua
     inputTokens: (a.inputTokens ?? 0) + (b.inputTokens ?? 0),
     outputTokens: (a.outputTokens ?? 0) + (b.outputTokens ?? 0),
     totalTokens: (a.totalTokens ?? 0) + (b.totalTokens ?? 0),
-    inputTokenDetails:
-      a.inputTokenDetails || b.inputTokenDetails
-        ? {
-            noCacheTokens: addOpt(a.inputTokenDetails?.noCacheTokens, b.inputTokenDetails?.noCacheTokens),
-            cacheReadTokens: addOpt(a.inputTokenDetails?.cacheReadTokens, b.inputTokenDetails?.cacheReadTokens),
-            cacheWriteTokens: addOpt(a.inputTokenDetails?.cacheWriteTokens, b.inputTokenDetails?.cacheWriteTokens)
-          }
-        : (undefined as unknown as LanguageModelUsage['inputTokenDetails']),
-    outputTokenDetails:
-      a.outputTokenDetails || b.outputTokenDetails
-        ? {
-            textTokens: addOpt(a.outputTokenDetails?.textTokens, b.outputTokenDetails?.textTokens),
-            reasoningTokens: addOpt(a.outputTokenDetails?.reasoningTokens, b.outputTokenDetails?.reasoningTokens)
-          }
-        : (undefined as unknown as LanguageModelUsage['outputTokenDetails']),
+    inputTokenDetails: {
+      noCacheTokens: addOpt(a.inputTokenDetails?.noCacheTokens, b.inputTokenDetails?.noCacheTokens),
+      cacheReadTokens: addOpt(a.inputTokenDetails?.cacheReadTokens, b.inputTokenDetails?.cacheReadTokens),
+      cacheWriteTokens: addOpt(a.inputTokenDetails?.cacheWriteTokens, b.inputTokenDetails?.cacheWriteTokens)
+    },
+    outputTokenDetails: {
+      textTokens: addOpt(a.outputTokenDetails?.textTokens, b.outputTokenDetails?.textTokens),
+      reasoningTokens: addOpt(a.outputTokenDetails?.reasoningTokens, b.outputTokenDetails?.reasoningTokens)
+    },
     // `raw` is per-step (one upstream request) and opaque, so it cannot be
     // merged — only the latest is retained. Never derive a cumulative
     // provider-reported cost from it. Per-call cost is captured by the
