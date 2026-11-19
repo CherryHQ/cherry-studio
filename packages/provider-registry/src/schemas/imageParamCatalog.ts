@@ -109,6 +109,7 @@ export const IMAGE_PARAM_CATALOG = {
 const canonicalParamKeySchema = z.enum(CANONICAL_PARAM_KEY)
 
 /** Parse one dynamic form value through its canonical catalog schema. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Painting form drafts contain unvalidated control values; validate the dynamic key, then apply that catalog entry's value schema.
 export function parseImageParamValue(key: string, value: unknown): ParamValue<CanonicalParamKey> {
   const parsedKey = canonicalParamKeySchema.safeParse(key)
   if (!parsedKey.success) return undefined
