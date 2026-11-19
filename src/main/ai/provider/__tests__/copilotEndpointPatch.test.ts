@@ -62,7 +62,10 @@ it.each(['embeddingModel', 'imageModel'] as const)(
   async (modelType) => {
     const provider = await GitHubCopilotExtension.createProvider({ apiKey: 'copilot-test-token' })
     const registry = createProviderRegistry({ copilot: provider })
-    const createUnsupportedModel = () => registry[modelType]('copilot:unsupported-model')
+    const createUnsupportedModel = () =>
+      modelType === 'embeddingModel'
+        ? registry.embeddingModel('copilot:unsupported-model')
+        : registry.imageModel('copilot:unsupported-model')
 
     expect(createUnsupportedModel).toThrow(NoSuchModelError)
     expect(createUnsupportedModel).toThrow(expect.objectContaining({ modelId: 'unsupported-model', modelType }))
