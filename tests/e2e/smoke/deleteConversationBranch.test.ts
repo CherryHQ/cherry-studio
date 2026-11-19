@@ -97,19 +97,8 @@ async function openTopic(page: Page, seeded: { assistantId: string; topicId: str
       })
     )
   }, seeded)
-  // The resource list can mount the same row twice, so pin the locator to the first visible match.
-  const topicRow = page
-    .getByTestId('topic-list-row')
-    .filter({ has: page.getByText(TOPIC, { exact: true }) })
-    .first()
-  const assistantButton = page.getByRole('button', { name: ASSISTANT, exact: true }).first()
-  await expect(assistantButton).toBeVisible({ timeout: 30_000 })
-  for (let attempt = 0; attempt < 4 && !(await topicRow.isVisible()); attempt += 1) {
-    await assistantButton.click()
-    await page.waitForTimeout(500)
-  }
-  await expect(topicRow).toBeVisible({ timeout: 30_000 })
-  await topicRow.click()
+  const activeTab = page.locator('[data-ui~="app.tab-bar"] [data-active="true"]').filter({ hasText: TOPIC })
+  await expect(activeTab).toBeVisible()
 }
 
 async function prepareFlowCanvas(page: Page) {
