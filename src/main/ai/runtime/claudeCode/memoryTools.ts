@@ -219,7 +219,11 @@ export class ClaudeMemoryTools {
         const mode = policy?.getPermissionMode()
         await this.approve(
           call.input,
-          { ...(call.input.tool_input as Record<string, unknown>), memoryPreview: changes },
+          {
+            ...(call.input.tool_input as Record<string, unknown>),
+            path: file.target.absolutePath,
+            memoryPreview: changes
+          },
           signal,
           call.assertActive
         )
@@ -236,20 +240,6 @@ export class ClaudeMemoryTools {
       )
         throw new Error(CLAUDE_MEMORY_UNCONFIRMED)
       file.fullRead = false
-      try {
-        const current = await file.session.read(file.target.path)
-        // Rendered text omits retirement metadata; confirm both the committed disk version and the visible edit.
-        if (
-          current.hash === result.files.find((item) => item.path === file.target.path)?.hash &&
-          current.content === content
-        ) {
-          file.hash = current.hash
-          file.receipt = current.receipt
-          file.fullRead = !!current.receipt
-        }
-      } catch {
-        /* A confirmed save remains successful; a later edit requires a new Read. */
-      }
       return {
         hookSpecificOutput: {
           hookEventName: 'PostToolUse',
