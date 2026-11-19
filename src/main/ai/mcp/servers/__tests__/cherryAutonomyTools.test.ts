@@ -895,6 +895,14 @@ describe('cherry-tools autonomy tools', () => {
       expect(result.content[0].text).toContain('pending user approval')
       expect(result.content[0].text).toContain('test -f /tmp/ok')
       expect(result.content[0].text).toContain('must approve the new command again')
+
+      // The renderer JSON-parses everything after the `Job <outcome>:` prefix
+      // for the scheduled-task card, so the notice must ride inside the
+      // payload, never trail it as prose.
+      const payload = JSON.parse(result.content[0].text.replace(/^Job (?:created|updated):\s*/, ''))
+      expect(payload.id).toBe('task_guarded')
+      expect(payload.name).toBe('Nightly backup')
+      expect(payload.notice).toContain('pending user approval')
     })
 
     it('should escape a crafted command in the pending-approval notice instead of interpolating it raw', async () => {

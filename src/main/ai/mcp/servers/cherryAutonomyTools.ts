@@ -692,13 +692,17 @@ function saveJob(ctx: AutonomyToolsContext, args: CronInput, action: 'add' | 'up
   let notice = ''
   if (task.guard.type === 'command' && task.guardApproval === null) {
     notice =
-      `\n\nNote: the command guard is pending user approval. Every fire will skip until the user approves this exact command in Settings > Scheduled Tasks: ${JSON.stringify(task.guard.command)}` +
-      '\nIf you change the command later, the user must approve the new command again.'
+      `Note: the command guard is pending user approval. Every fire will skip until the user approves this exact command in Settings > Scheduled Tasks: ${JSON.stringify(task.guard.command)}` +
+      ' If you change the command later, the user must approve the new command again.'
   } else if (task.guard.type === 'command') {
-    notice = '\n\nThe command guard is approved by the user and active.'
+    notice = 'The command guard is approved by the user and active.'
   }
+  // The renderer parses everything after `Job <outcome>:` as the task JSON, so
+  // the notice rides inside the payload; a prose suffix would make the parse
+  // fail and drop the scheduled-task card (and its approval-recovery action).
+  const payload = notice ? { ...task, notice } : task
   return {
-    content: [{ type: 'text', text: `Job ${outcome}:\n${JSON.stringify(task, null, 2)}${notice}` }]
+    content: [{ type: 'text', text: `Job ${outcome}:\n${JSON.stringify(payload, null, 2)}` }]
   }
 }
 
