@@ -1,4 +1,4 @@
-import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
+import type { MessageCountTokensParams, MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 
 import type { ReasoningDetailUnion } from '../../openrouter'
 /**
@@ -35,6 +35,10 @@ export interface ConverterOptions {
   openRouterReasoningCache?: IReasoningCache<ReasoningDetailUnion[]>
 }
 
+/** Count requests share prompt conversion, while generation option extraction still needs a generation request. */
+type AnthropicConverter = IMessageConverter<MessageCreateParams> &
+  Pick<IMessageConverter<MessageCountTokensParams>, 'toUIMessages' | 'toAiSdkTools'>
+
 /**
  * Message Converter Factory
  *
@@ -59,6 +63,8 @@ export class MessageConverterFactory {
    * @param options - Optional converter options
    * @returns A typed message converter instance
    */
+  static create(format: 'anthropic', options?: ConverterOptions): AnthropicConverter
+  static create<T extends InputFormat>(format: T, options?: ConverterOptions): IMessageConverter<InputParamsMap[T]>
   static create<T extends InputFormat>(
     format: T,
     options: ConverterOptions = {}

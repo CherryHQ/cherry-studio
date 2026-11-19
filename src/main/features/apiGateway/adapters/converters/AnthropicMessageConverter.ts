@@ -10,6 +10,7 @@ import type { JSONSchema7 as JsonSchemaLike } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type {
   ImageBlockParam,
+  MessageCountTokensParams,
   MessageCreateParams,
   MessageParam,
   Tool as AnthropicTool,
@@ -194,7 +195,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
    * would rewrite the prompt prefix on every turn one arrives, costing the prefix
    * cache. `hoistSystemMessages` folds them only for targets that reject them.
    */
-  toUIMessages(params: MessageCreateParams): CherryUIMessage[] {
+  toUIMessages(params: MessageCreateParams | MessageCountTokensParams): CherryUIMessage[] {
     this.prepareToolNames(params.tools)
     const messages: CherryUIMessage[] = []
 
@@ -335,7 +336,10 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
   /**
    * Convert Anthropic tools to an AI SDK `ToolSet` (client tools, no `execute`).
    */
-  toAiSdkTools(params: MessageCreateParams, targetEndpointType?: EndpointType): ToolSet | undefined {
+  toAiSdkTools(
+    params: MessageCreateParams | MessageCountTokensParams,
+    targetEndpointType?: EndpointType
+  ): ToolSet | undefined {
     const tools = params.tools
     if (!tools || tools.length === 0) return undefined
     this.prepareToolNames(tools)

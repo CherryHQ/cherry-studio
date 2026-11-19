@@ -1,4 +1,4 @@
-import type { MessageCreateParams } from '@anthropic-ai/sdk/resources'
+import type { MessageCountTokensParams } from '@anthropic-ai/sdk/resources'
 import { Elysia } from 'elysia'
 
 import { application } from '@application'
@@ -50,7 +50,8 @@ export const messagesRoutes = new Elysia({ prefix: '/messages' })
       const isInternalRequest = application.get('ApiGatewayService').isInternalRequest(request.headers)
       return {
         input_tokens: await estimateAnthropicRequestTokens(
-          body as unknown as MessageCreateParams,
+          // SAFETY: Containers are route-validated; malformed block/tool details fall back inside the estimator.
+          body as MessageCountTokensParams,
           request.signal,
           isInternalRequest
         )
