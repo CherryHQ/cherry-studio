@@ -71,6 +71,7 @@
   "appMenu.zoomOut": "Dézoomer",
   "backup.restore.failed": "La restauration a échoué",
   "backup.restore.retry": "La sauvegarde n’a pas été restaurée. Vos données précédentes ont été conservées. Veuillez réessayer la restauration.",
+  "chat.cherryai.sign_in_required": "Connectez-vous à Cherry AI pour utiliser ce modèle",
   "chat.conversation.new": "Nouvelle conversation",
   "command_approval.builtin-destructive-command": "Cet agent intégré ne peut pas effectuer des opérations destructrices. Pour une suppression de fichier confirmée, utilisez la corbeille. (mcp__assistant-files__move_to_trash)",
   "command_approval.configuration_error": "La politique de commandes ne peut pas être chargée. Exécution bloquée.",
