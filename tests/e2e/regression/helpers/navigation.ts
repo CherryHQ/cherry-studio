@@ -1,6 +1,29 @@
 import type { Locator, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
+export async function openConversationListOptions(view: Locator): Promise<void> {
+  const options = view.getByRole('button', { name: 'List options', exact: true })
+  const showSidebar = view.getByRole('button', { name: 'Show Sidebar', exact: true })
+  await expect(options.or(showSidebar).first()).toBeVisible()
+  if (!(await options.isVisible())) await showSidebar.click()
+  await options.click()
+}
+
+export async function selectConversationListOption(
+  view: Locator,
+  section: 'Group by' | 'Sort by',
+  option: string
+): Promise<void> {
+  const page = view.page()
+  await openConversationListOptions(view)
+  await page.getByRole('menuitem', { name: new RegExp(`^${section}\\b`) }).press('ArrowRight')
+  await page.getByRole('menuitemradio', { name: option, exact: true }).click()
+  await expect(view.getByRole('button', { name: 'List options', exact: true })).toHaveAttribute(
+    'aria-expanded',
+    'false'
+  )
+}
+
 export async function dismissTransientDialogs(page: Page): Promise<void> {
   // Escape also closes popovers; repeated presses let nested dialogs finish their exit animations.
   await page.keyboard.press('Escape')

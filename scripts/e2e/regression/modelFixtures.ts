@@ -7,6 +7,13 @@ const text = (message: ChatMessage) =>
 const call = (name: string, args: Record<string, unknown>): FixtureResponse => ({
   toolCalls: [{ name, arguments: JSON.stringify(args) }]
 })
+const KNOWLEDGE_RECALL_PROMPT =
+  /What is the regression knowledge answer\? Include the exact marker|文档中的公开测试标记是什么？请原样回答这个虚构标记，并引用来源文件。/
+const TOOL_SETTINGS_PROMPT = 'Call web_search exactly once with the query "Cherry Studio Electron GitHub".'
+const STEER_PROMPT = 'MP144 steer now: acknowledge MP144_STEER_ACK in this turn before finishing the original task.'
+const FILE_PROCESSING_PROMPT =
+  'Read the attached image using its extracted text. Quote the full label and numeric code.'
+
 interface Action {
   name: string
   args: Record<string, unknown>
@@ -96,7 +103,9 @@ function modelResponse(request: ChatCompletionRequest): FixtureResponse {
       )
     }
     const action = actions[results.length]
-    if (!action) return { content: `MP55_SUMMARY\n${output}` }
+    if (!action) {
+      return { content: `MP55_SUMMARY\n${output}`, usage: { prompt_tokens: 32_000, completion_tokens: 120 } }
+    }
     if (!tools.includes(action.name)) throw new Error(`Task progress requires ${action.name}`)
     return call(action.name, action.args)
   }
@@ -143,34 +152,36 @@ function modelResponse(request: ChatCompletionRequest): FixtureResponse {
     if (discovered) return call('tool_invoke', { name: discovered, params: { a: 31415, b: 27182 } })
     return call('tool_search', { query: 'get-sum', verbose: true })
   }
-  if (prompt.includes('What is the regression knowledge answer? Include the exact marker and cite the source file.')) {
+  if (KNOWLEDGE_RECALL_PROMPT.test(prompt)) {
+    const retrievalSettings = prompt.includes('公开测试标记是什么')
+    const title = retrievalSettings ? 'mp66-ground-truth.md' : 'ground-truth.txt'
+    const marker = retrievalSettings ? 'canary-seven' : 'CHERRY_KNOWLEDGE_58597'
+    const query = retrievalSettings ? '公开测试标记是什么' : 'regression knowledge answer'
     for (const result of results) {
       const value = text(result)
       if (!value.startsWith('[')) continue
       const hit = (JSON.parse(value) as Array<{ id: string; title?: string; content: string }>).find(
-        (item) => item.content?.includes('CHERRY_KNOWLEDGE_58597') && item.title === 'ground-truth.txt'
+        (item) => item.content?.includes(marker) && item.title === title
       )
       if (hit) return { content: `${hit.content}\n${hit.title} [cite:${hit.id}]` }
     }
     if (!results.length) return call('kb_list', {})
-    const baseId = output.match(/"id"\s*:\s*"([^"\n]+)"/)?.[1]
-    if (!baseId) throw new Error('Knowledge listing did not return an accessible base ID')
-    if (tools.includes('kb_search'))
-      return call('kb_search', { query: 'regression knowledge answer', baseIds: [baseId] })
+    const listed = JSON.parse(text(results[0])) as { items?: { id: string; name: string }[] }
+    const baseId = (retrievalSettings ? listed.items?.find(({ name }) => /\bMP-66\b/.test(name)) : listed.items?.[0])
+      ?.id
+    if (!baseId) throw new Error('Knowledge listing did not return the scenario base ID')
+    if (tools.includes('kb_search')) return call('kb_search', { query, baseIds: [baseId] })
     if (/kb_search\s+[—-]/.test(output))
       return call('tool_invoke', {
         name: 'kb_search',
-        params: { query: 'regression knowledge answer', baseIds: [baseId] }
+        params: { query, baseIds: [baseId] }
       })
     return call('tool_search', { query: 'kb_search', verbose: true })
   }
   const fallbackPrompt = 'Quote the full label and numeric code in the newly attached image. Do not search the web.'
-  if (prompt.includes(fallbackPrompt)) {
-    const label = request.messages
-      .slice(userIndex)
-      .map(text)
-      .join('\n')
-      .match(/FALLBACK\s*\d{6}/)?.[0]
+  if (prompt.includes(fallbackPrompt) || prompt.includes(FILE_PROCESSING_PROMPT)) {
+    const labelPattern = prompt.includes(FILE_PROCESSING_PROMPT) ? /FILE PROCESSING\s+58597/ : /FALLBACK\s*\d{6}/
+    const label = request.messages.slice(userIndex).map(text).join('\n').match(labelPattern)?.[0]
     if (!label) throw new Error('System OCR did not provide the fallback label')
     return { content: label }
   }
@@ -188,7 +199,9 @@ function modelResponse(request: ChatCompletionRequest): FixtureResponse {
     if (!image) throw new Error('Attachment fixture requires a real image part')
     return { content: 'ORCHID 314159265' }
   }
+  const toolSettings = prompt.startsWith(TOOL_SETTINGS_PROMPT)
   if (
+    toolSettings ||
     /Use web search to find the latest Cherry Studio release as of|Use web_search to find the latest BBC world news|Discover web_fetch with tool_search if necessary/.test(
       prompt
     )
@@ -204,13 +217,24 @@ function modelResponse(request: ChatCompletionRequest): FixtureResponse {
         ? JSON.parse(invocation.function.arguments).name
         : invocation?.function.name
     if (name === target && !text(last!).includes("hasn't been inspected yet")) {
-      if (/error|unavailable/i.test(text(last!)))
-        throw new Error('Web fixture did not receive a successful tool result')
-      return { content: `${text(last!)}\n${prompt.includes('SEARCH_ON_DONE') ? 'SEARCH_ON_DONE' : ''}` }
+      const result = text(last!)
+      if (toolSettings) {
+        const hits = JSON.parse(result)
+        if (!Array.isArray(hits) || !hits.length) throw new Error('Tool settings require actual search results')
+        return { content: 'SEARCH_COMPLETE' }
+      }
+      if (/error|unavailable/i.test(result)) throw new Error('Web fixture did not receive a successful tool result')
+      return { content: `${result}\n${prompt.includes('SEARCH_ON_DONE') ? 'SEARCH_ON_DONE' : ''}` }
     }
     const params = fetchPage
       ? { url: 'https://example.com/' }
-      : { query: prompt.includes('BBC') ? 'latest BBC world news' : 'latest Cherry Studio release' }
+      : {
+          query: toolSettings
+            ? 'Cherry Studio Electron GitHub'
+            : prompt.includes('BBC')
+              ? 'latest BBC world news'
+              : 'latest Cherry Studio release'
+        }
     if (tools.includes(target)) return call(target, params)
     if (output.includes(`- ${target} `)) return call('tool_invoke', { name: target, params })
     return call('tool_search', { query: target, verbose: true })
@@ -266,7 +290,7 @@ function modelResponse(request: ChatCompletionRequest): FixtureResponse {
     prompt.match(/reply with (MP144_QUEUE_ACK) only\./)?.[1] ??
     prompt.match(/reply (MP144_EDIT_ACK)/)?.[1]
   if (marker) return { content: marker }
-  if (prompt === 'MP144 steer now: acknowledge MP144_STEER_ACK in this turn before finishing the original task.') {
+  if (prompt.includes(STEER_PROMPT)) {
     if (results.length) return { content: 'MP144_STEER_END' }
     const bash = tools.find((name) => /^bash$/i.test(name))
     if (!bash) throw new Error('Steering fixture requires a real Bash tool')
@@ -317,6 +341,29 @@ function modelResponse(request: ChatCompletionRequest): FixtureResponse {
 
 export function addModelFixtures(mock: LLMock): void {
   mock.addFixture({
+    match: { userMessage: /^\[SUGGESTION MODE: Suggest what the user might naturally type next into Claude Code\.\]/ },
+    response: { content: '' }
+  })
+  mock.addFixture({
+    match: {
+      userMessage:
+        /^You are a translation expert\. .* to English,[\s\S]*<translate_input>\s*# 春日旅行\s+今天我们一起去公园散步，欣赏盛开的鲜花。\s+## 旅行计划\s+明天我们将参观博物馆，了解这座城市的历史。\s*<\/translate_input>/
+    },
+    response: {
+      content:
+        '# Spring Trip\n\nToday we will walk in the park and enjoy the flowers in bloom.\n\n## Travel Plans\n\nTomorrow we will visit the museum and learn about the history of the city.'
+    },
+    chunkSize: 12,
+    latency: 100
+  })
+  mock.addFixture({
+    match: {
+      userMessage:
+        /^You are a translation expert\. .* to Chinese \(Simplified\),[\s\S]*<translate_input>\s*The red apple is on the table\.\s*There are seven blue books\.\s*<\/translate_input>/i
+    },
+    response: { content: '红苹果在桌子上。这里有七本蓝色的书。' }
+  })
+  mock.addFixture({
     match: {
       systemMessage:
         /^Your task is to precisely identify the language used in the user's input text[\s\S]*<text>\s*(?:CherryStudio Neptune 27182 TRANSLATION_MARKER|Cherry regression PDF: PDF_TRANSLATION_MARKER_314159)\s*<\/text>/
@@ -346,7 +393,10 @@ export function addModelFixtures(mock: LLMock): void {
           ) ||
           prompt === 'MP144 preserve queued original A' ||
           Boolean(plan(prompt)) ||
-          /CLAUDE_AGENT_RUNTIME_PASS|MP19_RECEIVED|MP144_(?:QUEUE_ACK|EDIT_ACK|STEER_ACK)|skill-sample|cherry-regression-fixture|Validation label field from its fixture catalog|Convert "orchid-|Read the attached MCP resource and reply with its project verification code only|这份 PDF 第二页的关键字是什么|图片里写的 OCR 关键字是什么|你是测试助手，回答简短|Quote the full label and numeric code in the newly attached image|总结这个文件，请保留项目的英文名称|这是一条不带附件的新消息|图里写了什么|Use web search to find the latest Cherry Studio release as of|Use web_search to find the latest BBC world news|Discover web_fetch with tool_search if necessary|Web search is now disabled|Without using web search or citing earlier sources|Call the everything MCP server get-sum tool with a=31415 and b=27182|What is the regression knowledge answer\? Include the exact marker/.test(
+          KNOWLEDGE_RECALL_PROMPT.test(prompt) ||
+          prompt.startsWith(TOOL_SETTINGS_PROMPT) ||
+          prompt.includes(FILE_PROCESSING_PROMPT) ||
+          /CLAUDE_AGENT_RUNTIME_PASS|MP19_RECEIVED|MP144_(?:QUEUE_ACK|EDIT_ACK|STEER_ACK)|skill-sample|cherry-regression-fixture|Validation label field from its fixture catalog|Convert "orchid-|Read the attached MCP resource and reply with its project verification code only|这份 PDF 第二页的关键字是什么|图片里写的 OCR 关键字是什么|你是测试助手，回答简短|Quote the full label and numeric code in the newly attached image|总结这个文件，请保留项目的英文名称|这是一条不带附件的新消息|图里写了什么|Use web search to find the latest Cherry Studio release as of|Use web_search to find the latest BBC world news|Discover web_fetch with tool_search if necessary|Web search is now disabled|Without using web search or citing earlier sources|Call the everything MCP server get-sum tool with a=31415 and b=27182/.test(
             prompt
           ) ||
           prompt === 'Reply with the single word OK.' ||

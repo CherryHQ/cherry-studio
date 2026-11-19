@@ -180,7 +180,7 @@ test(...caseDefinition('MP-82'), async ({ app, mainWindow: page }, testInfo) => 
   const root = await mkdtemp(join(app.paths.workspace, 'mp82-assets-'))
   const documents = root
   const sample = app.fixturesPath('translation-documents', 'sample-chinese.md')
-  testInfo.annotations.push({ type: 'provider', description: 'Uses the run-configured real translation provider.' })
+  testInfo.annotations.push({ type: 'provider', description: 'Uses the translation provider configured for this run.' })
   const source = await readFile(sample, 'utf8')
   const oversized = join(documents, 'oversized.md')
   await writeFile(oversized, Buffer.alloc(5 * 1024 * 1024 + 1, 'a'))
@@ -308,7 +308,7 @@ test(...caseDefinition('MP-83'), async ({ app, mainWindow: page }, testInfo) => 
   await testInfo.attach('MP-83 no-text image', { path: blank, contentType: 'image/png' })
   testInfo.annotations.push({
     type: 'provider',
-    description: 'Real system OCR and run-configured translation provider.'
+    description: 'Real system OCR and the translation provider configured for this run.'
   })
   const preferences = await page.evaluate(async () => ({
     ocr: await window.api.preference.get('feature.file_processing.default_image_to_text'),

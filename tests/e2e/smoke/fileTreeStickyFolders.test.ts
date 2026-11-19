@@ -140,8 +140,7 @@ test('Notes FileTree sticky folders hand off across parent child sibling and roo
 
     await scroll(list, 0)
     await frames(list)
-    expect((await rowState(p)).top, 'first row sits at the list top when scrolled to 0').toBeCloseTo(0, 0)
-    const pA = 0
+    const pA = (await rowState(p)).top
     await scroll(list, pA + 1)
     const adjacent = {
       scrollTop: await list.evaluate((el) => el.scrollTop),

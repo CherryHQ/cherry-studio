@@ -348,7 +348,10 @@ test(...caseDefinition('MP-10'), async ({ app, mainWindow }, testInfo) => {
     })
     await screenshot('MP-10 scrolled search provider list')
     await page.getByRole('option', { name: 'DuckDuckGo', exact: true }).click()
-    await expect(searchSection()).toContainText('No API key required')
+    await searchSection()
+      .getByRole('img', { name: /No API key required/i })
+      .hover()
+    await expect(page.getByRole('tooltip')).toContainText('No API key required')
     expect(await page.evaluate(() => window.api.preference.get('chat.web_search.default_fetch_urls_provider'))).toBe(
       preferences.fetch
     )

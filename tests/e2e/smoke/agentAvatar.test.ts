@@ -15,7 +15,7 @@ import { AgentSessionEntitySchema } from '../../../src/shared/data/api/schemas/a
 import { createUniqueModelId } from '../../../src/shared/data/types/model'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { type MockChatServer, startMockChatServer } from '../../helpers/http/mockChatServer'
-import { selectSidebarApp } from '../regression/helpers/navigation'
+import { openConversationListOptions, selectSidebarApp } from '../regression/helpers/navigation'
 import { expect, test as base } from './fixtures/electron.fixture'
 import { stickyWindow } from './utils/stickySmoke'
 
@@ -125,8 +125,8 @@ async function readAgent(page: Page, id: string) {
 
 async function catalog(page: Page, name: string) {
   const view = page.locator('[data-ui~="agent.view"]').filter({ visible: true }).first()
-  await view.getByRole('button', { name: 'Display mode', exact: true }).click()
-  await page.getByText('Manage Agents', { exact: true }).click()
+  await openConversationListOptions(view)
+  await page.getByRole('menuitem', { name: 'Manage Agents', exact: true }).click()
   const card = view
     .locator('[data-ui~="resource-catalog.card.button"]')
     .and(view.getByRole('button', { name, exact: true }))
