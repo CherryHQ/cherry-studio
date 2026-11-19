@@ -77,9 +77,9 @@ describe('FileManager entry-cleanup wiring', () => {
   it('does not sweep orphan blobs when the tick itself is gated out', async () => {
     powerState.idleSeconds = 5
     vi.spyOn(fm, 'runEntryCleanup').mockResolvedValue(completedReport())
-    ;(fm as unknown as { lastCleanupCompletedAt: number }).lastCleanupCompletedAt = Date.now()
+    fm['lastCleanupCompletedAt'] = Date.now()
 
-    await (fm as unknown as { entryCleanupTick(): Promise<void> }).entryCleanupTick()
+    await fm['entryCleanupTick']()
 
     expect(fileSweepMock).not.toHaveBeenCalled()
   })
@@ -90,7 +90,7 @@ describe('FileManager entry-cleanup wiring', () => {
     fileSweepMock.mockRejectedValue(new Error('readdir boom'))
     const cleanup = vi.spyOn(fm, 'runEntryCleanup').mockResolvedValue(completedReport())
 
-    await expect((fm as unknown as { entryCleanupTick(): Promise<void> }).entryCleanupTick()).resolves.toBeUndefined()
+    await expect(fm['entryCleanupTick']()).resolves.toBeUndefined()
 
     expect(cleanup).toHaveBeenCalledTimes(1)
   })
@@ -99,14 +99,13 @@ describe('FileManager entry-cleanup wiring', () => {
   // stat), so only a pass that actually paid that cost may spend it. Stamping
   // before the await charged a stand-aside the same as a full sweep.
   describe('the weekly floor is only spent by a pass that did the work', () => {
-    const tickOf = (m: InstanceType<typeof FileManager>) =>
-      (m as unknown as { entryCleanupTick(): Promise<void> }).entryCleanupTick.bind(m)
+    const tickOf = (m: InstanceType<typeof FileManager>) => m['entryCleanupTick'].bind(m)
 
     beforeEach(() => {
       powerState.idleSeconds = 120
       vi.spyOn(fm, 'runEntryCleanup').mockResolvedValue(completedReport())
       // Keep the idle gate open across repeated ticks in the same test.
-      ;(fm as unknown as { lastCleanupCompletedAt: number }).lastCleanupCompletedAt = 0
+      fm['lastCleanupCompletedAt'] = 0
     })
 
     it('retries on the next idle tick after standing aside for a pending restore', async () => {
@@ -198,9 +197,9 @@ describe('FileManager entry-cleanup wiring', () => {
   it('interval tick skips when the user is active and lastRun is recent', async () => {
     powerState.idleSeconds = 5
     const spy = vi.spyOn(fm, 'runEntryCleanup').mockResolvedValue(completedReport())
-    ;(fm as unknown as { lastCleanupCompletedAt: number }).lastCleanupCompletedAt = Date.now()
+    fm['lastCleanupCompletedAt'] = Date.now()
 
-    await (fm as unknown as { entryCleanupTick(): Promise<void> }).entryCleanupTick()
+    await fm['entryCleanupTick']()
 
     expect(spy).not.toHaveBeenCalled()
   })
@@ -209,7 +208,7 @@ describe('FileManager entry-cleanup wiring', () => {
     powerState.idleSeconds = 120
     const spy = vi.spyOn(fm, 'runEntryCleanup').mockResolvedValue(completedReport())
 
-    await (fm as unknown as { entryCleanupTick(): Promise<void> }).entryCleanupTick()
+    await fm['entryCleanupTick']()
 
     expect(spy).toHaveBeenCalledTimes(1)
   })
@@ -220,17 +219,16 @@ describe('FileManager entry-cleanup wiring', () => {
     // interval tick would otherwise defer behind the idle threshold.
     powerState.idleSeconds = 0
     const cleanup = vi.spyOn(fm, 'runEntryCleanup').mockResolvedValue(completedReport())
-    const internals = fm as unknown as {
-      registerInterval: InstanceType<typeof BaseService>['registerInterval']
-      registerIpcHandlers(): void
-      deps: { danglingCache: { initFromDb(): Promise<void> } }
-      onInit(): Promise<void>
+    // SAFETY: This view exposes the existing source-typed registration hooks for isolated initialization spies.
+    const hooks = fm as Omit<typeof fm, 'registerInterval' | 'registerIpcHandlers'> & {
+      registerInterval: InstanceType<typeof FileManager>['registerInterval']
+      registerIpcHandlers: InstanceType<typeof FileManager>['registerIpcHandlers']
     }
-    vi.spyOn(internals, 'registerInterval').mockReturnValue({ dispose: () => undefined })
-    vi.spyOn(internals, 'registerIpcHandlers').mockImplementation(() => undefined)
-    vi.spyOn(internals.deps.danglingCache, 'initFromDb').mockResolvedValue(undefined)
+    vi.spyOn(hooks, 'registerInterval').mockReturnValue({ dispose: () => undefined })
+    vi.spyOn(hooks, 'registerIpcHandlers').mockImplementation(() => undefined)
+    vi.spyOn(fm['deps'].danglingCache, 'initFromDb').mockResolvedValue(undefined)
 
-    await internals.onInit()
+    await fm['onInit']()
 
     expect(cleanup).toHaveBeenCalledTimes(1)
   })
@@ -241,7 +239,7 @@ describe('FileManager entry-cleanup wiring', () => {
     // or a crash between row delete and unlink.
     powerState.idleSeconds = 120
     vi.spyOn(fm, 'runEntryCleanup').mockResolvedValue(completedReport())
-    const tick = (fm as unknown as { entryCleanupTick(): Promise<void> }).entryCleanupTick.bind(fm)
+    const tick = fm['entryCleanupTick'].bind(fm)
 
     await tick()
     expect(fileSweepMock).toHaveBeenCalledTimes(1)
