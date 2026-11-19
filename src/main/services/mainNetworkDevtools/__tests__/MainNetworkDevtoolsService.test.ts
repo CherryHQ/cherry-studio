@@ -1,4 +1,5 @@
-import { EventEmitter } from 'node:events'
+import { once } from 'node:events'
+import { type ClientRequest, createServer, type IncomingMessage, request as createHttpRequest } from 'node:http'
 
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -41,7 +42,6 @@ import { installBundledDevtools } from '@main/core/devtools'
 import {
   captureRequestBody,
   describeHttpRequest,
-  type MainNetworkDevtoolsEvent,
   MainNetworkDevtoolsService,
   redactHeaders,
   redactUrl
@@ -110,11 +110,7 @@ describe('MainNetworkDevtoolsService helpers', () => {
     originalNetFetch.mockResolvedValue(response)
 
     const service = new MainNetworkDevtoolsService()
-    const serviceState = service as unknown as {
-      events: MainNetworkDevtoolsEvent[]
-      patchNetFetch: () => void
-    }
-    serviceState.patchNetFetch()
+    service['patchNetFetch']()
 
     try {
       expect(net.fetch).not.toBe(originalNetFetch)
@@ -125,10 +121,10 @@ describe('MainNetworkDevtoolsService helpers', () => {
       })
 
       await expect(result.text()).resolves.toBe('{"ok":true}')
-      await waitFor(() => serviceState.events[0]?.responseBody !== undefined)
+      await waitFor(() => service['events'][0]?.responseBody !== undefined)
 
-      expect(serviceState.events[0]?.requestBody?.text).toBe('{"token":"<redacted>","message":"hello"}')
-      expect(serviceState.events[0]?.responseBody?.text).toBe('{"ok":true}')
+      expect(service['events'][0]?.requestBody?.text).toBe('{"token":"<redacted>","message":"hello"}')
+      expect(service['events'][0]?.responseBody?.text).toBe('{"ok":true}')
     } finally {
       await service._doStop()
     }
@@ -146,19 +142,15 @@ describe('MainNetworkDevtoolsService helpers', () => {
     originalNetFetch.mockResolvedValue(response)
 
     const service = new MainNetworkDevtoolsService()
-    const serviceState = service as unknown as {
-      events: MainNetworkDevtoolsEvent[]
-      patchNetFetch: () => void
-    }
-    serviceState.patchNetFetch()
+    service['patchNetFetch']()
 
     try {
       const result = await net.fetch('https://api.test/download')
-      await waitFor(() => serviceState.events[0]?.responseBody !== undefined)
+      await waitFor(() => service['events'][0]?.responseBody !== undefined)
 
       // Skipping the clone means the body is never teed, so no unread branch can buffer.
       expect(cloneSpy).not.toHaveBeenCalled()
-      expect(serviceState.events[0]?.responseBody).toMatchObject({
+      expect(service['events'][0]?.responseBody).toMatchObject({
         contentType: 'application/octet-stream',
         note: expect.any(String)
       })
@@ -181,15 +173,11 @@ describe('MainNetworkDevtoolsService helpers', () => {
     originalNetFetch.mockResolvedValue(response)
 
     const service = new MainNetworkDevtoolsService()
-    const serviceState = service as unknown as {
-      events: MainNetworkDevtoolsEvent[]
-      patchNetFetch: () => void
-    }
-    serviceState.patchNetFetch()
+    service['patchNetFetch']()
 
     try {
       await expect(net.fetch('https://api.test/v1/chat')).resolves.toBe(response)
-      expect(serviceState.events[0]).toMatchObject({
+      expect(service['events'][0]).toMatchObject({
         state: 'error',
         status: 400,
         statusText: 'Bad Request',
@@ -213,18 +201,14 @@ describe('MainNetworkDevtoolsService helpers', () => {
 
   it('allows only registered DevTools extension origins', () => {
     const service = new MainNetworkDevtoolsService()
-    const serviceState = service as unknown as {
-      registerOrigin: (origin: string) => void
-      isOriginAllowed: (origin: string | undefined) => boolean
-    }
 
-    expect(serviceState.isOriginAllowed(undefined)).toBe(false)
-    expect(serviceState.isOriginAllowed('http://localhost:3000')).toBe(false)
+    expect(service['isOriginAllowed'](undefined)).toBe(false)
+    expect(service['isOriginAllowed']('http://localhost:3000')).toBe(false)
 
-    serviceState.registerOrigin('chrome-extension://main-network-id')
+    service['registerOrigin']('chrome-extension://main-network-id')
 
-    expect(serviceState.isOriginAllowed('chrome-extension://main-network-id')).toBe(true)
-    expect(serviceState.isOriginAllowed('chrome-extension://other-id')).toBe(false)
+    expect(service['isOriginAllowed']('chrome-extension://main-network-id')).toBe(true)
+    expect(service['isOriginAllowed']('chrome-extension://other-id')).toBe(false)
   })
 
   it('installs its own bundled panel once the app is ready and allowlists the resolved extension origin', async () => {
@@ -236,18 +220,13 @@ describe('MainNetworkDevtoolsService helpers', () => {
     // Panel install must hang off onAllReady, not onInit: this service runs in the
     // Background phase, which starts before app.whenReady() resolves.
     await service._doAllReady()
-    const serviceState = service as unknown as { isOriginAllowed: (origin: string | undefined) => boolean }
-    expect(serviceState.isOriginAllowed('chrome-extension://main-network-id')).toBe(true)
+    expect(service['isOriginAllowed']('chrome-extension://main-network-id')).toBe(true)
   })
 
   it('enforces the registered DevTools extension origin on live websocket connections', async () => {
     const service = new MainNetworkDevtoolsService()
-    const serviceState = service as unknown as {
-      registerOrigin: (origin: string) => void
-      startWebSocketServer: (port?: number) => Promise<number>
-    }
-    serviceState.registerOrigin('chrome-extension://main-network-id')
-    const port = await serviceState.startWebSocketServer(0)
+    service['registerOrigin']('chrome-extension://main-network-id')
+    const port = await service['startWebSocketServer'](0)
 
     try {
       await expect(waitForRejectedSocket(port, 'https://evil.example')).resolves.toBe(1008)
@@ -263,54 +242,70 @@ describe('MainNetworkDevtoolsService helpers', () => {
     }
   })
 
-  it('does not attach a data listener when observing Node http responses', () => {
+  it('forwards native Node requests without consuming their responses', async () => {
     const service = new MainNetworkDevtoolsService()
-    const serviceState = service as unknown as {
-      events: MainNetworkDevtoolsEvent[]
-      wrapHttpMethod: (
-        originalMethod: (...args: unknown[]) => ReturnType<typeof createMockClientRequest>,
-        source: 'http' | 'https'
-      ) => (...args: unknown[]) => ReturnType<typeof createMockClientRequest>
+    const server = createServer(async (incoming, outgoing) => {
+      incoming.setEncoding('utf8')
+      let body = ''
+      for await (const chunk of incoming) body += chunk
+      outgoing.writeHead(200, { 'content-type': 'text/plain' })
+      outgoing.end(`received:${body}`)
+    })
+    server.listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    let client: ClientRequest | undefined
+    let response: IncomingMessage | undefined
+
+    try {
+      const address = server.address()
+      if (!address || typeof address === 'string') throw new Error('Expected a local HTTP listener')
+      const url = `http://127.0.0.1:${address.port}/`
+      const options = { method: 'POST', headers: { 'content-type': 'text/plain' } }
+      const originalRequest = createHttpRequest(url, options)
+      client = originalRequest
+      const wrappedRequest = service['wrapHttpMethod'](() => originalRequest, 'http')
+      const request = wrappedRequest(url, options)
+      expect(request).toBe(client)
+      const responseReady = new Promise<IncomingMessage>((resolve, reject) => {
+        request.once('response', resolve)
+        request.once('error', reject)
+      })
+      const writeDone = vi.fn()
+      const endDone = vi.fn()
+      expect(request.write('part-', 'utf8', writeDone)).toBe(true)
+      expect(request.end('body', 'utf8', endDone)).toBe(request)
+      response = await responseReady
+
+      expect(response.listenerCount('data')).toBe(0)
+      expect(service['events'][0]).toMatchObject({
+        state: 'success',
+        status: 200,
+        requestBody: { text: 'part-body' },
+        responseBody: { contentType: 'text/plain', note: expect.any(String) }
+      })
+      response.setEncoding('utf8')
+      let body = ''
+      for await (const chunk of response) body += chunk
+      expect(body).toBe('received:part-body')
+      expect(writeDone).toHaveBeenCalledTimes(1)
+      expect(endDone).toHaveBeenCalledTimes(1)
+    } finally {
+      response?.destroy()
+      client?.destroy()
+      server.closeAllConnections()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+      await service._doStop()
     }
-    const request = createMockClientRequest()
-    const wrappedRequest = serviceState.wrapHttpMethod(() => request, 'http')
-
-    expect(wrappedRequest('http://example.test')).toBe(request)
-
-    const response = Object.assign(new EventEmitter(), {
-      headers: { 'content-type': 'text/plain' },
-      statusCode: 200,
-      statusMessage: 'OK'
-    })
-    request.emit('response', response)
-
-    expect(response.listenerCount('data')).toBe(0)
-    expect(serviceState.events[0]).toMatchObject({
-      state: 'success',
-      status: 200,
-      statusText: 'OK',
-      responseBody: {
-        contentType: 'text/plain',
-        note: expect.any(String)
-      }
-    })
   })
 
   it('marks Node http events as error when request creation throws synchronously', () => {
     const service = new MainNetworkDevtoolsService()
-    const serviceState = service as unknown as {
-      events: MainNetworkDevtoolsEvent[]
-      wrapHttpMethod: (
-        originalMethod: (...args: unknown[]) => ReturnType<typeof createMockClientRequest>,
-        source: 'http' | 'https'
-      ) => (...args: unknown[]) => ReturnType<typeof createMockClientRequest>
-    }
-    const wrappedRequest = serviceState.wrapHttpMethod(() => {
+    const wrappedRequest = service['wrapHttpMethod'](() => {
       throw new Error('invalid request')
     }, 'https')
 
     expect(() => wrappedRequest('https://example.test')).toThrow('invalid request')
-    expect(serviceState.events[0]).toMatchObject({
+    expect(service['events'][0]).toMatchObject({
       source: 'https',
       state: 'error',
       error: 'invalid request',
@@ -373,16 +368,6 @@ function waitForRejectedSocket(port: number, origin: string): Promise<number> {
       reject(error)
     })
   })
-}
-
-function createMockClientRequest() {
-  const request = new EventEmitter() as EventEmitter & {
-    write: ReturnType<typeof vi.fn<(...args: any[]) => any>>
-    end: ReturnType<typeof vi.fn<(...args: any[]) => any>>
-  }
-  request.write = vi.fn(() => true)
-  request.end = vi.fn(() => request)
-  return request
 }
 
 async function waitFor(predicate: () => boolean): Promise<void> {

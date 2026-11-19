@@ -445,7 +445,8 @@ export class MainNetworkDevtoolsService extends BaseService {
 
   private captureClientRequestBody(request: ClientRequest, id: string, contentType: string | undefined): void {
     const requestBodyAccumulator = createBodyAccumulator(contentType)
-    const target = request as unknown as MutableClientRequestMethods
+    // SAFETY: This adds raw forwarding signatures to Node's overloads; the native methods still validate their arguments.
+    const target = request as typeof request & MutableClientRequestMethods
     const originalWrite = target.write
     const originalEnd = target.end
     const updateRequestBody = (requestBody: MainNetworkDevtoolsBody) => this.updateEvent(id, { requestBody })
