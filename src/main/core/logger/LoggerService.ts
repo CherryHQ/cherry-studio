@@ -65,17 +65,16 @@ function toSafeError(error: Error): Record<string, Serializable> {
       message: safeErrorText(error.message)
     }
     if (typeof error.stack === 'string') safe.stack = redactSecretText(error.stack).slice(0, MAX_ERROR_STACK_CHARS)
-    const source = error as unknown as Record<string, unknown>
-    if (source.reportingHandled === true) safe.reportingHandled = true
-    if (typeof source.code === 'string' && source.code.length <= MAX_SAFE_ERROR_TAG_CHARS) {
-      safe.code = redactSecretText(source.code)
+    if ('reportingHandled' in error && error.reportingHandled === true) safe.reportingHandled = true
+    if ('code' in error && typeof error.code === 'string' && error.code.length <= MAX_SAFE_ERROR_TAG_CHARS) {
+      safe.code = redactSecretText(error.code)
     }
-    if (typeof source.statusCode === 'number') safe.statusCode = source.statusCode
-    if (typeof source.status === 'number') safe.status = source.status
-    if (typeof source.reason === 'string' && source.reason.length <= MAX_SAFE_ERROR_TAG_CHARS) {
-      safe.reason = redactSecretText(source.reason)
+    if ('statusCode' in error && typeof error.statusCode === 'number') safe.statusCode = error.statusCode
+    if ('status' in error && typeof error.status === 'number') safe.status = error.status
+    if ('reason' in error && typeof error.reason === 'string' && error.reason.length <= MAX_SAFE_ERROR_TAG_CHARS) {
+      safe.reason = redactSecretText(error.reason)
     }
-    if (typeof source.isRetryable === 'boolean') safe.isRetryable = source.isRetryable
+    if ('isRetryable' in error && typeof error.isRetryable === 'boolean') safe.isRetryable = error.isRetryable
     return safe
   } catch {
     return { name: 'Error', message: REDACTED }

@@ -43,7 +43,7 @@ export function serializeError(error: unknown): SerializedError {
     return { ...(serializeNestedProviderError(error) as SerializedError), ...ownership }
   }
   if (error instanceof Error) {
-    const e = error as unknown as Record<string, unknown>
+    const e = error
     const isRetryError = RetryError.isInstance(error)
 
     const serialized: SerializedError = {
@@ -52,7 +52,7 @@ export function serializeError(error: unknown): SerializedError {
       stack: isRetryError ? null : (error.stack ?? null),
       cause: e.cause != null ? String(e.cause) : null
     }
-    if (e.reportingHandled === true) serialized.reportingHandled = true
+    if ('reportingHandled' in e && e.reportingHandled === true) serialized.reportingHandled = true
 
     if ('url' in e) serialized.url = String(e.url ?? '')
     if ('requestBodyValues' in e) serialized.requestBodyValues = toSerializable(e.requestBodyValues)
@@ -81,13 +81,13 @@ export function serializeError(error: unknown): SerializedError {
     if ('availableTools' in e) serialized.availableTools = (e.availableTools as string[]) ?? null
     if ('reason' in e) serialized.reason = e.reason as string
     if ('lastError' in e) serialized.lastError = serializeNestedProviderError(e.lastError)
-    if (Array.isArray(e.errors)) serialized.errors = e.errors.map(serializeNestedProviderError)
+    if ('errors' in e && Array.isArray(e.errors)) serialized.errors = e.errors.map(serializeNestedProviderError)
     if ('originalError' in e) serialized.originalError = serializeError(e.originalError)
     if ('functionality' in e) serialized.functionality = e.functionality as string
     if ('provider' in e) serialized.provider = e.provider as string
     if ('responses' in e) serialized.responses = e.responses as string[]
     if ('maxEmbeddingsPerCall' in e) serialized.maxEmbeddingsPerCall = (e.maxEmbeddingsPerCall as number) ?? null
-    if (Array.isArray(e.values)) serialized.values = e.values.map((v) => toSerializable(v))
+    if ('values' in e && Array.isArray(e.values)) serialized.values = e.values.map((v) => toSerializable(v))
     if ('i18nKey' in e && typeof e.i18nKey === 'string') serialized.i18nKey = e.i18nKey
     // App-owned OCR diagnostic detail (attachmentRouting): the localized "why"
     // and its interpolation values must survive the IPC boundary, or the
