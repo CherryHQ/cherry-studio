@@ -98,6 +98,7 @@ function toHostOrUrl(url: string): string {
 }
 
 /** Provider `sourceId` of the form `citation-<n>` (0-based) → marker number. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Source-url parts also come from historical message JSON without per-part validation; require a string citation ID before parsing its marker number.
 function sourceIdToNumber(sourceId: unknown): number | undefined {
   if (typeof sourceId !== 'string') return undefined
   const match = sourceId.match(/^citation-(\d+)$/)
@@ -164,6 +165,7 @@ function toSnippet(content: string): string {
  * error/steer string, and results persisted before kb_read joined the citation pipeline (no `id`).
  */
 function parseKbReadCitation(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- kb_read receipts include read and grep variants, errors and legacy stored outputs; validate either existing output schema before constructing a citation.
   output: unknown
 ): { id: string; baseId?: string; conceptId: string; title: string; content: string } | null {
   const read = kbReadOutputSchema.safeParse(output)
@@ -190,6 +192,7 @@ type CitableToolOutput =
   | { kind: 'knowledge'; items: KnowledgeCitationInput[] }
   | { kind: 'web'; items: z.infer<typeof webSearchOutputSchema> }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool parts can contain persisted/deferred skeletons or MCP envelopes; unwrap the result and parse the tool-specific citation schema before use.
 function parseCitableToolOutput(toolName: string, output: unknown): CitableToolOutput | null {
   let rawOutput = output
   if (isPersistedToolOutput(output)) {
