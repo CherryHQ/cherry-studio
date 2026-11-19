@@ -203,7 +203,6 @@ vi.mock('@cherrystudio/ui', async () => {
     useMarkdownBlockContext: () => ({ content: '' }),
     createSlugger: () => ({ slug: (value) => String(value ?? '') }),
     extractTextFromNode: () => '',
-    BlurCancelPointerSensor: class BlurCancelPointerSensor {},
     BUTTON_HANDLE_DRAG_SENSORS,
     DragDropRoot: withManagerProbe(DragDropRoot),
     ReorderableList: ({ items, renderItem, getId }) =>
