@@ -20,7 +20,7 @@ export function isRequestId(value: unknown): value is number {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Optional request IDs come from raw log/protocol-error frames; validate them before correlating a request.
 const isOptionalRequestId = (value: unknown): boolean => value === undefined || isRequestId(value)
 
-export function isFrameIdentity(value: unknown): value is FrameIdentity & { kind: string } {
+export function isFrameIdentity(value: unknown): value is FrameIdentity & { kind: string } & Record<string, unknown> {
   return (
     isRecord(value) &&
     value.protocol === PROTOCOL &&
@@ -50,7 +50,7 @@ export function isConnectFrame(value: unknown): value is ConnectFrame {
 
 export function isMainFrame(value: unknown): value is MainFrame {
   if (!isFrameIdentity(value)) return false
-  const frame = value as unknown as Record<string, unknown>
+  const frame = value
   switch (frame.kind) {
     case 'stream-open':
       return (
@@ -88,7 +88,7 @@ export function isMainFrame(value: unknown): value is MainFrame {
 
 export function isChildFrame(value: unknown): value is ChildFrame {
   if (!isFrameIdentity(value)) return false
-  const frame = value as unknown as Record<string, unknown>
+  const frame = value
   switch (frame.kind) {
     case 'stream-data':
     case 'stream-credit':
