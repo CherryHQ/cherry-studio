@@ -8,8 +8,11 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
+vi.mock('../../system', () => ({ safeOpen: vi.fn() }))
+
+const { safeOpen } = await import('../../system')
 const { application } = await import('@application')
-const { resolveRequestedPath } = await import('../requestedPath')
+const { resolveRequestedPath, openRequestPath } = await import('../requestedPath')
 
 const HOME = '/home/alice'
 const WORKSPACE = '/home/alice/project' as AbsoluteFilePath
@@ -61,4 +64,16 @@ describe('resolveRequestedPath', () => {
   it.each(['', '   '])('refuses an empty path %j', (rawPath) => {
     expectRejected(rawPath, 'invalid', WORKSPACE)
   })
+})
+
+describe('openRequestPath', () => {
+  it.each([{ channel: 'ai.agent.session.open_path' } as const, undefined])(
+    'forwards context %j unchanged after workspace resolution',
+    async (context) => {
+      vi.mocked(safeOpen).mockClear()
+      await openRequestPath('assets/report.docx', WORKSPACE, context)
+      expect(safeOpen).toHaveBeenCalledExactlyOnceWith('/home/alice/project/assets/report.docx', context)
+      expect(vi.mocked(safeOpen).mock.calls[0][1]).toBe(context)
+    }
+  )
 })

@@ -376,6 +376,7 @@ export class AiSdkSpanAdapter {
    */
   private static parseAttributeValue(value: any): any {
     if (typeof value === 'string') {
+      if (value.length > 512 * 1024) return '[omitted: trace payload exceeds 512 Ki characters]'
       try {
         return JSON.parse(value)
       } catch (e) {
@@ -542,7 +543,7 @@ export class AiSdkSpanAdapter {
     const excludeKeys = ['ai.usage', 'ai.prompt', 'ai.response', 'ai.input', 'ai.output', 'inputs', 'outputs']
 
     Object.entries(attributes).forEach(([key, value]) => {
-      if (!excludeKeys.includes(key)) {
+      if (!excludeKeys.some((excluded) => key === excluded || key.startsWith(`${excluded}.`))) {
         filtered[key] = value
       }
     })

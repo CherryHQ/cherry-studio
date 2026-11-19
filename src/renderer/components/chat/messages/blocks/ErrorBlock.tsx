@@ -12,6 +12,7 @@ import { getCherryCloudErrorPresentation } from '@renderer/utils/cherryCloudErro
 import { formatErrorMessageWithPrefix, providerErrorText } from '@renderer/utils/error'
 import {
   classifyError,
+  type ErrorCategory,
   getClaudeCodeExitCategory,
   getClaudeCodeExitInfo,
   getLocalModelResolutionFailure
@@ -36,7 +37,7 @@ const ErrorBlock: React.FC<Props> = ({ partId, error, message }) => {
   return <MessageErrorInfo partId={partId} error={error} message={message} />
 }
 
-const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
+const ErrorMessage: React.FC<{ error: Props['error']; category: ErrorCategory }> = ({ error, category }) => {
   const { t, i18n } = useTranslation()
   const { navigateToRoute } = useMessageListActions()
 
@@ -109,7 +110,11 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   // resolution message adds no useful recovery detail.
   if (localModelFailure) return null
 
-  if (typeof errorStatus === 'number' && HTTP_ERROR_CODES.includes(errorStatus)) {
+  if (
+    typeof errorStatus === 'number' &&
+    HTTP_ERROR_CODES.includes(errorStatus) &&
+    !(errorStatus === 429 && category === 'quota')
+  ) {
     const providerMessage = providerErrorText(error)
     return (
       <span>
@@ -152,7 +157,7 @@ const MessageErrorInfo: React.FC<{
   // interpolate <provider> still go through the classification branch: plain `t()`
   // would render the raw tags, and the provider branch needs the <Trans> link form.
   const localizedErrorMessage = useMemo(() => {
-    if (cherryCloudQuotaRejection) return t('models.detail.quota_exhausted')
+    if (cherryCloudQuotaRejection) return t('models.detail.quota_insufficient_for_request')
     if (hasAppOwnedI18nKey && !providerId) return t(appOwnedErrorKey)
     if (localModelFailure) {
       const { providerId: failedProviderId, modelId } = localModelFailure
@@ -281,7 +286,7 @@ const MessageErrorInfo: React.FC<{
       <div
         className="ml-5.75 line-clamp-3 text-xs leading-normal [overflow-wrap:anywhere] [&_a]:text-link"
         style={{ color: ERROR_DESCRIPTION_COLOR }}>
-        {cherryCloudQuotaText || <ErrorMessage error={error} />}
+        {cherryCloudQuotaText || <ErrorMessage error={error} category={classification.category} />}
       </div>
 
       {/* Footer */}

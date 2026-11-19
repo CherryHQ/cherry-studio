@@ -20,11 +20,16 @@ import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
 import { getDataService } from '@data/services/dataServiceRegistry'
+import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
+import { providerService } from '@data/services/ProviderService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
+import { getAppLanguage } from '@main/i18n'
+import { parseJsonSortKey, selectNamePage } from '@main/utils/listOrdering'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
+import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -42,8 +47,11 @@ import type {
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
+import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { createNameComparator } from '@shared/utils/nameOrdering'
 
 import { ensureAgentSessionRootTx } from './agentSessionMessageTree'
+import { decodeListCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {
   decodePinnedListCursor,
@@ -108,6 +116,7 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     id: clean.id,
     // agentId is legitimately nullable (orphans only via cascade) — preserve T | null.
     agentId: row.session.agentId,
+    model: (row.session.model ?? null) as UniqueModelId | null,
     name: clean.name,
     isNameManuallyEdited: clean.isNameManuallyEdited,
     description: clean.description,
@@ -158,6 +167,17 @@ export function agentSessionReadModelEffects(
     { endpoint: '/agent-sessions/:sessionId', entityIds },
     { endpoint: '/agent-sessions/latest' }
   ]
+}
+
+// Pi needs a resolvable, gateway-routable chat model; stale or subscription-only overrides cannot run.
+function isPiServableUniqueModel(uniqueModelId: string): boolean {
+  try {
+    if (!isUniqueModelId(uniqueModelId)) return false
+    const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+    return isPiCompatibleModel(providerService.getByProviderId(providerId), modelService.getByKey(providerId, modelId))
+  } catch {
+    return false
+  }
 }
 
 export class AgentSessionService {
@@ -332,6 +352,9 @@ export class AgentSessionService {
     taskId: string | null = null
   ): void {
     this.assertAgentExistsTx(tx, dto.agentId)
+    if (dto.model !== undefined && dto.model !== null && !isUniqueModelId(dto.model)) {
+      throw DataApiErrorFactory.invalidOperation('create session', `unknown model: ${dto.model}`)
+    }
 
     let workspaceId: string
     switch (dto.workspace.type) {
@@ -365,12 +388,20 @@ export class AgentSessionService {
       agentId: dto.agentId,
       name: dto.name,
       description: dto.description,
+      model: dto.model,
       taskId,
       workspaceId,
       createdAt,
       updatedAt: createdAt
     })
     ensureAgentSessionRootTx(tx, id)
+  }
+
+  finishHistoryImportTx(tx: DbOrTx, sessionId: string, updatedAt: number): void {
+    tx.update(sessionsTable)
+      .set({ isNameManuallyEdited: true, updatedAt, lastActivityAt: updatedAt })
+      .where(eq(sessionsTable.id, sessionId))
+      .run()
   }
 
   /** Bump metadata modification time from a foreign service's transaction. */
@@ -409,11 +440,11 @@ export class AgentSessionService {
     )
   }
 
-  getById(id: string): AgentSessionEntity {
-    return this.readById(id)
+  getById(id: string, options?: { includeTaskReuse: boolean }) {
+    return this.readById(id, undefined, options?.includeTaskReuse)
   }
 
-  private readById(id: string, scope?: SQL): AgentSessionEntity {
+  private readById(id: string, scope?: SQL, includeTaskReuse = false) {
     const db = application.get('DbService').getDb()
     const [row] = db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
@@ -423,7 +454,10 @@ export class AgentSessionService {
       .limit(1)
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
-    return rowToSession(row)
+    return {
+      ...rowToSession(row),
+      ...(includeTaskReuse && row.session.isTaskReuseTarget && { isTaskReuseTarget: true })
+    }
   }
 
   /** Read all task-owned sessions, including non-reusing runs whose jobs were collected. */
@@ -772,11 +806,10 @@ export class AgentSessionService {
   /**
    * Two-section page mirroring `TopicService.listByCursor`: pinned sessions
    * first (via the shared `pin` table, ordered by `pin.orderKey`) then unpinned
-   * by `session.orderKey ASC, id ASC` (manual/creation drag order). A partial
+   * by the selected sort key and `id ASC` (default: manual `orderKey ASC`). A partial
    * pin page spills into the unpinned section to fill `limit`. Pins float a
    * session to the top independent of its own `orderKey`, so both rails share
-   * one pagination contract; recency ordering for the time-grouped view is
-   * applied by the renderer over the loaded list.
+   * one pagination contract; sorting is applied before reading each page.
    */
   listByCursor(
     query: ListAgentSessionsQuery & { scope: 'ordinary' | 'all-conversations'; taskId?: string }
@@ -784,6 +817,19 @@ export class AgentSessionService {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = decodePinnedListCursor(query.cursor, 'agent-session')
+    const sortBy = query.sortBy ?? 'orderKey'
+    const direction = query.sortOrder ?? (sortBy === 'orderKey' ? 'asc' : 'desc')
+    const ordering = keysetOrdering(sessionsTable[sortBy], sessionsTable.id, { major: direction, tie: 'asc' })
+    const boundary =
+      cursor.section === 'entity' && cursor.orderKey !== null
+        ? sortBy === 'orderKey'
+          ? { key: cursor.orderKey, id: cursor.id }
+          : decodeListCursor(
+              `${cursor.orderKey}:${cursor.id}`,
+              (key) => parseJsonSortKey(key, sortBy === 'name' ? 'string' : 'number'),
+              'agent-session'
+            )
+        : null
     const agentFilter = query.agentId ? eq(sessionsTable.agentId, query.agentId) : undefined
     const workspaceFilter = query.workspaceId ? eq(sessionsTable.workspaceId, query.workspaceId) : undefined
     const idFilter = query.ids ? inArray(sessionsTable.id, query.ids) : undefined
@@ -850,19 +896,37 @@ export class AgentSessionService {
       }
     }
 
-    // Tuple cursor `(orderKey, id)` over `ORDER BY orderKey ASC, id ASC`: the id
-    // tiebreaker prevents dedup/skip across pages when two rows share an orderKey.
+    // The id tiebreak keeps equal sort keys distinct across pages.
     const remaining = limit - items.length
     const pinnedSubquery = db.select({ id: pinTable.entityId }).from(pinTable).where(eq(pinTable.entityType, 'session'))
 
-    let sessionAfter: SQL | undefined
-    if (cursor.section === 'entity' && cursor.orderKey !== null) {
-      sessionAfter = or(
-        gt(sessionsTable.orderKey, cursor.orderKey),
-        and(eq(sessionsTable.orderKey, cursor.orderKey), gt(sessionsTable.id, cursor.id))
-      )
-    }
-
+    const sessionFilter = and(
+      conversationFilter,
+      taskFilter,
+      taskIdFilter,
+      agentFilter,
+      workspaceFilter,
+      idFilter,
+      activeAgentFilter,
+      inTrash ? isNotNull(sessionsTable.deletedAt) : isNull(sessionsTable.deletedAt),
+      notInArray(sessionsTable.id, pinnedSubquery)
+    )
+    const compareNames =
+      sortBy === 'name' ? createNameComparator(query.sortLocale ?? getAppLanguage(), direction) : undefined
+    const namePage = compareNames
+      ? selectNamePage({
+          names: db
+            .select({ id: sessionsTable.id, name: sessionsTable.name })
+            .from(sessionsTable)
+            .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+            .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
+            .where(sessionFilter)
+            .all(),
+          after: boundary && typeof boundary.key === 'string' ? { name: boundary.key, id: boundary.id } : undefined,
+          compare: compareNames,
+          limit: remaining + 1
+        })
+      : undefined
     const sessionRows = db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
@@ -870,21 +934,22 @@ export class AgentSessionService {
       .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
       .where(
         and(
-          conversationFilter,
-          taskFilter,
-          taskIdFilter,
-          agentFilter,
-          workspaceFilter,
-          idFilter,
-          activeAgentFilter,
-          inTrash ? isNotNull(sessionsTable.deletedAt) : isNull(sessionsTable.deletedAt),
-          notInArray(sessionsTable.id, pinnedSubquery),
-          sessionAfter
+          sessionFilter,
+          namePage
+            ? inArray(
+                sessionsTable.id,
+                namePage.map((row) => row.id)
+              )
+            : boundary
+              ? ordering.where(boundary)
+              : undefined
         )
       )
-      .orderBy(asc(sessionsTable.orderKey), asc(sessionsTable.id))
+      .orderBy(...ordering.orderBy)
       .limit(remaining + 1)
       .all()
+
+    if (compareNames) sessionRows.sort((a, b) => compareNames(a.session, b.session))
 
     const hasMoreInSession = sessionRows.length > remaining
     for (const row of sessionRows.slice(0, remaining)) {
@@ -894,7 +959,10 @@ export class AgentSessionService {
     let nextCursor: string | undefined
     if (hasMoreInSession) {
       const last = sessionRows[remaining - 1]
-      nextCursor = encodeEntityCursor(last.session.orderKey, last.session.id)
+      nextCursor = encodeEntityCursor(
+        sortBy === 'orderKey' ? last.session.orderKey : encodeURIComponent(JSON.stringify(last.session[sortBy])),
+        last.session.id
+      )
     }
 
     return { items: items.map((i) => i.session), nextCursor }
@@ -912,6 +980,7 @@ export class AgentSessionService {
     }
     if (dto.description !== undefined) patch.description = dto.description
     if (dto.agentId !== undefined) patch.agentId = dto.agentId
+    if (dto.model !== undefined) patch.model = dto.model
     if (Object.keys(patch).length === 0) return this.getById(id)
 
     const result = withSqliteErrors(
@@ -931,15 +1000,50 @@ export class AgentSessionService {
     patch: UpdateAgentSessionDto
   ): { row: SessionRow | undefined; clearedTaskScheduleIds: string[] } {
     const [current] = tx
-      .select({ agentId: sessionsTable.agentId, taskScheduleId: sessionsTable.taskId })
+      .select({
+        agentId: sessionsTable.agentId,
+        taskScheduleId: sessionsTable.taskId,
+        model: sessionsTable.model
+      })
       .from(sessionsTable)
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
     if (!current) return { row: undefined, clearedTaskScheduleIds: [] }
     if (patch.agentId !== undefined) this.assertAgentExistsTx(tx, patch.agentId)
+    if (patch.model !== undefined && patch.model !== null && !isUniqueModelId(patch.model)) {
+      throw DataApiErrorFactory.invalidOperation('update session', `unknown model: ${patch.model}`)
+    }
 
-    const reassigned = patch.agentId !== undefined && patch.agentId !== current.agentId
+    const previousAgentId = current.agentId
+    const reassigned = patch.agentId !== undefined && patch.agentId !== previousAgentId
+    if (reassigned && patch.model === undefined && current.model != null) {
+      // A cross-runtime reassignment may make the override unservable, so clear it atomically;
+      // same-runtime reassignment keeps the override.
+      const agentTypes = tx
+        .select({ id: agentsTable.id, type: agentsTable.type })
+        .from(agentsTable)
+        .where(
+          inArray(
+            agentsTable.id,
+            previousAgentId != null ? [previousAgentId, patch.agentId as string] : [patch.agentId as string]
+          )
+        )
+        .all()
+      const typeOf = new Map(agentTypes.map((row) => [row.id, row.type]))
+      if (previousAgentId != null) {
+        if (typeOf.get(previousAgentId) !== typeOf.get(patch.agentId as string)) {
+          patch.model = null
+        }
+      } else if (
+        ['pi', 'pi-durable'].includes(typeOf.get(patch.agentId as string) ?? '') &&
+        !isPiServableUniqueModel(current.model)
+      ) {
+        // A deleted parent leaves no runtime type to compare; discard an override the new Pi agent
+        // cannot serve so the session can use its default.
+        patch.model = null
+      }
+    }
     const clearedTaskScheduleIds = reassigned && current.taskScheduleId ? [current.taskScheduleId] : []
     if (reassigned && current.taskScheduleId) {
       this.clearTaskReuseTx(tx, eq(sessionsTable.id, id))
@@ -1037,6 +1141,7 @@ export class AgentSessionService {
       taskId?: string | null
       name: string
       description?: string
+      model?: UniqueModelId | null
       workspaceId: string
       createdAt: number
       updatedAt: number

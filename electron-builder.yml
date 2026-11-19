@@ -63,8 +63,7 @@ files:
   - "!**/{.DS_Store,Thumbs.db,thumbs.db,__pycache__}"
   - "!**/{LICENSE,license,LICENSE.*,*.LICENSE.txt,NOTICE.txt,README.md,readme.md,CHANGELOG.md}"
   - "!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}"
-  - "!**/node_modules/better-sqlite3/{bin,deps,src}/**"
-  - "!**/node_modules/better-sqlite3/build/{Debug,Release/obj}/**"
+  - "!**/node_modules/better-sqlite3/{bin,build,deps,src}/**"
   - "!**/node_modules/{selection-hook,@earendil-works/pi-coding-agent}/docs/**"
   # node-gyp-build prefers build/Release over prebuilds/, so ship the prebuilds and drop the
   # host-arch rebuild — a cross-built arm64 package would otherwise load the x86-64 binary (#20530).
@@ -74,6 +73,7 @@ files:
   - "!node_modules/tesseract.js-core/{tesseract-core.js,tesseract-core.wasm,tesseract-core.wasm.js}" # we don't need source files
   - "!node_modules/tesseract.js-core/{tesseract-core-lstm.js,tesseract-core-lstm.wasm,tesseract-core-lstm.wasm.js}" # we don't need source files
   - "!node_modules/tesseract.js-core/{tesseract-core-simd.js,tesseract-core-simd.wasm,tesseract-core-simd.wasm.js}" # tesseract.js loads tesseract-core-simd-lstm (default LSTM_ONLY OEM on SIMD)
+  - "!**/node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm.js"
   - "!node_modules/onnxruntime-web/**" # transformers.js's browser/WASM backend; local inference always runs onnxruntime-node instead
   - "!node_modules/@huggingface/transformers/node_modules/onnxruntime-web/**" # same package, nested copy
   - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
@@ -120,6 +120,7 @@ win:
     - target: portable
   signtoolOptions:
     sign: scripts/packaging/win-sign.js
+    signingHashAlgorithms: [sha256]
   signExts:
     - .node
   verifyUpdateCodeSignature: false
@@ -214,70 +215,185 @@ artifactBuildCompleted: scripts/packaging/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.2.2 - Agent Approvals, Provider Fixes, and Polish
+    Cherry Studio 2.2.3 - Conversation Sorting, New Models, and Agent Reliability
 
     ✨ New Features
-    - [Computer Use] Computer Use is now on by default and asks before accessing each app. Choose Always, Approve for session, or Reject, and manage saved approvals in Settings. Bypass mode skips these prompts without saving permissions. (action required: turn it off in Settings if you do not want it.)
-    - [Skills] Added an "Export skills to external agents" switch in Settings → Skills. It is off by default for new installations, so the shared skills directory is no longer created without an explicit opt-in; installations that already exported keep it on, and turning it off removes only the links Cherry Studio created.
-    - [Agent] Agents on DeepSeek models now show a short intent line above each tool call. Agent sessions keep tool steps expanded by default and fold repeated calls of the same kind.
-    - [App] Added Polish language support.
-
-    💄 Improvements
-    - [MCP] QVeris now supports OAuth browser sign-in as its primary credential, with QVERIS_API_KEY as an optional fallback, so it can be enabled without an API key.
-    - [Files] File sizes use one consistent format across the app.
-    - [Agent] Polished session details typography, icon alignment, spacing, and the no-workspace placeholder.
+    - [Conversations] Grouping and sorting are now independent. Sort by last updated, creation date, name (with natural number order), or manual order, and existing custom orders are preserved.
+    - [Agent] Import DeepSeek v3 exports into an automatically created DeepSeek Agent, keeping history, branches, reasoning, search records, and available attachments.
+    - [Agent] A short next prompt is suggested after replies: press Tab to accept without sending, or Escape to dismiss. Suggestions can be turned off in input settings.
+    - [Agent] You can upload an image avatar while creating an Agent.
+    - [Agent] Automatic command approval now parses Bash and PowerShell with shared risk rules and asks before each risky command. Approval cards show the requesting task, working directory, and reason. (action required: review permission modes if you rely on the existing prompts; unmatched commands run automatically, while mandatory denials still apply in Full Access.)
+    - [Browser] Conversation sidebars support multiple retained tabs with unified styling and context menus, use the configured homepage, and close with their last page.
+    - [File Preview] PPTD slide decks now preview in the app with page navigation, zoom, thumbnails, refresh, and a source view.
+    - [Files] File paths and Markdown links with line numbers jump to and highlight the referenced line in the preview.
+    - [Files] The file selection dialog opens in the folder of the last file you selected during the current session.
+    - [Chat] Added an Appearance → Messages preference, "Scroll to the latest message on send" (on by default).
+    - [Chat] Long deliverable file lists show the first three files and let you expand or collapse the rest.
+    - [Chat] Ctrl + mouse wheel zooms the interface, shows the zoom level while scrolling, and Ctrl+0 resets it.
+    - [Knowledge] The URL source accepts several links at once (separated by newlines, commas, or spaces), adds each valid URL separately, and reports invalid entries individually.
+    - [Paintings] Generated images show the model and returned size, and are saved in their original format instead of always being converted to PNG.
+    - [Computer Use] A new Linux-only "Global input" switch (off by default) lets agents control the shared mouse pointer and system keyboard.
+    - [Models] Added GPT-6.2 Astra and Sol, Gemini 4 Carbon and Hydrogen with reasoning controls, Tencent Hunyuan 4 Flash, and Mistral Large 4 reasoning controls.
+    - [Models] DeepSeek first-party cost estimates now use weekday peak and off-peak rates while keeping custom prices. (action required: review local cost estimates if you relied on peak-only estimates.)
+    - [Models] Enabled providers now appear first in the model service list, and primary model pickers can open in a remembered dialog mode.
+    - [Marketplace] Curated skills can be filtered by category, with search and horizontal category navigation.
+    - [Composer] Pasting copied folders into Agent conversations adds folder references instead of failing file attachments.
+    - [Export] Obsidian exports label each assistant message with the model that produced it.
+    - [Shortcuts] Number shortcuts (1–9) have an explicit Off preset in Settings → Shortcuts.
+    - [Voice] The recognition model now has an Off option that disables local dictation without removing the saved language or hotkeys.
+    - [Code CLI] Qwen Code 1.0 can be installed from its GitHub release.
+    - [App] Added Czech (cs-CZ) language support.
 
     🐛 Bug Fixes
-    - [Models] CherryIN Claude Sonnet 4.5 tool requests no longer fail with a Bedrock parameter validation error.
-    - [Models] Claude Opus 5.5 requests on AWS Bedrock now use adaptive reasoning.
-    - [Models] SiliconFlow uses manual API key entry; the obsolete OAuth login was removed (action required if you signed in with OAuth).
-    - [Chat] "Input exceeds the context limit" errors are now recognized as context-length rejections, so the existing recovery guidance appears.
-    - [Chat] Local Markdown file links now open from chat surfaces that do not provide an artifact preview.
-    - [Chat] Fixed the first composer toolbar activation being lost while loading, and internal tab navigation no longer blocks interaction.
-    - [Agent] Fixed the missing AskUserQuestion card when a streamed approval request arrives before its tool source.
-    - [Agent] Fixed the Skip button getting stuck on the final AskUserQuestion when all questions are skipped.
-    - [Agent] Expanding a Pi Durable read tool call no longer shows blank file details.
-    - [Agent] Pi Durable agents now automatically load workspace instruction files such as AGENTS.md.
-    - [Agent] Ordinary MCP tools are discoverable through tool search in the Pi Durable runtime instead of returning "No matching tools found."
-    - [Agent] Agent tool guidance now treats deferred tools as available through discovery and uses the exact tool names from the session, so agents stop reporting available tools as missing.
-    - [Agent] When reasoning exhausts the response budget, you now get accurate output-token-limit guidance, and DeepSeek V4.1 Flash capacity resolves correctly for versioned model IDs.
-    - [API Gateway] Claude Code MCP ToolSearch results are no longer dropped for third-party models.
-    - [Code] Code Mate's Unified Gateway model picker now lists Cherry Cloud models that are available only to agents.
-    - [Doctor] Doctor no longer reports a missing API key or an unavailable model list for CherryAI and Cherry Cloud; for Cherry Cloud it now tells you when you need to sign in.
-    - [UI] Website favicons stay visible in dark mode with a soft light-gray backplate while keeping their original colors.
-    - [Updater] Release notes in the update dialog now follow the app's resolved language, including when the app follows the system language.
+    - [Chat] Nested scrollable content such as code previews, editors, and embedded artifacts scrolls independently while the message list scrolls.
+    - [Chat] Conversations restored from Settings → Archive open with their messages instead of an empty conversation.
+    - [Chat] Interrupted streamed responses are reported as connection errors with partial output kept for retry, instead of an invalid AI response.
+    - [Chat] Multi-model fold tabs show every model name again, with a toggle back to compact tabs.
+    - [Chat] Chat requests that exceed the model context window recover more reliably.
+    - [Notes] LaTeX written with \[ … \] and \( … \) renders again in the Notes editor.
+    - [Chat] The browser side-panel resize bar is draggable along its full height.
+    - [Agent] Assistant text emitted before or between tool calls is visible again in Agent sessions.
+    - [Agent] Pi Durable: Stop keeps the session open and the reply paused; reopening after quitting continues an interrupted reply or shows its real result; messages sent while the agent works are saved and answered in order; a withdrawn message is marked "Stopped before sending" with Resend and Edit.
+    - [Agent] Messages sent while a turn is running are acknowledged and acted on instead of being silently ignored.
+    - [Agent] A pending approval is cleared when its background task ends, so the reply no longer stays on Pending.
+    - [Agent] Model selection is scoped to each session, so changing one session no longer changes sibling sessions.
+    - [Agent] Claude Code conversations can be forked or edited after tool retries or compaction when the SDK can preserve their context.
+    - [Agent] In Accept Edits mode, Claude Code asks before running an escalated Bash command instead of auto-running it by its first word.
+    - [Agent] Agent session history repairs message trees during upgrade and prevents edits to in-flight deliveries.
+    - [Agent] An Agent turn recovers when a directory occupies its durable store name instead of failing with a network error.
+    - [Agent] Reasoning-effort, service-tier, and Fast controls stay available when editing and resending a historical message.
+    - [Agent] Historical messages follow the Agent's current avatar, and an avatar chosen late during creation is applied.
+    - [Agent] Selection assistant: reused windows no longer open at full conversation size, a closed window no longer leaves a stray capsule, and the panel opens above the active app.
+    - [Agent] Agent requests delivered through HTTP or in-process gateways keep protocol metadata, Gemini configuration, generated files, and continuation state.
+    - [Agent] Unreadable stored automation tool results are reported to the model as a note instead of breaking the conversation.
+    - [Agent] NO_PROXY no longer includes bracketed IPv6 or IPv6 CIDR entries that broke Python HTTP clients in Agent sessions.
+    - [Models] Model connection checks now use streaming for streaming-capable models and detect incomplete or failed responses.
+    - [Models] Unsupported sampling parameters and penalties are no longer sent to providers, and declared sampling ranges apply after request overrides.
+    - [Models] Gemini tool calls no longer fail when a schema contains propertyNames.
+    - [Models] A single Cherry Cloud quota refusal no longer locks a model while plan quota remains; the server decides refusals and shows its suggested wait.
+    - [Models] CherryIN saved model endpoints refresh automatically from the server while keeping local values when discovery fails.
+    - [Models] CherryAI appears first with a paid subscription and last without one.
+    - [Models] Provider request rejections without an HTTP status are reported as request errors instead of network interruptions.
+    - [Models] Usage stats recover provider cache buckets, and locally computed costs are labeled as estimates.
+    - [Models] Agent sessions on OpenAI-compatible, vLLM, or llama.cpp models report how far a request exceeds the context window.
+    - [Models] Aborted provider turns now fail instead of reporting a successful stop.
+    - [Files] File type icons render offline and stay consistent across file trees, previews, and attachments.
+    - [Files] File trees and previews stay current, show save progress and failures, and support scoped refresh without losing local drafts.
+    - [Knowledge] The Add URL dialog rejects non-http(s) addresses immediately.
+    - [Knowledge] Self-hosted MinerU 4.1 Tasks API parsing is supported while older protocols still work.
+    - [Feedback] Problem reports again include logs, activity records, and chat history for the last 24 hours; individual attachment switches were removed.
+    - [Scheduled Tasks] Run history recorded before 2.2.0, or whose conversation was deleted, can be opened and shows its stored result.
+    - [Skills] Cherry-only built-in skills are no longer exported to the shared ~/.agents/skills directory.
+    - [Feishu] Initial channel connections retry with backoff instead of staying stopped after a failed handshake.
+    - [UI] Empty assistant, agent, and notes sidebars explain that they are empty instead of showing a blank panel.
+    - [Agent] Fixed agent sessions with background subagents slowing down a little more every round.
+    - [Agents] Preserve subagent rate-limit error details and show consistent retry status for Pi and Pi Durable tasks.
+    - [Agents] Reduce out-of-memory crashes when subagents process many images in parallel.
+    - [Cherry AI] Load the model catalog from the server and show sign-in, subscription or AMD authorization requirements; detect delisted models. Built-in Qwen now requires Cherry AI sign-in (action required for users who previously used it signed out).
+
+    💄 Improvements
+    - [Conversations] Grouping choices are clearer, and list controls are separated from history and management navigation in conversation and Agent session menus.
+    - [Agent] The service tier picker explains each tier's trade-offs and shows when a saved tier is unavailable, with provider-specific names in a collapsible details view.
+    - [Agent workspace] The folder "Open with" menu now lists every application registered on the system for opening folders, with system icons, instead of only the built-in editors and terminal.
+    - [UI] Brand icons, mini-app labels, settings layouts, help, skill controls, and marketplace visuals are more consistent.
+    - [UI] Launchpad and Mini Apps icons use consistent sizing and corners with refreshed dark-mode artwork, and inset scrollbars in file trees and lists align with pane edges.
+    - [Diagnostics] Native crash reports upload automatically to Sentry when data collection is enabled.
+    - [Data upgrade] v1 users must migrate through Cherry Studio 2.2.2; eligible installations offer one-click installation of the migration release, while others keep direct platform-matched downloads. (action required)
+
+    ⚡ Performance
+    - [Agent] Agent sessions with many images or subagents use much less main-process memory and CPU; finished subagents are released and Durable history is read incrementally.
+    - [Agent] Restoring large Claude Code sessions and loading their history uses less main-process memory.
+    - [Chat] Streaming responses and conversation history loading use fewer copies of conversation snapshots.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.2.2 - 智能体审批、服务商修复与波兰语支持
+    Cherry Studio 2.2.3 - 会话分组排序、全新模型与智能体增强
 
     ✨ 新功能
-    - [电脑操作] 电脑操作现在默认开启，并在访问每个应用前请求批准。可选择「始终允许」「本次会话允许」或「拒绝」，并可在设置中管理已保存的批准。绕过模式会跳过这些提示且不保存权限。（需要操作：如不希望启用，请在设置中关闭。）
-    - [技能] 在「设置 → 技能」新增「导出技能给外部 Agent」开关。新安装默认关闭，不再未经同意就创建共享技能目录；此前已经导出的安装升级后保持开启，关闭后只会移除 Cherry Studio 创建的链接。
-    - [智能体] 使用 DeepSeek 模型的智能体现在会在每次工具调用上方显示一句简短意图。智能体会话默认展开工具步骤，并折叠同类的重复调用。
-    - [应用] 新增波兰语支持。
-
-    💄 改进
-    - [MCP] QVeris 现在支持通过浏览器 OAuth 登录作为主要凭证，QVERIS_API_KEY 为可选备用方式，因此无需配置 API Key 也能启用。
-    - [文件] 全应用统一文件大小的显示格式。
-    - [智能体] 优化会话详情的字体排版、图标对齐、间距以及无工作区占位状态的显示。
+    - [会话] 分组与排序现在相互独立。可按最后更新、创建时间、名称（自然数字排序）或手动顺序排序，并保留已有的自定义顺序。
+    - [智能体] 可将 DeepSeek v3 导出记录导入自动创建的 DeepSeek 智能体，保留历史、分支、推理、搜索记录和可用附件。
+    - [智能体] 回复后会推荐一句简短的后续提示：按 Tab 采纳但不发送，按 Esc 忽略。可在输入设置中关闭提示。
+    - [智能体] 创建智能体时可直接上传图片作为头像。
+    - [智能体] 自动命令审批现在使用共享风险规则解析 Bash 和 PowerShell，并在执行每条风险命令前请求确认。审批卡片会显示请求任务、工作目录和命中原因。（需要操作：如果依赖原有提示流程，请重新检查权限模式；未命中的命令会自动执行，强制拒绝规则在「完全访问」模式下仍然有效。）
+    - [浏览器] 会话侧边栏支持多个保留的标签页，统一标签样式并提供右键菜单，遵循配置的主页，并在最后一个页面关闭时关闭侧边栏。
+    - [文件预览] 现在可在应用内预览 PPTD 幻灯片，支持翻页、缩放、缩略图、刷新和源文件视图。
+    - [文件] 带行号的文件路径和 Markdown 链接会跳转到预览中的对应行并高亮显示。
+    - [文件] 文件选择对话框会在本次会话中打开上次选择文件所在的文件夹。
+    - [对话] 在「设置 → 外观 → 消息」新增「发送时滚动到最新消息」选项（默认开启）。
+    - [对话] 较长的交付文件列表默认显示前三个文件，并支持展开或收起其余文件。
+    - [对话] 按住 Ctrl 滚动鼠标滚轮可缩放界面，滚动时显示缩放比例，Ctrl+0 可恢复默认。
+    - [知识库] URL 数据源支持一次添加多个链接（使用换行、逗号或空格分隔），每个有效链接分别添加，无效条目会单独提示。
+    - [绘画] 生成的图片会显示所用模型和实际返回尺寸，并以原始格式保存，而不再总是转换为 PNG。
+    - [电脑操作] 新增仅限 Linux 的「全局输入」开关（默认关闭），允许智能体控制共享鼠标指针和系统键盘。
+    - [模型] 新增 GPT-6.2 Astra 和 Sol、带推理控制的 Gemini 4 Carbon 和 Hydrogen、腾讯混元 4 Flash，以及 Mistral Large 4 推理控制。
+    - [模型] DeepSeek 官方模型的费用估算现在使用工作日高峰与低谷价格，并保留自定义价格。（需要操作：如果此前依赖仅按高峰计价的估算，请重新检查本地费用设置。）
+    - [模型] 模型服务列表现在优先显示已启用的服务商，主要模型选择器可使用记住的对话框模式。
+    - [技能市场] 精选技能支持按分类筛选，并提供搜索和横向分类导航。
+    - [输入框] 将复制的文件夹粘贴到智能体会话时，会添加文件夹引用，而不再作为文件附件失败。
+    - [导出] Obsidian 导出现在会为每条助手消息标注生成它的模型。
+    - [快捷键] 数字快捷键（1–9）在「设置 → 快捷键」中新增明确的「关闭」预设。
+    - [语音] 识别模型新增「关闭」选项，可在不移除已保存语言和快捷键的情况下停用本地听写。
+    - [代码 CLI] 支持从其 GitHub Release 安装 Qwen Code 1.0。
+    - [应用] 新增捷克语（cs-CZ）支持。
 
     🐛 问题修复
-    - [模型] CherryIN Claude Sonnet 4.5 的工具请求不再因 Bedrock 参数校验错误而失败。
-    - [模型] AWS Bedrock 上的 Claude Opus 5.5 请求现在使用自适应推理。
-    - [模型] SiliconFlow 改为手动填写 API Key，移除了已失效的 OAuth 登录（此前使用 OAuth 登录的用户需要操作）。
-    - [对话] 「输入超出上下文限制」错误现在会被识别为上下文长度问题，并显示原有的恢复建议。
-    - [对话] 在未提供工件预览的对话界面中，本地 Markdown 文件链接现在可以正常打开。
-    - [对话] 修复加载期间首次输入框工具栏操作丢失的问题；站内标签页切换后不再阻塞交互。
-    - [智能体] 修复流式批准请求先于工具来源到达时 AskUserQuestion 卡片缺失的问题。
-    - [智能体] 修复全部问题都跳过时，最后一个 AskUserQuestion 的「跳过」按钮卡住的问题。
-    - [智能体] Pi Durable 展开读取工具调用时不再显示空白文件详情。
-    - [智能体] Pi Durable 智能体现在会自动加载 AGENTS.md 等工作区指令文件。
-    - [智能体] Pi Durable 运行时中的普通 MCP 工具现在可通过工具搜索发现，而不再返回「未找到匹配的工具」。
-    - [智能体] 智能体工具指引现在会把延迟加载的工具视为可通过发现获取，并使用会话中真实的工具名称，避免把可用工具误报为缺失。
-    - [智能体] 当推理耗尽响应预算时会显示准确的最大输出 token 提示，并修正带版本号模型 ID 的 DeepSeek V4.1 Flash 容量查询。
-    - [API 网关] 使用第三方模型时，Claude Code 的 MCP ToolSearch 结果不再丢失。
-    - [代码] Code Mate 的统一网关模型选择器现在会列出仅对智能体开放的 Cherry Cloud 模型。
-    - [诊断] 诊断工具不再为 CherryAI 和 Cherry Cloud 误报缺少 API Key 或模型列表不可用；Cherry Cloud 未登录时会提示登录。
-    - [界面] 深色模式下网站图标通过柔和的浅灰底板保持清晰，同时保留原始颜色。
-    - [更新] 更新对话框中的版本说明现在会使用应用实际生效的语言，包括跟随系统语言的情况。
+    - [对话] 消息列表滚动时，代码预览、编辑器和内嵌工件等嵌套滚动区域可以独立滚动。
+    - [对话] 从「设置 → 归档」恢复的会话现在会打开并显示消息，而不再是空白会话。
+    - [对话] 中断的流式响应现在会报告为连接错误并保留部分输出以便重试，而不再显示为无效的 AI 响应。
+    - [对话] 多模型折叠标签重新显示每个模型名称，并可切换回紧凑标签。
+    - [对话] 超出模型上下文窗口的对话请求现在能更可靠地恢复。
+    - [笔记] 笔记编辑器中以 \[ … \] 和 \( … \) 编写的 LaTeX 公式重新正常渲染。
+    - [对话] 浏览器侧边栏的调整大小条现在可在整个高度范围内拖动。
+    - [智能体] 智能体会话重新显示工具调用之前或之间产生的助手文本。
+    - [智能体] Pi Durable：停止后会话保持打开且回复保持暂停；退出后重新打开会继续未完成的回复或显示真实结果；智能体工作期间发送的消息会保存并按顺序得到回复；被撤回的消息会标记为「发送前已停止」并提供重新发送和编辑。
+    - [智能体] 回合运行期间发送的消息会得到确认并继续处理，而不再被静默忽略。
+    - [智能体] 后台任务结束时清除待处理的审批，回复不再一直停留在「待确认」。
+    - [智能体] 模型选择按会话独立保存，修改一个会话不再影响同级会话。
+    - [智能体] 当原生 SDK 能保留上下文时，Claude Code 会话可在工具重试或压缩后进行分叉或编辑。
+    - [智能体] 在「接受编辑」模式下，Claude Code 会在执行升级权限的 Bash 命令前请求确认，而不再仅凭首个命令词自动执行。
+    - [智能体] 智能体会话历史在升级时会修复消息树，并阻止修改进行中的投递。
+    - [智能体] 当持久存储文件名被目录占用时，智能体回合可以恢复，而不再以网络错误失败。
+    - [智能体] 编辑并重新发送历史用户消息时，推理强度、服务层级和 Fast 控件保持可用。
+    - [智能体] 历史消息会跟随智能体当前头像，创建过程中较晚选择的头像也会生效。
+    - [智能体] 划词助手：复用的窗口不再以完整会话尺寸打开，已关闭窗口不再残留悬浮框，面板会在当前应用上方打开。
+    - [智能体] 通过 HTTP 或进程内网关投递的智能体请求会保留协议元数据、Gemini 配置、生成文件和续接状态。
+    - [智能体] 无法读取的自动化工具历史结果会作为提示告知模型，而不再中断对话。
+    - [智能体] NO_PROXY 不再包含带方括号的 IPv6 或 IPv6 CIDR 条目，避免智能体会话中的 Python HTTP 客户端启动失败。
+    - [模型] 模型连接检查现在会对支持流式的模型使用流式请求，并在报告成功前检测不完整或失败的响应。
+    - [模型] 不再向服务商发送不支持的采样参数和惩罚项，声明的采样范围会在请求覆盖后正确应用。
+    - [模型] 当工具 schema 包含 propertyNames 时，Gemini 工具调用不再失败。
+    - [模型] 单次 Cherry Cloud 配额拒绝不再在套餐仍有额度时锁定模型；拒绝由服务端判定，并显示服务端建议的等待时间。
+    - [模型] CherryIN 已保存的模型端点会自动从服务端刷新，发现失败时保留本地值。
+    - [模型] 有付费订阅时 CherryAI 显示在最前，没有付费订阅时显示在最后。
+    - [模型] 服务商未提供 HTTP 状态的请求拒绝现在会报告为请求错误，而不再是网络中断。
+    - [模型] 用量统计现在会恢复服务商缓存用量，并将本地计算的费用标注为估算值。
+    - [模型] 使用 OpenAI 兼容、vLLM 或 llama.cpp 模型的智能体会话现在会报告请求超出上下文窗口的程度。
+    - [模型] 被中止的服务商回合现在会正确失败，而不再报告为成功停止。
+    - [文件] 文件类型图标可以在离线状态下渲染，并在文件树、预览和附件中保持一致。
+    - [文件] 文件树和预览保持最新，会显示保存进度和失败信息，并支持限定范围的刷新且不丢失本地草稿。
+    - [知识库] 添加 URL 对话框会立即拒绝非 http(s) 地址。
+    - [知识库] 支持使用自部署 MinerU 4.1 Tasks API 解析文档，同时保留对旧版协议的支持。
+    - [反馈] 问题反馈重新包含最近 24 小时的日志、活动记录和聊天记录；移除了各项附件的单独开关。
+    - [定时任务] 2.2.0 之前记录或对话已删除的运行历史现在可以打开并显示已保存的结果。
+    - [技能] 仅限 Cherry 的内置技能不再导出到共享的 ~/.agents/skills 目录。
+    - [飞书] 初始频道连接失败后会按退避策略重试，而不再一直保持停止状态。
+    - [界面] 助手、智能体和笔记侧边栏为空时会说明当前为空，而不再显示空白面板。
+    - [智能体] 修复使用后台子智能体的 Agent 会话每一轮都比上一轮更慢的问题。
+    - [智能体] 保留子任务限流错误详情，并为 Pi 和 Pi Durable 任务显示一致的重试状态。
+    - [智能体] 减少子智能体并行处理大量图片时因内存不足导致的闪退。
+    - [Cherry AI] 从服务端加载模型目录，展示登录、订阅或 AMD 授权要求，并提示已下架模型。内置 Qwen 现需登录 Cherry AI（action required：此前未登录使用的用户需先登录）。
+
+    💄 改进
+    - [会话] 会话和智能体会话菜单中的分组选项更清晰，列表控制与历史和管理的导航相互分离。
+    - [智能体] 服务层级选择器会说明各层级的取舍，并在已保存的层级不可用时显示当前实际使用的层级，服务商专属名称放在可折叠的详情中。
+    - [智能体工作区] 文件夹的「打开方式」菜单现在会列出系统中所有已注册可打开文件夹的应用并显示系统图标，而不再仅限内置编辑器和终端。
+    - [界面] 品牌图标、小程序标签、设置布局、帮助、技能控件和技能市场外观更加统一。
+    - [界面] 启动台和小程序图标采用统一的尺寸和圆角，并更新深色模式图片；文件树和列表的内嵌滚动条与面板边缘对齐。
+    - [诊断] 启用数据收集时，原生崩溃报告会自动上传到 Sentry。
+    - [数据升级] v1 用户需先通过 Cherry Studio 2.2.2 完成迁移；符合条件的安装支持一键安装迁移版本，其他情况保留匹配系统架构的直接下载。（需要操作）
+
+    ⚡ 性能优化
+    - [智能体] 包含大量图片或子智能体的智能体会话大幅降低主进程内存和 CPU 占用；已完成的子智能体会被释放，Durable 历史改为增量读取。
+    - [智能体] 恢复大型 Claude Code 会话并加载历史时占用更少的主进程内存。
+    - [对话] 流式响应和会话历史加载减少了会话快照的复制。
+
     <!--LANG:END-->
