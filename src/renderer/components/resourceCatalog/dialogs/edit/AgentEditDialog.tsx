@@ -107,9 +107,6 @@ type AgentEditFormValues = {
   promptOverrides: AgentPromptOverrides
 }
 
-// The memory files the System Prompt's identity block is built from.
-const IDENTITY_FILE_KEYS = ['soul', 'user', 'fact'] as const satisfies AgentMemoryFileKey[]
-
 const logger = loggerService.withContext('AgentEditDialog')
 
 /** Sub-pages this Agent offers; capabilities its runtime lacks (or a sealed role locks) have none. */
@@ -558,14 +555,7 @@ function AgentEditDialogContent({
     setPage(next)
   }
   const promptSectionTitle = page === 'prompt' && promptSection ? getPromptBlockTitleKey(promptSection) : undefined
-  // The identity page edits the memory files, so an unsaved file edit asks first there too.
-  const leavePromptSection = async () => {
-    if (memoryPanelRef.current && !(await memoryPanelRef.current.confirmLeave())) return
-    setPromptSection(null)
-  }
-  const identityPage = page === 'prompt' && promptSection === 'agent_identity'
-  const memoryFileTitle =
-    (page === 'memory' || identityPage) && memoryFile ? MEMORY_FILE_LABEL_KEYS[memoryFile] : undefined
+  const memoryFileTitle = page === 'memory' && memoryFile ? MEMORY_FILE_LABEL_KEYS[memoryFile] : undefined
   const leaveMemoryFile = async () => {
     if (memoryPanelRef.current && !(await memoryPanelRef.current.confirmLeave())) return
     setMemoryFile(null)
@@ -576,19 +566,13 @@ function AgentEditDialogContent({
       form={form}
       open={open}
       onOpenChange={handleOpenChange}
-      page={
-        memoryFileTitle
-          ? `${identityPage ? 'prompt.agent_identity' : 'memory'}.${memoryFile}`
-          : promptSectionTitle
-            ? `prompt.${promptSection}`
-            : page
-      }
-      title={memoryFileTitle ? t(memoryFileTitle) : promptSectionTitle ? t(promptSectionTitle) : pageTitles[page]}
+      page={promptSectionTitle ? `prompt.${promptSection}` : memoryFileTitle ? `memory.${memoryFile}` : page}
+      title={promptSectionTitle ? t(promptSectionTitle) : memoryFileTitle ? t(memoryFileTitle) : pageTitles[page]}
       onBack={
-        memoryFileTitle
-          ? () => void leaveMemoryFile()
-          : promptSectionTitle
-            ? () => void leavePromptSection()
+        promptSectionTitle
+          ? () => setPromptSection(null)
+          : memoryFileTitle
+            ? () => void leaveMemoryFile()
             : page === 'settings'
               ? undefined
               : () => void goTo('settings')
@@ -661,18 +645,7 @@ function AgentEditDialogContent({
           onOverridesChange={(next) => form.setValue('promptOverrides', next, { shouldDirty: true, shouldTouch: true })}
           section={promptSection}
           onSectionChange={setPromptSection}
-          identityEditor={
-            open ? (
-              <AgentMemoryPanel
-                key={resource.id}
-                ref={memoryPanelRef}
-                agent={resource}
-                file={memoryFile}
-                onFileChange={setMemoryFile}
-                fileKeys={IDENTITY_FILE_KEYS}
-              />
-            ) : undefined
-          }
+          onEditIdentity={() => void goTo('memory')}
           draft={{
             agentId: resource.id,
             skillIds: values.skillIds,

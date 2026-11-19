@@ -2844,9 +2844,9 @@ describe('Agent configuration memory', () => {
     expect(screen.getByText('{"event":"remembered"}')).toBeVisible()
   })
 
-  // Catches the identity page of a Pi Durable System Prompt offering the journal, showing its files read-only, or losing a draft on Back.
-  it('edits SOUL.md from the identity page of the System Prompt and guards an unsaved draft on Back', async () => {
-    ipcRequestMock.mockImplementation(async (route: string, input: { key?: string; content?: string }) => {
+  // Catches the identity page of a Pi Durable System Prompt offering a second place to edit the memory files.
+  it('shows the identity block read-only and sends its edits to the Memory page', async () => {
+    ipcRequestMock.mockImplementation(async (route: string) => {
       if (route === 'agent.system_prompt.preview')
         return {
           blocks: [
@@ -2855,8 +2855,6 @@ describe('Agent configuration memory', () => {
           ]
         }
       if (route === 'agent.memory.read') return { directory: '/agents/agent-1', files }
-      if (route === 'agent.memory.write')
-        return { ...files.find((file) => file.key === input.key), content: input.content, version: 'v2' }
       return undefined
     })
     const user = userEvent.setup()
@@ -2867,31 +2865,11 @@ describe('Agent configuration memory', () => {
       await screen.findByRole('button', { name: /^library\.config\.agent\.prompt\.block\.agent_identity$/ })
     )
 
-    await screen.findByRole('button', { name: 'Persona' })
-    expect(screen.queryByRole('button', { name: /^Event log/ })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Persona' }))
-    const editor = screen.getByRole('textbox', { name: 'Edit SOUL.md' })
-    await user.clear(editor)
-    await user.type(editor, 'Updated persona')
-    await user.click(screen.getByRole('button', { name: 'Save' }))
-    await waitFor(() =>
-      expect(ipcRequestMock).toHaveBeenCalledWith('agent.memory.write', {
-        agentId: AGENT.id,
-        key: 'soul',
-        content: 'Updated persona',
-        expectedVersion: 'v1'
-      })
-    )
-    expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'agent.memory.write')).toHaveLength(1)
-
-    await user.type(screen.getByRole('textbox', { name: 'Edit SOUL.md' }), ' unsaved')
-    await user.click(screen.getByRole('button', { name: 'Back' }))
-    await user.click(
-      within(await screen.findByRole('dialog', { name: 'Discard unsaved changes?' })).getByRole('button', {
-        name: 'Cancel'
-      })
-    )
-    expect(screen.getByRole('textbox', { name: 'Edit SOUL.md' })).toHaveValue('Updated persona unsaved')
+    expect(await screen.findByText('<soul>Original persona</soul>')).toBeVisible()
+    expect(screen.queryByRole('textbox', { name: 'Edit SOUL.md' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'library.config.agent.prompt.edit_in_memory' }))
+    expect(await screen.findByRole('button', { name: 'Persona' })).toBeVisible()
+    expect(screen.getByRole('button', { name: /^Event log/ })).toBeVisible()
   })
 
   it('shows refresh and open folder as buttons on the memory file list', async () => {

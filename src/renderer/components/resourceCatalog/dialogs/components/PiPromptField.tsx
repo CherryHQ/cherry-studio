@@ -1,10 +1,11 @@
-import { ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react'
+import { ChevronLeft, ChevronRight, RotateCcw, SquarePen } from 'lucide-react'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { estimateTokenCount } from 'tokenx'
 
 import { Button, Textarea, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { PromptEditorIconButton } from '@renderer/components/PromptEditorField'
 import { ipcApi } from '@renderer/ipc'
 import { RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import { type AgentLanguageMode, normalizeAgentLanguageInput } from '@shared/ai/agentForm'
@@ -74,8 +75,8 @@ type PiPromptFieldProps = {
   /** The block open on its own page; given with `onSectionChange` when a dialog header shows it. */
   section?: string | null
   onSectionChange?: (key: string | null) => void
-  /** Shown on the identity page in place of its text, to edit the files it is built from. */
-  identityEditor?: ReactNode
+  /** Opens the Memory page, where the files the identity block is built from are edited. */
+  onEditIdentity?: () => void
 }
 
 /** Mirrors how the edit form saves `configuration.language`; an invalid custom label keeps the inherited one. */
@@ -150,7 +151,7 @@ export function PiPromptField({
   onOverridesChange,
   section: controlledSection,
   onSectionChange,
-  identityEditor
+  onEditIdentity
 }: PiPromptFieldProps) {
   const { t } = useTranslation()
   const [localSection, setLocalSection] = useState<string | null>(null)
@@ -175,7 +176,6 @@ export function PiPromptField({
   const opened = preview?.blocks.find((block) => block.key === section && block.kind !== 'instructions')
   if (opened) {
     const editable = Boolean(overrides) && isEditablePromptSection(opened.key)
-    const identity = opened.key === 'agent_identity' ? identityEditor : undefined
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-3">
         {onSectionChange ? null : (
@@ -189,17 +189,28 @@ export function PiPromptField({
             {t(BLOCK_TITLES[opened.key] ?? '') || opened.key}
           </Button>
         )}
-        {identity ??
-          (editable ? (
-            <BlockEditor
-              block={opened}
-              override={overrideOf(opened.key)}
-              onChange={(next) => setOverride(opened.key, next === opened.text ? undefined : next)}
-              onRestore={() => setOverride(opened.key, undefined)}
-            />
-          ) : (
-            <BlockViewer block={opened} />
-          ))}
+        {editable ? (
+          <BlockEditor
+            block={opened}
+            override={overrideOf(opened.key)}
+            onChange={(next) => setOverride(opened.key, next === opened.text ? undefined : next)}
+            onRestore={() => setOverride(opened.key, undefined)}
+          />
+        ) : (
+          <BlockViewer
+            block={opened}
+            action={
+              opened.key === 'agent_identity' && onEditIdentity ? (
+                <PromptEditorIconButton
+                  label={t('library.config.agent.prompt.edit_in_memory')}
+                  icon={<SquarePen className="size-3" />}
+                  onClick={onEditIdentity}
+                  showLabel
+                />
+              ) : undefined
+            }
+          />
+        )}
       </div>
     )
   }
@@ -226,7 +237,7 @@ export function PiPromptField({
                 overrideOf(block.key) !== undefined
                   ? t('library.config.agent.prompt.edited')
                   : (overrides && isEditablePromptSection(block.key)) ||
-                      (block.key === 'agent_identity' && identityEditor)
+                      (block.key === 'agent_identity' && onEditIdentity)
                     ? undefined
                     : t('library.config.agent.prompt.read_only')
               return (
@@ -271,12 +282,17 @@ export function PiPromptField({
 }
 
 /** Live data or a setting's output, shown as sent. */
-function BlockViewer({ block }: { block: AgentPromptBlockPreview }) {
+function BlockViewer({ block, action }: { block: AgentPromptBlockPreview; action?: ReactNode }) {
   const { t } = useTranslation()
   const caption = BLOCK_CAPTIONS[block.key]
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
-      {caption ? <p className="flex min-h-6 items-center text-muted-foreground text-xs">{t(caption)}</p> : null}
+      {caption || action ? (
+        <div className="flex min-h-6 items-center justify-between gap-3">
+          <p className="text-muted-foreground text-xs">{caption ? t(caption) : null}</p>
+          {action}
+        </div>
+      ) : null}
       <pre className={`${fixedTextClassName} min-h-0 flex-1 overflow-y-auto rounded-xl bg-muted/40 px-3 py-2.5`}>
         {block.text.trim()}
       </pre>
