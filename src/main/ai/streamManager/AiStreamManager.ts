@@ -1418,7 +1418,7 @@ export class AiStreamManager extends BaseService {
       if (isAgentSessionTopic(topicId)) {
         const runtimeClosing = application
           .get('AgentSessionRuntimeService')
-          .closeSession(extractAgentSessionId(topicId), true)
+          .stopSession(extractAgentSessionId(topicId), reason)
         const drainReplacementLoops = async (): Promise<void> => {
           for (;;) {
             const replacement = this.activeStreams.get(topicId)
