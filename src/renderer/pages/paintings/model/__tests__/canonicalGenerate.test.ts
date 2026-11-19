@@ -71,7 +71,7 @@ describe('canonicalGenerate', () => {
     input.provider = { ...input.provider, id: 'user-provider', presetProviderId: 'dmxapi' }
     vi.mocked(checkProviderEnabled).mockClear()
     await expect(canonicalGenerate(input)).rejects.toMatchObject({
-      code: 'REMOTE_ERROR',
+      code: 'SEEDREAM_PROVIDER_UNSUPPORTED',
       message: i18n.t('paintings.seedream.dmxapi_unsupported')
     })
     expect(checkProviderEnabled).not.toHaveBeenCalled()
@@ -347,17 +347,25 @@ describe('Seedream 5.5 request contract', () => {
     expect(lastGenerateCall().paramValues.addWatermark).toBe(false)
   })
   it.each([
-    [{ size: '2150x2160' }, 'paintings.seedream.invalid_size'],
-    [{ background: 'transparent', outputFormat: 'jpeg' }, 'paintings.seedream.transparent_png'],
-    [{ background: 'transparent', outputFormat: 'webp' }, 'paintings.seedream.transparent_png']
-  ])('rejects invalid parameters before provider, file or generation IPC: %j', async (params, key) => {
+    [{ size: '2150x2160' }, 'paintings.seedream.invalid_size', 'SEEDREAM_INVALID_SIZE'],
+    [
+      { background: 'transparent', outputFormat: 'jpeg' },
+      'paintings.seedream.transparent_png',
+      'SEEDREAM_TRANSPARENT_PNG'
+    ],
+    [
+      { background: 'transparent', outputFormat: 'webp' },
+      'paintings.seedream.transparent_png',
+      'SEEDREAM_TRANSPARENT_PNG'
+    ]
+  ])('rejects invalid parameters before provider, file or generation IPC: %j', async (params, key, code) => {
     const binaryImage = vi.fn()
     Object.assign(window, { api: { file: { binaryImage } } })
     await expect(
       canonicalGenerate(
         makeInput(params, { ...target, inputFiles: [{ id: 'ref', ext: 'png' }] as unknown as FileEntry[] })
       )
-    ).rejects.toMatchObject({ code: 'REMOTE_ERROR', message: en[key as keyof typeof en] ?? 'missing translation' })
+    ).rejects.toMatchObject({ code, message: en[key as keyof typeof en] ?? 'missing translation' })
     expect(checkProviderEnabled).not.toHaveBeenCalled()
     expect(binaryImage).not.toHaveBeenCalled()
     expect(generatePaintingMock).not.toHaveBeenCalled()
