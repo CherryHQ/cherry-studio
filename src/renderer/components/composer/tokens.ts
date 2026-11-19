@@ -1,13 +1,10 @@
 import { normalizeQuoteTokenPromptText } from '@renderer/components/composer/quoteToken'
 import {
   COMPOSER_INPUT_TOKEN_KINDS,
-  COMPOSER_TOKEN_KINDS,
   type ComposerInputTokenKind,
   type ComposerTokenKind,
   isComposerTokenKind
 } from '@renderer/utils/composerTokenPolicy'
-
-export const COMPOSER_DRAFT_TOKEN_KINDS = COMPOSER_TOKEN_KINDS
 
 export type ComposerDraftTokenKind = ComposerTokenKind
 

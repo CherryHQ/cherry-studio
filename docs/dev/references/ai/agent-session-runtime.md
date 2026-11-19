@@ -2,6 +2,8 @@
 description: Host/driver split for agent sessions — turn lifecycle, follow-up queue, resume tokens, and shared prompt materializer
 sources:
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/main/ai/agentSession/sessionHistory.ts
+  - src/main/ai/agentSession/import
   - src/main/ai/agentSession/relocateSystemWorkspaces.ts
   - src/main/ai/runtime/workspaceRelocation.ts
   - src/main/ai/agents/AgentWorkspaceStorageService.ts
@@ -42,6 +44,41 @@ The boundary is:
 The built-in drivers are Claude Code, Pi and Pi Durable. Their
 query/session transports, tool surfaces, approval gates, and resume formats are
 driver internals behind the same host contract.
+
+## Next-prompt suggestions
+
+Main starts prediction at the end of an eligible successful interactive root turn.
+`ai.agent.session.predict_prompt` consumes that existing ephemeral result using the
+source reply and model IDs; opening a composer never starts another native prediction.
+Main checks attached-window focus before starting prediction; losing focus while it
+is running does not invalidate the result. Main validates idle ownership, preference and Plan mode, and
+cancels on input, context invalidation, connection closure or preference changes.
+`ai.agent.session.abort_prediction` cancels the matching consumer request.
+Tab or the text-direction forward arrow accepts editable text without sending.
+
+Claude Code enables the SDK's `promptSuggestions` option for interactive cold and
+warm queries. Its native `prompt_suggestion` arrives after `result` through the existing
+reader. Native suppression yields no host fallback. A resident native snapshot can seed
+state until the next real user message; an observation gap clears it. This is not a
+promise to restore suggestions from archived transcripts. Disabling the preference
+updates the connection rebuild signature at the next safe idle boundary.
+
+Pi and Pi Durable use patched native `createQueryFork` APIs on the compacted effective
+context. They append the Claude Code instruction from `src/main/ai/runtime/promptSuggestion.ts`
+verbatim, preserving the active model, reasoning, session identity and tool declarations.
+One ordinary streaming request aborts on the first tool call without executing tools.
+Prediction writes no transcript, task, goal, continuation or parent reply usage state.
+The pi-ai patch retains explicit parent cache breakpoints without adding any on the
+prediction suffix; automatic server-side caching remains provider-controlled.
+There is no invented timeout or minimum-reasoning override. Gateway owns billing.
+
+Pi checks the documented two-assistant-message and 10,000-token cache gates, then
+cleans wrappers/labels from the first text block and applies the documented candidate
+filters (under 100 UTF-16 units, at most 12 approximate multilingual words). Display
+checks reject control characters, command prefixes and recognized secret forms while
+retaining the original text. Private vendor flags, backoff and unused-streak defaults
+are not specified by the research and are not fabricated. Headless/autonomous turns
+and history opening do not generate host predictions; a resident result can be read again.
 
 ## Ownership
 
@@ -219,7 +256,8 @@ Do not add Cherry policy directly to one driver. Extend the common materializer,
 
 Agent archives have one hidden root and `parentId` links. `agent_session.activeNodeId`
 selects the displayed path; it is separate from a runtime entry's captured execution
-head. The shared sibling navigator chooses the latest descendant of a sibling.
+head. The shared sibling navigator follows the newest immediate child by
+`(createdAt, id)` at each level beneath the chosen sibling.
 Selection is a SQLite operation and never opens or resumes a harness.
 
 Dispatch captures its parent before asynchronous validation. If the parent has
@@ -247,7 +285,8 @@ A live follow-up is a **steer**. Steering is queue-based, never an
 interrupt: the current turn is **never aborted** to apply a steer (a user
 Stop is now the only abort source). `enqueueUserMessage()`:
 
-1. **Open normal user turn + a driver that can steer** — calls
+1. **Open normal user turn + a driver that can steer**, unless the input carries the follow-up
+   intent described in case 2 — calls
    `connection.redirect({ message, systemReminder: true })`. The driver
    submits the immutable input to the native queue. Claude Code uses SDK
    `priority: 'next'`: native admission either folds it into the running turn
@@ -258,7 +297,25 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    `started` alone is not placement evidence.
    Pi consumes its own queue: unplaced inputs remaining after stop/error
    receive native aborted evidence and are not automatically resent.
-2. **No redirect-eligible open normal turn, or a driver that cannot steer** —
+2. **Other running native work, or a follow-up intent, + a driver with native admission** — calls
+   `connection.followUp(...)` for an interactive input on the current config. When the runtime
+   descriptor declares `nativeFollowUp`, the Work composer sends a busy-time Enter at once with
+   `followUp: true` instead of holding it in its follow-up dock; Main then skips `redirect` even
+   for an open turn. The steer shortcut still steers. Other runtimes keep busy-time Enter in the
+   dock until the turn ends. Pi Durable submits
+   it with its `follow-up` busy policy and persists it at once, so the queue survives a crash.
+   When Durable places the input, the driver emits `steer-boundary` after the preceding answer;
+   the host gives the input its own reply. The event's `followUp` flag marks such a placement: the
+   host holds it while a steer transition or reservation is pending, or while the current reply has
+   no open stream, so a later placement never joins an earlier reply. Steers still merge into one
+   continuation. The preceding reply settles as answered at the boundary; Durable reports its
+   input's outcome when the run ends, and the host then replaces a reply whose input did not
+   complete. An autonomous reply settles at that boundary, and a deferred user turn resumes
+   there. A refused submission, or one that throws before it reaches the runtime, falls back to the
+   host queue.
+   An input queued before a restart has no entry-side context; the host reads its bound user
+   message instead. If that input starts native work by itself, it also gets a new reply.
+3. **No redirect-eligible open normal turn, or a driver that cannot steer** —
    appends the message and its `steer` flag to the session entry's `runtimeState.queue`
    so the next turn can wrap it in a steer system-reminder
    and schedules it once runtime ownership returns to `idle`.
@@ -283,7 +340,8 @@ can retain the connection without holding a reply open. A notification without p
 cannot reopen a settled reply.
 
 An independent receive-only autonomous generation never accepts a redirect. Follow-ups
-remain in `runtimeState.queue` until terminal persistence releases runtime ownership.
+remain in `runtimeState.queue` until terminal persistence releases runtime ownership,
+unless the driver admits them natively (case 2 above).
 The runtime's `autonomous-turn-state: started` event names why it opened the turn
 (`AutonomousTurnOrigin`: Claude Code waking after background work). The shared reply preparation path publishes it to the shared
 cache under `agent.session.turn_origin.${sessionId}.${messageId}` — live session
@@ -550,7 +608,9 @@ indexed `delivery_turn_ref`:
   evidence of deletion, not proof that execution never started;
 - placeholder still `pending` — execution may already have produced external side effects;
   terminalize interrupted parts, discard the Session resume token, finalize `interrupted`, and do
-  not rerun the Agent;
+  not rerun the Agent. A `pi-durable` request whose input Durable admitted is the exception: Durable
+  owns its outcome, so the placeholder stays `pending` and the delivery owner opens that Session.
+  Durable resumes or settles the input, and the reply's terminal event finalizes the delivery;
 - placeholder terminal — run only the idempotent finalizer.
 
 The generic pending-assistant sweep excludes rows referenced by `delivery_turn_ref`; therefore its
@@ -641,8 +701,9 @@ the shared prefix's original context. Confirmed native progress marks the
 binding as `bound`; the product message tree owns the published branch head.
 
 For Pi, root execution uses the common Runtime's `create/open/observe/input.submit` path.
-Main keeps two private identities on the user message: the captured `inputContextId` and the
-evidenced `nativeInputId`. Connections consume native receipts and outcomes; response projection
+Main keeps three private identities on the user message: the captured `inputContextId`, the
+evidenced `nativeInputId` and `replyId`, the reply Main opened for it. Queued inputs are saved
+before their replies, so row ancestry cannot stand in for `replyId`. Connections consume native receipts and outcomes; response projection
 persists content and its source mapping. Explicit non-admission releases an unconfirmed binding,
 while an unknown result retains it without automatic resubmission. Observation snapshots establish the live
 projection baseline and never replace or replay the product archive. Lost observations fail closed.
@@ -652,6 +713,10 @@ Only a never-submitted intent can stay unflushed; local commands persist their n
 acknowledgement, even without a model prompt. Resume tokens are published after native persistence.
 On startup, the runtime owner terminalizes abandoned Pi product placeholders without clearing native
 identities or replaying their inputs. Rows owned by persisted delivery turns remain with delivery recovery.
+`pi-durable` placeholders stay `pending`: when the Session reopens, Durable continues a resumed input
+in the reply its `replyId` names, and an input that already has a Durable outcome rebuilds its reply from
+committed entries with that outcome. Delivery recovery ends a recovered delivery turn as an error
+when its Session cannot connect, because no runtime can then resume it.
 
 For Claude Code, the resume token is the SDK `session_id`. The driver
 maps it to `options.resume`. This is separate from the SDK's file
@@ -720,6 +785,9 @@ CLI subscription login retains native authentication. See the gateway's
 [internal endpoint policy](../api-gateway/README.md#internal-listener-for-cherry-consumers).
 
 Root content passes through `ThreadMessageProjection` and `RootMessageProjection`.
+Observation values are frozen and shared, so a repeated snapshot reuses the previous view of every
+message whose source object is unchanged without decorating it again; an explicit refresh still
+re-decorates its messages.
 Native replacements retain product ownership across steer boundaries; explicit
 retractions persist with the context checkpoint. The runtime adapter preserves ordered
 AI SDK message parts, including tool output, reasoning signatures, files and citations.
@@ -739,7 +807,10 @@ feed omits. Subsequent content follows the observer; there is no transcript poll
 
 Each child uses its own `ChildThreadProjection`, context and archive, including
 nested children under their immediate parent. Parent completion and window detach
-do not stop child persistence. Claude no longer writes child bodies into the
+do not stop child persistence. Its committed projection persists across archive reads, so a read
+redecorates only changed messages, and it writes the checkpoint, input bindings and response owners only
+when they change. It saves a message only when it differs from its stored row as that row reads back from
+JSON, where undefined fields are absent, so reopening a child rewrites nothing. Claude no longer writes child bodies into the
 parent's background-flow parts; saved historical flows remain readable.
 After a failed cold attachment, Claude retries the saved session-scoped native binding
 when it belongs to the current backend. The root's native creation lookup need not retain
@@ -864,13 +935,11 @@ Allowed in v1:
   The approval extension still distinguishes Cherry-owned
   safe tools, Cherry tools that always require approval, and third-party MCP
   tools; `disabledTools` hard-blocks every class.
-- New pi agents start in `acceptEdits`: reads and writes inside the selected
-  workspace and current agent data directory do not prompt repeatedly. Shell,
-  third-party MCP, Cherry approval-required mutations, external paths, and
-  symlink escapes remain gated. `bypassPermissions` does not override the
-  runtime-neutral Cherry approval-required policy. Pi exposes neither `plan`
-  nor `auto`: the latter depends on Claude's model-side approval classifier,
-  which the Pi approval gate does not implement.
+- New Pi agents start in `auto`. Reads and writes inside canonical selected roots can run
+  automatically. Shell invocations use the shared [command policy](./tool-approval.md#shell-command-policy):
+  ordinary commands run without a first-use Shell grant; risk matches and incomplete analysis
+  ask for that invocation. Mandatory denials hold even in Full Access. Independent SQLite,
+  disabled-tool, install, path and built-in-role guards remain effective. Pi does not expose `plan`.
 - The agent's enabled Cherry-managed skills, passed explicitly as
   `additionalSkillPaths` (their canonical `{dataPath}/Skills/<folderName>` dirs).
   These load even under `noSkills` because the paths are Cherry-owned and
@@ -975,10 +1044,18 @@ reopening native compaction history. Electron acceptance is checked separately.
 ### Pi behavior host
 
 `piBehaviorHost.ts` implements the existing `HostPorts` using Cherry services.
-Approvals and questions use existing cards; approval outcomes stay in message
-parts. Environment facts (disabled tools, protected paths, delegation attendance
-and shell classification) come from `piApprovalFacts.ts`; shared behavior decides
-whether to run, ask or block. No new approval table is required.
+Approvals and questions use existing cards; a person's answer stays in their
+message parts, and the shared rules read a denial only from the call's blocked
+result in the conversation history, never from those parts. Environment facts
+(disabled tools, protected paths, delegation attendance and shell
+classification) come from `piApprovalFacts.ts`; shared behavior decides whether
+to run, ask or block. No new approval table is required.
+
+Pi and Pi Durable child threads use the root's live permission mode, interaction
+state and tool restrictions. Delegation does not grant Full Access. A child call
+that needs approval waits for the root session's responder, or is blocked when
+nobody can respond. Command approvals refresh the effective tool input and policy evidence even when a native
+part already exists in the root reply, so the composer shows the operation awaiting consent.
 
 Runtime content uses whole native SDK messages. Pi and Claude decode deltas once at
 the adapter source; Durable materializes committed native view revisions directly.
@@ -1012,7 +1089,10 @@ Child attachment waits for the shared root connection, then calls the concrete
 origin, actual parent and access together. Main joins concurrent attachment through one child
 resource record. Failed creation or owner closure ends the wait; parent reply completion does not
 close independently running children. Failed attachment releases its lease and can retry, while
-failed final persistence retains the resource and its unflushed output. A detached or
+failed final persistence retains the resource and its unflushed output. A finished child (idle
+with a run result and no input without an outcome) that no viewer subscribes to is flushed and
+released, keeping only its origin and context ID; opening its panel, messaging it or a native
+resume attaches it again. A detached or
 destroyed window cannot install a late subscription. Archive reconciliation preserves product IDs
 and orders evidenced rows by committed native history followed by live content, correcting saved
 parent links when necessary; rows outside current native/live coverage remain retained in place.
@@ -1043,7 +1123,10 @@ Main reply open through child reports and parent summarization; notifications wi
 boundary append to that same reply. A continuation uses its current triggering call, not the child's
 immutable creation call. Historical input snapshots update saved facts without reassigning old responses.
 `durable.observe` carries content, input outcomes, background-result facts and foreground completion
-from the same native commit revision. Unresolved accepted/native-only input, admission, foreground work or compaction
+from the same native commit revision. Within a run it sends message and input changes; snapshots arrive
+when observation starts, after a gap and when a run starts, which is when Main detects an autonomous
+turn. A run end arrives as `activity.changed` carrying the completion, and Main reports and binds an
+input only when its state changes. Unresolved accepted/native-only input, admission, foreground work or compaction
 keeps settlement pending. Main has no pending-input polling loop and never derives completion
 from idle activity or an empty product-input map.
 
@@ -1069,7 +1152,7 @@ Every nested call emits its own tool events and passes Cherry's approval gate,
 including disabled-tool, SQLite, global-install approval, direct-mise mutation, and
 permission-mode policies. Global-install decisions use the root session's effective
 permission mode, including for child sessions. The script itself needs no separate
-approval because all outward effects pass through those tool calls.
+approval because its file and shell operations pass through those tool calls.
 
 Pi and Pi Durable project nested calls as ordinary tool parts with native call and
 parent identities. Native session storage retains the executed arguments, terminal
@@ -1115,6 +1198,74 @@ relocation admission blocks. Workspace guards consult that owner, and verified r
 removes the block. Pending retired-runtime sessions defer native-history work to the
 existing migration below.
 
+## First submission without native history
+
+`AgentSessionRuntimeService` supplies a selected product-history prefix as model-only
+`AgentRuntimeCommand.context` when a branch has no previous native input. The generic
+`readSessionHistory` reader follows message parents, excludes the current input and
+unfinished deliveries, and retains role labels, reasoning, tool names, inputs, completion
+states and managed file parts. Short tool results are preserved unchanged up to 1,500
+characters (JSON length for structured values). Longer results use line-aligned head/tail
+excerpts with 500/1,000 character budgets and an explicit omission marker. Failed calls
+retain at most 256 characters of error text. Persisted results reuse stored excerpts and
+structured identities without loading full blobs. Complete outputs remain in product
+history for display. Drivers use their ordinary input and attachment conversion.
+Pi Durable initializes reference text through a passive native write before dispatching the
+original input, so local commands and autonomous goal rounds retain the same model context.
+The native request ID deduplicates initialization across reopening. The reference entry starts
+no model run and is excluded from product projections and behavior-authorizing user history.
+Native admission still checks the original product message parts; reference context does
+not rewrite user messages or dispatch historical tools.
+
+Fresh native bindings use the selected product position as their anchor, keeping sibling
+paths independent. Local commands route against the original input without reference-context
+prefixes. A Main-only `locallyHandled` acknowledgement retains native ownership while
+excluding the local input and reply from model history. The product prefix remains available
+for the next model submission after a local command or reopening. Once native model input
+has been submitted, subsequent inputs and reopening reuse the ordinary native conversation.
+Known native identities follow their existing recovery rules; a missing native store is
+never silently replaced with product history. This path creates no native-history files,
+rebuild state or historical checkpoints and does not inspect import provenance.
+
+## DeepSeek Agent history import
+
+`AgentImportService` publishes normalized `ConversationImporter` results into new sessions
+for a new Agent named after the importer. `DeepSeekImporter` handles the supported DeepSeek v3 ZIP format,
+including validation, source-field normalization, content and managed attachments. The
+service handles progress, retry and database publication without reading source fields.
+Settings → Data → Import external application data opens the import dialog directly.
+Preview reserves IDs without creating an Agent. Confirming import creates a DeepSeek Agent
+with ordinary Pi Durable defaults and an enabled, compatible default model when available.
+Otherwise its model remains unset for later selection. Main owns bounded archive reads, validation, progress, cancellation and retry;
+closing the dialog does not cancel work. The importer writes the complete product parent
+graph, selected head and managed attachments without creating native history or tokens.
+The generic first-submission mechanism above supplies continuation context.
+
+Operation snapshots, latest-operation pointers and per-source publication receipts use
+`agent-import:operation:`, `agent-import:latest:` and `agent-import:conversation:` in
+`app_state`. Operations retain their importer ID, with the default importer used for older
+records. The importer ID and archive digest identify retries, which reuse the original Agent.
+Agent creation and the pending-creation marker commit atomically; preview, cancellation
+before creation and source validation failure create no Agent. Different archives get
+separate Agents, and a deleted destination is not silently recreated. A synchronous product
+transaction publishes each session, its messages, file references and receipt. Cancellation
+preserves completed sessions. Agent lifecycle pause/drain includes preparation and import.
+The original ZIP is read directly without copying, modifying or deleting it. Operations
+retain its path and digest and verify the digest before import. Hashing and parsing share
+one opened file descriptor, retaining the original bytes when the path is replaced. Entry
+reads reject size or modification-time changes to that file. A moved or unavailable
+source must be reselected. Completed sessions use managed attachments independently of ZIP.
+
+Search/open/image-search records use completed standard tool parts with observed input
+and complete output, interleaved with reasoning in source order. Queries, snippets, links,
+source status and zero-result searches remain visible without synthetic answer citations.
+Validated HTTP(S) URLs in structured result objects use the existing link controls while
+the complete records remain visible.
+Source failures and empty messages show export status rather than a runtime error.
+Conflicting attachment IDs fail validation. Files and images use ordinary Harness
+attachment conversion; missing files remain explicit text. No credentials, billing,
+pending tasks, approvals or historical native Fork/Edit checkpoints are imported.
+
 ## Retired Agent runtime migration
 
 Existing DSH agents are converted to Pi by `RetiredAgentRuntimeSeeder`, including archived
@@ -1138,10 +1289,11 @@ for other sessions; validation, connection, editing, and forking retry the impor
 using that session. No failed conversion silently starts an empty context. The original DSH
 files remain untouched. Restoring an older backup repeats the same conversion.
 
-Pi model calls use native Pi protocols against Cherry's internal gateway. The gateway resolves
+Pi and Pi Durable model calls exchange native protocol request/event objects with Cherry's gateway
+in process, without internal HTTP/JSON/SSE codecs or a listener dependency. The gateway resolves
 the configured provider/model and owns credentials, request options and billing through Cherry's
 provider execution path. Pi remains the sole tool executor and loop owner. Its session retry policy
-owns retries; the native HTTP client and gateway do not retry the same request independently.
+owns retries; the object transport and gateway do not retry the same request independently.
 
 ## Internal Agent continuation normalization
 
@@ -1186,9 +1338,16 @@ For other connections, when the idle timer expires, the runtime closes the entry
 - closes the runtime connection;
 - prewarms Claude Code when a latest resume token is known.
 
-Service stop and destroy close all runtime entries. User Stop additionally invokes an
-optional connection `interrupt()` before closing, including when the visible stream has
-already finished but background work remains. Durable shutdown preserves ordinary
+Service stop and destroy close all runtime entries. User Stop (`stopSession()`) additionally
+invokes an optional connection `interrupt()` before closing, including when the visible stream has
+already finished but background work remains. A `retainOnStop` connection (Pi Durable) is
+interrupted but not closed: Stop withdraws queued follow-ups, and the host marks each withdrawn user
+message `paused`, which the transcript shows as not sent with Resend and Edit. The connection's `stopping`
+occupancy keeps the session busy and holds later input until the connection emits
+`stop-confirmed`. If the native input completed or failed before the stop landed, its outcome replaces the
+paused reply, unless a background run continued that reply after its input ended. `onTurnTerminal`
+fires once for the stopped reply, after that decision. A failed or unconfirmed stop (20 s, including
+the native interrupt call) falls back to closing. Durable shutdown preserves ordinary
 unfinished root tasks; explicit interruption cancels them. Reopen applies shared behavior's
 `onOpen` before native resume, disarming goals and stopping interrupted background children.
 Repeated `closeSession()` calls join the in-flight close. A closing session rejects new

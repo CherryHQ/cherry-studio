@@ -1,10 +1,22 @@
+import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 
 import { finalizeInterruptedParts } from '../streamManager'
 
-export function recoverSessionDeliveries(): Set<string> {
+/** A `pi-durable` delivery request that reached Durable; its record, not a host repair, settles the reply. */
+export function awaitsDurableOutcome(request: AgentSessionMessageEntity): boolean {
+  if (!agentSessionMessageService.inputBinding(request.sessionId, request.id)?.nativeInputId) return false
+  const agentId = agentSessionService.getById(request.sessionId).agentId
+  return (agentId ? agentService.getAgent(agentId)?.type : undefined) === 'pi-durable'
+}
+
+/** `resumable` lists `pi-durable` sessions whose interrupted delivery turn resumes when reopened. */
+export function recoverSessionDeliveries(): { affected: Set<string>; resumable: Set<string> } {
   const affectedSessionIds = new Set<string>()
+  const resumable = new Set<string>()
   for (const message of agentSessionMessageService.listRecoverableSessionDeliveries()) {
     if (message.delivery?.status !== 'delivering') continue
     const turnRef = message.delivery.turnRef
@@ -28,6 +40,10 @@ export function recoverSessionDeliveries(): Set<string> {
         message: 'The delivery turn was deleted before it could be recovered'
       })
       if (result) affectedSessionIds.add(result.sessionId)
+      continue
+    }
+    if (assistant.status === 'pending' && awaitsDurableOutcome(message)) {
+      resumable.add(message.sessionId)
       continue
     }
     if (assistant.status === 'pending') {
@@ -57,5 +73,5 @@ export function recoverSessionDeliveries(): Set<string> {
     })
     if (result) affectedSessionIds.add(result.sessionId)
   }
-  return affectedSessionIds
+  return { affected: affectedSessionIds, resumable }
 }

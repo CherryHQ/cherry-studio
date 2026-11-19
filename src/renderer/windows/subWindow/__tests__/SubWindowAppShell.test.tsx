@@ -47,7 +47,7 @@ async function renderSubWindowAppShell({
     }
   }))
   vi.doMock('@renderer/hooks/tab', async () => {
-    const actual = (await vi.importActual('@renderer/hooks/tab')) as Record<string, unknown>
+    const actual = await vi.importActual<Record<string, unknown>>('@renderer/hooks/tab')
     return {
       ...(actual as object),
       useTabs: () => ({
