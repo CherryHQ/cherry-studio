@@ -11,9 +11,17 @@ import { LONG_TEXT_PASTE_THRESHOLD, PASTED_TEXT_FILE_EXTENSION } from '../compos
 
 const logger = loggerService.withContext('pasteHandling')
 
+export interface ClipboardPasteData extends Pick<DataTransfer, 'getData'> {
+  readonly files: ArrayLike<File>
+}
+
+export interface ClipboardPasteEvent extends Pick<ClipboardEvent, 'preventDefault'> {
+  readonly clipboardData: ClipboardPasteData | null
+}
+
 /** Files copied from disk take precedence over their filename text; rich-text preview images do not. */
 export function shouldHandleClipboardFiles(
-  clipboardData: DataTransfer | null,
+  clipboardData: ClipboardPasteData | null,
   supportExts: readonly string[]
 ): boolean {
   const text = clipboardData?.getData('text/plain') || clipboardData?.getData('text') || ''
@@ -63,7 +71,7 @@ let isInitialized = false
  * 处理各种粘贴场景，包括文本和文件
  */
 export const handlePaste = async (
-  event: ClipboardEvent,
+  event: ClipboardPasteEvent,
   supportExts: string[],
   setFiles: (updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => void,
   pasteLongTextAsFile?: boolean,
