@@ -305,7 +305,7 @@ export async function prepareEntityImageBytes(file: File): Promise<Uint8Array<Ar
  * @param elRef 元素的引用
  * @returns Promise<string | undefined> 图像数据 URL，如果失败则返回 undefined
  */
-export async function captureElement(elRef: React.RefObject<HTMLElement>) {
+export async function captureElement(elRef: React.RefObject<HTMLElement | null>) {
   if (elRef.current) {
     let restoreContents: (() => Promise<void>) | undefined
     try {
