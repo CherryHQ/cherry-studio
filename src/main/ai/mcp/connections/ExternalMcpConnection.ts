@@ -39,7 +39,8 @@ import type { McpConnection, McpConnectionEvents } from './McpConnection'
 type UrlTransport = SSEClientTransport | StreamableHTTPClientTransport
 
 export interface ExternalMcpConnectionLog {
-  info(message: string, data?: unknown): void
+  info(message: string, data?: { era: McpConnection['era']; serverVersion?: McpConnection['serverVersion'] }): void
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Legacy handshake retries log their original arbitrary rejection as well as structured launch/transport diagnostics.
   warn(message: string, data?: unknown): void
   stdio(message: string): void
 }
@@ -61,6 +62,7 @@ function prefersOAuth(server: Pick<McpServer, 'installSource' | 'name' | 'header
   return !Object.keys(server.headers ?? {}).some((key) => key.toLowerCase() === 'authorization')
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Connection catches include arbitrary failures; only native SSE 405 or SDK HTTP 404/405 permit changing transports.
 function isTransportFallbackError(error: unknown): boolean {
   if (error instanceof SseError) return error.code === 405
   if (error instanceof SdkHttpError) return error.status === 404 || error.status === 405
