@@ -72,7 +72,7 @@ async function request<T extends z.ZodType>(schema: T, url: string, init: Reques
   return parseResponse(schema, text ? JSON.parse(text) : undefined)
 }
 
-async function downloadPdf(): Promise<Uint8Array> {
+async function downloadPdf(): Promise<Uint8Array<ArrayBuffer>> {
   console.log(`GET ${PDF_URL}`)
   const response = await fetch(PDF_URL)
   if (!response.ok) throw new Error(`PDF download failed: ${response.status}`)
@@ -150,7 +150,7 @@ async function downloadZip(url: string, model: Model): Promise<void> {
   if (zip.byteLength === 0) throw new Error(`empty export ZIP for ${model}`)
 }
 
-async function runModel(pdf: Uint8Array, model: Model): Promise<void> {
+async function runModel(pdf: Uint8Array<ArrayBuffer>, model: Model): Promise<void> {
   console.log(`\n=== model ${model} ===`)
   const preuploadBody = { model }
   console.log(`preupload body=${JSON.stringify(preuploadBody)}`)
@@ -161,7 +161,7 @@ async function runModel(pdf: Uint8Array, model: Model): Promise<void> {
   })
   console.log(`uid=${preupload.uid}`)
 
-  const upload = await fetch(preupload.url, { method: 'PUT', body: pdf as unknown as BodyInit })
+  const upload = await fetch(preupload.url, { method: 'PUT', body: pdf })
   console.log(`upload response=${upload.status} ${upload.statusText}`)
   if (!upload.ok) throw new Error(`upload failed: ${upload.status}`)
 
