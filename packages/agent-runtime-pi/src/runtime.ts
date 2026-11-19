@@ -58,6 +58,7 @@ export interface PiRuntimeOptions {
 }
 export type PiSessionOptions = Omit<AgentRuntimeSessionOptions, 'compaction'> & {
   behavior: PiRuntimeBehavior
+  compactionPercent?: number
   compaction?: NonNullable<AgentRuntimeSessionOptions['compaction']>
 }
 export interface PiThreadHandle extends ThreadHandle {
@@ -205,7 +206,14 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
             compaction: resolveSessionCompaction({
               inherited: (child ? configured?.compaction : undefined) ?? config.compaction,
               nativeBudgets: settings,
-              model
+              model,
+              ...(!child &&
+                config.compactionPercent !== undefined && {
+                  reserveTokens: Math.max(
+                    settings.reserveTokens,
+                    Math.ceil((model.contextWindow * (100 - config.compactionPercent)) / 100)
+                  )
+                })
             }),
             extensionFactories: [...(config.extensionFactories ?? []), extension],
             onEvent: (event) => {

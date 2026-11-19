@@ -68,15 +68,19 @@ export function resolveSessionCompaction<S extends { reserveTokens: number; keep
   inherited?: AgentRuntimeCompaction
   nativeBudgets: S
   model: { contextWindow: number }
+  /** A caller-pinned reserve (e.g. a compaction-percent trigger) wins over both budgets and config. */
+  reserveTokens?: number
 }): S | (S & AgentRuntimeCompaction) {
-  const { inherited, nativeBudgets, model } = options
-  if (!inherited) return nativeBudgets
+  const { inherited, nativeBudgets, model, reserveTokens } = options
+  const pinned = reserveTokens === undefined ? {} : { reserveTokens }
+  if (!inherited) return reserveTokens === undefined ? nativeBudgets : { ...nativeBudgets, reserveTokens }
   return {
     ...nativeBudgets,
     ...inherited,
     ...(!compactionBudgetsFitModel(inherited, model)
       ? { reserveTokens: nativeBudgets.reserveTokens, keepRecentTokens: nativeBudgets.keepRecentTokens }
-      : {})
+      : {}),
+    ...pinned
   }
 }
 
