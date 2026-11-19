@@ -9,7 +9,7 @@
 import path from 'node:path'
 
 import { eq } from 'drizzle-orm'
-import { session, webContents } from 'electron'
+import { session, type WebContents, webContents } from 'electron'
 
 import { application } from '@application'
 import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
@@ -464,8 +464,8 @@ export class MiniAppRuntimeService extends BaseService {
     // grants is exactly what this function exists to prevent.
     for (const id of this.guestsOf(appId)) {
       logger.warn('Destroying a mini app guest that ignored the eviction broadcast', { appId, webContentsId: id })
-      // `destroy` is real in Electron 41 but missing from its typings (only `close` is documented).
-      const guest = webContents.fromId(id) as unknown as { destroy(): void } | undefined
+      // SAFETY: Electron 45.2.2 binds WebContents::Destroy as destroy; only its public declaration omits it.
+      const guest = webContents.fromId(id) as (WebContents & { destroy(): void }) | undefined
       guest?.destroy()
       this.unregisterGuest(id)
     }
