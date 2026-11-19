@@ -431,6 +431,7 @@ type SharedCacheValues<Keys extends readonly SharedCacheKey[]> = {
  * equality — is deliberately NOT handled and compares unequal: pass an
  * explicit domain comparator instead.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Selectors return unrelated domain values; the default comparator accepts any selection and compares only validated arrays/plain objects beyond Object.is.
 function shallowEqual(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true
   if (typeof a !== 'object' || a === null || typeof b !== 'object' || b === null) return false

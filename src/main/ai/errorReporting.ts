@@ -4,11 +4,12 @@ import type { FailureFacts } from '@shared/types/errorReporting'
 import { classifyErrorCategory } from '@shared/utils/errorCategory'
 import { hasReportingOwner, markReportingHandled } from '@shared/utils/errorReporting'
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Provider setup and generation catches pass arbitrary failures; classify only validated numeric status and string message fields.
 export function providerFailureFacts(error: unknown): FailureFacts | undefined {
   if (!error || typeof error !== 'object') return
-  const value = error as Record<string, unknown>
-  const status = typeof value.statusCode === 'number' ? value.statusCode : undefined
-  const category = classifyErrorCategory({ text: typeof value.message === 'string' ? value.message : '', status })
+  const status = 'statusCode' in error && typeof error.statusCode === 'number' ? error.statusCode : undefined
+  const text = 'message' in error && typeof error.message === 'string' ? error.message : ''
+  const category = classifyErrorCategory({ text, status })
   if (
     ![
       'auth',
@@ -34,6 +35,7 @@ export function providerFailureFacts(error: unknown): FailureFacts | undefined {
 export function logAiFailure(
   logger: Pick<LoggerService, 'error' | 'warn' | 'debug'>,
   message: string,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- AI execution catches retain the original rejection for sanitized chat context and capture ownership; reporting must not replace it with a fabricated Error.
   error: unknown,
   operation: string,
   failure: FailureFacts,
