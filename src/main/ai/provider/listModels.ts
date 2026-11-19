@@ -112,11 +112,13 @@ function listing(models: Partial<Model>[]): ListedModels {
   return { models }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Provider fetch/schema/cancellation failures may reject with any value; log only the Error name or runtime type, never response bodies.
 function getErrorType(error: unknown) {
   return error instanceof Error ? error.name : typeof error
 }
 
 function handleOptionalModelListFailure<T>(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Optional OpenRouter/PPIO endpoint promises can reject arbitrarily; strict discovery must rethrow that exact rejection.
   error: unknown,
   options: { throwOnError?: boolean } | undefined,
   context: Record<string, string>
@@ -128,6 +130,7 @@ function handleOptionalModelListFailure<T>(
   return recoverOptionalModelListFailure(error, context)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Optional model endpoints may fail independently of the primary list; record only a safe error type and contribute an empty list.
 function recoverOptionalModelListFailure<T>(error: unknown, context: Record<string, string>): { data: T[] } {
   logger.warn('Optional model list endpoint failed; continuing with primary models', {
     ...context,
