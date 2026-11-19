@@ -219,6 +219,7 @@ export function AgentMemoryPanel({
         label={t('agent.memory.open_folder')}
         icon={<FolderOpen className="size-3" />}
         onClick={() => void openFolder()}
+        showLabel
       />
       <PromptEditorIconButton
         label={t('agent.memory.refresh')}

@@ -17,31 +17,36 @@ const promptEditorExtensions = [
   EditorView.theme({ '&.cm-focused': { outline: 'none' }, '.cm-line:nth-child(-n+2)': { paddingRight: '4rem' } })
 ]
 
-/** An icon-only control in the editor's style, named by its tooltip. */
+/** A control in the editor's style: icon-only and named by its tooltip, or with `showLabel` its text beside the icon. */
 export function PromptEditorIconButton({
   label,
   icon,
   disabled,
-  onClick
+  onClick,
+  showLabel = false
 }: {
   label: string
   icon: ReactNode
   disabled?: boolean
   onClick: () => void
+  showLabel?: boolean
 }) {
-  return (
-    <Tooltip content={label}>
-      <Button
-        type="button"
-        variant="ghost"
-        aria-label={label}
-        disabled={disabled}
-        onClick={onClick}
-        className="flex size-6 min-h-0 items-center justify-center rounded-md border border-border-subtle bg-background p-0 text-muted-foreground! shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0 disabled:opacity-40">
-        {icon}
-      </Button>
-    </Tooltip>
+  const button = (
+    <Button
+      type="button"
+      variant="ghost"
+      aria-label={showLabel ? undefined : label}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        'flex min-h-0 items-center justify-center rounded-md border border-border-subtle bg-background text-muted-foreground! shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0 disabled:opacity-40',
+        showLabel ? 'h-6 gap-1 px-2 py-0 font-normal text-xs' : 'size-6 p-0'
+      )}>
+      {icon}
+      {showLabel ? label : null}
+    </Button>
   )
+  return showLabel ? button : <Tooltip content={label}>{button}</Tooltip>
 }
 
 export interface PromptEditorFieldHandles {
