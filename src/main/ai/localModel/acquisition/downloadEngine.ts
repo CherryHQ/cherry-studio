@@ -88,9 +88,9 @@ export async function streamToFileVerified(
     await prepared.commit()
   })
 
-  // net.fetch's body is the DOM ReadableStream; Readable.fromWeb wants the
-  // node:stream/web flavour — same runtime object, divergent lib types.
-  const webStream = response.body as unknown as NodeWebReadableStream<Uint8Array>
+  // SAFETY: Electron returns a WHATWG response stream; fromWeb consumes that same protocol.
+  // The DOM and node:stream/web declarations expose different reader overloads.
+  const webStream = response.body as NodeWebReadableStream<Uint8Array>
   await pipeline(Readable.fromWeb(webStream), meter, writer, { signal })
   onProgress?.(1)
 }

@@ -14,22 +14,15 @@ const PAYLOAD_SHA256 = 'e1ae4b3d3c1eb0f9a2c3ca6b0b0ea4b8ef2ec2b8e5c1cd39fdbbf0b8
 let workDir: string
 
 function streamResponse(content: Buffer) {
-  return {
-    ok: true,
-    headers: { get: (h: string) => (h === 'content-length' ? String(content.length) : null) },
-    body: new ReadableStream<Uint8Array>({
+  return new Response(
+    new ReadableStream<Uint8Array>({
       start(controller) {
         controller.enqueue(content)
         controller.close()
       }
-    })
-  }
-}
-
-function textResponse(content: Buffer) {
-  // Copy out of Buffer's pooled allocation — slicing its shared `buffer` from 0 would
-  // hand back a different region entirely.
-  return { ok: true, arrayBuffer: async () => new Uint8Array(content).buffer }
+    }),
+    { headers: { 'content-length': String(content.length) } }
+  )
 }
 
 /** The real digest of PAYLOAD, computed the same way the engine does. */
@@ -94,7 +87,7 @@ describe('streamToFileVerified', () => {
   afterEach(() => rmSync(workDir, { recursive: true, force: true }))
 
   it('writes the file once the digest matches, creating missing parent directories', async () => {
-    vi.mocked(net.fetch).mockImplementation((async () => streamResponse(PAYLOAD)) as unknown as typeof net.fetch)
+    vi.mocked(net.fetch).mockImplementation(async () => streamResponse(PAYLOAD))
     const dest = path.join(workDir, 'nested', 'weights.onnx')
 
     await streamToFileVerified('https://mirror/weights.onnx', dest, {
@@ -107,7 +100,7 @@ describe('streamToFileVerified', () => {
   })
 
   it('replaces an existing target with the verified bytes', async () => {
-    vi.mocked(net.fetch).mockImplementation((async () => streamResponse(PAYLOAD)) as unknown as typeof net.fetch)
+    vi.mocked(net.fetch).mockImplementation(async () => streamResponse(PAYLOAD))
     const dest = path.join(workDir, 'weights.onnx')
     writeFileSync(dest, 'undersized')
 
@@ -121,8 +114,7 @@ describe('streamToFileVerified', () => {
   })
 
   it('rejects a body whose digest does not match and leaves nothing behind', async () => {
-    vi.mocked(net.fetch).mockImplementation((async () =>
-      streamResponse(Buffer.from('corrupted'))) as unknown as typeof net.fetch)
+    vi.mocked(net.fetch).mockImplementation(async () => streamResponse(Buffer.from('corrupted')))
     const dest = path.join(workDir, 'weights.onnx')
 
     await expect(
@@ -139,12 +131,7 @@ describe('streamToFileVerified', () => {
   })
 
   it('rejects a non-OK response without writing anything', async () => {
-    vi.mocked(net.fetch).mockImplementation((async () => ({
-      ok: false,
-      status: 404,
-      body: null,
-      headers: { get: () => null }
-    })) as unknown as typeof net.fetch)
+    vi.mocked(net.fetch).mockImplementation(async () => new Response(null, { status: 404 }))
     const dest = path.join(workDir, 'weights.onnx')
 
     await expect(
@@ -158,7 +145,7 @@ describe('streamToFileVerified', () => {
   })
 
   it('reports progress ending at a full bar', async () => {
-    vi.mocked(net.fetch).mockImplementation((async () => streamResponse(PAYLOAD)) as unknown as typeof net.fetch)
+    vi.mocked(net.fetch).mockImplementation(async () => streamResponse(PAYLOAD))
     const fractions: number[] = []
 
     await streamToFileVerified('https://mirror/weights.onnx', path.join(workDir, 'w.onnx'), {
@@ -176,7 +163,7 @@ describe('fetchTextVerified', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('returns the body when the digest matches', async () => {
-    vi.mocked(net.fetch).mockImplementation((async () => textResponse(PAYLOAD)) as unknown as typeof net.fetch)
+    vi.mocked(net.fetch).mockImplementation(async () => streamResponse(PAYLOAD))
 
     await expect(
       fetchTextVerified('https://mirror/inference.yml', {
@@ -187,8 +174,7 @@ describe('fetchTextVerified', () => {
   })
 
   it('rejects a body whose digest does not match', async () => {
-    vi.mocked(net.fetch).mockImplementation((async () =>
-      textResponse(Buffer.from('an error page'))) as unknown as typeof net.fetch)
+    vi.mocked(net.fetch).mockImplementation(async () => streamResponse(Buffer.from('an error page')))
 
     await expect(
       fetchTextVerified('https://mirror/inference.yml', {
