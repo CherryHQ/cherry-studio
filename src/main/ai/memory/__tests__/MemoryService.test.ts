@@ -26,8 +26,13 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService } from '@data/services/AgentSessionContextService'
 import { ensureAgentSessionRootTx } from '@data/services/agentSessionMessageTree'
 import { assistantDataService } from '@data/services/AssistantService'
+import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
+import { makeModel, makeProvider } from '@main/ai/__tests__/fixtures'
+import * as sdkConfig from '@main/ai/provider/sdkConfig'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { createClaudeCodeIdentityHooks } from '@main/ai/runtime/claudeCode/identityHooks'
+import { PersistentChatContextProvider } from '@main/ai/streamManager/context/PersistentChatContextProvider'
 import { BaseService, Emitter } from '@main/core/lifecycle'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
@@ -38,6 +43,7 @@ import {
   type MemoryAuthority
 } from '../memoryAuthority'
 import { serializeMemoryEntries } from '../memoryEntries'
+import { assistantMemoryReference } from '../memoryPrompt'
 import { memoryRuntimeFetch, openRuntimeMemoryGuard, runtimeMemoryAuthorities } from '../memoryRuntime'
 import { MemoryService } from '../MemoryService'
 import type { MemoryApproval } from '../MemoryStore'
@@ -304,6 +310,83 @@ describe('lifecycle memory owner', () => {
     dbh.db.delete(appStateTable).run()
     dbh.db.update(messageTable).set({ compactionSummary: 'OLD_HOME' }).where(eq(messageTable.id, userId)).run()
     await expect(transport('https://test.invalid')).rejects.toThrow('isolation')
+  })
+
+  it('blocks previously exposed history at the turn-start compression transport after clear', async () => {
+    MockApplicationUtils.setService('MemoryService', service)
+    const { topicId, assistantId, replyId } = seedAssistantTopic(true)
+    const editor = service.open(authority())
+    await editor.entry()
+    const secret = 'PREVIOUS_HOME'
+    await fs.writeFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), secret)
+    expect(
+      await assistantMemoryReference(
+        { topicId, assistantId },
+        { assertActive: () => undefined, isHeadless: () => false }
+      )
+    ).toContain(secret)
+    dbh.db
+      .update(messageTable)
+      .set({ status: 'success', data: { parts: [{ type: 'text', text: (secret + ' ').repeat(1500) }] } })
+      .where(eq(messageTable.id, replyId))
+      .run()
+    const tail = randomUUID()
+    dbh.db
+      .insert(messageTable)
+      .values({
+        id: tail,
+        topicId,
+        parentId: replyId,
+        role: 'user',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'Continue' }] }
+      })
+      .run()
+
+    const model = makeModel({ contextWindow: 1000 })
+    vi.spyOn(modelService, 'getByKey').mockReturnValue({ ...model, contextWindow: 32000 })
+    vi.spyOn(providerService, 'getByProviderId').mockReturnValue(makeProvider({ id: model.providerId }))
+    const send = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      Response.json({
+        id: 'summary',
+        model: 'summary',
+        created: 0,
+        choices: [{ index: 0, message: { role: 'assistant', content: 'Summary' }, finish_reason: 'stop' }]
+      })
+    )
+    vi.spyOn(sdkConfig, 'resolveSdkConfig').mockImplementation(async () => ({
+      sdkConfig: {
+        providerId: 'openai-compatible',
+        providerOptionsKey: 'openai-compatible',
+        modelId: 'summary',
+        providerSettings: { name: 'fixture', baseURL: 'https://test.invalid', fetch: send }
+      },
+      credentialReceipt: { attribution: 'unknown' }
+    }))
+    const stages = vi.fn()
+    const fold = () =>
+      new PersistentChatContextProvider()['resolveCompactedHistory'](
+        tail,
+        topicId,
+        [model],
+        assistantId,
+        {
+          enabled: true,
+          maxMessages: null,
+          compress: { enabled: true, modelId: model.id, thresholdPercent: 20 }
+        },
+        stages
+      )
+    await fold()
+    expect(send.mock.calls[0]?.[1]?.body).toContain(secret)
+    dbh.db.update(messageTable).set({ compactionSummary: null }).where(eq(messageTable.topicId, topicId)).run()
+    await editor.clear((await editor.previewClear()).token, approve)
+    editor.dispose()
+    send.mockClear()
+    stages.mockClear()
+    await fold()
+    expect(stages.mock.calls.map(([, anchor]) => anchor.status)).toEqual(['compacting', 'skipped'])
+    expect(send).not.toHaveBeenCalled()
   })
 
   it.each([false, true])(

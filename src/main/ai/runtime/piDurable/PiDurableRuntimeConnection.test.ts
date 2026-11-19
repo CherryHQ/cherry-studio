@@ -305,6 +305,7 @@ describe('desktop Pi Durable connection', () => {
     writeFileSync(backup, 'RECOVERY_SECRET')
     writeFileSync(join(shared, 'MEMORY.md'), 'old')
     const privateFile = join(privateRoot, 'MEMORY.md')
+    writeFileSync(privateFile, 'private original')
     setScript([
       assistantReply(
         [
@@ -327,7 +328,7 @@ describe('desktop Pi Durable connection', () => {
     expect(results.every((result) => result.isError)).toBe(true)
     expect(JSON.stringify(results)).not.toContain('RECOVERY_SECRET')
     expect(readFileSync(join(shared, 'MEMORY.md'), 'utf8')).toBe('old')
-    expect(existsSync(privateFile)).toBe(false)
+    expect(readFileSync(privateFile, 'utf8')).toBe('private original')
   })
 
   it('continues unbound history on separate native branches and retains it after reopening', async () => {
