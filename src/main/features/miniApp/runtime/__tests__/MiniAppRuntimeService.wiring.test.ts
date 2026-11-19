@@ -31,7 +31,8 @@ type WiringService = Omit<InstanceType<typeof MiniAppRuntimeService>, keyof Wiri
 
 function wiringService(): WiringService {
   // SAFETY: Only method visibility changes for source-typed spies; the service instance and public surface stay intact.
-  const service = new MiniAppRuntimeService() as WiringService
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Vitest needs public keys for the existing protected/private methods; their source signatures remain checked.
+  const service = new MiniAppRuntimeService() as unknown as WiringService
   vi.spyOn(service, 'broadcastAttentionState').mockReturnValue(undefined)
   return service
 }
