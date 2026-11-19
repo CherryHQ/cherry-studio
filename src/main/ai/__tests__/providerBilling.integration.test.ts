@@ -167,7 +167,7 @@ describe('provider billing through AiService and the real SDK', () => {
           ])
         )
         .run()
-      const service = new (AiService as unknown as new () => AiService)()
+      const service = new AiService()
       for (const details of [{ cache_creation_tokens: 155712 }, { cache_read_tokens: 155712 }]) {
         transport.mockImplementationOnce(async () =>
           cacheCompletion(
@@ -308,7 +308,7 @@ describe('provider billing through AiService and the real SDK', () => {
         currency: 'USD'
       })
     )
-    const service = new (AiService as unknown as new () => AiService)()
+    const service = new AiService()
     await service.generateText(request)
 
     expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
@@ -334,7 +334,7 @@ describe('provider billing through AiService and the real SDK', () => {
         prompt_tokens_details: { cache_creation_tokens: 155712 }
       })
     )
-    const service = new (AiService as unknown as new () => AiService)()
+    const service = new AiService()
     await service.generateText(request)
 
     expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
@@ -372,7 +372,7 @@ describe('provider billing through AiService and the real SDK', () => {
         endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
       })
       .run()
-    const service = new (AiService as unknown as new () => AiService)()
+    const service = new AiService()
     const officialRequest = { ...request, uniqueModelId: 'deepseek::deepseek-flash' as const }
     vi.setSystemTime(new Date('2026-11-16T11:59:59+08:00'))
     transport
@@ -440,7 +440,7 @@ describe('provider billing through AiService and the real SDK', () => {
   })
 
   it('keeps request-start prices across midnight and configuration changes', async () => {
-    const service = new (AiService as unknown as new () => AiService)()
+    const service = new AiService()
     vi.setSystemTime(new Date('2026-10-11T21:59:59.999+08:00'))
     transport.mockImplementationOnce(async () => {
       vi.setSystemTime(new Date('2026-10-12T00:00:01+08:00'))
@@ -458,7 +458,7 @@ describe('provider billing through AiService and the real SDK', () => {
   })
 
   it('keeps streaming costs frozen until the finish event after midnight', async () => {
-    const service = new (AiService as unknown as new () => AiService)()
+    const service = new AiService()
     vi.setSystemTime(new Date('2026-10-11T23:59:59.999+08:00'))
     transport.mockImplementationOnce(async () => {
       vi.setSystemTime(new Date('2026-10-12T06:00:01+08:00'))
@@ -502,7 +502,7 @@ describe('provider billing through AiService and the real SDK', () => {
   })
 
   it('reprices the next tool-loop invocation at the hour boundary', async () => {
-    const service = new (AiService as unknown as new () => AiService)()
+    const service = new AiService()
     vi.setSystemTime(new Date('2026-10-11T21:59:59.999+08:00'))
     transport
       .mockImplementationOnce(async () => {
@@ -554,7 +554,7 @@ describe('provider billing through AiService and the real SDK', () => {
   })
 
   it('uses the fallback provider multiplier after a failed primary call without duplicate records', async () => {
-    const service = new (AiService as unknown as new () => AiService)()
+    const service = new AiService()
     dbh.db
       .insert(userProviderTable)
       .values({
