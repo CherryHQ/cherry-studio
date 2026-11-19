@@ -1,3 +1,5 @@
+import { Blob as NodeBlob } from 'node:buffer'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
@@ -6,7 +8,14 @@ import { anyFileExt } from '@renderer/utils/file'
 import { type ComposerAttachment, toComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
 import { LONG_TEXT_PASTE_THRESHOLD } from '../../composerPaste'
-import pasteHandling from '../pasteHandling'
+import pasteHandling, { type ClipboardPasteEvent } from '../pasteHandling'
+
+function makeClipboardFile(name: string, type: string, bytes = new Uint8Array([1, 2, 3])): File {
+  const contents = new Uint8Array(bytes)
+  const blob = new NodeBlob([contents], { type })
+  // jsdom's File lacks arrayBuffer; read the same immutable contents through Node's Blob implementation.
+  return Object.assign(new File([contents], name, { type }), { arrayBuffer: () => blob.arrayBuffer() })
+}
 
 describe('pasteHandling', () => {
   const selectedFile: FileMetadata = {
@@ -45,13 +54,9 @@ describe('pasteHandling', () => {
 
   describe('copied directories', () => {
     const directoryPath = '/tmp/Project Notes'
-    const directory = { name: 'Project Notes', type: '' } as File
-    const diskFile = { name: 'pasted_text.txt', type: 'text/plain' } as File
-    const screenshot = {
-      name: 'image.png',
-      type: 'image/png',
-      arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer
-    } as File
+    const directory = makeClipboardFile('Project Notes', '', new Uint8Array())
+    const diskFile = makeClipboardFile('pasted_text.txt', 'text/plain')
+    const screenshot = makeClipboardFile('image.png', 'image/png')
     const directoryMetadata = { kind: 'directory', size: 0, createdAt: 0, modifiedAt: 0 }
 
     beforeEach(() => {
@@ -70,13 +75,13 @@ describe('pasteHandling', () => {
       }))
       let files: ComposerAttachment[] = []
       const folderPaths: string[] = []
-      const event = {
+      const event: ClipboardPasteEvent = {
         preventDefault: vi.fn(),
         clipboardData: {
           getData: (type: string) => (type === 'text/plain' ? 'Project Notes' : ''),
           files: mixed ? [directory, screenshot, diskFile] : [directory, diskFile]
         }
-      } as unknown as ClipboardEvent
+      }
 
       expect(
         await pasteHandling.handlePaste(
@@ -106,10 +111,10 @@ describe('pasteHandling', () => {
     it('rejects a directory when the consumer cannot insert folder tokens', async () => {
       vi.mocked(window.api.ipcApi.request).mockResolvedValue({ ok: true, data: directoryMetadata })
       let files: ComposerAttachment[] = []
-      const event = {
+      const event: ClipboardPasteEvent = {
         preventDefault: vi.fn(),
         clipboardData: { getData: () => '', files: [directory] }
-      } as unknown as ClipboardEvent
+      }
 
       await pasteHandling.handlePaste(
         event,
@@ -136,10 +141,10 @@ describe('pasteHandling', () => {
       }
       let files: ComposerAttachment[] = []
       const folderPaths: string[] = []
-      const event = {
+      const event: ClipboardPasteEvent = {
         preventDefault: vi.fn(),
         clipboardData: { getData: () => '', files: [directory] }
-      } as unknown as ClipboardEvent
+      }
 
       await pasteHandling.handlePaste(
         event,
@@ -170,13 +175,13 @@ describe('pasteHandling', () => {
     const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
       files = updater(files)
     })
-    const event = {
+    const event: ClipboardPasteEvent = {
       preventDefault,
       clipboardData: {
         getData: (type: string) => (type === 'text' ? clipboardText : ''),
         files: []
       }
-    } as unknown as ClipboardEvent
+    }
 
     const handled = await pasteHandling.handlePaste(
       event,
@@ -225,11 +230,7 @@ describe('pasteHandling', () => {
       ext: '.png',
       type: FILE_TYPE.IMAGE
     }
-    const clipboardImage = {
-      name: 'excel.png',
-      type: 'image/png',
-      arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]).buffer)
-    } as unknown as File
+    const clipboardImage = makeClipboardFile('excel.png', 'image/png')
     vi.mocked(window.api.file.createTempFile).mockImplementation(async (name) =>
       name === 'pasted_text.txt' ? textFile.path : imageFile.path
     )
@@ -241,7 +242,7 @@ describe('pasteHandling', () => {
     const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
       files = updater(files)
     })
-    const event = {
+    const event: ClipboardPasteEvent = {
       preventDefault: vi.fn(),
       clipboardData: {
         getData: vi.fn((type: string) => {
@@ -251,7 +252,7 @@ describe('pasteHandling', () => {
         }),
         files: [clipboardImage]
       }
-    } as unknown as ClipboardEvent
+    }
 
     const handled = await pasteHandling.handlePaste(
       event,
@@ -282,13 +283,13 @@ describe('pasteHandling', () => {
     const clipboardText = 'x'.repeat(LONG_TEXT_PASTE_THRESHOLD + 1)
     const preventDefault = vi.fn()
     const setFiles = vi.fn()
-    const event = {
+    const event: ClipboardPasteEvent = {
       preventDefault,
       clipboardData: {
         getData: (type: string) => (type === 'text' ? clipboardText : ''),
         files: []
       }
-    } as unknown as ClipboardEvent
+    }
 
     const handled = await pasteHandling.handlePaste(event, ['.png'], setFiles, true, LONG_TEXT_PASTE_THRESHOLD)
 
@@ -302,13 +303,13 @@ describe('pasteHandling', () => {
     const clipboardText = 'x'.repeat(LONG_TEXT_PASTE_THRESHOLD + 1)
     const preventDefault = vi.fn()
     const setFiles = vi.fn()
-    const event = {
+    const event: ClipboardPasteEvent = {
       preventDefault,
       clipboardData: {
         getData: (type: string) => (type === 'text' ? clipboardText : ''),
         files: []
       }
-    } as unknown as ClipboardEvent
+    }
 
     const handled = await pasteHandling.handlePaste(event, ['.txt'], setFiles)
 
@@ -322,13 +323,13 @@ describe('pasteHandling', () => {
     const clipboardText = 'x'.repeat(LONG_TEXT_PASTE_THRESHOLD)
     const preventDefault = vi.fn()
     const setFiles = vi.fn()
-    const event = {
+    const event: ClipboardPasteEvent = {
       preventDefault,
       clipboardData: {
         getData: (type: string) => (type === 'text' ? clipboardText : ''),
         files: []
       }
-    } as unknown as ClipboardEvent
+    }
 
     const handled = await pasteHandling.handlePaste(event, [], setFiles, true, LONG_TEXT_PASTE_THRESHOLD)
 
@@ -346,11 +347,7 @@ describe('pasteHandling', () => {
       ext: '.png',
       type: FILE_TYPE.IMAGE
     }
-    const clipboardImage = {
-      name: 'image.png',
-      type: 'image/png',
-      arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]).buffer)
-    } as unknown as File
+    const clipboardImage = makeClipboardFile('image.png', 'image/png')
     vi.mocked(window.api.file.createTempFile).mockResolvedValue(tempImageFile.path)
     vi.mocked(window.api.file.get).mockResolvedValue(tempImageFile)
 
@@ -358,13 +355,13 @@ describe('pasteHandling', () => {
     const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
       files = updater(files)
     })
-    const event = {
+    const event: ClipboardPasteEvent = {
       preventDefault: vi.fn(),
       clipboardData: {
         getData: () => '',
         files: [clipboardImage]
       }
-    } as unknown as ClipboardEvent
+    }
 
     const handled = await pasteHandling.handlePaste(event, ['.png'], setFiles)
 
@@ -399,11 +396,7 @@ describe('pasteHandling', () => {
         type: FILE_TYPE.IMAGE
       }
     ]
-    const clipboardImages = ['first.png', 'second.png'].map((name) => ({
-      name,
-      type: 'image/png',
-      arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]).buffer)
-    })) as unknown as File[]
+    const clipboardImages = ['first.png', 'second.png'].map((name) => makeClipboardFile(name, 'image/png'))
     vi.mocked(window.api.file.createTempFile)
       .mockResolvedValueOnce(tempFiles[0].path)
       .mockResolvedValueOnce(tempFiles[1].path)
@@ -415,13 +408,13 @@ describe('pasteHandling', () => {
     const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
       files = updater(files)
     })
-    const event = {
+    const event: ClipboardPasteEvent = {
       preventDefault: vi.fn(),
       clipboardData: {
         getData: () => '',
         files: clipboardImages
       }
-    } as unknown as ClipboardEvent
+    }
 
     const handled = await pasteHandling.handlePaste(event, ['.png'], setFiles)
 
@@ -440,11 +433,7 @@ describe('pasteHandling', () => {
       ext: '.png',
       type: FILE_TYPE.IMAGE
     }
-    const clipboardImage = {
-      name: 'image.png',
-      type: 'image/png',
-      arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]).buffer)
-    } as unknown as File
+    const clipboardImage = makeClipboardFile('image.png', 'image/png')
     vi.mocked(window.api.file.createTempFile).mockResolvedValue(tempImageFile.path)
     vi.mocked(window.api.file.get).mockResolvedValue(tempImageFile)
 
@@ -452,13 +441,13 @@ describe('pasteHandling', () => {
     const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
       files = updater(files)
     })
-    const event = {
+    const event: ClipboardPasteEvent = {
       preventDefault: vi.fn(),
       clipboardData: {
         getData: (type: string) => (type === 'text' ? 'clipboard image' : ''),
         files: [clipboardImage]
       }
-    } as unknown as ClipboardEvent
+    }
 
     const handled = await pasteHandling.handlePaste(event, ['.png'], setFiles)
 
@@ -482,11 +471,7 @@ describe('pasteHandling', () => {
       ext: '.avif',
       type: FILE_TYPE.IMAGE
     }
-    const clipboardImage = {
-      name: 'image.avif',
-      type: 'image/avif',
-      arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]).buffer)
-    } as unknown as File
+    const clipboardImage = makeClipboardFile('image.avif', 'image/avif')
     vi.mocked(window.api.file.createTempFile).mockResolvedValue(tempImageFile.path)
     vi.mocked(window.api.file.get).mockResolvedValue(tempImageFile)
 
@@ -494,10 +479,10 @@ describe('pasteHandling', () => {
     const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
       files = updater(files)
     })
-    const event = {
+    const event: ClipboardPasteEvent = {
       preventDefault: vi.fn(),
       clipboardData: { getData: () => '', files: [clipboardImage] }
-    } as unknown as ClipboardEvent
+    }
 
     const handled = await pasteHandling.handlePaste(event, ['.png', anyFileExt], setFiles)
 
@@ -517,11 +502,7 @@ describe('pasteHandling', () => {
       ext: '.avif',
       type: FILE_TYPE.IMAGE
     }
-    const clipboardImage = {
-      name: 'image.avif',
-      type: 'image/avif',
-      arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]).buffer)
-    } as unknown as File
+    const clipboardImage = makeClipboardFile('image.avif', 'image/avif')
     vi.mocked(window.api.file.createTempFile).mockResolvedValue(tempImageFile.path)
     vi.mocked(window.api.file.get).mockResolvedValue(tempImageFile)
 
@@ -529,13 +510,13 @@ describe('pasteHandling', () => {
     const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
       files = updater(files)
     })
-    const event = {
+    const event: ClipboardPasteEvent = {
       preventDefault: vi.fn(),
       clipboardData: {
         getData: (type: string) => (type === 'text' ? 'clipboard image' : ''),
         files: [clipboardImage]
       }
-    } as unknown as ClipboardEvent
+    }
 
     const handled = await pasteHandling.handlePaste(event, ['.png', anyFileExt], setFiles)
 
@@ -545,20 +526,16 @@ describe('pasteHandling', () => {
   })
 
   it('still refuses an unlisted clipboard image when the surface has no wildcard', async () => {
-    const clipboardImage = {
-      name: 'image.avif',
-      type: 'image/avif',
-      arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]).buffer)
-    } as unknown as File
+    const clipboardImage = makeClipboardFile('image.avif', 'image/avif')
 
     let files: ComposerAttachment[] = []
     const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
       files = updater(files)
     })
-    const event = {
+    const event: ClipboardPasteEvent = {
       preventDefault: vi.fn(),
       clipboardData: { getData: () => '', files: [clipboardImage] }
-    } as unknown as ClipboardEvent
+    }
 
     const handled = await pasteHandling.handlePaste(
       event,
@@ -607,20 +584,20 @@ describe('pasteHandling', () => {
       return Promise.resolve(secondFile)
     })
     const clipboardFiles = [
-      { name: firstFile.name, type: 'image/png' },
-      { name: secondFile.name, type: 'image/png' }
-    ] as File[]
+      makeClipboardFile(firstFile.name, 'image/png'),
+      makeClipboardFile(secondFile.name, 'image/png')
+    ]
     let files: ComposerAttachment[] = [toComposerAttachment(selectedFile)]
     const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
       files = updater(files)
     })
-    const event = {
+    const event: ClipboardPasteEvent = {
       preventDefault: vi.fn(),
       clipboardData: {
         getData: () => '',
         files: clipboardFiles
       }
-    } as unknown as ClipboardEvent
+    }
 
     const pastePromise = pasteHandling.handlePaste(event, ['.png'], setFiles)
     await secondReadStarted
@@ -648,17 +625,17 @@ describe('pasteHandling', () => {
       path === '/tmp/failure.png' ? Promise.reject(new Error('read failed')) : Promise.resolve(successfulFile)
     )
     const clipboardFiles = [
-      { name: 'failure.png', type: 'image/png' },
-      { name: successfulFile.name, type: 'image/png' }
-    ] as File[]
+      makeClipboardFile('failure.png', 'image/png'),
+      makeClipboardFile(successfulFile.name, 'image/png')
+    ]
     let files: ComposerAttachment[] = []
     const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
       files = updater(files)
     })
-    const event = {
+    const event: ClipboardPasteEvent = {
       preventDefault: vi.fn(),
       clipboardData: { getData: () => '', files: clipboardFiles }
-    } as unknown as ClipboardEvent
+    }
 
     const handled = await pasteHandling.handlePaste(
       event,
@@ -689,17 +666,17 @@ describe('pasteHandling', () => {
     vi.mocked(window.api.file.getPathForFile).mockImplementation((file) => `/tmp/${file.name}`)
     vi.mocked(window.api.file.get).mockResolvedValue(supportedFile)
     const clipboardFiles = [
-      { name: 'unsupported.exe', type: 'application/octet-stream' },
-      { name: supportedFile.name, type: 'image/png' }
-    ] as File[]
+      makeClipboardFile('unsupported.exe', 'application/octet-stream'),
+      makeClipboardFile(supportedFile.name, 'image/png')
+    ]
     let files: ComposerAttachment[] = []
     const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
       files = updater(files)
     })
-    const event = {
+    const event: ClipboardPasteEvent = {
       preventDefault: vi.fn(),
       clipboardData: { getData: () => '', files: clipboardFiles }
-    } as unknown as ClipboardEvent
+    }
 
     const handled = await pasteHandling.handlePaste(
       event,
@@ -723,13 +700,13 @@ describe('pasteHandling', () => {
     const preventDefault = vi.fn()
     const setFiles = vi.fn()
     vi.mocked(window.api.file.get).mockResolvedValue(null)
-    const event = {
+    const event: ClipboardPasteEvent = {
       preventDefault,
       clipboardData: {
         getData: (type: string) => (type === 'text' ? clipboardText : ''),
         files: []
       }
-    } as unknown as ClipboardEvent
+    }
 
     const handled = await pasteHandling.handlePaste(
       event,
@@ -750,13 +727,13 @@ describe('pasteHandling', () => {
   it('tells the user when a path-backed file lookup returns null', async () => {
     vi.mocked(window.api.file.getPathForFile).mockImplementation((file) => `/tmp/${file.name}`)
     vi.mocked(window.api.file.get).mockResolvedValue(null)
-    const clipboardFiles = [{ name: 'gone.png', type: 'image/png' }] as File[]
+    const clipboardFiles = [makeClipboardFile('gone.png', 'image/png')]
     const preventDefault = vi.fn()
     const setFiles = vi.fn()
-    const event = {
+    const event: ClipboardPasteEvent = {
       preventDefault,
       clipboardData: { getData: () => '', files: clipboardFiles }
-    } as unknown as ClipboardEvent
+    }
 
     const handled = await pasteHandling.handlePaste(
       event,
@@ -775,21 +752,17 @@ describe('pasteHandling', () => {
   })
 
   it('tells the user when a clipboard image temp file lookup returns null', async () => {
-    const clipboardImage = {
-      name: 'image.png',
-      type: 'image/png',
-      arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]).buffer)
-    } as unknown as File
+    const clipboardImage = makeClipboardFile('image.png', 'image/png')
     vi.mocked(window.api.file.get).mockResolvedValue(null)
     const preventDefault = vi.fn()
     const setFiles = vi.fn()
-    const event = {
+    const event: ClipboardPasteEvent = {
       preventDefault,
       clipboardData: {
         getData: () => '',
         files: [clipboardImage]
       }
-    } as unknown as ClipboardEvent
+    }
 
     const handled = await pasteHandling.handlePaste(
       event,
@@ -816,12 +789,8 @@ describe('pasteHandling', () => {
       ext: '.png',
       type: FILE_TYPE.IMAGE
     }
-    const clipboardImage = {
-      name: 'image.png',
-      type: 'image/png',
-      arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]).buffer)
-    } as unknown as File
-    const clipboardFiles = [clipboardImage, { name: 'gone.png', type: 'image/png' }] as unknown as File[]
+    const clipboardImage = makeClipboardFile('image.png', 'image/png')
+    const clipboardFiles = [clipboardImage, makeClipboardFile('gone.png', 'image/png')]
     vi.mocked(window.api.file.getPathForFile).mockImplementation((file) =>
       file.name === 'gone.png' ? '/tmp/gone.png' : ''
     )
@@ -833,10 +802,10 @@ describe('pasteHandling', () => {
     const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
       files = updater(files)
     })
-    const event = {
+    const event: ClipboardPasteEvent = {
       preventDefault: vi.fn(),
       clipboardData: { getData: () => '', files: clipboardFiles }
-    } as unknown as ClipboardEvent
+    }
 
     const handled = await pasteHandling.handlePaste(
       event,
@@ -864,13 +833,13 @@ describe('pasteHandling', () => {
       const setFiles = (updater: (prev: ComposerAttachment[]) => ComposerAttachment[]) => {
         files = updater(files)
       }
-      const event = {
+      const event: ClipboardPasteEvent = {
         preventDefault: vi.fn(),
         clipboardData: {
           getData: (type: string) => (type === 'text/plain' ? name : type === 'text/html' ? `<b>${name}</b>` : ''),
           files: [new File(['content'], name)]
         }
-      } as unknown as ClipboardEvent
+      }
 
       expect(await pasteHandling.handlePaste(event, [anyFileExt], setFiles)).toBe(true)
       expect(files).toHaveLength(1)
@@ -885,10 +854,10 @@ describe('pasteHandling', () => {
       vi.mocked(window.api.file.getPathForFile).mockImplementation((file) => `/tmp/${file.name}`)
       vi.mocked(window.api.file.get).mockImplementation(async (path) => ({ ...selectedFile, path }))
       let files: ComposerAttachment[] = []
-      const event = {
+      const event: ClipboardPasteEvent = {
         preventDefault: vi.fn(),
         clipboardData: { getData: () => '', files: [new File(['a'], 'photo.png'), new File(['b'], 'model.onnx')] }
-      } as unknown as ClipboardEvent
+      }
 
       await pasteHandling.handlePaste(event, supportedExts, (updater) => {
         files = updater(files)
@@ -900,21 +869,17 @@ describe('pasteHandling', () => {
 
   it('attaches clipboard bytes and local files together regardless of their formats', async () => {
     const bytes = new Uint8Array([1, 2, 3])
-    const clipboardFile = {
-      name: 'model.onnx',
-      type: 'application/octet-stream',
-      arrayBuffer: async () => bytes.buffer
-    } as File
+    const clipboardFile = makeClipboardFile('model.onnx', 'application/octet-stream', bytes)
     vi.mocked(window.api.file.getPathForFile).mockImplementation((file) =>
       file.name === 'local.dwg' ? '/tmp/local.dwg' : ''
     )
     vi.mocked(window.api.file.createTempFile).mockResolvedValue('/tmp/model.onnx')
     vi.mocked(window.api.file.get).mockImplementation(async (path) => ({ ...selectedFile, path }))
     let files: ComposerAttachment[] = []
-    const event = {
+    const event: ClipboardPasteEvent = {
       preventDefault: vi.fn(),
       clipboardData: { getData: () => '', files: [clipboardFile, new File(['local'], 'local.dwg')] }
-    } as unknown as ClipboardEvent
+    }
 
     await pasteHandling.handlePaste(event, [anyFileExt], (updater) => {
       files = updater(files)
@@ -927,14 +892,10 @@ describe('pasteHandling', () => {
   it.each(['local read', 'clipboard read', 'temp creation', 'temp write'])(
     'preserves existing and later attachments when a mixed paste fails during %s',
     async (failure) => {
-      const clipboardFile = {
-        name: 'clipboard.bin',
-        type: 'application/octet-stream',
-        arrayBuffer: async () => {
-          if (failure === 'clipboard read') throw new Error('clipboard unavailable')
-          return new Uint8Array([1, 2, 3]).buffer
-        }
-      } as File
+      const clipboardFile = makeClipboardFile('clipboard.bin', 'application/octet-stream')
+      if (failure === 'clipboard read') {
+        vi.spyOn(clipboardFile, 'arrayBuffer').mockRejectedValue(new Error('clipboard unavailable'))
+      }
       vi.mocked(window.api.file.getPathForFile).mockImplementation((file) =>
         file === clipboardFile ? '' : `/tmp/${file.name}`
       )
@@ -954,10 +915,10 @@ describe('pasteHandling', () => {
           ? [new File(['broken'], 'broken.dwg'), clipboardFile, new File(['valid'], 'valid.onnx')]
           : [clipboardFile, new File(['valid'], 'valid.onnx')]
       let files = [toComposerAttachment(selectedFile)]
-      const event = {
+      const event: ClipboardPasteEvent = {
         preventDefault: vi.fn(),
         clipboardData: { getData: () => '', files: clipboardFiles }
-      } as unknown as ClipboardEvent
+      }
 
       expect(
         await pasteHandling.handlePaste(
@@ -984,10 +945,10 @@ describe('pasteHandling', () => {
   )
 
   it('leaves ordinary text to the editor on an unrestricted surface', async () => {
-    const event = {
+    const event: ClipboardPasteEvent = {
       preventDefault: vi.fn(),
       clipboardData: { getData: () => 'ordinary text', files: [] }
-    } as unknown as ClipboardEvent
+    }
 
     expect(await pasteHandling.handlePaste(event, [anyFileExt], vi.fn())).toBe(false)
     expect(event.preventDefault).not.toHaveBeenCalled()
@@ -1003,7 +964,7 @@ describe('pasteHandling', () => {
       pasteHandling.registerHandler('inputbar', handler)
 
       // verify registration
-      const event = new Event('paste') as ClipboardEvent
+      const event = new Event('paste')
       document.dispatchEvent(event)
       expect(handler).toHaveBeenCalled()
 
@@ -1029,7 +990,7 @@ describe('pasteHandling', () => {
       // calling cleanup1 should NOT remove handler2 because references differ
       cleanup1()
 
-      const event = new Event('paste') as ClipboardEvent
+      const event = new Event('paste')
       document.dispatchEvent(event)
       expect(handler2).toHaveBeenCalled()
       expect(handler1).not.toHaveBeenCalled()
@@ -1053,7 +1014,7 @@ describe('pasteHandling', () => {
       // unregisterHandler with handler1 should be ignored since current handler is handler2
       pasteHandling.unregisterHandler('inputbar', handler1)
 
-      const event = new Event('paste') as ClipboardEvent
+      const event = new Event('paste')
       document.dispatchEvent(event)
       expect(handler2).toHaveBeenCalled()
     })
