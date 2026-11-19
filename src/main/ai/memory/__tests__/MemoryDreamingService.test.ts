@@ -107,6 +107,24 @@ describe('memory organization lifecycle and commit fences', () => {
     return session.commit([{ kind: 'write', receipt: read.receipt, content }], approve)
   }
 
+  it('keeps organization eligible for a bounded retry after a model timeout', async () => {
+    await save('A durable fact')
+    dreaming.request(scope)
+    const controller = new AbortController()
+    generate.mockImplementationOnce(async () => {
+      controller.abort(Object.assign(new Error('Job timed out'), { name: 'JobHandlerTimeoutError' }))
+      throw controller.signal.reason
+    })
+    await expect(dreaming.execute({ ...job(), signal: controller.signal })).rejects.toMatchObject({
+      reason: 'unavailable'
+    })
+    expect(readDreamingState(scope)).toMatchObject({
+      cancelled: false,
+      files: { 'MEMORY.md': { attempts: 1 } },
+      lastResult: { outcome: 'failed' }
+    })
+  })
+
   it.each([false, true])('preserves correction history when organization removes metadata: %s', async (remove) => {
     const duplicate = '- "Reply to me in Chinese."\n'
     await save('- "Old address"\n- "Reply in Chinese."\n' + duplicate)
