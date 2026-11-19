@@ -50,3 +50,24 @@ describe('compaction observation', () => {
     expect(events).toEqual([{ type: 'compaction-end', reason: 'threshold', aborted }])
   })
 })
+
+it('reports a recorded host summary failure as failed, not aborted', () => {
+  const events: AgentRuntimeEvent[] = []
+  const observer = new SessionEvents(SessionManager.inMemory(), (event) => events.push(event))
+
+  observer.handle({ type: 'compaction_start', reason: 'threshold' })
+  // The summary extension records the rejection, then cancels; Pi reports the cancel as aborted.
+  observer.summaryFailure = 'provider rejected the summary'
+  observer.handle({ type: 'compaction_end', reason: 'threshold', result: undefined, aborted: true, willRetry: false })
+  expect(events.filter((event) => event.type === 'compaction-end')).toEqual([
+    { type: 'compaction-end', reason: 'threshold', aborted: false, error: 'provider rejected the summary' }
+  ])
+
+  // A genuine user abort records no failure and stays aborted and quiet.
+  observer.handle({ type: 'compaction_end', reason: 'threshold', result: undefined, aborted: true, willRetry: false })
+  expect(events.filter((event) => event.type === 'compaction-end')[1]).toEqual({
+    type: 'compaction-end',
+    reason: 'threshold',
+    aborted: true
+  })
+})

@@ -72,9 +72,17 @@ export function resolveSessionCompaction<S extends { reserveTokens: number; keep
   reserveTokens?: number
 }): S | (S & AgentRuntimeCompaction) {
   const { inherited, nativeBudgets, model, reserveTokens } = options
-  // Half-window small-window cap: the native 16,384 floor alone plus the retained tail would
-  // exceed a <=32,768-token window and break the threshold, pinned or not.
-  const capped = reserveTokens === undefined ? undefined : Math.min(Math.floor(model.contextWindow / 2), reserveTokens)
+  // Cap a pinned reserve against the FINAL retained-tail budget, not a fixed half window: the
+  // threshold (window - reserve) must still leave room for the kept tail, but a feasible pinned
+  // trigger (e.g. 30% of a 100k window with a 20k tail) must keep taking effect. A window too
+  // small for any tail falls back to half the window.
+  const finalKeepRecent =
+    inherited && compactionBudgetsFitModel(inherited, model)
+      ? inherited.keepRecentTokens
+      : nativeBudgets.keepRecentTokens
+  const room = model.contextWindow - finalKeepRecent - 1
+  const reserveCeiling = room > 0 ? room : Math.floor(model.contextWindow / 2)
+  const capped = reserveTokens === undefined ? undefined : Math.min(reserveCeiling, reserveTokens)
   const pinned = capped === undefined ? {} : { reserveTokens: capped }
   if (!inherited) return capped === undefined ? nativeBudgets : { ...nativeBudgets, reserveTokens: capped }
   return {

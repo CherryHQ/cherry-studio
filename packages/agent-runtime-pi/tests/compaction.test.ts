@@ -401,7 +401,8 @@ describe('host summarizer', () => {
         type: 'compaction-end',
         reason: 'threshold',
         error: 'compression model unavailable',
-        aborted: true
+        // Pi reports the cancel as aborted; a recorded summary failure must still surface as failed.
+        aborted: false
       })
   })
 })
@@ -454,13 +455,24 @@ describe('compactionBudgetsFitModel', () => {
   })
 })
 
-it('caps a pinned reserve at half a small window', () => {
+it('caps a pinned reserve so the retained tail still fits a small window', () => {
   const resolved = resolveSessionCompaction({
     inherited: undefined,
     nativeBudgets: { reserveTokens: 16_384, keepRecentTokens: 5_000 },
     model: { contextWindow: 20_000 },
     reserveTokens: 16_384
   })
-  expect(resolved.reserveTokens).toBe(10_000)
+  expect(resolved.reserveTokens).toBe(14_999)
   expect(resolved.reserveTokens + resolved.keepRecentTokens).toBeLessThan(20_000)
+})
+
+it('keeps a feasible pinned reserve instead of halving it (30% trigger on a 100k window)', () => {
+  const resolved = resolveSessionCompaction({
+    inherited: undefined,
+    nativeBudgets: { reserveTokens: 16_384, keepRecentTokens: 20_000 },
+    model: { contextWindow: 100_000 },
+    reserveTokens: 70_000
+  })
+  expect(resolved.reserveTokens).toBe(70_000)
+  expect(100_000 - resolved.reserveTokens).toBe(30_000)
 })

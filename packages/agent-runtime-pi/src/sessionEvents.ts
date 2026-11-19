@@ -53,12 +53,17 @@ export class SessionEvents {
         this.listener({ type: 'compaction-start', reason: event.reason })
         break
       case 'compaction_end': {
-        const error = event.errorMessage ?? this.summaryFailure
+        const summaryFailure = this.summaryFailure
+        const error = event.errorMessage ?? summaryFailure
         this.summaryFailure = undefined
+        // A host summary rejection cancels Pi's native fallback, which Pi reports as aborted. The
+        // extension only records a failure when the signal was NOT aborted, so a recorded failure
+        // is a real error: surface it as failed. Genuine user aborts record nothing and stay quiet.
+        const aborted = event.errorMessage === undefined && summaryFailure !== undefined ? false : event.aborted
         this.listener({
           type: 'compaction-end',
           reason: event.reason,
-          aborted: event.aborted,
+          aborted,
           ...(error ? { error } : {})
         })
         break
