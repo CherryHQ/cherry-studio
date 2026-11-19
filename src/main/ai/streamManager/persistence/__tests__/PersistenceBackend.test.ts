@@ -229,11 +229,10 @@ describe('finalizeInterruptedParts', () => {
 
     const result = finalizeInterruptedParts([streamingReasoning], 'paused')
 
-    expect(result[0]).toMatchObject({
-      type: 'reasoning',
-      state: 'done'
-    })
-    const cherryMeta = readCherryMeta(result[0])
+    const reasoning = result[0]
+    assert(reasoning.type === 'reasoning')
+    expect(reasoning.state).toBe('done')
+    const cherryMeta = readCherryMeta(reasoning)
     expect(cherryMeta?.thinkingMs).toBe(5000)
   })
 
@@ -246,11 +245,10 @@ describe('finalizeInterruptedParts', () => {
 
     const result = finalizeInterruptedParts([streamingReasoning], 'paused')
 
-    expect(result[0]).toMatchObject({
-      type: 'reasoning',
-      state: 'done'
-    })
-    const cherryMeta = readCherryMeta(result[0])
+    const reasoning = result[0]
+    assert(reasoning.type === 'reasoning')
+    expect(reasoning.state).toBe('done')
+    const cherryMeta = readCherryMeta(reasoning)
     expect(cherryMeta?.thinkingMs).toBeUndefined()
   })
 })
