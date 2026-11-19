@@ -161,7 +161,8 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     previewValue,
     resetPreviewKey,
     minHeight,
-    maxHeight
+    maxHeight,
+    editorLabel
   }: {
     actions?: ReactNode
     label?: ReactNode
@@ -173,6 +174,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     resetPreviewKey?: number
     minHeight?: string
     maxHeight?: string
+    editorLabel?: string
   }) => (
     <div>
       <div>
@@ -181,7 +183,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
         {actions}
       </div>
       <textarea
-        aria-label="Prompt editor"
+        aria-label={editorLabel ?? 'Prompt editor'}
         placeholder={placeholder}
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -2810,13 +2812,12 @@ describe('Agent configuration memory', () => {
     const user = userEvent.setup()
     render(<Harness />)
     await user.click(screen.getByRole('button', { name: 'Memory' }))
-    await user.click(await screen.findByRole('button', { name: 'Edit' }))
-    const editor = screen.getByRole('textbox', { name: 'Edit SOUL.md' })
+    const editor = await screen.findByRole('textbox', { name: 'Edit SOUL.md' })
     await user.clear(editor)
     await user.type(editor, 'Updated persona')
     expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'agent.memory.write')).toEqual([])
     await user.click(screen.getByRole('button', { name: 'Save' }))
-    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Edit SOUL.md' })).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument())
     expect(ipcRequestMock).toHaveBeenCalledWith('agent.memory.write', {
       agentId: AGENT.id,
       key: 'soul',
@@ -2825,7 +2826,7 @@ describe('Agent configuration memory', () => {
     })
     expect(updateAgentMock).not.toHaveBeenCalled()
     await user.click(screen.getByRole('tab', { name: 'Event log' }))
-    expect(screen.getByRole('button', { name: 'Edit' })).toBeDisabled()
+    expect(screen.queryByRole('textbox', { name: 'Edit JOURNAL.jsonl' })).not.toBeInTheDocument()
     expect(screen.getByText('{"event":"remembered"}')).toBeVisible()
   })
 
@@ -2901,8 +2902,7 @@ describe('Agent configuration memory', () => {
       const user = userEvent.setup()
       render(<Harness />)
       await user.click(screen.getByRole('button', { name: 'Memory' }))
-      await user.click(await screen.findByRole('button', { name: 'Edit' }))
-      await user.type(screen.getByRole('textbox', { name: 'Edit SOUL.md' }), ' unsaved')
+      await user.type(await screen.findByRole('textbox', { name: 'Edit SOUL.md' }), ' unsaved')
       const leave = () =>
         destination === 'file'
           ? user.click(screen.getByRole('tab', { name: 'User profile' }))

@@ -34,6 +34,8 @@ interface PromptEditorFieldProps {
   autoFocus?: boolean
   fill?: boolean
   disabled?: boolean
+  /** Accessible name of the text area, when `label` is not plain text (tabs, say). */
+  editorLabel?: string
 }
 
 export function PromptEditorField({
@@ -51,7 +53,8 @@ export function PromptEditorField({
   maxHeight = '50vh',
   autoFocus = false,
   fill = false,
-  disabled = false
+  disabled = false,
+  editorLabel
 }: PromptEditorFieldProps) {
   const { t } = useTranslation()
   const previewId = useId()
@@ -75,6 +78,13 @@ export function PromptEditorField({
   const hasError = Boolean(error)
   const effectiveShowPreview = showPreview && value.length > 0
   const tokenCount = useMemo(() => estimateTextTokens(value), [value])
+  const extensions = useMemo(
+    () =>
+      editorLabel
+        ? [...promptEditorExtensions, EditorView.contentAttributes.of({ 'aria-label': editorLabel })]
+        : promptEditorExtensions,
+    [editorLabel]
+  )
 
   useImperativeHandle(ref, () => ({
     insertText: (text: string) => codeEditorRef.current?.insertText?.(text) ?? false
@@ -154,7 +164,7 @@ export function PromptEditorField({
               onChange={handleChange}
               editable={!disabled}
               options={{ foldGutter: false, lineNumbers: false, highlightActiveLine: false }}
-              extensions={promptEditorExtensions}
+              extensions={extensions}
               expanded={false}
               className={fill ? 'min-h-0 flex-1' : undefined}
               height={fill ? '100%' : undefined}
