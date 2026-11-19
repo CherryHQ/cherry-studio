@@ -632,7 +632,7 @@ class DiscordAdapter extends ChannelAdapter {
 
     await this.apiRequest(`${DISCORD_API_BASE}/applications/${this.applicationId}/commands`, {
       method: 'PUT',
-      body: SLASH_COMMANDS as unknown as Record<string, unknown>[]
+      body: SLASH_COMMANDS
     })
     this.log.info('Registered Discord slash commands', { count: SLASH_COMMANDS.length })
   }
@@ -770,7 +770,7 @@ class DiscordAdapter extends ChannelAdapter {
 
   private async apiRequest(
     url: string,
-    options?: { method?: string; body?: Record<string, unknown> | Record<string, unknown>[] }
+    options?: { method?: string; body?: Record<string, unknown> | readonly Record<string, unknown>[] }
   ): Promise<Response> {
     const request: NonNullable<Parameters<typeof net.fetch>[1]> = {
       method: options?.method ?? 'GET',
