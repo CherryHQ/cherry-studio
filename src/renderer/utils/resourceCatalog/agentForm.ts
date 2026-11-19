@@ -52,33 +52,13 @@ export interface AgentFormState {
   languageCustom: string
 }
 
-function asString(value: unknown): string {
-  return typeof value === 'string' ? value : ''
-}
-
-/**
- * Serialize a `configuration.env_vars` entry into a line-delimited `KEY=VALUE`
- * text block for the textarea control. Accepts either array-of-`{key, value}`
- * pairs (the canonical shape emitted by `envVarsFromText`) or a plain object.
- */
-function envVarsToText(raw: unknown): string {
-  if (Array.isArray(raw)) {
-    return raw
-      .filter((item): item is { key?: unknown; value?: unknown } => typeof item === 'object' && item !== null)
-      .map(({ key, value }) => {
-        const k = asString(key)
-        if (!k) return ''
-        return `${k}=${asString(value)}`
-      })
-      .filter(Boolean)
-      .join('\n')
-  }
-  if (raw && typeof raw === 'object') {
-    return Object.entries(raw as Record<string, unknown>)
-      .map(([k, v]) => `${k}=${asString(v)}`)
-      .join('\n')
-  }
-  return ''
+/** Serialize the validated environment map into the textarea's KEY=VALUE lines. */
+function envVarsToText(raw: AgentConfiguration['env_vars']): string {
+  return raw
+    ? Object.entries(raw)
+        .map(([key, value]) => `${key}=${value}`)
+        .join('\n')
+    : ''
 }
 
 /** Reverse of `envVarsToText` — record of `KEY -> VALUE`, empty lines dropped. */
@@ -111,8 +91,8 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     disabledTools: (agent?.disabledTools ?? []).map((name) =>
       agent?.type === 'pi' || agent?.type === 'pi-durable' ? normalizePiDisabledToolId(name) : name
     ),
-    avatar: asString(cfg.avatar),
-    permissionMode: asString(cfg.permission_mode),
+    avatar: cfg.avatar ?? '',
+    permissionMode: cfg.permission_mode ?? '',
     envVarsText: envVarsToText(cfg.env_vars),
     heartbeatEnabled: isHeartbeatEnabled(cfg),
     heartbeatInterval: clampHeartbeatIntervalMinutes(cfg.heartbeat_interval),
@@ -121,7 +101,9 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
   }
 }
 
-function initialLanguageFields(language: unknown): Pick<AgentFormState, 'languageMode' | 'languageCustom'> {
+function initialLanguageFields(
+  language: AgentConfiguration['language']
+): Pick<AgentFormState, 'languageMode' | 'languageCustom'> {
   if (language === null) return { languageMode: 'off', languageCustom: '' }
   if (typeof language === 'string') {
     const normalized = normalizeAgentLanguageInput(language)
