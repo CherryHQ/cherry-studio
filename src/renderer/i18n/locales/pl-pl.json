@@ -3549,6 +3549,7 @@
   "provider.tokenhub": "TokenHub",
   "provider.vertexai": "Vertex AI",
   "provider.voyageai": "Voyage AI",
+  "provider.worldrouter": "WorldRouter",
   "provider.xirang": "State Cloud Xirang",
   "provider.yi": "Yi",
   "provider.zai": "Z.ai",
