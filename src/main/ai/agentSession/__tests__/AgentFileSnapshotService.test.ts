@@ -48,6 +48,21 @@ describe('AgentFileSnapshotService', () => {
   it('registers a round without creating snapshot files', async () => {
     await expect(stat(path.join(testDir, 'snapshots'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
+  it('reports no round without creating snapshots after the round finishes', async () => {
+    await service.markRoundFinished(round.sessionId, round.replyId)
+    expect(
+      await service.protectWrite({
+        round,
+        callId: 'late',
+        runtime: 'pi',
+        toolName: 'write',
+        filePath: path.join(root, 'file'),
+        cwd: root,
+        intent: { toolName: 'write', input: { content: 'data' } }
+      })
+    ).toEqual({ reason: 'no-round' })
+    await expect(stat(path.join(testDir, 'snapshots'))).rejects.toMatchObject({ code: 'ENOENT' })
+  })
   it('rejects a snapshot root inside the workspace without changing git status', async () => {
     execFileSync('git', ['-c', 'init.defaultBranch=main', 'init', '-q', root], {
       env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' }
@@ -142,7 +157,7 @@ describe('AgentFileSnapshotService', () => {
       cwd: root
     })
     await writeFile(target, value)
-    await service.settleWrite({ round, attemptId, outcome: 'success' })
+    await service.settleWrite({ round, attemptId: attemptId!, outcome: 'success' })
   }
   async function undo() {
     await service.markRoundFinished(round.sessionId, round.replyId)
@@ -236,7 +251,7 @@ describe('AgentFileSnapshotService', () => {
     const handle = await open(large, 'w')
     await handle.truncate(65 * 1024 * 1024)
     await handle.close()
-    await service.settleWrite({ round, attemptId, outcome: 'success' })
+    await service.settleWrite({ round, attemptId: attemptId!, outcome: 'success' })
     await write(other, 'after', 'other')
     const result = await undo()
     expect(result.reason).toBe('unverifiable')
@@ -256,7 +271,7 @@ describe('AgentFileSnapshotService', () => {
       cwd: root
     })
     await writeFile(target, 'user content')
-    await service.settleWrite({ round, attemptId, outcome: 'failure' })
+    await service.settleWrite({ round, attemptId: attemptId!, outcome: 'failure' })
     expect((await undo()).files).toEqual([{ path: target, status: 'skipped' }])
     expect(await readFile(target, 'utf8')).toBe('user content')
   })
@@ -414,7 +429,8 @@ describe('AgentFileSnapshotService', () => {
     ])
     expect(await readdir(path.join(testDir, 'snapshots/session/reply/blobs'))).toHaveLength(1)
     await writeFile(target, 'changed')
-    for (const { attemptId } of attempts) await service.settleWrite({ round, attemptId, outcome: 'success' })
+    for (const { attemptId } of attempts)
+      await service.settleWrite({ round, attemptId: attemptId!, outcome: 'success' })
     expect((await undo()).files[0].status).toBe('restored')
     expect(await readFile(target, 'utf8')).toBe('original')
   })
@@ -527,7 +543,7 @@ describe('AgentFileSnapshotService', () => {
       ...call(target, '1'),
       intent: { toolName: 'NotebookEdit', input: {} }
     })
-    await service.settleWrite({ round, attemptId, outcome: 'success' })
+    await service.settleWrite({ round, attemptId: attemptId!, outcome: 'success' })
     await service.markRoundFinished(round.sessionId, round.replyId)
     expect(await service.getUndoState(round.sessionId)).toMatchObject({ canUndo: false, reason: 'unknown' })
   })
@@ -542,7 +558,7 @@ describe('AgentFileSnapshotService', () => {
       })
       await writeFile(target, 'B')
       if (saveTime === 'before') await writeFile(target, 'C')
-      await service.settleWrite({ round, attemptId, outcome: 'success' })
+      await service.settleWrite({ round, attemptId: attemptId!, outcome: 'success' })
       if (saveTime === 'after') await writeFile(target, 'C')
       await service.markRoundFinished(round.sessionId, round.replyId)
       const state = await service.getUndoState(round.sessionId)
@@ -593,7 +609,7 @@ describe('AgentFileSnapshotService', () => {
       const attempt = await service.protectWrite({ ...call(target, 'edit'), intent: { toolName, input } })
       expect(attempt.classification).not.toBe('undecidable')
       await writeFile(target, expected)
-      await service.settleWrite({ round, attemptId: attempt.attemptId, outcome: 'success' })
+      await service.settleWrite({ round, attemptId: attempt.attemptId!, outcome: 'success' })
       const manifest = JSON.parse(await readFile(path.join(testDir, 'snapshots/session/reply/manifest.json'), 'utf8'))
       expect(manifest.files[0]).toMatchObject({ afterHash: hash(expected), afterSize: String(expected.length) })
       expect(manifest.files[0]).not.toHaveProperty('after')

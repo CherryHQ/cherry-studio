@@ -212,12 +212,17 @@ export class AgentFileSnapshotService extends BaseService {
       }
     })
   }
-  async protectWrite(call: ProtectedFileCall): Promise<{ attemptId: string; classification: AttemptClassification }> {
-    if (!path.isAbsolute(call.filePath)) throw new Error('Snapshot target must be absolute')
+  async protectWrite(
+    call: ProtectedFileCall
+  ): Promise<
+    | { attemptId: string; classification: AttemptClassification }
+    | { reason: 'no-round'; attemptId?: never; classification?: never }
+  > {
     return this.exclusive(call.round.sessionId, async () => {
       const current = this.currentRounds.get(call.round.sessionId)
-      if (!current || current.manifest.replyId !== call.round.replyId) throw new Error('Round is not current')
-      if (current.manifest.finishedAt) throw new Error('Round is finished')
+      if (!current || current.manifest.finishedAt) return { reason: 'no-round' as const }
+      if (current.manifest.replyId !== call.round.replyId) throw new Error('Round is not current')
+      if (!path.isAbsolute(call.filePath)) throw new Error('Snapshot target must be absolute')
       if (
         !current.resumed &&
         JSON.stringify(current.manifest.inputMessageIds) !== JSON.stringify(call.round.inputMessageIds)

@@ -102,6 +102,7 @@ vi.mock('@application', async () => {
     },
     AgentSessionRuntimeService: {
       getInteractionState: mocks.interaction,
+      getLiveSnapshotRound: () => undefined,
       primeConnection: mocks.prime,
       getTurnTrustedNotifyChannels: () => undefined
     }

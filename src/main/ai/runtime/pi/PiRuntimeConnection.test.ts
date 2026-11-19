@@ -72,7 +72,7 @@ vi.mock('@application', async () => {
       getAgentSessionUsageHeaders: () => ({})
     },
     McpCatalogService: { listTools: () => [] },
-    AgentSessionRuntimeService: { getInteractionState: mocks.interaction }
+    AgentSessionRuntimeService: { getInteractionState: mocks.interaction, getLiveSnapshotRound: () => undefined }
   }
   return mockApplicationFactory(overrides)
 })

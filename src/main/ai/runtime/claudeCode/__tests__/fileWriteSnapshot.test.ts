@@ -22,6 +22,7 @@ describe('Claude Code file write snapshots', () => {
   let requests: number
   let interaction: { currentTurn: string; userResponse: string }
   let emitter: boolean
+  let liveRound: typeof round | undefined
   beforeEach(async () => {
     testDir = await mkdtemp(path.join(os.tmpdir(), 'cherry-'))
     root = path.join(testDir, 'workspace')
@@ -33,6 +34,7 @@ describe('Claude Code file write snapshots', () => {
     vi.spyOn(service, 'workspaceRoots').mockResolvedValue([])
     vi.spyOn(application, 'getPath').mockReturnValue(path.join(testDir, 'snapshots'))
     await service.admitRound(round)
+    liveRound = round
     approved = true
     requests = 0
     emitter = true
@@ -40,7 +42,7 @@ describe('Claude Code file write snapshots', () => {
     vi.spyOn(application, 'get').mockImplementation(((name: string) => {
       if (name === 'AgentFileSnapshotService') return service
       if (name === 'AgentSessionRuntimeService')
-        return { getLiveSnapshotRound: () => round, getInteractionState: () => interaction }
+        return { getLiveSnapshotRound: () => liveRound, getInteractionState: () => interaction }
       if (name === 'ClaudeCodeSessionStateService')
         return {
           peekToolApprovalEmitter: () =>
@@ -99,6 +101,18 @@ describe('Claude Code file write snapshots', () => {
     await hooks.post({ hook_event_name: 'PostToolUseFailure', tool_name: 'Write' } as never, 'call', {} as never)
     const manifest = JSON.parse(await readFile(path.join(testDir, 'snapshots/session/reply/manifest.json'), 'utf8'))
     expect(manifest.files[0].attempts[0].status).toBe('failed')
+  })
+  it('passes without a live round and creates no snapshot', async () => {
+    liveRound = undefined
+    expect(await pre('Write', { file_path: target, content: '' })).toEqual({})
+    expect(requests).toBe(0)
+    await expect(readFile(path.join(testDir, 'snapshots/session/reply/manifest.json'))).rejects.toMatchObject({
+      code: 'ENOENT'
+    })
+  })
+  it('denies if snapshot state is missing while the runtime round remains live', async () => {
+    await service.markRoundFinished(round.sessionId, round.replyId)
+    expect(decision(await pre('Write', { file_path: target, content: 'data' }))).toBe('deny')
   })
   it('denies if snapshot protection fails', async () => {
     vi.spyOn(service, 'protectWrite').mockRejectedValue(new Error('failure'))

@@ -5,7 +5,7 @@ import type { HookCallback, HookJSONOutput } from '@anthropic-ai/claude-agent-sd
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { SnapshotRound } from '@main/ai/agentSession/AgentFileSnapshotService'
+import type { AgentFileSnapshotService, SnapshotRound } from '@main/ai/agentSession/AgentFileSnapshotService'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 
 // Only deny here: allowing would bypass the SDK's normal permission checks.
@@ -34,7 +34,6 @@ export function createFileWriteSnapshotHooks(
       return denial(reason)
     }
     try {
-      if (!sessionId || !cwd || !callId) return denial('stale')
       const toolInput = input.tool_input as Record<string, unknown>
       const filePath = toolInput?.[input.tool_name === 'NotebookEdit' ? 'notebook_path' : 'file_path']
       if (typeof filePath !== 'string' || !filePath) return {}
@@ -43,11 +42,14 @@ export function createFileWriteSnapshotHooks(
       if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return {}
       const runtime = application.get('AgentSessionRuntimeService')
       const round = runtime.getLiveSnapshotRound(sessionId)
-      if (!round?.replyId) return denial('stale')
-      let attemptId: string
-      let classification: 'none' | 'empty' | 'large-deletion' | 'undecidable'
+      if (!round?.replyId) {
+        logger.debug('Skipping file snapshot without a live round', { sessionId })
+        return {}
+      }
+      if (!sessionId || !cwd || !callId) return denial('stale')
+      let result: Awaited<ReturnType<AgentFileSnapshotService['protectWrite']>>
       try {
-        ;({ attemptId, classification } = await application.get('AgentFileSnapshotService').protectWrite({
+        result = await application.get('AgentFileSnapshotService').protectWrite({
           round,
           callId,
           runtime: 'claude-code',
@@ -55,7 +57,7 @@ export function createFileWriteSnapshotHooks(
           filePath: target,
           cwd,
           intent: { toolName: input.tool_name, input: toolInput }
-        }))
+        })
       } catch (error) {
         logger.error('Failed to save file snapshot', { error })
         return denial(
@@ -64,6 +66,12 @@ export function createFileWriteSnapshotHooks(
             : 'snapshot-failed'
         )
       }
+      if ('reason' in result) {
+        if (runtime.getLiveSnapshotRound(sessionId)) return denial('stale')
+        logger.debug('Skipping file snapshot without a live round', { sessionId })
+        return {}
+      }
+      const { attemptId, classification } = result
       protectedAttempt = { attemptId, round }
       if (classification !== 'none') {
         const interaction = runtime.getInteractionState(sessionId)

@@ -219,7 +219,21 @@ describe('pi file writes', () => {
     ).toMatchObject({ reason: 'conflict', files: [{ status: 'conflict' }] })
     expect(await readFile(target, 'utf8')).toBe('user save')
   })
-  it('blocks child writes without a live round and ignores shell tools', async () => {
+  it('fails closed if snapshot state is missing while the runtime round remains live', async () => {
+    await service.markRoundFinished(round.sessionId, round.replyId)
+    const h = await host()
+    expect(
+      await h.fileWrites!.protect({
+        thread,
+        callKey,
+        tool: 'write',
+        args: { path: 'file', content: 'data' },
+        signal: new AbortController().signal
+      })
+    ).toEqual({ block: 'stale' })
+    await expect(stat(path.join(testDir, 'snapshots'))).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+  it('passes child writes without a live round and ignores shell tools', async () => {
     MockApplicationUtils.setService('AgentSessionRuntimeService', { getLiveSnapshotRound: () => undefined })
     const h = await host()
     const args = { path: 'file', content: '' }
@@ -231,7 +245,7 @@ describe('pi file writes', () => {
         args,
         signal: new AbortController().signal
       })
-    ).toHaveProperty('block')
+    ).toEqual({})
     expect(
       await h.fileWrites!.protect({ thread, callKey, tool: 'bash', args, signal: new AbortController().signal })
     ).toEqual({})

@@ -230,7 +230,7 @@ it.each(['native', 'terminal', 'stop'] as const)(
       cwd: workspace
     })
     await writeFile(target, 'after')
-    await snapshots.settleWrite({ round, attemptId, outcome: 'success' })
+    await snapshots.settleWrite({ round, attemptId: attemptId!, outcome: 'success' })
     expect((await snapshots.getUndoState('root')).reason).toBe('turn-active')
     if (terminal === 'native') await f.emit({ type: 'turn-complete' })
     else if (terminal === 'terminal') f.service.markTurnTerminal('root', 'paused', f.handle.turnId)
@@ -274,7 +274,7 @@ it.each(['native', 'listener'] as const)(
       cwd: workspace
     })
     await writeFile(target, 'after')
-    await snapshots.settleWrite({ round, attemptId, outcome: 'success' })
+    await snapshots.settleWrite({ round, attemptId: attemptId!, outcome: 'success' })
     const stopped = f.service.stopSession('root', 'user-requested')
     if (terminal === 'native') await f.emit({ type: 'turn-complete', status: 'paused' })
     else f.service.markTurnTerminal('root', 'paused', f.handle.turnId)
@@ -368,7 +368,7 @@ it('rejects the old on-disk round when the actual runtime admits an unwritten su
     intent: { toolName: 'write', input: { content: 'after' } }
   })
   await writeFile(target, 'after')
-  await snapshots.settleWrite({ round: first, attemptId: attempt.attemptId, outcome: 'success' })
+  await snapshots.settleWrite({ round: first, attemptId: attempt.attemptId!, outcome: 'success' })
   f.service.enqueueUserMessage('root', savedUser(f.reply.id, 'Follow-up'), { headless: true })
   await settleFirstTurn(f)
   await expect.poll(() => next).toBeDefined()
@@ -433,7 +433,7 @@ it.each([true, false])(
         filePath: target,
         cwd: workspace
       })
-    await snapshots.settleWrite({ round: firstRound, attemptId: attempt.attemptId, outcome: 'failure' })
+    await snapshots.settleWrite({ round: firstRound, attemptId: attempt.attemptId!, outcome: 'failure' })
     const manifest = JSON.parse(
       await readFile(path.join(testDir, 'snapshots/root', merged.replyId, 'manifest.json'), 'utf8')
     )
@@ -473,7 +473,7 @@ it.each(['goal-round', 'background-work'] as const)(
       await writeFile(target, 'first')
       await snapshots.settleWrite({
         round: first,
-        attemptId,
+        attemptId: attemptId!,
         outcome: 'success'
       })
       await settleFirstTurn(f)
@@ -496,7 +496,7 @@ it.each(['goal-round', 'background-work'] as const)(
       cwd: workspace
     })
     await writeFile(target, 'continued')
-    await snapshots.settleWrite({ round, attemptId, outcome: 'success' })
+    await snapshots.settleWrite({ round, attemptId: attemptId!, outcome: 'success' })
     if (kind === 'background-work') {
       const manifest = JSON.parse(
         await readFile(path.join(testDir, 'snapshots/root', round.replyId, 'manifest.json'), 'utf8')

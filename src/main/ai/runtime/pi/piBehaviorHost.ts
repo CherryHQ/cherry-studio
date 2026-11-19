@@ -89,7 +89,6 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
     fileWrites: {
       async protect({ thread, callKey, tool, args, signal }) {
         if (tool !== 'write' && tool !== 'edit') return {}
-        const missing = 'stale'
         const reject = async (block: string) => {
           await host.fileWrites!.settle({ thread, callKey, tool, args, isError: true })
           return { block }
@@ -97,7 +96,10 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
         try {
           const sessionId = input.sessionId
           const round = application.get('AgentSessionRuntimeService').getLiveSnapshotRound(sessionId)
-          if (!round) return { block: missing }
+          if (!round) {
+            logger.debug('Skipping file snapshot without a live round', { sessionId })
+            return {}
+          }
           const values = recordSchema.parse(args)
           if (typeof values.path !== 'string' || !values.path) return { block: 'invalid-path' }
           const filePath = values.path.replace(/[\u00a0\u2000-\u200a\u202f\u205f\u3000]/g, ' ').replace(/^@/, '')
@@ -115,7 +117,7 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
           const relative = path.relative(cwd, path.join(parent, path.basename(target)))
           if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative))
             return { block: 'outside-workspace' }
-          const { attemptId, classification } = await application.get('AgentFileSnapshotService').protectWrite({
+          const result = await application.get('AgentFileSnapshotService').protectWrite({
             round,
             callId: callKey,
             runtime: options.runtime,
@@ -125,6 +127,12 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
             cwd: options.cwd,
             intent: { toolName: tool, input: values }
           })
+          if ('reason' in result) {
+            if (application.get('AgentSessionRuntimeService').getLiveSnapshotRound(sessionId)) return reject('stale')
+            logger.debug('Skipping file snapshot without a live round', { sessionId })
+            return {}
+          }
+          const { attemptId, classification } = result
           attempts.set(callKey, { attemptId, round })
           if (classification === 'empty' || classification === 'large-deletion' || classification === 'undecidable') {
             const interaction = approval.getInteractionState()

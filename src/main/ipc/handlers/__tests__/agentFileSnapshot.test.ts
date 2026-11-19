@@ -40,7 +40,7 @@ beforeEach(async () => {
     intent: { toolName: 'write', input: { content: 'agent' } }
   })
   await writeFile(target, 'agent')
-  await snapshots.settleWrite({ round, attemptId: attempt.attemptId, outcome: 'success' })
+  await snapshots.settleWrite({ round, attemptId: attempt.attemptId!, outcome: 'success' })
   await snapshots.markRoundFinished(round.sessionId, round.replyId)
   attested = null
   MockApplicationUtils.setService('AgentFileSnapshotService', snapshots)

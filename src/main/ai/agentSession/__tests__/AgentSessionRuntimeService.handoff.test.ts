@@ -579,7 +579,7 @@ it('restores snapshot ownership when an autonomous reply releases the deferred u
   await writeFile(target, 'first')
   await snapshots.settleWrite({
     round: original,
-    attemptId: first.attemptId,
+    attemptId: first.attemptId!,
     outcome: 'success'
   })
   await f.emit({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'goal-round', round: 1 } })
@@ -616,7 +616,7 @@ it('restores snapshot ownership when an autonomous reply releases the deferred u
   await writeFile(target, 'second')
   await snapshots.settleWrite({
     round: resumed,
-    attemptId: second.attemptId,
+    attemptId: second.attemptId!,
     outcome: 'success'
   })
   const manifest = JSON.parse(
