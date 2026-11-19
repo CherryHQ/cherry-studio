@@ -87,13 +87,8 @@ test(...caseDefinition('CODE-01'), async ({ app, mainWindow: page }) => {
   await closeSettings(page)
   await openCodeTool(page, 'Claude Code')
   const codeView = page.locator('[data-ui~="code.view"]:visible').first()
-  const install = codeView.getByRole('button', { name: 'Install', exact: true })
-  const launch = codeView.getByRole('button', { name: 'Launch', exact: true })
-  await expect(install.or(launch)).toBeVisible()
-  if (await install.isVisible()) {
-    await install.click()
-    await expect(launch).toBeVisible({ timeout: 5 * 60_000 })
-  }
+  // Claude Code is preinstalled by the runner. The Install button can appear while detection is pending.
+  await expect(codeView.getByRole('button', { name: 'Launch', exact: true })).toBeVisible({ timeout: 30_000 })
   await configureTool(page, app.config.customProvider.chatModel, 'Unified Gateway')
   await launchWithWorkspace(app, page)
 })

@@ -252,19 +252,28 @@ export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo:
     let scrollingFrames = frames
     const deltas = { outer: 0, preview: 0, list: 0 }
     try {
-      await page.mouse.move(outerStart.x, outerStart.y)
       for (let step = 0; step < 3; step++) {
         const previous = await list.evaluate((element) => element.scrollTop)
-        await page.mouse.wheel(0, 24)
-        await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBeGreaterThan(previous)
+        await list.press('ArrowDown')
+        await expect
+          .poll(() => list.evaluate((element) => element.scrollTop), { timeout: 5_000 })
+          .toBeGreaterThan(previous)
       }
       await expect
-        .poll(async () => {
-          const samples = await recorder.evaluate(({ frames }) => frames)
-          scrollingFrames = samples.filter((frame, index) => index > 0 && frame.listTop !== samples[index - 1].listTop)
-          return scrollingFrames.length
-        })
-        .toBeGreaterThanOrEqual(3)
+        .poll(
+          async () => {
+            const samples = await recorder.evaluate(({ frames }) => frames)
+            scrollingFrames = samples.filter(
+              (frame, index) => index > 0 && frame.listTop !== samples[index - 1].listTop
+            )
+            const lastMovement = scrollingFrames.at(-1)
+            return (
+              lastMovement !== undefined && scrollingFrames.length >= 3 && samples.at(-1)!.t - lastMovement.t >= 150
+            )
+          },
+          { message: 'The message list scrolls across at least three frames and settles' }
+        )
+        .toBe(true)
       deltas.outer = (await list.evaluate((element) => element.scrollTop)) - startListTop
       expect(
         scrollingFrames.some((f) => f.hitPreview),
