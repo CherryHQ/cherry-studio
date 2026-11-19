@@ -139,7 +139,7 @@ describe('TranslateInputPane', () => {
       return <TranslateInputPane {...baseProps()} text={text} onTextChange={setText} onKeyDown={onTranslate} />
     }
     render(<Harness />)
-    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
+    const textarea = screen.getByRole<HTMLTextAreaElement>('textbox')
 
     expect(voiceTargetManager.captureCurrent()?.targetId).not.toBe('translate-page-source')
     fireEvent.focus(textarea)

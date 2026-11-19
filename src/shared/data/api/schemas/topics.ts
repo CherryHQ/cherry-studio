@@ -8,6 +8,7 @@
 import * as z from 'zod'
 
 import { AssistantIdSchema } from '../../types/assistant'
+import { ConversationListSortBySchema, ConversationListSortLocaleSchema } from '../../types/conversationList'
 import { type Topic, TopicNameSchema, TopicSchema } from '../../types/topic'
 import type { CursorPaginationResponse } from '../types'
 import { type OrderEndpoints, OrderRequestSchema } from './_endpointHelpers'
@@ -53,6 +54,9 @@ export type MoveTopicDto = z.infer<typeof MoveTopicSchema>
  * Query parameters for `GET /topics` (cursor pagination + search).
  */
 export const ListTopicsQuerySchema = z.strictObject({
+  sortBy: ConversationListSortBySchema.optional(),
+  sortLocale: ConversationListSortLocaleSchema.optional(),
+  sortOrder: z.enum(['asc', 'desc']).optional(),
   /** Exact topic ids to include. */
   ids: z.array(z.string().min(1)).min(1).max(200).optional(),
   /** Opaque cursor from previous page's `nextCursor`. */
@@ -171,8 +175,8 @@ export type TopicSchemas = {
      *
      * The list is a server-composed view: pinned topics first (joining the
      * `pin` table on `entityType = 'topic'` ordered by `pin.orderKey`), then
-     * unpinned topics ordered by `topic.orderKey ASC, id ASC` (manual/creation
-     * order + id tiebreak). The cursor encodes the section + last boundary so
+     * unpinned topics ordered by the selected sort key and `id ASC`
+     * (default: `topic.orderKey ASC`). The cursor encodes the section + last boundary so
      * paging across the boundary is seamless.
      */
     GET: {

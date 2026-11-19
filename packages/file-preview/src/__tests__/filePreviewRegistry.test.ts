@@ -33,6 +33,13 @@ describe('preview format detection', () => {
     expect(resolvePreviewPlugin('REPORT.DOCX', mediaType)?.id).toBe('word')
   })
 
+  it('resolves PPTD manifests to the pptd plugin and keeps PPTX on powerpoint', () => {
+    expect(resolvePreviewPlugin('presentation.pptd')?.id).toBe('pptd')
+    expect(supportsPreview('PRESENTATION.PPTD')).toBe(true)
+    expect(resolvePreviewPlugin('presentation.pptx')?.id).toBe('powerpoint')
+    expect(canSelectPreview('presentation.pptd')).toBe(false)
+  })
+
   it('does not treat arbitrary images or legacy Office formats as supported', () => {
     expect(supportsPreview('image', 'image/tiff')).toBe(false)
     expect(supportsPreview('report.doc', 'application/msword')).toBe(false)

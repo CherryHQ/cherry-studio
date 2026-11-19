@@ -1,10 +1,15 @@
-import { ThreadFeed, type Observation, type ObservationPayload, type ThreadSnapshot } from '@cherrystudio/agent-runtime'
+import {
+  immutable,
+  ThreadFeed,
+  type Observation,
+  type ObservationPayload,
+  type ThreadSnapshot
+} from '@cherrystudio/agent-runtime'
 
-import { cloneHistoryData } from './cloneHistoryData'
 import type { ClaudeControl, ClaudeControlState } from './control'
 import type { ClaudeInvocation, ClaudeNativeMessage, ClaudeObservation, ClaudeObservationSink } from './types'
 
-/** Keeps typed native payloads and normalized changes in the same bounded delivery queue. */
+/** Keeps typed native payloads and normalized changes in the same bounded delivery queue; deliveries share frozen values. */
 export class ClaudeFeed {
   private readonly state: ThreadFeed
   private readonly native = new Map<string, ClaudeNativeMessage>()
@@ -27,8 +32,7 @@ export class ClaudeFeed {
         subagents: [],
         activity: { state: 'unknown' }
       },
-      report,
-      cloneHistoryData
+      report
     )
   }
 
@@ -65,16 +69,19 @@ export class ClaudeFeed {
   ): void {
     if (this.ended) return
     if (state) this.controlState = state
-    // oxlint-disable-next-line no-restricted-globals -- Own the legacy map only when bindings change; ordinary deltas omit it.
-    if (legacy) this.legacy = structuredClone(legacy)
+    if (legacy) this.legacy = immutable(legacy)
     const replaces: Record<string, string> = {}
-    native = native
-      .filter((value) => !value.message.uuid || !this.retracted.has(value.message.uuid))
-      .map((value) =>
-        value.source === 'live' && value.message.type === 'assistant' && value.message.error
-          ? { ...value, isApiErrorMessage: true as const }
-          : value
-      )
+    // Freeze once; the state feed, the retained native map and every observer share these values.
+    events = immutable(events)
+    native = immutable(
+      native
+        .filter((value) => !value.message.uuid || !this.retracted.has(value.message.uuid))
+        .map((value) =>
+          value.source === 'live' && value.message.type === 'assistant' && value.message.error
+            ? { ...value, isApiErrorMessage: true as const }
+            : value
+        )
+    )
     for (const event of events) {
       this.state.publish(event)
       if (event.type === 'message.upsert') {
@@ -107,10 +114,9 @@ export class ClaudeFeed {
             ? `${message.subtype}:${message.tool_use_id}`
             : `${message.subtype}:${'task_id' in message ? message.task_id : ''}`
           : message.uuid
-      if (key && !(value.source === 'archive' && this.native.get(key)?.source === 'live'))
-        this.native.set(key, cloneHistoryData(value))
+      if (key && !(value.source === 'archive' && this.native.get(key)?.source === 'live')) this.native.set(key, value)
     }
-    const batch: ClaudeObservation = {
+    const batch: ClaudeObservation = immutable({
       events,
       controls,
       state: { aborted: this.controlState?.aborted ?? false },
@@ -122,7 +128,7 @@ export class ClaudeFeed {
       replaces,
       legacy: legacy ? this.legacy : undefined,
       retracted: [...this.pendingRetractions]
-    }
+    })
     this.pendingRetractions.clear()
     for (const send of this.observers) send(batch)
   }
@@ -142,10 +148,8 @@ export class ClaudeFeed {
     let sent = 1
     let delivered = 0
     const historical = new Set(this.snapshot.messages.map((message) => message.id))
-    const capture = (batch: ClaudeObservation, baseline = false): ClaudeObservation => ({
-      ...cloneHistoryData(batch),
-      live: baseline ? [] : batch.live?.filter((id) => !historical.has(id))
-    })
+    const capture = (batch: ClaudeObservation, baseline = false): ClaudeObservation =>
+      immutable({ ...batch, live: baseline ? [] : batch.live?.filter((id) => !historical.has(id)) })
     type Delivery = { batch: ClaudeObservation; through: number; recovery?: ClaudeObservation }
     let pending: Delivery[] = [{ batch: capture(this.baseline(), true), through: sent }]
     const barriers = new Set<{ through: number; resolve(): void; reject(error: Error): void }>()
