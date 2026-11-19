@@ -45,7 +45,7 @@ export class MemoryMigrationService extends BaseService {
   private readonly queue = new Mutex()
   private readonly work = createInFlightWorkTracker()
   private readonly pending = new Map<string, Promise<boolean>>()
-  private readonly failed = new Set<string>()
+  private readonly failed = new Map<string, string | null>()
   private stopped = false
   private generation = 0
 
@@ -82,14 +82,12 @@ export class MemoryMigrationService extends BaseService {
     if (this.stopped) return Promise.resolve(false)
     if (!agentService.getAgent(agentId)) return Promise.resolve(false)
     if (this.isMigrated(agentId)) return Promise.resolve(true)
-    if (this.failed.has(agentId)) return Promise.resolve(false)
     const pending = this.pending.get(agentId)
     if (pending) return pending
     const generation = this.generation
     const operation = this.queue
       .runExclusive(() => this.migrate(agentId, generation))
       .catch((error) => {
-        this.failed.add(agentId)
         logger.warn('Private migration is incomplete; legacy FACT is retained', { agentId, error })
         try {
           const previous = this.readState(agentId)
@@ -135,6 +133,8 @@ export class MemoryMigrationService extends BaseService {
     const legacyPath = facts[0] ? `memory/${facts[0]}` : undefined
     const original = legacyPath ? await readMemoryBytes(root, legacyPath) : null
     const sourceHash = memoryHash(original)
+    if (this.failed.get(agentId) === sourceHash) return false
+    this.failed.delete(agentId)
     const session = application
       .get('MemoryService')
       .open({ scope: { kind: 'private', agentId }, assertAuthorized: assertCurrent }, 'migration')
@@ -244,6 +244,9 @@ export class MemoryMigrationService extends BaseService {
       await assertSource()
       this.writeState(agentId, { ...state, status: 'complete', backupId: result.batchId ?? undefined })
       return true
+    } catch (error) {
+      this.failed.set(agentId, sourceHash)
+      throw error
     } finally {
       session.dispose()
     }
