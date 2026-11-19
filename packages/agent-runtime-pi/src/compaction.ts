@@ -73,3 +73,19 @@ export function compactionSummaryExtension(
     })
   }
 }
+
+/**
+ * Reserve for a task-pinned trigger percent (`compactionPercent`). Capped at half the window like
+ * the gateway binding's small-window budget: with a <=32,768-token window the native 16,384-token
+ * settings floor alone plus the retained tail would exceed the window and break the threshold.
+ */
+export function compactionReserveForPercent(
+  nativeReserveTokens: number,
+  contextWindow: number,
+  percent: number
+): number {
+  return Math.min(
+    Math.floor(contextWindow / 2),
+    Math.max(nativeReserveTokens, Math.ceil((contextWindow * (100 - percent)) / 100))
+  )
+}

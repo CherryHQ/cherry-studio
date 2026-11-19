@@ -28,6 +28,7 @@ import {
 
 import { createPiBehavior, type PiBehavior } from './behavior/harness'
 import { historyOf } from './behavior/history'
+import { compactionReserveForPercent } from './compaction'
 import { readContextUsage } from './contextUsage'
 import { PiProjection, type PiObservation } from './runtimeProjection'
 import { createAgentRuntimeSession, type AgentRuntimeSession, type AgentRuntimeSessionOptions } from './session'
@@ -206,9 +207,10 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
               ...configured?.compaction,
               ...(!child &&
                 config.compactionPercent !== undefined && {
-                  reserveTokens: Math.max(
+                  reserveTokens: compactionReserveForPercent(
                     settings.reserveTokens,
-                    Math.ceil((model.contextWindow * (100 - config.compactionPercent)) / 100)
+                    model.contextWindow,
+                    config.compactionPercent
                   )
                 })
             },
