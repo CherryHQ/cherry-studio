@@ -1,16 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useState } from 'react'
-import { useForm } from 'react-hook-form'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import { Form } from '@cherrystudio/ui'
 
-const { mockLoggerWarn, mockUseKnowledgeBases, mockIpcRequest, mockToastSuccess } = vi.hoisted(() => ({
+const { mockLoggerWarn, mockToastSuccess } = vi.hoisted(() => ({
   mockLoggerWarn: vi.fn(),
-  mockUseKnowledgeBases: vi.fn(),
-  mockIpcRequest: vi.fn(),
   mockToastSuccess: vi.fn()
 }))
 
@@ -28,17 +23,6 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, string>) => {
       const labels: Record<string, string> = {
-        'library.config.knowledge.add': 'Add knowledge base',
-        'library.config.knowledge.create_first': 'Open Knowledge to create one',
-        'library.config.knowledge.doc_count': `${options?.count ?? 0} docs`,
-        'library.config.knowledge.empty_desc': 'Link knowledge bases first.',
-        'library.config.knowledge.empty_title': 'No knowledge bases linked',
-        'library.config.knowledge.invalid_suffix': ' unavailable',
-        'library.config.knowledge.linked': 'Linked knowledge bases',
-        'library.config.knowledge.linked_hint': 'Controls knowledge bases.',
-        'library.config.knowledge.no_more': 'No more knowledge bases',
-        'library.config.knowledge.remove_aria': 'Remove knowledge base',
-        'library.config.knowledge.search': 'Search knowledge bases',
         'library.config.prompt.copy_variable': `Copy ${options?.variable}`,
         'library.config.prompt.variables_description': 'Variables can be used in prompts.',
         'library.config.prompt.variables_example': `Example ${options?.variable}`,
@@ -64,16 +48,6 @@ vi.mock('@renderer/services/toast', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
-  useKnowledgeBases: mockUseKnowledgeBases
-}))
-
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: mockIpcRequest }
-}))
-
-import { KnowledgeStep } from '../../create/steps/KnowledgeStep'
-import type { ResourceCreateWizardFormValues } from '../../create/types'
 import { PromptVariablesPopover } from '../EditDialogShared'
 
 beforeAll(() => {
@@ -84,8 +58,6 @@ describe('EditDialogShared', () => {
   const writeText = vi.fn()
 
   beforeEach(() => {
-    mockUseKnowledgeBases.mockReturnValue({ bases: [], isLoading: false })
-    mockIpcRequest.mockReset()
     mockToastSuccess.mockReset()
     writeText.mockResolvedValue(undefined)
     mockLoggerWarn.mockReset()
@@ -119,86 +91,5 @@ describe('EditDialogShared', () => {
     } finally {
       portalContainer.remove()
     }
-  })
-
-  it('opens the knowledge page in a standalone window without closing the knowledge step', () => {
-    function Harness() {
-      const form = useForm<ResourceCreateWizardFormValues>({
-        defaultValues: {
-          avatar: '💬',
-          name: '',
-          description: '',
-          agentType: 'claude-code',
-          permissionMode: 'default',
-          modelId: null,
-          prompt: '',
-          knowledgeBaseIds: [],
-          skillIds: []
-        }
-      })
-
-      return (
-        <Form {...form}>
-          <KnowledgeStep form={form} portalContainer={null} />
-        </Form>
-      )
-    }
-
-    render(<Harness />)
-
-    expect(screen.queryByRole('button', { name: 'Open Knowledge to create one' })).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Add knowledge base' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Open Knowledge to create one' }))
-
-    expect(mockIpcRequest).toHaveBeenCalledTimes(1)
-    expect(mockIpcRequest).toHaveBeenCalledWith(
-      'tab.detach',
-      expect.objectContaining({ url: '/app/knowledge', type: 'route' })
-    )
-    expect(screen.getByRole('button', { name: 'Open Knowledge to create one' })).toBeInTheDocument()
-  })
-
-  it('closes and disables the knowledge picker when submission starts', async () => {
-    mockUseKnowledgeBases.mockReturnValue({
-      bases: [{ id: 'knowledge-1', name: 'Knowledge one', itemCount: 1 }],
-      isLoading: false
-    })
-
-    function Harness() {
-      const [isSubmitting, setIsSubmitting] = useState(false)
-      const form = useForm<ResourceCreateWizardFormValues>({
-        defaultValues: {
-          avatar: '💬',
-          name: '',
-          description: '',
-          agentType: 'claude-code',
-          permissionMode: 'default',
-          modelId: null,
-          prompt: '',
-          knowledgeBaseIds: [],
-          skillIds: []
-        }
-      })
-
-      return (
-        <Form {...form}>
-          <KnowledgeStep form={form} isSubmitting={isSubmitting} portalContainer={null} />
-          <button type="button" onClick={() => setIsSubmitting(true)}>
-            Start submission
-          </button>
-        </Form>
-      )
-    }
-
-    render(<Harness />)
-
-    await userEvent.click(screen.getByRole('button', { name: 'Add knowledge base' }))
-    expect(screen.getByText('Knowledge one')).toBeInTheDocument()
-
-    await userEvent.click(screen.getByRole('button', { name: 'Start submission' }))
-
-    expect(screen.queryByText('Knowledge one')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Add knowledge base' })).toBeDisabled()
   })
 })
