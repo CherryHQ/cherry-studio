@@ -100,7 +100,7 @@ function isGoogleGeminiImageModel(modelId: string): boolean {
   return modelId.toLowerCase().startsWith('gemini-')
 }
 
-function normalizePersonGeneration(value: unknown): string | undefined {
+function normalizePersonGeneration(value: JSONValue | undefined): string | undefined {
   if (typeof value !== 'string') return undefined
   switch (value.toUpperCase()) {
     case 'ALLOW_ALL':
@@ -114,7 +114,7 @@ function normalizePersonGeneration(value: unknown): string | undefined {
   }
 }
 
-function normalizeAspectRatio(value: unknown): `${number}:${number}` | undefined {
+function normalizeAspectRatio(value: JSONValue | undefined): `${number}:${number}` | undefined {
   if (typeof value !== 'string') return undefined
   const normalized = value.replace(/^ASPECT_/i, '').replace('_', ':')
   return /^\d+:\d+$/.test(normalized) ? (normalized as `${number}:${number}`) : undefined
@@ -162,7 +162,7 @@ function wireNameAihubmixBag(
   return { ...providerOptions, aihubmix: renamed }
 }
 
-function normalizeImageSize(value: unknown): string | undefined {
+function normalizeImageSize(value: JSONValue | undefined): string | undefined {
   if (typeof value !== 'string') return undefined
   const normalized = value.toUpperCase()
   return ['512', '1K', '2K', '4K'].includes(normalized) ? normalized : undefined
