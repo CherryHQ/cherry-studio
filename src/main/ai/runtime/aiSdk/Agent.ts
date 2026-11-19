@@ -18,6 +18,7 @@ import { createAgent, createExecutor } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import { logAiFailure } from '@main/ai/errorReporting'
 import { isAbortError } from '@main/utils/error'
+import { redactSecretText, redactSecretTokens } from '@shared/utils/redaction'
 
 import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilities'
 import { toModelMessages } from '../../messages/messageRules'
@@ -67,9 +68,16 @@ function asProviderError(failure: unknown): Error {
   // message/type/code/statusCode) rather than Error instances.
   const plainMessage: unknown =
     typeof failure === 'object' && failure !== null ? Reflect.get(failure, 'message') : undefined
-  return new Error(
-    `Response stream ended with a terminal provider error: ${typeof plainMessage === 'string' ? plainMessage : String(failure)}`
-  )
+  const detail = typeof plainMessage === 'string' ? plainMessage : typeof failure === 'string' ? failure : 'unknown'
+  return new Error(`Response stream ended with a terminal provider error: ${boundProviderDetail(detail)}`)
+}
+
+const MAX_PROVIDER_DETAIL_CHARS = 500
+
+/** Provider text is untrusted: strip credential-shaped fragments and cap length before it reaches IPC or logs. */
+function boundProviderDetail(text: string): string {
+  const safe = redactSecretTokens(redactSecretText(text))
+  return safe.length > MAX_PROVIDER_DETAIL_CHARS ? `${safe.slice(0, MAX_PROVIDER_DETAIL_CHARS)}…` : safe
 }
 
 async function aggregateStreamResult(streamed: StreamTextResult<ToolSet, never>) {

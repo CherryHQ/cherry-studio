@@ -2089,6 +2089,59 @@ describe('AiService tool approval', () => {
     expect(mockAgentGenerate).not.toHaveBeenCalled()
   })
 
+  it('redacts and bounds a plain-object provider failure before wrapping it', async () => {
+    // A Codex Responses stream that opens an output item and then emits
+    // `response.failed` resolves the SDK aggregation promises with empty text
+    // and finishReason "error" instead of rejecting. generate() must surface
+    // that as a failure — otherwise the health check reports a success
+    // latency for a model the provider refused.
+    const service = createService()
+    const mockAgentStream = vi.fn().mockResolvedValue({
+      text: Promise.resolve(''),
+      usage: Promise.resolve({ inputTokens: 11, outputTokens: 0, totalTokens: 11 }),
+      finishReason: Promise.resolve('error'),
+      rawFinishReason: Promise.resolve('error'),
+      steps: Promise.resolve([]),
+      // The Codex response.failed error part arrives as a plain object, not an Error.
+      fullStream: (async function* () {
+        yield {
+          type: 'error',
+          error: {
+            message: `Rate limit exceeded api_key=sk-secret-credential-value ${'x'.repeat(2000)}`,
+            type: 'response.failed',
+            code: 'rate_limit_exceeded',
+            statusCode: 429,
+            isRetryable: true,
+            data: null
+          }
+        }
+      })()
+    })
+    mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate, stream: mockAgentStream })
+    vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'openai', providerSettings: {}, modelId: 'gpt-5.1-codex' },
+      credentialReceipt: { attribution: 'matched', id: 'oauth', masked: 'oauth' },
+      provider: { id: 'openai-codex', name: 'OpenAI Codex', reportsActualCost: false },
+      model: { id: 'openai-codex::gpt-5.1-codex', name: 'GPT Codex', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+    })
+
+    const rejection = await service
+      .generateText({ uniqueModelId: 'openai-codex::gpt-5.1-codex', prompt: 'hi' } as never)
+      .catch((error: Error) => error)
+    expect(rejection).toBeInstanceOf(Error)
+    const message = (rejection as Error).message
+    expect(message).toContain('Rate limit exceeded')
+    expect(message).not.toContain('sk-secret-credential-value')
+    expect(message.length).toBeLessThan(700)
+  })
+
   it('fails the generation when a tool-loop continuation request fails mid-stream', async () => {
     // After a completed tool call, a failed continuation request (e.g. HTTP 400) surfaces
     // only as a trailing `error` stream part: the aggregation promises still resolve with
