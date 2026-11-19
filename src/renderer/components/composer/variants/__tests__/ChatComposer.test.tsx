@@ -621,18 +621,19 @@ vi.mock('@shared/utils/model', async (importOriginal) => {
   const actual = await importOriginal<typeof SharedModelUtils>()
   return {
     isAudioModel: actual.isAudioModel,
+    isChatSelectableModel: actual.isChatSelectableModel,
     isFunctionCallingModel: (currentModel?: Model) =>
       currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
-    isChatSelectableModel: actual.isChatSelectableModel,
     isGenerateImageModel: actual.isGenerateImageModel,
-    isImageGenerationOnlyModel: actual.isImageGenerationOnlyModel,
     isGPT5SeriesReasoningModel: actual.isGPT5SeriesReasoningModel,
+    isImageGenerationOnlyModel: actual.isImageGenerationOnlyModel,
     isNonChatModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.RERANK) ?? false,
     isReasoningModel: (currentModel?: Model) =>
       currentModel?.capabilities.includes(MODEL_CAPABILITY.REASONING) ?? false,
     isVideoModel: actual.isVideoModel,
     isVisionModel: actual.isVisionModel,
-    isWebSearchModel: () => false
+    isWebSearchModel: () => false,
+    supportsImageGenerationReference: actual.supportsImageGenerationReference
   }
 })
 
@@ -1423,49 +1424,65 @@ describe('ChatComposer', () => {
     expect(mocks.focusComposer).toHaveBeenCalledTimes(1)
   })
 
-  it('adds a generated image reference only to its matching image-capable topic composer', async () => {
-    mocks.model = { ...model, capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] }
-    const onConversationControlsChange = vi.fn()
-    render(<ChatComposer topic={topic} onSend={vi.fn()} onConversationControlsChange={onConversationControlsChange} />)
-
-    await waitFor(() => {
-      expect(mocks.eventListeners.has('ADD_CHAT_COMPOSER_IMAGE_REFERENCE')).toBe(true)
-      expect(onConversationControlsChange).toHaveBeenLastCalledWith(
-        expect.objectContaining({ supportsImageInput: true })
-      )
-    })
-    const addReference = mocks.eventListeners.get('ADD_CHAT_COMPOSER_IMAGE_REFERENCE')! as (
-      payload: unknown
-    ) => Promise<void>
-
-    await act(async () => {
-      await addReference({
-        topicId: 'other-topic',
-        url: 'data:image/png;base64,AAAA',
-        name: 'generated.png'
-      })
-    })
-    expect(mocks.files).toEqual([])
-
-    await act(async () => {
-      await addReference({
-        topicId: topic.id,
-        url: 'data:image/png;base64,AAAA',
-        name: 'generated.png'
-      })
-    })
-    expect(mocks.setFiles).toHaveBeenCalled()
-    expect(mocks.files).toMatchObject([
+  it.each([
+    ['vision', { capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] }],
+    [
+      'dedicated image edit',
       {
-        name: 'generated',
-        origin_name: 'generated.png',
-        size: 3,
-        ext: '.png',
-        type: 'image'
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        inputModalities: ['text'],
+        outputModalities: ['image'],
+        imageGeneration: { modes: { edit: { supports: {} } } }
       }
-    ])
-    expect(mocks.files?.[0].blob).toBeInstanceOf(Blob)
-  })
+    ]
+  ] satisfies [string, Partial<Model>][])(
+    'adds a generated image reference to the matching %s composer',
+    async (_kind, modelConfig) => {
+      mocks.model = { ...model, ...modelConfig }
+      const onConversationControlsChange = vi.fn()
+      render(
+        <ChatComposer topic={topic} onSend={vi.fn()} onConversationControlsChange={onConversationControlsChange} />
+      )
+
+      await waitFor(() => {
+        expect(mocks.eventListeners.has('ADD_CHAT_COMPOSER_IMAGE_REFERENCE')).toBe(true)
+        expect(onConversationControlsChange).toHaveBeenLastCalledWith(
+          expect.objectContaining({ supportsImageInput: true })
+        )
+      })
+      const addReference = mocks.eventListeners.get('ADD_CHAT_COMPOSER_IMAGE_REFERENCE')! as (
+        payload: unknown
+      ) => Promise<void>
+
+      await act(async () => {
+        await addReference({
+          topicId: 'other-topic',
+          url: 'data:image/png;base64,AAAA',
+          name: 'generated.png'
+        })
+      })
+      expect(mocks.files).toEqual([])
+
+      await act(async () => {
+        await addReference({
+          topicId: topic.id,
+          url: 'data:image/png;base64,AAAA',
+          name: 'generated.png'
+        })
+      })
+      expect(mocks.setFiles).toHaveBeenCalled()
+      expect(mocks.files).toMatchObject([
+        {
+          name: 'generated',
+          origin_name: 'generated.png',
+          size: 3,
+          ext: '.png',
+          type: 'image'
+        }
+      ])
+      expect(mocks.files?.[0].blob).toBeInstanceOf(Blob)
+    }
+  )
 
   it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {
     vi.mocked(cacheService.get).mockReturnValue({

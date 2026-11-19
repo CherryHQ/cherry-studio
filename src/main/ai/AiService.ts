@@ -65,7 +65,8 @@ import {
   isFunctionCallingModel,
   isImageGenerationOnlyModel,
   isNonChatModel,
-  isRerankModel
+  isRerankModel,
+  supportsImageGenerationReference
 } from '@shared/utils/model'
 import { isExternalCliProvider, isOllamaProvider } from '@shared/utils/provider'
 import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
@@ -1106,6 +1107,11 @@ export class AiService extends BaseService {
   ): Promise<AiStreamSource> {
     const support = providerRegistryService.getImageGenerationSupport(provider.id, getRawModelId(model))
     const input = collectImageTurnInput(request.messages, support)
+    if (input.inputImageIds.length && support && !supportsImageGenerationReference(model, support)) {
+      throw Object.assign(new Error('This image model does not accept reference images.'), {
+        i18nKey: 'image_edit_unsupported'
+      })
+    }
 
     return {
       kind: 'messages',

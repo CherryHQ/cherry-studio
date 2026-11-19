@@ -97,6 +97,7 @@ const textOf = (parts: UIMessage['parts']) =>
   parts.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map((p) => p.text)
 
 afterEach(() => vi.clearAllMocks())
+afterEach(() => ocrMock.mockReset())
 
 describe('prepareChatMessages — routing', () => {
   it('keeps a native image inline (no extraction)', async () => {
@@ -129,6 +130,24 @@ describe('prepareChatMessages — routing', () => {
     const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)
     expect(out.parts.filter((p) => p.type === 'file')).toHaveLength(0)
     expect(textOf(out.parts)[0]).toContain('ocr body')
+  })
+
+  it('omits a generated assistant image when a later turn uses a text-only model', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'png' })
+    ocrMock.mockResolvedValueOnce('   ')
+    const history: UIMessage[] = [
+      { id: 'generated', role: 'assistant', parts: [fileWithEntry('e1', 'art.png', 'image/png')] },
+      userMessage([{ type: 'text', text: 'Write a caption' }])
+    ]
+
+    const [assistant, user] = await prepareChatMessages(history, {
+      attachments: collectFileAttachments(history),
+      nativeSupport: NONE,
+      isToolCapable: false
+    })
+
+    expect(textOf(assistant.parts)).toEqual(['[image attachment omitted: this model does not accept image input]'])
+    expect(user).toEqual(history[1])
   })
 
   it('OCRs a modern non-vision image whose composer token matches its source id', async () => {
