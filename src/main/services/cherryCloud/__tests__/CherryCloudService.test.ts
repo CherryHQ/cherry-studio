@@ -549,7 +549,7 @@ describe('CherryCloudService', () => {
     expect(mocks.netFetch).not.toHaveBeenCalled()
   })
 
-  it('reads the public plan catalog without a session or signature', async () => {
+  it('reads the public catalogs without a session, signing only the model catalog as a client', async () => {
     const service = await createService()
     mockCloudRoute(
       '/api/v1/public/plans',
@@ -592,6 +592,15 @@ describe('CherryCloudService', () => {
       expect(headers.has('Authorization')).toBe(false)
       expect(headers.has('Cherry-Signature')).toBe(false)
     }
+    // The pre-login catalog carries the client HMAC over method, path, query and the empty body.
+    const modelHeaders = new Headers(requestCalls('/v1/models?limit=1000')[0][1].headers)
+    const timestamp = modelHeaders.get('X-Timestamp')
+    expect(modelHeaders.get('X-Client-ID')).toBe('cherry-studio')
+    expect(modelHeaders.get('X-Signature')).toBe(
+      createHmac('sha256', 'cloud-login-test-secret')
+        .update(`GET\n/v1/models\nlimit=1000\ncherry-studio\n${timestamp}\n`)
+        .digest('hex')
+    )
   })
 
   it('still serves the plan catalog from a server whose model catalog needs a session', async () => {

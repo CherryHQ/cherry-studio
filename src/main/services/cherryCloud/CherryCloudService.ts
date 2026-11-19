@@ -6,7 +6,7 @@ import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
-import { SignatureClient } from '@main/ai/provider/cherryai'
+import { SignatureClient, type SignatureHeaders, type SignatureOptions } from '@main/ai/provider/cherryai'
 import {
   BaseService,
   DependsOn,
@@ -1072,11 +1072,12 @@ export class CherryCloudService extends BaseService {
     return { ...cherryCloudPublicPlanCatalogSchema.parse(await response.json()), amd_models: amdModels }
   }
 
-  /** Unsigned `/v1/models`; a server without the public catalog answers 401 and offers no AMD rows. */
+  /** Pre-login `/v1/models`, signed with the client HMAC instead of a session; a refusal offers no AMD rows. */
   private async getPublicAmdModels(): Promise<CherryCloudModelSyncResult['amdActivationRequiredModels']> {
     try {
+      const signature = this.clientSignature({ method: 'GET', path: '/v1/models', query: 'limit=1000' })
       const response = await net.fetch(`${resolveCherryCloudApiOrigin()}/v1/models?limit=1000`, {
-        headers: { 'anthropic-version': '2023-06-01' },
+        headers: { 'anthropic-version': '2023-06-01', ...signature },
         redirect: 'error',
         signal: AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
       })
@@ -1717,18 +1718,19 @@ export class CherryCloudService extends BaseService {
     })
   }
 
-  private async postJson<T>(path: string, body: unknown, schema: ZodType<T>, signal?: AbortSignal): Promise<T> {
+  /** The pre-login client HMAC; it gates unauthenticated requests but never identifies a user. */
+  private clientSignature(options: SignatureOptions): SignatureHeaders {
     const clientSecret = import.meta.env.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET
     if (!clientSecret) {
       logger.warn('Cherry Cloud client secret is not configured')
       throw new CherryCloudLoginUnavailableError()
     }
+    return new SignatureClient('cherry-studio', clientSecret).generateSignature(options)
+  }
+
+  private async postJson<T>(path: string, body: unknown, schema: ZodType<T>, signal?: AbortSignal): Promise<T> {
     const bodyString = JSON.stringify(body)
-    const signature = new SignatureClient('cherry-studio', clientSecret).generateSignature({
-      method: 'POST',
-      path,
-      body: bodyString
-    })
+    const signature = this.clientSignature({ method: 'POST', path, body: bodyString })
     let response: Response
     try {
       const timeoutSignal = AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)

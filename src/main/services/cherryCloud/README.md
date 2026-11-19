@@ -52,9 +52,10 @@ Model sync treats an authorized one (`activation_required` not true) as an
 entitled free model without a quota pool. A locked one never reaches the model
 table: it goes into the receipt's `amdActivationRequiredModels`, and the selector
 shows it as an "AMD 授权" row. Signed out, `getPublicPlans` adds the AMD entries
-of the unsigned `/v1/models`; a server that still requires a session there yields
-none. A `403 AMD_ACTIVATION_REQUIRED` or `AMD_CREDENTIAL_INVALID` response clears
-the model sync cache and keeps the session, so the next sync locks the model again.
+of `/v1/models` fetched with only the pre-login client HMAC, the same scheme as
+the login requests; a refusal yields none. A `403 AMD_ACTIVATION_REQUIRED` or
+`AMD_CREDENTIAL_INVALID` response clears the model sync cache and keeps the
+session, so the next sync locks the model again.
 
 ## Login request signing
 
