@@ -7,11 +7,15 @@ import { conversationId, pages } from '../src/behavior/history'
 import { openDurableHarness } from './behaviorHarness'
 
 it('preserves image positions, structured program output and UI details through text offload and reopen', async () => {
+  const settled: string[] = []
   const image = { type: 'image' as const, mimeType: 'image/png', data: 'aW1hZ2U=' }
   const h = await openDurableHarness(
     (ports) =>
       ports.toolGate.register({
         before: async () => ({}),
+        settle: async (call) => {
+          settled.push(call.tool)
+        },
         after: async (_call, result) => ({ ...result, text: `stored:${result.text}` })
       }),
     [
@@ -81,6 +85,8 @@ it('preserves image positions, structured program output and UI details through 
     expect(program).toMatchObject({ content: [{ type: 'text', text: 'stored:{"complete":true}' }], isError: false })
   }
   await verify()
+  expect(settled.filter((name) => name === 'mixed')).toHaveLength(2)
+  expect(settled.filter((name) => name === 'program')).toHaveLength(1)
   await h.harness.restart()
   await verify()
   expect(h.errors).toEqual([])

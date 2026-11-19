@@ -1,12 +1,16 @@
-import { writeFile } from 'node:fs/promises'
+import { realpath, writeFile } from 'node:fs/promises'
+import path from 'node:path'
 
 import * as z from 'zod'
 
 import { application } from '@application'
-import type { CallRef, HostPorts, BehaviorEvent } from '@cherrystudio/agent-behavior'
-import type { JsonValue, ThreadId, Thread } from '@cherrystudio/agent-runtime'
+import { callKeyOf, type CallRef, type HostPorts, type BehaviorEvent } from '@cherrystudio/agent-behavior'
+import { runtimeId, type JsonValue, type ThreadId, type Thread } from '@cherrystudio/agent-runtime'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+import { loggerService } from '@logger'
+import { resolveExistingPath } from '@main/ai/agentSession/agentFileSnapshot'
+import type { SnapshotRound } from '@main/ai/agentSession/AgentFileSnapshotService'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
 import { MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
@@ -19,9 +23,13 @@ import { readPiApprovalFacts, type PiApprovalContext } from './piApprovalFacts'
 import { PI_TRANSPORT } from './PiMessageMetadata'
 import { matchPiSubagentModel } from './piSubagentModelMatch'
 
+const logger = loggerService.withContext('PiFileWriteSnapshot')
+
 type Binding = Awaited<ReturnType<typeof createPiGatewayModelBinding>>
 type HostOptions = {
   input: AgentRuntimeConnectInput
+  cwd: string
+  runtime: 'pi' | 'pi-durable'
   root(): ThreadId
   binding: Binding
   model: Model
@@ -56,7 +64,7 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
     const selected = bindings.get(threads.get(thread) ?? rootKey)!
     const usage = application
       .get('ApiGatewayService')
-      .captureAgentSessionUsage(input.sessionId, await options.usageSessionId(thread))
+      .captureAgentSessionUsage(input.sessionId, await options.usageSessionId(runtimeId(thread)))
     const result = await selected.modelRuntime
       .completeSimple(
         selected.model,
@@ -75,8 +83,95 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
     }
   }
 
+  const attempts = new Map<string, { attemptId: string; round: SnapshotRound }>()
   const host: HostPorts = {
     ...createPiInteractionPorts(options),
+    fileWrites: {
+      async protect({ thread, callKey, tool, args, signal }) {
+        if (tool !== 'write' && tool !== 'edit') return {}
+        const missing = 'stale'
+        const reject = async (block: string) => {
+          await host.fileWrites!.settle({ thread, callKey, tool, args, isError: true })
+          return { block }
+        }
+        try {
+          const sessionId = input.sessionId
+          const round = application.get('AgentSessionRuntimeService').getLiveSnapshotRound(sessionId)
+          if (!round) return { block: missing }
+          const values = recordSchema.parse(args)
+          if (typeof values.path !== 'string' || !values.path) return { block: 'invalid-path' }
+          const filePath = values.path.replace(/[\u00a0\u2000-\u200a\u202f\u205f\u3000]/g, ' ').replace(/^@/, '')
+          if (
+            filePath === '~' ||
+            filePath.startsWith('~/') ||
+            filePath.startsWith('~\\') ||
+            filePath.startsWith('file://') ||
+            (process.platform === 'win32' && /^\/(?:mnt\/|cygdrive\/)?[a-z](?:\/|$)/i.test(filePath))
+          )
+            return { block: 'invalid-path' }
+          const target = path.resolve(options.cwd, filePath)
+          const cwd = await realpath(options.cwd)
+          const parent = await resolveExistingPath(path.dirname(target))
+          const relative = path.relative(cwd, path.join(parent, path.basename(target)))
+          if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative))
+            return { block: 'outside-workspace' }
+          const { attemptId, classification } = await application.get('AgentFileSnapshotService').protectWrite({
+            round,
+            callId: callKey,
+            runtime: options.runtime,
+            toolName: tool,
+            ...(thread !== options.root() ? { origin: 'subagent' as const } : {}),
+            filePath: target,
+            cwd: options.cwd,
+            intent: { toolName: tool, input: values }
+          })
+          attempts.set(callKey, { attemptId, round })
+          if (classification === 'empty' || classification === 'large-deletion' || classification === 'undecidable') {
+            const interaction = approval.getInteractionState()
+            const presentation = interaction.userResponse
+            if (interaction.currentTurn !== 'interactive' || presentation === 'unavailable')
+              return reject('approval-unavailable')
+            const answer = await host.approvals.ask(
+              {
+                call: { thread: runtimeId(thread), key: callKeyOf(callKey) },
+                tool: { callId: callKey, callKey: callKeyOf(callKey), name: tool, args },
+                presentation,
+                details: { reason: classification }
+              },
+              AbortSignal.any([signal, AbortSignal.timeout(60_000)])
+            )
+            if (
+              answer.kind !== 'granted' ||
+              (answer.args && JSON.stringify(answer.args) !== JSON.stringify(args)) ||
+              application.get('AgentSessionRuntimeService').getLiveSnapshotRound(sessionId)?.replyId !== round.replyId
+            )
+              return reject('approval-denied')
+          }
+          return {}
+        } catch (error) {
+          logger.error('Failed to protect file write', { error })
+          return reject(
+            (error as NodeJS.ErrnoException | null)?.code === 'SNAPSHOT_ROOT_IN_WORKSPACE'
+              ? 'SNAPSHOT_ROOT_IN_WORKSPACE'
+              : 'snapshot-failed'
+          )
+        }
+      },
+      async settle({ callKey, isError }) {
+        const attempt = attempts.get(callKey)
+        if (!attempt) return
+        attempts.delete(callKey)
+        try {
+          await application.get('AgentFileSnapshotService').settleWrite({
+            round: attempt.round,
+            attemptId: attempt.attemptId,
+            outcome: isError ? 'failure' : 'success'
+          })
+        } catch (error) {
+          logger.error('Failed to settle file snapshot', { error })
+        }
+      }
+    },
     models: {
       async find(query) {
         const candidates = modelService

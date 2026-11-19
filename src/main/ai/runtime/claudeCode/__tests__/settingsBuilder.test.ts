@@ -1260,7 +1260,13 @@ describe('buildClaudeCodeSessionSettings', () => {
       } as never,
       {} as never
     )
-    const hooks = settings.hooks?.PreToolUse?.[0]?.hooks ?? []
+    const hooks = (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).filter((hook) => hook.name === 'toolGuardHook')
+    expect(hooks).toHaveLength(1)
+    expect(settings.hooks?.PreToolUse?.[0]?.hooks.some((hook) => hook.name === 'fileSnapshotPreHook')).toBe(true)
+    expect(settings.hooks?.PostToolUse?.[0]?.hooks.some((hook) => hook.name === 'fileSnapshotPostHook')).toBe(true)
+    expect(settings.hooks?.PostToolUseFailure?.[0]?.hooks.some((hook) => hook.name === 'fileSnapshotPostHook')).toBe(
+      true
+    )
     const permissionDecisions = async (toolName: string, toolInput: Record<string, unknown>) =>
       Promise.all(
         hooks.map(async (hook) => {

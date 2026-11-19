@@ -1,6 +1,6 @@
 import { answerVerdict, ASK_WITHDRAWN, decideApproval, repeatBlock } from '../core/approval/approval'
 import { offloadPlan } from '../core/context/offload'
-import type { ToolCallFact } from '../core/facts'
+import type { GateCall, ToolCallFact } from '../core/facts'
 import type { ApprovalHostFacts, CallRef } from '../core/hostFacts'
 import { keys } from '../core/keys'
 import type { GateHandlers } from '../ports/harness'
@@ -23,6 +23,10 @@ async function currentFacts(host: HostPorts, ref: CallRef, tool: ToolCallFact): 
 /** H9: before a call, D8's block half, then approvals and the plan gate (D34, D35, D37); after it, offload (D31). */
 export function gateHandlers(host: HostPorts): GateHandlers {
   return {
+    ...(host.fileWrites && {
+      settle: (call: GateCall, isError: boolean) =>
+        host.fileWrites!.settle({ thread: call.thread, callKey: call.key, tool: call.tool, args: call.args, isError })
+    }),
     async before(call, facts, ports) {
       const repeated = repeatBlock(call, facts)
       if (repeated !== undefined) return { block: repeated }
@@ -40,7 +44,18 @@ export function gateHandlers(host: HostPorts): GateHandlers {
         facts.plan
       )
       if (decision.kind === 'block') return { block: decision.reason }
-      if (decision.kind === 'allow') return decision.args === undefined ? {} : { args: decision.args }
+      const protect = async (verdict: { block?: string; args?: typeof call.args }) => {
+        if (verdict.block !== undefined || !host.fileWrites) return verdict
+        const protectedWrite = await host.fileWrites.protect({
+          thread: call.thread,
+          callKey: call.key,
+          tool: call.tool,
+          args: verdict.args ?? call.args,
+          signal: call.signal
+        })
+        return protectedWrite.block === undefined ? verdict : { block: protectedWrite.block }
+      }
+      if (decision.kind === 'allow') return protect(decision.args === undefined ? {} : { args: decision.args })
       const request = {
         call: ref,
         tool: { ...tool, args: decision.args ?? call.args },
@@ -75,9 +90,17 @@ export function gateHandlers(host: HostPorts): GateHandlers {
         )
           return { block: policy.changedReason }
       }
-      return verdict
+      return protect(verdict)
     },
     async after(call, result) {
+      if (host.fileWrites)
+        await host.fileWrites.settle({
+          thread: call.thread,
+          callKey: call.key,
+          tool: call.tool,
+          args: call.args,
+          isError: result.isError
+        })
       const name = offloadPlan(call, result, host.settings.offloadThreshold())
       if (name === undefined) return undefined
       const text = await storedMarker(host, { name, content: result.text, key: call.key, tool: call.tool })
