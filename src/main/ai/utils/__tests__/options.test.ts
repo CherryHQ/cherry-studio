@@ -248,11 +248,14 @@ describe('OpenAI-compatible reasoning normalization', () => {
       emissions: [{ target: 'reasoning_effort', value: 'high' }]
     }
     const model = {
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false,
       id: `${providerOptionsKey}::reasoner`,
       providerId: providerOptionsKey,
       name: 'reasoner',
       capabilities: [MODEL_CAPABILITY.REASONING]
-    } as unknown as Model
+    } satisfies Model
     const provider = {
       id: providerOptionsKey,
       name: providerOptionsKey,
@@ -315,7 +318,7 @@ describe('OpenAI-compatible reasoning normalization', () => {
           { status: 200, headers: { 'Content-Type': 'application/json' } }
         )
     )
-    const openai = createOpenAI({ apiKey: 'test-key', fetch: fetchMock as unknown as typeof fetch })
+    const openai = createOpenAI({ apiKey: 'test-key', fetch: fetchMock })
 
     await generateText({
       model: openai.responses('deepseek-v4-flash'),
@@ -331,6 +334,9 @@ describe('OpenAI-compatible reasoning normalization', () => {
 describe('buildCapabilityProviderOptions', () => {
   it('places resolved OpenAI reasoning emissions in the native namespace', () => {
     const model = {
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false,
       id: 'openai::gpt-5',
       providerId: 'openai',
       name: 'gpt-5',
@@ -339,7 +345,7 @@ describe('buildCapabilityProviderOptions', () => {
         controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
         selectableEfforts: ['low', 'medium', 'high']
       }
-    } as unknown as Model
+    } satisfies Model
     const provider = {
       id: 'openai',
       name: 'OpenAI',
@@ -386,6 +392,9 @@ describe('buildCapabilityProviderOptions', () => {
   it('places compatible wire fields in the concrete provider namespace', () => {
     const result = buildCapabilityProviderOptions(
       {
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
         id: 'minimax::minimax-m3',
         providerId: 'minimax',
         name: 'MiniMax-M3',
@@ -394,7 +403,7 @@ describe('buildCapabilityProviderOptions', () => {
           controls: [{ kind: 'toggle' }],
           selectableEfforts: ['none', 'auto']
         }
-      } as unknown as Model,
+      } satisfies Model,
       { id: 'minimax', name: 'MiniMax', settings: {} } as Provider,
       {
         enableReasoning: true,
@@ -421,6 +430,9 @@ describe('buildCapabilityProviderOptions', () => {
   it('normalizes compatible profile emissions in the concrete provider namespace', () => {
     const result = buildCapabilityProviderOptions(
       {
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
         id: 'dashscope::qwen3-8-max-preview',
         providerId: 'dashscope',
         name: 'Qwen3.8 Max Preview',
@@ -429,7 +441,7 @@ describe('buildCapabilityProviderOptions', () => {
           controls: [{ kind: 'effort', values: ['low', 'medium', 'xhigh'] }],
           selectableEfforts: ['low', 'medium', 'xhigh']
         }
-      } as unknown as Model,
+      } satisfies Model,
       { id: 'dashscope', name: 'Bailian', settings: {} } as Provider,
       {
         enableReasoning: true,
@@ -457,11 +469,14 @@ describe('buildCapabilityProviderOptions', () => {
   it('encodes GitHub Copilot reasoning into the copilot namespace (its model reads `name`, not the registration id)', () => {
     const result = buildCapabilityProviderOptions(
       {
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
         id: 'copilot::gpt-5',
         providerId: 'copilot',
         name: 'GPT-5',
         capabilities: [MODEL_CAPABILITY.REASONING]
-      } as unknown as Model,
+      } satisfies Model,
       { id: 'copilot', name: 'GitHub Copilot', settings: {} } as Provider,
       { enableReasoning: true, enableWebSearch: false, enableGenerateImage: false },
       {
@@ -492,12 +507,15 @@ describe('buildCapabilityProviderOptions', () => {
   ] as const)('encodes DMXAPI %s chat reasoning into the concrete model namespace %s', (apiModelId, key) => {
     const result = buildCapabilityProviderOptions(
       {
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
         id: `dmxapi::${apiModelId}`,
         apiModelId,
         providerId: 'dmxapi',
         name: apiModelId,
         capabilities: [MODEL_CAPABILITY.REASONING]
-      } as unknown as Model,
+      } satisfies Model,
       { id: 'dmxapi', name: 'DMXAPI', settings: {} } as Provider,
       { enableReasoning: true, enableWebSearch: false, enableGenerateImage: false },
       {
@@ -521,6 +539,9 @@ describe('buildCapabilityProviderOptions', () => {
   it('preserves an audited compatible-provider budget field in the concrete namespace', () => {
     const result = buildCapabilityProviderOptions(
       {
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
         id: 'nvidia::nemotron-3-nano-omni-30b-a3b',
         providerId: 'nvidia',
         name: 'Nemotron 3 Nano Omni',
@@ -530,7 +551,7 @@ describe('buildCapabilityProviderOptions', () => {
           selectableEfforts: ['low', 'medium', 'high'],
           thinkingTokenLimits: { min: 0, max: 32_768 }
         }
-      } as unknown as Model,
+      } satisfies Model,
       { id: 'nvidia', name: 'NVIDIA', settings: {} } as Provider,
       {
         enableReasoning: true,
@@ -566,11 +587,14 @@ describe('buildCapabilityProviderOptions', () => {
             : ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
       const result = buildCapabilityProviderOptions(
         {
+          supportsStreaming: true,
+          isEnabled: true,
+          isHidden: false,
           id: 'vertex::test-model',
           providerId: 'vertex',
           name: 'test-model',
           capabilities: []
-        } as unknown as Model,
+        } satisfies Model,
         {
           id: 'vertex',
           settings: {},
@@ -602,12 +626,15 @@ describe('buildCapabilityProviderOptions', () => {
   it('forwards the configured contextWindow as num_ctx for Ollama models', () => {
     const result = buildCapabilityProviderOptions(
       {
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
         id: 'ollama::qwen3:32b',
         providerId: 'ollama',
         name: 'qwen3:32b',
         capabilities: [],
         contextWindow: 32_768
-      } as unknown as Model,
+      } satisfies Model,
       {
         id: 'ollama',
         settings: {},
@@ -637,11 +664,14 @@ describe('buildCapabilityProviderOptions', () => {
   it('omits num_ctx for an Ollama model whose contextWindow could not be read', () => {
     const result = buildCapabilityProviderOptions(
       {
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
         id: 'ollama::qwen3:32b',
         providerId: 'ollama',
         name: 'qwen3:32b',
         capabilities: []
-      } as unknown as Model,
+      } satisfies Model,
       {
         id: 'ollama',
         settings: {},
