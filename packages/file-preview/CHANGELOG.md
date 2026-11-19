@@ -6,6 +6,12 @@
 
 - Change the package license from AGPL-3.0-only to MIT.
 
+## 0.5.1
+
+### Patch Changes
+
+- [#24857](https://github.com/CherryHQ/cherry-studio/pull/24857) [`ccafcca`](https://github.com/CherryHQ/cherry-studio/commit/ccafcca3ac5e69cf1d217137f3fc5718f71adc1d) Thanks [@DeJeune](https://github.com/DeJeune)! - Add Korean translations for document preview controls and messages.
+
 ## 0.5.0
 
 ### Minor Changes

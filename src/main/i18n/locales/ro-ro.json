@@ -3,8 +3,6 @@
   "agent.builtin.cherry_doctor.description": "Analist integrat al diagnosticului de sistem. Citește raportul de diagnostic și starea de execuție, explică cauza principală și propune remedieri limitate",
   "agent.builtin.cherry_support.description": "Agent oficial de asistență Cherry Studio pentru configurare, diagnosticare, întrebări frecvente și feedback",
   "agent.import.missing_file": "Atașament indisponibil în export: {{name}}",
-  "agent.import.reasoning": "Raționament istoric",
-  "agent.import.search": "Înregistrare istorică de căutare",
   "agent.session.claude.runtime_unavailable": "Claude Agent nu este încă pregătit. Așteptați finalizarea descărcării sau încercați din nou.",
   "agent.session.fork.execution_not_inherited": "Execuția nu a fost preluată în această ramificare a sesiunii.",
   "agent.session.new": "Sarcină nouă",
