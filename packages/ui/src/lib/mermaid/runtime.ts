@@ -47,7 +47,8 @@ export interface RenderMermaidOptions {
 
 /** Renders Mermaid source to an SVG string styled by `theme`; throws an Error with Merman's message on invalid source. */
 export async function renderMermaidSvg(source: string, { theme, diagramId }: RenderMermaidOptions): Promise<string> {
-  const fontSet = typeof document === 'undefined' ? (self as unknown as { fonts: FontFaceSet }).fonts : document.fonts
+  // SAFETY: WorkerGlobalScope exposes FontFaceSource.fonts; this package compiles with DOM-only globals.
+  const fontSet = typeof document === 'undefined' ? (self as typeof self & FontFaceSource).fonts : document.fonts
   const [{ merman, measure }] = await Promise.all([loadMermaidRuntime(), ensureFontFaces(theme.fontFaces, fontSet)])
   try {
     return merman.renderSvgWithTextMeasurer(source, measure, {
