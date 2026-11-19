@@ -36,7 +36,10 @@ export interface BrowserGuestTarget extends BrowserGuestContext {
 export class BrowserGuestRegistry implements Disposable {
   private readonly targets = new Map<string, BrowserGuestTarget>()
   private readonly changed = new Emitter<void>()
-  private readonly pendingFocus = new Map<string, { target: BrowserGuestTarget; finish: (error?: unknown) => void }>()
+  private readonly pendingFocus = new Map<
+    string,
+    { target: BrowserGuestTarget; finish: (error?: BrowserSessionError) => void }
+  >()
 
   constructor(
     private readonly resolveOwner: (id: string) => string,
@@ -91,7 +94,7 @@ export class BrowserGuestRegistry implements Disposable {
     )
     const hideCursor = () => cursor.hide()
     const invalidateCursor = () => cursor.hide(new BrowserSessionError('stale_ref'))
-    const onNavigation = (_event: unknown, _url: string, isInPlace: boolean, isMainFrame: boolean) => {
+    const onNavigation = (_event: Electron.Event, _url: string, isInPlace: boolean, isMainFrame: boolean) => {
       if (isMainFrame && !isInPlace) invalidateCursor()
     }
     window.on('blur', hideCursor)
@@ -189,14 +192,19 @@ export class BrowserGuestRegistry implements Disposable {
     signal.throwIfAborted()
     const requestId = randomUUID()
     await new Promise<void>((resolve, reject) => {
-      const finish = (error?: unknown) => {
+      const cleanup = () => {
         this.pendingFocus.delete(requestId)
         signal.removeEventListener('abort', onAbort)
+      }
+      const finish = (error?: BrowserSessionError) => {
+        cleanup()
         if (error) reject(error)
         else resolve()
       }
-      const onAbort = () =>
-        finish(signal.reason?.name === 'TimeoutError' ? new BrowserSessionError('timeout') : signal.reason)
+      const onAbort = () => {
+        cleanup()
+        reject(signal.reason?.name === 'TimeoutError' ? new BrowserSessionError('timeout') : signal.reason)
+      }
       this.pendingFocus.set(requestId, { target, finish })
       signal.addEventListener('abort', onAbort, { once: true })
       try {
@@ -208,7 +216,8 @@ export class BrowserGuestRegistry implements Disposable {
           expiresAt
         })
       } catch (error) {
-        finish(error)
+        cleanup()
+        reject(error)
       }
     })
     signal.throwIfAborted()
