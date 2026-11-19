@@ -7,12 +7,18 @@ export type {
   WebSearchCapability,
   WebSearchClient,
   WebSearchCredentials,
+  WebSearchExecuteResult,
+  WebSearchFetchUrlsCall,
   WebSearchHttpRequest,
   WebSearchHttpResponse,
+  WebSearchImageResult,
+  WebSearchImageResultSet,
+  WebSearchKeywordsCall,
   WebSearchProviderMetadata,
   WebSearchProviderModule,
   WebSearchResult,
   WebSearchResultSet,
+  WebSearchSearchImagesCall,
   WebSearchTransport,
   WebSearchValidationIssue
 } from './types'
