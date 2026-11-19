@@ -87,15 +87,6 @@ describe('lifecycle memory owner', () => {
     expect(await readdir(outside)).toEqual([])
   })
 
-  it('signals history replacement only for a restored filesystem', () => {
-    const replaced = vi.fn()
-    service.onHistoryReplaced(replaced)
-    service.pause('backup').dispose()
-    expect(replaced).not.toHaveBeenCalled()
-    service.invalidateAll()
-    expect(replaced).toHaveBeenCalledTimes(1)
-  })
-
   it('keeps correction metadata in maintenance reads and out of native current reads', async () => {
     const native = service.open(authority())
     const empty = await native.read('MEMORY.md')

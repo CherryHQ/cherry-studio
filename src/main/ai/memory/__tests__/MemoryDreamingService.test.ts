@@ -472,15 +472,15 @@ describe('memory organization lifecycle and commit fences', () => {
   }
 
   it.each([
-    ['changed', 'Old address', 'I now live in Suzhou.'],
+    ['changed', String.raw`Path "home" at C:\old`, 'I now live in Suzhou.'],
     ['corrected', 'Old address', 'I have always lived in Suzhou.'],
     ['qualified', 'Coffee after lunch', 'Coffee after lunch except on night shifts.']
   ] as const)(
     'automatically applies an explicit %s correction and keeps later batches moving',
     async (correction, oldFact, replacement) => {
-      await save(`- "${oldFact}"\n- "Prefers Chinese"\n`)
+      await save(`- ${JSON.stringify(oldFact)}\n- "Prefers Chinese"\n`)
       const oldSession = memory.open({ scope, assertAuthorized: () => undefined })
-      expect((await memory.entrySnapshot('correction-chat', oldSession)).content).toContain(oldFact)
+      expect((await memory.entrySnapshot('correction-chat', oldSession)).content).toContain(JSON.stringify(oldFact))
       oldSession.dispose()
       const batch = batchConversation(8, replacement)
       generate.mockImplementationOnce(async () => {

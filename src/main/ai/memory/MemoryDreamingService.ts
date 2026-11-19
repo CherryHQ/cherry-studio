@@ -108,7 +108,6 @@ export class MemoryDreamingService extends BaseService {
         }
       })
     )
-    this.registerDisposable(application.get('MemoryService').onHistoryReplaced(() => this.resetExtraction()))
     this.registerDisposable(
       agentService.onMemoryAccessRevoked((agentId) => {
         this.resetExtraction(`agent/${agentId}`)

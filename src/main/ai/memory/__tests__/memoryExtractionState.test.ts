@@ -33,6 +33,15 @@ describe('durable extraction scheduling', () => {
   })
   afterEach(() => vi.restoreAllMocks())
 
+  it('discards tickets from a restored database before admitting new work', () => {
+    enqueueExtraction(ticket('from-backup'), 0, new Set(['from-backup']))
+    const boundary = extractionBoundary()
+    expect(readExtractionState(key)?.pending).toEqual([])
+    expect(enqueueExtraction(ticket('from-backup'), boundary, new Set(['from-backup']))).toBe(false)
+    now += 100
+    expect(enqueueExtraction(ticket('fresh'), boundary, new Set(['fresh']))).toBe(true)
+  })
+
   it('retains a revocation boundary even when no task existed before restart', () => {
     const source = ticket('old')
     now += 100

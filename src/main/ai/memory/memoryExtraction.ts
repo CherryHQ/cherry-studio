@@ -418,8 +418,12 @@ export async function extractContextCandidates(
         })
         const existingReferences = proposal.existing.map((reference) => {
           const file = existing.find((file) => file.path === reference.path)
-          if (!file || !reference.quote.trim() || !file.content?.includes(reference.quote))
-            throw new Error('Unsupported memory reference')
+          if (!file?.content || !reference.quote.trim()) throw new Error('Unsupported memory reference')
+          const decodedMatch =
+            proposal.action === 'correct' &&
+            file.content.split('\n').find((line) => memoryFactText(line) === reference.quote)
+          if (decodedMatch) return { ...reference, quote: decodedMatch, version: file.hash }
+          if (!file.content.includes(reference.quote)) throw new Error('Unsupported memory reference')
           return { ...reference, version: file.hash }
         })
         const candidate = MemoryCandidateSchema.parse({ ...proposal, evidence, existing: existingReferences })

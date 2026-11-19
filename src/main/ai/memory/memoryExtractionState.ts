@@ -77,9 +77,11 @@ export function extractionBoundary(sourceKey?: string): number {
   const value = read(sourceKey ? `${BOUNDARY}:${sourceKey}` : BOUNDARY)
   if (value !== undefined) return z.number().parse(value)
   if (sourceKey) return 0
-  const boundary = Date.now()
-  write(BOUNDARY, boundary)
-  return boundary
+  // Restored databases start a new admission period before their backed-up queue can run.
+  return application
+    .get('DbService')
+    .getDb()
+    .transaction(() => invalidateExtractions())
 }
 
 export function extractionStates(): Array<{ key: string; state: ExtractionState }> {

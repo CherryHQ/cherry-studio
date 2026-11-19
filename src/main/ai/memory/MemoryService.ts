@@ -64,9 +64,6 @@ export class MemoryService extends BaseService {
   private readonly invalidated = new Emitter<MemoryScope | undefined>()
   readonly onInvalidated = this.invalidated.event
 
-  private readonly historyReplaced = new Emitter<void>()
-  readonly onHistoryReplaced = this.historyReplaced.event
-
   protected override onReady(): void {
     this.stopped = false
   }
@@ -228,11 +225,6 @@ export class MemoryService extends BaseService {
 
   /** A restored filesystem/database must never reuse receipts from the previous state. */
   invalidateAll(): void {
-    this.historyReplaced.fire()
-    this.expireSessions()
-  }
-
-  private expireSessions(): void {
     this.generation++
     this.entrySnapshots.clear()
     this.entryRevisions.clear()
@@ -242,7 +234,7 @@ export class MemoryService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.stopped = true
-    this.expireSessions()
+    this.invalidateAll()
     if (!(await this.work.drain())) throw new Error('Memory operations did not finish before shutdown')
     this.stores.clear()
   }
@@ -250,7 +242,6 @@ export class MemoryService extends BaseService {
   protected onDestroy(): void {
     this.changed.dispose()
     this.invalidated.dispose()
-    this.historyReplaced.dispose()
   }
 
   private async getStore(scope: MemoryScope): Promise<MemoryStore> {

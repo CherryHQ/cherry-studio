@@ -481,7 +481,15 @@ function integrityCheck(dbPath: string): string {
   let sqlite: Database.Database | undefined
   try {
     sqlite = new Database(dbPath, { fileMustExist: true })
-    return String(sqlite.pragma('integrity_check', { simple: true }))
+    const result = String(sqlite.pragma('integrity_check', { simple: true }))
+    if (
+      result === 'ok' &&
+      sqlite.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'app_state'").get()
+    ) {
+      // The first startup of the restored profile must invalidate extraction tickets from the backup.
+      sqlite.prepare("DELETE FROM app_state WHERE key = 'memory:extraction-boundary'").run()
+    }
+    return result
   } catch (error) {
     // Open failures (missing/locked/not-a-db) are integrity failures too.
     return (error as Error).message
