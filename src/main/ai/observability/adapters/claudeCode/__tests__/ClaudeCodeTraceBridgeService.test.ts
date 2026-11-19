@@ -186,6 +186,33 @@ describe('ClaudeCodeTraceBridgeService', () => {
     await service._doStop()
   })
 
+  it.each(['/v1/traces', '/v1/logs'])(
+    'rejects a malformed nested record without publishing its preceding valid record: %s',
+    async (endpoint) => {
+      const service = new ClaudeCodeTraceBridgeService()
+      await service._doInit()
+      try {
+        const env = await service.prepareTrace(traceContext)
+        const record = { traceId: traceContext.traceId, spanId: '6'.repeat(16) }
+        const payload =
+          endpoint === '/v1/traces'
+            ? { resourceSpans: [{ scopeSpans: [{ spans: [record, null] }] }] }
+            : { resourceLogs: [{ scopeLogs: [{ logRecords: [record, null] }] }] }
+        const response = await fetch(`${env?.BETA_TRACING_ENDPOINT}${endpoint}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+
+        expect(response.status).toBe(400)
+        expect(mocks.traceStorageSaveEntity).not.toHaveBeenCalled()
+        expect(mocks.traceStorageAddSpanEvent).not.toHaveBeenCalled()
+      } finally {
+        await service._doStop()
+      }
+    }
+  )
+
   it('requires JSON content type for OTLP endpoints', async () => {
     const service = new ClaudeCodeTraceBridgeService()
     await service._doInit()

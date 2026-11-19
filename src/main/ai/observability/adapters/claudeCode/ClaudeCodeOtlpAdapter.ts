@@ -104,6 +104,7 @@ const STATUS_BY_VALUE: Record<string, string> = {
 }
 
 export class ClaudeCodeOtlpAdapter {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Collector JSON parsing does not validate OTLP structure; conversion failures propagate to its HTTP 400 boundary before span entities are published.
   static spansFromPayload(payload: unknown, resolveTraceContext: TraceContextResolver): SpanEntity[] {
     const result: SpanEntity[] = []
     const resourceSpans = arrayFrom((payload as { resourceSpans?: unknown })?.resourceSpans)
@@ -132,6 +133,7 @@ export class ClaudeCodeOtlpAdapter {
     return result
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Collector input is JSON with unverified OTLP nesting; conversion must finish before publishing log events, and failures become HTTP 400.
   static logEventsFromPayload(payload: unknown): ClaudeCodeOtlpLogEvent[] {
     const result: ClaudeCodeOtlpLogEvent[] = []
     const resourceLogs = arrayFrom((payload as { resourceLogs?: unknown })?.resourceLogs)
@@ -512,7 +514,9 @@ function pickAttributes(attributes: Attributes, keys: string[]): Record<string, 
   return Object.keys(picked).length > 0 ? picked : undefined
 }
 
-function normalizeContentValue(value: unknown): AttributeValue | undefined {
+function normalizeContentValue(
+  value: AttributeValue | OTelAttributeValue | Attributes | null | undefined
+): AttributeValue | undefined {
   if (value === undefined || value === null) return undefined
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value
   return JSON.stringify(value)
@@ -566,6 +570,7 @@ function unixNanoToHrTime(value: string | number | undefined): [number, number] 
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- OTLP resource/scope/record fields are unvalidated JSON; missing or non-array collections retain the existing empty-collection behavior.
 function arrayFrom(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
 }
