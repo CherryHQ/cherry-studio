@@ -299,10 +299,11 @@ async function fetchFromClawhub(
   if (!detailResp.ok) {
     throw new Error(`clawhub detail failed: HTTP ${detailResp.status}`)
   }
+  if (!detailResp.body) throw new Error('clawhub detail returned an empty body')
 
   const detailChunks: Uint8Array[] = []
   let detailBytes = 0
-  for await (const chunk of detailResp.body as unknown as AsyncIterable<Uint8Array>) {
+  for await (const chunk of detailResp.body) {
     detailBytes += chunk.byteLength
     if (detailBytes > MAX_CLAWHUB_DETAIL_BYTES) {
       throw new Error(`clawhub detail exceeds the ${MAX_CLAWHUB_DETAIL_BYTES}-byte limit`)
@@ -338,6 +339,7 @@ async function fetchFromClawhub(
     await downloadResp.body?.cancel()
     throw new Error(`clawhub archive advertises ${advertisedSize} bytes, over the ${MAX_SKILL_SIZE}-byte limit`)
   }
+  if (!downloadResp.body) throw new Error('clawhub archive returned an empty body')
 
   const tempDir = await openTempDir()
   const zipPath = path.join(tempDir, 'skill.zip')
@@ -345,7 +347,7 @@ async function fetchFromClawhub(
   const handle = await fs.promises.open(zipPath, 'w')
   try {
     let received = 0
-    for await (const chunk of downloadResp.body as unknown as AsyncIterable<Uint8Array>) {
+    for await (const chunk of downloadResp.body) {
       received += chunk.byteLength
       if (received > MAX_SKILL_SIZE) {
         throw new Error(`clawhub archive exceeds the ${MAX_SKILL_SIZE}-byte limit`)

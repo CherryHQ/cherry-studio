@@ -122,10 +122,11 @@ async function fetchManifestFrom(url: string): Promise<MiniAppDistributionManife
   try {
     const res = await net.fetch(url, { credentials: 'omit', redirect: 'error', signal })
     if (!res.ok) throw new Error(`Failed to fetch mini app manifest: ${res.status}`)
+    if (!res.body) throw new Error('Failed to fetch mini app manifest: empty response body')
 
     const chunks: Uint8Array[] = []
     let received = 0
-    for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
+    for await (const chunk of res.body) {
       received += chunk.byteLength
       if (received > MINI_APP_MAX_MANIFEST_BYTES) {
         throw new Error(`Manifest exceeds the ${MINI_APP_MAX_MANIFEST_BYTES} byte limit`)
@@ -204,6 +205,7 @@ async function downloadPackage(
   if (Number.isFinite(advertised) && advertised > expected.size) {
     throw new Error(`Package advertises ${advertised} bytes, more than the declared ${expected.size}`)
   }
+  if (!res.body) throw new Error('Failed to download mini app package: empty response body')
 
   const dir = await fs.promises.mkdtemp(path.join(application.getPath('app.temp'), 'miniapp-dl-'))
   const dest = path.join(dir, 'package.miniapp')
@@ -214,7 +216,7 @@ async function downloadPackage(
     const handle = await fs.promises.open(dest, 'w')
     let received = 0
     try {
-      for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
+      for await (const chunk of res.body) {
         idle.bump()
         received += chunk.byteLength
         if (received > expected.size) {
@@ -262,9 +264,10 @@ export async function fetchIcon(
   try {
     const res = await net.fetch(url, { credentials: 'omit', redirect: 'error', signal })
     if (!res.ok) throw new Error(`Failed to fetch mini app icon: ${res.status}`)
+    if (!res.body) throw new Error('Failed to fetch mini app icon: empty response body')
 
     let received = 0
-    for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
+    for await (const chunk of res.body) {
       received += chunk.byteLength
       if (received > MINI_APP_MAX_ICON_BYTES) throw new Error(`Icon exceeds the ${MINI_APP_MAX_ICON_BYTES} byte limit`)
       chunks.push(chunk)
