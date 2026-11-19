@@ -1822,6 +1822,7 @@ const ChatComposerInner = ({
     assistantId: selectedAssistantId,
     assistantName,
     assistantEmoji: displayAssistant?.emoji,
+    assistantAvatarSrc: displayAssistant?.avatarSrc,
     model: runtimeModel,
     modelPending: runtimeModelPending,
     providers,
