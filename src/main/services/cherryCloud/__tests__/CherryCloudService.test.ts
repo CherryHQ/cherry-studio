@@ -1679,19 +1679,19 @@ describe('CherryCloudService', () => {
   it.each(['ENTITLEMENT_INACTIVE', 'AMD_ACTIVATION_REQUIRED', 'AMD_CREDENTIAL_INVALID'])(
     'asks for models again after a model request is rejected with 403 %s',
     async (code) => {
-    const service = await createSignedInService()
-    mockModelSync()
-    await service.syncEntitledModelsIfStale()
-    mockCloudRoute('/v1/messages', cloudErrorResponse(403, code))
-    await service.authenticatedFetch('/v1/messages', { method: 'POST' })
-    mocks.netFetch.mockClear()
+      const service = await createSignedInService()
+      mockModelSync()
+      await service.syncEntitledModelsIfStale()
+      mockCloudRoute('/v1/messages', cloudErrorResponse(403, code))
+      await service.authenticatedFetch('/v1/messages', { method: 'POST' })
+      mocks.netFetch.mockClear()
 
-    mockModelSync()
-    await service.syncEntitledModelsIfStale()
+      mockModelSync()
+      await service.syncEntitledModelsIfStale()
 
-    expect(requestCalls('/v1/models?limit=1000&catalog=full')).toHaveLength(1)
-    // An AMD refusal is about the AMD key, never the Cherry sign-in.
-    expect((await service.getStatus()).phase).toBe('signed-in')
+      expect(requestCalls('/v1/models?limit=1000&catalog=full')).toHaveLength(1)
+      // An AMD refusal is about the AMD key, never the Cherry sign-in.
+      expect((await service.getStatus()).phase).toBe('signed-in')
     }
   )
 
