@@ -3,6 +3,7 @@ import { mockPreferenceService } from '@test-mocks/renderer/PreferenceService'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { preferenceService } from '@renderer/data/PreferenceService'
 // @vitest-environment jsdom
@@ -57,6 +58,14 @@ describe('core sidebar shortcut providers', () => {
     await provider(providerId).activate(target, gateway)
 
     expect(openWorkspace).toHaveBeenCalledWith(expect.objectContaining({ url: expectedUrl }))
+  })
+
+  it('renders the gateway glyph at the requested sidebar size', () => {
+    const Gateway = SIDEBAR_ICON_COMPONENTS.api_gateway
+    const { container } = render(<Gateway size={16} />)
+    const icon = container.querySelector('svg')!
+    expect(icon).toHaveAttribute('width', '16')
+    expect(icon).toHaveAttribute('height', '16')
   })
 
   it('resolves the gateway shortcut label and active route', async () => {

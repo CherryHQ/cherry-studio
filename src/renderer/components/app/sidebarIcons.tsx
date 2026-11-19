@@ -45,7 +45,7 @@ export const SIDEBAR_ICON_COMPONENTS = {
   files: Folder,
   code_tools: CodeMateIcon,
   notes: NotepadText,
-  api_gateway: (props: LucideProps) => <GatewayIcon {...props} viewBox="0 0 640 640" />
+  api_gateway: ({ size, ...props }: LucideProps) => <GatewayIcon {...props} width={size} height={size} />
 } satisfies Record<SidebarAppId, SidebarIconComponent>
 
 const RESOURCE_ICON_COMPONENTS = {

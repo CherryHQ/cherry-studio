@@ -264,9 +264,7 @@ export default function LaunchpadPage() {
             </span>
           </span>
         </span>
-        <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-foreground">
-          {item.text}
-        </span>
+        <span className="w-full break-words text-[12px] text-foreground">{item.text}</span>
       </button>
     </CommandContextMenu>
   )

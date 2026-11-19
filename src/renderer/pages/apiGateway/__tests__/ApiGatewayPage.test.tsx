@@ -24,7 +24,12 @@ vi.mock('react-i18next', async () => {
 
 describe('ApiGatewayPage', () => {
   it('shows the real stopped panel with a start action', () => {
-    const { container } = render(<ApiGatewayPage />)
+    const { container } = render(
+      <main>
+        <ApiGatewayPage />
+      </main>
+    )
+    expect(screen.getAllByRole('main')).toHaveLength(1)
     expect(container.querySelector('[data-ui~="api-gateway.view"]')).toBeInTheDocument()
     expect(container.querySelector('[data-ui~="api-gateway.panel"]')).toBeInTheDocument()
     expect(screen.getByText(en['code.api_gateway.title'])).toBeInTheDocument()
