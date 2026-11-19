@@ -7,7 +7,6 @@ import type { CallRef, HostPorts, BehaviorEvent } from '@cherrystudio/agent-beha
 import type { JsonValue, ThreadId, Thread } from '@cherrystudio/agent-runtime'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
 import { MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
@@ -16,8 +15,8 @@ import { getRawModelId } from '@shared/utils/model'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { createPiGatewayModelBinding } from './gatewayModelBinding'
 import { readPiApprovalFacts, type PiApprovalContext } from './piApprovalFacts'
-import { PI_TRANSPORT } from './PiMessageMetadata'
 import { matchPiSubagentModel } from './piSubagentModelMatch'
+import { requestPiToolApproval } from './piToolApprovalRequest'
 
 type Binding = Awaited<ReturnType<typeof createPiGatewayModelBinding>>
 type HostOptions = {
@@ -171,42 +170,18 @@ export function createPiInteractionPorts(
     signal.throwIfAborted()
     const { toolCallId, parentToolCallId } = await options.toolCallIdentity(call)
     signal.throwIfAborted()
-    const presentation = approval.getInteractionState().userResponse
-    if (presentation === 'unavailable') return undefined
-    const id = approvalId(call)
-    const decision = await new Promise<DispatchDecision>((resolve) => {
-      const pending = toolApprovalRegistry.register({
-        approvalId: id,
-        sessionId: input.sessionId,
-        toolCallId,
-        toolName: name,
-        originalInput: args,
-        presentation,
-        signal,
-        resolve
-      })
-      if (pending)
-        options.emit({
-          type: 'tool-approval-request',
-          request: {
-            approvalId: id,
-            toolCallId,
-            toolName: name,
-            input: args,
-            presentation,
-            providerMetadata: {
-              cherry: {
-                transport: PI_TRANSPORT,
-                toolName: name,
-                ...(parentToolCallId ? { parentToolCallId } : {}),
-                ...(details === undefined ? {} : { commandPolicy: z.json().parse(details) })
-              }
-            }
-          }
-        })
+    return requestPiToolApproval({
+      id: approvalId(call),
+      sessionId: input.sessionId,
+      toolCallId,
+      parentToolCallId,
+      name,
+      args,
+      signal,
+      details,
+      presentation: approval.getInteractionState().userResponse,
+      emit: options.emit
     })
-    signal.throwIfAborted()
-    return decision
   }
 
   return {
