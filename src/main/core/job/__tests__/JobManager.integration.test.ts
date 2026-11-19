@@ -165,7 +165,7 @@ async function bootstrapManager(opts: BootstrapOptions = {}): Promise<{
   void jobManager._doAllReady()
   if (opts.beforeRecovery) await opts.beforeRecovery(jobManager)
   await vi.advanceTimersByTimeAsync(60_000)
-  await (jobManager as unknown as { _recoveryDone?: Promise<void> })._recoveryDone
+  await jobManager['_recoveryDone']
   for (let i = 0; i < 5; i++) {
     await vi.advanceTimersByTimeAsync(100)
   }
@@ -431,7 +431,7 @@ describe('JobManager integration', () => {
       // Run the startup-recovery sweep WHILE the job is genuinely in-flight in
       // this process. Invoked directly — the same flow the 60s timer triggers —
       // to keep the test deterministic without re-driving fake timers.
-      await (jobManager as unknown as { runStartupRecoveryFlow: () => Promise<void> }).runStartupRecoveryFlow()
+      await jobManager['runStartupRecoveryFlow']()
 
       // This assertion is NEGATIVE (count must NOT grow), so give any buggy
       // re-dispatch ample opportunity to land before asserting — drain + settle
@@ -745,7 +745,7 @@ describe('JobManager integration', () => {
     }
 
     function armedScheduleIds(jm: JobManager): Set<string> {
-      return new Set((jm as unknown as { scheduleDisposables: Map<string, unknown> }).scheduleDisposables.keys())
+      return new Set(jm['scheduleDisposables'].keys())
     }
 
     it('does not re-arm a spent once schedule (fired one-shot must not replay on restart)', async () => {
@@ -1014,8 +1014,10 @@ describe('JobManager integration', () => {
       const { scheduler, jobManager } = await bootstrapManager({
         handlers: [['cap.task', makeSlowHandler('abandon') as JobHandler]]
       })
-      // Force the global cap to bind with a single slot.
-      ;(jobManager as unknown as { globalMaxConcurrency: number }).globalMaxConcurrency = 1
+      // SAFETY: This isolated regression lowers the real fixed cap to exercise wakeup with one running job.
+      // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Tests override the readonly limit without adding production configuration.
+      const capacity = jobManager as unknown as { globalMaxConcurrency: JobManager['globalMaxConcurrency'] | 1 }
+      capacity.globalMaxConcurrency = 1
 
       // Queue qB occupies the only global slot with a slow job.
       const occupant = jobManager.enqueue('cap.task' as never, { message: 'occupant', sleepMs: 150 } as never, {
@@ -1036,7 +1038,7 @@ describe('JobManager integration', () => {
       // the time drain returns. Without this assertion the test could pass
       // vacuously if timing left a global slot free at qA enqueue time.
       await drainAllQueues(jobManager)
-      expect((jobManager as unknown as { globalCapReached: boolean }).globalCapReached).toBe(true)
+      expect(jobManager['globalCapReached']).toBe(true)
 
       // Occupant finishes → frees the global slot → must wake qA.
       await occupant.finished
@@ -1361,7 +1363,7 @@ describe('JobManager integration', () => {
         handlers: [['tx.rollback', makeSlowHandler('abandon') as JobHandler]]
       })
       const db = MockMainDbServiceExport.dbService.getDb() as DbType
-      const resolvers = (jobManager as unknown as { finishedResolvers: Map<string, unknown> }).finishedResolvers
+      const resolvers = jobManager['finishedResolvers']
 
       let jobId = ''
       expect(() =>
