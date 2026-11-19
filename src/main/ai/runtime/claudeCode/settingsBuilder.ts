@@ -77,6 +77,7 @@ import { isExternalCliProvider } from '@shared/utils/provider'
 
 import type { ToolPolicySnapshot } from './ClaudeCodeSessionStateService'
 import {
+  AUTO_COMPACT_TRIGGER_PCT,
   buildEnvironment,
   resolveAutoCompactWindow,
   resolveClaudeExecutablePath,
@@ -129,6 +130,7 @@ export function registerMcpSessionCatalogSync(
 // ── Input types ─────────────────────────────────────────────────────
 
 export interface ClaudeCodeSessionOptions {
+  compactionPercent?: number
   lastAgentSessionId?: string
   /** Whether the connection model accepts native image input. */
   supportsImages?: boolean
@@ -334,7 +336,12 @@ export async function buildClaudeCodeSessionSettings(
   // Unconditional: unlike the window, a trigger percentage is meaningful even for models that
   // declare no usable context window. An explicit agent `env_vars` entry still wins.
   if (env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE === undefined) {
-    env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(normalizeAutoCompactTriggerPct(agentConfig?.auto_compact_pct))
+    // An agent-level trigger config wins; otherwise the task/session compaction percent applies.
+    env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(
+      agentConfig?.auto_compact_pct !== undefined
+        ? normalizeAutoCompactTriggerPct(agentConfig.auto_compact_pct)
+        : (options?.compactionPercent ?? AUTO_COMPACT_TRIGGER_PCT)
+    )
   }
   // Opt-out, and only an explicit `false` counts: the runtime's own default stays in charge for
   // every other value (including an unreadable preference), so nothing changes unless asked.

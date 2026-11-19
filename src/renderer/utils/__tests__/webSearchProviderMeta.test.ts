@@ -94,4 +94,32 @@ describe('webSearchProviderMeta', () => {
       entries: [{ key: 'fetchUrls:fetch' }, { key: 'fetchUrls:jina' }]
     })
   })
+
+  it('surfaces image search only for providers that declare it', () => {
+    const withImages: WebSearchProvider[] = [
+      ...providers,
+      {
+        id: 'stepfun',
+        name: 'StepFun',
+        type: 'api',
+        apiKeys: [],
+        capabilities: [
+          { feature: 'searchKeywords', apiHost: 'https://api.stepfun.com' },
+          { feature: 'searchImages', apiHost: 'https://api.stepfun.com' }
+        ],
+        engines: [],
+        basicAuthUsername: '',
+        basicAuthPassword: ''
+      }
+    ]
+
+    const sections = getWebSearchFeatureSections(withImages)
+
+    expect(sections).toHaveLength(3)
+    expect(sections[2]).toMatchObject({
+      capability: 'searchImages',
+      entries: [{ key: 'searchImages:stepfun' }]
+    })
+    expect(createWebSearchMenuEntry(providers[0], 'searchImages')).toBeNull()
+  })
 })

@@ -28,7 +28,11 @@ import { logAiFailure } from '@main/ai/errorReporting'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
-import { appendAgentAttachmentPaths, wrapAgentSessionDeliveryContent } from '@main/ai/runtime/agentUserContent'
+import {
+  appendAgentAttachmentPaths,
+  withAgentContext,
+  wrapAgentSessionDeliveryContent
+} from '@main/ai/runtime/agentUserContent'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
@@ -65,6 +69,7 @@ import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from
 import type { ConsumedWarmQuery } from './ClaudeCodeWarmQueryManager'
 import { forkClaudeSession } from './claudeFork'
 import { ClaudeMessageMetadata } from './ClaudeMessageMetadata'
+import { ClaudePromptSuggestion } from './ClaudePromptSuggestion'
 import { claudeControlEvents, ClaudeCodeResultError } from './ClaudeRuntimeState'
 import { classifyClaudeFailure } from './failureFacts'
 import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
@@ -123,6 +128,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return this.context?.id
   }
 
+  private readonly promptSuggestion = new ClaudePromptSuggestion()
   private readonly eventQueue = new AsyncEventQueue<AgentRuntimeEvent>()
   private readonly abortController = new AbortController()
   private runtime?: ClaudeCodeRuntime
@@ -293,16 +299,26 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     application.get('ClaudeCodeTraceBridgeService').refreshTraceContext(context)
   }
 
+  predictPrompt(signal: AbortSignal): Promise<string> {
+    return this.promptSuggestion.read(signal)
+  }
+
   async send(input: AgentRuntimeCommand): Promise<void> {
+    this.promptSuggestion.clear()
     this.currentSources.clear()
     if (isFastSlashCommand(input)) {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
 
-    const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
-      supportsAttachmentReads: this.assistantFileToolsEnabled,
-      supportsImages: resolveModelImageSupport(this.input.modelId)
-    })
+    const sdkMessage = await toSdkUserMessage(
+      withAgentContext(input.message, input.context),
+      this.resumeToken,
+      input.systemReminder,
+      {
+        supportsAttachmentReads: this.assistantFileToolsEnabled,
+        supportsImages: resolveModelImageSupport(this.input.modelId)
+      }
+    )
     const contextId = this.context!.id
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'follow-up', {
       text: JSON.stringify(sdkMessage.message.content),
@@ -320,6 +336,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   redirect(input: AgentRuntimeCommand): boolean {
+    this.promptSuggestion.clear()
     if (this.closing || !this.handle) return false
     void this.submitSteer(input).catch((error) => {
       logAiFailure(logger, 'Claude steer failed', error, 'agent.claude.steer', classifyClaudeFailure(error))
@@ -329,10 +346,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private async submitSteer(input: AgentRuntimeCommand): Promise<void> {
-    const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
-      supportsAttachmentReads: this.assistantFileToolsEnabled,
-      supportsImages: resolveModelImageSupport(this.input.modelId)
-    })
+    const sdkMessage = await toSdkUserMessage(
+      withAgentContext(input.message, input.context),
+      this.resumeToken,
+      input.systemReminder,
+      {
+        supportsAttachmentReads: this.assistantFileToolsEnabled,
+        supportsImages: resolveModelImageSupport(this.input.modelId)
+      }
+    )
     const contextId = this.context!.id
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, 'steer', {
       text: JSON.stringify(sdkMessage.message.content),
@@ -467,6 +489,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async interrupt(): Promise<void> {
+    this.promptSuggestion.clear()
     const interrupt = this.handle?.interrupt
     if (!interrupt) return
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -501,6 +524,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private async closeQuery(): Promise<void> {
+    this.promptSuggestion.clear()
     this.closing = true
     this.closingAccess.abort()
     if (this.parkedQuery) {
@@ -544,6 +568,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       })
     )
     const observation = await handle.claude.observe(async (batch) => {
+      this.promptSuggestion.accept(batch)
       legacy = batch.legacy ?? legacy
       const currentLegacy = legacy
       this.publishInvocations(batch, 'current-turn')

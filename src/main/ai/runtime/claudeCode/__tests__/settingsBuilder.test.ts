@@ -678,17 +678,18 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '128000' })
   })
 
-  it('defaults the compaction trigger percentage and lets an agent env override win', async () => {
+  it('applies the task compaction percentage and lets an agent env override win', async () => {
     // No context window declared — the percentage still applies.
-    await buildClaudeCodeSessionSettings(
+    const settings = await buildClaudeCodeSessionSettings(
       {
         id: 'session-1',
         agentId: 'agent-1',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
-      {}
+      { compactionPercent: 55 }
     )
+    expect(settings.env?.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE).toBe('55')
 
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -960,7 +961,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.skills).toEqual([])
   })
 
-  it('adds loopback bypass rules to the final Agent proxy environment', async () => {
+  it('adds loopback bypass rules and removes IPv6 CIDR from the final Agent proxy environment', async () => {
     const proxyUrl = 'http://remote-proxy.example:7890'
     mocks.getProxyEnvironment.mockReturnValue({
       HTTP_PROXY: proxyUrl,
@@ -975,7 +976,9 @@ describe('buildClaudeCodeSessionSettings', () => {
       smallModel: 'anthropic::claude-haiku',
       mcps: [],
       allowedTools: [],
-      configuration: { env_vars: { no_proxy: 'service.internal; LOCALHOST' } }
+      configuration: {
+        env_vars: { no_proxy: 'service.internal; LOCALHOST; fe80::/10; ::ffff:127.0.0.0/104' }
+      }
     })
 
     const settings = await buildClaudeCodeSessionSettings(
@@ -990,8 +993,8 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.env).toMatchObject({
       HTTP_PROXY: proxyUrl,
       HTTPS_PROXY: proxyUrl,
-      no_proxy: 'service.internal,LOCALHOST,127.0.0.1,::1,[::1]',
-      NO_PROXY: 'service.internal,LOCALHOST,127.0.0.1,::1,[::1]'
+      no_proxy: 'service.internal,LOCALHOST,127.0.0.1,::1',
+      NO_PROXY: 'service.internal,LOCALHOST,127.0.0.1,::1'
     })
   })
 
@@ -1056,8 +1059,8 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect(settings.env).toMatchObject({
       HTTP_PROXY: proxyUrl,
-      NO_PROXY: 'stale.internal,localhost,127.0.0.1,::1,[::1]',
-      no_proxy: 'stale.internal,localhost,127.0.0.1,::1,[::1]'
+      NO_PROXY: 'stale.internal,localhost,127.0.0.1,::1',
+      no_proxy: 'stale.internal,localhost,127.0.0.1,::1'
     })
     expect(settings.env).not.toHaveProperty('HTTPS_PROXY')
     expect(settings.env).not.toHaveProperty('CHERRY_STUDIO_NODE_PROXY_RULES')
