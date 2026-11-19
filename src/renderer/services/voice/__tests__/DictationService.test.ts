@@ -55,6 +55,13 @@ function operation<T>(sessionId: string, requestId: string, result: Promise<T>) 
   return { sessionId, requestId, result }
 }
 
+function recordingStream(tracks: Pick<MediaStreamTrack, 'stop'>[]): MediaStream {
+  const stream = { getTracks: () => tracks }
+  // SAFETY: Fixtures provide track stopping; DictationService installs onended and uses the injected recorder.
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- The DOM test environment cannot construct native microphone MediaStreams.
+  return stream as unknown as MediaStream
+}
+
 function createHarness(
   options: {
     chunks?: Blob[]
@@ -71,7 +78,7 @@ function createHarness(
   const interruptionListeners = new Set<() => void>()
   const chunks = options.chunks ?? [new Blob([WEBM_HEADER]), new Blob([new Uint8Array([0x42, 0x82])])]
   const tracks = [{ stop: vi.fn() }, { stop: vi.fn() }]
-  const stream = { getTracks: () => tracks } as unknown as MediaStream
+  const stream = recordingStream(tracks)
   const getUserMedia = options.getUserMedia ?? vi.fn(async () => stream)
   const recorders: FakeMediaRecorder[] = []
   const createMediaRecorder = vi.fn<(stream: MediaStream, recorderOptions: MediaRecorderOptions) => FakeMediaRecorder>(
@@ -218,8 +225,17 @@ describe('DictationService recording lifecycle', () => {
         registered = true
       })
       window.api = {
-        preference: { get, subscribe, set: vi.fn(async () => undefined), onChanged: vi.fn(() => () => undefined) }
-      } as unknown as typeof window.api
+        ...previousApi,
+        // SAFETY: This legacy IPC fixture injects absent/invalid recognition snapshots and push races.
+        // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Generic preload typing cannot express malformed wire responses for one preference key.
+        preference: {
+          ...previousApi.preference,
+          get,
+          subscribe,
+          set: vi.fn(async () => undefined),
+          onChanged: vi.fn(() => () => undefined)
+        } as unknown as typeof previousApi.preference
+      }
       const preferences = new real.PreferenceService()
       await preferences.set('feature.voice.recognition.model_id', '')
       const fresh = vi
@@ -273,7 +289,11 @@ describe('DictationService recording lifecycle', () => {
     const get = vi.fn().mockReturnValueOnce(read.promise).mockResolvedValue('off')
     const set = vi.fn().mockResolvedValue(undefined)
     window.api = {
+      ...previousApi,
+      // SAFETY: This legacy IPC fixture injects absent/invalid recognition snapshots and push races.
+      // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Generic preload typing cannot express malformed wire responses for one preference key.
       preference: {
+        ...previousApi.preference,
         get,
         set,
         subscribe: vi.fn(async () => undefined),
@@ -281,8 +301,8 @@ describe('DictationService recording lifecycle', () => {
           push = listener
           return () => undefined
         }
-      }
-    } as unknown as typeof window.api
+      } as unknown as typeof previousApi.preference
+    }
     const preferences = new real.PreferenceService()
     const fresh = vi
       .spyOn(preferenceService, 'ensureFreshSubscription')
@@ -330,15 +350,19 @@ describe('DictationService recording lifecycle', () => {
       return 'off'
     })
     window.api = {
+      ...previousApi,
+      // SAFETY: This legacy IPC fixture injects absent/invalid recognition snapshots and push races.
+      // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Generic preload typing cannot express malformed wire responses for one preference key.
       preference: {
+        ...previousApi.preference,
         get,
         subscribe: vi.fn(async () => undefined),
         onChanged: (listener: typeof push) => {
           push = listener
           return () => undefined
         }
-      }
-    } as unknown as typeof window.api
+      } as unknown as typeof previousApi.preference
+    }
     const preferences = new real.PreferenceService()
     const fresh = vi
       .spyOn(preferenceService, 'ensureFreshSubscription')
@@ -430,8 +454,8 @@ describe('DictationService recording lifecycle', () => {
   it('releases a cancelled session without waiting for permission and stops its late stream without disturbing a new run', async () => {
     const permission = deferred<MediaStream>()
     const lateTrack = { stop: vi.fn() }
-    const lateStream = { getTracks: () => [lateTrack] } as unknown as MediaStream
-    const nextStream = { getTracks: () => [{ stop: vi.fn() }] } as unknown as MediaStream
+    const lateStream = recordingStream([lateTrack])
+    const nextStream = recordingStream([{ stop: vi.fn() }])
     const getUserMedia = vi
       .fn<() => Promise<MediaStream>>()
       .mockReturnValueOnce(permission.promise)
@@ -973,7 +997,7 @@ describe('DictationService recording lifecycle', () => {
   it('stops a late permission stream after its scoped owner cancels', async () => {
     const permission = deferred<MediaStream>()
     const lateTracks = [{ stop: vi.fn() }, { stop: vi.fn() }]
-    const lateStream = { getTracks: () => lateTracks } as unknown as MediaStream
+    const lateStream = recordingStream(lateTracks)
     const getUserMedia = vi.fn<(constraints: MediaStreamConstraints) => Promise<MediaStream>>(() => permission.promise)
     const harness = createHarness({ getUserMedia })
 
@@ -994,8 +1018,8 @@ describe('DictationService recording lifecycle', () => {
   it('does not let an older scoped owner cancel a replacement recording', async () => {
     const firstTrack = { stop: vi.fn() }
     const secondTrack = { stop: vi.fn() }
-    const firstStream = { getTracks: () => [firstTrack] } as unknown as MediaStream
-    const secondStream = { getTracks: () => [secondTrack] } as unknown as MediaStream
+    const firstStream = recordingStream([firstTrack])
+    const secondStream = recordingStream([secondTrack])
     const getUserMedia = vi
       .fn<(constraints: MediaStreamConstraints) => Promise<MediaStream>>()
       .mockResolvedValueOnce(firstStream)
@@ -1023,7 +1047,7 @@ describe('DictationService recording lifecycle', () => {
     vi.setSystemTime(0)
     const firstPermission = deferred<MediaStream>()
     const replacementTrack = { stop: vi.fn() }
-    const replacementStream = { getTracks: () => [replacementTrack] } as unknown as MediaStream
+    const replacementStream = recordingStream([replacementTrack])
     const getUserMedia = vi
       .fn<(constraints: MediaStreamConstraints) => Promise<MediaStream>>()
       .mockReturnValueOnce(firstPermission.promise)
@@ -1046,8 +1070,8 @@ describe('DictationService recording lifecycle', () => {
   it('cleans the previous session and tracks before a new recording, and cleans the replacement on teardown', async () => {
     const firstTrack = { stop: vi.fn() }
     const secondTrack = { stop: vi.fn() }
-    const firstStream = { getTracks: () => [firstTrack] } as unknown as MediaStream
-    const secondStream = { getTracks: () => [secondTrack] } as unknown as MediaStream
+    const firstStream = recordingStream([firstTrack])
+    const secondStream = recordingStream([secondTrack])
     const getUserMedia = vi
       .fn<(constraints: MediaStreamConstraints) => Promise<MediaStream>>()
       .mockResolvedValueOnce(firstStream)
@@ -1069,7 +1093,7 @@ describe('DictationService recording lifecycle', () => {
   it('subscribes before admission and stops a late permission stream after a matching Main stop', async () => {
     const permission = deferred<MediaStream>()
     const lateTracks = [{ stop: vi.fn() }, { stop: vi.fn() }]
-    const lateStream = { getTracks: () => lateTracks } as unknown as MediaStream
+    const lateStream = recordingStream(lateTracks)
     const getUserMedia = vi.fn<(constraints: MediaStreamConstraints) => Promise<MediaStream>>(() => permission.promise)
     const harness = createHarness({ getUserMedia })
 
@@ -1115,7 +1139,7 @@ describe('DictationService recording lifecycle', () => {
   it('immediately stops the recorder, every track, and buffered chunks on a matching Main stop', async () => {
     const harness = createHarness()
     await harness.service.start()
-    const active = (harness.service as unknown as { active?: { chunks: Blob[] } }).active
+    const active = harness.service['active']
 
     harness.emitCommand('another-session')
     expect(harness.recorders[0].stop).not.toHaveBeenCalled()
@@ -1209,7 +1233,7 @@ describe('DictationService failure and retry', () => {
     await harness.service.start()
     const stopping = harness.service.stop()
     await vi.waitFor(() => expect(harness.voice.transcribe).toHaveBeenCalledOnce())
-    expect((harness.service as unknown as { active?: { chunks: Blob[] } }).active?.chunks).toEqual([])
+    expect(harness.service['active']?.chunks).toEqual([])
     transcription.reject({ reason: 'operation_failed' })
     await stopping
 
@@ -1225,7 +1249,7 @@ describe('DictationService failure and retry', () => {
     harness.voice.resolveTranscriptionPreferences.mockResolvedValue({ modelId: FUNASR_MODEL_ID })
     const retrying = harness.service.retry()
     await vi.waitFor(() => expect(harness.voice.retryTranscription).toHaveBeenCalledOnce())
-    expect((harness.service as unknown as { active?: { chunks: Blob[] } }).active?.chunks).toEqual([])
+    expect(harness.service['active']?.chunks).toEqual([])
     retry.resolve({ sessionId: 'session-1', requestId: 'request-asr-2', text: 'recovered text' })
     await retrying
 
@@ -1539,7 +1563,7 @@ describe('DictationService private recovery', () => {
     const stopping = harness.service.stop()
     await vi.waitFor(() => expect(harness.voice.discardSession).toHaveBeenCalledWith('session-1'))
 
-    const active = (harness.service as unknown as { active?: { fileEntryId?: string } }).active
+    const active = harness.service['active']
     expect(active?.fileEntryId).toBeUndefined()
     cleanup.reject({ reason: 'operation_failed' })
     await stopping
