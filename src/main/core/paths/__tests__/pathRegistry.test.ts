@@ -42,6 +42,20 @@ afterEach(() => {
 })
 
 describe('buildPathRegistry', () => {
+  it('keeps the terminal executable outside asar while reading WASM assets through Electron', () => {
+    getAppPathMock.mockReturnValue('/mock/app.asar')
+    const registry = buildPathRegistry()
+    expect(registry['feature.terminal.scope_helper_file']).toBe(
+      path.join(
+        '/mock/app.asar.unpacked/resources/binaries',
+        `${process.platform}-${process.arch}`,
+        process.platform === 'win32' ? 'terminal-scope.exe' : 'terminal-scope'
+      )
+    )
+    expect(registry['feature.terminal.ghostty']).toBe(path.join('/mock/app.asar/resources/terminal/ghostty'))
+    expect(shouldAutoEnsure('feature.terminal.scope_helper_file')).toBe(false)
+    expect(shouldAutoEnsure('feature.terminal.ghostty')).toBe(false)
+  })
   it('uses the installed native Computer Use runtime without a manual development binary', () => {
     getAppPathMock.mockReturnValue(path.resolve(import.meta.dirname, '../../../../..'))
     const runtime = buildPathRegistry()['feature.computer_use.runtime']
