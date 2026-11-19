@@ -1030,6 +1030,7 @@
   "chat.profile_pane.outputs.group.today": "오늘",
   "chat.profile_pane.outputs.group.week": "이번 주",
   "chat.profile_pane.outputs.latest_shown": "최근 {{count}}개 표시",
+  "chat.profile_pane.outputs.load_failed": "결과물을 불러오지 못했습니다.",
   "chat.profile_pane.outputs.page_meta": "페이지 · “{{source}}”에서",
   "chat.profile_pane.outputs.unavailable": "사용할 수 없음",
   "chat.profile_pane.permission": "권한",
