@@ -122,16 +122,22 @@ export function reclaimHeartbeatWorkspacesTx(tx: DbOrTx, deletedSchedules: JobSc
 }
 
 /** True when the error is the (type, name) UNIQUE-conflict from registerJobScheduleTx. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Schedule registration catches include arbitrary failures; recognize only the named conflict and let the caller rethrow every other value unchanged.
 function isScheduleNameConflict(error: unknown): boolean {
-  const prefix = JOB_ERROR_CODES.SCHEDULE_NAME_CONFLICT
-  if (error instanceof DataApiError) {
-    return error.code === ErrorCode.CONFLICT && error.message.startsWith(prefix)
+  try {
+    const prefix = JOB_ERROR_CODES.SCHEDULE_NAME_CONFLICT
+    if (error instanceof DataApiError) {
+      return error.code === ErrorCode.CONFLICT && error.message.startsWith(prefix)
+    }
+    const message = error instanceof Error ? error.message : String(error)
+    return message.startsWith(prefix)
+  } catch {
+    return false
   }
-  const message = error instanceof Error ? error.message : String(error)
-  return message.startsWith(prefix)
 }
 
 /** True when the stored template no longer matches what sync would write. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- JobScheduleSnapshot retains raw persisted jobInputTemplate JSON; compare consumed heartbeat fields without trusting a current-template assertion.
 function templateDrifted(current: unknown, target: HeartbeatJobInputTemplate): boolean {
   if (typeof current !== 'object' || current === null) return true
   const template = current as {

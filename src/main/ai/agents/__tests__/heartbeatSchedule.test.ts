@@ -597,6 +597,24 @@ describe('heartbeatSchedule', () => {
     })
   })
 
+  it.each(['object', 'error-message'])('preserves an unprintable %s registration failure', async (kind) => {
+    seedAgent(AGENT_ID)
+    const unprintable = { toString: null, valueOf: null }
+    const failure =
+      kind === 'object'
+        ? unprintable
+        : Object.defineProperty(new Error('registration failed'), 'message', { value: unprintable })
+    const registration = vi.spyOn(jobManager, 'registerJobScheduleTx').mockImplementationOnce(() => {
+      throw failure
+    })
+    try {
+      await expect(syncHeartbeatSchedule(AGENT_ID)).rejects.toBe(failure)
+      expect(heartbeatRows(AGENT_ID)).toHaveLength(0)
+    } finally {
+      registration.mockRestore()
+    }
+  })
+
   it('treats a concurrent create name-conflict as a benign race and repairs the winner', async () => {
     // Simulate a concurrent sync that registered the row against a snapshot
     // this caller cannot see: pass an empty snapshot so the create branch runs,
