@@ -41,8 +41,52 @@ function TestList({ itemsDraggable }: { itemsDraggable: boolean }) {
   )
 }
 
+function ToggleList({ draggable }: { draggable: boolean }) {
+  return (
+    <GroupedSortableVirtualList
+      groups={[{ group: { id: 'group' }, header: { id: 'group' }, items: [{ id: 'alpha', label: 'Alpha' }] }]}
+      getGroupId={(group) => group.id}
+      getItemId={(item) => item.id}
+      estimateItemSize={() => 40}
+      dragCapabilities={{ groups: draggable, items: draggable }}
+      renderGroupHeader={() => <input aria-label="Header draft" />}
+      renderItem={(item) => <input aria-label={`${item.label} draft`} />}
+    />
+  )
+}
+
 describe('GroupedSortableVirtualList drag affordance', () => {
   beforeAll(installDndDomStubs)
+
+  it('keeps row content mounted while dragging turns off and back on', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<ToggleList draggable />)
+    const itemInput = screen.getByRole('textbox', { name: 'Alpha draft' })
+    const headerInput = screen.getByRole('textbox', { name: 'Header draft' })
+    await user.type(itemInput, 'item')
+    await user.type(headerInput, 'header')
+
+    rerender(<ToggleList draggable={false} />)
+    rerender(<ToggleList draggable />)
+
+    expect(screen.getByRole('textbox', { name: 'Alpha draft' })).toBe(itemInput)
+    expect(screen.getByRole('textbox', { name: 'Header draft' })).toBe(headerInput)
+    expect(itemInput).toHaveValue('item')
+    expect(headerInput).toHaveValue('header')
+  })
+
+  it('removes drag semantics from a row that stops being draggable', async () => {
+    const { rerender } = render(<ToggleList draggable />)
+    const wrapper = screen.getByRole('textbox', { name: 'Alpha draft' }).parentElement
+    await waitFor(() => expect(wrapper).toHaveAttribute('aria-roledescription'))
+
+    rerender(<ToggleList draggable={false} />)
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)))
+
+    for (const name of ['role', 'tabindex', 'aria-roledescription', 'aria-describedby', 'aria-disabled']) {
+      expect(wrapper).not.toHaveAttribute(name)
+    }
+  })
 
   it('keeps non-draggable rows interactive without inherited drag semantics', async () => {
     const user = userEvent.setup()

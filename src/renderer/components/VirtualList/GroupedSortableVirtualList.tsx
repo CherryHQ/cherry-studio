@@ -537,9 +537,9 @@ function shouldDropPayload<TGroup, TItem>(
 type RowShellProps = {
   children: React.ReactNode
   dropIndicatorPosition?: DropIndicatorPosition | null
-  dropTargetProps: ReturnType<typeof getDropTargetRowState>['props'] & { 'data-over'?: true }
+  dropTargetProps: ReturnType<typeof getDropTargetRowState>['props']
   isDragging?: boolean
-  ref: (element: Element | null) => void
+  ref: React.Ref<HTMLDivElement>
   sourcePlaceholder?: boolean
 }
 
@@ -564,6 +564,45 @@ function RowShell({
   )
 }
 
+type RowRegistrationProps<TGroup, TItem> = {
+  data: RowDragData<TGroup, TItem>
+  element: React.RefObject<HTMLDivElement | null>
+  id: string
+}
+
+// The library sets these on the row and never removes them when the draggable unregisters.
+const DRAG_ATTRIBUTES = [
+  'role',
+  'tabindex',
+  'aria-roledescription',
+  'aria-describedby',
+  'aria-pressed',
+  'aria-grabbed',
+  'aria-disabled'
+]
+
+function RowSortable<TGroup, TItem>({
+  element,
+  ...input
+}: RowRegistrationProps<TGroup, TItem> & {
+  disabled: boolean | { draggable: boolean; droppable: boolean }
+  index: number
+}) {
+  useSortable({ ...input, element, plugins: ROW_STEP_SORTABLE_PLUGINS, transition: null })
+
+  useEffect(() => {
+    const node = element.current
+    return () => DRAG_ATTRIBUTES.forEach((name) => node?.removeAttribute(name))
+  }, [element])
+
+  return null
+}
+
+function RowDroppable<TGroup, TItem>(props: RowRegistrationProps<TGroup, TItem> & { disabled: boolean }) {
+  useDroppable(props)
+  return null
+}
+
 type ItemRowProps<TGroup, TItem> = {
   activeDragState: ActiveDragState<TGroup, TItem> | null
   children: React.ReactNode
@@ -576,12 +615,21 @@ type ItemRowProps<TGroup, TItem> = {
   sourcePlaceholder?: boolean
 }
 
-function getItemDropTargetRowState<TGroup, TItem>({
+// The row element stays put when dragging turns on or off, so its content keeps its state and focus;
+// only the registration swaps. A row that cannot be dragged carries no drag role or aria-disabled.
+function ItemRow<TGroup, TItem>({
   activeDragState,
+  children,
   data,
-  overDropState
-}: Pick<ItemRowProps<TGroup, TItem>, 'activeDragState' | 'data' | 'overDropState'>) {
-  const state = getDropTargetRowState({
+  disabled,
+  dropIndicatorPosition,
+  draggableDisabled,
+  index,
+  overDropState,
+  sourcePlaceholder
+}: ItemRowProps<TGroup, TItem>) {
+  const element = useRef<HTMLDivElement>(null)
+  const dropTargetRowState = getDropTargetRowState({
     activeDragState,
     groupId: data.groupId,
     overDropState,
@@ -592,70 +640,31 @@ function getItemDropTargetRowState<TGroup, TItem>({
     activeDragState?.active !== undefined &&
     isItemDragData(activeDragState.active) &&
     activeDragState.active.itemId === data.itemId
-  return { ...state, droppableDisabled: state.isBlocked && !isActiveItem }
-}
-
-// A row that cannot be dragged registers no draggable, so it carries no drag role or aria-disabled.
-function ItemRow<TGroup, TItem>(props: ItemRowProps<TGroup, TItem>) {
-  return props.draggableDisabled ? <DroppableItemRow {...props} /> : <DraggableItemRow {...props} />
-}
-
-function DraggableItemRow<TGroup, TItem>({
-  activeDragState,
-  children,
-  data,
-  disabled,
-  dropIndicatorPosition,
-  index,
-  overDropState,
-  sourcePlaceholder
-}: ItemRowProps<TGroup, TItem>) {
-  const dropTargetRowState = getItemDropTargetRowState({ activeDragState, data, overDropState })
-  const { ref, isDragSource } = useSortable({
-    id: toItemSortableId(data.itemId),
-    index,
-    data,
-    disabled: { draggable: disabled, droppable: disabled || dropTargetRowState.droppableDisabled },
-    plugins: ROW_STEP_SORTABLE_PLUGINS,
-    transition: null
-  })
+  const id = toItemSortableId(data.itemId)
+  const droppableDisabled = disabled || (dropTargetRowState.isBlocked && !isActiveItem)
 
   return (
-    <RowShell
-      ref={ref}
-      isDragging={isDragSource}
-      dropTargetProps={dropTargetRowState.props}
-      dropIndicatorPosition={dropIndicatorPosition}
-      sourcePlaceholder={sourcePlaceholder}>
-      {children}
-    </RowShell>
-  )
-}
-
-function DroppableItemRow<TGroup, TItem>({
-  activeDragState,
-  children,
-  data,
-  disabled,
-  dropIndicatorPosition,
-  overDropState,
-  sourcePlaceholder
-}: ItemRowProps<TGroup, TItem>) {
-  const dropTargetRowState = getItemDropTargetRowState({ activeDragState, data, overDropState })
-  const { ref } = useDroppable({
-    id: toItemSortableId(data.itemId),
-    data,
-    disabled: disabled || dropTargetRowState.droppableDisabled
-  })
-
-  return (
-    <RowShell
-      ref={ref}
-      dropTargetProps={dropTargetRowState.props}
-      dropIndicatorPosition={dropIndicatorPosition}
-      sourcePlaceholder={sourcePlaceholder}>
-      {children}
-    </RowShell>
+    <>
+      <RowShell
+        ref={element}
+        isDragging={isActiveItem}
+        dropTargetProps={dropTargetRowState.props}
+        dropIndicatorPosition={dropIndicatorPosition}
+        sourcePlaceholder={sourcePlaceholder}>
+        {children}
+      </RowShell>
+      {draggableDisabled ? (
+        <RowDroppable id={id} data={data} element={element} disabled={droppableDisabled} />
+      ) : (
+        <RowSortable
+          id={id}
+          index={index}
+          data={data}
+          element={element}
+          disabled={{ draggable: disabled, droppable: droppableDisabled }}
+        />
+      )}
+    </>
   )
 }
 
@@ -671,20 +680,18 @@ type GroupHeaderRowProps<TGroup, TItem> = {
   sourcePlaceholder?: boolean
 }
 
-function GroupHeaderRow<TGroup, TItem>({ draggable, ...props }: GroupHeaderRowProps<TGroup, TItem>) {
-  return draggable ? <SortableGroupHeaderRow {...props} /> : <DroppableGroupHeaderRow {...props} />
-}
-
-function SortableGroupHeaderRow<TGroup, TItem>({
+function GroupHeaderRow<TGroup, TItem>({
   activeDragState,
   children,
   data,
+  draggable,
   disabled,
   dropIndicatorPosition,
   index,
   overDropState,
-  sourcePlaceholder
-}: Omit<GroupHeaderRowProps<TGroup, TItem>, 'draggable'>) {
+  sourcePlaceholder = false
+}: GroupHeaderRowProps<TGroup, TItem>) {
+  const element = useRef<HTMLDivElement>(null)
   const dropTargetRowState = getDropTargetRowState({
     activeDragState,
     groupId: data.groupId,
@@ -692,57 +699,25 @@ function SortableGroupHeaderRow<TGroup, TItem>({
     rowId: data.groupId,
     rowType: 'group'
   })
-  const { ref, isDragSource } = useSortable({
-    id: toGroupSortableId(data.groupId),
-    index,
-    data,
-    disabled: disabled || dropTargetRowState.isBlocked,
-    plugins: ROW_STEP_SORTABLE_PLUGINS,
-    transition: null
-  })
+  const id = toGroupSortableId(data.groupId)
+  const rowDisabled = disabled || dropTargetRowState.isBlocked
 
   return (
-    <RowShell
-      ref={ref}
-      isDragging={isDragSource}
-      dropTargetProps={dropTargetRowState.props}
-      dropIndicatorPosition={dropIndicatorPosition}
-      sourcePlaceholder={sourcePlaceholder}>
-      {children}
-    </RowShell>
-  )
-}
-
-function DroppableGroupHeaderRow<TGroup, TItem>({
-  activeDragState,
-  children,
-  data,
-  disabled,
-  dropIndicatorPosition,
-  overDropState,
-  sourcePlaceholder
-}: Omit<GroupHeaderRowProps<TGroup, TItem>, 'draggable'>) {
-  const dropTargetRowState = getDropTargetRowState({
-    activeDragState,
-    groupId: data.groupId,
-    overDropState,
-    rowId: data.groupId,
-    rowType: 'group'
-  })
-  const { ref, isDropTarget } = useDroppable({
-    id: toGroupSortableId(data.groupId),
-    data,
-    disabled: disabled || dropTargetRowState.isBlocked
-  })
-
-  return (
-    <RowShell
-      ref={ref}
-      dropTargetProps={{ ...dropTargetRowState.props, 'data-over': isDropTarget || undefined }}
-      dropIndicatorPosition={dropIndicatorPosition}
-      sourcePlaceholder={sourcePlaceholder}>
-      {children}
-    </RowShell>
+    <>
+      <RowShell
+        ref={element}
+        isDragging={sourcePlaceholder}
+        dropTargetProps={dropTargetRowState.props}
+        dropIndicatorPosition={dropIndicatorPosition}
+        sourcePlaceholder={sourcePlaceholder}>
+        {children}
+      </RowShell>
+      {draggable ? (
+        <RowSortable id={id} index={index} data={data} element={element} disabled={rowDisabled} />
+      ) : (
+        <RowDroppable id={id} data={data} element={element} disabled={rowDisabled} />
+      )}
+    </>
   )
 }
 
