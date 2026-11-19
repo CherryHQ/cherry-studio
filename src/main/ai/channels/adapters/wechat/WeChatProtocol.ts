@@ -483,6 +483,7 @@ async function apiFetch<TSchema extends z.ZodType>(
   schema: TSchema,
   baseUrlOrigin: string,
   endpoint: string,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Message, typing, upload and lifecycle requests have distinct bodies; this transport owns JSON serialization before the endpoint parses its response schema.
   body: unknown,
   token: string,
   uin: string,
@@ -748,6 +749,7 @@ type MessageHandler = (msg: IncomingMessage) => void | Promise<void>
 export interface WeixinBotOptions {
   baseUrl?: string
   tokenPath?: string
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Polling, login and application message handlers can reject arbitrary values; callers receive the original failure rather than a fabricated Error contract.
   onError?: (error: unknown) => void
   onQrUrl?: (url: string) => void
 }
@@ -762,6 +764,7 @@ export class WeixinBot {
   private readonly uin: string
   private readonly tokenPath?: string
   private readonly contextTokenPath?: string
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Preserve the configured callback's arbitrary-rejection contract for both network failures and application message-handler failures.
   private readonly onErrorCallback?: (error: unknown) => void
   private readonly onQrUrlCallback?: (url: string) => void
   private readonly handlers: MessageHandler[] = []
@@ -1205,8 +1208,19 @@ export class WeixinBot {
     rm(this.contextTokenPath, { force: true }).catch(() => {})
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Polling and application-handler catches supply raw rejections; logging must not prevent the callback from receiving their original identity.
   private reportError(error: unknown): void {
-    logger.error('Bot error', error instanceof Error ? error : { error: String(error) })
+    if (error instanceof Error) {
+      logger.error('Bot error', error)
+    } else {
+      let message = '[Unserializable]'
+      try {
+        message = String(error)
+      } catch {
+        // Failed coercion must not replace the application handler's rejection.
+      }
+      logger.error('Bot error', { error: message })
+    }
     this.onErrorCallback?.(error)
   }
 }
@@ -1295,10 +1309,12 @@ function detectImageMime(data: Buffer): string {
   return 'image/jpeg'
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Polling catches arbitrary failures; only recognized abort/timeout Errors justify treating a stopped request as expected cancellation.
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError')
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Reauthentication is reserved for the API decoder's explicit session-expired code, rather than unrelated thrown values.
 function isSessionExpired(error: unknown): boolean {
   return error instanceof ApiError && error.code === -14
 }

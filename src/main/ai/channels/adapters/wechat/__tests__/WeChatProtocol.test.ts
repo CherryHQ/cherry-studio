@@ -46,6 +46,49 @@ afterEach(async () => {
 })
 
 describe('WeixinBot API response validation', () => {
+  it('reports an unprintable message-handler rejection without replacing it or aborting the polling loop', async () => {
+    const failure = { toString: null }
+    const reported: unknown[] = []
+    netFetchMock.mockImplementation((url: string) => {
+      if (url.endsWith('/notifystart') || url.endsWith('/notifystop')) return Promise.resolve(jsonResponse({ ret: 0 }))
+      if (url.endsWith('/getupdates')) {
+        return Promise.resolve(
+          jsonResponse({
+            msgs: [
+              {
+                message_id: 1,
+                from_user_id: 'user-1',
+                to_user_id: 'bot-id',
+                client_id: 'message-1',
+                create_time_ms: 0,
+                message_type: 1,
+                message_state: 2,
+                context_token: 'context-1',
+                item_list: [{ type: 1, text_item: { text: 'hello' } }]
+              }
+            ],
+            get_updates_buf: 'next'
+          })
+        )
+      }
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    const bot = new WeixinBot({
+      tokenPath,
+      onError(error) {
+        reported.push(error)
+        bot.stop()
+      }
+    })
+    bot.onMessage(() => {
+      throw failure
+    })
+
+    await expect(bot.run()).resolves.toBeUndefined()
+    expect(reported).toHaveLength(1)
+    expect(reported[0]).toBe(failure)
+  })
+
   it.each([
     {
       body: 'unavailable',
