@@ -3,13 +3,30 @@ import type { Rectangle } from 'electron'
 import { screen, systemPreferences } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// @application, electron, and @logger are globally mocked in tests/main.setup.ts.
+// Electron and @logger are globally mocked in tests/main.setup.ts.
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { WindowType } from '@main/core/window/types'
+import type { WindowManager } from '@main/core/window/WindowManager'
 import type { AgentSelectionAction, SelectionAgentSummary } from '@shared/types/selection'
 
 const platform = vi.hoisted(() => ({ isMac: false }))
+const { windowManager } = vi.hoisted(() => ({
+  windowManager: {
+    open: vi.fn<WindowManager['open']>(() => 'mock-window-id'),
+    close: vi.fn<WindowManager['close']>(() => true),
+    hide: vi.fn<WindowManager['hide']>(() => true),
+    getWindow:
+      vi.fn<(...args: Parameters<WindowManager['getWindow']>) => ReturnType<typeof createWindow> | undefined>(),
+    getWindowsByType:
+      vi.fn<(...args: Parameters<WindowManager['getWindowsByType']>) => ReturnType<typeof createWindow>[]>(),
+    getWindowId: vi.fn<(window: ReturnType<typeof createWindow>) => ReturnType<WindowManager['getWindowId']>>()
+  }
+}))
+vi.mock('@application', async () => {
+  const { defaultServiceInstances, mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({ WindowManager: { ...defaultServiceInstances.WindowManager, ...windowManager } })
+})
 vi.mock('@main/core/platform', () => ({
   isDev: false,
   isLinux: false,
@@ -103,8 +120,12 @@ describe('SelectionAgentWindowService', () => {
     vi.clearAllMocks()
     BaseService.resetInstances()
     window = createWindow()
-    const wm = application.get('WindowManager') as unknown as { getWindow: ReturnType<typeof vi.fn> }
-    wm.getWindow.mockReturnValue(window)
+    windowManager.open.mockReset().mockReturnValue('mock-window-id')
+    windowManager.close.mockReset().mockReturnValue(true)
+    windowManager.hide.mockReset().mockReturnValue(true)
+    windowManager.getWindow.mockReset().mockReturnValue(window)
+    windowManager.getWindowsByType.mockReset().mockReturnValue([])
+    windowManager.getWindowId.mockReset()
     Object.assign(screen, {
       getDisplayMatching: vi.fn(() => ({ workArea: WORK_AREA })),
       getDisplayNearestPoint: vi.fn(() => ({ workArea: WORK_AREA })),
@@ -205,14 +226,12 @@ describe('SelectionAgentWindowService', () => {
 
   describe('next selection trigger', () => {
     let windows: Record<string, ReturnType<typeof createWindow>>
-    let wm: { open: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> }
+    let wm: typeof windowManager
 
     beforeEach(() => {
       windows = { w1: createWindow(), w2: createWindow() }
-      wm = application.get('WindowManager') as unknown as typeof wm
-      ;(
-        application.get('WindowManager') as unknown as { getWindow: ReturnType<typeof vi.fn> }
-      ).getWindow.mockImplementation((id: string) => windows[id])
+      wm = windowManager
+      wm.getWindow.mockImplementation((id: string) => windows[id])
       wm.close.mockImplementation((id: string) => {
         windows[id].visible = false
         return true
@@ -283,12 +302,7 @@ describe('SelectionAgentWindowService', () => {
     const RUNNING: SelectionAgentSummary = { agentName: 'Research', agentAvatar: '🔎', status: 'running', steps: 2 }
     let windows: Record<string, ReturnType<typeof createWindow>>
     let displays: typeof DISPLAYS
-    let wm: {
-      open: ReturnType<typeof vi.fn>
-      close: ReturnType<typeof vi.fn>
-      hide: ReturnType<typeof vi.fn>
-      getWindow: ReturnType<typeof vi.fn>
-    }
+    let wm: typeof windowManager
 
     /** Opens an agent-bound custom action on the given display and reports its summary. */
     function openStarted(id: string, summary: SelectionAgentSummary = RUNNING, display = 1) {
@@ -303,7 +317,11 @@ describe('SelectionAgentWindowService', () => {
       MockMainCacheServiceUtils.getSharedCacheValue(`selection.agent_capsules.${displayId}`)
     const hostFor = (displayId: number) =>
       wm.open.mock.calls.findIndex(
-        ([type, args]) => type === WindowType.SelectionCapsule && args.initData.displayId === displayId
+        ([type, args]) =>
+          type === WindowType.SelectionCapsule &&
+          args?.initData !== undefined &&
+          'displayId' in args.initData &&
+          args.initData.displayId === displayId
       )
 
     beforeEach(() => {
@@ -311,7 +329,7 @@ describe('SelectionAgentWindowService', () => {
       windows = {}
       displays = DISPLAYS
       let hosts = 0
-      wm = application.get('WindowManager') as unknown as typeof wm
+      wm = windowManager
       wm.getWindow.mockImplementation((id: string) => windows[id])
       wm.open.mockImplementation((type: WindowType) => {
         if (type !== WindowType.SelectionCapsule) return 'unexpected'
@@ -582,12 +600,8 @@ describe('SelectionAgentWindowService', () => {
         await svc._doInit()
         openStarted('w1')
         openStarted('w2')
-        const manager = wm as unknown as {
-          getWindowsByType: ReturnType<typeof vi.fn>
-          getWindowId: ReturnType<typeof vi.fn>
-        }
-        manager.getWindowsByType.mockReturnValue([windows.w1, windows.w2])
-        manager.getWindowId.mockImplementation((window) => (window === windows.w1 ? 'w1' : 'w2'))
+        wm.getWindowsByType.mockReturnValue([windows.w1, windows.w2])
+        wm.getWindowId.mockImplementation((window) => (window === windows.w1 ? 'w1' : 'w2'))
         const onMiniaturize = native.setMiniaturizeHandler.mock.calls[0][0] as (handle: Buffer) => void
 
         onMiniaturize(Buffer.from(windows.w2.handle))
