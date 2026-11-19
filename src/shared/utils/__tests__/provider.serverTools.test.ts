@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { ProviderConfigSchema } from '@cherrystudio/provider-registry'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import {
@@ -24,12 +25,36 @@ const model = (apiModelId: string, overrides: Partial<Model> = {}): Model => ({
   ...overrides
 })
 
+function createProvider(overrides: Partial<Provider> = {}): Provider {
+  return {
+    id: 'custom',
+    name: 'Custom',
+    apiKeys: [],
+    authType: 'api-key',
+    reportsActualCost: false,
+    settings: {},
+    isEnabled: true,
+    ...overrides
+  }
+}
+
+function getBundledProvider(id: string): Provider {
+  const definition = ProviderConfigSchema.parse(bundledProviders.providers.find((provider) => provider.id === id))
+  return createProvider({
+    id: definition.id,
+    name: definition.name,
+    presetProviderId: definition.presetProviderId,
+    defaultChatEndpoint: definition.defaultChatEndpoint ?? undefined,
+    serverTools: definition.serverTools
+  })
+}
+
 const provider = (modelScope: 'all-chat-models' | 'model-dependent', id = 'anthropic'): Provider =>
-  ({ id, serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope }] }) as Provider
+  createProvider({ id, serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope }] })
 
 describe('Qwen Anthropic web tools', () => {
   it.each(['dashscope', 'qwencloud'])('routes search and fetch together on %s', (providerId) => {
-    const host = bundledProviders.providers.find((p) => p.id === providerId)! as unknown as Provider
+    const host = getBundledProvider(providerId)
     for (const apiModelId of ['qwen3.8-max', 'deepseek-v4.1-flash-1017']) {
       const routes = resolveWebToolRoutes(model(apiModelId, { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }), host, {
         webSearchEnabled: true,
@@ -43,7 +68,7 @@ describe('Qwen Anthropic web tools', () => {
   })
 
   it.each(['dashscope', 'qwencloud'])('withholds undocumented Anthropic variants on %s', (providerId) => {
-    const host = bundledProviders.providers.find((p) => p.id === providerId)! as unknown as Provider
+    const host = getBundledProvider(providerId)
     for (const apiModelId of [
       'qwen3.8-omni-flash',
       'qwen3.8-max-preview',
@@ -65,7 +90,7 @@ describe('Qwen Anthropic web tools', () => {
     'glm-5.2',
     'kimi-k3'
   ])('serves documented mainland Anthropic tools for %s', (apiModelId) => {
-    const host = bundledProviders.providers.find((p) => p.id === 'dashscope')! as unknown as Provider
+    const host = getBundledProvider('dashscope')
     expect(isBuiltinWebSearchAvailable(model(apiModelId), host, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(true)
     expect(isBuiltinWebFetchAvailable(model(apiModelId), host, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(true)
   })
@@ -102,13 +127,13 @@ describe('server-tool model eligibility', () => {
     'keeps Gemini 4 search and URL context alongside function tools on %s',
     (providerId) => {
       const argon = model('google/gemini-4-argon', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
-      const host = {
+      const host = createProvider({
         id: providerId,
         serverTools: [
           { id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent' },
           { id: SERVER_TOOL.URL_CONTEXT, modelScope: 'model-dependent' }
         ]
-      } as Provider
+      })
       expect(isBuiltinWebSearchAvailable(argon, host)).toBe(true)
       expect(isBuiltinWebFetchAvailable(argon, host)).toBe(true)
       expect(
@@ -139,7 +164,7 @@ describe('server-tool model eligibility', () => {
   })
 
   it('does not bypass endpoint restrictions for all-chat tools', () => {
-    const host = {
+    const host = createProvider({
       id: 'custom',
       serverTools: [
         {
@@ -148,7 +173,7 @@ describe('server-tool model eligibility', () => {
           endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
         }
       ]
-    } as Provider
+    })
     expect(isBuiltinWebSearchAvailable(model('custom-model'), host, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe(false)
     expect(isBuiltinWebSearchAvailable(model('custom-model'), host, ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe(true)
   })
@@ -161,7 +186,7 @@ describe('server-tool model eligibility', () => {
   )
 
   it('narrows official DeepSeek web search to its Responses endpoint', () => {
-    const deepseek = {
+    const deepseek = createProvider({
       id: 'deepseek',
       serverTools: [
         {
@@ -170,7 +195,7 @@ describe('server-tool model eligibility', () => {
           endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
         }
       ]
-    } as Provider
+    })
     const flash = model('deepseek-flash', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
     const route = (endpointType: (typeof ENDPOINT_TYPE)[keyof typeof ENDPOINT_TYPE]) =>
       resolveWebToolRoutes(flash, deepseek, {
@@ -199,10 +224,10 @@ describe('server-tool model eligibility', () => {
   // an unstripped namespace matches nothing and `vendors` narrowing withheld the tool from every
   // model whose vendor slug differs from its namespace — cherryin's Gemini and Claude lines both.
   it('narrows by vendor through a gateway namespace prefix', () => {
-    const cherryin = {
+    const cherryin = createProvider({
       id: 'cherryin',
       serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent', vendors: ['gemini', 'openai'] }]
-    } as unknown as Provider
+    })
 
     expect(isBuiltinWebSearchAvailable(model('google/gemini-3-1-pro-preview'), cherryin)).toBe(true)
     expect(isBuiltinWebSearchAvailable(model('openai/gpt-5.5'), cherryin)).toBe(true)
@@ -224,7 +249,7 @@ describe('server-tool model eligibility', () => {
   // in the docs table). Eligibility must land on the SAME declaration as the pinned endpoint —
   // otherwise Chat on deepseek-v4 routes server-side and silently serves no search.
   it('matches model and endpoint on the same qwencloud declaration', () => {
-    const qwencloud = {
+    const qwencloud = createProvider({
       id: 'qwencloud',
       serverTools: [
         {
@@ -238,7 +263,7 @@ describe('server-tool model eligibility', () => {
           endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
         }
       ]
-    } as unknown as Provider
+    })
     const qwen = model('qwen3.7-max', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
     const deepseek = model('deepseek-v4-pro', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
     const route = (m: Model, endpointType: (typeof ENDPOINT_TYPE)[keyof typeof ENDPOINT_TYPE]) =>
@@ -264,10 +289,10 @@ describe('server-tool model eligibility', () => {
   // model's `<host>.google` provider segment, so pre-3 Gemini hits the same native-vs-function-tool
   // conflict there. Keying the guard to the host id let cherryin/aihubmix ship the unsupported combo.
   it.each(['cherryin', 'aihubmix'])('applies the Gemini tool conflict on %s, not just gemini hosts', (providerId) => {
-    const gateway = {
+    const gateway = createProvider({
       id: providerId,
       serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent', vendors: ['gemini', 'openai'] }]
-    } as unknown as Provider
+    })
     const gemini25 = model('google/gemini-2.5-pro', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
 
     expect(
@@ -307,13 +332,13 @@ describe('web-tool routing', () => {
   const claude = model('claude-sonnet-4-6', {
     capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
   })
-  const serverProvider = {
+  const serverProvider = createProvider({
     id: 'anthropic',
     serverTools: [
       { id: SERVER_TOOL.WEB_SEARCH, modelScope: 'all-chat-models' },
       { id: SERVER_TOOL.URL_CONTEXT, modelScope: 'model-dependent' }
     ]
-  } as Provider
+  })
   const bothEnabled = {
     webSearchEnabled: true,
     clientSearchAvailable: true,
@@ -334,7 +359,7 @@ describe('web-tool routing', () => {
   it.each([
     {
       name: 'configured services when model-native tools are unavailable',
-      provider: { serverTools: [] } as unknown as Provider,
+      provider: createProvider({ serverTools: [] }),
       clientSearchAvailable: true,
       clientFetchAvailable: true,
       modelToolsPreferred: true,
@@ -350,7 +375,7 @@ describe('web-tool routing', () => {
     },
     {
       name: 'no tools when neither side is available',
-      provider: { serverTools: [] } as unknown as Provider,
+      provider: createProvider({ serverTools: [] }),
       clientSearchAvailable: false,
       clientFetchAvailable: false,
       modelToolsPreferred: true,
@@ -386,10 +411,10 @@ describe('web-tool routing', () => {
   })
 
   it('honors the declaration vendors narrowing (Vertex url-context is Gemini-only)', () => {
-    const vertexLike = {
+    const vertexLike = createProvider({
       id: 'vertexai',
       serverTools: [{ id: SERVER_TOOL.URL_CONTEXT, modelScope: 'model-dependent', vendors: ['gemini'] }]
-    } as Provider
+    })
     expect(isBuiltinWebFetchAvailable(model('gemini-2.5-pro'), vertexLike)).toBe(true)
     expect(isBuiltinWebFetchAvailable(claude, vertexLike)).toBe(false)
   })
@@ -398,19 +423,19 @@ describe('web-tool routing', () => {
   // owns no tool factory must not claim the capability (it would route to the
   // server side and inject nothing while the client tools stay withheld).
   it('keeps unservable vendors off a gateway declaration', () => {
-    const gatewayLike = {
+    const gatewayLike = createProvider({
       id: 'cherryin',
       serverTools: [
         { id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent', vendors: ['anthropic', 'gemini', 'openai'] }
       ]
-    } as Provider
+    })
     expect(isBuiltinWebSearchAvailable(claude, gatewayLike)).toBe(true)
     expect(isBuiltinWebSearchAvailable(model('deepseek-v4-pro'), gatewayLike)).toBe(false)
   })
 
   it('reports model-unsupported when only client backends exist for a non-function-calling model', () => {
     expect(
-      resolveWebToolRoutes(model('private-model'), { serverTools: [] } as unknown as Provider, {
+      resolveWebToolRoutes(model('private-model'), createProvider({ serverTools: [] }), {
         ...bothEnabled,
         modelToolsPreferred: false
       })
@@ -424,13 +449,13 @@ describe('web-tool routing', () => {
 
 describe('conflict-aware routing', () => {
   const gemini25 = model('gemini-2.5-pro', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
-  const geminiProvider = {
+  const geminiProvider = createProvider({
     id: 'gemini',
     serverTools: [
       { id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent' },
       { id: SERVER_TOOL.URL_CONTEXT, modelScope: 'model-dependent' }
     ]
-  } as Provider
+  })
 
   it('falls back to the client side when function-tool signals conflict with Gemini native tools', () => {
     expect(
@@ -445,10 +470,10 @@ describe('conflict-aware routing', () => {
   })
 
   it('coordinates web routes to the side with broader coverage when pre-3 Gemini cannot mix them', () => {
-    const searchOnlyProvider = {
+    const searchOnlyProvider = createProvider({
       id: 'gemini',
       serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent' }]
-    } as Provider
+    })
 
     expect(
       resolveWebToolRoutes(gemini25, searchOnlyProvider, {
@@ -478,11 +503,11 @@ describe('conflict-aware routing', () => {
 
   it('suppresses OpenAI native search under minimal reasoning effort', () => {
     const gpt5 = model('gpt-5', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING] })
-    const openaiProvider = {
+    const openaiProvider = createProvider({
       id: 'openai',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
       serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent' }]
-    } as Provider
+    })
     expect(
       resolveWebToolRoutes(gpt5, openaiProvider, {
         webSearchEnabled: true,
@@ -511,8 +536,8 @@ describe('conflict-aware routing', () => {
 describe('finalizeWebToolRoutes', () => {
   const gemini25 = model('gemini-2.5-pro', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
   const gemini3 = model('gemini-3-1-pro-preview', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
-  const geminiProvider = { id: 'gemini', serverTools: [] } as unknown as Provider
-  const openrouterLike = { id: 'openrouter', serverTools: [] } as unknown as Provider
+  const geminiProvider = createProvider({ id: 'gemini', serverTools: [] })
+  const openrouterLike = createProvider({ id: 'openrouter', serverTools: [] })
 
   it('withdraws surviving server routes for pre-3 Gemini once real function tools are known', () => {
     expect(finalizeWebToolRoutes({ webSearch: 'server', webFetch: 'server' }, gemini25, geminiProvider, true)).toEqual({
@@ -542,12 +567,12 @@ describe('DashScope hosted search endpoint contract', () => {
   const chat = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   const responses = ENDPOINT_TYPE.OPENAI_RESPONSES
   const host = (id = 'dashscope'): Provider =>
-    ({
+    createProvider({
       id,
       presetProviderId: 'dashscope',
       defaultChatEndpoint: chat,
       serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent' }]
-    }) as Provider
+    })
   const route = (m: Model, p: Provider, endpointType: typeof chat | typeof responses, overrides = {}) =>
     resolveWebToolRoutes(m, p, {
       webSearchEnabled: true,
