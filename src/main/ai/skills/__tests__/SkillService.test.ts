@@ -96,6 +96,12 @@ const SKILL_ID_BUILTIN = '33333333-3333-4333-8333-333333333333'
 
 type SkillServicePrivate = { installSkillDir: SkillService['installSkillDir'] }
 
+function spyOnSkillInstallation(skillService: SkillService) {
+  // SAFETY: The spy replaces the existing method with its source-derived signature on the same instance.
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Vitest requires a public key for this private installation boundary.
+  return vi.spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
+}
+
 function installedSkillFixture(): Awaited<ReturnType<SkillService['installSkillDir']>> {
   return {
     id: SKILL_ID_1,
@@ -1374,7 +1380,7 @@ describe('SkillService', () => {
       })
 
       const installSkillDir = skillService['installSkillDir'].bind(skillService)
-      const installSpy = vi.spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
+      const installSpy = spyOnSkillInstallation(skillService)
       if (options.realInstall) {
         installSpy.mockImplementation(installSkillDir)
       } else {
@@ -1724,9 +1730,7 @@ describe('SkillService', () => {
         )
       )
       const skillService = new SkillService()
-      const installSpy = vi
-        .spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
-        .mockResolvedValue(installedSkillFixture())
+      const installSpy = spyOnSkillInstallation(skillService).mockResolvedValue(installedSkillFixture())
       vi.mocked(findSkillMdPath).mockImplementation(async (dir: string) => path.join(dir, 'SKILL.md'))
       return { skillService, installSpy, workDir }
     }
@@ -2075,9 +2079,7 @@ describe('SkillService', () => {
       })
       vi.mocked(findSkillMdPath).mockImplementation(async (directory) => path.join(directory, 'SKILL.md'))
       vi.mocked(parseSkillMetadata).mockResolvedValueOnce({ name: 'Code', slug: 'code' } as never)
-      const installSkillDirSpy = vi
-        .spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
-        .mockResolvedValue(installedSkill)
+      const installSkillDirSpy = spyOnSkillInstallation(skillService).mockResolvedValue(installedSkill)
 
       try {
         const result = await skillService.install({ installSource: 'clawhub:ivangdavila/code' })
@@ -2211,9 +2213,7 @@ describe('SkillService', () => {
       vi.mocked(skillPaths.createTempDir).mockResolvedValue(extractDir)
       const extractZipSpy = vi.mocked(skillArchive.extractZip).mockResolvedValue(undefined)
       vi.mocked(skillArchive.resolveSkillDirectory).mockResolvedValue(locatedSkillDir)
-      const installSkillDirSpy = vi
-        .spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
-        .mockResolvedValue(installedSkillFixture())
+      const installSkillDirSpy = spyOnSkillInstallation(skillService).mockResolvedValue(installedSkillFixture())
 
       await skillService.installFromZip({ zipFilePath: linkedZipPath })
 
@@ -2260,9 +2260,7 @@ describe('SkillService', () => {
       const skillDir = path.join(extractDir, 'repo-main', 'skills', 'demo')
       vi.mocked(skillPaths.createTempDir).mockResolvedValue(extractDir)
       vi.mocked(skillArchive.resolveSkillDirectory).mockResolvedValue(skillDir)
-      const installSkillDirSpy = vi
-        .spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
-        .mockResolvedValue(installedSkillFixture())
+      const installSkillDirSpy = spyOnSkillInstallation(skillService).mockResolvedValue(installedSkillFixture())
 
       await skillService.installFromZip({ zipFilePath: zipPath })
 
@@ -3220,7 +3218,10 @@ describe('SkillService', () => {
       expect(updated).toMatchObject({ id: installed.id, version: '2.0.0' })
     })
 
-    function skillMeta(folderName: string, overrides: Record<string, unknown> = {}) {
+    function skillMeta(
+      folderName: string,
+      overrides: Partial<Awaited<ReturnType<typeof parseSkillMetadata>>> = {}
+    ): Awaited<ReturnType<typeof parseSkillMetadata>> {
       return {
         sourcePath: folderName,
         filename: folderName,
@@ -3235,7 +3236,7 @@ describe('SkillService', () => {
         size: 0,
         contentHash: 'x',
         ...overrides
-      } as unknown as Awaited<ReturnType<typeof parseSkillMetadata>>
+      }
     }
 
     it('reconcileSkills heals mirrors, prunes non-builtin skills whose files are gone, keeps builtins', async () => {
