@@ -101,6 +101,12 @@
       "files": ["**/__tests__/*.test.{ts,tsx}", "tests/**"]
     },
     {
+      "files": ["**/__tests__/**", "**/tests/**", "**/*.{test,spec}.{ts,tsx}"],
+      "rules": {
+        "anti-slop/no-unknown-parameters": "off"
+      }
+    },
+    {
       "env": {
         "browser": true,
         "node": true

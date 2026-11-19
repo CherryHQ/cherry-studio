@@ -10,7 +10,7 @@ Status: proposed
 
 ## 提案
 
-接入全部 18 条通用 anti-slop 规则及原生 `oxc/no-accumulating-spread` 配套规则，但只有在某条规则的全仓库违规已清零、相关契约验证通过后，才逐条启用。接入层注册插件，不启用尚未完成清理的规则。每条规则对应的 stack 层包含清理改动，并将该规则开启为错误。保留现有 lint 范围及无关规则。仓库不使用 Effect，因此不保留 Effect 专属插件源码。不得弱化已启用的规则、增加目录豁免或伪造类型信息来规避发现。
+接入全部 18 条通用 anti-slop 规则及原生 `oxc/no-accumulating-spread` 配套规则，但只有在某条规则在约定范围内的违规已清零、相关契约验证通过后，才逐条启用。接入层注册插件，不启用尚未完成清理的规则。每条规则对应的 stack 层包含清理改动，并将该规则开启为错误。保留现有 lint 范围及无关规则。仓库不使用 Effect，因此不保留 Effect 专属插件源码。不得弱化已启用的生产代码规则、增加生产目录豁免或伪造类型信息来规避发现。测试文件及测试专用目录仅豁免 `no-unknown-parameters`：非法输入 fixture、mock 和通用测试工具可以合理地接收未知值。其他测试 lint 规则保持原有配置范围。
 
 将复制的插件放在 `scripts/lint/anti-slop/`，保留确切上游版本及 MIT 声明，并将 `@oxlint/plugins` 固定为与 Oxlint 完全相同的版本。上游明确支持复制源码且没有官方 npm 包；其包导出未编译的 TypeScript，而 Node 不会在 `node_modules` 内执行类型擦除。Git 依赖需要额外的编译或加载机制。本次集成保留受支持的本地源码机制，去掉多余的外层 vendor 目录。插件内部的第三方声明保留上游布局。
 
@@ -26,7 +26,7 @@ ai-core 的 `AiPlugin.transformParams` 契约从局部补丁改为完整参数�
 
 ## 验收标准
 
-- AC1 — 每条规则只有在全仓库违规已清零后，才启用为错误；真实 CLI 探针验证启用状态。迁移完成时，全部 18 条通用规则及原生配套规则均已启用。 (verification: unit)
+- AC1 — 每条规则只有在约定范围内的违规已清零后，才启用为错误；真实 CLI 探针验证启用状态。迁移完成时，全部 18 条通用规则及原生配套规则均已启用。 (verification: unit)
 - AC2 — 插件从 `scripts/lint/anti-slop/` 加载，依赖版本匹配且固定，上游通用生产源码未修改，不保留未使用的 Effect 插件，许可证和来源记录完整。 (verification: unit)
 - AC3 — 有界的首批清理通过针对性 lint 及受影响契约的现有测试；后续批次遵循相同验证要求。 (verification: unit)
 - AC4 — 准确报告剩余规则盘点及验证边界；文档说明全量采用和迁移尚未完成的状态。 (verification: docs gate)
