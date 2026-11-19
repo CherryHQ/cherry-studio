@@ -26,15 +26,6 @@ type DoRerankOptions = Parameters<RerankingModelV3['doRerank']>[0]
 type DoRerankResult = Awaited<ReturnType<RerankingModelV3['doRerank']>>
 type RerankRanking = DoRerankResult['ranking']
 
-type OpenAICompatibleRerankResponseItem = {
-  index: number
-  relevance_score: number
-}
-
-type OpenAICompatibleRerankResponse = {
-  results?: OpenAICompatibleRerankResponseItem[]
-}
-
 export class OpenAICompatibleRerankingModel implements RerankingModelV3 {
   readonly specificationVersion = 'v3'
 
@@ -82,19 +73,29 @@ export class OpenAICompatibleRerankingModel implements RerankingModelV3 {
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- HTTP response.json yields unvalidated provider data; verify the envelope, document indices and finite scores before constructing SDK ranking output.
 function parseRerankResponse(body: unknown, documentCount: number): RerankRanking {
-  const results = (body as OpenAICompatibleRerankResponse).results
-  if (!Array.isArray(results)) {
+  if (typeof body !== 'object' || body === null || !('results' in body) || !Array.isArray(body.results)) {
     throw new Error('Rerank response must contain a results array')
   }
+  const results: readonly unknown[] = body.results
 
   return results.map((result) => {
     if (typeof result !== 'object' || result === null) {
       throw new Error('Rerank response results must be objects')
     }
 
-    if (typeof result.index !== 'number' || typeof result.relevance_score !== 'number') {
+    if (
+      !('index' in result) ||
+      !('relevance_score' in result) ||
+      typeof result.index !== 'number' ||
+      typeof result.relevance_score !== 'number'
+    ) {
       throw new Error('Rerank response results must contain numeric index and relevance_score')
+    }
+
+    if (!Number.isFinite(result.relevance_score)) {
+      throw new Error('Rerank response relevance_score must be finite')
     }
 
     if (!Number.isInteger(result.index) || result.index < 0 || result.index >= documentCount) {

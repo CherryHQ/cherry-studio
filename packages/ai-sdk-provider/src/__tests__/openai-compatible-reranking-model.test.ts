@@ -147,6 +147,24 @@ describe('createOpenAICompatibleRerankingModel', () => {
     expect(error.cause.message).toBe('Rerank response results must reference a valid document index')
   })
 
+  it.each([
+    { body: 'null', message: 'Rerank response must contain a results array' },
+    {
+      body: '{"results":[{"index":0,"relevance_score":1e400}]}',
+      message: 'Rerank response relevance_score must be finite'
+    }
+  ])('rejects invalid provider response $body with a validation diagnostic', async ({ body, message }) => {
+    const model = createOpenAICompatibleRerankingModel('rerank-model', {
+      name: 'openai-compatible',
+      baseURL: 'https://api.example.com/v1',
+      fetch: vi.fn().mockResolvedValue(new Response(body))
+    })
+
+    await expect(
+      model.doRerank({ query: 'hello', documents: { type: 'text', values: ['alpha'] } })
+    ).rejects.toMatchObject({ cause: { message } })
+  })
+
   it('rejects non-2xx responses', async () => {
     const model = createOpenAICompatibleRerankingModel('rerank-model', {
       name: 'openai-compatible',
