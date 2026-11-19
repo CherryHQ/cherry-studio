@@ -105,6 +105,16 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     await rm(root, { recursive: true, force: true })
   })
 
+  it('retains workspace files while terminal scope cleanup remains unconfirmed', async () => {
+    const terminal = vi.mocked(application.get('TerminalService').closeConversation)
+    terminal.mockResolvedValueOnce([{ cleanup: 'unconfirmed' } as Awaited<ReturnType<typeof terminal>>[number]])
+    await expect(
+      agentWorkspaceStorageService.archiveWorkspace({ id: 'system', path: path.join(root, '2026-10-12', 'system') })
+    ).rejects.toThrow('Terminal cleanup remains unconfirmed')
+    expect(await readFile(path.join(root, '2026-10-12', 'system', 'output.txt'), 'utf8')).toBe('system output')
+    expect(existsSync(path.join(root, '2026-10-12', 'system.tar.gz'))).toBe(false)
+  })
+
   const workspacePath = (root: string, id: string) => path.join(root, '2026-10-12', id)
   const registerWorkspace = async (workspacePath: string) => {
     return aiHandlers['ai.agent.workspace.register'](

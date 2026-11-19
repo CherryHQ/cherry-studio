@@ -7,6 +7,7 @@ import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
 import { newestMtimeMs } from '@main/ai/runtime/orphanSessionReclaim'
 import type { OrphanSessionReclaimOptions } from '@main/ai/runtime/types'
+import { terminalConversationId } from '@main/services/terminal/contracts'
 import { createPathOverlapCheck, nearestExistingRealPathSync, type PathNameBehavior } from '@main/utils/file'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
@@ -245,9 +246,14 @@ class AgentWorkspaceStorageService {
   }
 
   private async quiesce(sessionId: string): Promise<void> {
+    const terminals = await application
+      .get('TerminalService')
+      .closeConversation(terminalConversationId.parse(sessionId))
     const runtime = application.get('AgentSessionRuntimeService')
     await runtime.cancelSessionForks(sessionId)
     await runtime.closeSessionForArchive(sessionId)
+    if (terminals.some((state) => state.cleanup !== 'confirmed'))
+      throw new Error('Terminal cleanup remains unconfirmed')
   }
 
   private async inspect(root: string, workspace: Workspace) {

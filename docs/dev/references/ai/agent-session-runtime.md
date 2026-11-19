@@ -59,6 +59,12 @@ driver internals behind the same host contract.
 | Usage capture | Each driver exposes provider-invocation capture according to its transport. Pi uses native providers through the internal gateway and one gateway-owned billing path; native totals serve context/UI statistics only. Gateway-backed calls use AiService middleware. |
 | Runtime timing | `AiStreamManager` owns the message clock. Drivers contribute provider/tool timing when their SDK exposes it; approval waits are captured independently from approval request to decision/abort. |
 
+## Conversation terminals
+
+Pi and Pi Durable shell tools share `TerminalService` with the Agent terminal pane. Native Bash/PowerShell calls remain fresh pipe processes; persistent terminals use separate `terminal_*` tools. Agent Stop stops turn-owned pipe work. Explicit background tasks, yielded persistent programs and user-controlled terminals survive runtime release while the app and conversation remain alive. Opening or closing a terminal view changes no process ownership.
+
+Live terminal resources, uncertain cleanup and admitted launch preparation block workspace changes; an unchanged workspace remains allowed. UI-created terminals materialize deferred system workspaces before launch and recheck workspace identity afterward. Conversation archive/deletion closes terminal admission and managed process scopes. Workspace conversion waits for confirmed cleanup. Restore permits new terminal creation without restarting old executions. See the [terminal owner](../../../../src/main/services/terminal/README.md) for protocol and limits.
+
 ## Context usage
 
 Each runtime package implements passive `ThreadHandle.contextUsage()` and publishes the same

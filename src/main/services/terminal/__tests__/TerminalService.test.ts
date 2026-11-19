@@ -1,9 +1,11 @@
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type * as LifecycleModule from '@main/core/lifecycle'
+import { application } from '@application'
+import { BaseService } from '@main/core/lifecycle'
 
 import type {
   UtilityProcessDefinition,
@@ -18,23 +20,6 @@ import {
   type TerminalLaunch
 } from '../contracts'
 import { TerminalHost } from '../utilityEntries/TerminalHost'
-
-const { get, getPath } = vi.hoisted(() => ({ get: vi.fn(), getPath: vi.fn() }))
-vi.mock('@application', () => ({ application: { get, getPath } }))
-vi.mock('@main/core/lifecycle', async (original) => {
-  const actual = await original<typeof LifecycleModule>()
-  class MockBaseService {
-    protected onInit?(): void | Promise<void>
-    protected onStop?(): void | Promise<void>
-    async _doInit() {
-      await this.onInit?.()
-    }
-    async _doStop() {
-      await this.onStop?.()
-    }
-  }
-  return { ...actual, BaseService: MockBaseService }
-})
 
 const { TerminalService } = await import('../TerminalService')
 const root = process.cwd()
@@ -59,103 +44,110 @@ beforeAll(() => {
   if (process.platform !== 'win32') execFileSync('node', ['native/terminal-scope/build.cjs'], { cwd: root })
 })
 beforeEach(async () => {
+  BaseService.resetInstances()
+  MockApplicationUtils.resetServices()
   created = []
   starting = undefined
   stopping = undefined
   stopRequests = 0
   faults = new Map()
-  getPath.mockImplementation((key: string) =>
+  vi.mocked(application.getPath).mockImplementation((key: string) =>
     key.endsWith('ghostty')
       ? path.join(root, 'resources/terminal/ghostty')
-      : path.join(root, 'resources/binaries', `${process.platform}-${process.arch}`, 'terminal-scope')
+      : key.endsWith('integration')
+        ? path.join(root, 'resources/terminal/shellIntegration')
+        : path.join(root, 'resources/binaries', `${process.platform}-${process.arch}`, 'terminal-scope')
   )
-  get.mockImplementation((name: string) => {
-    if (name !== 'UtilityProcessManager') throw new Error(`Unexpected service ${name}`)
-    return {
-      register() {},
-      createInstance(
-        _definition: UtilityProcessDefinition<TerminalHostContract, TerminalHostInit>,
-        options: UtilityProcessInstanceOptions<TerminalHostInit>
-      ) {
-        const initialized = Promise.resolve(options.createInitData!()).then((init) => {
-          const host = new TerminalHost(init, logger)
-          created.push(host)
-          return host
-        })
-        return {
-          async request(method: string, input: never) {
-            const host = await initialized
-            switch (method) {
-              case 'identity':
-                await starting
-                return host.init.host
-              case 'mutate':
-                return host.mutate(input)
-              case 'operation': {
-                const value = input as TerminalHostContract['methods']['operation']['input']
-                return host.operation(value.host, value.id)
-              }
-              case 'release': {
-                const value = input as TerminalHostContract['methods']['release']['input']
-                return host.release(value.host, value.id)
-              }
-              case 'seal': {
-                const value = input as TerminalHostContract['methods']['seal']['input']
-                return host.seal(value.host, value.admissionRevision)
-              }
-              default:
-                throw new Error(`Unexpected method ${method}`)
+  MockApplicationUtils.setService('UtilityProcessManager', {
+    register() {},
+    createInstance(
+      _definition: UtilityProcessDefinition<TerminalHostContract, TerminalHostInit>,
+      options: UtilityProcessInstanceOptions<TerminalHostInit>
+    ) {
+      const initialized = Promise.resolve(options.createInitData!()).then((init) => {
+        const host = new TerminalHost(init, logger)
+        created.push(host)
+        return host
+      })
+      return {
+        async request(method: string, input: never) {
+          const host = await initialized
+          switch (method) {
+            case 'view':
+              return host.view(input)
+            case 'detachView': {
+              const value = input as TerminalHostContract['methods']['detachView']['input']
+              return host.detachView(value.host, value.id, value.viewId)
             }
-          },
-          async openStream(_method: string, _input: unknown, options: UtilityProcessStreamOptions) {
-            const host = await initialized
-            const fault = Promise.withResolvers<never>()
-            void fault.promise.catch(() => {})
-            faults.set(host.init.host.conversationId, () => fault.reject(new Error('Injected Host disconnect')))
-            const queue: UtilityProcessStreamFrame[] = []
-            let changed = Promise.withResolvers<void>()
-            let ended = false
-            const completed = host
-              .observe(host.init.host, {
-                signal: options.signal!,
-                logger,
-                input: (async function* () {})(),
-                write: async (frame) => {
-                  queue.push(frame)
-                  changed.resolve()
-                }
-              })
-              .finally(() => {
-                ended = true
+            case 'identity':
+              await starting
+              return host.init.host
+            case 'mutate':
+              return host.mutate(input)
+            case 'operation': {
+              const value = input as TerminalHostContract['methods']['operation']['input']
+              return host.operation(value.host, value.id)
+            }
+            case 'release': {
+              const value = input as TerminalHostContract['methods']['release']['input']
+              return host.release(value.host, value.id)
+            }
+            case 'seal': {
+              const value = input as TerminalHostContract['methods']['seal']['input']
+              return host.seal(value.host, value.admissionRevision)
+            }
+            default:
+              throw new Error(`Unexpected method ${method}`)
+          }
+        },
+        async openStream(_method: string, _input: unknown, options: UtilityProcessStreamOptions) {
+          const host = await initialized
+          const fault = Promise.withResolvers<never>()
+          void fault.promise.catch(() => {})
+          faults.set(host.init.host.conversationId, () => fault.reject(new Error('Injected Host disconnect')))
+          const queue: UtilityProcessStreamFrame[] = []
+          let changed = Promise.withResolvers<void>()
+          let ended = false
+          const completed = host
+            .observe(host.init.host, {
+              signal: options.signal!,
+              logger,
+              input: (async function* () {})(),
+              write: async (frame) => {
+                queue.push(frame)
                 changed.resolve()
-              })
-            const output = (async function* () {
-              while (!ended || queue.length) {
-                const frame = queue.shift()
-                if (frame) yield frame
-                else {
-                  changed = Promise.withResolvers<void>()
-                  await Promise.race([changed.promise, fault.promise])
-                }
               }
-            })()
-            return {
-              output,
-              completed,
-              closed: completed,
-              finishInput: async () => {},
-              cancel: async () => {},
-              write: async () => {}
+            })
+            .finally(() => {
+              ended = true
+              changed.resolve()
+            })
+          const output = (async function* () {
+            while (!ended || queue.length) {
+              const frame = queue.shift()
+              if (frame) yield frame
+              else {
+                changed = Promise.withResolvers<void>()
+                await Promise.race([changed.promise, fault.promise])
+              }
             }
-          },
-          async stop() {
-            stopRequests++
-            await stopping
-            const host = await initialized
-            await host.seal(host.init.host, 1)
-          },
-          async dispose() {}
-        }
+          })()
+          return {
+            output,
+            completed,
+            closed: completed,
+            finishInput: async () => {},
+            cancel: async () => {},
+            write: async () => {}
+          }
+        },
+        async stop() {
+          stopRequests++
+          await stopping
+          const host = await initialized
+          await host.seal(host.init.host, 1)
+        },
+        async dispose() {}
       }
     }
   })
@@ -240,6 +232,31 @@ describe.skipIf(process.platform === 'win32')('TerminalService with real Host ke
       kind: 'rejected',
       reason: 'closing'
     })
+  })
+
+  it('restores launch admission without reviving old work or accepting old runtime leases', async () => {
+    const lease = await service.attachRuntime({ conversationId: 'restore', contextId: 'runtime', bindingId: 'old' })
+    const first = await service.start({ lease, replayKey: 'old', turnId: 'turn', launch: launch('sleep 60') })
+    if (first.kind !== 'resource') throw new Error('Launch rejected')
+    await service.closeConversation(lease.conversationId)
+    await service.reopenConversation(lease.conversationId)
+    expect(await service.start({ lease, replayKey: 'stale', turnId: 'turn', launch: launch('printf WRONG') })).toEqual({
+      kind: 'rejected',
+      reason: 'stale_context'
+    })
+    const next = await service.attachRuntime({ conversationId: 'restore', contextId: 'runtime', bindingId: 'new' })
+    const started = await service.start({
+      lease: next,
+      replayKey: 'new',
+      turnId: 'turn',
+      launch: launch('printf RESTORED')
+    })
+    if (started.kind !== 'resource') throw new Error('Launch rejected')
+    await service.wait({ host: started.resource.host, id: started.resource.id }, {})
+    expect(service.readText({ host: started.resource.host, id: started.resource.id }).output).toBe('RESTORED')
+    expect(service.list(lease.conversationId).find((state) => state.id === first.resource.id)?.cleanup).toBe(
+      'confirmed'
+    )
   })
 
   it('keeps promoted work across Agent Stop and runtime release', async () => {

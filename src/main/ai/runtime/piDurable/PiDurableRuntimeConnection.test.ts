@@ -8,6 +8,7 @@ import { AgentDoc, configure, createSession, type ConversationId } from '@earend
 import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { setupTestDatabase } from '@test-helpers/db'
+import { createTestTerminalService } from '@test-helpers/terminal'
 import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -104,6 +105,7 @@ describe('desktop Pi Durable connection', () => {
   const connections: PiDurableRuntimeConnection[] = []
   let driver: PiDurableRuntimeDriver
 
+  let terminalService: Awaited<ReturnType<typeof createTestTerminalService>>
   beforeEach(async () => {
     driver = new PiDurableRuntimeDriver()
     vi.mocked(getShellEnv).mockReset()
@@ -170,10 +172,12 @@ describe('desktop Pi Durable connection', () => {
     mocks.prompt.mockResolvedValue({ base: { kind: 'custom', content: 'You are Cherry.' } })
     setScript([assistantReply('Hello world')])
     mocks.binding.mockImplementation(async () => createTestBinding({ model: MODEL, stream: script.model }))
+    terminalService = await createTestTerminalService()
   })
   afterEach(async () => {
     runtimeDriverRegistry.clearForTest()
     for (const connection of connections.splice(0)) await connection.close()
+    await terminalService._doStop()
     vi.restoreAllMocks()
   })
   function setScript(parts: AssistantMessage[], delay?: number) {

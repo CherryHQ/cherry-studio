@@ -21,6 +21,8 @@ read-only annotation; other MCP operations use native unsafe replay semantics.
 Approvals, questions, model selection, summaries and large output storage use existing
 host services. Host calls resolve the native ownership tree to a product root. Model options and trace, usage, approvals, questions and attendance stay root-scoped. Each root selects its own named extensions, MCP transports, skills and execution environment. Host resources remain backend-owned while retained work can still use them. Each root stores its non-secret request selection in a native conversation document. Before shared recovery starts, roots with unfinished tasks acquire their Main connection and projection consumer; sibling opening cannot silently resume them with default parameters or without a transcript writer. No additional interaction table or AI SDK model port is introduced.
 
+Shell calls use the [terminal adapter](../terminal/README.md) through the native execution environment. Executable-and-argv calls remain literal; filesystem operations keep the original environment. The adapter preserves per-stream UTF-8 decoding, cancellation, actual exit results and full-output spill files. Bash background receipts and persistent terminals remain distinct from completed fresh commands.
+
 ## Telemetry
 
 The backend supplies Pi's native `HarnessOptions.telemetry`. Durable owns submission and task-phase

@@ -1,6 +1,10 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
+
+import { GHOSTTY_KEY_CODES } from '@shared/types/terminal'
+import type { GhosttySnapshot, TerminalViewFrame, GhosttyTheme, GhosttyRow } from '@shared/types/terminal'
+import { encodeTerminalRows } from '@shared/utils/terminalFrame'
 
 import type {
   UtilityProcessLogger,
@@ -25,16 +29,32 @@ import { GhosttyRuntime } from '../ghostty/GhosttyRuntime'
 import { GhosttyTerminalCore } from '../ghostty/GhosttyTerminalCore'
 import { TerminalCapture } from '../TerminalCapture'
 import { ManagedProcess } from './ManagedProcess'
+import { ShellIntegration, type ShellIntegrationEvent } from './ShellIntegration'
 
 interface Resource {
   state: TerminalResourceState
   backend: ManagedProcess
   capture: TerminalCapture
   core?: GhosttyTerminalCore
+  themeSignature?: string
+  integration?: ShellIntegration
+  programRevision: number
+  views: Map<
+    string,
+    {
+      revision: number
+      snapshot: GhosttySnapshot
+      geometryEpoch: number
+      baseRevision: number | null
+      offset: number
+      historyTotal: number
+    }
+  >
   deadline?: ReturnType<typeof setTimeout>
   writes: number
   writeBytes: number
   replies: string
+  sources: { start: number; end: number; source: 'stdout' | 'stderr' | 'terminal' }[]
 }
 interface Operation {
   signature: string
@@ -62,7 +82,9 @@ export class TerminalHost {
   constructor(
     readonly init: TerminalHostInit,
     private readonly logger: UtilityProcessLogger
-  ) {}
+  ) {
+    this.admissionRevision = init.admissionRevision ?? 0
+  }
 
   matches(host: TerminalHostIdentity): boolean {
     return host.conversationId === this.init.host.conversationId && host.generation === this.init.host.generation
@@ -76,7 +98,7 @@ export class TerminalHost {
     this.waiters.clear()
   }
 
-  private result(resource: Resource): TerminalReceipt {
+  private result(resource: Resource): Extract<TerminalReceipt, { kind: 'resource' }> {
     return { kind: 'resource', resource: structuredClone(resource.state) }
   }
   private current(context: TerminalContext): boolean {
@@ -202,7 +224,21 @@ export class TerminalHost {
       this.changed(resource)
       return this.result(resource)
     }
-    if (!this.authorized(resource, command.actor, command.controlRevision)) return rejected('stale_control')
+    const unassigned =
+      command.actor.kind === 'agent' &&
+      this.current(command.actor.context) &&
+      resource.state.control.kind === 'unassigned' &&
+      resource.state.controlRevision === command.controlRevision
+    const retainedStop =
+      unassigned &&
+      command.kind === 'stop' &&
+      resource.state.context.contextId === (command.actor.kind === 'agent' ? command.actor.context.contextId : '')
+    if (
+      !retainedStop &&
+      !(unassigned && (command.kind === 'shell-command' || command.kind === 'input' || command.kind === 'interrupt')) &&
+      !this.authorized(resource, command.actor, command.controlRevision)
+    )
+      return rejected('stale_control')
     if (command.kind === 'stop') {
       if (command.actor.kind === 'agent') {
         if (command.cancelRevision !== resource.state.cancelRevision) return rejected('stale_control')
@@ -223,8 +259,42 @@ export class TerminalHost {
       this.changed(resource)
       return this.result(resource)
     }
+    if (
+      (command.kind === 'key' || command.kind === 'paste') &&
+      command.geometryEpoch !== undefined &&
+      command.geometryEpoch !== resource.state.geometryEpoch
+    )
+      return rejected('stale_control')
     if (resource.state.kind !== 'pty' || resource.state.process.kind !== 'running') return rejected('closing')
-    if (command.kind === 'resize') {
+    if (unassigned && resource.writes) return rejected('busy')
+    const claim = () => {
+      if (unassigned && command.actor.kind === 'agent') {
+        resource.state.context = structuredClone(command.actor.context)
+        resource.state.control = { kind: 'agent', context: structuredClone(command.actor.context) }
+        resource.state.controlRevision++
+      }
+    }
+    if (command.kind === 'shell-command') {
+      if (resource.state.shellFacts?.kind !== 'prompt') return rejected('busy')
+      if (resource.state.shellFacts.revision !== command.promptRevision) return rejected('stale_control')
+      if (Buffer.byteLength(command.data) > 32 * 1024 || !command.data || command.data.includes('\0'))
+        return rejected('unsupported')
+      const quoted = command.data.replaceAll("'", resource.state.shell === 'bash' ? "'\\''" : "''")
+      const data = resource.state.shell === 'bash' ? `builtin eval -- '${quoted}'\r` : `Invoke-Expression '${quoted}'\r`
+      if (Buffer.byteLength(data) > 64 * 1024) return rejected('capacity_exceeded')
+      if (resource.writes >= 2) return rejected('busy')
+      claim()
+      resource.state.command = { id: command.commandId, start: resource.capture.cursor, status: 'running' }
+      resource.state.shellFacts = { kind: 'unknown' }
+      this.changed(resource)
+      if (!(await this.write(resource, data))) {
+        resource.state.shellFacts = { kind: 'unknown' }
+        return rejected('busy')
+      }
+    } else if (command.kind === 'resize') {
+      if (command.actor.kind === 'user' && resource.state.control.kind !== 'user') return rejected('stale_control')
+      if (command.geometryEpoch !== undefined && command.geometryEpoch !== resource.state.geometryEpoch)
+        return rejected('stale_control')
       if (
         !Number.isInteger(command.cols) ||
         command.cols < 2 ||
@@ -235,15 +305,63 @@ export class TerminalHost {
       )
         return rejected('unsupported')
       resource.backend.resize(command.cols, command.rows)
-      resource.core?.resize(command.cols, command.rows, 8, 16)
+      resource.core?.resize(command.cols, command.rows, command.cellWidth ?? 8, command.cellHeight ?? 16)
+      resource.state.geometryEpoch = (resource.state.geometryEpoch ?? 0) + 1
     } else {
-      // Agent input requires a verified prompt; shell integration is a separate adapter.
-      if (command.actor.kind !== 'user') return rejected('unsupported')
-      if (resource.state.control.kind !== 'user') return rejected('stale_control')
-      if (!(await this.write(resource, command.data))) return rejected('busy')
+      let data: string
+      if (command.actor.kind === 'agent') {
+        const facts = resource.state.shellFacts
+        if ((command.kind !== 'input' && command.kind !== 'interrupt') || facts?.kind !== 'program')
+          return rejected('unsupported')
+        if (command.commandId !== facts.commandId || command.programRevision !== facts.programRevision)
+          return rejected('stale_control')
+        claim()
+        data = command.kind === 'interrupt' ? '\x03' : command.data
+      } else {
+        if (resource.state.control.kind !== 'user') return rejected('stale_control')
+        if (command.kind === 'key') data = resource.core!.encodeKey(command.event)
+        else if (command.kind === 'paste') data = resource.core!.encodePaste(command.data)
+        else if (command.kind === 'wheel') {
+          if (
+            command.geometryEpoch !== resource.state.geometryEpoch ||
+            !Number.isInteger(command.rows) ||
+            Math.abs(command.rows) > 30
+          )
+            return rejected('stale_control')
+          data = resource.core!.encodeMouse({ ...command.event, action: 'press', button: command.rows < 0 ? 4 : 5 })
+          if (!data && resource.core!.isAlternateScreen())
+            data = resource.core!.encodeKey({
+              key: GHOSTTY_KEY_CODES.indexOf(command.rows < 0 ? 'ArrowUp' : 'ArrowDown'),
+              mods: 0,
+              consumedMods: 0,
+              composing: false,
+              unshiftedCodepoint: 0,
+              text: '',
+              repeat: false
+            })
+          if (!data) return { ...this.result(resource), inputHandled: false }
+          data = data.repeat(Math.abs(command.rows))
+        } else if (command.kind === 'mouse') {
+          if (command.geometryEpoch !== resource.state.geometryEpoch) return rejected('stale_control')
+          data = resource.core!.encodeMouse(command.event)
+          if (!data) return { ...this.result(resource), inputHandled: false }
+        } else if (command.kind === 'input') data = command.data
+        else return rejected('unsupported')
+      }
+      if (
+        ((command.actor.kind === 'user' &&
+          (resource.state.shellFacts?.kind !== 'program' ||
+            [3, 4, 26].some((code) => data.includes(String.fromCharCode(code))))) ||
+          command.kind === 'interrupt') &&
+        data
+      )
+        resource.state.shellFacts = { kind: 'unknown' }
+      if (!(await this.write(resource, data))) return rejected('busy')
     }
     this.changed(resource)
-    return this.result(resource)
+    return command.kind === 'mouse' || command.kind === 'wheel'
+      ? { ...this.result(resource), inputHandled: true }
+      : this.result(resource)
   }
 
   private authorized(resource: Resource, actor: TerminalActor, revision: number): boolean {
@@ -275,7 +393,18 @@ export class TerminalHost {
   }
 
   private async start(command: Extract<TerminalMutation['command'], { kind: 'start' }>): Promise<TerminalReceipt> {
-    const { launch } = command
+    let { launch } = command
+    const token = randomUUID()
+    if (launch.kind === 'pty' && this.init.integrationDirectory) {
+      launch = {
+        ...launch,
+        env: { ...launch.env, CHERRY_TERMINAL_TOKEN: token },
+        args:
+          launch.shell === 'bash'
+            ? ['--noprofile', '--rcfile', path.join(this.init.integrationDirectory, 'bash.bash'), '-i']
+            : ['-NoLogo', '-NoProfile', '-NoExit', '-File', path.join(this.init.integrationDirectory, 'powershell.ps1')]
+      }
+    }
     const capture = new TerminalCapture()
     const resource: Resource = {
       state: {
@@ -291,22 +420,52 @@ export class TerminalHost {
         control: { kind: 'agent', context: command.context },
         controlRevision: 0,
         revision: 0,
-        outputCursor: 0
+        outputCursor: 0,
+        geometryEpoch: 0,
+        shellFacts: { kind: 'unknown' }
       },
       capture,
+      programRevision: 0,
+      views: new Map(),
       writes: 0,
       writeBytes: 0,
       replies: '',
+      sources: [],
       backend: new ManagedProcess({
         id: command.id,
         helperFile: this.init.helperFile,
         launch,
-        onOutput: (data) => {
-          capture.append(data)
-          resource.core?.write(data)
+        onOutput: (data, source) => {
+          const output = (chunk: Uint8Array) => {
+            const start = capture.cursor
+            capture.append(chunk)
+            const last = resource.sources.at(-1)
+            if (last?.source === source) last.end = capture.cursor
+            else resource.sources.push({ start, end: capture.cursor, source })
+            while (
+              resource.sources.length > 4096 ||
+              (resource.sources.length > 1 && resource.sources[1].start <= capture.cursor - 2 * 1024 * 1024)
+            )
+              resource.sources.shift()
+            if (resource.core) {
+              const alternate = resource.core.isAlternateScreen()
+              resource.core.write(chunk)
+              if (alternate !== resource.core.isAlternateScreen())
+                resource.state.geometryEpoch = (resource.state.geometryEpoch ?? 0) + 1
+            }
+          }
+          if (resource.integration) resource.integration.push(data, output)
+          else output(data)
           this.changed(resource)
         },
         onExit: (exitCode, signal) => {
+          resource.integration?.finish((data) => {
+            capture.append(data)
+            resource.core?.write(data)
+          })
+          if (resource.state.command?.status === 'running')
+            resource.state.command = { ...resource.state.command, status: 'unknown' }
+          resource.state.shellFacts = { kind: 'unknown' }
           resource.state.process = { kind: 'exited', exitCode, signal }
           this.changed(resource)
           void this.stop(resource, 'root_exited')
@@ -319,7 +478,6 @@ export class TerminalHost {
           )
             resource.state.process = { kind: 'not_started' }
           if (resource.deadline) clearTimeout(resource.deadline)
-          resource.core?.dispose()
           this.changed(resource)
         },
         onFault: (error) => {
@@ -329,6 +487,8 @@ export class TerminalHost {
         }
       })
     }
+    if (launch.kind === 'pty' && this.init.integrationDirectory)
+      resource.integration = new ShellIntegration(token, (event) => this.shellEvent(resource, event))
     this.resources.set(command.id, resource)
     this.changed(resource)
     try {
@@ -388,6 +548,165 @@ export class TerminalHost {
     return this.result(resource)
   }
 
+  private shellEvent(resource: Resource, event: ShellIntegrationEvent): void {
+    if (event.kind === 'unknown') resource.state.shellFacts = { kind: 'unknown' }
+    else if (event.kind === 'program') {
+      const id = resource.state.command?.status === 'running' ? resource.state.command.id : `user:${event.revision}`
+      resource.state.shellFacts = { kind: 'program', commandId: id, programRevision: ++resource.programRevision }
+    } else {
+      if (resource.state.command?.status === 'running')
+        resource.state.command = {
+          ...resource.state.command,
+          status: 'completed',
+          exitCode: event.exitCode,
+          end: resource.capture.cursor
+        }
+      resource.state.shellFacts = { kind: 'prompt', revision: event.revision, cwd: event.cwd }
+    }
+    this.changed(resource)
+  }
+
+  view(input: {
+    host: TerminalHostIdentity
+    id: TerminalResourceId
+    viewId: string
+    rowStart: number
+    offset: number
+    revision: number | null
+    theme?: GhosttyTheme
+  }): TerminalViewFrame {
+    if (!this.matches(input.host)) throw new Error('Stale terminal generation')
+    const resource = this.resources.get(input.id)
+    if (!resource?.core) throw new Error('Terminal screen unavailable')
+    if (input.theme && JSON.stringify(input.theme) !== resource.themeSignature) {
+      resource.core.setTheme(input.theme)
+      resource.themeSignature = JSON.stringify(input.theme)
+      this.changed(resource)
+    }
+    let view = resource.views.get(input.viewId)
+    if (input.rowStart === 0 || !view || input.revision !== view.revision) {
+      if (
+        !view &&
+        resource.views.size >= 4 &&
+        !(input.viewId === 'retained-final' && resource.state.cleanup === 'confirmed')
+      )
+        throw new Error('Terminal view capacity exceeded')
+      resource.core.scrollToBottom()
+      const historyTotal = resource.core.scrollbarState()?.total ?? 0
+      const scrollOffset = Math.min(
+        5000,
+        Math.max(
+          0,
+          input.offset +
+            (input.offset > 0 && view?.offset === input.offset ? Math.max(0, historyTotal - view.historyTotal) : 0)
+        )
+      )
+      if (scrollOffset) resource.core.scroll(-scrollOffset)
+      const snapshot = resource.core.snapshot()
+      const baseRevision =
+        view &&
+        input.revision === view.revision &&
+        view.geometryEpoch === resource.state.geometryEpoch &&
+        view.offset === input.offset
+          ? view.revision
+          : null
+      const dirtyRows = new Set<number>()
+      for (let i = 0; i < snapshot.rows; i++)
+        if (baseRevision === null || JSON.stringify(view!.snapshot.rowData[i]) !== JSON.stringify(snapshot.rowData[i]))
+          dirtyRows.add(i)
+      view = {
+        revision: resource.state.revision,
+        snapshot: { ...snapshot, dirtyRows, rowData: [...snapshot.rowData] },
+        geometryEpoch: resource.state.geometryEpoch ?? 0,
+        baseRevision,
+        offset: scrollOffset,
+        historyTotal
+      }
+      resource.core.scrollToBottom()
+      resource.views.set(input.viewId, view)
+    }
+    const rows: GhosttyRow[] = []
+    const indices = [...view.snapshot.dirtyRows]
+    for (let row = input.rowStart; row < indices.length; row++) {
+      const value = view.snapshot.rowData[indices[row]]
+      const candidate = [...rows, value]
+      if (Buffer.byteLength(JSON.stringify(encodeTerminalRows(candidate))) > 56 * 1024) {
+        if (!rows.length) throw new Error('Terminal row exceeds frame capacity')
+        break
+      }
+      rows.push(value)
+    }
+    const encoded = encodeTerminalRows(rows)
+    return {
+      controlling: false,
+      scrollOffset: view.offset,
+      viewId: input.viewId,
+      resource: structuredClone(resource.state),
+      geometryEpoch: view.geometryEpoch,
+      revision: view.revision,
+      baseRevision: view.baseRevision,
+      rowStart: input.rowStart,
+      rowIndices: indices.slice(input.rowStart, input.rowStart + rows.length),
+      complete: input.rowStart + rows.length === indices.length,
+      styles: encoded.styles,
+      snapshot: { ...view.snapshot, rowData: encoded.rowData, dirtyRows: indices }
+    }
+  }
+
+  detachView(host: TerminalHostIdentity, id: TerminalResourceId, viewId: string): void {
+    if (this.matches(host)) this.resources.get(id)?.views.delete(viewId)
+  }
+
+  link(input: {
+    host: TerminalHostIdentity
+    id: TerminalResourceId
+    viewId: string
+    revision: number
+    geometryEpoch: number
+    x: number
+    y: number
+  }): string | null {
+    if (!this.matches(input.host)) return null
+    const resource = this.resources.get(input.id)
+    const view = resource?.views.get(input.viewId)
+    if (
+      !resource?.core ||
+      !view ||
+      view.revision !== input.revision ||
+      resource.state.revision !== input.revision ||
+      view.geometryEpoch !== input.geometryEpoch
+    )
+      return null
+    if (
+      !Number.isInteger(input.x) ||
+      !Number.isInteger(input.y) ||
+      input.x < 0 ||
+      input.y < 0 ||
+      input.x >= view.snapshot.cols ||
+      input.y >= view.snapshot.rows
+    )
+      return null
+    resource.core.scrollToBottom()
+    if (view.offset) resource.core.scroll(-view.offset)
+    let url = resource.core.hyperlinkAt(input.x, input.y)
+    resource.core.scrollToBottom()
+    if (!url) {
+      const row = view.snapshot.rowData[input.y]
+      const offset = row.cells
+        .slice(0, input.x)
+        .map((cell) => cell.text || ' ')
+        .join('').length
+      for (const match of row.text.matchAll(/https?:\/\/[^\s<>"']+/g))
+        if (offset >= match.index && offset < match.index + match[0].length) url = match[0].replace(/[),.;]+$/, '')
+    }
+    if (!url || url.length > 2048) return null
+    try {
+      return ['http:', 'https:'].includes(new URL(url).protocol) ? url : null
+    } catch {
+      return null
+    }
+  }
+
   private flushReplies(resource: Resource): void {
     if (!resource.replies || resource.writes >= 2 || resource.state.cleanup !== 'none') return
     const data = resource.replies
@@ -433,6 +752,7 @@ export class TerminalHost {
     if (!this.matches(host)) return false
     const resource = this.resources.get(id)
     if (!resource || resource.state.cleanup !== 'confirmed' || resource.writes) return false
+    resource.core?.dispose()
     this.resources.delete(id)
     this.version++
     return true
@@ -458,7 +778,13 @@ export class TerminalHost {
       for (const resource of this.resources.values()) {
         const previous = observed.get(resource.state.id) ?? { cursor: 0, revision: -1 }
         if (previous.cursor < resource.capture.cursor) {
-          const output = resource.capture.read(previous.cursor, 60 * 1024)
+          let output = resource.capture.read(previous.cursor, 60 * 1024)
+          const source = resource.sources.find((item) => item.end > output.start)
+          if (source) {
+            const start = Math.max(output.start, source.start)
+            output = resource.capture.read(start, Math.min(60 * 1024, source.end - start))
+            output.truncated ||= start > previous.cursor
+          }
           await context.write({
             metadata: {
               kind: 'output',
@@ -466,7 +792,8 @@ export class TerminalHost {
               start: output.start,
               next: output.next,
               end: output.end,
-              truncated: output.truncated
+              truncated: output.truncated,
+              source: source?.source ?? 'terminal'
             },
             payload: output.data
           })

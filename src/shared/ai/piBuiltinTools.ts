@@ -22,6 +22,15 @@ export const PI_NATIVE_BUILTIN_TOOLS = [
   { name: 'read', category: 'file', approval: 'auto', permissionClass: 'read' },
   { name: 'bash', category: 'shell', approval: 'prompt', permissionClass: 'shell' },
   { name: 'powershell', category: 'shell', approval: 'prompt', permissionClass: 'shell', platform: 'win32' },
+  { name: 'terminal_open', category: 'shell', approval: 'prompt', permissionClass: 'shell' },
+  { name: 'terminal_send', category: 'shell', approval: 'prompt', permissionClass: 'shell' },
+  { name: 'terminal_list', category: 'shell', approval: 'auto', permissionClass: 'meta' },
+  { name: 'terminal_signal', category: 'shell', approval: 'prompt', permissionClass: 'shell' },
+  { name: 'terminal_read', category: 'shell', approval: 'auto', permissionClass: 'meta' },
+  { name: 'terminal_close', category: 'shell', approval: 'prompt', permissionClass: 'shell' },
+  { name: 'shell_task_list', category: 'shell', approval: 'auto', permissionClass: 'meta' },
+  { name: 'shell_task_read', category: 'shell', approval: 'auto', permissionClass: 'meta' },
+  { name: 'shell_task_stop', category: 'shell', approval: 'prompt', permissionClass: 'shell' },
   { name: 'edit', category: 'file', approval: 'prompt', permissionClass: 'edit' },
   { name: 'write', category: 'file', approval: 'prompt', permissionClass: 'edit' }
 ] as const satisfies readonly PiBuiltinToolDescriptor[]

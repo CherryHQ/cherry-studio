@@ -1,4 +1,4 @@
-import { ArrowLeft, Bot, FolderOpen, GitBranch, Waypoints } from 'lucide-react'
+import { ArrowLeft, Bot, FolderOpen, GitBranch, TerminalSquare, Waypoints } from 'lucide-react'
 import { Globe } from 'lucide-react'
 import type { ReactNode } from 'react'
 import {
@@ -144,6 +144,9 @@ function toBrowsableHtmlUrl(filePath: string): string | null {
   return absolutePath.success ? toSafeFileUrl(absolutePath.data, extension) : null
 }
 
+const TerminalPane = lazy(() =>
+  import('@renderer/components/terminal/TerminalPane').then((module) => ({ default: module.TerminalPane }))
+)
 const TracePane = lazy(() =>
   import('@renderer/components/chat/trace/TracePane').then((module) => ({ default: module.TracePane }))
 )
@@ -279,6 +282,7 @@ interface AgentRightPaneActions {
 }
 
 interface AgentRightPanelScope {
+  terminalTitle: string
   browserTitle: string
   developerMode: boolean
   filePreviewSelection: ArtifactPaneFileSelection | null
@@ -982,6 +986,7 @@ function AgentRightPaneStateProvider({
   const scope = useMemo<AgentRightPanelScope>(
     () => ({
       browserTitle: t('agent.right_pane.tabs.browser'),
+      terminalTitle: t('terminal.title'),
       developerMode: enableDeveloperMode,
       filePreviewSelection: previewFileSelection,
       hasSystemWorkspaceEntries,
@@ -1733,6 +1738,7 @@ function resolveAgentTraceReadiness(scope: AgentRightPanelScope): RightPanelRead
 /** Stable capability registry; runtime messages are intentionally absent. */
 const TRACE_PANE_ID = 'trace'
 const BROWSER_PANE_ID = 'browser'
+const TERMINAL_PANE_ID = 'terminal'
 const AGENT_RESOURCE_PANE_CAPABILITY = createResourcePaneCapability<AgentRightPanelScope>({
   instanceKey: 'agent-resources'
 })
@@ -1770,6 +1776,22 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
     })
   },
   AGENT_BROWSER_PANE_CAPABILITY,
+  {
+    component: ({ active, scope }) =>
+      scope.meta.sessionId ? (
+        <Suspense fallback={null}>
+          <TerminalPane sessionId={scope.meta.sessionId} active={active} />
+        </Suspense>
+      ) : null,
+    resolve: (scope) => ({
+      id: TERMINAL_PANE_ID,
+      instanceKey: `session:${scope.meta.sessionId ?? ''}:terminal`,
+      title: scope.terminalTitle,
+      readiness: scope.meta.sessionId && scope.meta.conversationState === 'ready' ? 'ready' : 'unavailable',
+      headerMode: 'content',
+      canMaximize: true
+    })
+  },
   AGENT_TRACE_PANE_CAPABILITY,
   {
     component: AgentFlowRightPanel,
@@ -1812,6 +1834,11 @@ const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts({
           icon={<Globe className="size-3.5" />}
         />
       )}
+      <RightPanelShortcut
+        tab={TERMINAL_PANE_ID}
+        label={t('terminal.title')}
+        icon={<TerminalSquare className="size-3.5" />}
+      />
       <AgentSessionDetailsToggle>
         <AgentDetailsContent />
       </AgentSessionDetailsToggle>

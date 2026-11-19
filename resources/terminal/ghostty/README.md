@@ -9,6 +9,8 @@ Licenses shipped with these assets:
 - `LICENSE-GHOSTTY` — Ghostty, MIT; copyright 2024 Mitchell Hashimoto and Ghostty contributors.
 - `LICENSE-T3` — adapter and callback trampoline, MIT; copyright 2026 T3 Tools Inc.
 
+The pinned Canvas renderer and keyboard normalization are adapted in `src/renderer/components/terminal/`; their original MIT notices are retained. The renderer receives cells from Main and does not instantiate another VT engine.
+
 The adapted bindings live in [the terminal engine](../../../src/main/services/terminal/README.md). Cherry changes load supplied bytes in Node, avoid a global runtime singleton, verify the build revision, accept normalized key input, expose the scrollback byte limit, omit transcript replay, exclude wide-cell spacers from row text, and keep old snapshots stable after later renders.
 
 To rebuild from a clean checkout of the exact Ghostty revision and Zig version in the manifest:
