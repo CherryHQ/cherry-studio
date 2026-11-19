@@ -77,6 +77,24 @@ describe('HeartbeatTasksPage', () => {
     expect(ipcApi.request).not.toHaveBeenCalledWith('ai.agent.heartbeat.run', expect.anything())
   })
 
+  it('explains a failed last run instead of showing the raw provider error', async () => {
+    const raw =
+      'cherryin API error (401): {"error":{"code":"","message":"无效的令牌 (request id: 20261119104456)","type":"new_api_error"}}'
+    MockUseDataApiUtils.mockQueryData('/agents/:agentId/heartbeat', {
+      scheduleEnabled: true,
+      latestRun: {
+        status: 'failed',
+        createdAt: '2026-11-19T02:44:54.000Z',
+        output: null,
+        error: { code: 'HANDLER_THREW', message: raw, retryable: true }
+      } as never
+    })
+    render(<HeartbeatTasksPage agentId="a1" enabled />)
+    expect(await screen.findByText(en['error.diagnosis.auth'])).toBeVisible()
+    expect(screen.getByText(/无效的令牌/)).toBeVisible()
+    expect(screen.queryByText(/new_api_error|\{"error"/)).not.toBeInTheDocument()
+  })
+
   it('allows editing a disabled heartbeat but prevents execution', async () => {
     const user = userEvent.setup()
     render(<HeartbeatTasksPage agentId="a1" enabled={false} />)

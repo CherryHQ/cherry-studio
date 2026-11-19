@@ -3,14 +3,19 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Label, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { formatTaskCardTime } from '@renderer/components/ScheduledTask/TaskRunSummaryLine'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import type { SerializedError } from '@renderer/types/error'
+import { providerErrorText } from '@renderer/utils/error'
+import { classifyError } from '@renderer/utils/errorClassifier'
 import { hasHeartbeatTasks } from '@shared/ai/agentHeartbeat'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { HeartbeatDocument, HeartbeatRunResult } from '@shared/ipc/schemas/ai'
+import { extractHttpStatus } from '@shared/utils/errorCategory'
 
 const logger = loggerService.withContext('HeartbeatTasksPage')
 
@@ -20,6 +25,20 @@ const runResultKeys: Record<HeartbeatRunResult, string> = {
   disabled: 'agent.heartbeat.enable_first',
   busy: 'agent.tasks.logs.running',
   paused: 'agent.heartbeat.paused'
+}
+
+/** The job keeps only the thrown text, so recover its cause and the provider's own message from it. */
+function describeRunError(message: string) {
+  const body = message.indexOf('{')
+  const error: SerializedError = {
+    name: null,
+    message,
+    stack: null,
+    statusCode: extractHttpStatus(message) ?? null,
+    responseBody: body >= 0 ? message.slice(body) : null
+  }
+  const { category, i18nKey } = classifyError(error)
+  return { diagnosisKey: category === 'unknown' ? null : i18nKey, detail: providerErrorText(error) || message }
 }
 
 export type HeartbeatTasksPageHandle = {
@@ -81,6 +100,7 @@ export function HeartbeatTasksPage({
   const baseline = document && (hasHeartbeatTasks(document.content) ? document.content : '')
   const dirty = document !== null && content !== baseline
   const result = latest?.output as { result?: string } | undefined
+  const runError = latest?.error ? describeRunError(latest.error.message) : null
 
   useImperativeHandle(ref, () => ({
     confirmLeave: async () => {
@@ -168,9 +188,19 @@ export function HeartbeatTasksPage({
           <>
             <p>
               {running ? t('agent.tasks.logs.running') : t(`agent.tasks.logs.${latest.status}`)} ·{' '}
-              {new Date(latest.createdAt).toLocaleString()}
+              {formatTaskCardTime(latest.createdAt)}
             </p>
-            {latest.error ? <p className="wrap-anywhere text-destructive">{latest.error.message}</p> : null}
+            {runError?.diagnosisKey ? <p className="text-destructive">{t(runError.diagnosisKey)}</p> : null}
+            {runError ? (
+              <p
+                className={
+                  runError.diagnosisKey
+                    ? 'wrap-anywhere text-muted-foreground text-xs'
+                    : 'wrap-anywhere text-destructive'
+                }>
+                {runError.detail}
+              </p>
+            ) : null}
             {result?.result ? (
               <p className="wrap-anywhere max-h-28 overflow-auto whitespace-pre-wrap text-muted-foreground">
                 {result.result}
