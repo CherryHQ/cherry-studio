@@ -6,14 +6,13 @@ import type { ChildThreadProjection } from './ChildThreadProjection'
 
 const logger = loggerService.withContext('ChildResidency')
 
-/** An observed child thread; once finished it stays loaded only while a viewer or command pins it. */
+/** An observed child thread; once its work is idle it stays loaded only while a viewer, command or child pins it. */
 export type ResidentChild<H> = {
   readonly key: string
   relation?: Subagent
   handle: H
   projection: ChildThreadProjection
   pins: number
-  finished: boolean
 }
 
 /** A child whose native history is not loaded; its saved rows already hold that history. */
@@ -22,21 +21,26 @@ export type ReleasedChild = { thread: Thread; origin?: Subagent['origin']; conte
 type Entry<H> =
   | { state: 'opening'; pending: Promise<ResidentChild<H> | undefined> }
   | { state: 'attached' | 'closing'; resource: ResidentChild<H> }
-  | { state: 'releasing'; pending: Promise<void> }
+  | { state: 'releasing'; pending: Promise<void>; resource: ResidentChild<H> }
 
 export function childKey(backendId: string, id: string): string {
   return JSON.stringify([backendId, id])
 }
 
 /**
- * Which observed child threads of one root connection hold their native history in memory.
- * A finished, unpinned child is flushed, marked settled, and released; it reopens when asked for,
- * and a cold reopen leaves settled children unloaded.
+ * Which observed child threads of one root connection hold their native history in memory, decided by the work
+ * state their parents' relationships report. An idle, unpinned child is flushed, marked settled, and released; it
+ * reopens when asked for or when it works again, and a cold reopen leaves settled children unloaded.
  */
 export class ChildResidency<H extends { release(): Promise<void> }> {
   private readonly entries = new Map<string, Entry<H>>()
   private readonly released = new Map<string, ReleasedChild>()
-  private readonly residents = new WeakMap<ChildThreadProjection, ResidentChild<H>>()
+  /** The latest work state a relationship reported for each child. */
+  private readonly work = new Map<string, Subagent['work']>()
+  /** Releases the pin a loaded child holds on its parent child, whose observation carries its relationships. */
+  private readonly parentPins = new Map<string, () => void>()
+  private readonly restoring = new Set<string>()
+  private restores = Promise.resolve()
   /** Views held by callers follow a child across release and reopen without keeping it loaded. */
   private readonly views = new Map<string, WeakRef<{ projection: ChildThreadProjection }>>()
 
@@ -62,8 +66,28 @@ export class ChildResidency<H extends { release(): Promise<void> }> {
     }
   }
 
-  isReleased(key: string): boolean {
-    return this.released.has(key)
+  /**
+   * Applies a relationship a parent observed. A loaded child releases once its work is idle; an unloaded one opens
+   * when it works, and an unseen idle one is restored one at a time so its saved rows catch up before it settles.
+   */
+  relate(relation: Subagent, open: () => Promise<unknown>): void {
+    if (!relation.child) return
+    const key = childKey(relation.child.backendId, relation.child.id)
+    this.work.set(key, relation.work)
+    const entry = this.entries.get(key)
+    if (entry?.state === 'attached') {
+      entry.resource.relation = { ...entry.resource.relation, ...relation }
+      this.releaseIfIdle(key)
+    } else if (relation.work !== 'idle') void open()
+    else if (!entry && !this.released.has(key) && !this.restoring.has(key)) {
+      this.restoring.add(key)
+      this.restores = this.restores
+        .then(async () => {
+          if (!this.entries.has(key) && !this.released.has(key)) await open()
+        })
+        .catch((error) => logger.warn('Failed to restore child thread', { key, error }))
+        .finally(() => this.restoring.delete(key))
+    }
   }
 
   origin(key: string): Subagent['origin'] {
@@ -110,8 +134,8 @@ export class ChildResidency<H extends { release(): Promise<void> }> {
       .then(async () => {
         handle = source.granted ?? (await source.acquire())
         const { relation, projection } = await source.build(handle)
-        resource = { key, relation, handle, projection, pins: 0, finished: false }
-        this.residents.set(projection, resource)
+        resource = { key, relation, handle, projection, pins: 0 }
+        if (relation && !this.work.has(key)) this.work.set(key, relation.work)
         const view = this.views.get(key)?.deref()
         if (view) view.projection = projection
         // A reloaded child may run again; a cold reopen must restore it until it settles anew.
@@ -119,6 +143,8 @@ export class ChildResidency<H extends { release(): Promise<void> }> {
         await projection.attach()
         this.released.delete(key)
         this.entries.set(key, { state: 'attached', resource })
+        const parent = relation && this.entries.get(childKey(relation.parent.backendId, relation.parent.id))
+        if (parent?.state === 'attached') this.parentPins.set(key, this.pin(parent.resource))
         source.attached?.(resource)
         // Callers pin in their continuation; check afterwards so a reopened finished child is not released under them.
         setImmediate(() => this.releaseIfIdle(key))
@@ -143,14 +169,6 @@ export class ChildResidency<H extends { release(): Promise<void> }> {
     return pending
   }
 
-  /** Records whether the child's native work finished; a finished, unpinned child is released. */
-  finish(projection: ChildThreadProjection, finished: boolean): void {
-    const resource = this.residents.get(projection)
-    if (!resource) return
-    resource.finished = finished
-    this.releaseIfIdle(resource.key)
-  }
-
   /** Keeps the child loaded until the returned function runs. */
   pin(resource: ResidentChild<H>): () => void {
     resource.pins++
@@ -161,6 +179,12 @@ export class ChildResidency<H extends { release(): Promise<void> }> {
       resource.pins--
       this.releaseIfIdle(resource.key)
     }
+  }
+
+  /** Pins the child for a command whose input outdates earlier work evidence until a relationship reports again. */
+  command(resource: ResidentChild<H>): () => void {
+    this.work.delete(resource.key)
+    return this.pin(resource)
   }
 
   async resource(key: string): Promise<ResidentChild<H> | undefined> {
@@ -222,7 +246,7 @@ export class ChildResidency<H extends { release(): Promise<void> }> {
     }
   }
 
-  /** Flushes and releases every child; finished ones are marked settled for the next cold reopen. */
+  /** Flushes and releases every child; idle ones are marked settled for the next cold reopen. */
   async close(): Promise<void> {
     for (const [key, entry] of this.entries) {
       if (entry.state === 'releasing') await entry.pending
@@ -233,17 +257,18 @@ export class ChildResidency<H extends { release(): Promise<void> }> {
       if (!resource) continue
       this.entries.set(key, { state: 'closing', resource })
       await resource.projection.stop()
-      if (resource.finished) contexts.settleChild(resource.projection.context.id, true)
+      if (this.work.get(key) === 'idle') contexts.settleChild(resource.projection.context.id, true)
       await resource.handle.release()
       this.entries.delete(key)
     }
+    this.parentPins.clear()
   }
 
   private releaseIfIdle(key: string): void {
     const entry = this.entries.get(key)
     if (this.host.closing() || entry?.state !== 'attached') return
     const { resource } = entry
-    if (!resource.finished || resource.pins > 0) return
+    if (this.work.get(key) !== 'idle' || resource.pins > 0) return
     const { projection } = resource
     const pending = (async () => {
       try {
@@ -258,12 +283,14 @@ export class ChildResidency<H extends { release(): Promise<void> }> {
           contextId: projection.context.id
         })
         this.entries.delete(key)
+        this.parentPins.get(key)?.()
+        this.parentPins.delete(key)
       } catch (error) {
         // Keep the unflushed child for the close and reopen retries.
         this.entries.set(key, { state: 'closing', resource })
         logger.error('Failed to release finished child', { key, error })
       }
     })()
-    this.entries.set(key, { state: 'releasing', pending })
+    this.entries.set(key, { state: 'releasing', pending, resource })
   }
 }

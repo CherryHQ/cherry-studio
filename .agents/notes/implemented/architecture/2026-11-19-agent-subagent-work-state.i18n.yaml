@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/architecture/2026-11-19-agent-subagent-work-state.md
+2026-11-19-agent-subagent-work-state.md: 50a1e4f5555384c0322892ad15872a136f33edb8
+2026-11-19-agent-subagent-work-state.zh.md: 6c4fd27ab1dc6fdfcada4751497478f96d137cbc

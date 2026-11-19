@@ -6,7 +6,7 @@ import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 
 import { application } from '@application'
 import type { BehaviorEvent, CallRef } from '@cherrystudio/agent-behavior'
-import { runtimeId, type InputState, type Observation } from '@cherrystudio/agent-runtime'
+import { runtimeId, type InputState, type Observation, type Subagent } from '@cherrystudio/agent-runtime'
 import type {
   AgentRuntimeEvent as PiEvent,
   PiObservation,
@@ -496,9 +496,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           }
         }
         if (event.type === 'snapshot') {
-          for (const relation of event.subagents ?? [])
-            if (relation.child && !this.children.isReleased(this.childKey(relation.child.id)))
-              void this.observeChild(relation.child.id)
+          for (const relation of event.subagents ?? []) this.relateChild(relation)
           this.active = event.activity.state === 'active'
         } else if (event.type === 'activity.changed') {
           this.active = event.activity.state === 'active'
@@ -516,8 +514,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
             })
             this.nextOrigin = { kind: 'background-work' }
           }
-        } else if (event.type === 'subagent.upsert' && event.subagent.child)
-          void this.observeChild(event.subagent.child.id)
+        } else if (event.type === 'subagent.upsert') this.relateChild(event.subagent)
         else if (event.type === 'diagnostic') this.failure ??= new Error(event.error.message)
         else if (event.type === 'gap' && !['mapping-reset', 'overflow'].includes(event.reason))
           throw new Error(`Pi observation interrupted: ${event.reason}`)
@@ -554,10 +551,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         })
       }
       for (const child of batch.children)
-        void this.observeChild(child.thread.id).then((resource) => {
+        void this.observeChild(child.thread.id).then(() =>
           this.childTasks.publish(child.thread.id, childTaskStatus(child.outcome))
-          if (resource) this.finishChild(child.thread.id, resource.projection)
-        })
+        )
       if (batch.settled && this.sending && !this.manualCompactInFlight) this.finishTurn()
     } catch (error) {
       this.failure = error
@@ -592,6 +588,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     return this.children.origin(this.childKey(id))
   }
 
+  private relateChild(relation: Subagent): void {
+    const child = relation.child
+    if (child) this.children.relate(relation, () => this.observeChild(child.id))
+  }
+
   private async observeChild(id: string, granted?: PiThreadHandle) {
     return this.children.open(this.childKey(id), {
       granted,
@@ -622,14 +623,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
             observe: (sink) =>
               access.observe(async (event) => {
                 await sink(event)
-                if (event.type === 'snapshot')
-                  for (const child of event.subagents ?? [])
-                    if (child.child && !this.children.isReleased(this.childKey(child.child.id)))
-                      void this.observeChild(child.child.id)
-                if (event.type === 'subagent.upsert' && event.subagent.child)
-                  void this.observeChild(event.subagent.child.id)
-                if (event.type === 'snapshot' || event.type === 'activity.changed' || event.type === 'input.changed')
-                  this.finishChild(id, projection)
+                if (event.type === 'snapshot') for (const child of event.subagents ?? []) this.relateChild(child)
+                if (event.type === 'subagent.upsert') this.relateChild(event.subagent)
               })
           },
           () => access.pi.archive(),
@@ -640,17 +635,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       },
       attached: () => this.childTasks.publish(id, this.childTasks.status(id) ?? 'in_progress')
     })
-  }
-
-  /** Pi child activity can read idle mid-run; only its native task status reports an end. */
-  private finishChild(id: string, projection: ChildThreadProjection): void {
-    const status = this.childTasks.status(id)
-    this.children.finish(
-      projection,
-      (status === 'completed' || status === 'stopped' || status === 'error') &&
-        // An input without an outcome means more work is coming.
-        projection.runState().inputs.every((input) => input.outcome)
-    )
   }
 
   async childProjection(toolCallId: string) {
@@ -672,7 +656,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const projection = child?.projection
     const handle = child?.handle
     if (!child || !handle || !projection || this.closing) throw new Error('Child native owner is unavailable')
-    const unpin = this.children.pin(child)
+    const unpin = this.children.command(child)
     try {
       await projection.flush()
       const { sessionId } = projection.context
@@ -688,8 +672,6 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       await projection.refresh()
       if (result.status !== 'acknowledged') throw new Error(result.error.message)
     } finally {
-      // The next run or input change decides again; a state read before this input must not release the child.
-      this.children.finish(projection, false)
       unpin()
     }
   }

@@ -174,6 +174,13 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
       },
       onError: report,
       onResults: (thread, result) => owned.find((entry) => entry.ref.id === thread)?.projection.results(result),
+      onWork: (thread, work) => {
+        for (const parent of owned) {
+          const relation = parent.projection.feed.snapshot.subagents?.find((child) => child.child?.id === thread)
+          if (relation && relation.work !== work)
+            parent.projection.feed.publish({ type: 'subagent.upsert', subagent: { ...relation, work } })
+        }
+      },
       openSession: async ({ sessionManager, extension, child }) => {
         const parent = child && owned.find((entry) => entry.ref.id === child.parent)
         const nativeCallId =
@@ -229,13 +236,18 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
         if (child) {
           entries.set(entry.ref.id, Promise.resolve({ status: 'confirmed', value: entry }))
           const parent = owned.find((candidate) => candidate.ref.id === child.parent)!
+          // Loading keeps the known work state; a spawned child's first run start reports its own.
+          const known = parent.projection.feed.snapshot.subagents?.find(
+            (relation) => relation.child?.id === entry.ref.id
+          )
           parent.projection.feed.publish({
             type: 'subagent.upsert',
             subagent: {
               id: runtimeId(entry.ref.id),
               parent: parent.ref,
               child: entry.ref,
-              origin: { toolCallId: nativeCallId!, description: child.origin.description }
+              origin: { toolCallId: nativeCallId!, description: child.origin.description },
+              ...(known?.work && { work: known.work })
             }
           })
         } else {
@@ -247,11 +259,13 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
             const record = item.record.value
             if (children.has(record.sessionId)) continue
             const call = calls.find((call) => call.callKey === record.parentToolCallId)
+            // Runs end with the process that ran them; no child of a root opening now is loaded or running.
             children.set(record.sessionId, {
               id: runtimeId(record.sessionId),
               parent: entry.ref,
               child: refFor(record.sessionId),
-              ...(call && { origin: { toolCallId: call.callId, description: record.description } })
+              ...(call && { origin: { toolCallId: call.callId, description: record.description } }),
+              work: 'idle'
             })
           }
           for (const subagent of children.values())

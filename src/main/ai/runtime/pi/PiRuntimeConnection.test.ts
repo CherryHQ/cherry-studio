@@ -853,6 +853,48 @@ describe('desktop Pi root connection', () => {
       .toContain('child continued answer')
   })
 
+  // Catches a released child that its parent continues running unobserved, its answer missing from saved rows.
+  it('reloads a released child that its parent continues and saves its continued answer without a viewer', async () => {
+    let root = ''
+    let childId = ''
+    let childRuns = 0
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) {
+        childId = call.sessionId!
+        return assistantReply(childRuns++ === 0 ? 'child first answer' : 'child continued answer')
+      }
+      const last = JSON.stringify(call.messages.at(-1))
+      if (last.includes('delegate now'))
+        return assistantReply([subagentCall('spawn', { description: 'scan', prompt: 'scan files' })], 'toolUse')
+      if (last.includes('continue it'))
+        return assistantReply(
+          [toolCallPart('continue-call', 'message_subagent', { id: childId, message: 'continue' })],
+          'toolUse'
+        )
+      return assistantReply('parent answer')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate now') })
+    await done(events)
+    const context = contexts.findChild(input.sessionId, 'spawn')!
+    await expect.poll(() => contexts.context(context.id).checkpointMapping?.child?.settled).toBe(true)
+    const attached: string[] = []
+    const attach = ChildThreadProjection.prototype.attach
+    vi.spyOn(ChildThreadProjection.prototype, 'attach').mockImplementation(function (this: ChildThreadProjection) {
+      attached.push(this.context.id)
+      return attach.call(this)
+    })
+    events.length = 0
+    await connection.send({ message: message('continue it') })
+    await done(events)
+    await expect
+      .poll(() => JSON.stringify(savedChildView(contexts.context(context.id)).messages))
+      .toContain('child continued answer')
+    expect(attached).toContain(context.id)
+    await expect.poll(() => contexts.context(context.id).checkpointMapping?.child?.settled).toBe(true)
+  })
+
   // Catches a recovered root being rebuilt forever after one historical child reports a startup error.
   it('keeps a reopened parent usable and its child archive readable when child configuration fails', async () => {
     let root = ''

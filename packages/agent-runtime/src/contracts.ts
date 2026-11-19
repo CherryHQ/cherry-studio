@@ -74,6 +74,11 @@ export interface Subagent {
   readonly child?: Thread
   /** Evidenced creation call, scoped to parent; continuation does not replace it. */
   readonly origin?: { readonly toolCallId: string; readonly description?: string }
+  /**
+   * The owner's evidence for the child's native work: `running` while a run is active or admitted input waits for
+   * one, `idle` once it has run and nothing remains. Absent when the owner has no evidence. Not an assignment outcome.
+   */
+  readonly work?: 'running' | 'idle'
 }
 export interface Activity {
   readonly state: 'active' | 'idle' | 'unknown'

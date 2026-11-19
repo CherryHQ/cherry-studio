@@ -40,7 +40,7 @@ Cherry 需要观察子智能体、管理委派工作，并在 harness 支持时�
 | 子上下文 | `Thread` 标识所属 backend 下可复用的原生上下文。 | 一次性工作可以没有公开上下文。上下文可访问，不等于支持输入或重启后再次打开。 |
 | 一次任务或 activation | 只有所有者提供证据时，才保留相应边界和结果。宿主拥有的任务可由编排者分配身份。 | 原生 owner task、输入、工具调用与模型 turn 不能互换为任务身份。 |
 
-已实现的 `Subagent { id, parent, child? }` 替代 `Delegation`。快照暴露 `subagents`，`subagent.upsert` 替代 `delegation.upsert`。关系 ID 限定在父方范围内，跨 child 输入和运行保持稳定；两个适配器使用各自原生 child 上下文 ID。Delegation 继续表示由明确所有者分配并跟踪的工作，不增加必需的 `Task` 或 `Run` 来承担这一角色。关系需要原生证据，不能从工具结果文本推断；空闲 child 可以再次工作，完成任务不结束父子关系，也不改变早先任务的结果。
+已实现的 `Subagent { id, parent, child? }` 替代 `Delegation`。快照暴露 `subagents`，`subagent.upsert` 替代 `delegation.upsert`。关系 ID 限定在父方范围内，跨 child 输入和运行保持稳定；两个适配器使用各自原生 child 上下文 ID。Delegation 继续表示由明确所有者分配并跟踪的工作，不增加必需的 `Task` 或 `Run` 来承担这一角色。关系需要原生证据，不能从工具结果文本推断；空闲 child 可以再次工作，完成任务不结束父子关系，也不改变早先任务的结果。可选的 `work` 状态（[子智能体工作状态](../../implemented/architecture/2026-11-19-agent-subagent-work-state.md)）描述 child 线程的原生工作，不是任务结果。
 
 - 支持输入的访问入口通过 `ThreadHandle.input` 同时提供 `submit` 和支持的 `policies`；只支持观察的访问入口不提供该字段。当前 Pi 与 Durable 的具体句柄均提供该组操作，公共契约不要求所有适配器都提供。
 - 能力属于具体访问入口，不能只按 harness 名称判断。有输入操作仍可能因当前状态或权限而拒绝执行。不支持输入时，不能静默改成给父智能体发消息或新建会话。

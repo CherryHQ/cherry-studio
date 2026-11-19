@@ -597,6 +597,47 @@ it('reopens a settled nested child on demand under its immediate parent after an
   }
 }, 30000)
 
+// Catches a settled child that its parent resumes through SendMessage running unobserved until someone views it.
+it('reloads a settled child that its parent resumes and saves its continued answer without a viewer', async () => {
+  const test = await desktop()
+  const connection = await test.connect()
+  await connection.send(test.input('Start child'))
+  const root = await test.request()
+  root.reply.block(spawnChild('toolu_original'))
+  root.reply.finish('tool_use')
+  const child = await test.request()
+  child.reply.block({ type: 'text', text: 'Original child answer' })
+  child.reply.finish()
+  const parent = await test.request()
+  parent.reply.block({ type: 'text', text: 'Original parent answer' })
+  parent.reply.finish()
+  await test.wait('turn-complete')
+  const context = contexts.findChild(test.sessionId, 'toolu_original')!
+  await expect.poll(() => contexts.context(context.id).checkpointMapping?.child?.settled).toBe(true)
+  const agentId = decodeURIComponent(context.nativeThreadId!.split('/')[1])
+  test.events.length = 0
+  await connection.send(test.input('Continue the child'))
+  const followup = await test.request()
+  followup.reply.block({
+    type: 'tool_use',
+    id: 'toolu_continue',
+    name: 'SendMessage',
+    input: { to: agentId, message: 'Continue with the old context', summary: 'Continue child' }
+  })
+  followup.reply.finish('tool_use')
+  const requests = [await test.request(), await test.request()]
+  const resumed = requests.find((request) => JSON.stringify(request.body.messages).includes('Original child answer'))!
+  const parentReply = requests.find((request) => request !== resumed)!
+  parentReply.reply.block({ type: 'text', text: 'Parent continues' })
+  parentReply.reply.finish()
+  resumed.reply.block({ type: 'text', text: 'Continued child answer' })
+  resumed.reply.finish()
+  await expect
+    .poll(() => JSON.stringify(savedChildView(contexts.context(context.id)).messages), { timeout: 15000 })
+    .toContain('Continued child answer')
+  await expect.poll(() => contexts.context(context.id).checkpointMapping?.child?.settled).toBe(true)
+}, 30000)
+
 // Stopping one native task must not close the Query owner or interrupt a sibling's projection.
 it('stops one background child while its sibling persists its answer', async () => {
   const test = await desktop()

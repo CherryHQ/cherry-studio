@@ -803,8 +803,9 @@ redecorates only changed messages, and it writes the checkpoint, input bindings 
 when they change. It saves a message only when it differs from its stored row as that row reads back from
 JSON, where undefined fields are absent, so reopening a child rewrites nothing. Claude no longer writes child bodies into the
 parent's background-flow parts; saved historical flows remain readable.
-A reopen restores only unsettled saved children, one at a time; a settled child attaches when its
-panel opens. After a failed attachment, Claude retries the saved session-scoped native binding
+A reopen restores only unsettled children, one at a time, as the archive replays their relationships;
+a settled child attaches when its panel opens or a relationship reports it running, such as after a
+parent `SendMessage` resumes it. After a failed attachment, Claude retries the saved session-scoped native binding
 when it belongs to the current backend. The root's native creation lookup need not retain
 a nested or historical child's origin; retrying that existing access never resubmits its task.
 Root and child views both use `ai.projection.*`, without a renderer runtime allowlist.
@@ -1082,11 +1083,13 @@ origin, actual parent and access together. Main joins concurrent attachment thro
 resource record. Failed creation or owner closure ends the wait; parent reply completion does not
 close independently running children. Failed attachment releases its lease and can retry, while
 failed final persistence retains the resource and its unflushed output. `ChildResidency` owns this
-record for Claude Code, Pi and Pi Durable. A finished child that no viewer or command pins is flushed,
-marked settled on its context row and released, keeping only its origin and context ID; opening its
-panel, messaging it or a native resume attaches it again, and a reopen leaves settled children
-unloaded. Each connection supplies the finished evidence: Durable run facts, Pi child task status, or
-Claude task activity. Every input must also have an outcome. A detached or
+record for Claude Code, Pi and Pi Durable. Each connection hands it every observed `Subagent`
+relationship; a child is finished when its latest relationship reports `work: 'idle'`, and none computes
+runtime-specific finished evidence. A finished child that no viewer, command or loaded nested child pins is
+flushed, marked settled on its context row and released, keeping only its origin and context ID. Opening its
+panel, messaging it or a relationship reporting it running attaches it again; a command keeps it loaded until
+a later relationship reports `idle`. A reopen leaves settled children unloaded and restores unsettled idle
+children one at a time. A detached or
 destroyed window cannot install a late subscription. Archive reconciliation preserves product IDs
 and orders evidenced rows by committed native history followed by live content, correcting saved
 parent links when necessary; rows outside current native/live coverage remain retained in place.

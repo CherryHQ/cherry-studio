@@ -293,6 +293,7 @@ it.each([false, true])(
       const task = await view.event((event) => event.type === 'system' && event.subtype === 'task_started')
       if (task.type !== 'system' || task.subtype !== 'task_started') throw new Error('Missing original task')
       const childThread = view.snapshot.subagents![0].child!
+      await expect.poll(() => view.snapshot.subagents![0].work).toBe('idle')
       if (cold) {
         confirmed(await runtime.shutdown())
         runtime = test.runtime()
@@ -301,6 +302,9 @@ it.each([false, true])(
       }
       const child = confirmed(await runtime.open(childThread))
       const childView = await observe(child)
+      // An archive read replays the relation; a finished task, or one from a previous process, is not running.
+      confirmed(await root.claude.archive())
+      await expect.poll(() => view.snapshot.subagents?.[0]?.work).toBe('idle')
       await root.input!.submit({ inputId: inputId(), text: 'Continue the child', whenBusy: 'steer' })
       const followup = await test.request()
       followup.reply.block({
@@ -323,6 +327,7 @@ it.each([false, true])(
       const resumed = resumedRequests[0]
       const parentReply = requests.find((value) => value !== resumed)!
       expect(JSON.stringify(resumed.body.messages)).toContain('Continue with the old context')
+      expect(view.snapshot.subagents![0].work).toBe('running')
       parentReply.reply.block({ type: 'text', text: 'Parent continues independently' })
       parentReply.reply.finish()
       resumed.reply.block({ type: 'text', text: 'Continued child answer' })
@@ -337,6 +342,7 @@ it.each([false, true])(
       )
       if (next.type !== 'system' || next.subtype !== 'task_started') throw new Error('Missing new run')
       expect(next.run_id! > task.run_id!).toBe(true)
+      await expect.poll(() => view.snapshot.subagents![0].work).toBe('idle')
       expect(child.thread).toEqual(childThread)
       expect(textOf(childView.snapshot)).toContain('Original child answer')
       expect(

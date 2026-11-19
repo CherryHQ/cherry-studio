@@ -19,6 +19,8 @@ import {
   type Cursor,
   type EntryId,
   type HarnessOptions,
+  InboxDoc,
+  LiveDoc,
   type Storage,
   type SubmissionRecord,
   type ToolTaskInput,
@@ -331,9 +333,41 @@ export async function createPiDurableRuntime(
       ...(toolCallId && { origin: { toolCallId, ...(description && { description }) } })
     }
   }
+  /**
+   * Each child's committed run and queued input, and whether it has run. Work changes only when one of them does,
+   * not with streamed output; a created child is running until its first run ends.
+   */
+  const childWork = new Map<number, { run: boolean; queued: boolean; ran: boolean }>()
+  const workOf = (state: { run: boolean; queued: boolean; ran: boolean }): 'running' | 'idle' =>
+    state.run || state.queued || !state.ran ? 'running' : 'idle'
+  async function readWork(tx: Tx, id: ConversationId): Promise<'running' | 'idle'> {
+    // A child this process never saw created is historical: no run and no queued input means it is done.
+    const state = {
+      run: (await tx.doc(LiveDoc, id)).run !== undefined,
+      queued: (await tx.doc(InboxDoc, id)).items.length > 0,
+      ran: childWork.get(id)?.ran ?? true
+    }
+    childWork.set(id, state)
+    return workOf(state)
+  }
   const readChildren = async (tx: Tx, parent: ConversationId) => {
     const children = await pages((cursor) => tx.scanConversations({ ownerConversationId: parent }, 256, cursor))
-    return (await Promise.all(children.map((child) => readRelation(tx, child)))).filter((child) => child !== undefined)
+    const relations = await Promise.all(
+      children.map(async (child) => {
+        const relation = await readRelation(tx, child)
+        return relation && { ...relation, work: await readWork(tx, child.id) }
+      })
+    )
+    return relations.filter((child) => child !== undefined)
+  }
+  /** Tells a loaded parent that its child's work changed. */
+  const publishWork = async (id: number): Promise<void> => {
+    const record = await native.commit((tx) => tx.conversation(id as ConversationId), context)
+    const state = childWork.get(id)
+    const entry = record?.owner && live.get(record.owner.conversationId)
+    const relation = entry && entry.projection.feed.snapshot.subagents?.find((child) => child.child?.id === String(id))
+    if (state && relation && relation.work !== workOf(state) && live.get(record.owner.conversationId) === entry)
+      entry.projection.feed.publish({ type: 'subagent.upsert', subagent: { ...relation, work: workOf(state) } })
   }
   /** A released child that receives input is announced to its nearest loaded ancestor so hosts observe it again. */
   const announceResumed = async (id: number): Promise<void> => {
@@ -345,14 +379,29 @@ export async function createPiDurableRuntime(
       if (!entry) continue
       const subagent = await readRelation(relationRecords, child!)
       if (subagent && live.get(current.owner.conversationId) === entry)
-        entry.projection.feed.publish({ type: 'subagent.upsert', subagent })
+        entry.projection.feed.publish({ type: 'subagent.upsert', subagent: { ...subagent, work: 'running' } })
       return
     }
   }
   const unsubscribe = native.observeCommits({
     advance(publication) {
       const changed = new Set<number>()
+      const worked = new Set<number>()
       for (const change of publication.changes) {
+        if (
+          change.type === 'document' &&
+          change.kind === 'change' &&
+          change.conversationId !== undefined &&
+          (change.record.kind === 'pi.live' || change.record.kind === 'pi.inbox')
+        ) {
+          const previous = childWork.get(change.conversationId)
+          const next = { run: false, queued: false, ran: false, ...previous }
+          if (change.record.kind === 'pi.live') next.run = change.value.run !== undefined
+          else next.queued = ((change.value.items as readonly unknown[] | undefined)?.length ?? 0) > 0
+          next.ran ||= next.run
+          childWork.set(change.conversationId, next)
+          if (!previous || workOf(previous) !== workOf(next)) worked.add(change.conversationId)
+        }
         if (change.type === 'entry' && (change.value.model || change.value.head || change.value.edits))
           changed.add(change.value.conversationId)
         if (
@@ -385,12 +434,16 @@ export async function createPiDurableRuntime(
           if (entry)
             void track(
               readRelation(relationRecords, change.value).then((subagent) => {
-                if (subagent && live.get(parent) === entry)
-                  entry.projection.feed.publish({ type: 'subagent.upsert', subagent })
+                if (!subagent || live.get(parent) !== entry) return
+                const state = childWork.get(change.value.id)
+                const known = entry.projection.feed.snapshot.subagents?.find((child) => child.id === subagent.id)
+                const work = state ? workOf(state) : (known?.work ?? 'running')
+                entry.projection.feed.publish({ type: 'subagent.upsert', subagent: { ...subagent, work } })
               })
             ).catch(report)
         }
       }
+      for (const id of worked) void track(publishWork(id)).catch(report)
       for (const id of changed) {
         const entry = live.get(id)
         if (entry) {
@@ -650,7 +703,8 @@ export async function createPiDurableRuntime(
           track(
             native.commit(async (tx) => {
               const record = await tx.conversation(entry.conversation.id)
-              return record && readRelation(tx, record)
+              const relation = record && (await readRelation(tx, record))
+              return relation && { ...relation, work: await readWork(tx, record.id) }
             }, context)
           ),
         async openChild(toolCallId, signal) {

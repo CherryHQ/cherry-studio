@@ -2838,6 +2838,52 @@ describe('desktop Pi Durable connection', () => {
     )
   })
 
+  // Catches a released child that its parent continues running unobserved, its answer missing from saved rows.
+  it('reloads a released child that its parent continues and saves its continued answer without a viewer', async () => {
+    let root = ''
+    let childId = ''
+    let childRuns = 0
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root)
+        return assistantReply(childRuns++ === 0 ? 'child first answer' : 'child continued answer')
+      const last = JSON.stringify(call.messages.at(-1))
+      if (last.includes('delegate'))
+        return assistantReply(
+          [toolCallPart('spawn', 'subagent', { description: 'research', prompt: 'child work', background: true })],
+          'toolUse'
+        )
+      if (last.includes('continue it'))
+        return assistantReply(
+          [toolCallPart('continue-call', 'message_subagent', { id: childId, message: 'continue' })],
+          'toolUse'
+        )
+      return assistantReply('parent done')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate') })
+    await done(events, CHILD_WAIT.timeout)
+    await expect.poll(() => connection['children']['released'].size, CHILD_WAIT).toBe(1)
+    const [released] = connection['children']['released'].values()
+    childId = released.thread.id
+    const attached: string[] = []
+    const attach = ChildThreadProjection.prototype.attach
+    vi.spyOn(ChildThreadProjection.prototype, 'attach').mockImplementation(function (this: ChildThreadProjection) {
+      attached.push(this.context.id)
+      return attach.call(this)
+    })
+    events.length = 0
+    await connection.send({ message: message('continue it') })
+    await done(events, CHILD_WAIT.timeout)
+    await expect
+      .poll(() => JSON.stringify(savedChildView(contexts.context(released.contextId)).messages), CHILD_WAIT)
+      .toContain('child continued answer')
+    expect(attached).toContain(released.contextId)
+    await expect
+      .poll(() => contexts.context(released.contextId).checkpointMapping?.child?.settled, CHILD_WAIT)
+      .toBe(true)
+  })
+
   // Catches a reopen attaching every finished child again before it can release it.
   it('leaves a settled child unloaded on reopen until a viewer asks for it', async () => {
     const connection = await finishedChild()

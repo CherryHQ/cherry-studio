@@ -627,7 +627,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       throw new Error(observation.error.message)
     }
     this.observations.push(observation.value)
-    this.restoreChildren(this.context!)
   }
 
   private async acceptRoot(
@@ -743,24 +742,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private discoverChild(relation: Subagent): void {
-    // Archive reads replay every known relation; a released child reloads only when asked for.
-    if (relation.child && !this.children.isReleased(childKey(relation.child.backendId, relation.child.id)))
-      void this.observeChild(relation.child)
-  }
-
-  /** Restores unsettled saved children one at a time instead of loading every archive at once. */
-  private restoreChildren(parent: ReturnType<typeof contexts.context>): void {
-    void (async () => {
-      for (const context of contexts.children(parent.id)) {
-        if (context.bindingState !== 'bound' || !context.nativeThreadId || !context.spawnToolCallId) continue
-        if (context.checkpointMapping?.child?.settled) continue
-        await this.observeChild(
-          { backendId: runtimeId(context.backendId), id: runtimeId(context.nativeThreadId) },
-          undefined,
-          context
-        )
-      }
-    })().catch((error) => logger.warn('Failed to restore Claude children', { contextId: parent.id, error }))
+    const child = relation.child
+    if (child) this.children.relate(relation, () => this.observeChild(child))
   }
 
   private async observeChild(
@@ -779,7 +762,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       build: async (handle) => {
         const relation = handle.claude.relation()
         let context = saved
-        let restored = true
         if (!context) {
           if (!relation) throw new Error('Native child parent is unavailable')
           const parent =
@@ -788,7 +770,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           context = contexts.children(parent.id).find((child) => child.nativeThreadId === thread.id)
           if (!context) {
             if (!relation.origin) throw new Error('Native child creation origin is unavailable')
-            restored = false
             context = contexts.child(
               parent.id,
               thread.id,
@@ -821,14 +802,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
                     await sink(event)
                     if (event.type === 'subagent.upsert') this.discoverChild(event.subagent)
                     if (event.type === 'snapshot') for (const child of event.subagents ?? []) this.discoverChild(child)
-                  }
-                  if (batch.events.some((event) => event.type === 'snapshot' || event.type === 'activity.changed')) {
-                    const { activity } = projection.runState()
-                    // Native task state is live only; a restored child it reports nothing for is not running.
-                    this.children.finish(
-                      projection,
-                      activity.state === 'idle' || (restored && activity.state === 'unknown')
-                    )
                   }
                   if (refresh) await projection.refreshDecoration()
                   for (const control of batch.controls ?? []) {
@@ -877,8 +850,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           metadata.decorate
         )
         return { relation, projection }
-      },
-      attached: (resource) => this.restoreChildren(resource.projection.context)
+      }
     })
     if (!resource) end()
     return resource

@@ -108,7 +108,7 @@ ID 使用不同的 branded 字符串类型。消费者可以序列化它们，�
 
 公共内容包含 text/reasoning 消息 parts、参数可能尚不完整的 `argumentsText` 工具调用，以及可选携带可序列化 `JsonValue` 的工具结果。它不导出 SDK 对象、UI chunk 或原生重放格式。`complete` 表示内容完整，不表示目标达成。前台 `Activity` 不代表所有后台任务或等待中的 preflight。
 
-父快照可以暴露 `Subagent { id, parent, child? }` 记录。当前两个适配器从原生所有权证据发现 child，以父方范围内的原生 child ID 标识关系，并通过同一 Runtime 路由可访问的子 Thread；宿主创建的跨 harness 路由是另一项职责。关系跨 child 续接保留，不携带任务完成状态。缺少 `subagents` 表示不提供发现能力；空数组表示当前没有可见关系，不表示从未存在 child。缺少 `child` 表示未提供可独立访问的上下文。父观察既不递归混入 child 内容，也不向父方交付结果。
+父快照可以暴露 `Subagent { id, parent, child? }` 记录。当前两个适配器从原生所有权证据发现 child，以父方范围内的原生 child ID 标识关系，并通过同一 Runtime 路由可访问的子 Thread；宿主创建的跨 harness 路由是另一项职责。关系跨 child 续接保留，不携带任务完成状态。可选的 `work` 报告所有者对 child 原生工作处于运行还是空闲的证据（[子智能体工作状态](../../implemented/architecture/2026-11-19-agent-subagent-work-state.md)）。缺少 `subagents` 表示不提供发现能力；空数组表示当前没有可见关系，不表示从未存在 child。缺少 `child` 表示未提供可独立访问的上下文。父观察既不递归混入 child 内容，也不向父方交付结果。
 
 快照只替换该来源的当前视图，不删除宿主归档、其他 Thread 或 child 视图。当前适配器提供 `current-view`；协议也允许 `live-only` 和 `retained-view`，均不承诺包含所有历史分支。观察先发送 snapshot，再使用 `item.upsert`、`item.remove`、`input.changed`、`activity.changed`、`subagent.upsert`、`diagnostic`、`gap` 和 `closed`。Upsert 携带累计值，不是任意 token chunk；移除 Item 不等于删除原生上下文。v0 没有为 execution 或 interaction 事件预留未定义的变体。
 

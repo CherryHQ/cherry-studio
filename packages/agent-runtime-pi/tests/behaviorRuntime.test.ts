@@ -327,6 +327,8 @@ it('continues the discovered child in place, streams to shared handles and deliv
   const relation = rootEvents.find((event) => event.type === 'subagent.upsert')
   if (relation?.type !== 'subagent.upsert' || !relation.subagent.child) throw new Error('No child was published')
   expect(relation.subagent.origin).toEqual({ toolCallId: 'spawn', description: 'scan' })
+  const work = () => rootEvents.findLast((event) => event.type === 'subagent.upsert')?.subagent.work
+  await expect.poll(work).toBe('idle')
   const child = confirmed(await runtime.open(relation.subagent.child))
   const second = confirmed(await runtime.open(child.thread))
   const childEvents = await observe(child)
@@ -336,6 +338,7 @@ it('continues the discovered child in place, streams to shared handles and deliv
     facts: ['dispatch-started']
   })
   await childFinish.reached
+  expect(work()).toBe('running')
   await root.input.submit(draft('parent waits'))
   await parentFinish.reached
   confirmed(await root.interrupt!())
@@ -358,7 +361,9 @@ it('continues the discovered child in place, streams to shared handles and deliv
           .length
     )
     .toBe(1)
-  expect(rootEvents.filter((event) => event.type === 'subagent.upsert')).toHaveLength(1)
+  await expect.poll(work).toBe('idle')
+  const relations = rootEvents.flatMap((event) => (event.type === 'subagent.upsert' ? [event.subagent] : []))
+  expect(new Set(relations.map((subagent) => subagent.id))).toEqual(new Set([relation.subagent.id]))
   expect(relation.subagent.origin?.toolCallId).toBe('spawn')
   expect(child.thread).toEqual(second.thread)
   expect(inputs(rootEvents, 'parent waits').at(-1)?.outcome).toBe('aborted')
@@ -827,7 +832,9 @@ it('restores child relations on reopen and refuses a child without its live owne
   })
   const rootAgain = confirmed(await reopened.open(root.thread))
   const restored = await observe(rootAgain)
-  await expect.poll(() => restored[0]).toMatchObject({ type: 'snapshot', subagents: [relation.subagent] })
+  await expect
+    .poll(() => restored[0])
+    .toMatchObject({ type: 'snapshot', subagents: [{ ...relation.subagent, work: 'idle' }] })
   expect(await reopened.open(relation.subagent.child)).toMatchObject({
     status: 'rejected',
     error: { code: 'child-owner-unavailable' }

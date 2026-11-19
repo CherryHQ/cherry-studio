@@ -4,7 +4,7 @@ import { isDeepStrictEqual } from 'node:util'
 import type { Usage } from '@earendil-works/pi-ai'
 
 import type { BehaviorEvent } from '@cherrystudio/agent-behavior'
-import { runtimeId, type InputState, type Observation } from '@cherrystudio/agent-runtime'
+import { runtimeId, type InputState, type Observation, type Subagent } from '@cherrystudio/agent-runtime'
 import type {
   DurableObservation,
   PiDurableRuntime,
@@ -49,18 +49,6 @@ import type { prepareDurableBranch } from './durableContext'
 import { saveDurableRequest } from './durableRequest'
 
 const logger = loggerService.withContext('PiDurableRuntimeConnection')
-
-/** Applies one input change the way `ThreadFeed` does: it replaces the same input and moves to the end. */
-function withInput(inputs: readonly InputState[], input: InputState): InputState[] {
-  return [
-    ...inputs.filter(
-      (known) =>
-        !(input.inputId !== undefined && known.inputId === input.inputId) &&
-        !(input.nativeInput !== undefined && known.nativeInput?.id === input.nativeInput.id)
-    ),
-    input
-  ]
-}
 
 function isCompactCommand(text: string) {
   return /^\/compact(?:\s|$)/.test(text.trim())
@@ -341,12 +329,10 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           }
           for (const input of event.inputs) this.captureInput(input, placements)
           this.active = nowActive
-          for (const relation of event.subagents ?? [])
-            if (relation.child && !this.children.isReleased(this.childKey(relation.child.id)))
-              this.attachChild(relation.child.id)
+          for (const relation of event.subagents ?? []) this.attachChild(relation)
         } else if (event.type === 'activity.changed') this.active = event.activity.state === 'active'
         else if (event.type === 'input.changed') this.captureInput(event.input, placements)
-        else if (event.type === 'subagent.upsert' && event.subagent.child) this.attachChild(event.subagent.child.id)
+        else if (event.type === 'subagent.upsert') this.attachChild(event.subagent)
         // Durable follows each gap with a recovery snapshot; neither a gap nor a diagnostic ends native work.
         else if (event.type === 'diagnostic' || (event.type === 'gap' && event.reason === 'disconnected'))
           logger.warn('Durable observation fault', { sessionId: this.input.sessionId, event })
@@ -477,9 +463,13 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  /** A failed child attachment is retried by the next snapshot that lists the child. */
-  private attachChild(id: string) {
-    void this.observeChild(id).catch((error) => logger.warn('Failed to observe Durable child', { id, error }))
+  /** A failed child attachment is retried by the next relationship that lists the child. */
+  private attachChild(relation: Subagent) {
+    const id = relation.child?.id
+    if (id)
+      this.children.relate(relation, () =>
+        this.observeChild(id).catch((error) => logger.warn('Failed to observe Durable child', { id, error }))
+      )
   }
 
   private childKey(id: string): string {
@@ -535,19 +525,12 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           context,
           {
             ...access,
-            observe: (sink) => {
-              let inputs: readonly InputState[] = []
-              return access.observe(async (event) => {
+            observe: (sink) =>
+              access.observe(async (event) => {
                 try {
                   await sink(event)
-                  if (event.type === 'subagent.upsert' && event.subagent.child)
-                    void this.observeChild(event.subagent.child.id)
-                  if (event.type === 'snapshot') {
-                    inputs = event.inputs
-                    for (const child of event.subagents ?? [])
-                      if (child.child && !this.children.isReleased(this.childKey(child.child.id)))
-                        void this.observeChild(child.child.id)
-                  } else if (event.type === 'input.changed') inputs = withInput(inputs, event.input)
+                  if (event.type === 'subagent.upsert') this.attachChild(event.subagent)
+                  if (event.type === 'snapshot') for (const child of event.subagents ?? []) this.attachChild(child)
                   // Run state and input outcomes change only with these events; streamed content does not.
                   if (
                     event.type === 'snapshot' ||
@@ -566,11 +549,6 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
                             : 'error'
                         : 'in_progress'
                     )
-                    // An input without an outcome means more work is coming even while the run is idle.
-                    this.children.finish(
-                      projection,
-                      facts.live.idle && facts.live.runEnd !== undefined && inputs.every((input) => input.outcome)
-                    )
                   }
                 } catch (error) {
                   // Rethrowing would reach the backend error hook and close every root on it.
@@ -581,7 +559,6 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
                       .catch((cause) => logger.warn('Durable child resync failed', { id, error: cause }))
                 }
               })
-            }
           },
           async () => {
             const archive = await access.archive()
@@ -616,12 +593,10 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     const projection = child?.projection
     const handle = child?.handle
     if (!child || !handle || !projection || this.closing) throw new Error('Child native owner is unavailable')
-    const unpin = this.children.pin(child)
+    const unpin = this.children.command(child)
     try {
       await this.submitChild(projection, handle, contextId, text)
     } finally {
-      // The next run or input change decides again; a status read before this input must not release the child.
-      child.finished = false
       unpin()
     }
   }

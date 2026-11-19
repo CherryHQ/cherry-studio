@@ -43,6 +43,7 @@ interface Task {
   agent: boolean
   parentId?: string | null
   runId?: string
+  /** No run of this task is live in this CLI process. */
   terminal?: boolean
   origin?: Subagent['origin']
 }
@@ -366,7 +367,8 @@ export class ClaudeOwner {
           id: runtimeId<'subagent'>(id),
           parent: parent.thread,
           child: child.thread,
-          ...(task.origin && { origin: task.origin })
+          ...(task.origin && { origin: task.origin }),
+          work: task.terminal ? 'idle' : 'running'
         }
       }
     ])
@@ -380,7 +382,8 @@ export class ClaudeOwner {
           sessionId: this.activeSession,
           agent: native.task_type === 'local_agent',
           runId: native.run_id,
-          parentId: native.parent_task_id
+          parentId: native.parent_task_id,
+          terminal: false
         }
         this.tasks.set(native.task_id, task)
         if (task.agent) this.projection(task.sessionId, native.task_id)
@@ -392,12 +395,14 @@ export class ClaudeOwner {
     let task = this.tasks.get(message.task_id)
     if (task?.runId && message.run_id && message.run_id < task.runId) return true
     const newRun = message.run_id !== undefined && message.run_id !== task?.runId
+    const wasTerminal = task?.terminal
     if (task && newRun) task.terminal = false
     if (message.subtype === 'task_started') {
       const callOwner = message.tool_use_id ? this.toolOwners.get(message.tool_use_id) : undefined
       const callAgent = callOwner?.thread.id.split('/')[1]
       task ??= { sessionId: this.activeSession, agent: message.task_type === 'local_agent' }
       task.agent ||= message.task_type === 'local_agent'
+      task.terminal = false
       const call = callOwner?.feed.snapshot.messages
         .flatMap((item) => item.parts)
         .find((part) => part.type === 'dynamic-tool' && part.toolCallId === message.tool_use_id)
@@ -429,6 +434,7 @@ export class ClaudeOwner {
       task.terminal = true
       events.push({ type: 'activity.changed', activity: { state: 'idle' } })
     }
+    if (message.subtype !== 'task_started' && task.terminal !== wasTerminal) this.relation(message.task_id, task)
     child?.publish(events, { source: 'live', message })
     return false
   }
@@ -724,25 +730,38 @@ export class ClaudeOwner {
         const entries = entriesFor(native.agentId)
         this.archives.set(child.thread.id, child.restore(native.messages, entries))
       }
+      const spawnCall = (view: ClaudeProjection, toolCallId: string) => {
+        const call = view.feed.snapshot.messages
+          .flatMap((item) => item.parts)
+          .find((part) => part.type === 'dynamic-tool' && part.toolCallId === toolCallId)
+        return call?.type === 'dynamic-tool' && ['Agent', 'Task'].includes(call.toolName) ? call : undefined
+      }
       for (const native of archive.children) {
         const entries = entriesFor(native.agentId)
         const parent = native.messages.find((message) => message.parent_agent_id)?.parent_agent_id
         const metadata = entries.find((entry) => Object.hasOwn(entry, 'parentAgentId'))
-        const parentId =
+        const recorded =
           parent ??
           (metadata?.parentAgentId === null
             ? null
             : typeof metadata?.parentAgentId === 'string'
               ? metadata.parentAgentId
               : undefined)
-        const task: Task = this.tasks.get(native.agentId) ?? { sessionId, agent: true, parentId }
         const toolCallId = native.messages.find((message) => message.parent_tool_use_id)?.parent_tool_use_id
+        const caller = !toolCallId
+          ? undefined
+          : spawnCall(root, toolCallId)
+            ? null
+            : archive.children.find((other) => spawnCall(this.projection(sessionId, other.agentId), toolCallId))
+                ?.agentId
+        // The transcript holding the spawning call owns the child; without it the SDK reports a depth-1 parent as null.
+        const parentId =
+          recorded !== undefined ? recorded : caller !== undefined ? caller : native.messages.length ? null : undefined
+        // Background tasks end with the CLI process that ran them; one this process never started is not running.
+        const task: Task = this.tasks.get(native.agentId) ?? { sessionId, agent: true, parentId, terminal: true }
         if (!task.origin && toolCallId) {
-          const parentView = this.projection(sessionId, parentId ?? undefined)
-          const call = parentView.feed.snapshot.messages
-            .flatMap((item) => item.parts)
-            .find((part) => part.type === 'dynamic-tool' && part.toolCallId === toolCallId)
-          if (call?.type === 'dynamic-tool' && ['Agent', 'Task'].includes(call.toolName)) {
+          const call = spawnCall(this.projection(sessionId, parentId ?? undefined), toolCallId)
+          if (call) {
             const description = (call.input as { description?: unknown })?.description
             task.origin = { toolCallId, ...(typeof description === 'string' && { description }) }
           }
