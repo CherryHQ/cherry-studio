@@ -116,6 +116,7 @@ export default defineProvider({
       official: 'https://aistupidlevel.info'
     }
   },
+  modelsDevProvider: 'aistupidlevel',
   standaloneModelIds: ROUTING_MODES.map(([id]) => id),
   overrides: [...routingModeOverrides, ...pinnedModelOverrides]
 })
