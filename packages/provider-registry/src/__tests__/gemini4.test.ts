@@ -110,3 +110,38 @@ describe('Gemini 4 Carbon', () => {
     }
   )
 })
+
+describe('Gemini 4 Neon', () => {
+  it('exposes the documented limits and always-on, level-based reasoning', () => {
+    const catalog = ModelListSchema.parse(JSON.parse(readFileSync(join(__dirname, '../../data/models.json'), 'utf8')))
+    const model = catalog.models.find((entry) => entry.id === 'gemini-4-neon')!
+    expect(model).toMatchObject({
+      name: 'Gemini 4 Neon',
+      contextWindow: 1_048_576,
+      maxOutputTokens: 1_048_576,
+      inputModalities: ['text', 'image', 'audio', 'video'],
+      outputModalities: ['text'],
+      reasoning: {
+        wireDialect: 'effort',
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh'], default: 'high' }],
+        defaultEffort: 'high'
+      },
+      parameterSupport: {
+        temperature: { supported: false },
+        topP: { supported: false },
+        topK: { supported: false }
+      }
+    })
+    expect(model.capabilities).toEqual(expect.arrayContaining(['reasoning', 'function-call', 'file-input']))
+    expect(model.capabilities).not.toEqual(expect.arrayContaining(['image-generation']))
+    expect(model.capabilities).not.toEqual(expect.arrayContaining(['audio-generation']))
+  })
+
+  it.each(['gemini-4-neon', 'google/gemini-4-neon', 'models/gemini-4-neon'])(
+    'recognizes %s on custom providers without a thinking-budget fallback',
+    (id) => {
+      expect(inferReasoningMembership(id)).toBe(true)
+      expect(inferReasoningControls(id)).toEqual([{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh'] }])
+    }
+  )
+})

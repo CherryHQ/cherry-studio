@@ -1,6 +1,6 @@
 import '@data/services/AgentSessionMessageService'
 import { randomUUID } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, readdir, rmdir, unlink } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rmdir, symlink, unlink } from 'node:fs/promises'
 import * as fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -68,6 +68,23 @@ afterEach(async () => {
 
 describe('lifecycle memory owner', () => {
   const dbh = setupTestDatabase()
+
+  it('rejects a linked backup ancestor before creating a backup directory', async () => {
+    const outside = path.join(fixture, 'outside')
+    await mkdir(outside)
+    await symlink(outside, application.getPath('feature.memory.backups'), 'junction')
+    await expect(service.open(authority()).read('MEMORY.md')).rejects.toMatchObject({ code: 'invalid-path' })
+    expect(await readdir(outside)).toEqual([])
+  })
+
+  it('signals history replacement only for a restored filesystem', () => {
+    const replaced = vi.fn()
+    service.onHistoryReplaced(replaced)
+    service.pause('backup').dispose()
+    expect(replaced).not.toHaveBeenCalled()
+    service.invalidateAll()
+    expect(replaced).toHaveBeenCalledTimes(1)
+  })
 
   it('keeps correction metadata in maintenance reads and out of native current reads', async () => {
     const native = service.open(authority())

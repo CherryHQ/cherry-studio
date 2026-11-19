@@ -1,5 +1,3 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
 /**
  * Tests for renderer-side shared-tier sync semantics (issue #17050).
  *
@@ -12,6 +10,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  *    NOT notify subscribers; value changes and deletion tombstones do notify.
  *    Equality is judged against the raw physical entry, never TTL-aware.
  */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 
 // Undo the global mock from renderer.setup.ts — we want the REAL CacheService

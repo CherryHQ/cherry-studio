@@ -33,6 +33,9 @@ export function useWebSearchProviderCheck({ provider, capability }: UseWebSearch
 
     const probeUrl =
       provider.id === 'querit' && capability === 'fetchUrls' ? QUERIT_FETCH_CHECK_URL : WEB_SEARCH_CHECK_URL
+    // No image-search probe route exists yet (`web_search` IPC exposes keyword and
+    // fetch only), so the image section's Check probes KEYWORD connectivity — the
+    // same credentials and host family — and the success toast says exactly that.
     const runCheck = async () => {
       if (capability === 'fetchUrls') {
         await ipcApi.request('web_search.fetch_urls', { providerId: provider.id, urls: [probeUrl] })
@@ -47,7 +50,13 @@ export function useWebSearchProviderCheck({ provider, capability }: UseWebSearch
     return runCheck().then(
       () => {
         setChecking(false)
-        toast.success(t('settings.tool.websearch.check_success'))
+        toast.success(
+          t(
+            capability === 'searchImages'
+              ? 'settings.tool.websearch.check_success_keyword_probe'
+              : 'settings.tool.websearch.check_success'
+          )
+        )
       },
       (error) => {
         setChecking(false)

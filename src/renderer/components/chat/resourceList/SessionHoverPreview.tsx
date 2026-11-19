@@ -155,6 +155,7 @@ export function SessionHoverPreview({
       <HoverCardTrigger
         ref={triggerRef}
         asChild
+        className="content-center self-stretch"
         onPointerEnter={(event) => {
           if (event.pointerType !== 'touch') group.enter(id)
         }}

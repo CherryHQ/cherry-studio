@@ -9,6 +9,7 @@ import type {
 import { DICTATION_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
+import { useDictationEnabled } from '@renderer/hooks/useDictationEnabled'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { dictationService, type DictationErrorCategory, type DictationPhase } from '@renderer/services/voice'
 
@@ -70,6 +71,7 @@ function runAction(action: () => unknown | Promise<unknown>, inputAdapter?: Quic
 }
 
 const DictationComposerRuntime = ({ context }: { context: DictationContext }) => {
+  const enabled = useDictationEnabled()
   const { launcher, t } = context
   const snapshot = useSyncExternalStore(
     dictationService.subscribe,
@@ -202,6 +204,7 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
     return [
       {
         ...DICTATION_TOOLBAR_MANIFEST.toolbar,
+        hidden: !enabled,
         sources: ['root-panel'] as const,
         label: actionLabel,
         description: status,
@@ -232,7 +235,7 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
         }
       }
     ]
-  }, [elapsedMs, error, phase, recoveryAvailable, retryAvailable, t])
+  }, [enabled, elapsedMs, error, phase, recoveryAvailable, retryAvailable, t])
 
   useEffect(() => launcher.registerLaunchers(launchers), [launcher, launchers])
   return null

@@ -360,6 +360,11 @@ test(...caseDefinition('C-03'), async ({ app, mainWindow }, testInfo) => {
       })
     await expect(page.locator('[data-ui~="chat.composer.action.pause"]')).toBeHidden()
     await expect(response.getByText(partialText, { exact: true })).toBeVisible()
+    await expect(response).toContainText('Connection interrupted while receiving the response.')
+    await expect(response).not.toContainText('AI returned an invalid response')
+    const errorScreenshot = testInfo.outputPath('C03 connection interrupted.png')
+    await page.screenshot({ path: errorScreenshot })
+    await testInfo.attach('Connection interrupted', { path: errorScreenshot, contentType: 'image/png' })
 
     await expect
       .poll(
