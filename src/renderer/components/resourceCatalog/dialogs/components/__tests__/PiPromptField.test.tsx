@@ -140,7 +140,7 @@ describe('PiPromptField', () => {
   })
 
   // Catches the Agent prompt editor squeezed onto the list page, or an edit lost on the way back.
-  it('edits the Agent prompt on its own page and shows the new text in the list', async () => {
+  it('edits the Agent prompt on its own page and shows its new first line in the list', async () => {
     answerWithDraft()
     const user = userEvent.setup()
     render(<Harness initial="Review code." />)
@@ -156,7 +156,7 @@ describe('PiPromptField', () => {
     await user.click(screen.getByRole('button', INSTRUCTIONS))
 
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', INSTRUCTIONS)).toHaveTextContent('Triage issues. Be brief.')
+    expect(screen.getByRole('button', INSTRUCTIONS)).toHaveTextContent('Triage issues.')
   })
 
   it('opens a live block read-only with what keeps it current, and goes back', async () => {

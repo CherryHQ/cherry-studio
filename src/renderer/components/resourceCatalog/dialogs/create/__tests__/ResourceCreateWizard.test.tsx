@@ -973,6 +973,8 @@ describe('ResourceCreateWizard agent steps', () => {
     // The prompt list and its runtime blocks read as one titled System Prompt setting.
     expect(screen.getByRole('heading', { name: /^library\.config\.prompt\.label/ })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: AGENT_PROMPT_ROW }))
+    // The prompt page has its own back title; the group title above it would stack a second one.
+    expect(screen.queryByRole('heading', { name: /^library\.config\.prompt\.label/ })).not.toBeInTheDocument()
     await user.clear(screen.getByRole('textbox', { name: AGENT_PROMPT }))
     await user.type(screen.getByRole('textbox', { name: AGENT_PROMPT }), 'Review carefully')
     await user.click(screen.getByRole('button', { name: 'reply in Japanese' }))

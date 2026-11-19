@@ -69,6 +69,8 @@ type PiPromptFieldProps = {
   onSectionChange?: (key: string | null) => void
   /** Opens the Memory page, where the files the identity block is built from are edited. */
   onEditIdentity?: () => void
+  /** Shown above the list only; a page opened from it carries its own title. */
+  heading?: ReactNode
 }
 
 /** Mirrors how the edit form saves `configuration.language`; an invalid custom label keeps the inherited one. */
@@ -143,7 +145,8 @@ export function PiPromptField({
   onOverridesChange,
   section: controlledSection,
   onSectionChange,
-  onEditIdentity
+  onEditIdentity,
+  heading
 }: PiPromptFieldProps) {
   const { t } = useTranslation()
   const [localSection, setLocalSection] = useState<string | null>(null)
@@ -180,9 +183,15 @@ export function PiPromptField({
 
   if (section === 'instructions') {
     return (
-      <div className="flex min-h-0 flex-1 flex-col gap-3">
-        {backButton(t(BLOCK_TITLES.instructions))}
+      <div className="flex min-h-0 flex-1 flex-col">
         <InstructionsEditor
+          label={
+            backButton(t(BLOCK_TITLES.instructions)) ?? (
+              <span className="truncate text-muted-foreground text-xs">
+                {t('library.config.agent.prompt.editor_placeholder')}
+              </span>
+            )
+          }
           value={instructions}
           builtin={preview?.builtinInstructions}
           onChange={onChange}
@@ -226,26 +235,28 @@ export function PiPromptField({
 
   const others = preview?.blocks.filter((block) => block.kind !== 'instructions') ?? []
   const instructionsTitle = t(BLOCK_TITLES.instructions)
+  const firstLine = instructions
+    .split('\n')
+    .find((line) => line.trim())
+    ?.trim()
 
   return (
     <div className="flex flex-col gap-5">
-      <section className="flex flex-col gap-1.5">
-        <div className="px-1 text-muted-foreground text-xs">{instructionsTitle}</div>
-        <div className="flex flex-col rounded-xl border border-border-subtle p-1">
-          <Button
-            type="button"
-            variant="ghost"
-            aria-label={instructionsTitle}
-            onClick={() => setSection('instructions')}
-            className="h-auto items-start justify-between gap-3 rounded-lg px-2.5 py-2 text-left font-normal text-sm">
-            <span
-              className={`line-clamp-3 min-w-0 whitespace-pre-line break-words ${instructions.trim() ? 'text-foreground' : 'text-muted-foreground'}`}>
-              {instructions.trim() || t('library.config.agent.prompt.editor_placeholder')}
-            </span>
-            <ChevronRight className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-          </Button>
-        </div>
-      </section>
+      {heading}
+      <div className="flex flex-col rounded-xl border border-border-subtle p-1">
+        <Button
+          type="button"
+          variant="ghost"
+          aria-label={instructionsTitle}
+          onClick={() => setSection('instructions')}
+          className="h-9 justify-between gap-3 rounded-lg px-2.5 font-normal text-sm">
+          <span className="shrink-0 text-foreground">{instructionsTitle}</span>
+          <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">
+            <span className="truncate">{firstLine}</span>
+            <ChevronRight className="size-3.5 shrink-0" />
+          </span>
+        </Button>
+      </div>
       {preview ? (
         <section aria-label={t('library.config.agent.prompt.runtime_sections')} className="flex flex-col gap-1.5">
           <div className="px-1 text-muted-foreground text-xs">{t('library.config.agent.prompt.runtime_sections')}</div>
@@ -387,11 +398,13 @@ function BlockEditor({
 
 /** The Agent's own prompt; a built-in Agent shows its built-in prompt until it is edited. */
 function InstructionsEditor({
+  label,
   value,
   builtin,
   onChange,
   fill
 }: {
+  label: ReactNode
   value: string
   builtin: string | undefined
   onChange: (next: string) => void
@@ -401,11 +414,7 @@ function InstructionsEditor({
   const { t } = useTranslation()
   return (
     <PromptEditorField
-      label={
-        <span className="truncate text-muted-foreground text-xs">
-          {t('library.config.agent.prompt.editor_placeholder')}
-        </span>
-      }
+      label={label}
       editorLabel={t('library.config.agent.prompt.instructions_label')}
       value={value}
       onChange={onChange}
