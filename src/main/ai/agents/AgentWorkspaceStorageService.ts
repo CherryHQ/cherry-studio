@@ -74,7 +74,7 @@ class AgentWorkspaceStorageService {
   reserveWorkspaceStorage(
     paths: readonly string[],
     ownerPaths: string | readonly string[] = []
-  ): (() => void) | 'claimed' | 'in-use' {
+  ): (() => void) | 'claimed' | 'in-use' | undefined {
     const managedRoot = application.getPath('feature.agents.system_workspaces')
     if (!existsSync(managedRoot)) return undefined
     const rootStat = lstatSync(managedRoot)
@@ -175,7 +175,8 @@ class AgentWorkspaceStorageService {
   async archiveWorkspace(workspace: Workspace): Promise<'archived' | 'busy' | 'blocked'> {
     if (!existsSync(application.getPath('feature.agents.system_workspaces'))) await this.quiesce(workspace.id)
     const release = this.reserveWorkspaceStorage(this.workspaceStoragePaths(workspace.path), workspace.path)
-    if (typeof release !== 'function') return release
+    if (release === undefined) return 'archived' // no managed storage root: nothing to pack
+    if (typeof release !== 'function') return release === 'claimed' ? 'blocked' : 'busy'
     try {
       await this.quiesce(workspace.id)
       const root = application.getPath('feature.agents.system_workspaces')

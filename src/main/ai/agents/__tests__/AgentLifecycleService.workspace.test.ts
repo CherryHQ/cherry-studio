@@ -497,7 +497,8 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     const caseAlias = existsSync(path.join(root, 'caf\u00e9.RESTORING'))
     const unicodeAlias = existsSync(path.join(root, 'cafe\u0301.restoring'))
     await rm(target, { recursive: true })
-    const release = agentWorkspaceStorageService.reserveWorkspaceStorage([target])!
+    const release = agentWorkspaceStorageService.reserveWorkspaceStorage([target])
+    if (typeof release !== 'function') throw new Error('expected a storage reservation')
     try {
       const registration = registerWorkspace(path.join(root, 'caf\u00e9.RESTORING', 'project'))
       if (caseAlias) await expect(registration).rejects.toThrow()
@@ -515,7 +516,8 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     const parent = workspacePath(root, 'system')
     await lifecycle.archiveSessions(['system'])
     await flushArchiveJobs()
-    const release = agentWorkspaceStorageService.reserveWorkspaceStorage([parent], parent)!
+    const release = agentWorkspaceStorageService.reserveWorkspaceStorage([parent], parent)
+    if (typeof release !== 'function') throw new Error('expected a storage reservation')
     try {
       await expect(lifecycle.restoreSession('system')).rejects.toThrow('cannot safely restore')
       expect(existsSync(parent)).toBe(false)

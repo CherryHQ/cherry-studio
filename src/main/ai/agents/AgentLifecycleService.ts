@@ -235,7 +235,7 @@ export class AgentLifecycleService extends BaseService {
                       // AC6: the archive queue owns every pack. The sweep only
                       // enqueues, so firing during a batch archive never starts
                       // a third concurrent compression; the queued job retries.
-                      pack: () => this.enqueueWorkspaceArchive(workspace.id)
+                      pack: async () => this.enqueueWorkspaceArchive(workspace.id)
                     }
               )
             } catch (error) {
