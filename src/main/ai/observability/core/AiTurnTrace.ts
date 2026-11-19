@@ -1,13 +1,12 @@
 import type { Attributes, Span, SpanOptions, Tracer } from '@opentelemetry/api'
 import { ROOT_CONTEXT, SpanStatusCode, trace, TraceFlags } from '@opentelemetry/api'
-import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
 
 import { loggerService } from '@logger'
 import { deriveRootSpanId } from '@shared/data/types/trace'
 
 import { TRACER_NAME } from '../constants'
 import { observabilitySinks } from '../sinks/ObservabilitySinkRegistry'
-import { convertSpanToSpanEntity } from './spanConvert'
+import { convertSpanToSpanEntity, type TraceSpanSnapshot } from './spanConvert'
 
 // `deriveRootSpanId` now lives in `@shared/data/types/trace` so the renderer trace viewer can
 // share it; re-exported here for existing main-side import paths.
@@ -133,7 +132,8 @@ export function startTraceRootSpan(
     // (`isRecording()` can't discriminate: an ended SDK span reports false too.)
     if (!('startTime' in span)) return
     try {
-      const spanEntity = convertSpanToSpanEntity(span as unknown as ReadableSpan)
+      // SAFETY: the configured SDK tracer exposes these fields; the startTime guard excludes API no-op spans.
+      const spanEntity = convertSpanToSpanEntity(span as Span & TraceSpanSnapshot)
       const attributes = { ...spanEntity.attributes }
       if (meta.modelName) Object.assign(attributes, { modelName: meta.modelName })
       observabilitySinks.writeSpanEntity({

@@ -3,12 +3,23 @@ import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
 
 import type { SpanEntity } from '@shared/data/types/trace'
 
-/**
- * convert ReadableSpan to SpanEntity
- * @param span ReadableSpan
- * @returns SpanEntity
- */
-export function convertSpanToSpanEntity(span: ReadableSpan): SpanEntity {
+export type TraceSpanSnapshot = Pick<
+  ReadableSpan,
+  | 'spanContext'
+  | 'parentSpanContext'
+  | 'name'
+  | 'kind'
+  | 'startTime'
+  | 'endTime'
+  | 'ended'
+  | 'status'
+  | 'attributes'
+  | 'events'
+  | 'links'
+>
+
+/** Convert an SDK span snapshot into the persisted trace entity. */
+export function convertSpanToSpanEntity(span: TraceSpanSnapshot): SpanEntity {
   return {
     id: span.spanContext().spanId,
     traceId: span.spanContext().traceId,

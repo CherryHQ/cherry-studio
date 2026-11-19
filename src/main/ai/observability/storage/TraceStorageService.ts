@@ -4,7 +4,7 @@ import path from 'node:path'
 import { createInterface } from 'node:readline'
 
 import { SpanStatusCode } from '@opentelemetry/api'
-import type { ReadableSpan, TimedEvent } from '@opentelemetry/sdk-trace-base'
+import type { TimedEvent } from '@opentelemetry/sdk-trace-base'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -13,7 +13,7 @@ import type { Attributes, SpanEntity } from '@shared/data/types/trace'
 import type { TraceDataCursor, TraceDataResult } from '@shared/data/types/trace'
 import { IpcChannel } from '@shared/IpcChannel'
 
-import { convertSpanToSpanEntity } from '../core/spanConvert'
+import { convertSpanToSpanEntity, type TraceSpanSnapshot } from '../core/spanConvert'
 import { TraceSpanStore } from './TraceSpanStore'
 import type { TraceStore } from './TraceStore'
 
@@ -171,7 +171,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     )
   }
 
-  createSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
+  createSpan: (span: TraceSpanSnapshot) => void = (span: TraceSpanSnapshot) => {
     if (!this.isActivated) return
     const spanEntity = convertSpanToSpanEntity(span)
     spanEntity.isEnd = false
@@ -182,7 +182,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     this.drainPendingEvents(spanEntity.id)
   }
 
-  endSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
+  endSpan: (span: TraceSpanSnapshot) => void = (span: TraceSpanSnapshot) => {
     if (!this.isActivated) return
     const spanId = span.spanContext().spanId
     const spanEntity = this.store.getSpan(spanId)
@@ -437,8 +437,10 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     const savedEntity = this.store.getSpan(entity.id)
     if (!savedEntity) return
 
-    const incoming = entity as unknown as Record<string, unknown>
-    const target = savedEntity as unknown as Record<string, unknown>
+    // SAFETY: retain typed span fields while copying opaque historical extension keys.
+    const incoming = entity as SpanEntity & Record<string, unknown>
+    // SAFETY: the same extension keys must update the existing span without replacing its identity.
+    const target = savedEntity as SpanEntity & Record<string, unknown>
 
     Object.keys(incoming).forEach((key) => {
       const value = incoming[key]
