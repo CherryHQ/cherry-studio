@@ -131,6 +131,21 @@ class AgentSessionContextService {
     return rows.length === 1 ? rows[0].context : undefined
   }
 
+  /** Records whether a child's saved rows hold its finished history, so a cold reopen can leave it unloaded. */
+  settleChild(contextId: string, settled: boolean): void {
+    application.get('DbService').withWriteTx((tx) => {
+      const checkpoint = tx.select().from(contexts).where(eq(contexts.id, contextId)).get()?.checkpointMapping
+      if (!checkpoint?.child || !!checkpoint.child.settled === settled) return
+      const child = { ...checkpoint.child }
+      if (settled) child.settled = true
+      else delete child.settled
+      tx.update(contexts)
+        .set({ checkpointMapping: { ...checkpoint, child } })
+        .where(eq(contexts.id, contextId))
+        .run()
+    })
+  }
+
   saveProjectionTx(
     tx: DbOrTx,
     contextId: string,

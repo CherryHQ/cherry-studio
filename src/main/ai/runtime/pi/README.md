@@ -140,7 +140,9 @@ return, `drainChildWrites()` waits for the shared native behavior and its report
 that writes have ended. A failed archive flush rejects the drain and can be retried.
 
 Reopening a parent restores identity-checked child files without starting work. Missing owners leave
-saved child output readable. A restored parent's stop policy still applies to child continuation;
+saved child output readable. A child releases once its native task status ends and every input has an
+outcome; Pi child activity can read idle mid-run. A reopen leaves settled children unloaded until a
+viewer, a message, a completion or usage attribution asks for one. A restored parent's stop policy still applies to child continuation;
 an independent archive is never a writable root. Shutdown quiesces native execution, reconciles
 committed child history while its access remains readable, and releases access after archive flush.
 

@@ -3,7 +3,14 @@ import { isDeepStrictEqual } from 'node:util'
 import { v4 as uuid } from 'uuid'
 
 import { application } from '@application'
-import type { InputState, RuntimeMessage, Observation, Thread, ThreadHandle } from '@cherrystudio/agent-runtime'
+import type {
+  InputState,
+  RuntimeMessage,
+  Observation,
+  Thread,
+  ThreadHandle,
+  ThreadSnapshot
+} from '@cherrystudio/agent-runtime'
 import type { AgentSessionCheckpoints, AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
@@ -111,6 +118,12 @@ export class ChildThreadProjection {
 
   snapshot(): AgentChildView {
     return this.delivery.snapshot()
+  }
+
+  /** The native activity and input outcomes accepted so far. */
+  runState(): Pick<ThreadSnapshot, 'activity' | 'inputs'> {
+    const { activity, inputs } = this.projection.snapshot()
+    return { activity, inputs }
   }
 
   subscribe(listener: (update: AgentChildUpdate) => void): () => void {

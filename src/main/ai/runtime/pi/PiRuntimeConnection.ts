@@ -6,7 +6,7 @@ import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 
 import { application } from '@application'
 import type { BehaviorEvent, CallRef } from '@cherrystudio/agent-behavior'
-import { runtimeId, type InputState, type Observation, type Subagent } from '@cherrystudio/agent-runtime'
+import { runtimeId, type InputState, type Observation } from '@cherrystudio/agent-runtime'
 import type {
   AgentRuntimeEvent as PiEvent,
   PiObservation,
@@ -19,6 +19,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import { ChildResidency, childKey } from '@main/ai/agentSession/ChildResidency'
 import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
 import {
   prepareNativeSubmission,
@@ -89,12 +90,6 @@ import { PiTurnUsage } from './PiTurnUsage'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
 
-type PiChildResource = {
-  relation: Subagent
-  handle: PiThreadHandle
-  projection: ChildThreadProjection
-}
-
 export class PiRuntimeConnection implements AgentRuntimeConnection {
   get contextId(): string | undefined {
     return this.context?.id
@@ -121,11 +116,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     (id) => this.childOrigin(id),
     (event) => this.eventQueue.push(event)
   )
-  private readonly children = new Map<
-    string,
-    | { state: 'opening'; pending: Promise<PiChildResource | undefined> }
-    | { state: 'attached' | 'closing'; resource: PiChildResource }
-  >()
+  private readonly children = new ChildResidency<PiThreadHandle>({
+    accepting: () => !this.nativeClosed,
+    closing: () => this.closing
+  })
   private failure?: unknown
   private connectionSignature?: string
   private permissionMode: AgentPermissionMode = 'default'
@@ -398,6 +392,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.failure = undefined
       this.handle = opened.value
       if (files.length) this.context = contexts.bindContext(this.context.id, nativeId)
+      this.children.restoreReleased(this.context.id)
       const observed = await this.handle.pi.observe((batch) => this.handleObservation(batch))
       if (observed.status !== 'confirmed') throw new Error(observed.error.message)
       this.observation = observed.value
@@ -501,7 +496,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           }
         }
         if (event.type === 'snapshot') {
-          for (const relation of event.subagents ?? []) if (relation.child) void this.observeChild(relation.child.id)
+          for (const relation of event.subagents ?? [])
+            if (relation.child && !this.children.isReleased(this.childKey(relation.child.id)))
+              void this.observeChild(relation.child.id)
           this.active = event.activity.state === 'active'
         } else if (event.type === 'activity.changed') {
           this.active = event.activity.state === 'active'
@@ -557,9 +554,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         })
       }
       for (const child of batch.children)
-        void this.observeChild(child.thread.id).then(() =>
+        void this.observeChild(child.thread.id).then((resource) => {
           this.childTasks.publish(child.thread.id, childTaskStatus(child.outcome))
-        )
+          if (resource) this.finishChild(child.thread.id, resource.projection)
+        })
       if (batch.settled && this.sending && !this.manualCompactInFlight) this.finishTurn()
     } catch (error) {
       this.failure = error
@@ -587,46 +585,22 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private childKey(id: string): string {
-    return JSON.stringify([this.context!.backendId, id])
+    return childKey(this.context!.backendId, id)
   }
 
   private childOrigin(id: string) {
-    const child = this.children.get(this.childKey(id))
-    return child && child.state !== 'opening' ? child.resource.relation.origin : undefined
+    return this.children.origin(this.childKey(id))
   }
 
-  private async childResource(id: string): Promise<PiChildResource | undefined> {
-    const child = this.children.get(this.childKey(id))
-    return child?.state === 'opening' ? child.pending : child?.resource
-  }
-
-  private async observeChild(id: string, granted?: PiThreadHandle): Promise<PiChildResource | undefined> {
-    const key = this.childKey(id)
-    const existing = this.children.get(key)
-    if (existing) {
-      await granted?.release()
-      if (existing.state === 'closing') {
-        await existing.resource.projection.stop()
-        await existing.resource.handle.release()
-        this.children.delete(key)
-        return this.observeChild(id)
-      }
-      return existing.state === 'opening' ? existing.pending : existing.resource
-    }
-    if (this.nativeClosed) {
-      await granted?.release()
-      return undefined
-    }
-    let handle: PiThreadHandle | undefined
-    let resource: PiChildResource | undefined
-    const pending = Promise.resolve()
-      .then(async () => {
-        if (granted) handle = granted
-        else {
-          const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: runtimeId(id) })
-          if (opened.status !== 'confirmed') throw new Error(opened.error.message)
-          handle = opened.value
-        }
+  private async observeChild(id: string, granted?: PiThreadHandle) {
+    return this.children.open(this.childKey(id), {
+      granted,
+      acquire: async () => {
+        const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: runtimeId(id) })
+        if (opened.status !== 'confirmed') throw new Error(opened.error.message)
+        return opened.value
+      },
+      build: async (handle) => {
         const relation = handle.pi.relation()
         if (!relation?.origin) throw new Error('Native child creation origin is unavailable')
         const parent =
@@ -641,7 +615,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           relation.origin.description ?? id
         )
         const access = handle
-        const projection = new ChildThreadProjection(
+        const projection: ChildThreadProjection = new ChildThreadProjection(
           context,
           {
             ...access,
@@ -649,81 +623,75 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
               access.observe(async (event) => {
                 await sink(event)
                 if (event.type === 'snapshot')
-                  for (const child of event.subagents ?? []) if (child.child) void this.observeChild(child.child.id)
+                  for (const child of event.subagents ?? [])
+                    if (child.child && !this.children.isReleased(this.childKey(child.child.id)))
+                      void this.observeChild(child.child.id)
                 if (event.type === 'subagent.upsert' && event.subagent.child)
                   void this.observeChild(event.subagent.child.id)
+                if (event.type === 'snapshot' || event.type === 'activity.changed' || event.type === 'input.changed')
+                  this.finishChild(id, projection)
               })
           },
           () => access.pi.archive(),
           (message) => this.adapter.decorate(message),
           (responseId, messageId) => this.eventQueue.push({ type: 'response-start', responseId, messageId })
         )
-        resource = { relation, handle: access, projection }
-        await projection.attach()
-        this.children.set(key, { state: 'attached', resource })
-        this.childTasks.publish(id, this.childTasks.status(id) ?? 'in_progress')
-        return resource
-      })
-      .catch(async (error) => {
-        logger.error('Failed to observe Pi child', { id, error })
-        if (resource) {
-          try {
-            await resource.projection.stop()
-          } catch (flushError) {
-            this.children.set(key, { state: 'closing', resource })
-            logger.error('Failed to flush Pi child attachment', { id, error: flushError })
-            return undefined
-          }
-        }
-        await handle?.release()
-        this.children.delete(key)
-        return undefined
-      })
-    this.children.set(key, { state: 'opening', pending })
-    return pending
+        return { relation, projection }
+      },
+      attached: () => this.childTasks.publish(id, this.childTasks.status(id) ?? 'in_progress')
+    })
+  }
+
+  /** Pi child activity can read idle mid-run; only its native task status reports an end. */
+  private finishChild(id: string, projection: ChildThreadProjection): void {
+    const status = this.childTasks.status(id)
+    this.children.finish(
+      projection,
+      (status === 'completed' || status === 'stopped' || status === 'error') &&
+        // An input without an outcome means more work is coming.
+        projection.runState().inputs.every((input) => input.outcome)
+    )
   }
 
   async childProjection(toolCallId: string) {
     if (this.closing) return undefined
-    const known = (await this.childResources()).filter(
+    const known = (await this.children.resources()).filter(
       (child) => (child.relation?.origin?.toolCallId ?? child.projection.context.spawnToolCallId) === toolCallId
     )
     if (known.length > 1) return undefined
-    if (known[0]) {
-      const projection = known[0].projection
-      await projection.attach()
-      return { snapshot: () => projection.snapshot(), subscribe: projection.subscribe.bind(projection) }
-    }
+    if (known[0]) return this.children.watch(known[0])
     if (this.closing || !this.handle) return undefined
     const opened = await this.handle.pi.openChild(toolCallId, this.closingAccess.signal)
     if (opened.status !== 'confirmed') return undefined
     const child = await this.observeChild(opened.value.relation.child.id, opened.value.handle)
-    if (!child) return undefined
-    await child.projection.attach()
-    return {
-      snapshot: child.projection.snapshot.bind(child.projection),
-      subscribe: child.projection.subscribe.bind(child.projection)
-    }
+    return child && this.children.watch(child)
   }
 
   async messageChild(contextId: string, text: string): Promise<void> {
-    const child = (await this.childResources()).find((child) => child.projection.context.id === contextId)
+    const child = await this.children.forContext(contextId, (released) => this.observeChild(released.thread.id))
     const projection = child?.projection
     const handle = child?.handle
-    if (!handle || !projection || this.closing) throw new Error('Child native owner is unavailable')
-    await projection.flush()
-    const { sessionId } = projection.context
-    const messageId = randomUUID()
-    messages.saveMessage({
-      sessionId,
-      message: { id: messageId, role: 'user', data: { parts: [{ type: 'text', text }] } }
-    })
-    const draft = prepareNativeSubmission(sessionId, messageId, contextId, 'steer')
-    await projection.refresh()
-    const result = await handle.input.submit(draft)
-    applyNativeSubmissionResult(sessionId, contextId, result)
-    await projection.refresh()
-    if (result.status !== 'acknowledged') throw new Error(result.error.message)
+    if (!child || !handle || !projection || this.closing) throw new Error('Child native owner is unavailable')
+    const unpin = this.children.pin(child)
+    try {
+      await projection.flush()
+      const { sessionId } = projection.context
+      const messageId = randomUUID()
+      messages.saveMessage({
+        sessionId,
+        message: { id: messageId, role: 'user', data: { parts: [{ type: 'text', text }] } }
+      })
+      const draft = prepareNativeSubmission(sessionId, messageId, contextId, 'steer')
+      await projection.refresh()
+      const result = await handle.input.submit(draft)
+      applyNativeSubmissionResult(sessionId, contextId, result)
+      await projection.refresh()
+      if (result.status !== 'acknowledged') throw new Error(result.error.message)
+    } finally {
+      // The next run or input change decides again; a state read before this input must not release the child.
+      this.children.finish(projection, false)
+      unpin()
+    }
   }
 
   private onModelRetry(event: RetryPartData, sessionId: string): void {
@@ -733,35 +701,26 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         if (sessionId === this.handle?.thread.id) {
           this.eventQueue.push({ type: 'chunk', chunk: { type: 'data-retry', id: 'retry', data: event } })
         } else {
-          const child = (await this.childResources()).find((child) => child.handle.thread.id === sessionId)
+          const child = (await this.children.resources()).find((child) => child.handle.thread.id === sessionId)
           child?.projection.retry(event)
         }
       })
       .catch((error) => logger.warn('Failed to project model retry status', { error }))
   }
 
-  private async childResources(): Promise<PiChildResource[]> {
-    const resources: PiChildResource[] = []
-    for (const child of this.children.values()) {
-      const resource = child.state === 'opening' ? await child.pending : child.resource
-      if (resource) resources.push(resource)
-    }
-    return resources
-  }
-
   async drainChildWrites(): Promise<void> {
     await this.handle?.pi.settled()
     await this.observation?.drain()
-    await this.childResources()
+    await this.children.resources()
     if (this.closing) {
       await this.closePromise
       return
     }
-    for (const child of await this.childResources()) await child.projection.drain()
+    await this.children.drain()
   }
 
   async stopTask(taskId: string): Promise<boolean> {
-    const handle = (await this.childResource(taskId))?.handle
+    const handle = (await this.children.resource(this.childKey(taskId)))?.handle
     if (!handle?.interrupt) return false
     const result = await handle.interrupt()
     if (result.status !== 'confirmed') throw new Error(result.error.message)
@@ -988,7 +947,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           if (interrupted.status !== 'confirmed') throw new Error(interrupted.error.message)
         }
         await Promise.all(
-          (await this.childResources()).map(async ({ handle }) => {
+          (await this.children.resources()).map(async ({ handle }) => {
             if (handle?.interrupt) {
               const result = await handle.interrupt()
               if (result.status !== 'confirmed') throw new Error(result.error.message)
@@ -998,20 +957,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       }
       this.cancelQueuedInputs()
       await this.observation?.drain()
-      for (const child of await this.childResources()) await child.projection.drain()
+      for (const child of await this.children.resources()) await child.projection.drain()
       const result = await this.runtime?.shutdown()
       if (result && result.status !== 'confirmed') throw new Error(result.error.message)
       this.nativeClosed = true
     }
     await this.observation?.drain()
-    for (const [key, child] of this.children) {
-      const resource = child.state === 'opening' ? await child.pending : child.resource
-      if (!resource) continue
-      this.children.set(key, { state: 'closing', resource })
-      await resource.projection.stop()
-      await resource.handle.release()
-      this.children.delete(key)
-    }
+    await this.children.close()
     await this.observation?.stop()
     await this.projection?.close()
     this.flushInputs()

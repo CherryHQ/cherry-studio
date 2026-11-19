@@ -4,7 +4,7 @@ import { isDeepStrictEqual } from 'node:util'
 import type { Usage } from '@earendil-works/pi-ai'
 
 import type { BehaviorEvent } from '@cherrystudio/agent-behavior'
-import { runtimeId, type InputState, type Observation, type Subagent } from '@cherrystudio/agent-runtime'
+import { runtimeId, type InputState, type Observation } from '@cherrystudio/agent-runtime'
 import type {
   DurableObservation,
   PiDurableRuntime,
@@ -13,6 +13,7 @@ import type {
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
+import { ChildResidency, childKey } from '@main/ai/agentSession/ChildResidency'
 import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
 import {
   prepareNativeSubmission,
@@ -61,16 +62,6 @@ function withInput(inputs: readonly InputState[], input: InputState): InputState
   ]
 }
 
-/** Root access and its observed child projections borrow the backend owner. */
-type DurableChildResource = {
-  relation: Subagent
-  handle: PiDurableThreadHandle
-  projection: ChildThreadProjection
-  /** Viewers and in-flight commands that keep a finished child loaded. */
-  pins: number
-  finished: boolean
-}
-
 function isCompactCommand(text: string) {
   return /^\/compact(?:\s|$)/.test(text.trim())
 }
@@ -117,16 +108,11 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private readonly placed = new Set<string>()
   /** The input whose reply the host is writing. */
   private current?: string
-  private readonly children = new Map<
-    string,
-    | { state: 'opening'; pending: Promise<DurableChildResource | undefined> }
-    | { state: 'attached' | 'closing'; resource: DurableChildResource }
-    | { state: 'releasing'; pending: Promise<void> }
-  >()
-  /** Origins and context ids of finished children whose native history was released. */
-  /** Views held by callers follow a child across release and reopen without keeping it loaded. */
-  private readonly childViews = new Map<string, WeakRef<{ projection: ChildThreadProjection }>>()
-  private readonly releasedChildren = new Map<string, { id: string; origin: Subagent['origin']; contextId: string }>()
+  /** Root access and its observed child projections borrow the backend owner. */
+  private readonly children = new ChildResidency<PiDurableThreadHandle>({
+    accepting: () => this.runtime !== undefined,
+    closing: () => this.closing
+  })
   private readonly childTasks = new PiChildTasks(
     (id) => this.childOrigin(id),
     (event) => this.events.push(event)
@@ -172,6 +158,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       if (opened.status !== 'confirmed') throw new Error(opened.error.message)
       this.handle = opened.value
       this.context = contexts.bindContext(this.context.id, this.handle.thread.id)
+      this.children.restoreReleased(this.context.id)
       await saveDurableRequest(this.runtime, this.handle.thread.id, this.input)
       await this.handle.durable.configure(root.agent)
       this.providerSessionId = await this.handle.durable.providerSessionId()
@@ -179,7 +166,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       if (observed.status !== 'confirmed') throw new Error(observed.error.message)
       this.observation = observed.value
       await this.observation.drain()
-      await this.childResources()
+      await this.children.resources()
       this.events.push({ type: 'resume-token', token: this.handle.thread.id })
       root.attached()
       await owner.resume()
@@ -355,7 +342,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           for (const input of event.inputs) this.captureInput(input, placements)
           this.active = nowActive
           for (const relation of event.subagents ?? [])
-            if (relation.child && !this.releasedChildren.has(this.childKey(relation.child.id)))
+            if (relation.child && !this.children.isReleased(this.childKey(relation.child.id)))
               this.attachChild(relation.child.id)
         } else if (event.type === 'activity.changed') this.active = event.activity.state === 'active'
         else if (event.type === 'input.changed') this.captureInput(event.input, placements)
@@ -496,55 +483,11 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private childKey(id: string): string {
-    return JSON.stringify([this.context!.backendId, id])
+    return childKey(this.context!.backendId, id)
   }
 
   private childOrigin(id: string) {
-    const key = this.childKey(id)
-    const child = this.children.get(key)
-    return child && 'resource' in child ? child.resource.relation.origin : this.releasedChildren.get(key)?.origin
-  }
-
-  /** Releases a finished, unwatched child so its history stops occupying memory; it reopens on demand. */
-  private releaseFinishedChild(key: string): void {
-    const child = this.children.get(key)
-    if (this.closing || child?.state !== 'attached') return
-    const { resource } = child
-    if (!resource.finished || resource.pins > 0) return
-    const pending = (async () => {
-      try {
-        await resource.projection.stop()
-        await resource.handle.release()
-        this.releasedChildren.set(key, {
-          id: resource.relation.child!.id,
-          origin: resource.relation.origin,
-          contextId: resource.projection.context.id
-        })
-        this.children.delete(key)
-      } catch (error) {
-        // Keep the unflushed child for the close and reopen retries.
-        this.children.set(key, { state: 'closing', resource })
-        logger.error('Failed to release finished Durable child', { key, error })
-      }
-    })()
-    this.children.set(key, { state: 'releasing', pending })
-  }
-
-  private pinChild(resource: DurableChildResource): () => void {
-    resource.pins++
-    let pinned = true
-    return () => {
-      if (!pinned) return
-      pinned = false
-      resource.pins--
-      this.releaseFinishedChild(this.childKey(resource.relation.child!.id))
-    }
-  }
-
-  private async childResource(id: string): Promise<DurableChildResource | undefined> {
-    const child = this.children.get(this.childKey(id))
-    if (child?.state === 'releasing') return undefined
-    return child?.state === 'opening' ? child.pending : child?.resource
+    return this.children.origin(this.childKey(id))
   }
 
   private onModelRetry(event: RetryPartData, sessionId: string): void {
@@ -554,7 +497,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         if (sessionId === this.providerSessionId) {
           this.events.push({ type: 'chunk', chunk: { type: 'data-retry', id: 'retry', data: event } })
         } else {
-          for (const child of await this.childResources()) {
+          for (const child of await this.children.resources()) {
             if ((await child.handle.durable.providerSessionId()) === sessionId) {
               child.projection.retry(event)
               break
@@ -565,47 +508,15 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       .catch((error) => logger.warn('Failed to project model retry status', { error }))
   }
 
-  private async childResources(): Promise<DurableChildResource[]> {
-    const resources: DurableChildResource[] = []
-    for (const child of this.children.values()) {
-      if (child.state === 'releasing') continue
-      const resource = child.state === 'opening' ? await child.pending : child.resource
-      if (resource) resources.push(resource)
-    }
-    return resources
-  }
-
-  private async observeChild(id: string, granted?: PiDurableThreadHandle): Promise<DurableChildResource | undefined> {
-    const key = this.childKey(id)
-    const existing = this.children.get(key)
-    if (existing) {
-      await granted?.release()
-      if (existing.state === 'releasing') {
-        await existing.pending
-        return this.observeChild(id)
-      }
-      if (existing.state === 'closing') {
-        await existing.resource.projection.stop()
-        await existing.resource.handle.release()
-        this.children.delete(key)
-        return this.observeChild(id)
-      }
-      return existing.state === 'opening' ? existing.pending : existing.resource
-    }
-    if (!this.runtime) {
-      await granted?.release()
-      return undefined
-    }
-    let handle: PiDurableThreadHandle | undefined
-    let resource: DurableChildResource | undefined
-    const pending = Promise.resolve()
-      .then(async () => {
-        if (granted) handle = granted
-        else {
-          const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: runtimeId(id) })
-          if (opened.status !== 'confirmed') throw new Error(opened.error.message)
-          handle = opened.value
-        }
+  private async observeChild(id: string, granted?: PiDurableThreadHandle) {
+    return this.children.open(this.childKey(id), {
+      granted,
+      acquire: async () => {
+        const opened = await this.runtime!.open({ backendId: runtimeId(this.context!.backendId), id: runtimeId(id) })
+        if (opened.status !== 'confirmed') throw new Error(opened.error.message)
+        return opened.value
+      },
+      build: async (handle) => {
         const relation = await handle.durable.relation()
         if (!relation?.origin) throw new Error('Native child creation origin is unavailable')
         const parent =
@@ -620,7 +531,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           relation.origin.description ?? id
         )
         const access = handle
-        const projection = new ChildThreadProjection(
+        const projection: ChildThreadProjection = new ChildThreadProjection(
           context,
           {
             ...access,
@@ -634,7 +545,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
                   if (event.type === 'snapshot') {
                     inputs = event.inputs
                     for (const child of event.subagents ?? [])
-                      if (child.child && !this.releasedChildren.has(this.childKey(child.child.id)))
+                      if (child.child && !this.children.isReleased(this.childKey(child.child.id)))
                         void this.observeChild(child.child.id)
                   } else if (event.type === 'input.changed') inputs = withInput(inputs, event.input)
                   // Run state and input outcomes change only with these events; streamed content does not.
@@ -655,12 +566,11 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
                             : 'error'
                         : 'in_progress'
                     )
-                    if (resource) {
-                      // An input without an outcome means more work is coming even while the run is idle.
-                      resource.finished =
-                        facts.live.idle && facts.live.runEnd !== undefined && inputs.every((input) => input.outcome)
-                      this.releaseFinishedChild(key)
-                    }
+                    // An input without an outcome means more work is coming even while the run is idle.
+                    this.children.finish(
+                      projection,
+                      facts.live.idle && facts.live.runEnd !== undefined && inputs.every((input) => input.outcome)
+                    )
                   }
                 } catch (error) {
                   // Rethrowing would reach the backend error hook and close every root on it.
@@ -681,86 +591,32 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           (message) => this.adapter.decorate(message),
           (responseId, messageId) => this.events.push({ type: 'response-start', responseId, messageId })
         )
-        resource = { relation, handle: access, projection, pins: 0, finished: false }
-        const view = this.childViews.get(key)?.deref()
-        if (view) view.projection = projection
-        await projection.attach()
-        this.releasedChildren.delete(key)
-        this.children.set(key, { state: 'attached', resource })
-        // Callers pin in their continuation; check afterwards so a reopened finished child is not released under them.
-        setImmediate(() => this.releaseFinishedChild(key))
-        this.childTasks.publish(id, this.childTasks.status(id) ?? 'in_progress')
-        return resource
-      })
-      .catch(async (error) => {
-        logger.error('Failed to observe Durable child', { id, error })
-        if (resource) {
-          try {
-            await resource.projection.stop()
-          } catch (flushError) {
-            this.children.set(key, { state: 'closing', resource })
-            logger.error('Failed to flush Durable child attachment', { id, error: flushError })
-            return undefined
-          }
-        }
-        await handle?.release()
-        this.children.delete(key)
-        return undefined
-      })
-    this.children.set(key, { state: 'opening', pending })
-    return pending
+        return { relation, projection }
+      },
+      attached: () => this.childTasks.publish(id, this.childTasks.status(id) ?? 'in_progress')
+    })
   }
 
   async childProjection(toolCallId: string) {
     if (this.closing) return undefined
-    const known = (await this.childResources()).filter(
+    const known = (await this.children.resources()).filter(
       (child) => (child.relation?.origin?.toolCallId ?? child.projection.context.spawnToolCallId) === toolCallId
     )
     if (known.length > 1) return undefined
-    if (known[0]) return this.watchChild(known[0])
+    if (known[0]) return this.children.watch(known[0])
     if (this.closing || !this.handle) return undefined
     const opened = await this.handle.durable.openChild(toolCallId, this.closingAccess.signal)
     if (opened.status !== 'confirmed') return undefined
     const child = await this.observeChild(opened.value.relation.child.id, opened.value.handle)
-    return child && this.watchChild(child)
-  }
-
-  /** A subscribed viewer pins the child; the last unsubscribe lets a finished child release. */
-  private async watchChild(child: DurableChildResource) {
-    const unpin = this.pinChild(child)
-    try {
-      await child.projection.attach()
-    } finally {
-      // Callers subscribe in their continuation; keep a finished child loaded until then.
-      setImmediate(unpin)
-    }
-    const key = this.childKey(child.relation.child!.id)
-    let view = this.childViews.get(key)?.deref()
-    if (!view) this.childViews.set(key, new WeakRef((view = { projection: child.projection })))
-    const current = view
-    return {
-      snapshot: () => current.projection.snapshot(),
-      subscribe: (listener: Parameters<ChildThreadProjection['subscribe']>[0]) => {
-        const unpin = this.pinChild(child)
-        const unsubscribe = child.projection.subscribe(listener)
-        return () => {
-          unsubscribe()
-          unpin()
-        }
-      }
-    }
+    return child && this.children.watch(child)
   }
 
   async messageChild(contextId: string, text: string): Promise<void> {
-    for (const child of [...this.children.values()]) if (child.state === 'releasing') await child.pending
-    const released = [...this.releasedChildren.values()].find((child) => child.contextId === contextId)
-    const child =
-      (await this.childResources()).find((child) => child.projection.context.id === contextId) ??
-      (released && (await this.observeChild(released.id)))
+    const child = await this.children.forContext(contextId, (released) => this.observeChild(released.thread.id))
     const projection = child?.projection
     const handle = child?.handle
     if (!child || !handle || !projection || this.closing) throw new Error('Child native owner is unavailable')
-    const unpin = this.pinChild(child)
+    const unpin = this.children.pin(child)
     try {
       await this.submitChild(projection, handle, contextId, text)
     } finally {
@@ -789,7 +645,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async stopTask(taskId: string): Promise<boolean> {
-    const child = (await this.childResource(taskId))?.handle
+    const child = (await this.children.resource(this.childKey(taskId)))?.handle
     if (!child?.interrupt) return false
     const result = await child.interrupt()
     if (result.status !== 'confirmed') throw new Error(result.error.message)
@@ -863,7 +719,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       await this.closePromise
       return
     }
-    for (const child of await this.childResources()) await child.projection.drain()
+    await this.children.drain()
   }
 
   close(): Promise<void> {
@@ -883,18 +739,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     await this.access.release(async () => {
       toolApprovalRegistry.abort(this.input.sessionId, 'durable-access-closed')
       await this.observation?.drain()
-      for (const [key, entry] of this.children) {
-        if (entry.state === 'releasing') await entry.pending
-        // A release whose flush failed leaves the child closing for this loop to retry.
-        const child = this.children.get(key)
-        if (!child || child.state === 'releasing') continue
-        const resource = child.state === 'opening' ? await child.pending : child.resource
-        if (!resource) continue
-        this.children.set(key, { state: 'closing', resource })
-        await resource.projection.stop()
-        await resource.handle.release()
-        this.children.delete(key)
-      }
+      await this.children.close()
       await this.observation?.stop()
       this.observation = undefined
       await this.projection?.close()

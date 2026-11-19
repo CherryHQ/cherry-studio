@@ -109,8 +109,9 @@ cancellation and ownership semantics.
 - Releasing one root does not shut down its peers. Final backend release closes and joins the native scheduler without marking ordinary
   unfinished root work cancelled. It awaits observation queues and in-flight callbacks before
   flushing child archives; observation detach and access release happen last. Backup uses the
-  same write barrier and holds new input until resume. Each child has one connection-owned
-  access/projection record; failed attachment can retry, and failed final flush retains its writer.
+  same write barrier and holds new input until resume. Each child has one `ChildResidency`
+  record; failed attachment can retry, and failed final flush retains its writer. A reopen leaves
+  settled children unloaded until a viewer, a message or a relation upsert asks for one.
 - Reopening restores the same backend and conversation, rebinds child models, applies
   shared `onOpen`, then resumes the scheduler. Shared policy disarms goals and stops
   interrupted background children; shutdown is not a promise to resume every child.

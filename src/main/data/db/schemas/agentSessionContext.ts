@@ -17,6 +17,8 @@ export interface AgentSessionCheckpoints {
     gap?: string
     removed?: readonly string[]
     composition?: Record<string, { messageId: string; parts: number[] }[]>
+    /** Saved rows hold the finished history; a cold reopen leaves the child unloaded until asked for. */
+    settled?: true
   }
 }
 

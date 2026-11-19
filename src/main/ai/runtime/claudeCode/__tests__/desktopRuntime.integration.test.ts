@@ -537,8 +537,8 @@ it('adopts a real warm process with its captured credential receipt', async () =
   expect(child.exitCode !== null || child.signalCode !== null).toBe(true)
 }, 30000)
 
-// A failed cold attach must retry the saved child binding even when the root has no direct creation evidence.
-it('restores nested children under their immediate parent after an attachment failure', async () => {
+// Catches a cold reopen loading finished children, and a failed lazy attach not retrying the saved nested binding.
+it('reopens a settled nested child on demand under its immediate parent after an attachment failure', async () => {
   const test = await desktop({
     agents: {
       probe: { description: 'Nested child', prompt: 'Run the requested child', tools: ['Agent'], model: 'inherit' }
@@ -569,29 +569,29 @@ it('restores nested children under their immediate parent after an attachment fa
   expect(
     savedChildView(outer).messages.flatMap((message) => message.parts.filter((part) => part.type === 'text'))
   ).not.toContainEqual(expect.objectContaining({ text: 'Grandchild answer' }))
+  // Finished children release while the root stays open.
+  for (const context of [outer, inner])
+    await expect.poll(() => contexts.context(context.id).checkpointMapping?.child?.settled).toBe(true)
   await connection.close()
   const saved = savedChildView(inner).messages
-  let failed = false
+  const attached: string[] = []
   const originalAttach = ChildThreadProjection.prototype.attach
   const attach = vi
     .spyOn(ChildThreadProjection.prototype, 'attach')
     .mockImplementation(function (this: ChildThreadProjection) {
-      if (!failed && this.context.id === inner.id) {
-        failed = true
+      attached.push(this.context.id)
+      if (attached.filter((id) => id === inner.id).length === 1)
         return Promise.reject(new Error('Child attachment temporarily unavailable'))
-      }
       return originalAttach.call(this)
     })
   try {
     const reopened = await test.connect()
-    await expect.poll(() => failed).toBe(true)
+    expect(await reopened.childProjection!('toolu_inner')).toBeUndefined()
+    const projection = await reopened.childProjection!('toolu_inner')
+    expect(projection?.snapshot().messages).toEqual(saved)
     expect(savedChildView(contexts.context(inner.id)).messages).toEqual(saved)
-    const projections = await Promise.all([
-      reopened.childProjection!('toolu_inner'),
-      reopened.childProjection!('toolu_inner')
-    ])
-    for (const projection of projections) expect(projection?.snapshot().messages).toEqual(saved)
     expect(contexts.children(outer.id).filter((context) => context.spawnToolCallId === 'toolu_inner')).toHaveLength(1)
+    expect(attached).not.toContain(outer.id)
   } finally {
     attach.mockRestore()
   }
