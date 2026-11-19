@@ -14,10 +14,10 @@ The [runtime contract](../../proposed/architecture/2026-10-17-agent-runtime-cont
 
 ## Decision
 
-- `src/main/ai/agentSession/ChildResidency.ts` owns child attachment for the Claude Code, Pi and Pi Durable connections. It covers the opening, attached, releasing and closing states, joined concurrent opens, pins for viewers and commands, views that follow a release and reopen, drain (which also joins an in-flight release flush), and close.
+- `src/main/ai/agentSession/ChildResidency.ts` owns child attachment for the Claude Code, Pi and Pi Durable connections. It covers the opening, attached, releasing and closing states, joined concurrent opens, pins for viewers and commands, views that follow a release and reopen, drain (which also joins queued restores, in-flight opens and release flushes), and close.
 - A connection hands every `Subagent` relationship it observes to `ChildResidency.relate`. A child is finished when its latest relationship reports `work: 'idle'` ([subagent work state](2026-11-19-agent-subagent-work-state.md)). The residency then flushes, releases and records any finished child that no viewer, command or loaded nested child pins.
 - Releasing writes `checkpointMapping.child.settled` on the child's context row (`AgentSessionContextService.settleChild`) after the final flush. Close writes it for the finished children it stops. Attaching a settled child clears it.
-- A reopen records settled descendants as released (`restoreReleased`). Relationship replays leave them released and restore unsettled idle children one at a time. A released child is reloaded by a viewer (`childProjection`), a command (`messageChild`), a Pi child completion or usage attribution, or a relationship that reports it running.
+- A reopen records a settled descendant as released (`restoreReleased`) when its whole subtree is settled; a settled child with an unsettled descendant is restored, because its observation carries that descendant's relationship. Relationship replays leave released children released and restore unsettled idle children one at a time, each flushed and released before the next. A released child is reloaded by a viewer (`childProjection`), a command (`messageChild`), a Pi child completion or usage attribution, or a relationship that reports it running.
 - No schema migration is needed: `checkpointMapping` is JSON, and `saveProjectionTx` merges child writes into the existing child checkpoint.
 
 ## Alternatives considered

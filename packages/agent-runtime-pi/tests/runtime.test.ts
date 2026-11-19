@@ -590,6 +590,8 @@ it('continues an observed child through its owner, keeps one relationship, and r
   await expect.poll(() => parentEvents.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
   const relation = parentEvents.find((event) => event.type === 'subagent.upsert')
   if (relation?.type !== 'subagent.upsert' || !relation.subagent.child) throw new Error('Missing child')
+  const { work: created, ...identity } = relation.subagent
+  expect(created).toBe('running')
   const child = confirmed(await runtime.open(relation.subagent.child))
   const second = confirmed(await runtime.open(child.thread))
   const childEvents = await observe(second)
@@ -663,7 +665,7 @@ it('continues an observed child through its owner, keeps one relationship, and r
         )
     )
     .toBe(true)
-  expect(after[0]).toMatchObject({ type: 'snapshot', subagents: [relation.subagent] })
+  expect(after[0]).toMatchObject({ type: 'snapshot', subagents: [identity] })
   if (after[0].type !== 'snapshot') throw new Error('Missing parent snapshot')
   expect(after[0].subagents).toHaveLength(1)
   expect(

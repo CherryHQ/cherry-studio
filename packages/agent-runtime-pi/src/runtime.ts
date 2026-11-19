@@ -236,7 +236,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
         if (child) {
           entries.set(entry.ref.id, Promise.resolve({ status: 'confirmed', value: entry }))
           const parent = owned.find((candidate) => candidate.ref.id === child.parent)!
-          // Loading keeps the known work state; a spawned child's first run start reports its own.
+          // A spawned child runs its first input next; a reopened one keeps the known work state.
           const known = parent.projection.feed.snapshot.subagents?.find(
             (relation) => relation.child?.id === entry.ref.id
           )
@@ -247,7 +247,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
               parent: parent.ref,
               child: entry.ref,
               origin: { toolCallId: nativeCallId!, description: child.origin.description },
-              ...(known?.work && { work: known.work })
+              ...(child.reopened ? known?.work && { work: known.work } : { work: 'running' as const })
             }
           })
         } else {

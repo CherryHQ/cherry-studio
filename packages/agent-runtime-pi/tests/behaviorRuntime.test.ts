@@ -798,6 +798,33 @@ it('withdraws a pending child input and closes the native graph on shutdown', as
   })
 })
 
+// Catches a spawned child's first relationship carrying no work state, which a host cannot tell from a finished child.
+it('lists a spawned child as running before its first run starts', async () => {
+  const held = gate()
+  onTestFinished(() => held.open())
+  let rootId = ''
+  const provider = respondingModel((call) => {
+    if (call.sessionId !== rootId) return held.wait(assistantReply('child done'))
+    if (JSON.stringify(call.messages.at(-1)).includes('delegate'))
+      return assistantReply(
+        [subagentCall('spawn', { description: 'scan', prompt: 'task', background: true })],
+        'toolUse'
+      )
+    return assistantReply('parent done')
+  })
+  const { runtime, config } = await setup(provider.model)
+  onTestFinished(async () => {
+    await runtime.shutdown()
+  })
+  const root = confirmed(await runtime.create(config))
+  rootId = root.thread.id
+  const events = await observe(root)
+  await root.input.submit(draft('delegate'))
+  await held.reached
+  const first = events.find((event) => event.type === 'subagent.upsert')
+  expect(first).toMatchObject({ type: 'subagent.upsert', subagent: { work: 'running' } })
+})
+
 // Catches silently loading a persisted child as an independent root, losing its behavior ownership.
 it('restores child relations on reopen and refuses a child without its live owner', async () => {
   let rootId = ''

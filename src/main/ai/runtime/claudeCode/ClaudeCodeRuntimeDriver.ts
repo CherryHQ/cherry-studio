@@ -858,11 +858,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   async childProjection(toolCallId: string) {
     if (this.closing) return undefined
-    const known = (await this.children.resources()).filter(
+    const known = await this.children.pinLoaded(
       (child) => (child.relation?.origin?.toolCallId ?? child.projection.context.spawnToolCallId) === toolCallId
     )
-    if (known.length > 1) return undefined
-    if (known[0]) return this.children.watch(known[0])
+    try {
+      if (known.children.length > 1) return undefined
+      if (known.children[0]) return await this.children.watch(known.children[0])
+    } finally {
+      known.unpin()
+    }
     if (this.closing || !this.handle) return undefined
     const saved = contexts.findChild(this.input.sessionId, toolCallId)
     let child

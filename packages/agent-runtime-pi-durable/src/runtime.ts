@@ -360,33 +360,36 @@ export async function createPiDurableRuntime(
     )
     return relations.filter((child) => child !== undefined)
   }
-  /** Tells a loaded parent that its child's work changed. */
-  const publishWork = async (id: number): Promise<void> => {
-    const record = await native.commit((tx) => tx.conversation(id as ConversationId), context)
-    const state = childWork.get(id)
-    const entry = record?.owner && live.get(record.owner.conversationId)
-    const relation = entry && entry.projection.feed.snapshot.subagents?.find((child) => child.child?.id === String(id))
-    if (state && relation && relation.work !== workOf(state) && live.get(record.owner.conversationId) === entry)
-      entry.projection.feed.publish({ type: 'subagent.upsert', subagent: { ...relation, work: workOf(state) } })
-  }
-  /** A released child that receives input is announced to its nearest loaded ancestor so hosts observe it again. */
-  const announceResumed = async (id: number): Promise<void> => {
+  /**
+   * Tells the nearest loaded ancestor that a child's work changed. A `resumed` child, unloaded when it received input,
+   * is announced as running even when it finished meanwhile, so hosts observe its new history; its state follows.
+   */
+  const publishWork = async (id: number, resumed = false): Promise<void> => {
     const record = (conversationId: number) =>
       native.commit((tx) => tx.conversation(conversationId as ConversationId), context)
     const child = await record(id)
     for (let current = child; current?.owner; current = await record(current.owner.conversationId)) {
       const entry = live.get(current.owner.conversationId)
       if (!entry) continue
-      const subagent = await readRelation(relationRecords, child!)
-      if (subagent && live.get(current.owner.conversationId) === entry)
+      const listed = entry.projection.feed.snapshot.subagents?.find((relation) => relation.child?.id === String(id))
+      const subagent = resumed ? await readRelation(relationRecords, child!) : listed
+      if (!subagent || live.get(current.owner.conversationId) !== entry) return
+      if (resumed)
         entry.projection.feed.publish({ type: 'subagent.upsert', subagent: { ...subagent, work: 'running' } })
+      // Read after the awaits above, so a child that finished during them is not left running.
+      const state = childWork.get(id)
+      if (state && workOf(state) !== (resumed ? 'running' : listed?.work))
+        entry.projection.feed.publish({ type: 'subagent.upsert', subagent: { ...subagent, work: workOf(state) } })
       return
     }
   }
+  // `advance` must not call the Session, so its Session reads start after it returns.
+  const later = (read: () => Promise<void>) => void track(Promise.resolve().then(read)).catch(report)
   const unsubscribe = native.observeCommits({
     advance(publication) {
       const changed = new Set<number>()
       const worked = new Set<number>()
+      const resumed = new Set<number>()
       for (const change of publication.changes) {
         if (
           change.type === 'document' &&
@@ -425,8 +428,7 @@ export async function createPiDurableRuntime(
             }
           }
           inputs.set(record.id, record)
-          if (record.status === 'placed' && !live.has(record.conversationId))
-            void track(announceResumed(record.conversationId)).catch(report)
+          if (record.status === 'placed' && !live.has(record.conversationId)) resumed.add(record.conversationId)
         }
         if (change.type === 'conversation' && change.value.owner) {
           const parent = change.value.owner.conversationId
@@ -443,7 +445,8 @@ export async function createPiDurableRuntime(
             ).catch(report)
         }
       }
-      for (const id of worked) void track(publishWork(id)).catch(report)
+      for (const id of resumed) later(() => publishWork(id, true))
+      for (const id of worked) if (!resumed.has(id)) later(() => publishWork(id))
       for (const id of changed) {
         const entry = live.get(id)
         if (entry) {

@@ -28,9 +28,9 @@ Adapters include `work` in snapshot `subagents`, in `subagent.upsert`, and in th
 
 Evidence per adapter:
 
-- Claude Code: the owner's task table in `owner.ts`. A task is `running` from `background_tasks_changed` or `task_started` until `task_notification` or a terminal `task_updated`, and each change publishes its relationship. A child known only from the archive is `idle`, because background tasks end with the CLI process that ran them. Archive recovery takes a child's parent from its recorded parent agent, then from the transcript holding its spawning Agent/Task call, and otherwise treats it as a direct child of the root, as the SDK reports depth-1 parents as null. A cold archive read therefore replays every child relationship.
-- Pi: `PiBehaviorOptions.onWork` reports a thread's live state (no active run, nothing queued, Pi idle) each time the behavior layer refreshes results, which it does at every run start and end. The runtime publishes a change on the parent that lists the child. A loading child keeps its known work, and relationships replayed when a root opens read `idle`.
-- Pi Durable: commit observation tracks each child's committed run (`pi.live`) and queued input (`pi.inbox`) and publishes a change on the loaded parent. Opening a parent and `relation()` read both documents. A child created in this process reads `running` until its first run ends. The resumed-input announcement carries `running`.
+- Claude Code: the owner's task table in `owner.ts`. A task is `running` from `background_tasks_changed` or `task_started` (including a finished task that either lists with a newer run) until `task_notification` or a terminal `task_updated`, and each change publishes its relationship. A child known only from the archive is `idle`, because background tasks end with the CLI process that ran them. Archive recovery takes a child's parent from its recorded parent agent, then from the transcript holding its spawning Agent/Task call, and otherwise treats it as a direct child of the root, as the SDK reports depth-1 parents as null. A cold archive read therefore replays every child relationship.
+- Pi: `PiBehaviorOptions.onWork` reports a thread's live state (no active run, nothing queued, Pi idle) each time the behavior layer refreshes results, which it does at every run start and end. The runtime publishes a change on the parent that lists the child. A spawned child is listed `running`, a reopened child keeps its known work, and relationships replayed when a root opens read `idle`.
+- Pi Durable: commit observation tracks each child's committed run (`pi.live`) and queued input (`pi.inbox`) and publishes a change on the nearest loaded ancestor, after the commit observer returns because observers must not call the Session. Opening a parent and `relation()` read both documents. A child created in this process reads `running` until its first run ends. The resumed-input announcement carries `running`, followed by the child's current state if it finished meanwhile.
 
 ### Host
 
@@ -38,9 +38,9 @@ Evidence per adapter:
 
 - An attached child takes the relationship and is released once it reads `idle` and no viewer, command or loaded nested child pins it.
 - A child whose relationship is not `idle` is opened, including a released one, so a child its parent resumes is observed without a viewer.
-- An idle child that the residency has not seen and that is not settled is restored one at a time and then released.
-- A loaded nested child pins its attached parent child until the nested child is released.
-- `command()`, used by `messageChild`, clears the child's work evidence and pins it, so only a relationship that arrives after the command can release it.
+- An idle child that the residency has not seen and that is not settled is restored one at a time; the next restore waits until it has flushed and released.
+- A nested child pins its attached parent child from before its attach until the nested child is released.
+- `command()`, used by `messageChild`, clears the child's work evidence and pins it, so only a relationship that arrives after the command can release it. When the child refuses the input, the cleared evidence returns unless a newer relationship arrived.
 
 No connection computes runtime-specific finished evidence, and Claude's reopen no longer restores saved children from their context rows. Background task events for the UI are unchanged.
 
@@ -53,7 +53,7 @@ No connection computes runtime-specific finished evidence, and Claude's reopen n
 ## Consequences
 
 - An adapter that misses a transition either keeps a child loaded until its root closes (a missed `idle`) or leaves a resumed child unobserved (a missed `running`). An absent `work` keeps the child loaded.
-- Pi Durable reads one conversation record for each child work change to find the loaded parent, and the live and inbox documents of every child when a parent opens.
+- Pi Durable reads the conversation records up to the nearest loaded ancestor for each child work change, and the live and inbox documents of every child when a parent opens.
 - A Claude reopen restores unsettled children from the archive's relationship replay instead of saved context rows. A saved child that the archive no longer lists attaches only when a viewer or command opens it.
 - A nested child whose parent is released and that resumes without its parent running is still observed only when a viewer or command opens it, except in Pi Durable, which announces it to its nearest loaded ancestor.
 

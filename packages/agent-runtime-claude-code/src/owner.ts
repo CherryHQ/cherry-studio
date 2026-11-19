@@ -377,7 +377,18 @@ export class ClaudeOwner {
   private consumeTask(message: Extract<SDKMessage, { type: 'system' }>): boolean {
     if (message.subtype === 'background_tasks_changed') {
       for (const native of message.tasks) {
-        if (this.tasks.has(native.task_id)) continue
+        const known = this.tasks.get(native.task_id)
+        if (known) {
+          // A listed newer run works again before, or without, a per-task frame of that run.
+          if (native.run_id && (!known.runId || native.run_id > known.runId)) {
+            known.runId = native.run_id
+            if (known.terminal) {
+              known.terminal = false
+              this.relation(native.task_id, known)
+            }
+          }
+          continue
+        }
         const task: Task = {
           sessionId: this.activeSession,
           agent: native.task_type === 'local_agent',

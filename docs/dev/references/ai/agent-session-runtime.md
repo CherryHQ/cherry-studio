@@ -1088,8 +1088,9 @@ relationship; a child is finished when its latest relationship reports `work: 'i
 runtime-specific finished evidence. A finished child that no viewer, command or loaded nested child pins is
 flushed, marked settled on its context row and released, keeping only its origin and context ID. Opening its
 panel, messaging it or a relationship reporting it running attaches it again; a command keeps it loaded until
-a later relationship reports `idle`. A reopen leaves settled children unloaded and restores unsettled idle
-children one at a time. A detached or
+a later relationship reports `idle`, or until the command's input is refused. A reopen leaves fully settled
+subtrees unloaded and restores unsettled idle children one at a time, each flushed and released before the
+next; the connection drain joins those restores, in-flight opens and release flushes. A detached or
 destroyed window cannot install a late subscription. Archive reconciliation preserves product IDs
 and orders evidenced rows by committed native history followed by live content, correcting saved
 parent links when necessary; rows outside current native/live coverage remain retained in place.

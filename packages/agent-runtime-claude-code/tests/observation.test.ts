@@ -276,6 +276,48 @@ it('keeps a missing parent unresolved and rejects older run state after continua
   }
 })
 
+// Catches a resumed task that only background occupancy lists staying idle, which leaves its released child unloaded.
+it('reports a finished task as running when occupancy lists a newer run', async () => {
+  const test = await wireFixture()
+  try {
+    const listed = (run: string): SDKMessage => ({
+      type: 'system',
+      subtype: 'background_tasks_changed',
+      uuid: randomUUID(),
+      session_id: test.sessionId,
+      tasks: [{ task_id: 'child', run_id: run, task_type: 'local_agent', description: 'Child' }]
+    })
+    test.send({
+      type: 'system',
+      subtype: 'task_started',
+      uuid: randomUUID(),
+      session_id: test.sessionId,
+      task_id: 'child',
+      run_id: '001',
+      task_type: 'local_agent',
+      description: 'Child',
+      spawn_depth: 1
+    })
+    test.send({
+      type: 'system',
+      subtype: 'task_notification',
+      uuid: randomUUID(),
+      session_id: test.sessionId,
+      task_id: 'child',
+      run_id: '001',
+      status: 'completed',
+      output_file: '',
+      summary: 'First completed'
+    })
+    await expect.poll(() => test.view.snapshot.subagents?.[0]?.work).toBe('idle')
+    test.send(listed('001'))
+    test.send(listed('002'))
+    await expect.poll(() => test.view.snapshot.subagents?.[0]?.work).toBe('running')
+  } finally {
+    await test.close()
+  }
+})
+
 it('retains permission denials for every invocation in a late observer baseline', async () => {
   const test = await wireFixture()
   try {

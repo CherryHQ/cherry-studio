@@ -50,10 +50,21 @@ export class ChildResidency<H extends { release(): Promise<void> }> {
    */
   constructor(private readonly host: { accepting(): boolean; closing(): boolean }) {}
 
-  /** Records the settled descendants of `parentContextId` as released, so discovery leaves them unloaded. */
-  restoreReleased(parentContextId: string): void {
+  /**
+   * Records the settled descendants of `parentContextId` as released, so discovery leaves them unloaded. A child with
+   * an unsettled descendant stays unreleased: its observation carries that descendant's relationship.
+   * @returns whether every descendant is settled
+   */
+  restoreReleased(parentContextId: string): boolean {
+    let settled = true
     for (const context of contexts.children(parentContextId)) {
-      if (context.bindingState === 'bound' && context.nativeThreadId && context.checkpointMapping?.child?.settled) {
+      const subtree = this.restoreReleased(context.id)
+      if (
+        subtree &&
+        context.bindingState === 'bound' &&
+        context.nativeThreadId &&
+        context.checkpointMapping?.child?.settled
+      ) {
         const key = childKey(context.backendId, context.nativeThreadId)
         if (!this.entries.has(key))
           this.released.set(key, {
@@ -61,9 +72,9 @@ export class ChildResidency<H extends { release(): Promise<void> }> {
             origin: context.spawnToolCallId ? { toolCallId: context.spawnToolCallId } : undefined,
             contextId: context.id
           })
-      }
-      this.restoreReleased(context.id)
+      } else settled = false
     }
+    return settled
   }
 
   /**
@@ -83,7 +94,9 @@ export class ChildResidency<H extends { release(): Promise<void> }> {
       this.restoring.add(key)
       this.restores = this.restores
         .then(async () => {
-          if (!this.entries.has(key) && !this.released.has(key)) await open()
+          if (this.entries.has(key) || this.released.has(key)) return
+          await open()
+          await this.settle(key)
         })
         .catch((error) => logger.warn('Failed to restore child thread', { key, error }))
         .finally(() => this.restoring.delete(key))
@@ -111,15 +124,19 @@ export class ChildResidency<H extends { release(): Promise<void> }> {
   ): Promise<ResidentChild<H> | undefined> {
     const existing = this.entries.get(key)
     if (existing) {
-      await source.granted?.release()
+      // Reopen in the turn the release ends, so a lookup made after this open resolves to the reopen.
       if (existing.state === 'releasing') {
         await existing.pending
-        return this.open(key, { ...source, granted: undefined })
+        return this.open(key, source)
       }
+      await source.granted?.release()
       if (existing.state === 'closing') {
         await existing.resource.projection.stop()
         await existing.resource.handle.release()
-        this.entries.delete(key)
+        if (this.entries.get(key) === existing) {
+          this.entries.delete(key)
+          this.unpinParent(key)
+        }
         return this.open(key, { ...source, granted: undefined })
       }
       return existing.state === 'opening' ? existing.pending : existing.resource
@@ -138,13 +155,14 @@ export class ChildResidency<H extends { release(): Promise<void> }> {
         if (relation && !this.work.has(key)) this.work.set(key, relation.work)
         const view = this.views.get(key)?.deref()
         if (view) view.projection = projection
+        // The parent's observation carries this child's relationships, so it must not release during the attach.
+        const parent = relation && this.entries.get(childKey(relation.parent.backendId, relation.parent.id))
+        if (parent?.state === 'attached') this.parentPins.set(key, this.pin(parent.resource))
         // A reloaded child may run again; a cold reopen must restore it until it settles anew.
         if (projection.context.checkpointMapping?.child?.settled) contexts.settleChild(projection.context.id, false)
         await projection.attach()
         this.released.delete(key)
         this.entries.set(key, { state: 'attached', resource })
-        const parent = relation && this.entries.get(childKey(relation.parent.backendId, relation.parent.id))
-        if (parent?.state === 'attached') this.parentPins.set(key, this.pin(parent.resource))
         source.attached?.(resource)
         // Callers pin in their continuation; check afterwards so a reopened finished child is not released under them.
         setImmediate(() => this.releaseIfIdle(key))
@@ -152,6 +170,7 @@ export class ChildResidency<H extends { release(): Promise<void> }> {
       })
       .catch(async (error) => {
         logger.error('Failed to observe child thread', { key, error })
+        this.unpinParent(key)
         if (resource) {
           try {
             await resource.projection.stop()
@@ -181,15 +200,27 @@ export class ChildResidency<H extends { release(): Promise<void> }> {
     }
   }
 
-  /** Pins the child for a command whose input outdates earlier work evidence until a relationship reports again. */
-  command(resource: ResidentChild<H>): () => void {
+  /**
+   * Pins the child for a command whose input outdates earlier work evidence until a relationship reports again.
+   * @returns the unpin; pass `admitted: false` when the input was refused, restoring the evidence if nothing newer came
+   */
+  command(resource: ResidentChild<H>): (admitted: boolean) => void {
+    const prior = this.work.get(resource.key)
     this.work.delete(resource.key)
-    return this.pin(resource)
+    const unpin = this.pin(resource)
+    return (admitted) => {
+      if (!admitted && !this.work.has(resource.key)) this.work.set(resource.key, prior)
+      unpin()
+    }
   }
 
+  /** The child under `key`; a releasing one resolves to its reopen when work resumed, else to undefined. */
   async resource(key: string): Promise<ResidentChild<H> | undefined> {
-    const entry = this.entries.get(key)
-    if (entry?.state === 'releasing') return undefined
+    let entry = this.entries.get(key)
+    while (entry?.state === 'releasing') {
+      await entry.pending
+      entry = this.entries.get(key)
+    }
     return entry?.state === 'opening' ? entry.pending : entry?.resource
   }
 
@@ -203,22 +234,44 @@ export class ChildResidency<H extends { release(): Promise<void> }> {
     return resources
   }
 
-  /** Joins pending child writes, including the flush of a child being released. */
+  /**
+   * Pins the attached children `match` selects. Opens and releases in flight are joined first and the selection is
+   * made in the same turn as the pins, so no selected child is mid-release.
+   */
+  async pinLoaded(
+    match: (child: ResidentChild<H>) => boolean
+  ): Promise<{ children: ResidentChild<H>[]; unpin(): void }> {
+    for (let pending = this.inFlight(); pending.length; pending = this.inFlight()) await Promise.all(pending)
+    const children = [...this.entries.values()].flatMap((entry) =>
+      entry.state === 'attached' && match(entry.resource) ? [entry.resource] : []
+    )
+    const unpins = children.map((child) => this.pin(child))
+    return { children, unpin: () => unpins.forEach((unpin) => unpin()) }
+  }
+
+  /** Joins pending child writes: queued restores, opens, releases and every loaded child's projection. */
   async drain(): Promise<void> {
-    for (const entry of [...this.entries.values()]) if (entry.state === 'releasing') await entry.pending
+    for (let settled = false; !settled;) {
+      const restores = this.restores
+      await restores
+      await Promise.all(this.inFlight())
+      // An open defers its release check to `setImmediate`; join the release it starts as well.
+      await new Promise((resolve) => setImmediate(resolve))
+      settled = restores === this.restores && !this.inFlight().length
+    }
     for (const child of await this.resources()) await child.projection.drain()
   }
 
-  /** The child saved under `contextId`; a released one is reloaded through `reopen`. */
+  /** The child saved under `contextId`, pinned for the caller; a released one is reloaded through `reopen`. */
   async forContext(
     contextId: string,
     reopen: (child: ReleasedChild) => Promise<ResidentChild<H> | undefined>
-  ): Promise<ResidentChild<H> | undefined> {
-    for (const entry of [...this.entries.values()]) if (entry.state === 'releasing') await entry.pending
-    const loaded = (await this.resources()).find((child) => child.projection.context.id === contextId)
-    if (loaded) return loaded
+  ): Promise<{ child: ResidentChild<H>; unpin(): void } | undefined> {
+    const loaded = await this.pinLoaded((child) => child.projection.context.id === contextId)
+    if (loaded.children[0]) return { child: loaded.children[0], unpin: loaded.unpin }
     const released = [...this.released.values()].find((child) => child.contextId === contextId)
-    return released && reopen(released)
+    const child = released && (await reopen(released))
+    return child && { child, unpin: this.pin(child) }
   }
 
   /** A subscribed viewer pins the child; the last unsubscribe lets a finished child release. */
@@ -264,6 +317,24 @@ export class ChildResidency<H extends { release(): Promise<void> }> {
     this.parentPins.clear()
   }
 
+  private inFlight(): Promise<unknown>[] {
+    return [...this.entries.values()].flatMap((entry) =>
+      entry.state === 'opening' || entry.state === 'releasing' ? [entry.pending] : []
+    )
+  }
+
+  private unpinParent(key: string): void {
+    this.parentPins.get(key)?.()
+    this.parentPins.delete(key)
+  }
+
+  /** Waits for the idle check `open` defers to `setImmediate`, then for the release it started to flush. */
+  private async settle(key: string): Promise<void> {
+    await new Promise((resolve) => setImmediate(resolve))
+    const entry = this.entries.get(key)
+    if (entry?.state === 'releasing') await entry.pending
+  }
+
   private releaseIfIdle(key: string): void {
     const entry = this.entries.get(key)
     if (this.host.closing() || entry?.state !== 'attached') return
@@ -283,8 +354,7 @@ export class ChildResidency<H extends { release(): Promise<void> }> {
           contextId: projection.context.id
         })
         this.entries.delete(key)
-        this.parentPins.get(key)?.()
-        this.parentPins.delete(key)
+        this.unpinParent(key)
       } catch (error) {
         // Keep the unflushed child for the close and reopen retries.
         this.entries.set(key, { state: 'closing', resource })

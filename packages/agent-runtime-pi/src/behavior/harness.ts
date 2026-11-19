@@ -56,7 +56,12 @@ export type BehaviorSessionRequest = {
    * For a child: give it the model `origin.modelKey` names. The adapter's extension already leaves out the package's
    * `'parent-only'` tools; host-owned tools follow the host's own child configuration.
    */
-  readonly child?: { readonly parent: ThreadId; readonly origin: SubagentOrigin }
+  readonly child?: {
+    readonly parent: ThreadId
+    readonly origin: SubagentOrigin
+    /** Whether the child is a stored conversation being reopened rather than one a transaction just spawned. */
+    readonly reopened: boolean
+  }
 }
 
 export interface PiBehaviorOptions {
@@ -392,7 +397,9 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
   }
   async function openNative(conv: Conversation): Promise<void> {
     const child =
-      conv.lineage.kind === 'subagent' ? { parent: conv.lineage.parent, origin: conv.lineage.origin } : undefined
+      conv.lineage.kind === 'subagent'
+        ? { parent: conv.lineage.parent, origin: conv.lineage.origin, reopened: conv.reopened }
+        : undefined
     const native = await options.openSession({
       sessionManager: conv.manager,
       extension: conversationExtension(adapter, conv),

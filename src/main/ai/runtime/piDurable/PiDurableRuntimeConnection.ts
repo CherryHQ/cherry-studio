@@ -4,7 +4,13 @@ import { isDeepStrictEqual } from 'node:util'
 import type { Usage } from '@earendil-works/pi-ai'
 
 import type { BehaviorEvent } from '@cherrystudio/agent-behavior'
-import { runtimeId, type InputState, type Observation, type Subagent } from '@cherrystudio/agent-runtime'
+import {
+  runtimeId,
+  type InputState,
+  type Observation,
+  type Subagent,
+  type SubmitResult
+} from '@cherrystudio/agent-runtime'
 import type {
   DurableObservation,
   PiDurableRuntime,
@@ -576,11 +582,15 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   async childProjection(toolCallId: string) {
     if (this.closing) return undefined
-    const known = (await this.children.resources()).filter(
+    const known = await this.children.pinLoaded(
       (child) => (child.relation?.origin?.toolCallId ?? child.projection.context.spawnToolCallId) === toolCallId
     )
-    if (known.length > 1) return undefined
-    if (known[0]) return this.children.watch(known[0])
+    try {
+      if (known.children.length > 1) return undefined
+      if (known.children[0]) return await this.children.watch(known.children[0])
+    } finally {
+      known.unpin()
+    }
     if (this.closing || !this.handle) return undefined
     const opened = await this.handle.durable.openChild(toolCallId, this.closingAccess.signal)
     if (opened.status !== 'confirmed') return undefined
@@ -589,15 +599,22 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async messageChild(contextId: string, text: string): Promise<void> {
-    const child = await this.children.forContext(contextId, (released) => this.observeChild(released.thread.id))
-    const projection = child?.projection
-    const handle = child?.handle
-    if (!child || !handle || !projection || this.closing) throw new Error('Child native owner is unavailable')
-    const unpin = this.children.command(child)
+    const found = await this.children.forContext(contextId, (released) => this.observeChild(released.thread.id))
+    const projection = found?.child.projection
+    const handle = found?.child.handle
+    if (!found || !handle || !projection || this.closing) {
+      found?.unpin()
+      throw new Error('Child native owner is unavailable')
+    }
+    const done = this.children.command(found.child)
+    found.unpin()
+    let admitted = false
     try {
-      await this.submitChild(projection, handle, contextId, text)
+      const result = await this.submitChild(projection, handle, contextId, text)
+      admitted = result.status !== 'rejected' && result.status !== 'unsupported'
+      if (result.status !== 'acknowledged') throw new Error(result.error.message)
     } finally {
-      unpin()
+      done(admitted)
     }
   }
 
@@ -606,7 +623,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     handle: PiDurableThreadHandle,
     contextId: string,
     text: string
-  ): Promise<void> {
+  ): Promise<SubmitResult> {
     await projection.flush()
     const { sessionId } = projection.context
     const id = randomUUID()
@@ -616,7 +633,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     const result = await handle.input.submit(draft)
     applyNativeSubmissionResult(sessionId, contextId, result)
     await projection.refresh()
-    if (result.status !== 'acknowledged') throw new Error(result.error.message)
+    return result
   }
 
   async stopTask(taskId: string): Promise<boolean> {
