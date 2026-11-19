@@ -155,11 +155,12 @@ export class MemoryMigrationService extends BaseService {
       if (previous) {
         const actual = await Promise.all(previous.files.map((file) => session.read(file.path)))
         const allAfter = actual.every((file, index) => file.hash === previous.files[index].afterHash)
+        const backups = application.getPath('feature.memory.backups')
         const backupId =
           sourceHash === null
             ? undefined
             : await findLegacyMemoryBackup(
-                path.join(application.getPath('feature.memory.backups'), 'agent', agentId),
+                await assertMemoryPath(path.dirname(backups), path.join(path.basename(backups), 'agent', agentId)),
                 sourceHash
               )
         if (previous.sourceHash === sourceHash && allAfter && (sourceHash === null || backupId)) {
@@ -221,7 +222,7 @@ export class MemoryMigrationService extends BaseService {
         files: [...plan].map(([target, value]) => ({
           path: target,
           beforeHash: reads.get(target)!.hash,
-          afterHash: memoryHash(Buffer.from(value))!
+          afterHash: memoryHash(Buffer.from(value))
         }))
       }
       assertCurrent()
