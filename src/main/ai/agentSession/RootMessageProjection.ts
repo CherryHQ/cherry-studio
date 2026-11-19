@@ -28,7 +28,14 @@ export class RootMessageProjection {
     { messageId: string; input?: Extract<UIMessageChunk, { type: 'tool-input-available' }>; approvalId?: string }
   >()
 
-  constructor(readonly contextId: string) {
+  /** Product input of the latest native user message; later answers without an owner belong to it. */
+  private answering?: string
+
+  /** `answerOwner` names the reply that still takes native answers to an input, if any. */
+  constructor(
+    readonly contextId: string,
+    private readonly answerOwner: (inputId: string) => string | undefined = () => undefined
+  ) {
     const context = contexts.context(contextId)
     const saved = context.checkpointMapping?.root
     for (const id of saved?.removed ?? []) this.removed.add(id)
@@ -126,10 +133,14 @@ export class RootMessageProjection {
     const live = new Set(update.live)
     const refresh = new Set(update.refresh)
     for (const message of update.messages) {
+      if (message.role === 'user') this.answering = update.inputs?.[message.id]
       if (message.role !== 'assistant' || this.removed.has(message.id)) continue
       const previous = this.sources.get(message.id)
       if (previous && !live.has(message.id) && !refresh.has(message.id)) continue
-      const owner = previous?.messageId ?? (live.has(message.id) ? currentMessageId : undefined)
+      const owner =
+        previous?.messageId ??
+        (live.has(message.id) ? currentMessageId : undefined) ??
+        (this.answering ? this.answerOwner(this.answering) : undefined)
       if (!owner) continue
       if (!this.extras.has(owner)) this.extras.set(owner, [])
       if (!isDeepStrictEqual(previous?.parts, message.parts)) changed.add(owner)

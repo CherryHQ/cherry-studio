@@ -1,10 +1,9 @@
 import { writeFile } from 'node:fs/promises'
 
-import { isToolUIPart } from 'ai'
 import * as z from 'zod'
 
 import { application } from '@application'
-import type { ApprovalOutcome, CallRef, HostPorts, BehaviorEvent } from '@cherrystudio/agent-behavior'
+import type { CallRef, HostPorts, BehaviorEvent } from '@cherrystudio/agent-behavior'
 import type { JsonValue, ThreadId, Thread } from '@cherrystudio/agent-runtime'
 import type { AgentRuntimeCompaction, CompactionSummarizer } from '@cherrystudio/agent-runtime-pi'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -44,7 +43,6 @@ const answerSchema = z.object({
   annotations: z.record(z.string(), z.object({ notes: z.string().optional() })).optional()
 })
 const verdictSchema = z.object({ verdict: z.enum(['met', 'not_met', 'impossible']), reason: z.string() })
-const callSchema = z.object({ thread: z.string(), key: z.string() })
 const approvalId = (call: CallRef) => `behavior:${JSON.stringify(call)}`
 
 /** Desktop services for one root's behavior tree; no tool loop or policy decisions live here. */
@@ -85,7 +83,7 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
   }
 
   const host: HostPorts = {
-    ...(await createPiInteractionPorts(options)),
+    ...createPiInteractionPorts(options),
     models: {
       async find(query) {
         const candidates = modelService
@@ -194,13 +192,10 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
   }
 }
 
-export async function createPiInteractionPorts(
+export function createPiInteractionPorts(
   options: Pick<HostOptions, 'input' | 'approval' | 'emit' | 'toolCallIdentity'>
-): Promise<Pick<HostPorts, 'approvals' | 'questions'>> {
-  const { callKeyOf } = await import('@cherrystudio/agent-behavior')
+): Pick<HostPorts, 'approvals' | 'questions'> {
   const { input, approval } = options
-  const outcomes = new Map<string, ApprovalOutcome>()
-
   async function ask(
     call: CallRef,
     name: string,
@@ -253,54 +248,11 @@ export async function createPiInteractionPorts(
     approvals: {
       facts: (_call, tool) => readPiApprovalFacts(approval, tool.name, recordSchema.parse(tool.args)),
       async ask({ call, tool, details }, signal) {
-        const id = approvalId(call)
-        outcomes.set(id, { call, state: 'pending' })
-        try {
-          const decision = await ask(call, tool.name, recordSchema.parse(tool.args), signal, details)
-          const feedback = decision?.reasonSource === 'user' ? decision.reason : undefined
-          outcomes.set(id, {
-            call,
-            state: decision?.approved ? 'granted' : decision ? 'denied' : 'unavailable',
-            feedback
-          })
-          if (!decision) return { kind: 'unavailable' }
-          return decision.approved
-            ? { kind: 'granted', ...(decision.updatedInput && { args: recordSchema.parse(decision.updatedInput) }) }
-            : { kind: 'denied', feedback }
-        } catch (error) {
-          outcomes.delete(id)
-          throw error
-        }
-      },
-      async outcomes(thread, calls) {
-        const persisted = new Map<string, ApprovalOutcome>()
-        for (const message of agentSessionMessageService.listApprovalMessages(input.sessionId)) {
-          for (const part of message.data.parts ?? []) {
-            if (!isToolUIPart(part) || !part.approval?.id.startsWith('behavior:')) continue
-            const id = part.approval.id
-            if (persisted.has(id)) continue
-            let parsed: unknown
-            try {
-              parsed = JSON.parse(id.slice('behavior:'.length))
-            } catch {
-              continue
-            }
-            const ref = callSchema.safeParse(parsed)
-            if (!ref.success || ref.data.thread !== thread) continue
-            const answered = 'approved' in part.approval ? part.approval : undefined
-            persisted.set(id, {
-              call: { thread, key: callKeyOf(ref.data.key) },
-              state: answered ? (answered.approved ? 'granted' : 'denied') : 'unavailable',
-              feedback: answered?.reason
-            })
-          }
-        }
-        for (const [id, outcome] of outcomes) persisted.set(id, outcome)
-        return [...persisted.values()].filter(
-          (outcome) =>
-            outcome.call.thread === thread &&
-            (calls.length === 0 || calls.some((call) => call.key === outcome.call.key))
-        )
+        const decision = await ask(call, tool.name, recordSchema.parse(tool.args), signal, details)
+        if (!decision) return { kind: 'unavailable' }
+        return decision.approved
+          ? { kind: 'granted', ...(decision.updatedInput && { args: recordSchema.parse(decision.updatedInput) }) }
+          : { kind: 'denied', feedback: decision.reasonSource === 'user' ? decision.reason : undefined }
       }
     },
     questions: {

@@ -23,7 +23,7 @@ export function prepareClaudeBranch(sessionId: string, configDir: string, native
       sessionId,
       backendId: backend.id,
       nativeThreadId: nativeId ?? uuid(),
-      anchorMessageId: existing ? anchor : root
+      anchorMessageId: anchor
     })
   })
 }
