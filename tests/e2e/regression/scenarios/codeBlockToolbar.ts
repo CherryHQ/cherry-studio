@@ -252,17 +252,12 @@ export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo:
     let scrollingFrames = frames
     const deltas = { outer: 0, preview: 0, list: 0 }
     try {
-      await list.evaluate(async (element) => {
-        // Some runners complete native smooth scrolling in a single frame.
-        for (let step = 0; step < 4; step++) {
-          await new Promise<void>((resolve) => {
-            requestAnimationFrame(() => {
-              element.scrollBy({ top: 20, behavior: 'instant' })
-              resolve()
-            })
-          })
-        }
-      })
+      // Upward input has room to move without reaching the list's lower boundary.
+      await page.mouse.move(outerStart.x, outerStart.y)
+      for (let step = 0; step < 4; step++) {
+        await page.mouse.wheel(0, -20)
+        await page.evaluate(() => new Promise(requestAnimationFrame))
+      }
       await expect
         .poll(
           async () => {
@@ -284,7 +279,7 @@ export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo:
         '#24842 preview hit test'
       ).toBe(true)
       expect(await viewer.evaluate((element) => element.scrollTop)).toBe(0)
-      expect(deltas.outer).toBeGreaterThan(0)
+      expect(deltas.outer).toBeLessThan(0)
       await page.mouse.move(point.x, point.y)
       await page.mouse.wheel(0, 300)
       await page.waitForTimeout(250)
