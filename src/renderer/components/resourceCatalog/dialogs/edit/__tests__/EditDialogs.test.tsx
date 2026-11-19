@@ -151,7 +151,15 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('@renderer/components/PromptEditorField', () => ({
-  promptEditorActionClassName: '',
+  PromptEditorIconButton: ({
+    label,
+    disabled,
+    onClick
+  }: {
+    label: string
+    disabled?: boolean
+    onClick: () => void
+  }) => <button type="button" aria-label={label} disabled={disabled} onClick={onClick} />,
   default: ({
     actions,
     inlineActions,

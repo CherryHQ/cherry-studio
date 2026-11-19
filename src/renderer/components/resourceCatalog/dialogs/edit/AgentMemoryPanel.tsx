@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, ConfirmDialog, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { StaticMarkdown } from '@renderer/components/markdown'
-import PromptEditorField, { promptEditorActionClassName } from '@renderer/components/PromptEditorField'
+import PromptEditorField, { PromptEditorIconButton } from '@renderer/components/PromptEditorField'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AgentMemoryFile, AgentMemoryFileKey, AgentMemorySnapshot } from '@shared/ipc/schemas/agent'
@@ -215,32 +215,27 @@ export function AgentMemoryPanel({
 
   const folderActions = (
     <div className="flex items-center gap-1.5">
-      <Button
-        type="button"
-        variant="ghost"
+      <PromptEditorIconButton
+        label={t('agent.memory.open_folder')}
+        icon={<FolderOpen className="size-3" />}
+        onClick={() => void openFolder()}
+      />
+      <PromptEditorIconButton
+        label={t('agent.memory.refresh')}
+        icon={<RefreshCw className={cn('size-3', loading && 'motion-safe:animate-spin')} />}
         disabled={loading}
         onClick={() => void reload()}
-        className={promptEditorActionClassName}>
-        <RefreshCw className={cn('size-3', loading && 'motion-safe:animate-spin')} aria-hidden="true" />
-        {t('agent.memory.refresh')}
-      </Button>
-      <Button type="button" variant="ghost" onClick={() => void openFolder()} className={promptEditorActionClassName}>
-        <FolderOpen className="size-3" aria-hidden="true" />
-        {t('agent.memory.open_folder')}
-      </Button>
+      />
     </div>
   )
 
   const copyButton = selected ? (
-    <Button
-      type="button"
-      variant="ghost"
+    <PromptEditorIconButton
+      label={t('agent.memory.copy')}
+      icon={<Copy className="size-3" />}
       disabled={!selected.exists || !selected.content}
       onClick={() => void copyContent()}
-      className={promptEditorActionClassName}>
-      <Copy className="size-3" aria-hidden="true" />
-      {t('agent.memory.copy')}
-    </Button>
+    />
   ) : null
 
   const fileLabel = <span className="truncate text-muted-foreground text-xs">{selected?.name}</span>
@@ -313,18 +308,20 @@ export function AgentMemoryPanel({
           {folderActions}
         </div>
         <div className="relative min-h-0 flex-1 overflow-hidden rounded-md border border-border bg-background">
-          <div className="absolute top-2 right-2 z-10">{copyButton}</div>
+          <div className="absolute top-1.5 right-1.5 z-10">{copyButton}</div>
           <ScrollArea className="h-full">
             {!selected.exists || !selected.content.trim() ? (
-              <p className="px-3 pt-10 pb-3 text-muted-foreground text-xs">
+              <p className="p-3 text-muted-foreground text-xs">
                 {t(selected.exists ? 'agent.memory.empty' : 'agent.memory.not_exists')}
               </p>
             ) : isMarkdown ? (
-              <div className="markdown px-3 pt-10 pb-3 text-xs">
+              <div className="markdown p-3 text-xs">
+                <span aria-hidden="true" className="float-right h-6 w-6" />
                 <StaticMarkdown id={`agent-memory-${selected.key}`}>{selected.content}</StaticMarkdown>
               </div>
             ) : (
-              <pre className="whitespace-pre-wrap break-words px-3 pt-10 pb-3 font-mono text-xs leading-relaxed">
+              <pre className="whitespace-pre-wrap break-words p-3 font-mono text-xs leading-relaxed">
+                <span aria-hidden="true" className="float-right h-6 w-6" />
                 {selected.content}
               </pre>
             )}

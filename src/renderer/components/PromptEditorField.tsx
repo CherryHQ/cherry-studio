@@ -6,20 +6,43 @@ import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from
 import { useTranslation } from 'react-i18next'
 import { estimateTokenCount as estimateTextTokens } from 'tokenx'
 
-import { Button, type CodeEditorHandles, Field, FieldContent, FieldError } from '@cherrystudio/ui'
+import { Button, type CodeEditorHandles, Field, FieldContent, FieldError, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import { StaticMarkdown } from '@renderer/components/markdown'
 import { cn } from '@renderer/utils/style'
 
-/** Style of the editor's small outlined controls, for callers that add their own beside them. */
-export const promptEditorActionClassName =
-  'flex h-6 min-h-0 items-center gap-1 rounded-md border border-border-subtle bg-background px-2 py-0 text-xs font-normal text-muted-foreground! shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40'
-
-// The top padding keeps the first line clear of the corner controls.
+// The first lines stop short of the corner controls instead of running under them.
 const promptEditorExtensions = [
-  EditorView.theme({ '&.cm-focused': { outline: 'none' }, '.cm-content': { paddingTop: '2.25rem' } })
+  EditorView.theme({ '&.cm-focused': { outline: 'none' }, '.cm-line:nth-child(-n+2)': { paddingRight: '4rem' } })
 ]
+
+/** An icon-only control in the editor's style, named by its tooltip. */
+export function PromptEditorIconButton({
+  label,
+  icon,
+  disabled,
+  onClick
+}: {
+  label: string
+  icon: ReactNode
+  disabled?: boolean
+  onClick: () => void
+}) {
+  return (
+    <Tooltip content={label}>
+      <Button
+        type="button"
+        variant="ghost"
+        aria-label={label}
+        disabled={disabled}
+        onClick={onClick}
+        className="flex size-6 min-h-0 items-center justify-center rounded-md border border-border-subtle bg-background p-0 text-muted-foreground! shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0 disabled:opacity-40">
+        {icon}
+      </Button>
+    </Tooltip>
+  )
+}
 
 export interface PromptEditorFieldHandles {
   insertText: (text: string) => boolean
@@ -143,27 +166,25 @@ export function PromptEditorField({
           )}>
           {/* Keeps the area's mouse-down focus forwarding from stealing these clicks. */}
           <div
-            className="absolute top-2 right-2 z-10 flex items-center gap-1.5"
+            className="absolute top-1.5 right-1.5 z-10 flex items-center gap-1.5"
             onMouseDown={(event) => event.stopPropagation()}>
             {inlineActions}
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setShowPreview((v) => !v)}
+            <PromptEditorIconButton
+              label={t(effectiveShowPreview ? 'common.edit' : 'common.preview')}
+              icon={effectiveShowPreview ? <Edit className="size-3" /> : <Eye className="size-3" />}
               disabled={disabled || value.length === 0}
-              className={promptEditorActionClassName}>
-              {effectiveShowPreview ? <Edit className="size-3" /> : <Eye className="size-3" />}
-              <span>{t(effectiveShowPreview ? 'common.edit' : 'common.preview')}</span>
-            </Button>
+              onClick={() => setShowPreview((v) => !v)}
+            />
           </div>
           {effectiveShowPreview ? (
             <div
               className={cn(
-                'prompt-preview markdown max-w-full min-w-0 overflow-auto px-3 pt-10 pb-3 text-xs text-foreground',
+                'prompt-preview markdown max-w-full min-w-0 overflow-auto p-3 text-xs text-foreground',
                 fill && 'min-h-0 flex-1'
               )}
               style={fill ? undefined : { minHeight, maxHeight }}
               onDoubleClick={() => !disabled && setShowPreview(false)}>
+              <span aria-hidden="true" className="float-right h-6 w-14" />
               <StaticMarkdown id={previewId}>{previewValue || value}</StaticMarkdown>
             </div>
           ) : (
