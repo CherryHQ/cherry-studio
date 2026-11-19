@@ -8,7 +8,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { createPackage, listPackage } from '@electron/asar'
+import { createPackageWithOptions, listPackage } from '@electron/asar'
 
 const REPO_ROOT = path.resolve(__dirname, '../..')
 const OUT_ROOT = path.join(REPO_ROOT, 'local', 'utility-process-smoke')
@@ -16,7 +16,7 @@ const APP_DIR = path.join(OUT_ROOT, 'app')
 const EVIDENCE_DIR = path.join(OUT_ROOT, 'evidence')
 const ASAR_PATH = path.join(OUT_ROOT, 'app.asar')
 const RUN_TIMEOUT_MS = 120_000
-const ALLOWED_REQUIRES = /^(node:|\.{1,2}\/|electron$)/
+const ALLOWED_REQUIRES = /^(node:|\.{1,2}\/|electron$|node-pty$|zod$)/
 
 type EvidenceRecord = Record<string, unknown> & { event: string }
 
@@ -47,7 +47,7 @@ function listJsFiles(root: string): string[] {
     .map((entry) => path.join(entry.parentPath, entry.name))
 }
 
-/** The child bundle must be self-contained: nothing but relative modules, `electron`, and Node builtins. */
+/** Runtime dependencies are copied into both layouts; Main-only modules remain forbidden. */
 function assertHermetic(): void {
   const mainEntry = path.join(APP_DIR, 'out', 'main', 'index.js')
   const entriesDir = path.join(APP_DIR, 'out', 'utility-process')
@@ -125,6 +125,24 @@ async function main(): Promise<void> {
   fs.mkdirSync(EVIDENCE_DIR, { recursive: true })
   build('electron.vite.main.config.ts')
   build('electron.vite.entries.config.ts')
+  const { buildTerminalScope } = require('../../native/terminal-scope/build.cjs') as {
+    buildTerminalScope: () => string
+  }
+  const helper = buildTerminalScope()
+  const helperDirectory = path.join(APP_DIR, 'resources', 'binaries')
+  fs.mkdirSync(helperDirectory, { recursive: true })
+  fs.copyFileSync(helper, path.join(helperDirectory, path.basename(helper)))
+  fs.chmodSync(path.join(helperDirectory, path.basename(helper)), 0o755)
+  const ptyRoot = path.dirname(require.resolve('node-pty/package.json'))
+  const ptyDestination = path.join(APP_DIR, 'node_modules', 'node-pty')
+  fs.cpSync(ptyRoot, ptyDestination, { recursive: true })
+  fs.cpSync(path.dirname(require.resolve('zod/package.json')), path.join(APP_DIR, 'node_modules/zod'), {
+    recursive: true
+  })
+  for (const entry of fs.readdirSync(path.join(ptyDestination, 'prebuilds'))) {
+    if (entry !== `${process.platform}-${process.arch}`)
+      fs.rmSync(path.join(ptyDestination, 'prebuilds', entry), { recursive: true, force: true })
+  }
   fs.cpSync(
     path.join(REPO_ROOT, 'resources', 'terminal', 'ghostty'),
     path.join(APP_DIR, 'resources', 'terminal', 'ghostty'),
@@ -137,7 +155,9 @@ async function main(): Promise<void> {
   assertHermetic()
 
   const variants = [summarize('production-unpacked', await runVariant('production-unpacked', APP_DIR))]
-  await createPackage(APP_DIR, ASAR_PATH)
+  await createPackageWithOptions(APP_DIR, ASAR_PATH, {
+    unpackDir: '{resources/binaries,node_modules/node-pty/prebuilds}'
+  })
   fs.writeFileSync(
     path.join(EVIDENCE_DIR, 'asar-files.txt'),
     `${listPackage(ASAR_PATH, { isPack: false }).join('\n')}\n`

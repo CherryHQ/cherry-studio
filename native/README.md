@@ -1,5 +1,7 @@
 # Native integrations
 
+The [terminal process scope](terminal-scope/README.md) supplies per-resource supervisors and target node-pty preparation for the conversation-owned TerminalHost.
+
 [File associations](external-app/README.md) use a cross-platform Node-API addon.
 
 [System speech](system-speech/README.md) provides the macOS and Windows voice helpers.

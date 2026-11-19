@@ -28,6 +28,7 @@ export default {
       lib: {
         // Keys become `<entry>.js`, which is what a definition's `entry` resolves to.
         entry: {
+          'terminal-host': resolve(__dirname, 'src/main/services/terminal/utilityEntries/terminalHostEntry.ts'),
           'automation-repl': resolve(__dirname, 'src/main/services/automation/utilityEntries/automationRepl.ts'),
           'inference-tts': resolve(__dirname, 'src/main/ai/localModel/runtime/utilityEntries/inferenceTts.ts'),
           'inference-asr': resolve(__dirname, 'src/main/ai/localModel/runtime/utilityEntries/inferenceAsr.ts'),

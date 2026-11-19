@@ -172,6 +172,7 @@
     "font-list": "2.0.0",
     "graceful-fs": "4.2.11",
     "jsdom": "26.1.0",
+    "node-pty": "1.1.0",
     "node-screenshots": "^0.2.8",
     "onnxruntime-common": "1.25.1",
     "onnxruntime-node": "1.25.1",

@@ -103,6 +103,14 @@ export function buildPathRegistry() {
       : path.join(__dirname, '../../migrations/sqlite-drizzle'),
 
     // -- D. feature.* — grouped by feature, physical location is irrelevant --
+    'feature.terminal.scope_helper_file': path.join(
+      app.getAppPath().replace(/\.asar$/, '.asar.unpacked'),
+      'resources',
+      'binaries',
+      `${process.platform}-${process.arch}`,
+      process.platform === 'win32' ? 'terminal-scope.exe' : 'terminal-scope'
+    ),
+    'feature.terminal.ghostty': path.join(appRootResources, 'terminal', 'ghostty'),
     'feature.external_app.native_file': path.join(
       appRootResources,
       'binaries',
@@ -453,6 +461,8 @@ const NO_ENSURE = [
   'app.exe_file',
   'app.extra_resources',
   'feature.voice.helper_file',
+  'feature.terminal.scope_helper_file',
+  'feature.terminal.ghostty',
   'feature.external_app.native_file',
   'app.root.resources',
   'app.root.resources.scripts',
