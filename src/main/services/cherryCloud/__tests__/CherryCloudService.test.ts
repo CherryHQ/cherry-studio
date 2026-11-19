@@ -301,7 +301,7 @@ function mockAuthorizationFlow(authorization = authorizationResponse(), exchange
 
 function mockModelSync(account: unknown = accountSnapshot, catalog: unknown = cloudModelCatalog): void {
   mockCloudRoute('/api/v1/account', jsonResponse(account))
-  mockCloudRoute('/v1/models?limit=1000', jsonResponse(catalog))
+  mockCloudRoute('/v1/models?limit=1000&catalog=full', jsonResponse(catalog))
 }
 
 async function createService(): Promise<CherryCloudService> {
@@ -522,7 +522,7 @@ describe('CherryCloudService', () => {
     expect(mocks.netFetch.mock.calls.map(([url]) => url)).toEqual([
       'https://cloud.cherryai.com/api/v1/product-sessions/refresh',
       'https://cloud.cherryai.com/api/v1/account',
-      'https://cloud.cherryai.com/v1/models?limit=1000'
+      'https://cloud.cherryai.com/v1/models?limit=1000&catalog=full'
     ])
   })
 
@@ -599,7 +599,7 @@ describe('CherryCloudService', () => {
 
     it('signs the catalog with the client HMAC and unlocks only guest-callable standalone models', async () => {
       const service = await createService()
-      mockCloudRoute('/v1/models?limit=1000', jsonResponse(guestCatalog))
+      mockCloudRoute('/v1/models?limit=1000&catalog=full', jsonResponse(guestCatalog))
 
       const result = await service['syncEntitledModels']()
 
@@ -621,21 +621,21 @@ describe('CherryCloudService', () => {
       expect(result.amdActivationRequiredModels.map((model) => model.id)).toEqual(['amd/qwen'])
       const created = mocks.modelCreate.mock.calls.flatMap(([rows]) => rows.map((row: any) => row.dto.modelId))
       expect(created).toEqual(['guest-model'])
-      const headers = new Headers(requestCalls('/v1/models?limit=1000')[0][1].headers)
+      const headers = new Headers(requestCalls('/v1/models?limit=1000&catalog=full')[0][1].headers)
       const timestamp = headers.get('X-Timestamp')
       expect(headers.has('Authorization')).toBe(false)
       expect(headers.has('Cherry-Device-ID')).toBe(false)
       expect(headers.get('X-Client-ID')).toBe('cherry-studio')
       expect(headers.get('X-Signature')).toBe(
         createHmac('sha256', 'cloud-login-test-secret')
-          .update(`GET\n/v1/models\nlimit=1000\ncherry-studio\n${timestamp}\n`)
+          .update(`GET\n/v1/models\nlimit=1000&catalog=full\ncherry-studio\n${timestamp}\n`)
           .digest('hex')
       )
     })
 
     it('leaves signed-out users with plan previews when the server refuses the catalog', async () => {
       const service = await createService()
-      mockCloudRoute('/v1/models?limit=1000', cloudErrorResponse(401, 'AUTH_REQUIRED'))
+      mockCloudRoute('/v1/models?limit=1000&catalog=full', cloudErrorResponse(401, 'AUTH_REQUIRED'))
 
       // An unread catalog must not make every stored model look delisted.
       await expect(service['syncEntitledModels']()).resolves.toMatchObject({
@@ -1689,7 +1689,7 @@ describe('CherryCloudService', () => {
     mockModelSync()
     await service.syncEntitledModelsIfStale()
 
-    expect(requestCalls('/v1/models?limit=1000')).toHaveLength(1)
+    expect(requestCalls('/v1/models?limit=1000&catalog=full')).toHaveLength(1)
     // An AMD refusal is about the AMD key, never the Cherry sign-in.
     expect((await service.getStatus()).phase).toBe('signed-in')
     }
@@ -1706,7 +1706,7 @@ describe('CherryCloudService', () => {
     mockModelSync()
     await service.syncEntitledModelsIfStale()
 
-    expect(requestCalls('/v1/models?limit=1000')).toHaveLength(1)
+    expect(requestCalls('/v1/models?limit=1000&catalog=full')).toHaveLength(1)
   })
 
   it('does not keep a model snapshot alive when the system clock moves back', async () => {
@@ -1723,7 +1723,7 @@ describe('CherryCloudService', () => {
       mockModelSync()
       await service.syncEntitledModelsIfStale()
 
-      expect(requestCalls('/v1/models?limit=1000')).toHaveLength(1)
+      expect(requestCalls('/v1/models?limit=1000&catalog=full')).toHaveLength(1)
     } finally {
       vi.useRealTimers()
     }
@@ -1734,7 +1734,7 @@ describe('CherryCloudService', () => {
     const accountRequest = deferred<Response>()
     const catalogRequest = deferred<Response>()
     mockCloudRoute('/api/v1/account', accountRequest.promise)
-    mockCloudRoute('/v1/models?limit=1000', catalogRequest.promise)
+    mockCloudRoute('/v1/models?limit=1000&catalog=full', catalogRequest.promise)
     const waiting = service['syncEntitledModels']()
     await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
 
@@ -1746,7 +1746,7 @@ describe('CherryCloudService', () => {
 
     await expect(waiting).resolves.toHaveProperty('entitledModelIds')
     await expect(refresh).resolves.toHaveProperty('outcome', 'refreshed')
-    expect(requestCalls('/v1/models?limit=1000')).toHaveLength(2)
+    expect(requestCalls('/v1/models?limit=1000&catalog=full')).toHaveLength(2)
   })
 
   it('refreshes plans and model access in one scoped receipt', async () => {
@@ -1878,7 +1878,7 @@ describe('CherryCloudService', () => {
   it('settles a stopped full refresh without waiting for stalled transports', async () => {
     const service = await createSignedInService()
     mockCloudRoute('/api/v1/account', new Promise<Response>(() => undefined))
-    mockCloudRoute('/v1/models?limit=1000', new Promise<Response>(() => undefined))
+    mockCloudRoute('/v1/models?limit=1000&catalog=full', new Promise<Response>(() => undefined))
     mockCloudRoute('/api/v1/account/plans', new Promise<Response>(() => undefined))
     const pending = service.refreshAccount({ scopeId: service.getCurrentScopeId(), reason: 'notification' })
     await vi.waitFor(() => expect(requestCalls('/api/v1/account/plans')).toHaveLength(1))
@@ -2366,7 +2366,7 @@ describe('CherryCloudService', () => {
     const accountRequest = deferred<Response>()
     const catalogRequest = deferred<Response>()
     mockCloudRoute('/api/v1/account', accountRequest.promise)
-    mockCloudRoute('/v1/models?limit=1000', catalogRequest.promise)
+    mockCloudRoute('/v1/models?limit=1000&catalog=full', catalogRequest.promise)
     mockCloudRoute('/v1/messages', cloudErrorResponse(401, 'AUTH_REQUIRED'))
     mockCloudRoute('/api/v1/product-sessions/refresh', cloudErrorResponse(401, 'REAUTH_REQUIRED'))
 
@@ -2388,7 +2388,7 @@ describe('CherryCloudService', () => {
     const oldAccountRequest = deferred<Response>()
     const oldCatalogRequest = deferred<Response>()
     mockCloudRoute('/api/v1/account', oldAccountRequest.promise)
-    mockCloudRoute('/v1/models?limit=1000', oldCatalogRequest.promise)
+    mockCloudRoute('/v1/models?limit=1000&catalog=full', oldCatalogRequest.promise)
     mockCloudRoute('/v1/messages', cloudErrorResponse(401, 'AUTH_REQUIRED'))
     mockCloudRoute('/api/v1/product-sessions/refresh', cloudErrorResponse(401, 'REAUTH_REQUIRED'))
 
@@ -2434,17 +2434,17 @@ describe('CherryCloudService', () => {
     try {
       const service = await createSignedInService()
       mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse(refreshedTokenSet()))
-      mockCloudRoute('/v1/models?limit=1000', jsonResponse({ data: [] }))
+      mockCloudRoute('/v1/models?limit=1000&catalog=full', jsonResponse({ data: [] }))
       clock.mockReturnValue(Date.parse('2030-01-02T03:09:30Z'))
 
       await expect(
-        service.authenticatedFetch('/v1/models?limit=1000', {
+        service.authenticatedFetch('/v1/models?limit=1000&catalog=full', {
           headers: { 'anthropic-version': '2023-06-01' }
         })
       ).resolves.toHaveProperty('status', 200)
 
       const refreshHeaders = new Headers(requestCalls('/api/v1/product-sessions/refresh')[0][1].headers)
-      const modelHeaders = new Headers(requestCalls('/v1/models?limit=1000')[0][1].headers)
+      const modelHeaders = new Headers(requestCalls('/v1/models?limit=1000&catalog=full')[0][1].headers)
       expect(refreshHeaders.has('Authorization')).toBe(false)
       expect(JSON.parse(Buffer.from(requestCalls('/api/v1/product-sessions/refresh')[0][1].body).toString())).toEqual({
         session_id: sessionId,
@@ -2633,7 +2633,7 @@ describe('CherryCloudService', () => {
       const service = await createSignedInService()
       const unauthorized = deferred<Response>()
       mockCloudRoute('/api/v1/account', unauthorized.promise)
-      mockCloudRoute('/v1/models?limit=1000', jsonResponse({ data: [] }))
+      mockCloudRoute('/v1/models?limit=1000&catalog=full', jsonResponse({ data: [] }))
       clock.mockReturnValue(Date.parse('2030-01-02T03:02:00Z'))
       elapsed.mockReturnValue(120_000)
       const sync = service.syncEntitledModelsIfStale()

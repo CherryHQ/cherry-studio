@@ -65,6 +65,8 @@ const PRODUCTION_API_ORIGINS = {
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000
 const CLOUD_CONTROL_REQUEST_TIMEOUT_MS = 30_000
 const CLOUD_MODEL_SYNC_CACHE_TTL_MS = 60_000
+// `catalog=full` asks for every published model; servers keep the legacy entitled-only list for older clients.
+const CLOUD_MODEL_CATALOG_PATH = '/v1/models?limit=1000&catalog=full'
 const AMD_MODEL_PROVIDER = 'amd'
 type CloudCatalogModel = Infer<typeof cloudModelListSchema>['data'][number]
 const isAmdModel = (model: CloudCatalogModel) => model.provider === AMD_MODEL_PROVIDER
@@ -785,7 +787,7 @@ export class CherryCloudService extends BaseService {
       const results = await abortable(
         Promise.allSettled([
           this.getAuthenticatedJson('/api/v1/account', accountSnapshotSchema, { signal: deadline }),
-          this.getAuthenticatedJson('/v1/models?limit=1000', cloudModelListSchema, {
+          this.getAuthenticatedJson(CLOUD_MODEL_CATALOG_PATH, cloudModelListSchema, {
             headers: { 'anthropic-version': '2023-06-01' },
             signal: deadline
           }),
@@ -1082,7 +1084,7 @@ export class CherryCloudService extends BaseService {
   /** The pre-login catalog, signed with the client HMAC; null when refused, leaving plan previews only. */
   private async getGuestCatalog(signal: AbortSignal): Promise<Infer<typeof cloudModelListSchema> | null> {
     try {
-      const response = await this.guestFetch('/v1/models?limit=1000', {
+      const response = await this.guestFetch(CLOUD_MODEL_CATALOG_PATH, {
         method: 'GET',
         headers: { 'anthropic-version': '2023-06-01' },
         signal
@@ -1117,7 +1119,7 @@ export class CherryCloudService extends BaseService {
 
     const [account, catalog] = await Promise.all([
       this.getAuthenticatedJson('/api/v1/account', accountSnapshotSchema, { signal }),
-      this.getAuthenticatedJson('/v1/models?limit=1000', cloudModelListSchema, {
+      this.getAuthenticatedJson(CLOUD_MODEL_CATALOG_PATH, cloudModelListSchema, {
         headers: { 'anthropic-version': '2023-06-01' },
         signal
       })

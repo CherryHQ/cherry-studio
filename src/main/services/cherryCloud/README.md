@@ -47,6 +47,8 @@ browser redeems. Main opens it unchanged, fragment included, only if it is on th
 Cloud API origin. Never log, report or persist it. Concurrent clicks share one
 in-flight entry.
 
+Model sync requests `/v1/models?limit=1000&catalog=full`; without `catalog=full`
+the server keeps the legacy entitled-only list for clients released before it.
 AMD models arrive through `/v1/models` with `provider: "amd"` and need no plan.
 Model sync treats an authorized one (`activation_required` not true) as an
 entitled free model without a quota pool. A locked one never reaches the model
