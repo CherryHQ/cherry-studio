@@ -44,6 +44,7 @@ import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
 import { isExternalCliProvider, isSupportFastMode } from '@shared/utils/provider'
+import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { gatewayCredentialsFingerprint, resolveApiGatewayRuntime } from '../agentApiGateway'
@@ -196,7 +197,15 @@ function buildUsageModels(
         providerId: ref.providerId,
         modelId: ref.modelId,
         pricing: ref.model?.pricing,
-        billing: ref.provider?.settings?.billing,
+        billing:
+          ref.provider?.settings?.billing ??
+          (ref.provider && ref.model
+            ? getDefaultProviderBilling(
+                ref.provider,
+                ref.model,
+                resolveEffectiveEndpoint(ref.provider, ref.model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).baseUrl
+              )
+            : undefined),
         invocationStartedAt: null
       }).pricingSnapshot,
       aliases: new Set<string>()
@@ -403,6 +412,7 @@ async function deriveConnectionConfigFromSnapshot(
   const proxyEnvironmentFingerprint =
     materialized?.proxyEnvironmentFingerprint ?? (await deriveAgentProxyEnvironmentFingerprint(agent, routeFacts))
   const rebuildFacts = {
+    promptSuggestions: !headless && application.get('PreferenceService').get('agent.input.suggestions.enabled'),
     modelId: uniqueModelId,
     contextWindow,
     maxOutputTokens,
@@ -620,6 +630,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     settings,
     effectiveResume: resumeSessionId ?? settings.resume
   })
+
+  options.promptSuggestions = !headless && application.get('PreferenceService').get('agent.input.suggestions.enabled')
 
   return {
     connectionConfig,
@@ -932,8 +944,7 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
   if (!session?.agentId) return undefined
   const agent = agentService.getAgent(session.agentId)
   if (!agent) return undefined
-  // Prewarm the agent default — headless runs ignore session overrides, and interactive
-  // turns pass their effective model when connecting.
+  // Prewarm interactive use of the agent default. Headless turns reconcile their own options.
   const request = await buildClaudeCodeQueryRequestForAgentSession(
     sessionId,
     undefined,
@@ -942,7 +953,7 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
     false,
     [],
     'standard',
-    true
+    false
   )
   if (!request) return undefined
   return {

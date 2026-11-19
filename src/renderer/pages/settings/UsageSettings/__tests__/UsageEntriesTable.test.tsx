@@ -2,8 +2,9 @@
 import '@testing-library/jest-dom/vitest'
 import { render, screen, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode, TableHTMLAttributes, TdHTMLAttributes } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 
+import i18n from '@renderer/i18n/resolver'
 import type { AiUsageRecordEntry } from '@shared/data/types/aiUsageRecord'
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -87,6 +88,62 @@ function formatter(value: string): Intl.DateTimeFormat {
 }
 
 describe('UsageEntriesTable', () => {
+  beforeAll(async () => {
+    await i18n.changeLanguage('zh-cn')
+  })
+
+  it('labels computed positive and zero costs while keeping provider and unpriced amounts distinct', () => {
+    const entries = [
+      {
+        ...entry,
+        id: 'computed',
+        modelName: 'Computed cost',
+        cost: 0.389416,
+        costCurrency: 'USD',
+        costSource: 'computed'
+      },
+      {
+        ...entry,
+        id: 'computed-zero',
+        modelName: 'Zero estimate',
+        cost: 0,
+        costCurrency: 'USD',
+        costSource: 'computed'
+      },
+      { ...entry, id: 'provider', modelName: 'Provider bill', cost: 0.42, costCurrency: 'USD', costSource: 'provider' },
+      { ...entry, id: 'unpriced', modelName: 'Unpriced' }
+    ] satisfies AiUsageRecordEntry[]
+    render(
+      <UsageEntriesTable
+        entries={entries}
+        entryTotal={entries.length}
+        isLoading={false}
+        isRefreshing={false}
+        hasNextPage={false}
+        sortBy="createdAt"
+        sortOrder="desc"
+        onSort={vi.fn()}
+        onLoadNext={vi.fn()}
+        getProviderInfo={() => ({ id: 'minimax', name: 'MiniMax' })}
+        dateFormatter={formatter('Jul 28, 2026')}
+        timeFormatter={formatter('16:23')}
+      />
+    )
+
+    const computed = within(screen.getByRole('row', { name: /Computed cost/ }))
+    expect(computed.getByText('本地估算')).toBeVisible()
+    expect(computed.getByText('$0.3894')).toBeVisible()
+    const zero = within(screen.getByRole('row', { name: /Zero estimate/ }))
+    expect(zero.getByText('本地估算')).toBeVisible()
+    expect(zero.getByText('$0.00')).toBeVisible()
+    const provider = within(screen.getByRole('row', { name: /Provider bill/ }))
+    expect(provider.queryByText('本地估算')).not.toBeInTheDocument()
+    expect(provider.getByText('$0.4200')).toBeVisible()
+    const unpriced = within(screen.getByRole('row', { name: /Unpriced/ }))
+    expect(unpriced.getByText('无法估算')).toBeVisible()
+    expect(unpriced.queryByText('本地估算')).not.toBeInTheDocument()
+  })
+
   it('distinguishes unpriced costs from missing metrics', () => {
     render(
       <UsageEntriesTable

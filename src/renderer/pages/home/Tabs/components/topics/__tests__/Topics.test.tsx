@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as TopicMenuActionsHook from '@renderer/components/chat/actions/useTopicMenuActions'
 import type * as SessionHoverPreviewModule from '@renderer/components/chat/resourceList/SessionHoverPreview'
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
@@ -19,6 +20,27 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { trashErrorCodes } from '@shared/ipc/errors/trash'
+
+await vi.hoisted(async () => {
+  const mockedUi = await import('@cherrystudio/ui')
+  const actual = await vi.importActual<typeof CherryStudioUi>('@cherrystudio/ui')
+
+  vi.doMock('@cherrystudio/ui', () => ({
+    ...mockedUi,
+    DropdownMenu: actual.DropdownMenu,
+    DropdownMenuContent: actual.DropdownMenuContent,
+    DropdownMenuItem: actual.DropdownMenuItem,
+    DropdownMenuPortal: actual.DropdownMenuPortal,
+    DropdownMenuRadioGroup: actual.DropdownMenuRadioGroup,
+    DropdownMenuRadioItem: actual.DropdownMenuRadioItem,
+    DropdownMenuSeparator: actual.DropdownMenuSeparator,
+    DropdownMenuSub: actual.DropdownMenuSub,
+    DropdownMenuSubContent: actual.DropdownMenuSubContent,
+    DropdownMenuSubTrigger: actual.DropdownMenuSubTrigger,
+    DropdownMenuTrigger: actual.DropdownMenuTrigger,
+    MenuItem: actual.MenuItem
+  }))
+})
 
 // Metadata tests isolate the preview; its real hover lifecycle has dedicated coverage.
 vi.mock('@renderer/components/chat/resourceList/SessionHoverPreview', async (importOriginal) => ({
@@ -397,7 +419,8 @@ vi.mock('react-i18next', () => ({
         if (key === 'selector.common.pinned_title') return 'Pinned'
         if (key === 'chat.topics.title') return 'Conversations'
         if (key === 'chat.topics.list') return 'Conversation List'
-        if (key === 'chat.topics.display.title') return 'Display mode'
+        if (key === 'chat.topics.display.title') return 'Group by'
+        if (key === 'chat.list.options') return 'List options'
         if (key === 'chat.topics.display.time') return 'Time'
         if (key === 'chat.topics.display.assistant') return 'Assistant'
         if (key === 'chat.topics.draft') return 'Draft'
@@ -937,6 +960,7 @@ describe('Topics', () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'assistant.icon_type': 'emoji',
       'assistant.tab.sort_type': 'list',
+      'chat.topics.sort': { by: 'orderKey' },
       'topic.tab.display_mode': 'assistant',
       'topic.tab.position': 'left',
       'data.export.menus.docx': true,
@@ -2577,10 +2601,8 @@ describe('Topics', () => {
     })
 
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
-    fireEvent.click(
-      within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant conversations' })
-    )
+    await userEvent.setup().click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete all assistant conversations' }))
     await vi.waitFor(() => expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
 
     // Mid-delete switch to another topic of the same (deleted) set — it dies with the batch.
@@ -2947,12 +2969,10 @@ describe('Topics', () => {
     expect(getByRowText('Alpha topic 1')).toBeInTheDocument()
     expect(getByRowText('Beta topic 1')).toBeInTheDocument()
 
-    // The assistant header exposes history and bulk expand/collapse actions from the filter menu.
+    await userEvent.setup().click(screen.getByRole('button', { name: 'List options' }))
+    const displayModeMenu = screen.getByRole('menu')
 
-    fireEvent.click(screen.getByLabelText('Display mode'))
-    const displayModeMenu = getByRowText('Display mode').closest('[data-testid="menu-list"]')
-
-    fireEvent.click(within(displayModeMenu as HTMLElement).getByRole('button', { name: 'Collapse all' }))
+    fireEvent.click(within(displayModeMenu).getByRole('menuitem', { name: 'Collapse all' }))
 
     expect(getTopicGroupExpansionCache().assistant).toEqual([
       'topic:assistant:assistant-1',
@@ -2960,7 +2980,7 @@ describe('Topics', () => {
     ])
   })
 
-  it('collapses assistant groups across multiple group sections when any group is expanded', () => {
+  it('collapses assistant groups across multiple group sections when any group is expanded', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'assistant.tab.sort_type': 'tags',
       'topic.tab.display_mode': 'assistant'
@@ -2980,8 +3000,8 @@ describe('Topics', () => {
       'aria-expanded',
       'true'
     )
-    fireEvent.click(screen.getByLabelText('Display mode'))
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'List options' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Collapse all' }))
 
     expect(getTopicGroupExpansionCache().assistant).toEqual([
       'topic:assistant:assistant-1',
@@ -3046,18 +3066,19 @@ describe('Topics', () => {
   it('renders the topic header display mode and history actions in the shared menu', async () => {
     const { onOpenHistoryRecords } = renderTopicList()
 
-    fireEvent.click(screen.getByLabelText('Display mode'))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'List options' }))
 
-    const displayModeMenu = getByRowText('Display mode').closest('[data-testid="menu-list"]')
-    fireEvent.click(within(displayModeMenu as HTMLElement).getByRole('button', { name: 'Time' }))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('menuitem', { name: /^Group by/ }))
+    await user.keyboard('{ArrowRight}{Enter}')
     await vi.waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('time')
     })
 
-    fireEvent.click(screen.getByLabelText('Display mode'))
-    const reopenedDisplayModeMenu = getByRowText('Display mode').closest('[data-testid="menu-list"]')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'List options' }))
+    const reopenedDisplayModeMenu = screen.getByRole('menu')
 
-    fireEvent.click(within(reopenedDisplayModeMenu as HTMLElement).getByRole('button', { name: 'History' }))
+    fireEvent.click(within(reopenedDisplayModeMenu).getByRole('menuitem', { name: 'History' }))
     expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
   })
 
@@ -3089,11 +3110,13 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    fireEvent.click(screen.getByLabelText('Display mode'))
-    const displayModeMenu = getByRowText('Display mode').closest('[data-testid="menu-list"]')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'List options' }))
+    const displayModeMenu = screen.getByRole('menu')
     expect(displayModeMenu).not.toBeNull()
 
-    fireEvent.click(within(displayModeMenu as HTMLElement).getByRole('button', { name: 'Assistant' }))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('menuitem', { name: /^Group by/ }))
+    await user.keyboard('{ArrowRight}{ArrowDown}{Enter}')
 
     await vi.waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('assistant')
@@ -3402,7 +3425,7 @@ describe('Topics', () => {
     expect(assistantHeader).toBeInTheDocument()
 
     const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
-    fireEvent.click(moreButton)
+    await userEvent.setup().click(moreButton)
 
     const animationFrameCallbacks: FrameRequestCallback[] = []
     const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
@@ -3410,7 +3433,7 @@ describe('Topics', () => {
       return animationFrameCallbacks.length
     })
 
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Edit Assistant' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit Assistant' }))
 
     await act(async () => {
       for (const callback of animationFrameCallbacks.splice(0)) {
@@ -3427,16 +3450,16 @@ describe('Topics', () => {
     )
     requestAnimationFrameSpy.mockRestore()
 
-    fireEvent.click(moreButton)
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Pin Assistant' }))
+    await userEvent.setup().click(moreButton)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Pin Assistant' }))
     await vi.waitFor(() =>
       expect(pinMutationMocks.createPin).toHaveBeenCalledWith({
         body: { entityType: 'assistant', entityId: 'assistant-1' }
       })
     )
 
-    fireEvent.click(moreButton)
-    const deleteAssistantChatsButton = within(assistantHeader as HTMLElement).getByRole('button', {
+    await userEvent.setup().click(moreButton)
+    const deleteAssistantChatsButton = screen.getByRole('menuitem', {
       name: 'Delete all assistant conversations'
     })
     topicDataMocks.deleteTopicsByAssistantId.mockResolvedValueOnce({
@@ -3473,14 +3496,15 @@ describe('Topics', () => {
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
     expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
 
-    fireEvent.click(moreButton)
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Model' }))
+    await userEvent.setup().click(moreButton)
+    await userEvent.setup().click(screen.getByRole('menuitem', { name: 'Assistant icon' }))
+    await userEvent.setup().click(screen.getByRole('menuitem', { name: 'Model' }))
     await vi.waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('assistant.icon_type' as never)).toBe('model')
     )
 
-    fireEvent.click(moreButton)
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Show in groups' }))
+    await userEvent.setup().click(moreButton)
+    await userEvent.setup().click(screen.getByRole('menuitem', { name: 'Show in groups' }))
     await vi.waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('assistant.tab.sort_type' as never)).toBe('tags')
     )
@@ -3496,10 +3520,8 @@ describe('Topics', () => {
     renderTopicList()
 
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
-    fireEvent.click(
-      within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant conversations' })
-    )
+    await userEvent.setup().click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete all assistant conversations' }))
 
     await vi.waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledTimes(1))
     expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
@@ -3515,10 +3537,8 @@ describe('Topics', () => {
     renderTopicList()
 
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
-    fireEvent.click(
-      within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant conversations' })
-    )
+    await userEvent.setup().click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete all assistant conversations' }))
 
     await vi.waitFor(() => expect(toast.info).toHaveBeenCalledExactlyOnceWith('Already in Recycle Bin'))
     expect(topicDataMocks.refreshTopics).toHaveBeenCalledOnce()
@@ -3535,12 +3555,12 @@ describe('Topics', () => {
 
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
     const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
-    fireEvent.click(moreButton)
+    await userEvent.setup().click(moreButton)
 
-    const addButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'Add to sidebar' })
+    const addButton = screen.getByRole('menuitem', { name: 'Add to sidebar' })
     fireEvent.click(addButton)
-    fireEvent.click(moreButton)
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Add to sidebar' }))
+    await userEvent.setup().click(moreButton)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add to sidebar' }))
 
     await vi.waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar_shortcut' as never)).toEqual([
@@ -3559,9 +3579,9 @@ describe('Topics', () => {
 
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
     const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
-    fireEvent.click(moreButton)
+    await userEvent.setup().click(moreButton)
 
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Remove from sidebar' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove from sidebar' }))
 
     await vi.waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar_shortcut' as never)).toEqual([])
@@ -3578,9 +3598,9 @@ describe('Topics', () => {
     expect(assistantHeader).toBeInTheDocument()
 
     const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
-    fireEvent.click(moreButton)
-    expect(within(assistantHeader as HTMLElement).getByRole('button', { name: /Delete Permanently/ })).toBeEnabled()
-    const deleteAssistantButton = within(assistantHeader as HTMLElement).getByRole('button', {
+    await userEvent.setup().click(moreButton)
+    expect(screen.getByRole('menuitem', { name: /Delete Permanently/ })).toBeEnabled()
+    const deleteAssistantButton = screen.getByRole('menuitem', {
       name: 'Archive'
     })
 
@@ -3634,8 +3654,8 @@ describe('Topics', () => {
     renderTopicList({ onActiveAssistantDeleted })
 
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Archive' }))
+    await userEvent.setup().click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Archive' }))
 
     await vi.waitFor(() =>
       expect(assistantMutationMocks.deleteAssistant).toHaveBeenCalledWith({
@@ -3670,8 +3690,8 @@ describe('Topics', () => {
     renderTopicList({ onActiveAssistantDeleted })
 
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Archive' }))
+    await userEvent.setup().click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Archive' }))
 
     await vi.waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalledTimes(1))
     expect(toast.error).not.toHaveBeenCalled()
@@ -3683,8 +3703,8 @@ describe('Topics', () => {
     renderTopicList({ onActiveAssistantDeleted })
 
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: /Delete Permanently/ }))
+    await userEvent.setup().click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Delete Permanently/ }))
 
     await vi.waitFor(() => expect(permanentDeletePopupMocks.show).toHaveBeenCalledOnce())
     expect(ipcMocks.request).not.toHaveBeenCalledWith('trash.assistant.delete_permanently', expect.anything())
@@ -3696,8 +3716,8 @@ describe('Topics', () => {
         return true
       }
     )
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: /Delete Permanently/ }))
+    await userEvent.setup().click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Delete Permanently/ }))
 
     await vi.waitFor(() =>
       expect(ipcMocks.request).toHaveBeenCalledWith('trash.assistant.delete_permanently', {
@@ -3738,8 +3758,8 @@ describe('Topics', () => {
     renderTopicList({ onActiveAssistantDeleted })
 
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: /Delete Permanently/ }))
+    await userEvent.setup().click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Delete Permanently/ }))
 
     await vi.waitFor(() =>
       expect(ipcMocks.request).toHaveBeenCalledWith('trash.assistant.delete_permanently', {
@@ -3759,9 +3779,9 @@ describe('Topics', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     const { rerenderTopicList } = renderTopicList({ onActiveAssistantDeleted })
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
-    const openPermanentDelete = () => {
-      fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
-      fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: /Delete Permanently/ }))
+    const openPermanentDelete = async () => {
+      await userEvent.setup().click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
+      fireEvent.click(screen.getByRole('menuitem', { name: /Delete Permanently/ }))
     }
 
     let failure: unknown
@@ -3780,7 +3800,7 @@ describe('Topics', () => {
         return true
       }
     )
-    openPermanentDelete()
+    await openPermanentDelete()
     await vi.waitFor(() =>
       expect(failure).toEqual(
         expect.objectContaining({
@@ -3806,7 +3826,7 @@ describe('Topics', () => {
         return true
       }
     )
-    openPermanentDelete()
+    await openPermanentDelete()
     await vi.waitFor(() =>
       expect(ipcMocks.request).toHaveBeenCalledWith('trash.assistant.delete_permanently', {
         assistantId: 'assistant-1',
@@ -3844,8 +3864,8 @@ describe('Topics', () => {
     renderTopicList()
 
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: /Delete Permanently/ }))
+    await userEvent.setup().click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Delete Permanently/ }))
 
     await vi.waitFor(() =>
       expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a'])
@@ -3866,8 +3886,8 @@ describe('Topics', () => {
     renderTopicList()
 
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: /Delete Permanently/ }))
+    await userEvent.setup().click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Delete Permanently/ }))
     await vi.waitFor(() => expect(confirm).toEqual(expect.any(Function)))
 
     setTopicStreamCacheStatus('topic-a', 'pending')
@@ -3898,8 +3918,8 @@ describe('Topics', () => {
     renderTopicList()
 
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
-    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Archive' }))
+    await userEvent.setup().click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Archive' }))
 
     await vi.waitFor(() => expect(toast.info).toHaveBeenCalledExactlyOnceWith('Already in Recycle Bin'))
     expect(assistantQueryMocks.refetchAssistants).toHaveBeenCalledOnce()
@@ -3923,17 +3943,15 @@ describe('Topics', () => {
     const betaHeader = screen.getByRole('button', { name: 'Beta Assistant' }).closest('div')
     expect(alphaHeader).toBeInTheDocument()
     expect(betaHeader).toBeInTheDocument()
-    fireEvent.click(within(alphaHeader as HTMLElement).getByRole('button', { name: 'More' }))
-    fireEvent.click(
-      within(alphaHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant conversations' })
-    )
+    await userEvent.setup().click(within(alphaHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete all assistant conversations' }))
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledTimes(1))
-    fireEvent.click(within(betaHeader as HTMLElement).getByRole('button', { name: 'More' }))
-    const betaDeleteButton = within(betaHeader as HTMLElement).getByRole('button', {
+    await userEvent.setup().click(within(betaHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    const betaDeleteButton = screen.getByRole('menuitem', {
       name: 'Delete all assistant conversations'
     })
-    await vi.waitFor(() => expect(betaDeleteButton).toBeDisabled())
+    await vi.waitFor(() => expect(betaDeleteButton).toHaveAttribute('aria-disabled', 'true'))
     fireEvent.click(betaDeleteButton)
 
     expect(popup.confirm).not.toHaveBeenCalled()
@@ -3985,7 +4003,7 @@ describe('Topics', () => {
     )
   })
 
-  it('keeps assistant management in the topic options menu and suppresses conversation selection while active', () => {
+  it('keeps assistant management in the topic options menu and suppresses conversation selection while active', async () => {
     const onSelect = vi.fn()
     renderTopicList({
       activeTopic: createRendererTopic({ id: 'topic-a', name: 'Alpha topic' }),
@@ -3995,11 +4013,11 @@ describe('Topics', () => {
 
     expect(getTopicRow('Alpha topic')).not.toHaveAttribute('data-selected')
 
-    fireEvent.click(screen.getByLabelText('Display mode'))
-    const displayModeMenu = getByRowText('Display mode').closest('[data-testid="menu-list"]')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'List options' }))
+    const displayModeMenu = screen.getByRole('menu')
     expect(displayModeMenu).not.toBeNull()
 
-    fireEvent.click(within(displayModeMenu as HTMLElement).getByRole('button', { name: 'Manage Assistants' }))
+    fireEvent.click(within(displayModeMenu).getByRole('menuitem', { name: 'Manage Assistants' }))
 
     expect(onSelect).toHaveBeenCalledTimes(1)
   })
@@ -4045,10 +4063,8 @@ describe('Topics', () => {
     expect(assistantHeader).toBeInTheDocument()
 
     const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
-    fireEvent.click(moreButton)
-    fireEvent.click(
-      within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant conversations' })
-    )
+    await userEvent.setup().click(moreButton)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete all assistant conversations' }))
 
     expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
     await vi.waitFor(() => expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))

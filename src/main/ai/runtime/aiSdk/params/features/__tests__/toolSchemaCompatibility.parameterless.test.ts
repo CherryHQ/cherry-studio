@@ -3,11 +3,12 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import type { JSONSchema7, LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
-import { generateText, tool, wrapLanguageModel } from 'ai'
+import { asSchema, generateText, tool, wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
+import * as z from 'zod'
 
 import { createMcpInputSchema } from '@main/ai/tools/adapters/aiSdk/mcpSchema'
-import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 
 import { toolSchemaCompatibilityFeature } from '../toolSchemaCompatibility'
 
@@ -16,6 +17,16 @@ async function getMiddleware(
 ): Promise<LanguageModelMiddleware> {
   const [plugin] = toolSchemaCompatibilityFeature.contributeModelAdapters!({
     ...scope,
+    model: {
+      id: 'custom::test-model',
+      apiModelId: 'test-model',
+      providerId: 'custom',
+      name: 'Test Model',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } satisfies Model,
     sdkConfig: { providerId: scope.runtimeProviderId ?? scope.aiSdkProviderId ?? 'openai-compatible' }
   } as never)
   if (!plugin) throw new Error('Tool-schema compatibility plugin was not contributed')
@@ -35,12 +46,29 @@ async function transform(
 }
 
 describe('parameterless function-tool schemas', () => {
+  it('preserves record key constraints without a model identity on chat and Responses scopes', async () => {
+    const inputSchema = await asSchema(z.object({ options: z.record(z.string(), z.string()) })).jsonSchema
+    delete inputSchema.$schema
+    const original = JSON.parse(JSON.stringify(inputSchema))
+    const descriptor = { type: 'function' as const, name: 'map_tool', inputSchema }
+    const params: LanguageModelV3CallOptions = { prompt: [], tools: [descriptor] }
+
+    expect(inputSchema.properties?.options).toMatchObject({ propertyNames: { type: 'string' } })
+    await expect(transform(params, { endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS })).resolves.toBe(params)
+    await expect(transform(params, { endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES })).resolves.toEqual({
+      ...params,
+      tools: [{ ...descriptor, strict: false }]
+    })
+    expect(inputSchema).toEqual(original)
+  })
+
   it.each([
     { type: 'object', additionalProperties: false },
     { type: 'object' },
     { type: 'object', additionalProperties: true },
     { type: 'object', additionalProperties: { type: 'string' } }
   ] satisfies JSONSchema7[])('adds only root properties to $type schema %j without mutation', async (inputSchema) => {
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const original = structuredClone(inputSchema)
     const descriptor = { type: 'function' as const, name: 'parameterless', inputSchema }
     const params: LanguageModelV3CallOptions = { prompt: [], tools: [descriptor] }
@@ -104,6 +132,7 @@ describe('parameterless function-tool schemas', () => {
       $ref: '#/$defs/Input',
       $defs: { Input: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } }
     }
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const original = structuredClone(inputSchema)
     const params: LanguageModelV3CallOptions = {
       prompt: [],

@@ -1,5 +1,3 @@
-import { app, BrowserWindow, screen } from 'electron'
-
 /**
  * QuickAssistantService — business orchestration for the quick assistant window.
  *
@@ -25,6 +23,8 @@ import { app, BrowserWindow, screen } from 'electron'
  *     `ready-to-show`, but with `show: false` in the registry every user-visible
  *     show now flows through `showQuickAssistant`, so a single capture point suffices.
  */
+import { app, BrowserWindow, screen } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'

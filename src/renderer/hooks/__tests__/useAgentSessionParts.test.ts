@@ -97,7 +97,10 @@ describe('toAgentSessionUIMessage', () => {
       id: 'message-1',
       sessionId: 'session-1',
       role: 'assistant',
-      data: { parts: [{ type: 'text', text: 'from parts' }] },
+      data: {
+        parts: [{ type: 'text', text: 'from parts' }],
+        importedHistory: { source: 'deepseek', messageId: '2', status: 'FINISHED' }
+      },
       searchableText: 'from parts',
       status: 'success',
       modelId: 'anthropic::claude',
@@ -117,6 +120,7 @@ describe('toAgentSessionUIMessage', () => {
       role: 'assistant',
       parts: [{ type: 'text', text: 'from parts' }],
       metadata: {
+        importedHistory: { source: 'deepseek', messageId: '2', status: 'FINISHED' },
         createdAt: '2026-01-01T00:00:00.000Z',
         status: 'success',
         modelId: 'anthropic::claude',

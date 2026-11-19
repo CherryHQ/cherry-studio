@@ -358,7 +358,7 @@ export class AgentService {
    * Create primitive for main-process command orchestration. The caller owns
    * non-data side effects and supplies the already-reserved id.
    */
-  createAgentWithId(id: string, req: AgentCreateInput): AgentEntity {
+  createAgentWithId(id: string, req: AgentCreateInput, avatarFileId?: FileEntryId): AgentEntity {
     // Reserved capability identity — see getBuiltinRole. Seeding writes via createAgentTx.
     if (getBuiltinRole(req.configuration) !== undefined) {
       throw DataApiErrorFactory.invalidOperation(
@@ -424,6 +424,7 @@ export class AgentService {
           for (const skillId of skillIds) {
             globalSkillService.upsertJoinTx(tx, id, skillId, true)
           }
+          if (avatarFileId) this.setAvatarSlotTx(tx, id, avatarFileId)
           return result
         }),
       defaultHandlersFor('Agent', id)
@@ -432,7 +433,7 @@ export class AgentService {
       throw DataApiErrorFactory.invalidOperation('create agent', 'insert succeeded but select returned no row')
     }
 
-    const agent = rowToAgent(row.agent, row.modelName || null, mcps, knowledgeBaseIds)
+    const agent = rowToAgent(row.agent, row.modelName || null, mcps, knowledgeBaseIds, avatarFileId)
     notifyDataApiDataChange([{ endpoint: '/agents', kind: 'membership', entityIds: [id] }])
     this._onAgentCreated.fire({ agentId: id, agent })
     return agent
