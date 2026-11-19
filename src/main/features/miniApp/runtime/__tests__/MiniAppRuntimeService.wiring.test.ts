@@ -20,7 +20,21 @@ vi.mock('../events', () => ({ emitToApp: vi.fn() }))
 
 const { MiniAppRuntimeService } = await import('../MiniAppRuntimeService')
 
-type MiniAppRuntimeServicePrivate = { ipcHandle: BaseService['ipcHandle']; ipcOn: BaseService['ipcOn'] }
+type WiringMethods = {
+  ipcHandle: InstanceType<typeof MiniAppRuntimeService>['ipcHandle']
+  ipcOn: InstanceType<typeof MiniAppRuntimeService>['ipcOn']
+  onReady: InstanceType<typeof MiniAppRuntimeService>['onReady']
+  installedAppIds: InstanceType<typeof MiniAppRuntimeService>['installedAppIds']
+}
+
+type WiringService = Omit<InstanceType<typeof MiniAppRuntimeService>, keyof WiringMethods> & WiringMethods
+
+function wiringService(): WiringService {
+  // SAFETY: Only method visibility changes for source-typed spies; the service instance and public surface stay intact.
+  const service = new MiniAppRuntimeService() as WiringService
+  vi.spyOn(service, 'broadcastAttentionState').mockReturnValue(undefined)
+  return service
+}
 
 // `BaseService` throws on the second `new` of the same class, so without this reset the
 // file dies at case two — naming the singleton guard, not anything under test.
@@ -30,18 +44,18 @@ describe('MiniAppRuntimeService wiring', () => {
   it('wires every channel exactly once in a single onReady', async () => {
     // The bug this guards: a second `onReady` on the same class replaces the first.
     // Nothing throws — the bridge channel and the crash recovery simply never run.
-    const svc = new MiniAppRuntimeService()
+    const svc = wiringService()
     const handled: string[] = []
     const listened: string[] = []
-    vi.spyOn(svc as unknown as MiniAppRuntimeServicePrivate, 'ipcHandle').mockImplementation((c: string) => {
+    vi.spyOn(svc, 'ipcHandle').mockImplementation((c: string) => {
       handled.push(c)
       return { dispose() {} }
     })
-    vi.spyOn(svc as unknown as MiniAppRuntimeServicePrivate, 'ipcOn').mockImplementation((c: string) => {
+    vi.spyOn(svc, 'ipcOn').mockImplementation((c: string) => {
       listened.push(c)
       return { dispose() {} }
     })
-    await (svc as unknown as { onReady: () => Promise<void> }).onReady()
+    await svc.onReady()
 
     expect(handled).toEqual([MINI_APP_BRIDGE_CHANNEL])
     // No `ipcOn` at all now: the bridge is the only channel, and it is request/reply.
@@ -59,36 +73,36 @@ describe('MiniAppRuntimeService wiring', () => {
       { appId: 'com.example.broken', action: 'failed' },
       { appId: 'com.example.ok', action: 'rolled-back' }
     ])
-    const svc = new MiniAppRuntimeService()
-    vi.spyOn(svc as unknown as MiniAppRuntimeServicePrivate, 'ipcHandle').mockImplementation(() => ({ dispose() {} }))
-    vi.spyOn(svc as unknown as MiniAppRuntimeServicePrivate, 'ipcOn').mockImplementation(() => ({ dispose() {} }))
+    const svc = wiringService()
+    vi.spyOn(svc, 'ipcHandle').mockImplementation(() => ({ dispose() {} }))
+    vi.spyOn(svc, 'ipcOn').mockImplementation(() => ({ dispose() {} }))
 
-    await (svc as unknown as { onReady: () => Promise<void> }).onReady()
+    await svc.onReady()
 
     expect(await svc.recovered).toEqual(new Set(['com.example.broken']))
   })
 
   it('pushes a locale change to every installed app', async () => {
-    const svc = new MiniAppRuntimeService()
-    vi.spyOn(svc as unknown as MiniAppRuntimeServicePrivate, 'ipcHandle').mockImplementation(() => ({ dispose() {} }))
-    vi.spyOn(svc as unknown as MiniAppRuntimeServicePrivate, 'ipcOn').mockImplementation(() => ({ dispose() {} }))
-    // `onReady` also broadcasts the attention state, which this stub cannot serve.
-    // Unstubbed, the case fails inside a feature it is not testing.
-    vi.spyOn(svc, 'broadcastAttentionState').mockImplementation(() => ({ dispose() {} }))
-    let onLanguage: ((locale: string | null) => void) | undefined
-    vi.mocked(application.get).mockImplementation(((name: string) =>
-      name === 'PreferenceService'
-        ? { subscribeChange: (_k: string, fn: (l: string | null) => void) => ((onLanguage = fn), () => {}) }
-        : {
-            getDb: () => ({ select: () => ({ from: () => ({ all: () => [{ appId: 'com.example.a' }] }) }) })
-          }) as never)
+    const svc = wiringService()
+    vi.spyOn(svc, 'ipcHandle').mockImplementation(() => ({ dispose() {} }))
+    vi.spyOn(svc, 'ipcOn').mockImplementation(() => ({ dispose() {} }))
+    vi.spyOn(svc, 'installedAppIds').mockReturnValue(['com.example.a', 'com.example.b'])
+    const subscribe = vi.mocked(application.get('PreferenceService').subscribeChange<'app.language'>)
+    let onLanguage: Parameters<typeof subscribe>[1] | undefined
+    subscribe.mockImplementation((key, listener) => {
+      expect(key).toBe('app.language')
+      onLanguage = listener
+      return () => {}
+    })
 
-    await (svc as unknown as { onReady: () => Promise<void> }).onReady()
+    await svc.onReady()
     // Passing null IS the test: an implementation that forwards the callback's own
     // argument pushes `locale: null` at the guest. Passing 'de-DE' would not catch it.
     onLanguage?.(null)
 
     const { emitToApp } = await import('../events')
+    expect(emitToApp).toHaveBeenCalledTimes(2)
     expect(emitToApp).toHaveBeenCalledWith('com.example.a', 'app.localeChange', { locale: 'de-DE' })
+    expect(emitToApp).toHaveBeenCalledWith('com.example.b', 'app.localeChange', { locale: 'de-DE' })
   })
 })
