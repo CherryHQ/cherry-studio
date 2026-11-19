@@ -1,4 +1,4 @@
-import { getToolName, isToolUIPart } from 'ai'
+import { type DynamicToolUIPart, getToolName, isToolUIPart, type ToolUIPart } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
 
 /**
@@ -24,7 +24,7 @@ import { extractOutputMetadata } from '@renderer/utils/message/toolOutput'
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { generateImageOutputSchema } from '@shared/ai/generateImageTool'
 import { isDeferredToolOutput } from '@shared/ai/transport'
-import type { FileUIPart } from '@shared/data/types/message'
+import type { CherryMessagePart, FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { createFilePathHandle, fileUrlToPath, toFileUrl } from '@shared/utils/file'
@@ -91,7 +91,7 @@ export async function hydrateDeferredImageOutputs(
     for (let partIndex = 0; partIndex < parts.length; partIndex += 1) {
       const part = parts[partIndex]
       if (!isGenerateImageToolPart(part)) continue
-      const output = (part as { output?: unknown }).output
+      const output = part.output
       if (!isDeferredToolOutput(output)) continue
       try {
         const response = await ipcApi.request('ai.tool.get_result', output.$deferredToolResult)
@@ -123,11 +123,9 @@ async function resolvePhysicalPath(id: string): Promise<AbsoluteFilePath> {
   return path
 }
 
-function isGenerateImageToolPart(part: unknown): boolean {
-  if (!isToolUIPart(part as never)) return false
-  const toolPart = part as { state?: string }
-  if (toolPart.state !== 'output-available') return false
-  const toolName = getToolName(part as never).trim()
+function isGenerateImageToolPart(part: CherryMessagePart): part is ToolUIPart | DynamicToolUIPart {
+  if (!isToolUIPart(part) || part.state !== 'output-available') return false
+  const toolName = getToolName(part).trim()
   return toolName === GENERATE_IMAGE_TOOL_NAME || toolName === AGENT_GENERATE_IMAGE_TOOL_NAME
 }
 
@@ -138,8 +136,8 @@ function isGenerateImageToolPart(part: unknown): boolean {
  */
 type GenerateImageItem = { key: string; entryId?: string; url?: string; filename?: string; mime?: string }
 
-function parseGenerateImageItems(part: unknown): GenerateImageItem[] {
-  const output = (part as { output?: unknown }).output
+function parseGenerateImageItems(part: ToolUIPart | DynamicToolUIPart): GenerateImageItem[] {
+  const output = part.output
   // An error result carries its explanation as content — check before the unwrap,
   // because extractOutputMetadata may drop the envelope (and its isError flag).
   if (
