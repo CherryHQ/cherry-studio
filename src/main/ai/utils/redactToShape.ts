@@ -72,6 +72,7 @@ function keepKey(path: string, kind: PayloadKind): boolean {
   return kind === 'headers' && (path === 'content-type' || RATE_LIMIT_HEADER.test(path))
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw tool/provider fields have independent types; retain scalars only when both their runtime type and protocol path are allowlisted.
 function keepScalar(value: unknown, path: string, kind: PayloadKind): boolean {
   if (kind === 'request') {
     if (typeof value === 'number') return REQUEST_NUMBERS.has(path)
@@ -95,8 +96,10 @@ function keepScalar(value: unknown, path: string, kind: PayloadKind): boolean {
 }
 
 /** Payload keys and values are private by default; only protocol fields at known paths survive. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool arguments, provider failures and response bodies are opaque; inspect and bound their shape without trusting or exposing arbitrary fields.
 export function redactToShape(value: unknown, kind: PayloadKind = 'tool'): Serializable {
   let nodes = 0
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Nested payloads may contain cycles and non-JSON values; runtime inspection plus depth/node budgets govern their redacted representation.
   const shape = (val: unknown, depth: number, path: string): Serializable => {
     if (nodes++ >= MAX_NODES) return '<truncated>'
     if (val === null || val === undefined) return null
@@ -106,6 +109,7 @@ export function redactToShape(value: unknown, kind: PayloadKind = 'tool'): Seria
     if (typeof val !== 'object') return `<${typeof val}>`
     if (depth >= MAX_DEPTH) return Array.isArray(val) ? `<array:${val.length}>` : '<object>'
     if (Array.isArray(val)) {
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Array.isArray does not validate members of raw payloads; route every entry through the same bounded redaction walker.
       const item = (entry: unknown) => shape(entry, depth + 1, `${path}[]`)
       if (val.length <= MAX_ARRAY_ITEMS) return val.map(item)
       const half = MAX_ARRAY_ITEMS / 2
