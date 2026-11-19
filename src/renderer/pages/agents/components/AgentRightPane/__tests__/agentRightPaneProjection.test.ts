@@ -1,8 +1,9 @@
+import type { DynamicToolUIPart } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { getSubagentTaskStatus } from '@renderer/components/chat/messages/tools/agent'
 import { getPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { type CherryMessagePart, type CherryUIMessage, MessageDataSchema } from '@shared/data/types/message'
 
 import {
   buildAgentRightPaneStatus,
@@ -10,64 +11,92 @@ import {
   findLatestAgentPreviewUrl
 } from '../agentRightPaneProjection'
 
-const message = (id: string, parts: CherryMessagePart[]): CherryUIMessage =>
-  ({
-    id,
-    role: 'assistant',
-    parts,
-    metadata: {},
-    createdAt: '2026-05-21T00:00:00.000Z',
-    updatedAt: '2026-05-21T00:00:00.000Z'
-  }) as CherryUIMessage
+const message = (
+  id: string,
+  parts: CherryMessagePart[]
+): CherryUIMessage & { createdAt: string; updatedAt: string } => ({
+  id,
+  role: 'assistant',
+  parts,
+  metadata: {},
+  createdAt: '2026-05-21T00:00:00.000Z',
+  updatedAt: '2026-05-21T00:00:00.000Z'
+})
 
-const toolPart = (
+type ProjectedToolState = Exclude<DynamicToolUIPart['state'], 'approval-requested' | 'approval-responded'>
+
+function toolPart(
   toolCallId: string,
   toolName: string,
   parentToolCallId?: string,
-  state = 'output-available',
+  state?: ProjectedToolState,
+  input?: unknown
+): DynamicToolUIPart
+function toolPart(
+  toolCallId: string,
+  toolName: string,
+  parentToolCallId: string | undefined,
+  state: 'output-available',
+  input: unknown,
+  output: unknown
+): DynamicToolUIPart
+function toolPart(
+  toolCallId: string,
+  toolName: string,
+  parentToolCallId?: string,
+  state: ProjectedToolState = 'output-available',
   input?: unknown,
   output?: unknown
-): CherryMessagePart =>
-  ({
-    type: 'dynamic-tool',
+): DynamicToolUIPart {
+  const part = {
+    type: 'dynamic-tool' as const,
     toolCallId,
     toolName,
-    state,
     input,
-    output,
     callProviderMetadata: {
       'claude-code': {
         parentToolCallId: parentToolCallId ?? null
       }
     }
-  }) as unknown as CherryMessagePart
+  }
+  if (state === 'output-available') return { ...part, state, output }
+  if (state === 'output-error') return { ...part, state, errorText: 'Tool execution failed' }
+  if (state === 'output-denied') return { ...part, state, approval: { id: `approval-${toolCallId}`, approved: false } }
+  return { ...part, state }
+}
+
+// Historical streaming parts can carry premature output; use the same array-only boundary as message storage.
+function storedPart(part: unknown): CherryMessagePart {
+  const stored = MessageDataSchema.parse({ parts: [part] }).parts?.[0]
+  if (!stored) throw new Error('Expected the stored message part')
+  return stored
+}
 
 // A dsh-runtime tool part: runtime-native lowercase name plus the cherry transport tag its
 // stream adapter stamps — the tag is what lets the projection resolve the canonical tool name.
-const dshToolPart = (toolCallId: string, toolName: string, state: string, input?: unknown): CherryMessagePart =>
-  ({
-    type: 'dynamic-tool',
-    toolCallId,
-    toolName,
-    state,
-    input,
-    callProviderMetadata: {
-      cherry: { transport: 'dsh-agent', tool: { type: 'builtin', name: toolName } }
-    }
-  }) as unknown as CherryMessagePart
+const dshToolPart = (
+  toolCallId: string,
+  toolName: string,
+  state: 'output-available' | 'output-error',
+  input?: unknown
+): DynamicToolUIPart => ({
+  ...toolPart(toolCallId, toolName, undefined, state, input),
+  callProviderMetadata: {
+    cherry: { transport: 'dsh-agent', tool: { type: 'builtin', name: toolName } }
+  }
+})
 
-const textPart = (text: string, parentToolCallId?: string): CherryMessagePart =>
-  ({
-    type: 'text',
-    text,
-    providerMetadata: parentToolCallId
-      ? {
-          'claude-code': {
-            parentToolCallId
-          }
+const textPart = (text: string, parentToolCallId?: string): CherryMessagePart => ({
+  type: 'text',
+  text,
+  providerMetadata: parentToolCallId
+    ? {
+        'claude-code': {
+          parentToolCallId
         }
-      : undefined
-  }) as unknown as CherryMessagePart
+      }
+    : undefined
+})
 
 describe('agent right pane projections', () => {
   it.each(['TaskUpdate', 'TodoWrite'])(
@@ -182,7 +211,7 @@ describe('agent right pane projections', () => {
   })
 
   it('builds a selected tool subtree with text and reasoning parts owned by that subtree', () => {
-    const parts = [
+    const parts: CherryMessagePart[] = [
       toolPart('root', 'Agent', undefined, 'output-available', { prompt: 'Explore the repo' }, 'Done exploring'),
       textPart('child agent text', 'root'),
       toolPart('child', 'Read', 'root'),
@@ -194,7 +223,7 @@ describe('agent right pane projections', () => {
             parentToolCallId: 'child'
           }
         }
-      } as unknown as CherryMessagePart,
+      },
       textPart('outside')
     ]
     const messages = [message('m1', parts)]
@@ -284,7 +313,7 @@ describe('agent right pane projections', () => {
       { prompt: 'Explore the repo' },
       'Repository review complete'
     )
-    const started = {
+    const started: CherryMessagePart = {
       type: 'data-agent-task-event',
       data: {
         event: 'started',
@@ -293,7 +322,7 @@ describe('agent right pane projections', () => {
         status: 'in_progress',
         title: 'Explore the repo'
       }
-    } as unknown as CherryMessagePart
+    }
     const parts = [selected, started]
 
     const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
@@ -481,7 +510,7 @@ describe('agent right pane projections', () => {
   })
 
   it('keeps the plan owned by the main agent when spawned runs write todos or tasks', () => {
-    const parts = [
+    const parts: CherryMessagePart[] = [
       toolPart('todos-main', 'TodoWrite', undefined, 'output-available', {
         todos: [
           { content: 'Design pane', activeForm: 'Designing pane', status: 'completed' },
@@ -509,6 +538,7 @@ describe('agent right pane projections', () => {
         toolName: 'todo_write',
         state: 'output-available',
         input: { todos: [{ content: 'Dsh child todo', status: 'in_progress' }] },
+        output: undefined,
         callProviderMetadata: {
           cherry: {
             transport: 'dsh-agent',
@@ -516,7 +546,7 @@ describe('agent right pane projections', () => {
             tool: { type: 'builtin', name: 'todo_write' }
           }
         }
-      } as unknown as CherryMessagePart
+      }
     ]
 
     const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
@@ -947,7 +977,7 @@ describe('agent right pane projections', () => {
     expect(status.totalTaskCount).toBe(0)
   })
 
-  it.each(['output-error', 'output-denied'])('preserves a task when deletion ends in %s', (state) => {
+  it.each(['output-error', 'output-denied'] as const)('preserves a task when deletion ends in %s', (state) => {
     const parts = [
       toolPart('create', 'TaskCreate', undefined, 'input-available', { subject: 'Existing task' }),
       toolPart('delete', 'TaskUpdate', undefined, state, { taskId: '1', status: 'deleted' })
@@ -1176,7 +1206,7 @@ describe('agent right pane projections', () => {
   it('preserves the current plan when a streaming TaskList already carries an empty output', () => {
     const parts = [
       toolPart('create', 'TaskCreate', undefined, 'input-available', { subject: 'Existing task' }),
-      toolPart('list', 'TaskList', undefined, 'input-available', {}, { tasks: [] })
+      storedPart({ ...toolPart('list', 'TaskList', undefined, 'input-available', {}), output: { tasks: [] } })
     ]
 
     const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
@@ -1188,12 +1218,14 @@ describe('agent right pane projections', () => {
   it.each([
     { state: 'input-available', output: { tasks: [] } },
     { state: 'output-available', output: {} }
-  ])('preserves a TodoWrite snapshot when TaskList has no confirmed snapshot: $state', ({ state, output }) => {
+  ] as const)('preserves a TodoWrite snapshot when TaskList has no confirmed snapshot: $state', ({ state, output }) => {
     const parts = [
       toolPart('todos', 'TodoWrite', undefined, 'output-available', {
         todos: [{ content: 'Existing todo', status: 'in_progress' }]
       }),
-      toolPart('list', 'TaskList', undefined, state, {}, output)
+      state === 'input-available'
+        ? storedPart({ ...toolPart('list', 'TaskList', undefined, state, {}), output })
+        : toolPart('list', 'TaskList', undefined, state, {}, output)
     ]
 
     const status = buildAgentRightPaneStatus([message('m1', parts)], { m1: parts })
@@ -1206,7 +1238,7 @@ describe('agent right pane projections', () => {
   // SDK task events describe spawned processes, not the agent's own plan, so they populate
   // `runTasks` and stay out of the plan's done/total ratio.
   it('applies persisted Claude SDK task events to run tasks, not the plan', () => {
-    const parts = [
+    const parts: CherryMessagePart[] = [
       {
         type: 'data-agent-task-event',
         data: {
@@ -1244,7 +1276,7 @@ describe('agent right pane projections', () => {
           usage: { totalTokens: 1200, toolUses: 4, durationMs: 9000 }
         }
       }
-    ] as unknown as CherryMessagePart[]
+    ]
     const messages = [message('m1', parts)]
 
     const status = buildAgentRightPaneStatus(messages, { m1: parts })
@@ -1307,7 +1339,7 @@ describe('agent right pane projections', () => {
   // in-progress event; the cache applies last, so without the guard every projection rebuild —
   // e.g. a renderer refresh — resurrected the settled row.
   it('never resurrects a settled task from a stale late event', () => {
-    const parts = [
+    const parts: CherryMessagePart[] = [
       {
         type: 'data-agent-task-event',
         data: { event: 'started', taskId: 'bg-1', status: 'in_progress', title: 'Fetch latest', taskType: 'local_bash' }
@@ -1316,7 +1348,7 @@ describe('agent right pane projections', () => {
         type: 'data-agent-task-event',
         data: { event: 'notification', taskId: 'bg-1', status: 'completed', summary: 'done' }
       }
-    ] as unknown as CherryMessagePart[]
+    ]
     const messages = [message('m1', parts)]
 
     const status = buildAgentRightPaneStatus(
@@ -1331,7 +1363,7 @@ describe('agent right pane projections', () => {
   })
 
   it('keeps a stopped task terminal when liveness no longer reports it', () => {
-    const parts = [
+    const parts: CherryMessagePart[] = [
       {
         type: 'data-agent-task-event',
         data: { event: 'started', taskId: 'bg-1', status: 'in_progress', title: 'Fetch latest' }
@@ -1340,7 +1372,7 @@ describe('agent right pane projections', () => {
         type: 'data-agent-task-event',
         data: { event: 'notification', taskId: 'bg-1', status: 'stopped', summary: 'stopped by user' }
       }
-    ] as unknown as CherryMessagePart[]
+    ]
 
     const status = buildAgentRightPaneStatus(
       [message('m1', parts)],
@@ -1355,12 +1387,12 @@ describe('agent right pane projections', () => {
   // A background task's completion arrives after its turn closed, so it never becomes a part.
   // Without merging it the row would stay running for the rest of the session.
   it('settles a run task from lifecycle that arrived after its turn closed', () => {
-    const parts = [
+    const parts: CherryMessagePart[] = [
       {
         type: 'data-agent-task-event',
         data: { event: 'started', taskId: 'bg-1', status: 'in_progress', title: 'sleep 300', taskType: 'local_bash' }
       }
-    ] as unknown as CherryMessagePart[]
+    ]
     const messages = [message('m1', parts)]
 
     const running = buildAgentRightPaneStatus(messages, { m1: parts })
@@ -1394,7 +1426,7 @@ describe('agent right pane projections', () => {
   // An interrupted turn kills its subagents without a completion event, so the persisted parts end
   // at in_progress forever. Liveness — not the events — decides whether a row still spins.
   it('stops a run task the session is no longer running', () => {
-    const parts = [
+    const parts: CherryMessagePart[] = [
       {
         type: 'data-agent-task-event',
         data: { event: 'started', taskId: 'agent-1', status: 'in_progress', title: 'Review', taskType: 'local_agent' }
@@ -1403,7 +1435,7 @@ describe('agent right pane projections', () => {
         type: 'data-agent-task-event',
         data: { event: 'progress', taskId: 'agent-1', status: 'in_progress', description: 'Reading files' }
       }
-    ] as unknown as CherryMessagePart[]
+    ]
     const messages = [message('m1', parts)]
 
     const live = buildAgentRightPaneStatus(
@@ -1434,7 +1466,7 @@ describe('agent right pane projections', () => {
   })
 
   it('does not resurrect a historical run when an unrelated later turn starts', () => {
-    const historicalParts = [
+    const historicalParts: CherryMessagePart[] = [
       {
         type: 'data-agent-task-event',
         data: {
@@ -1445,7 +1477,7 @@ describe('agent right pane projections', () => {
           taskType: 'subagent'
         }
       }
-    ] as unknown as CherryMessagePart[]
+    ]
     const currentParts = [textPart('new turn')]
     const messages = [message('historical', historicalParts), message('current', currentParts)]
 
