@@ -2,8 +2,9 @@ import type { UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { MessageProjection } from '@main/ai/messages/MessageProjection'
+import { webSearchOutputSchema } from '@shared/ai/builtinTools'
 import { applyMessageProjectionUpdate, type TopicProjectionState } from '@shared/ai/messageProjection'
-import { isDeferredToolOutput } from '@shared/ai/transport'
+import { type DeferredToolOutput, isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import {
@@ -51,11 +52,24 @@ function partWith(output: unknown): CherryMessagePart {
     state: 'output-available',
     input: {},
     output
-  } as unknown as CherryMessagePart
+  }
 }
 
 function chunkWith(output: unknown): UIMessageChunk {
   return { type: 'tool-output-available', toolCallId: TOOL_CALL_ID, output }
+}
+
+function deferredOutput(part: CherryMessagePart | UIMessageChunk): DeferredToolOutput {
+  if (!('output' in part) || !isDeferredToolOutput(part.output)) throw new Error('Expected a deferred tool output')
+  return part.output
+}
+
+function citationContent(output: DeferredToolOutput) {
+  const skeleton = output.skeleton
+  if (!skeleton || typeof skeleton !== 'object' || !('content' in skeleton)) {
+    throw new Error('Expected a citation content wrapper')
+  }
+  return webSearchOutputSchema.parse(skeleton.content)
 }
 
 const blob = (key: string, n: number) => ({
@@ -82,7 +96,6 @@ describe('message tool-output projection', () => {
     projection.update({ ...state, messages: [replacement] }, true)
     expect(view.messages[0]).toEqual(replacement)
     expect(view.messages[0]).not.toEqual(first)
-    expect(parts('b'.repeat(64 * 1024))).toEqual(replacement.parts)
     projection.update({ ...state, messages: [{ ...first, parts: [] }] }, true)
     expect(view.messages[0].parts).toEqual([])
     projection.dispose()
@@ -97,11 +110,8 @@ describe('message tool-output projection', () => {
   })
 
   it('replaces an oversized output with a resolvable reference', () => {
-    const projected = projectMessagePartForRenderer(partWith(large), TOPIC_ID, MESSAGE_ID) as unknown as {
-      output: unknown
-    }
-    expect(isDeferredToolOutput(projected.output)).toBe(true)
-    expect(projected.output).toEqual({
+    const projected = deferredOutput(projectMessagePartForRenderer(partWith(large), TOPIC_ID, MESSAGE_ID))
+    expect(projected).toEqual({
       $deferredToolResult: {
         topicId: TOPIC_ID,
         messageId: MESSAGE_ID,
@@ -149,39 +159,31 @@ describe('message tool-output projection', () => {
   })
 
   it('keeps a bounded citation skeleton for an oversized agent lookup', () => {
-    const projected = projectMessagePartForRenderer(partWith(largeAgentWebSearch), TOPIC_ID, MESSAGE_ID) as unknown as {
-      output: {
-        skeleton?: {
-          content: Array<{ id: string; content: string }>
-          metadata: { name: string; serverId: string }
-        }
-      }
-    }
+    const projected = deferredOutput(projectMessagePartForRenderer(partWith(largeAgentWebSearch), TOPIC_ID, MESSAGE_ID))
+    const content = citationContent(projected)
 
-    expect(projected.output.skeleton?.content[0]).toMatchObject({ id: '70536f0b-1' })
-    expect(projected.output.skeleton?.content[0].content.length).toBeLessThan(
-      largeAgentWebSearch.content[0].content.length
-    )
-    expect(projected.output.skeleton?.metadata).toMatchObject({ name: 'web_search', serverId: 'cherry-tools' })
+    expect(content[0]).toMatchObject({ id: '70536f0b-1' })
+    expect(content[0].content.length).toBeLessThan(largeAgentWebSearch.content[0].content.length)
+    expect(projected.skeleton).toMatchObject({ metadata: { name: 'web_search', serverId: 'cherry-tools' } })
   })
 
   it('keeps a citation skeleton for legacy agent lookup metadata without a tool name', () => {
-    const projected = projectMessagePartForRenderer(
-      partWith({
-        content: largeAgentWebSearch.content,
-        metadata: {
-          type: 'mcp',
-          serverName: 'cherry-tools',
-          serverId: 'cherry-tools'
-        }
-      }),
-      TOPIC_ID,
-      MESSAGE_ID
-    ) as unknown as {
-      output: { skeleton?: { metadata: { name?: string; serverId: string } } }
-    }
+    const projected = deferredOutput(
+      projectMessagePartForRenderer(
+        partWith({
+          content: largeAgentWebSearch.content,
+          metadata: {
+            type: 'mcp',
+            serverName: 'cherry-tools',
+            serverId: 'cherry-tools'
+          }
+        }),
+        TOPIC_ID,
+        MESSAGE_ID
+      )
+    )
 
-    expect(projected.output.skeleton?.metadata).toEqual({
+    expect(projected.skeleton).toHaveProperty('metadata', {
       type: 'mcp',
       serverName: 'cherry-tools',
       serverId: 'cherry-tools'
@@ -189,29 +191,27 @@ describe('message tool-output projection', () => {
   })
 
   it('does not expose a citation skeleton for a third-party MCP lookup', () => {
-    const projected = projectMessagePartForRenderer(
-      partWith({
-        ...largeAgentWebSearch,
-        metadata: { ...largeAgentWebSearch.metadata, serverName: 'other-server', serverId: 'other-server' }
-      }),
-      TOPIC_ID,
-      MESSAGE_ID
-    ) as unknown as { output: { skeleton?: unknown } }
+    const projected = deferredOutput(
+      projectMessagePartForRenderer(
+        partWith({
+          ...largeAgentWebSearch,
+          metadata: { ...largeAgentWebSearch.metadata, serverName: 'other-server', serverId: 'other-server' }
+        }),
+        TOPIC_ID,
+        MESSAGE_ID
+      )
+    )
 
-    expect(projected.output.skeleton).toBeUndefined()
+    expect(projected.skeleton).toBeUndefined()
   })
 
   it('trims derived citation entities from the tail to fit the transport budget', () => {
-    const projected = projectMessagePartForRenderer(partWith(manyAgentWebSearch), TOPIC_ID, MESSAGE_ID) as unknown as {
-      output: { skeleton?: { content: unknown[] } }
-    }
+    const projected = deferredOutput(projectMessagePartForRenderer(partWith(manyAgentWebSearch), TOPIC_ID, MESSAGE_ID))
+    const content = citationContent(projected)
 
-    expect(isDeferredToolOutput(projected.output)).toBe(true)
-    expect(projected.output.skeleton?.content.length).toBeGreaterThan(0)
-    expect(projected.output.skeleton?.content.length).toBeLessThan(manyAgentWebSearch.content.length)
-    expect(new TextEncoder().encode(JSON.stringify(projected.output)).length).toBeLessThanOrEqual(
-      DEFER_TOOL_OUTPUT_BYTES
-    )
+    expect(content.length).toBeGreaterThan(0)
+    expect(content.length).toBeLessThan(manyAgentWebSearch.content.length)
+    expect(new TextEncoder().encode(JSON.stringify(projected)).length).toBeLessThanOrEqual(DEFER_TOOL_OUTPUT_BYTES)
   })
 
   // The two paths must agree, or a card renders one way while streaming and another after reload.
@@ -220,13 +220,10 @@ describe('message tool-output projection', () => {
     ['large', large],
     ['large agent lookup', largeAgentWebSearch]
   ])('projects a %s output identically through the stored and live paths', (_label, output) => {
-    const fromPart = (
-      projectMessagePartForRenderer(partWith(output), TOPIC_ID, MESSAGE_ID) as unknown as { output: unknown }
-    ).output
-    const fromChunk = (
-      projectStreamChunkForRenderer(chunkWith(output), TOPIC_ID, MESSAGE_ID) as unknown as { output: unknown }
-    ).output
-    expect(fromPart).toEqual(fromChunk)
+    const fromPart = projectMessagePartForRenderer(partWith(output), TOPIC_ID, MESSAGE_ID)
+    const fromChunk = projectStreamChunkForRenderer(chunkWith(output), TOPIC_ID, MESSAGE_ID)
+    if (!('output' in fromPart) || !('output' in fromChunk)) throw new Error('Expected tool outputs')
+    expect(fromPart.output).toEqual(fromChunk.output)
   })
 
   // CJK is one UTF-16 code unit but three UTF-8 bytes.
@@ -234,9 +231,8 @@ describe('message tool-output projection', () => {
     const cjk = { content: '\u6d4b'.repeat(DEFER_TOOL_OUTPUT_BYTES / 2) }
     expect(JSON.stringify(cjk).length).toBeLessThan(DEFER_TOOL_OUTPUT_BYTES)
 
-    const projected = projectMessagePartForRenderer(partWith(cjk), TOPIC_ID, MESSAGE_ID) as unknown as {
-      output: unknown
-    }
+    const projected = projectMessagePartForRenderer(partWith(cjk), TOPIC_ID, MESSAGE_ID)
+    if (!('output' in projected)) throw new Error('Expected a tool output')
     expect(isDeferredToolOutput(projected.output)).toBe(true)
   })
 
@@ -246,10 +242,8 @@ describe('message tool-output projection', () => {
   })
 
   it('is not topic-specific — an ordinary chat topic defers on the same rule', () => {
-    const projected = projectMessagePartForRenderer(partWith(large), 'topic-42', MESSAGE_ID) as unknown as {
-      output: unknown
-    }
-    expect(isDeferredToolOutput(projected.output)).toBe(true)
+    const projected = deferredOutput(projectMessagePartForRenderer(partWith(large), 'topic-42', MESSAGE_ID))
+    expect(projected.$deferredToolResult.topicId).toBe('topic-42')
   })
 
   it('projects a persisted envelope to a deferred reference carrying the excerpt', () => {
@@ -264,11 +258,8 @@ describe('message tool-output projection', () => {
         shape: 'text'
       }
     }
-    const projected = projectMessagePartForRenderer(partWith(persisted), TOPIC_ID, MESSAGE_ID) as unknown as {
-      output: unknown
-    }
-    expect(isDeferredToolOutput(projected.output)).toBe(true)
-    expect(projected.output).toEqual({
+    const projected = deferredOutput(projectMessagePartForRenderer(partWith(persisted), TOPIC_ID, MESSAGE_ID))
+    expect(projected).toEqual({
       $deferredToolResult: {
         topicId: TOPIC_ID,
         messageId: MESSAGE_ID,
@@ -288,11 +279,10 @@ describe('message tool-output projection', () => {
         blobRefs: [blob('/0/content', 1)]
       }
     }
-    const projected = projectMessagePartForRenderer(partWith(persisted), TOPIC_ID, MESSAGE_ID) as unknown as {
-      output: { skeleton?: Array<{ id: string; content: string }> }
-    }
+    const projected = deferredOutput(projectMessagePartForRenderer(partWith(persisted), TOPIC_ID, MESSAGE_ID))
+    const content = webSearchOutputSchema.parse(projected.skeleton)
 
-    expect(projected.output).toMatchObject({
+    expect(projected).toMatchObject({
       $deferredToolResult: {
         topicId: TOPIC_ID,
         messageId: MESSAGE_ID,
@@ -301,11 +291,9 @@ describe('message tool-output projection', () => {
       },
       excerpt: { head: 'head-1', tail: 'tail-1', totalChars: 1000, totalLines: 10 }
     })
-    expect(projected.output.skeleton?.[0]).toMatchObject({ id: '70536f0b-1' })
-    expect(projected.output.skeleton?.[0].content.length).toBeLessThan(skeleton[0].content.length)
-    expect(new TextEncoder().encode(JSON.stringify(projected.output)).length).toBeLessThanOrEqual(
-      DEFER_TOOL_OUTPUT_BYTES
-    )
+    expect(content[0]).toMatchObject({ id: '70536f0b-1' })
+    expect(content[0].content.length).toBeLessThan(skeleton[0].content.length)
+    expect(new TextEncoder().encode(JSON.stringify(projected)).length).toBeLessThanOrEqual(DEFER_TOOL_OUTPUT_BYTES)
   })
 
   it('trims persisted citation entities from the tail to fit the transport budget', () => {
@@ -316,14 +304,11 @@ describe('message tool-output projection', () => {
         blobRefs: [blob('/0/content', 1)]
       }
     }
-    const projected = projectMessagePartForRenderer(partWith(persisted), TOPIC_ID, MESSAGE_ID) as unknown as {
-      output: { skeleton?: unknown[] }
-    }
+    const projected = deferredOutput(projectMessagePartForRenderer(partWith(persisted), TOPIC_ID, MESSAGE_ID))
+    const content = webSearchOutputSchema.parse(projected.skeleton)
 
-    expect(projected.output.skeleton?.length).toBeGreaterThan(0)
-    expect(projected.output.skeleton?.length).toBeLessThan(manyAgentWebSearch.content.length)
-    expect(new TextEncoder().encode(JSON.stringify(projected.output)).length).toBeLessThanOrEqual(
-      DEFER_TOOL_OUTPUT_BYTES
-    )
+    expect(content.length).toBeGreaterThan(0)
+    expect(content.length).toBeLessThan(manyAgentWebSearch.content.length)
+    expect(new TextEncoder().encode(JSON.stringify(projected)).length).toBeLessThanOrEqual(DEFER_TOOL_OUTPUT_BYTES)
   })
 })
