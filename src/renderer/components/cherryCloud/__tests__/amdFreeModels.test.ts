@@ -4,7 +4,7 @@ import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 import { cherryCloudErrorCodes } from '@shared/ipc/errors/cherryCloud'
 
-import { openAmdRegistration } from '../amdFreeModels'
+import { getAmdActionLabelKey, openAmdRegistration } from '../amdFreeModels'
 
 const request = vi.mocked(window.api.ipcApi.request)
 
@@ -38,5 +38,23 @@ describe('openAmdRegistration', () => {
     await expect(openAmdRegistration('qwen3-8-27b')).resolves.toBeUndefined()
 
     expect(toast.error).toHaveBeenCalledWith({ key: 'cherry-cloud-amd-entry', title: i18n.t(title) })
+  })
+})
+
+describe('getAmdActionLabelKey', () => {
+  const status = (action: string, state = 'unregistered') => ({ status: state, action, activated: false })
+
+  it.each([
+    [status('register'), 'models.amd_free.action.register'],
+    // With registration closed the server asks to link, so the row never offers a new registration.
+    [status('login', 'existing_account'), 'models.amd_free.action.link'],
+    [status('login', 'credential_invalid'), 'models.amd_free.action.reverify'],
+    [status('continue', 'pending'), 'models.amd_free.action.continue'],
+    [status('wait', 'pending'), 'models.amd_free.action.wait'],
+    [status('contact_support', 'needs_review'), 'models.amd_free.action.contact_support'],
+    [undefined, 'models.amd_free.tag'],
+    [status('something-new'), 'models.amd_free.tag']
+  ])('names the next AMD step for %o', (value, key) => {
+    expect(getAmdActionLabelKey(value)).toBe(key)
   })
 })

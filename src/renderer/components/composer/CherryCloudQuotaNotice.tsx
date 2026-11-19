@@ -3,9 +3,10 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
-import { openAmdRegistration } from '@renderer/components/cherryCloud/amdFreeModels'
+import { getAmdActionLabelKey, openAmdRegistration } from '@renderer/components/cherryCloud/amdFreeModels'
 import { useCommandRuntime } from '@renderer/hooks/command'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
+import { useCherryCloudAmdStatus } from '@renderer/hooks/useCherryCloudAmdStatus'
 import type { CherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
 import { trackSubscriptionEntryView, trackSubscriptionEvent } from '@renderer/services/cherryCloudSubscriptionAnalytics'
@@ -19,6 +20,7 @@ export function CherryCloudQuotaNotice({ exhaustion }: { exhaustion: CherryCloud
   const quota = reason === 'quota_exhausted'
   const signIn = reason === 'sign_in_required'
   const session = useCherryAccountSession(signIn)
+  const amdStatus = useCherryCloudAmdStatus(reason === 'amd_activation_required')
   const offerSubscription = quota
     ? exhaustion.isFreeModel && exhaustion.isSubscribed === false
     : reason === 'subscription_required'
@@ -73,7 +75,7 @@ export function CherryCloudQuotaNotice({ exhaustion }: { exhaustion: CherryCloud
         </Button>
       ) : exhaustion.reason === 'amd_activation_required' ? (
         <Button type="button" size="sm" onClick={() => void openAmdRegistration(exhaustion.cloudModelId)}>
-          {t('models.amd_free.tag')}
+          {t(getAmdActionLabelKey(amdStatus))}
         </Button>
       ) : quota || offerSubscription ? (
         <Button

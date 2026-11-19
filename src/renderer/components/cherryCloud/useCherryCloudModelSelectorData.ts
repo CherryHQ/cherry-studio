@@ -112,7 +112,7 @@ export function useCherryCloudModelSelectorOffers(
   showOffers: boolean
 ) {
   const { session, plansQuery, activePaid, upcomingPaid, isPlansReady } = useCherryCloudPlans(enabled)
-  const { amdActivationRequiredModels } = useCherryCloudModelAvailability(enabled)
+  const { amdActivationRequiredModels, signInRequiredModels } = useCherryCloudModelAvailability(enabled)
   const [cachedPlanModels, setCachedPlanModels] = usePersistCache('ui.cherry_cloud.plan_models')
   const livePlanModels = useMemo(
     () =>
@@ -144,12 +144,12 @@ export function useCherryCloudModelSelectorOffers(
       : []
     const candidates: { kind: CherryCloudOfferKind; offer: CherryCloudPlanModel }[] = showOffers
       ? [
-          ...(signedOut ? (publicModels(true) ?? []) : []).map((offer) => ({ kind: 'sign_in' as const, offer })),
-          ...subscriptionModels.map((offer) => ({ kind: 'subscription' as const, offer })),
-          ...(signedOut ? (publicPlans?.amd_models ?? []) : amdActivationRequiredModels).map((offer) => ({
-            kind: 'amd' as const,
+          ...[...(signedOut ? (publicModels(true) ?? []) : []), ...signInRequiredModels].map((offer) => ({
+            kind: 'sign_in' as const,
             offer
-          }))
+          })),
+          ...subscriptionModels.map((offer) => ({ kind: 'subscription' as const, offer })),
+          ...amdActivationRequiredModels.map((offer) => ({ kind: 'amd' as const, offer }))
         ]
       : []
     // A model in a free plan is offered as free, never as a reason to subscribe.
@@ -176,6 +176,7 @@ export function useCherryCloudModelSelectorOffers(
     cachedPlanModels,
     livePlanModels,
     amdActivationRequiredModels,
+    signInRequiredModels,
     includeAgentOnlyModels,
     offerFilter
   ])

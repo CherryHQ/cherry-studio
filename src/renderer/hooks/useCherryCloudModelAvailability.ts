@@ -49,6 +49,7 @@ export function useCherryCloudModelAvailability(enabled = true) {
     const generalModelIds = new Set(cloudAvailability?.availableModelIds.general)
     const settled = availabilityFreshness === 'fresh'
     const amdActivationRequiredModels = cloudAvailability?.amdActivationRequiredModels ?? []
+    const signInRequiredModels = cloudAvailability?.signInRequiredModels ?? []
     const amdActivationRequiredIds = new Set(
       amdActivationRequiredModels.map((model) => createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id))
     )
@@ -62,6 +63,8 @@ export function useCherryCloudModelAvailability(enabled = true) {
       revision: receipt?.status.revision,
       /** AMD models the account must authorize with AMD before use; offered as locked rows, not stored models. */
       amdActivationRequiredModels,
+      /** Standalone models a signed-out user can unlock by signing in. */
+      signInRequiredModels,
       isAmdActivationRequired: (model: Pick<Model, 'id' | 'providerId'>) =>
         settled && amdActivationRequiredIds.has(model.id),
       /** Hidden until the first snapshot arrives, then hidden wherever the server does not enable it. */

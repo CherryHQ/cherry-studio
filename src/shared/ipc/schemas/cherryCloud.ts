@@ -42,7 +42,9 @@ const cherryCloudModelSyncResultSchema = z.strictObject({
   }),
   quotaExhaustedModelIds: z.array(UniqueModelIdSchema),
   /** AMD models the account can use only after authorizing AMD; they stay out of the model table until then. */
-  amdActivationRequiredModels: z.array(cherryCloudAmdModelSchema)
+  amdActivationRequiredModels: z.array(cherryCloudAmdModelSchema),
+  /** Standalone models that need only a Cherry AI sign-in; empty once signed in. */
+  signInRequiredModels: z.array(cherryCloudPlanModelSchema)
 })
 
 export type CherryCloudModelSyncResult = z.infer<typeof cherryCloudModelSyncResultSchema>
@@ -79,10 +81,20 @@ export const cherryCloudPublicPlanCatalogSchema = z.looseObject({
       models: z.array(cherryCloudPlanModelSchema),
       subscription_price: cherryCloudSubscriptionPriceSchema.optional()
     })
-  ),
-  /** Main adds the AMD entries of the public `/v1/models`; absent or empty where AMD is not offered. */
-  amd_models: z.array(cherryCloudAmdModelSchema).optional()
+  )
 })
+
+/** `GET /api/v1/amd/desktop/status`: what the signed-in account must do next to use AMD models. */
+export const cherryCloudAmdStatusSchema = z.looseObject({
+  status: z.string(),
+  /** `register`, `login` (link or re-verify), `continue`, `wait`, `contact_support` or `none`. */
+  action: z.string(),
+  activated: z.boolean(),
+  registration_enabled: z.boolean().optional(),
+  reference: z.string().optional()
+})
+
+export type CherryCloudAmdStatus = z.infer<typeof cherryCloudAmdStatusSchema>
 
 const cherryCloudQuotaWindowSchema = z.looseObject({
   /** `subscription_month` follows the billing period and resets at `period_end`. */
@@ -286,6 +298,7 @@ export const cherryCloudRequestSchemas = {
     output: z.strictObject({ outcome: z.enum(['opened', 'superseded']) })
   }),
   'cherry_cloud.public_plans.get': defineRoute({ input: z.void(), output: cherryCloudPublicPlanCatalogSchema }),
+  'cherry_cloud.amd_status.get': defineRoute({ input: z.void(), output: cherryCloudAmdStatusSchema.nullable() }),
   'cherry_cloud.analytics.track': defineRoute({
     input: z.strictObject({ payload: cherryCloudAnalyticsEventSchema, scopeId: z.string().nullable().optional() }),
     output: z.void()

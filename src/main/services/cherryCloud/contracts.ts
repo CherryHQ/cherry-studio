@@ -132,7 +132,10 @@ export const cloudModelListSchema = z.looseObject({
       provider: z.string().optional(),
       activation_required: z.boolean().optional(),
       /** Same-origin API path that issues the browser activation link; never a page to open directly. */
-      activation_endpoint: z.string().optional()
+      activation_endpoint: z.string().optional(),
+      /** Served by a server-side key outside any plan; `requires_login: false` also admits signed-out callers. */
+      standalone: z.boolean().optional(),
+      requires_login: z.boolean().optional()
     })
   )
 })

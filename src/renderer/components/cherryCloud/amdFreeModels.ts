@@ -5,6 +5,25 @@ import { toast } from '@renderer/services/toast'
 import { getCherryCloudSignInErrorMessage } from '@renderer/utils/cherryCloudSignIn'
 import { cherryCloudErrorCodes } from '@shared/ipc/errors/cherryCloud'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import type { CherryCloudAmdStatus } from '@shared/ipc/schemas/cherryCloud'
+
+/** Names the AMD step the account needs next from the server's `action`; generic until the status is known. */
+export function getAmdActionLabelKey(status: CherryCloudAmdStatus | undefined) {
+  switch (status?.action) {
+    case 'register':
+      return 'models.amd_free.action.register'
+    case 'login':
+      return status.status === 'credential_invalid' ? 'models.amd_free.action.reverify' : 'models.amd_free.action.link'
+    case 'continue':
+      return 'models.amd_free.action.continue'
+    case 'wait':
+      return 'models.amd_free.action.wait'
+    case 'contact_support':
+      return 'models.amd_free.action.contact_support'
+    default:
+      return 'models.amd_free.tag'
+  }
+}
 
 /** Main signs in when required, then opens the single-use AMD entry that proves the visit came from this client. */
 export async function openAmdRegistration(modelId: string): Promise<void> {

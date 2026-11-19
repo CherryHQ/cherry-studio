@@ -51,6 +51,7 @@ export const cherryCloudHandlers: IpcHandlersFor<typeof cherryCloudRequestSchema
   'cherry_cloud.account_portal.open': async (input, ctx) =>
     application.get('CherryCloudService').openAccountPortal(input, ctx.senderId),
   'cherry_cloud.public_plans.get': async () => application.get('CherryCloudService').getPublicPlans(),
+  'cherry_cloud.amd_status.get': async () => application.get('CherryCloudService').getAmdStatus(),
   'cherry_cloud.analytics.track': async ({ payload, scopeId }) => trackCherryCloudAnalyticsEvent(payload, scopeId),
   'cherry_cloud.notifications.active.get': async () =>
     application.getOptional('CherryCloudNotificationService')?.isActive() ?? false

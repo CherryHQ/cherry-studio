@@ -34,14 +34,15 @@ AMD 合作方注册接口（ADP v0.1，2026-10-27）只接受携带 AMD 分配�
 ### 桌面客户端（`cherry-studio`）
 
 - CherryAI 选择器分组向所有用户展示服务端目录，客户端自己不保存模型列表。每个锁定行写明解锁方式：
-  - **免费模型**：未登录时，`/api/v1/public/plans` 中免费套餐的模型显示为锁定行；点击后登录 Cherry AI。
+  - **免费模型**：未登录时，`/api/v1/public/plans` 中免费套餐的模型，以及 `requires_login: true` 的独立模型，显示为锁定行。点击后先登录 Cherry AI，再选中该模型，接着完成用户刚才的操作。
   - **订阅模型**：与现在一样展示付费套餐预览；点击后开始订阅。
   - **AMD 模型**：未登录时取客户端 HMAC 签名的 `/v1/models` 中的 AMD 条目，登录后取其中 `activation_required` 的条目，显示为「AMD 授权」锁定行，hover 说明需要 AMD 授权。点击时如未登录先登录，再由主进程向已签名目录中该模型的 `activation_endpoint` 申请入口链接，并原样在系统浏览器中打开；如果账号其实已经授权，则不打开任何页面。客户端不自行拼接页面地址，也不记录、上报或保存该链接。
+- 未登录时，模型同步用客户端 HMAC 读取 `/v1/models`。`requires_login: false` 的独立模型直接可用，其请求用对完整请求体的客户端 HMAC 签名，不带会话。登录后，所有独立模型无需套餐即可使用。
 - 已授权的 AMD 模型与已授权的套餐模型一样同步进 CherryAI 提供方，标记免费且不占额度。未授权的 AMD 模型不写入模型表。
 - 对话请求被 `AMD_ACTIVATION_REQUIRED` 或 `AMD_CREDENTIAL_INVALID` 拒绝时，模型快照失效，下次同步把该模型显示为锁定；输入框随后显示「AMD 授权」而不是发送。Cherry 登录保持不变。
-- 客户端不读取 `GET /api/v1/amd/desktop/status`。行内文案只说 AMD 授权，不承诺新注册，因此注册关闭时依然正确；注册、关联和等待的分支由网页负责。
+- 登录后，AMD 锁定行和输入框提示读取 `GET /api/v1/amd/desktop/status`，按 `action` 显示下一步：注册、关联已有账号、重新验证（`credential_invalid`）、继续开通、开通中或联系客服。状态未知或未登录时显示「AMD 授权」。注册关闭时服务端返回关联，因此客户端此时不会提供新注册。
 - 内置 Qwen 模型需要登录 Cherry AI 账号：未登录时主进程拒绝其请求，输入框显示现有的登录提示。服务端免费套餐提供等价模型后再下线 Qwen。
-- 用户回到应用后，现有的窗口聚焦刷新会重新同步套餐和模型，不新增轮询。
+- 用户通过 `cherrystudio://navigate/settings/provider` 回跳或手动切回应用后，窗口聚焦会重新读取 AMD 状态并同步套餐和模型；以 `activated: true` 和目录中解锁的条目确认开通。不新增轮询。
 - 是否提供 AMD 由服务端决定：海外区域不返回 AMD 模型。隐藏订阅推荐的选择器不显示任何锁定行。
 
 ### 范围限制
@@ -68,7 +69,7 @@ AMD 合作方注册接口（ADP v0.1，2026-10-27）只接受携带 AMD 分配�
 - AC5 — 模型负载接口为已注册账号返回 AMD 各模型的负载，保留 `unknown`，并拒绝未注册账号。（verification: unit 和 integration；owner: Cloud API）
 - AC6 — 模型的 `activation_endpoint`（`/api/v1/amd/desktop/entry`）返回的入口链接以同一 Cherry 账号打开网页，用一次或 60 秒后失效，无法重放；桌面端以签名的空请求体 POST 申请，原样打开返回的地址，并拒绝 Cloud API 域名之外的地址。（verification: integration 和主进程测试；owner: Cloud API 和 desktop）
 - AC7 — 网页对接 Cloud API 接口完成三步注册并显示状态页，把透传的字段错误放到对应步骤，且不对未触碰的空字段显示必填错误。（verification: web 单元测试和测试部署上的人工验证；owner: web 项目）
-- AC8 — CherryAI 选择器分组展示服务端目录：未登录时，免费、订阅和 AMD 行各自以对应的解锁方式（登录、订阅、AMD 授权）锁定；登录后，未授权的 AMD 模型显示为「AMD 授权」锁定行，授权并聚焦刷新后显示为可选的免费模型；客户端不保存模型列表，不显示订阅推荐的选择器中没有锁定行。AMD 拒绝请求时模型被锁定但不登出，输入框提供 AMD 授权。未登录时 Qwen 无法发送，输入框提示登录。（verification: renderer 和主进程测试、Electron；owner: desktop）
+- AC8 — CherryAI 选择器分组展示服务端目录：未登录时，免费、独立、订阅和 AMD 行各自以对应的解锁方式（登录后选中、订阅、AMD 授权）锁定，游客可用的独立模型以客户端 HMAC 调用；登录后 AMD 行按状态的 `action` 显示；登录后，未授权的 AMD 模型显示为「AMD 授权」锁定行，授权并聚焦刷新后显示为可选的免费模型；客户端不保存模型列表，不显示订阅推荐的选择器中没有锁定行。AMD 拒绝请求时模型被锁定但不登出，输入框提供 AMD 授权。未登录时 Qwen 无法发送，输入框提示登录。（verification: renderer 和主进程测试、Electron；owner: desktop）
 - AC9 — 任一 `CLOUD_API_AMD_*` 配置缺失，或在全球区域时，AMD 路由、目录条目和网关分支均不生效，现有行为不变。（verification: unit 配置测试；owner: Cloud API）
 
 ## 风险

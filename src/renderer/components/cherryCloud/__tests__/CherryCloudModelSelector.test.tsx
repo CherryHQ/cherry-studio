@@ -1,3 +1,4 @@
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -31,7 +32,10 @@ vi.mock('@renderer/hooks/useCherryCloudPlans', () => ({
     isPlansReady: false
   })
 }))
-const availability = vi.hoisted(() => ({ hidesEveryModel: true }))
+const availability = vi.hoisted(() => ({
+  hidesEveryModel: true,
+  amdLocked: [] as { id: string; display_name: string; available_features: ('chat' | 'translate')[] }[]
+}))
 vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
   useCherryCloudModelAvailability: () => ({
     isModelHidden: () => availability.hidesEveryModel,
@@ -40,7 +44,8 @@ vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
     getModelDescription: () => undefined,
     isAvailabilityReady: true,
     availabilityError: undefined,
-    amdActivationRequiredModels: []
+    amdActivationRequiredModels: availability.amdLocked,
+    signInRequiredModels: []
   })
 }))
 vi.mock('@renderer/services/cherryCloudSubscription', () => ({
@@ -125,12 +130,16 @@ describe('AMD free models', () => {
         is_free: true,
         models: [{ id: 'free-model', display_name: 'Free Model', available_features: [...general] }]
       }
-    ],
-    amd_models: [{ id: 'amd/qwen', display_name: 'AMD Qwen', available_features: ['chat', 'translate'] }]
+    ]
   }
 
   it('lists the server catalog in the CherryAI group, with AMD rows last, and unlocks each its own way', async () => {
     availability.hidesEveryModel = false
+    availability.amdLocked = [{ id: 'amd/qwen', display_name: 'AMD Qwen', available_features: ['chat', 'translate'] }]
+    const freeModelId = 'cherryai-subscription::free-model'
+    const freeModel = model('cherryai-subscription', 'free-model')
+    MockDataApiUtils.setCustomResponse(`/models/${freeModelId}`, 'GET', freeModel)
+    const onSelect = vi.fn()
     const providers = [provider('cherryai', 'CherryAI'), provider('openai', 'OpenAI')]
     const models = [model('cherryai', 'qwen'), model('openai', 'gpt-4')]
     mockUseQuery.mockImplementation((path: string) => ({
@@ -140,15 +149,18 @@ describe('AMD free models', () => {
       refetch: vi.fn(async () => undefined),
       mutate: vi.fn(async () => undefined)
     }))
-    request.mockImplementation(async (route: string) =>
-      route === 'cherry_cloud.public_plans.get' ? { ok: true, data: publicCatalog } : { ok: true, data: undefined }
-    )
+    const replies: Record<string, unknown> = {
+      'cherry_cloud.public_plans.get': publicCatalog,
+      'cherry_cloud.login.start': { outcome: 'signed-in', status: {} },
+      'cherry_cloud.models.sync': { availableModelIds: { agent: [freeModelId], general: [freeModelId] } }
+    }
+    request.mockImplementation(async (route: string) => ({ ok: true, data: replies[route] }))
     const selector = () => (
       <SWRConfig value={{ provider: () => new Map() }}>
         <CherryCloudModelSelector
           multiple={false}
           open
-          onSelect={vi.fn()}
+          onSelect={onSelect}
           trigger={<button type="button">Models</button>}
         />
       </SWRConfig>
@@ -171,9 +183,12 @@ describe('AMD free models', () => {
       rerender(selector())
       await userEvent.click(await screen.findByText('Free Model'))
       expect(request).toHaveBeenCalledWith('cherry_cloud.login.start', undefined)
+      // Signing in finishes the click: the model the row stood for becomes the selection.
+      await waitFor(() => expect(onSelect).toHaveBeenCalledWith(freeModel))
       expect(startCherryCloudSubscription).not.toHaveBeenCalled()
     } finally {
       availability.hidesEveryModel = true
+      availability.amdLocked = []
     }
   })
 })

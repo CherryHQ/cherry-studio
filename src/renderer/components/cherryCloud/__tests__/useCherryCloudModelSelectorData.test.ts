@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   data: undefined as CherryCloudAccountPlans | undefined,
   ready: true,
   amdLocked: [] as CherryCloudPlanModel[],
+  signInLocked: [] as CherryCloudPlanModel[],
   isModelHidden: vi.fn(() => false),
   isModelFree: vi.fn(() => true),
   isModelUnavailable: vi.fn(() => false),
@@ -48,7 +49,8 @@ vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
     getModelDescription: mocks.getModelDescription,
     isAvailabilityReady: true,
     availabilityError: undefined,
-    amdActivationRequiredModels: mocks.amdLocked
+    amdActivationRequiredModels: mocks.amdLocked,
+    signInRequiredModels: mocks.signInLocked
   })
 }))
 
@@ -101,6 +103,7 @@ beforeEach(() => {
   mocks.phase = 'signed-in'
   mocks.ready = true
   mocks.amdLocked = []
+  mocks.signInLocked = []
   mocks.isModelHidden.mockReset().mockReturnValue(false)
   mocks.isModelFree.mockReset().mockReturnValue(true)
   mockUseQuery.mockReturnValue({ data: [], isLoading: false, isRefreshing: false, refetch: vi.fn(), mutate: vi.fn() })
@@ -221,9 +224,11 @@ describe('Cloud selector policy', () => {
     await waitFor(() => expect(result.current.offers.map(({ offer }) => offer.id)).toEqual(['general']))
   })
 
-  it('shows a signed-out account the free, paid and AMD catalogs, each behind its own unlock', async () => {
+  it('shows a signed-out account the free, standalone, paid and AMD catalogs, each behind its own unlock', async () => {
     mocks.phase = 'signed-out'
     mocks.data = undefined
+    mocks.signInLocked = [offer('member-model', ['agent', 'chat', 'translate'])]
+    mocks.amdLocked = [offer('amd/qwen', ['chat', 'translate'])]
     const general = ['agent', 'chat', 'translate'] as const
     vi.mocked(window.api.ipcApi.request).mockResolvedValueOnce({
       ok: true,
@@ -237,8 +242,7 @@ describe('Cloud selector policy', () => {
             models: [offer('free-model', [...general]), offer('general', [...general])]
           },
           { id: 'bb75457d-ed6e-4b10-bb9a-62f9504b03c4', display_name: 'Plus', is_free: false, models: catalog }
-        ],
-        amd_models: [offer('amd/qwen', ['chat', 'translate'])]
+        ]
       }
     })
     const { result } = renderHook(() => useCherryCloudModelSelectorOffers(true, false, isCherryCloudChatOffer, true), {
@@ -249,6 +253,7 @@ describe('Cloud selector policy', () => {
       expect(result.current.offers.map(({ kind, offer }) => [kind, offer.id])).toEqual([
         ['sign_in', 'free-model'],
         ['sign_in', 'general'],
+        ['sign_in', 'member-model'],
         ['amd', 'amd/qwen']
       ])
     )

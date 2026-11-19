@@ -549,7 +549,7 @@ describe('CherryCloudService', () => {
     expect(mocks.netFetch).not.toHaveBeenCalled()
   })
 
-  it('reads the public catalogs without a session, signing only the model catalog as a client', async () => {
+  it('reads the public plan catalog without a session or signature', async () => {
     const service = await createService()
     mockCloudRoute(
       '/api/v1/public/plans',
@@ -567,48 +567,133 @@ describe('CherryCloudService', () => {
       })
     )
 
-    mockCloudRoute(
-      '/v1/models?limit=1000',
-      jsonResponse({
-        data: [
-          cloudModelCatalog.data[1],
-          {
-            ...cloudModelCatalog.data[1],
-            id: 'amd/qwen',
-            provider: 'amd',
-            activation_required: true,
-            activation_endpoint: '/api/v1/amd/desktop/entry'
-          }
-        ]
-      })
-    )
-
     const catalog = await service.getPublicPlans()
 
     expect(catalog.plans[0].models.map((model) => model.id)).toEqual(['plus-model'])
-    expect(catalog.amd_models?.map((model) => model.id)).toEqual(['amd/qwen'])
-    for (const path of ['/api/v1/public/plans', '/v1/models?limit=1000']) {
-      const headers = new Headers(requestCalls(path)[0][1].headers)
-      expect(headers.has('Authorization')).toBe(false)
-      expect(headers.has('Cherry-Signature')).toBe(false)
-    }
-    // The pre-login catalog carries the client HMAC over method, path, query and the empty body.
-    const modelHeaders = new Headers(requestCalls('/v1/models?limit=1000')[0][1].headers)
-    const timestamp = modelHeaders.get('X-Timestamp')
-    expect(modelHeaders.get('X-Client-ID')).toBe('cherry-studio')
-    expect(modelHeaders.get('X-Signature')).toBe(
-      createHmac('sha256', 'cloud-login-test-secret')
-        .update(`GET\n/v1/models\nlimit=1000\ncherry-studio\n${timestamp}\n`)
-        .digest('hex')
-    )
+    const headers = new Headers(requestCalls('/api/v1/public/plans')[0][1].headers)
+    expect(headers.has('Authorization')).toBe(false)
+    expect(headers.has('X-Signature')).toBe(false)
   })
 
-  it('still serves the plan catalog from a server whose model catalog needs a session', async () => {
-    const service = await createService()
-    mockCloudRoute('/api/v1/public/plans', jsonResponse({ measured_at: '2030-01-02T03:00:00Z', plans: [] }))
-    mockCloudRoute('/v1/models?limit=1000', cloudErrorResponse(401, 'AUTH_REQUIRED'))
+  describe('signed-out catalog', () => {
+    const catalogModel = (id: string, extra: Record<string, unknown>) => ({
+      ...cloudModelCatalog.data[1],
+      id,
+      display_name: id,
+      endpoint_type: 'openai-chat-completions',
+      ...extra
+    })
+    const guestCatalog = {
+      data: [
+        catalogModel('plan-model', { requires_login: true }),
+        catalogModel('guest-model', { standalone: true, requires_login: false }),
+        catalogModel('member-model', { standalone: true, requires_login: true }),
+        catalogModel('amd/qwen', {
+          provider: 'amd',
+          requires_login: true,
+          activation_required: true,
+          activation_endpoint: '/api/v1/amd/desktop/entry'
+        })
+      ]
+    }
 
-    await expect(service.getPublicPlans()).resolves.toMatchObject({ plans: [], amd_models: [] })
+    it('signs the catalog with the client HMAC and unlocks only guest-callable standalone models', async () => {
+      const service = await createService()
+      mockCloudRoute('/v1/models?limit=1000', jsonResponse(guestCatalog))
+
+      const result = await service['syncEntitledModels']()
+
+      expect(result).toMatchObject({
+        entitledModelIds: ['cherryai-subscription::guest-model'],
+        freeModelIds: ['cherryai-subscription::guest-model'],
+        availableModelIds: {
+          agent: ['cherryai-subscription::guest-model'],
+          general: ['cherryai-subscription::guest-model']
+        }
+      })
+      expect(result.signInRequiredModels.map((model) => model.id)).toEqual(['member-model'])
+      expect(result.amdActivationRequiredModels.map((model) => model.id)).toEqual(['amd/qwen'])
+      const created = mocks.modelCreate.mock.calls.flatMap(([rows]) => rows.map((row: any) => row.dto.modelId))
+      expect(created).toEqual(['guest-model'])
+      const headers = new Headers(requestCalls('/v1/models?limit=1000')[0][1].headers)
+      const timestamp = headers.get('X-Timestamp')
+      expect(headers.has('Authorization')).toBe(false)
+      expect(headers.has('Cherry-Device-ID')).toBe(false)
+      expect(headers.get('X-Client-ID')).toBe('cherry-studio')
+      expect(headers.get('X-Signature')).toBe(
+        createHmac('sha256', 'cloud-login-test-secret')
+          .update(`GET\n/v1/models\nlimit=1000\ncherry-studio\n${timestamp}\n`)
+          .digest('hex')
+      )
+    })
+
+    it('leaves signed-out users with plan previews when the server refuses the catalog', async () => {
+      const service = await createService()
+      mockCloudRoute('/v1/models?limit=1000', cloudErrorResponse(401, 'AUTH_REQUIRED'))
+
+      await expect(service['syncEntitledModels']()).resolves.toMatchObject({
+        entitledModelIds: [],
+        amdActivationRequiredModels: [],
+        signInRequiredModels: []
+      })
+    })
+
+    it('calls a guest model with the client HMAC over the exact body and no session headers', async () => {
+      const service = await createService()
+      const body = JSON.stringify({ model: 'guest-model', messages: [{ role: 'user', content: 'hi' }] })
+      mockCloudRoute('/v1/chat/completions', jsonResponse({ id: 'done' }))
+
+      const response = await service.modelFetch('/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer managed-by-cherry-cloud', 'Content-Type': 'application/json' },
+        body
+      })
+
+      expect(response.status).toBe(200)
+      const [[, init]] = requestCalls('/v1/chat/completions')
+      const headers = new Headers(init.headers)
+      const timestamp = headers.get('X-Timestamp')
+      expect(init.body).toBe(body)
+      expect(headers.has('Authorization')).toBe(false)
+      expect(headers.has('Idempotency-Key')).toBe(false)
+      expect(headers.get('X-Signature')).toBe(
+        createHmac('sha256', 'cloud-login-test-secret')
+          .update(`POST\n/v1/chat/completions\n\ncherry-studio\n${timestamp}\n${body}`)
+          .digest('hex')
+      )
+    })
+
+    it('makes login-only standalone models usable once signed in, without a plan', async () => {
+      const service = await createSignedInService()
+      mockModelSync({ ...accountSnapshot, entitlements: [] }, guestCatalog)
+
+      const result = await service['syncEntitledModels']()
+
+      expect(result.entitledModelIds).toEqual([
+        'cherryai-subscription::guest-model',
+        'cherryai-subscription::member-model'
+      ])
+      expect(result.signInRequiredModels).toEqual([])
+    })
+  })
+
+  describe('AMD status', () => {
+    it('has no status to report while signed out', async () => {
+      const service = await createService()
+
+      await expect(service.getAmdStatus()).resolves.toBeNull()
+      expect(mocks.netFetch).not.toHaveBeenCalled()
+    })
+
+    it('reads the signed-in account status with the device signature', async () => {
+      const service = await createSignedInService()
+      const status = { status: 'existing_account', action: 'login', activated: false, registration_enabled: false }
+      mockCloudRoute('/api/v1/amd/desktop/status', jsonResponse(status))
+
+      await expect(service.getAmdStatus()).resolves.toMatchObject(status)
+      const [[, init]] = requestCalls('/api/v1/amd/desktop/status')
+      expect(new Headers(init.headers).get('Cherry-Signature-Version')).toBe('2')
+    })
   })
 
   it('reuses the device key after logout and a service restart', async () => {
@@ -1179,7 +1264,8 @@ describe('CherryCloudService', () => {
         general: ['cherryai-subscription::deepseek-go']
       },
       quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free'],
-      amdActivationRequiredModels: []
+      amdActivationRequiredModels: [],
+      signInRequiredModels: []
     })
 
     expect(mocks.modelCreate).toHaveBeenCalledWith([
@@ -1425,7 +1511,8 @@ describe('CherryCloudService', () => {
         general: []
       },
       quotaExhaustedModelIds: [],
-      amdActivationRequiredModels: []
+      amdActivationRequiredModels: [],
+      signInRequiredModels: []
     })
     expect(mocks.modelCreate).not.toHaveBeenCalled()
     expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
@@ -1461,7 +1548,8 @@ describe('CherryCloudService', () => {
           capabilities: ['function-call'],
           available_features: ['chat', 'translate']
         }
-      ]
+      ],
+      signInRequiredModels: []
     })
     const created = mocks.modelCreate.mock.calls.flatMap(([rows]) => rows.map((row: any) => row.dto.modelId))
     expect(created).toEqual(['amd/linked'])
@@ -1499,7 +1587,8 @@ describe('CherryCloudService', () => {
       freeModelIds: [],
       availableModelIds: { agent: [], general: [] },
       quotaExhaustedModelIds: [],
-      amdActivationRequiredModels: []
+      amdActivationRequiredModels: [],
+      signInRequiredModels: []
     })
     expect(mocks.modelCreate).not.toHaveBeenCalled()
     expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
@@ -1537,7 +1626,8 @@ describe('CherryCloudService', () => {
           general: ['cherryai-subscription::deepseek-go']
         },
         quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free'],
-        amdActivationRequiredModels: []
+        amdActivationRequiredModels: [],
+        signInRequiredModels: []
       })
       expect(mocks.netFetch).toHaveBeenCalledTimes(2)
     } finally {

@@ -1,5 +1,5 @@
 import { first } from 'es-toolkit/compat'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Avatar, AvatarFallback } from '@cherrystudio/ui'
@@ -12,16 +12,18 @@ import {
   type ModelSelectorProps
 } from '@renderer/components/ModelSelector'
 import { ModelTag, SubscriptionTag } from '@renderer/components/tags/Model'
-import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
+import { useCherryCloudAmdStatus } from '@renderer/hooks/useCherryCloudAmdStatus'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
 import { trackSubscriptionEntryView } from '@renderer/services/cherryCloudSubscriptionAnalytics'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import type { Model } from '@shared/data/types/model'
 import type { SubscriptionEntrySource } from '@shared/ipc/schemas/cherryCloud'
 
-import { openAmdRegistration } from './amdFreeModels'
+import { getAmdActionLabelKey, openAmdRegistration } from './amdFreeModels'
+import { signInForModel } from './signInForModel'
 import {
   CHERRY_CLOUD_SELECTOR_PROVIDER_IDS,
   type CherryCloudOfferKind,
@@ -82,7 +84,7 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
     showSubscriptionOffers
   )
   const { isAvailabilityReady, isModelHidden } = availability
-  const session = useCherryAccountSession(enabled)
+  const amdStatus = useCherryCloudAmdStatus(enabled && offers.some(({ kind }) => kind === 'amd'))
   const { providers } = useProviders({ enabled: true }, { enabled })
   const { models } = useModels({ enabled: true }, { fetchEnabled: enabled })
   const provider =
@@ -110,7 +112,13 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
       </button>
     </>
   ) : null
-  const { login } = session
+  const selectAfterSignIn = (model: Model) => {
+    if (selectorProps.multiple) return
+    if (selectorProps.selectionType === 'id') selectorProps.onSelect(model.id)
+    else selectorProps.onSelect(model)
+  }
+  const selectAfterSignInRef = useRef(selectAfterSignIn)
+  selectAfterSignInRef.current = selectAfterSignIn
   const actions = useMemo<ModelSelectorActionItem[]>(() => {
     const lockedRows = {
       sign_in: {
@@ -120,7 +128,7 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
         priority: 1
       },
       subscription: { label: undefined, description: undefined, priority: 0 },
-      amd: { label: t('models.amd_free.tag'), description: t('models.amd_free.sign_in_hint'), priority: 2 }
+      amd: { label: t(getAmdActionLabelKey(amdStatus)), description: t('models.amd_free.sign_in_hint'), priority: 2 }
     } satisfies Record<CherryCloudOfferKind, { label?: string; description?: string; priority: number }>
     return !provider || (!isAvailabilityReady && !signedOut)
       ? []
@@ -171,8 +179,11 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
               ),
               priority: row.priority,
               onAction: () => {
-                if (kind === 'sign_in') void login()
-                else if (kind === 'amd') void openAmdRegistration(offer.id)
+                if (kind === 'sign_in') {
+                  void signInForModel(modelId, includeAgentOnlyModels ?? false).then(
+                    (model) => model && selectAfterSignInRef.current(model)
+                  )
+                } else if (kind === 'amd') void openAmdRegistration(offer.id)
                 else void startCherryCloudSubscription('selector_locked_row', { modelId })
               }
             }
@@ -188,7 +199,7 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
     filter,
     includeAgentOnlyModels,
     provider,
-    login,
+    amdStatus,
     t
   ])
   const composition = {

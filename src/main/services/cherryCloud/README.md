@@ -51,11 +51,15 @@ AMD models arrive through `/v1/models` with `provider: "amd"` and need no plan.
 Model sync treats an authorized one (`activation_required` not true) as an
 entitled free model without a quota pool. A locked one never reaches the model
 table: it goes into the receipt's `amdActivationRequiredModels`, and the selector
-shows it as an "AMD 授权" row. Signed out, `getPublicPlans` adds the AMD entries
-of `/v1/models` fetched with only the pre-login client HMAC, the same scheme as
-the login requests; a refusal yields none. A `403 AMD_ACTIVATION_REQUIRED` or
-`AMD_CREDENTIAL_INVALID` response clears the model sync cache and keeps the
-session, so the next sync locks the model again.
+shows it as an "AMD 授权" row, named by `getAmdStatus` once signed in. A
+`403 AMD_ACTIVATION_REQUIRED` or `AMD_CREDENTIAL_INVALID` response clears the
+model sync cache and keeps the session, so the next sync locks the model again.
+
+Signed out, model sync reads `/v1/models` with only the pre-login client HMAC,
+the same scheme as the login requests; a refusal yields no catalog. Standalone
+models with `requires_login: false` are usable then, and `modelFetch` sends their
+requests with the HMAC over the exact body instead of a session. Signed in, every
+standalone model is usable without a plan.
 
 ## Login request signing
 
