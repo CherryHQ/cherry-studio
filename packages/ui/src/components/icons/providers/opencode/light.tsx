@@ -2,13 +2,11 @@ import type { SVGProps } from 'react'
 
 import { OpenCode } from '../../general/open-code'
 
-/**
- * Hand-written forwarder: the OpenCode provider mark reuses the general
- * open-code glyph instead of a vectorized SVG source. Exposing it as
- * `<Name>Light` lets the icon pipeline (collectIconDirs/getComponentName)
- * treat this directory like any generated icon — index.tsx/avatar.tsx are
- * regenerated from it, and the catalog entries pick it up automatically.
- */
-const OpenCodeGoLight = (props: SVGProps<SVGSVGElement>) => <OpenCode {...props} />
+const OpenCodeGoLight = (props: SVGProps<SVGSVGElement>) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 120 120" {...props}>
+    <path fill="var(--icon-neutral-background, #FFFFFF)" d="M0 0h120v120H0z" />
+    <OpenCode x={18} y={18} width={84} height={84} viewBox="17 17 86 86" color="#131010" />
+  </svg>
+)
 
 export { OpenCodeGoLight }

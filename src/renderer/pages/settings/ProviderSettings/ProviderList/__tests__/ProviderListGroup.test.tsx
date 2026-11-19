@@ -76,13 +76,13 @@ describe('ProviderListGroup', () => {
       />
     )
     const props = reorderProps.at(-1)
-    const next = reorderVisibleSubset({
+    const next = reorderVisibleSubset<Provider>({
       items: props.items,
       visibleItems: props.visibleItems,
       fromIndex: 1,
       toIndex: 2,
       getId: props.getId
-    }) as Provider[]
+    })
     expect(next.filter((p) => p.isEnabled).map((p) => p.id)).toEqual(['a', 'b'])
   })
 
