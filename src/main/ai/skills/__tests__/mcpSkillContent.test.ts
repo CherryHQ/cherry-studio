@@ -43,6 +43,20 @@ describe('MCP skill content boundary', () => {
     expect(() => validateMcpSkill(skill)).toThrow('name')
   })
 
+  it.each(['Reports', 'reports--', 'x'.repeat(65)])(
+    'rejects invalid skill names even when the root matches',
+    (name) => {
+      const skill = createMcpSkillsFixture().manifest()
+      skill.frontmatter.name = name
+      skill.uri = `skill://${name}/SKILL.md`
+      skill.resources = skill.resources.map((resource) => ({
+        ...resource,
+        uri: resource.uri.replace('skill://reports', `skill://${name}`)
+      }))
+      expect(() => validateMcpSkill(McpSkillSchema.parse(skill))).toThrow('name')
+    }
+  )
+
   it('accepts the 512-file and 16-MiB boundaries and rejects one extra file or byte', () => {
     const fixture = createMcpSkillsFixture()
     const skill = fixture.manifest()
@@ -55,7 +69,7 @@ describe('MCP skill content boundary', () => {
     skill.resources[2].size = 1
     expect(() => validateMcpSkill(skill)).toThrow('16 MiB')
     skill.resources.push({ uri: 'skill://reports/extra', size: 0, digest: hash('') })
-    expect(McpSkillSchema.safeParse(skill).success).toBe(false)
+    expect(() => validateMcpSkill(McpSkillSchema.parse(skill))).toThrow('512 files')
   })
 
   it('checks all frontmatter fields, byte length, and content digest before accepting instructions', () => {

@@ -16,7 +16,7 @@ Cherry 可以连接 MCP 服务，但连接边界没有 Skills 扩展操作。内
 
 采用[上游稳定规范](https://github.com/modelcontextprotocol/ext-skills/blob/c1aa87e4c381c82b99aa37471d0eae4ab50f9985/specification/stable/skills.mdx)，以基础协议 `2026-07-28` 为目标。发送扩展方法前检查服务声明的能力；旧协议服务或未声明扩展的服务保持现有工具、提示词和资源行为。
 
-已安装的 `@modelcontextprotocol/client@2.3.0` 和已检查的 npm `2.3.1` 导出均没有文档中的 Skills 专用入口。已安装的 SDK 提供了用于扩展方法的 `request(request, resultSchema, options)`。在 `ClientMcpConnection` 内使用此公开 API，仅为 `skills/list` 和 `skills/get` 添加必要的 schema。传输、元数据、取消、鉴权和协议代际协商继续由现有 SDK 路径负责。不修改 SDK 内部实现，也不另建连接。可安装版本提供等价的上游专用 API 后优先采用；该替换不是本提案的前置条件。
+使用 `@modelcontextprotocol/client@2.4.0` 的 `SkillsClient` 检测能力并执行直接查询，复用官方 core Skills schema、类型和限制。保留现有遇到错误即拒绝的目录分页：SDK 的完整列表辅助方法遇到重复游标时会停止并返回部分结果，而不会报告失败。传输、逐次请求元数据、取消、鉴权和协议代际协商继续走现有连接。不修改 SDK 内部实现，也不另建连接。保留宿主清单准入和独立的字节及 frontmatter 校验，因为普通资源读取也必须针对持有的清单进行检查；`SkillsClient.read()` 会自行获取文件，没有针对已有响应的独立校验接口。URI 归属、大小限制、来源状态和审批仍由宿主负责。
 
 完整遍历分页，但不假定结果枚举了服务提供的全部技能。支持在已选服务上按 URI 直接查询，包括服务 instructions 中的 URI。保留未知 frontmatter 字段。条目进入目录前校验清单、根路径与名称关系、重复资源和资源归属。支持规范规定的每个技能 512 个文件、16 MiB 边界。本次实现拒绝 `resources: "dynamic"`，并提供可见的原因说明。
 
@@ -51,7 +51,7 @@ Cherry 可以连接 MCP 服务，但连接边界没有 Skills 扩展操作。内
 - 将远端技能视为普通资源：保留读取能力，但缺少激活、清单校验和绑定来源的授权。
 - 下载到本地技能库：违背按需读取要求，且使远端指令与可信的本地发现无法区分。
 - 实现可选的 `resources/directory/read`：该连接方法没有生产调用者，只有协议测试使用。静态清单已经提供完整文件列表。删除未使用的方法及其专属 fixture 分支；只有产品流程需要时，再考虑目录浏览。
-- 等待 SDK 专用导出：可以避免本地协议 schema，但会阻塞 SDK 公开请求 API 已能承载的扩展。保持适配器范围小且可替换。
+- 用 SDK 替换全部宿主逻辑：查询 API 和协议 schema 可以消除重复定义，但其分页会静默截断循环，读取 API 也无法校验已有的普通资源响应。保留遇到错误即拒绝的分页和持有清单校验；本次替换不为 SDK 添加补丁。
 - 立即持久化授权和技能内容：增加存储、迁移和重启信任契约，而这些并非初次使用所必需。先采用会话级状态，并明确恢复行为。
 
 ## Acceptance criteria

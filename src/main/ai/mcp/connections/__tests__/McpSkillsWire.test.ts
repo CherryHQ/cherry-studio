@@ -1,4 +1,4 @@
-import { InMemoryTransport } from '@modelcontextprotocol/client'
+import { CLIENT_CAPABILITIES_META_KEY, InMemoryTransport, LOG_LEVEL_META_KEY } from '@modelcontextprotocol/client'
 import { serveStdio } from '@modelcontextprotocol/server/stdio'
 import { createMcpSkillsFixture } from '@test-helpers/mcpSkills'
 import { describe, expect, it, vi } from 'vitest'
@@ -30,6 +30,39 @@ async function connect(fixture: ReturnType<typeof createMcpSkillsFixture>, legac
 }
 
 describe('MCP Skills wire contract', () => {
+  it('preserves per-call capabilities and logging metadata on SDK skill lookup', async () => {
+    const fixture = createMcpSkillsFixture()
+    const createServer = fixture.createServer
+    const metadata: unknown[] = []
+    fixture.createServer = () => {
+      const server = createServer()
+      const fallback = server.fallbackRequestHandler!
+      server.fallbackRequestHandler = (request, context) => {
+        metadata.push(context.mcpReq.envelope)
+        return fallback(request, context)
+      }
+      return server
+    }
+    const connection = await connect(fixture)
+    try {
+      expect(
+        await connection.getSkill(fixture.uri, {
+          signal: new AbortController().signal,
+          timeoutMs: 1_000,
+          interactionContext: { roots: [], requestRoots: async () => true }
+        })
+      ).toEqual(fixture.manifest())
+      expect(metadata).toEqual([
+        expect.objectContaining({
+          [LOG_LEVEL_META_KEY]: 'info',
+          [CLIENT_CAPABILITIES_META_KEY]: { roots: {} }
+        })
+      ])
+    } finally {
+      await connection.close()
+    }
+  })
+
   it('pages the catalog without fetching files, then verifies a requested file', async () => {
     const fixture = createMcpSkillsFixture()
     const connection = await connect(fixture)
@@ -103,6 +136,18 @@ describe('MCP Skills wire contract', () => {
       expect(fixture.requests).toEqual([])
     } finally {
       await legacy.close()
+    }
+  })
+
+  it.each(['', 'x'.repeat(1025)])('rejects an invalid catalog description', async (description) => {
+    const fixture = createMcpSkillsFixture()
+    const entry = fixture.manifest()
+    fixture.publish({ ...entry, frontmatter: { ...entry.frontmatter, description } })
+    const connection = await connect(fixture)
+    try {
+      await expect(connection.listSkills()).rejects.toThrow('description')
+    } finally {
+      await connection.close()
     }
   })
 

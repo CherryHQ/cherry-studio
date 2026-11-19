@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from 'node:util'
 
 import { parseDocument } from 'yaml'
 
-import { MCP_SKILL_MAX_BYTES, type McpSkill } from '@shared/types/mcpSkills'
+import { MCP_SKILL_MAX_BYTES, MCP_SKILL_MAX_FILES, type McpSkill } from '@shared/types/mcpSkills'
 
 export function skillRoot(uri: string): string {
   if (!uri.endsWith('/SKILL.md')) throw new Error('Skill URI must end with /SKILL.md')
@@ -28,6 +28,10 @@ export function skillRelativePath(root: string, uri: string): string {
 }
 
 export function validateMcpSkill(skill: McpSkill): McpSkill {
+  if (skill.frontmatter.name.length > 64 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(skill.frontmatter.name))
+    throw new Error('Invalid skill name')
+  if (!skill.frontmatter.description || skill.frontmatter.description.length > 1024)
+    throw new Error('Invalid skill description')
   const root = skillRoot(skill.uri)
   const parsed = new URL(root)
   if (
@@ -49,6 +53,8 @@ export function validateMcpSkill(skill: McpSkill): McpSkill {
   if (decodeURIComponent(root.slice(root.lastIndexOf('/') + 1)) !== skill.frontmatter.name)
     throw new Error('Skill URI does not match its name')
   if (skill.resources === 'dynamic') return skill
+  if (!skill.resources.length || skill.resources.length > MCP_SKILL_MAX_FILES)
+    throw new Error('Skill must contain 1 to 512 files')
   const seen = new Set<string>()
   let size = 0
   for (const resource of skill.resources) {

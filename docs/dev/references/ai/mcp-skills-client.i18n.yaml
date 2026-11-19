@@ -1,3 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
-mcp-skills-client.md: 813b6c8f45796ab17ea6cc46b2388133c8a79c84
-mcp-skills-client.zh.md: e1d8711f10f491ab534779bdb14bf1eaff52bbe1
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write docs/dev/references/ai/mcp-skills-client.md
+mcp-skills-client.md: b3c5526bdef412f10b7fd73e9a93e9bdd781c8eb
+mcp-skills-client.zh.md: b422382e194be99b213a40e330a3ca8c432bafa4
