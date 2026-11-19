@@ -1,4 +1,5 @@
 import { stat } from 'node:fs/promises'
+import path from 'node:path'
 
 import type { Context } from '@earendil-works/chord/context'
 import type { NodeExecutionEnv } from '@earendil-works/pi-durable/env/node'
@@ -10,11 +11,15 @@ import { canonicalizePathForContainment } from '@main/utils/file'
 export async function createDurableEnvironment(options: ConstructorParameters<typeof NodeExecutionEnv>[0]) {
   const { NodeExecutionEnv } = await import('@earendil-works/pi-durable/env/node')
   class DesktopEnvironment extends NodeExecutionEnv {
-    private async filePath(candidate: string, context: Context) {
+    private async filePath(candidate: string, context: Context, noFollow = false) {
       const resolved = await this.absolutePath(candidate, context)
       if (!resolved.ok) throw resolved.error
       const target = resolved.value
-      const canonical = await canonicalizePathForContainment(target, { allowMissing: true })
+      // Preserve the SDK's final-component symlink check for noFollow reads.
+      const resolvedPath = await canonicalizePathForContainment(noFollow ? path.dirname(target) : target, {
+        allowMissing: true
+      })
+      const canonical = noFollow && resolvedPath ? path.join(resolvedPath, path.basename(target)) : resolvedPath
       if (!canonical || (await memoryTarget(target, canonical)))
         throw new Error('Use the memory editor for managed memory files')
       try {
@@ -26,7 +31,7 @@ export async function createDurableEnvironment(options: ConstructorParameters<ty
     }
 
     override async openBinaryReader(file: string, options: { noFollow?: boolean } | undefined, context: Context) {
-      return super.openBinaryReader(await this.filePath(file, context), options, context)
+      return super.openBinaryReader(await this.filePath(file, context, options?.noFollow), options, context)
     }
 
     override async readTextFile(file: string, context: Context) {
