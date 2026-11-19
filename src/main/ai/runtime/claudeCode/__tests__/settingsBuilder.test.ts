@@ -736,6 +736,56 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(configured.env).toMatchObject({ CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '50' })
   })
 
+  it('gives the saved percentage precedence over a login-shell export', async () => {
+    // CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=65 exported from the login shell must not
+    // override the agent's saved 50 - the editor owns this value.
+    mocks.getShellEnv.mockResolvedValue({ CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '65' })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      planModel: 'anthropic::claude-sonnet',
+      smallModel: 'anthropic::claude-haiku',
+      mcps: [],
+      allowedTools: [],
+      configuration: { auto_compact_pct: 50 }
+    })
+    const saved = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      {}
+    )
+    expect(saved.env).toMatchObject({ CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '50' })
+
+    // An explicit agent env_vars entry still wins over both.
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      planModel: 'anthropic::claude-sonnet',
+      smallModel: 'anthropic::claude-haiku',
+      mcps: [],
+      allowedTools: [],
+      configuration: { env_vars: { CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '60' }, auto_compact_pct: 50 }
+    })
+    const explicit = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      {}
+    )
+    expect(explicit.env).toMatchObject({ CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '60' })
+  })
+
   it('floors the budget at the Claude Code minimum instead of dropping the setting', async () => {
     const settings = await buildClaudeCodeSessionSettings(
       {

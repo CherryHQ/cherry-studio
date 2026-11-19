@@ -334,8 +334,11 @@ export async function buildClaudeCodeSessionSettings(
     env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(declaredContextWindow)
   }
   // Unconditional: unlike the window, a trigger percentage is meaningful even for models that
-  // declare no usable context window. An explicit agent `env_vars` entry still wins.
-  if (env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE === undefined) {
+  // declare no usable context window. An explicit agent `env_vars` entry still wins. An
+  // inherited login-shell export does NOT: the editor saves and shows the in-app value, so a
+  // shell export must not silently override it - guard on the agent's own env_vars, not the
+  // merged environment.
+  if (agentConfig?.env_vars?.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE === undefined) {
     // An agent-level trigger config wins; otherwise the task/session compaction percent applies.
     env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(
       agentConfig?.auto_compact_pct !== undefined

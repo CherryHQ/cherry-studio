@@ -33,7 +33,7 @@ import {
   mergeAgentLoopbackProxyBypass
 } from '@main/services/proxy/agentProxyEnvironment'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
-import { normalizeAutoCompactTriggerPct } from '@shared/ai/agentAutoCompact'
+import { DEFAULT_AUTO_COMPACT_TRIGGER_PCT, normalizeAutoCompactTriggerPct } from '@shared/ai/agentAutoCompact'
 import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -450,11 +450,17 @@ async function deriveConnectionConfigFromSnapshot(
     // Rebuild fact: the settings builder bakes the auto-compact trigger percentage into the
     // spawned subprocess env. An explicit `env_vars` entry wins there and `envVars` already
     // covers it, so report null under an active override - a percentage edit that cannot take
-    // effect must not force a rebuild.
+    // effect must not force a rebuild. Otherwise fingerprint the EFFECTIVE value the builder
+    // resolves: an explicit agent percentage, else the task compaction percentage, else the
+    // default. Fingerprinting the normalized stored value alone would miss an unset -> 80 edit
+    // while the task preference drives a different effective percentage on the warm process.
     autoCompactPct:
       typeof agent.configuration?.env_vars?.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE === 'string'
         ? null
-        : normalizeAutoCompactTriggerPct(agent.configuration?.auto_compact_pct),
+        : agent.configuration?.auto_compact_pct !== undefined
+          ? normalizeAutoCompactTriggerPct(agent.configuration.auto_compact_pct)
+          : ((materialized ? materialized.compactionPercent : taskCompactionPercent(session)) ??
+            DEFAULT_AUTO_COMPACT_TRIGGER_PCT),
     proxyEnvironment: proxyEnvironmentFingerprint,
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),

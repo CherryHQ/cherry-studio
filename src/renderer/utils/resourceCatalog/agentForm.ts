@@ -44,7 +44,8 @@ export interface AgentFormState {
   permissionMode: string
   /** Raw multi-line `KEY=VALUE` text; parsed at save time. */
   envVarsText: string
-  autoCompactPct: number
+  /** Stored trigger percentage, or null to inherit the task/default percentage. */
+  autoCompactPct: number | null
   heartbeatEnabled: boolean
   heartbeatInterval: number
   heartbeatTimeoutMinutes: number
@@ -116,7 +117,7 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     avatar: asString(cfg.avatar),
     permissionMode: asString(cfg.permission_mode),
     envVarsText: envVarsToText(cfg.env_vars),
-    autoCompactPct: normalizeAutoCompactTriggerPct(cfg.auto_compact_pct),
+    autoCompactPct: cfg.auto_compact_pct === undefined ? null : normalizeAutoCompactTriggerPct(cfg.auto_compact_pct),
     heartbeatEnabled: isHeartbeatEnabled(cfg),
     heartbeatInterval: clampHeartbeatIntervalMinutes(cfg.heartbeat_interval),
     heartbeatTimeoutMinutes: normalizeHeartbeatTimeoutMinutes(cfg.heartbeat_timeout_minutes),
@@ -219,7 +220,11 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
     cfgDirty = true
   }
   if (baseline.autoCompactPct !== next.autoCompactPct) {
-    cfgPatch.auto_compact_pct = normalizeAutoCompactTriggerPct(next.autoCompactPct)
+    // null means inherit: an explicit undefined deletes the stored override in Main's
+    // configuration patch (same convention as configuration.language), so a cleared
+    // field and an explicit percentage persist as distinct states.
+    cfgPatch.auto_compact_pct =
+      next.autoCompactPct === null ? undefined : normalizeAutoCompactTriggerPct(next.autoCompactPct)
     cfgDirty = true
   }
   if (baseline.heartbeatEnabled !== next.heartbeatEnabled) {

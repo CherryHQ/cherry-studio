@@ -125,6 +125,32 @@ describe('diffAgentSaveIntent', () => {
   })
 })
 
+describe('auto-compact trigger inheritance', () => {
+  it('keeps an unset stored percentage as null instead of materializing the default', () => {
+    expect(buildInitialAgentFormState(createAgent({ configuration: {} })).autoCompactPct).toBeNull()
+    expect(buildInitialAgentFormState(createAgent({ configuration: { auto_compact_pct: 50 } })).autoCompactPct).toBe(50)
+  })
+
+  it('persists explicit 80 and reset-to-inherit as distinct states', () => {
+    // Unset baseline: entering 80 is a real edit and must PATCH the override.
+    const unsetBaseline = buildInitialAgentFormState(createAgent({ configuration: {} }))
+    const explicit80 = diffAgentUpdate(unsetBaseline, { ...unsetBaseline, autoCompactPct: 80 })
+    expect(explicit80?.dto.configuration?.auto_compact_pct).toBe(80)
+
+    // Explicit baseline: clearing the field resets to inheritance — the patch carries
+    // the key with an explicit undefined so Main deletes the stored override.
+    const setBaseline = buildInitialAgentFormState(createAgent({ configuration: { auto_compact_pct: 50 } }))
+    const reset = diffAgentUpdate(setBaseline, { ...setBaseline, autoCompactPct: null })
+    expect(reset?.dto.configuration).toBeDefined()
+    expect(Object.prototype.hasOwnProperty.call(reset!.dto.configuration, 'auto_compact_pct')).toBe(true)
+    expect(reset!.dto.configuration!.auto_compact_pct).toBeUndefined()
+
+    // No edit either way produces no PATCH.
+    expect(diffAgentUpdate(unsetBaseline, { ...unsetBaseline })).toBeNull()
+    expect(diffAgentUpdate(setBaseline, { ...setBaseline })).toBeNull()
+  })
+})
+
 describe('diffAgentUpdate', () => {
   it('round-trips an edited heartbeat timeout without changing the interval or toggle', () => {
     const baseline = buildInitialAgentFormState(createAgent({ configuration: { heartbeat_enabled: true } }))

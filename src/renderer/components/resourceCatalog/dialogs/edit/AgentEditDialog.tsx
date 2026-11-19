@@ -120,7 +120,7 @@ type AgentEditFormValues = {
   disabledTools: string[]
   permissionMode: string
   envVarsText: string
-  autoCompactPct: number
+  autoCompactPct: number | null
   heartbeatEnabled: boolean
   heartbeatInterval: number
   heartbeatTimeoutMinutes: number
@@ -1370,7 +1370,9 @@ function AgentAdvancedFields({ form, agentType }: { form: UseFormReturn<AgentEdi
                   className="h-9 w-full"
                   value={field.value}
                   onBlur={(value) => {
-                    if (value !== null) field.onChange(normalizeAutoCompactTriggerPct(value))
+                    // An emptied field is a deliberate reset to inheritance, not a
+                    // discarded edit — null must reach the form state.
+                    field.onChange(value === null ? null : normalizeAutoCompactTriggerPct(value))
                   }}
                 />
               </FormControl>

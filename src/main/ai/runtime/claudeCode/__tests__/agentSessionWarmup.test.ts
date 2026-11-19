@@ -1706,6 +1706,51 @@ describe('deriveConnectionConfig', () => {
     expect(overrideHigh.rebuildSignature).not.toBe(overrideEdited.rebuildSignature)
   })
 
+  it('fingerprints the effective task percentage when the agent knob is unset', async () => {
+    // Session reuse + General Settings 60%: the warm process spawns at 60.
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      isTaskReuseTarget: true,
+      workspace: { type: 'user', path: '/workspace/project' }
+    })
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'chat.context_settings.compress.threshold_percent' ? 60 : undefined
+    )
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    })
+    const unset = await deriveSignature()
+
+    // PATCHing an explicit 80 must refresh the warm subprocess: the builder now
+    // resolves 80 while the warm process still runs 60.
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { auto_compact_pct: 80 }
+    })
+    const patched = await deriveSignature()
+    expect(unset.rebuildSignature).not.toBe(patched.rebuildSignature)
+    expect(unset.rebuildFactFingerprints.autoCompactPct).not.toBe(patched.rebuildFactFingerprints.autoCompactPct)
+
+    // The unset fingerprint matches an explicit 60: both resolve to the same effective value.
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { auto_compact_pct: 60 }
+    })
+    const explicit60 = await deriveSignature()
+    expect(unset.rebuildFactFingerprints.autoCompactPct).toBe(explicit60.rebuildFactFingerprints.autoCompactPct)
+  })
+
   it('does not start the gateway even when the route resolves to it', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
