@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { HealthStatus, type ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
@@ -56,6 +56,12 @@ beforeAll(() => {
 })
 
 describe('ModelCheckDialog', () => {
+  afterEach(async () => {
+    // Radix focus scopes restore focus on a timer after unmount; let it run before jsdom tears down.
+    cleanup()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     health.modelCheckOpen = true
@@ -229,7 +235,13 @@ describe('ModelCheckDialog', () => {
 
   it('shows the main error card for the selected key failure', async () => {
     const user = userEvent.setup()
-    const error = { name: 'Error', message: 'Invalid API key', stack: null }
+    const error = {
+      name: 'Error',
+      message: 'Invalid API key',
+      stack: null,
+      statusCode: 401,
+      responseBody: '{"error":"invalid"}'
+    }
     const entry = health.apiKeyEntries[0]
     health.singleModelResult = {
       kind: 'failed',
@@ -250,10 +262,234 @@ describe('ModelCheckDialog', () => {
 
     render(<ModelCheckDialog />)
 
-    expect(screen.getByText('Invalid API key')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /message.api.connection.failed/ }))
+    expect(screen.getByText('error.diagnosis.auth')).toBeInTheDocument()
+    expect(screen.queryByText(/Invalid API key/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
 
-    expect(showErrorDetailPopup).toHaveBeenCalledWith({ error })
+    expect(showErrorDetailPopup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error,
+        errorContext: expect.objectContaining({
+          source: 'settings.provider',
+          operation: 'model.check',
+          message: 'Invalid API key',
+          modelId: 'chat',
+          providerId: 'openai',
+          statusCode: 401,
+          responseBody: '{"error":"invalid"}'
+        })
+      })
+    )
+    const first = showErrorDetailPopup.mock.calls[0]?.[0] as { errorContext: { id: string; imageOnly?: boolean } }
+    expect(first.errorContext.imageOnly).toBeUndefined()
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
+    const second = showErrorDetailPopup.mock.calls[1]?.[0] as { errorContext: { id: string } }
+    expect(second.errorContext.id).toBe(first.errorContext.id)
+  })
+
+  it('masks a prefix-less API key echoed by the provider before showing the failure detail', async () => {
+    const user = userEvent.setup()
+    const secret = 'gw7Qx9LmZ2vR4nT8'
+    health.apiKeyEntries = [{ id: 'key-1', key: secret, label: 'Primary', isEnabled: true }]
+    const error = {
+      name: 'Error',
+      message: `Incorrect API key provided: ${secret}`,
+      stack: null,
+      statusCode: 401,
+      responseBody: `{"error":{"message":"Unauthorized key ${secret}"}}`
+    }
+    const entry = health.apiKeyEntries[0]
+    health.singleModelResult = {
+      kind: 'failed',
+      model: chatModel,
+      status: HealthStatus.FAILED,
+      keyResults: [
+        { kind: 'failed', status: HealthStatus.FAILED, checking: false, credential: { kind: 'api-key', entry }, error }
+      ],
+      checking: false,
+      error
+    }
+
+    render(<ModelCheckDialog />)
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
+
+    const shown = showErrorDetailPopup.mock.calls[0]?.[0] as {
+      error: { responseBody: string }
+      errorContext: { responseBody?: string }
+    }
+    expect(JSON.stringify(shown)).not.toContain(secret)
+    expect(shown.errorContext.responseBody).toContain('Unauthorized key')
+    expect(shown.error.responseBody).toContain('Unauthorized key')
+  })
+
+  it('gives an identical failure from a retry started outside the dialog its own occurrence', async () => {
+    const user = userEvent.setup()
+    const entry = health.apiKeyEntries[0]
+    const failedRun = (): ModelWithStatus => {
+      const error = { name: 'Error', message: 'Invalid API key', stack: null, statusCode: 401 }
+      return {
+        kind: 'failed',
+        model: chatModel,
+        status: HealthStatus.FAILED,
+        keyResults: [
+          {
+            kind: 'failed',
+            status: HealthStatus.FAILED,
+            checking: false,
+            credential: { kind: 'api-key', entry },
+            error
+          }
+        ],
+        checking: false,
+        error
+      }
+    }
+    health.singleModelResult = failedRun()
+    const view = render(<ModelCheckDialog />)
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
+    const first = showErrorDetailPopup.mock.calls[0]?.[0] as { errorContext: { id: string } }
+
+    health.singleModelResult = failedRun()
+    view.rerender(<ModelCheckDialog />)
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
+    const retried = showErrorDetailPopup.mock.calls[1]?.[0] as { errorContext: { id: string } }
+
+    expect(retried.errorContext.id).not.toBe(first.errorContext.id)
+  })
+
+  it('replaces the snapshot when a new check fails with the same text', async () => {
+    const user = userEvent.setup()
+    const error = {
+      name: 'Error',
+      message: 'Invalid API key',
+      stack: null,
+      statusCode: 401,
+      responseBody: '{"error":"invalid"}'
+    }
+    const entry = health.apiKeyEntries[0]
+    health.singleModelResult = {
+      kind: 'failed',
+      model: chatModel,
+      status: HealthStatus.FAILED,
+      keyResults: [
+        {
+          kind: 'failed',
+          status: HealthStatus.FAILED,
+          checking: false,
+          credential: { kind: 'api-key', entry },
+          error
+        }
+      ],
+      checking: false,
+      error
+    }
+    const later = {
+      name: 'Error',
+      message: 'Invalid API key',
+      stack: null,
+      statusCode: 503,
+      responseBody: '{"error":"later"}'
+    }
+    startSingleModelCheck.mockImplementationOnce(async () => {
+      health.singleModelResult = {
+        kind: 'failed',
+        model: chatModel,
+        status: HealthStatus.FAILED,
+        keyResults: [
+          {
+            kind: 'failed',
+            status: HealthStatus.FAILED,
+            checking: false,
+            credential: { kind: 'api-key', entry },
+            error: later
+          }
+        ],
+        checking: false,
+        error: later
+      }
+      return 'failed'
+    })
+
+    render(<ModelCheckDialog />)
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
+    const first = showErrorDetailPopup.mock.calls[0]?.[0] as {
+      errorContext: { id: string; responseBody?: string }
+    }
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
+    const second = showErrorDetailPopup.mock.calls[1]?.[0] as { errorContext: { id: string } }
+    expect(second.errorContext.id).toBe(first.errorContext.id)
+    expect(first.errorContext.responseBody).toBe('{"error":"invalid"}')
+
+    await user.click(screen.getByRole('button', { name: 'settings.models.check.start' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'settings.models.check.start' })).toBeEnabled())
+    showErrorDetailPopup.mockClear()
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
+
+    expect(showErrorDetailPopup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: later,
+        errorContext: expect.objectContaining({
+          modelId: 'chat',
+          providerId: 'openai',
+          statusCode: 503,
+          responseBody: '{"error":"later"}'
+        })
+      })
+    )
+    const third = showErrorDetailPopup.mock.calls[0]?.[0] as { errorContext: { id: string } }
+    expect(third.errorContext.id).not.toBe(first.errorContext.id)
+  })
+
+  it('marks a non-chat model so diagnosis skips the conversation probe', async () => {
+    const user = userEvent.setup()
+    const embedModel: Model = {
+      ...chatModel,
+      id: 'openai::embed',
+      name: 'Embed',
+      capabilities: ['embedding']
+    }
+    health.models = [embedModel]
+    const error = {
+      name: 'Error',
+      message: 'embed failed',
+      stack: null,
+      statusCode: 400,
+      responseBody: '{"error":"embed"}'
+    }
+    const entry = health.apiKeyEntries[0]
+    health.singleModelResult = {
+      kind: 'failed',
+      model: embedModel,
+      status: HealthStatus.FAILED,
+      keyResults: [
+        {
+          kind: 'failed',
+          status: HealthStatus.FAILED,
+          checking: false,
+          credential: { kind: 'api-key', entry },
+          error
+        }
+      ],
+      checking: false,
+      error
+    }
+
+    render(<ModelCheckDialog />)
+    await user.click(screen.getByRole('button', { name: /common\.detail/ }))
+
+    expect(showErrorDetailPopup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        errorContext: expect.objectContaining({
+          source: 'settings.provider',
+          operation: 'model.check',
+          modelId: 'embed',
+          providerId: 'openai',
+          imageOnly: true,
+          statusCode: 400,
+          responseBody: '{"error":"embed"}'
+        })
+      })
+    )
   })
 
   it('disables a single-model run with an unsupported-only placeholder', async () => {

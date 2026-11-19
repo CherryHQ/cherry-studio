@@ -7,6 +7,8 @@ import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, 
 import { ResourceList } from '@renderer/components/chat/resourceList/base'
 import { ConversationNavigationPane } from '@renderer/components/chat/shell/ConversationNavigationPane'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { formatTaskCardTime, TaskRunSummaryLine } from '@renderer/components/ScheduledTask/TaskRunSummaryLine'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -181,11 +183,31 @@ export default function ScheduledTasksPage() {
   const empty = (
     <div
       className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground"
-      role={error ? 'alert' : 'status'}>
-      <p>
-        {error
-          ? t('scheduledTasks.unavailable')
-          : pending
+      role={error ? undefined : 'status'}>
+      {error ? (
+        <ErrorNotice
+          className="w-full max-w-lg text-left"
+          title={t('scheduledTasks.unavailable')}
+          action={{
+            label: t('common.retry'),
+            onClick: () => {
+              void refreshTask()
+              conversation.retry()
+            }
+          }}
+          detail={
+            <ErrorDetailAction
+              error={error}
+              message={t('scheduledTasks.unavailable')}
+              source="agent.tasks"
+              operation={taskError ? 'task.load' : 'task.logs.load'}
+              {...(taskId ? { recordId: taskId } : {})}
+            />
+          }
+        />
+      ) : (
+        <p>
+          {pending
             ? t('common.loading')
             : !taskId
               ? t('scheduledTasks.select')
@@ -194,16 +216,7 @@ export default function ScheduledTasksPage() {
                 : waitingForFirstRun
                   ? t('agent.tasks.reuseSession.pending')
                   : t('scheduledTasks.noConversation')}
-      </p>
-      {!!error && (
-        <Button
-          variant="outline"
-          onClick={() => {
-            void refreshTask()
-            conversation.retry()
-          }}>
-          {t('common.retry')}
-        </Button>
+        </p>
       )}
       {conversation.hasMore && (
         <Button variant="outline" disabled={conversation.loading} onClick={() => void conversation.loadMore()}>
@@ -240,10 +253,21 @@ export default function ScheduledTasksPage() {
           </section>
         )}
         {selectedRun.error !== null && (
-          <section className="mt-4">
-            <h2>{t('common.error')}</h2>
-            <p className="whitespace-pre-wrap break-words">{selectedRun.error}</p>
-          </section>
+          <ErrorNotice
+            variant="inline"
+            role="group"
+            className="mt-4"
+            title={t('agent.tasks.logs.runFailed')}
+            detail={
+              <ErrorDetailAction
+                error={selectedRun.error}
+                message={t('agent.tasks.logs.runFailed')}
+                source="agent.tasks"
+                operation="task.run"
+                recordId={selectedRun.id}
+              />
+            }
+          />
         )}
         {selectedRun.result === null && selectedRun.error === null && (
           <p className="mt-4">{t('scheduledTasks.noStoredResult')}</p>
@@ -270,24 +294,45 @@ export default function ScheduledTasksPage() {
         centerSurface={!conversation.session ? { content: storedResult } : null}
       />
       {conversation.session && !!error && (
-        <div role="alert" className="flex items-center gap-2 px-3 py-1 text-sm">
-          {t('agent.tasks.logs.loadError')}
-          <Button variant="ghost" onClick={conversation.retry}>
-            {t('common.retry')}
-          </Button>
-        </div>
+        <ErrorNotice
+          variant="inline"
+          className="mx-3 my-1 w-auto"
+          title={t('agent.tasks.logs.loadError')}
+          action={{ label: t('common.retry'), onClick: conversation.retry }}
+          detail={
+            <ErrorDetailAction
+              error={error}
+              message={t('agent.tasks.logs.loadError')}
+              source="agent.tasks"
+              operation="task.logs.load"
+              {...(taskId ? { recordId: taskId } : {})}
+            />
+          }
+        />
       )}
       {createOpen !== undefined && (
         <Suspense fallback={<p role="status">{t('common.loading')}</p>}>
           <TaskFormDialog
             agentNotice={
               !agentsLoading &&
-              (agentsError || !availableAgents?.items.length) && (
-                <div role="status" className="flex items-center gap-2 p-3">
-                  {agentsError ? t('agent.tasks.error.loadFailed') : t('settings.scheduledTasks.noAgents')}
-                  {agentsError ? (
-                    <Button onClick={() => void refreshAgents()}>{t('common.retry')}</Button>
-                  ) : (
+              (agentsError ? (
+                <ErrorNotice
+                  variant="inline"
+                  title={t('agent.tasks.error.loadFailed')}
+                  action={{ label: t('common.retry'), onClick: () => void refreshAgents() }}
+                  detail={
+                    <ErrorDetailAction
+                      error={agentsError}
+                      message={t('agent.tasks.error.loadFailed')}
+                      source="agent.tasks"
+                      operation="agent.list"
+                    />
+                  }
+                />
+              ) : (
+                !availableAgents?.items.length && (
+                  <div role="status" className="flex items-center gap-2 p-3">
+                    {t('settings.scheduledTasks.noAgents')}
                     <Button
                       onClick={() => {
                         changeCreateOpen(false)
@@ -295,9 +340,9 @@ export default function ScheduledTasksPage() {
                       }}>
                       {t('title.work')}
                     </Button>
-                  )}
-                </div>
-              )
+                  </div>
+                )
+              ))
             }
             open={createOpen}
             agents={availableAgents?.items ?? []}

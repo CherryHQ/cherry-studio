@@ -4,6 +4,8 @@ import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as AppErrorDetailService from '@renderer/services/AppErrorDetailService'
+import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 import { PromptSettings } from '../PromptSettings'
@@ -56,6 +58,7 @@ const mocks = vi.hoisted(() => ({
   createPrompt: vi.fn(),
   deletePrompt: vi.fn(),
   refetch: vi.fn(),
+  openErrorDetail: vi.fn().mockResolvedValue('opened'),
   refetchBindings: vi.fn(),
   updatePrompt: vi.fn(),
   useQuery: vi.fn()
@@ -114,10 +117,11 @@ vi.mock('../PromptTargetPopover', () => ({
   PromptTargetPopover: () => null
 }))
 
-vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn() } }))
-vi.mock('@renderer/utils/error', () => ({
-  formatErrorMessageWithPrefix: (_error: unknown, prefix: string) => prefix
+vi.mock('@renderer/services/AppErrorDetailService', async (importOriginal) => ({
+  ...(await importOriginal<typeof AppErrorDetailService>()),
+  appErrorDetailService: { openAppErrorDetail: mocks.openErrorDetail }
 }))
+vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn() } }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -126,7 +130,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Alert: ({ message }: { message: ReactNode }) => <div role="alert">{message}</div>,
+  Alert: ({ children }: { children?: ReactNode }) => <div role="alert">{children}</div>,
   Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   Button: ({
     children,
@@ -243,6 +247,26 @@ describe('PromptSettings', () => {
 
     expect(screen.getByText('Global prompt')).toBeInTheDocument()
     expect(screen.getByText('Targeted prompt')).toBeInTheDocument()
+  })
+
+  it('opens load-failure details under the translated summary, keeping the raw text in the error', async () => {
+    const user = userEvent.setup()
+    const failure = new Error('SQLITE_BUSY: database is locked')
+    mocks.useQuery.mockImplementation((path: string) =>
+      path === '/prompts'
+        ? { data: undefined, error: failure, isLoading: false, refetch: mocks.refetch }
+        : { data: [], error: undefined, isLoading: false, refetch: mocks.refetchBindings }
+    )
+    render(<PromptSettings />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('settings.prompts.errors.loadFailed')
+    expect(screen.getByRole('alert')).not.toHaveTextContent('SQLITE_BUSY')
+    await user.click(within(screen.getByRole('alert')).getByRole('button', { name: 'common.detail' }))
+
+    await waitFor(() => expect(mocks.openErrorDetail).toHaveBeenCalledTimes(1))
+    const [request] = mocks.openErrorDetail.mock.calls[0]
+    expect(request.localizedErrorMessage).toBe('settings.prompts.errors.loadFailed')
+    expect(request.error.message).toBe('SQLITE_BUSY: database is locked')
   })
 
   it('creates a prompt with its selected visibility', async () => {
@@ -390,6 +414,23 @@ describe('PromptSettings', () => {
 
     expect(screen.getByRole('dialog', { name: 'settings.prompts.delete' })).toHaveTextContent(
       'settings.prompts.deleteRestrictedConfirm'
+    )
+  })
+  it('titles a failed delete with the translated conclusion and keeps the raw text as the cause', async () => {
+    const user = userEvent.setup()
+    const cause = new Error('SQLITE_BUSY: database is locked')
+    mocks.deletePrompt.mockRejectedValueOnce(cause)
+    render(<PromptSettings />)
+
+    await user.click(screen.getByRole('button', { name: 'common.delete Global prompt' }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'settings.prompts.delete' })).getByRole('button', {
+        name: 'common.delete'
+      })
+    )
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith({ title: 'settings.prompts.errors.deleteFailed', cause })
     )
   })
 })

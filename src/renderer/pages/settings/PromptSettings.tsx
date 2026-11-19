@@ -3,7 +3,6 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
-  Alert,
   Badge,
   Button,
   ConfirmDialog,
@@ -22,6 +21,8 @@ import {
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@data/hooks/useReorder'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { PromptEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { SettingsContentBody, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import {
@@ -32,7 +33,6 @@ import {
 } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { Prompt, PromptBindingRelation, PromptBindingTarget, PromptVisibility } from '@shared/data/types/prompt'
 
@@ -175,12 +175,12 @@ export function PromptSettings() {
             return
           }
         }
-        toast.error(
-          formatErrorMessageWithPrefix(
-            err,
-            t(promptDialogPrompt ? 'settings.prompts.errors.updateFailed' : 'settings.prompts.errors.createFailed')
-          )
-        )
+        toast.error({
+          title: t(
+            promptDialogPrompt ? 'settings.prompts.errors.updateFailed' : 'settings.prompts.errors.createFailed'
+          ),
+          cause: err
+        })
         throw err
       } finally {
         setSavingPrompt(false)
@@ -207,7 +207,7 @@ export function PromptSettings() {
           setPendingVisibilityChange((current) => (current ? { ...current, bindings: refreshedBindings } : current))
         }
       }
-      toast.error(formatErrorMessageWithPrefix(err, t('settings.prompts.errors.updateFailed')))
+      toast.error({ title: t('settings.prompts.errors.updateFailed'), cause: err })
       throw err
     } finally {
       setSavingPrompt(false)
@@ -222,7 +222,7 @@ export function PromptSettings() {
       await deletePrompt()
       setDeleteTarget(null)
     } catch (err) {
-      toast.error(formatErrorMessageWithPrefix(err, t('settings.prompts.errors.deleteFailed')))
+      toast.error({ title: t('settings.prompts.errors.deleteFailed'), cause: err })
       throw err
     } finally {
       setDeletingPrompt(false)
@@ -231,7 +231,7 @@ export function PromptSettings() {
 
   const handleReorderError = useCallback(
     (err: unknown) => {
-      toast.error(formatErrorMessageWithPrefix(err, t('settings.prompts.errors.reorderFailed')))
+      toast.error({ title: t('settings.prompts.errors.reorderFailed'), cause: err })
     },
     [t]
   )
@@ -266,17 +266,18 @@ export function PromptSettings() {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {error ? (
           <div className="flex min-h-full items-center justify-center p-4">
-            <Alert
-              type="error"
-              showIcon
-              message={t('settings.prompts.errors.loadFailed')}
-              description={error.message}
-              action={
-                <Button variant="outline" size="sm" onClick={() => void refetch()}>
-                  {t('common.retry')}
-                </Button>
+            <ErrorNotice
+              className="max-w-lg"
+              title={t('settings.prompts.errors.loadFailed')}
+              action={{ label: t('common.retry'), onClick: () => void refetch() }}
+              detail={
+                <ErrorDetailAction
+                  error={error}
+                  message={t('settings.prompts.errors.loadFailed')}
+                  source="settings.prompts"
+                  operation="prompt.list"
+                />
               }
-              className="max-w-lg rounded-md px-4 py-3 shadow-none"
             />
           </div>
         ) : isLoading ? (

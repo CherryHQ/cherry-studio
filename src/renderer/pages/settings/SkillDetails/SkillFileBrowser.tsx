@@ -1,17 +1,19 @@
 import { useBlocker } from '@tanstack/react-router'
-import { AlertTriangle, Check, FileText, Loader2, RotateCcw } from 'lucide-react'
+import { AlertCircle, AlertTriangle, Check, FileText, Loader2, RotateCcw } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, ConfirmDialog, EmptyState, SegmentedControl, Skeleton } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { FilePreview } from '@renderer/components/FilePreview'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { FileIcon } from '@renderer/components/icons/FileIcon'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { ipcApi } from '@renderer/ipc'
-import { toast } from '@renderer/services/toast'
+import { toastAppError } from '@renderer/services/AppErrorDetailService'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle, type TreeDir, type TreeMutationEvent, type TreeNode } from '@shared/utils/file'
 
@@ -28,6 +30,12 @@ interface Props {
 
 export interface SkillFileBrowserHandles {
   flush: () => Promise<void>
+}
+
+// Record ids reach uploaded diagnostics verbatim, so only the root-relative file path is kept.
+function fileRecordIdOf(skillId: string, rootPath: string, filePath: string | null): string {
+  if (!filePath?.startsWith(rootPath)) return skillId
+  return `${skillId}:${filePath.slice(rootPath.length).replace(/^[\\/]+/, '')}`
 }
 
 function isMarkdownFile(filePath: string): boolean {
@@ -251,27 +259,39 @@ export const SkillFileBrowser = function SkillFileBrowser({
       setViewMode(isMarkdownFile(nextFile) ? 'preview' : 'edit')
     } catch (error) {
       logger.error('Failed to save Skill file before switching files', error as Error, { skillId, selectedFile })
-      toast.error(t('settings.skills.editor.saveFailed'))
+      toastAppError(t('settings.skills.editor.saveFailed'), error, {
+        source: 'skills',
+        operation: 'skill.file.save',
+        recordId: fileRecordIdOf(skillId, rootPath, selectedFile)
+      })
     }
-  }, [flush, pendingFile, selectedFile, skillId, t])
+  }, [flush, pendingFile, rootPath, selectedFile, skillId, t])
 
   const reloadConflictedFile = useCallback(async () => {
     try {
       await reloadFile()
     } catch (error) {
       logger.error('Failed to reload conflicted Skill file', error as Error, { skillId, selectedFile })
-      toast.error(t('library.skill_detail.file_load_failed'))
+      toastAppError(t('library.skill_detail.file_load_failed'), error, {
+        source: 'skills',
+        operation: 'skill.file.load',
+        recordId: fileRecordIdOf(skillId, rootPath, selectedFile)
+      })
     }
-  }, [reloadFile, selectedFile, skillId, t])
+  }, [reloadFile, rootPath, selectedFile, skillId, t])
 
   const saveCurrentDraft = useCallback(async () => {
     try {
       await keepCurrentDraft()
     } catch (error) {
       logger.error('Failed to save the current Skill draft', error as Error, { skillId, selectedFile })
-      toast.error(t('settings.skills.editor.saveFailed'))
+      toastAppError(t('settings.skills.editor.saveFailed'), error, {
+        source: 'skills',
+        operation: 'skill.file.save',
+        recordId: fileRecordIdOf(skillId, rootPath, selectedFile)
+      })
     }
-  }, [keepCurrentDraft, selectedFile, skillId, t])
+  }, [keepCurrentDraft, rootPath, selectedFile, skillId, t])
 
   if (isLoading) {
     return (
@@ -283,7 +303,47 @@ export const SkillFileBrowser = function SkillFileBrowser({
   }
 
   if (error) {
-    return <EmptyState title={t('library.skill_detail.no_files')} description={error.message} className="min-h-80" />
+    const summary = t('library.skill_detail.file_load_failed')
+    return (
+      <div className="flex min-h-80 flex-1 flex-col">
+        <EmptyState
+          title={summary}
+          className="min-h-80"
+          detail={
+            <ErrorDetailAction
+              error={error}
+              message={summary}
+              source="skills"
+              operation="skill.files.load"
+              recordId={skillId}
+            />
+          }
+        />
+      </div>
+    )
+  }
+
+  const fileRecordId = fileRecordIdOf(skillId, rootPath, selectedFile)
+  let sessionFailure: { error: Error; message: string; operation: string } | null = null
+  // A conflict has its own reload / keep-draft recovery instead of a failure detail.
+  if (fileSession.saveError && !fileSession.conflict) {
+    sessionFailure = {
+      error: fileSession.saveError,
+      message: t('settings.skills.editor.saveFailed'),
+      operation: 'skill.file.save'
+    }
+  } else if (syncError) {
+    sessionFailure = {
+      error: syncError,
+      message: t('settings.skills.editor.syncFailed'),
+      operation: 'skill.reconcile'
+    }
+  } else if (fileSession.status === 'error' && fileSession.error) {
+    sessionFailure = {
+      error: fileSession.error,
+      message: t('settings.skills.editor.loadFailed'),
+      operation: 'skill.file.load'
+    }
   }
 
   const selectedFileName = selectedFile?.split('/').pop() ?? ''
@@ -296,10 +356,10 @@ export const SkillFileBrowser = function SkillFileBrowser({
     statusIcon = <AlertTriangle className="size-3.5" aria-hidden />
   } else if (fileSession.saveError) {
     saveStatus = t('settings.skills.editor.saveFailed')
-    statusIcon = <AlertTriangle className="size-3.5" aria-hidden />
+    statusIcon = <AlertCircle className="size-3.5 text-error" aria-hidden />
   } else if (syncError) {
     saveStatus = t('settings.skills.editor.syncFailed')
-    statusIcon = <AlertTriangle className="size-3.5" aria-hidden />
+    statusIcon = <AlertCircle className="size-3.5 text-error" aria-hidden />
   } else if (fileSession.isSaving || fileSession.isDirty) {
     saveStatus = t('settings.skills.editor.saving')
     statusIcon = <Loader2 className="size-3.5 animate-spin" aria-hidden />
@@ -316,7 +376,7 @@ export const SkillFileBrowser = function SkillFileBrowser({
     statusIcon = <AlertTriangle className="size-3.5" aria-hidden />
   } else if (fileSession.status === 'error') {
     saveStatus = t('settings.skills.editor.loadFailed')
-    statusIcon = <AlertTriangle className="size-3.5" aria-hidden />
+    statusIcon = <AlertCircle className="size-3.5 text-error" aria-hidden />
   }
   const showRecovery = fileSession.conflict || syncError !== null
   const previewHeader = (
@@ -333,6 +393,15 @@ export const SkillFileBrowser = function SkillFileBrowser({
             className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
             {statusIcon}
             <span className="truncate">{saveStatus}</span>
+            {sessionFailure ? (
+              <ErrorDetailAction
+                error={sessionFailure.error}
+                message={sessionFailure.message}
+                source="skills"
+                operation={sessionFailure.operation}
+                recordId={fileRecordId}
+              />
+            ) : null}
           </span>
         ) : null}
       </div>
@@ -430,29 +499,44 @@ export const SkillFileBrowser = function SkillFileBrowser({
               </div>
             )}
           </div>
-          {access === 'read_write' && showRecovery ? (
+          {access === 'read_write' && fileSession.conflict ? (
             <div
               role="status"
               aria-live="polite"
               className="flex min-h-10 shrink-0 items-center gap-2 rounded-lg bg-warning-subtle px-3 text-xs text-warning-subtle-foreground">
               {statusIcon}
               <span>{saveStatus}</span>
-              {fileSession.conflict ? (
-                <div className="ml-auto flex items-center gap-1">
-                  <Button variant="ghost" size="sm" onClick={() => void reloadConflictedFile()}>
-                    {t('settings.skills.editor.reload')}
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => void saveCurrentDraft()}>
-                    {t('settings.skills.editor.keepDraft')}
-                  </Button>
-                </div>
-              ) : (
-                <Button variant="ghost" size="sm" className="ml-auto" onClick={() => void reconcileSkill()}>
-                  <RotateCcw className="size-3.5" aria-hidden />
-                  {t('common.retry')}
+              <div className="ml-auto flex items-center gap-1">
+                <Button variant="ghost" size="sm" onClick={() => void reloadConflictedFile()}>
+                  {t('settings.skills.editor.reload')}
                 </Button>
-              )}
+                <Button variant="outline" size="sm" onClick={() => void saveCurrentDraft()}>
+                  {t('settings.skills.editor.keepDraft')}
+                </Button>
+              </div>
             </div>
+          ) : access === 'read_write' && showRecovery ? (
+            <ErrorNotice
+              variant="inline"
+              className="shrink-0"
+              title={saveStatus}
+              action={{
+                label: t('common.retry'),
+                icon: <RotateCcw className="size-3.5" aria-hidden />,
+                onClick: () => void reconcileSkill()
+              }}
+              detail={
+                sessionFailure ? (
+                  <ErrorDetailAction
+                    error={sessionFailure.error}
+                    message={sessionFailure.message}
+                    source="skills"
+                    operation={sessionFailure.operation}
+                    recordId={fileRecordId}
+                  />
+                ) : undefined
+              }
+            />
           ) : null}
         </div>
       </div>
@@ -490,7 +574,11 @@ export const SkillFileBrowser = function SkillFileBrowser({
             blocker.proceed()
           } catch (error) {
             logger.error('Failed to save Skill file before navigation', error as Error, { skillId, selectedFile })
-            toast.error(t('settings.skills.editor.saveFailed'))
+            toastAppError(t('settings.skills.editor.saveFailed'), error, {
+              source: 'skills',
+              operation: 'skill.file.save',
+              recordId: fileRecordIdOf(skillId, rootPath, selectedFile)
+            })
           }
         }}
         content={

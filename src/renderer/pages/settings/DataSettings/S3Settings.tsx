@@ -4,9 +4,11 @@ import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Input, RowFlex, Switch, WarnTooltip, HelpTooltip } from '@cherrystudio/ui'
+import { Button, HelpTooltip, Input, RowFlex, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { S3BackupManager } from '@renderer/components/S3BackupManager'
 import { S3BackupModal, useS3BackupModal } from '@renderer/components/S3Modals'
 import Selector from '@renderer/components/Selector'
@@ -44,6 +46,7 @@ const S3Settings: FC = () => {
   const { openSmartMiniApp } = useMiniAppPopup()
 
   const s3Sync = useBackupSyncState('s3')
+  const s3SyncErrorReason = s3Sync?.lastSyncError
 
   const onSyncIntervalChange = async (value: number) => {
     await setS3SyncInterval(value)
@@ -77,18 +80,32 @@ const S3Settings: FC = () => {
     return (
       <RowFlex className="items-center gap-1.25">
         {s3Sync?.syncing && <RefreshCw className="animate-spin" size={14} />}
-        {!s3Sync?.syncing && s3Sync?.lastSyncError && (
-          <WarnTooltip
-            content={t('settings.data.s3.syncStatus.error', { message: s3Sync.lastSyncError })}
-            iconProps={{ style: { color: 'var(--error)' } }}
-          />
-        )}
         {s3Sync?.lastSyncTime && (
           <span style={{ color: SYNC_STATUS_COLOR }}>
             {t('settings.data.s3.syncStatus.lastSync', { time: dayjs(s3Sync.lastSyncTime).format('HH:mm:ss') })}
           </span>
         )}
       </RowFlex>
+    )
+  }
+
+  const renderSyncError = () => {
+    if (!s3Endpoint || s3Sync?.syncing || !s3SyncErrorReason) return null
+
+    return (
+      <ErrorNotice
+        variant="inline"
+        className="mb-2"
+        title={t('settings.data.s3.syncStatus.error')}
+        detail={
+          <ErrorDetailAction
+            error={s3SyncErrorReason}
+            message={t('settings.data.s3.syncStatus.error')}
+            source="settings.data.s3"
+            operation="backup.sync"
+          />
+        }
+      />
     )
   }
 
@@ -262,6 +279,7 @@ const S3Settings: FC = () => {
             <SettingRowTitle>{t('settings.data.s3.syncStatus.label')}</SettingRowTitle>
             {renderSyncStatus()}
           </SettingRow>
+          {renderSyncError()}
         </>
       )}
       <>

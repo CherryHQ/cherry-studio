@@ -5,7 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUIIcons from '@cherrystudio/ui/icons'
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
+import { errorDetailPopupService } from '@renderer/services/ErrorDetailPopupService'
 import type { Model } from '@shared/data/types/model'
+import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 import ProviderApiSetupDialog from '../ProviderApiSetupDialog'
 
@@ -18,6 +21,7 @@ const fetchResolvedProviderModelsMock = vi.fn()
 const checkApiMock = vi.fn()
 const getModelHealthCheckSkipReasonMock = vi.fn()
 const toastSuccessMock = vi.fn()
+const { showErrorDetailPopup } = vi.hoisted(() => ({ showErrorDetailPopup: vi.fn() }))
 let localModels: Model[] = []
 let storedApiKeys: Array<{ id: string; key: string; isEnabled: boolean }> = []
 let storedApiKeysUnavailable = false
@@ -88,6 +92,11 @@ vi.mock('../../ModelList/ProviderModelAdd', () => ({
         </button>
       </div>
     ) : null
+}))
+
+vi.mock('@renderer/components/ErrorDetailModal', () => ({
+  isErrorDetailHostMounted: () => true,
+  showErrorDetailPopup
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
@@ -169,6 +178,7 @@ describe('ProviderApiSetupDialog', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    errorDetailPopupService.register(() => import('@renderer/components/ErrorDetailModal'))
     localModels = []
     storedApiKeys = []
     storedApiKeysUnavailable = false
@@ -344,7 +354,8 @@ describe('ProviderApiSetupDialog', () => {
     fireEvent.change(screen.getByLabelText('settings.provider.api_key.label'), { target: { value: 'sk-valid' } })
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.next' }))
 
-    await screen.findByText(/storage unavailable/)
+    expect(await screen.findByRole('alert')).toHaveTextContent('settings.provider.api_key.save_failed')
+    expect(screen.queryByText(/storage unavailable/)).not.toBeInTheDocument()
     expect(screen.getByLabelText('settings.provider.api_key.label')).toHaveValue('sk-valid')
     expect(fetchResolvedProviderModelsMock).not.toHaveBeenCalled()
     expect(enableProviderMock).not.toHaveBeenCalled()
@@ -508,7 +519,7 @@ describe('ProviderApiSetupDialog', () => {
 
     await screen.findByRole('alert')
     expect(screen.queryByText(/sk-existing/)).not.toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent('••••')
+    expect(screen.getByRole('alert')).not.toHaveTextContent('401 rejected')
     expect(screen.getByRole('button', { name: 'settings.provider.api_setup.edit_key' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'common.back' }))
@@ -523,6 +534,34 @@ describe('ProviderApiSetupDialog', () => {
     expect(updateApiKeysMock).toHaveBeenCalledWith([{ id: 'saved-key', key: 'sk-replacement', isEnabled: true }])
   })
 
+  it('keeps a typed key of any shape out of the diagnostic detail', async () => {
+    const typedKey = 'gw7Qx9LmZ2vR4nT8'
+    fetchResolvedProviderModelsMock.mockRejectedValueOnce(
+      new IpcError(aiErrorCodes.AI_REQUEST_FAILED, `rejected ${typedKey}`, {
+        name: 'AI_APICallError',
+        message: `rejected ${typedKey}`,
+        stack: `AI_APICallError: rejected ${typedKey}`,
+        statusCode: 401,
+        responseBody: `{"error":"bad credential ${typedKey}"}`
+      })
+    )
+
+    render(<ProviderApiSetupDialog providerId="openai" initialStep="api-key" onClose={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText('settings.provider.api_key.label'), { target: { value: typedKey } })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.next' }))
+    await screen.findByRole('alert')
+    fireEvent.click(screen.getByRole('button', { name: 'common.detail' }))
+
+    await waitFor(() => expect(showErrorDetailPopup).toHaveBeenCalled())
+    const request = showErrorDetailPopup.mock.calls[0]?.[0] as {
+      errorContext: { providerId?: string; statusCode?: number }
+    }
+    expect(JSON.stringify(request)).not.toContain(typedKey)
+    expect(request.errorContext.providerId).toBe('openai')
+    expect(request.errorContext.statusCode).toBe(401)
+  })
+
   it('shows a localized reason for a recognized model-loading error', async () => {
     storedApiKeys = [{ id: 'saved-key', key: 'sk-existing', isEnabled: true }]
     fetchResolvedProviderModelsMock.mockRejectedValueOnce(new Error('Invalid API key'))
@@ -530,7 +569,6 @@ describe('ProviderApiSetupDialog', () => {
     render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={vi.fn()} />)
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent('settings.models.manage.sync_pull_failed')
     expect(alert).toHaveTextContent('error.diagnosis.auth')
     expect(alert).not.toHaveTextContent('Invalid API key')
   })
@@ -555,6 +593,25 @@ describe('ProviderApiSetupDialog', () => {
     expect(alert).toHaveTextContent('settings.models.manage.sync_pull_failed')
     expect(alert).not.toHaveTextContent('sk-sensitive')
     expect(alert).not.toHaveTextContent('401 rejected')
+  })
+
+  it('offers no diagnostic detail when stored keys cannot be loaded to redact it', async () => {
+    storedApiKeysUnavailable = true
+    const storedKey = 'gw7Qx9LmZ2vR4nT8'
+    fetchResolvedProviderModelsMock.mockRejectedValueOnce(
+      new IpcError(aiErrorCodes.AI_REQUEST_FAILED, `rejected ${storedKey}`, {
+        name: 'AI_APICallError',
+        message: `rejected ${storedKey}`,
+        stack: null,
+        statusCode: 401,
+        responseBody: `{"error":"bad credential ${storedKey}"}`
+      })
+    )
+
+    render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={vi.fn()} />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('error.diagnosis.auth')
+    expect(screen.queryByRole('button', { name: 'common.detail' })).not.toBeInTheDocument()
   })
 
   it('lets a preset provider add a model manually when remote model loading fails', async () => {
@@ -632,7 +689,8 @@ describe('ProviderApiSetupDialog', () => {
     expect(enableProviderMock).not.toHaveBeenCalled()
 
     await user.click(screen.getByRole('button', { name: 'settings.provider.api_setup.verify_and_enable' }))
-    await screen.findByText(/storage unavailable/)
+    expect(await screen.findByRole('alert')).toHaveTextContent('settings.provider.api_setup.enable_failed')
+    expect(screen.queryByText(/storage unavailable/)).not.toBeInTheDocument()
     expect(checkApiMock).toHaveBeenCalledTimes(2)
     expect(enableProviderMock).toHaveBeenCalledTimes(1)
 
@@ -641,6 +699,22 @@ describe('ProviderApiSetupDialog', () => {
     expect(checkApiMock).toHaveBeenCalledTimes(2)
     expect(enableProviderMock).toHaveBeenCalledTimes(2)
     expect(createModelsMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows an unrecognized check failure as the translated step summary with Details', async () => {
+    storedApiKeys = [{ id: 'saved-key', key: 'sk-existing', isEnabled: true }]
+    checkApiMock.mockRejectedValueOnce(new Error('upstream returned gibberish'))
+
+    render(<ProviderApiSetupDialog providerId="openai" initialStep="models" onClose={vi.fn()} />)
+
+    await screen.findAllByText('alpha')
+    fireEvent.click(screen.getAllByLabelText('settings.provider.api_setup.select_model')[0])
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.progress.add_models' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('settings.provider.api_setup.check_failed')
+    expect(screen.queryByText(/upstream returned gibberish/)).not.toBeInTheDocument()
+    expect(within(alert).getByRole('button', { name: 'common.detail' })).toBeInTheDocument()
   })
 
   it('treats a verification timeout as a failed real request and leaves the provider off', async () => {
@@ -676,7 +750,8 @@ describe('ProviderApiSetupDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.select_all' }))
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api_setup.progress.add_models' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('second batch failed')
+    expect(await screen.findByRole('alert')).toHaveTextContent('settings.models.manage.operation_failed')
+    expect(screen.getByRole('alert')).not.toHaveTextContent('second batch failed')
     expect(screen.getByRole('heading', { name: /settings\.provider\.api_setup\.models_title/ })).toBeInTheDocument()
     expect(
       screen.queryByRole('heading', { name: /settings\.provider\.api_setup\.verify_and_enable/ })

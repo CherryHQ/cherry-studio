@@ -2,12 +2,13 @@ import { Globe2, GripVertical, Plus, Unlink, Zap } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Alert, Button, EmptyState, ReorderableList, Tooltip } from '@cherrystudio/ui'
+import { Button, EmptyState, ReorderableList, Tooltip } from '@cherrystudio/ui'
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@data/hooks/useReorder'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { usePromptBindingMutations, usePromptMutations } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { PromptBindingTarget, PromptVisibility } from '@shared/data/types/prompt'
 
 import { PromptEditDialog } from '../edit'
@@ -96,12 +97,10 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
           await unbindPrompt(promptId)
         }
       } catch (error) {
-        toast.error(
-          formatErrorMessageWithPrefix(
-            error,
-            t(shouldBind ? 'settings.prompts.errors.bindFailed' : 'settings.prompts.errors.unbindFailed')
-          )
-        )
+        toast.error({
+          title: t(shouldBind ? 'settings.prompts.errors.bindFailed' : 'settings.prompts.errors.unbindFailed'),
+          cause: error
+        })
       } finally {
         if (bindingOperationGenerationRef.current === operationGeneration) {
           isBindingRef.current = false
@@ -121,7 +120,7 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
         })
         setIsCreatePromptOpen(false)
       } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('settings.prompts.errors.createFailed')))
+        toast.error({ title: t('settings.prompts.errors.createFailed'), cause: error })
         throw error
       }
     },
@@ -132,7 +131,7 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
   const isLoading = isAllPromptsLoading || isBoundPromptsLoading
   const handleReorderError = useCallback(
     (reorderError: unknown) => {
-      toast.error(formatErrorMessageWithPrefix(reorderError, t('settings.prompts.errors.reorderFailed')))
+      toast.error({ title: t('settings.prompts.errors.reorderFailed'), cause: reorderError })
     },
     [t]
   )
@@ -187,20 +186,21 @@ export function PromptBindingTab({ enabled, target, portalContainer, onManageGlo
         </div>
 
         {error ? (
-          <Alert
-            type="error"
-            showIcon
-            message={t('settings.prompts.errors.loadFailed')}
-            description={error.message}
-            action={
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void Promise.all([refetchAllPrompts(), refetchBoundPrompts()])}>
-                {t('common.retry')}
-              </Button>
+          <ErrorNotice
+            variant="inline"
+            title={t('settings.prompts.errors.loadFailed')}
+            action={{
+              label: t('common.retry'),
+              onClick: () => void Promise.all([refetchAllPrompts(), refetchBoundPrompts()])
+            }}
+            detail={
+              <ErrorDetailAction
+                error={error}
+                message={t('settings.prompts.errors.loadFailed')}
+                source="settings.prompts"
+                operation="prompt.bindings"
+              />
             }
-            className="rounded-md px-4 py-3 shadow-none"
           />
         ) : isLoading ? (
           <CatalogEmptyPlaceholder>{t('common.loading')}</CatalogEmptyPlaceholder>

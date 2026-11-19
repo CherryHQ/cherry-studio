@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   confirm: vi.fn(),
   invalidate: vi.fn(),
   navigate: vi.fn(),
+  popupError: vi.fn(),
   on: vi.fn<(event: string, callback: (log: McpServerLogEntry & { serverId: string }) => void) => () => void>(() =>
     vi.fn()
   ),
@@ -28,6 +29,7 @@ const mocks = vi.hoisted(() => ({
 
 let currentServer: McpServer
 let currentSearch: { autoEnable?: 'true' }
+let currentRuntimeStatus: { state: string; lastError?: string }
 
 // Keep the real useMcpServerMutations so the delete tests exercise the actual
 // remove flow (IPC channel + cache invalidation), not a stand-in.
@@ -45,7 +47,7 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('@renderer/services/popup', () => ({
   popup: {
     confirm: mocks.confirm,
-    error: vi.fn()
+    error: mocks.popupError
   }
 }))
 
@@ -68,7 +70,7 @@ vi.mock('@renderer/services/toast', () => ({
   }
 }))
 vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
-  useMcpRuntimeStatus: () => ({ state: 'disabled', lastError: undefined })
+  useMcpRuntimeStatus: () => currentRuntimeStatus
 }))
 vi.mock('@renderer/hooks/useTheme', () => ({ useTheme: () => ({ theme: 'light' }) }))
 
@@ -122,6 +124,7 @@ describe('McpSettings', () => {
       isTrusted: false
     }
     currentSearch = { autoEnable: 'true' }
+    currentRuntimeStatus = { state: 'disabled', lastError: undefined }
     mocks.confirm.mockResolvedValue(false)
     mocks.invalidate.mockResolvedValue(undefined)
     mocks.updateMcpServer.mockResolvedValue(undefined)
@@ -374,6 +377,60 @@ describe('McpSettings', () => {
     expect(mocks.invalidate).not.toHaveBeenCalled()
     expect(mocks.toastSuccess).not.toHaveBeenCalled()
     expect(mocks.navigate).not.toHaveBeenCalled()
+  })
+
+  it('titles a delete failure with the localized conclusion and keeps the raw error as its cause', async () => {
+    currentSearch = {}
+    currentServer = { id: 'server-a', name: 'Server A', type: 'stdio', command: 'server-a', isActive: false }
+    mocks.confirm.mockResolvedValue(true)
+    const failure = new Error('EBUSY: close failed')
+    mocks.request.mockImplementation((channel: string) =>
+      channel === 'mcp.server.remove' ? Promise.reject(failure) : Promise.resolve([])
+    )
+
+    const user = userEvent.setup()
+    render(<McpSettings />)
+    await user.click(screen.getByRole('button', { name: /common\.delete/ }))
+
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalled())
+    const shown = mocks.toastError.mock.calls[0][0]
+    expect(shown.title).toBe('settings.mcp.deleteError')
+    expect(JSON.stringify([shown.title, shown.description])).not.toContain('EBUSY')
+    expect(shown.cause).toBe(failure)
+  })
+
+  it('shows a localized reason, not the raw IPC text, when stopping a server fails', async () => {
+    currentSearch = {}
+    currentServer = { id: 'server-a', name: 'Server A', type: 'stdio', command: 'server-a', isActive: true }
+    const failure = new Error('spawn EPIPE while stopping child')
+    mocks.request.mockImplementation((channel: string) =>
+      channel === 'mcp.server.stop' ? Promise.reject(failure) : Promise.resolve([])
+    )
+
+    const user = userEvent.setup()
+    render(<McpSettings />)
+    await user.click(screen.getByRole('switch'))
+
+    await waitFor(() => expect(mocks.popupError).toHaveBeenCalled())
+    const shown = mocks.popupError.mock.calls[0][0]
+    expect(shown.title).toBe('settings.mcp.updateError')
+    expect(shown.content).toBe('toast.error.unexpected')
+    expect(shown.cause).toBe(failure)
+  })
+
+  it('shows the runtime failure as a localized row without the raw connection error', async () => {
+    currentSearch = {}
+    currentServer = { id: 'server-a', name: 'Server A', type: 'stdio', command: 'server-a', isActive: true }
+    currentRuntimeStatus = { state: 'error', lastError: 'MCP error -32000: Connection closed by peer' }
+    mocks.request.mockResolvedValue([])
+
+    const user = userEvent.setup()
+    render(<McpSettings />)
+    await user.click(screen.getByRole('radio', { name: 'settings.mcp.tabs.tools' }))
+
+    expect(await screen.findByText('Server unavailable')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /common\.detail/ })).toBeInTheDocument()
+    expect(screen.queryByText(/Connection closed by peer/)).not.toBeInTheDocument()
   })
 
   it('does not report a committed delete as failed when the cache refresh rejects', async () => {

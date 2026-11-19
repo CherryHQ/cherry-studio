@@ -3,9 +3,11 @@ import { FolderOpen, RefreshCw, Save, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Input, RowFlex, Switch, WarnTooltip, HelpTooltip } from '@cherrystudio/ui'
+import { Button, HelpTooltip, Input, RowFlex, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { ErrorDetailAction } from '@renderer/components/ErrorDetailAction'
+import { ErrorNotice } from '@renderer/components/ErrorNotice'
 import { LocalBackupManager } from '@renderer/components/LocalBackupManager'
 import { LocalBackupModal, useLocalBackupModal } from '@renderer/components/LocalBackupModals'
 import Selector from '@renderer/components/Selector'
@@ -159,18 +161,32 @@ const LocalBackupSettings: React.FC = () => {
     return (
       <RowFlex className="items-center gap-1.25">
         {localBackupSync.syncing && <RefreshCw className="animate-spin" size={14} />}
-        {!localBackupSync.syncing && localBackupSync.lastSyncError && (
-          <WarnTooltip
-            content={`${t('settings.data.local.syncError')}: ${localBackupSync.lastSyncError}`}
-            iconProps={{ style: { color: 'var(--error)' } }}
-          />
-        )}
         {localBackupSync.lastSyncTime && (
           <span style={{ color: SYNC_STATUS_COLOR }}>
             {t('settings.data.local.lastSync')}: {dayjs(localBackupSync.lastSyncTime).format('HH:mm:ss')}
           </span>
         )}
       </RowFlex>
+    )
+  }
+
+  const renderSyncError = () => {
+    if (!localBackupDir || localBackupSync.syncing || !localBackupSync.lastSyncError) return null
+
+    return (
+      <ErrorNotice
+        variant="inline"
+        className="mb-2"
+        title={t('settings.data.local.syncError')}
+        detail={
+          <ErrorDetailAction
+            error={localBackupSync.lastSyncError}
+            message={t('settings.data.local.syncError')}
+            source="settings.data.local"
+            operation="backup.sync"
+          />
+        }
+      />
     )
   }
 
@@ -284,6 +300,7 @@ const LocalBackupSettings: React.FC = () => {
             <SettingRowTitle>{t('settings.data.local.syncStatus')}</SettingRowTitle>
             {renderSyncStatus()}
           </SettingRow>
+          {renderSyncError()}
         </>
       )}
       <>

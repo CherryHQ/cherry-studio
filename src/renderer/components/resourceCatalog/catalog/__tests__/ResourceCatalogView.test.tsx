@@ -39,13 +39,7 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  Alert: ({ action, description, message }: { action?: ReactNode; description?: ReactNode; message?: ReactNode }) => (
-    <div role="alert">
-      {message}
-      {description}
-      {action}
-    </div>
-  ),
+  Alert: ({ children }: { children?: ReactNode }) => <div role="alert">{children}</div>,
   Button: ({ children, onClick }: { children?: ReactNode; onClick?: () => void; size?: string; variant?: string }) => (
     <button type="button" onClick={onClick}>
       {children}
@@ -251,7 +245,9 @@ describe('ResourceCatalogView', () => {
 
     expect(screen.queryByTestId('resource-grid')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Toggle sidebar' })).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent('catalog failed')
+    expect(screen.getByRole('alert')).toHaveTextContent('common.load_failed')
+    expect(screen.getByRole('alert')).not.toHaveTextContent('catalog failed')
+    expect(screen.getByRole('button', { name: /common\.detail/ })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 

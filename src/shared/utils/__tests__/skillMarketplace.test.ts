@@ -5,7 +5,13 @@ import {
   marketplaceSkillSource,
   summarizeMarketplaceSkill
 } from '@shared/utils/cherrySkillMarketplace'
-import { buildGithubSkillResult, parseGithubSkillUrl, parseSkillSourceUrl } from '@shared/utils/skillMarketplace'
+import {
+  buildGithubSkillResult,
+  parseGithubSkillUrl,
+  parseSkillSourceUrl,
+  SKILL_SEARCH_FAILED_ERROR,
+  searchSkillMarketplaces
+} from '@shared/utils/skillMarketplace'
 import { normalizeSubscriptionUrl } from '@shared/utils/skillSubscription'
 
 describe('normalizeSubscriptionUrl', () => {
@@ -207,5 +213,14 @@ describe('parseSkillSourceUrl', () => {
     'https://github.com/owner/repo/tree/feature/skills/writer'
   ])('rejects a source URL that does not identify one exact Skill (%s)', (sourceUrl) => {
     expect(parseSkillSourceUrl(sourceUrl)).toBeNull()
+  })
+})
+
+describe('searchSkillMarketplaces', () => {
+  // Error details show only the cause; without it an offline search reads as a bare code.
+  it('keeps why the search failed when every source fails', async () => {
+    const offline = new Error('offline')
+    const search = searchSkillMarketplaces('pdf', () => Promise.reject(offline))
+    await expect(search).rejects.toMatchObject({ message: SKILL_SEARCH_FAILED_ERROR, cause: offline })
   })
 })

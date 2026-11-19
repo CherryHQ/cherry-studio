@@ -2,6 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
+import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 import QuickCreateMcpServerDialog from '../QuickCreateMcpServerDialog'
@@ -107,6 +109,54 @@ describe('QuickCreateMcpServerDialog', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('common.name')
     expect(onCreate).not.toHaveBeenCalled()
+  })
+
+  it('keeps the dialog open and reports a create failure without the raw cause', async () => {
+    const failure = new Error('registry down')
+    const { onCreate, onOpenChange, user } = setup(vi.fn().mockRejectedValue(failure))
+
+    await user.type(screen.getByLabelText('settings.mcp.name'), 'new-server')
+    await user.type(screen.getByLabelText('settings.mcp.command'), 'npx')
+    await user.click(submit())
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'settings.mcp.addError',
+          cause: failure,
+          data: expect.objectContaining({
+            localizedErrorMessage: 'settings.mcp.addError',
+            errorContext: expect.objectContaining({
+              message: 'registry down',
+              source: 'settings.mcp',
+              operation: 'mcp.server.create',
+              recordId: 'new-server'
+            })
+          })
+        })
+      )
+    )
+    expect(toast.error).not.toHaveBeenCalledWith('registry down')
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(onCreate).toHaveBeenCalledOnce()
+  })
+
+  it('shows why the server was rejected instead of offering it as a fault', async () => {
+    const rejection = DataApiErrorFactory.conflict('MCP server name already exists')
+    const { onOpenChange, user } = setup(vi.fn().mockRejectedValue(rejection))
+
+    await user.type(screen.getByLabelText('settings.mcp.name'), 'new-server')
+    await user.type(screen.getByLabelText('settings.mcp.command'), 'npx')
+    await user.click(submit())
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith({
+        title: 'settings.mcp.addError',
+        description: 'MCP server name already exists',
+        data: { suppressDetail: true }
+      })
+    )
+    expect(onOpenChange).not.toHaveBeenCalled()
   })
 
   it('resets registry options when reopened', async () => {
