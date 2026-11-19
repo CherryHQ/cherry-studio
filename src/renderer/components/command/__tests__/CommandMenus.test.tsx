@@ -526,7 +526,7 @@ describe('CommandContextMenu', () => {
       location: 'webcontents.context'
     })
     render(<input aria-label="external-target" />)
-    const external = screen.getByLabelText('external-target') as HTMLInputElement
+    const external = screen.getByLabelText<HTMLInputElement>('external-target')
     external.focus()
 
     const content = screen.getByTestId('menu-content')

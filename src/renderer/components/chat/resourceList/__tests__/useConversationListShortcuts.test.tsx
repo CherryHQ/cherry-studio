@@ -13,6 +13,7 @@ import {
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
 import { useCommandContextReader } from '@renderer/hooks/command'
 import { TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
+import { getNumberShortcutUpdates } from '@renderer/utils/numberShortcuts'
 import { isMac } from '@renderer/utils/platform'
 
 import { ResourceList } from '../base'
@@ -118,6 +119,21 @@ afterEach(() => {
 })
 
 describe('conversation number shortcuts', () => {
+  it('does not navigate or prevent digit events when number shortcuts are off', () => {
+    for (const [key, value] of Object.entries(getNumberShortcutUpdates('off', isMac ? 'darwin' : 'win32'))) {
+      mockPreferenceState.set(key, value)
+    }
+    render(
+      <Root>
+        <Page name="active conversation" />
+      </Root>
+    )
+    for (const digit of ['1', '2', '3', '4', '5', '6', '7', '8', '9']) {
+      expect(pressDigit(digit, 'active conversation')).toBe(false)
+      expect(screen.getByLabelText('active conversation')).toHaveTextContent('none')
+    }
+  })
+
   it('continues switching after the focused conversation composer is replaced', async () => {
     const user = userEvent.setup()
     function Conversation() {

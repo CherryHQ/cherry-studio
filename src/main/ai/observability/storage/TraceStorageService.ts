@@ -14,6 +14,7 @@ import type { TraceDataCursor, TraceDataResult } from '@shared/data/types/trace'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { convertSpanToSpanEntity } from '../core/spanConvert'
+import { estimateTraceValueBytes } from './traceSize'
 import { TraceSpanStore } from './TraceSpanStore'
 import type { TraceStore } from './TraceStore'
 
@@ -189,14 +190,18 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     if (!spanEntity) {
       // Missing on end means the start span was evicted or never recorded (e.g. flush race);
       // the captured end status/body would otherwise be lost silently.
-      logger.warn('endSpan: span not found in store', { spanId })
+      this.saveEntity(convertSpanToSpanEntity(span))
       return
     }
 
     this.applyTraceMeta(spanEntity)
     spanEntity.endTime = span.endTime ? span.endTime[0] * 1e3 + Math.floor(span.endTime[1] / 1e6) : null
     spanEntity.status = SpanStatusCode[span.status.code]
-    spanEntity.attributes = span.attributes ? ({ ...span.attributes } as Attributes) : {}
+    const dropped = spanEntity.attributes?.['cs.trace.dropped_spans']
+    spanEntity.attributes = {
+      ...span.attributes,
+      ...(dropped !== undefined && { 'cs.trace.dropped_spans': dropped })
+    }
     this.setRetainedEvents(spanEntity, span.events)
     spanEntity.links = span.links
     spanEntity.isEnd = true
@@ -289,12 +294,17 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     if (!incoming.events || incoming.events.length === 0) return
     const existing = Array.isArray(span.events) ? span.events : []
     const before = this.spanEventBytes.get(span) ?? sumEventBytes(existing)
-    const trimmed = capSpanEvents([...existing, ...incoming.events], before + incoming.bytes)
+    const combined = [...existing, ...incoming.events]
+    const trimmed = capSpanEvents(combined, before + incoming.bytes)
     span.events = trimmed.events
     this.spanEventBytes.set(span, trimmed.bytes)
     // The span object is already stored and was mutated in place, so report the size delta rather
     // than re-inserting it — setSpan would re-measure the whole span on every log event.
-    this.store.touchSpan(span.id, trimmed.bytes - before)
+    const removed = combined.slice(0, combined.length - trimmed.events.length)
+    const delta =
+      incoming.events.reduce((sum, event) => sum + estimateTraceValueBytes(event), 0) -
+      removed.reduce((sum, event) => sum + estimateTraceValueBytes(event), 0)
+    this.store.touchSpan(span.id, delta)
   }
 
   private setRetainedEvents(span: SpanEntity, events: TimedEvent[] | undefined): void {

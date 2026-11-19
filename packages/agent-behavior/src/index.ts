@@ -33,7 +33,6 @@ export type {
 export { callKeyOf, ENTRY_KINDS } from './core/facts'
 export type {
   CallRef,
-  ApprovalOutcome,
   ToolCategory,
   ApprovalHostFacts,
   ApprovalAnswer,
@@ -118,6 +117,14 @@ export type {
   HostPorts
 } from './ports/host'
 export { install } from './orchestration/install'
+export {
+  TOOL_INTENT_ARG,
+  TOOL_INTENT_GUIDE,
+  withoutToolIntent,
+  createToolIntent,
+  offersToolIntent
+} from './orchestration/toolIntent'
+export type { IntentTool } from './orchestration/toolIntent'
 export type { Installation } from './orchestration/install'
 export type { Entries } from './orchestration/entries'
 export type { SubagentMessageReceipt } from './orchestration/tools/subagents'

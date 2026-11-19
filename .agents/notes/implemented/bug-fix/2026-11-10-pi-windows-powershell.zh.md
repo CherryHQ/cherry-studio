@@ -16,7 +16,7 @@ Cherry 原先仅为 Pi 和 Pi Durable 注册 Bash，导致没有可用 Bash 安�
 
 Pi Durable 在构造 `NodeExecutionEnv` 时合并完整环境。SDK 为每次 shell 调用创建空的环境覆盖对象。合并该空对象会生成仅含托管目录的 `Path`，替换继承的 `Path`，导致子进程可能找不到 PowerShell。Durable 的两个 shell 工具都继承为会话准备的环境。
 
-将现有的禁用工具、全局安装和用户数据 SQLite 规则应用于 PowerShell。Auto 模式对识别到的破坏性命令请求审批，包括 PowerShell 的删除与内容清空命令。这种启发式检测不是完整的 PowerShell 解析器，也不是沙箱。
+将现有的禁用工具、全局安装和用户数据 SQLite 规则应用于 PowerShell。Auto 模式对识别到的破坏性命令请求审批，包括 PowerShell 的删除与内容清空命令。[结构化命令策略](../architecture/2026-11-13-command-approval-policy.md) 以实际 PowerShell 语法和共享审批语义取代了该启发式检测。它仍是减少使用干扰的辅助机制，并非操作系统隔离。
 
 ## Alternatives considered
 
