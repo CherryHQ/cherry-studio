@@ -51,7 +51,22 @@ export const agentArchiveWorkspaceJobHandler: JobHandler<{ sessionId: string }> 
       })
       return { skipped: true }
     }
-    await agentWorkspaceStorageService.archiveWorkspace(workspace)
+    const outcome = await agentWorkspaceStorageService.archiveWorkspace(workspace)
+    if (outcome === 'busy') {
+      // Transient contention is not completion: surface it so the retry policy
+      // requeues the pack instead of settling the task with the directory
+      // still unpacked.
+      throw new Error('Workspace storage is reserved by another operation; the archive will be retried')
+    }
+    if (outcome === 'blocked') {
+      // A registered workspace's claim overlaps this directory: packing is
+      // refused until the claim is removed. Retrying cannot help, so settle as
+      // skipped; the sweep re-attempts on every pass.
+      ctx.logger.info('Skipping workspace archive — a registered workspace claim blocks the reservation', {
+        sessionId: ctx.input.sessionId
+      })
+      return { skipped: true }
+    }
     return { archived: workspace.path }
   },
 

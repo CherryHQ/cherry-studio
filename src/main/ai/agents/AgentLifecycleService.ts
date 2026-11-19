@@ -228,7 +228,15 @@ export class AgentLifecycleService extends BaseService {
             try {
               await agentWorkspaceStorageService.reconcileWorkspace(
                 workspace,
-                workspace.deletedAt === null ? 'active' : 'archived'
+                workspace.deletedAt === null ? 'active' : 'archived',
+                workspace.deletedAt === null
+                  ? {}
+                  : {
+                      // AC6: the archive queue owns every pack. The sweep only
+                      // enqueues, so firing during a batch archive never starts
+                      // a third concurrent compression; the queued job retries.
+                      pack: () => this.enqueueWorkspaceArchive(workspace.id)
+                    }
               )
             } catch (error) {
               logger.warn('Workspace storage operation retained for retry', { workspace: workspace.path, error })
@@ -517,6 +525,17 @@ export class AgentLifecycleService extends BaseService {
    * a restored workspace is never re-archived by a stale task. Orchestration
    * lives here, not in the data services, which only report the sessions.
    */
+  /** Non-transactional twin used by the orphan sweep. */
+  private enqueueWorkspaceArchive(sessionId: string): void {
+    application
+      .get('JobManager')
+      .enqueue(
+        'agent.archive-system-workspace',
+        { sessionId },
+        { idempotencyKey: ARCHIVE_SYSTEM_WORKSPACE_JOB_KEY_PREFIX + sessionId }
+      )
+  }
+
   private readonly enqueueWorkspaceArchivesTx: ArchivedSystemWorkspacesHook = (tx, sessionIds) => {
     const jobManager = application.get('JobManager')
     for (const sessionId of sessionIds) {
