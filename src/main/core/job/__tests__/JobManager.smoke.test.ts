@@ -252,6 +252,27 @@ describe('JobManager smoke (dummy.echo)', () => {
     }
   )
 
+  it('does not retry a handler throw marked non-retryable', async () => {
+    const type = 'dummy.terminal-throw'
+    let entered = 0
+    jobManager.registerHandler(type as never, {
+      recovery: 'abandon',
+      defaultRetryPolicy: { maxAttempts: 3, backoff: 'fixed', baseDelayMs: 10, maxDelayMs: 10 },
+      async execute() {
+        entered += 1
+        throw Object.assign(new Error('terminal overflow'), { retryable: false })
+      }
+    })
+    const handle = jobManager.enqueue(type as never, {} as never)
+    const settled = await handle.finished
+    expect(settled.status).toBe('failed')
+    expect(settled.error?.code).toBe('JOB_HANDLER_THREW')
+    expect(settled.error?.retryable).toBe(false)
+    await drainTrailingDispatch()
+    expect(entered).toBe(1)
+    expect(jobService.getById(handle.id)?.status).toBe('failed')
+  })
+
   it('runs a job end-to-end (pending → running → completed)', async () => {
     const handle = jobManager.enqueue('dummy.echo' as never, { message: 'hello' } as never)
     expect(handle.snapshot.status).toBe('pending')

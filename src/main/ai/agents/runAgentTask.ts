@@ -404,6 +404,9 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       resolved.session.id === session.id
     ) {
       application.get('AgentJobsService').releaseOverflowedTaskSession(reuseBinding, session.id)
+      // Terminal: a retry resubmits the full prompt in a fresh session, which can
+      // repeat tool effects this run already committed and rebinds the run row.
+      Object.assign(runError, { retryable: false })
     }
     if (pausedStatus) await ctx.patchMetadata({ taskResultStatus: pausedStatus })
     if (!runSignal.aborted && !pausedStatus && subscribedChannels.length > 0) {

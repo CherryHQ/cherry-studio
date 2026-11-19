@@ -445,8 +445,14 @@ describe('runAgentTask', () => {
       )
       await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
       captured.listeners[0].onError({ error: { message, claudeCodeExitCategory } })
-      await expect(run).rejects.toThrow(message)
+      const error = await run.catch((thrown: unknown) => thrown)
+      expect(error).toBeInstanceOf(Error)
+      expect((error as Error).message).toContain(message)
       expect(mockReleaseOverflowed).toHaveBeenCalledTimes(releases)
+      // A released-overflow throw must be terminal: the job runner must not
+      // resubmit the full prompt in a fresh session (repeating committed
+      // effects). Ordinary failures stay unmarked (retryable by policy).
+      expect((error as { retryable?: boolean }).retryable).toBe(releases === 1 ? false : undefined)
     })
 
     it('runs one-off when a queued job has a stale reuse revision', async () => {

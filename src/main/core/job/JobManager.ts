@@ -1851,7 +1851,10 @@ export class JobManager extends BaseService {
             : {
                 code: isTimeout ? JOB_ERROR_CODES.HANDLER_TIMEOUT : JOB_ERROR_CODES.HANDLER_THREW,
                 message: (err as Error).message || String(err),
-                retryable: true
+                // Handlers can mark a throw terminal (e.g. a context overflow that
+                // already released its session binding): retrying would resubmit
+                // the full input and can repeat committed side effects.
+                retryable: (err as { retryable?: unknown }).retryable !== false
               }
 
         const retryPolicy =
