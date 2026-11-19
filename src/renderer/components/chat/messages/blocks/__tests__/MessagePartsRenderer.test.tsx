@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { DynamicToolUIPart } from 'ai'
 import React from 'react'
 import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -436,14 +437,50 @@ function latestMainTextProps(partIndex: number): any {
   return [...mockMainTextRender.mock.calls].reverse().find(([props]) => props.id === partId)?.[0]
 }
 
-function toolPart(toolCallId: string, state = 'output-available', toolName = toolCallId) {
-  return {
-    type: 'dynamic-tool',
+function toolPart(
+  toolCallId: string,
+  state?: 'output-available',
+  toolName?: string
+): Extract<DynamicToolUIPart, { state: 'output-available' }>
+function toolPart(
+  toolCallId: string,
+  state: 'input-streaming' | 'input-available',
+  toolName?: string
+): Extract<DynamicToolUIPart, { state: 'input-streaming' | 'input-available' }>
+function toolPart(
+  toolCallId: string,
+  state: 'approval-requested',
+  toolName?: string
+): Extract<DynamicToolUIPart, { state: 'approval-requested' }>
+function toolPart(
+  toolCallId: string,
+  state: 'output-error',
+  toolName?: string
+): Extract<DynamicToolUIPart, { state: 'output-error' }>
+function toolPart(
+  toolCallId: string,
+  state:
+    | 'output-available'
+    | 'input-streaming'
+    | 'input-available'
+    | 'approval-requested'
+    | 'output-error' = 'output-available',
+  toolName = toolCallId
+): DynamicToolUIPart {
+  const call = {
     toolCallId,
     toolName,
-    state,
-    input: { path: `${toolCallId}.txt` },
-    output: state === 'output-available' ? {} : undefined
+    input: { path: `${toolCallId}.txt` }
+  }
+  switch (state) {
+    case 'output-available':
+      return { type: 'dynamic-tool', ...call, state, output: {} }
+    case 'output-error':
+      return { type: 'dynamic-tool', ...call, state, errorText: `${toolName} failed` }
+    case 'approval-requested':
+      return { type: 'dynamic-tool', ...call, state, approval: { id: `approval-${toolCallId}` } }
+    default:
+      return { type: 'dynamic-tool', ...call, state }
   }
 }
 
@@ -481,9 +518,9 @@ describe('MessagePartsRenderer', () => {
       const firstMessage = msg({ id: 'msg-1' })
       const secondMessage = msg({ id: 'msg-2' })
       const messages = [firstMessage, secondMessage]
-      const partsByMessageId = {
-        'msg-1': [{ type: 'text', text: 'First' }] as CherryMessagePart[],
-        'msg-2': [{ type: 'text', text: 'Second' }] as CherryMessagePart[]
+      const partsByMessageId: Record<string, CherryMessagePart[]> = {
+        'msg-1': [{ type: 'text', text: 'First' }],
+        'msg-2': [{ type: 'text', text: 'Second' }]
       }
       const store = new KeyedMessageActivityStore()
       const updateCommits = new Map<string, number>()
@@ -588,7 +625,7 @@ describe('MessagePartsRenderer', () => {
       renderParts([
         { type: 'text', text: 'hello world' },
         { type: 'data-code', data: { content: 'console.log(1)', language: 'js' } }
-      ] as unknown as CherryMessagePart[])
+      ])
 
       const markdown = screen.getAllByTestId('mock-markdown').map((node) => node.textContent)
       expect(markdown[0]).toContain('hello world')
@@ -596,18 +633,17 @@ describe('MessagePartsRenderer', () => {
       expect(markdown[1]).toContain('console.log(1)')
     })
 
-    it('renders single and grouped images while skipping image parts without a URL', () => {
-      const single = renderParts([
-        { type: 'file', url: 'https://img.test/single.png', mediaType: 'image/png' }
-      ] as unknown as CherryMessagePart[])
-
-      single.unmount()
-
-      renderParts([
-        { type: 'file', url: 'https://img.test/a.png', mediaType: 'image/png' },
-        { type: 'file', url: 'https://img.test/b.jpg', mediaType: 'image/jpeg' },
-        { type: 'file', mediaType: 'image/png' }
-      ] as unknown as CherryMessagePart[])
+    it('groups valid images while skipping stored image parts without a URL', () => {
+      const persisted = UpdateAgentSessionMessageSchema.parse({
+        data: {
+          parts: [
+            { type: 'file', url: 'https://img.test/a.png', mediaType: 'image/png' },
+            { type: 'file', url: 'https://img.test/b.jpg', mediaType: 'image/jpeg' },
+            { type: 'file', mediaType: 'image/png' }
+          ]
+        }
+      })
+      renderParts(persisted.data.parts ?? [])
 
       const block = screen.getByTestId('mock-image-block')
 
@@ -637,19 +673,19 @@ describe('MessagePartsRenderer', () => {
                   }
                 }
               }
-            } as unknown as CherryMessagePart,
+            },
             {
               type: 'file',
               url: 'file:///tmp/photo.png',
               mediaType: 'image/png',
               filename: 'photo.png',
               providerMetadata: { cherry: { fileTokenSourceId: 'source-image' } }
-            } as unknown as CherryMessagePart
+            }
           ]
         }
       })
 
-      renderParts(persisted.data.parts as CherryMessagePart[], msg({ role: 'user' }))
+      renderParts(persisted.data.parts ?? [], msg({ role: 'user' }))
 
       expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
       expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
@@ -684,21 +720,21 @@ describe('MessagePartsRenderer', () => {
                 }
               }
             }
-          } as unknown as CherryMessagePart,
+          },
           {
             type: 'file',
             url: 'file:///tmp/first/photo.png',
             mediaType: 'image/png',
             filename: 'photo.png',
             providerMetadata: { cherry: { fileTokenSourceId: 'source-image-1' } }
-          } as unknown as CherryMessagePart,
+          },
           {
             type: 'file',
             url: 'file:///tmp/second/photo.png',
             mediaType: 'image/png',
             filename: 'photo.png',
             providerMetadata: { cherry: { fileTokenSourceId: 'source-image-2' } }
-          } as unknown as CherryMessagePart
+          }
         ],
         msg({ role: 'user' })
       )
@@ -734,7 +770,7 @@ describe('MessagePartsRenderer', () => {
             }
           },
           { type: 'file', url: 'file:///tmp/legacy.png', mediaType: 'image/png', filename: 'legacy.png' }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg({ role: 'user' })
       )
 
@@ -743,29 +779,31 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('keeps the sent image token when its matching file part has no renderable URL', () => {
-      renderParts(
-        [
-          {
-            type: 'text',
-            text: '',
-            providerMetadata: {
-              cherry: {
-                composer: {
-                  version: 1,
-                  tokens: [{ id: 'file:missing-image', kind: 'file', label: 'missing.png', index: 0, textOffset: 0 }]
+      const persisted = UpdateAgentSessionMessageSchema.parse({
+        data: {
+          parts: [
+            {
+              type: 'text',
+              text: '',
+              providerMetadata: {
+                cherry: {
+                  composer: {
+                    version: 1,
+                    tokens: [{ id: 'file:missing-image', kind: 'file', label: 'missing.png', index: 0, textOffset: 0 }]
+                  }
                 }
               }
+            },
+            {
+              type: 'file',
+              mediaType: 'image/png',
+              filename: 'missing.png',
+              providerMetadata: { cherry: { fileTokenSourceId: 'missing-image' } }
             }
-          },
-          {
-            type: 'file',
-            mediaType: 'image/png',
-            filename: 'missing.png',
-            providerMetadata: { cherry: { fileTokenSourceId: 'missing-image' } }
-          }
-        ] as unknown as CherryMessagePart[],
-        msg({ role: 'user' })
-      )
+          ]
+        }
+      })
+      renderParts(persisted.data.parts ?? [], msg({ role: 'user' }))
 
       expect(document.querySelector('[data-composer-token-kind="file"]')).toHaveTextContent('missing.png')
       expect(screen.queryByTestId('mock-image-block')).toBeNull()
@@ -802,7 +840,7 @@ describe('MessagePartsRenderer', () => {
             filename: 'photo.png',
             providerMetadata: { cherry: { fileTokenSourceId: 'prompt-image' } }
           }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg({ role: 'user' })
       )
 
@@ -843,7 +881,7 @@ describe('MessagePartsRenderer', () => {
             filename: 'report.pdf',
             providerMetadata: { cherry: { fileTokenSourceId: 'mixed-pdf' } }
           }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg({ role: 'user' })
       )
 
@@ -950,7 +988,7 @@ describe('MessagePartsRenderer', () => {
             filename: 'photo.png',
             providerMetadata: { cherry: { fileTokenSourceId: 'collapsed-image' } }
           }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg({ role: 'user' })
       )
 
@@ -981,7 +1019,7 @@ describe('MessagePartsRenderer', () => {
             filename: 'photo.png',
             providerMetadata: { cherry: { fileTokenSourceId: 'hoisted-image' } }
           }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg({ role: 'user' }),
         {},
         defaultMessageRenderConfig,
@@ -1054,7 +1092,7 @@ describe('MessagePartsRenderer', () => {
               }
             }
           }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg({ role: 'user' }),
         { previewInputFile },
         defaultMessageRenderConfig,
@@ -1130,7 +1168,7 @@ describe('MessagePartsRenderer', () => {
               }
             }
           }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg({ role: 'user' }),
         { previewInputFile },
         defaultMessageRenderConfig,
@@ -1181,7 +1219,7 @@ describe('MessagePartsRenderer', () => {
             filename: 'report.pdf',
             providerMetadata: { cherry: { fileEntryId: 'entry-report' } }
           }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg({ role: 'user' }),
         { previewInputFile },
         defaultMessageRenderConfig,
@@ -1239,7 +1277,7 @@ describe('MessagePartsRenderer', () => {
             filename: 'report.pdf',
             providerMetadata: { cherry: { fileEntryId: 'entry-report-b' } }
           }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg({ role: 'user' }),
         { previewInputFile },
         defaultMessageRenderConfig,
@@ -1300,7 +1338,7 @@ describe('MessagePartsRenderer', () => {
             filename: 'report.pdf',
             providerMetadata: { cherry: { fileEntryId: 'entry-report' } }
           }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg({ role: 'user' }),
         { previewInputFile },
         defaultMessageRenderConfig,
@@ -1325,7 +1363,7 @@ describe('MessagePartsRenderer', () => {
         [
           { type: 'text', text: 'see the doc' },
           { type: 'file', url: 'file:///tmp/report.pdf', mediaType: 'application/pdf', filename: 'report.pdf' }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg({ role: 'user' }),
         {},
         defaultMessageRenderConfig,
@@ -1361,7 +1399,7 @@ describe('MessagePartsRenderer', () => {
             filename: 'photo.png',
             providerMetadata: { cherry: { fileTokenSourceId: 'only-image' } }
           }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg({ role: 'user' }),
         {},
         defaultMessageRenderConfig,
@@ -1416,7 +1454,7 @@ describe('MessagePartsRenderer', () => {
               }
             }
           }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg({ role: 'user' })
       )
 
@@ -1431,7 +1469,8 @@ describe('MessagePartsRenderer', () => {
       expect(screen.queryByTestId('mock-attachments')).toBeNull()
     })
 
-    it('maps a sent composer file token preview to the injected preview action', () => {
+    it('maps a sent composer file token preview to the injected preview action', async () => {
+      const user = userEvent.setup()
       const previewInputFile = vi.fn()
 
       renderParts(
@@ -1469,17 +1508,12 @@ describe('MessagePartsRenderer', () => {
               }
             }
           }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg({ role: 'user' }),
         { previewInputFile }
       )
 
-      const preview = latestMainTextProps(0)?.readOnlyFilePreviews.get('source-report')
-      latestMainTextProps(0)?.onReadOnlyFilePreviewActivate(preview, {
-        id: 'file:source-report',
-        kind: 'file',
-        label: 'report.md'
-      })
+      await user.click(screen.getByRole('button', { name: 'report.md' }))
 
       expect(previewInputFile).toHaveBeenCalledWith({
         displayName: 'report.md',
@@ -1493,13 +1527,13 @@ describe('MessagePartsRenderer', () => {
     it('keeps a user image when no composer file token is visible', () => {
       renderParts(
         [
-          { type: 'text', text: 'Look at this' } as unknown as CherryMessagePart,
+          { type: 'text', text: 'Look at this' },
           {
             type: 'file',
             url: 'file:///tmp/photo.png',
             mediaType: 'image/png',
             filename: 'photo.png'
-          } as unknown as CherryMessagePart
+          }
         ],
         msg({ role: 'user' })
       )
@@ -1508,9 +1542,7 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('renders non-image file attachments', () => {
-      renderParts([
-        { type: 'file', url: 'file:///doc.pdf', mediaType: 'application/pdf', filename: 'doc.pdf' }
-      ] as unknown as CherryMessagePart[])
+      renderParts([{ type: 'file', url: 'file:///doc.pdf', mediaType: 'application/pdf', filename: 'doc.pdf' }])
 
       expect(screen.queryByTestId('mock-image-block')).toBeNull()
       expect(screen.getByTestId('mock-attachments')).toHaveAttribute('data-file-name', 'doc.pdf')
@@ -1538,7 +1570,7 @@ describe('MessagePartsRenderer', () => {
             filename: 'LICENSE',
             providerMetadata: { cherry: { fileTokenSourceId: 'license' } }
           }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg({ role: 'user' })
       )
 
@@ -1576,7 +1608,7 @@ describe('MessagePartsRenderer', () => {
             filename: 'report.pdf',
             providerMetadata: { cherry: { fileTokenSourceId: 'source-report' } }
           }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg({ role: 'user' }),
         { previewFile: vi.fn(), openFile: vi.fn() },
         defaultMessageRenderConfig,
@@ -1599,7 +1631,7 @@ describe('MessagePartsRenderer', () => {
             filename: 'report.pdf',
             providerMetadata: { cherry: { fileEntryId: 'entry-report', originalPath: '/original/report.pdf' } }
           }
-        ] as CherryMessagePart[],
+        ],
         'message-1',
         true
       )
@@ -1647,7 +1679,7 @@ describe('MessagePartsRenderer', () => {
               cherry: { fileEntryId: 'entry-report', fileTokenSourceId: 'source-report' }
             }
           }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg({ role: 'user' }),
         { previewFile: vi.fn(), openFile: vi.fn(), previewInputFile },
         defaultMessageRenderConfig,
@@ -1676,7 +1708,7 @@ describe('MessagePartsRenderer', () => {
             }
           },
           { type: 'file', url: 'file:///doc.pdf', mediaType: 'application/pdf', filename: 'doc.pdf' }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg({ role: 'user' })
       )
 
@@ -1709,7 +1741,7 @@ describe('MessagePartsRenderer', () => {
             }
           },
           { type: 'file', url: 'file:///doc.pdf', mediaType: 'application/pdf', filename: 'doc.pdf' }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg({ role: 'user' })
       )
 
@@ -1733,7 +1765,7 @@ describe('MessagePartsRenderer', () => {
               ]
             }
           }
-        } as unknown as CherryMessagePart
+        }
       ])
 
       expect(screen.getByTestId('mock-markdown').textContent).toContain('data-citation')
@@ -1754,7 +1786,7 @@ describe('MessagePartsRenderer', () => {
         },
         { type: 'text', text: 'Later source first. [cite:call-2]' },
         { type: 'text', text: 'Earlier source second. [cite:call-1]' }
-      ] as unknown as CherryMessagePart[])
+      ])
 
       const [first, second] = screen.getAllByTestId('mock-markdown').map((node) => node.textContent ?? '')
       expect(first).toContain("data-citation='1'")
@@ -1791,7 +1823,7 @@ describe('MessagePartsRenderer', () => {
           }
         },
         { type: 'text', text: 'Entertainment update. [cite:70536f0b-1]' }
-      ] as unknown as CherryMessagePart[])
+      ])
 
       const content = screen.getByTestId('mock-markdown').textContent ?? ''
       expect(content).toContain("data-citation='1'")
@@ -1821,11 +1853,11 @@ describe('MessagePartsRenderer', () => {
               }
             ]
           }
-        ] as unknown as CherryMessagePart[]
+        ] satisfies CherryMessagePart[]
       }
 
       renderParts(
-        [{ type: 'text', text: '1. 工程立项审计；[cite:2598d0ab-1]' }] as unknown as CherryMessagePart[],
+        [{ type: 'text', text: '1. 工程立项审计；[cite:2598d0ab-1]' }],
         msg({ id: 'msg-1' }),
         {},
         defaultMessageRenderConfig,
@@ -1842,7 +1874,7 @@ describe('MessagePartsRenderer', () => {
         { type: 'data-video', data: { filePath: '/tmp/v.mp4' } },
         { type: 'data-video', data: { url: 'https://v.test/v.mp4' } },
         { type: 'data-error', data: { name: 'Err', message: 'boom' } }
-      ] as unknown as CherryMessagePart[])
+      ])
 
       const videos = await screen.findAllByTestId('mock-message-video')
       expect(videos[0]).toHaveAttribute('data-file-path', '/tmp/v.mp4')
@@ -1856,7 +1888,7 @@ describe('MessagePartsRenderer', () => {
         { type: 'data-error', data: failure },
         { type: 'data-error', data: { ...failure } },
         { type: 'data-error', data: { name: 'AI_APICallError', message: 'Rate limit reached' } }
-      ] as unknown as CherryMessagePart[])
+      ])
 
       expect(
         screen.getAllByTestId('mock-error-block').map((block) => block.getAttribute('data-error-message'))
@@ -1868,7 +1900,7 @@ describe('MessagePartsRenderer', () => {
         { type: 'data-video', data: { filePath: '/tmp/same.mp4', url: 'https://v.test/first.mp4' } },
         { type: 'text', text: 'between videos' },
         { type: 'data-video', data: { filePath: '/tmp/same.mp4', url: 'https://v.test/second.mp4' } }
-      ] as unknown as CherryMessagePart[])
+      ])
 
       expect(await screen.findAllByTestId('mock-message-video')).toHaveLength(2)
       const html = container.innerHTML
@@ -1889,7 +1921,7 @@ describe('MessagePartsRenderer', () => {
           },
           { type: 'text', text: 'Current summary' },
           { type: 'text', text: 'Private child output', providerMetadata: { cherry: { parentToolCallId: 'reviewer' } } }
-        ] as CherryMessagePart[],
+        ],
         msg({ status }),
         { openAgentToolFlow: vi.fn() }
       )
@@ -1902,7 +1934,7 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('collapses successful subtasks only after the parent turn finishes and preserves manual expansion', () => {
-      const parts = [toolPart('reviewer', 'output-available', 'Agent')] as CherryMessagePart[]
+      const parts: CherryMessagePart[] = [toolPart('reviewer', 'output-available', 'Agent')]
       const actions = { openAgentToolFlow: vi.fn() }
       activateTurn('streaming')
       const { rerender } = renderParts(parts, msg({ status: 'pending' }), actions)
@@ -1919,13 +1951,18 @@ describe('MessagePartsRenderer', () => {
     it.each(['error', 'stopped', 'in_progress'] as const)(
       'keeps %s subtasks visible after the parent response',
       (status) => {
-        const parts = [
+        const parts: CherryMessagePart[] = [
           toolPart('reviewer', 'output-available', 'Agent'),
           {
             type: 'data-agent-task-event',
-            data: { taskId: 'child', toolUseId: 'reviewer', status }
+            data: {
+              event: status === 'in_progress' ? 'progress' : 'notification',
+              taskId: 'child',
+              toolUseId: 'reviewer',
+              status
+            }
           }
-        ] as CherryMessagePart[]
+        ]
         renderParts(parts, msg(), { openAgentToolFlow: vi.fn() })
         expect(screen.getByRole('button', { expanded: true })).toBeInTheDocument()
         expect(screen.getByTestId('mock-message-tools')).toBeInTheDocument()
@@ -1933,7 +1970,7 @@ describe('MessagePartsRenderer', () => {
     )
 
     it('keeps the list open when the user is reading a subtask as the turn finishes', () => {
-      const parts = [toolPart('reviewer', 'output-available', 'Agent')] as CherryMessagePart[]
+      const parts: CherryMessagePart[] = [toolPart('reviewer', 'output-available', 'Agent')]
       const actions = { openAgentToolFlow: vi.fn(), isAgentToolFlowActive: () => true }
       activateTurn('streaming')
       const { rerender } = renderParts(parts, msg({ status: 'pending' }), actions)
@@ -1955,7 +1992,7 @@ describe('MessagePartsRenderer', () => {
           text: 'child text',
           providerMetadata: { 'claude-code': { parentToolCallId: 'parent' } }
         }
-      ] as unknown as CherryMessagePart[])
+      ])
 
       fireEvent.click(screen.getByTestId('completed-process-trigger'))
       expandCollapsedChildToolGroups()
@@ -1982,7 +2019,7 @@ describe('MessagePartsRenderer', () => {
             output: {}
           },
           { type: 'text', text: 'final answer' }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg(),
         { openArtifactFile }
       )
@@ -2010,7 +2047,7 @@ describe('MessagePartsRenderer', () => {
           { type: 'reasoning', text: 'Checking result', state: 'done' },
           toolPart('edit'),
           { type: 'text', text: 'Final answer', state: 'streaming' }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg({ status: 'pending' }),
         {},
         { ...defaultMessageRenderConfig, keepIntermediateAssistantText: true }
@@ -2038,10 +2075,7 @@ describe('MessagePartsRenderer', () => {
     it('uses one top-level disclosure for separated process parts without swallowing answer text', () => {
       activateTurn()
       const pendingMessage = msg({ status: 'pending' })
-      const initialParts = [
-        toolPart('read'),
-        { type: 'text', text: 'answer in progress' }
-      ] as unknown as CherryMessagePart[]
+      const initialParts: CherryMessagePart[] = [toolPart('read'), { type: 'text', text: 'answer in progress' }]
       const { rerender } = renderParts(initialParts, pendingMessage)
 
       const answer = screen.getByText('answer in progress')
@@ -2052,7 +2086,7 @@ describe('MessagePartsRenderer', () => {
       expandCollapsedLiveToolGroups()
       expect(screen.getByTestId('mock-tool-group-content')).toHaveAttribute('data-count', '1')
 
-      const laterParts = [...initialParts, toolPart('edit', 'input-available')] as CherryMessagePart[]
+      const laterParts: CherryMessagePart[] = [...initialParts, toolPart('edit', 'input-available')]
       rerender(renderPartsTree(laterParts, pendingMessage))
 
       expect(document.querySelector('[data-live-process-run]')).toBeNull()
@@ -2078,7 +2112,7 @@ describe('MessagePartsRenderer', () => {
             output: { action: { type: 'search' } },
             providerExecuted: true
           }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg({ status: 'pending' })
       )
 
@@ -2090,11 +2124,7 @@ describe('MessagePartsRenderer', () => {
     it('does not render provider ellipsis fillers or let them split live tools', () => {
       activateTurn('streaming')
       renderParts(
-        [
-          toolPart('read'),
-          { type: 'text', text: '...' },
-          toolPart('edit', 'input-available')
-        ] as unknown as CherryMessagePart[],
+        [toolPart('read'), { type: 'text', text: '...' }, toolPart('edit', 'input-available')],
         msg({ status: 'pending' })
       )
 
@@ -2107,7 +2137,7 @@ describe('MessagePartsRenderer', () => {
     it('renders the latest running tool after an earlier tool failure', () => {
       activateTurn('streaming')
       renderParts(
-        [toolPart('failed', 'output-error'), toolPart('cleanup', 'input-available')] as unknown as CherryMessagePart[],
+        [toolPart('failed', 'output-error'), toolPart('cleanup', 'input-available')],
         msg({ status: 'pending' })
       )
 
@@ -2123,10 +2153,7 @@ describe('MessagePartsRenderer', () => {
     it('renders live reasoning after an earlier tool failure', () => {
       activateTurn('streaming')
       renderParts(
-        [
-          toolPart('failed', 'output-error'),
-          { type: 'reasoning', text: 'Recovering', state: 'streaming' }
-        ] as unknown as CherryMessagePart[],
+        [toolPart('failed', 'output-error'), { type: 'reasoning', text: 'Recovering', state: 'streaming' }],
         msg({ status: 'pending' })
       )
 
@@ -2146,7 +2173,7 @@ describe('MessagePartsRenderer', () => {
             ...toolPart('approval', 'approval-requested', 'Bash'),
             approval: { id: 'approval-1' }
           }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg({ status: 'success' })
       )
 
@@ -2216,7 +2243,7 @@ describe('MessagePartsRenderer', () => {
             }
           },
           { type: 'text', text: 'The new session is ready.' }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg(),
         { navigateToRoute }
       )
@@ -2237,7 +2264,7 @@ describe('MessagePartsRenderer', () => {
       const navigateToRoute = vi.fn()
       const result = Promise.withResolvers<{ found: boolean; output: unknown }>()
       const request = vi.spyOn(ipcApi, 'request').mockReturnValue(result.promise)
-      const parts = [
+      const parts: CherryMessagePart[] = [
         {
           ...toolPart('read-session', 'output-available', 'session_read'),
           callProviderMetadata: {
@@ -2250,7 +2277,7 @@ describe('MessagePartsRenderer', () => {
           }
         },
         { type: 'text', text: 'I found the earlier conversation.' }
-      ] as CherryMessagePart[]
+      ]
       render(
         <SWRConfig value={{ provider: () => new Map() }}>
           {renderPartsTree(parts, msg(), { navigateToRoute })}
@@ -2279,7 +2306,7 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('preserves completed process expansion when the same message metadata updates', () => {
-      const parts = [toolPart('read'), { type: 'text', text: 'final answer' }] as unknown as CherryMessagePart[]
+      const parts: CherryMessagePart[] = [toolPart('read'), { type: 'text', text: 'final answer' }]
       const { rerender } = renderParts(parts, msg({ updatedAt: '2026-01-01T00:00:01Z' }))
 
       fireEvent.click(screen.getByTestId('completed-process-trigger'))
@@ -2294,9 +2321,9 @@ describe('MessagePartsRenderer', () => {
     it('folds process narration with its provider tool while keeping the final answer outside', () => {
       renderParts([
         { type: 'text', text: 'Searching provider sources' },
-        { ...toolPart('search', 'output-available', 'web_search'), toolType: 'provider' },
+        { ...toolPart('search', 'output-available', 'web_search'), providerExecuted: true },
         { type: 'text', text: 'Provider-backed final answer' }
-      ] as unknown as CherryMessagePart[])
+      ])
 
       expect(screen.queryByText('Searching provider sources')).toBeNull()
       expect(screen.getByText('Provider-backed final answer')).toBeInTheDocument()
@@ -2316,7 +2343,7 @@ describe('MessagePartsRenderer', () => {
           { type: 'reasoning', text: 'Checking result', state: 'done' },
           toolPart('edit'),
           { type: 'text', text: 'Final answer' }
-        ] as unknown as CherryMessagePart[],
+        ],
         msg(),
         {},
         { ...defaultMessageRenderConfig, keepIntermediateAssistantText: true }
@@ -2344,9 +2371,9 @@ describe('MessagePartsRenderer', () => {
 
     it('does not show an empty completed process group for a non-renderable provider tool', () => {
       renderParts([
-        { ...toolPart('search', 'output-available', 'unknown_provider_tool'), toolType: 'provider' },
+        { ...toolPart('search', 'output-available', 'unknown_provider_tool'), providerExecuted: true },
         { type: 'text', text: 'Provider-backed final answer' }
-      ] as unknown as CherryMessagePart[])
+      ])
 
       expect(screen.getByText('Provider-backed final answer')).toBeInTheDocument()
       expect(screen.queryByTestId('completed-process-trigger')).toBeNull()
@@ -2358,7 +2385,7 @@ describe('MessagePartsRenderer', () => {
         { type: 'text', text: '...' },
         toolPart('edit'),
         { type: 'text', text: 'Final answer' }
-      ] as unknown as CherryMessagePart[])
+      ])
 
       fireEvent.click(screen.getByTestId('completed-process-trigger'))
       expandCollapsedChildToolGroups()
@@ -2374,7 +2401,7 @@ describe('MessagePartsRenderer', () => {
           ...toolPart('ask', 'approval-requested', 'AskUserQuestion'),
           approval: { id: 'ask-approval' }
         }
-      ] as unknown as CherryMessagePart[])
+      ])
 
       fireEvent.click(screen.getByTestId('completed-process-trigger'))
       expandCollapsedChildToolGroups()
@@ -2399,7 +2426,7 @@ describe('MessagePartsRenderer', () => {
 
     it('keeps tool-only history collapsed when thinking auto-collapse is disabled', () => {
       renderParts(
-        [toolPart('read')] as unknown as CherryMessagePart[],
+        [toolPart('read')],
         msg(),
         {},
         {
@@ -2413,7 +2440,7 @@ describe('MessagePartsRenderer', () => {
     it('lists every step of a running turn without a click when tool steps expand', () => {
       activateTurn()
       renderParts(
-        [toolPart('read'), toolPart('edit', 'input-available')] as unknown as CherryMessagePart[],
+        [toolPart('read'), toolPart('edit', 'input-available')],
         msg({ status: 'pending' }),
         {},
         { ...defaultMessageRenderConfig, expandToolSteps: true }
@@ -2424,17 +2451,11 @@ describe('MessagePartsRenderer', () => {
 
     it('drops thinking between steps whose calls state an intent, and keeps it otherwise', () => {
       const withIntent = (id: string) => ({ ...toolPart(id), input: { path: `${id}.txt`, intent: `check ${id}` } })
-      const reasoning = { type: 'reasoning', text: 'Weighing the next step', state: 'done' }
+      const reasoning = { type: 'reasoning', text: 'Weighing the next step', state: 'done' } satisfies CherryMessagePart
       const config = { ...defaultMessageRenderConfig, expandToolSteps: true }
 
       const { unmount } = renderParts(
-        [
-          reasoning,
-          withIntent('read'),
-          reasoning,
-          withIntent('grep'),
-          { type: 'text', text: 'done' }
-        ] as unknown as CherryMessagePart[],
+        [reasoning, withIntent('read'), reasoning, withIntent('grep'), { type: 'text', text: 'done' }],
         msg(),
         {},
         config
@@ -2443,18 +2464,13 @@ describe('MessagePartsRenderer', () => {
       expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
       unmount()
 
-      renderParts(
-        [reasoning, toolPart('read'), { type: 'text', text: 'done' }] as unknown as CherryMessagePart[],
-        msg(),
-        {},
-        config
-      )
+      renderParts([reasoning, toolPart('read'), { type: 'text', text: 'done' }], msg(), {}, config)
       expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Weighing the next step')
     })
 
     it('keeps a finished turn’s steps open when tool steps expand, until the user closes them', () => {
       renderParts(
-        [toolPart('read'), toolPart('edit'), { type: 'text', text: 'done' }] as unknown as CherryMessagePart[],
+        [toolPart('read'), toolPart('edit'), { type: 'text', text: 'done' }],
         msg(),
         {},
         { ...defaultMessageRenderConfig, expandToolSteps: true }
@@ -2472,7 +2488,7 @@ describe('MessagePartsRenderer', () => {
       renderParts([
         { type: 'reasoning', text: 'Deep thought', state: 'done' },
         { type: 'text', text: 'final answer' }
-      ] as unknown as CherryMessagePart[])
+      ])
 
       expect(screen.getByText('final answer')).toBeInTheDocument()
       const historyTrigger = screen.getByTestId('completed-process-trigger')
@@ -2485,11 +2501,7 @@ describe('MessagePartsRenderer', () => {
 
     it('shows a recovered result as processed while preserving the failed tool detail', () => {
       renderParts(
-        [
-          toolPart('failed', 'output-error'),
-          toolPart('cleanup'),
-          { type: 'text', text: 'Recovered answer' }
-        ] as unknown as CherryMessagePart[],
+        [toolPart('failed', 'output-error'), toolPart('cleanup'), { type: 'text', text: 'Recovered answer' }],
         msg({ updatedAt: '2026-01-01T00:00:01Z' })
       )
 
@@ -2504,7 +2516,7 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('keeps an unrecovered tool failure in the collapsed completed summary', () => {
-      renderParts([toolPart('failed', 'output-error')] as unknown as CherryMessagePart[])
+      renderParts([toolPart('failed', 'output-error')])
 
       expect(screen.getByRole('button', { name: 'Error' })).toBeInTheDocument()
     })
@@ -2514,7 +2526,7 @@ describe('MessagePartsRenderer', () => {
         { type: 'text', text: 'partial answer' },
         { type: 'reasoning', text: 'Investigating', state: 'done' },
         { type: 'data-error', data: { name: 'Err', message: 'failed after reasoning' } }
-      ] as unknown as CherryMessagePart[])
+      ])
 
       const historyTrigger = screen.getByRole('button', { name: 'Error' })
       expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
@@ -2527,11 +2539,7 @@ describe('MessagePartsRenderer', () => {
     })
 
     it('keeps an earlier final answer visible when process tools trail it', () => {
-      renderParts([
-        toolPart('read'),
-        { type: 'text', text: 'stable final answer' },
-        toolPart('cleanup')
-      ] as unknown as CherryMessagePart[])
+      renderParts([toolPart('read'), { type: 'text', text: 'stable final answer' }, toolPart('cleanup')])
 
       expect(screen.getByText('stable final answer')).toBeInTheDocument()
       const historyTrigger = screen.getByTestId('completed-process-trigger')
@@ -2550,7 +2558,7 @@ describe('MessagePartsRenderer', () => {
         { type: 'file', url: 'file:///process.pdf', mediaType: 'application/pdf', filename: 'process.pdf' },
         toolPart('read'),
         { type: 'text', text: 'final answer' }
-      ] as unknown as CherryMessagePart[])
+      ])
 
       expect(screen.queryByTestId('mock-attachments')).toBeNull()
       expect(screen.getByText('final answer')).toBeInTheDocument()
@@ -2562,13 +2570,17 @@ describe('MessagePartsRenderer', () => {
     it('keeps adjacent reasoning blocks inside the completed tool group', () => {
       renderParts([
         toolPart('read'),
-        ...Array.from({ length: 4 }, (_, index) => ({
-          type: 'reasoning',
-          text: `thought ${index + 1}`,
-          state: 'done'
-        })),
+        ...Array.from(
+          { length: 4 },
+          (_, index) =>
+            ({
+              type: 'reasoning',
+              text: `thought ${index + 1}`,
+              state: 'done'
+            }) satisfies CherryMessagePart
+        ),
         { type: 'text', text: 'final answer' }
-      ] as unknown as CherryMessagePart[])
+      ])
 
       fireEvent.click(screen.getByTestId('completed-process-trigger'))
       expandCollapsedChildToolGroups()
@@ -2583,7 +2595,7 @@ describe('MessagePartsRenderer', () => {
         { type: 'reasoning', text: 'Interrupted thought', state: 'streaming' },
         toolPart('unfinished', 'input-streaming'),
         { type: 'text', text: 'partial answer' }
-      ] as unknown as CherryMessagePart[])
+      ])
 
       fireEvent.click(screen.getByTestId('completed-process-trigger'))
       expandCollapsedChildToolGroups()
@@ -2598,14 +2610,17 @@ describe('MessagePartsRenderer', () => {
         toolPart('read'),
         { type: 'data-code', data: { content: 'answer()', language: 'ts' } },
         { type: 'data-compact', data: { content: 'summary', compactedContent: 'compacted source' } },
-        { type: 'data-translation', data: { content: 'translated answer' } },
-        { type: 'data-compaction-anchor', data: { trigger: 'auto', completedAt: '2026-01-01' } },
+        { type: 'data-translation', data: { content: 'translated answer', targetLanguage: 'en' } },
+        {
+          type: 'data-compaction-anchor',
+          data: { status: 'done', phase: 'in-loop', trigger: 'auto', completedAt: '2026-01-01T00:00:00Z' }
+        },
         { type: 'data-error', data: { name: 'Err', message: 'visible error' } },
         { type: 'file', url: 'https://img.test/result.png', mediaType: 'image/png' },
         { type: 'file', url: 'file:///result.pdf', mediaType: 'application/pdf', filename: 'result.pdf' },
         { type: 'data-video', data: { filePath: '/tmp/result.mp4' } },
         toolPart('cleanup')
-      ] as unknown as CherryMessagePart[])
+      ])
 
       expect(screen.getByTestId('mock-markdown').textContent).toContain('answer()')
       expect(screen.getByTestId('mock-compact-block')).toHaveTextContent('summary|compacted source')
@@ -2621,7 +2636,7 @@ describe('MessagePartsRenderer', () => {
     it('removes this message translation through the inline delete when the action is available', () => {
       const removeMessageTranslation = vi.fn()
       renderParts(
-        [{ type: 'data-translation', data: { content: 'translated answer' } }] as unknown as CherryMessagePart[],
+        [{ type: 'data-translation', data: { content: 'translated answer', targetLanguage: 'en' } }],
         msg({ id: 'msg-translated' }),
         { removeMessageTranslation }
       )
