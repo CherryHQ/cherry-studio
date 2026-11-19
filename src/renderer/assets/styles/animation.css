@@ -259,6 +259,21 @@
   will-change: background-position;
 }
 
+/* 呼吸动画：轻微放大缩小，表示正在处理 */
+@keyframes animation-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+.animation-breathe {
+  animation: animation-breathe 2.4s ease-in-out infinite;
+}
+
 /* Reveal 动画 */
 @keyframes animation-reveal {
   from {

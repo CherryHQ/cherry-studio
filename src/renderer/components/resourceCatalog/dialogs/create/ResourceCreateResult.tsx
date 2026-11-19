@@ -1,4 +1,3 @@
-import { Loader2 } from 'lucide-react'
 import { Fragment, type ReactNode, useState } from 'react'
 import { type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -32,30 +31,34 @@ function ResultAvatar({
   avatar,
   imageSrc,
   name,
-  description
+  description,
+  working = false
 }: {
   avatar: string
   imageSrc?: string
   name: string
   description?: string
+  working?: boolean
 }) {
   const { t } = useTranslation()
   return (
     <div className="flex flex-col items-center gap-2 text-center">
-      <AssistantAvatarImage
-        src={imageSrc}
-        alt={t('common.avatar')}
-        size={84}
-        className="shrink-0 rounded-[28%] border border-border object-cover"
-        fallback={
-          <EmojiAvatar
-            size={84}
-            fontSize={42}
-            className="shrink-0 cursor-default rounded-[28%] border border-border hover:opacity-100">
-            {avatar}
-          </EmojiAvatar>
-        }
-      />
+      <div className={working ? 'animation-breathe motion-reduce:animate-none' : undefined}>
+        <AssistantAvatarImage
+          src={imageSrc}
+          alt={t('common.avatar')}
+          size={84}
+          className="shrink-0 rounded-[28%] border border-border object-cover"
+          fallback={
+            <EmojiAvatar
+              size={84}
+              fontSize={42}
+              className="shrink-0 cursor-default rounded-[28%] border border-border hover:opacity-100">
+              {avatar}
+            </EmojiAvatar>
+          }
+        />
+      </div>
       <div className="mt-1 max-w-full truncate font-semibold text-foreground text-lg leading-tight">{name}</div>
       {description ? <div className="max-w-full text-[13px] text-muted-foreground">{description}</div> : null}
     </div>
@@ -114,7 +117,9 @@ function ChannelsSummary({ agentId }: { agentId: string }) {
   )
 }
 
-/** Shown while auto create generates and saves; one spinner per item, since all are configured at once. */
+const WORKING_ROW_STAGGER_S = 0.4
+
+/** Shown while auto create generates and saves. One request configures every item, so none is marked done first. */
 export function ResourceCreateWorkingView({
   kind,
   form
@@ -144,14 +149,24 @@ export function ResourceCreateWorkingView({
         imageSrc={avatarImage?.previewUrl}
         name={name.trim() || fallbackName}
         description={purpose.trim()}
+        working
       />
       <div className="rounded-xl border border-border-subtle px-3.5 py-2">
-        {items.map((item) => (
-          <div key={item} className="flex min-h-8 items-center gap-2.5 text-[13px] text-foreground">
-            <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-            <span>{item}</span>
-          </div>
-        ))}
+        {items.map((item, index) => {
+          // Each row runs a step ahead of the next, so the highlight sweeps down the list.
+          const animationDelay = `${(index - items.length) * WORKING_ROW_STAGGER_S}s`
+          return (
+            <div key={item} className="flex min-h-8 items-center gap-2.5 text-[13px]">
+              <span
+                className="size-1.5 shrink-0 animate-pulse rounded-full bg-muted-foreground/60 motion-reduce:animate-none"
+                style={{ animationDelay }}
+              />
+              <span className="animation-shimmer motion-reduce:animate-none" style={{ animationDelay }}>
+                {item}
+              </span>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
