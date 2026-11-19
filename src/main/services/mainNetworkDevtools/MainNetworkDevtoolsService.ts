@@ -445,18 +445,18 @@ export class MainNetworkDevtoolsService extends BaseService {
 
   private captureClientRequestBody(request: ClientRequest, id: string, contentType: string | undefined): void {
     const requestBodyAccumulator = createBodyAccumulator(contentType)
-    // SAFETY: This adds raw forwarding signatures to Node's overloads; the native methods still validate their arguments.
-    const target = request as typeof request & MutableClientRequestMethods
-    const originalWrite = target.write
-    const originalEnd = target.end
+    // SAFETY: Native write validates raw forwarded arguments; retain its declared overloads in the saved function.
+    const originalWrite = request.write as typeof request.write & MutableClientRequestMethods['write']
+    // SAFETY: Native end validates raw forwarded arguments; retain its declared overloads in the saved function.
+    const originalEnd = request.end as typeof request.end & MutableClientRequestMethods['end']
     const updateRequestBody = (requestBody: MainNetworkDevtoolsBody) => this.updateEvent(id, { requestBody })
 
-    target.write = function monitoredWrite(this: ClientRequest, ...args: unknown[]) {
+    request.write = function monitoredWrite(this: ClientRequest, ...args: unknown[]) {
       requestBodyAccumulator.append(args[0], args[1])
       return originalWrite.apply(this, args)
     }
 
-    target.end = function monitoredEnd(this: ClientRequest, ...args: unknown[]) {
+    request.end = function monitoredEnd(this: ClientRequest, ...args: unknown[]) {
       requestBodyAccumulator.append(args[0], args[1])
       const requestBody = requestBodyAccumulator.toBody()
       if (requestBody) {
