@@ -12,6 +12,8 @@ import { defaultSettingsMiddleware, wrapLanguageModel } from 'ai'
 
 import { createExecutor } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
+import { guardMemoryTransport } from '@main/ai/memory/memoryRuntime'
+import type { MemoryRuntimeOwner } from '@main/ai/memory/memoryRuntimeState'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { resolveSdkConfig } from '@main/ai/provider/sdkConfig'
 import { modelService } from '@main/data/services/ModelService'
@@ -42,7 +44,8 @@ export interface CompressionModelDescriptor {
 
 export async function resolveCompressionModel(
   modelIdRaw: string,
-  conversation: ConversationRef
+  conversation: ConversationRef,
+  memoryOwner?: MemoryRuntimeOwner
 ): Promise<CompressionModelDescriptor | null> {
   if (!modelIdRaw || !isUniqueModelId(modelIdRaw)) {
     logger.warn('compression modelId is not a valid UniqueModelId', { modelIdRaw })
@@ -67,6 +70,7 @@ export async function resolveCompressionModel(
 
   try {
     const { sdkConfig } = await resolveSdkConfig(provider, model, resolveEffectiveEndpoint(provider, model))
+    guardMemoryTransport(sdkConfig.providerSettings, memoryOwner)
     // App provider extensions are registered beyond the executor's built-in type union.
     const executor = await createExecutor(
       sdkConfig.providerId as Parameters<typeof createExecutor>[0],

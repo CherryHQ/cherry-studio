@@ -166,7 +166,7 @@ describe('legacy memory activation', () => {
     expect(await readdir(backups)).toEqual(files)
   })
 
-  it('keeps an indivisible oversized FACT inactive until restart after correction', async () => {
+  it('retries an oversized FACT after its source changes in the same process', async () => {
     const original = '# One indivisible fact\n' + '界'.repeat(9000)
     await writeFile(path.join(root, 'memory', 'FACT.md'), original)
     expect(await migration.ensureAgent(agentId)).toBe(false)
@@ -174,10 +174,10 @@ describe('legacy memory activation', () => {
     expect(await readFile(path.join(root, 'memory', 'FACT.md'), 'utf8')).toBe(original)
     const session = memory.open({ scope: { kind: 'private', agentId }, assertAuthorized: () => undefined })
     await expect(session.read('MEMORY.md')).rejects.toThrow('migration is incomplete')
-    await writeFile(path.join(root, 'memory', 'FACT.md'), 'Corrected complete fact')
     expect(await migration.ensureAgent(agentId)).toBe(false)
-    await migration._doStop()
-    await migration._doInit()
+    await migration.withLegacyFactWrite(agentId, () =>
+      writeFile(path.join(root, 'memory', 'FACT.md'), 'Corrected complete fact')
+    )
     expect(await migration.ensureAgent(agentId)).toBe(true)
     expect((await session.read('MEMORY.md')).content).toBe('Corrected complete fact')
     session.dispose()
