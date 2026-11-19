@@ -115,6 +115,13 @@ export function openRuntimeMemoryGuard(agentSessionId: string, cancel: () => voi
   }
 }
 
+export function guardMemoryTransport(settings: { fetch?: typeof globalThis.fetch }, owner?: MemoryRuntimeOwner): void {
+  if (owner)
+    settings.fetch = memoryRuntimeFetch(settings.fetch ?? globalThis.fetch, (signal) =>
+      runtimeMemoryAuthorities(owner, signal)
+    )
+}
+
 /** Guards the transport, including native compaction and retries that bypass prompt hooks. */
 export function memoryRuntimeFetch(
   fetch: typeof globalThis.fetch,
