@@ -1,7 +1,7 @@
 import type { ReasoningUIPart, TextUIPart } from 'ai'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 
-import type { CherryMessagePart } from '../message'
+import { type CherryMessagePart, MessageDataSchema } from '../message'
 import {
   CherryErrorMetaSchema,
   CherryFileMetaSchema,
@@ -126,7 +126,7 @@ describe('knowledge scope parts', () => {
       [
         { type: 'text', text: 'hello' },
         { type: 'data-knowledge-scope', data: { baseIds: ['old'] } }
-      ] as CherryMessagePart[],
+      ],
       ['kb-1', 'kb-2', 'kb-1']
     )
 
@@ -142,7 +142,7 @@ describe('knowledge scope parts', () => {
       [
         { type: 'text', text: 'hello' },
         { type: 'data-knowledge-scope', data: { baseIds: ['kb-1'] } }
-      ] as CherryMessagePart[],
+      ],
       []
     )
 
@@ -152,11 +152,10 @@ describe('knowledge scope parts', () => {
 
   it('rejects malformed scope data at the read boundary', () => {
     expect(KnowledgeScopePartDataSchema.safeParse({ baseIds: [''] }).success).toBe(false)
-    expect(
-      getKnowledgeBaseIdsFromParts([
-        { type: 'data-knowledge-scope', data: { baseIds: [42] } } as unknown as CherryMessagePart
-      ])
-    ).toBeUndefined()
+    const parts =
+      MessageDataSchema.parse({ parts: [{ type: 'data-knowledge-scope', data: { baseIds: [42] } }] }).parts ??
+      expect.fail('Expected the persisted scope part')
+    expect(getKnowledgeBaseIdsFromParts(parts)).toBeUndefined()
   })
 })
 
@@ -210,10 +209,12 @@ describe('readCherryMeta', () => {
     const part = {
       type: 'tool-fetch_url',
       toolCallId: 'tc1',
+      state: 'input-available',
+      input: undefined,
       providerMetadata: {
-        cherry: { transport: 'claude-agent', tool: { serverId: 's1', type: 'mcp' as const } }
+        cherry: { transport: 'claude-agent', tool: { serverId: 's1', type: 'mcp' } }
       }
-    } as unknown as CherryMessagePart
+    } satisfies CherryMessagePart & Pick<TextUIPart, 'providerMetadata'>
     const meta = readCherryMeta(part)
     expect(meta).toEqual({
       transport: 'claude-agent',
@@ -226,8 +227,10 @@ describe('readCherryMeta', () => {
       type: 'dynamic-tool',
       toolName: 'x',
       toolCallId: 'tc2',
+      state: 'input-available',
+      input: undefined,
       providerMetadata: { cherry: { transport: 'claude-agent' } }
-    } as unknown as Extract<CherryMessagePart, { type: 'dynamic-tool' }>
+    } satisfies CherryMessagePart & Pick<TextUIPart, 'providerMetadata'>
     expect(readCherryMeta(part)?.transport).toBe('claude-agent')
   })
 
@@ -240,7 +243,7 @@ describe('readCherryMeta', () => {
       providerMetadata: {
         cherry: { fileEntryId: 'entry-1', fileTokenSourceId: 'source-1', composerFileKind: 'pasted-text' }
       }
-    } as unknown as Extract<CherryMessagePart, { type: 'file' }>
+    } satisfies Extract<CherryMessagePart, { type: 'file' }>
 
     expect(readCherryMeta(part)).toEqual({
       fileEntryId: 'entry-1',
@@ -268,11 +271,10 @@ describe('readCherryMeta', () => {
   })
 
   it('returns undefined when cherry is not an object', () => {
-    const part = {
-      type: 'text',
-      text: '',
-      providerMetadata: { cherry: 'oops' }
-    } as unknown as TextUIPart
+    const part =
+      MessageDataSchema.parse({
+        parts: [{ type: 'text', text: '', providerMetadata: { cherry: 'oops' } }]
+      }).parts?.[0] ?? expect.fail('Expected the persisted malformed metadata')
     expect(readCherryMeta(part)).toBeUndefined()
   })
 
@@ -281,7 +283,7 @@ describe('readCherryMeta', () => {
       type: 'data-translation',
       data: { content: 'x', targetLanguage: 'en' },
       providerMetadata: { cherry: { references: [] } }
-    } as unknown as CherryMessagePart
+    } satisfies CherryMessagePart & Pick<TextUIPart, 'providerMetadata'>
     expect(readCherryMeta(part)).toBeUndefined()
   })
 
@@ -290,7 +292,7 @@ describe('readCherryMeta', () => {
       type: 'text',
       text: '',
       providerMetadata: { cherry: { references: 'oops' } }
-    } as unknown as TextUIPart
+    } satisfies TextUIPart
     expect(readCherryMeta(part)).toBeUndefined()
   })
 
@@ -299,7 +301,7 @@ describe('readCherryMeta', () => {
       type: 'reasoning',
       text: '',
       providerMetadata: { cherry: { thinkingMs: 'oops' } }
-    } as unknown as ReasoningUIPart
+    } satisfies ReasoningUIPart
     expect(readCherryMeta(part)).toBeUndefined()
   })
 })
@@ -333,12 +335,12 @@ describe('withCherryMeta', () => {
   })
 
   it('writes fileTokenSourceId onto a FileUIPart', () => {
-    const part = {
+    const part: Extract<CherryMessagePart, { type: 'file' }> = {
       type: 'file',
       mediaType: 'application/pdf',
       url: 'file:///tmp/report.pdf',
       filename: 'report.pdf'
-    } as unknown as Extract<CherryMessagePart, { type: 'file' }>
+    }
     const next = withCherryMeta(part, { fileTokenSourceId: 'source-1' })
 
     expect(next.providerMetadata?.cherry).toEqual({ fileTokenSourceId: 'source-1' })
@@ -349,22 +351,21 @@ describe('withCherryMeta', () => {
     expect(readCherryMeta(next)?.diagnosis).toEqual(diagnosis)
   })
 
-  // ── Compile-time negatives — `tsc --noEmit` enforces these. ──────────
-  it('rejects writing thinkingMs to TextUIPart at compile time', () => {
-    const part: TextUIPart = { type: 'text', text: '' }
-    // @ts-expect-error thinkingMs is not on CherryTextMeta
-    withCherryMeta(part, { thinkingMs: 1 })
-  })
-
-  it('rejects writing references to ReasoningUIPart at compile time', () => {
-    const part: ReasoningUIPart = { type: 'reasoning', text: '' }
-    // @ts-expect-error references is not on CherryReasoningMeta
-    withCherryMeta(part, { references: [] })
-  })
-
-  it('rejects writing transport to TextUIPart at compile time', () => {
-    const part: TextUIPart = { type: 'text', text: '' }
-    // @ts-expect-error transport is not on CherryTextMeta
-    withCherryMeta(part, { transport: 'x' })
+  it('scopes writable metadata fields to the part type', () => {
+    expectTypeOf(withCherryMeta<TextUIPart>)
+      .parameter(1)
+      .toHaveProperty('references')
+    expectTypeOf(withCherryMeta<TextUIPart>)
+      .parameter(1)
+      .not.toHaveProperty('thinkingMs')
+    expectTypeOf(withCherryMeta<TextUIPart>)
+      .parameter(1)
+      .not.toHaveProperty('transport')
+    expectTypeOf(withCherryMeta<ReasoningUIPart>)
+      .parameter(1)
+      .toHaveProperty('thinkingMs')
+    expectTypeOf(withCherryMeta<ReasoningUIPart>)
+      .parameter(1)
+      .not.toHaveProperty('references')
   })
 })
