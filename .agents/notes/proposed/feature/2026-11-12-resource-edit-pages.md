@@ -45,7 +45,7 @@ Counting rules: built-in tools count the runtime's tools after knowledge-tool ga
 
 ### Sub-pages
 
-- **System Prompt.** For Agents on Pi Durable, the full System Prompt preview defined in the create flow Spec, with only the Agent's instructions editable. For other runtimes and for Assistants, the existing prompt editor with generate, polish, preview, and variables.
+- **System Prompt.** For Agents on Pi Durable, the full System Prompt page defined in the [Agent prompt sections](2026-11-15-agent-prompt-sections.md) Spec, where the Agent's instructions and every other block are editable. For other runtimes and for Assistants, the existing prompt editor with generate, polish, preview, and variables.
 - **Built-in tools, Skills, Knowledge bases, MCP servers.** The shared capability lists from the create flow Spec. Builtin skills are locked on.
 - **Channels (Agent).** The channels bound to this Agent, each with platform icon, name, connection state, a one-line summary, edit, delete, and an active switch. "Add channel" lists every supported platform. The configuration dialog reuses the existing channel forms, binds the channel to this Agent, and hides the Agent picker. QR login runs inside the dialog. Settings › Channels stays as the global view.
 - **Scheduled tasks (Agent).** This Agent's tasks with a pause switch, schedule summary, and last run. "New task" and each row open the existing task form with the Agent fixed; editing also shows run history, Run now, and Delete.
@@ -81,7 +81,7 @@ The existing `initialTab` IDs keep working and open the matching page: `basic` a
 - AC1 — Opening an Agent or Assistant edit dialog shows the settings page with the avatar, name, description, and model chip editable above the grouped cards, without runtime, plan model, or small model fields (verification: renderer; owner: implementer)
 - AC2 — The settings page shows the grouped cards for each kind, sub-pages open from their rows, and back returns to the settings page without closing the dialog (verification: renderer; owner: implementer)
 - AC3 — Capability rows show `Enabled X / Y` (`Linked X / Y` for knowledge bases) computed with the counting rules in this Spec (verification: renderer; owner: implementer)
-- AC4 — Edits on any page autosave, closing the dialog flushes pending edits, and an empty name is never saved (verification: renderer; owner: implementer)
+- AC4 — Edits on any page except Memory autosave, closing the dialog flushes pending edits, and an empty name is never saved; Memory file edits save explicitly, as AC11 describes (verification: renderer; owner: implementer)
 - AC5 — Changing an Agent's model clears its plan and small models (verification: unit; owner: implementer)
 - AC6 — The Channels page lists only this Agent's channels, a channel added there is bound to this Agent, and toggling or deleting it updates the global Settings › Channels view (verification: renderer and Electron; owner: implementer)
 - AC7 — The Scheduled tasks page lists only this Agent's tasks, pausing and resuming updates the task, and the task form opened there has the Agent fixed and offers run history, Run now, and Delete when editing (verification: renderer; owner: implementer)

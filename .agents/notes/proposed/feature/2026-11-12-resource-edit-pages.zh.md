@@ -45,7 +45,7 @@ Status: proposed
 
 ### 二级页
 
-- **系统提示词。** Pi Durable 上的智能体使用创建流程 Spec 中定义的完整系统提示词预览，只有智能体自己的指令可编辑。其他运行时的智能体和助手使用现有的提示词编辑器，带生成、润色、预览和变量。
+- **系统提示词。** Pi Durable 上的智能体使用[智能体提示词分块](2026-11-15-agent-prompt-sections.md) Spec 中定义的完整系统提示词页面，智能体自己的指令和其他每个分块都可以编辑。其他运行时的智能体和助手使用现有的提示词编辑器，带生成、润色、预览和变量。
 - **内置工具、技能、知识库、MCP 服务。** 使用创建流程 Spec 中的共享能力列表。内置技能锁定为开启。
 - **频道（智能体）。** 列出绑定到这个智能体的频道，每项显示平台图标、名称、连接状态、一行摘要、编辑、删除和启用开关。「添加频道」列出所有支持的平台。配置对话框复用现有的频道表单，把频道绑定到这个智能体，并隐藏智能体选择。扫码登录在对话框里完成。设置 › 频道保留为全局视图。
 - **定时任务（智能体）。** 列出这个智能体的任务，带暂停开关、执行频率摘要和上次运行。「新建任务」和每一行都打开现有的任务表单，智能体固定为当前这个；编辑时还显示运行历史、立即运行和删除。
@@ -81,7 +81,7 @@ Status: proposed
 - AC1 — 打开智能体或助手的编辑弹框，直接显示设置页：分组卡片上方可编辑头像、名称、简介和模型 chip，没有运行时、Plan 模型或 Small 模型字段 (verification: renderer; owner: implementer)
 - AC2 — 设置页显示各类型的分组卡片，从行进入二级页，返回回到设置页且不关闭弹框 (verification: renderer; owner: implementer)
 - AC3 — 能力行按本 Spec 的计数规则显示 `已启用 X / Y`（知识库为 `已关联 X / Y`） (verification: renderer; owner: implementer)
-- AC4 — 任何页面上的修改都会自动保存，关闭弹框会 flush 未保存的修改，空名称永远不会被保存 (verification: renderer; owner: implementer)
+- AC4 — 除了记忆页，任何页面上的修改都会自动保存，关闭弹框会 flush 未保存的修改，空名称永远不会被保存；记忆文件的修改要明确保存，如 AC11 所述 (verification: renderer; owner: implementer)
 - AC5 — 修改智能体的模型会清空它的 Plan 模型和 Small 模型 (verification: unit; owner: implementer)
 - AC6 — 频道页只列出这个智能体的频道，在这里添加的频道绑定到这个智能体，开关或删除后全局设置 › 频道同步更新 (verification: renderer and Electron; owner: implementer)
 - AC7 — 定时任务页只列出这个智能体的任务，暂停和恢复会更新任务，在这里打开的任务表单固定为这个智能体，编辑时提供运行历史、立即运行和删除 (verification: renderer; owner: implementer)
