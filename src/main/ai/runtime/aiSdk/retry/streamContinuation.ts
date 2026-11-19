@@ -87,7 +87,9 @@ export function withStreamContinuation(model: LanguageModelV3, options: StreamCo
       if (snapshot) {
         text = snapshot.text
         openTextId = snapshot.openTextId
-        resumable = snapshot.resumable
+        // A dropped attempt's non-text output never reached the consumer, but the provider may
+        // already have run the tool: the exclusion survives rollback so it cannot run twice.
+        resumable = snapshot.resumable && resumable
         snapshot = null
       }
     }

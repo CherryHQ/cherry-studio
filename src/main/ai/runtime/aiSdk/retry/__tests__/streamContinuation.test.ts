@@ -189,6 +189,42 @@ describe('withStreamContinuation', () => {
     expect(doStream).toHaveBeenCalledTimes(2)
   })
 
+  it('stays non-resumable when a dropped buffered attempt emitted non-text content', async () => {
+    const { model, doStream } = scripted([
+      {
+        parts: [
+          { type: 'stream-start', warnings: [] },
+          { type: 'text-start', id: 'a' },
+          { type: 'text-delta', id: 'a', delta: 'Hello ' }
+        ],
+        readError: new Error('socket hang up')
+      },
+      // The buffered attempt starts provider-side tool input, then dies. Its output is rolled
+      // back, but the provider may already have run the tool: resuming would run it twice.
+      {
+        parts: [
+          { type: 'stream-start', warnings: [] },
+          { type: 'text-start', id: 'b' },
+          { type: 'text-delta', id: 'b', delta: 'dropped ' },
+          { type: 'tool-input-start', id: 't', toolName: 'n' }
+        ],
+        readError: new Error('connection reset')
+      },
+      {
+        parts: [
+          { type: 'stream-start', warnings: [] },
+          { type: 'text-start', id: 'c' },
+          { type: 'text-delta', id: 'c', delta: 'world!' },
+          { type: 'text-end', id: 'c' },
+          finish
+        ]
+      }
+    ])
+    const result = await withStreamContinuation(model, { ...opts, maxAttempts: 3 }).doStream(callOptions)
+    await expect(collect(result.stream)).rejects.toThrow('connection reset')
+    expect(doStream).toHaveBeenCalledTimes(2)
+  })
+
   it('does not resume non-retryable API errors', async () => {
     const apiError = new APICallError({
       message: 'bad',
