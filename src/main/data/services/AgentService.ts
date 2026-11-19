@@ -12,7 +12,7 @@ import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
-import { agentSessionService } from '@data/services/AgentSessionService'
+import { type ArchivedSystemWorkspacesHook, agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { modelService } from '@data/services/ModelService'
@@ -914,7 +914,12 @@ export class AgentService {
   deleteAgentStateTx(
     tx: DbOrTx,
     id: string,
-    options: { deleteSessions?: boolean; permanent?: boolean; targetState?: 'active' | 'trashed' } = {}
+    options: {
+      deleteSessions?: boolean
+      permanent?: boolean
+      targetState?: 'active' | 'trashed'
+      onArchivedSystemWorkspacesTx?: ArchivedSystemWorkspacesHook
+    } = {}
   ) {
     const permanent = options.permanent === true
     const deleteSessions = options.deleteSessions === true && (!permanent || options.targetState === 'active')
@@ -958,7 +963,8 @@ export class AgentService {
         options.deleteSessions === true
           ? agentSessionService.trashByAgentIdTx(tx, id, {
               validateAgent: false,
-              deletedAt: trashedAt
+              deletedAt: trashedAt,
+              onArchivedSystemWorkspacesTx: options.onArchivedSystemWorkspacesTx
             })
           : {
               trashedIds: [],
