@@ -37,6 +37,7 @@ describe('core sidebar shortcut providers', () => {
 
   it.each([
     ['core.app', 'files', 'workspace', '/app/files'],
+    ['core.app', 'api_gateway', 'workspace', '/app/api-gateway'],
     ['core.mini-app', 'mini app/one', 'workspace', '/app/mini-app/mini%20app%2Fone'],
     ['core.agent', 'agent/one', 'workspace', '/app/agents?agentId=agent%2Fone'],
     ['core.assistant', 'assistant/one', 'workspace', '/app/chat?assistantId=assistant%2Fone'],
@@ -56,6 +57,15 @@ describe('core sidebar shortcut providers', () => {
     await provider(providerId).activate(target, gateway)
 
     expect(openWorkspace).toHaveBeenCalledWith(expect.objectContaining({ url: expectedUrl }))
+  })
+
+  it('resolves the gateway shortcut label and active route', async () => {
+    const app = provider('core.app')
+    const target = createSidebarShortcutTarget('core.app', 'api_gateway')
+    expect(app.validate(target)).toBe(true)
+    const resolved = await app.resolveMany([target])
+    expect([...resolved.values()][0]?.label).toBe('code.api_gateway.title')
+    expect(app.isActive?.(target, { url: '/app/api-gateway' })).toBe(true)
   })
 
   it.each(CORE_SIDEBAR_SHORTCUT_PROVIDERS)('rejects unknown activations for $id', (shortcutProvider) => {

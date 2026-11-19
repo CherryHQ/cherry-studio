@@ -1,5 +1,0 @@
-# Bilingual-pair consistency record (docs/dev/i18n/README.md).
-# After editing either side, update its counterpart and re-record with:
-#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-19-launchpad-api-gateway.md
-2026-11-19-launchpad-api-gateway.md: fca1c4ef9ae658614f4f0f3ea44e7c554c349691
-2026-11-19-launchpad-api-gateway.zh.md: 0eb8683362b36006479c2df4aa5dc2cd8bc5a172

@@ -140,6 +140,7 @@ vi.mock('react-i18next', () => ({
           'settings.scheduledTasks.title': 'Scheduled Tasks',
           'assistants.presets.title': 'Library',
           'code.title': 'Code',
+          'code.api_gateway.title': 'Unified Gateway',
           'files.title': 'Files',
           'knowledge.title': 'Knowledge',
           'launchpad.apps': 'Apps',
@@ -198,6 +199,12 @@ describe('LaunchpadPage', () => {
     mocks.setSidebarFavorites.mockResolvedValue(undefined)
     mocks.setAppOrder.mockResolvedValue(undefined)
     mocks.reorderMiniAppsByStatus.mockResolvedValue(undefined)
+  })
+
+  it('opens the unified gateway from its launchpad tile', async () => {
+    render(<LaunchpadPage />)
+    await userEvent.click(screen.getByRole('button', { name: 'Unified Gateway' }))
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/api-gateway' })
   })
 
   it('opens the marketplace from its launchpad tile', async () => {
