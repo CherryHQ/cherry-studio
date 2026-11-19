@@ -203,6 +203,9 @@ function normalizeProviderError(error: unknown): {
   type?: string
   category?: string
 } {
+  if (UnsupportedFunctionalityError.isInstance(error)) {
+    return { statusCode: 400, message: error.message }
+  }
   const extracted = extractError(error)
   const details = detailsOf(error)
   const { status, name, code, category } = extracted

@@ -44,7 +44,12 @@ describe('OpenAiResponsesMessageConverter.toUIMessages', () => {
     expect(msgs[1].role).toBe('user')
     expect(msgs[1].parts).toEqual([
       { type: 'text', text: 'look' },
-      { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' }
+      {
+        type: 'file',
+        mediaType: 'image/png',
+        url: 'data:image/png;base64,AAAA',
+        providerMetadata: { openai: { imageDetail: 'auto' } }
+      }
     ])
   })
 
@@ -251,23 +256,17 @@ describe('OpenAiResponsesMessageConverter.toUIMessages', () => {
     })
   })
 
-  it('downgrades file_id-only input_file outputs to a placeholder (not resolvable cross-vendor)', () => {
-    const msgs = converter.toUIMessages(
-      params({
-        input: [
-          { type: 'function_call', call_id: 'c1', name: 'export_report', arguments: '{}' },
-          {
-            type: 'function_call_output',
-            call_id: 'c1',
-            output: [{ type: 'input_file', file_id: 'file-abc' }]
-          }
-        ] as ResponsesCreateParams['input']
-      })
-    )
-    expect((msgs[0].parts[0] as { output?: unknown }).output).toContain(
-      '[unsupported input_file tool output item omitted]'
-    )
-    expect(msgs).toHaveLength(1)
+  it('rejects provider-bound tool-result file IDs instead of omitting their contents', () => {
+    expect(() =>
+      converter.toUIMessages(
+        params({
+          input: [
+            { type: 'function_call', call_id: 'c1', name: 'export_report', arguments: '{}' },
+            { type: 'function_call_output', call_id: 'c1', output: [{ type: 'input_file', file_id: 'file-abc' }] }
+          ]
+        })
+      )
+    ).toThrow(/Provider-bound Responses file_id/)
   })
 
   it('emits an input-available part when a function_call has no output, and tolerates bad JSON args', () => {
@@ -373,20 +372,17 @@ describe('OpenAiResponsesMessageConverter.toUIMessages', () => {
 })
 
 describe('OpenAiResponsesMessageConverter.toAiSdkTools', () => {
-  it('builds a ToolSet from function tools and skips non-function tools', () => {
-    const tools = converter.toAiSdkTools(
-      params({
-        tools: [
-          { type: 'function', name: 'get_weather', parameters: { type: 'object', properties: {} }, strict: false },
-          { type: 'web_search_preview' }
-        ] as ResponsesCreateParams['tools']
-      })
-    )
-    expect(Object.keys(tools ?? {})).toEqual(['get_weather'])
-  })
-
-  it('returns undefined when there are no tools', () => {
-    expect(converter.toAiSdkTools(params({}))).toBeUndefined()
+  it('rejects native built-ins even when function tools are also declared', () => {
+    expect(() =>
+      converter.toAiSdkTools(
+        params({
+          tools: [
+            { type: 'function', name: 'lookup', parameters: { type: 'object', properties: {} }, strict: false },
+            { type: 'web_search_preview' }
+          ]
+        })
+      )
+    ).toThrow(/Responses built-in tool/)
   })
 })
 
@@ -409,7 +405,6 @@ describe('OpenAiResponsesMessageConverter.toAiSdkTools blank names', () => {
     const tools = converter.toAiSdkTools(
       params({
         tools: [
-          { type: 'web_search_preview' },
           { type: 'function', name: '', description: 'empty', parameters: null, strict: null },
           { type: 'function', name: 'lookup', parameters: null, strict: null },
           { type: 'function', name: '   ', description: 'spaces', parameters: null, strict: null },
@@ -426,9 +421,9 @@ describe('OpenAiResponsesMessageConverter.toAiSdkTools blank names', () => {
         inputFormat: 'openai-responses',
         model: params({}).model,
         droppedTools: [
-          { index: 1, path: 'tools[1].name', name: '', description: 'empty' },
-          { index: 3, path: 'tools[3].name', name: '   ', description: 'spaces' },
-          { index: 5, path: 'tools[5].name', name: '\t\n', description: undefined }
+          { index: 0, path: 'tools[0].name', name: '', description: 'empty' },
+          { index: 2, path: 'tools[2].name', name: '   ', description: 'spaces' },
+          { index: 4, path: 'tools[4].name', name: '\t\n', description: undefined }
         ]
       })
   })

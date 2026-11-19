@@ -384,44 +384,16 @@ describe('AnthropicMessageConverter.toAiSdkTools', () => {
     expect(tools!.lookup).not.toHaveProperty('strict')
   })
 
-  it('builds a ToolSet keyed by name and skips bash tools', () => {
-    const tools = converter.toAiSdkTools(
-      params({
-        tools: [
-          { name: 'get_weather', description: 'w', input_schema: { type: 'object', properties: {} } },
-          { type: 'bash_20250124', name: 'bash' }
-        ] as MessageCreateParams['tools']
-      })
-    )
-    expect(Object.keys(tools ?? {})).toEqual(['get_weather'])
-  })
-
-  it('returns undefined when there are no tools', () => {
-    expect(converter.toAiSdkTools(params({}))).toBeUndefined()
-  })
-
-  it('drops schema-less server tools and keeps the client tools beside them', () => {
-    const tools = converter.toAiSdkTools(
-      params({
-        tools: [
-          { type: 'web_search_20250305', name: 'web_search' },
-          { type: 'text_editor_20250124', name: 'str_replace_editor' },
-          { name: 'get_weather', description: 'w', input_schema: { type: 'object', properties: {} } }
-        ] as never
-      })
-    )
-
-    expect(Object.keys(tools ?? {})).toEqual(['get_weather'])
-  })
-
-  it('returns undefined when every tool is a schema-less server tool', () => {
-    // Claude Code's ToolSearch declaration reaches the gateway on every tool-enabled
-    // Agent turn; forwarding it to a non-Anthropic provider is not possible (#18643).
-    const tools = converter.toAiSdkTools(
-      params({ tools: [{ type: 'tool_search_tool_regex_20251119', name: 'tool_search_tool_regex' }] as never })
-    )
-
-    expect(tools).toBeUndefined()
+  it.each([
+    { type: 'bash_20250124', name: 'bash' },
+    { type: 'web_search_20250305', name: 'web_search' },
+    { type: 'tool_search_tool_regex_20251119', name: 'tool_search_tool_regex' }
+  ] as const)('rejects unsupported $name instead of silently dropping its declaration', (serverTool) => {
+    expect(() =>
+      converter.toAiSdkTools(
+        params({ tools: [{ name: 'lookup', input_schema: { type: 'object', properties: {} } }, serverTool] })
+      )
+    ).toThrow(/Anthropic built-in tool/)
   })
 
   it('normalizes Responses-incompatible names and marks forwarded schemas non-strict', () => {

@@ -44,6 +44,7 @@ import { loggerService } from '@logger'
 import { googleReasoningCache, openRouterReasoningCache } from '../../reasoningCache'
 import type { GatewayUsageMetadata, StreamAdapterOptions } from '../interfaces'
 import { BaseStreamAdapter } from './BaseStreamAdapter'
+import { anthropicStopReason } from './nativeMetadata'
 
 const logger = loggerService.withContext('AiSdkToAnthropicSse')
 
@@ -77,6 +78,8 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<AnthropicStreamEvent>
   private readonly toClientToolName?: (toolName: string) => string
   /** Split cache writes from the cache-inclusive input total for Anthropic usage. */
   private cacheWriteTokens?: number
+  private nativeStopReason?: string
+  private stopSequence: string | null = null
 
   constructor(options: StreamAdapterOptions) {
     super(options)
@@ -209,6 +212,13 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<AnthropicStreamEvent>
   /** Track cumulative usage from the `message-metadata` projection. */
   private applyUsageMetadata(metadata: GatewayUsageMetadata | undefined): void {
     if (!metadata) return
+    const native = metadata.providerMetadata?.anthropic
+    if (native) {
+      const reason = anthropicStopReason.safeParse(metadata.rawFinishReason)
+      if (reason.success) this.nativeStopReason = reason.data
+      if (typeof native.stopSequence === 'string' || native.stopSequence === null)
+        this.stopSequence = native.stopSequence
+    }
     if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
     if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
     if (metadata.stats?.inputTokenDetails?.cacheReadTokens !== undefined) {
@@ -491,7 +501,8 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<AnthropicStreamEvent>
 
     switch (chunk.finishReason) {
       case 'length':
-        this.state.stopReason = 'max_tokens'
+        this.state.stopReason =
+          this.nativeStopReason === 'model_context_window_exceeded' ? this.nativeStopReason : 'max_tokens'
         break
       case 'tool-calls':
         this.state.stopReason = 'tool_use'
@@ -502,7 +513,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<AnthropicStreamEvent>
       case 'stop':
       case 'other':
       default:
-        this.state.stopReason = this.state.toolBlocks.size > 0 ? 'tool_use' : 'end_turn'
+        this.state.stopReason = this.nativeStopReason ?? (this.state.toolBlocks.size > 0 ? 'tool_use' : 'end_turn')
     }
   }
 
@@ -540,7 +551,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<AnthropicStreamEvent>
         container: NULL_CONTAINER,
         stop_details: null,
         stop_reason: (this.state.stopReason as StopReason) || 'end_turn',
-        stop_sequence: null
+        stop_sequence: this.state.stopReason === 'stop_sequence' ? this.stopSequence : null
       },
       usage
     }
@@ -606,7 +617,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<AnthropicStreamEvent>
       model: this.state.model,
       stop_details: null,
       stop_reason: (this.state.stopReason as StopReason) || 'end_turn',
-      stop_sequence: null,
+      stop_sequence: this.state.stopReason === 'stop_sequence' ? this.stopSequence : null,
       usage: {
         input_tokens: inputUsage.inputTokens,
         output_tokens: this.state.outputTokens,

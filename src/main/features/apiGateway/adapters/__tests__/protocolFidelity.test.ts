@@ -183,3 +183,99 @@ describe('gateway protocol fidelity', () => {
     })
   })
 })
+
+describe('controlled native terminal metadata', () => {
+  it.each(['length', 'content-filter'] as const)(
+    'keeps %s ahead of a native stop string and completed tools',
+    (reason) => {
+      const adapter = new AiSdkToAnthropicSse({ model: 'test' })
+      const output = events(adapter, [
+        call,
+        {
+          type: 'message-metadata',
+          messageMetadata: {
+            rawFinishReason: 'stop_sequence',
+            providerMetadata: { anthropic: { stopSequence: 'END' } }
+          }
+        },
+        { type: 'finish', finishReason: reason }
+      ])
+      expect(output.find((event) => event.type === 'message_delta')).toMatchObject({
+        delta: {
+          stop_reason: reason === 'length' ? 'max_tokens' : 'refusal',
+          stop_sequence: null
+        }
+      })
+      expect(adapter.buildNonStreamingResponse()).toMatchObject({
+        stop_reason: reason === 'length' ? 'max_tokens' : 'refusal',
+        stop_sequence: null
+      })
+    }
+  )
+
+  it('ignores native stop names from a different provider namespace', () => {
+    const adapter = new AiSdkToAnthropicSse({ model: 'test' })
+    events(adapter, [
+      {
+        type: 'message-metadata',
+        messageMetadata: {
+          rawFinishReason: 'pause_turn',
+          providerMetadata: { openai: { stopSequence: 'END' } }
+        }
+      },
+      { type: 'finish', finishReason: 'stop' }
+    ])
+    expect(adapter.buildNonStreamingResponse()).toMatchObject({ stop_reason: 'end_turn', stop_sequence: null })
+  })
+
+  it.each(['priority', 'fast', 'ultrafast'])(
+    'preserves a reported %s tier without turning filtered output into success',
+    (tier) => {
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'test' })
+      const output = events(adapter, [
+        {
+          type: 'message-metadata',
+          messageMetadata: {
+            providerMetadata: { openai: { serviceTier: tier } }
+          }
+        },
+        { type: 'finish', finishReason: 'content-filter' }
+      ])
+      expect(output.at(-1)).toMatchObject({
+        type: 'response.incomplete',
+        response: { service_tier: tier, incomplete_details: { reason: 'content_filter' } }
+      })
+      expect(adapter.buildNonStreamingResponse()).toMatchObject({ status: 'incomplete', service_tier: tier })
+    }
+  )
+
+  it('does not invent logprobs or service tier from ordinary model text', () => {
+    const adapter = new AiSdkToOpenAiResponsesSse({ model: 'test' })
+    events(adapter, [
+      { type: 'text-delta', id: 'text', delta: 'service_tier: priority; logprob: -0.1' },
+      { type: 'finish', finishReason: 'stop' }
+    ])
+    const output = adapter.buildNonStreamingResponse()
+    expect(output).not.toHaveProperty('service_tier')
+    const message = output.output.find((item) => item.type === 'message')
+    expect(message?.content[0]).not.toHaveProperty('logprobs')
+  })
+})
+
+it('retains a native Anthropic context-window limit while preserving length semantics', () => {
+  const adapter = new AiSdkToAnthropicSse({ model: 'test' })
+  const output = events(adapter, [
+    {
+      type: 'message-metadata',
+      messageMetadata: {
+        rawFinishReason: 'model_context_window_exceeded',
+        providerMetadata: { anthropic: { stopSequence: null } }
+      }
+    },
+    { type: 'finish', finishReason: 'length' }
+  ])
+  expect(output.find((event) => event.type === 'message_delta')).toMatchObject({
+    delta: { stop_reason: 'model_context_window_exceeded' }
+  })
+  expect(adapter.buildNonStreamingResponse()).toMatchObject({ stop_reason: 'model_context_window_exceeded' })
+})

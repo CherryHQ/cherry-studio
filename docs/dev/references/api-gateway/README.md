@@ -72,6 +72,9 @@ provider status.
 > `feature.api_gateway.*`. The retired `csaas` alias is not part of the current
 > surface.
 
+See [Generation Protocol Compatibility](protocol-compatibility.md) for the request/response
+support matrix, adapter differences and explicit unsupported-request errors.
+
 ## Decide whether you need the gateway
 
 The gateway lets other programs use the providers, models, knowledge bases, and
