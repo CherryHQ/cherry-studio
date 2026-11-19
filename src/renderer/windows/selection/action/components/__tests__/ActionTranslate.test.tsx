@@ -42,10 +42,11 @@ const state = vi.hoisted(() => {
 vi.mock('@renderer/utils/translate/translateText', () => ({
   translateText: async (
     text: string,
-    language: TranslateLanguage,
+    language: TranslateLangCode | TranslateLanguage,
     onResponse?: (text: string, done: boolean) => void
   ) => {
-    const result = await state.translate(text, language)
+    const langCode = typeof language === 'string' ? language : language.langCode
+    const result = await state.translate(text, langCode)
     onResponse?.(result, true)
     return result
   }
@@ -192,13 +193,13 @@ describe('ActionTranslate', () => {
     state.translate.mockReset()
     state.scrollToBottom.mockReset()
     state.translate.mockImplementation(
-      async (_text: string, language: TranslateLanguage) =>
+      async (_text: string, language: TranslateLangCode) =>
         ({
           'zh-cn': '这里没有默认导出。',
           'zh-tw': '這裡沒有預設匯出。',
           'ja-jp': 'デフォルトのエクスポートはありません。',
           'en-us': 'There is no default export.'
-        })[language.langCode] ?? 'translated text'
+        })[language] ?? 'translated text'
     )
     state.readAloud.mockClear()
   })
@@ -346,7 +347,9 @@ describe('ActionTranslate', () => {
     expect(screen.getByRole('combobox')).toHaveDisplayValue(/English/)
 
     await act(async () => resolveDetect('ja-jp'))
-    await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.english))
+    await waitFor(() =>
+      expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.english.langCode)
+    )
     expect(state.translate).toHaveBeenCalledTimes(1)
   })
 
@@ -357,7 +360,9 @@ describe('ActionTranslate', () => {
     const { rerender } = render(
       <ActionTranslate sourceEntityId="test-session" action={action} scrollToBottom={state.scrollToBottom} />
     )
-    await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese))
+    await waitFor(() =>
+      expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese.langCode)
+    )
 
     MockUsePreferenceUtils.setPreferenceValue('feature.translate.action.preferred_lang', 'en-us')
     rerender(<ActionTranslate sourceEntityId="test-session" action={action} scrollToBottom={state.scrollToBottom} />)
@@ -373,7 +378,9 @@ describe('ActionTranslate', () => {
       <ActionTranslate sourceEntityId="test-session" action={createAction()} scrollToBottom={state.scrollToBottom} />
     )
 
-    await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese))
+    await waitFor(() =>
+      expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese.langCode)
+    )
     expect(screen.queryByText('detect exploded')).not.toBeInTheDocument()
   })
 
@@ -384,7 +391,9 @@ describe('ActionTranslate', () => {
       <ActionTranslate sourceEntityId="test-session" action={createAction()} scrollToBottom={state.scrollToBottom} />
     )
 
-    await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese))
+    await waitFor(() =>
+      expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese.langCode)
+    )
     expect(screen.getByText('translate.detected.language')).toBeInTheDocument()
     expect(screen.queryByText('translate.detected_source')).not.toBeInTheDocument()
   })
@@ -402,7 +411,9 @@ describe('ActionTranslate', () => {
       <ActionTranslate sourceEntityId="test-session" action={createAction()} scrollToBottom={state.scrollToBottom} />
     )
 
-    await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese))
+    await waitFor(() =>
+      expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese.langCode)
+    )
     expect(screen.queryByText('translate.detecting')).not.toBeInTheDocument()
     expect(screen.getByText('English')).toBeInTheDocument()
 
@@ -459,7 +470,9 @@ describe('ActionTranslate', () => {
       <ActionTranslate sourceEntityId="test-session" action={createAction()} scrollToBottom={state.scrollToBottom} />
     )
 
-    await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese))
+    await waitFor(() =>
+      expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese.langCode)
+    )
 
     fireEvent.click(
       screen.getByRole('button', {
@@ -483,7 +496,9 @@ describe('ActionTranslate', () => {
       <ActionTranslate sourceEntityId="test-session" action={createAction()} scrollToBottom={state.scrollToBottom} />
     )
 
-    await waitFor(() => expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese))
+    await waitFor(() =>
+      expect(state.translate).toHaveBeenCalledWith('There is no default export.', state.chinese.langCode)
+    )
 
     const settingsButton = document.querySelector('.lucide-settings-2')?.closest('button')
     expect(settingsButton).toBeInTheDocument()

@@ -1,22 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import type { TranslateBidirectionalPair } from '@shared/data/preference/preferenceTypes'
-import type { TranslateLanguage } from '@shared/data/types/translate'
+import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 
 import { determineTargetLanguage, pickBidirectionalTarget } from '../language'
 
-const lang = (langCode: string, value: string): TranslateLanguage =>
-  ({
-    langCode,
-    value,
-    emoji: '🏳️',
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z'
-  }) as TranslateLanguage
-
-const english = lang('en-us', 'English')
-const chinese = lang('zh-cn', 'Chinese')
-const japanese = lang('ja-jp', 'Japanese')
+const english = BUILTIN_LANGUAGE.enUS.langCode
+const chinese = BUILTIN_LANGUAGE.zhCN.langCode
+const japanese = BUILTIN_LANGUAGE.jaJP.langCode
 const bidirectionalPair = ['en-us', 'zh-cn'] satisfies TranslateBidirectionalPair
 
 describe('translate bidirectional helpers', () => {

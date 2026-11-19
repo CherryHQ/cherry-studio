@@ -1,21 +1,24 @@
-import type { TranslateBidirectionalPair, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import type { TranslateLanguage } from '@shared/data/types/translate'
+import type {
+  PersistedLangCode,
+  TranslateBidirectionalPair,
+  TranslateLangCode
+} from '@shared/data/preference/preferenceTypes'
 
 export const UNKNOWN_LANG_CODE = 'unknown' satisfies TranslateLangCode
 
 export const pickBidirectionalTarget = (
   sourceLanguageCode: TranslateLangCode,
-  preferred: TranslateLanguage,
-  alter: TranslateLanguage,
-  overrideTarget?: TranslateLanguage
-): TranslateLanguage => {
+  preferred: PersistedLangCode,
+  alter: PersistedLangCode,
+  overrideTarget?: PersistedLangCode
+): PersistedLangCode => {
   if (overrideTarget) {
     return overrideTarget
   }
   if (sourceLanguageCode === UNKNOWN_LANG_CODE) {
     return preferred
   }
-  return sourceLanguageCode === preferred.langCode ? alter : preferred
+  return sourceLanguageCode === preferred ? alter : preferred
 }
 
 /**
