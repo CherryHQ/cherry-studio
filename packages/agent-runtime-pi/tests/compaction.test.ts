@@ -384,7 +384,9 @@ describe('compactionReserveForPercent', () => {
 
   it('leaves large-window thresholds at the pinned percent', () => {
     expect(compactionReserveForPercent(16_384, 200_000, 80)).toBe(40_000)
-    expect(compactionReserveForPercent(16_384, 100_000, 20)).toBe(50_000)
+    // A reused 100K-model session pinned at 20% keeps its 20,000-token boundary: the
+    // half-window cap applies to the native floor only, never to the task threshold.
+    expect(compactionReserveForPercent(16_384, 100_000, 20)).toBe(80_000)
   })
 
   it('keeps the native reserve when it is already the larger fitting value', () => {

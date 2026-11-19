@@ -7,11 +7,24 @@ import { resolvePiCompactionSettings } from './piCompactionSettings'
 const model = (contextWindow: number, maxOutputTokens: number) => ({ contextWindow, maxOutputTokens }) as Model
 
 describe('resolvePiCompactionSettings', () => {
-  it('shrinks the retained tail for a 49K window and leaves output room', () => {
+  it('keeps the 20K retained tail for a 49K window; the room after reserve and output allows it', () => {
     const { reserveTokens, keepRecentTokens } = resolvePiCompactionSettings(model(49_152, 8_192))
-    expect(keepRecentTokens).toBe(12_288)
+    expect(keepRecentTokens).toBe(20_000)
     expect(reserveTokens).toBeGreaterThanOrEqual(8_192)
     expect(reserveTokens + keepRecentTokens).toBeLessThan(49_152 - 8_192)
+  })
+
+  it('keeps the /compact summary input inside the window for a 65K-history session on a 49K model', () => {
+    // A session switched to a smaller model summarizes saved history minus the retained tail;
+    // shrinking the tail to window/4 (12,288) raised that input to ~52,630 tokens and overflowed.
+    const { keepRecentTokens } = resolvePiCompactionSettings(model(49_152, 8_192))
+    const savedHistoryTokens = 65_000
+    expect(savedHistoryTokens - keepRecentTokens).toBeLessThanOrEqual(49_152)
+  })
+
+  it('shrinks the retained tail only as far as small-window room requires', () => {
+    expect(resolvePiCompactionSettings(model(32_768, 8_192)).keepRecentTokens).toBe(8_192)
+    expect(resolvePiCompactionSettings(model(20_000, 8_192)).keepRecentTokens).toBe(5_000)
   })
 
   it('reserves output plus estimator headroom for large windows', () => {
@@ -27,7 +40,7 @@ describe('resolvePiCompactionSettings', () => {
       expect(Number.isSafeInteger(reserveTokens)).toBe(true)
       expect(Number.isSafeInteger(keepRecentTokens)).toBe(true)
       expect(reserveTokens).toBeLessThanOrEqual(Math.floor(window / 2))
-      expect(keepRecentTokens).toBeLessThanOrEqual(Math.floor(window / 4))
+      expect(keepRecentTokens).toBeLessThanOrEqual(20_000)
       expect(reserveTokens + keepRecentTokens).toBeLessThan(window)
     }
   )
