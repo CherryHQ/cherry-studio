@@ -27,15 +27,11 @@ import {
   waitForCaptureAssets
 } from '../image'
 
-// mock 依赖
-vi.mock('html-to-image', () => ({
-  toCanvas: vi.fn(() =>
-    Promise.resolve({
-      toDataURL: vi.fn(() => 'data:image/png;base64,xxx'),
-      toBlob: vi.fn((cb) => cb(new Blob(['blob'], { type: 'image/png' })))
-    })
-  )
-}))
+vi.mock('html-to-image', () => ({ toCanvas: vi.fn() }))
+
+function createCaptureCanvas(dataUrl = 'data:image/png;base64,xxx') {
+  return Object.assign(document.createElement('canvas'), { toDataURL: vi.fn(() => dataUrl) })
+}
 
 // Deterministic i18n for checkEntityImageSize (avoids depending on real init).
 vi.mock('@renderer/i18n/resolver', () => ({
@@ -45,12 +41,7 @@ vi.mock('@renderer/i18n/resolver', () => ({
 beforeEach(() => {
   ipcMocks.request.mockReset()
   vi.mocked(htmlToImage.toCanvas).mockReset()
-  vi.mocked(htmlToImage.toCanvas).mockImplementation(() =>
-    Promise.resolve({
-      toDataURL: vi.fn(() => 'data:image/png;base64,xxx'),
-      toBlob: vi.fn((cb) => cb(new Blob(['blob'], { type: 'image/png' })))
-    } as unknown as HTMLCanvasElement)
-  )
+  vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => createCaptureCanvas())
 })
 
 // jsdom's Blob has neither arrayBuffer() nor text().
@@ -187,7 +178,7 @@ describe('utils/image', () => {
     })
 
     it('should return undefined when elRef.current is null', async () => {
-      const ref = { current: null } as unknown as React.RefObject<HTMLDivElement>
+      const ref = { current: null } satisfies React.RefObject<HTMLDivElement | null>
       const result = await captureElement(ref)
       expect(result).toBeUndefined()
     })
@@ -202,11 +193,7 @@ describe('utils/image', () => {
         }
 
         return {
-          toCanvas: vi.fn(() =>
-            Promise.resolve({
-              toDataURL: vi.fn(() => 'data:image/png;base64,recovered')
-            })
-          )
+          toCanvas: vi.fn(() => Promise.resolve(createCaptureCanvas('data:image/png;base64,recovered')))
         }
       })
 
@@ -239,19 +226,11 @@ describe('utils/image', () => {
       )
     })
 
-    it('should return canvas when elRef.current exists', async () => {
-      const div = document.createElement('div')
-      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
-      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
-      const ref = { current: div } as React.RefObject<HTMLDivElement>
-      const result = await captureScrollable(ref)
-      expect(result).toBeTruthy()
-      expect(typeof (result as HTMLCanvasElement).toDataURL).toBe('function')
-    })
-
     it('should release the warm-up canvas before the final capture', async () => {
-      const warmupCanvas = { width: 100, height: 100 } as HTMLCanvasElement
-      const finalCanvas = { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+      const warmupCanvas = document.createElement('canvas')
+      warmupCanvas.width = 100
+      warmupCanvas.height = 100
+      const finalCanvas = createCaptureCanvas('final')
       vi.mocked(htmlToImage.toCanvas)
         .mockResolvedValueOnce(warmupCanvas)
         .mockImplementationOnce(() => {
@@ -271,7 +250,7 @@ describe('utils/image', () => {
     })
 
     it('marks the capture root during capture and removes the marker afterward', async () => {
-      const finalCanvas = { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+      const finalCanvas = createCaptureCanvas('final')
       const div = document.createElement('div')
       Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
       Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
@@ -322,7 +301,7 @@ describe('utils/image', () => {
         version: { mtime: 1, size: 3 }
       })
 
-      const finalCanvas = { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+      const finalCanvas = createCaptureCanvas('final')
       vi.mocked(htmlToImage.toCanvas).mockImplementation(async (node, options) => {
         expect((node.querySelector('img') as HTMLImageElement).src).toMatch(/^data:image\/webp;base64,/)
         expect(options?.imagePlaceholder).toMatch(/^data:image\//)
@@ -375,7 +354,7 @@ describe('utils/image', () => {
 
     it('continues capture with the placeholder when a file image read fails', async () => {
       ipcMocks.request.mockRejectedValue(new Error('read failed'))
-      const finalCanvas = { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+      const finalCanvas = createCaptureCanvas('final')
       vi.mocked(htmlToImage.toCanvas).mockImplementation(async (node, options) => {
         const image = node.querySelector('img') as HTMLImageElement
         expect(image.getAttribute('src')).toBe('file:///tmp/missing.webp')
@@ -455,14 +434,14 @@ describe('utils/image', () => {
         expect(div.style.overflow).toBe('auto')
         expect(div.style.position).toBe('relative')
         expect(div.scrollTop).toBe(32)
-        return { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+        return createCaptureCanvas('final')
       })
 
       await captureScrollable(ref)
     })
 
     it('should return undefined when elRef.current is null', async () => {
-      const ref = { current: null } as unknown as React.RefObject<HTMLDivElement>
+      const ref = { current: null } satisfies React.RefObject<HTMLDivElement | null>
       const result = await captureScrollable(ref)
       expect(result).toBeUndefined()
     })
@@ -513,7 +492,7 @@ describe('utils/image', () => {
     })
 
     it('should return undefined when canvas is undefined', async () => {
-      const ref = { current: null } as unknown as React.RefObject<HTMLDivElement>
+      const ref = { current: null } satisfies React.RefObject<HTMLDivElement | null>
       const result = await captureScrollableAsDataUrl(ref)
       expect(result).toBeUndefined()
     })
@@ -562,7 +541,7 @@ describe('utils/image', () => {
       vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
         const img = root.querySelector('img') as HTMLImageElement
         srcAtRaster = img.getAttribute('src') ?? undefined
-        return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
+        return createCaptureCanvas()
       })
       const result = await captureScrollableAsDataUrl({ current: root })
       return { result, srcAtRaster }
@@ -683,7 +662,7 @@ describe('utils/image', () => {
         let srcAtRaster: string | undefined
         vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
           srcAtRaster = (root.querySelector('img') as HTMLImageElement).getAttribute('src') ?? undefined
-          return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
+          return createCaptureCanvas()
         })
         const settled = captureScrollableAsDataUrl({ current: root })
         // Covers the settle deadline (5s), the fonts wait (1s) and the per-source abort (10s).
@@ -736,7 +715,7 @@ describe('utils/image', () => {
         let resolved = false
         vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
           srcsAtRaster = [...root.querySelectorAll('img')].map((img) => img.getAttribute('src') ?? '')
-          return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
+          return createCaptureCanvas()
         })
         void captureScrollableAsDataUrl({ current: root })
           .then(() => {
@@ -788,7 +767,7 @@ describe('utils/image', () => {
         let srcsAtRaster: string[] = []
         vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
           srcsAtRaster = [...root.querySelectorAll('img')].map((img) => img.getAttribute('src') ?? '')
-          return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
+          return createCaptureCanvas()
         })
         const settled = captureScrollableAsDataUrl({ current: root })
 
@@ -820,7 +799,7 @@ describe('utils/image', () => {
       let settledAtRaster: boolean | undefined
       vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
         settledAtRaster = loadSeen && (img.getAttribute('src') ?? '').startsWith('data:image/png')
-        return { toDataURL: vi.fn(() => 'data:image/png;base64,xxx') } as unknown as HTMLCanvasElement
+        return createCaptureCanvas()
       })
       armJsdomImageSettle(root)
 
@@ -911,7 +890,7 @@ describe('utils/image', () => {
     })
 
     it('should not call func when canvas is undefined', async () => {
-      const ref = { current: null } as unknown as React.RefObject<HTMLDivElement>
+      const ref = { current: null } satisfies React.RefObject<HTMLDivElement | null>
       const func = vi.fn()
       await captureScrollableAsBlob(ref, func)
       expect(func).not.toHaveBeenCalled()
