@@ -28,6 +28,7 @@ const TLS_CERTIFICATE_FAILURE_PATTERNS = [
   'self signed certificate'
 ]
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- WebDAV catch paths pass arbitrary failures and IPC loses native error codes; only recognized Error message text selects certificate guidance.
 function isTlsCertificateFailure(error: unknown): boolean {
   if (!(error instanceof Error) || !error.message) return false
   const message = error.message.toLowerCase()
@@ -44,6 +45,7 @@ type BackupMessageKey =
   | 'backup.error.operation_busy'
   | 'backup.error.webdav_tls_certificate'
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Backup and restore catches include remote invocation failures; inspect Error messages for known backup codes before choosing localized guidance.
 function resolveBackupErrorKey(error: unknown): string | null {
   if (!(error instanceof Error)) {
     return null
@@ -67,6 +69,7 @@ function resolveBackupErrorKey(error: unknown): string | null {
 }
 
 export function getLocalizedBackupErrorMessage(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Local, WebDAV, S3 and Nutstore operations can reject any value; checked message/code signals select scoped guidance or the caller fallback.
   error: unknown,
   fallbackKey: BackupErrorFallbackKey = 'message.backup.failed',
   options?: { tlsCertificateHint?: boolean }
@@ -102,6 +105,7 @@ export function getLocalizedBackupErrorMessage(
   return i18n.t(messageKey)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- BackupService restore catches pass raw failures; resolveBackupErrorKey recognizes supported codes before choosing the fallback title.
 export function getBackupErrorTitleKey(error: unknown): string {
   return resolveBackupErrorKey(error) ?? 'error.backup.file_format'
 }

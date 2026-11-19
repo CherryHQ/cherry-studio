@@ -160,6 +160,7 @@ function normalizeToolSemanticText(value: string): string {
     .replace(/[^a-z0-9]+/g, '_')}_`
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Grouped MCP calls include partial and extension-defined arguments; check a string action before selecting semantic activity.
 function getMcpRuntimeAction(args: unknown): McpActivityAction | undefined {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return undefined
 
@@ -177,6 +178,7 @@ function getMcpRuntimeAction(args: unknown): McpActivityAction | undefined {
 
 function getMcpToolGroupPresentation(
   tool: ToolGroupTool | undefined,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- MCP group presentation receives raw call arguments; getMcpRuntimeAction validates action while tool identity supplies fallback presentation.
   args?: unknown
 ): McpToolGroupPresentation | undefined {
   if (!tool || (tool.type !== 'mcp' && !tool.id.startsWith('mcp__') && !tool.name.startsWith('mcp__'))) {
@@ -233,6 +235,7 @@ function getMcpToolGroupPresentation(
   return { action, icon, target: target ?? (action ? 'relatedContent' : undefined) }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool groups pass incomplete runtime arguments; MCP presentation checks the action field before choosing a group icon.
 export function getToolGroupIcon(tool: ToolGroupTool | undefined, toolArguments?: unknown): LucideIcon {
   return (
     (tool && TOOL_GROUP_ICON_BY_NAME[tool.name]) || getMcpToolGroupPresentation(tool, toolArguments)?.icon || Wrench
@@ -297,6 +300,7 @@ function getMcpToolGroupActivity(
 }
 
 /** What the model said the call is for; DeepSeek models are offered an `intent` argument because they call tools silently. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Streaming tool arguments may omit or mistype intent; require a nonblank string before displaying the model-provided explanation.
 function getToolIntent(args: unknown): string | undefined {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return undefined
   const intent = (args as Record<string, unknown>).intent
