@@ -52,44 +52,54 @@ const MAX_ERROR_STACK_CHARS = 4000
 const MAX_SAFE_ERROR_TAG_CHARS = 100
 const MAX_NESTED_SANITIZE_DEPTH = 5
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Error instances can carry overwritten message values; coerce and redact only within toSafeError's guarded serialization.
 function safeErrorText(value: unknown): string {
   const redacted = redactSecretText(String(value ?? ''))
   return redacted.length > MAX_ERROR_MESSAGE_CHARS ? `${redacted.slice(0, MAX_ERROR_MESSAGE_CHARS)}…` : redacted
 }
 
 function toSafeError(error: Error): Record<string, Serializable> {
-  const safe: Record<string, Serializable> = {
-    name: redactSecretText(String(error.name ?? 'Error')).slice(0, MAX_SAFE_ERROR_TAG_CHARS),
-    message: safeErrorText(error.message)
+  try {
+    const safe: Record<string, Serializable> = {
+      name: redactSecretText(String(error.name ?? 'Error')).slice(0, MAX_SAFE_ERROR_TAG_CHARS),
+      message: safeErrorText(error.message)
+    }
+    if (typeof error.stack === 'string') safe.stack = redactSecretText(error.stack).slice(0, MAX_ERROR_STACK_CHARS)
+    const source = error as unknown as Record<string, unknown>
+    if (source.reportingHandled === true) safe.reportingHandled = true
+    if (typeof source.code === 'string' && source.code.length <= MAX_SAFE_ERROR_TAG_CHARS) {
+      safe.code = redactSecretText(source.code)
+    }
+    if (typeof source.statusCode === 'number') safe.statusCode = source.statusCode
+    if (typeof source.status === 'number') safe.status = source.status
+    if (typeof source.reason === 'string' && source.reason.length <= MAX_SAFE_ERROR_TAG_CHARS) {
+      safe.reason = redactSecretText(source.reason)
+    }
+    if (typeof source.isRetryable === 'boolean') safe.isRetryable = source.isRetryable
+    return safe
+  } catch {
+    return { name: 'Error', message: REDACTED }
   }
-  if (typeof error.stack === 'string') safe.stack = redactSecretText(error.stack).slice(0, MAX_ERROR_STACK_CHARS)
-  const source = error as unknown as Record<string, unknown>
-  if (source.reportingHandled === true) safe.reportingHandled = true
-  if (typeof source.code === 'string' && source.code.length <= MAX_SAFE_ERROR_TAG_CHARS) {
-    safe.code = redactSecretText(source.code)
-  }
-  if (typeof source.statusCode === 'number') safe.statusCode = source.statusCode
-  if (typeof source.status === 'number') safe.status = source.status
-  if (typeof source.reason === 'string' && source.reason.length <= MAX_SAFE_ERROR_TAG_CHARS) {
-    safe.reason = redactSecretText(source.reason)
-  }
-  if (typeof source.isRetryable === 'boolean') safe.isRetryable = source.isRetryable
-  return safe
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Main callers and renderer logs supply arbitrary metadata; bound recursive traversal and redact unsupported or unreadable values before file output.
 function sanitizeLogValue(value: unknown, depth = 0, seen = new WeakSet<object>()): Serializable {
-  if (value instanceof Error) return toSafeError(value)
-  if (value == null) return null
-  if (typeof value === 'string' || typeof value === 'boolean') return value
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null
-  if (typeof value !== 'object') return REDACTED
-  if (seen.has(value)) return '[Circular]'
-  if (depth >= MAX_NESTED_SANITIZE_DEPTH) return '[Truncated]'
-  seen.add(value)
-  if (Array.isArray(value)) return value.map((item) => sanitizeLogValue(item, depth + 1, seen))
-  const out: Record<string, Serializable> = {}
-  for (const [key, nested] of Object.entries(value)) out[key] = sanitizeLogValue(nested, depth + 1, seen)
-  return out
+  try {
+    if (value instanceof Error) return toSafeError(value)
+    if (value == null) return null
+    if (typeof value === 'string' || typeof value === 'boolean') return value
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null
+    if (typeof value !== 'object') return REDACTED
+    if (seen.has(value)) return '[Circular]'
+    if (depth >= MAX_NESTED_SANITIZE_DEPTH) return '[Truncated]'
+    seen.add(value)
+    if (Array.isArray(value)) return value.map((item) => sanitizeLogValue(item, depth + 1, seen))
+    const out: Record<string, Serializable> = {}
+    for (const [key, nested] of Object.entries(value)) out[key] = sanitizeLogValue(nested, depth + 1, seen)
+    return out
+  } catch {
+    return REDACTED
+  }
 }
 
 /**
@@ -323,7 +333,9 @@ export class LoggerService {
       entry.errorMessage = entry.message
       fileMessage = `${message} ${String(entry.message)}`
     } else if (first !== null && typeof first === 'object') {
-      Object.assign(entry, sanitizeLogValue(first))
+      const sanitized = sanitizeLogValue(first)
+      if (sanitized !== null && typeof sanitized === 'object') Object.assign(entry, sanitized)
+      else rest.push(sanitized)
       if (typeof entry.errorMessage === 'string') fileMessage = `${message} ${entry.errorMessage}`
     } else if (first !== undefined) {
       rest.push(first)
