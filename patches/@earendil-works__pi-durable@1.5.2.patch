@@ -833,3 +833,190 @@ index dbae2ff3bd5ded4db56c1fa3f5c4a58eee2af315..e46f1b66e980e29d74c6aeabfafa221f
      const enabled = filterTools([...composed.values()], state?.tools);
      const callableBy = (caller) => (tool) => tool.callers === undefined || tool.callers.includes(caller);
      const modelCallable = enabled.filter(callableBy("model"));
+diff --git a/dist/tools/bash.d.ts b/dist/tools/bash.d.ts
+index 87d05c5fab3b..f306ea66297e 100644
+--- a/dist/tools/bash.d.ts
++++ b/dist/tools/bash.d.ts
+@@ -1,3 +1,4 @@
++import type { ExecutionError, Result, ShellExecOptions, ShellExecResult } from "../env/index.ts";
+ import type { Context } from "@earendil-works/chord/context";
+ import { type Static } from "@earendil-works/pi-schema";
+ import type { ToolExecutionApi, ToolRegistration } from "../harness/types.ts";
+@@ -5,6 +6,34 @@ declare const bashSchema: import("@earendil-works/pi-schema").Schema<{
+     command: string;
+     timeout?: number | undefined;
+ }>;
++declare const backgroundBashSchema: import("@earendil-works/pi-schema").Schema<{
++    command: string;
++    timeout?: number;
++    run_in_background?: boolean;
++}>;
++export type BackgroundBashToolInput = Static<typeof backgroundBashSchema>;
++export interface RunningShellOutput {
++    status: "running";
++    executionId: string;
++    outputCursor: number;
++    outputSnapshotPath?: string;
++    output: string;
++    truncated: boolean;
++}
++export type BackgroundBashExec = (command: string, options: ShellExecOptions & {
++    callId: string;
++    taskId: ToolExecutionApi["taskId"];
++    runInBackground: boolean;
++}, context: Context) => Promise<Result<ShellExecResult | {
++    status: "running";
++    executionId: string;
++    outputCursor: number;
++    spillPath?: string;
++}, ExecutionError>>;
++export interface BackgroundBashToolOptions extends BashToolOptions {
++    /** Commit session retention and revoke turn cancellation before returning running, including in-flight promotion. */
++    background: BackgroundBashExec;
++}
+ declare const powershellSchema: import("@earendil-works/pi-schema").Schema<{
+     command: string;
+     timeout?: number | undefined;
+@@ -45,6 +74,7 @@ export interface PowerShellToolOptions {
+  * beyond the limits is spilled to a file whose path is reported as a diagnostic. A nonzero exit is an error result with
+  * the exit code; a timeout throws, which makes an error result that still carries the output and diagnostics.
+  */
++export declare function createBashTool(options: BackgroundBashToolOptions): ToolRegistration<typeof backgroundBashSchema>;
+ export declare function createBashTool(options?: BashToolOptions): ToolRegistration<typeof bashSchema>;
+ /**
+  * Runs a PowerShell command, like `bash` but through PowerShell instead of the environment's shell: `pwsh` (PowerShell
+diff --git a/dist/tools/bash.js b/dist/tools/bash.js
+index aeb7ebd14830..7b31e8891a8a 100644
+--- a/dist/tools/bash.js
++++ b/dist/tools/bash.js
+@@ -1,4 +1,4 @@
+-import { bool, num, obj, opt, str } from "@earendil-works/pi-schema";
++import { bool, lit, num, obj, opt, str, union } from "@earendil-works/pi-schema";
+ import { defineTool } from "../harness/define.js";
+ import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "../truncate.js";
+ import { requireEnv } from "./env.js";
+@@ -8,6 +8,11 @@ const bashSchema = obj({
+     command: str({ description: "Bash command to execute" }),
+     timeout: opt(num({ description: "Timeout in seconds (optional, no default timeout)" })),
+ }, { open: true });
++const backgroundBashSchema = obj({
++    command: str(),
++    timeout: opt(num()),
++    run_in_background: opt(bool({ description: "Retain this execution as a background task" })),
++}, { open: true });
+ const powershellSchema = obj({
+     command: str({ description: "PowerShell command to execute" }),
+     timeout: opt(num({ description: "Timeout in seconds (optional, no default timeout)" })),
+@@ -19,6 +24,10 @@ const shellStructuredOutputSchema = obj({
+     fullOutputPath: opt(str({ description: "File with the complete output, when it was spilled" })),
+     exitCode: num(),
+ }, { open: true });
++const runningShellOutputSchema = obj({
++    status: lit("running"), executionId: str(), outputCursor: num(), output: str(), truncated: bool(),
++    outputSnapshotPath: opt(str()),
++});
+ function validateTimeout(timeout) {
+     if (timeout === undefined)
+         return;
+@@ -45,29 +54,40 @@ async function prepareExecution(command, options, api, context) {
+  * turn the result into the tool's result: a spill diagnostic, an error result for a nonzero exit, and a thrown error for
+  * a failure such as a timeout. The structured output repeats the retained output with the exit code.
+  */
+-async function runCommand(commands, execution, timeout, api, context) {
++async function runCommand(commands, execution, timeout, api, context, background, runInBackground = false) {
+     const env = requireEnv(api);
+     let result;
+-    for (const command of commands) {
+-        result = await env.exec(command, {
+-            cwd: execution.cwd,
+-            env: execution.env,
+-            inheritEnv: execution.inheritEnv,
+-            ...(timeout === undefined ? {} : { timeout }),
+-            onOutput: (text, _context, info) => api.output(text, info.skipped),
+-            spill: { afterBytes: DEFAULT_MAX_BYTES, afterLines: DEFAULT_MAX_LINES },
+-            // An environment may then omit output outside the retained tail and report the omission.
+-            ...(api.outputWindow === undefined ? {} : { window: api.outputWindow }),
+-        }, context);
+-        // A program that could not start produced no output; the next form may.
+-        if (result.ok || result.error.code !== "spawn_error")
+-            break;
++    let acceptingOutput = true;
++    try {
++        for (const command of commands) {
++            const exec = background ?? env.exec.bind(env);
++            result = await exec(command, {
++                cwd: execution.cwd,
++                env: execution.env,
++                inheritEnv: execution.inheritEnv,
++                ...(background === undefined ? {} : { callId: api.callId, taskId: api.taskId, runInBackground }),
++                ...(timeout === undefined ? {} : { timeout }),
++                onOutput: (text, _context, info) => {
++                    if (acceptingOutput) api.output(text, info.skipped);
++                },
++                spill: { afterBytes: DEFAULT_MAX_BYTES, afterLines: DEFAULT_MAX_LINES },
++                // An environment may then omit output outside the retained tail and report the omission.
++                ...(api.outputWindow === undefined ? {} : { window: api.outputWindow }),
++            }, context);
++            // A program that could not start produced no output; the next form may.
++            if (result.ok || result.error.code !== "spawn_error")
++                break;
++        }
++    } finally {
++        acceptingOutput = false;
+     }
+     if (result === undefined)
+         throw new Error("No command to run");
+     const spillPath = result.ok ? result.value.spillPath : result.error.spillPath;
+     if (spillPath !== undefined) {
+-        api.diagnostic({ severity: "info", code: "full_output", message: `Full output: ${spillPath}` });
++        api.diagnostic(background && result.ok && result.value.status === "running"
++            ? { severity: "info", code: "output_snapshot", message: `Output before backgrounding: ${spillPath}` }
++            : { severity: "info", code: "full_output", message: `Full output: ${spillPath}` });
+     }
+     if (!result.ok) {
+         if (result.error.code === "aborted" && context.abortSignal?.aborted)
+@@ -78,6 +98,14 @@ async function runCommand(commands, execution, timeout, api, context) {
+             throw new Error("Command aborted");
+         throw result.error;
+     }
++    if (background && result.value.status === "running") {
++        const retained = api.retainedOutput();
++        return { structuredOutput: {
++            status: "running", executionId: result.value.executionId, outputCursor: result.value.outputCursor,
++            output: retained.text, truncated: retained.truncated,
++            ...(spillPath === undefined ? {} : { outputSnapshotPath: spillPath }),
++        } };
++    }
+     const exitCode = result.value.exitCode;
+     const retained = api.retainedOutput();
+     const structuredOutput = {
+@@ -101,14 +129,14 @@ async function runCommand(commands, execution, timeout, api, context) {
+ export function createBashTool(options) {
+     return defineTool({
+         name: "bash",
+-        description: `Execute a bash command in the current working directory. Returns combined stdout and stderr. Output is truncated to last ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.`,
+-        parameters: bashSchema,
+-        structuredOutputSchema: shellStructuredOutputSchema,
++        description: `Execute a bash command in the current working directory. Returns combined stdout and stderr. Output is truncated to last ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.${options?.background ? " Set run_in_background to retain this execution and return a running receipt." : ""}`,
++        parameters: options?.background ? backgroundBashSchema : bashSchema,
++        structuredOutputSchema: options?.background ? union([shellStructuredOutputSchema, runningShellOutputSchema]) : shellStructuredOutputSchema,
+         outputLimits: { retain: "tail" },
+         async execute(args, api, context) {
+             validateTimeout(args.timeout);
+             const execution = await prepareExecution(args.command, options, api, context);
+-            return runCommand([execution.command], execution, args.timeout, api, context);
++            return runCommand([execution.command], execution, args.timeout, api, context, options?.background, args.run_in_background === true);
+         },
+     });
+ }
+diff --git a/dist/tools/index.d.ts b/dist/tools/index.d.ts
+index dc06b0be86a2..78fd2c120ab3 100644
+--- a/dist/tools/index.d.ts
++++ b/dist/tools/index.d.ts
+@@ -1,5 +1,5 @@
+ import { type ReadToolOptions } from "./read.ts";
+-export { type BashExecution, type BashPrepare, type BashToolInput, type BashToolOptions, createBashTool, createPowerShellTool, type PowerShellToolInput, type PowerShellToolOptions, } from "./bash.ts";
++export { type BackgroundBashToolInput, type RunningShellOutput, type BackgroundBashExec, type BackgroundBashToolOptions, type BashExecution, type BashPrepare, type BashToolInput, type BashToolOptions, createBashTool, createPowerShellTool, type PowerShellToolInput, type PowerShellToolOptions, } from "./bash.ts";
+ export { createEditTool, type EditToolDetails, type EditToolInput } from "./edit.ts";
+ export { DEFAULT_IMAGE_LIMITS, type ImageLimits, type ImageProcessor, type PreparedImage, } from "./image-processor.ts";
+ export { createReadTool, type ReadToolDetails, type ReadToolInput, type ReadToolOptions } from "./read.ts";

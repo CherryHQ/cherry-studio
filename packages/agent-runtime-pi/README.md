@@ -26,6 +26,30 @@ model-facing content annotations.
 Behavior's child-task and continuation custom messages project as user messages with native entry
 identities. Other hidden custom markers remain hidden; filtering them must not erase actual input boundaries.
 
+## Native Bash background contract
+
+The pinned SDK patch adds an opt-in `backgroundOperations` option to
+`createBashToolDefinition` and `createBashTool`. The desktop adapter currently uses
+the foreground API. Ordinary Bash and PowerShell schemas are unchanged.
+
+An enabled Bash tool accepts `run_in_background`. Its backend receives the native
+`toolCallId`, prepared command, cwd, environment, execution timeout and turn abort
+signal. The backend returns either a completed exit result or a running receipt
+with an `executionId` and output cursor. It must commit session retention and
+revoke turn cancellation before returning a running receipt, including when an
+already running foreground invocation is promoted. The SDK does not implement
+process ownership, cancellation fencing or promotion itself.
+
+Running structured output uses `status: "running"`, `execution_id` and
+`output_cursor`, with bounded output and no exit code. A truncated output file is
+named `output_snapshot_path`: it contains output before handoff, not the retained
+task's eventual complete output. Later backend output cannot change the original
+tool result. Completed calls retain the SDK's native output and error handling.
+
+`tests/bashBackground.test.ts` checks this contract, including a backend fixture
+that retains one real process after promotion. Desktop terminal admission,
+process-tree cleanup and Agent Stop races require separate integration coverage.
+
 ## Common runtime with Cherry behavior
 
 `PiSessionOptions` requires `behavior: { host, configureChild }`, which installs
