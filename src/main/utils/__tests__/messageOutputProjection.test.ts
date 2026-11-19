@@ -9,7 +9,8 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   DEFER_TOOL_OUTPUT_BYTES,
   projectMessagePartForRenderer,
-  projectStreamChunkForRenderer
+  projectStreamChunkForRenderer,
+  shouldDeferToolOutput
 } from '../messageOutputProjection'
 
 const TOPIC_ID = 'agent-session:session-1'
@@ -111,6 +112,43 @@ describe('message tool-output projection', () => {
     })
   })
 
+  it.each(['stored', 'live'])('serializes an oversized %s output once for its reference revision', (source) => {
+    let serialized = false
+    const output = {
+      toJSON() {
+        if (serialized) throw new Error('Tool output was serialized twice')
+        serialized = true
+        return large
+      }
+    }
+    const projected =
+      source === 'stored'
+        ? projectMessagePartForRenderer(partWith(output), TOPIC_ID, MESSAGE_ID)
+        : projectStreamChunkForRenderer(chunkWith(output), TOPIC_ID, MESSAGE_ID)
+
+    expect(projected).toMatchObject({
+      output: {
+        $deferredToolResult: {
+          topicId: TOPIC_ID,
+          messageId: MESSAGE_ID,
+          toolCallId: TOOL_CALL_ID,
+          revision: 'f99105333335ffd61379190d826704fc729bff3bff5108aace70af36fe80d670'
+        }
+      }
+    })
+  })
+
+  it.each([
+    [DEFER_TOOL_OUTPUT_BYTES - 2, false],
+    [DEFER_TOOL_OUTPUT_BYTES - 1, true]
+  ])('defers a %i-character string only when its JSON exceeds the byte budget', (length, deferred) => {
+    const output = 'x'.repeat(length)
+    const projected = projectMessagePartForRenderer(partWith(output), TOPIC_ID, MESSAGE_ID)
+    if (!('output' in projected)) throw new Error('Expected a tool output')
+    expect(isDeferredToolOutput(projected.output)).toBe(deferred)
+    if (!deferred) expect(projected.output).toBe(output)
+  })
+
   it('keeps a bounded citation skeleton for an oversized agent lookup', () => {
     const projected = projectMessagePartForRenderer(partWith(largeAgentWebSearch), TOPIC_ID, MESSAGE_ID) as unknown as {
       output: {
@@ -201,6 +239,38 @@ describe('message tool-output projection', () => {
       output: unknown
     }
     expect(isDeferredToolOutput(projected.output)).toBe(true)
+  })
+
+  // An escaped newline costs two bytes, so characters that fit can still serialize past the budget.
+  it('measures JSON escapes, not only characters', () => {
+    const escaped = { content: '\n'.repeat(DEFER_TOOL_OUTPUT_BYTES / 2 + 1) }
+    expect(escaped.content.length).toBeLessThan(DEFER_TOOL_OUTPUT_BYTES)
+
+    const projected = projectMessagePartForRenderer(partWith(escaped), TOPIC_ID, MESSAGE_ID) as unknown as {
+      output: unknown
+    }
+    expect(isDeferredToolOutput(projected.output)).toBe(true)
+  })
+
+  it('measures a value by its JSON form, not by fields its toJSON leaves out', () => {
+    const summarized = { content: 'x'.repeat(DEFER_TOOL_OUTPUT_BYTES + 1), toJSON: () => ({ content: 'summary' }) }
+
+    const projected = projectMessagePartForRenderer(partWith(summarized), TOPIC_ID, MESSAGE_ID) as unknown as {
+      output: unknown
+    }
+    expect(projected.output).toBe(summarized)
+  })
+
+  // Catches a nesting too deep to walk failing the projection instead of leaving the output in place.
+  it('leaves an output nested too deeply to measure untouched', () => {
+    let deep: unknown = 'x'
+    for (let depth = 0; depth < 100_000; depth++) deep = [deep]
+
+    const projected = projectMessagePartForRenderer(partWith(deep), TOPIC_ID, MESSAGE_ID) as unknown as {
+      output: unknown
+    }
+    expect(projected.output).toBe(deep)
+    expect(shouldDeferToolOutput(deep)).toBe(false)
   })
 
   it('does nothing without a message id to address the result by', () => {

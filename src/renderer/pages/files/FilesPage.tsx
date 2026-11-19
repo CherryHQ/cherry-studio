@@ -966,7 +966,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
                   {files.length === 0 ? (
                     <EmptyState title={t('files.empty.title')} />
                   ) : (
-                    <EmptyState preset="no-result" title={t('files.empty.no_match_title')} />
+                    <EmptyState title={t('files.empty.no_match_title')} />
                   )}
                 </div>
               )

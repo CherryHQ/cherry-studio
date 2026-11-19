@@ -37,7 +37,7 @@ const mockGetToolResult = vi.hoisted(() => vi.fn())
 const mockThemeState = vi.hoisted(() => ({ theme: 'light' }))
 
 vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
     useScopedPartsMap: () => mockPartsMap()
@@ -93,7 +93,7 @@ vi.mock('@logger', () => ({
 
 // Mock lucide-react icons
 vi.mock('lucide-react', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
     Loader2: ({ className }: any) => <span data-testid="loader-icon" className={className} />,
