@@ -58,7 +58,12 @@ vi.mock('@application', async () => {
       kick: () => {}
     },
     ChannelManager: { reconcileAgent: () => {} },
-    JobManager: { syncJobScheduleTimerById: () => {}, enqueueTx: mocks.enqueueTx, cancel: mocks.cancelJob }
+    JobManager: {
+      syncJobScheduleTimerById: () => {},
+      enqueue: (type: string, input: unknown, opts: unknown) => mocks.enqueueTx(undefined, type, input, opts),
+      enqueueTx: mocks.enqueueTx,
+      cancel: mocks.cancelJob
+    }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
@@ -478,7 +483,7 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     expect(dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, workspace.id)).get()?.path).toBe(
       claimed
     )
-    expect(agentWorkspaceStorageService.reserveWorkspaceStorage([old])).toBeUndefined()
+    expect(agentWorkspaceStorageService.reserveWorkspaceStorage([old])).toBe('claimed')
     expect(await readFile(old, 'utf8')).toBe('replaced directory')
     await lifecycle.archiveSessions(['system'])
     await flushArchiveJobs()
@@ -646,10 +651,30 @@ describe(`Agent lifecycle workspace persistence (${process.platform})`, () => {
     expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(false)
     mocks.closeSessionForArchive.mockResolvedValue(undefined)
     await lifecycle.sweepOrphans()
+    await flushArchiveJobs()
     expect(existsSync(workspacePath(root, 'system'))).toBe(false)
     await lifecycle.restoreSession('system')
     expect(await readFile(path.join(workspacePath(root, 'system'), 'output.txt'), 'utf8')).toBe('system output')
   })
+  it('routes sweep packs through the archive queue instead of packing inline (AC6)', async () => {
+    // A sweep firing while both queue slots are busy must not start a third
+    // pack: it enqueues into the concurrency-capped queue instead.
+    const pack = vi.spyOn(workspaceArchive, 'packWorkspaceDirectory')
+    await lifecycle.archiveSessions(['system'])
+    mocks.enqueueTx.mockClear()
+    await lifecycle.sweepOrphans()
+    expect(pack).not.toHaveBeenCalled()
+    expect(existsSync(workspacePath(root, 'system'))).toBe(true)
+    expect(mocks.enqueueTx).toHaveBeenCalledWith(
+      undefined,
+      'agent.archive-system-workspace',
+      { sessionId: 'system' },
+      expect.objectContaining({ idempotencyKey: 'archive-system-workspace:system' })
+    )
+    await flushArchiveJobs()
+    expect(existsSync(`${workspacePath(root, 'system')}.tar.gz`)).toBe(true)
+  })
+
   it('keeps a session archived when its workspace cannot be restored', async () => {
     await lifecycle.archiveSessions(['system'])
     await writeFile(`${workspacePath(root, 'system')}.tar.gz`, 'corrupt')

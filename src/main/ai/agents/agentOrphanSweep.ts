@@ -117,7 +117,7 @@ export async function sweepAgentOrphans(signal?: AbortSignal): Promise<AgentSwee
       }
     }
     const release = agentWorkspaceStorageService.reserveWorkspaceStorage([dateDir])
-    if (release) {
+    if (typeof release === 'function') {
       try {
         await removeIfEmpty(dateDir, removed)
       } finally {

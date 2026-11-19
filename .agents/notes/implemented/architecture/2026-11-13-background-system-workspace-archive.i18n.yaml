@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/architecture/2026-11-13-background-system-workspace-archive.md
-2026-11-13-background-system-workspace-archive.md: 8dfe22a0c8907e426bbd7a3c1451dc9dedc9aeac
-2026-11-13-background-system-workspace-archive.zh.md: 1ac7463330bbd41bdfe61df14b5096c7a3eab1a6
+2026-11-13-background-system-workspace-archive.md: 0a8e0531093394aad5933c447929934e2cf1b4ae
+2026-11-13-background-system-workspace-archive.zh.md: ec046005f503b571af5e6472ceb7e63e77d35c52

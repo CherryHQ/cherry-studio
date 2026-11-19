@@ -77,6 +77,12 @@ describe('agentArchiveWorkspaceJobHandler', () => {
     await expect(agentArchiveWorkspaceJobHandler.execute(makeContext('session'))).rejects.toThrow('disk full')
   })
 
+  it('rejects on storage contention so the task retries instead of falsely succeeding', async () => {
+    listWorkspaces.mockReturnValue([archivedWorkspace] as never)
+    archiveWorkspace.mockResolvedValueOnce('busy')
+    await expect(agentArchiveWorkspaceJobHandler.execute(makeContext('session'))).rejects.toThrow(/reserved/)
+  })
+
   it('rejects when cancelled before the archive starts', async () => {
     const controller = new AbortController()
     controller.abort()
