@@ -69,6 +69,7 @@ export class ModelResolutionError extends AiCoreError {
  * Thrown when request parameters fail validation
  */
 export class ParameterValidationError extends AiCoreError {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Validation failures retain the rejected caller value as diagnostic context; invalid input cannot truthfully use the parameter's valid domain type.
   constructor(paramName: string, reason: string, value?: unknown) {
     super('PARAMETER_VALIDATION_FAILED', `Invalid parameter '${paramName}': ${reason}`, {
       paramName,

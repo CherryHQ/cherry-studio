@@ -31,6 +31,7 @@ import type { ContextLogger } from './types'
  * Only pass a skeleton returned by this codec's deflate back to assemble.
  */
 export interface EntityToolOutputCodec {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool results include opaque errors, markers and unrelated payloads; each registered codec validates its own entity shape or declines with null.
   deflate(value: unknown): { skeleton: JSONValue; blobs: Array<{ key: string; text: string }> } | null
   assemble(skeleton: JSONValue, texts: Record<string, string>): JSONValue
 }

@@ -1,3 +1,5 @@
+import type { ContextMessage } from './types'
+
 /**
  * A fast, zero-dependency token estimator.
  * While exact token counting requires model-specific tokenizers (like `tiktoken` or Anthropic's tokenizer),
@@ -28,9 +30,6 @@ export function estimate(text: string): number {
 /**
  * Estimates tokens for an array of messages or a single object by serializing it.
  */
-export function estimateObject(obj: unknown): number {
-  if (typeof obj === 'string') {
-    return estimate(obj)
-  }
+export function estimateObject(obj: ContextMessage | readonly ContextMessage[]): number {
   return estimate(JSON.stringify(obj))
 }

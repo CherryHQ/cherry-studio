@@ -53,6 +53,7 @@ export interface PiRuntimeOptions {
   backendId: BackendId
   /** Load the exact saved context and its configuration; undefined means not found. */
   load?: (ref: Thread) => Promise<PiSessionOptions | undefined>
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native sessions, behavior jobs and observers forward original thrown values; optional compaction context identifies the operation without replacing its failure.
   onError?: (error: unknown, context?: PiRuntimeErrorContext) => void
 }
 export type PiSessionOptions = Omit<AgentRuntimeSessionOptions, 'compaction'> & {
