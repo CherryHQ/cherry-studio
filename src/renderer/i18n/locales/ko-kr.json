@@ -2400,7 +2400,6 @@
   "library.config.dialogs.edit.page.channels": "채널",
   "library.config.dialogs.edit.page.context": "사용자 지정 컨텍스트",
   "library.config.dialogs.edit.page.mcp": "MCP 서버",
-  "library.config.dialogs.edit.page.more": "추가 설정",
   "library.config.dialogs.edit.parameters_count": "매개변수 {{count}}개",
   "library.config.dialogs.edit.permission_tab": "권한",
   "library.config.dialogs.edit.prompt_empty": "작성되지 않음",
