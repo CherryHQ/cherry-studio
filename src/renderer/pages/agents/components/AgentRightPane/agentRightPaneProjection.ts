@@ -9,11 +9,7 @@ import {
   isTaskRecord,
   normalizeTaskStatus
 } from '@renderer/components/chat/messages/tools/agent'
-import {
-  type AgentToolOutput,
-  AgentToolsType,
-  isBackgroundAgentOutput
-} from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
+import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import {
   getPartParentToolCallId,
   hasPartParentToolCallId,
@@ -152,6 +148,7 @@ function getToolNameFromPart(part: CherryMessagePart): string | undefined {
   return toolName.trim() || undefined
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Live, persisted and deferred tool outputs vary by runtime; read checked string/content fields before projecting text into preview or flow messages.
 function textFromContent(value: unknown): string | undefined {
   if (typeof value === 'string') return value.trim() || undefined
   if (Array.isArray(value)) {
@@ -188,9 +185,12 @@ function getToolPromptText(part: CherryMessagePart | undefined): string | undefi
 
 const LEGACY_ASYNC_AGENT_LAUNCH_RECEIPT_PREFIX = 'Async agent launched successfully.'
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Agent flow output may be a launch receipt or a normal result; check the raw object status or recognized legacy text before hiding control receipts.
 function isBackgroundAgentLaunchReceipt(output: unknown, text: string | undefined): boolean {
+  const status = isRecord(output) ? output.status : undefined
   return (
-    isBackgroundAgentOutput(output as AgentToolOutput | undefined) ||
+    status === 'async_launched' ||
+    status === 'remote_launched' ||
     (text?.startsWith(LEGACY_ASYNC_AGENT_LAUNCH_RECEIPT_PREFIX) ?? false)
   )
 }
@@ -294,6 +294,7 @@ function extractLatestLocalPreviewUrl(text: string): string | null {
 }
 
 /** Extracts the last usable loopback URL from one resolved tool output. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Inline and ai.tool.get_result outputs are runtime-defined; textFromContent extracts display text before matching loopback preview URLs.
 export function findAgentPreviewUrlInOutput(output: unknown): string | null {
   const text = textFromContent(output)
   return text ? extractLatestLocalPreviewUrl(text) : null
@@ -415,6 +416,7 @@ export function buildAgentToolFlowProjection(
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>,
   selectedToolCallId?: string,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- useToolResult returns runtime-defined deferred output; the flow projector checks its text and receipt fields before creating messages.
   selectedToolOutput?: unknown
 ): AgentToolFlowProjection {
   const toolNodes: AgentToolFlowNode[] = []
