@@ -1,24 +1,22 @@
-import { createHash, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
-import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { McpResource } from '@shared/types/mcp'
-import { McpSkillEntrySchema, type McpSkillEntry } from '@shared/types/mcpSkills'
+import type { McpSkillEntry } from '@shared/types/mcpSkills'
 
-import { skillRelativePath, skillRoot, validateMcpSkill, verifyMcpSkillFile } from './mcpSkillContent'
+import { skillRelativePath, skillRoot, verifyMcpSkillFile } from './mcpSkillContent'
 
 type HeldSkill = {
   sessionId: string
   entry: McpSkillEntry
-  originFingerprint: string
+  serverKey: string
   loaded: boolean
-  invalid: boolean
   abort: AbortController
   files: Map<string, McpResource>
 }
@@ -26,7 +24,7 @@ type SessionSkillState = {
   agentId: string
   abort: AbortController
   skills: Map<string, HeldSkill>
-  loadTargets: Map<string, { fingerprint: string; abort: AbortController }>
+  loadTargets: Map<string, { serverKey: string; abort: AbortController }>
   loadApprovals: Map<
     string,
     { serverId: string; uri: string; signal: AbortSignal; validate: () => void; dispose: () => void }
@@ -41,7 +39,6 @@ type SessionSkillState = {
   >
 }
 
-const fingerprintOf = (serverKey: string) => createHash('sha256').update(serverKey).digest('hex')
 const loadApprovalInput = '__cherry_mcp_skill_approval'
 const keyOf = (serverId: string, uri: string) => JSON.stringify([serverId, uri])
 const manifestOf = (entry: McpSkillEntry) => ({
@@ -84,12 +81,8 @@ export class McpSkillService extends BaseService {
       })
     )
     this.registerDisposable(
-      agentService.onAgentUpdated(({ agentId, updates, agent }) => {
+      agentService.onAgentUpdated(({ agentId, updates }) => {
         if (updates.mcps === undefined) return
-        for (const { sessionId, skill } of agentSessionMessageService.listMcpSkillContexts({ agentId })) {
-          if (!agent.mcps?.includes(skill.serverId))
-            agentSessionMessageService.invalidateMcpSkill(sessionId, skill.serverId, skill.uri)
-        }
         for (const session of this.sessions.values()) {
           if (session.agentId !== agentId) continue
           session.abort.abort()
@@ -98,7 +91,7 @@ export class McpSkillService extends BaseService {
             try {
               this.assertHeld(session, held)
             } catch {
-              this.invalidate(held)
+              this.discard(held)
             }
           }
         }
@@ -107,22 +100,16 @@ export class McpSkillService extends BaseService {
     this.registerDisposable(
       mcpServerService.onChanged((serverId) => {
         const server = mcpServerService.findByIdOrName(serverId)
-        const fingerprint = server?.isActive
-          ? fingerprintOf(application.get('McpRuntimeService').getServerKey(server))
-          : undefined
-        for (const { sessionId, skill } of agentSessionMessageService.listMcpSkillContexts({ serverId })) {
-          if (skill.originFingerprint !== fingerprint)
-            agentSessionMessageService.invalidateMcpSkill(sessionId, serverId, skill.uri)
-        }
+        const serverKey = server?.isActive ? application.get('McpRuntimeService').getServerKey(server) : undefined
         for (const session of this.sessions.values()) {
           const target = session.loadTargets.get(serverId)
-          if (target && target.fingerprint !== fingerprint) target.abort.abort(new Error(t('mcp.skills.changed')))
+          if (target && target.serverKey !== serverKey) target.abort.abort(new Error(t('mcp.skills.changed')))
           for (const held of session.skills.values()) {
             if (held.entry.serverId !== serverId) continue
             try {
               this.assertHeld(session, held)
             } catch {
-              this.invalidate(held)
+              this.discard(held)
             }
           }
         }
@@ -130,12 +117,10 @@ export class McpSkillService extends BaseService {
     )
     this.registerDisposable(
       application.get('McpRuntimeService').onServerInvalidated((serverId) => {
-        for (const { sessionId, skill } of agentSessionMessageService.listMcpSkillContexts({ serverId }))
-          agentSessionMessageService.invalidateMcpSkill(sessionId, serverId, skill.uri)
         for (const session of this.sessions.values()) {
           session.loadTargets.get(serverId)?.abort.abort(new Error(t('mcp.skills.changed')))
           for (const held of session.skills.values()) {
-            if (held.entry.serverId === serverId) this.invalidate(held)
+            if (held.entry.serverId === serverId) this.discard(held)
           }
         }
       })
@@ -148,47 +133,16 @@ export class McpSkillService extends BaseService {
 
   openSession(sessionId: string, agentId: string): void {
     const existing = this.sessions.get(sessionId)
-    if (existing) {
-      if (existing.agentId !== agentId) {
-        existing.agentId = agentId
-        for (const held of existing.skills.values()) {
-          this.invalidate(held)
-        }
-      }
-      return
-    }
-    const session: SessionSkillState = {
+    if (existing?.agentId === agentId) return
+    if (existing) this.closeSession(sessionId)
+    this.sessions.set(sessionId, {
       agentId,
       abort: new AbortController(),
       skills: new Map(),
       loads: new Map(),
       loadTargets: new Map(),
       loadApprovals: new Map()
-    }
-    for (const context of agentSessionMessageService.listMcpSkills(sessionId)) {
-      const entry = McpSkillEntrySchema.parse(context)
-      validateMcpSkill(entry)
-      const server = mcpServerService.findByIdOrName(entry.serverId)
-      const key = keyOf(entry.serverId, entry.uri)
-      if (session.skills.get(key)?.invalid) continue
-      const held: HeldSkill = {
-        sessionId,
-        entry,
-        originFingerprint: context.originFingerprint,
-        loaded: true,
-        invalid: context.invalidated,
-        abort: new AbortController(),
-        files: new Map()
-      }
-      session.skills.set(key, held)
-      if (
-        !server ||
-        fingerprintOf(application.get('McpRuntimeService').getServerKey(server)) !== held.originFingerprint
-      ) {
-        this.invalidate(held)
-      }
-    }
-    this.sessions.set(sessionId, session)
+    })
   }
 
   closeSession(sessionId: string): void {
@@ -215,27 +169,25 @@ export class McpSkillService extends BaseService {
     return server
   }
 
-  private invalidate(held: HeldSkill): void {
-    const wasInvalid = held.invalid
-    held.invalid = true
+  private discard(held: HeldSkill): void {
     held.files.clear()
     held.abort.abort(new Error(t('mcp.skills.changed')))
-    if (held.loaded && !wasInvalid)
-      agentSessionMessageService.invalidateMcpSkill(held.sessionId, held.entry.serverId, held.entry.uri)
+    const session = this.sessions.get(held.sessionId)
+    const key = keyOf(held.entry.serverId, held.entry.uri)
+    if (session?.skills.get(key) === held) session.skills.delete(key)
   }
 
   private assertHeld(session: SessionSkillState, held: HeldSkill): void {
     session.abort.signal.throwIfAborted()
+    held.abort.signal.throwIfAborted()
     try {
       const server = this.server(session, held.entry.serverId)
-      if (fingerprintOf(application.get('McpRuntimeService').getServerKey(server)) !== held.originFingerprint)
-        this.invalidate(held)
+      if (application.get('McpRuntimeService').getServerKey(server) === held.serverKey) return
     } catch {
-      this.invalidate(held)
+      // A removed or deselected server cannot finish an active read.
     }
-    if (held.invalid) {
-      throw new Error(t('mcp.skills.changed'))
-    }
+    this.discard(held)
+    throw new Error(t('mcp.skills.changed'))
   }
 
   async list(sessionId: string, signal?: AbortSignal) {
@@ -269,14 +221,6 @@ export class McpSkillService extends BaseService {
   }
 
   private observeEntry(entry: McpSkillEntry): void {
-    const changedSessions = new Set(
-      agentSessionMessageService
-        .listMcpSkillContexts({ serverId: entry.serverId, uri: entry.uri })
-        .filter(({ skill }) => !isDeepStrictEqual(manifestOf(skill), manifestOf(entry)))
-        .map(({ sessionId }) => sessionId)
-    )
-    for (const sessionId of changedSessions)
-      agentSessionMessageService.invalidateMcpSkill(sessionId, entry.serverId, entry.uri)
     for (const session of this.sessions.values()) this.observe(session, entry)
   }
 
@@ -290,7 +234,7 @@ export class McpSkillService extends BaseService {
     }
     const held = session.skills.get(key)
     if (held && !isDeepStrictEqual(manifestOf(held.entry), manifestOf(entry))) {
-      this.invalidate(held)
+      this.discard(held)
     }
   }
 
@@ -349,9 +293,7 @@ export class McpSkillService extends BaseService {
   private async loadOnce(sessionId: string, serverId: string, uri: string, signal?: AbortSignal) {
     const session = this.session(sessionId)
     const requestSignal = AbortSignal.any([session.abort.signal, ...(signal ? [signal] : [])])
-    const originFingerprint = fingerprintOf(
-      application.get('McpRuntimeService').getServerKey(this.server(session, serverId))
-    )
+    const serverKey = application.get('McpRuntimeService').getServerKey(this.server(session, serverId))
     const entry = await this.get(sessionId, serverId, uri, requestSignal)
     requestSignal.throwIfAborted()
     if (entry.resources === 'dynamic') throw new Error(t('mcp.skills.dynamic'))
@@ -362,9 +304,8 @@ export class McpSkillService extends BaseService {
       : {
           sessionId,
           entry,
-          originFingerprint,
+          serverKey,
           loaded: false,
-          invalid: false,
           abort: new AbortController(),
           files: new Map<string, McpResource>()
         }
@@ -372,9 +313,6 @@ export class McpSkillService extends BaseService {
     this.assertHeld(session, held)
     const file = await this.readHeld(sessionId, held, uri, requestSignal)
     this.assertHeld(session, held)
-    application
-      .get('AgentSessionRuntimeService')
-      .recordMcpSkillLoad(sessionId, { ...entry, originFingerprint: held.originFingerprint, invalidated: false })
     held.loaded = true
     // oxlint-disable-next-line no-restricted-globals -- Isolate the held manifest, including arbitrary nested metadata, from tool callers.
     return { entry: structuredClone(held.entry), content: file }
@@ -385,7 +323,7 @@ export class McpSkillService extends BaseService {
     this.assertHeld(session, held)
     skillRelativePath(skillRoot(held.entry.uri), uri)
     if (held.entry.resources === 'dynamic' || !held.entry.resources.some((file) => file.uri === uri)) {
-      this.invalidate(held)
+      this.discard(held)
       throw new Error('File is not in the held skill manifest')
     }
     const cached = held.files.get(uri)
@@ -435,7 +373,7 @@ export class McpSkillService extends BaseService {
       }
       return file
     } catch (error) {
-      this.invalidate(held)
+      this.discard(held)
       throw error
     }
   }
@@ -444,19 +382,6 @@ export class McpSkillService extends BaseService {
     const held = this.session(sessionId).skills.get(keyOf(serverId, skillUri))
     if (!held?.loaded) throw new Error('Load this skill before reading its files')
     return this.readHeld(sessionId, held, uri, signal)
-  }
-
-  guardTool(sessionId: string, toolName: string): string | undefined {
-    const session = this.sessions.get(sessionId)
-    if (!session || toolName === 'mcp__skills__list_mcp_skills') return undefined
-    try {
-      for (const held of session.skills.values()) {
-        if (held.loaded) this.assertHeld(session, held)
-      }
-    } catch (error) {
-      return error instanceof Error ? error.message : String(error)
-    }
-    return undefined
   }
 
   toolApproval(
@@ -475,15 +400,13 @@ export class McpSkillService extends BaseService {
       (toolName === 'mcp__cherry-tools__cron' || toolName === 'mcp__cherry_tools__cron') &&
       (input.action === 'add' || input.action === 'update')
     if (!isLoad && (!active.length || (!executionTools.has(toolName) && !schedulesExecution))) return undefined
-    let target: { fingerprint: string; abort: AbortController } | undefined
+    let target: { serverKey: string; abort: AbortController } | undefined
     const targetId = isLoad && typeof input.server_id === 'string' ? input.server_id : undefined
     if (targetId) {
-      const fingerprint = fingerprintOf(
-        application.get('McpRuntimeService').getServerKey(this.server(session, targetId))
-      )
+      const serverKey = application.get('McpRuntimeService').getServerKey(this.server(session, targetId))
       target = session.loadTargets.get(targetId)
-      if (!target || target.abort.signal.aborted || target.fingerprint !== fingerprint) {
-        target = { fingerprint, abort: new AbortController() }
+      if (!target || target.abort.signal.aborted || target.serverKey !== serverKey) {
+        target = { serverKey, abort: new AbortController() }
         session.loadTargets.set(targetId, target)
       }
     }
@@ -498,8 +421,7 @@ export class McpSkillService extends BaseService {
       if (
         target &&
         targetId &&
-        fingerprintOf(application.get('McpRuntimeService').getServerKey(this.server(session, targetId))) !==
-          target.fingerprint
+        application.get('McpRuntimeService').getServerKey(this.server(session, targetId)) !== target.serverKey
       )
         throw new Error(t('mcp.skills.changed'))
       for (const held of active) this.assertHeld(session, held)
@@ -582,7 +504,7 @@ export class McpSkillService extends BaseService {
       )
       for (const held of matching) {
         if (held.entry.resources === 'dynamic' || !held.entry.resources.some((file) => file.uri === uri)) {
-          this.invalidate(held)
+          this.discard(held)
           throw new Error('File is not in the held skill manifest')
         }
       }

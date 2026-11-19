@@ -585,8 +585,6 @@ async function buildToolPermissions(
     }
     // Ordinary delegation is approved by PreToolUse. Reaching this callback means the SDK still
     // requires a user decision, even when matchedAskRule is absent.
-    const skillDenial = application.get('McpSkillService').guardTool(session.id, toolName)
-    if (skillDenial) return { behavior: 'deny', message: skillDenial }
     const skillApproval = application
       .get('McpSkillService')
       .toolApproval(session.id, toolName, input, snapshot.getPermissionMode(), opts.signal)

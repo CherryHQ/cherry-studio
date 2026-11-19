@@ -126,7 +126,6 @@ export const defaultServiceInstances = {
   McpSkillService: {
     openSession: vi.fn(),
     closeSession: vi.fn(),
-    guardTool: vi.fn(() => undefined),
     toolApproval: vi.fn<() => { signal: AbortSignal; approve: () => Record<string, unknown> } | undefined>(
       () => undefined
     ),

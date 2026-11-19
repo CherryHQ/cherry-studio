@@ -217,32 +217,23 @@ export function createPiInteractionPorts(
       async facts(call, tool) {
         const args = recordSchema.parse(tool.args)
         const skills = application.get('McpSkillService')
-        const denied = skills.guardTool(input.sessionId, tool.name)
         const facts = await readPiApprovalFacts(approval, tool.name, args)
-        const skillApproval =
-          !denied &&
-          skills.toolApproval(
-            input.sessionId,
-            tool.name,
-            facts.rewrittenArgs === undefined ? args : recordSchema.parse(facts.rewrittenArgs),
-            approval.getPermissionMode()
-          )
+        const skillApproval = skills.toolApproval(
+          input.sessionId,
+          tool.name,
+          facts.rewrittenArgs === undefined ? args : recordSchema.parse(facts.rewrittenArgs),
+          approval.getPermissionMode()
+        )
         if (skillApproval) skillApprovals.set(call, skillApproval)
         return {
           ...facts,
-          disabled:
-            facts.disabled ||
-            !!denied ||
-            !!(skillApproval && skillApproval.signal.aborted) ||
-            !!skills.guardTool(input.sessionId, tool.name),
+          disabled: facts.disabled || !!(skillApproval && skillApproval.signal.aborted),
           nonBypassable: facts.nonBypassable || !!skillApproval,
           approvalRequired: facts.approvalRequired || !!skillApproval
         }
       },
       async ask({ call, tool, details }, signal) {
         const args = recordSchema.parse(tool.args)
-        const skills = application.get('McpSkillService')
-        if (skills.guardTool(input.sessionId, tool.name)) return { kind: 'denied' }
         const skillApproval = skillApprovals.get(call)
         skillApprovals.delete(call)
         let decision: DispatchDecision | undefined

@@ -152,19 +152,6 @@ function commandDecision(ctx: ToolGuardContext): Promise<CommandCheck> | undefin
 
 const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   {
-    id: 'mcp-skill-execution',
-    bypassBehavior: 'enforce',
-    match: {
-      when: (ctx) => {
-        if (!ctx.sessionId) return null
-        const reason = application.get('McpSkillService').guardTool(ctx.sessionId, ctx.toolName)
-        return reason ? { evidence: reason } : null
-      }
-    },
-    effect: 'deny',
-    reason: (hit) => hit.evidence ?? 'MCP skill approval is required'
-  },
-  {
     id: 'command-policy-deny',
     bypassBehavior: 'enforce',
     match: {

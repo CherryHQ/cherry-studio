@@ -52,7 +52,7 @@ const sessionId = 'skill-session'
 const agentId = 'skill-agent'
 const messageId = '019a0000-0000-7000-8000-000000000001'
 
-describe('session MCP skills through real protocol and persistence', () => {
+describe('session MCP skills through real protocol', () => {
   const dbh = setupTestDatabase()
   let skills: McpSkillService
   let runtime: McpRuntimeService
@@ -111,9 +111,7 @@ describe('session MCP skills through real protocol and persistence', () => {
         AgentSessionRuntimeService: {
           requestToolApproval: decide,
           getMcpInteractionHost: () =>
-            interactive ? { windowId: 'window', topicId: sessionId, model: 'model' } : undefined,
-          recordMcpSkillLoad: (id: string, skill: Parameters<typeof agentSessionMessageService.recordMcpSkill>[2]) =>
-            agentSessionMessageService.recordMcpSkill(id, messageId, skill)
+            interactive ? { windowId: 'window', topicId: sessionId, model: 'model' } : undefined
         }
       }
       return services[name] ?? get(name)
@@ -164,10 +162,6 @@ describe('session MCP skills through real protocol and persistence', () => {
       (await skills.read(sessionId, serverId, fixture.uri, 'skill://reports/references/facts.txt')).text
     ).toContain('CHERRY-2640')
     expect(agentSessionMessageService.getSessionMessage(sessionId, messageId).data).not.toHaveProperty('mcpSkills')
-    agentSessionMessageService.updateSessionMessage(sessionId, messageId, {
-      data: { parts: [{ type: 'text', text: 'edited' }], ...{ mcpSkills: [] } }
-    })
-    expect(agentSessionMessageService.listMcpSkills(sessionId)).toHaveLength(1)
   })
 
   it.each(['text', 'blob'])(
@@ -242,7 +236,6 @@ describe('session MCP skills through real protocol and persistence', () => {
       const result = await client.callTool({ name: 'load_mcp_skill', arguments: input })
       expect(result.isError).toBe(true)
       expect(fixture.requests).toEqual([])
-      expect(agentSessionMessageService.listMcpSkills(sessionId)).toEqual([])
     } finally {
       await client.close()
     }
@@ -320,7 +313,6 @@ describe('session MCP skills through real protocol and persistence', () => {
       release.resolve()
       expect((await loading).isError).toBe(true)
       expect(fixture.requests.filter((request) => request.startsWith('read:'))).toEqual([])
-      expect(agentSessionMessageService.listMcpSkills(sessionId)).toEqual([])
     } finally {
       release.resolve()
       await client.close()
@@ -711,7 +703,6 @@ describe('session MCP skills through real protocol and persistence', () => {
         const dispatched = toolApprovalRegistry.dispatch(approvalId, { approved: true })
         await expect(result).resolves.toMatchObject({ block: true })
         expect(dispatched).toBeUndefined()
-        expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(true)
       }
     )
 
@@ -733,7 +724,6 @@ describe('session MCP skills through real protocol and persistence', () => {
 
       expect(toolApprovalRegistry.dispatch(approvalId, { approved: true })).toBeDefined()
       await expect(result).resolves.toBeUndefined()
-      expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(false)
     })
 
     it('passes the Pi call without approval in Full Access', async () => {
@@ -748,167 +738,6 @@ describe('session MCP skills through real protocol and persistence', () => {
         )({ toolName: piName, toolCallId: 'install', input: { ...input } })
       ).resolves.toBeUndefined()
     })
-  })
-
-  it('restores provenance without prompting on resume and detects changed manifests', async () => {
-    await skills.load(sessionId, serverId, fixture.uri)
-    skills.closeSession(sessionId)
-    skills.openSession(sessionId, agentId)
-    await expect(
-      authorizer(
-        true,
-        undefined,
-        'bypassPermissions'
-      )({
-        toolName: 'bash',
-        toolCallId: 'valid-restore',
-        input: { command: 'echo restored' }
-      })
-    ).resolves.toBeUndefined()
-    expect(
-      await authorizer(false)({
-        toolName: 'bash',
-        toolCallId: 'restored-execution',
-        input: { command: 'echo restored' }
-      })
-    ).toMatchObject({ block: true })
-    fixture.files.set('skill://reports/references/facts.txt', 'replacement')
-    fixture.refresh()
-    await skills.get(sessionId, serverId, fixture.uri)
-    await expect(skills.read(sessionId, serverId, fixture.uri, fixture.uri)).rejects.toThrow()
-  })
-
-  it.each(['digest', 'manifest'] as const)('retains %s invalidation after session teardown', async (failure) => {
-    await skills.load(sessionId, serverId, fixture.uri)
-    fixture.files.set('skill://reports/references/facts.txt', 'replacement')
-    if (failure === 'manifest') {
-      fixture.refresh()
-      await skills.get(sessionId, serverId, fixture.uri)
-    } else {
-      await expect(
-        skills.read(sessionId, serverId, fixture.uri, 'skill://reports/references/facts.txt')
-      ).rejects.toThrow()
-    }
-    expect(skills.guardTool(sessionId, 'Bash')).toBeTruthy()
-    skills.closeSession(sessionId)
-    skills.openSession(sessionId, agentId)
-    expect(skills.guardTool(sessionId, 'Bash')).toBeTruthy()
-    await expect(
-      authorizer(
-        true,
-        undefined,
-        'bypassPermissions'
-      )({
-        toolName: 'bash',
-        toolCallId: 'restored',
-        input: { command: 'echo stale' }
-      })
-    ).resolves.toMatchObject({ block: true })
-    await expect(skills.load(sessionId, serverId, fixture.uri)).rejects.toThrow()
-  })
-
-  it.each([{ baseUrl: 'http://127.0.0.1:2/mcp' }, { headers: { Authorization: 'replacement-secret' } }])(
-    'rejects an origin changed while the session is closed: %j',
-    async (change) => {
-      await skills.load(sessionId, serverId, fixture.uri)
-      skills.closeSession(sessionId)
-      mcpServerService.update(serverId, change)
-      skills.openSession(sessionId, agentId)
-      expect(skills.guardTool(sessionId, 'Bash')).toBeTruthy()
-      await expect(skills.load(sessionId, serverId, fixture.uri)).rejects.toThrow()
-    }
-  )
-
-  it.each(
-    (['disable', 'configuration', 'deselect'] as const).flatMap((event) =>
-      [false, true].map((closed) => ({ event, closed }))
-    )
-  )('retains $event invalidation after restoration with closed=$closed', async ({ event, closed }) => {
-    await skills.load(sessionId, serverId, fixture.uri)
-    const approval = skills.toolApproval(sessionId, 'Bash', {}, 'default')!
-    if (closed) skills.closeSession(sessionId)
-
-    if (event === 'disable') {
-      mcpServerService.update(serverId, { isActive: false })
-      mcpServerService.update(serverId, { isActive: true })
-    } else if (event === 'configuration') {
-      mcpServerService.update(serverId, { baseUrl: 'http://127.0.0.1:2/mcp' })
-      mcpServerService.update(serverId, { baseUrl: 'http://127.0.0.1:1/mcp' })
-    } else {
-      agentService.updateAgent(agentId, { mcps: [] })
-      agentService.updateAgent(agentId, { mcps: [serverId] })
-    }
-
-    expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(true)
-    expect(approval.signal.aborted).toBe(true)
-    expect(() => approval.approve()).toThrow()
-    if (!closed) skills.closeSession(sessionId)
-    skills.openSession(sessionId, agentId)
-    expect(skills.guardTool(sessionId, 'Bash')).toBeTruthy()
-    await expect(skills.load(sessionId, serverId, fixture.uri)).rejects.toThrow()
-  })
-
-  it('preserves closed skill context for unchanged selection, metadata edits and unrelated origins or agents', async () => {
-    await skills.load(sessionId, serverId, fixture.uri)
-    skills.closeSession(sessionId)
-    mcpServerService.update(serverId, { name: 'Renamed origin' })
-    agentService.updateAgent(agentId, { mcps: [serverId] })
-    const other = mcpServerService.create({
-      name: 'Unrelated origin',
-      type: 'streamableHttp',
-      baseUrl: 'http://127.0.0.1:3/mcp',
-      isActive: true
-    })
-    mcpServerService.update(other.id, { isActive: false })
-    dbh.db
-      .insert(agentTable)
-      .values({ id: 'other-agent', type: 'pi', name: 'Other', instructions: '', orderKey: 'a1' })
-      .run()
-    agentService.updateAgent('other-agent', { mcps: [] })
-
-    expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(false)
-    skills.openSession(sessionId, agentId)
-    await expect(skills.load(sessionId, serverId, fixture.uri)).resolves.toMatchObject({ entry: { serverId } })
-  })
-
-  it('persists explicit server stop invalidation for a closed runtime', async () => {
-    await skills.load(sessionId, serverId, fixture.uri)
-    skills.closeSession(sessionId)
-    await runtime.stopServer(serverId)
-    expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(true)
-    skills.openSession(sessionId, agentId)
-    await expect(skills.load(sessionId, serverId, fixture.uri)).rejects.toThrow()
-  })
-
-  it('keeps invalidation across service restart and stores only an opaque origin fingerprint', async () => {
-    const secret = 'private-auth-header'
-    mcpServerService.update(serverId, { headers: { Authorization: secret } })
-    const loaded = await skills.load(sessionId, serverId, fixture.uri)
-    const context = agentSessionMessageService.listMcpSkills(sessionId)[0]
-    expect(context).toMatchObject({ originFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/), invalidated: false })
-    expect(JSON.stringify(context)).not.toContain(secret)
-    expect(loaded.entry).not.toHaveProperty('originFingerprint')
-    fixture.files.set('skill://reports/references/facts.txt', 'tampered')
-    await expect(
-      skills.read(sessionId, serverId, fixture.uri, 'skill://reports/references/facts.txt')
-    ).rejects.toThrow()
-    await skills._doStop()
-    BaseService.resetInstances()
-    skills = new McpSkillService()
-    await skills._doInit()
-    skills.openSession(sessionId, agentId)
-    await expect(
-      authorizer(
-        true,
-        undefined,
-        'bypassPermissions'
-      )({
-        toolName: 'bash',
-        toolCallId: 'service-restart',
-        input: { command: 'echo stale' }
-      })
-    ).resolves.toMatchObject({ block: true })
-    expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(true)
   })
 
   it.each(
@@ -977,51 +806,9 @@ describe('session MCP skills through real protocol and persistence', () => {
       expect(result.rejected).toBe(replacement)
       if (replacement) {
         expect(result.value).toBeUndefined()
-        expect(agentSessionMessageService.listMcpSkills(sessionId)).toEqual([])
       } else {
         expect(result.value?.content.text).toBe(originalText)
-        expect(agentSessionMessageService.listMcpSkills(sessionId)).toMatchObject([{ invalidated: false }])
       }
-    }
-  )
-
-  it.each(['picker', 'get'])(
-    'persists %s replacement invalidation for a closed runtime across service restart',
-    async (source) => {
-      await skills.load(sessionId, serverId, fixture.uri)
-      const original = fixture.manifest()
-      skills.closeSession(sessionId)
-      skills.openSession('other-session', agentId)
-      const discover = () =>
-        source === 'picker'
-          ? application.get('McpCatalogService').listSkills(serverId)
-          : skills.get('other-session', serverId, fixture.uri)
-      await discover()
-      expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(false)
-
-      fixture.files.set('skill://reports/references/facts.txt', 'replacement')
-      fixture.refresh()
-      const other = mcpServerService.create({
-        name: 'Unrelated origin',
-        type: 'streamableHttp',
-        baseUrl: 'http://127.0.0.1:3/mcp',
-        isActive: true
-      })
-      await application.get('McpCatalogService').listSkills(other.id)
-      expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(false)
-      await discover()
-      expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(true)
-
-      fixture.publish(original)
-      await discover()
-      await skills._doStop()
-      BaseService.resetInstances()
-      skills = new McpSkillService()
-      await skills._doInit()
-      skills.openSession(sessionId, agentId)
-      expect(skills.guardTool(sessionId, 'Bash')).toBeTruthy()
-      expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(true)
-      await expect(skills.load(sessionId, serverId, fixture.uri)).rejects.toThrow()
     }
   )
 
@@ -1038,12 +825,10 @@ describe('session MCP skills through real protocol and persistence', () => {
 
     expect(approval.signal.aborted).toBe(true)
     expect(() => approval.approve()).toThrow()
-    expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(true)
-    expect(skills.guardTool(sessionId, 'Bash')).toBeTruthy()
   })
 
   it.each(['picker', 'session'] as const)(
-    'invalidates persisted skills and pending execution approval on %s catalog replacement',
+    'cancels pending execution approval and permits reload after %s catalog replacement',
     async (source) => {
       await skills.load(sessionId, serverId, fixture.uri)
       const approval = skills.toolApproval(sessionId, 'Bash', { command: 'echo report' }, 'default')!
@@ -1052,7 +837,6 @@ describe('session MCP skills through real protocol and persistence', () => {
 
       await discover()
       expect(approval.signal.aborted).toBe(false)
-      expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(false)
 
       fixture.files.set('skill://reports/references/facts.txt', 'replacement')
       fixture.refresh()
@@ -1064,17 +848,15 @@ describe('session MCP skills through real protocol and persistence', () => {
       })
       await application.get('McpCatalogService').listSkills(other.id)
       expect(approval.signal.aborted).toBe(false)
-      expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(false)
       await discover()
 
       expect(approval.signal.aborted).toBe(true)
       expect(() => approval.approve()).toThrow()
-      expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(true)
-      expect(skills.guardTool(sessionId, 'Bash')).toBeTruthy()
-      skills.closeSession(sessionId)
-      skills.openSession(sessionId, agentId)
-      expect(skills.guardTool(sessionId, 'Bash')).toBeTruthy()
-      await expect(skills.load(sessionId, serverId, fixture.uri)).rejects.toThrow()
+      await expect(skills.read(sessionId, serverId, fixture.uri, fixture.uri)).rejects.toThrow('Load this skill')
+      await skills.load(sessionId, serverId, fixture.uri)
+      expect((await skills.read(sessionId, serverId, fixture.uri, 'skill://reports/references/facts.txt')).text).toBe(
+        'replacement'
+      )
     }
   )
 
@@ -1111,7 +893,6 @@ describe('session MCP skills through real protocol and persistence', () => {
     await expect(
       runtime.getResource({ serverId, uri: 'skill://reports/references/facts.txt', interactionContext: { sessionId } })
     ).rejects.toThrow('verification')
-    expect(skills.guardTool(sessionId, 'Bash')).toBeTruthy()
   })
 
   it('rejects out-of-manifest files before the generic resource request reaches the server', async () => {
@@ -1141,10 +922,6 @@ describe('session MCP skills through real protocol and persistence', () => {
     expect(fixture.requests.filter((request) => request.startsWith('read:'))).toHaveLength(before)
     decide.mockResolvedValue({ approved: true })
     await skills.load(sessionId, other.id, fixture.uri)
-    expect(agentSessionMessageService.listMcpSkills(sessionId).map((entry) => entry.serverId)).toEqual([
-      serverId,
-      other.id
-    ])
     decide.mockResolvedValue({ approved: false })
     await expect(
       runtime.getResource({ serverId: other.id, uri: fixture.uri, interactionContext: { sessionId } })
@@ -1188,17 +965,15 @@ describe('session MCP skills through real protocol and persistence', () => {
     fixture.publish({ ...entry, uri, resources: entry.resources.filter((file) => file.uri === uri) })
     await skills.load(sessionId, serverId, fixture.uri)
     expect((await skills.read(sessionId, serverId, fixture.uri, uri)).text).toContain('name: reports')
-    expect(agentSessionMessageService.listMcpSkills(sessionId)).toHaveLength(1)
     const input = { server_id: serverId, skill_uri: uri }
     expect(
       await authorizer(false)({ toolName: 'mcp__skills__load_mcp_skill', toolCallId: 'nested', input })
     ).toMatchObject({ block: true })
-    expect(agentSessionMessageService.listMcpSkills(sessionId)).toHaveLength(1)
     fixture.publish({ ...entry, uri: 'skill://dynamic/reports/SKILL.md', resources: 'dynamic' })
     await expect(skills.load(sessionId, serverId, 'skill://dynamic/reports/SKILL.md')).rejects.toThrow()
   })
 
-  it('invalidates loaded skills and cancels approvals after the runtime service restarts', async () => {
+  it('cancels active work on runtime restart and permits a fresh load', async () => {
     await skills._doStop()
     await runtime._doStop()
     await runtime._doInit()
@@ -1211,8 +986,60 @@ describe('session MCP skills through real protocol and persistence', () => {
 
     expect(approval.signal.aborted).toBe(true)
     expect(() => approval.approve()).toThrow()
-    expect(agentSessionMessageService.listMcpSkills(sessionId)[0].invalidated).toBe(true)
-    expect(skills.guardTool(sessionId, 'Bash')).toBeTruthy()
+    await expect(skills.load(sessionId, serverId, fixture.uri)).resolves.toMatchObject({
+      content: { text: expect.stringContaining('name: reports') }
+    })
+  })
+
+  it('keeps activation only in memory and reloads after reopening a session', async () => {
+    await skills.load(sessionId, serverId, fixture.uri)
+    expect(skills.toolApproval(sessionId, 'Bash', {}, 'default')).toBeDefined()
+    skills.closeSession(sessionId)
+    fixture.files.set('skill://reports/references/facts.txt', 'updated after close')
+    fixture.refresh()
+    skills.openSession('other-session', agentId)
+    await skills.get('other-session', serverId, fixture.uri)
+    skills.openSession(sessionId, agentId)
+    expect(skills.toolApproval(sessionId, 'Bash', {}, 'default')).toBeUndefined()
+    await expect(skills.read(sessionId, serverId, fixture.uri, fixture.uri)).rejects.toThrow('Load this skill')
+    const loaded = await skills.load(sessionId, serverId, fixture.uri)
+    expect(loaded.content.text).toContain('Read references/facts.txt')
+    expect((await skills.read(sessionId, serverId, fixture.uri, 'skill://reports/references/facts.txt')).text).toBe(
+      'updated after close'
+    )
+    expect(agentSessionMessageService.getSessionMessage(sessionId, messageId).data).not.toHaveProperty('mcpSkills')
+    expect(skills.toolApproval(sessionId, 'Bash', {}, 'default')).toBeDefined()
+  })
+
+  it('cancels old approvals on replacement and reloads the new version in the same session', async () => {
+    await skills.load(sessionId, serverId, fixture.uri)
+    const approval = skills.toolApproval(sessionId, 'Bash', {}, 'default')!
+    fixture.files.set(fixture.uri, `${fixture.files.get(fixture.uri)}Updated workflow.\n`)
+    fixture.refresh()
+    await skills.get(sessionId, serverId, fixture.uri)
+    expect(approval.signal.aborted).toBe(true)
+    expect(() => approval.approve()).toThrow()
+    await expect(
+      authorizer(true)({ toolName: 'Read', toolCallId: 'ordinary', input: { file_path: 'notes.txt' } })
+    ).resolves.toBeUndefined()
+    const loaded = await skills.load(sessionId, serverId, fixture.uri)
+    expect(loaded.content.text).toContain('Updated workflow.')
+    expect(skills.toolApproval(sessionId, 'Bash', {}, 'default')).toBeDefined()
+  })
+
+  it('rejects changed bytes but permits a fresh load without a new session', async () => {
+    await skills.load(sessionId, serverId, fixture.uri)
+    const approval = skills.toolApproval(sessionId, 'Bash', {}, 'default')!
+    fixture.files.set('skill://reports/references/facts.txt', 'new content')
+    await expect(skills.read(sessionId, serverId, fixture.uri, 'skill://reports/references/facts.txt')).rejects.toThrow(
+      'verification'
+    )
+    expect(approval.signal.aborted).toBe(true)
+    fixture.refresh()
+    await skills.load(sessionId, serverId, fixture.uri)
+    expect((await skills.read(sessionId, serverId, fixture.uri, 'skill://reports/references/facts.txt')).text).toBe(
+      'new content'
+    )
   })
 
   it('rejects calls after session closure', async () => {

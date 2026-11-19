@@ -1,22 +1,13 @@
 import { asc, desc, sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
-import * as z from 'zod'
 
 import type { AgentSessionDeliveryEnvelope, AgentSessionDeliveryStatus } from '@shared/ai/agentSessionDelivery'
 import type { MessageData, MessageSnapshot, MessageStats } from '@shared/data/types/message'
-import { McpSkillEntrySchema } from '@shared/types/mcpSkills'
 
 import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { agentSessionTable } from './agentSession'
 import { agentSessionContextTable } from './agentSessionContext'
 import { userModelTable } from './userModel'
-
-/** Private retained context; never returned as remote skill metadata. */
-export const McpSkillContextSchema = McpSkillEntrySchema.extend({
-  originFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
-  invalidated: z.boolean()
-})
-export type McpSkillContext = z.infer<typeof McpSkillContextSchema>
 
 export const agentSessionMessageTable = sqliteTable(
   'agent_session_message',
@@ -35,7 +26,6 @@ export const agentSessionMessageTable = sqliteTable(
           runtimeAnchor?: unknown
           nativeSessionId?: string
           deliveryReplyAnchor?: string
-          mcpSkills?: McpSkillContext[]
           locallyHandled?: boolean
         }
       >()
