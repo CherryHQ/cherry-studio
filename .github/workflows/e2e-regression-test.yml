@@ -463,6 +463,23 @@ jobs:
           --run-dir "$RUN_DIR"
           --phase system
 
+      - name: Install Chromium for CherryIN authorization
+        id: cherryin_browser
+        if: "!cancelled() && steps.launch.outcome == 'success' && (needs.resolve.outputs.task == 'all' || contains(format(',{0},', needs.resolve.outputs.task), ',cherryin-chat,'))"
+        run: pnpm exec playwright install --only-shell chromium
+
+      - name: Phase - CherryIN
+        if: "!cancelled() && steps.cherryin_browser.outcome == 'success'"
+        timeout-minutes: 15
+        shell: bash
+        env:
+          CHERRY_TEST_CHERRYIN_ACCOUNT: ${{ secrets.CHERRY_TEST_CHERRYIN_ACCOUNT }}
+          CHERRY_TEST_CHERRYIN_PASSWORD: ${{ secrets.CHERRY_TEST_CHERRYIN_PASSWORD }}
+        run: >-
+          pnpm exec tsx scripts/e2e/regression/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase cherryIn
+
       - name: Stop disposable macOS permission observer
         if: always() && matrix.platform == 'macos'
         shell: bash

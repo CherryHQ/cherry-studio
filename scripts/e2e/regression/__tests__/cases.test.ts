@@ -150,13 +150,14 @@ describe('regression execution plan', () => {
     ['scheduled-tasks', ['MP-58']],
     ['chat-error-recovery', ['MP-17']],
     ['native-recovery', ['MP-110', 'MP-116']],
-    ['native-notifications', ['MP-110']]
+    ['native-notifications', ['MP-110']],
+    ['cherryin-chat', ['M-01']]
   ] as const)('keeps the focused task %s limited to its intended scenarios', (task, ids) => {
     expect(selectCases(task).map(({ id }) => id)).toEqual(ids)
   })
 
-  it.each(['cherryin-chat', 'image-generation'])('rejects the removed task %s before execution', (task) => {
-    expect(() => parseTaskSelection(task)).toThrow()
+  it('rejects the removed image-generation task before execution', () => {
+    expect(() => parseTaskSelection('image-generation')).toThrow()
   })
 
   it('keeps execution order out of selectable task names', () => {
@@ -263,7 +264,7 @@ it('keeps failed phase steps visible while allowing later phases to run', () => 
     expect(
       runInNewContext(phase.if, {
         cancelled: () => false,
-        steps: { launch: { outcome: 'success' } }
+        steps: { launch: { outcome: 'success' }, cherryin_browser: { outcome: 'success' } }
       })
     ).toBe(true)
   }

@@ -59,6 +59,8 @@ pnpm exec tsx scripts/e2e/regression/cli.ts run-phase \
   --run-dir /absolute/run-directory --phase basicFeatures
 ```
 
+`cherryin-chat` selects M-01 on macOS and Windows. It starts in Model Provider settings, completes real CherryIN OAuth in an isolated Chromium session, checks the desktop balance, syncs `deepseek/deepseek-flash` and verifies a completed chat reply before signing out. The workflow reads `CHERRY_TEST_CHERRYIN_ACCOUNT` and `CHERRY_TEST_CHERRYIN_PASSWORD` from repository Actions secrets. The account needs an enabled API Key in the `default` group that can call this model. For a local run, initialize with `--task cherryin-chat`, install the browser with `pnpm exec playwright install --only-shell chromium` and pass the same variables in the environment of `run-phase --phase cherryIn`.
+
 `native-notifications` selects MP-110 for notification settings, actual system delivery,
 native activation and disabled-category suppression. `native-settings` selects the same case.
 
@@ -141,7 +143,7 @@ Use the [frontend testing guidelines](../../../docs/dev/references/testing/front
 
 ## Desktop platform coverage
 
-All 112 registered regression cases retained in this layer participate on both macOS and Windows, including the marketplace navigation smoke case. The additional 23 cases in [draft #23868](https://github.com/CherryHQ/cherry-studio/pull/23868) are deferred and are not part of this layer's coverage. Platform-specific subflows use the actual desktop integration: TextEdit or Notepad, native file and print dialogs, native notification and tray menus, and Terminal or the Windows console. macOS permission prompts and transparent window controls are checked only where the product exposes them; shared settings, execution, persistence and cleanup assertions still run on Windows.
+All registered regression cases participate on both macOS and Windows, including the marketplace navigation smoke case. The additional 23 cases in [draft #23868](https://github.com/CherryHQ/cherry-studio/pull/23868) are deferred and are not part of this layer's coverage. Platform-specific subflows use the actual desktop integration: TextEdit or Notepad, native file and print dialogs, native notification and tray menus, and Terminal or the Windows console. macOS permission prompts and transparent window controls are checked only where the product exposes them; shared settings, execution, persistence and cleanup assertions still run on Windows.
 
 Windows single-instance checks use Restart Manager's [resource-user query](https://learn.microsoft.com/en-us/windows/win32/api/_rstmgr/) to verify SQLite file owners. The probe never calls shutdown or restart APIs. Native console input is limited to the new Claude launch process under the isolated run directory, with PID and creation-time checks before each operation.
 

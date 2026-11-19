@@ -700,6 +700,13 @@ export const REGRESSION_CASES = [
     tasks: ['system-integration'],
     phase: 'system',
     capabilities: []
+  },
+  {
+    id: 'M-01',
+    title: 'Authorize CherryIN and chat with a live model',
+    tasks: ['cherryin-chat'],
+    phase: 'cherryIn',
+    capabilities: []
   }
 ] as const
 
