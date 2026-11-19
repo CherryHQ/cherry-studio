@@ -92,7 +92,7 @@ export function parseYamlOrThrow(content: string): Record<string, any> {
 /** Parse a user-owned YAML mapping without discarding its comments or presentation. */
 export function parseYamlDocumentOrThrow(content: string): Document {
   try {
-    const document = parseDocument(content)
+    const document: Document = parseDocument(content)
     if (document.errors.length > 0) throw document.errors[0]
     const root = document.contents
     if (root === null || (isScalar(root) && root.value === null)) {
@@ -101,7 +101,7 @@ export function parseYamlDocumentOrThrow(content: string): Document {
         mapping.comment = root.comment
         mapping.commentBefore = root.commentBefore
       }
-      document.contents = mapping as unknown as typeof document.contents
+      document.contents = mapping
     }
     if (!isMap(document.contents)) throw new Error('invalid YAML root: expected an object')
     return document

@@ -87,8 +87,8 @@ interface DictationTargetManager {
 
 interface DictationMediaRecorder {
   readonly state: RecordingState
-  ondataavailable: ((event: { data: Blob }) => void) | null
-  onstop: (() => void) | null
+  ondataavailable: MediaRecorder['ondataavailable']
+  onstop: MediaRecorder['onstop']
   start(): void
   stop(): void
 }
@@ -194,8 +194,7 @@ export class DictationService {
         getUserMedia: (constraints) => navigator.mediaDevices.getUserMedia(constraints)
       } satisfies DictationMediaDevices)
     this.createMediaRecorder =
-      options.createMediaRecorder ??
-      ((stream, recorderOptions) => new MediaRecorder(stream, recorderOptions) as unknown as DictationMediaRecorder)
+      options.createMediaRecorder ?? ((stream, recorderOptions) => new MediaRecorder(stream, recorderOptions))
     this.clipboard = options.clipboard ?? { writeText: (text) => navigator.clipboard.writeText(text) }
     this.now = options.now ?? (() => Date.now())
   }
