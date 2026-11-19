@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 import { useDraggable } from '@dnd-kit/react'
+import { installDndDomStubs } from '@test-mocks/dndDomStubs'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { BUTTON_HANDLE_DRAG_SENSORS, DragDropRoot } from '../drag-drop-root'
 import Sortable from '../sortable'
-import { installDndDomStubs } from './dnd-dom-stubs'
 
 const items = [{ id: 'a' }, { id: 'b' }]
 
