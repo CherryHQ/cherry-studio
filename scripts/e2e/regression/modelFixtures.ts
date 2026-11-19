@@ -9,6 +9,8 @@ const call = (name: string, args: Record<string, unknown>): FixtureResponse => (
 })
 const KNOWLEDGE_RECALL_PROMPT =
   /What is the regression knowledge answer\? Include the exact marker|文档中的公开测试标记是什么？请原样回答这个虚构标记，并引用来源文件。/
+const NOTE_RECALL_PROMPT = 'What is the observatory access code? Search the attached knowledge base and cite the note.'
+const NEWS_SEARCH_PROMPT = 'Use web_search to find the latest Cedar Harbor bulletin'
 const TOOL_SETTINGS_PROMPT = 'Call web_search exactly once with the query "Cherry Studio Electron GitHub".'
 const STEER_PROMPT = 'MP144 steer now: acknowledge MP144_STEER_ACK in this turn before finishing the original task.'
 const FILE_PROCESSING_PROMPT =
@@ -152,23 +154,33 @@ function modelResponse(request: ChatCompletionRequest): FixtureResponse {
     if (discovered) return call('tool_invoke', { name: discovered, params: { a: 31415, b: 27182 } })
     return call('tool_search', { query: 'get-sum', verbose: true })
   }
-  if (KNOWLEDGE_RECALL_PROMPT.test(prompt)) {
-    const retrievalSettings = prompt.includes('公开测试标记是什么')
-    const title = retrievalSettings ? 'mp66-ground-truth.md' : 'ground-truth.txt'
-    const marker = retrievalSettings ? 'canary-seven' : 'CHERRY_KNOWLEDGE_58597'
-    const query = retrievalSettings ? '公开测试标记是什么' : 'regression knowledge answer'
+  if (KNOWLEDGE_RECALL_PROMPT.test(prompt) || prompt.startsWith(NOTE_RECALL_PROMPT)) {
+    const { title, marker, query, caseId } = prompt.startsWith(NOTE_RECALL_PROMPT)
+      ? {
+          title: /^MP79 Observatory \d+$/,
+          marker: /\bORCHID-\d+-731\b/,
+          query: 'observatory access code',
+          caseId: 'MP-79'
+        }
+      : prompt.includes('公开测试标记是什么')
+        ? {
+            title: /^mp66-ground-truth\.md$/,
+            marker: /canary-seven/,
+            query: '公开测试标记是什么',
+            caseId: 'MP-66'
+          }
+        : { title: /^ground-truth\.txt$/, marker: /CHERRY_KNOWLEDGE_58597/, query: 'regression knowledge answer' }
     for (const result of results) {
       const value = text(result)
       if (!value.startsWith('[')) continue
       const hit = (JSON.parse(value) as Array<{ id: string; title?: string; content: string }>).find(
-        (item) => item.content?.includes(marker) && item.title === title
+        (item) => marker.test(item.content) && title.test(item.title ?? '')
       )
       if (hit) return { content: `${hit.content}\n${hit.title} [cite:${hit.id}]` }
     }
     if (!results.length) return call('kb_list', {})
     const listed = JSON.parse(text(results[0])) as { items?: { id: string; name: string }[] }
-    const baseId = (retrievalSettings ? listed.items?.find(({ name }) => /\bMP-66\b/.test(name)) : listed.items?.[0])
-      ?.id
+    const baseId = (caseId ? listed.items?.find(({ name }) => name.endsWith(` ${caseId}`)) : listed.items?.[0])?.id
     if (!baseId) throw new Error('Knowledge listing did not return the scenario base ID')
     if (tools.includes('kb_search')) return call('kb_search', { query, baseIds: [baseId] })
     if (/kb_search\s+[—-]/.test(output))
@@ -202,7 +214,8 @@ function modelResponse(request: ChatCompletionRequest): FixtureResponse {
   const toolSettings = prompt.startsWith(TOOL_SETTINGS_PROMPT)
   if (
     toolSettings ||
-    /Use web search to find the latest Cherry Studio release as of|Use web_search to find the latest BBC world news|Discover web_fetch with tool_search if necessary/.test(
+    prompt.includes(NEWS_SEARCH_PROMPT) ||
+    /Use web search to find the latest Cherry Studio release as of|Discover web_fetch with tool_search if necessary/.test(
       prompt
     )
   ) {
@@ -218,21 +231,24 @@ function modelResponse(request: ChatCompletionRequest): FixtureResponse {
         : invocation?.function.name
     if (name === target && !text(last!).includes("hasn't been inspected yet")) {
       const result = text(last!)
+      const hits = result.startsWith('[')
+        ? (JSON.parse(result) as { id: string | number; title: string; content: string }[])
+        : []
+      const first = hits[0]
+      if (!first) throw new Error('Web fixture did not receive actual lookup results')
       if (toolSettings) {
-        const hits = JSON.parse(result)
-        if (!Array.isArray(hits) || !hits.length) throw new Error('Tool settings require actual search results')
         return { content: 'SEARCH_COMPLETE' }
       }
-      if (/error|unavailable/i.test(result)) throw new Error('Web fixture did not receive a successful tool result')
-      return { content: `${result}\n${prompt.includes('SEARCH_ON_DONE') ? 'SEARCH_ON_DONE' : ''}` }
+      const marker = prompt.includes('SEARCH_ON_DONE') ? '\n\nSEARCH_ON_DONE' : ''
+      return { content: `${first.title} [cite:${first.id}]\n\n${first.content}${marker}` }
     }
     const params = fetchPage
-      ? { url: 'https://example.com/' }
+      ? { urls: ['https://example.com/'] }
       : {
           query: toolSettings
             ? 'Cherry Studio Electron GitHub'
-            : prompt.includes('BBC')
-              ? 'latest BBC world news'
+            : prompt.includes(NEWS_SEARCH_PROMPT)
+              ? 'latest Cedar Harbor bulletin'
               : 'latest Cherry Studio release'
         }
     if (tools.includes(target)) return call(target, params)
@@ -394,9 +410,11 @@ export function addModelFixtures(mock: LLMock): void {
           prompt === 'MP144 preserve queued original A' ||
           Boolean(plan(prompt)) ||
           KNOWLEDGE_RECALL_PROMPT.test(prompt) ||
+          prompt.startsWith(NOTE_RECALL_PROMPT) ||
+          prompt.includes(NEWS_SEARCH_PROMPT) ||
           prompt.startsWith(TOOL_SETTINGS_PROMPT) ||
           prompt.includes(FILE_PROCESSING_PROMPT) ||
-          /CLAUDE_AGENT_RUNTIME_PASS|MP19_RECEIVED|MP144_(?:QUEUE_ACK|EDIT_ACK|STEER_ACK)|skill-sample|cherry-regression-fixture|Validation label field from its fixture catalog|Convert "orchid-|Read the attached MCP resource and reply with its project verification code only|这份 PDF 第二页的关键字是什么|图片里写的 OCR 关键字是什么|你是测试助手，回答简短|Quote the full label and numeric code in the newly attached image|总结这个文件，请保留项目的英文名称|这是一条不带附件的新消息|图里写了什么|Use web search to find the latest Cherry Studio release as of|Use web_search to find the latest BBC world news|Discover web_fetch with tool_search if necessary|Web search is now disabled|Without using web search or citing earlier sources|Call the everything MCP server get-sum tool with a=31415 and b=27182/.test(
+          /CLAUDE_AGENT_RUNTIME_PASS|MP19_RECEIVED|MP144_(?:QUEUE_ACK|EDIT_ACK|STEER_ACK)|skill-sample|cherry-regression-fixture|Validation label field from its fixture catalog|Convert "orchid-|Read the attached MCP resource and reply with its project verification code only|这份 PDF 第二页的关键字是什么|图片里写的 OCR 关键字是什么|你是测试助手，回答简短|Quote the full label and numeric code in the newly attached image|总结这个文件，请保留项目的英文名称|这是一条不带附件的新消息|图里写了什么|Use web search to find the latest Cherry Studio release as of|Discover web_fetch with tool_search if necessary|Web search is now disabled|Without using web search or citing earlier sources|Call the everything MCP server get-sum tool with a=31415 and b=27182/.test(
             prompt
           ) ||
           prompt === 'Reply with the single word OK.' ||

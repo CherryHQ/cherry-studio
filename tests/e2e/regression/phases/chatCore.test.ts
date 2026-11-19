@@ -17,7 +17,7 @@ import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { test, expect } from '../fixture'
 import { openAttachmentPicker, sendChatMarker, submitChatMarker } from '../helpers/chat'
 import { selectSidebarApp } from '../helpers/navigation'
-import { openSettingsSection } from '../helpers/settings'
+import { closeSettings, openSettingsSection } from '../helpers/settings'
 import { revealVirtualized } from '../helpers/virtualList'
 import { chatEfficiency } from '../scenarios/chatEfficiency'
 import { chatImageGeneration } from '../scenarios/chatImageGeneration'
@@ -380,8 +380,9 @@ test(...caseDefinition('MP-10'), async ({ app, mainWindow }, testInfo) => {
     await expect(searchSection().getByRole('combobox')).toHaveText('DuckDuckGo')
     await expect(fetchSection().getByRole('combobox')).toHaveText('fetch')
     await screenshot('MP-10 independently saved providers')
+    await closeSettings(page)
 
-    // Use the configured real model and live DuckDuckGo; no canned replies or search results.
+    // The configured model drives the live DuckDuckGo lookup through the client tool.
     const config = app.config.customProvider
     const created = await page.evaluate(
       async ({ providerId, config }) => {
@@ -411,7 +412,14 @@ test(...caseDefinition('MP-10'), async ({ app, mainWindow }, testInfo) => {
           id: 'mp10-model',
           method: 'POST',
           path: '/models',
-          body: [{ providerId, modelId: config.chatModel, endpointTypes: ['openai-chat-completions'] }]
+          body: [
+            {
+              providerId,
+              modelId: config.chatModel,
+              endpointTypes: ['openai-chat-completions'],
+              capabilities: ['function-call']
+            }
+          ]
         })
         return [provider.status, enabled.status, models.status]
       },
@@ -490,7 +498,7 @@ test(...caseDefinition('MP-10'), async ({ app, mainWindow }, testInfo) => {
     expect(searchResults.length, 'The live search must return sources, not just a model-authored URL').toBeGreaterThan(
       0
     )
-    const sources = enabledMessage.locator('a[href^="http"]')
+    const sources = enabledMessage.locator('a[href^="http"]').filter({ has: page.locator('sup[data-citation]') })
     await expect(sources.first(), 'Search-enabled answer must expose a clickable source').toBeVisible()
     expect(new URL((await sources.first().getAttribute('href'))!).protocol).toMatch(/^https?:$/)
     const linkedUrls = await sources.evaluateAll((links) => links.map((link) => link.getAttribute('href')))

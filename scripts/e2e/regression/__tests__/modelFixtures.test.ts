@@ -114,6 +114,42 @@ it('passes the listed knowledge base ID to retrieval and quotes the returned sou
   expect(result.steps).toHaveLength(3)
 })
 
+it('recalls the exported note from its case-owned base and cites the retrieved hit', async () => {
+  const result = await generateText({
+    model: openai(),
+    prompt:
+      'What is the observatory access code? Search the attached knowledge base and cite the note.' +
+      'The user attached knowledge base "Note export MP-79" (id: note-base).',
+    tools: {
+      kb_list: tool({
+        inputSchema: z.object({}),
+        execute: () =>
+          JSON.stringify({
+            items: [
+              { id: 'other', name: 'Other base' },
+              { id: 'note-base', name: 'Note export MP-79' }
+            ]
+          })
+      }),
+      kb_search: tool({
+        inputSchema: z.object({
+          query: z.literal('observatory access code'),
+          baseIds: z.tuple([z.literal('note-base')])
+        }),
+        execute: () =>
+          JSON.stringify([
+            { id: 'other-hit', title: 'Unrelated', content: 'ORCHID-555-731' },
+            { id: 'note-hit', title: 'MP79 Observatory 123', content: 'The observatory access code is ORCHID-456-731.' }
+          ])
+      })
+    },
+    stopWhen: stepCountIs(4)
+  })
+  expect(result.text).toContain('ORCHID-456-731')
+  expect(result.text).toContain('[cite:note-hit]')
+  expect(result.text).not.toContain('ORCHID-555-731')
+})
+
 it('only acknowledges the tool settings search after receiving actual search results', async () => {
   const query = 'Cherry Studio Electron GitHub'
   const options = {

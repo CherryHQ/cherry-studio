@@ -45,6 +45,12 @@ base, verify recall, restart the application, then query the persisted base and
 verify the answer and citations. It imports the fixtures only once. The `knowledge`
 module task also includes the implemented knowledge case-library scenarios.
 
+### Web tools, estimated cost, and note recall
+
+- `MP-10` and `MP-35` declare `function-call` on their test models so Chat can enable client-side web tools. `MP-10` checks the DuckDuckGo settings and runs a live lookup. `MP-35` supplies a dated bulletin over loopback through the Tavily adapter and fetches `https://example.com/` through the public URL fetch adapter. In mock mode, the model sends `web_fetch` a `urls` array and uses the title, content, and citation ID returned by each tool.
+- `MP-39` checks the `Estimated` label and the exact USD amount separately in the matching Usage row, alongside the token count, time to first token, and generation speed.
+- `MP-79` exports a real note, waits for BM25 indexing, and checks retrieval through both the knowledge API and Chat. The mock model recognizes the recall prompt with the composer’s appended knowledge-base context, searches the case-owned base, and quotes the marker and citation ID from the retrieved note. Re-exporting the note must create a second ready source while preserving the first.
+
 ## Adding or selecting a case
 
 1. Add the case to `scripts/e2e/regression/cases.ts`, including its phase, module and focused `tasks`, and required capabilities. Task IDs remain English kebab-case and are independent of phase IDs.
