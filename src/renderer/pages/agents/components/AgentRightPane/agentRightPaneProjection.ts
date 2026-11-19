@@ -127,12 +127,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function getToolCallId(part: CherryMessagePart): string | undefined {
-  const toolCallId = (part as unknown as { toolCallId?: unknown }).toolCallId
+  const toolCallId = 'toolCallId' in part ? part.toolCallId : undefined
   return typeof toolCallId === 'string' && toolCallId ? toolCallId : undefined
 }
 
 function getToolPartState(part: CherryMessagePart): string | undefined {
-  const state = (part as unknown as { state?: unknown }).state
+  const state = 'state' in part ? part.state : undefined
   return typeof state === 'string' ? state : undefined
 }
 
@@ -214,7 +214,7 @@ function createFlowTextMessage(
 }
 
 function getStableMessageCreatedAt(message: CherryUIMessage | undefined): string | null {
-  const createdAt = (message as unknown as { createdAt?: unknown } | undefined)?.createdAt
+  const createdAt = message && 'createdAt' in message ? message.createdAt : undefined
   return message?.metadata?.createdAt ?? (typeof createdAt === 'string' ? createdAt : null)
 }
 

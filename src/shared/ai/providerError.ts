@@ -138,26 +138,30 @@ export function getSafeProviderErrorMessage(source: ProviderErrorSource): string
   return text.length > MAX_PROVIDER_ERROR_MESSAGE_LENGTH ? `${text.slice(0, MAX_PROVIDER_ERROR_MESSAGE_LENGTH)}…` : text
 }
 
-export function getSafeAiSdkErrorDiscriminants(source: Record<string, unknown>): Record<string, Serializable> {
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native SDK errors and serialized context carry unchecked extension fields; only validated, redacted discriminants may enter diagnostics.
+export function getSafeAiSdkErrorDiscriminants(source: unknown): Record<string, Serializable> {
   const discriminants: Record<string, Serializable> = {}
+  if (source === null || typeof source !== 'object') return discriminants
+  // SAFETY: The object boundary is checked; every property copied to diagnostics is validated below.
+  const record = source as Record<string, unknown>
 
   for (const field of SAFE_AI_SDK_STRING_FIELDS) {
-    if (typeof source[field] === 'string') {
-      discriminants[field] = getSafeProviderErrorMessage({ message: source[field] })
+    if (typeof record[field] === 'string') {
+      discriminants[field] = getSafeProviderErrorMessage({ message: record[field] })
     }
   }
   for (const field of ['availableProviders', 'availableTools'] as const) {
-    const value = source[field]
+    const value = record[field]
     if (value === null) discriminants[field] = null
     if (Array.isArray(value) && value.every((item) => typeof item === 'string')) {
       discriminants[field] = value.map((item) => getSafeProviderErrorMessage({ message: item }))
     }
   }
   for (const field of ['statusCode', 'maxEmbeddingsPerCall'] as const) {
-    const value = source[field]
+    const value = record[field]
     if (value === null || typeof value === 'number') discriminants[field] = value
   }
-  if (typeof source.isRetryable === 'boolean') discriminants.isRetryable = source.isRetryable
+  if (typeof record.isRetryable === 'boolean') discriminants.isRetryable = record.isRetryable
 
   return discriminants
 }
@@ -225,7 +229,6 @@ function apiResponseDiagnostic(error: APICallError, depth: number): string | und
 }
 
 function serializeNestedAiSdkError(error: AISDKError, depth: number): SerializedError {
-  const source = error as unknown as Record<string, unknown>
   const diagnostic = sdkResponseDiagnostic(error)
   const identity: Pick<SerializedError, 'name' | 'message'> & Partial<Pick<SerializedError, 'providerErrorCategory'>> =
     {
@@ -237,7 +240,7 @@ function serializeNestedAiSdkError(error: AISDKError, depth: number): Serialized
     ...identity,
     stack: null,
     cause: null,
-    ...getSafeAiSdkErrorDiscriminants(source)
+    ...getSafeAiSdkErrorDiscriminants(error)
   }
 
   if (RetryError.isInstance(error)) {
