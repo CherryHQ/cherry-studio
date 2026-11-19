@@ -42,8 +42,8 @@ export function HeartbeatCard({ value, onChange, description, children }: Heartb
   return (
     <div className="flex flex-col rounded-xl border border-border-subtle px-3">
       <div className="flex min-h-14 items-center justify-between gap-3 py-2.5">
-        <div className="flex min-w-0 flex-col gap-1">
-          <span className="font-medium text-foreground text-sm leading-none">{title}</span>
+        <div className="flex min-w-0 flex-col">
+          <span className="text-foreground text-sm">{title}</span>
           <span className="text-muted-foreground text-xs">
             {description ?? t('library.config.agent.field.heartbeat_enabled.description')}
           </span>
