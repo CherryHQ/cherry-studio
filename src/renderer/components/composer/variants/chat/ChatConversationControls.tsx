@@ -145,7 +145,7 @@ export function ChatConversationControls({
           src={assistantAvatarSrc}
           alt=""
           size={20}
-          className="shrink-0 rounded-full object-cover"
+          className="max-w-none rounded-full object-cover"
           fallback={<EmojiIcon emoji={assistantIcon} size={20} />}
         />
       </button>
