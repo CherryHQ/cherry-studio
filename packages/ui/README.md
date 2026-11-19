@@ -405,10 +405,6 @@ The Shadcn-compatible native input primitive.
 
 Keeps drag reordering correct when the rendered list is a filtered subset of the source list.
 
-### useDndState
-
-Reads the active and hovered identifiers from the current dnd-kit context.
-
 ## Utilities
 
 ### toUndefinedIfNull(value)
