@@ -522,6 +522,7 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   const [recoveryProviderId, setRecoveryProviderId] = useState<string>()
   const handleShortcut = useCallback(
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- CommandRuntime erases per-command payload types; keyboard invocation has no arguments and recovery supplies providerId, which this handler validates.
     (args?: unknown) => {
       setRecoveryProviderId(
         typeof args === 'object' && args !== null && 'providerId' in args && typeof args.providerId === 'string'
@@ -1189,6 +1190,7 @@ function ShortcutBinding({
   onTrigger
 }: {
   shortcut: NonNullable<ModelSelectorProps['shortcut']>
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Forward the command registry payload unchanged to the selector handler, which validates the optional recovery providerId.
   onTrigger: (args?: unknown) => void
 }) {
   useCommandHandler(shortcut, onTrigger)

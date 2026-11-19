@@ -16,6 +16,7 @@ import type { PatchProvider } from './types'
 
 const logger = loggerService.withContext('ProviderSettings:EndpointActions')
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Provider GET/PATCH rejections may be serialized DataApi failures or native errors; validate their shape and expose only recognized codes or the fallback.
 function getEndpointActionErrorMessage(error: unknown, fallback: string): string {
   if (isDataApiError(error) || isSerializedDataApiError(error)) {
     const dataError = toDataApiError(error)
@@ -272,6 +273,7 @@ export function useProviderEndpointActions({
       danger: true,
       action: async () => {
         debouncedPersistApiHost.cancel()
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Reset reloads the persisted provider through DataApi; normalize its arbitrary rejection through the validated error-message formatter.
         const fresh = await dataApiService.get(`/providers/${provider.id}`).catch((error: unknown) => {
           throw new Error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
         })

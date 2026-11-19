@@ -20,6 +20,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Stored cron results may be plain text or MCP content envelopes; read only verified string content before parsing the task receipt.
 function outputText(value: unknown): string | undefined {
   if (typeof value === 'string') return value
   const content = isRecord(value) ? value.content : value
@@ -28,6 +29,7 @@ function outputText(value: unknown): string | undefined {
   return content.map((item) => (isRecord(item) && typeof item.text === 'string' ? item.text : '')).join('\n')
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Completed cron outputs include errors and deferred or historical results; require the write prefix and validate the decoded task id/name before showing a task card.
 export function parseScheduledTaskResult(value: unknown): ScheduledTaskResult | undefined {
   const text = outputText(value)?.trim()
   if (!text || !TASK_WRITE_OUTPUT_PATTERN.test(text)) return undefined

@@ -39,12 +39,12 @@ export function isComposerDraftTokenKind(value: unknown): value is ComposerDraft
   return isComposerTokenKind(value)
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tiptap token attributes also come from restored draft JSON; accept a field only after checking that it is a string.
 function readString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined
 }
 
-function normalizePromptText(kind: ComposerDraftTokenKind, value: unknown): string | undefined {
-  const promptText = readString(value)
+function normalizePromptText(kind: ComposerDraftTokenKind, promptText: string | undefined): string | undefined {
   if (!promptText) return undefined
   if (kind === 'quote') return normalizeQuoteTokenPromptText(promptText)
   return promptText
@@ -55,7 +55,7 @@ export function normalizeComposerTokenAttrs(attrs: Record<string, unknown>): Com
   const kind = isComposerDraftTokenKind(kindValue) ? kindValue : 'reference'
   const label = readString(attrs.label) ?? ''
   const payload = attrs.payload ?? undefined
-  const promptText = normalizePromptText(kind, attrs.promptText)
+  const promptText = normalizePromptText(kind, readString(attrs.promptText))
 
   return {
     id: readString(attrs.id) ?? label,

@@ -223,6 +223,7 @@ export type AskUserQuestionToolInput = Omit<AskUserQuestionInput, 'questions'> &
 export type AskUserQuestionToolOutput = AskUserQuestionOutput
 export type AskUserQuestionAnswer = NonNullable<AskUserQuestionInput['answers']>
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool names are read from live and persisted tool parts; strict equality recognizes the two supported names without trusting historical fields.
 export function isAskUserQuestionToolName(toolName: unknown): boolean {
   return toolName === AgentToolsType.AskUserQuestion || toolName === 'builtin_AskUserQuestion'
 }
@@ -244,6 +245,7 @@ export function isBackgroundAgentOutput(output: AgentToolOutput | undefined): bo
  * Safely parse AskUserQuestionToolInput from unknown data.
  * Returns undefined if the data doesn't match the expected structure.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Approval edits and stored tool arguments/results have not been decoded as questions; this parser owns their existing AskUserQuestion schema validation.
 export function parseAskUserQuestionToolInput(value: unknown): AskUserQuestionToolInput | undefined {
   const result = AskUserQuestionToolInputSchema.safeParse(value)
   return result.success ? result.data : undefined
