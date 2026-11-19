@@ -55,10 +55,7 @@ type CatalogJsonType = 'boolean' | 'integer' | 'number' | 'string'
 function catalogJsonType(key: CanonicalParamKey): CatalogJsonType | undefined {
   // provider-registry and the app can temporarily resolve different Zod patch versions. Read the
   // catalog schema's plain JSON type instead of embedding its Zod instance into the app schema.
-  const catalogSchema = IMAGE_PARAM_CATALOG[key].schema as unknown as {
-    nonoptional(): { toJSONSchema(): { type?: string } }
-  }
-  const type = catalogSchema.nonoptional().toJSONSchema().type
+  const type = IMAGE_PARAM_CATALOG[key].schema.nonoptional().toJSONSchema().type
   return type === 'boolean' || type === 'integer' || type === 'number' || type === 'string' ? type : undefined
 }
 
