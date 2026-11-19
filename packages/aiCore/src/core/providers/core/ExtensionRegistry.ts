@@ -484,7 +484,9 @@ export class ExtensionRegistry {
    * @returns Provider 实例
    */
   async createProvider<T extends RegisteredProviderId>(id: T, settings: CoreProviderSettingsMap[T]): Promise<ProviderV3>
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Dynamically registered extensions define settings outside CoreProviderSettingsMap; their creator owns interpretation of the supplied configuration.
   async createProvider(id: string, settings?: unknown): Promise<ProviderV3>
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- A runtime ID selects the registered extension and its creator's settings contract; the registry cannot assert one common provider configuration.
   async createProvider(id: string, settings?: unknown): Promise<ProviderV3> {
     const parsed = this.parseProviderId(id)
     if (!parsed) {
