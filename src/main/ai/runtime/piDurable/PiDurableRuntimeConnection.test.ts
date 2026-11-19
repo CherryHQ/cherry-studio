@@ -2130,8 +2130,10 @@ describe('desktop Pi Durable connection', () => {
     })
     const { connection, events } = await connect()
     await connection.send({ message: message('delegate') })
-    await done(events)
-    await expect.poll(() => [connection['releasedChildren'].size, connection['children'].size]).toEqual([1, 0])
+    await done(events, CHILD_WAIT.timeout)
+    await expect
+      .poll(() => [connection['releasedChildren'].size, connection['children'].size], CHILD_WAIT)
+      .toEqual([1, 0])
     return connection
   }
 
@@ -2689,8 +2691,8 @@ describe('desktop Pi Durable connection', () => {
     })
     const { connection, events } = await connect()
     await connection.send({ message: message('delegate') })
-    await done(events)
-    await expect.poll(() => connection['releasedChildren'].size, { timeout: 10_000 }).toBe(1)
+    await done(events, CHILD_WAIT.timeout)
+    await expect.poll(() => connection['releasedChildren'].size, CHILD_WAIT).toBe(1)
     expect(await connection['childResources']()).toEqual([])
     const [released] = connection['releasedChildren'].values()
     expect(JSON.stringify(savedChildView(contexts.context(released.contextId)).messages)).toContain(
