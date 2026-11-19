@@ -1216,7 +1216,8 @@ describe('AgentSessionDeliveryService', () => {
 
     expect(mocks.deleteByAgentId).toHaveBeenCalledWith('agent-1', {
       permanent: false,
-      sessionTypes: ['conversation']
+      sessionTypes: ['conversation'],
+      onArchivedSystemWorkspacesTx: expect.any(Function)
     })
     expect(mocks.closeSession).toHaveBeenCalledWith('session-1')
     expect(mocks.closeSession).toHaveBeenCalledWith('session-not-loaded')
