@@ -119,7 +119,9 @@ export class MemoryStore {
 
   constructor(
     private readonly root: string,
-    private readonly backupRoot: string
+    private readonly backupRoot: string,
+    private readonly backupDataRoot = path.dirname(backupRoot),
+    private readonly onInvalidate?: () => void
   ) {
     const relative = path.relative(path.resolve(root), path.resolve(backupRoot))
     if (!relative || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`))) {
@@ -127,12 +129,16 @@ export class MemoryStore {
     }
   }
 
+  private checkedBackupRoot(): Promise<string> {
+    return assertMemoryPath(this.backupDataRoot, path.relative(this.backupDataRoot, this.backupRoot))
+  }
+
   async initialize(): Promise<void> {
     await this.lock.runExclusive(async () => {
       await mkdir(this.root, { recursive: true, mode: 0o700 })
       await assertMemoryPath(this.root, '')
-      await mkdir(this.backupRoot, { recursive: true, mode: 0o700 })
-      await assertMemoryPath(this.backupRoot, '')
+      await mkdir(await this.checkedBackupRoot(), { recursive: true, mode: 0o700 })
+      await assertMemoryPath(await this.checkedBackupRoot(), '')
       const latest = await this.latestRecoverableBatch()
       const deletedEntry = latest?.steps.some(
         (step) => step.path === MEMORY_ENTRY && step.afterHash === null && step.outcome !== 'unchanged'
@@ -143,6 +149,7 @@ export class MemoryStore {
 
   invalidate(): void {
     this.generation++
+    this.onInvalidate?.()
   }
 
   async list(access: MemoryAccess): Promise<string[]> {
@@ -193,13 +200,15 @@ export class MemoryStore {
     }
     await validate()
     const raw = structured ? undefined : await this.read(access, target)
+    const hash = memoryHash(snapshot.get(target) ?? null)
+    if (raw && raw.hash !== hash) throw new MemoryError('conflict', 'Memory target does not match the listed file')
     if (raw && !maintenance && purpose === 'current' && raw.content !== content)
       this.baseline(access, raw.receipt).projected = true
     await validate()
     return {
       path: target,
       content: maintenance && raw ? raw.content : content,
-      hash: memoryHash(snapshot.get(target) ?? null),
+      hash,
       receipt: purpose === 'historical' ? '' : (raw?.receipt ?? ''),
       validate
     }
@@ -269,6 +278,8 @@ export class MemoryStore {
     approve: MemoryApproval,
     conditions: MemoryCommitConditions = {}
   ): Promise<MemoryCommitResult> {
+    if (source === 'clear' || source === 'recovery')
+      throw new MemoryError('conflict', 'Use the dedicated memory operation')
     return this.commitProtected(access, mutations, source, approve, conditions, false)
   }
 
@@ -393,17 +404,27 @@ export class MemoryStore {
       access.assertAuthorized()
       const batch = await this.latestRecoverableBatch()
       if (!batch) return undefined
+      const scope = await this.entrySnapshot()
       const hashes = new Map<string, string | null>()
       const files: MemoryRecoveryPreview['files'] = []
       for (const step of batch.steps) {
         if (step.outcome === 'unchanged') continue
-        const currentHash = memoryHash(await readMemoryBytes(this.root, step.path))
+        const currentHash = memoryHash(scope.get(step.path) ?? null)
         hashes.set(step.path, currentHash)
         files.push({ path: step.path, currentHash, conflict: currentHash !== step.afterHash })
       }
       access.assertAuthorized()
       const token = randomUUID()
       this.assertGeneration(generation)
+      const changes = batch.steps
+        .filter((step) => step.outcome !== 'unchanged' && hashes.get(step.path) === step.afterHash)
+        .map((step) => ({ path: step.path, before: scope.get(step.path) ?? null, after: decodeOriginal(step) }))
+      try {
+        this.protectRecovery(batch, changes, scope)
+      } catch (error) {
+        if (!(error instanceof MemoryError) || error.code !== 'conflict') throw error
+        for (const file of files) file.conflict = true
+      }
       this.recoveries.set(access, new Map([[token, { batch, hashes, generation: this.generation }]]))
       return { token, batchId: batch.id, files }
     })
@@ -430,7 +451,7 @@ export class MemoryStore {
       }
     }
     const scope = await this.entrySnapshot()
-    this.protectEntries(changes, scope, 'recovery')
+    this.protectRecovery(preview.batch, changes, scope)
     this.assertGeneration(preview.generation)
     access.assertAuthorized()
     const approval = await approve(this.preview(changes))
@@ -443,7 +464,7 @@ export class MemoryStore {
       access.assertAuthorized()
       validateApproval()
       this.assertGeneration(preview.generation)
-      if ((await latestMemoryBackup(this.backupRoot))?.id !== preview.batch.id) {
+      if ((await latestMemoryBackup(await this.checkedBackupRoot()))?.id !== preview.batch.id) {
         throw new MemoryError('conflict', 'A newer memory operation requires a new recovery preview')
       }
       for (const [target, hash] of preview.hashes) {
@@ -455,13 +476,13 @@ export class MemoryStore {
       this.invalidate()
       const previousStatus = preview.batch.status
       preview.batch.status = 'partial'
-      await saveMemoryBackup(this.backupRoot, preview.batch)
+      await saveMemoryBackup(await this.checkedBackupRoot(), preview.batch)
       let result: MemoryCommitResult
       try {
         result = await this.apply(access, changes, 'recovery', validateApproval, preview.generation + 1)
       } catch (error) {
         preview.batch.status = previousStatus
-        await saveMemoryBackup(this.backupRoot, preview.batch).catch(() => undefined)
+        await saveMemoryBackup(await this.checkedBackupRoot(), preview.batch).catch(() => undefined)
         throw error
       }
       if (
@@ -471,7 +492,7 @@ export class MemoryStore {
       ) {
         preview.batch.status = 'completed'
         try {
-          await saveMemoryBackup(this.backupRoot, preview.batch)
+          await saveMemoryBackup(await this.checkedBackupRoot(), preview.batch)
         } catch (error) {
           result.error = error instanceof Error ? error.message : String(error)
         }
@@ -499,7 +520,9 @@ export class MemoryStore {
         files: proposed.map((change) => ({ path: change.path, hash: memoryHash(change.before), outcome: 'unchanged' }))
       }
     }
-    const batch = await createMemoryBackup(this.backupRoot, changes, source, legacy)
+    const clearScopeHash =
+      source === 'clear' ? this.scopeHash(new Map(proposed.map(({ path, after }) => [path, after]))) : undefined
+    const batch = await createMemoryBackup(await this.checkedBackupRoot(), changes, source, legacy, clearScopeHash)
     const result: MemoryCommitResult = {
       batchId: batch.id,
       files: changes.map((change) => ({ path: change.path, hash: memoryHash(change.before), outcome: 'pending' }))
@@ -537,13 +560,13 @@ export class MemoryStore {
         }
         for (const step of batch.steps.slice(index + 1)) step.outcome = 'unchanged'
         batch.status = memoryBatchStatus(batch)
-        await saveMemoryBackup(this.backupRoot, batch).catch(() => undefined)
+        await saveMemoryBackup(await this.checkedBackupRoot(), batch).catch(() => undefined)
         return result
       }
     }
     batch.status = 'completed'
     try {
-      await saveMemoryBackup(this.backupRoot, batch)
+      await saveMemoryBackup(await this.checkedBackupRoot(), batch)
     } catch (error) {
       result.error = error instanceof Error ? error.message : String(error)
     }
@@ -551,11 +574,11 @@ export class MemoryStore {
   }
 
   private async latestRecoverableBatch(): Promise<MemoryBatch | undefined> {
-    let batch = await latestMemoryBackup(this.backupRoot)
+    let batch = await latestMemoryBackup(await this.checkedBackupRoot())
     while (batch) {
-      batch = await reconcileMemoryBackup(this.backupRoot, this.root, batch)
+      batch = await reconcileMemoryBackup(await this.checkedBackupRoot(), this.root, batch)
       if (batch.steps.some((step) => step.outcome !== 'unchanged')) return batch
-      batch = await latestMemoryBackup(this.backupRoot)
+      batch = await latestMemoryBackup(await this.checkedBackupRoot())
     }
     return undefined
   }
@@ -587,6 +610,25 @@ export class MemoryStore {
     ) {
       throw new MemoryError('conflict', 'Memory entry state changed during approval')
     }
+  }
+
+  private protectRecovery(batch: MemoryBatch, changes: MemoryFileChange[], scope: Map<string, Buffer | null>): void {
+    if (
+      batch.source === 'clear' &&
+      batch.steps.every((step) => memoryHash(scope.get(step.path) ?? null) === step.afterHash)
+    ) {
+      // Undo only the exact cleared scope. Older manifests identify changed files but omit untouched ones.
+      const exact = batch.clearScopeHash
+        ? this.scopeHash(scope) === batch.clearScopeHash
+        : [...scope].every(([target, bytes]) => !bytes?.length || batch.steps.some((step) => step.path === target))
+      if (exact) return
+    }
+    this.protectEntries(changes, scope, 'recovery')
+  }
+
+  private scopeHash(scope: Map<string, Buffer | null>): string {
+    const files = [...scope.keys()].sort().filter((target) => scope.get(target) !== null)
+    return memoryHash(Buffer.from(JSON.stringify(files.map((target) => [target, memoryHash(scope.get(target)!)]))))
   }
 
   private protectEntries(

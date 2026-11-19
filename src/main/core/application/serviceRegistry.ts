@@ -6,6 +6,7 @@ import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import { AgentLifecycleService } from '@main/ai/agents/AgentLifecycleService'
 import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionDeliveryService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
+import { AgentImportService } from '@main/ai/agentSession/import/AgentImportService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels'
 import { TtsInferenceService } from '@main/ai/localModel'
@@ -52,6 +53,7 @@ import { AutomationReplService } from '@main/services/automation'
 import { BinaryManager } from '@main/services/binaryManager'
 import { CherryCloudNotificationService } from '@main/services/cherryCloud/CherryCloudNotificationService'
 import { CherryCloudService } from '@main/services/cherryCloud/CherryCloudService'
+import { CherryInModelSyncService } from '@main/services/CherryInModelSyncService'
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
@@ -60,7 +62,14 @@ import { ConversationNavigationService } from '@main/services/ConversationNaviga
 import { ConversationNotificationService } from '@main/services/ConversationNotificationService'
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
 import { DoctorAgentService, DoctorService } from '@main/services/diagnostics'
-import { DirectoryTreeManager, FileManager, FileIntakeService, FileEditService } from '@main/services/file'
+import { ErrorReportingService } from '@main/services/errorReporting'
+import {
+  DirectoryTreeManager,
+  FileManager,
+  FileIntakeService,
+  FileEditService,
+  FileObservationService
+} from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
 import { LogRetentionService } from '@main/services/LogRetentionService'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
@@ -84,7 +93,6 @@ import { ScreenshotOverlayService } from '@main/services/screenshot'
 import { ScreenshotChatService } from '@main/services/ScreenshotChatService'
 import { SelectionAgentWindowService } from '@main/services/selection/SelectionAgentWindowService'
 import { SelectionService } from '@main/services/selection/SelectionService'
-import { SentryLogService } from '@main/services/SentryLogService'
 import { ShortcutService } from '@main/services/ShortcutService'
 import { StorageMonitorService } from '@main/services/StorageMonitorService'
 import { SubWindowService } from '@main/services/SubWindowService'
@@ -131,7 +139,7 @@ export const services = {
   IpcApiService,
   SubWindowService,
   PreferenceService,
-  SentryLogService,
+  ErrorReportingService,
   TesseractRuntimeService,
   AnalyticsService,
   AppMenuService,
@@ -150,6 +158,7 @@ export const services = {
   AttachmentPresenceService,
   FileIntakeService,
   DirectoryTreeManager,
+  FileObservationService,
   FileProcessingService,
   PowerService,
   RuntimeActivityService,
@@ -197,6 +206,7 @@ export const services = {
   ClaudeCodeBinaryService,
   ClaudeCodeProcessManager,
   AgentSessionRuntimeService,
+  AgentImportService,
   AgentSessionDeliveryService,
   AgentJobsService,
   AgentLifecycleService,
@@ -218,6 +228,7 @@ export const services = {
   AppUpdaterService,
   AutoBackupService,
   ProviderRegistryUpdaterService,
+  CherryInModelSyncService,
   SchedulerService,
   JobManager,
   TrashService

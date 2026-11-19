@@ -8,6 +8,8 @@ import {
   formatPhaseProfile,
   type ServiceSpan
 } from '@main/core/diagnostics'
+import { logFailure } from '@main/core/logger/logFailure'
+import { isCancellation } from '@shared/utils/errorReporting'
 
 import { SERVICE_STOP_TIMEOUT_MS } from './constants'
 import { DependencyResolver, type PhaseAdjustment } from './DependencyResolver'
@@ -443,7 +445,13 @@ export class LifecycleManager extends EventEmitter {
    * Handle service initialization error based on strategy
    */
   private handleError(serviceName: string, error: Error, strategy: 'fail-fast' | 'graceful' | 'custom'): void {
-    logger.error(`Service '${serviceName}' initialization failed:`, error)
+    const cancelled = isCancellation(error)
+    logFailure(logger, `Service '${serviceName}' initialization failed:`, error, 'service.initialize', {
+      source: 'application',
+      kind: cancelled ? 'expected' : 'unknown',
+      reason: cancelled ? 'cancelled' : 'service_initialization_failed',
+      outcome: cancelled ? 'cancelled' : 'failed'
+    })
 
     switch (strategy) {
       case 'fail-fast':

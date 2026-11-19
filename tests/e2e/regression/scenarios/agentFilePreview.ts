@@ -41,7 +41,7 @@ export async function agentFilePreview(app: RegressionApp, page: Page, testInfo:
     }
   }
 
-  // Real provider and runtime: neither tool output nor file contents are injected after the prompt.
+  // Mock model decisions; real runtime tool execution and filesystem effects.
   const providerId = await ensureCustomChatProvider(app, page)
   await closeSettings(page)
   const agentName = app.resourceName(`File preview ${Date.now()}`)

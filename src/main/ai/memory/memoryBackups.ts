@@ -39,6 +39,10 @@ const batchSchema = z.strictObject({
       hash: z.string().regex(/^[0-9a-f]{64}$/)
     })
     .optional(),
+  clearScopeHash: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/)
+    .optional(),
   steps: z.array(stepSchema)
 })
 
@@ -122,7 +126,8 @@ export async function createMemoryBackup(
   root: string,
   changes: readonly MemoryFileChange[],
   source: MemoryMutationSource,
-  legacy?: MemoryLegacyOriginal
+  legacy?: MemoryLegacyOriginal,
+  clearScopeHash?: string
 ): Promise<MemoryBatch> {
   if (legacy && (source !== 'migration' || !/^memory\/fact\.md$/i.test(legacy.path)))
     throw new MemoryError('invalid-backup', 'Legacy originals belong only to FACT migration backups')
@@ -133,6 +138,7 @@ export async function createMemoryBackup(
     createdAt: Math.max(Date.now(), (existing.at(-1)?.batch.createdAt ?? 0) + 1),
     source,
     status: 'pending',
+    clearScopeHash,
     ...(legacy
       ? { legacy: { path: legacy.path, content: legacy.content.toString('base64'), hash: memoryHash(legacy.content)! } }
       : {}),

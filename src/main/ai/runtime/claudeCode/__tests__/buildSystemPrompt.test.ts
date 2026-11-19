@@ -44,7 +44,7 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('node:fs', async (importOriginal) => {
-  const actual = (await importOriginal()) as typeof NodeFs
+  const actual = await importOriginal<typeof NodeFs>()
   return {
     ...actual,
     default: actual,

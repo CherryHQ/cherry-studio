@@ -201,7 +201,7 @@ describe('structured memory disk protection', () => {
     }
   })
 
-  it('clears bodies in entry and topic files, approves exact tombstones, and cannot recover old facts after restart', async () => {
+  it('clears bodies in entry and topic files, approves exact tombstones, and restores the original versions after restart', async () => {
     await writeFile(path.join(root, 'MEMORY.md'), encode({ ...entry, status: 'active', text: 'Secret address' }))
     await writeFile(
       path.join(root, '.memories/topic.md'),
@@ -224,9 +224,9 @@ describe('structured memory disk protection', () => {
     await store.initialize()
     const recovery = await store.previewRecovery(caller)
     expect((await store.recover(caller, recovery!.token, approve)).error).toBeUndefined()
-    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).not.toContain('Secret address')
-    expect(await readFile(path.join(root, '.memories/topic.md'), 'utf8')).not.toContain('Old fact')
-    expect(entriesIn(parseMemoryEntries(await readFile(path.join(root, 'MEMORY.md'), 'utf8')))[0]).toEqual(entry)
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toContain('Secret address')
+    const original = entriesIn(parseMemoryEntries(await readFile(path.join(root, '.memories/topic.md'), 'utf8')))
+    expect(original[0]).toMatchObject({ status: 'expired', text: 'Old fact' })
   })
 
   it.each(['legacy', 'changed-version'] as const)('refuses unsafe %s recovery before approval', async (kind) => {
@@ -248,11 +248,8 @@ describe('structured memory disk protection', () => {
       'controlled'
     )
     const preview = await store.previewRecovery(caller)
-    await expect(
-      store.recover(caller, preview!.token, async () => {
-        throw new Error('Must not approve unsafe content')
-      })
-    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(preview!.files.every((file) => file.conflict)).toBe(true)
+    await expect(store.recover(caller, preview!.token, approve)).rejects.toMatchObject({ code: 'conflict' })
     expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe(current)
   })
 
@@ -508,7 +505,7 @@ describe('limits, access, and recovery', () => {
     expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('')
   })
 
-  it('persists unknown-source tombstones for cleared legacy files and rejects recovery after restart', async () => {
+  it('persists unknown-source tombstones for cleared legacy files and restores matching originals after restart', async () => {
     await save('MEMORY.md', 'Entry fact')
     await save('.memories/topic.md', 'Topic fact')
     await writeFile(path.join(root, 'JOURNAL.md'), 'Historical content')
@@ -530,7 +527,18 @@ describe('limits, access, and recovery', () => {
       expect(content).not.toContain('fact')
     }
     const recovery = await store.previewRecovery(caller)
-    await expect(store.recover(caller, recovery!.token, approve)).rejects.toMatchObject({ code: 'conflict' })
+    expect(recovery!.files.every((file) => !file.conflict)).toBe(true)
+    await store.recover(caller, recovery!.token, approve)
+    expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe('Entry fact')
+    expect(await readFile(path.join(root, '.memories/topic.md'), 'utf8')).toBe('Topic fact')
+  })
+
+  it('refuses a model receipt for a casing alias on a case-insensitive volume', async () => {
+    await save('.memories/Topic.md', 'Existing topic')
+    const alias = await memoryFiles.readMemoryBytes(root, '.memories/topic.md')
+    const view = store.modelRead(caller, '.memories/topic.md')
+    if (alias) await expect(view).rejects.toMatchObject({ code: 'conflict' })
+    else await expect(view).resolves.toMatchObject({ content: null, hash: null })
   })
 
   it('rejects clear when the displayed file set or version changes before confirmation', async () => {
