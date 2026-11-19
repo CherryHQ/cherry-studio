@@ -617,10 +617,10 @@ export function ResourceCreateWizard({
         <DialogContent
           ref={setDialogContentElement}
           closeOnOverlayClick={!submitting}
-          size={view === 'steps' ? 'xl' : 'default'}
+          size="xl"
           className={cn(
             'flex flex-col gap-0 p-0',
-            view === 'steps' ? 'h-[min(600px,76vh)]' : 'sm:max-w-[440px]',
+            view === 'steps' && 'h-[min(600px,76vh)]',
             resourceDialogCloseButtonClassName
           )}
           onPointerDownOutside={(event) => submitting && event.preventDefault()}>
