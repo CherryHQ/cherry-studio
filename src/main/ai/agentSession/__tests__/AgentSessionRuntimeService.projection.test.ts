@@ -1,3 +1,7 @@
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { beforeEach, expect, it, onTestFinished, vi } from 'vitest'
@@ -24,6 +28,7 @@ import { topicNamingService } from '@main/services/TopicNamingService'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { AsyncEventQueue } from '@shared/utils/async'
 
+import { AgentFileSnapshotService } from '../AgentFileSnapshotService'
 import { AgentSessionRuntimeService } from '../AgentSessionRuntimeService'
 import { RootMessageProjection } from '../RootMessageProjection'
 
@@ -197,6 +202,318 @@ async function settleFirstTurn(f: Awaited<ReturnType<typeof fixture>>) {
   await f.handle.listeners[0].onDone(result)
   await f.handle.listeners[1].onDone(result)
 }
+
+it.each(['native', 'terminal', 'stop'] as const)(
+  'finishes the snapshot after the %s terminal path',
+  async (terminal) => {
+    const testDir = await mkdtemp(path.join(os.tmpdir(), 'snapshot-terminal-'))
+    const workspace = path.join(testDir, 'workspace')
+    await mkdir(workspace)
+    onTestFinished(() => rm(testDir, { recursive: true, force: true }))
+    const snapshots = new AgentFileSnapshotService()
+    MockApplicationUtils.setService('AgentFileSnapshotService', snapshots)
+    MockApplicationUtils.setService('AiStreamManager', { drainRuntimeReply: async () => {} })
+    const f = await fixture()
+    vi.spyOn(application, 'getPath').mockReturnValue(path.join(testDir, 'snapshots'))
+    const round = f.service.getLiveSnapshotRound('root')!
+    expect(f.service.attestSnapshotRound('root')).toBe(round.replyId)
+    expect(f.service.attestSnapshotRound('missing')).toBeNull()
+    const target = path.join(workspace, 'file')
+    await writeFile(target, 'before')
+    const { attemptId } = await snapshots.protectWrite({
+      round,
+      callId: 'call',
+      runtime: 'pi',
+      toolName: 'write',
+      intent: { toolName: 'write', input: { content: 'after' } },
+      filePath: target,
+      cwd: workspace
+    })
+    await writeFile(target, 'after')
+    await snapshots.settleWrite({ round, attemptId, outcome: 'success' })
+    expect((await snapshots.getUndoState('root')).reason).toBe('turn-active')
+    if (terminal === 'native') await f.emit({ type: 'turn-complete' })
+    else if (terminal === 'terminal') f.service.markTurnTerminal('root', 'paused', f.handle.turnId)
+    else await f.service.stopSession('root', 'user-requested')
+    const state = await snapshots.getUndoState('root')
+    expect(f.service.attestSnapshotRound('root')).toBe(f.reply.id)
+    expect(state).toMatchObject({ replyId: f.reply.id, canUndo: true, reason: null })
+    expect(
+      await snapshots.undoCurrentRound({ sessionId: 'root', replyId: f.reply.id, expectedRevision: state.revision! })
+    ).toMatchObject({ reason: null })
+    expect(await readFile(target, 'utf8')).toBe('before')
+  }
+)
+
+it.each(['native', 'listener'] as const)(
+  'keeps the snapshot active until stop is confirmed after the %s terminal',
+  async (terminal) => {
+    const testDir = await mkdtemp(path.join(os.tmpdir(), 'snapshot-stop-'))
+    const workspace = path.join(testDir, 'workspace')
+    await mkdir(workspace)
+    onTestFinished(() => rm(testDir, { recursive: true, force: true }))
+    const snapshots = new AgentFileSnapshotService()
+    MockApplicationUtils.setService('AgentFileSnapshotService', snapshots)
+    MockApplicationUtils.setService('AiStreamManager', {
+      drainRuntimeReply: async () => {},
+      pauseRuntimeTurn: () => {}
+    })
+    const interrupt = Promise.withResolvers<void>()
+    const f = await fixture(() => interrupt.promise, true, 'pi-durable')
+    vi.spyOn(application, 'getPath').mockReturnValue(path.join(testDir, 'snapshots'))
+    const round = f.service.getLiveSnapshotRound('root')!
+    const target = path.join(workspace, 'file')
+    await writeFile(target, 'before')
+    const { attemptId } = await snapshots.protectWrite({
+      round,
+      callId: 'stop',
+      runtime: 'pi-durable',
+      toolName: 'write',
+      intent: { toolName: 'write', input: { content: 'after' } },
+      filePath: target,
+      cwd: workspace
+    })
+    await writeFile(target, 'after')
+    await snapshots.settleWrite({ round, attemptId, outcome: 'success' })
+    const stopped = f.service.stopSession('root', 'user-requested')
+    if (terminal === 'native') await f.emit({ type: 'turn-complete', status: 'paused' })
+    else f.service.markTurnTerminal('root', 'paused', f.handle.turnId)
+    const duringStop = await snapshots.getUndoState('root')
+    interrupt.resolve()
+    await f.emit({ type: 'stop-confirmed' })
+    await stopped
+    expect(duringStop).toMatchObject({ canUndo: false, reason: 'turn-active' })
+    expect(await snapshots.getUndoState('root')).toMatchObject({ canUndo: true, reason: null })
+  }
+)
+
+it.each(['queued', 'steer'] as const)('attributes a %s successor write to its own reply', async (kind) => {
+  const testDir = await mkdtemp(path.join(os.tmpdir(), 'snapshot-successor-'))
+  const workspace = path.join(testDir, 'workspace')
+  await mkdir(workspace)
+  onTestFinished(() => rm(testDir, { recursive: true, force: true }))
+  const snapshots = new AgentFileSnapshotService()
+  MockApplicationUtils.setService('AgentFileSnapshotService', snapshots)
+  let next: StartRuntimeTurnInput | undefined
+  MockApplicationUtils.setService('AiStreamManager', {
+    startRuntimeTurn: (input: StartRuntimeTurnInput) => {
+      next = input
+    },
+    drainRuntimeReply: async () => {}
+  })
+  const f = await fixture()
+  vi.spyOn(application, 'getPath').mockReturnValue(path.join(testDir, 'snapshots'))
+  const followup = savedUser(f.reply.id, 'Follow-up')
+  f.service.enqueueUserMessage('root', followup, kind === 'queued' ? { headless: true } : {})
+  if (kind === 'queued') {
+    await f.emit({ type: 'turn-complete' })
+    const result: StreamDoneResult = { status: 'success', finalMessage: (await f.done).finalMessage }
+    await f.handle.listeners[0].onDone(result)
+    await f.handle.listeners[1].onDone(result)
+    await expect.poll(() => next).toBeDefined()
+  } else {
+    await f.emit({ type: 'steer-boundary', inputIds: [followup.id] })
+  }
+  const round = f.service.getLiveSnapshotRound('root')!
+  expect(round).toMatchObject({ inputMessageIds: [followup.id] })
+  expect(round.replyId).not.toBe(f.reply.id)
+  expect(f.service.attestSnapshotRound('root')).toBe(round.replyId)
+  const target = path.join(workspace, 'file')
+  await writeFile(target, 'before')
+  await snapshots.protectWrite({
+    round,
+    callId: kind,
+    runtime: 'pi',
+    toolName: 'write',
+    intent: { toolName: 'write', input: { content: 'after' } },
+    filePath: target,
+    cwd: workspace
+  })
+  const manifest = JSON.parse(
+    await readFile(path.join(testDir, 'snapshots/root', round.replyId, 'manifest.json'), 'utf8')
+  )
+  expect(manifest).toMatchObject({ replyId: round.replyId, inputMessageIds: [followup.id], files: [{ path: target }] })
+  if (kind === 'steer') {
+    f.service.markTurnTerminal('root', 'success', f.handle.turnId)
+    expect(await snapshots.getUndoState('root')).toMatchObject({ replyId: round.replyId, reason: 'turn-active' })
+  }
+})
+
+it('rejects the old on-disk round when the actual runtime admits an unwritten successor', async () => {
+  const testDir = await mkdtemp(path.join(os.tmpdir(), 'snapshot-attestation-'))
+  const workspace = path.join(testDir, 'workspace')
+  await mkdir(workspace)
+  onTestFinished(() => rm(testDir, { recursive: true, force: true }))
+  const snapshots = new AgentFileSnapshotService()
+  MockApplicationUtils.setService('AgentFileSnapshotService', snapshots)
+  let next: StartRuntimeTurnInput | undefined
+  MockApplicationUtils.setService('AiStreamManager', {
+    startRuntimeTurn: (input: StartRuntimeTurnInput) => {
+      next = input
+    },
+    drainRuntimeReply: async () => {}
+  })
+  const f = await fixture()
+  vi.spyOn(application, 'getPath').mockReturnValue(path.join(testDir, 'snapshots'))
+  const first = f.service.getLiveSnapshotRound('root')!
+  const target = path.join(workspace, 'file')
+  await writeFile(target, 'before')
+  const attempt = await snapshots.protectWrite({
+    round: first,
+    callId: 'first',
+    runtime: 'pi',
+    toolName: 'write',
+    filePath: target,
+    cwd: workspace,
+    intent: { toolName: 'write', input: { content: 'after' } }
+  })
+  await writeFile(target, 'after')
+  await snapshots.settleWrite({ round: first, attemptId: attempt.attemptId, outcome: 'success' })
+  f.service.enqueueUserMessage('root', savedUser(f.reply.id, 'Follow-up'), { headless: true })
+  await settleFirstTurn(f)
+  await expect.poll(() => next).toBeDefined()
+  await snapshots.markRoundFinished('root', first.replyId)
+  const attested = () => f.service.attestSnapshotRound('root')
+  expect(attested()).not.toBe(first.replyId)
+  const currentPath = path.join(testDir, 'snapshots/root/current.json')
+  const manifestPath = path.join(testDir, 'snapshots/root', first.replyId, 'manifest.json')
+  const current = await readFile(currentPath)
+  const manifest = await readFile(manifestPath)
+  expect(await snapshots.getUndoState('root', attested)).toMatchObject({ canUndo: false, reason: 'stale' })
+  expect(
+    await snapshots.undoCurrentRound({ sessionId: 'root', replyId: first.replyId, expectedRevision: '1' }, attested)
+  ).toMatchObject({ reason: 'stale', files: [] })
+  expect(await readFile(currentPath)).toEqual(current)
+  expect(await readFile(manifestPath)).toEqual(manifest)
+  expect(await readFile(target, 'utf8')).toBe('after')
+})
+
+it.each([true, false])(
+  'keeps merged steer inputs attached to their shared snapshot reply (another write: %s)',
+  async (anotherWrite) => {
+    const testDir = await mkdtemp(path.join(os.tmpdir(), 'snapshot-merged-steer-'))
+    const workspace = path.join(testDir, 'workspace')
+    await mkdir(workspace)
+    onTestFinished(() => rm(testDir, { recursive: true, force: true }))
+    const snapshots = new AgentFileSnapshotService()
+    MockApplicationUtils.setService('AgentFileSnapshotService', snapshots)
+    MockApplicationUtils.setService('AiStreamManager', {
+      startRuntimeTurn: () => {},
+      drainRuntimeReply: async () => {}
+    })
+    const f = await fixture()
+    vi.spyOn(application, 'getPath').mockReturnValue(path.join(testDir, 'snapshots'))
+    const first = savedUser(f.reply.id, 'First steer')
+    const second = savedUser(first.id, 'Second steer')
+    f.service.enqueueUserMessage('root', first)
+    f.service.enqueueUserMessage('root', second)
+    await f.emit({ type: 'steer-boundary', inputIds: [first.id] })
+    const firstRound = f.service.getLiveSnapshotRound('root')!
+    const target = path.join(workspace, 'file')
+    await writeFile(target, 'before')
+    const attempt = await snapshots.protectWrite({
+      round: firstRound,
+      callId: 'first',
+      runtime: 'pi',
+      toolName: 'write',
+      intent: { toolName: 'write', input: { content: 'first' } },
+      filePath: target,
+      cwd: workspace
+    })
+    await f.emit({ type: 'steer-boundary', inputIds: [second.id] })
+    const merged = f.service.getLiveSnapshotRound('root')!
+    expect(merged).toMatchObject({ replyId: firstRound.replyId, inputMessageIds: [first.id, second.id] })
+    if (anotherWrite)
+      await snapshots.protectWrite({
+        round: merged,
+        callId: 'second',
+        runtime: 'pi',
+        toolName: 'write',
+        intent: { toolName: 'write', input: { content: 'second' } },
+        filePath: target,
+        cwd: workspace
+      })
+    await snapshots.settleWrite({ round: firstRound, attemptId: attempt.attemptId, outcome: 'failure' })
+    const manifest = JSON.parse(
+      await readFile(path.join(testDir, 'snapshots/root', merged.replyId, 'manifest.json'), 'utf8')
+    )
+    expect(manifest.inputMessageIds).toEqual([first.id, second.id])
+    expect(manifest.files[0].attempts).toHaveLength(anotherWrite ? 2 : 1)
+  }
+)
+
+it.each(['goal-round', 'background-work'] as const)(
+  'attributes a %s write to the correct reply and baseline',
+  async (kind) => {
+    const testDir = await mkdtemp(path.join(os.tmpdir(), 'snapshot-autonomous-'))
+    const workspace = path.join(testDir, 'workspace')
+    await mkdir(workspace)
+    onTestFinished(() => rm(testDir, { recursive: true, force: true }))
+    const snapshots = new AgentFileSnapshotService()
+    MockApplicationUtils.setService('AgentFileSnapshotService', snapshots)
+    MockApplicationUtils.setService('AiStreamManager', {
+      startRuntimeTurn: () => {},
+      drainRuntimeReply: async () => {}
+    })
+    const f = await fixture()
+    vi.spyOn(application, 'getPath').mockReturnValue(path.join(testDir, 'snapshots'))
+    const target = path.join(workspace, 'file')
+    await writeFile(target, 'before')
+    const first = f.service.getLiveSnapshotRound('root')!
+    if (kind === 'background-work') {
+      const { attemptId } = await snapshots.protectWrite({
+        round: first,
+        callId: 'first',
+        runtime: 'pi',
+        toolName: 'write',
+        intent: { toolName: 'write', input: { content: 'first' } },
+        filePath: target,
+        cwd: workspace
+      })
+      await writeFile(target, 'first')
+      await snapshots.settleWrite({
+        round: first,
+        attemptId,
+        outcome: 'success'
+      })
+      await settleFirstTurn(f)
+    } else await settleFirstTurn(f)
+    await f.emit({
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: kind === 'goal-round' ? { kind, round: 1 } : { kind }
+    })
+    const round = f.service.getLiveSnapshotRound('root')!
+    if (kind === 'background-work') expect(round.replyId).toBe(first.replyId)
+    else expect(round.replyId).not.toBe(first.replyId)
+    const { attemptId } = await snapshots.protectWrite({
+      round,
+      callId: 'continued',
+      runtime: 'pi',
+      toolName: 'write',
+      intent: { toolName: 'write', input: { content: 'continued' } },
+      filePath: target,
+      cwd: workspace
+    })
+    await writeFile(target, 'continued')
+    await snapshots.settleWrite({ round, attemptId, outcome: 'success' })
+    if (kind === 'background-work') {
+      const manifest = JSON.parse(
+        await readFile(path.join(testDir, 'snapshots/root', round.replyId, 'manifest.json'), 'utf8')
+      )
+      expect(manifest.inputMessageIds).toEqual([f.user.id])
+      expect(manifest.files).toHaveLength(1)
+      expect(manifest.files[0].attempts).toHaveLength(2)
+    }
+    expect(await snapshots.getUndoState('root')).toMatchObject({ replyId: round.replyId, reason: 'turn-active' })
+    await snapshots.markRoundFinished('root', round.replyId)
+    const state = await snapshots.getUndoState('root')
+    expect(
+      await snapshots.undoCurrentRound({ sessionId: 'root', replyId: round.replyId, expectedRevision: state.revision! })
+    ).toMatchObject({ reason: null })
+    expect(await readFile(target, 'utf8')).toBe('before')
+  }
+)
 
 /** A user input and its reply left unsettled by an exit; Durable reports it as `native-user`. */
 function unsettledInput(parentId: string) {
