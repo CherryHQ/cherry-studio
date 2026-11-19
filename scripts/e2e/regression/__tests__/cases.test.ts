@@ -88,6 +88,28 @@ describe('regression execution plan', () => {
     }
   })
 
+  it('prepares the Windows registry PATH before launches that exercise OpenClaw', () => {
+    const workflow = parse(readFileSync(resolve('.github/workflows/e2e-regression-test.yml'), 'utf8'))
+    const steps = workflow.jobs.test.steps as Array<{ name: string; if?: string }>
+    const install = steps.findIndex(({ name }) => name === 'Install code tools under test')
+    const verify = steps.findIndex(({ name }) => name === 'Verify OpenClaw on the Windows system PATH')
+    const launch = steps.findIndex(({ name }) => name === 'Launch controlled Cherry Studio once')
+    expect(verify).toBeGreaterThan(install)
+    expect(verify).toBeLessThan(launch)
+    for (const platform of ['windows', 'macos']) {
+      for (const task of ['all', 'code-tools', 'openclaw', 'settings,openclaw', 'chat-core', 'code-cli']) {
+        const context = {
+          matrix: { platform },
+          needs: { resolve: { outputs: { task } } },
+          contains: (value: string, part: string) => value.includes(part),
+          format: (template: string, value: string) => template.replace('{0}', value)
+        }
+        const includesOpenClaw = selectCases(parseTaskSelection(task)).some(({ id }) => id === 'CODE-03')
+        expect(runInNewContext(steps[verify].if!, context)).toBe(platform === 'windows' && includesOpenClaw)
+      }
+    }
+  })
+
   it.each([
     { event_name: 'schedule', ref_type: 'branch', ref: 'refs/heads/main', allowed: true },
     { event_name: 'workflow_dispatch', ref_type: 'branch', ref: 'refs/heads/main', allowed: true },

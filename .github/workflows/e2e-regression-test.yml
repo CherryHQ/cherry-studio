@@ -213,6 +213,26 @@ jobs:
           codex --version
           openclaw --version
 
+      - name: Verify OpenClaw on the Windows system PATH
+        if: matrix.platform == 'windows' && (needs.resolve.outputs.task == 'all' || contains(format(',{0},', needs.resolve.outputs.task), ',code-tools,') || contains(format(',{0},', needs.resolve.outputs.task), ',openclaw,'))
+        shell: pwsh
+        run: |
+          # Cherry Studio refreshes the Windows PATH from the registry before launching system CLIs.
+          $nodeDirectory = Split-Path -Parent (Get-Command node.exe -ErrorAction Stop).Source
+          $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+          [Environment]::SetEnvironmentVariable('Path', "$nodeDirectory;$machinePath", 'Machine')
+          $env:Path = [Environment]::ExpandEnvironmentVariables((@(
+            [Environment]::GetEnvironmentVariable('Path', 'Machine')
+            [Environment]::GetEnvironmentVariable('Path', 'User')
+          ) -join ';'))
+          $actual = & node.exe -p process.versions.node
+          if ($LASTEXITCODE -ne 0 -or $actual -ne $env:NODE_VERSION) {
+            throw "OpenClaw's system PATH resolved Node.js $actual instead of $env:NODE_VERSION."
+          }
+          Write-Host "OpenClaw system PATH resolves Node.js $actual"
+          & openclaw.cmd config schema | Out-Null
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Prepare Everything MCP package
         if: needs.resolve.outputs.prepare_mcp == 'true'
         shell: bash

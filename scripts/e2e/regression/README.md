@@ -116,6 +116,10 @@ and settings rather than the developer's CLI configuration. Before each UI conne
 the controller verifies the owned process's home, temporary and CLI configuration paths
 and Windows AppData path. It rejects an older running instance whose paths escape the profile.
 
+For OpenClaw coverage, the disposable Windows runner puts the pinned Node.js directory first in the machine PATH.
+Cherry Studio discovers system CLIs from the registry PATH, so the workflow checks the Node version and executes
+`openclaw config schema` using that same PATH before launching the application.
+
 For branch runs selecting `all`, the workflow closes the regression instance and reuses the same build
 for the standalone smoke suite with isolated per-test profiles and no retries. Each platform's
 smoke HTML/JSON report is bundled separately and its counts appear in the aggregate summary.
