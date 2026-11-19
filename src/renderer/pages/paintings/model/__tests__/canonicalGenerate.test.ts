@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ModelListSchema } from '@cherrystudio/provider-registry'
 import type { FileMetadata } from '@renderer/types/file'
-import type { FileEntry } from '@shared/data/types/file'
+import { FileEntrySchema, type FileEntry } from '@shared/data/types/file'
 
 import modelCatalog from '../../../../../../packages/provider-registry/data/models.json'
 import { isOptionsConfigItem } from '../../form/baseConfigItem'
@@ -10,6 +10,28 @@ import { imageGenerationToFields } from '../../form/imageGenerationToFields'
 import { canonicalGenerate } from '../canonicalGenerate'
 import type { GenerateInput } from '../types/generateInput'
 import type { PaintingData } from '../types/paintingData'
+
+const inputBytes = [1, 2, 3]
+
+function inputFile(id: string, ext: 'png' | 'txt'): FileEntry {
+  const now = Date.now()
+  return FileEntrySchema.parse({
+    id,
+    origin: 'internal',
+    name: 'attachment',
+    ext,
+    size: inputBytes.length,
+    contentHash: null,
+    cleanupPolicy: 'delete_when_unreferenced',
+    createdAt: now,
+    updatedAt: now
+  })
+}
+
+const image1 = inputFile('00000000-0000-4000-8000-000000000001', 'png')
+const image2 = inputFile('00000000-0000-4000-8000-000000000002', 'png')
+const image3 = inputFile('00000000-0000-4000-8000-000000000003', 'png')
+const textFile = inputFile('00000000-0000-4000-8000-000000000004', 'txt')
 
 // Capture the options handed to the shared generate skeleton — this is the
 // canonical `paramValues` bag (+ encoded inputImages) under test. The
@@ -59,8 +81,15 @@ function makeInput(params: Record<string, unknown>, overrides: Partial<PaintingD
 }
 
 describe('canonicalGenerate', () => {
+  let previousApi: typeof window.api
+
   beforeEach(() => {
+    previousApi = window.api
     generatePaintingMock.mockClear()
+  })
+
+  afterEach(() => {
+    window.api = previousApi
   })
 
   it.each(['1536x864', '864x1536', '1536x960', '3840x2160', '2160x3840'])(
@@ -154,13 +183,13 @@ describe('canonicalGenerate', () => {
   })
 
   it('prefetches attached input images as data URLs, carried separately from paramValues', async () => {
-    const binaryImage = vi.fn(async () => ({ data: [1, 2, 3], mime: 'image/png' }))
-    ;(window as unknown as { api: unknown }).api = { file: { binaryImage } }
+    const binaryImage = vi.fn(async () => ({ data: inputBytes, mime: 'image/png' }))
+    window.api = { ...window.api, file: { ...window.api.file, binaryImage } }
 
-    const inputFiles = [{ id: 'file-1', ext: 'png' }] as unknown as FileEntry[]
+    const inputFiles = [image1]
     await canonicalGenerate(makeInput({}, { inputFiles }))
 
-    expect(binaryImage).toHaveBeenCalledWith('file-1.png')
+    expect(binaryImage).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000001.png')
     const call = lastGenerateCall()
     // Encoded to a `data:` URL (`base64('\x01\x02\x03') === 'AQID'`); not in paramValues.
     expect(call.inputImages).toEqual(['data:image/png;base64,AQID'])
@@ -169,11 +198,8 @@ describe('canonicalGenerate', () => {
 
   it('rejects input images beyond the selected mode limit before reading files', async () => {
     const binaryImage = vi.fn()
-    ;(window as unknown as { api: unknown }).api = { file: { binaryImage } }
-    const inputFiles = [
-      { id: 'file-1', ext: 'png' },
-      { id: 'file-2', ext: 'png' }
-    ] as unknown as FileEntry[]
+    window.api = { ...window.api, file: { ...window.api.file, binaryImage } }
+    const inputFiles = [image1, image2]
 
     await expect(
       canonicalGenerate(makeInput({}, { inputFiles }), {
@@ -192,13 +218,9 @@ describe('canonicalGenerate', () => {
     )?.imageGeneration
     if (!support?.modes.edit) throw new Error('Expected qwen-image-edit edit support')
 
-    const binaryImage = vi.fn(async () => ({ data: [1, 2, 3], mime: 'image/png' }))
-    ;(window as unknown as { api: unknown }).api = { file: { binaryImage } }
-    const inputFiles = [
-      { id: 'file-1', ext: 'png' },
-      { id: 'file-2', ext: 'png' },
-      { id: 'file-3', ext: 'png' }
-    ] as unknown as FileEntry[]
+    const binaryImage = vi.fn(async () => ({ data: inputBytes, mime: 'image/png' }))
+    window.api = { ...window.api, file: { ...window.api.file, binaryImage } }
+    const inputFiles = [image1, image2, image3]
 
     expect(support.modes.edit.maxInputImages).toBeUndefined()
     await canonicalGenerate(makeInput({}, { inputFiles }), { mode: 'edit', support })
@@ -212,18 +234,15 @@ describe('canonicalGenerate', () => {
   })
 
   it('skips non-image input files (e.g. a pasted-text .txt) so they never ship as images', async () => {
-    const binaryImage = vi.fn(async () => ({ data: [1, 2, 3], mime: 'image/png' }))
-    ;(window as unknown as { api: unknown }).api = { file: { binaryImage } }
+    const binaryImage = vi.fn(async () => ({ data: inputBytes, mime: 'image/png' }))
+    window.api = { ...window.api, file: { ...window.api.file, binaryImage } }
 
-    const inputFiles = [
-      { id: 'note', ext: 'txt' },
-      { id: 'pic', ext: 'png' }
-    ] as unknown as FileEntry[]
+    const inputFiles = [textFile, image1]
     await canonicalGenerate(makeInput({}, { inputFiles }))
 
     // Only the image was fetched/encoded; the .txt was filtered out.
     expect(binaryImage).toHaveBeenCalledTimes(1)
-    expect(binaryImage).toHaveBeenCalledWith('pic.png')
+    expect(binaryImage).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000001.png')
     expect(lastGenerateCall().inputImages).toEqual(['data:image/png;base64,AQID'])
   })
 
@@ -234,7 +253,7 @@ describe('canonicalGenerate', () => {
   })
 
   it('throws EDIT_IMAGE_REQUIRED when the only input for an edit mode is a non-image file', async () => {
-    const inputFiles = [{ id: 'note', ext: 'txt' }] as unknown as FileEntry[]
+    const inputFiles = [textFile]
     await expect(canonicalGenerate(makeInput({}, { inputFiles }), { mode: 'edit' })).rejects.toMatchObject({
       code: 'EDIT_IMAGE_REQUIRED'
     })
@@ -269,7 +288,7 @@ describe('canonicalGenerate', () => {
       makeInput(
         { outputFormat: 'gif', frameCount: 4, frameDurationMs: 200, complexity: 'low' },
         {
-          inputFiles: [{ id: 'reference', ext: 'png' }] as unknown as FileEntry[]
+          inputFiles: [image1]
         }
       ),
       {
