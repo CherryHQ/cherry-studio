@@ -1,26 +1,4 @@
-/**
- * DirectoryWatcher — generic FS-monitoring primitive.
- *
- * Wraps `chokidar@4` with a normalized event surface (`add` / `addDir` /
- * `unlink` / `unlinkDir` / `change` / `ready` / `error`) and auto-wires file
- * `add` / `unlink` events into
- * the file-module's `DanglingCache` singleton so external-entry presence
- * tracking stays coherent across all watchers.
- *
- * ## Positioning
- *
- * - **Not a lifecycle service.** Business modules (e.g. a future NoteService)
- *   instantiate their own watcher via `createDirectoryWatcher(path)` and
- *   dispose it themselves; the factory transparently forwards events into
- *   `DanglingCache`.
- * - **Open to the entire main process.** Like `@main/utils/file/*` primitives,
- *   the watcher has no entry-system awareness; it is a thin wrapper over
- *   `chokidar` with house conventions (built-in OS-junk ignores, optional
- *   debounce window).
- *
- * Rename detection is intentionally absent: chokidar renames remain
- * `unlink` + `add`. See [file-manager-architecture.md §8](../../../../docs/dev/references/file/file-manager-architecture.md).
- */
+/** Chokidar adapter used by FileObservationService; also forwards presence changes to DanglingCache. */
 
 import path from 'node:path'
 
@@ -79,6 +57,8 @@ export interface DirectoryWatcher {
 export interface CreateDirectoryWatcherOptions {
   /** Recurse into subdirectories. Default: `true`. */
   readonly recursive?: boolean
+  /** Follow symlink targets. Default: true. */
+  readonly followSymlinks?: boolean
   /** Maximum recursion depth when `recursive` is enabled. `undefined` keeps chokidar's default unlimited depth. */
   readonly maxDepth?: number
   /** Custom ignore predicate. Built-in ignores (`.DS_Store`, `Thumbs.db`, etc.) always apply. */
@@ -126,7 +106,8 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
       ignoreInitial: this.opts.emitInitial !== true,
       depth,
       awaitWriteFinish: stability > 0 ? { stabilityThreshold: stability, pollInterval: 100 } : false,
-      usePolling
+      usePolling,
+      followSymlinks: this.opts.followSymlinks ?? true
     })
 
     fsw.on('add', (p) => this.handle({ kind: 'add', path: p }))

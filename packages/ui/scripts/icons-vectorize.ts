@@ -1,6 +1,3 @@
-import fs from 'fs/promises'
-import path from 'path'
-
 /**
  * Convert raster images (PNG/JPG) to SVG using @neplex/vectorizer
  *
@@ -16,6 +13,9 @@ import path from 'path'
  *   tsx scripts/icons-vectorize.ts --dir=providers        # batch: all PNG/JPG in icons/providers/
  *   tsx scripts/icons-vectorize.ts --dir=models --size=48  # batch with custom size
  */
+import fs from 'fs/promises'
+import path from 'path'
+
 import { vectorize } from '@neplex/vectorizer'
 
 const DEFAULT_ICON_SIZE = 32

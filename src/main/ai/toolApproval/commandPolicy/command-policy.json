@@ -1,0 +1,198 @@
+{
+  "schemaVersion": 1,
+  "revision": "2026-11-13.1",
+  "auto": {
+    "defaultDecision": "allow",
+    "incompleteAnalysisDecision": "ask"
+  },
+  "rules": [
+    {
+      "id": "builtin-destructive-command",
+      "selector": {
+        "kind": "detector",
+        "name": "builtin-destructive-command"
+      },
+      "effect": "deny",
+      "reasonCode": "builtin-destructive-command",
+      "appliesTo": {
+        "builtinRoles": ["assistant", "support", "doctor"]
+      }
+    },
+    {
+      "id": "permanent-deletion",
+      "selector": {
+        "kind": "command",
+        "executables": ["rm", "rmdir", "unlink", "shred", "srm", "remove-item", "clear-content", "del", "erase", "rd"]
+      },
+      "effect": "ask",
+      "reasonCode": "permanent-deletion"
+    },
+    {
+      "id": "find-deletion",
+      "selector": {
+        "kind": "detector",
+        "name": "find-deletion"
+      },
+      "effect": "ask",
+      "reasonCode": "find-deletion"
+    },
+    {
+      "id": "disk-operation",
+      "selector": {
+        "kind": "detector",
+        "name": "disk-operation"
+      },
+      "effect": "ask",
+      "reasonCode": "disk-operation"
+    },
+    {
+      "id": "git-discard-worktree",
+      "selector": {
+        "kind": "detector",
+        "name": "git-discard-worktree"
+      },
+      "effect": "ask",
+      "reasonCode": "git-discard-worktree"
+    },
+    {
+      "id": "git-force-push",
+      "selector": {
+        "kind": "command",
+        "executables": ["git"],
+        "subcommands": ["push"],
+        "options": {
+          "anyOf": ["--force", "-f", "--force-with-lease", "--force-if-includes"]
+        }
+      },
+      "effect": "ask",
+      "reasonCode": "git-force-push"
+    },
+    {
+      "id": "truncation",
+      "selector": {
+        "kind": "command",
+        "executables": ["truncate"]
+      },
+      "effect": "ask",
+      "reasonCode": "truncation"
+    },
+    {
+      "id": "recursive-permissions",
+      "selector": {
+        "kind": "command",
+        "executables": ["chmod", "chown"],
+        "options": {
+          "anyOf": ["-R", "--recursive"]
+        }
+      },
+      "effect": "ask",
+      "reasonCode": "recursive-permissions"
+    },
+    {
+      "id": "forced-overwrite",
+      "selector": {
+        "kind": "command",
+        "executables": ["mv", "cp"],
+        "options": {
+          "anyOf": ["-f", "--force"]
+        }
+      },
+      "effect": "ask",
+      "reasonCode": "forced-overwrite"
+    },
+    {
+      "id": "mass-process-termination",
+      "selector": {
+        "kind": "detector",
+        "name": "mass-process-termination"
+      },
+      "effect": "ask",
+      "reasonCode": "mass-process-termination"
+    },
+    {
+      "id": "service-mutation",
+      "selector": {
+        "kind": "detector",
+        "name": "service-mutation"
+      },
+      "effect": "ask",
+      "reasonCode": "service-mutation"
+    },
+    {
+      "id": "container-removal",
+      "selector": {
+        "kind": "detector",
+        "name": "container-removal"
+      },
+      "effect": "ask",
+      "reasonCode": "container-removal"
+    },
+    {
+      "id": "package-publish",
+      "selector": {
+        "kind": "command",
+        "executables": ["npm", "pnpm", "yarn"],
+        "subcommands": ["publish"],
+        "options": {
+          "noneOf": ["--dry-run"]
+        }
+      },
+      "effect": "ask",
+      "reasonCode": "package-publish"
+    },
+    {
+      "id": "home-path",
+      "selector": {
+        "kind": "detector",
+        "name": "home-path"
+      },
+      "effect": "ask",
+      "reasonCode": "home-path"
+    },
+    {
+      "id": "privilege-escalation",
+      "selector": {
+        "kind": "detector",
+        "name": "privilege-escalation"
+      },
+      "effect": "ask",
+      "reasonCode": "privilege-escalation"
+    },
+    {
+      "id": "download-to-shell",
+      "selector": {
+        "kind": "detector",
+        "name": "download-to-shell"
+      },
+      "effect": "ask",
+      "reasonCode": "download-to-shell"
+    },
+    {
+      "id": "inline-interpreter",
+      "selector": {
+        "kind": "detector",
+        "name": "inline-interpreter"
+      },
+      "effect": "ask",
+      "reasonCode": "inline-interpreter"
+    },
+    {
+      "id": "git-executable-configuration",
+      "selector": {
+        "kind": "detector",
+        "name": "git-executable-configuration"
+      },
+      "effect": "ask",
+      "reasonCode": "git-executable-configuration"
+    },
+    {
+      "id": "git-refspec-rewrite",
+      "selector": {
+        "kind": "detector",
+        "name": "git-refspec-rewrite"
+      },
+      "effect": "ask",
+      "reasonCode": "git-force-push"
+    }
+  ]
+}

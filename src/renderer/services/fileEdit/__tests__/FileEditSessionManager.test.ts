@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 
+import { mockFileObservationService } from '@test-mocks/renderer/FileObservationService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ipcApi } from '@renderer/ipc'
@@ -23,6 +24,7 @@ let holdWrite: Promise<void> | undefined
 
 beforeEach(() => {
   vi.useFakeTimers()
+  mockFileObservationService.reset()
   disk = snapshot('a')
   writes = []
   failWrite = false
@@ -62,6 +64,22 @@ function snapshot(text: string): FileEditRead {
 }
 
 describe('file editing lifetime', () => {
+  it('checks disk explicitly while preserving a draft, detects conflict, and reports read failure separately from saving', async () => {
+    const lease = await manager.acquire('manual-refresh', handle)
+    lease.setAutoSave(false)
+    lease.acceptEdit('local draft')
+    await lease.refresh()
+    expect(lease.getSnapshot()).toMatchObject({ draft: 'local draft', conflict: false, isDirty: true })
+    disk = snapshot('external version')
+    await lease.refresh()
+    expect(lease.getSnapshot()).toMatchObject({ draft: 'local draft', conflict: true })
+    expect(writes).toEqual([])
+    vi.mocked(ipcApi.request).mockRejectedValueOnce(new Error('Read unavailable'))
+    await expect(lease.refresh()).rejects.toThrow('File refresh failed')
+    expect(lease.getSnapshot()).toMatchObject({ draft: 'local draft', conflict: true })
+    expect(lease.getSnapshot().saveError).toBeUndefined()
+  })
+
   it('retains a failed draft after release and rejects callbacks from the previous attachment', async () => {
     const first = await manager.acquire('notes', handle)
     failWrite = true
@@ -74,6 +92,24 @@ describe('file editing lifetime', () => {
     failWrite = false
     await next.flush()
     expect(new TextDecoder().decode(disk.data)).toBe('b')
+  })
+
+  it('releases observation after a detached save fails while keeping the draft recoverable', async () => {
+    const lease = await manager.acquire('artifact', handle)
+    const observation = mockFileObservationService.get(handle)
+    failWrite = true
+    lease.acceptEdit('retained draft')
+    lease.release()
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(observation.subscriberCount).toBe(1)
+    await vi.advanceTimersByTimeAsync(10_000)
+
+    expect(observation.subscriberCount).toBe(0)
+    expect(manager.getSnapshot()).toEqual([expect.objectContaining({ draft: 'retained draft', isDirty: true })])
+    failWrite = false
+    await manager.recover(lease.getSnapshot().sessionId, 'retry')
+    expect(new TextDecoder().decode(disk.data)).toBe('retained draft')
+    await vi.waitFor(() => expect(manager.listRetained()).toEqual([]))
   })
 
   it('keeps different owners editable and reports a conflict without losing either draft', async () => {
@@ -163,6 +199,19 @@ describe('file editing lifetime', () => {
     expect(writes).toEqual([])
   })
 
+  it('pauses a pending autosave on conflict without manufacturing a save failure', async () => {
+    const lease = await manager.acquire('artifact', handle)
+    lease.acceptEdit('local draft')
+    disk = snapshot('external edit')
+    await lease.invalidate()
+    await vi.advanceTimersByTimeAsync(1_000)
+
+    expect(new TextDecoder().decode(disk.data)).toBe('external edit')
+    expect(lease.getSnapshot()).toMatchObject({ draft: 'local draft', conflict: true })
+    expect(lease.getSnapshot().saveError).toBeUndefined()
+    lease.release()
+  })
+
   it('rejects a delayed clean read after a local edit and reports the conflict on save', async () => {
     const lease = await manager.acquire('notes', handle)
     const read = Promise.withResolvers<FileEditRead>()
@@ -219,6 +268,42 @@ describe('file editing lifetime', () => {
     expect(new TextDecoder().decode(disk.data)).toBe('still needs retry')
     lease.release()
   })
+
+  it.each(['write failure', 'lost reply'] as const)(
+    'pauses a newer autosave timer after an in-flight %s',
+    async (failure) => {
+      const lease = await manager.acquire('artifact', handle)
+      const started = Promise.withResolvers<void>()
+      const finish = Promise.withResolvers<void>()
+      const original = vi.mocked(ipcApi.request).getMockImplementation()!
+      let interrupt = true
+      vi.mocked(ipcApi.request).mockImplementation(async (route, ...args) => {
+        if (route !== 'file.edit.write' || !interrupt) return original(route, ...args)
+        interrupt = false
+        if (failure === 'lost reply') await original(route, ...args)
+        started.resolve()
+        await finish.promise
+        throw new Error('Save interrupted')
+      })
+      lease.acceptEdit('first draft')
+      const saving = lease.flush()
+      await started.promise
+      lease.acceptEdit('newer draft')
+      finish.resolve()
+      await expect(saving).rejects.toThrow('Save interrupted')
+
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(new TextDecoder().decode(disk.data)).toBe(failure === 'lost reply' ? 'first draft' : 'a')
+      expect(lease.getSnapshot()).toMatchObject({ draft: 'newer draft', isDirty: true })
+      expect(lease.getSnapshot().saveError?.message).toBe('Save interrupted')
+
+      if (failure === 'lost reply') await lease.keepLocal()
+      else await lease.flush()
+      expect(new TextDecoder().decode(disk.data)).toBe('newer draft')
+      expect(lease.getSnapshot()).toMatchObject({ isDirty: false, saveError: undefined })
+      lease.release()
+    }
+  )
 
   it('reconciles an invalidation received after commit but before the save receipt returns', async () => {
     const lease = await manager.acquire('notes', handle)
@@ -416,4 +501,25 @@ describe('file editing lifetime', () => {
     expect(new TextDecoder().decode(disk.data)).toBe('c')
     await prepared.finish()
   })
+})
+
+vi.mock('@renderer/services/fileObservation', async () => {
+  const { mockFileObservationService } = await import('@test-mocks/renderer/FileObservationService')
+  return { fileObservationService: mockFileObservationService }
+})
+
+it('observes clean and dirty editing instances independently while the directory tree is absent', async () => {
+  const clean = await manager.acquire('notes', handle)
+  const dirty = await manager.acquire('agent', handle)
+  dirty.setAutoSave(false)
+  dirty.acceptEdit('local draft')
+  disk = snapshot('external')
+  mockFileObservationService.get(handle).invalidate()
+  await vi.waitFor(() => expect(clean.getSnapshot().draft).toBe('external'))
+  expect(clean.getSnapshot().isDirty).toBe(false)
+  await vi.waitFor(() => expect(dirty.getSnapshot().conflict).toBe(true))
+  expect(dirty.getSnapshot().draft).toBe('local draft')
+  expect(writes).toEqual([])
+  clean.release()
+  dirty.release()
 })

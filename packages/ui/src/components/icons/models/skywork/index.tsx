@@ -9,7 +9,7 @@ const Skywork = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const SkyworkIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Skywork, {
   Avatar: SkyworkAvatar,
-  colorPrimary: '#4D5EFF'
+  colorPrimary: '#eff1ff'
 })
 
 export default SkyworkIcon

@@ -41,7 +41,7 @@ export type SubagentView = {
   readonly sessionId: ThreadId
   readonly parentToolCallId: string
   readonly description: string
-  readonly status: 'running' | 'awaiting_approval' | 'finished'
+  readonly status: 'running' | 'finished'
   readonly outcome?: SubagentOutcome
 }
 /** [plan choice] Display-only events for `Observation.emit`. */

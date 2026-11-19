@@ -2,11 +2,11 @@ import type { ReasoningEffort } from '../schemas/enums'
 import { defineCreator } from './types'
 
 const m3Parameters = {
-  temperature: { supported: true },
-  topP: { supported: true },
+  temperature: { supported: false },
+  topP: { supported: false },
   topK: { supported: false },
-  frequencyPenalty: true,
-  presencePenalty: true,
+  frequencyPenalty: false,
+  presencePenalty: false,
   maxTokens: true,
   stopSequences: true,
   systemMessage: true

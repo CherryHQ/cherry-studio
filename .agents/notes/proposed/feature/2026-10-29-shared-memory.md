@@ -237,6 +237,10 @@ Implement save protection and recovery before enabling model mutations, then run
 
 - AC18 — Eight eligible turns and the local 21:00 remainder trigger frozen windows including the final successful reply; restarts preserve admitted work, duplicate events do not recount turns, byte truncation records budget skips, and failed calls follow the two-retry limit without advancing completed progress. Crash reconciliation prevents duplicate appends. (verification: controlled-clock real-database/filesystem integration; owner: memory extraction)
 
+- AC19 — Stopped turns, ordinary owner configuration changes, and save conflicts do not block later eligible batches; uncertain saves are recorded as skipped without replaying old facts. Foreground organization preemption does not exhaust attempts or overwrite concurrent state. (verification: real-database/filesystem regression, controlled clock, and save fault injection; owner: memory extraction, Dreaming)
+
+- AC20 — Explicit corrections replace current facts while retaining retirement reasons; organization, native edits, restart and recall do not reactivate retired facts. Goal conditions and source-time anchors survive saving, with repeated representative-model checks for omissions. (verification: real-database/filesystem regression and representative model tasks; owner: memory)
+
 ## Risks
 
 - Native hooks and approval APIs are not filesystem isolation. Direct disk access remains outside the controlled guarantee until per-platform enforcement is demonstrated; unsupported operations must not be advertised as protected writes.
@@ -244,7 +248,3 @@ Implement save protection and recovery before enabling model mutations, then run
 - Automatic organization uses model quota and may misclassify facts or lose conditions. Default-model reuse, bounded batches, quiet no-op checks, recoverable originals, and representative task validation limit the impact; backups do not prove semantic correctness.
 - Five batches and 20 MiB bound recovery storage but may block writes when protected material fills the scope budget. The editor must explain the failure rather than remove protected history or silently omit a backup.
 - FACT migration and the end of JOURNAL writes change the persistent contract. Preserve originals and coordinate every consumer; retained historical files do not make old/new application versions interchangeable.
-
-- AC19 — Stopped turns, ordinary owner configuration changes, and save conflicts do not block later eligible batches; uncertain saves are recorded as skipped without replaying old facts. Foreground organization preemption does not exhaust attempts or overwrite concurrent state. (verification: real-database/filesystem regression, controlled clock, and save fault injection; owner: memory extraction, Dreaming)
-
-- AC20 — Explicit corrections replace current facts while retaining retirement reasons; organization, native edits, restart and recall do not reactivate retired facts. Goal conditions and source-time anchors survive saving, with repeated representative-model checks for omissions. (verification: real-database/filesystem regression and representative model tasks; owner: memory)
