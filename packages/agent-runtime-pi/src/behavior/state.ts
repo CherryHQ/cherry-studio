@@ -128,6 +128,7 @@ export interface Adapter {
   conversation(thread: ThreadId): Conversation
   /** Counts `work` as pending for `settled()` until it settles. */
   track<T>(work: Promise<T>): Promise<T>
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Harness jobs, lifecycle callbacks and native prompt catches report their original rejection values through this adapter port.
   report(error: unknown): void
   results(thread: ThreadId): void
   withScope<T>(call: CallScope, use: (ports: BoundPorts) => Promise<T>): Promise<T>

@@ -98,6 +98,7 @@ export function textOf(content: string | readonly { readonly type: string }[]): 
 }
 
 /** The `key` a marker's details or a record's data carries. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native custom-message details also contain unrelated extension data; recognize only an object carrying a string marker key.
 export function keyOf(details: unknown): string | undefined {
   const key = typeof details === 'object' && details !== null ? (details as { readonly key?: unknown }).key : undefined
   return typeof key === 'string' ? key : undefined
