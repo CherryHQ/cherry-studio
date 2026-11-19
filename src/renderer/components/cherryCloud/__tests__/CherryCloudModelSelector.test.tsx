@@ -23,13 +23,14 @@ vi.mock('@renderer/components/VirtualList', () => ({
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => (key === 'settings.subscription.go_to_subscribe' ? 'Subscribe' : key) })
 }))
+const plans = vi.hoisted(() => ({ phase: 'signed-out' as 'signed-out' | 'signed-in' }))
 vi.mock('@renderer/hooks/useCherryCloudPlans', () => ({
   useCherryCloudPlans: () => ({
-    session: { status: { phase: 'signed-out' } },
+    session: { status: { phase: plans.phase } },
     plansQuery: {},
     activePaid: undefined,
     upcomingPaid: undefined,
-    isPlansReady: false
+    isPlansReady: plans.phase === 'signed-in'
   })
 }))
 const availability = vi.hoisted(() => ({
@@ -55,6 +56,7 @@ vi.mock('@renderer/services/cherryCloudSubscription', () => ({
 const request = vi.mocked(window.api.ipcApi.request)
 beforeEach(() => {
   vi.clearAllMocks()
+  plans.phase = 'signed-out'
   mockUseQuery.mockReturnValue({
     data: [],
     isLoading: false,
@@ -65,7 +67,20 @@ beforeEach(() => {
 })
 
 describe('Cloud selector subscription entries', () => {
-  it('reports the empty entry view and preserves its source when clicked', async () => {
+  it('offers no header subscription before sign-in', () => {
+    render(
+      <CherryCloudModelSelector
+        multiple={false}
+        open
+        onSelect={vi.fn()}
+        trigger={<button type="button">Models</button>}
+      />
+    )
+    expect(screen.queryByRole('button', { name: 'Subscribe' })).not.toBeInTheDocument()
+  })
+
+  it('reports the empty entry view to an unsubscribed account and preserves its source when clicked', async () => {
+    plans.phase = 'signed-in'
     const user = userEvent.setup()
     render(
       <CherryCloudModelSelector

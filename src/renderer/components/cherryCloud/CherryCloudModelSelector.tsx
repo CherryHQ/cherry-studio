@@ -98,20 +98,22 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
     onOpenChange(false)
     void startCherryCloudSubscription('selector_header')
   }
-  const subscribeEntry = canOfferSubscription ? (
-    <>
-      <EntryView open={open} source="selector_header" />
-      <button
-        type="button"
-        className="cursor-pointer border-0 bg-transparent p-0 text-[11px] text-link hover:underline"
-        onClick={(event) => {
-          event.stopPropagation()
-          subscribe()
-        }}>
-        {t('settings.subscription.go_to_subscribe')}
-      </button>
-    </>
-  ) : null
+  // Signed out, the locked rows already lead to sign-in; a header link to subscribe comes after sign-in.
+  const subscribeEntry =
+    canOfferSubscription && !signedOut ? (
+      <>
+        <EntryView open={open} source="selector_header" />
+        <button
+          type="button"
+          className="cursor-pointer border-0 bg-transparent p-0 text-[11px] text-link hover:underline"
+          onClick={(event) => {
+            event.stopPropagation()
+            subscribe()
+          }}>
+          {t('settings.subscription.go_to_subscribe')}
+        </button>
+      </>
+    ) : null
   const selectAfterSignIn = (model: Model) => {
     if (selectorProps.multiple) return
     if (selectorProps.selectionType === 'id') selectorProps.onSelect(model.id)
