@@ -3,6 +3,7 @@ import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { Button, FormField, FormItem, Textarea } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
@@ -44,8 +45,9 @@ import { getAgentBuiltinTools } from '../components/builtinTools'
 import { BuiltinToolsField } from '../components/BuiltinToolsField'
 import {
   EditDialogPageShell,
-  EditMainPage,
+  EditIdentityHeader,
   SettingsLinkButton,
+  settingsPillClassName,
   SettingsRow,
   SettingsSection
 } from '../components/EditDialogPages'
@@ -68,7 +70,7 @@ import { ReplyLanguageSelect } from '../components/ReplyLanguageSelect'
 import { AgentChannelsPage } from './AgentChannelsPage'
 import { AgentMemoryPanel, type AgentMemoryPanelHandle } from './AgentMemoryPanel'
 import { AgentTasksPage } from './AgentTasksPage'
-import { countSummary, type EditPage, type EditSubPage, parentEditPage, resolveInitialEditPage } from './editPages'
+import { countSummary, type EditPage, type EditSubPage, resolveInitialEditPage } from './editPages'
 import { HeartbeatEditorDialog } from './HeartbeatEditorDialog'
 
 export type AgentEditDialogProps = EditDialogBaseProps & {
@@ -490,8 +492,7 @@ function AgentEditDialogContent({
   const closeBeforeAction = useCloseBeforeAction((next) => handleOpenChange(next, false))
 
   const pageTitles: Record<EditPage, string> = {
-    main: t('library.config.dialogs.edit.agent_title'),
-    more: t('library.config.dialogs.edit.page.more'),
+    settings: t('library.config.dialogs.edit.agent_title'),
     prompt: t('library.config.prompt.label'),
     tools: t('library.config.agent.section.tools.tab.tools'),
     skills: t('library.config.agent.section.tools.tab.skills'),
@@ -517,67 +518,66 @@ function AgentEditDialogContent({
       onOpenChange={handleOpenChange}
       page={page}
       title={pageTitles[page]}
-      onBack={page === 'main' ? undefined : () => void goTo(parentEditPage(page))}
+      onBack={page === 'settings' ? undefined : () => void goTo('settings')}
       fill={page === 'prompt' || page === 'memory'}
       rootError={rootError}
       setDialogContentElement={setDialogContentElement}>
-      {page === 'main' ? (
-        <EditMainPage
-          form={form}
-          avatar={
-            open ? (
-              <AgentAvatarPicker
-                agentId={resource.id}
-                emoji={values.avatar}
-                avatarSrc={avatarSrc}
-                onChanged={(next) => {
-                  setAvatarSrc(next.avatarSrc)
-                  form.setValue('avatar', next.emoji)
-                  replaceFormBaseline({ ...formBaselineRef.current, avatar: next.emoji })
-                }}
-                ariaLabel={t('library.config.dialogs.create.avatar_aria')}
+      {page === 'settings' ? (
+        <div className="flex flex-col gap-5">
+          <EditIdentityHeader
+            form={form}
+            avatar={
+              open ? (
+                <AgentAvatarPicker
+                  agentId={resource.id}
+                  emoji={values.avatar}
+                  avatarSrc={avatarSrc}
+                  onChanged={(next) => {
+                    setAvatarSrc(next.avatarSrc)
+                    form.setValue('avatar', next.emoji)
+                    replaceFormBaseline({ ...formBaselineRef.current, avatar: next.emoji })
+                  }}
+                  ariaLabel={t('library.config.dialogs.create.avatar_aria')}
+                  portalContainer={dialogContentElement}
+                  size="lg"
+                />
+              ) : null
+            }
+            namePlaceholder={t('library.config.agent.field.name.placeholder')}
+            descriptionPlaceholder={t('library.config.agent.field.description.placeholder')}
+            model={
+              <CompactModelField
+                form={form}
+                name="modelId"
+                includeAgentOnlyModels
+                label={t('library.config.agent.field.model.label')}
+                filter={modelFilter}
+                isModelDisabled={isModelDisabled}
                 portalContainer={dialogContentElement}
-                size="lg"
+                modelLabels={modelLabels}
+                setModelLabels={setModelLabels}
+                onModelChange={(modelId) => patchAgentForm({ model: modelId ?? '' })}
+                onSettingsNavigate={closeBeforeAction}
+                layout="chip"
+                triggerClassName="w-auto max-w-56"
               />
-            ) : null
-          }
-          namePlaceholder={t('library.config.agent.field.name.placeholder')}
-          descriptionPlaceholder={t('library.config.agent.field.description.placeholder')}
-          model={
-            <CompactModelField
-              form={form}
-              name="modelId"
-              includeAgentOnlyModels
-              label={t('library.config.agent.field.model.label')}
-              filter={modelFilter}
-              isModelDisabled={isModelDisabled}
-              portalContainer={dialogContentElement}
-              modelLabels={modelLabels}
-              setModelLabels={setModelLabels}
-              onModelChange={(modelId) => patchAgentForm({ model: modelId ?? '' })}
-              onSettingsNavigate={closeBeforeAction}
-              layout="chip"
-              triggerClassName="w-auto max-w-56"
-            />
-          }
-          onOpenMore={() => setPage('more')}
-        />
-      ) : null}
-      {page === 'more' ? (
-        <AgentMoreSettings
-          agent={resource}
-          form={form}
-          portalContainer={dialogContentElement}
-          skills={skills}
-          subPages={subPages}
-          patchAgentForm={patchAgentForm}
-          permissionAuthorityKey={`${resource.id}:${resource.configuration?.permission_mode ?? 'default'}`}
-          onOpen={setPage}
-          beforeHeartbeatOpen={async () => {
-            await flush()
-            return failedSaveKeyRef.current === null
-          }}
-        />
+            }
+          />
+          <AgentSettingsCards
+            agent={resource}
+            form={form}
+            portalContainer={dialogContentElement}
+            skills={skills}
+            subPages={subPages}
+            patchAgentForm={patchAgentForm}
+            permissionAuthorityKey={`${resource.id}:${resource.configuration?.permission_mode ?? 'default'}`}
+            onOpen={setPage}
+            beforeHeartbeatOpen={async () => {
+              await flush()
+              return failedSaveKeyRef.current === null
+            }}
+          />
+        </div>
       ) : null}
       {page === 'prompt' && resource.type === 'pi-durable' ? (
         <PiPromptField
@@ -649,7 +649,7 @@ function AgentEditDialogContent({
   )
 }
 
-function AgentMoreSettings({
+function AgentSettingsCards({
   agent,
   form,
   portalContainer,
@@ -811,7 +811,7 @@ function PermissionModeRow({
         control={form.control}
         name="permissionMode"
         render={() => (
-          <FormItem className="w-44">
+          <FormItem>
             <PermissionModeSelect
               cards={permissionModeCards}
               value={selectedPermissionModeCard?.mode ?? 'default'}
@@ -819,6 +819,8 @@ function PermissionModeRow({
               portalContainer={portalContainer}
               ariaLabel={label}
               scopeName={agentName.trim() || undefined}
+              compact
+              triggerClassName={cn(settingsPillClassName, 'w-auto')}
               t={t}
             />
           </FormItem>
@@ -842,12 +844,13 @@ function ReplyLanguageRow({
 
   return (
     // The "Other language…" input spans the next grid row, under the name and the select.
-    <div className="grid grid-cols-[minmax(0,1fr)_10rem] items-center gap-x-4 py-1.5 [&>input]:col-span-2 [&>input]:mt-2">
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 py-1.5 [&>input]:col-span-2 [&>input]:mt-2">
       <span className="text-foreground text-sm">{t('library.config.agent.field.language.label')}</span>
       <ReplyLanguageSelect
         value={{ languageMode, languageCustom }}
         onChange={patchAgentForm}
         portalContainer={portalContainer}
+        triggerClassName={cn(settingsPillClassName, 'w-auto')}
       />
     </div>
   )
