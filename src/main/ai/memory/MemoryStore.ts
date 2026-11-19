@@ -120,7 +120,8 @@ export class MemoryStore {
   constructor(
     private readonly root: string,
     private readonly backupRoot: string,
-    private readonly backupDataRoot = path.dirname(backupRoot)
+    private readonly backupDataRoot = path.dirname(backupRoot),
+    private readonly onInvalidate?: () => void
   ) {
     const relative = path.relative(path.resolve(root), path.resolve(backupRoot))
     if (!relative || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`))) {
@@ -148,6 +149,7 @@ export class MemoryStore {
 
   invalidate(): void {
     this.generation++
+    this.onInvalidate?.()
   }
 
   async list(access: MemoryAccess): Promise<string[]> {
