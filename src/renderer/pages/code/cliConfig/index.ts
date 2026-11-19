@@ -22,6 +22,8 @@ export {
 export { validateCliConfigDraftForWrite } from './draftFiles'
 export { formatCliConfigDraftFile, updateCliConfigDraftConfig } from './draftUpdater'
 export { gatewayExpectedModel, gatewayModelIdFromAddress } from './gatewayModel'
+export { disableClaudeScopedSettings, enableClaudeScopedSettings } from './scopeTransition'
+export type { ClaudeScopeTransitionContext } from './scopeTransition'
 export { resolveLaunchModelId } from './launchModelId'
 export { extractConfigFromCliConfigDraft, extractConnectionFromCliConfigDraft } from './parser'
 export {

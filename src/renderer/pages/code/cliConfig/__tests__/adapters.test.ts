@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { CodeCli } from '@shared/types/codeCli'
-import { FILE_CONFIGURED_CLI_TOOLS, getCliConfigTargets } from '@shared/utils/cliConfig'
+import { FILE_CONFIGURED_CLI_TOOLS, getActiveCliConfigTargets, getCliConfigTargets } from '@shared/utils/cliConfig'
 
 import { CLI_CONFIG_ADAPTERS, getAdapter } from '../adapters'
 
@@ -17,6 +17,13 @@ const OWN_LOGIN_CONFIGURABLE_TOOLS = new Set<string>([
 describe('CLI_CONFIG_ADAPTERS registry', () => {
   const adapterKeys = Object.keys(CLI_CONFIG_ADAPTERS)
 
+  it('selects only the active Claude destination while retaining ownership of both', () => {
+    expect(getCliConfigTargets(CodeCli.CLAUDE_CODE)).toEqual(['claude-settings', 'claude-scoped-settings'])
+    expect(getActiveCliConfigTargets(CodeCli.CLAUDE_CODE)).toEqual(['claude-settings'])
+    expect(getActiveCliConfigTargets(CodeCli.CLAUDE_CODE, true)).toEqual(['claude-scoped-settings'])
+    expect(getActiveCliConfigTargets(CodeCli.OPENAI_CODEX, true)).toEqual(getCliConfigTargets(CodeCli.OPENAI_CODEX))
+  })
+
   it('covers exactly the file-configured CLI tools', () => {
     expect(new Set(adapterKeys)).toEqual(FILE_CONFIGURED_CLI_TOOLS)
   })
@@ -29,6 +36,26 @@ describe('CLI_CONFIG_ADAPTERS registry', () => {
     expect(typeof getAdapter(cliTool)?.buildOwnLoginDraft === 'function').toBe(
       OWN_LOGIN_CONFIGURABLE_TOOLS.has(cliTool)
     )
+  })
+
+  it('strips credentials and models from a generated own-login blob while preserving other keys', async () => {
+    const adapter = getAdapter(CodeCli.CLAUDE_CODE)!
+    const files = await adapter.buildOwnLoginDraft!(
+      {
+        env: {
+          ANTHROPIC_BASE_URL: 'url',
+          ANTHROPIC_AUTH_TOKEN: 'token',
+          ANTHROPIC_API_KEY: 'key',
+          ANTHROPIC_MODEL: 'model',
+          ANTHROPIC_DEFAULT_SONNET_MODEL: 'model',
+          USER_KEY: 'keep'
+        },
+        custom: 'keep'
+      },
+      true,
+      [{ target: 'claude-scoped-settings', content: '{}', path: '/settings', format: 'json', label: 'settings' } as any]
+    )
+    expect(JSON.parse(files[0].content)).toEqual({ custom: 'keep', env: { USER_KEY: 'keep' } })
   })
 
   it('returns undefined for CLI tools without a config file', () => {

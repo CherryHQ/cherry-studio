@@ -29,6 +29,7 @@ export interface ConfigEditPanelProps {
   open?: boolean
   onClose: () => void
   cliTool: CodeCli
+  claudeScopedSettings?: boolean
   provider: Provider
   providerConfig: CliProviderConfig | null
   isCurrentProvider: boolean

@@ -27,11 +27,13 @@ async function readProviderApiKeys(providerId: string): Promise<ApiKeyEntry[]> {
 export function useCurrentCliConfigConnection({
   enabledProvider,
   selectedCliTool,
+  claudeScopedSettings,
   currentProviderConfig,
   apiGatewayProvider
 }: {
   enabledProvider?: Provider
   selectedCliTool: CodeCli
+  claudeScopedSettings?: boolean
   currentProviderConfig?: CliProviderConfig | null
   apiGatewayProvider?: ApiGatewayProviderBundle | null
 }): {
@@ -64,7 +66,10 @@ export function useCurrentCliConfigConnection({
     }
 
     void (async () => {
-      const files = await readCliConfigFiles(selectedCliTool)
+      const files = await readCliConfigFiles(
+        selectedCliTool,
+        claudeScopedSettings ? { claudeScopedSettings } : undefined
+      )
       const connection = extractConnectionFromCliConfigDraft(selectedCliTool, files)
       if (!connection) {
         if (!cancelled && readGeneration === readGenerationRef.current) setCurrentCliConfigConnection(null)
@@ -103,6 +108,7 @@ export function useCurrentCliConfigConnection({
   }, [
     enabledProvider,
     selectedCliTool,
+    claudeScopedSettings,
     currentProviderConfig,
     isGateway,
     gatewayApiKey,

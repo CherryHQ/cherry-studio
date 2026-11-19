@@ -499,3 +499,44 @@ describe('useConfigDraftController (submit failure)', () => {
     expect(mocks.toastError).not.toHaveBeenCalled()
   })
 })
+
+describe('Claude settings scope', () => {
+  it('reloads the draft when the active destination changes', async () => {
+    const makeFile = (target: 'claude-settings' | 'claude-scoped-settings'): CliConfigFileDraft => ({
+      target,
+      label: target,
+      path: target,
+      language: 'json',
+      content: '{}'
+    })
+    mocks.readCliConfigFiles.mockImplementation(async (_tool, options) => [
+      makeFile(options?.claudeScopedSettings ? 'claude-scoped-settings' : 'claude-settings')
+    ])
+    const { result, rerender } = renderHook(
+      ({ scoped }) =>
+        useConfigDraftController({
+          cliTool: CodeCli.CLAUDE_CODE,
+          claudeScopedSettings: scoped,
+          provider: codexProvider,
+          providerConfig: null,
+          isCurrentProvider: false,
+          apiKeys: [],
+          onSubmit: vi.fn(),
+          onClose: vi.fn()
+        }),
+      { initialProps: { scoped: false } }
+    )
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(result.current.draft.files[0]?.target).toBe('claude-settings')
+    rerender({ scoped: true })
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(result.current.draft.files[0]?.target).toBe('claude-scoped-settings')
+    expect(result.current.canSave).toBe(false)
+  })
+})

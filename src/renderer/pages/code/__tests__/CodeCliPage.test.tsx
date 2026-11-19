@@ -87,6 +87,12 @@ const {
   }
 }))
 
+const transitionMock = vi.hoisted(() => vi.fn())
+vi.mock('../cliConfig/scopeTransition', () => ({
+  enableClaudeScopedSettings: (...args: unknown[]) => transitionMock(...args),
+  disableClaudeScopedSettings: (...args: unknown[]) => transitionMock(...args)
+}))
+
 const provider = {
   id: 'anthropic',
   name: 'Anthropic',
@@ -115,6 +121,26 @@ vi.mock('react-i18next', () => ({
 vi.mock('@cherrystudio/ui', () => ({
   // No `role` here: the real Alert derives it from `type` (`status` for anything but
   // `error`), so hardcoding one would let assertions pin a role the component never emits.
+  Switch: ({
+    checked,
+    disabled,
+    onCheckedChange,
+    ...props
+  }: {
+    checked: boolean
+    disabled?: boolean
+    onCheckedChange: (value: boolean) => void
+    'aria-label'?: string
+  }) => (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onCheckedChange(!checked)}
+      {...props}
+    />
+  ),
   Alert: ({ description }: { description?: ReactNode }) => <div>{description}</div>,
   Button: ({
     variant,
@@ -399,6 +425,7 @@ vi.mock('../components/LaunchDialog', () => ({
 vi.mock('../components/VersionStatusCard', () => ({
   VersionStatusCard: ({
     canLaunch,
+    launching,
     onRemove,
     onLaunch,
     onUpgrade,
@@ -408,6 +435,7 @@ vi.mock('../components/VersionStatusCard', () => ({
     launchDisabledHint
   }: {
     canLaunch?: boolean
+    launching?: boolean
     onRemove?: () => void
     onLaunch?: () => void
     onUpgrade?: () => void
@@ -418,6 +446,7 @@ vi.mock('../components/VersionStatusCard', () => ({
   }) => (
     <div
       data-can-launch={String(canLaunch)}
+      data-launching={String(launching)}
       data-launch-disabled-hint={launchDisabledHint}
       data-testid="version-status-card">
       {onRemove && (
@@ -551,6 +580,32 @@ function baseVersionStatuses(overrides: Partial<Record<CodeCli, Record<string, u
 }
 
 describe('CodeCliPage', () => {
+  it.each([CodeCli.CLAUDE_CODE, CodeCli.OPENAI_CODEX])('shows the scope control only for Claude: %s', (tool) => {
+    mockCodeCliState({ selectedCliTool: tool })
+    render(<CodeCliPage />)
+    expect(screen.queryByRole('switch', { name: 'code.claude_scope.title' }) !== null).toBe(
+      tool === CodeCli.CLAUDE_CODE
+    )
+  })
+
+  it('keeps Codex launch available during a Claude scope transition', async () => {
+    let finish!: () => void
+    transitionMock.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finish = resolve
+      })
+    )
+    const { rerender } = render(<CodeCliPage />)
+    fireEvent.click(screen.getByRole('switch', { name: 'code.claude_scope.title' }))
+    await waitFor(() => expect(screen.getByTestId('version-status-card')).toHaveAttribute('data-launching', 'true'))
+    mockCodeCliState({ selectedCliTool: CodeCli.OPENAI_CODEX, currentProviderId: 'anthropic' })
+    rerender(<CodeCliPage />)
+    expect(screen.getByTestId('version-status-card')).toHaveAttribute('data-launching', 'false')
+    expect(screen.getByRole('button', { name: 'start tool' })).toBeEnabled()
+    finish()
+    await waitFor(() => expect(transitionMock).toHaveBeenCalled())
+  })
+
   beforeEach(() => {
     MockUseCacheUtils.resetMocks()
     vi.clearAllMocks()
@@ -1118,8 +1173,7 @@ describe('CodeCliPage', () => {
     fireEvent.click(await screen.findByText('confirm remove'))
 
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('code.clear_config_failed'))
-    // The in-app cleanup still proceeds so the tool state does not point at a removed provider.
-    expect(setCurrentProviderMock).toHaveBeenCalledWith(null)
+    expect(setCurrentProviderMock).not.toHaveBeenCalledWith(null)
   })
 
   it('stops the managed DeepSeek Harness process before uninstalling and only then clears CodeMate selection', async () => {

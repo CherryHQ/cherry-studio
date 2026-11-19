@@ -27,6 +27,7 @@ export interface OwnLoginConfigPanelProps {
   open?: boolean
   onClose: () => void
   cliTool: CodeCli
+  claudeScopedSettings?: boolean
   toolName: string
   providerConfig: CliProviderConfig | null
   onSubmit: (values: { config: Record<string, unknown>; cliConfigFiles?: CliConfigFileDraft[] }) => Promise<void>
@@ -40,6 +41,7 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
   open = true,
   onClose,
   cliTool,
+  claudeScopedSettings,
   toolName,
   providerConfig,
   onSubmit
@@ -65,13 +67,16 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
   // Build the raw settings preview from the saved tool params once the dialog mounts.
   useEffect(() => {
     const loadId = ++loadIdRef.current
-    void readOwnLoginCliConfigDraft({ cliTool, configBlob: initialConfig })
+    setFiles([])
+    setMode('managed')
+    setConfig(initialConfig)
+    void readOwnLoginCliConfigDraft({ cliTool, configBlob: initialConfig, claudeScopedSettings })
       .then((loadedFiles) => {
         if (loadId !== loadIdRef.current) return
         setFiles(loadedFiles)
       })
       .catch((err) => logger.error('Failed to build own-login config preview', err as Error))
-  }, [cliTool, initialConfig])
+  }, [cliTool, initialConfig, claudeScopedSettings])
 
   // Tool-param edit → rebuild the managed preview from the new config.
   const handleConfigChange = useCallback(
@@ -81,14 +86,14 @@ export const OwnLoginConfigPanel: FC<OwnLoginConfigPanelProps> = ({
       setMode('managed')
       setError('')
       const loadId = ++loadIdRef.current
-      void readOwnLoginCliConfigDraft({ cliTool, configBlob: sanitized })
+      void readOwnLoginCliConfigDraft({ cliTool, configBlob: sanitized, claudeScopedSettings })
         .then((nextFiles) => {
           if (loadId !== loadIdRef.current) return
           setFiles(nextFiles)
         })
         .catch((err) => logger.error('Failed to rebuild own-login config preview', err as Error))
     },
-    [cliTool]
+    [cliTool, claudeScopedSettings]
   )
 
   // Raw editor edit → take the hand-edited files verbatim on save.
