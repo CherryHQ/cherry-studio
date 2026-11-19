@@ -156,6 +156,11 @@ describe('headless Ghostty engine', () => {
     expect(core.encodeMouse(input)).toBe('')
     core.write('\x1b[?1000h\x1b[?1006h')
     expect(core.encodeMouse(input)).toBe('\x1b[<0;2;2M')
+    core.resize(100, 4, 8.4, 16.4)
+    const fractional = { ...input, x: 8.4 * 78 + 1, y: 16.4 + 1, cellWidth: 8.4, cellHeight: 16.4, screenWidth: 840 }
+    expect(core.encodeMouse(fractional)).toBe('\x1b[<0;79;2M')
+    core.write('\x1b[?1016h')
+    expect(core.encodeMouse(fractional)).toBe(`\x1b[<0;${Math.floor(fractional.x)};${Math.floor(fractional.y)}M`)
   })
 
   it('refreshes WASM views after memory growth', () => {

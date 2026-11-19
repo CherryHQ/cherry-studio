@@ -43,6 +43,7 @@ import { type SelectionEventSchemas, selectionRequestSchemas } from './selection
 import { skillRequestSchemas } from './skill'
 import { type SystemEventSchemas, systemRequestSchemas } from './system'
 import { type TabEventSchemas, tabRequestSchemas } from './tab'
+import { terminalRequestSchemas } from './terminal'
 import { toolResultRequestSchemas } from './toolResult'
 import { type TranslateEventSchemas, translateRequestSchemas } from './translate'
 import { trashRequestSchemas } from './trash'
@@ -103,6 +104,7 @@ export const ipcRequestSchemas = {
   ...selectionRequestSchemas,
   ...skillRequestSchemas,
   ...systemRequestSchemas,
+  ...terminalRequestSchemas,
   ...tabRequestSchemas,
   ...translateRequestSchemas,
   ...toolResultRequestSchemas,

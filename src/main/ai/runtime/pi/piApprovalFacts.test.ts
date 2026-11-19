@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -186,6 +187,66 @@ beforeEach(() => {
 })
 
 describe('desktop facts and approvals through the shared behavior gate', () => {
+  it('uses the verified terminal cwd for SQLite protection and refuses user-controlled input', async () => {
+    const terminal = {
+      id: 'terminal',
+      kind: 'pty',
+      controlRevision: 4,
+      control: { kind: 'unassigned' },
+      shellFacts: { kind: 'prompt', cwd: join(userData, 'Data') }
+    }
+    MockApplicationUtils.setService('TerminalService', { list: () => [terminal] })
+    const { handler, emitted } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
+    await expect(
+      handler(
+        toolEvent('terminal_send', {
+          terminal_id: 'terminal',
+          control_revision: 4,
+          kind: 'command',
+          data: 'sqlite3 cherrystudio.sqlite "DELETE FROM agent"'
+        }),
+        extCtx
+      )
+    ).resolves.toMatchObject({ block: true })
+    terminal.control.kind = 'user'
+    await expect(
+      handler(
+        toolEvent('terminal_send', { terminal_id: 'terminal', control_revision: 4, kind: 'input', data: 'yes\n' }),
+        extCtx
+      )
+    ).resolves.toMatchObject({ block: true })
+    expect(emitted).toEqual([])
+  })
+
+  it('approves raw terminal stdin independently without rewriting its bytes as Bash', async () => {
+    MockApplicationUtils.setService('TerminalService', {
+      list: () => [
+        {
+          id: 'terminal',
+          kind: 'pty',
+          controlRevision: 4,
+          control: { kind: 'unassigned' },
+          shellFacts: { kind: 'program', commandId: 'repl', programRevision: 1 }
+        }
+      ]
+    })
+    mocks.rtkRewrite.mockResolvedValue('rtk rewritten')
+    const { handler, emitted } = buildGate()
+    const event = toolEvent('terminal_send', {
+      terminal_id: 'terminal',
+      control_revision: 4,
+      kind: 'input',
+      data: 'git status\n'
+    })
+    const pending = handler(event, extCtx)
+    await flush()
+    expect(emitted).toHaveLength(1)
+    toolApprovalRegistry.dispatch(emitted[0].request.approvalId, { approved: true })
+    await expect(pending).resolves.toBeUndefined()
+    expect(event.input.data).toBe('git status\n')
+    expect(mocks.rtkRewrite).not.toHaveBeenCalled()
+  })
+
   it('asks before PowerShell deletion in auto mode', async () => {
     const { handler, emitted } = buildGate({ getPermissionMode: () => 'auto' })
     const command = 'Remove-Item -Recurse -Force ./build'

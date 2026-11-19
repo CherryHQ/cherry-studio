@@ -7,6 +7,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { terminalConversationId } from '@main/services/terminal/contracts'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type {
   ReusableAgentSessionPlaceholdersResponse,
@@ -43,7 +44,8 @@ export class AgentSessionArchiveBusyError extends Error {
   'AgentSessionDeliveryService',
   'AgentSessionRuntimeService',
   'AiStreamManager',
-  'ChannelManager'
+  'ChannelManager',
+  'TerminalService'
 ])
 export class AgentLifecycleService extends BaseService {
   private readonly agentLocks = new KeyedMutex()
@@ -102,6 +104,8 @@ export class AgentLifecycleService extends BaseService {
                 }
               })
           )
+          for (const id of restoredSessionIds)
+            await application.get('TerminalService').reopenConversation(terminalConversationId.parse(id))
           this.syncSchedules(scheduleIds)
           application.get('ChannelManager').reconcileAgent(agentId)
           agentSessionService.notifyReadModelChange(restoredSessionIds, 'membership')
@@ -162,7 +166,11 @@ export class AgentLifecycleService extends BaseService {
         const workspaces = agentSessionService
           .listSystemWorkspaceSessions([id])
           .filter((workspace) => workspace.deletedAt !== null)
-        return agentWorkspaceStorageService.restoreWorkspaces(workspaces, () => agentSessionService.restore(id))
+        const restored = await agentWorkspaceStorageService.restoreWorkspaces(workspaces, () =>
+          agentSessionService.restore(id)
+        )
+        await application.get('TerminalService').reopenConversation(terminalConversationId.parse(id))
+        return restored
       })
     )
   }
@@ -551,6 +559,7 @@ export class AgentLifecycleService extends BaseService {
   ): Promise<void> {
     const closed = await Promise.allSettled(
       sessionIds.map(async (sessionId) => {
+        await application.get('TerminalService').closeConversation(terminalConversationId.parse(sessionId))
         const runtime = application.get('AgentSessionRuntimeService')
         await runtime.cancelSessionForks(sessionId)
         await runtime.closeSession(sessionId)

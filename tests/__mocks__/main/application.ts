@@ -120,6 +120,11 @@ export const defaultServiceInstances = {
   IpcApiService: mockIpcApiService,
   NotificationService: mockNotificationService,
   JobManager: mockJobManager,
+  TerminalService: {
+    reopenConversation: vi.fn(async () => {}),
+    closeConversation: vi.fn(async () => []),
+    hasActiveResources: vi.fn(() => false)
+  },
   PowerService: {
     preventSleep: vi.fn(() => ({ dispose: vi.fn() })),
     onResume: vi.fn(() => ({ dispose: vi.fn() }))

@@ -7,8 +7,9 @@
  * session relation.
  */
 
+import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { toDataApiError } from '@shared/data/api/errors'
+import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   type AgentSessionSchemas,
@@ -62,9 +63,20 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
 
   '/agent-sessions/:sessionId/workspace': {
     PUT: async ({ params, body }) => {
-      agentSessionService.getConversationById(params.sessionId)
+      const current = agentSessionService.getConversationById(params.sessionId)
       const parsed = SetAgentSessionWorkspaceSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
+      if (application.get('TerminalService').hasActiveResources(params.sessionId)) {
+        const unchanged =
+          parsed.data.type === 'system'
+            ? current.workspace.type === 'system'
+            : current.workspaceId === parsed.data.workspaceId
+        if (!unchanged)
+          throw DataApiErrorFactory.invalidOperation(
+            'update session workspace',
+            'close active terminal resources before changing the workspace'
+          )
+      }
       return agentSessionService.setWorkspace(params.sessionId, parsed.data)
     }
   },
