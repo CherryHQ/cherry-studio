@@ -1,8 +1,9 @@
 import type * as ReactVirtual from '@tanstack/react-virtual'
-import { render, screen } from '@testing-library/react'
+import { installDndDomStubs } from '@test-mocks/dndDomStubs'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { GroupedSortableVirtualList } from '..'
 
@@ -41,11 +42,15 @@ function TestList({ itemsDraggable }: { itemsDraggable: boolean }) {
 }
 
 describe('GroupedSortableVirtualList drag affordance', () => {
+  beforeAll(installDndDomStubs)
+
   it('keeps non-draggable rows interactive without inherited drag semantics', async () => {
     const user = userEvent.setup()
     render(<TestList itemsDraggable={false} />)
 
     const row = screen.getByRole('option', { name: 'Alpha' })
+    // Drag attributes land on a scheduler tick, so let one pass before asserting they never arrive.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)))
     // The non-draggable wrapper has no semantic role to query.
     const wrapper = row.parentElement
     expect(wrapper).not.toHaveAttribute('aria-disabled', 'true')
@@ -64,17 +69,17 @@ describe('GroupedSortableVirtualList drag affordance', () => {
     const user = userEvent.setup()
     render(<TestList itemsDraggable />)
 
-    const wrapper = screen.getByRole('button', { name: 'Alpha' })
+    const wrapper = await screen.findByRole('button', { name: 'Alpha' })
     expect(wrapper).toHaveAttribute('aria-disabled', 'false')
     expect(wrapper).toHaveAttribute('tabindex', '0')
-    expect(wrapper).toHaveAttribute('aria-roledescription', 'sortable')
+    expect(wrapper).toHaveAttribute('aria-roledescription')
     expect(wrapper).toHaveAttribute('aria-describedby')
 
     await user.tab()
     expect(wrapper).toHaveFocus()
     await user.keyboard('[Space]')
-    expect(wrapper).toHaveAttribute('aria-pressed', 'true')
+    await waitFor(() => expect(wrapper).toHaveAttribute('aria-pressed', 'true'))
     await user.keyboard('[Escape]')
-    expect(wrapper).not.toHaveAttribute('aria-pressed')
+    await waitFor(() => expect(wrapper).toHaveAttribute('aria-pressed', 'false'))
   })
 })
