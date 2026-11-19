@@ -90,27 +90,6 @@ export interface ComposerChatTarget {
   mode: 'active-path' | 'reserved-branch'
 }
 
-export interface ComposerQueuedMessagePayload {
-  text: string
-  userMessageParts: CherryMessagePart[]
-  /**
-   * Composer attachments held for this queued draft. Loosely typed here (the
-   * concrete `ComposerAttachment` lives in the renderer); main ignores it — only
-   * the renderer queue (re-edit/restore + send-time part build) reads it.
-   */
-  attachments?: Array<Record<string, unknown>>
-  /** Models selected by the composer model selector for this queued draft. */
-  mentionedModels?: UniqueModelId[]
-  /** Canonical reasoning selection captured with this queued draft. */
-  reasoningEffort?: ReasoningEffortOption
-  /** Canonical provider request tier captured with this queued draft. */
-  serviceTier?: ServiceTierSelection
-  /** Whether this queued draft requests Fast processing. */
-  fastMode?: boolean
-  /** Chat-only target snapshot. Agent-session queues leave this unset. */
-  chatTarget?: ComposerChatTarget
-}
-
 /**
  * Per-topic stream state entry — stored under the shared
  * `topic.stream.statuses.${topicId}` template cache key.

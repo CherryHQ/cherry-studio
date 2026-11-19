@@ -51,6 +51,7 @@ import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
+import type { ComposerQueuedMessagePayload } from '@renderer/types/composer'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { removeFileExtension, removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
@@ -65,7 +66,7 @@ import {
   isOpenAIWebSearchModel,
   resolveReasoningEffortForModel
 } from '@renderer/utils/model'
-import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import type { ComposerChatTarget } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
@@ -1452,7 +1453,7 @@ const ChatComposerInner = ({
       setIsSending(true)
 
       try {
-        const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
+        const attachments = payload.attachments ?? []
         const fileParts = await buildFilePartsForAttachments(attachments)
         const options: NonNullable<Parameters<typeof onSend>[1]> = {
           mentionedModels: payload.mentionedModels,
@@ -1530,7 +1531,7 @@ const ChatComposerInner = ({
       actionsRef.current.replaceDraft(item.draft)
       setText(item.draft.text)
       setDraftTokens(item.draft.tokens.length ? [...item.draft.tokens] : undefined)
-      setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
+      setFiles(item.payload.attachments ?? [])
       restoreKnowledgeBaseSelection(getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? [])
       const queuedModels = (item.payload.mentionedModels ?? [])
         .map((modelId) => allModels.find((candidate) => candidate.id === modelId))

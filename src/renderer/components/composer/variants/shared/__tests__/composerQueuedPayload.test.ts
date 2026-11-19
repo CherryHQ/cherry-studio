@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import type * as ComposerDraftModule from '../../../composerDraft'
 import type { ComposerSerializedDraft } from '../../../tokens'
@@ -15,7 +16,15 @@ vi.mock('../../../composerDraft', async (importOriginal) => ({
   createComposerUserMessageParts: vi.fn((draft: ComposerSerializedDraft) => [{ type: 'text', text: draft.text }])
 }))
 
-const file = (id: string): ComposerAttachment => ({ fileTokenSourceId: id, path: `/tmp/${id}` }) as ComposerAttachment
+const file = (id: string): ComposerAttachment => ({
+  fileTokenSourceId: id,
+  path: AbsoluteFilePathSchema.parse(`/tmp/${id}`),
+  name: id,
+  origin_name: `${id}.txt`,
+  ext: '.txt',
+  size: 0,
+  type: 'text'
+})
 const fileTokenId = (f: ComposerAttachment) => `file:${f.fileTokenSourceId}`
 
 const draft = (text: string, tokenIds: string[] = [], tokenTextOffset = 0): ComposerSerializedDraft => ({
@@ -82,7 +91,8 @@ describe('buildComposerQueuedPayload', () => {
   })
 
   it('attaches files when every current file is present as a draft token', () => {
-    const first = file('a')
+    const blob = new Blob(['queued file'], { type: 'text/plain' })
+    const first = { ...file('a'), blob, size: blob.size }
     const second = file('b')
 
     const result = buildComposerQueuedPayload(draft('hi', ['file:a', 'file:b']), {
@@ -92,6 +102,9 @@ describe('buildComposerQueuedPayload', () => {
     })
 
     expect(result?.attachments).toEqual([first, second])
+    expect(result?.attachments?.[0]).toBe(first)
+    expect(result?.attachments?.[0]?.blob).toBe(blob)
+    expectTypeOf(result?.attachments?.[0]?.blob).toEqualTypeOf<Blob | undefined>()
     expect(result?.userMessageParts).toEqual([{ type: 'text', text: 'hi' }])
   })
 
