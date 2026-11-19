@@ -201,7 +201,7 @@ describe('deferred ComposerSurface', () => {
   it('keeps one voice target binding across the fallback-to-runtime handoff', async () => {
     const view = render(<Harness voiceTarget={{ targetId: 'composer:chat:topic-1', sourceEntityId: 'topic-1' }} />)
     const manager = mocks.targetManager!
-    const input = screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement
+    const input = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Message' })
     input.setSelectionRange(0, 0)
     fireEvent.select(input)
 

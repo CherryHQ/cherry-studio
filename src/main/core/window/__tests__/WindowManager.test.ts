@@ -2,6 +2,7 @@ import { shell } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import type { WindowOptions } from '@main/core/window/types'
 
 import { BaseService } from '../../lifecycle/BaseService'
 import { type Disposable } from '../../lifecycle/event'
@@ -1302,6 +1303,52 @@ describe('WindowManager', () => {
       expect(listener).not.toHaveBeenCalled()
     })
 
+    it('fires onWindowReleasedToPool when a pooled window goes back to the idle pool', () => {
+      const released = vi.fn()
+      wm.onWindowReleasedToPool(released)
+
+      const id = wm.open('pooled' as never)
+      wm.close(id)
+
+      expect(released).toHaveBeenCalledTimes(1)
+      expect(released).toHaveBeenCalledWith(expect.objectContaining({ id, type: 'pooled' }))
+    })
+
+    it('fires onWindowReleasedToPool when a native close is intercepted into the pool', () => {
+      const released = vi.fn()
+      wm.onWindowReleasedToPoolByType('pooled' as never, released)
+
+      const id = wm.open('pooled' as never)
+      createdWindows[0].emit('close', { preventDefault: vi.fn() })
+
+      expect(released).toHaveBeenCalledWith(expect.objectContaining({ id }))
+    })
+
+    it('fires only onWindowDestroyed when a release destroys the window over capacity', () => {
+      const released = vi.fn()
+      const destroyed = vi.fn()
+      wm.onWindowReleasedToPool(released)
+      wm.onWindowDestroyed(destroyed)
+
+      const ids = Array.from({ length: 5 }, () => wm.open('pooled' as never))
+      wm.close(ids[0])
+      simulateWindowClosed(wm, ids[0])
+
+      expect(released).not.toHaveBeenCalled()
+      expect(destroyed).toHaveBeenCalledWith(expect.objectContaining({ id: ids[0] }))
+    })
+
+    it('fires onWindowReleasedToPool once for a repeated close', () => {
+      const released = vi.fn()
+      wm.onWindowReleasedToPool(released)
+
+      const id = wm.open('pooled' as never)
+      wm.close(id)
+      wm.close(id)
+
+      expect(released).toHaveBeenCalledTimes(1)
+    })
+
     it('fires onWindowCreated for pooled windows only on initial creation (not recycle)', () => {
       const listener = vi.fn()
       wm.onWindowCreated(listener)
@@ -1861,6 +1908,43 @@ describe('WindowManager', () => {
       wm.open('singletonRemember' as never)
 
       expect(createdWindows[0].constructorOptions).toMatchObject({ x: 200, y: 150, width: 1000, height: 700 })
+    })
+
+    it('applies caller configuration after saved bounds and before construction', () => {
+      cache().setPersist('window.bounds', { singletonRemember: savedRect() })
+
+      wm.open('singletonRemember' as never, {
+        options: { width: 1440, height: 900 },
+        configureOptions: (config: WindowOptions) => {
+          expect(config).toMatchObject({ x: 200, y: 150, width: 1000, height: 700 })
+          config.width = 900
+          config.minWidth = 600
+        }
+      })
+
+      expect(createdWindows[0].constructorOptions).toMatchObject({
+        x: 200,
+        y: 150,
+        width: 900,
+        height: 700,
+        minWidth: 600
+      })
+    })
+
+    it('preserves an existing singleton when creation configuration is supplied on reopen', () => {
+      const id = wm.open('singletonRemember' as never)
+      const win = createdWindows[0]
+      win.getBounds.mockReturnValue({ x: 400, y: 250, width: 1200, height: 800 })
+
+      const reopened = wm.open('singletonRemember' as never, {
+        configureOptions: () => {
+          throw new Error('Creation configuration must not run on reuse')
+        }
+      })
+
+      expect(reopened).toBe(id)
+      expect(createdWindows).toHaveLength(1)
+      expect(win.getBounds()).toEqual({ x: 400, y: 250, width: 1200, height: 800 })
     })
 
     it('does not inject for a non-singleton type that declares rememberBounds', () => {
