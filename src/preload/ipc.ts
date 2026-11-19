@@ -12,10 +12,13 @@ import { IpcChannel } from '@shared/IpcChannel'
  * the raw transport that crosses the contextBridge.
  */
 export const ipcApi = {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw contextBridge input is validated by main's route schema; optional trace metadata is forwarded opaquely and currently ignored by main.
   request: (route: string, input?: unknown, meta?: unknown): Promise<IpcResult<unknown>> =>
     ipcRenderer.invoke(IpcChannel.IpcApi_Request, route, input, meta),
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Renderer subscribers receive event-specific payloads through this generic transport; their typed facade owns the event contract.
   on: (event: string, callback: (payload: unknown) => void): (() => void) => {
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Electron delivers the raw multiplexed IpcApi_Event payload; filter its event name before forwarding without asserting a domain shape.
     const listener = (_e: IpcRendererEvent, name: string, payload: unknown) => {
       if (name === event) callback(payload)
     }
