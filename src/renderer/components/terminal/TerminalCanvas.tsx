@@ -369,13 +369,6 @@ export function TerminalCanvas({
         cursor: color(style.color)
       }
       const rect = element.getBoundingClientRect()
-      const ratio = devicePixelRatio || 1
-      for (const surface of [canvas.current, overlay.current])
-        if (surface) {
-          surface.width = Math.round(rect.width * ratio)
-          surface.height = Math.round(rect.height * ratio)
-          surface.getContext('2d')?.setTransform(ratio, 0, 0, ratio, 0, 0)
-        }
       force.current = true
       schedule()
       if (controlling && current.current.control.kind === 'user' && view.current) {
@@ -576,7 +569,7 @@ export function TerminalCanvas({
       <div
         ref={root}
         className="relative min-h-0 flex-1 overflow-auto bg-[oklch(from_var(--background)_l_c_h_/_1)] text-foreground focus-within:ring-1 focus-within:ring-inset focus-within:ring-ring"
-        style={{ fontFamily: 'var(--app-user-code-font-family, monospace)' }}
+        style={{ fontFamily: 'var(--code-font-family)' }}
         onPointerDown={(event) => {
           event.preventDefault()
           if ((event.metaKey || event.ctrlKey) && view.current) {
