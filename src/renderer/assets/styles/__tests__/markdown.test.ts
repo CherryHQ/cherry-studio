@@ -67,15 +67,12 @@ describe('markdown code styles', () => {
         .map((declaration) => [declaration.prop, declaration.value]) ?? []
     )
 
-    // font-variant-ligatures alone leaves calt on, which is what draws <= / != / -> in Cascadia Code.
+    // Chromium disables liga, clig, and calt with this property; font-feature-settings would replace inherited Custom CSS features.
     expect(declarations).toMatchObject({
       'font-family': 'var(--code-font-family)',
       'font-variant-ligatures': 'none'
     })
-    const features = postcss.list
-      .comma(declarations['font-feature-settings'] ?? '')
-      .map((feature) => feature.replace(/['"]/g, '').replace(/\s+/g, ' ').trim())
-    expect(new Set(features)).toEqual(new Set(['liga 0', 'clig 0', 'calt 0']))
+    expect(declarations).not.toHaveProperty('font-feature-settings')
   })
 
   // Code blocks render as div.code-viewer.shiki token spans, so .markdown code does not reach them.
@@ -100,9 +97,6 @@ describe('markdown code styles', () => {
       'font-family': 'var(--code-font-family)',
       'font-variant-ligatures': 'none'
     })
-    const features = postcss.list
-      .comma(declarations['font-feature-settings'] ?? '')
-      .map((feature) => feature.replace(/['"]/g, '').replace(/\s+/g, ' ').trim())
-    expect(new Set(features)).toEqual(new Set(['liga 0', 'clig 0', 'calt 0']))
+    expect(declarations).not.toHaveProperty('font-feature-settings')
   })
 })
