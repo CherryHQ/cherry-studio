@@ -5,6 +5,7 @@ import { act, cleanup, fireEvent, render as renderView, screen, waitFor } from '
 import userEvent from '@testing-library/user-event'
 import { type ReactNode, StrictMode } from 'react'
 import { SWRConfig } from 'swr'
+import type * as UuidModule from 'uuid'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
@@ -101,7 +102,7 @@ vi.mock('react-i18next', () => ({
 import FilesPage from '../FilesPage'
 
 // Renderer setup only mocks v4; validated file fixtures need the real deterministic v5 generator.
-const { v5: uuidv5 } = await vi.importActual<typeof import('uuid')>('uuid')
+const { v5: uuidv5 } = await vi.importActual<typeof UuidModule>('uuid')
 
 function render(view: ReactNode) {
   const cache = new Map()
