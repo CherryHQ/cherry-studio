@@ -78,6 +78,7 @@ export async function generateDreamingPlan(
     conversation: { id: `memory-dreaming:${jobId}` },
     system: DREAMING_INSTRUCTIONS,
     prompt: batch.prompt,
+    callOverrides: { maxOutputTokens: batch.outputTokens },
     disableTools: true,
     contextOwner: 'caller',
     requestOptions: { signal, maxRetries: 0 }
