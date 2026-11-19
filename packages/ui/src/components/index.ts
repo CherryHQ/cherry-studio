@@ -145,6 +145,9 @@ export {
 } from './composites/composite-input'
 export {
   BlurCancelPointerSensor,
+  BUTTON_HANDLE_DRAG_SENSORS,
+  DragDropRoot,
+  type DragDropRootProps,
   Sortable,
   type SortableAccessibility,
   type SortableDragHandleProps,
