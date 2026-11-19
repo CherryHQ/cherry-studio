@@ -18,6 +18,7 @@ import type * as SessionMessageModule from '@data/services/AgentSessionMessageSe
 import type * as SessionModule from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import type * as UsageRecordModule from '@data/services/AiUsageRecordService'
+import { modelService } from '@data/services/ModelService'
 import type { AgentSessionForkResources } from '@main/ai/agentSession/fork/resources'
 import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
 import type { AgentRuntimeConnection, AgentRuntimeEvent } from '@main/ai/runtime/types'
@@ -25,6 +26,7 @@ import type { StreamDoneResult, StreamErrorResult, StreamPausedResult } from '@m
 import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import { MessageRuntimeTimingCollector } from '@main/ai/streamManager/MessageRuntimeTimingCollector'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { AgentImageLimitError } from '@shared/ai/agentImageLimits'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeUserInput } from '../../runtime/types'
@@ -549,7 +551,10 @@ describe('AgentSessionForkOperations recovery', () => {
 })
 
 vi.mock('@data/services/ModelService', () => ({
-  modelService: { getNamesByUniqueIdsTx: (_tx, ids) => new Map(ids.map((id) => [id, 'Override model'])) }
+  modelService: {
+    getNamesByUniqueIdsTx: (_tx, ids) => new Map(ids.map((id) => [id, 'Override model'])),
+    getByKey: vi.fn()
+  }
 }))
 
 describe('AgentSessionRuntimeService', () => {
@@ -644,6 +649,102 @@ describe('AgentSessionRuntimeService', () => {
       await service.closeSession('session-1')
     }
   )
+
+  describe('multi-image limits (#20030)', () => {
+    const imagePart = (filename: string) => ({
+      type: 'file',
+      url: `file:///tmp/${filename}`,
+      mediaType: 'image/png',
+      filename
+    })
+    const singleImageModel = {
+      id: 'test::single-image',
+      providerId: 'test',
+      name: 'Single Image Model',
+      capabilities: ['image-recognition'],
+      maxAgentImages: 1
+    }
+    const unlimitedVisionModel = {
+      id: 'test::vision',
+      providerId: 'test',
+      name: 'Vision Model',
+      capabilities: ['image-recognition']
+    }
+
+    beforeEach(() => {
+      vi.mocked(modelService.getByKey)
+        .mockReset()
+        .mockReturnValue(undefined as never)
+    })
+
+    it('admits one image against a single-image model', () => {
+      vi.mocked(modelService.getByKey).mockReturnValue(singleImageModel as never)
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({
+        ...baseTurnInput,
+        userMessage: {
+          ...userMessage('user-1'),
+          data: { parts: [{ type: 'text', text: 'look' }, imagePart('a.png')] }
+        }
+      })
+      expect(handle.turnId).toBeTruthy()
+    })
+
+    it('rejects over-limit images on beginTurn before the turn exists', () => {
+      vi.mocked(modelService.getByKey).mockReturnValue(singleImageModel as never)
+      const service = new AgentSessionRuntimeService()
+      const message = {
+        ...userMessage('user-2'),
+        data: { parts: [imagePart('a.png'), imagePart('b.png')] }
+      }
+      let error: unknown
+      try {
+        service.beginTurn({ ...baseTurnInput, userMessage: message })
+      } catch (thrown) {
+        error = thrown
+      }
+      expect(error).toBeInstanceOf(AgentImageLimitError)
+      expect(error).toMatchObject({ limit: 1, count: 2 })
+      expect(getEntry(service)).toBeUndefined()
+    })
+
+    it('passes multiple images to unlimited models in order', () => {
+      vi.mocked(modelService.getByKey).mockReturnValue(unlimitedVisionModel as never)
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({
+        ...baseTurnInput,
+        userMessage: {
+          ...userMessage('user-3'),
+          data: { parts: [imagePart('first.png'), imagePart('second.png'), imagePart('third.png')] }
+        }
+      })
+      expect(handle.turnId).toBeTruthy()
+      const turn = (service as any).currentTurn(getEntry(service))
+      expect(turn.userMessage.data.parts.map((part: any) => part.filename)).toEqual([
+        'first.png',
+        'second.png',
+        'third.png'
+      ])
+    })
+
+    it('rejects over-limit images on enqueueUserMessage without queueing', () => {
+      vi.mocked(modelService.getByKey).mockReturnValue(singleImageModel as never)
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({
+        ...baseTurnInput,
+        userMessage: {
+          ...userMessage('user-1'),
+          data: { parts: [{ type: 'text', text: 'first' }] }
+        }
+      })
+      const message = {
+        ...userMessage('user-2'),
+        data: { parts: [imagePart('a.png'), imagePart('b.png')] }
+      }
+      expect(() => service.enqueueUserMessage('session-1', message)).toThrow(AgentImageLimitError)
+      expect(getEntry(service).runtimeState.queue).toEqual([])
+    })
+  })
 
   it.each(['disabled', 'headless', 'failure', 'plan', 'unfocused'] as const)(
     'does not generate a prediction for %s turns',

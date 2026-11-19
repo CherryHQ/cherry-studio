@@ -1461,6 +1461,106 @@ describe('AgentComposer', () => {
     expect(toast.error).toHaveBeenCalledWith('code.model_required')
   })
 
+  it('blocks an over-limit multi-image send with the limit message and keeps the draft', async () => {
+    mocks.modelResult = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+      maxAgentImages: 1
+    } as unknown as Model
+    mocks.files = [
+      {
+        ...file,
+        id: 'file-a',
+        fileTokenSourceId: 'source-a',
+        name: 'a.png',
+        origin_name: 'a.png',
+        path: '/tmp/a.png',
+        ext: '.png',
+        type: 'image'
+      },
+      {
+        ...file,
+        id: 'file-b',
+        fileTokenSourceId: 'source-b',
+        name: 'b.jpg',
+        origin_name: 'b.jpg',
+        path: '/tmp/b.jpg',
+        ext: '.jpg',
+        type: 'image'
+      }
+    ] as unknown as FileMetadata[]
+    const tokens = [
+      { id: 'file:source-a', kind: 'file', label: 'a.png', index: 0, textOffset: 0 },
+      { id: 'file:source-b', kind: 'file', label: 'b.jpg', index: 1, textOffset: 0 }
+    ] as ComposerSerializedToken[]
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('compare these screenshots')
+    })
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'compare these screenshots', tokens })
+    })
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(toast.warning).toHaveBeenCalledWith('agent.image_limit_exceeded')
+    expect(mocks.surfaceProps?.text).toBe('compare these screenshots')
+  })
+
+  it('sends multiple images in order when the model has no declared limit', async () => {
+    mocks.modelResult = { ...model, capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] }
+    mocks.files = [
+      {
+        ...file,
+        id: 'file-a',
+        fileTokenSourceId: 'source-a',
+        name: 'a.png',
+        origin_name: 'a.png',
+        path: '/tmp/a.png',
+        ext: '.png',
+        type: 'image'
+      },
+      {
+        ...file,
+        id: 'file-b',
+        fileTokenSourceId: 'source-b',
+        name: 'b.jpg',
+        origin_name: 'b.jpg',
+        path: '/tmp/b.jpg',
+        ext: '.jpg',
+        type: 'image'
+      }
+    ] as unknown as FileMetadata[]
+    const tokens = [
+      { id: 'file:source-a', kind: 'file', label: 'a.png', index: 0, textOffset: 0 },
+      { id: 'file:source-b', kind: 'file', label: 'b.jpg', index: 1, textOffset: 0 }
+    ] as ComposerSerializedToken[]
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'compare', tokens })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
+    expect(toast.warning).not.toHaveBeenCalledWith('agent.image_limit_exceeded')
+  })
+
   it('sends directly via the steer option while streaming, bypassing the queue', async () => {
     render(
       <AgentComposer

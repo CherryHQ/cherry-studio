@@ -79,6 +79,7 @@ import {
 } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
+import { countAgentImageAttachments, resolveMaxAgentImages } from '@shared/ai/agentImageLimits'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -1293,6 +1294,16 @@ const AgentComposerInner = ({
       if (sendDisabled) return false
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
+        // Re-check on drain: the model may have changed since the follow-up was
+        // queued. Keeps the payload so a model switch unblocks retry.
+        const drainMaxImages = resolveMaxAgentImages(model)
+        if (drainMaxImages !== undefined) {
+          const drainImageCount = countAgentImageAttachments(attachments)
+          if (drainImageCount > drainMaxImages) {
+            toast.warning(t('agent.image_limit_exceeded', { limit: drainMaxImages, count: drainImageCount }))
+            return false
+          }
+        }
         const originals = launchOptions?.initialParts?.filter((part): part is FileUIPart => part.type === 'file') ?? []
         const retainedParts = attachments.map((attachment) => {
           const index = initialDraft.files.findIndex((file) => file.fileTokenSourceId === attachment.fileTokenSourceId)
@@ -1336,9 +1347,11 @@ const AgentComposerInner = ({
       chatSendMessage,
       initialDraft.files,
       launchOptions,
+      model,
       saveHistory,
       sessionId,
-      sessionTopicId
+      sessionTopicId,
+      t
     ]
   )
 
@@ -1493,6 +1506,17 @@ const AgentComposerInner = ({
         toast.error(workspaceWarning)
         return
       }
+      // Capability-driven multi-image guard (#20030): block before anything is
+      // sent when the attached images exceed the model's limit. The draft stays
+      // intact so retry preserves attachments and instructions.
+      const maxImages = resolveMaxAgentImages(model)
+      if (maxImages !== undefined) {
+        const imageCount = countAgentImageAttachments(files)
+        if (imageCount > maxImages) {
+          toast.warning(t('agent.image_limit_exceeded', { limit: maxImages, count: imageCount }))
+          return
+        }
+      }
       const payload = buildQueuedPayload(draft)
       if (!payload) return
 
@@ -1521,6 +1545,7 @@ const AgentComposerInner = ({
       buildQueuedPayload,
       clearCurrentDraft,
       enqueueFollowup,
+      files,
       isStreaming,
       model,
       nativeFollowUp,
