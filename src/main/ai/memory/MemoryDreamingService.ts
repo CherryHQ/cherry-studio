@@ -545,11 +545,14 @@ export class MemoryDreamingService extends BaseService {
     ctx: JobContext<Record<string, never>>
   ): Promise<unknown> {
     let batch: ReturnType<MemoryDreamingService['readBatch']>
+    const end = pending.state.pending.findIndex((ticket) => ticket.messageId === pending.state.batchEnd)
+    const tickets = pending.state.pending.slice(0, end + 1)
     try {
-      const first = pending.state.pending[0]
+      if (!tickets.length) throw new DreamingError('conflict')
+      const first = tickets[0]
       const selected = extractionBranch(first.input, first.messageId, false)
       const invalid: string[] = []
-      for (const ticket of pending.state.pending) {
+      for (const ticket of tickets) {
         if (!selected.has(ticket.input.responseId)) {
           invalid.push(ticket.messageId)
           continue
@@ -575,7 +578,7 @@ export class MemoryDreamingService extends BaseService {
       if (error instanceof InvalidExtractionSource) {
         const skippedSource = skipExtractionTurns(
           pending.key,
-          pending.state.pending.map((ticket) => ticket.messageId),
+          tickets.map((ticket) => ticket.messageId),
           'source'
         )
         return { saved: 0, skippedSource }

@@ -23,6 +23,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
+import { ensureAgentSessionRootTx } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
@@ -687,11 +688,6 @@ describe('memory organization lifecycle and commit fences', () => {
     await save('User replacement')
     vi.spyOn(Date, 'now').mockReturnValue(Date.now() - 100)
     batch.append(1)
-    dbh.db
-      .update(messageTable)
-      .set({ data: { parts: [{ type: 'text', text: 'Today is sunny.' }] } })
-      .where(eq(messageTable.id, batch.users[8]))
-      .run()
     generate.mockClear()
     expect(await dreaming.execute(job())).toMatchObject({ saved: 0, skippedConflict: 8 })
     expect(generate).not.toHaveBeenCalled()
@@ -1807,10 +1803,12 @@ describe('memory organization lifecycle and commit fences', () => {
       dbh.db.insert(agentChannelSessionTable).values({ sessionId, channelId }).run()
     }
     vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 100)
+    const rootId = ensureAgentSessionRootTx(dbh.db, sessionId)
     const [user] = dbh.db
       .insert(agentSessionMessageTable)
       .values({
         sessionId,
+        parentId: rootId,
         role: 'user',
         status: 'success',
         data: { parts: [{ type: 'text', text: 'I prefer concise answers.' }] }
@@ -1822,13 +1820,14 @@ describe('memory organization lifecycle and commit fences', () => {
       .values({
         sessionId,
         role: 'assistant',
-        parentId: kind === 'preview-unrelated-response' ? null : user.id,
+        parentId: kind === 'preview-unrelated-response' ? rootId : user.id,
         status: kind === 'failed' ? 'error' : 'success',
         data: { parts: [] },
         messageSnapshot: { id: agentId, name: 'Agent', model: { id: 'gpt-4o', name: 'Fixture', provider: 'fixture' } }
       })
       .returning()
       .all()
+    dbh.db.update(agentSessionTable).set({ activeNodeId: response.id }).where(eq(agentSessionTable.id, sessionId)).run()
     if (kind.startsWith('preview')) {
       generate.mockImplementationOnce(async (input) => {
         const message = JSON.parse(input.prompt!).messages[0]
