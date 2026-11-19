@@ -1,27 +1,14 @@
-import { ChevronRight, Copy, FolderOpen, LoaderCircle, MoreHorizontal, RefreshCw } from 'lucide-react'
+import { ChevronRight, Copy, FolderOpen, LoaderCircle, RefreshCw } from 'lucide-react'
 import { type Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  Button,
-  ConfirmDialog,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  ScrollArea,
-  Tooltip
-} from '@cherrystudio/ui'
+import { Button, ConfirmDialog, ScrollArea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { StaticMarkdown } from '@renderer/components/markdown'
-import PromptEditorField from '@renderer/components/PromptEditorField'
+import PromptEditorField, { promptEditorActionClassName } from '@renderer/components/PromptEditorField'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { AgentMemoryFile, AgentMemoryFileKey, AgentMemorySnapshot } from '@shared/ipc/schemas/agent'
-
-// Matches the Edit/Preview toggle of the prompt editor.
-const LIST_ACTION_CLASS =
-  'flex h-6 min-h-0 items-center gap-1 rounded-md border border-border-subtle px-2 py-0 text-xs font-normal text-muted-foreground! shadow-none hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0 disabled:opacity-40'
 
 const FILE_ORDER: AgentMemoryFileKey[] = ['soul', 'user', 'fact', 'journal']
 
@@ -223,51 +210,35 @@ export function AgentMemoryPanel({
     </div>
   ) : null
 
-  const moreMenu = (
-    <DropdownMenu>
-      <Tooltip content={t('common.more')}>
-        <DropdownMenuTrigger asChild>
-          <Button type="button" variant="ghost" size="icon-sm" aria-label={t('common.more')}>
-            <MoreHorizontal className="size-4" aria-hidden="true" />
-          </Button>
-        </DropdownMenuTrigger>
-      </Tooltip>
-      <DropdownMenuContent align="end">
-        {selected ? (
-          <DropdownMenuItem disabled={!selected.exists || !selected.content} onSelect={() => void copyContent()}>
-            <Copy className="size-4" aria-hidden="true" />
-            {t('agent.memory.copy')}
-          </DropdownMenuItem>
-        ) : null}
-        <DropdownMenuItem disabled={loading} onSelect={() => void reload()}>
-          <RefreshCw className={cn('size-4', loading && 'motion-safe:animate-spin')} aria-hidden="true" />
-          {t('agent.memory.refresh')}
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => void openFolder()}>
-          <FolderOpen className="size-4" aria-hidden="true" />
-          {t('agent.memory.open_folder')}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-
-  const listActions = (
+  const folderActions = (
     <div className="flex items-center gap-1.5">
       <Button
         type="button"
         variant="ghost"
         disabled={loading}
         onClick={() => void reload()}
-        className={LIST_ACTION_CLASS}>
+        className={promptEditorActionClassName}>
         <RefreshCw className={cn('size-3', loading && 'motion-safe:animate-spin')} aria-hidden="true" />
         {t('agent.memory.refresh')}
       </Button>
-      <Button type="button" variant="ghost" onClick={() => void openFolder()} className={LIST_ACTION_CLASS}>
+      <Button type="button" variant="ghost" onClick={() => void openFolder()} className={promptEditorActionClassName}>
         <FolderOpen className="size-3" aria-hidden="true" />
         {t('agent.memory.open_folder')}
       </Button>
     </div>
   )
+
+  const copyButton = selected ? (
+    <Button
+      type="button"
+      variant="ghost"
+      disabled={!selected.exists || !selected.content}
+      onClick={() => void copyContent()}
+      className={promptEditorActionClassName}>
+      <Copy className="size-3" aria-hidden="true" />
+      {t('agent.memory.copy')}
+    </Button>
+  ) : null
 
   const fileLabel = <span className="truncate text-muted-foreground text-xs">{selected?.name}</span>
 
@@ -275,7 +246,7 @@ export function AgentMemoryPanel({
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between px-1">
         <span className="text-muted-foreground text-xs">{t('agent.memory.title')}</span>
-        {listActions}
+        {folderActions}
       </div>
       <div className="flex flex-col rounded-xl border border-border-subtle p-1">
         {(files.length > 0 ? files : FILE_ORDER.map((key) => ({ key }) as AgentMemoryFile)).map((item) => {
@@ -323,9 +294,10 @@ export function AgentMemoryPanel({
                 </Button>
               </>
             ) : null}
-            {moreMenu}
+            {folderActions}
           </>
         }
+        inlineActions={copyButton}
         fill
         disabled={saving}
       />
@@ -333,20 +305,21 @@ export function AgentMemoryPanel({
       <div className="flex min-h-0 flex-1 flex-col gap-1.5">
         <div className="flex items-center justify-between gap-3">
           {fileLabel}
-          {moreMenu}
+          {folderActions}
         </div>
-        <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border bg-background">
+        <div className="relative min-h-0 flex-1 overflow-hidden rounded-md border border-border bg-background">
+          <div className="absolute top-2 right-2 z-10">{copyButton}</div>
           <ScrollArea className="h-full">
             {!selected.exists || !selected.content.trim() ? (
-              <p className="p-3 text-muted-foreground text-xs">
+              <p className="px-3 pt-10 pb-3 text-muted-foreground text-xs">
                 {t(selected.exists ? 'agent.memory.empty' : 'agent.memory.not_exists')}
               </p>
             ) : isMarkdown ? (
-              <div className="markdown p-3 text-xs">
+              <div className="markdown px-3 pt-10 pb-3 text-xs">
                 <StaticMarkdown id={`agent-memory-${selected.key}`}>{selected.content}</StaticMarkdown>
               </div>
             ) : (
-              <pre className="whitespace-pre-wrap break-words p-3 font-mono text-xs leading-relaxed">
+              <pre className="whitespace-pre-wrap break-words px-3 pt-10 pb-3 font-mono text-xs leading-relaxed">
                 {selected.content}
               </pre>
             )}

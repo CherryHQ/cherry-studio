@@ -151,8 +151,10 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('@renderer/components/PromptEditorField', () => ({
+  promptEditorActionClassName: '',
   default: ({
     actions,
+    inlineActions,
     label,
     labelAddon,
     value,
@@ -165,6 +167,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     editorLabel
   }: {
     actions?: ReactNode
+    inlineActions?: ReactNode
     label?: ReactNode
     labelAddon?: ReactNode
     value: string
@@ -182,6 +185,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
         {labelAddon}
         {actions}
       </div>
+      {inlineActions}
       <textarea
         aria-label={editorLabel ?? 'Prompt editor'}
         placeholder={placeholder}
@@ -2897,17 +2901,17 @@ describe('Agent configuration memory', () => {
     expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument()
   })
 
-  it('keeps copy and folder actions available through the memory menu', async () => {
+  it('shows copy and folder actions as buttons on a memory file page', async () => {
     const user = userEvent.setup()
     const writeClipboard = vi.spyOn(navigator.clipboard, 'writeText')
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="memory" />)
     await user.click(await screen.findByRole('button', { name: 'Persona' }))
-    await user.click(screen.getByRole('button', { name: 'More' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Copy content' }))
+    await user.click(screen.getByRole('button', { name: 'Copy content' }))
     expect(writeClipboard).toHaveBeenCalledWith('Original persona')
-    await user.click(screen.getByRole('button', { name: 'More' }))
-    await user.click(screen.getByRole('menuitem', { name: 'Open folder' }))
+    await user.click(screen.getByRole('button', { name: 'Open folder' }))
     expect(ipcRequestMock).toHaveBeenCalledWith('agent.memory.open_folder', { agentId: AGENT.id })
+    expect(screen.getByRole('button', { name: 'Refresh' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument()
     writeClipboard.mockRestore()
   })
 

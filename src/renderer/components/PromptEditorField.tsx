@@ -12,7 +12,14 @@ import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
 import { StaticMarkdown } from '@renderer/components/markdown'
 import { cn } from '@renderer/utils/style'
 
-const promptEditorExtensions = [EditorView.theme({ '&.cm-focused': { outline: 'none' } })]
+/** Style of the editor's small outlined controls, for callers that add their own beside them. */
+export const promptEditorActionClassName =
+  'flex h-6 min-h-0 items-center gap-1 rounded-md border border-border-subtle bg-background px-2 py-0 text-xs font-normal text-muted-foreground! shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40'
+
+// The top padding keeps the first line clear of the corner controls.
+const promptEditorExtensions = [
+  EditorView.theme({ '&.cm-focused': { outline: 'none' }, '.cm-content': { paddingTop: '2.25rem' } })
+]
 
 export interface PromptEditorFieldHandles {
   insertText: (text: string) => boolean
@@ -26,6 +33,8 @@ interface PromptEditorFieldProps {
   placeholder?: string
   error?: string
   actions?: ReactNode
+  /** Controls shown beside the Edit/Preview toggle in the editor's top-right corner. */
+  inlineActions?: ReactNode
   labelAddon?: ReactNode
   previewValue?: string
   resetPreviewKey?: unknown
@@ -46,6 +55,7 @@ export function PromptEditorField({
   placeholder,
   error,
   actions,
+  inlineActions,
   labelAddon,
   previewValue,
   resetPreviewKey,
@@ -118,18 +128,7 @@ export function PromptEditorField({
           {label}
           {labelAddon}
         </div>
-        <div className="flex items-center gap-1.5">
-          {actions}
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => setShowPreview((v) => !v)}
-            disabled={disabled || value.length === 0}
-            className="flex h-6 min-h-0 items-center gap-1 rounded-md border border-border-subtle px-2 py-0 text-xs font-normal text-muted-foreground! shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
-            {effectiveShowPreview ? <Edit className="size-3" /> : <Eye className="size-3" />}
-            <span>{t(effectiveShowPreview ? 'common.edit' : 'common.preview')}</span>
-          </Button>
-        </div>
+        <div className="flex items-center gap-1.5">{actions}</div>
       </div>
 
       <FieldContent className={fill ? 'min-h-0 max-w-full min-w-0' : 'max-w-full min-w-0'}>
@@ -137,15 +136,30 @@ export function PromptEditorField({
           aria-invalid={hasError || undefined}
           onMouseDown={handleEditorAreaMouseDown}
           className={cn(
-            'max-w-full min-w-0 overflow-hidden rounded-md border bg-background transition-all',
+            'relative max-w-full min-w-0 overflow-hidden rounded-md border bg-background transition-all',
             fill && 'flex min-h-0 flex-1 flex-col',
             hasError ? 'border-error-border focus-within:border-error' : 'border-border focus-within:border-ring',
             disabled && 'cursor-not-allowed opacity-50'
           )}>
+          {/* Keeps the area's mouse-down focus forwarding from stealing these clicks. */}
+          <div
+            className="absolute top-2 right-2 z-10 flex items-center gap-1.5"
+            onMouseDown={(event) => event.stopPropagation()}>
+            {inlineActions}
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setShowPreview((v) => !v)}
+              disabled={disabled || value.length === 0}
+              className={promptEditorActionClassName}>
+              {effectiveShowPreview ? <Edit className="size-3" /> : <Eye className="size-3" />}
+              <span>{t(effectiveShowPreview ? 'common.edit' : 'common.preview')}</span>
+            </Button>
+          </div>
           {effectiveShowPreview ? (
             <div
               className={cn(
-                'prompt-preview markdown max-w-full min-w-0 overflow-auto p-3 text-xs text-foreground',
+                'prompt-preview markdown max-w-full min-w-0 overflow-auto px-3 pt-10 pb-3 text-xs text-foreground',
                 fill && 'min-h-0 flex-1'
               )}
               style={fill ? undefined : { minHeight, maxHeight }}
