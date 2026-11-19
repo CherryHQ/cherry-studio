@@ -3,6 +3,16 @@ import { fileURLToPath } from 'node:url'
 
 import { defangSystemReminderTags } from '@main/ai/untrustedContent'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import type { CherryMessagePart } from '@shared/data/types/message'
+
+export function withAgentContext(
+  message: AgentSessionMessageEntity,
+  context?: CherryMessagePart[]
+): AgentSessionMessageEntity {
+  return context?.length
+    ? { ...message, data: { ...message.data, parts: [...context, ...(message.data.parts ?? [])] } }
+    : message
+}
 
 /**
  * Build the user-turn content sent to an agent runtime. Agent runtimes are
@@ -11,7 +21,8 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
  * to the text — the agent reads them with its own tools. Driver-neutral: shared
  * by the agent drivers to keep attachment handling consistent.
  */
-export function buildAgentUserContent(message: AgentSessionMessageEntity): string {
+export function buildAgentUserContent(message: AgentSessionMessageEntity, context?: CherryMessagePart[]): string {
+  message = withAgentContext(message, context)
   const text = extractMessageText(message)
   const content = appendAgentAttachmentPaths(text, extractAttachments(message))
   return wrapAgentSessionDeliveryContent(message, content)

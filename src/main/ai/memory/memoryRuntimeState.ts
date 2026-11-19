@@ -62,6 +62,27 @@ function hasHistory(owner: MemoryRuntimeOwner): boolean {
   return !!priorOutput || users.length > 1
 }
 
+function stateKey(owner: MemoryRuntimeOwner, scope: MemoryScope): string {
+  const identity =
+    'agentSessionId' in owner ? ['agent', owner.agentSessionId] : ['assistant', owner.assistantId, owner.topicId]
+  return `memory:runtime:${JSON.stringify([...identity, scope.kind, scope.kind === 'private' ? scope.agentId : ''])}`
+}
+
+const unexposed = 'never-exposed'
+
+/** Only a fresh conversation can establish that none of its history used shared memory. */
+export function hasUnexposedAssistantHistory(owner: { topicId: string; assistantId: string }): boolean {
+  const db = application.get('DbService').getDb()
+  const key = stateKey(owner, { kind: 'shared' })
+  const row = db.select({ value: appStateTable.value }).from(appStateTable).where(eq(appStateTable.key, key)).get()
+  if (row) return row.value === unexposed
+  if (hasHistory(owner)) return false
+  db.insert(appStateTable)
+    .values({ key, value: unexposed, description: 'Conversation has never used shared memory' })
+    .run()
+  return true
+}
+
 /** Records the isolation boundary once; a later request cannot bless its own stale transcript. */
 export function assertMemoryRuntimeState(
   owner: MemoryRuntimeOwner,
@@ -69,10 +90,18 @@ export function assertMemoryRuntimeState(
   protection: string | null
 ): void {
   const db = application.get('DbService').getDb()
-  const identity =
-    'agentSessionId' in owner ? ['agent', owner.agentSessionId] : ['assistant', owner.assistantId, owner.topicId]
-  const key = `memory:runtime:${JSON.stringify([...identity, scope.kind, scope.kind === 'private' ? scope.agentId : ''])}`
+  const key = stateKey(owner, scope)
   const row = db.select({ value: appStateTable.value }).from(appStateTable).where(eq(appStateTable.key, key)).get()
+  if (row?.value === unexposed) {
+    db.update(appStateTable)
+      .set({
+        value: { version: 1, protection },
+        description: 'Conversation memory isolation boundary; no memory content'
+      })
+      .where(eq(appStateTable.key, key))
+      .run()
+    return
+  }
   const previous = row ? stateSchema.safeParse(row.value) : undefined
   if (
     previous ? !previous.success || previous.data.protection !== protection : protection !== null && hasHistory(owner)
