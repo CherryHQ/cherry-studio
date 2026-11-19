@@ -17,6 +17,7 @@ export function loadMermaidRuntime() {
       // Canvas measurement works on the page and in a Web Worker alike, so both produce identical layouts.
       return { merman, measure: createCanvasTextMeasurer() }
     })
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Dynamic import, WASM initialization and canvas setup can reject arbitrarily; reset the cached load and preserve the failure for callers.
     .catch((error: unknown) => {
       runtime = null
       throw error
@@ -70,6 +71,7 @@ export async function renderMermaidSvg(source: string, { theme, diagramId }: Ren
   }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Merman's WASM renderer can throw non-Error values; inspect its message before normalizing the rendering failure.
 function toError(error: unknown): Error {
   if (error instanceof Error) return error
   if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
