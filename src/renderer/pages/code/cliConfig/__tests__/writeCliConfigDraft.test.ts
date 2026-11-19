@@ -39,16 +39,27 @@ function mockGet<TResponses extends Record<string, unknown>>(handlers: {
   })
 }
 
-const anthropicProvider = {
+function makeProvider(provider: Pick<Provider, 'id' | 'name'> & Partial<Provider>): Provider {
+  return {
+    reportsActualCost: false,
+    apiKeys: [],
+    authType: 'api-key',
+    settings: {},
+    isEnabled: true,
+    ...provider
+  }
+}
+
+const anthropicProvider = makeProvider({
   id: 'anthropic',
   name: 'Anthropic',
   endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } },
   defaultChatEndpoint: 'anthropic-messages'
-} as unknown as Provider
+})
 
 /** Gemini-CLI-allow-listed aggregator (CLI_TOOL_PROVIDER_MAP) with no dedicated
  * google-generate-content endpoint and no GEMINI_AGGREGATOR_BASE_URLS entry. */
-const cherryinProvider = {
+const cherryinProvider = makeProvider({
   id: 'cherryin',
   name: 'CherryIN',
   defaultChatEndpoint: 'openai-chat-completions',
@@ -56,17 +67,17 @@ const cherryinProvider = {
     'anthropic-messages': { baseUrl: 'https://open.cherryin.net' },
     'openai-chat-completions': { baseUrl: 'https://open.cherryin.net' }
   }
-} as unknown as Provider
+})
 
-const ollamaProvider = {
+const ollamaProvider = makeProvider({
   id: 'ollama',
   name: 'Ollama',
   endpointConfigs: { 'anthropic-messages': { baseUrl: 'http://localhost:11434' } },
   defaultChatEndpoint: 'ollama-chat'
-} as unknown as Provider
+})
 
 /** Keyless local server (authOptional) exposing both Anthropic and chat endpoints. */
-const omlxProvider = {
+const omlxProvider = makeProvider({
   id: 'omlx',
   presetProviderId: 'omlx',
   name: 'oMLX',
@@ -76,32 +87,32 @@ const omlxProvider = {
     'openai-chat-completions': { baseUrl: 'http://localhost:8000' }
   },
   defaultChatEndpoint: 'openai-chat-completions'
-} as unknown as Provider
+})
 
-const openaiCompatProvider = {
+const openaiCompatProvider = makeProvider({
   id: 'deepseek',
   name: 'DeepSeek',
   endpointConfigs: {
     'openai-chat-completions': { baseUrl: 'https://api.deepseek.com/v1' }
   },
   defaultChatEndpoint: 'openai-chat-completions'
-} as unknown as Provider
+})
 
-const geminiProvider = {
+const geminiProvider = makeProvider({
   id: 'gemini',
   name: 'Gemini',
   endpointConfigs: {
     'google-generate-content': { baseUrl: 'https://generativelanguage.googleapis.com' }
   },
   defaultChatEndpoint: 'google-generate-content'
-} as unknown as Provider
+})
 
 /** Responses-capable provider — the only kind Codex can target (its binary
  * rejects `wire_api = "chat"`). */
-const codexProvider = {
+const codexProvider = makeProvider({
   ...openaiCompatProvider,
   endpointConfigs: { 'openai-responses': { baseUrl: 'https://api.deepseek.com/v1' } }
-} as unknown as Provider
+})
 
 const enabledKey: ApiKeyEntry = { id: 'k1', key: 'sk-secret', isEnabled: true }
 
@@ -976,13 +987,13 @@ describe('writeCliConfigDraft', () => {
     })
 
     it('uses the responses endpoint even when a chat-completions endpoint is also present', async () => {
-      const responsesProvider = {
+      const responsesProvider = makeProvider({
         ...openaiCompatProvider,
         endpointConfigs: {
           'openai-chat-completions': { baseUrl: 'https://chat.example.com' },
           'openai-responses': { baseUrl: 'https://api.deepseek.com/v1' }
         }
-      } as unknown as Provider
+      })
       mockGet({
         '/providers/deepseek': () => responsesProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
@@ -998,7 +1009,7 @@ describe('writeCliConfigDraft', () => {
     })
 
     it('throws when the provider has no Responses API endpoint', async () => {
-      const noResponses = { ...openaiCompatProvider, endpointConfigs: {} } as unknown as Provider
+      const noResponses = makeProvider({ ...openaiCompatProvider, endpointConfigs: {} })
       mockGet({
         '/providers/deepseek': () => noResponses,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
@@ -1010,10 +1021,10 @@ describe('writeCliConfigDraft', () => {
     })
 
     it('appends /v1 to a responses base_url missing the version segment', async () => {
-      const noVersionProvider = {
+      const noVersionProvider = makeProvider({
         ...openaiCompatProvider,
         endpointConfigs: { 'openai-responses': { baseUrl: 'https://api.deepseek.com' } }
-      } as unknown as Provider
+      })
       mockGet({
         '/providers/deepseek': () => noVersionProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
@@ -1171,10 +1182,10 @@ describe('writeCliConfigDraft', () => {
     // appends `/chat/completions` directly to baseURL, so a bare host produced
     // `https://api.deepseek.com/chat/completions` → 404.
     it('appends /v1 to an OpenAI-compatible baseURL missing the version', async () => {
-      const noVersionProvider = {
+      const noVersionProvider = makeProvider({
         ...openaiCompatProvider,
         endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.deepseek.com' } }
-      } as unknown as Provider
+      })
       mockGet({
         '/providers/deepseek': () => noVersionProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
@@ -1188,7 +1199,7 @@ describe('writeCliConfigDraft', () => {
     })
 
     it('uses the model endpoint type and matching baseURL for mixed providers', async () => {
-      const mixedProvider = {
+      const mixedProvider = makeProvider({
         id: 'mixed',
         name: 'Mixed',
         endpointConfigs: {
@@ -1196,7 +1207,7 @@ describe('writeCliConfigDraft', () => {
           'openai-chat-completions': { baseUrl: 'https://chat.example.com/v1' }
         },
         defaultChatEndpoint: 'anthropic-messages'
-      } as unknown as Provider
+      })
 
       mockGet({
         '/providers/mixed': () => mixedProvider,
@@ -1486,7 +1497,7 @@ describe('writeCliConfigDraft', () => {
     const GATEWAY_BASE_URL = 'http://127.0.0.1:23333'
     // Field-complete synthetic provider, mirroring useApiGatewayProvider: all three
     // endpoints point at the local gateway, so any CLI's endpoint pick resolves to it.
-    const gatewayProvider = {
+    const gatewayProvider = makeProvider({
       id: CLI_API_GATEWAY_PROVIDER_ID,
       name: '统一网关',
       endpointConfigs: {
@@ -1495,7 +1506,7 @@ describe('writeCliConfigDraft', () => {
         'openai-responses': { baseUrl: GATEWAY_BASE_URL }
       },
       defaultChatEndpoint: 'anthropic-messages'
-    } as unknown as Provider
+    })
     const gateway = { provider: gatewayProvider, apiKey: 'cs-sk-gateway' }
 
     it('routes a cross-protocol (OpenAI) model through the gateway for claude-code', async () => {
@@ -1919,7 +1930,7 @@ describe('writeCliConfigDraft', () => {
     })
 
     it('rejects opencode with an API key but no resolvable endpoint base URL, and writes nothing', async () => {
-      const noEndpointProvider = { id: 'noendpoint', name: 'NoEndpoint', endpointConfigs: {} } as unknown as Provider
+      const noEndpointProvider = makeProvider({ id: 'noendpoint', name: 'NoEndpoint', endpointConfigs: {} })
       mockGet({
         '/providers/noendpoint': () => noEndpointProvider,
         '/providers/noendpoint/api-keys': () => ({ keys: [enabledKey] }),
