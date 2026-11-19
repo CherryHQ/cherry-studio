@@ -2608,8 +2608,8 @@ describe('AiStreamManager', () => {
     it('cuts replay between coalesced deltas without dropping output for an existing consumer', () => {
       const sent: StreamChunkPayload[] = []
       const wc = rendererSender()
-      wc.send.mockImplementation((_channel, ...args) => {
-        if (args[0] === 'ai.stream.chunk') sent.push(args[1])
+      wc.send.mockImplementation((...args) => {
+        if (args[1] === 'ai.stream.chunk') sent.push(args[2])
       })
       const {
         executions: [{ attemptId }]
