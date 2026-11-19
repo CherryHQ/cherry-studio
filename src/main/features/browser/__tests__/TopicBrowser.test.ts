@@ -163,6 +163,32 @@ describe('topic browser ownership and cancellation', () => {
     }
   )
 
+  it.each([undefined, null, false, 0, ''])(
+    'rejects keyboard input when its focus request throws %s',
+    async (failure) => {
+      vi.useRealTimers()
+      const { fixture, tabId } = attachTopicGuest()
+      const control = topicControl()
+      let inputs = 0
+      const send = fixture.mock.debugger.sendCommand.getMockImplementation()!
+      fixture.mock.debugger.sendCommand.mockImplementation(async (method, params) => {
+        if (method.startsWith('Input.')) inputs++
+        return send(method, params)
+      })
+      vi.mocked(application.get('IpcApiService').send).mockImplementation((_window, event) => {
+        if (event === 'browser.input.focus_requested') throw failure
+      })
+      try {
+        await expect(control.execute('pressKey', { key: 'x' }, tabId, new AbortController().signal)).rejects.toBe(
+          failure
+        )
+        expect(inputs).toBe(0)
+      } finally {
+        await control.close()
+      }
+    }
+  )
+
   it('returns a usable tab handle when the first observation opens a dialog', async () => {
     vi.useRealTimers()
     const { fixture, tabId } = attachTopicGuest()
