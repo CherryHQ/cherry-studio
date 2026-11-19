@@ -17,6 +17,8 @@
  * `'aihubmix.image'.split('.')[0]` = `'aihubmix'`), so a single bag feeds both
  * the special branches and the default delegate.
  */
+import { Blob as NodeBlob } from 'node:buffer'
+
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { OpenAICompatibleImageModel } from '@ai-sdk/openai-compatible'
 import {
@@ -88,7 +90,9 @@ export interface CreateAihubmixImageModelOptions {
 }
 
 function toBlob(file: AihubmixImageFile): Blob {
-  return new Blob([file.data as unknown as BlobPart], { type: file.mediaType })
+  const blob = new NodeBlob([file.data], { type: file.mediaType })
+  // SAFETY: Node's global Blob is node:buffer.Blob; DOM typings narrow its bytes and stream declarations.
+  return blob as NodeBlob & Blob
 }
 
 function isGoogleImageModel(modelId: string): boolean {
@@ -330,7 +334,8 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
   const doGenerate = async (
     options: ImageModelV3CallOptions
   ): Promise<Awaited<ReturnType<ImageModelV3['doGenerate']>>> => {
-    const bag = (options.providerOptions?.aihubmix ?? {}) as unknown as AihubmixImageOptions
+    // SAFETY: These custom provider options include legacy in-process upload bytes omitted from SDK JSON typings.
+    const bag = (options.providerOptions?.aihubmix ?? {}) as AihubmixImageOptions
     const mode: AihubmixMode = bag.mode ?? 'generate'
     const prompt = options.prompt ?? ''
     const abortSignal = options.abortSignal

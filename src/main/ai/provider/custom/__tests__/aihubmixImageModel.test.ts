@@ -167,6 +167,7 @@ describe('AihubmixImageModel', () => {
     })
 
     it('remix → FormData with image_weight + image blob to /ideogram/v1/ideogram-v3/remix', async () => {
+      const imageBytes = new Uint8Array([0, 1, 2, 3]).subarray(1, 3)
       const fetchMock = vi.fn().mockResolvedValue(okJson({ data: [{ url: 'https://img/r.png' }] }))
       vi.stubGlobal('fetch', fetchMock)
 
@@ -176,7 +177,7 @@ describe('AihubmixImageModel', () => {
             aihubmix: {
               mode: 'remix',
               imageWeight: 55,
-              imageFiles: [{ mediaType: 'image/png', data: new Uint8Array([1, 2]), name: 'src.png' }]
+              imageFiles: [{ mediaType: 'image/png', data: imageBytes, name: 'src.png' }]
             }
           } as any
         })
@@ -186,7 +187,10 @@ describe('AihubmixImageModel', () => {
       expect(url).toBe('https://aihubmix.com/ideogram/v1/ideogram-v3/remix')
       const form = init.body as FormData
       expect(form.get('image_weight')).toBe('55')
-      expect(form.get('image')).toBeInstanceOf(Blob)
+      imageBytes.fill(9)
+      const image = form.get('image')
+      if (!(image instanceof Blob)) throw new Error('Expected the uploaded image Blob')
+      expect(new Uint8Array(await image.arrayBuffer())).toEqual(new Uint8Array([1, 2]))
       expect(result.images).toEqual(['https://img/r.png'])
     })
 
