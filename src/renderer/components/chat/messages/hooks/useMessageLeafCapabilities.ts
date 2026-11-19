@@ -44,16 +44,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isMcpToolPart(part: CherryMessagePart): boolean {
-  const partType = (part as { type?: string }).type
+  const partType = part.type
   if (partType === 'dynamic-tool') return true
   if (!partType?.startsWith('tool-')) return false
 
-  const record = part as unknown as Record<string, unknown>
-  const output = isRecord(record.output) ? record.output : undefined
+  const output = 'output' in part && isRecord(part.output) ? part.output : undefined
   const outputMetadata = isRecord(output?.metadata) ? output.metadata : undefined
   if (outputMetadata?.type === 'mcp') return true
 
-  const providerMetadata = isRecord(record.providerMetadata) ? record.providerMetadata : undefined
+  const providerMetadata =
+    'providerMetadata' in part && isRecord(part.providerMetadata) ? part.providerMetadata : undefined
   const cherry = isRecord(providerMetadata?.cherry) ? providerMetadata.cherry : undefined
   const tool = isRecord(cherry?.tool) ? cherry.tool : undefined
   return tool?.type === 'mcp'
