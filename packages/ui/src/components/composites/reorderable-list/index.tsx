@@ -37,6 +37,7 @@ export interface ReorderableListProps<T> {
     scrollableAncestor?: boolean
   }
   onDragStateChange?: (dragging: boolean) => void
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Consumer reorder callbacks may throw or reject with any value; preserve that value for the host's failure handler.
   onReorderError?: (error: unknown) => void
 }
 
@@ -67,7 +68,7 @@ export function ReorderableList<T>({
   }, [getId, visibleItems])
 
   const handleSortEnd = useCallback(
-    ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
+    async ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
       if (disabled) {
         return
       }
@@ -81,14 +82,16 @@ export function ReorderableList<T>({
       })
 
       if (nextItems !== items) {
-        void Promise.resolve(onReorder(nextItems)).catch((error: unknown) => {
+        try {
+          await onReorder(nextItems)
+        } catch (error) {
           if (onReorderError) {
             onReorderError(error)
             return
           }
 
           globalThis.console.error('ReorderableList onReorder failed', error)
-        })
+        }
       }
     },
     [disabled, getId, items, onReorder, onReorderError, visibleItems]
