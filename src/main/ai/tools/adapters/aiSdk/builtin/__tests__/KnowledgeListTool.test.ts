@@ -55,6 +55,8 @@ function makeBase(overrides: Partial<KnowledgeBase> & { id: string }): Knowledge
 }
 
 function makeFileItem(id: string, originName: string): KnowledgeItem {
+  // SAFETY: deriveSampleSource supports this pre-v2 file snapshot; its missing relativePath and original name are intentional.
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Preserve the legacy storage shape at this compatibility fixture boundary.
   return {
     id,
     baseId: 'base',
@@ -89,12 +91,11 @@ function makeUrlItem(id: string, url: string): KnowledgeItem {
     groupId: null,
     type: 'url',
     status: 'completed',
-    phase: null,
     error: null,
     data: { source: id, url },
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z'
-  } as unknown as KnowledgeItem
+  }
 }
 
 function makeNoteItem(id: string, content: string): KnowledgeItem {
@@ -104,12 +105,11 @@ function makeNoteItem(id: string, content: string): KnowledgeItem {
     groupId: null,
     type: 'note',
     status: 'completed',
-    phase: null,
     error: null,
     data: { source: id, content },
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z'
-  } as unknown as KnowledgeItem
+  }
 }
 
 function makeDirectoryItem(id: string, path: string): KnowledgeItem {
@@ -119,15 +119,16 @@ function makeDirectoryItem(id: string, path: string): KnowledgeItem {
     groupId: null,
     type: 'directory',
     status: 'completed',
-    phase: null,
     error: null,
     data: { source: path },
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z'
-  } as unknown as KnowledgeItem
+  }
 }
 
 function makeProcessingFileItem(id: string): KnowledgeItem {
+  // SAFETY: The legacy in-flight file stays counted but excluded from completed samples, including its old phase metadata.
+  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Do not normalize a legacy file snapshot to satisfy the current entity type.
   return {
     id,
     baseId: 'base',
