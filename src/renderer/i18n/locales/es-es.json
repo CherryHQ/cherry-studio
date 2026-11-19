@@ -185,6 +185,7 @@
   "agent.memory.file.journal": "Registro de eventos",
   "agent.memory.file.soul": "Personalidad",
   "agent.memory.file.user": "Perfil de usuario",
+  "agent.memory.fact_migrated": "FACT se ha migrado a la memoria privada. Esta copia se conserva para consulta.",
   "agent.memory.journal_readonly": "El registro de eventos lo amplía el Agent y aquí es de solo lectura; no se puede reemplazar desde la aplicación.",
   "agent.memory.load_failed": "No se pudieron leer los archivos de memoria.",
   "agent.memory.not_exists": "Archivo no encontrado.",

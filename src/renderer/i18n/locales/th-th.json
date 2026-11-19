@@ -185,6 +185,7 @@
   "agent.memory.file.journal": "บันทึกเหตุการณ์",
   "agent.memory.file.soul": "บุคลิกภาพ",
   "agent.memory.file.user": "โปรไฟล์ผู้ใช้",
+  "agent.memory.fact_migrated": "ย้าย FACT ไปยังหน่วยความจำส่วนตัวแล้ว สำเนานี้เก็บไว้สำหรับอ้างอิง",
   "agent.memory.journal_readonly": "บันทึกเหตุการณ์ถูกเพิ่มโดย Agent และเป็นแบบอ่านอย่างเดียวที่นี่ ไม่สามารถแทนที่จากแอปได้",
   "agent.memory.load_failed": "อ่านไฟล์ความจำไม่สำเร็จ",
   "agent.memory.not_exists": "ไม่พบไฟล์",

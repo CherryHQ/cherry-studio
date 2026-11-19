@@ -187,6 +187,7 @@
   "agent.memory.file.journal": "Dziennik zdarzeń",
   "agent.memory.file.soul": "Osobowość",
   "agent.memory.file.user": "Profil użytkownika",
+  "agent.memory.fact_migrated": "Plik FACT przeniesiono do pamięci prywatnej. Ta kopia służy do wglądu.",
   "agent.memory.journal_readonly": "Dziennik zdarzeń jest uzupełniany przez agenta i jest tutaj tylko do odczytu; nie można go zastąpić z poziomu aplikacji.",
   "agent.memory.load_failed": "Nie udało się odczytać plików pamięci.",
   "agent.memory.not_exists": "Nie znaleziono pliku.",

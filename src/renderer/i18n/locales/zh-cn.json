@@ -185,6 +185,7 @@
   "agent.memory.file.journal": "事件日志",
   "agent.memory.file.soul": "人格",
   "agent.memory.file.user": "用户档案",
+  "agent.memory.fact_migrated": "FACT 已迁移到私有记忆。此处保留旧文件，仅供查看。",
   "agent.memory.journal_readonly": "事件日志由智能体追加写入，只能查看，不能在应用内替换。",
   "agent.memory.load_failed": "无法读取记忆文件。",
   "agent.memory.not_exists": "文件不存在。",

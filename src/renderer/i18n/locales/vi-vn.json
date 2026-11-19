@@ -185,6 +185,7 @@
   "agent.memory.file.journal": "Nhật ký sự kiện",
   "agent.memory.file.soul": "Tính cách",
   "agent.memory.file.user": "Hồ sơ người dùng",
+  "agent.memory.fact_migrated": "FACT đã được chuyển sang bộ nhớ riêng. Bản sao này được giữ lại để tham khảo.",
   "agent.memory.journal_readonly": "Nhật ký sự kiện được Agent ghi thêm và chỉ đọc tại đây; không thể thay thế từ ứng dụng.",
   "agent.memory.load_failed": "Không thể đọc các tệp bộ nhớ.",
   "agent.memory.not_exists": "Không tìm thấy tệp.",

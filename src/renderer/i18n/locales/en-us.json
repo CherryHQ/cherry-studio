@@ -185,6 +185,7 @@
   "agent.memory.file.journal": "Event log",
   "agent.memory.file.soul": "Persona",
   "agent.memory.file.user": "User profile",
+  "agent.memory.fact_migrated": "FACT was migrated to private memory. This copy is kept for reference.",
   "agent.memory.journal_readonly": "The event log is appended by the Agent and is read-only here; it cannot be replaced from the app.",
   "agent.memory.load_failed": "Failed to read the memory files.",
   "agent.memory.not_exists": "File not found.",

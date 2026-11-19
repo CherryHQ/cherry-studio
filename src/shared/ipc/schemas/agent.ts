@@ -30,6 +30,7 @@ export type AgentMemoryFile = z.infer<typeof AgentMemoryFileSchema>
 
 export const AgentMemorySnapshotSchema = z.object({
   directory: z.string(),
+  factMigrated: z.boolean().optional(),
   files: z.array(AgentMemoryFileSchema)
 })
 export type AgentMemorySnapshot = z.infer<typeof AgentMemorySnapshotSchema>

@@ -185,6 +185,7 @@
   "agent.memory.file.journal": "Журнал событий",
   "agent.memory.file.soul": "Личность",
   "agent.memory.file.user": "Профиль пользователя",
+  "agent.memory.fact_migrated": "Данные FACT перенесены в приватную память. Эта копия сохранена для справки.",
   "agent.memory.journal_readonly": "Журнал событий дополняется Agent и здесь доступен только для чтения; его нельзя заменить из приложения.",
   "agent.memory.load_failed": "Не удалось прочитать файлы памяти.",
   "agent.memory.not_exists": "Файл не найден.",

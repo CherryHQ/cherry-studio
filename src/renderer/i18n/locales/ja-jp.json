@@ -185,6 +185,7 @@
   "agent.memory.file.journal": "イベントログ",
   "agent.memory.file.soul": "ペルソナ",
   "agent.memory.file.user": "ユーザープロフィール",
+  "agent.memory.fact_migrated": "FACT はプライベートメモリに移行されました。このコピーは参照用です。",
   "agent.memory.journal_readonly": "イベントログは Agent が追記するもので、ここでは読み取り専用です。アプリから置き換えることはできません。",
   "agent.memory.load_failed": "メモリファイルを読み込めませんでした。",
   "agent.memory.not_exists": "ファイルが見つかりません。",

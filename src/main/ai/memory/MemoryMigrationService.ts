@@ -63,6 +63,13 @@ export class MemoryMigrationService extends BaseService {
     return this.readState(agentId)?.status === 'complete'
   }
 
+  withLegacyFactWrite<T>(agentId: string, write: () => Promise<T>): Promise<T> {
+    return this.queue.runExclusive(() => {
+      if (this.isMigrated(agentId)) throw new Error('AGENT_MEMORY_READ_ONLY')
+      return write()
+    })
+  }
+
   async ensureSession(sessionId: string): Promise<boolean> {
     const agentId = agentSessionService.getById(sessionId).agentId
     if (!agentId || !agentService.getAgent(agentId)) throw new Error('Agent memory owner is unavailable')
@@ -143,7 +150,7 @@ export class MemoryMigrationService extends BaseService {
       assertCurrent()
     }
     try {
-      const currentEntry = await session.read(MEMORY_ENTRY)
+      let currentEntry = await session.read(MEMORY_ENTRY)
       const previous = this.readState(agentId)
       if (previous) {
         const actual = await Promise.all(previous.files.map((file) => session.read(file.path)))
@@ -165,11 +172,38 @@ export class MemoryMigrationService extends BaseService {
           this.writeState(agentId, { ...previous, status: 'complete', backupId, error: undefined })
           return true
         }
-        if (!actual.every((file, index) => file.hash === previous.files[index].beforeHash))
-          throw new MemoryError(
-            'conflict',
-            'A partial legacy migration needs recovery before retrying; original FACT is retained'
+        const applied = previous.files.filter((file, i) => actual[i].hash !== file.beforeHash)
+        if (applied.length) {
+          const conflict = () => new MemoryError('conflict', 'Interrupted migration no longer matches its backup')
+          if (
+            !backupId ||
+            sourceHash !== previous.sourceHash ||
+            applied.some((file) => actual.find((read) => read.path === file.path)?.hash !== file.afterHash)
           )
+            throw conflict()
+          const preview = await session.previewRecovery()
+          if (preview?.batchId !== backupId) throw conflict()
+          const result = await session.recover(preview.token, async (changes) => {
+            if (
+              changes.length !== applied.length ||
+              changes.some((change) => {
+                const file = applied.find((candidate) => candidate.path === change.path)
+                return (
+                  !file ||
+                  change.expectedHash !== file.afterHash ||
+                  memoryHash(change.content === null ? null : Buffer.from(change.content)) !== file.beforeHash
+                )
+              })
+            )
+              throw conflict()
+            await assertSource()
+            return assertCurrent
+          })
+          if (result.error || result.files.some((file) => file.outcome !== 'applied')) throw conflict()
+          const restored = await Promise.all(previous.files.map((file) => session.read(file.path)))
+          if (restored.some((read, i) => read.hash !== previous.files[i].beforeHash)) throw conflict()
+          currentEntry = restored.find((read) => read.path === MEMORY_ENTRY) ?? currentEntry
+        }
       }
       const content = original ? new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(original) : ''
       const plan = await planLegacyMemory(content, currentEntry.content ?? '', sourceHash ?? 'empty')

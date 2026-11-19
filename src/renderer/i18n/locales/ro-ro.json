@@ -185,6 +185,7 @@
   "agent.memory.file.journal": "Jurnal de evenimente",
   "agent.memory.file.soul": "Personalitate",
   "agent.memory.file.user": "Profil de utilizator",
+  "agent.memory.fact_migrated": "FACT a fost migrat în memoria privată. Această copie este păstrată pentru consultare.",
   "agent.memory.journal_readonly": "Jurnalul de evenimente este completat de Agent și este doar pentru citire aici; nu poate fi înlocuit din aplicație.",
   "agent.memory.load_failed": "Citirea fișierelor de memorie a eșuat.",
   "agent.memory.not_exists": "Fișierul nu a fost găsit.",
