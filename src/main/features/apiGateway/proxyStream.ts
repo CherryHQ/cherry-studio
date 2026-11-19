@@ -24,10 +24,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const { onError, onComplete, signal } = config
   const adapter: IStreamAdapter = StreamAdapterFactory.createAdapter(outputFormat, adapterOptions)
   const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)
-  const capturedUsage = config.requestHeaders
+  const usageContext = config.requestHeaders
     ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders, adapter.getMessageId())
     : undefined
-  const usageContext = capturedUsage ?? (agentSessionId ? { agentSessionId, source: null } : undefined)
 
   const promptOptions = gatewayPromptOptions(request, usageContext)
   const streamId = `gateway-${uuidv4()}`
