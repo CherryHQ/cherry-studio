@@ -154,6 +154,7 @@ export class BackupActiveWritersError extends Error {
 
 class BackupInputError extends Error {}
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Backup/restore and WebDAV/S3 operations catch arbitrary failures; classify known preconditions, storage, database and file errors without replacing the thrown value.
 export function classifyBackupFailure(error: unknown): FailureFacts {
   if (
     error instanceof BackupOperationBusyError ||
@@ -510,6 +511,7 @@ class BackupManager {
           cleanup()
           resolve()
         }
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Archive/output stream errors and arbitrary AbortSignal.reason share this reject path, which removes the abort listener first.
         function fail(error: unknown) {
           cleanup()
           reject(error)
@@ -1868,6 +1870,7 @@ class BackupManager {
     }
   }
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Symlink resolution and filesystem reads reject without a typed failure guarantee; record the skipped path and original failure.
   private logSkippedSymlink(sourcePath: string, error: unknown) {
     logger.warn('[BackupManager] Skipping broken or unreadable symlink', { path: sourcePath, error })
   }

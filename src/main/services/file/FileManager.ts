@@ -939,12 +939,15 @@ export class FileManager extends BaseService implements IFileManager {
     // literal brands (`AbsoluteFilePath`) that Zod cannot reproduce without a
     // `.transform()` per field. The cast at this single boundary keeps the
     // brand-as-doc convention intact while runtime validation remains the gate.
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Renderer entry-creation payloads must pass createInternalEntryInputSchema before reaching the file owner.
     this.ipcHandle(IpcChannel.File_CreateInternalEntry, async (_e, params: unknown) =>
       this.createInternalEntry(createInternalEntryInputSchema.parse(params))
     )
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Renderer external-entry payloads must pass EnsureExternalEntryIpcSchema before path registration.
     this.ipcHandle(IpcChannel.File_EnsureExternalEntry, async (_e, params: unknown) =>
       this.ensureExternalEntry(EnsureExternalEntryIpcSchema.parse(params))
     )
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Renderer path lookups must pass GetPhysicalPathIpcSchema before using the supplied file-entry ID.
     this.ipcHandle(IpcChannel.File_GetPhysicalPath, async (_e, params: unknown) =>
       this.getPhysicalPath(GetPhysicalPathIpcSchema.parse(params).id)
     )

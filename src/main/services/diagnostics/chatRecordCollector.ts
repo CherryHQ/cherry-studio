@@ -10,6 +10,10 @@ import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { createAtomicWriteStream, remove } from '@main/utils/file'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { Message } from '@shared/data/types/message'
+import type { Topic } from '@shared/data/types/topic'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 import type { ChatRecordStats, DiagnosticTimeRange, DiagnosticWarning, StagedSource } from './types'
@@ -63,11 +67,18 @@ function recordReference(archiveName: ChatArchiveName, key: string, entityJsonBy
   return { archiveName, bytes: entityJsonBytes + 1, key }
 }
 
-function contextRecord(archiveName: ChatArchiveName, key: string, entity: unknown): ChatRecordReference {
+function contextRecord(
+  archiveName: ChatArchiveName,
+  key: string,
+  entity: Topic | AgentSessionEntity
+): ChatRecordReference {
   return recordReference(archiveName, key, Buffer.byteLength(JSON.stringify(entity), 'utf8'))
 }
 
-function serializeRecord(reference: ChatRecordReference, entity: unknown): HydratedChatRecord {
+function serializeRecord(
+  reference: ChatRecordReference,
+  entity: Topic | AgentSessionEntity | Message | AgentSessionMessageEntity
+): HydratedChatRecord {
   const data = Buffer.from(`${JSON.stringify(entity)}\n`, 'utf8')
   return { ...reference, bytes: data.length, data }
 }
@@ -206,6 +217,7 @@ async function* mergeNewestFirst(
 function warnUnreadableChatSource(
   warnings: Set<DiagnosticWarning>,
   source: 'normal-chat' | 'agent-session',
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Normal-chat and agent-session collection catches may fail with any value; report only its Error name/type and retain the unreadable-source warning.
   error: unknown
 ): void {
   warnings.add('source_unreadable')
