@@ -301,3 +301,34 @@ describe('text normalization in matching', () => {
     expect(rankEntries('plainrow', fixture, t).map((r) => r.focusId)).toEqual(['setting-cafe-a'])
   })
 })
+
+describe('international search equivalence', () => {
+  const fixture: SettingsSearchSection[] = [{ route: '/match', sectionTitleKey: 'title', entries: [] }]
+
+  it.each([
+    ['STRASSE', 'Straße'],
+    ['οσ', 'ος'],
+    ['API', 'ＡＰＩ'],
+    ['ＡＰＩ', 'API'],
+    ['ニホンゴ', 'ﾆﾎﾝｺﾞ'],
+    ['언어'.normalize('NFD'), '언어'],
+    ['자동시작', '자동\u00a0시작'],
+    ['cafe', 'Café'],
+    ['café', 'Cafe\u0301'],
+    ['龍天', '龍\u{E0100}天']
+  ])('finds %s in %s', (query, title) => {
+    expect(rankEntries(query, fixture, () => title).map((hit) => hit.route)).toEqual(['/match'])
+  })
+
+  it.each([
+    ['café', 'Cafe'],
+    ['café', 'Cafè'],
+    ['각', '가'],
+    ['ㅍㄹㅅ', '프록시'],
+    ['1', '①'],
+    ['a', 'а'],
+    ['ı', 'I']
+  ])('preserves the distinction between %s and %s', (query, title) => {
+    expect(rankEntries(query, fixture, () => title)).toEqual([])
+  })
+})

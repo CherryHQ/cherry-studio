@@ -1,5 +1,6 @@
 import { hostname, networkInterfaces } from 'node:os'
 
+import type { ProviderHeaders } from '@earendil-works/pi-ai'
 import { Mutex } from 'async-mutex'
 import { retry } from 'es-toolkit'
 import { v4 as uuidv4 } from 'uuid'
@@ -10,13 +11,17 @@ import { loggerService } from '@logger'
 import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import type { ServiceTierSelection } from '@shared/data/types/model'
+import type { RetryPartData } from '@shared/data/types/uiParts'
 import type { OutputFor } from '@shared/ipc/types'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
 import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { REDACTED } from '@shared/utils/redaction'
 
 import { isGatewayBindPermissionError, mapGatewayBindError } from './bindError'
 import { isValidToken } from './middleware/auth'
+import { createGatewayObjectTransports } from './objectStream'
 import { getInterfaceMetadata, getRemoteAddressOptions } from './remoteAddresses'
 import type { ApiGateway } from './server'
 
@@ -446,6 +451,43 @@ export class ApiGatewayService extends BaseService implements Activatable {
   /** Headers an internal Agent consumer sends so gateway hops are attributed to its session. */
   getAgentSessionUsageHeaders(sessionId: string): Record<string, string> {
     return { [AGENT_SESSION_ID_HEADER]: sessionId }
+  }
+
+  createAgentObjectTransports(input: {
+    sessionId: string
+    headers?: ProviderHeaders
+    reasoningEffort?: ReasoningEffortOption
+    serviceTier?: ServiceTierSelection
+    fastMode?: boolean
+    traceContext?: InProcessUsageContext['traceContext']
+    onRetryEvent?: (event: RetryPartData) => void
+  }) {
+    const headers = new Headers()
+    for (const [name, value] of Object.entries(input.headers ?? {})) {
+      if (value !== null) headers.set(name, value)
+    }
+    const sessionId = headers.get(AGENT_SESSION_ID_HEADER)?.trim() || input.sessionId
+    const key = headers.get(AGENT_USAGE_CAPTURE_HEADER)
+    const captured = key ? this.usageCaptures.get(key) : undefined
+    return createGatewayObjectTransports({
+      requestHeaders: headers,
+      agentContext: {
+        agentSessionId: sessionId,
+        onRetryEvent: input.onRetryEvent,
+        reasoningEffort: input.reasoningEffort ?? 'default',
+        serviceTier: input.serviceTier,
+        fastMode: input.fastMode === true,
+        resolveUsage: (responseId) => {
+          const usage = key
+            ? captured?.agentSessionId === sessionId
+              ? captured
+              : undefined
+            : application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId, responseId)
+          const traceContext = key ? (captured?.traceContext ?? input.traceContext) : input.traceContext
+          return usage && traceContext ? { ...usage, traceContext } : usage
+        }
+      }
+    })
   }
 
   captureAgentSessionUsage(

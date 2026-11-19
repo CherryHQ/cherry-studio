@@ -1,6 +1,3 @@
-import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
 /**
  * Contract tests for the multi-key shared cache selector hook.
  *
@@ -16,6 +13,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  *   objects, Map/Set never equal), locked through hook behavior — the
  *   comparator itself is file-private
  */
+import { act, renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { cacheService } from '@data/CacheService'
 import { useSharedCacheSelector } from '@data/hooks/useCache'
 

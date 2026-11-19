@@ -5,6 +5,7 @@ import * as z from 'zod'
 import type { AiPlugin } from '@cherrystudio/ai-core'
 
 import { Agent } from '../../Agent'
+import { createRetryableWrap } from '../../retry/createRetryableWrap'
 import type { AgentLoopParams } from '../types'
 
 const wireSchema = z.object({
@@ -177,8 +178,22 @@ describe('caller-owned single model invocation', () => {
 
   it('surfaces provider failures without a retry', async () => {
     const { agent, requests } = fixture('caller', false, 503)
+    agent.params.options!.maxRetries = 0
     await expect(stream(agent)).rejects.toThrow('Unavailable')
     expect(requests).toHaveLength(1)
+  })
+
+  it.each(['stream', 'generate'] as const)('%s applies ai-retry without stacking SDK retries', async (mode) => {
+    const { agent, requests, effects } = fixture('caller', false, 503)
+    agent.params.options!.maxRetries = 3
+    agent.params.wrapModel = createRetryableWrap({
+      retryPolicy: { enabled: true, maxAttempts: 1, backoffEnabled: false, fallbackModelIds: [] },
+      fallbacks: []
+    })
+    const result = mode === 'stream' ? stream(agent) : agent.generate({ prompt: 'Which skills?' })
+    await expect(result).rejects.toThrow('Unavailable')
+    expect(requests).toHaveLength(2)
+    expect(effects).toEqual([])
   })
 
   it('does not start a request after cancellation', async () => {

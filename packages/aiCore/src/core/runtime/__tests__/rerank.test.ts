@@ -7,7 +7,7 @@ import { RuntimeExecutor } from '../executor'
 import { createExecutor } from '../index'
 
 vi.mock('ai', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
     rerank: vi.fn()

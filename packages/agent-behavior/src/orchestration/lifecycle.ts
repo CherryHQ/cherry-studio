@@ -12,7 +12,7 @@ export function lifecycleHandlers(host: HostPorts): LifecycleHandlers {
     // Reads, then the stops `decideOnOpen` asks for: no submit and no wait, so nothing resumes early on Durable.
     async onOpen(thread, open, ports) {
       const context = { ports, host }
-      const inputs = await gatherInputs(context, thread)
+      const inputs = gatherInputs(context, thread)
       const { supportsTools } = await host.models.current(thread)
       await step(context, thread, (facts) => decideOnOpen(facts, inputs, { ...open, supportsTools }))
       // The host lost the views it showed, and a crash may have fallen between a step's commit and its views.

@@ -17,6 +17,13 @@ export class PiChildTasks {
     return this.states.get(id)?.status
   }
 
+  /** Background children whose latest native view is still running. */
+  running(): string[] {
+    return [...this.states.values()]
+      .filter((task) => task.isBackgrounded && task.status === 'in_progress')
+      .map((task) => task.taskId)
+  }
+
   publish(id: string, status: AgentTaskEventPartData['status'], background?: boolean): void {
     const origin = this.origin(id)
     const previous = this.states.get(id)
