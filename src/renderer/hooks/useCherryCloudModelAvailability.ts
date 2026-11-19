@@ -50,6 +50,7 @@ export function useCherryCloudModelAvailability(enabled = true) {
     const settled = availabilityFreshness === 'fresh'
     const amdActivationRequiredModels = cloudAvailability?.amdActivationRequiredModels ?? []
     const signInRequiredModels = cloudAvailability?.signInRequiredModels ?? []
+    const catalogModelIds = cloudAvailability?.catalogModelIds ? new Set(cloudAvailability.catalogModelIds) : null
     const amdActivationRequiredIds = new Set(
       amdActivationRequiredModels.map((model) => createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id))
     )
@@ -67,6 +68,9 @@ export function useCherryCloudModelAvailability(enabled = true) {
       signInRequiredModels,
       isAmdActivationRequired: (model: Pick<Model, 'id' | 'providerId'>) =>
         settled && amdActivationRequiredIds.has(model.id),
+      /** A Cloud model the server no longer lists at all, so no sign-in or plan can bring it back. */
+      isModelDelisted: (model: Pick<Model, 'id' | 'providerId'>) =>
+        settled && isManagedCherryCloudModel(model.providerId) && !!catalogModelIds && !catalogModelIds.has(model.id),
       /** Hidden until the first snapshot arrives, then hidden wherever the server does not enable it. */
       isModelHidden: (model: Pick<Model, 'id' | 'providerId'>, includeAgentOnlyModels: boolean) =>
         isManagedCherryCloudModel(model.providerId) &&

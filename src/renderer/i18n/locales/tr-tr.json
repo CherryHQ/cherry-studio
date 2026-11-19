@@ -867,6 +867,7 @@
   "chat.input.pasted_text_file_name": "Yapıştırılan metin.txt",
   "chat.input.pause": "Duraklat",
   "chat.input.placeholder": "Bir mesaj yazın. Araçlar ve eylemler için /, konulara başvurmak için @ yazın.",
+  "chat.input.quota_notice.model_delisted": "Bu model artık kullanılamıyor. Başka bir modele geçin",
   "chat.input.quota_notice.not_in_plan": "Planınız bu modeli içermiyor",
   "chat.input.quota_notice.sign_in_required": "Bu modeli kullanmak için Cherry AI'da oturum açın",
   "chat.input.quota_notice.subscription_required": "Bu modeli kullanmak için abone olun",

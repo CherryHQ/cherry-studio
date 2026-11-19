@@ -867,6 +867,7 @@
   "chat.input.pasted_text_file_name": "Văn bản đã dán.txt",
   "chat.input.pause": "Tạm dừng",
   "chat.input.placeholder": "Nhập tin nhắn của bạn ở đây - @ để Chọn Mô hình, / để Bao gồm Công cụ",
+  "chat.input.quota_notice.model_delisted": "Mô hình này không còn khả dụng. Hãy chuyển sang mô hình khác",
   "chat.input.quota_notice.not_in_plan": "Gói của bạn không bao gồm mô hình này",
   "chat.input.quota_notice.sign_in_required": "Đăng nhập Cherry AI để dùng mô hình này",
   "chat.input.quota_notice.subscription_required": "Đăng ký để dùng mô hình này",

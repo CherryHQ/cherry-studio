@@ -867,6 +867,7 @@
   "chat.input.pasted_text_file_name": "Pasted text.txt",
   "chat.input.pause": "Pause",
   "chat.input.placeholder": "Type a message. Type / for tools and actions, @ to reference topics.",
+  "chat.input.quota_notice.model_delisted": "This model is no longer available. Switch to another model.",
   "chat.input.quota_notice.not_in_plan": "Your plan does not include this model",
   "chat.input.quota_notice.sign_in_required": "Sign in to Cherry AI to use this model",
   "chat.input.quota_notice.subscription_required": "Subscribe to use this model",

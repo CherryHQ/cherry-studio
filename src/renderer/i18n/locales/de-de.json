@@ -867,6 +867,7 @@
   "chat.input.pasted_text_file_name": "Eingefügter Text.txt",
   "chat.input.pause": "Pausieren",
   "chat.input.placeholder": "Geben Sie hier eine Nachricht ein - @ für Modellauswahl, / für Tools",
+  "chat.input.quota_notice.model_delisted": "Dieses Modell ist nicht mehr verfügbar. Wechsle zu einem anderen Modell",
   "chat.input.quota_notice.not_in_plan": "Dein Plan enthält dieses Modell nicht",
   "chat.input.quota_notice.sign_in_required": "Melde dich bei Cherry AI an, um dieses Modell zu nutzen",
   "chat.input.quota_notice.subscription_required": "Abonniere, um dieses Modell zu nutzen",

@@ -61,6 +61,10 @@ models with `requires_login: false` are usable then, and `modelFetch` sends thei
 requests with the HMAC over the exact body instead of a session. Signed in, every
 standalone model is usable without a plan.
 
+Each sync also reports `catalogModelIds`, every model the server lists. A stored
+Cloud model missing from it has been delisted; the field is null when the
+catalog could not be read, so a failed read never delists anything.
+
 ## Login request signing
 
 The desktop client signs authorization creation and exchange requests using the

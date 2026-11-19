@@ -17,6 +17,7 @@ const facts = vi.hoisted(() => ({
   exhausted: true,
   locked: false,
   amdLocked: false,
+  delisted: false,
   phase: 'signed-in' as 'signed-in' | 'signed-out' | undefined,
   loadState: 'ready' as 'ready' | 'loading' | 'error',
   plansReady: true,
@@ -34,7 +35,8 @@ vi.mock('../useCherryCloudModelAvailability', () => ({
     isModelFree: (model: Model) => model.id.endsWith('free-model'),
     isModelLocked: () => facts.freshness === 'fresh' && facts.locked,
     isModelUnavailable: () => facts.freshness === 'fresh' && facts.exhausted,
-    isAmdActivationRequired: () => facts.freshness === 'fresh' && facts.amdLocked
+    isAmdActivationRequired: () => facts.freshness === 'fresh' && facts.amdLocked,
+    isModelDelisted: () => facts.freshness === 'fresh' && facts.delisted
   })
 }))
 vi.mock('../useCherryAccountSession', () => ({
@@ -124,6 +126,7 @@ beforeEach(() => {
     exhausted: true,
     locked: false,
     amdLocked: false,
+    delisted: false,
     phase: 'signed-in',
     loadState: 'ready',
     plansReady: true,
@@ -255,6 +258,15 @@ describe('useCherryCloudQuotaExhaustion', () => {
     const { result } = renderHook(() => useCherryCloudQuotaExhaustion(amdModel))
     expect(result.current).toMatchObject({ reason, ...(phase === 'signed-in' && { cloudModelId: 'amd/qwen' }) })
   })
+
+  it.each(['signed-out', 'signed-in'] as const)(
+    'tells a %s user a delisted model is gone instead of asking to sign in or subscribe',
+    (phase) => {
+      Object.assign(facts, { phase, locked: true, delisted: true, exhausted: false })
+      const { result } = renderHook(() => useCherryCloudQuotaExhaustion(paidModel))
+      expect(result.current?.reason).toBe('model_delisted')
+    }
+  )
 
   it('reports no obstacle for a current model with quota left', () => {
     facts.exhausted = false

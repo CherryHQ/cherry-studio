@@ -867,6 +867,7 @@
   "chat.input.pasted_text_file_name": "ข้อความที่วาง.txt",
   "chat.input.pause": "หยุดชั่วคราว",
   "chat.input.placeholder": "พิมพ์ข้อความ พิมพ์ / สำหรับเครื่องมือและการกระทำ @ เพื่ออ้างอิงหัวข้อ",
+  "chat.input.quota_notice.model_delisted": "โมเดลนี้ไม่มีให้ใช้งานแล้ว โปรดเปลี่ยนโมเดล",
   "chat.input.quota_notice.not_in_plan": "แพ็กเกจของคุณไม่รวมโมเดลนี้",
   "chat.input.quota_notice.sign_in_required": "ลงชื่อเข้าใช้ Cherry AI เพื่อใช้โมเดลนี้",
   "chat.input.quota_notice.subscription_required": "สมัครสมาชิกเพื่อใช้โมเดลนี้",

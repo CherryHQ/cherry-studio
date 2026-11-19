@@ -867,6 +867,7 @@
   "chat.input.pasted_text_file_name": "text.txt lipit",
   "chat.input.pause": "Pauză",
   "chat.input.placeholder": "Scrie mesajul tău aici - @ pentru a selecta modelul, / pentru a include instrumente",
+  "chat.input.quota_notice.model_delisted": "Acest model nu mai este disponibil. Comută la alt model",
   "chat.input.quota_notice.not_in_plan": "Planul tău nu include acest model",
   "chat.input.quota_notice.sign_in_required": "Conectează-te la Cherry AI pentru a folosi acest model",
   "chat.input.quota_notice.subscription_required": "Abonează-te pentru a folosi acest model",

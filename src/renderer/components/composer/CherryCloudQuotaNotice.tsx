@@ -41,6 +41,7 @@ export function CherryCloudQuotaNotice({ exhaustion }: { exhaustion: CherryCloud
     sign_in_required: t('chat.input.quota_notice.sign_in_required'),
     subscription_required: t('chat.input.quota_notice.subscription_required'),
     not_in_plan: t('chat.input.quota_notice.not_in_plan'),
+    model_delisted: t('chat.input.quota_notice.model_delisted'),
     amd_activation_required: t('models.amd_free.sign_in_hint'),
     unknown: t(exhaustion.reason === 'unknown' && exhaustion.state === 'error' ? 'error.unknown' : 'common.loading')
   }

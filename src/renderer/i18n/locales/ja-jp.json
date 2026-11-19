@@ -867,6 +867,7 @@
   "chat.input.pasted_text_file_name": "貼り付けたテキスト.txt",
   "chat.input.pause": "一時停止",
   "chat.input.placeholder": "ここにメッセージを入力...",
+  "chat.input.quota_notice.model_delisted": "このモデルは提供終了しました。別のモデルに切り替えてください",
   "chat.input.quota_notice.not_in_plan": "現在のプランにはこのモデルが含まれていません",
   "chat.input.quota_notice.sign_in_required": "このモデルを使うには CherryAI にサインインしてください",
   "chat.input.quota_notice.subscription_required": "このモデルを使うにはサブスクリプションが必要です",

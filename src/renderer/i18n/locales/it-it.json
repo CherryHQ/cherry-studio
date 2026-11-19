@@ -867,6 +867,7 @@
   "chat.input.pasted_text_file_name": "Testo incollato.txt",
   "chat.input.pause": "Sospendi",
   "chat.input.placeholder": "Scrivi un messaggio. Digita / per strumenti e azioni, @ per fare riferimento agli argomenti.",
+  "chat.input.quota_notice.model_delisted": "Questo modello non è più disponibile. Passa a un altro modello",
   "chat.input.quota_notice.not_in_plan": "Il tuo piano non include questo modello",
   "chat.input.quota_notice.sign_in_required": "Accedi a Cherry AI per usare questo modello",
   "chat.input.quota_notice.subscription_required": "Abbonati per usare questo modello",

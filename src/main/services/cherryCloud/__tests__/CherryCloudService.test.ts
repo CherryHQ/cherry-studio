@@ -612,6 +612,12 @@ describe('CherryCloudService', () => {
         }
       })
       expect(result.signInRequiredModels.map((model) => model.id)).toEqual(['member-model'])
+      expect(result.catalogModelIds).toEqual([
+        'cherryai-subscription::plan-model',
+        'cherryai-subscription::guest-model',
+        'cherryai-subscription::member-model',
+        'cherryai-subscription::amd/qwen'
+      ])
       expect(result.amdActivationRequiredModels.map((model) => model.id)).toEqual(['amd/qwen'])
       const created = mocks.modelCreate.mock.calls.flatMap(([rows]) => rows.map((row: any) => row.dto.modelId))
       expect(created).toEqual(['guest-model'])
@@ -631,10 +637,12 @@ describe('CherryCloudService', () => {
       const service = await createService()
       mockCloudRoute('/v1/models?limit=1000', cloudErrorResponse(401, 'AUTH_REQUIRED'))
 
+      // An unread catalog must not make every stored model look delisted.
       await expect(service['syncEntitledModels']()).resolves.toMatchObject({
         entitledModelIds: [],
         amdActivationRequiredModels: [],
-        signInRequiredModels: []
+        signInRequiredModels: [],
+        catalogModelIds: null
       })
     })
 
@@ -1265,7 +1273,12 @@ describe('CherryCloudService', () => {
       },
       quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free'],
       amdActivationRequiredModels: [],
-      signInRequiredModels: []
+      signInRequiredModels: [],
+      catalogModelIds: [
+        'cherryai-subscription::deepseek-free',
+        'cherryai-subscription::deepseek-go',
+        'cherryai-subscription::deepseek-inactive'
+      ]
     })
 
     expect(mocks.modelCreate).toHaveBeenCalledWith([
@@ -1512,7 +1525,8 @@ describe('CherryCloudService', () => {
       },
       quotaExhaustedModelIds: [],
       amdActivationRequiredModels: [],
-      signInRequiredModels: []
+      signInRequiredModels: [],
+      catalogModelIds: ['cherryai-subscription::deepseek-free']
     })
     expect(mocks.modelCreate).not.toHaveBeenCalled()
     expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
@@ -1549,7 +1563,8 @@ describe('CherryCloudService', () => {
           available_features: ['chat', 'translate']
         }
       ],
-      signInRequiredModels: []
+      signInRequiredModels: [],
+      catalogModelIds: ['cherryai-subscription::amd/linked', 'cherryai-subscription::amd/locked']
     })
     const created = mocks.modelCreate.mock.calls.flatMap(([rows]) => rows.map((row: any) => row.dto.modelId))
     expect(created).toEqual(['amd/linked'])
@@ -1586,6 +1601,7 @@ describe('CherryCloudService', () => {
   })
 
   it('keeps managed models while signed out', async () => {
+    // No pre-login catalog route is mocked here, so the catalog stays unknown (null).
     mocks.modelList.mockReturnValue([
       {
         id: 'cherryai-subscription::deepseek-go',
@@ -1607,7 +1623,8 @@ describe('CherryCloudService', () => {
       availableModelIds: { agent: [], general: [] },
       quotaExhaustedModelIds: [],
       amdActivationRequiredModels: [],
-      signInRequiredModels: []
+      signInRequiredModels: [],
+      catalogModelIds: null
     })
     expect(mocks.modelCreate).not.toHaveBeenCalled()
     expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
@@ -1646,7 +1663,12 @@ describe('CherryCloudService', () => {
         },
         quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free'],
         amdActivationRequiredModels: [],
-        signInRequiredModels: []
+        signInRequiredModels: [],
+        catalogModelIds: [
+          'cherryai-subscription::deepseek-free',
+          'cherryai-subscription::deepseek-go',
+          'cherryai-subscription::deepseek-inactive'
+        ]
       })
       expect(mocks.netFetch).toHaveBeenCalledTimes(2)
     } finally {

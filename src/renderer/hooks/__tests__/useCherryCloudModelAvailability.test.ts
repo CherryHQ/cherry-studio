@@ -115,6 +115,7 @@ function snapshot(overrides: Partial<CherryCloudModelSyncResult> = {}): CherryCl
     quotaExhaustedModelIds: [],
     amdActivationRequiredModels: [],
     signInRequiredModels: [],
+    catalogModelIds: null,
     ...overrides
   }
 }

@@ -1079,8 +1079,8 @@ export class CherryCloudService extends BaseService {
     })
   }
 
-  /** The pre-login catalog, signed with the client HMAC; a refusal leaves signed-out users with plan previews only. */
-  private async getGuestCatalog(signal: AbortSignal): Promise<Infer<typeof cloudModelListSchema>> {
+  /** The pre-login catalog, signed with the client HMAC; null when refused, leaving plan previews only. */
+  private async getGuestCatalog(signal: AbortSignal): Promise<Infer<typeof cloudModelListSchema> | null> {
     try {
       const response = await this.guestFetch('/v1/models?limit=1000', {
         method: 'GET',
@@ -1097,7 +1097,7 @@ export class CherryCloudService extends BaseService {
       logger.warn('Cherry Cloud pre-login model catalog unavailable', {
         reason: error instanceof Error ? error.message : String(error)
       })
-      return { data: [] }
+      return null
     }
   }
 
@@ -1111,7 +1111,8 @@ export class CherryCloudService extends BaseService {
       if (this.sessionGeneration !== sessionGeneration || this.cloudState.session) {
         throw new DOMException('Cherry Cloud model sync was superseded', 'AbortError')
       }
-      return this.projectEntitledModels({ entitlements: [], quota_pools: [] }, catalog, false)
+      const result = this.projectEntitledModels({ entitlements: [], quota_pools: [] }, catalog ?? { data: [] }, false)
+      return catalog ? result : { ...result, catalogModelIds: null }
     }
 
     const [account, catalog] = await Promise.all([
@@ -1202,7 +1203,8 @@ export class CherryCloudService extends BaseService {
       },
       quotaExhaustedModelIds,
       amdActivationRequiredModels: lockedAmdModels.map(toModelPreview),
-      signInRequiredModels: signInRequiredModels.map(toModelPreview)
+      signInRequiredModels: signInRequiredModels.map(toModelPreview),
+      catalogModelIds: catalog.data.map((model) => createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id))
     }
   }
 

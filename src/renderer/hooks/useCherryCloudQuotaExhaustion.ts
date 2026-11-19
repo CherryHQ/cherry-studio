@@ -15,7 +15,7 @@ export type CherryCloudQuotaExhaustion = {
 } & (
   | { reason: 'unknown'; state: 'loading' | 'error' | 'stale' }
   | { reason: 'quota_exhausted'; recoversAt?: string }
-  | { reason: 'sign_in_required' | 'subscription_required' | 'not_in_plan' }
+  | { reason: 'sign_in_required' | 'subscription_required' | 'not_in_plan' | 'model_delisted' }
   | { reason: 'amd_activation_required'; cloudModelId: string }
 )
 
@@ -47,6 +47,7 @@ export function useCherryCloudQuotaExhaustion(
     isModelLocked,
     isModelUnavailable,
     isAmdActivationRequired,
+    isModelDelisted,
     availabilityFreshness,
     availabilityError
   } = useCherryCloudModelAvailability(isCloudModel)
@@ -84,6 +85,8 @@ export function useCherryCloudQuotaExhaustion(
         recoversAt: getRecoveryTime(isPlansReady ? plansQuery.data : undefined, parseUniqueModelId(model.id).modelId)
       }
     }
+    // Neither signing in nor subscribing can bring back a model the server stopped listing.
+    if (isModelDelisted(model)) return { ...base, reason: 'model_delisted' }
     if (phase === 'signed-out') return { ...base, reason: 'sign_in_required' }
     // AMD models need AMD authorization, not a plan.
     if (isAmdActivationRequired(model)) {
@@ -102,6 +105,7 @@ export function useCherryCloudQuotaExhaustion(
     upcomingPaid,
     exhausted,
     isAmdActivationRequired,
+    isModelDelisted,
     isCherryAiModel,
     cherryAiPhase,
     isCloudModel,

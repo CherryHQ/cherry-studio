@@ -867,6 +867,7 @@
   "chat.input.pasted_text_file_name": "Texto pegado.txt",
   "chat.input.pause": "Pausar",
   "chat.input.placeholder": "Escribe un mensaje. Escribe / para ver las herramientas y acciones, o @ para hacer referencia a temas.",
+  "chat.input.quota_notice.model_delisted": "Este modelo ya no está disponible. Cambia a otro modelo",
   "chat.input.quota_notice.not_in_plan": "Tu plan no incluye este modelo",
   "chat.input.quota_notice.sign_in_required": "Inicia sesión en Cherry AI para usar este modelo",
   "chat.input.quota_notice.subscription_required": "Suscríbete para usar este modelo",

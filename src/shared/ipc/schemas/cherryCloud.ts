@@ -44,7 +44,9 @@ const cherryCloudModelSyncResultSchema = z.strictObject({
   /** AMD models the account can use only after authorizing AMD; they stay out of the model table until then. */
   amdActivationRequiredModels: z.array(cherryCloudAmdModelSchema),
   /** Standalone models that need only a Cherry AI sign-in; empty once signed in. */
-  signInRequiredModels: z.array(cherryCloudPlanModelSchema)
+  signInRequiredModels: z.array(cherryCloudPlanModelSchema),
+  /** Every model the server lists, usable or not; null when the catalog could not be read. */
+  catalogModelIds: z.array(UniqueModelIdSchema).nullable()
 })
 
 export type CherryCloudModelSyncResult = z.infer<typeof cherryCloudModelSyncResultSchema>
