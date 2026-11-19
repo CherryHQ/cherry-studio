@@ -27,11 +27,13 @@ const SetParams = KeyParams.extend({ value: z.string().max(MINI_APP_STORAGE_MAX_
 const limiter = new WriteRateLimiter()
 
 export const storageCapability = {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Guest params remain unparsed at dispatch; KeyParams bounds the UTF-8 key before reading app-owned storage.
   get(appId: string, params: unknown) {
     const { key } = KeyParams.parse(params)
     return { value: readStorage(appId)[key] ?? null }
   },
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- SetParams validates the guest key/value and caps input before rate limiting and the quota-protected file write.
   set(appId: string, params: unknown) {
     const { key, value } = SetParams.parse(params)
     limiter.check(appId, Buffer.byteLength(value, 'utf8'))
@@ -41,6 +43,7 @@ export const storageCapability = {
     return { ok: true }
   },
 
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- KeyParams validates the raw guest key before rate limiting and deleting from the app-owned storage map.
   delete(appId: string, params: unknown) {
     const { key } = KeyParams.parse(params)
     // A delete is a write. Leaving it out of the limiter leaves a delete-only loop
