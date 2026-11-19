@@ -1,15 +1,15 @@
 import type { DragDropManager } from '@dnd-kit/dom'
 import { useDragDropManager } from '@dnd-kit/react'
 import { act } from '@testing-library/react'
-import { type ComponentProps, useEffect } from 'react'
-
-import { DragDropRoot } from '@cherrystudio/ui/components/composites/sortable/drag-drop-root'
+import { type ComponentType, type ReactNode, useEffect } from 'react'
 
 import { installDndDomStubs } from './dndDomStubs'
 
 /**
  * Drives real `@dnd-kit/react` drags in jsdom for lists rendered under `DragDropRoot`.
- * The renderer setup mocks `@cherrystudio/ui` with `DragDropRootWithTestDriver`, so any list can be driven.
+ * The renderer setup mocks `@cherrystudio/ui` with `withManagerProbe(DragDropRoot)`, so any list can be driven.
+ * The root is passed in rather than imported, because the node typecheck also covers this file and has no
+ * `@cherrystudio/ui` path alias.
  */
 
 const managers = new Set<DragDropManager>()
@@ -26,13 +26,15 @@ function ManagerProbe() {
   return null
 }
 
-export function DragDropRootWithTestDriver({ children, ...props }: ComponentProps<typeof DragDropRoot>) {
-  return (
-    <DragDropRoot {...props}>
-      <ManagerProbe />
-      {children}
-    </DragDropRoot>
-  )
+export function withManagerProbe<P extends { children?: ReactNode }>(Root: ComponentType<P>) {
+  return function DragDropRootWithTestDriver({ children, ...props }: P) {
+    return (
+      <Root {...(props as P)}>
+        <ManagerProbe />
+        {children}
+      </Root>
+    )
+  }
 }
 
 function managerFor(id: string) {

@@ -49,7 +49,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
   return {
     ...actual,
-    DragDropRoot: (await import('@test-mocks/dndDriver')).DragDropRootWithTestDriver,
+    DragDropRoot: (await import('@test-mocks/dndDriver')).withManagerProbe(actual.DragDropRoot),
     ContextMenu: ({ children, onOpenChange }: { children?: ReactNode; onOpenChange?: (open: boolean) => void }) => (
       <ContextMenuContext value={{ onOpenChange }}>
         <div data-testid="context-menu">{children}</div>
