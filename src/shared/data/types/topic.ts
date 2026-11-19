@@ -29,6 +29,8 @@ export const TopicSchema = z.strictObject({
   isNameManuallyEdited: z.boolean(),
   /** Last-used assistant ID (updated on message send) */
   assistantId: z.string().optional(),
+  /** Optional subject group (entityType 'topic'); independent of the assistant */
+  groupId: z.string().optional(),
   /** Active node ID in the message tree */
   activeNodeId: z.string().optional(),
   /** Container-level OTel trace id */

@@ -36,6 +36,7 @@ import type { Topic } from '@shared/data/types/topic'
 import { createNameComparator } from '@shared/utils/nameOrdering'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
+import { groupService } from './GroupService'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
 import { decodeListCursor, keysetOrdering } from './utils/keysetCursor'
@@ -122,6 +123,17 @@ function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string
     .limit(1)
     .all()
   if (!assistant) throw DataApiErrorFactory.notFound('Assistant', assistantId)
+}
+
+function assertTopicGroupTx(tx: Pick<DbOrTx, 'select'>, groupId: string | null): void {
+  if (groupId === null) return
+  const group = groupService.findByIdTx(tx, groupId)
+  if (!group) {
+    throw DataApiErrorFactory.validation({ groupId: [`Topic group not found: ${groupId}`] })
+  }
+  if (group.entityType !== 'topic') {
+    throw DataApiErrorFactory.validation({ groupId: [`Topic group must have entityType 'topic': ${groupId}`] })
+  }
 }
 
 export class TopicService {
@@ -406,6 +418,10 @@ export class TopicService {
           assertActiveAssistantTx(tx, dto.assistantId)
         }
         updates.assistantId = dto.assistantId
+      }
+      if (dto.groupId !== undefined) {
+        assertTopicGroupTx(tx, dto.groupId)
+        updates.groupId = dto.groupId
       }
 
       const [row] = tx.update(topicTable).set(updates).where(eq(topicTable.id, id)).returning().all()

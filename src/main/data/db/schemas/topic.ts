@@ -2,11 +2,14 @@ import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 import { assistantTable } from './assistant'
+import { groupTable } from './group'
 
 /**
  * Topic table - stores conversation topics/threads
  *
  * Topics are containers for messages and reference assistants via FK.
+ * `groupId` is an optional user-managed subject group (entityType 'topic'),
+ * independent of the assistant.
  */
 export const topicTable = sqliteTable(
   'topic',
@@ -18,6 +21,8 @@ export const topicTable = sqliteTable(
     // FK to assistant table - "last used assistant"
     // SET NULL: preserve topic when assistant is deleted
     assistantId: text().references(() => assistantTable.id, { onDelete: 'set null' }),
+    // Optional subject group (entityType 'topic'); SET NULL ungroups topics when the group is deleted
+    groupId: text().references(() => groupTable.id, { onDelete: 'set null' }),
     // Active node ID in the message tree
     activeNodeId: text(),
 
@@ -36,6 +41,7 @@ export const topicTable = sqliteTable(
     index('topic_last_activity_at_idx').on(t.lastActivityAt),
     index('topic_updated_at_idx').on(t.updatedAt),
     orderKeyIndex('topic')(t),
-    index('topic_assistant_id_idx').on(t.assistantId)
+    index('topic_assistant_id_idx').on(t.assistantId),
+    index('topic_group_id_idx').on(t.groupId)
   ]
 )

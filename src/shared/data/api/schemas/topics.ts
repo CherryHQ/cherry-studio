@@ -39,7 +39,8 @@ export const UpdateTopicSchema = TopicSchema.pick({
 })
   .partial()
   .extend({
-    assistantId: z.string().nullable().optional()
+    assistantId: z.string().nullable().optional(),
+    groupId: z.string().min(1).nullable().optional()
   })
 export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
 

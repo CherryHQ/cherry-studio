@@ -8,11 +8,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
+import { groupTable } from '@data/db/schemas/group'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { topicTable } from '@data/db/schemas/topic'
 import { fileRefService } from '@data/services/FileRefService'
+import { groupService } from '@data/services/GroupService'
 import { messageService } from '@data/services/MessageService'
 import { TopicService, topicService } from '@data/services/TopicService'
 
@@ -198,6 +200,31 @@ describe('TopicService', () => {
 
     const unlinked = topicService.update('topic-assistant-update', { assistantId: null })
     expect(unlinked.assistantId).toBeUndefined()
+  })
+
+  it('assigns, clears, and validates topic subject groups', async () => {
+    await dbh.db.insert(groupTable).values([
+      { id: 'group-topic', entityType: 'topic', name: 'Python', orderKey: 'a0' },
+      { id: 'group-assistant', entityType: 'assistant', name: 'Work', orderKey: 'a0' }
+    ])
+    await dbh.db.insert(topicTable).values({ id: 'topic-group-update', name: 'Grouping', orderKey: 'a0' })
+
+    expect(topicService.update('topic-group-update', { groupId: 'group-topic' }).groupId).toBe('group-topic')
+
+    let err: unknown
+    try {
+      topicService.update('topic-group-update', { groupId: 'group-assistant' })
+    } catch (e) {
+      err = e
+    }
+    expect(err).toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+    expect(topicService.getById('topic-group-update').groupId).toBe('group-topic')
+
+    expect(topicService.update('topic-group-update', { groupId: null }).groupId).toBeUndefined()
+
+    topicService.update('topic-group-update', { groupId: 'group-topic' })
+    groupService.delete('group-topic')
+    expect(topicService.getById('topic-group-update').groupId).toBeUndefined()
   })
 
   describe('listByCursor', () => {
