@@ -132,6 +132,7 @@
     "anti-slop/no-unknown-type-aliases": "error",
     "anti-slop/no-unknown-returns": "error",
     "anti-slop/no-unknown-parameters": "error",
+    "anti-slop/no-chained-type-assertions": "error",
     "anti-slop/no-widen-then-assert": "error",
     "no-array-constructor": "off",
     "no-caller": "error",
