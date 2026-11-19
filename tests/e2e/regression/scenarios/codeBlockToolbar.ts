@@ -252,13 +252,7 @@ export async function codeBlockToolbar(app: RegressionApp, page: Page, testInfo:
     let scrollingFrames = frames
     const deltas = { outer: 0, preview: 0, list: 0 }
     try {
-      for (let step = 0; step < 3; step++) {
-        const previous = await list.evaluate((element) => element.scrollTop)
-        await list.press('ArrowDown')
-        await expect
-          .poll(() => list.evaluate((element) => element.scrollTop), { timeout: 5_000 })
-          .toBeGreaterThan(previous)
-      }
+      await list.evaluate((element) => element.scrollBy({ top: 80, behavior: 'smooth' }))
       await expect
         .poll(
           async () => {

@@ -426,6 +426,9 @@ test(...caseDefinition('MP-85'), async ({ mainWindow: page }, testInfo) => {
     'feature.translate.page.bidirectional_enabled': await window.api.preference.get(
       'feature.translate.page.bidirectional_enabled'
     ),
+    'feature.translate.auto_detection_method': await window.api.preference.get(
+      'feature.translate.auto_detection_method'
+    ),
     'feature.translate.model_prompt': await window.api.preference.get('feature.translate.model_prompt')
   }))
   const readLanguages = async () => {
@@ -511,6 +514,7 @@ test(...caseDefinition('MP-85'), async ({ mainWindow: page }, testInfo) => {
           'feature.translate.model_id': modelId,
           'feature.translate.page.source_language': 'en-us',
           'feature.translate.page.bidirectional_enabled': false,
+          'feature.translate.auto_detection_method': 'franc',
           'feature.translate.model_prompt': 'Translate this text into {{target_language}}: {{text}}'
         }),
       createUniqueModelId(providerId, server.modelId)
