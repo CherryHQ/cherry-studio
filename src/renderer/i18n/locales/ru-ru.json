@@ -2448,6 +2448,8 @@
   "library.config.dialogs.edit.section.heartbeat": "Heartbeat",
   "library.config.dialogs.edit.section.run": "Запуск",
   "library.config.dialogs.edit.tasks.add": "Новая задача",
+  "library.config.dialogs.edit.tasks.add_manually": "Создать вручную",
+  "library.config.dialogs.edit.tasks.add_with_agent": "Создать с агентом",
   "library.config.dialogs.edit.tasks.empty": "Запланированных задач пока нет. Пусть агент работает по расписанию, например каждое утро сводит новые PR.",
   "library.config.dialogs.edit.tasks.last_run": "Последний запуск {{time}}",
   "library.config.dialogs.edit.tools_tab": "Инструменты",

@@ -5,13 +5,16 @@ import { useTranslation } from 'react-i18next'
 import { Button, FormField, FormItem, Textarea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
+import { requestComposerPrefill } from '@renderer/components/composer/variants/shared/useComposerPrefill'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
+import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { useAgentTasks } from '@renderer/hooks/agent/useTasks'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
+import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
@@ -19,9 +22,11 @@ import { useModelById } from '@renderer/hooks/useModel'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { useInstalledSkills, useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { getPermissionModeCards } from '@renderer/utils/agent'
+import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import {
   type AgentFormState,
@@ -36,6 +41,7 @@ import { isSealedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
 import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 import type { AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
 import { isBrowserMcpServer } from '@shared/utils/mcp'
@@ -501,6 +507,27 @@ function AgentEditDialogContent({
     return true
   }
   const closeBeforeAction = useCloseBeforeAction((next) => handleOpenChange(next, false))
+  const closeConversationTabs = useCloseConversationTabs()
+  const invalidateCache = useInvalidateCache()
+  // Opens an empty conversation with this Agent and leaves the request in its composer, unsent.
+  const createTaskWithAgent = () =>
+    closeBeforeAction(() => {
+      void ipcApi
+        .request('ai.agent.session.reuse_or_create', {
+          agentId: resource.id,
+          workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        })
+        .then(({ session, deletedDuplicateSessionIds }) => {
+          closeConversationTabs('agents', deletedDuplicateSessionIds)
+          void invalidateCache(['/agent-sessions', `/agent-sessions/${session.id}`])
+          requestComposerPrefill(buildAgentSessionTopicId(session.id), t('chat.profile_pane.tasks.new_prompt'))
+          openRoute('/app/agents', { sessionId: session.id })
+        })
+        .catch((error) => {
+          logger.error('Failed to open a conversation to create a task', error as Error)
+          toast.error(t('agent.session.create.error.failed'))
+        })
+    })
 
   const pageTitles: Record<EditPage, string> = {
     settings: t('library.config.dialogs.edit.agent_title'),
@@ -675,7 +702,11 @@ function AgentEditDialogContent({
         />
       ) : null}
       {page === 'tasks' ? (
-        <AgentTasksPage agentId={resource.id} agentName={values.name.trim() || resource.name} />
+        <AgentTasksPage
+          agentId={resource.id}
+          agentName={values.name.trim() || resource.name}
+          onCreateWithAgent={createTaskWithAgent}
+        />
       ) : null}
       {page === 'heartbeat' ? (
         <HeartbeatTasksPage ref={heartbeatPageRef} agentId={resource.id} enabled={values.heartbeatEnabled} />

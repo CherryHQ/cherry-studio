@@ -2449,6 +2449,8 @@
   "library.config.dialogs.edit.section.heartbeat": "Srdeční tep",
   "library.config.dialogs.edit.section.run": "Běh",
   "library.config.dialogs.edit.tasks.add": "Nová úloha",
+  "library.config.dialogs.edit.tasks.add_manually": "Vytvořit ručně",
+  "library.config.dialogs.edit.tasks.add_with_agent": "Vytvořit pomocí Agenta",
   "library.config.dialogs.edit.tasks.empty": "Zatím žádné plánované úlohy. Nechte agenta dělat věci podle plánu, třeba každé ráno shrnout nové PR.",
   "library.config.dialogs.edit.tasks.last_run": "Naposledy spuštěno {{time}}",
   "library.config.dialogs.edit.tools_tab": "Nástroje",

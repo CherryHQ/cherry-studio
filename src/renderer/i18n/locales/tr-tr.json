@@ -2446,6 +2446,8 @@
   "library.config.dialogs.edit.section.heartbeat": "Heartbeat",
   "library.config.dialogs.edit.section.run": "Çalıştırma",
   "library.config.dialogs.edit.tasks.add": "Yeni görev",
+  "library.config.dialogs.edit.tasks.add_manually": "Elle oluştur",
+  "library.config.dialogs.edit.tasks.add_with_agent": "Ajanla oluştur",
   "library.config.dialogs.edit.tasks.empty": "Henüz zamanlanmış görev yok. Ajanın işleri bir programa göre yapmasını sağlayın; örneğin her sabah yeni PR'ları özetlesin.",
   "library.config.dialogs.edit.tasks.last_run": "Son çalışma {{time}}",
   "library.config.dialogs.edit.tools_tab": "Araçlar",

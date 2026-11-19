@@ -2446,6 +2446,8 @@
   "library.config.dialogs.edit.section.heartbeat": "ハートビート",
   "library.config.dialogs.edit.section.run": "実行",
   "library.config.dialogs.edit.tasks.add": "新しいタスク",
+  "library.config.dialogs.edit.tasks.add_manually": "手動作成",
+  "library.config.dialogs.edit.tasks.add_with_agent": "エージェントで作成",
   "library.config.dialogs.edit.tasks.empty": "スケジュールタスクはまだありません。毎朝新しい PR をまとめるなど、エージェントに決まった時間に作業させましょう。",
   "library.config.dialogs.edit.tasks.last_run": "前回の実行 {{time}}",
   "library.config.dialogs.edit.tools_tab": "ツール",

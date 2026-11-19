@@ -2446,6 +2446,8 @@
   "library.config.dialogs.edit.section.heartbeat": "하트비트",
   "library.config.dialogs.edit.section.run": "실행",
   "library.config.dialogs.edit.tasks.add": "새 작업",
+  "library.config.dialogs.edit.tasks.add_manually": "직접 만들기",
+  "library.config.dialogs.edit.tasks.add_with_agent": "에이전트로 만들기",
   "library.config.dialogs.edit.tasks.empty": "아직 예약 작업이 없습니다. 매일 아침 새 PR을 정리하는 것처럼 에이전트가 정해진 시간에 일하게 하세요.",
   "library.config.dialogs.edit.tasks.last_run": "마지막 실행 {{time}}",
   "library.config.dialogs.edit.tools_tab": "도구",

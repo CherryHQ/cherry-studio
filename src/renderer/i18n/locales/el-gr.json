@@ -2446,6 +2446,8 @@
   "library.config.dialogs.edit.section.heartbeat": "Heartbeat",
   "library.config.dialogs.edit.section.run": "Εκτέλεση",
   "library.config.dialogs.edit.tasks.add": "Νέα εργασία",
+  "library.config.dialogs.edit.tasks.add_manually": "Χειροκίνητη δημιουργία",
+  "library.config.dialogs.edit.tasks.add_with_agent": "Δημιουργία με τον Πράκτορα",
   "library.config.dialogs.edit.tasks.empty": "Δεν υπάρχουν ακόμη προγραμματισμένες εργασίες. Αφήστε τον Agent να κάνει εργασίες με πρόγραμμα, όπως να συνοψίζει τα νέα PR κάθε πρωί.",
   "library.config.dialogs.edit.tasks.last_run": "Τελευταία εκτέλεση {{time}}",
   "library.config.dialogs.edit.tools_tab": "Εργαλεία",

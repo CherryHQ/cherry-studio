@@ -2446,6 +2446,8 @@
   "library.config.dialogs.edit.section.heartbeat": "Heartbeat",
   "library.config.dialogs.edit.section.run": "Chạy",
   "library.config.dialogs.edit.tasks.add": "Tác vụ mới",
+  "library.config.dialogs.edit.tasks.add_manually": "Tạo thủ công",
+  "library.config.dialogs.edit.tasks.add_with_agent": "Tạo bằng Agent",
   "library.config.dialogs.edit.tasks.empty": "Chưa có tác vụ định kỳ. Hãy để tác tử tự làm việc theo lịch, chẳng hạn tóm tắt PR mới mỗi sáng.",
   "library.config.dialogs.edit.tasks.last_run": "Lần chạy gần nhất {{time}}",
   "library.config.dialogs.edit.tools_tab": "Công cụ",

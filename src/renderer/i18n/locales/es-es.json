@@ -2446,6 +2446,8 @@
   "library.config.dialogs.edit.section.heartbeat": "Latido",
   "library.config.dialogs.edit.section.run": "Ejecución",
   "library.config.dialogs.edit.tasks.add": "Nueva tarea",
+  "library.config.dialogs.edit.tasks.add_manually": "Crear manualmente",
+  "library.config.dialogs.edit.tasks.add_with_agent": "Crear con el agente",
   "library.config.dialogs.edit.tasks.empty": "Aún no hay tareas programadas. Deja que el agente haga cosas según un horario, como resumir los PR nuevos cada mañana.",
   "library.config.dialogs.edit.tasks.last_run": "Última ejecución {{time}}",
   "library.config.dialogs.edit.tools_tab": "Herramientas",

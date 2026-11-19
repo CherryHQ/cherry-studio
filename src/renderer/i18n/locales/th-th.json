@@ -2446,6 +2446,8 @@
   "library.config.dialogs.edit.section.heartbeat": "ฮาร์ตบีต",
   "library.config.dialogs.edit.section.run": "การทำงาน",
   "library.config.dialogs.edit.tasks.add": "งานใหม่",
+  "library.config.dialogs.edit.tasks.add_manually": "สร้างด้วยตนเอง",
+  "library.config.dialogs.edit.tasks.add_with_agent": "สร้างด้วยเอเจนต์",
   "library.config.dialogs.edit.tasks.empty": "ยังไม่มีงานตามกำหนดเวลา ให้เอเจนต์ทำงานตามเวลา เช่น สรุป PR ใหม่ทุกเช้า",
   "library.config.dialogs.edit.tasks.last_run": "ทำงานล่าสุด {{time}}",
   "library.config.dialogs.edit.tools_tab": "เครื่องมือ",

@@ -2446,6 +2446,8 @@
   "library.config.dialogs.edit.section.heartbeat": "Heartbeat",
   "library.config.dialogs.edit.section.run": "Ausführung",
   "library.config.dialogs.edit.tasks.add": "Neue Aufgabe",
+  "library.config.dialogs.edit.tasks.add_manually": "Manuell erstellen",
+  "library.config.dialogs.edit.tasks.add_with_agent": "Mit dem Agenten erstellen",
   "library.config.dialogs.edit.tasks.empty": "Noch keine geplanten Aufgaben. Lassen Sie den Agenten Dinge nach Zeitplan erledigen, etwa jeden Morgen neue PRs zusammenfassen.",
   "library.config.dialogs.edit.tasks.last_run": "Zuletzt ausgeführt {{time}}",
   "library.config.dialogs.edit.tools_tab": "Werkzeuge",
