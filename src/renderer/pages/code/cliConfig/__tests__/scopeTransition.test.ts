@@ -49,16 +49,22 @@ function payload() {
 describe('Claude scope routing', () => {
   it('enables with a clean provider overlay and scrubbed global settings', async () => {
     await enableClaudeScopedSettings({ selection, currentProviderId: 'persisted-provider' })
-    const result = payload()
+    const writes = mocks.request.mock.calls.filter(([route]) => route === 'code_cli.write_config')
+    expect(writes).toHaveLength(2)
+    const result = writes[0][1]
     expect(result.claudeScopedSettings).toBe(true)
     expect(result.expectedClaudeProviderId).toBe('persisted-provider')
-    expect(result.files.map((f: any) => f.target)).toEqual(['claude-settings', 'claude-scoped-settings'])
-    expect(JSON.parse(result.files[0].content)).toEqual({
+    expect(result.files.map((f: any) => f.target)).toEqual(['claude-scoped-settings'])
+    const scrub = writes[1][1]
+    expect(scrub.claudeScopedSettings).toBe(true)
+    expect(scrub.expectedClaudeProviderId).toBe('persisted-provider')
+    expect(scrub.files.map((f: any) => f.target)).toEqual(['claude-settings'])
+    expect(JSON.parse(scrub.files[0].content)).toEqual({
       user: 'keep',
       permissions: { allow: ['Bash(ls)'] },
       env: { USER: 'keep' }
     })
-    const overlay = JSON.parse(result.files[1].content)
+    const overlay = JSON.parse(result.files[0].content)
     expect(overlay.user).toBeUndefined()
     expect(overlay.permissions?.allow).toBeUndefined()
     expect(overlay.env.ANTHROPIC_AUTH_TOKEN).toBe('secret')
@@ -85,21 +91,24 @@ describe('Claude scope routing', () => {
     expect(content.env?.ANTHROPIC_AUTH_TOKEN).toBeUndefined()
     if (!scoped) expect(content.user).toBe('keep')
   })
-  it('leaves an existing empty global file untouched when enabling', async () => {
-    mocks.request.mockImplementation(async (route: string, input: any) =>
-      route === 'code_cli.read_config'
-        ? {
-            files: input.targets.map((target: CliConfigTarget) => ({
-              target,
-              path: CLI_CONFIG_FILE_SPECS[target].path,
-              content: ''
-            }))
-          }
-        : { success: true }
-    )
-    await enableClaudeScopedSettings({ currentProviderId: null })
-    expect(payload().files).toEqual([{ target: 'claude-scoped-settings', content: '{}\n' }])
-  })
+  it.each([null, '', ' \t\r\n'])(
+    'leaves an existing empty global file untouched when enabling (%s)',
+    async (content) => {
+      mocks.request.mockImplementation(async (route: string, input: any) =>
+        route === 'code_cli.read_config'
+          ? {
+              files: input.targets.map((target: CliConfigTarget) => ({
+                target,
+                path: CLI_CONFIG_FILE_SPECS[target].path,
+                content: target === 'claude-settings' ? '' : content
+              }))
+            }
+          : { success: true }
+      )
+      await enableClaudeScopedSettings({ currentProviderId: null })
+      expect(payload().files).toEqual([{ target: 'claude-scoped-settings', content: '{}\n' }])
+    }
+  )
   it('preserves deliberate credentials in a raw own-login draft', async () => {
     const draft = await readOwnLoginCliConfigDraft({ cliTool: CodeCli.CLAUDE_CODE, claudeScopedSettings: true })
     const content = '{"env":{"ANTHROPIC_API_KEY":"manual","ANTHROPIC_BASE_URL":"https://manual"}}'
@@ -112,8 +121,94 @@ describe('Claude scope routing', () => {
   })
   it('enables without a selection with an empty overlay', async () => {
     await enableClaudeScopedSettings({ currentProviderId: null })
-    expect(payload().files.map((f: any) => f.target)).toEqual(['claude-settings', 'claude-scoped-settings'])
-    expect(JSON.parse(payload().files[1].content)).toEqual({})
+    expect(payload().files).toEqual([{ target: 'claude-scoped-settings', content: '{}\n' }])
+  })
+  it('enables without a selection without touching personal global credentials or permissions', async () => {
+    const global = JSON.stringify({ env: { ANTHROPIC_API_KEY: 'personal' }, permissions: { defaultMode: 'plan' } })
+    mocks.request.mockImplementation(async (route: string, input: any) =>
+      route === 'code_cli.read_config'
+        ? {
+            files: input.targets.map((target: CliConfigTarget) => ({
+              target,
+              path: CLI_CONFIG_FILE_SPECS[target].path,
+              content: target === 'claude-settings' ? global : null
+            }))
+          }
+        : { success: true }
+    )
+    await enableClaudeScopedSettings({ currentProviderId: null })
+    const writes = mocks.request.mock.calls.filter(([route]) => route === 'code_cli.write_config')
+    expect(writes.map(([, input]) => input)).toEqual([
+      {
+        cliTool: CodeCli.CLAUDE_CODE,
+        files: [{ target: 'claude-scoped-settings', content: '{}\n' }],
+        claudeScopedSettings: true,
+        expectedClaudeProviderId: null
+      }
+    ])
+  })
+  it('does not scrub global settings when the provider overlay write fails', async () => {
+    const request = mocks.request.getMockImplementation()!
+    mocks.request.mockImplementation(async (route: string, input: any) =>
+      route === 'code_cli.write_config' ? { success: false, message: 'overlay write failed' } : request(route, input)
+    )
+    await expect(enableClaudeScopedSettings({ selection, currentProviderId: null })).rejects.toThrow(
+      'overlay write failed'
+    )
+    const writes = mocks.request.mock.calls.filter(([route]) => route === 'code_cli.write_config')
+    expect(writes).toHaveLength(1)
+    expect(writes[0][1].files.map((file: any) => file.target)).toEqual(['claude-scoped-settings'])
+    expect(JSON.parse(writes[0][1].files[0].content).env.ANTHROPIC_AUTH_TOKEN).toBe('secret')
+  })
+  it('writes the provider overlay before scrubbing global settings in a separate request', async () => {
+    await enableClaudeScopedSettings({ selection, currentProviderId: 'persisted-provider' })
+    const writes = mocks.request.mock.calls.filter(([route]) => route === 'code_cli.write_config')
+    expect(writes.map(([, input]) => input.files.map((file: any) => file.target))).toEqual([
+      ['claude-scoped-settings'],
+      ['claude-settings']
+    ])
+    expect(JSON.parse(writes[0][1].files[0].content).env.ANTHROPIC_AUTH_TOKEN).toBe('secret')
+    expect(JSON.parse(writes[1][1].files[0].content)).toEqual({
+      user: 'keep',
+      permissions: { allow: ['Bash(ls)'] },
+      env: { USER: 'keep' }
+    })
+    for (const [, input] of writes) {
+      expect(input.claudeScopedSettings).toBe(true)
+      expect(input.expectedClaudeProviderId).toBe('persisted-provider')
+    }
+  })
+  it('refuses to enable a selection when global settings contain invalid JSON', async () => {
+    mocks.request.mockImplementation(async (route: string, input: any) =>
+      route === 'code_cli.read_config'
+        ? {
+            files: input.targets.map((target: CliConfigTarget) => ({
+              target,
+              path: '/global/settings.json',
+              content: '{ broken'
+            }))
+          }
+        : { success: true }
+    )
+    await expect(enableClaudeScopedSettings({ selection, currentProviderId: null })).rejects.toThrow(
+      /settings.*\/global\/settings.json.*invalid JSONC/i
+    )
+    expect(mocks.request.mock.calls.filter(([route]) => route === 'code_cli.write_config')).toEqual([])
+  })
+  it('enables without a selection by preserving the existing overlay text verbatim', async () => {
+    const content = '{\n  // user settings\n  "env": { "EXTRA": "keep" }\n}\n'
+    const request = mocks.request.getMockImplementation()!
+    mocks.request.mockImplementation(async (route: string, input: any) => {
+      const result = await request(route, input)
+      if (route === 'code_cli.read_config') {
+        for (const file of result.files) {
+          if (file.target === 'claude-scoped-settings') file.content = content
+        }
+      }
+      return result
+    })
+    await enableClaudeScopedSettings({ currentProviderId: null })
+    expect(payload().files).toEqual([{ target: 'claude-scoped-settings', content }])
   })
   it('disables with a provider while preserving global user settings', async () => {
     await disableClaudeScopedSettings({ claudeScopedSettings: true, currentProviderId: null, selection })
@@ -136,7 +231,12 @@ describe('Claude scope routing', () => {
               content:
                 target === 'claude-scoped-settings'
                   ? JSON.stringify({ env: { EXTRA: 'keep' }, permissions: { allow: ['Bash(pwd)'] } })
-                  : globalContent
+                  : JSON.stringify({
+                      user: 'keep',
+                      language: 'en',
+                      permissions: { allow: ['Bash(ls)'], deny: ['Read(.env)'], defaultMode: 'plan' },
+                      env: { ANTHROPIC_AUTH_TOKEN: 'old', USER: 'keep', EXTRA: 'global' }
+                    })
             }))
           }
         : { success: true }
@@ -147,12 +247,18 @@ describe('Claude scope routing', () => {
       selection: kind === 'provider' ? selection : { kind, configBlob: { effortLevel: 'high' } }
     })
     const result = payload()
-    expect(JSON.parse(result.files[0].content)).toMatchObject({
+    expect(JSON.parse(result.files[0].content)).toEqual({
+      user: 'keep',
+      language: 'en',
       env: {
+        USER: 'keep',
         EXTRA: 'keep',
-        ...(kind === 'provider' ? { ANTHROPIC_AUTH_TOKEN: 'secret', ANTHROPIC_BASE_URL: 'https://example.com' } : {})
+        ...(kind === 'provider'
+          ? { ANTHROPIC_AUTH_TOKEN: 'secret', ANTHROPIC_BASE_URL: 'https://example.com', ANTHROPIC_MODEL: 'model' }
+          : {})
       },
-      permissions: { allow: ['Bash(pwd)'] }
+      permissions: { allow: ['Bash(pwd)'], deny: ['Read(.env)'] },
+      ...(kind === 'own-login' ? { effortLevel: 'high' } : {})
     })
     expect(result.files[1]).toEqual({ target: 'claude-scoped-settings', delete: true })
   })
@@ -178,13 +284,88 @@ describe('Claude scope routing', () => {
     )
     expect(payload()).toBeUndefined()
   })
+  it('merges scoped user edits into global settings before deleting the overlay without a selection', async () => {
+    mocks.request.mockImplementation(async (route: string, input: any) =>
+      route === 'code_cli.read_config'
+        ? {
+            files: input.targets.map((target: CliConfigTarget) => ({
+              target,
+              path: CLI_CONFIG_FILE_SPECS[target].path,
+              content:
+                target === 'claude-scoped-settings'
+                  ? JSON.stringify({ env: { EXTRA: 'keep' }, permissions: { allow: ['Bash(pwd)'] } })
+                  : globalContent
+            }))
+          }
+        : { success: true }
+    )
+    await disableClaudeScopedSettings({ claudeScopedSettings: true, currentProviderId: null })
+    const writes = mocks.request.mock.calls.filter(([route]) => route === 'code_cli.write_config')
+    expect(writes).toHaveLength(1)
+    const result = writes[0][1]
+    expect(result.files).toHaveLength(2)
+    expect(result.files[0].target).toBe('claude-settings')
+    expect(JSON.parse(result.files[0].content)).toEqual({
+      user: 'keep',
+      permissions: { allow: ['Bash(pwd)'], defaultMode: 'plan' },
+      env: { ANTHROPIC_AUTH_TOKEN: 'old', USER: 'keep', EXTRA: 'keep' }
+    })
+    expect(result.files[1]).toEqual({ target: 'claude-scoped-settings', delete: true })
+    expect(result.claudeScopedSettings).toBe(false)
+  })
+  it.each([null, ''])(
+    'uses an empty base when disabling with missing or empty global settings (%s)',
+    async (content) => {
+      mocks.request.mockImplementation(async (route: string, input: any) =>
+        route === 'code_cli.read_config'
+          ? {
+              files: input.targets.map((target: CliConfigTarget) => ({
+                target,
+                path: CLI_CONFIG_FILE_SPECS[target].path,
+                content: target === 'claude-settings' ? content : '{"env":{"EXTRA":"keep"}}'
+              }))
+            }
+          : { success: true }
+      )
+      await disableClaudeScopedSettings({ claudeScopedSettings: true, currentProviderId: null })
+      expect(payload().files).toEqual([
+        { target: 'claude-settings', content: '{\n  "env": {\n    "EXTRA": "keep"\n  }\n}\n' },
+        { target: 'claude-scoped-settings', delete: true }
+      ])
+    }
+  )
+  it('refuses to disable when global settings contain invalid JSON', async () => {
+    mocks.request.mockImplementation(async (route: string, input: any) =>
+      route === 'code_cli.read_config'
+        ? {
+            files: input.targets.map((target: CliConfigTarget) => ({
+              target,
+              path: target === 'claude-settings' ? '/global/settings.json' : '/scoped/settings.json',
+              content: target === 'claude-settings' ? '{ broken' : '{"env":{"EXTRA":"keep"}}'
+            }))
+          }
+        : { success: true }
+    )
+    await expect(disableClaudeScopedSettings({ claudeScopedSettings: true, currentProviderId: null })).rejects.toThrow(
+      /settings.*\/global\/settings.json.*invalid JSONC/i
+    )
+    expect(mocks.request.mock.calls.filter(([route]) => route === 'code_cli.write_config')).toEqual([])
+  })
   it('disables without a selection and is idempotent', async () => {
     await disableClaudeScopedSettings({ claudeScopedSettings: true, currentProviderId: null })
     expect(payload()).toEqual({
       cliTool: CodeCli.CLAUDE_CODE,
-      files: [{ target: 'claude-scoped-settings', delete: true }],
+      files: [
+        { target: 'claude-settings', content: expect.any(String) },
+        { target: 'claude-scoped-settings', delete: true }
+      ],
       claudeScopedSettings: false,
       expectedClaudeProviderId: null
+    })
+    expect(JSON.parse(payload().files[0].content)).toEqual({
+      user: 'keep',
+      permissions: { allow: ['Bash(ls)'], defaultMode: 'plan' },
+      env: { ANTHROPIC_AUTH_TOKEN: 'old', USER: 'keep' }
     })
     mocks.request.mockClear()
     await disableClaudeScopedSettings({ currentProviderId: null })

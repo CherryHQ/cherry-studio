@@ -4,9 +4,10 @@ import { CLI_CONFIG_FILE_SPECS, type CliConfigWriteFile } from '@shared/utils/cl
 
 import { getAdapter } from './adapters'
 import { readCliConfigDraft, readCliConfigFiles, readOwnLoginCliConfigDraft } from './draft'
-import { parseDraftFileOrThrow } from './draftFiles'
-import { parseJsonOrThrow, readConfigFiles } from './file'
+import { makeDraftFile, parseDraftFileOrThrow } from './draftFiles'
+import { parseJsonOrThrow, readConfigFiles, readValidatedJsonOrNull, renderJsonFile } from './file'
 import type { CliConfigFileDraft, CliConfigGatewayContext, CliConfigWriteArgs } from './types'
+import { asRecord } from './values'
 
 type ClaudeSelection =
   | {
@@ -64,34 +65,43 @@ async function commit(
 
 export async function enableClaudeScopedSettings(ctx: ClaudeScopeTransitionContext): Promise<void> {
   if (ctx.claudeScopedSettings === true) return
+  if (!ctx.selection) {
+    const read = await readConfigFiles(['claude-scoped-settings'])
+    const content = read.get('claude-scoped-settings')!.content
+    await commit(
+      [{ target: 'claude-scoped-settings', content: content?.trim() ? content : '{}\n' }],
+      true,
+      ctx.currentProviderId
+    )
+    return
+  }
   const scrub = await getAdapter(CodeCli.CLAUDE_CODE)!.buildClearFiles(false)
   const draft = await buildSelection(ctx, true)
   await commit(
-    [
-      ...scrub,
-      ...draft.map(({ target, content }) => ({ target, content })),
-      ...(ctx.selection ? [] : [{ target: 'claude-scoped-settings' as const, content: '{}\n' }])
-    ],
+    draft.map(({ target, content }) => ({ target, content })),
     true,
     ctx.currentProviderId
   )
+  if (scrub.length) await commit(scrub, true, ctx.currentProviderId)
 }
 
 export async function disableClaudeScopedSettings(ctx: ClaudeScopeTransitionContext): Promise<void> {
   if (ctx.claudeScopedSettings !== true) return
   const scoped = await readCliConfigFiles(CodeCli.CLAUDE_CODE, { claudeScopedSettings: true })
-  if (scoped.length) parseDraftFileOrThrow('claude-scoped-settings', scoped, parseJsonOrThrow)
-  else {
+  const overlay = scoped.length ? parseDraftFileOrThrow('claude-scoped-settings', scoped, parseJsonOrThrow) : {}
+  if (!scoped.length) {
     const read = await readConfigFiles(['claude-scoped-settings'])
     const file = read.get('claude-scoped-settings')!
     if (file.content !== null) throw new Error(`Invalid Claude scoped settings at ${file.path}; fix the file and retry`)
   }
-  const base = scoped.map((file) => ({
-    ...file,
-    target: 'claude-settings' as const,
-    ...CLI_CONFIG_FILE_SPECS['claude-settings']
-  }))
-  const draft = await buildSelection(ctx, false, base.length ? base : undefined)
+  const read = await readConfigFiles(['claude-settings'])
+  const global = readValidatedJsonOrNull('claude-settings', read, 'Claude Code settings') ?? {}
+  const merged = { ...global, ...overlay }
+  for (const key of ['permissions', 'env']) {
+    if (key in global || key in overlay) merged[key] = { ...asRecord(global[key]), ...asRecord(overlay[key]) }
+  }
+  const base = [makeDraftFile('claude-settings', renderJsonFile(merged), read)]
+  const draft = ctx.selection ? await buildSelection(ctx, false, base) : base
   await commit(
     [...draft.map(({ target, content }) => ({ target, content })), { target: 'claude-scoped-settings', delete: true }],
     false,
