@@ -30,7 +30,7 @@ import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model
 
 import { createTestBehavior } from '../../packages/agent-runtime-pi/tests/sessionSupport'
 
-export type TestModel = Omit<Extract<ProviderModelConfig, { reasoning: boolean }>, 'id'> & { id: UniqueModelId }
+export type TestModel = Omit<Extract<ProviderModelConfig, { type?: 'chat' }>, 'id'> & { id: UniqueModelId }
 
 export const MODEL: TestModel = {
   id: 'cherry::bridged-model',

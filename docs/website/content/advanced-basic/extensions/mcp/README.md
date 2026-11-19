@@ -64,7 +64,7 @@ MCP 是让智能体使用外部工具和资源的连接方式。Cherry Studio �
 
 <figure><img src="../../../assets/3892f8eaa6ef4645921a382d.webp" alt="内置 MCP 列表中的 QVeris、Browser、Python 和其他服务器"><figcaption><p>① 内置列表会标明是否需要账号、API Key 或目录配置；安装后仍要完成配置并验证连接。</p></figcaption></figure>
 
-QVeris 位于【内置服务器】中，用于让智能体发现、检查和调用外部能力。安装后需要配置 `QVERIS_API_KEY`；不要把密钥写进智能体提示词、技能或公开截图。
+QVeris 位于【内置服务器】中，用于让智能体发现、检查和调用外部能力。默认通过浏览器 OAuth 登录，也可配置 `QVERIS_API_KEY` 作为备选；不要把密钥写进智能体提示词、技能或公开截图。
 
 ### 在输入区使用 MCP 提示词和资源
 

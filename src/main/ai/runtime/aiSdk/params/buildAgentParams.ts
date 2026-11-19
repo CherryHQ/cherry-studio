@@ -282,6 +282,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
                 throw new Error('Conversation owner changed')
               const settings = assistantDataService.getById(assistant.id).settings
               return {
+                computerApproval: { bypass: false, windowId: request.interactionWindowId },
                 browser:
                   toolSignals?.browserEnabled === true &&
                   settings.enableBrowser !== false &&
@@ -790,6 +791,8 @@ function buildAgentOptions(
     ...(stopWhen && { stopWhen }),
     ...(headers && { headers }),
     ...(callOverrides?.toolChoice && { toolChoice: callOverrides.toolChoice }),
+    ...(callOverrides?.activeTools && { activeTools: callOverrides.activeTools }),
+    ...(callOverrides?.output && { output: callOverrides.output }),
     ...(hasProviderOptions && { providerOptions: sanitized.providerOptions }),
     ...(telemetry && { telemetry }),
     ...sanitized.standardParams,
@@ -841,6 +844,9 @@ export function applyCallOverrides(
   if (callOverrides.topP !== undefined) sampling.topP = callOverrides.topP
   if (callOverrides.topK !== undefined) sampling.topK = callOverrides.topK
   if (callOverrides.stopSequences !== undefined) sampling.stopSequences = callOverrides.stopSequences
+  if (callOverrides.presencePenalty !== undefined) sampling.presencePenalty = callOverrides.presencePenalty
+  if (callOverrides.frequencyPenalty !== undefined) sampling.frequencyPenalty = callOverrides.frequencyPenalty
+  if (callOverrides.seed !== undefined) sampling.seed = callOverrides.seed
   const standardParams = { ...base.standardParams, ...filterStandardParams(sampling, model) }
 
   let providerOptions = base.providerOptions

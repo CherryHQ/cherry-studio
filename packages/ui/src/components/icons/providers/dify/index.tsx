@@ -9,7 +9,7 @@ const Dify = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const DifyIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Dify, {
   Avatar: DifyAvatar,
-  colorPrimary: '#0235FF'
+  colorPrimary: '#155EEF'
 })
 
 export default DifyIcon

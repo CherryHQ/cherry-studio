@@ -1,4 +1,3 @@
-import fs from 'fs'
 /**
  * BuiltinAgentProvisioner
  *
@@ -6,6 +5,7 @@ import fs from 'fs'
  * persistent agent data directories. Bundled skills stay in the read-only app
  * resources directory and are injected as a local Claude plugin.
  */
+import fs from 'fs'
 import { createHash } from 'node:crypto'
 import path from 'path'
 

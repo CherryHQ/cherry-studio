@@ -34,9 +34,10 @@ const normalizeOutputString = (output?: ReadToolOutputType): string | null => {
   if (!output) return null
 
   const toText = (item: TextOutput) => removeSystemReminderTags(item.text)
+  const content = typeof output === 'object' && 'content' in output ? output.content : output
 
-  if (Array.isArray(output)) {
-    return output
+  if (Array.isArray(content)) {
+    return content
       .filter((item): item is TextOutput => item.type === 'text')
       .map(toText)
       .join('')

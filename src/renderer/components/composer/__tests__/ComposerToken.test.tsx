@@ -649,7 +649,7 @@ describe('ComposerToken', () => {
       />
     )
 
-    expectTokenPathTooltip(container, '/tmp/config.schema.ts', '3 KB')
+    expectTokenPathTooltip(container, '/tmp/config.schema.ts', '3.0 KB')
   })
 
   it('shows pasted text preview with a right-aligned restore action', async () => {
@@ -1288,7 +1288,7 @@ describe('ComposerToken', () => {
 
     render(<PromptVariableToken token={promptVariableToken} selected editing onCommit={onPromptVariableCommit} />)
 
-    const input = screen.getByRole('textbox') as HTMLTextAreaElement
+    const input = screen.getByRole<HTMLTextAreaElement>('textbox')
     expect(input.tagName).toBe('TEXTAREA')
     expect(input.value).toBe('city')
 
@@ -1328,7 +1328,7 @@ describe('ComposerToken', () => {
 
     fireEvent.mouseDown(screen.getByText('city'))
 
-    const input = (await screen.findByLabelText('${city}')) as HTMLTextAreaElement
+    const input = await screen.findByLabelText<HTMLTextAreaElement>('${city}')
     await waitFor(() => expect(editor!.state.selection.from).toBe(promptVariablePosition))
     expect(input.value).toBe('city')
   })
@@ -1344,20 +1344,20 @@ describe('ComposerToken', () => {
     })
 
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('${from}')))
-    const fromInput = screen.getByLabelText('${from}') as HTMLTextAreaElement
+    const fromInput = screen.getByLabelText<HTMLTextAreaElement>('${from}')
     fireEvent.change(fromInput, { target: { value: '上海' } })
     fireEvent.keyDown(fromInput, { key: 'Tab' })
 
     await waitFor(() => expect(serializeComposerDocument(editor!).text).toBe('go 上海 to ${to}'))
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('${to}')))
-    const toInput = screen.getByLabelText('${to}') as HTMLTextAreaElement
+    const toInput = screen.getByLabelText<HTMLTextAreaElement>('${to}')
 
     fireEvent.change(toInput, { target: { value: '北京' } })
     fireEvent.keyDown(toInput, { key: 'Tab', shiftKey: true })
 
     await waitFor(() => expect(serializeComposerDocument(editor!).text).toBe('go 上海 to 北京'))
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('${from}')))
-    const previousInput = screen.getByLabelText('${from}') as HTMLTextAreaElement
+    const previousInput = screen.getByLabelText<HTMLTextAreaElement>('${from}')
     expect(previousInput.value).toBe('上海')
   })
 

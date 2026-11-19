@@ -29,6 +29,7 @@ import type * as ComposerPreset from '../composerPreset'
 import DeferredComposerSurface from '../ComposerSurface'
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurfaceRuntime'
 import type * as PasteHandling from '../paste/pasteHandling'
+import type * as PasteHandler from '../paste/usePasteHandler'
 import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExtension'
 
 const mocks = vi.hoisted(() => ({
@@ -68,6 +69,7 @@ const mocks = vi.hoisted(() => ({
   getJSON: vi.fn(),
   dispatch: vi.fn(),
   pasteHandler: vi.fn(),
+  useRealPasteHandler: false,
   pasteHandlerOptions: undefined as any,
   editorIsFocused: false,
   docTextContent: '',
@@ -344,26 +346,32 @@ vi.mock('@renderer/components/composer/paste/useFileDragDrop', () => ({
   }
 }))
 
-vi.mock('@renderer/components/composer/paste/usePasteHandler', () => ({
-  usePasteHandler: (options: any) => {
-    mocks.pasteHandlerOptions = options
-    return {
-      handlePaste: mocks.pasteHandler
+vi.mock('@renderer/components/composer/paste/usePasteHandler', async (importOriginal) => {
+  const actual = await importOriginal<typeof PasteHandler>()
+  return {
+    usePasteHandler: (options: any) => {
+      mocks.pasteHandlerOptions = options
+      const real = actual.usePasteHandler(options)
+      return { handlePaste: mocks.useRealPasteHandler ? real.handlePaste : mocks.pasteHandler }
     }
   }
-}))
+})
 
 // Only the default export's side-effecting registration is mocked; the paste-routing predicates
 // stay real so a delegation test exercises the actual decision, not a stand-in for it.
-vi.mock('@renderer/components/composer/paste/pasteHandling', async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
-  default: {
-    init: vi.fn(),
-    registerHandler: vi.fn(),
-    unregisterHandler: vi.fn(),
-    setLastFocusedComponent: vi.fn()
+vi.mock('@renderer/components/composer/paste/pasteHandling', async (importOriginal) => {
+  const actual = await importOriginal<typeof PasteHandling>()
+  return {
+    ...actual,
+    default: {
+      ...actual.default,
+      init: vi.fn(),
+      registerHandler: vi.fn(),
+      unregisterHandler: vi.fn(),
+      setLastFocusedComponent: vi.fn()
+    }
   }
-}))
+})
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -512,6 +520,7 @@ describe('ComposerSurface', () => {
     mocks.getJSON.mockReturnValue({ type: 'doc', content: [{ type: 'paragraph' }] })
     mocks.dispatch.mockReset()
     mocks.pasteHandler.mockReset()
+    mocks.useRealPasteHandler = false
     mocks.pasteHandlerOptions = undefined
     mocks.editorIsFocused = false
     mocks.docTextContent = ''
@@ -545,6 +554,7 @@ describe('ComposerSurface', () => {
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
+        ...window.api,
         fs: {
           readText: mocks.fsReadText
         },
@@ -553,6 +563,12 @@ describe('ComposerSurface', () => {
         }
       }
     })
+    vi.mocked(window.api.ipcApi.request)
+      .mockReset()
+      .mockResolvedValue({
+        ok: true,
+        data: { kind: 'file', type: 'other', size: 4, createdAt: 0, modifiedAt: 0, mime: 'application/octet-stream' }
+      })
     Object.defineProperty(window, 'toast', {
       configurable: true,
       value: {
@@ -620,6 +636,44 @@ describe('ComposerSurface', () => {
 
     expect(screen.getByRole('button', { name: 'Dictate locally' })).toHaveFocus()
     expect(manager.captureCurrent()).toMatchObject({ targetId: 'composer', sourceEntityId: 'composer-topic' })
+  })
+
+  it('retains a requested panel until its launchers register', async () => {
+    mocks.stabilizeEditor = true
+    vi.useFakeTimers()
+    const deferredIntent = { openPanel: {} }
+    const launcher = {
+      id: 'mcp-prompts',
+      kind: 'panel' as const,
+      icon: 'mcp',
+      label: 'MCP Prompts',
+      sources: ['root-panel' as const],
+      order: 1,
+      action: () => {}
+    }
+    const view = render(
+      <ComposerSurface {...baseProps} quickPanelEnabled deferredIntent={deferredIntent} getToolLaunchers={() => []} />
+    )
+    try {
+      await act(() => vi.advanceTimersByTimeAsync(0))
+      expect(deferredIntent.openPanel).toEqual({})
+      view.rerender(
+        <ComposerSurface
+          {...baseProps}
+          quickPanelEnabled
+          deferredIntent={deferredIntent}
+          getToolLaunchers={() => [launcher]}
+          toolLaunchersVersion={1}
+        />
+      )
+      await act(() => vi.advanceTimersByTimeAsync(0))
+      expect(mocks.quickPanelOpen.mock.lastCall?.[0].list).toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: 'mcp-prompts', label: 'MCP Prompts' })])
+      )
+    } finally {
+      view.unmount()
+      vi.useRealTimers()
+    }
   })
 
   it('delivers a deferred paste once after a render interrupts its pending replay', async () => {
@@ -1599,6 +1653,46 @@ describe('ComposerSurface', () => {
     })
 
     expect(mocks.focus).toHaveBeenCalled()
+  })
+
+  it('pastes a copied directory into the draft as a folder token without attaching it', async () => {
+    const path = '/tmp/Project Notes'
+    const setFiles = vi.fn()
+    vi.mocked(window.api.file.getPathForFile).mockReturnValue(path)
+    vi.mocked(window.api.ipcApi.request).mockResolvedValue({
+      ok: true,
+      data: { kind: 'directory', size: 0, createdAt: 0, modifiedAt: 0 }
+    })
+    const { createComposerEditorPreset } = await vi.importActual<typeof ComposerPreset>('../composerPreset')
+    const editor = new Editor({ extensions: createComposerEditorPreset({}) })
+    mocks.stabilizeEditor = true
+    mocks.editorInstance = editor
+    mocks.useRealPasteHandler = true
+    render(<ComposerSurface {...baseProps} supportedExts={['*']} setFiles={setFiles} />)
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    try {
+      const event = {
+        preventDefault: vi.fn(),
+        clipboardData: {
+          getData: (type: string) => (type === 'text/plain' ? 'Project Notes' : ''),
+          files: [new File([], 'Project Notes')]
+        }
+      }
+      await act(async () => {
+        expect(mocks.editorOptions.handlePaste(editor.view, event)).toBe(true)
+      })
+
+      await waitFor(() =>
+        expect(serializeComposerDocument(editor).tokens).toEqual([
+          expect.objectContaining({ kind: 'folder', label: 'Project Notes', promptText: path, description: path })
+        ])
+      )
+      expect(setFiles).not.toHaveBeenCalled()
+      expect(event.preventDefault).toHaveBeenCalled()
+    } finally {
+      editor.destroy()
+    }
   })
 
   it('inserts a folder token when a local directory path is dropped', async () => {

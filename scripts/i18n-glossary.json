@@ -12,7 +12,9 @@
       "zh-cn": "提供商",
       "zh-tw": "供應商",
       "tr-tr": "sağlayıcı",
-      "th-th": "ผู้ให้บริการ"
+      "pl-pl": "dostawca",
+      "th-th": "ผู้ให้บริการ",
+      "ko-kr": "제공자"
     },
     "Assistant": {
       "note": "A user-configured chat persona (system prompt + model settings). Distinct from Agent.",
@@ -20,7 +22,9 @@
       "zh-cn": "助手",
       "zh-tw": "助手",
       "tr-tr": "asistan",
-      "th-th": "ผู้ช่วย"
+      "pl-pl": "asystent",
+      "th-th": "ผู้ช่วย",
+      "ko-kr": "어시스턴트"
     },
     "Agent": {
       "note": "An autonomous coding agent with tool access and its own session, not a synonym for Assistant.",
@@ -28,7 +32,9 @@
       "zh-cn": "智能体",
       "zh-tw": "智能體",
       "tr-tr": "ajan",
-      "th-th": "เอเจนต์"
+      "pl-pl": "agent",
+      "th-th": "เอเจนต์",
+      "ko-kr": "에이전트"
     },
     "Knowledge Base": {
       "note": "A user-built document collection queried via retrieval.",
@@ -38,7 +44,9 @@
       "zh-cn": "知识库",
       "zh-tw": "知識庫",
       "tr-tr": "bilgi tabanı",
-      "th-th": "ฐานความรู้"
+      "pl-pl": "baza wiedzy",
+      "th-th": "ฐานความรู้",
+      "ko-kr": "지식 베이스"
     },
     "Topic": {
       "note": "One conversation thread inside an assistant, comparable to a chat in other clients.",
@@ -46,7 +54,19 @@
       "zh-cn": "话题",
       "zh-tw": "話題",
       "tr-tr": "konu",
-      "th-th": "หัวข้อ"
+      "pl-pl": "temat",
+      "th-th": "หัวข้อ",
+      "ko-kr": "대화"
+    },
+    "Workspace": {
+      "note": "An agent workspace containing its working files; distinguish it from a generic work area.",
+      "ko-kr": "워크스페이스",
+      "zh-cn": "工作区"
+    },
+    "Context": {
+      "note": "Information supplied to an LLM, not a generic situational context.",
+      "ko-kr": "컨텍스트",
+      "zh-cn": "上下文"
     }
   }
 }
