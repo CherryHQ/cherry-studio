@@ -154,7 +154,14 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
       let created = bindings.get(modelKey)
       if (!created) {
         created = await (options.bindModel?.(model) ??
-          createPiGatewayModelBinding(input, providerService.getByProviderId(model.providerId), model))
+          createPiGatewayModelBinding(
+            input,
+            providerService.getByProviderId(model.providerId),
+            model,
+            undefined,
+            undefined,
+            binding.onRetry
+          ))
         bindings.set(modelKey, created)
       }
       const bound = created
