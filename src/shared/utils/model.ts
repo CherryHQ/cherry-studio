@@ -45,6 +45,12 @@ export const isFunctionCallingModel = (model: Model): boolean =>
 export const isGenerateImageModel = (model: Model): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION)
 
+export function supportsImageGenerationReference(model: Model, support = model.imageGeneration): boolean {
+  if (!support) return isVisionModel(model)
+  const { edit, generate } = support.modes
+  return !!edit || (!!generate && (generate.maxInputImages !== undefined || isVisionModel(model)))
+}
+
 /** Dedicated image APIs cannot run the language-model chat loop. */
 export const isImageGenerationOnlyModel = (model: Model): boolean => {
   if (!isGenerateImageModel(model)) return false
@@ -102,12 +108,11 @@ export const isTextToImageModel = (model: Model): boolean =>
 
 export const isNonChatModel = (model: Model): boolean => {
   const impliedCapability = endpointImpliedCapability(model.endpointTypes?.[0])
-  // Only an image endpoint may declare text output and still chat; speech/embedding/rerank
-  // endpoints stay non-chat whatever the modality metadata says.
-  const chatOnImageEndpoint =
-    impliedCapability === MODEL_CAPABILITY.IMAGE_GENERATION && model.outputModalities?.includes(MODALITY.TEXT) === true
+  const hasChatAlongsideImage =
+    impliedCapability === MODEL_CAPABILITY.IMAGE_GENERATION &&
+    model.endpointTypes?.some((endpointType) => endpointImpliedCapability(endpointType) == null)
   return (
-    (impliedCapability != null && !chatOnImageEndpoint) ||
+    (impliedCapability != null && !hasChatAlongsideImage) ||
     isEmbeddingModel(model) ||
     isRerankModel(model) ||
     isImageGenerationOnlyModel(model) ||

@@ -288,6 +288,10 @@ async function prepareChatMessage<T extends UIMessage>(
       // provider request, carrying why the fallback produced nothing. Gateway-
       // backed models can explicitly enable Vision.
       if (fileType === FILE_TYPE.IMAGE) {
+        if (message.role === 'assistant') {
+          kept.push({ type: 'text', text: '[image attachment omitted: this model does not accept image input]' })
+          continue
+        }
         const outcome = await ocrNonVisionImage(fileEntryId, ctx.signal)
         if (outcome.kind !== 'text') {
           logger.warn('Non-vision image OCR produced no readable text', {

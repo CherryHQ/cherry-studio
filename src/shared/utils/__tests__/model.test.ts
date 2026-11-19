@@ -71,13 +71,15 @@ describe('shared model capability helpers', () => {
       expect(isImageGenerationOnlyModel(model)).toBe(dedicated)
     }
   )
-  it('keeps a dual-catalog model on chat when the listing omits output modalities', () => {
+  it.each([
+    [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+    [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+  ])('keeps a dual-catalog model selectable without output modalities (%s first)', (first, second) => {
     const model: Model = {
       ...createModel([MODEL_CAPABILITY.IMAGE_GENERATION]),
-      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+      endpointTypes: [first, second]
     }
-    expect(isImageGenerationOnlyModel(model)).toBe(false)
-    expect(isNonChatModel(model)).toBe(false)
+    expect(isChatSelectableModel(model)).toBe(true)
   })
   it('keeps a non-image exclusive endpoint non-chat whatever its output modalities say', () => {
     for (const endpointType of [

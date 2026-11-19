@@ -142,7 +142,8 @@ export async function normalizeNewApiDataImages(response: Response): Promise<Res
             controller.enqueue(encoder.encode('data: [DONE]\n\n'))
             return
           }
-          controller.enqueue(encoder.encode(`data: ${normalizeJson(event.data, pending)}\n\n`))
+          const data = normalizeJson(event.data, pending)
+          controller.enqueue(encoder.encode(`data: ${data.replaceAll('\n', '\ndata: ')}\n\n`))
         },
         flush: flushPending
       })

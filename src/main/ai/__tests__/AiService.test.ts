@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'v
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { sanitizeSeedreamImageParams, validateSeedreamImageParams } from '@shared/ai/seedreamImageContract'
 import { createUniqueModelId, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { withCherryMeta } from '@shared/data/types/uiParts'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 
 import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
@@ -687,6 +688,44 @@ describe('AiService', () => {
       ]
     })
     expect((await reader.read()).done).toBe(true)
+  })
+
+  it('rejects a reference image before calling a text-only image generator', async () => {
+    const service = createService()
+    mockProviderGetByProviderId.mockReturnValueOnce(makeProvider({ id: 'openai' }))
+    mockModelGetByKey.mockReturnValueOnce(
+      makeModel({
+        id: 'openai::dall-e-3',
+        providerId: 'openai',
+        apiModelId: 'dall-e-3',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        inputModalities: ['text'],
+        outputModalities: ['image']
+      })
+    )
+    mockGetImageGenerationSupport.mockReturnValueOnce({ modes: { generate: { supports: {} } } })
+
+    await expect(
+      service.streamText({
+        conversation: { id: 'conversation-1', topicId: 'topic-1' },
+        trigger: 'submit-message',
+        uniqueModelId: 'openai::dall-e-3',
+        messages: [
+          {
+            id: 'user-1',
+            role: 'user',
+            parts: [
+              { type: 'text', text: 'Match this palette' },
+              withCherryMeta(
+                { type: 'file', mediaType: 'image/png', url: 'file:///reference.png' },
+                { fileEntryId: 'ref' }
+              )
+            ]
+          }
+        ],
+        requestOptions: { signal: new AbortController().signal }
+      })
+    ).rejects.toMatchObject({ i18nKey: 'image_edit_unsupported' })
   })
 
   it('reports an empty dedicated image result as a stream error', async () => {

@@ -30,10 +30,10 @@ cannot edit them. Those values still flow through the same canonical
 `paramValues` → `splitParamValues` path as the paintings form. Per-turn
 parameter controls remain owned by the paintings form.
 
-Mode selection in a chat turn mirrors the paintings form: attached images select
-`edit` when the model declares that mode, and ride `generate` for a model that
-only declares `generate` (seedream and similar accept references there). Both
-modes cap references with their own `maxInputImages`.
+In chat, attached images select `edit` when the model declares that mode.
+Generate-only models with registry mode metadata accept a reference when the
+generate mode declares `maxInputImages` or the model declares image input.
+Both modes cap references with their own `maxInputImages`.
 
 ---
 

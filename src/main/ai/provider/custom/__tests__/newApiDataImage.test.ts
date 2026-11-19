@@ -27,6 +27,18 @@ function finishEvent(): string {
 }
 
 describe('New API data-image compatibility', () => {
+  it('keeps an ordinary text event split across SSE data lines readable by the SDK', async () => {
+    const body = `data: {"choices":\ndata: [{"delta":{"content":"Hello"},"finish_reason":null}]}\n\n${finishEvent()}data: [DONE]\n\n`
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(new Response(body, { headers: { 'content-type': 'text/event-stream' } }))
+    const model = createNewApi({ apiKey: 'sk-test', baseURL: 'https://newapi.test/v1', fetch }).languageModel('text')
+
+    const result = streamText({ model, prompt: 'Say hello', maxRetries: 0 })
+
+    expect(await result.text).toBe('Hello')
+  })
+
   it('turns a Markdown data image in a JSON response into an SDK file part', async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse(`Here: ![result](${INLINE_PNG})`))
     const model = createNewApi({ apiKey: 'sk-test', baseURL: 'https://newapi.test/v1', fetch }).languageModel('image')
