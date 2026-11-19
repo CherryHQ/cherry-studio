@@ -1045,6 +1045,8 @@ export class MemoryDreamingService extends BaseService {
         changed: result.files.filter((file) => file.outcome === 'applied').length
       }
     } catch (error) {
+      const timedOut = ctx.signal.reason instanceof Error && ctx.signal.reason.name === 'JobHandlerTimeoutError'
+      const interrupted = !timedOut && (controller.signal.aborted || ctx.signal.aborted)
       const latest = readDreamingState(scope)
       if (latest.generation === generation) {
         if (error instanceof DreamingError)
@@ -1076,14 +1078,13 @@ export class MemoryDreamingService extends BaseService {
         const retryable =
           attempted && latest.manualAttempts < 2 && inputs.some((read) => (latest.files[read.path]?.attempts ?? 2) < 2)
         latest.manual = start.manual && (preempted || retryable)
-        if (ctx.signal.aborted) {
+        if (ctx.signal.aborted && !timedOut) {
           latest.generation++
           latest.manual = false
           latest.cancelled = true
         }
         latest.lastScanAt = Date.now()
-        latest.status =
-          controller.signal.aborted || ctx.signal.aborted ? (latest.manual ? 'queued' : 'cancelled') : 'failed'
+        latest.status = interrupted ? (latest.manual ? 'queued' : 'cancelled') : 'failed'
         latest.reason =
           error instanceof DreamingError
             ? error.reason
@@ -1095,7 +1096,7 @@ export class MemoryDreamingService extends BaseService {
                   : 'conflict'
               : 'unavailable'
         latest.lastResult = {
-          outcome: controller.signal.aborted || ctx.signal.aborted ? 'cancelled' : 'failed',
+          outcome: interrupted ? 'cancelled' : 'failed',
           finishedAt: Date.now(),
           reason: latest.reason
         }
@@ -1106,8 +1107,7 @@ export class MemoryDreamingService extends BaseService {
           }
         writeDreamingState(latest)
       }
-      if (controller.signal.aborted || ctx.signal.aborted)
-        throw new DOMException('Memory organization interrupted', 'AbortError')
+      if (interrupted) throw new DOMException('Memory organization interrupted', 'AbortError')
       logger.warn('Memory organization did not complete', { scope: memoryScopeKey(scope), reason: latest.reason })
       throw new DreamingError(latest.reason ?? 'unavailable')
     } finally {

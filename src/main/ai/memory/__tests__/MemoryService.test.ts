@@ -20,6 +20,7 @@ import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import { SharedMemoryRolloutSeeder } from '@data/db/seeding/seeders/SharedMemoryRolloutSeeder'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService } from '@data/services/AgentSessionContextService'
@@ -290,6 +291,65 @@ describe('lifecycle memory owner', () => {
     dbh.db.update(messageTable).set({ compactionSummary: 'OLD_HOME' }).where(eq(messageTable.id, userId)).run()
     await expect(transport('https://test.invalid')).rejects.toThrow('isolation')
   })
+
+  it.each([false, true])(
+    'baselines pre-rollout history only on a pre-feature database (preview=%s)',
+    async (preview) => {
+      MockApplicationUtils.setService('MemoryService', service)
+      const assistantId = randomUUID()
+      const topicId = randomUUID()
+      dbh.db
+        .insert(assistantTable)
+        .values({
+          id: assistantId,
+          name: 'A',
+          emoji: '',
+          prompt: '',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0'
+        })
+        .run()
+      dbh.db.insert(topicTable).values({ id: topicId, assistantId, orderKey: 'a0' }).run()
+      dbh.db
+        .insert(appStateTable)
+        .values({ key: 'seedRunner:bootstrapCompleted', value: { completedAt: 1 } })
+        .run()
+      if (preview)
+        dbh.db
+          .insert(appStateTable)
+          .values({ key: 'memory:runtime:other', value: { version: 1, protection: null } })
+          .run()
+      const rootId = randomUUID()
+      dbh.db
+        .insert(messageTable)
+        .values({ id: rootId, topicId, role: 'root', status: 'success', data: { parts: [] } })
+        .run()
+      dbh.db
+        .insert(messageTable)
+        .values({
+          id: randomUUID(),
+          parentId: rootId,
+          topicId,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] }
+        })
+        .run()
+      new SharedMemoryRolloutSeeder().run(dbh.db)
+      const editor = service.open(authority())
+      await editor.entry()
+      await fs.writeFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'CLEARED')
+      await editor.clear((await editor.previewClear()).token, approve)
+      editor.dispose()
+      const run = memoryRuntimeFetch(
+        async () => Response.json({}),
+        (signal) => runtimeMemoryAuthorities({ topicId, assistantId }, signal)
+      )
+      const request = run('https://test.invalid')
+      if (preview) await expect(request).rejects.toThrow('isolation')
+      else expect((await request).ok).toBe(true)
+    }
+  )
 
   it.each(['reply', 'native', 'resume-token'] as const)('rejects unrecorded old Agent %s history', async (kind) => {
     const { sessionId } = await seedAgentSession()

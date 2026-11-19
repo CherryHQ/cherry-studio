@@ -39,6 +39,7 @@ const batchSchema = z.strictObject({
       hash: z.string().regex(/^[0-9a-f]{64}$/)
     })
     .optional(),
+  recoveryOf: z.uuid().optional(),
   clearScopeHash: z
     .string()
     .regex(/^[0-9a-f]{64}$/)
@@ -127,7 +128,8 @@ export async function createMemoryBackup(
   changes: readonly MemoryFileChange[],
   source: MemoryMutationSource,
   legacy?: MemoryLegacyOriginal,
-  clearScopeHash?: string
+  clearScopeHash?: string,
+  recoveryOf?: string
 ): Promise<MemoryBatch> {
   if (legacy && (source !== 'migration' || !/^memory\/fact\.md$/i.test(legacy.path)))
     throw new MemoryError('invalid-backup', 'Legacy originals belong only to FACT migration backups')
@@ -139,6 +141,7 @@ export async function createMemoryBackup(
     source,
     status: 'pending',
     clearScopeHash,
+    recoveryOf,
     ...(legacy
       ? { legacy: { path: legacy.path, content: legacy.content.toString('base64'), hash: memoryHash(legacy.content) } }
       : {}),
@@ -177,8 +180,9 @@ export async function saveMemoryBackup(root: string, batch: MemoryBatch): Promis
   await writeMemoryBytes(root, batchFilename(batch), encodeBatch(batch))
 }
 
-export async function latestMemoryBackup(root: string): Promise<MemoryBatch | undefined> {
+export async function latestMemoryBackup(root: string, id?: string): Promise<MemoryBatch | undefined> {
   const stored = await storedBatches(root)
+  if (id) return stored.find((item) => item.batch.id === id)?.batch
   return stored.findLast((item) => item.batch.steps.some((step) => step.outcome !== 'unchanged'))?.batch
 }
 

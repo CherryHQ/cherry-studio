@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, readdir, rmdir, unlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import type { ExtensionAPI, ExtensionToolContext } from '@earendil-works/pi-coding-agent'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -138,7 +139,7 @@ describe('Pi managed file destinations', () => {
       }
       mode = 'default'
       const pending = execute('edit', {
-        path: entry,
+        path: pathToFileURL(entry).href,
         edits: [{ oldText: 'Short', newText: 'Detailed' }],
         memoryReceipt: read.memoryReceipt
       }).catch((error: unknown) => error)

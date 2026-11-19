@@ -17,7 +17,7 @@ import {
   MEMORY_SEARCH_LIMIT,
   memorySearchInputSchema
 } from '@main/ai/memory/memoryRecall'
-import { memoryRuntimeFetch, runtimeMemoryAuthorities } from '@main/ai/memory/memoryRuntime'
+import { guardMemoryTransport } from '@main/ai/memory/memoryRuntime'
 import { collectMcpToolResources } from '@main/ai/messages/mcpToolResources'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AutomationRun } from '@main/services/automation'
@@ -168,10 +168,14 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const hasFileAttachments = fileAttachments.length > 0
   // Resolved before tool selection (fs_read's applies gate) and the tool
   // context (fs_read's per-call cap follows the effective persist threshold).
+  const memoryOwner = input.memoryAgentSessionId
+    ? { agentSessionId: input.memoryAgentSessionId }
+    : request.memoryContext
   const { contextSettings, compressionModel } = await resolveRequestContextSettings(
     model,
     request.conversation,
-    assistant?.settings.contextSettings
+    assistant?.settings.contextSettings,
+    memoryOwner
   )
   const hasPersistedOutputs = retained.persistedOutputPaths.size > 0
   // A marker minted on the last permitted tool step can never be read back —
@@ -489,15 +493,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     })
   }
 
-  const memoryOwner = input.memoryAgentSessionId
-    ? { agentSessionId: input.memoryAgentSessionId }
-    : request.memoryContext
-  if (memoryOwner) {
-    sdkConfig.providerSettings.fetch = memoryRuntimeFetch(
-      sdkConfig.providerSettings.fetch ?? globalThis.fetch,
-      (signal) => runtimeMemoryAuthorities(memoryOwner, signal)
-    )
-  }
+  guardMemoryTransport(sdkConfig.providerSettings, memoryOwner)
 
   return {
     sdkConfig,

@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { realpath } from 'node:fs/promises'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { createAssistantMessageEventStream, type AssistantMessage, type Usage } from '@earendil-works/pi-ai'
@@ -292,6 +293,41 @@ describe('desktop Pi Durable connection', () => {
       .poll(() => nativeInputs.some((state) => state.inputId === user.id && state.outcome === 'aborted'))
       .toBe(true)
     await expect.poll(() => events.some((event) => event.type === 'stop-confirmed')).toBe(true)
+  })
+
+  it('denies native tools access to memory, aliased memory and recovery files even in full access', async () => {
+    const shared = application.getPath('feature.memory.data')
+    const alias = join(directory, 'shortcut')
+    symlinkSync(shared, alias, process.platform === 'win32' ? 'junction' : 'dir')
+    const backup = application.getPath('feature.memory.backups', 'original.md')
+    const privateRoot = application.getPath('feature.agents.data', input.agentId)
+    mkdirSync(privateRoot, { recursive: true })
+    writeFileSync(backup, 'RECOVERY_SECRET')
+    writeFileSync(join(shared, 'MEMORY.md'), 'old')
+    const privateFile = join(privateRoot, 'MEMORY.md')
+    setScript([
+      assistantReply(
+        [
+          toolCallPart('backup', 'read', { path: pathToFileURL(backup).href }),
+          toolCallPart('alias', 'edit', {
+            path: join(alias, 'MEMORY.md'),
+            edits: [{ oldText: 'old', newText: 'new' }]
+          }),
+          toolCallPart('private', 'write', { path: privateFile, content: 'unguarded' })
+        ],
+        'toolUse'
+      ),
+      assistantReply('done')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('Use the file tools') })
+    await done(events)
+    const results = script.calls.at(-1)!.messages.filter((item) => item.role === 'toolResult')
+    expect(results).toHaveLength(3)
+    expect(results.every((result) => result.isError)).toBe(true)
+    expect(JSON.stringify(results)).not.toContain('RECOVERY_SECRET')
+    expect(readFileSync(join(shared, 'MEMORY.md'), 'utf8')).toBe('old')
+    expect(existsSync(privateFile)).toBe(false)
   })
 
   it('continues unbound history on separate native branches and retains it after reopening', async () => {

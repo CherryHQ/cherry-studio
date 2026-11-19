@@ -1,5 +1,6 @@
 import { realpath } from 'node:fs/promises'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { application } from '@application'
 import type { ApprovalHostFacts } from '@cherrystudio/agent-behavior'
@@ -64,7 +65,7 @@ export async function readPiApprovalFacts(
   const interaction = ctx.getInteractionState()
   const mode = ctx.getPermissionMode() ?? 'default'
   const searchPath = ['grep', 'find', 'ls'].includes(name)
-    ? resolveToolPath(typeof input.path === 'string' ? input.path : '.', ctx.workspacePath)
+    ? resolvePiToolPath(typeof input.path === 'string' ? input.path : '.', ctx.workspacePath)
     : undefined
   const memorySearchBlocked =
     ['grep', 'find', 'ls'].includes(name) && (!searchPath || (await memorySearchTarget(searchPath)))
@@ -87,7 +88,7 @@ export async function readPiApprovalFacts(
       : undefined
   const editPath =
     (name === 'write' || name === 'edit') && typeof input.path === 'string'
-      ? resolveToolPath(input.path, ctx.workspacePath)
+      ? resolvePiToolPath(input.path, ctx.workspacePath)
       : undefined
   const controlledEdit = ctx.executionOwnedTools?.has(name) && editPath && (await memoryTarget(editPath))
   const commandPolicy = command && !disabled ? await checkPiCommand(ctx, name, mode, command, rewritten) : undefined
@@ -195,8 +196,7 @@ async function isToolPathInsideAllowedRoots(
   // read defaults a missing/empty path to "." → the workspace root, which is inside.
   if (raw !== undefined && raw !== null && typeof raw !== 'string') return false
 
-  const resolved = resolveToolPath(raw || '.', workspacePath)
-  if (resolved === undefined) return false
+  const resolved = resolvePiToolPath(raw || '.', workspacePath)
 
   const [canonicalWorkspace, canonicalAgentData, canonicalTarget] = await Promise.all([
     canonicalizeExistingPath(workspacePath),
@@ -223,16 +223,13 @@ async function canonicalizeExistingPath(target: string): Promise<string | undefi
   }
 }
 
-/** Resolve a raw tool `path` to an absolute path, mirroring pi's `resolveToCwd`; returns undefined
- *  for inputs whose resolution is ambiguous (e.g. `file://` URLs) so the caller requires approval. */
-function resolveToolPath(raw: string, workspacePath: string): string | undefined {
+/** Resolve one native Pi file identity for both approval and execution. */
+export function resolvePiToolPath(raw: string, workspacePath: string): string {
   let p = normalizePiNativePathInput(raw)
+  if (p.startsWith('file://')) return fileURLToPath(p)
   if (p === '~') p = application.getPath('sys.home')
   else if (p.startsWith('~/') || (process.platform === 'win32' && p.startsWith('~\\'))) {
     p = path.join(application.getPath('sys.home'), p.slice(2))
-  } else if (p.startsWith('file://')) {
-    // pi resolves file:// via fileURLToPath; the target can be anywhere, so stay conservative.
-    return undefined
   }
-  return path.isAbsolute(p) ? path.resolve(p) : path.resolve(workspacePath, p)
+  return path.resolve(workspacePath, p)
 }
