@@ -331,6 +331,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     })
     const options = {
       ...binding,
+      compactionPercent: initialSnapshot.model.contextWindow ? initialSnapshot.compactionPercent : undefined,
       cwd: workspacePath,
       agentDir,
       sessionManager: manager,

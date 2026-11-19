@@ -1,8 +1,9 @@
-import type * as DndKitUtilities from '@dnd-kit/utilities'
+import { installDndDomStubs } from '@test-mocks/dndDomStubs'
+import { dragRow, dropRow, hoverRow, startRowDrag } from '@test-mocks/dndDriver'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as TopicMenuActionsHook from '@renderer/components/chat/actions/useTopicMenuActions'
@@ -79,72 +80,11 @@ const virtualMocks = vi.hoisted(() => ({
   scrollToIndex: vi.fn()
 }))
 
-const dndMocks = vi.hoisted(() => ({
-  droppableData: new Map<string, unknown>(),
-  onDragEnd: undefined as undefined | ((event: any) => void),
-  onDragOver: undefined as undefined | ((event: any) => void),
-  sortableData: new Map<string, unknown>()
-}))
-
 vi.mock('@tanstack/react-virtual', () => ({
   useVirtualizer: virtualMocks.useVirtualizer,
   defaultRangeExtractor: vi.fn((range) =>
     Array.from({ length: range.endIndex - range.startIndex + 1 }, (_, i) => range.startIndex + i)
   )
-}))
-
-vi.mock('@dnd-kit/core', () => {
-  const React = require('react')
-  return {
-    DndContext: ({ children, onDragEnd, onDragOver }: { children: ReactNode; onDragEnd?: any; onDragOver?: any }) => {
-      dndMocks.onDragEnd = onDragEnd
-      dndMocks.onDragOver = onDragOver
-      return React.createElement('div', { 'data-testid': 'dnd-context' }, children)
-    },
-    DragOverlay: ({ children }: { children: ReactNode }) =>
-      React.createElement('div', { 'data-testid': 'drag-overlay' }, children),
-    KeyboardSensor: vi.fn(),
-    PointerSensor: vi.fn(),
-    useDroppable: ({ data, id }: { data: unknown; id: string }) => {
-      dndMocks.droppableData.set(id, data)
-      return { isOver: false, setNodeRef: vi.fn() }
-    },
-    useSensor: vi.fn((sensor, options) => ({ sensor, options })),
-    useSensors: vi.fn((...sensors) => sensors)
-  }
-})
-
-vi.mock('@dnd-kit/sortable', () => {
-  const React = require('react')
-  return {
-    SortableContext: ({ children }: { children: ReactNode }) =>
-      React.createElement('div', { 'data-testid': 'sortable-context' }, children),
-    useSortable: ({ data, id }: { data?: unknown; id: string }) => {
-      if (data) {
-        dndMocks.sortableData.set(id, data)
-      }
-
-      return {
-        attributes: { 'data-sortable-id': id },
-        listeners: {},
-        setActivatorNodeRef: vi.fn(),
-        setNodeRef: vi.fn(),
-        transform: null,
-        transition: undefined,
-        isDragging: false
-      }
-    },
-    verticalListSortingStrategy: vi.fn(() => null)
-  }
-})
-
-vi.mock('@dnd-kit/utilities', async (importOriginal) => ({
-  ...(await importOriginal<typeof DndKitUtilities>()),
-  CSS: {
-    Transform: {
-      toString: () => undefined
-    }
-  }
 }))
 
 const notesSettingsMocks = vi.hoisted(() => ({
@@ -869,24 +809,16 @@ function getTopicRow(topicName: string) {
   return row as HTMLElement
 }
 
+// The drag overlay renders a copy of the dragged row outside the list.
+function listedRowTexts() {
+  return screen
+    .getAllByTestId('topic-list-row')
+    .filter((row) => !row.closest('[data-dnd-overlay]'))
+    .map((row) => row.textContent ?? '')
+}
+
 function deleteTopicRow(row: HTMLElement) {
   fireEvent.click(within(row).getByRole('button', { name: 'Archive' }))
-}
-
-function sortableData(id: string) {
-  const data = dndMocks.sortableData.get(id)
-  if (!data) {
-    throw new Error(`Expected sortable data for ${id}`)
-  }
-  return { current: data }
-}
-
-function droppableData(id: string) {
-  const data = dndMocks.droppableData.get(id)
-  if (!data) {
-    throw new Error(`Expected droppable data for ${id}`)
-  }
-  return { current: data }
 }
 
 const topicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses.${topicId}` as never
@@ -941,6 +873,8 @@ function groupChevron(groupHeaderButton: HTMLElement): HTMLElement {
 }
 
 describe('Topics', () => {
+  beforeAll(installDndDomStubs)
+
   beforeEach(() => {
     vi.clearAllMocks()
     topicDataMocks.deleteTopic.mockReset().mockResolvedValue(undefined)
@@ -1149,10 +1083,6 @@ describe('Topics', () => {
       reset: vi.fn(),
       mutate: vi.fn()
     })
-    dndMocks.onDragEnd = undefined
-    dndMocks.onDragOver = undefined
-    dndMocks.droppableData.clear()
-    dndMocks.sortableData.clear()
   })
 
   afterEach(() => {
@@ -1484,14 +1414,7 @@ describe('Topics', () => {
     expect(rowIndex('Alpha topic')).toBeLessThan(rowIndex('Gamma topic'))
     expect(rowIndex('Gamma topic')).toBeLessThan(rowIndex('Delta archive'))
 
-    dndMocks.onDragEnd?.({
-      active: {
-        data: sortableData('item:topic-c'),
-        id: 'item:topic-c',
-        rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
-      },
-      over: { data: sortableData('item:topic-a'), id: 'item:topic-a', rect: { top: 80, height: 20 } }
-    })
+    await dragRow({ source: 'item:topic-c', target: 'item:topic-a', side: 'before' })
 
     await vi.waitFor(() =>
       expect(topicDataMocks.moveTopic).toHaveBeenCalledWith('topic-c', {
@@ -4107,15 +4030,10 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    dndMocks.onDragEnd?.({
-      active: {
-        data: sortableData('group:topic:assistant:assistant-1'),
-        id: 'group:topic:assistant:assistant-1'
-      },
-      over: {
-        data: sortableData('group:topic:assistant:assistant-2'),
-        id: 'group:topic:assistant:assistant-2'
-      }
+    await dragRow({
+      source: 'group:topic:assistant:assistant-1',
+      target: 'group:topic:assistant:assistant-2',
+      side: 'after'
     })
 
     await vi.waitFor(() => {
@@ -4130,7 +4048,7 @@ describe('Topics', () => {
     expect(patchSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('rejects assistant section drops across different group ids in group mode', () => {
+  it('rejects assistant section drops across different group ids in group mode', async () => {
     const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined)
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'assistant.tab.sort_type': 'tags',
@@ -4139,15 +4057,10 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    dndMocks.onDragEnd?.({
-      active: {
-        data: sortableData('group:topic:assistant:assistant-1'),
-        id: 'group:topic:assistant:assistant-1'
-      },
-      over: {
-        data: sortableData('group:topic:assistant:assistant-2'),
-        id: 'group:topic:assistant:assistant-2'
-      }
+    await dragRow({
+      source: 'group:topic:assistant:assistant-1',
+      target: 'group:topic:assistant:assistant-2',
+      side: 'after'
     })
 
     expect(patchSpy).not.toHaveBeenCalled()
@@ -4164,10 +4077,7 @@ describe('Topics', () => {
     const workSectionId = 'group:topic:section:assistant-group:group-work'
     const homeSectionId = 'group:topic:section:assistant-group:group-home'
 
-    dndMocks.onDragEnd?.({
-      active: { data: sortableData(workSectionId), id: workSectionId },
-      over: { data: sortableData(homeSectionId), id: homeSectionId }
-    })
+    await dragRow({ source: workSectionId, target: homeSectionId, side: 'after' })
 
     await vi.waitFor(() =>
       expect(groupReorderMocks.reorderGroup).toHaveBeenCalledWith('group-work', { after: 'group-home' })
@@ -4180,15 +4090,10 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    dndMocks.onDragEnd?.({
-      active: {
-        data: sortableData('group:topic:assistant:assistant-1'),
-        id: 'group:topic:assistant:assistant-1'
-      },
-      over: {
-        data: sortableData('group:topic:assistant:assistant-2'),
-        id: 'group:topic:assistant:assistant-2'
-      }
+    await dragRow({
+      source: 'group:topic:assistant:assistant-1',
+      target: 'group:topic:assistant:assistant-2',
+      side: 'after'
     })
 
     await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to reorder assistants: order failed'))
@@ -4274,15 +4179,10 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    dndMocks.onDragEnd?.({
-      active: {
-        data: sortableData('group:topic:assistant:assistant-default'),
-        id: 'group:topic:assistant:assistant-default'
-      },
-      over: {
-        data: sortableData('group:topic:assistant:assistant-2'),
-        id: 'group:topic:assistant:assistant-2'
-      }
+    await dragRow({
+      source: 'group:topic:assistant:assistant-default',
+      target: 'group:topic:assistant:assistant-2',
+      side: 'after'
     })
 
     await vi.waitFor(() =>
@@ -4293,7 +4193,7 @@ describe('Topics', () => {
     expect(patchSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('does not allow the unknown group to participate in assistant group reorder', () => {
+  it('does not allow the unknown group to participate in assistant group reorder', async () => {
     const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseInfiniteQuery.mockReturnValue({
@@ -4323,15 +4223,10 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    dndMocks.onDragEnd?.({
-      active: {
-        data: sortableData('group:topic:assistant:assistant-1'),
-        id: 'group:topic:assistant:assistant-1'
-      },
-      over: {
-        data: droppableData('group:topic:assistant:unknown'),
-        id: 'group:topic:assistant:unknown'
-      }
+    await dragRow({
+      source: 'group:topic:assistant:assistant-1',
+      target: 'group:topic:assistant:unknown',
+      side: 'after'
     })
 
     expect(patchSpy).not.toHaveBeenCalled()
@@ -4379,15 +4274,7 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    expect(screen.getByTestId('dnd-context')).toBeInTheDocument()
-    dndMocks.onDragEnd?.({
-      active: {
-        data: sortableData('item:topic-d'),
-        id: 'item:topic-d',
-        rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
-      },
-      over: { data: sortableData('item:topic-c'), id: 'item:topic-c', rect: { top: 80, height: 20 } }
-    })
+    await dragRow({ source: 'item:topic-d', target: 'item:topic-c', side: 'before' })
 
     await vi.waitFor(() => {
       const rowTexts = screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')
@@ -4429,14 +4316,7 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    dndMocks.onDragEnd?.({
-      active: {
-        data: sortableData('item:topic-c'),
-        id: 'item:topic-c',
-        rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
-      },
-      over: { data: sortableData('item:topic-a'), id: 'item:topic-a', rect: { top: 80, height: 20 } }
-    })
+    await dragRow({ source: 'item:topic-c', target: 'item:topic-a', side: 'before' })
 
     await vi.waitFor(() => {
       const rowTexts = screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')
@@ -4456,48 +4336,32 @@ describe('Topics', () => {
     expect(topicDataMocks.moveTopic).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps assistant grouped topics stable during cross-group drag hover', () => {
+  it('keeps assistant grouped topics stable during cross-group drag hover', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
 
     renderTopicList()
 
-    const beforeHoverRows = screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')
+    const beforeHoverRows = listedRowTexts()
 
-    act(() => {
-      dndMocks.onDragOver?.({
-        active: {
-          data: sortableData('item:topic-a'),
-          id: 'item:topic-a',
-          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
-        },
-        over: { data: sortableData('item:topic-d'), id: 'item:topic-d', rect: { top: 10, height: 20 } }
-      })
-    })
+    await startRowDrag('item:topic-a')
+    await hoverRow('item:topic-d', 'after')
 
     expect(topicDataMocks.moveTopic).not.toHaveBeenCalled()
-    expect(screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')).toEqual(beforeHoverRows)
+    expect(listedRowTexts()).toEqual(beforeHoverRows)
   })
 
-  it('keeps assistant grouped topics stable during same-group drag hover', () => {
+  it('keeps assistant grouped topics stable during same-group drag hover', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
 
     renderTopicList()
 
-    const beforeHoverRows = screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')
+    const beforeHoverRows = listedRowTexts()
 
-    act(() => {
-      dndMocks.onDragOver?.({
-        active: {
-          data: sortableData('item:topic-d'),
-          id: 'item:topic-d',
-          rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
-        },
-        over: { data: sortableData('item:topic-c'), id: 'item:topic-c', rect: { top: 80, height: 20 } }
-      })
-    })
+    await startRowDrag('item:topic-d')
+    await hoverRow('item:topic-c', 'before')
 
     expect(topicDataMocks.moveTopic).not.toHaveBeenCalled()
-    expect(screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')).toEqual(beforeHoverRows)
+    expect(listedRowTexts()).toEqual(beforeHoverRows)
   })
 
   it('persists same-group drops using the last insertion line position', async () => {
@@ -4505,25 +4369,9 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    act(() => {
-      dndMocks.onDragOver?.({
-        active: {
-          data: sortableData('item:topic-d'),
-          id: 'item:topic-d',
-          rect: { current: { initial: null, translated: { top: 10, height: 20 } } }
-        },
-        over: { data: sortableData('item:topic-c'), id: 'item:topic-c', rect: { top: 80, height: 20 } }
-      })
-    })
-
-    dndMocks.onDragEnd?.({
-      active: {
-        data: sortableData('item:topic-d'),
-        id: 'item:topic-d',
-        rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
-      },
-      over: { data: sortableData('item:topic-c'), id: 'item:topic-c', rect: { top: 10, height: 20 } }
-    })
+    await startRowDrag('item:topic-d')
+    await hoverRow('item:topic-c', 'before')
+    await dropRow()
 
     await vi.waitFor(() => {
       const rowTexts = screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')
@@ -4545,14 +4393,7 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    dndMocks.onDragEnd?.({
-      active: {
-        data: sortableData('item:topic-a'),
-        id: 'item:topic-a',
-        rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
-      },
-      over: { data: sortableData('item:topic-d'), id: 'item:topic-d', rect: { top: 10, height: 20 } }
-    })
+    await dragRow({ source: 'item:topic-a', target: 'item:topic-d', side: 'after' })
 
     await vi.waitFor(() => {
       const rowTexts = screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')
@@ -4582,14 +4423,7 @@ describe('Topics', () => {
 
     const beforeDropRows = screen.getAllByTestId('topic-list-row').map((row) => row.textContent ?? '')
 
-    dndMocks.onDragEnd?.({
-      active: {
-        data: sortableData('item:topic-a'),
-        id: 'item:topic-a',
-        rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
-      },
-      over: { data: sortableData('item:topic-d'), id: 'item:topic-d', rect: { top: 10, height: 20 } }
-    })
+    await dragRow({ source: 'item:topic-a', target: 'item:topic-d', side: 'after' })
 
     await vi.waitFor(() => expect(topicDataMocks.moveTopic).toHaveBeenCalledTimes(1))
     // The failed move clears the optimistic overlay, snapping rows back to server order.
@@ -4598,7 +4432,7 @@ describe('Topics', () => {
     )
   })
 
-  it('does not drop topics into the unlinked assistant group for empty assistant ids', () => {
+  it('does not drop topics into the unlinked assistant group for empty assistant ids', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseQuery.mockImplementation((path) => {
       if (path === '/pins') {
@@ -4662,10 +4496,7 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    dndMocks.onDragEnd?.({
-      active: { data: sortableData('item:topic-a'), id: 'item:topic-a' },
-      over: { data: sortableData('item:topic-c'), id: 'item:topic-c' }
-    })
+    await dragRow({ source: 'item:topic-a', target: 'item:topic-c', side: 'after' })
 
     expect(topicDataMocks.moveTopic).not.toHaveBeenCalled()
   })
@@ -4698,10 +4529,7 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    dndMocks.onDragEnd?.({
-      active: { data: sortableData('item:topic-e'), id: 'item:topic-e' },
-      over: { data: sortableData('item:topic-a'), id: 'item:topic-a' }
-    })
+    await dragRow({ source: 'item:topic-e', target: 'item:topic-a', side: 'after' })
 
     await vi.waitFor(() =>
       expect(topicDataMocks.moveTopic).toHaveBeenCalledWith('topic-e', {
@@ -4711,7 +4539,7 @@ describe('Topics', () => {
     )
   })
 
-  it('does not drop topics into pinned or unlinked assistant groups', () => {
+  it('does not drop topics into pinned or unlinked assistant groups', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
@@ -4740,14 +4568,8 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    dndMocks.onDragEnd?.({
-      active: { data: sortableData('item:topic-a'), id: 'item:topic-a' },
-      over: { data: sortableData('item:topic-b'), id: 'item:topic-b' }
-    })
-    dndMocks.onDragEnd?.({
-      active: { data: sortableData('item:topic-a'), id: 'item:topic-a' },
-      over: { data: sortableData('item:topic-e'), id: 'item:topic-e' }
-    })
+    await dragRow({ source: 'item:topic-a', target: 'item:topic-b', side: 'after' })
+    await dragRow({ source: 'item:topic-a', target: 'item:topic-e', side: 'after' })
 
     expect(topicDataMocks.moveTopic).not.toHaveBeenCalled()
   })
