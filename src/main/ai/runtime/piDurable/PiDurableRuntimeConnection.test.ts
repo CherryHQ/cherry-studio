@@ -2195,8 +2195,10 @@ describe('desktop Pi Durable connection', () => {
     })
     const { connection, events } = await connect()
     await connection.send({ message: message('delegate') })
-    await done(events)
-    await expect.poll(() => [connection['releasedChildren'].size, connection['children'].size]).toEqual([1, 0])
+    await done(events, CHILD_WAIT.timeout)
+    await expect
+      .poll(() => [connection['releasedChildren'].size, connection['children'].size], CHILD_WAIT)
+      .toEqual([1, 0])
     return connection
   }
 
@@ -2207,10 +2209,10 @@ describe('desktop Pi Durable connection', () => {
     await Promise.resolve()
     const updates: string[] = []
     view.subscribe((update) => updates.push(JSON.stringify(update)))
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    await new Promise<void>((resolve) => setImmediate(resolve))
     expect(view.snapshot().available).toBe(true)
     await connection.messageChild(view.snapshot().contextId, 'continue research')
-    await expect.poll(() => updates.join()).toContain('child continued answer')
+    await expect.poll(() => updates.join(), CHILD_WAIT).toContain('child continued answer')
   })
 
   // Catches close skipping a finished child whose release flush failed while close waited for it.
