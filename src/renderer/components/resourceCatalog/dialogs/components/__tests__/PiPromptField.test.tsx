@@ -21,7 +21,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
 }))
 
 // The renderer test locale is zh-CN.
-const INSTRUCTIONS = { name: '智能体系统提示词' }
+const INSTRUCTIONS = { name: '智能体提示词' }
 const REPORT = '汇报产物'
 const LOAD_FAILED = '无法生成完整的系统提示词'
 const GENERATED_REPORT = '## Reporting deliverables\n\nCall report_artifacts.'
