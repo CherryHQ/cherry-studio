@@ -20,7 +20,6 @@ const ticketSchema = z.object({
   messageId: z.string(),
   createdAt: z.number(),
   hash: z.string(),
-  contextHash: z.string().optional(),
   receivedAt: z.number()
 })
 const positionSchema = z.object({ createdAt: z.number(), messageIds: z.array(z.string()) })
@@ -39,7 +38,8 @@ const stateSchema = z.object({
   skippedSource: z.number().int().nonnegative().default(0),
   skippedConflict: z.number().int().nonnegative().default(0),
   excludedThrough: positionSchema.optional(),
-  editedTurns: z.array(z.string()).default([]),
+  recent: z.array(ticketSchema).default([]),
+  generation: z.number().int().nonnegative().default(0),
   outcome: z.enum(['pending', 'completed', 'failed', 'cancelled', 'skipped']),
   reason: z.string().optional(),
   prepared: z
@@ -123,7 +123,8 @@ export function enqueueExtraction(ticket: ExtractionTicket, boundary: number, an
       boundary,
       pending: [],
       settled: [],
-      editedTurns: [],
+      recent: [],
+      generation: 0,
       settledAt: 0,
       retryAt: 0,
       attempts: 0,
@@ -151,12 +152,23 @@ export function enqueueExtraction(ticket: ExtractionTicket, boundary: number, an
   }
   const existing = state.pending.findIndex((item) => item.messageId === ticket.messageId)
   if (existing >= 0) {
-    if (state.pending[existing].hash === ticket.hash) {
+    if (state.pending[existing].input.responseId === ticket.input.responseId) {
       if (branchChanged) writeExtractionState(ticket.key, state)
       return branchChanged
     }
     state.pending[existing] = { ...ticket, receivedAt: state.pending[existing].receivedAt }
-  } else state.pending.push({ ...ticket, receivedAt: Date.now() })
+    if (existing <= state.pending.findIndex((item) => item.messageId === state.batchEnd)) {
+      state.generation++
+      state.attempts = 0
+      state.retryAt = 0
+    }
+  } else {
+    if (!state.pending.length) {
+      state.attempts = 0
+      state.retryAt = 0
+    }
+    state.pending.push({ ...ticket, receivedAt: Date.now() })
+  }
   state.entityKey = ticket.entityKey
   state.outcome = 'pending'
   writeExtractionState(ticket.key, state)
@@ -183,12 +195,21 @@ export function readyExtraction(): { key: string; state: ExtractionState } | und
   return undefined
 }
 
-export function completeExtraction(key: string, end: string, reason = 'completed', skippedBudget = 0): void {
+export function completeExtraction(
+  key: string,
+  end: string,
+  reason = 'completed',
+  skippedBudget = 0,
+  generation?: number
+): void {
   const state = readExtractionState(key)
-  if (!state) return
+  if (!state || (generation !== undefined && generation !== state.generation)) return
   const index = state.pending.findIndex((item) => item.messageId === end)
   if (index < 0) return
-  settle(state, state.pending.splice(0, index + 1))
+  const completed = state.pending.splice(0, index + 1)
+  settle(state, completed)
+  state.recent = [...state.recent, ...completed].slice(-EXTRACTION_TURNS)
+  state.generation++
   state.completed = end
   if (end === state.batchEnd) state.batchEnd = undefined
   state.prepared = undefined
@@ -211,9 +232,9 @@ function settle(state: ExtractionState, tickets: ExtractionTicket[]): void {
   }
 }
 
-export function deferExtraction(key: string, interrupted: boolean, reason = 'unavailable'): void {
+export function deferExtraction(key: string, generation: number, interrupted: boolean, reason = 'unavailable'): void {
   const state = readExtractionState(key)
-  if (!state?.pending.length) return
+  if (!state?.pending.length || state.generation !== generation) return
   if (!interrupted) state.attempts++
   state.retryAt = interrupted
     ? Date.now() + 60_000
@@ -265,6 +286,7 @@ export function skipExtractionTurns(
   if (end >= 0) state.batchEnd = batch.at(-1)?.messageId
   if (reason === 'conflict' || !state.batchEnd) state.prepared = undefined
   if (affectsBatch) {
+    state.generation++
     state.retryAt = 0
     state.attempts = 0
   }
@@ -293,7 +315,10 @@ export function invalidateExtractions(sourceKey?: string): number {
     if (sourceKey && key !== sourceKey && state.entityKey !== sourceKey) continue
     settle(state, state.pending)
     state.pending = []
-    state.editedTurns = []
+    state.recent = []
+    state.generation++
+    state.retryAt = 0
+    state.attempts = 0
     state.prepared = undefined
     state.batchEnd = undefined
     state.boundary = boundary

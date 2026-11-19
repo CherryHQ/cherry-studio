@@ -26,6 +26,12 @@ export class InvalidExtractionSource extends DreamingError {
   }
 }
 
+type SourceRow = typeof messageTable.$inferSelect | typeof agentSessionMessageTable.$inferSelect
+
+function turnHash(user: SourceRow, response: SourceRow, entityKey: string): string {
+  return memoryHash(Buffer.from(JSON.stringify({ user, response, entityKey })))
+}
+
 /** Resolve identities from persisted owners before reading any message body. */
 export function readExtractionSource(input: ExtractionInput, allowOversized = false) {
   const db = application.get('DbService').getDb()
@@ -90,13 +96,13 @@ export function readExtractionSource(input: ExtractionInput, allowOversized = fa
     key: `memory:extraction:${input.kind}/${input.kind === 'assistant' ? input.topicId : input.sessionId}`,
     messageId: user.id,
     createdAt: user.createdAt,
-    hash: memoryHash(Buffer.from(JSON.stringify({ user, response, entityKey }))),
+    hash: turnHash(user, response, entityKey),
     text
   }
 }
 
 export type ExtractionSource = ReturnType<typeof readExtractionSource>
-export type ExtractionTicket = Omit<ExtractionSource, 'text' | 'authority'> & { contextHash?: string }
+export type ExtractionTicket = Omit<ExtractionSource, 'text' | 'authority'>
 
 export function extractionBranch(input: ExtractionInput, until?: string, requireResponse = true): Set<string> {
   const db = application.get('DbService').getDb()
@@ -137,8 +143,7 @@ export function readExtractionRange(
   boundary: number,
   recent = false,
   excludedThrough?: { createdAt: number; messageIds: readonly string[] },
-  editedTurns?: ReadonlySet<string>,
-  admittedTurns?: ReadonlySet<string>
+  admissions?: ReadonlyMap<string, ExtractionTicket>
 ) {
   const source = readExtractionSource(range.source)
   const db = application.get('DbService').getDb()
@@ -161,6 +166,7 @@ export function readExtractionRange(
   }[] = []
   const contextGaps: { afterMessageId: string | null; beforeMessageId: string | null }[] = []
   let windowHash: string | undefined
+  const rows = new Map<string, SourceRow>()
   const seen = new Set<string>()
   let id: string | null = recent ? range.source.responseId : source.messageId
   let bytes = 0
@@ -217,6 +223,7 @@ export function readExtractionRange(
       leftContextIncomplete = true
       break
     }
+    if (recent) rows.set(row.id, row)
     const text = row.data.parts
       .filter((part) => part.type === 'text')
       .map((part) => part.text)
@@ -251,8 +258,7 @@ export function readExtractionRange(
       const count = paired ? 2 : 1
       if (
         paired &&
-        (!admittedTurns || admittedTurns.has(user.id)) &&
-        !editedTurns?.has(user.id) &&
+        admissions?.get(response.id)?.hash === turnHash(rows.get(user.id)!, rows.get(response.id)!, source.entityKey) &&
         user.status === 'success' &&
         response.status === 'success'
       )
