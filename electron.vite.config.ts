@@ -30,6 +30,9 @@ const { buildSelectionPanel, sourcePath: selectionPanelSource } = createRequire(
 const { buildExternalApp, sourceFiles: externalAppSources } = createRequire(import.meta.url)(
   './native/external-app/build.cjs'
 )
+const { buildTerminalScope, sourceFiles: terminalScopeSources } = createRequire(import.meta.url)(
+  './native/terminal-scope/build.cjs'
+)
 
 type ElectronBuilderConfig = {
   releaseInfo?: {
@@ -200,6 +203,13 @@ export default defineConfig({
         }
       },
       chunkExportGuardPlugin(),
+      {
+        name: 'cherry-terminal-scope',
+        buildStart() {
+          for (const file of terminalScopeSources) this.addWatchFile(file)
+          if (process.env.CHERRY_RELEASE_JS_ONLY !== 'true') buildTerminalScope()
+        }
+      },
       miniAppThemeAssetPlugin(),
       ...visualizerPlugin('main'),
       ...sentrySourceMapPlugins('main')

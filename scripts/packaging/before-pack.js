@@ -8,6 +8,8 @@ const { parse } = require('yaml')
 const { ensureLinuxNativeArtifact } = require('../linux-native/download')
 const { buildSelectionPanel } = require('../../native/selection-panel/build')
 const { buildExternalApp } = require('../../native/external-app/build.cjs')
+const { buildTerminalScope } = require('../../native/terminal-scope/build.cjs')
+const { prepareNodePty } = require('../../native/terminal-scope/prepareNodePty.cjs')
 
 // if you want to add new prebuild binaries packages with different architectures, you can add them here
 // please add to allX64 and allArm64 from pnpm-lock.yaml
@@ -210,7 +212,9 @@ const getNativeModuleFilters = (platform, arch) => {
   return [
     ...packages.filter((name) => !keptPackages.includes(name)).map((name) => `!**/node_modules/${name}/**`),
     `!**/node_modules/better-sqlite3/prebuilds/!(${platform}-${arch}.node)`,
-    `!**/node_modules/selection-hook/prebuilds/!(${platform}-${arch})/**`
+    `!**/node_modules/selection-hook/prebuilds/!(${platform}-${arch})/**`,
+    `!**/node_modules/node-pty/prebuilds/!(${platform}-${arch})/**`,
+    '!**/node_modules/node-pty/{build,src,deps,third_party}/**'
   ]
 }
 exports.getNativeModuleFilters = getNativeModuleFilters
@@ -225,6 +229,8 @@ exports.default = async function (context) {
   await prepareNativeModulesForElectron(context)
   buildSelectionPanel({ platform, arch })
   buildExternalApp({ platform, arch, packaging: true })
+  buildTerminalScope({ platform, arch, packaging: true })
+  prepareNodePty({ projectRoot: context.packager.projectDir, platform, arch })
   assertPrebuiltPackages(platform, arch)
 
   console.log(`Downloading bundled binaries for ${platform}-${arch}...`)

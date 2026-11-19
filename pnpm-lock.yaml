@@ -253,6 +253,7 @@ patchedDependencies:
   emoji-picker-react@4.19.1: ba04440e6cf4cbf02fe55453d84c4fcf318bc83f6481fc7e5e5b3d5e29af3649
   file-stream-rotator@0.6.1: 40d59705d29163ef409027f9558e88101f422adb4fa6c6d991e5d8dd1bdc8b1a
   motion-dom@12.42.0: 5c9bfe486d8d0472ab803d31133ec3a7e34aa8cadde01fdd9923e2dbbc170014
+  node-pty@1.1.0: 2d0be9602f913b977c3665093fcf6adf7202215d38585e7bb71e63f3d623ff6a
   ollama-ai-provider-v2@3.3.1: cdb5584635d0af18825b289f32f904dd939cca73d2a799115ee5737e651e1ff2
   onnxruntime-node@1.25.1: 7a18bfdf39cbd83c60197c06e5f5c5b2b46d265d7483ed3d80ec3ad499d99cef
   ppu-paddle-ocr@6.0.0: 462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096
@@ -353,6 +354,9 @@ importers:
       jsdom:
         specifier: 26.1.0
         version: 26.1.0(supports-color@8.1.1)
+      node-pty:
+        specifier: 1.1.0
+        version: 1.1.0(patch_hash=2d0be9602f913b977c3665093fcf6adf7202215d38585e7bb71e63f3d623ff6a)
       node-screenshots:
         specifier: ^0.2.8
         version: 0.2.8
@@ -13410,6 +13414,9 @@ packages:
   node-mac-permissions@2.5.0:
     resolution: {integrity: sha512-zR8SVCaN3WqV1xwWd04XVAdzm3UTdjbxciLrZtB0Cc7F2Kd34AJfhPD4hm1HU0YH3oGUZO4X9OBLY5ijSTHsGw==}
     os: [darwin]
+
+  node-pty@1.1.0:
+    resolution: {integrity: sha512-20JqtutY6JPXTUnL0ij1uad7Qe1baT46lyolh2sSENDd4sTzKZ4nmAFkeAARDKwmlLjPx6XKRlwRUxwjOy+lUg==}
 
   node-releases@2.0.51:
     resolution: {integrity: sha512-wRNIrw4DmVLKQlbgOMdkMx27Wrpzes2hh5Jtbi2bjPd+4wJstWIqP5A+lscnqbm0xxmT5Bpg8Lec5ItEBwx6BQ==}
@@ -28890,8 +28897,7 @@ snapshots:
 
   node-addon-api@3.2.1: {}
 
-  node-addon-api@7.1.1:
-    optional: true
+  node-addon-api@7.1.1: {}
 
   node-addon-api@8.5.0: {}
 
@@ -28939,6 +28945,10 @@ snapshots:
       bindings: 1.5.0
       node-addon-api: 7.1.1
     optional: true
+
+  node-pty@1.1.0(patch_hash=2d0be9602f913b977c3665093fcf6adf7202215d38585e7bb71e63f3d623ff6a):
+    dependencies:
+      node-addon-api: 7.1.1
 
   node-releases@2.0.51: {}
 
