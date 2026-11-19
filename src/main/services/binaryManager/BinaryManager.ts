@@ -1,4 +1,4 @@
-import { execFile, execFileSync } from 'node:child_process'
+import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import { createRequire } from 'node:module'
@@ -1042,8 +1042,8 @@ export class BinaryManager extends BaseService {
     }
 
     try {
-      const result = execFileSync('which', [binaryName], { encoding: 'utf-8', timeout: 5000 })
-      const systemPath = result.trim().split(/\r?\n/)[0]
+      const { stdout } = await execFileAsync('which', [binaryName], { encoding: 'utf-8', timeout: 5000 })
+      const systemPath = stdout.trim().split(/\r?\n/)[0]
       if (systemPath && fs.existsSync(systemPath)) {
         return systemPath
       }

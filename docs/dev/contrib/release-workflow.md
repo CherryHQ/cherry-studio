@@ -7,7 +7,9 @@ sources:
   - .github/workflows/preview-release.yml
   - .github/workflows/release.yml
   - .github/workflows/release-target.yml
+  - .github/workflows/deploy-release-sync-scf.yml
   - scripts/release/release-cos.py
+  - scripts/release/gitcode-scf.py
   - scripts/release/sync-gitcode.sh
   - scripts/release/validate-release-state.js
   - .github/workflows/backport-release-fixes.yml
@@ -259,9 +261,9 @@ The COS lifecycle controls retention. Keep referenced objects available for the 
 
 Preparation, build, draft finalization, approval, publication, and GitCode synchronization failures or cancellations are included in the failure notification. Skipped dependent jobs do not hide the originating failure. Sync-only dry runs never send notifications.
 
-Configure `COS_SECRET_ID` and `COS_SECRET_KEY` with read, write, and multipart access under `releases-sync/` in `cherry-studio-1366585212`. The repository also needs `GITCODE_TOKEN`, `GITCODE_OWNER`, `GITCODE_REPO`, optional `GITCODE_API_URL`, Windows signing secrets, and Feishu failure-notification secrets. Builds and approval waits do not hold `release-state`; preparation, draft mutation and publication acquire it separately. GitCode syncs are serialized per tag.
+Configure repository secrets `TENCENT_CLOUD_SECRET_ID` and `TENCENT_CLOUD_SECRET_KEY` for one CAM identity shared by COS and SCF steps. It needs read, write, and multipart access under `releases-sync/` in `cherry-studio-1366585212` and permission to invoke the SCF. Configure both secrets before running the updated workflows; legacy secret names are no longer read. The repository also needs `GITCODE_TOKEN`, `GITCODE_OWNER`, `GITCODE_REPO`, optional `GITCODE_API_URL`, Windows signing secrets, and Feishu failure-notification secrets. Builds and approval waits do not hold `release-state`; preparation, draft mutation and publication acquire it separately. GitCode syncs are serialized per tag.
 
-Configure `TENCENT_SECRET_ID` and `TENCENT_SECRET_KEY` for a CAM identity that can invoke the SCF. To deploy code with **Deploy release sync SCF** on `main`, that identity also needs `scf:GetFunction` and `scf:UpdateFunctionCode`. Create `cherry-release-sync` in the `default` namespace in Shanghai as a Python 3.10 event function. Set the timeout to at least 300 seconds, enable outbound HTTPS, and bind a runtime role with COS read access to `releases-sync/`. Run the deploy workflow before enabling release synchronization.
+To deploy code with **Deploy release sync SCF** on `main`, the same CAM identity also needs `scf:GetFunction` and `scf:UpdateFunctionCode`. Create `cherry-release-sync` in the `default` namespace in Shanghai as a Python 3.10 event function. Set the timeout to at least 300 seconds, enable outbound HTTPS, and bind a runtime role with COS read access to `releases-sync/`. Run the deploy workflow before enabling release synchronization.
 
 ## 6. Merge the Release Metadata Pull Request
 

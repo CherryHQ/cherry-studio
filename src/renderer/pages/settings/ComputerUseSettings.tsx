@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 import useSWRMutation from 'swr/mutation'
 
-import { Button, Switch } from '@cherrystudio/ui'
+import { Button, Switch, HelpTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
@@ -12,9 +12,11 @@ import {
   SettingGroup,
   SettingRow,
   SettingRowTitle,
-  SettingsContentColumn
+  SettingsContentColumn,
+  SettingsPageHeader
 } from '@renderer/components/SettingsPrimitives'
 import { ipcApi } from '@renderer/ipc'
+import { isLinux } from '@renderer/utils/platform'
 
 const logger = loggerService.withContext('ComputerUseSettings')
 const PERMISSION_KEY = 'computer_use.get_permission_status'
@@ -23,6 +25,7 @@ export function ComputerUseSettings() {
   const { t } = useTranslation()
   const [approvedApps] = usePreference('app.computer_use.approved_apps')
   const [enabled, setEnabled] = usePreference('app.computer_use.agent_control.enabled')
+  const [globalInput, setGlobalInput] = usePreference('app.computer_use.agent_control.global_input')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(false)
   const { data, error, isLoading, isValidating, mutate } = useSWR(
@@ -56,19 +59,19 @@ export function ComputerUseSettings() {
 
   return (
     <SettingsContentColumn>
-      <h1 className="text-xl font-semibold text-foreground">{t('settings.computerUse.title')}</h1>
-      <SettingDescription>{t('settings.computerUse.description')}</SettingDescription>
-
+      <SettingsPageHeader title={t('settings.computerUse.title')} help={t('settings.computerUse.description')} />
       <SettingGroup>
-        <SettingRow className="flex-nowrap items-start">
+        <SettingRow className="flex-nowrap">
           <div className="min-w-0 flex-1">
-            <SettingRowTitle id="computer-use-control-title">{t('settings.computerUse.control')}</SettingRowTitle>
-            <SettingDescription id="computer-use-control-help">
-              {t('settings.computerUse.controlHelp')}
-            </SettingDescription>
+            <SettingRowTitle className="flex items-center gap-1.5">
+              <span id="computer-use-control-title">{t('settings.computerUse.control')}</span>{' '}
+              <span id="computer-use-control-help" className="sr-only">
+                {t('settings.computerUse.controlHelp')}
+              </span>
+              <HelpTooltip content={t('settings.computerUse.controlHelp')} />
+            </SettingRowTitle>
           </div>
           <Switch
-            className="mt-0.5"
             checked={enabled}
             disabled={saving}
             aria-labelledby="computer-use-control-title"
@@ -91,6 +94,40 @@ export function ComputerUseSettings() {
           <p role="alert" className="mt-2 text-error text-sm">
             {t('settings.computerUse.controlError')}
           </p>
+        )}
+        {isLinux && enabled && (
+          <>
+            <SettingDivider />
+            <SettingRow className="flex-nowrap items-start">
+              <div className="min-w-0 flex-1">
+                <SettingRowTitle id="computer-use-global-input-title">
+                  {t('settings.computerUse.globalInput')}
+                </SettingRowTitle>
+                <SettingDescription id="computer-use-global-input-help">
+                  {t('settings.computerUse.globalInputHelp')}
+                </SettingDescription>
+              </div>
+              <Switch
+                className="mt-0.5"
+                checked={globalInput}
+                disabled={saving}
+                aria-labelledby="computer-use-global-input-title"
+                aria-describedby="computer-use-global-input-help"
+                onCheckedChange={async (value) => {
+                  setSaving(true)
+                  setSaveError(false)
+                  try {
+                    await setGlobalInput(value)
+                  } catch (cause) {
+                    setSaveError(true)
+                    logger.warn('Failed to change the global input setting', cause as Error)
+                  } finally {
+                    setSaving(false)
+                  }
+                }}
+              />
+            </SettingRow>
+          </>
         )}
         <SettingDivider />
         {busy && <SettingDescription role="status">{t('common.loading')}</SettingDescription>}

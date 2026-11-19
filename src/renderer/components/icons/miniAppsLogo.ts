@@ -55,7 +55,8 @@ const MINI_APP_ICON_REFS: Record<string, IconRef> = {
   poe: providerIconRef('poe'),
   perplexity: providerIconRef('perplexity'),
   devv: providerIconRef('devv'),
-  tng: providerIconRef('tng'),
+  // Keep the persisted Tiangong key separate from the unrelated TNG provider.
+  tng: providerIconRef('skywork'),
   felo: providerIconRef('felo'),
   duck: providerIconRef('duck'),
   namiai: providerIconRef('nami-ai'),

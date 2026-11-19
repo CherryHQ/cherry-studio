@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 
+import { HelpTooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 
 import { sectionHeadingClasses } from './ProviderSettingsPrimitives'
@@ -19,8 +20,13 @@ export default function ProviderSection({ id, title, description, action, childr
       {(title || description || action) && (
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            {title && <div className={sectionHeadingClasses}>{title}</div>}
-            {description && <div className="mt-1 text-xs leading-tight text-muted-foreground">{description}</div>}
+            {title && (
+              <div className={cn(sectionHeadingClasses, 'flex items-center gap-1.5')}>
+                {title}
+                {description && <HelpTooltip content={description} />}
+              </div>
+            )}
+            {!title && description && <HelpTooltip content={description} />}
           </div>
           {action}
         </div>
